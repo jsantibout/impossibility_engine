@@ -317,37 +317,52 @@ describe('what a shape finishes is two numbers here too', () => {
   });
 
   /**
-   * The finding, **and what happened when it was acted on**.
+   * The finding, **and what happened when it was acted on — twice**.
    *
    * The largest blocker in the book's magic items was a **spell** the
    * catalogue could not execute: a wand tranche planned from a shape-level
    * impression would have bought wands and found the spells underneath them
    * missing, which is the failure the spell map was written to end arriving on
-   * the other population. That finding was then briefed from, sixteen spell
-   * definitions were written, and the entries the shape was the *only* blocker
-   * for came off it — so its second column is zero now and the heaviest
-   * blocker is a different id.
+   * the other population. That finding was briefed from, the definitions were
+   * written, and the entries the shape was the *only* blocker for came off it.
+   * The id that replaced it at the top — an item copy with a state of its own
+   * — was then built, and a second reading took two thirds of *its* entries
+   * away. So the heaviest blocker is an item mechanism now, which is what the
+   * reading was for.
    *
-   * **Both halves are asserted, because the first is what the reading bought
-   * and the second is what it cost.** A map that kept claiming the spells were
-   * the heaviest problem after they had been written would be the prose these
-   * maps replaced; one that quietly dropped the record of having been right
-   * would leave the next reader no reason to trust the ranking.
+   * **All three halves are asserted, because each is what one reading bought
+   * and the next one cost.** A map that kept claiming the spells were the
+   * heaviest problem after they had been written would be the prose these maps
+   * replaced; one that kept claiming the identity was, after it shipped, would
+   * be the same mistake one landing later.
    */
-  it('has spent the largest blocker it found, and names the one that is heaviest now', () => {
+  it('has spent the two largest blockers it found, and names the one that is heaviest now', () => {
     const ranked = [...allItemShapeConsumers()].sort((a, b) => b.blocks.length - a.blocks.length);
-    expect(ranked[0]?.shape).toBe('an-item-instance-with-a-state-of-its-own');
+    expect(ranked[0]?.shape).toBe('a-condition-an-item-imposes');
 
-    // The spell shape is still the heaviest thing *no item work* can move, and
-    // it still blocks a long tail. What it finishes is the two potions the
-    // reading found on the way: both confer rather than cast, and both are
-    // waiting on a spell whose definition exists and **resolves nothing** —
-    // the second half of the shape's description, and the half no amount of
-    // transcription reaches, because an item that confers an empty list
-    // confers nothing.
+    // **The spell shape was read entry by entry after the definitions
+    // landed**, not trusted: thirteen entries named it with every spell they
+    // print already defined. What it finishes now is four, and each is the
+    // *second* half of the shape rather than the first — a potion or an oil
+    // that **confers** rather than casts, waiting on a definition that exists
+    // and resolves nothing, plus the one ring whose spell nothing defines at
+    // all. No amount of transcription reaches the first three, because an item
+    // that confers an empty list confers nothing.
     const spells = itemConsumersOf('a-spell-an-item-casts-that-nothing-executes');
-    expect(spells.blocks.length).toBeGreaterThan(25);
-    expect(spells.finishes).toEqual(['potion-of-clairvoyance', 'potion-of-mind-reading']);
+    expect(spells.finishes).toEqual([
+      'oil-of-etherealness',
+      'potion-of-clairvoyance',
+      'potion-of-mind-reading',
+      'ring-of-three-wishes',
+    ]);
+
+    // **And the identity is spent too.** What is left under it is never a
+    // count — a copy's charges are a pool keyed to the copy now — so every
+    // entry still naming it says which other fact it keeps, and the two it
+    // finishes are the two whose whole rule is one of those.
+    const copies = itemConsumersOf('an-item-instance-with-a-state-of-its-own');
+    expect(copies.blocks.length).toBeLessThan(spells.blocks.length);
+    expect(copies.finishes).toEqual(['ammunition-1-2-or-3', 'oil-of-sharpness']);
 
     // And the ranking is still worth reading: the top row really does finish
     // entries, which is the column a tranche is planned from.

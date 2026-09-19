@@ -15,7 +15,9 @@ import {
   attuneItem,
   awardItems,
   chargesLeft,
+  declareDawn,
   equipItem,
+  expendCharges,
   resolveAttack,
   resolveSpell,
   rollInitiativeFor,
@@ -620,6 +622,89 @@ describe('an attunement prerequisite, asked of whoever picks the item up', () =>
     // And the sword's own number arrives on a swing made with it.
     const armed = run(knight, (s) => equipItem(s, SRD_CONTENT, KNIGHT, 'holy-avenger'));
     expect(contributionsOf(swingAt(armed, KNIGHT, 'holy-avenger', 'smite').events)['Holy Avenger']).toBe(3);
+  });
+});
+
+/**
+ * The two entries whose whole mechanic is a count on **this** copy.
+ *
+ * SRD prints "When found, a container contains 1d6 + 1 ounces" twice, on the
+ * Sovereign Glue and on the Universal Solvent, and until a copy had a record
+ * there was nowhere to keep the answer: a catalogue row is the same for
+ * everybody, so one jar could not be half empty while another was full.
+ * `CatalogueItem.chargesRolled` is the item saying the book rolls for it,
+ * `awardItems` is the one door that may throw the die, and the pool it pins is
+ * keyed to the copy.
+ *
+ * **And nothing gives an ounce back.** `recovers: 'special'` is `resources.ts`
+ * saying so — a `dawn` tag would refill the jar every morning, which is rule 3
+ * in `packages/content/src/items.ts` the wrong way round.
+ */
+describe('a count the book rolls at the copy’s birth', () => {
+  /**
+   * Found, and then picked up: an ounce is spent "while holding it", which is
+   * `expendCharges`'s own rule and the same one a staff keeps.
+   */
+  const found = (
+    itemId: string,
+    seed: string,
+    held: readonly string[] = [itemId],
+    quantity = 1,
+  ) => {
+    const awarded = run(PRELUDE, (s) =>
+      awardItems(s, supply(seed), HERO, [{ id: itemId, quantity }], 'the hoard'),
+    );
+    return held.reduce<readonly GameEvent[]>(
+      (log, copy) => run(log, (s) => equipItem(s, SRD_CONTENT, HERO, copy)),
+      awarded,
+    );
+  };
+
+  it('rolls a jar’s ounces once, when the jar is found, and spends them one at a time', () => {
+    const log = found('sovereign-glue', 'the-jar');
+    const ounces = chargesLeft(fold('seed', log), SRD_CONTENT, HERO, 'sovereign-glue');
+    // "1d6 + 1": two to seven, and the number is the log's rather than the
+    // catalogue's — which is the whole of what the entry was blocked on.
+    expect(ounces).toBeGreaterThanOrEqual(2);
+    expect(ounces).toBeLessThanOrEqual(7);
+    expect(
+      log.some((e) => e.type === 'roll-recorded' && e.label.includes('1d6 + 1')),
+      'the ounces were rolled in the log',
+    ).toBe(true);
+
+    const used = run(log, (s) => expendCharges(s, SRD_CONTENT, HERO, 'sovereign-glue', 1));
+    expect(chargesLeft(fold('seed', used), SRD_CONTENT, HERO, 'sovereign-glue')).toBe(ounces - 1);
+  });
+
+  /**
+   * Two tubes are two counts, which is what keying the pool to the copy bought:
+   * pouring one out leaves the other exactly as full as it was found.
+   */
+  it('gives two tubes two counts of their own', () => {
+    // Two tubes, one hand: `equipItem` refuses the second copy of a kind
+    // already held, and a count is read off the copy either way.
+    const log = found('universal-solvent', 'two-tubes', ['item:1'], 2);
+    const first = chargesLeft(fold('seed', log), SRD_CONTENT, HERO, 'item:1');
+    const second = chargesLeft(fold('seed', log), SRD_CONTENT, HERO, 'item:2');
+    expect(first).toBeGreaterThanOrEqual(2);
+    expect(second).toBeGreaterThanOrEqual(2);
+
+    const poured = run(log, (s) => expendCharges(s, SRD_CONTENT, HERO, 'item:1', 2));
+    expect(chargesLeft(fold('seed', poured), SRD_CONTENT, HERO, 'item:1')).toBe(first - 2);
+    expect(chargesLeft(fold('seed', poured), SRD_CONTENT, HERO, 'item:2')).toBe(second);
+  });
+
+  /** And the morning gives nothing back, where every other pool in the book refills. */
+  it('leaves an emptied tube empty at dawn', () => {
+    const log = found('universal-solvent', 'one-tube');
+    const ounces = chargesLeft(fold('seed', log), SRD_CONTENT, HERO, 'universal-solvent');
+    const empty = run(log, (s) =>
+      expendCharges(s, SRD_CONTENT, HERO, 'universal-solvent', ounces),
+    );
+    expect(chargesLeft(fold('seed', empty), SRD_CONTENT, HERO, 'universal-solvent')).toBe(0);
+
+    const morning = run(empty, (s) => declareDawn(s, supply('dawn')));
+    expect(chargesLeft(fold('seed', morning), SRD_CONTENT, HERO, 'universal-solvent')).toBe(0);
   });
 
   /**

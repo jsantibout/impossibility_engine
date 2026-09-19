@@ -402,7 +402,7 @@ engine could take it today — is recorded as such rather than omitted.
 
 | Classes | Subclasses | Features | Executed by the engine |
 |---|---|---|---|
-| 12 / 12 | 12 / 12 | 230 | 94 |
+| 12 / 12 | 12 / 12 | 230 | 92 |
 
 A feature declares its own automation, so this column is read rather than
 guessed. **Manual is not failure**: several features are judgement the
@@ -412,12 +412,12 @@ believe it has twelve working classes when it has twelve validated ones.
 
 | Class | Casting | Features | Executed |
 |---|---|---|---|
-| Barbarian | none | 24 | 10 |
+| Barbarian | none | 24 | 9 |
 | Bard | known | 17 | 8 |
 | Cleric | prepared-from-list | 16 | 6 |
 | Druid | prepared-from-list | 14 | 5 |
 | Fighter | none | 21 | 11 |
-| Monk | none | 26 | 12 |
+| Monk | none | 26 | 11 |
 | Paladin | prepared-from-list | 22 | 12 |
 | Ranger | known | 22 | 8 |
 | Rogue | none | 24 | 7 |
@@ -448,7 +448,8 @@ be the second spelling of one derivation.
 
 | Shape | Blocks | Finishes |
 |---|---|---|
-| `a-grant-read-off-a-feat` | 24 | 24 |
+| `an-ability-score-an-advancement-raises` | 14 | 12 |
+| `an-ability-score-maximum-above-20` | 14 | 12 |
 | `a-weapon-mastery-property` | 6 | 6 |
 | `a-feature-that-changes-a-castings-damage` | 5 | 5 |
 | `a-casting-paid-for-out-of-a-feature-pool` | 10 | 4 |
@@ -591,7 +592,7 @@ is where a figure like that belongs.
 
 | Parsed | Transcribed | Instances | of which complete | of which partial |
 |---|---|---|---|---|
-| 258 | 61 | 218 | 177 | 41 |
+| 258 | 67 | 224 | 178 | 46 |
 
 An entry with **no** record is one whose whole text is beyond the grant
 vocabulary. `packages/content/src/items.ts` states the three rules that
@@ -611,12 +612,12 @@ inventing a column that nothing checks.
 | Armor | 19 | 10 | 54 | 48 | 6 |
 | Potions | 24 | 6 | 6 | 1 | 5 |
 | Rings | 22 | 5 | 5 | 4 | 1 |
-| Rods | 7 | 0 | 0 | 0 | 0 |
+| Rods | 7 | 1 | 1 | 0 | 1 |
 | Scrolls | 1 | 0 | 0 | 0 | 0 |
 | Staffs | 12 | 1 | 1 | 0 | 1 |
 | Wands | 13 | 4 | 4 | 1 | 3 |
 | Weapons | 33 | 15 | 128 | 115 | 13 |
-| Wondrous Items | 127 | 20 | 20 | 8 | 12 |
+| Wondrous Items | 127 | 25 | 25 | 9 | 16 |
 
 ### Entries transcribed
 
@@ -626,16 +627,19 @@ how many of those still carry a clause the engine does not say.
 - **Armor of Invulnerability** (Armor) — 1 recorded, 1 partial
 - **Armor, +1, +2, or +3** (Armor) — 36 recorded, complete
 - **Boots of Elvenkind** (Wondrous Items) — 1 recorded, 1 partial
+- **Boots of Levitation** (Wondrous Items) — 1 recorded, complete
 - **Boots of the Winterlands** (Wondrous Items) — 1 recorded, 1 partial
 - **Bracers of Defense** (Wondrous Items) — 1 recorded, complete
 - **Brooch of Shielding** (Wondrous Items) — 1 recorded, 1 partial
 - **Cape of the Mountebank** (Wondrous Items) — 1 recorded, 1 partial
+- **Chime of Opening** (Wondrous Items) — 1 recorded, 1 partial
 - **Circlet of Blasting** (Wondrous Items) — 1 recorded, complete
 - **Cloak of Elvenkind** (Wondrous Items) — 1 recorded, 1 partial
 - **Cloak of Protection** (Wondrous Items) — 1 recorded, complete
 - **Crystal Ball** (Wondrous Items) — 1 recorded, complete
 - **Crystal Ball of Mind Reading** (Wondrous Items) — 1 recorded, 1 partial
 - **Crystal Ball of Telepathy** (Wondrous Items) — 1 recorded, 1 partial
+- **Crystal Ball of True Seeing** (Wondrous Items) — 1 recorded, 1 partial
 - **Cube of Force** (Wondrous Items) — 1 recorded, 1 partial
 - **Cubic Gate** (Wondrous Items) — 1 recorded, 1 partial
 - **Defender** (Weapons) — 1 recorded, 1 partial
@@ -669,13 +673,16 @@ how many of those still carry a clause the engine does not say.
 - **Ring of Telekinesis** (Rings) — 1 recorded, complete
 - **Ring of Water Walking** (Rings) — 1 recorded, complete
 - **Robe of Stars** (Wondrous Items) — 1 recorded, 1 partial
+- **Rod of Resurrection** (Rods) — 1 recorded, 1 partial
 - **Scimitar of Speed** (Weapons) — 1 recorded, 1 partial
 - **Sentinel Shield** (Armor) — 1 recorded, complete
 - **Shield of the Cavalier** (Armor) — 1 recorded, 1 partial
 - **Shield, +1, +2, or +3** (Armor) — 3 recorded, complete
+- **Sovereign Glue** (Wondrous Items) — 1 recorded, 1 partial
 - **Staff of Fire** (Staffs) — 1 recorded, 1 partial
 - **Stone of Good Luck (Luckstone)** (Wondrous Items) — 1 recorded, complete
 - **Sword of Wounding** (Weapons) — 1 recorded, 1 partial
+- **Universal Solvent** (Wondrous Items) — 1 recorded, 1 partial
 - **Vicious Weapon** (Weapons) — 1 recorded, complete
 - **Vorpal Sword** (Weapons) — 1 recorded, 1 partial
 - **Wand of Fireballs** (Wands) — 1 recorded, 1 partial
@@ -707,7 +714,7 @@ entry of "Magic Items A–Z" is in exactly one of them.
 
 | Parsed | Transcribed | Blocked | Ready | Fiction | Unread |
 |---|---|---|---|---|---|
-| 258 | 61 | 186 | 2 | 4 | 5 |
+| 258 | 67 | 179 | 2 | 4 | 6 |
 
 **Unread is the honest default**, not a backlog nobody got to. An entry
 whose blocker cannot be named from something this repository has already
@@ -751,25 +758,26 @@ is heaviest now is an item instance with a state of its own.
 
 | Shape | Blocks | Finishes (read) | Finishes (unread) |
 |---|---|---|---|
-| `an-item-instance-with-a-state-of-its-own` | 41 | 2 | 4 |
+| `an-ability-score-a-spell-changes` | 15 | 0 | 9 |
+| `a-condition-an-item-imposes` | 28 | 0 | 5 |
+| `a-rider-on-the-face-the-die-showed` | 17 | 0 | 5 |
 | `a-container-with-a-space-of-its-own` | 6 | 0 | 5 |
-| `a-condition-an-item-imposes` | 28 | 0 | 4 |
+| `a-spell-an-item-casts-that-nothing-executes` | 19 | 2 | 2 |
 | `a-stat-block-created-mid-fight` | 17 | 0 | 4 |
-| `a-version-of-an-item-the-book-leaves-to-the-gm` | 28 | 0 | 3 |
-| `a-rider-on-the-face-the-die-showed` | 17 | 0 | 3 |
+| `a-version-of-an-item-the-book-leaves-to-the-gm` | 27 | 0 | 3 |
 | `an-object-with-statistics-of-its-own` | 17 | 0 | 3 |
-| `an-ability-score-a-spell-changes` | 15 | 0 | 3 |
-| `a-spell-an-item-casts-that-nothing-executes` | 32 | 2 | 0 |
 | `a-speed-an-item-grants` | 14 | 0 | 2 |
+| `an-item-instance-with-a-state-of-its-own` | 12 | 0 | 2 |
+| `a-fact-only-the-table-can-declare` | 11 | 0 | 2 |
 | `a-reaction-an-item-grants` | 8 | 0 | 2 |
 | `a-mode-on-the-save-a-spell-forces` | 6 | 1 | 1 |
 | `a-casting-an-item-stores-or-gives-back` | 4 | 0 | 2 |
+| `a-random-outcome-that-is-not-a-d20` | 4 | 1 | 1 |
 | `a-charge-spent-on-something-other-than-a-casting` | 18 | 0 | 1 |
 | `an-area-an-item-creates` | 17 | 0 | 1 |
 | `a-benefit-an-item-switches-on-and-off` | 12 | 0 | 1 |
-| `a-fact-only-the-table-can-declare` | 11 | 0 | 1 |
-| `a-rider-on-a-later-weapon-attack` | 11 | 0 | 1 |
-| `senses-beyond-declared-sight` | 10 | 1 | 0 |
+| `a-rider-on-a-later-weapon-attack` | 12 | 0 | 1 |
+| `senses-beyond-declared-sight` | 9 | 1 | 0 |
 | `a-bonus-narrowed-to-a-skill` | 7 | 1 | 0 |
 | `a-language-or-a-proficiency-an-item-grants` | 5 | 0 | 1 |
 | `healing-modified-by-an-effect` | 5 | 0 | 1 |
@@ -778,7 +786,6 @@ is heaviest now is an item instance with a state of its own.
 | `a-save-keyed-to-a-condition` | 3 | 0 | 1 |
 | `a-casting-ended-by-a-trigger` | 1 | 0 | 1 |
 | `a-critical-hit-an-effect-downgrades` | 1 | 0 | 1 |
-| `a-random-outcome-that-is-not-a-d20` | 1 | 1 | 0 |
 | `a-reduction-an-effect-applies-to-damage` | 1 | 0 | 1 |
 | `a-target-rule-the-format-cannot-state` | 1 | 0 | 1 |
 | `movement-modes` | 13 | 0 | 0 |

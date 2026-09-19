@@ -11,6 +11,7 @@ import {
   declareDawn,
   declaredCasting,
   equipItem,
+  expendCharges,
   extendContent,
   fold,
   ongoingSpellOf,
@@ -261,16 +262,65 @@ describe('the spells the eighteen items were waiting for', () => {
  * that half. This drives the boots' own shape: an at-will casting an item
  * narrows to its wearer.
  *
- * The boots themselves are still out of `ITEM_SHAPES`, which is a
- * transcription left for whoever owns that file rather than a rule that
- * stops them; the homebrew pair below is the same record in every word that
- * matters.
+ * **The boots are in the catalogue now**, which is the transcription that
+ * commit left for whoever owned the item map. The homebrew pair below is kept
+ * beside them rather than replaced: it is the same record with a different id,
+ * so it proves the shape is content rather than a special case the SRD
+ * catalogue is allowed.
  */
 describe('the boots nothing stops any more', () => {
-  it('is not in the catalogue yet, and Levitate is', () => {
-    expect(SRD_CONTENT.item('boots-of-levitation')).toBeNull();
+  it('is in the catalogue, and Levitate is the spell it was waiting for', () => {
+    const boots = SRD_CONTENT.item('boots-of-levitation');
+    expect(boots?.attunement, 'the book prints the bracket').toBeDefined();
+    expect(boots?.grants).toEqual([
+      { kind: 'casts', spell: 'levitate', atWill: true, targetsSelfOnly: true },
+    ]);
     expect(SRD_CONTENT.spell('levitate')?.requiresSight).toBe(true);
     expect(SRD_CONTENT.spell('levitate')?.targets.self).toBe(true);
+  });
+
+  /**
+   * The record itself, on the wearer, with nobody having declared any sight —
+   * which is the whole of what the entry was blocked on.
+   */
+  it('levitates the wearer of the SRD boots, and lifts nobody else', () => {
+    const booted = wearing('boots-of-levitation');
+    const risen = unwrap(
+      resolveSpell(
+        fold('seed', booted),
+        BEARER,
+        { spellId: 'levitate', targets: [BEARER], item: 'boots-of-levitation' },
+        supply('rise'),
+      ),
+      'the SRD boots on their wearer',
+    );
+    expect(castOf(risen.events)?.concentration).toBe(true);
+    expect(castOf(risen.events)?.slotless).toBe('magic-item');
+
+    // "on yourself": the narrowing is the item's, and the refusal names it
+    // rather than asking whether the bearer can see their neighbour.
+    const lifted = resolveSpell(
+      fold('seed', booted),
+      BEARER,
+      { spellId: 'levitate', targets: [OTHER], item: 'boots-of-levitation' },
+      supply('lift'),
+    );
+    expect(isErr(lifted)).toBe(true);
+
+    // And nothing ran out: the entry prints no charge count and no per-day
+    // sentence, so the second rise costs exactly what the first did.
+    const again = resolveSpell(
+      fold('seed', [...booted, ...risen.events]),
+      BEARER,
+      {
+        spellId: 'levitate',
+        targets: [BEARER],
+        item: 'boots-of-levitation',
+        commandId: 'rise-again',
+      },
+      supply('rise-again'),
+    );
+    expect(isErr(again)).toBe(false);
   });
 
   /** The spell itself is fine, and casts at anybody the caster has been said to see. */
@@ -440,6 +490,21 @@ describe('a Crystal Ball scrys, and the two that scry and do more', () => {
     // ability at all to have supplied one.
     expect(record?.numbers.saveDc).toBe(17);
     expect(out.unverified.join(' ')).toContain('Scrying');
+  });
+
+  /**
+   * The fourth orb, whose spell was never the blocker either: Scrying is
+   * tracked, `checkContent` asks for a definition rather than an executable
+   * one, and the Truesight the entry is named for is the note.
+   */
+  it('scrys off the Crystal Ball of True Seeing against the orb’s own seventeen', () => {
+    const { log, out } = castFrom('crystal-ball-of-true-seeing', 'scrying');
+    expect(castOf(out.events)?.slotless).toBe('magic-item');
+    expect(ongoingSpellOf(fold('seed', log), out.castingId)?.numbers.saveDc).toBe(17);
+    expect(
+      SRD_CONTENT.item('crystal-ball-of-true-seeing')?.unmodelled?.join(' '),
+      'the Truesight says where it is centred',
+    ).toContain("centered on the spell's sensor");
   });
 
   /** The Legendary orb that scrys and reads minds casts both, and prices neither. */
@@ -613,20 +678,25 @@ describe('a Ring of Telekinesis casts Telekinesis', () => {
  * where the book gives one, which is rule 3 in `items.ts`.
  *
  * The field now reads a bare positive integer as the number it is, and the
- * dawn hands it back without throwing anything. **What is left is content
- * work rather than an engine line**: the record has still not been written,
- * and the map still carries the entry — so this asserts what changed, which
- * is that the validator now takes the rod's own sentence.
- *
- * Both halves of what the rod does are driven below out of a homebrew rod
- * built through the door homebrew goes through, because the spells are the
- * part this batch owns and a spell nobody drives is a spell nobody checked.
+ * dawn hands it back without throwing anything. **The record is written**, in
+ * `items.ts`, and the block at the bottom of this file drives it; what is
+ * kept here is the validator half — that a stated count is taken and a string
+ * that is not one is still refused — beside a homebrew rod built through the
+ * door homebrew goes through, because the spells are the part this batch owns
+ * and a spell nobody drives is a spell nobody checked.
  */
-describe('the rod nobody has transcribed yet, and the two spells it would cast', () => {
+describe('the rod and the two spells it casts', () => {
   const ROD = 'rod-of-resurrection';
 
-  it('is not in the catalogue, and the dawn line no longer stands in the way', () => {
-    expect(SRD_CONTENT.item(ROD)).toBeNull();
+  it('is in the catalogue, and the dawn line no longer stands in the way', () => {
+    expect(SRD_CONTENT.item(ROD)?.grants).toContainEqual({
+      kind: 'pool',
+      key: 'rod-of-resurrection:charges',
+      label: 'Rod of Resurrection charges',
+      uses: 5,
+      recovers: 'dawn',
+      regainsAtDawn: '1',
+    });
     // A stated number at dawn: neither a die nor a refill, and now a sentence
     // the validator takes.
     const flat = extendContent(SRD_CONTENT, {
@@ -1015,5 +1085,88 @@ describe('three potions confer a spell’s effects without casting it', () => {
     const { log } = drink('potion-of-growth');
     const after = fold('seed', log);
     expect(after.creatures[BEARER]?.inventory.find((one) => one.id === 'potion-of-growth')).toBeUndefined();
+  });
+});
+
+/**
+ * The two economies the spell reading uncovered, which no other item in the
+ * book prints: a count with **no morning behind it**, and a morning that gives
+ * back a **stated number** rather than dice.
+ *
+ * Both entries had a spell blocker recorded against them and neither deserved
+ * one — Knock, Heal and Resurrection are all defined — so what was really in
+ * the way was the pool each prints, and each of those is sayable now.
+ */
+describe('a chime with ten strikes and a rod with one charge a morning', () => {
+  it('strikes the chime ten times and no more, and no morning helps', () => {
+    const held = wearing('chime-of-opening');
+    expect(left(held, 'chime-of-opening')).toBe(10);
+
+    const struck = unwrap(
+      resolveSpell(
+        fold('seed', held),
+        BEARER,
+        { spellId: 'knock', targets: [], item: 'chime-of-opening' },
+        supply('chime'),
+      ),
+      'the chime striking Knock',
+    );
+    const after = [...held, ...struck.events];
+    expect(castOf(struck.events)?.slotless).toBe('magic-item');
+    expect(left(after, 'chime-of-opening')).toBe(9);
+
+    // **`recovers: 'special'` is the page.** A `dawn` tag with no dice beside
+    // it refills, so the difference between the two is ten strikes in the
+    // chime's life and ten every morning.
+    const morning = run(after, (s) => declareDawn(s, supply('dawn')));
+    expect(left(morning, 'chime-of-opening')).toBe(9);
+  });
+
+  it('casts Heal off the rod for one charge and refuses a Resurrection it cannot pay for', () => {
+    const held = wearing('rod-of-resurrection');
+    expect(left(held, 'rod-of-resurrection')).toBe(5);
+
+    const healed = unwrap(
+      resolveSpell(
+        fold('seed', held),
+        BEARER,
+        { spellId: 'heal', targets: [BEARER], item: 'rod-of-resurrection' },
+        supply('heal'),
+      ),
+      'Heal from the rod',
+    );
+    const after = [...held, ...healed.events];
+    expect(castOf(healed.events)?.slotless).toBe('magic-item');
+    expect(left(after, 'rod-of-resurrection')).toBe(4);
+
+    // "_Resurrection_ (expends 5 charges)", and four is not five — which is
+    // the whole reason the rod needs two prices on one pool.
+    const raised = resolveSpell(
+      fold('seed', after),
+      BEARER,
+      { spellId: 'resurrection', targets: [OTHER], item: 'rod-of-resurrection' },
+      supply('raise'),
+    );
+    expect(isErr(raised) && raised.code).toBe('exhausted');
+  });
+
+  /**
+   * "The rod regains 1 expended charge daily at dawn" — a **stated** number,
+   * which `regainsAtDawn` refused until it learned to read one, and which
+   * leaving the field off would have turned into a full refill.
+   */
+  it('gives back exactly one charge a morning, however many are gone', () => {
+    const spent = run(wearing('rod-of-resurrection'), (s) =>
+      expendCharges(s, SRD_CONTENT, BEARER, 'rod-of-resurrection', 4),
+    );
+    expect(left(spent, 'rod-of-resurrection')).toBe(1);
+
+    const morning = run(spent, (s) => declareDawn(s, supply('dawn')));
+    expect(left(morning, 'rod-of-resurrection')).toBe(2);
+
+    const second = run(morning, (s) =>
+      declareDawn(s, supply('dawn-again'), { commandId: 'day-two' }),
+    );
+    expect(left(second, 'rod-of-resurrection')).toBe(3);
   });
 });

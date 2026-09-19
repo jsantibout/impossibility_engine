@@ -206,6 +206,31 @@ const charges = (
 });
 
 /**
+ * A count with **no morning behind it**: "The chime can be used 10 times",
+ * "When found, a container contains 1d6 + 1 ounces".
+ *
+ * The same pool as {@link charges} with the recovery the page prints, which
+ * for these is none at all. `recovers: 'special'` is `resources.ts` saying so
+ * — no rest and no declared dawn touches one — and the tag matters more here
+ * than anywhere else in this file, because the neighbouring value is not
+ * neutral: a `dawn` pool with no dice **refills**, so a chime tagged `dawn`
+ * would open ten doors every morning where the book gives it ten in its life.
+ * That is rule 3 of this file running the wrong way, which is why the two
+ * sentences get two helpers rather than a default.
+ *
+ * The label is the page's noun rather than "charges", because the book counts
+ * ounces and strikes and beads: a pool is a count of *something*, and the only
+ * place that says which is the line printed beside it.
+ */
+const countedUses = (id: string, label: string, uses: number): ItemGrant => ({
+  kind: 'pool',
+  key: `${id}:charges`,
+  label,
+  uses,
+  recovers: 'special',
+});
+
+/**
  * "You can cast _X_ from it", as a grant.
  *
  * SRD "Spells Cast from Items" settles what that sentence means and the engine
@@ -1432,33 +1457,32 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
   // — so a tracked definition answers both, and SRD's own sentence about a
   // casting from an item is every word arithmetic a tracked definition carries.
 
-  // **The Boots of Levitation are not here, and what kept them out has been
-  // repaired.**
-  //
-  // SRD: "While you wear these boots, you can cast _Levitate_ on yourself."
-  // Levitate is defined, the grant is an at-will casting narrowed by
-  // `targetsSelfOnly`, and every word of the record was writable except the
-  // casting: Levitate reaches "One creature ... of your choice that you can
-  // see within range", so the definition carries `requiresSight`, and
-  // `sightBetween` used to answer **null** for a creature and itself — which
-  // the resolver turned into a request to establish a fact `declareSight`
-  // would not record. A record every use of which is refused is rule 1, so
-  // the boots stayed out.
-  //
-  // A creature can see itself as of the repair to `sightBetween` that landed
-  // beside this commit rather than in it, and that repair frees **every spell
-  // whose definition pairs `targets.self` with `requiresSight`** — Levitate
-  // among them. Not one of them could be cast on its own caster before, and
-  // the shape is what to look for rather than a list of names: this comment
-  // has already named the wrong ones twice, and any list goes stale the next
-  // time `requiresSight` is written in `spells.ts`. Cure Wounds and Mass Cure
-  // Wounds only look like the shape — they carry `self` and no
-  // `requiresSight`, and were never caught by this at all.
-  //
-  // **Transcribing the boots is a brief of its own and is not this one's.**
-  // What is left for it is the record itself, here, and the entry's line in
-  // `packages/content/scripts/missing-shapes.ts`, which still files
-  // `boots-of-levitation` under a blocker that is gone.
+  wornItem(
+    { id: 'boots-of-levitation', name: 'Boots of Levitation', kind: 'wondrous' },
+    {
+      /**
+       * SRD Boots of Levitation: "Wondrous Item, Rare (Requires Attunement).
+       * While you wear these boots, you can cast _Levitate_ on yourself."
+       *
+       * **One sentence, and it waited on a defect rather than on a shape.**
+       * Levitate reaches "One creature ... of your choice that you can see
+       * within range", so the definition carries `requiresSight`, and
+       * `sightBetween` used to answer **null** for a creature and itself —
+       * which the resolver turned into a request to establish a fact
+       * `declareSight` refuses outright, "a creature can see itself". A record
+       * every use of which is refused is rule 1 above, so the boots stayed
+       * out; the pair answers `true` now, ahead of every declaration, and the
+       * whole entry is the at-will casting below.
+       *
+       * The repair frees **every spell whose definition pairs `targets.self`
+       * with `requiresSight`**, and the shape is what to look for rather than
+       * a list of names: any list goes stale the next time `requiresSight` is
+       * written in `spells.ts`.
+       */
+      attunement: {},
+      grants: [castsSpellAtWill('levitate', { targetsSelfOnly: true })],
+    },
+  ),
   wornItem(
     { id: 'circlet-of-blasting', name: 'Circlet of Blasting', kind: 'wondrous' },
     {
@@ -1556,6 +1580,65 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
         'the telepathy the orb is named for: "you can communicate telepathically with creatures you can see within 30 feet of the spell\'s sensor" is conversation through a sensor, and neither the conversation nor the sensor is a thing the engine holds',
         'where the Suggestion reaches: "through the sensor on one of those creatures" measures from that same sensor, so the spell is cast from the orb at its own range instead',
         'the exception the orb prints on that casting: "You don\'t need to concentrate on this _Suggestion_ to maintain it during its duration, but it ends if _Scrying_ ends" — a `casts` grant hands the spell to the pipeline whole, so the Concentration the spell prints is taken, and one casting ending another is a cause nothing can express',
+      ],
+    },
+  ),
+  wornItem(
+    { id: 'crystal-ball-of-true-seeing', name: 'Crystal Ball of True Seeing', kind: 'wondrous' },
+    {
+      /**
+       * SRD Crystal Ball of True Seeing: "While touching this crystal orb, you
+       * can cast _Scrying_ (save DC 17) with it. In addition, you have
+       * Truesight with a range of 120 feet centered on the spell's sensor."
+       *
+       * The fourth orb, and the shortest: one at-will casting against the
+       * orb's own seventeen, exactly as the plain Crystal Ball prints it.
+       *
+       * **The Truesight is not a `sense` grant, and the reason is the second
+       * half of the sentence.** A `sense` effect gives its holder a sense with
+       * a range, measured from the holder; this one is "centered on the
+       * spell's sensor", which is the one thing about Scrying the engine does
+       * not hold. Granting it on the wearer would be a Truesight in the wrong
+       * place, which is a better orb than the book prints.
+       */
+      attunement: {},
+      grants: [castsSpellAtWill('scrying', { saveDc: 17 })],
+      unmodelled: [
+        'the sight the orb is named for: "you have Truesight with a range of 120 feet centered on the spell\'s sensor" measures from the Scrying sensor, and a `sense` effect reaches out from the creature holding it — so a grant here would put the Truesight on the wearer instead of where the book puts it',
+      ],
+    },
+  ),
+  wornItem(
+    { id: 'chime-of-opening', name: 'Chime of Opening', kind: 'wondrous' },
+    {
+      /**
+       * SRD Chime of Opening: "Wondrous Item, Rare. This hollow metal tube
+       * measures about 1 foot long and weighs 1 pound. As a Magic action, you
+       * can strike the chime to cast _Knock_. ... The chime can be used 10
+       * times. After the tenth time, it cracks and becomes useless."
+       *
+       * **A count with no morning behind it, which is the first of those in
+       * the catalogue.** Every other charged item in the book prints a dawn
+       * line, so `charges` hard-codes that recovery; the chime prints none at
+       * all, and a `dawn` pool with no dice refills — so the tag is the whole
+       * difference between ten strikes in a chime's life and ten every
+       * morning. `countedUses` is the other tag, and the ten come off a pool
+       * keyed to **this** chime.
+       *
+       * Knock is a tracked definition, which is what `checkContent` asks a
+       * `casts` grant for: the word that decides one is *definition* and not
+       * *executable*, and SRD's sentence about a casting from an item —
+       * "uses its normal casting time, range, and duration" — is every word
+       * arithmetic a tracked definition carries.
+       */
+      weightLb: 1,
+      grants: [
+        countedUses('chime-of-opening', 'Chime of Opening strikes', 10),
+        castsSpell('knock', 1),
+      ],
+      unmodelled: [
+        '"After the tenth time, it cracks and becomes useless": the pool at zero refuses every further strike, which is the whole of what the chime then does — but nothing takes the cracked tube out of the inventory it is carried in',
+        'the sound: "The spell\'s customary knocking sound is replaced by the clear, ringing tone of the chime, which is audible out to 300 feet" — what a casting sounds like, and how far, is the table\'s',
       ],
     },
   ),
@@ -1719,28 +1802,87 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
       grants: [castsSpellAtWill('telekinesis')],
     },
   ),
+  wornItem(
+    { id: 'rod-of-resurrection', name: 'Rod of Resurrection', kind: 'rod' },
+    {
+      /**
+       * SRD Rod of Resurrection: "Rod, Legendary (Requires Attunement). The
+       * rod has 5 charges. While you hold it, you can cast one of the
+       * following spells from it: _Heal_ (expends 1 charge) or _Resurrection_
+       * (expends 5 charges). The rod regains 1 expended charge daily at
+       * dawn."
+       *
+       * **The item that waited on one field, and the field is there now.**
+       * `ResourcePool.regainsAtDawn` read dice and nothing else, on the
+       * reasoning that the SRD "prints dice" and never once a stated number —
+       * and this rod is the counterexample the book prints. Leaving the field
+       * off was not neutral, because a `dawn` pool with no dice **refills**:
+       * the record would have been a rod giving back five charges a morning
+       * where the book gives one, which is rule 3 above. `statedDawnAmount`
+       * reads the bare `'1'` as the number it is, and `declareDawn` hands it
+       * back without throwing anything.
+       *
+       * Two prices on one pool, which is the staff shape: Heal executes and
+       * Resurrection is an hour's rite the clock runs, and SRD's "uses its
+       * normal casting time" is why the second is declared and settled rather
+       * than cast on the spot.
+       */
+      attunement: {},
+      grants: [
+        charges('rod-of-resurrection', 'Rod of Resurrection', 5, '1'),
+        castsSpell('heal', 1),
+        castsSpell('resurrection', 5),
+      ],
+      unmodelled: [
+        '"If you expend the last charge, roll 1d20. On a 1, the rod disappears in a harmless burst of radiance": an item that destroys itself on a die face, which is neither a reader the engine has nor something that removes a line from an inventory',
+      ],
+    },
+  ),
   /**
-   * **The Rod of Resurrection is not here, and rule 3 is why.**
+   * The two entries whose whole mechanic is **a count on this copy**, and the
+   * only two in the book that print the same sentence twice.
    *
-   * SRD: "The rod has 5 charges. While you hold it, you can cast one of the
-   * following spells from it: _Heal_ (expends 1 charge) or _Resurrection_
-   * (expends 5 charges). The rod regains 1 expended charge daily at dawn."
+   * SRD Sovereign Glue and Universal Solvent both say "When found, a
+   * container contains 1d6 + 1 ounces", and until an item copy had a record
+   * there was nowhere to keep the answer: a catalogue row is the same for
+   * everybody, so one jar could not be half empty while another was full.
+   * `CatalogueItem.chargesRolled` is the item saying the book rolls for it,
+   * `awardItems` is the one door that may throw the die, and the pool it pins
+   * is keyed to the copy.
    *
-   * Both spells are defined for it — Heal executes and Resurrection is an
-   * hour's rite the clock runs — and the two prices are a pool and two
-   * `casts` grants. What cannot be written is the last sentence:
-   * `ResourcePool.regainsAtDawn` takes **dice**, on the reasoning that the
-   * SRD "prints dice" and "never once" a stated number at dawn, and this rod
-   * prints a stated 1. A die with one face is refused by `parseNotation`,
-   * which asks for two to a thousand sides.
-   *
-   * Leaving the field off does not leave the recovery empty: a `dawn` pool
-   * with no dice **refills**, so the record would be a rod that gives back
-   * five charges every morning instead of one — a Resurrection a day where
-   * the book prints one every five. That is the clause the engine cannot say
-   * being the one that limits the benefit, which is rule 3, so the whole
-   * record waits. The gap is the engine's and is one line wide.
+   * **`uses` is the floor the dice cannot go below**, and it is a placeholder
+   * rather than a claim: `issueItemCopies` leaves a rolled copy's pool
+   * undeclared for the door that can roll, and `awardItems` overwrites the
+   * maximum with the number it threw. Two is what "1d6 + 1" guarantees, so it
+   * is the one number here that is not a guess.
    */
+  wornItem(
+    { id: 'sovereign-glue', name: 'Sovereign Glue', kind: 'wondrous' },
+    {
+      chargesRolled: '1d6 + 1',
+      grants: [countedUses('sovereign-glue', 'Sovereign Glue ounces', 2)],
+      unmodelled: [
+        'the bond itself: a substance that "can form a permanent adhesive bond between any two objects" is not a mechanical state — nothing holds two objects together and no rule would ask — so an ounce is spent and the table says what it stuck to',
+        'what dissolves the bond: "the bond it creates can be broken only by the application of _Universal Solvent_ or _Oil of Etherealness_, or with a _Wish_ spell" names the same absent state from the other end',
+        'the jar the glue is kept in: "It must be stored in a jar or flask that has been coated inside with _Oil of Slipperiness_" is one item\'s condition on another, and inventory holds neither containers nor coatings',
+      ],
+    },
+  ),
+  wornItem(
+    { id: 'universal-solvent', name: 'Universal Solvent', kind: 'wondrous' },
+    {
+      /**
+       * The Sovereign Glue's tube, with the same rolled count and the same
+       * absent state on the other side of it.
+       */
+      chargesRolled: '1d6 + 1',
+      grants: [countedUses('universal-solvent', 'Universal Solvent ounces', 2)],
+      unmodelled: [
+        'what an ounce dissolves: "Each ounce instantly dissolves up to 1 square foot of adhesive it touches" — an adhesive is not a state the engine holds, so the ounce is spent and the dissolving is the table\'s',
+        '"onto a surface within reach": the reach here is an arm\'s rather than a weapon\'s — nothing is targeted, no roll is made, and the engine\'s ruler is never asked',
+      ],
+    },
+  ),
 ];
 
 /**

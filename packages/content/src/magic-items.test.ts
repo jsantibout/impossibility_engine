@@ -83,6 +83,37 @@ const dawnSentences = (description: string): readonly string[] =>
     .map((sentence) => sentence.trim())
     .filter((sentence) => contains(sentence, DAWN_LIMIT));
 
+/**
+ * **A use count with no morning behind it**, in the words the book gives it.
+ *
+ * Every charged item in the book but one prints a dawn line, and the Chime of
+ * Opening is the one: "The chime can be used 10 times." A pool tagged `dawn`
+ * with no dice beside it *refills*, so the difference between reading this
+ * sentence and not reading it is ten strikes in a chime's life against ten
+ * every morning — which is why the count is read off the page here rather
+ * than believed off the record.
+ */
+const countedUses = (description: string): number | null => {
+  const printed = /can be used (\d+) times/.exec(normaliseProse(description));
+  return printed === null ? null : Number(printed[1]);
+};
+
+/**
+ * The smallest a rolled count can come out, which is what a rolled pool's
+ * `uses` may be and the only number about one that is not a guess.
+ *
+ * SRD writes the count as dice — "a container contains 1d6 + 1 ounces" — and
+ * `awardItems` throws them at the copy's birth, so the catalogue's `uses` is
+ * a placeholder the roll overwrites. Held against the notation rather than
+ * left free, because a placeholder somebody typed as seven would be a jar
+ * that started full on every door that cannot roll.
+ */
+const leastRoll = (notation: string): number => {
+  const parsed = /^(\d+)d(\d+)(?:\s*\+\s*(\d+))?$/.exec(notation.replace(/\s+/g, ''));
+  if (parsed === null) throw new Error(`"${notation}" is not dice this guard can read`);
+  return Number(parsed[1]) + Number(parsed[3] ?? 0);
+};
+
 /** The elision-aware containment `containsRun` does, over a string in hand. */
 const contains = (text: string, run: string): boolean => {
   const haystack = normaliseProse(text);
@@ -211,32 +242,75 @@ describe('every transcribed item agrees with the entry it was read from', () => 
       if (pool === undefined) continue;
       if (pool.kind !== 'pool') throw new Error('unreachable');
 
-      // **A per-day property is a pool of one**, and the book prints it as a
-      // sentence rather than as a charge count: "This property can't be used
-      // again until the next dawn." It is the same mechanism with every number
-      // set to one — one use, spent by the thing it buys, given back whole at
-      // a declared dawn — so it is checked against the sentence the entry does
-      // print rather than against a charge count it does not.
-      if (entry.charges === null) {
+      // **A count the book rolls at the copy's birth.** SRD Sovereign Glue
+      // and Universal Solvent: "When found, a container contains 1d6 + 1
+      // ounces." The dice are the page's and the `uses` beside them is only
+      // the floor they cannot go below — `awardItems` overwrites the maximum
+      // with what it threw — so both are held against the entry rather than
+      // against each other.
+      if (item.chargesRolled !== undefined) {
+        expect(
+          contains(entry.description, item.chargesRolled),
+          `${item.id} rolls "${item.chargesRolled}", which its entry never prints`,
+        ).toBe(true);
+        expect(
+          entry.charges?.maximum ?? null,
+          `${item.id} rolls its count and its entry prints one`,
+        ).toBeNull();
+        expect(pool.uses, `${item.id}'s placeholder is the floor of its own dice`).toBe(
+          leastRoll(item.chargesRolled),
+        );
+        expect(pool.regainsAtDawn, item.id).toBeUndefined();
+      } else if (entry.charges === null && countedUses(entry.description) !== null) {
+        // **A count the book prints and never gives back**: "The chime can be
+        // used 10 times." The one entry in the book with a charge economy and
+        // no morning at all, and the tag is what keeps it that way.
+        expect(pool.uses, `${item.id} counts what its entry counts`).toBe(
+          countedUses(entry.description),
+        );
+        expect(pool.regainsAtDawn, item.id).toBeUndefined();
+      } else if (entry.charges === null) {
+        // **A per-day property is a pool of one**, and the book prints it as a
+        // sentence rather than as a charge count: "This property can't be used
+        // again until the next dawn." It is the same mechanism with every number
+        // set to one — one use, spent by the thing it buys, given back whole at
+        // a declared dawn — so it is checked against the sentence the entry does
+        // print rather than against a charge count it does not.
         expect(pool.uses, `${item.id} has no charge count in the book`).toBe(1);
         expect(pool.regainsAtDawn, `${item.id} refills whole`).toBeUndefined();
         expect(
           dawnSentences(entry.description).length,
           `${item.id} declares a pool the entry prints nothing for`,
         ).toBeGreaterThan(0);
-        expect(pool.recovers, item.id).toBe('dawn');
-        continue;
+      } else {
+        expect(entry.charges?.maximum, `${item.id} declares charges the book does not`).toBe(
+          pool.uses,
+        );
+        // SRD Rod of Resurrection prints its number in the singular — "regains
+        // 1 expended charge daily at dawn" — and every other entry in the
+        // plural, which is the same clause and not a second rule.
+        const regain =
+          pool.regainsAtDawn === undefined
+            ? ['regain all expended charges daily at dawn']
+            : [
+                `regains ${pool.regainsAtDawn} expended charges daily at dawn`,
+                `regains ${pool.regainsAtDawn} expended charge daily at dawn`,
+              ];
+        expect(
+          regain.some((printed) => contains(entry.description, printed)),
+          `${item.id}: "${regain[0]}"`,
+        ).toBe(true);
       }
 
-      expect(entry.charges?.maximum, `${item.id} declares charges the book does not`).toBe(
-        pool.uses,
-      );
-      expect(pool.recovers, item.id).toBe('dawn');
-      const regain =
-        pool.regainsAtDawn === undefined
-          ? 'regain all expended charges daily at dawn'
-          : `regains ${pool.regainsAtDawn} expended charges daily at dawn`;
-      expect(contains(entry.description, regain), `${item.id}: "${regain}"`).toBe(true);
+      // **The recovery is the page's, in both directions.** A pool tagged
+      // `dawn` with no dice refills whole, so an entry that prints no morning
+      // and gets one is an item quietly refilled every day — the mirror of
+      // the staff quietly made cheap below, and the reason `special` is a tag
+      // that has to be checked rather than a default.
+      const morning =
+        contains(entry.description, 'daily at dawn') || dawnSentences(entry.description).length > 0;
+      expect(pool.recovers, `${item.id}: the entry ${morning ? 'prints' : 'prints no'} morning`)
+        .toBe(morning ? 'dawn' : 'special');
     }
   });
 
@@ -308,7 +382,14 @@ describe('every transcribed item agrees with the entry it was read from', () => 
         } else {
           const printed =
             entry.charges === null
-              ? grant.charges === 1 && limits.length > 0
+              ? // A per-day sentence, or a count of things the entry says you
+                // spend one of — a strike of a chime, an ounce out of a jar.
+                // Either way the price is one, because a page that charged
+                // more would have printed a number to charge it in.
+                grant.charges === 1 &&
+                (limits.length > 0 ||
+                  countedUses(entry.description) !== null ||
+                  item.chargesRolled !== undefined)
               : // The three ways the book writes a price: written out, named
                 // as the floor of a range, or parenthesised beside the spell —
                 // SRD Rod of Resurrection's "(expends 1 charge)", and Cubic
@@ -323,11 +404,15 @@ describe('every transcribed item agrees with the entry it was read from', () => 
             .toBe(true);
         }
 
-        // SRD Ring of Jumping: "but can target only yourself when you do so."
-        // A narrowing the item prints, and the words it prints it in.
+        // A narrowing the item prints, in the two wordings the book gives it:
+        // SRD Ring of Jumping's "but can target only yourself when you do so"
+        // and SRD Boots of Levitation's "you can cast _Levitate_ on
+        // yourself", which is the same clause said once instead of twice.
         if (grant.targetsSelfOnly === true) {
           expect(
-            contains(entry.description, 'only yourself'),
+            ['only yourself', `${name} on yourself`].some((said) =>
+              contains(entry.description, said),
+            ),
             `${item.id} narrows ${name} to its wearer and its entry does not say so`,
           ).toBe(true);
         }

@@ -5108,7 +5108,7 @@ export { DEFINED as DEFINED_SPELL_IDS };
  */
 export const ITEM_SHAPES = {
   'a-spell-an-item-casts-that-nothing-executes':
-    'the item’s line says it casts a named spell and the catalogue has **no definition of that spell at all**. `checkContent` refuses the pairing in as many words — packages/engine/src/content.ts, "which this content has no executable definition of" — so an item that casts Scrying, Levitate or Gate cannot be written until the spell is, and the blocker is the spell’s own. It is the largest single blocker in the book’s magic items and it is not item work at all, which is the finding: a tranche aimed at wands buys nothing until the spells under them exist. **The word that decides an entry is *definition*, not *executable*, and this description said otherwise for a batch.** The predicate `checkContent` hands an item is `spells.some(s => s.id === id)` — packages/engine/src/content.ts, the call site of `itemGrantProblems` — and `castFromItem` reads `content.spell(id)`, so a **tracked** definition answers both. That is SRD’s own sentence about what a casting from an item is: "The spell uses its normal casting time, range, and duration, and the user of the item must concentrate if the spell requires Concentration", every word of which a tracked definition already carries. A Wand of Magic Detection and a Ring of Animal Influence came off this shape without a line of spell work, and `item-casts-a-tracked-spell.test.ts` drives both directions so the distinction cannot be lost again. What *should* name this shape is an entry whose spell nothing defines — and, for a **potion**, a spell whose definition resolves nothing, because a `confers` grant carries the definition’s `SpellEffect[]` and "an item that confers an empty list confers nothing". **Two entries still name it and should not**, and they are written down rather than quietly left, because the `Blocks` column is derived from this map and is wrong by them: `amulet-of-the-planes` casts a defined Plane Shift but gates it behind "make a DC 15 Intelligence (Arcana) check", which is a check gating an item’s casting and has no id here; and `chime-of-opening` casts a defined Knock out of a use count that never comes back, which is neither a `dawn` pool nor nothing. Both need their paragraph read before they can be re-pointed, and inventing a shape to move them would be the architecture decision this vocabulary refuses to smuggle in as a note.',
+    'the item’s line says it casts a named spell and the catalogue has **no definition of that spell at all**. `checkContent` refuses the pairing in as many words — packages/engine/src/content.ts, "which this content has no executable definition of" — so an item that casts Scrying, Levitate or Gate cannot be written until the spell is, and the blocker is the spell’s own. It is the largest single blocker in the book’s magic items and it is not item work at all, which is the finding: a tranche aimed at wands buys nothing until the spells under them exist. **The word that decides an entry is *definition*, not *executable*, and this description said otherwise for a batch.** The predicate `checkContent` hands an item is `spells.some(s => s.id === id)` — packages/engine/src/content.ts, the call site of `itemGrantProblems` — and `castFromItem` reads `content.spell(id)`, so a **tracked** definition answers both. That is SRD’s own sentence about what a casting from an item is: "The spell uses its normal casting time, range, and duration, and the user of the item must concentrate if the spell requires Concentration", every word of which a tracked definition already carries. A Wand of Magic Detection and a Ring of Animal Influence came off this shape without a line of spell work, and `item-casts-a-tracked-spell.test.ts` drives both directions so the distinction cannot be lost again. What *should* name this shape is an entry whose spell nothing defines — and, for a **potion**, a spell whose definition resolves nothing, because a `confers` grant carries the definition’s `SpellEffect[]` and "an item that confers an empty list confers nothing". **Sixty definitions later, every entry here has been read against the catalogue again**, entry by entry and spell by spell rather than against this line: thirteen named the shape with every spell they print already defined and have been re-pointed or transcribed, which is why this is no longer the heaviest blocker in the book. The two the last reading wrote down as wrong are both settled — `chime-of-opening` is transcribed, because a use count that never comes back is `recovers: \'special\'` on a pool keyed to the copy; and `amulet-of-the-planes` is **unread**, because what gates its defined Plane Shift is "make a DC 15 Intelligence (Arcana) check" and a check gating a casting still has no id, which is a shape this vocabulary will not invent in a note.',
   'a-save-an-item-forces':
     'a saving throw an item makes somebody roll — **half built, and the half that is missing is not the DC**. The roll and the number are there: packages/engine/src/content.ts admits the first, "A saving throw is not on that list any more.", and says where the second comes from, "`saveDc` on the grant is a number the item printed and `save-damage` resolves against it through the resolver a casting uses". So a save whose failure is **damage** is writable today, which is why Dust of Dryness’s 10d6 and Javelin of Lightning’s 4d6 no longer name this shape. A save whose failure imposes a **condition** is writable too, and was the last of the weld to go: the same file admits the kind — "Nor is `save`, which was the last of that weld." — and says what a conferral’s repeat ends, "so a condition a flask’s saving throw imposes repeats its save at the boundary like a spell’s, and a success ends it on the timer the conferral’s own hour filed". What is not built is every *other* thing a failed save can do, which the rule in docs/design/content.md still leaves out — an item is "refused an effect kind a conferral cannot resolve", and there is no kind for most of them. What still names this shape is therefore a save whose outcome is neither damage nor a condition: a wielder who goes berserk, a creature trapped in a flask or a mirror, an Undead simply destroyed. Which entries below still name it for a condition rather than for one of those is a re-derivation this map owes and has not been given.',
   'a-charge-spent-on-something-other-than-a-casting':
@@ -5130,7 +5130,7 @@ export const ITEM_SHAPES = {
   'a-language-or-a-proficiency-an-item-grants':
     'training an item confers — a language you know while you wear it, a weapon you are suddenly proficient with. Neither is a `FeatureGrant` kind at all — a language and weapon or armour training are `ClassDefinition` fields, so there is no member to read from an item and none to refuse: packages/engine/src/content.ts, "only a standing grant, a charge pool, a spell it casts and the effects it confers are read from one". One shape rather than two, because one line of the reader admits both and each entry’s own note says which the item wanted.',
   'an-item-instance-with-a-state-of-its-own':
-    'a fact about **this** copy of an item rather than about the catalogue row. the identity itself now exists — docs/design/characters-and-equipment.md: "An item copy **has** an identity now." — so what is left under this name is every *other* fact a copy carries, and packages/content/src/items.ts already carries the consequence on the one potion that forced it: the other rows of the healing table are left out as "which the SRD files under one entry and which would need four ids, or an item instance record, to sit on one inventory line". An arrow that stops being magical when it hits, a bag with 3d4 beans left in it and a wand that crumbles on its last charge are all that same fact.',
+    'a fact about **this** copy of an item rather than about the catalogue row — and **the line that decides an entry has moved twice**, so it is drawn here rather than left to a reader’s sense of it. The identity exists (docs/design/characters-and-equipment.md: "An item copy **has** an identity now"), and so does the one kind of per-copy state the engine holds: a **charge pool keyed to the copy**, whose maximum the book may roll at the copy’s birth (`CatalogueItem.chargesRolled`, thrown by `awardItems`), which travels whole when the copy is handed over, and which `recovers: \'special\'` leaves exactly where it lands. So a per-copy fact that is a **spendable count** is no longer a gap: a bag with 3d4 beans in it, a prism with fifty charges, a manual a reader has used up, a talisman spent to nothing. What is left under this name is every *other* fact a copy carries, and each of the entries below says which of its own: **which kind** this one is out of several (a necklace’s beads, a robe’s patches, a scroll’s spell), **which parts** are left rather than how many (a deck’s thirty-four cards, a helm’s four counts of gems against one pool), **how long it has burned** (a candle’s minutes, a timer the clock moves and no command spends), **what was rolled for it once** (an efreeti bottle’s course), **what is inside it** (an iron flask’s prisoner), **which other copy it is paired with** (a sending stone), and **a change it makes to another item** (an oil that turns a sword into a +3 Weapon). And the one the shape was first written for: an arrow that stops being magical the moment it hits, which is a state a use changes and not a use it spends. packages/content/src/items.ts carries the same distinction on the potion that forced it — the other rows of the healing table "would need four ids, or an item instance record, to sit on one inventory line", which is *which kind*, the first entry in the list above.',
   'a-version-of-an-item-the-book-leaves-to-the-gm':
     'one printed entry that is several items, where **the GM chooses which**. Not the `+1, +2, or +3` template, whose versions the book names and rates one by one and which the catalogue expands into records; this is "The GM chooses the type or determines it randomly by rolling on the following table", printed over damage types, giants, dragons, planes and elementals. packages/content/src/items.ts says what it would cost on the entry that already forced the question — the other healing potions "would need four ids, or an item instance record, to sit on one inventory line" — and a record that picked one version for everybody would be a catalogue asserting what the book leaves open.',
   'a-container-with-a-space-of-its-own':
@@ -5270,16 +5270,37 @@ const isUnread = (entry: ItemEntry): entry is UnreadItemEntry => !Array.isArray(
  *
  * ### What the reading found that a shape-level guess would not have
  *
- * The largest blocker in the book's magic items is not an item mechanism at
- * all: it is `a-spell-an-item-casts-that-nothing-executes`, and every entry
- * under it is waiting on a **spell** definition. A wand tranche planned without
- * reading would have bought wands and found the spells underneath them
- * missing. Second is a version of an item the book leaves to the GM, which is
- * a catalogue-shape question rather than an engine one. Both numbers are
- * `COVERAGE.md`'s to print.
+ * The largest blocker in the book's magic items was not an item mechanism at
+ * all: it was `a-spell-an-item-casts-that-nothing-executes`, and every entry
+ * under it was waiting on a **spell** definition. A wand tranche planned
+ * without reading would have bought wands and found the spells underneath
+ * them missing.
+ *
+ * **Both of the top two have since been spent, and the ranking is the
+ * finding's receipt rather than a fact about the book.** The spells were
+ * written and the entries came off; the instance shape that replaced it was
+ * built and a second reading took two thirds of *its* entries away. So the
+ * heaviest blocker is an item mechanism now, which is what the reading was
+ * for. **Every number in that ranking is `COVERAGE.md`'s to print**, and a
+ * count here would be the prose these maps replaced — what this paragraph
+ * says is which id sits where, which is a claim a guard can hold.
+ *
+ * ### A map is a claim about the engine, so it goes stale when the engine moves
+ *
+ * The second reading found that the commonest way for an entry to be wrong is
+ * not a misread paragraph but a **true sentence about a world that changed**,
+ * and both of the top two shapes were carrying a batch of those. So an entry
+ * re-read against a landing says so in a comment above it, in the book's own
+ * words, and an entry whose blocker went without another to take its place
+ * goes to {@link UnreadItemEntry} rather than quietly to *ready* — because
+ * "nothing blocks this" and "nothing nameable blocks this" are different
+ * claims and only the first is a brief.
  */
 export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   'adamantine-armor': ['a-critical-hit-an-effect-downgrades'],
+  // Both keep the instance shape, and both are the shape's own example:
+  // "Once it hits a target, the ammunition is no longer magical" is a fact
+  // about one arrow that changes on an event, not a count anything spends.
   'ammunition-1-2-or-3': ['an-item-instance-with-a-state-of-its-own'],
   'ammunition-of-slaying': [
     'a-rider-on-a-later-weapon-attack',
@@ -5291,10 +5312,10 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     unread:
       'read, and the blocker cannot be named from anything this repository has written down. "you can’t be targeted by Divination spells or perceived through magical scrying sensors" is a filter on the *school* of a spell reaching the targeting check, and no document here describes a school axis as a gap. Filing it as the table’s would put an entry with nothing to record on the ready list; naming a shape for it would be an architecture decision smuggled in as a note.',
   },
-  'amulet-of-the-planes': [
-    'a-spell-an-item-casts-that-nothing-executes',
-    'a-version-of-an-item-the-book-leaves-to-the-gm',
-  ],
+  'amulet-of-the-planes': {
+    unread:
+      're-read, and the blocker it named is gone without another to take its place. Plane Shift is a **tracked** definition now, which is what `checkContent` asks a `casts` grant for, so "On a successful check, you cast _Plane Shift_" is not waiting on a spell. What it is waiting on is the six words before it — "Then make a DC 15 Intelligence (Arcana) check" — an ability check that **gates** a casting from an item, which no grant kind has a field for and which no document here describes as a gap. The 1d100 destination table is the GM’s, and would be a second blocker if the first were nameable. Inventing a shape for a gated casting would be the architecture decision this vocabulary refuses to smuggle in as a note.',
+  },
   'animated-shield': ['a-benefit-an-item-switches-on-and-off', 'what-a-creature-is-holding'],
   'apparatus-of-the-crab': ['an-object-with-statistics-of-its-own'],
   'armor-of-resistance': ['a-version-of-an-item-the-book-leaves-to-the-gm'],
@@ -5303,25 +5324,32 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'what-ends-attunement-besides-a-command',
   ],
   'arrow-catching-shield': ['a-reaction-an-item-grants'],
+  // "This heavy cloth bag contains 3d4 dry beans when found", spent a bean at
+  // a time: a count the book rolls at the copy's birth, which is
+  // `chargesRolled` and a pool keyed to the instance. The identity is not what
+  // stands in the way of this bag any more; the explosion is.
   'bag-of-beans': [
     'a-save-an-item-forces',
     'a-condition-an-item-imposes',
     'an-area-an-item-creates',
     'a-version-of-an-item-the-book-leaves-to-the-gm',
-    'an-item-instance-with-a-state-of-its-own',
   ],
   'bag-of-devouring': ['a-container-with-a-space-of-its-own'],
   'bag-of-holding': ['a-container-with-a-space-of-its-own'],
+  // "Once three fuzzy objects have been pulled from the bag, the bag can't be
+  // used again until the next dawn" is a pool of three recovering at dawn, and
+  // a pool is keyed to the copy now — two bags are two counts without either
+  // of them being told the other exists. Which colour this bag is stays the
+  // GM's.
   'bag-of-tricks': [
     'a-stat-block-created-mid-fight',
     'a-version-of-an-item-the-book-leaves-to-the-gm',
-    'an-item-instance-with-a-state-of-its-own',
   ],
-  'bead-of-force': [
-    'an-area-an-item-creates',
-    'a-save-an-item-forces',
-    'an-item-instance-with-a-state-of-its-own',
-  ],
+  // "Typically, 1d4 + 4 _Beads of Force_ are found together" counts the beads
+  // in a hoard rather than a state inside one: a bead is thrown once and
+  // destroyed, which is the counted stack an inventory has always held and the
+  // consumable `useItem` already spends.
+  'bead-of-force': ['an-area-an-item-creates', 'a-save-an-item-forces'],
   'bead-of-nourishment': [
     {
       clause: 'provides as much nourishment as 1 day of Rations',
@@ -5345,10 +5373,6 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'what-ends-attunement-besides-a-command',
     'a-save-an-item-forces',
   ],
-  'boots-of-levitation': {
-    unread:
-      'read once, and the blocker it named is gone. The entry cast SRD Levitate "on yourself", and Levitate reaches "One creature ... of your choice that you can see within range", so its definition carries `requiresSight` — and `sightBetween` answered null for a creature and itself while `declareSight` refused to record the answer, "a creature can see itself". Two engine rules disagreeing about one pair was a defect rather than a missing shape, and it is fixed: sight of oneself is answered `true` ahead of every declaration, and `items-waiting-on-a-spell.test.ts` drives the boots levitating their wearer with nothing declared. What is left is transcription — nobody has read the clauses of this entry into the map, so it stays unread rather than claiming a readiness no clause here supports. Healing Word and Mass Healing Word paired `self` with `requiresSight` the same way and were unreachable on their own casters too; Cure Wounds is Touch and Mass Cure Wounds picks out of a Sphere, so neither was, which an earlier version of this paragraph got wrong.',
-  },
   'boots-of-speed': [
     'a-speed-an-effect-multiplies',
     'a-benefit-an-item-switches-on-and-off',
@@ -5359,36 +5383,36 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   'bracers-of-archery': ['a-language-or-a-proficiency-an-item-grants'],
   'brazier-of-commanding-fire-elementals': ['a-stat-block-created-mid-fight'],
   'broom-of-flying': ['movement-modes', 'a-speed-an-item-grants'],
+  // Gate is defined and tracked, so the casting is not the blocker. The
+  // instance shape stays, and the line between it and a charge pool is what
+  // this entry draws: "Deduct the time it burned in increments of 1 minute
+  // from its total burn time" is a **timer** on this copy, counted down by the
+  // clock rather than by anything a command spends, and a pool is a count of
+  // uses.
   'candle-of-invocation': [
     'a-selector-for-every-d20-test',
-    'a-spell-an-item-casts-that-nothing-executes',
     'an-item-instance-with-a-state-of-its-own',
   ],
   'carpet-of-flying': ['movement-modes', 'a-version-of-an-item-the-book-leaves-to-the-gm'],
   'censer-of-controlling-air-elementals': ['a-stat-block-created-mid-fight'],
-  'chime-of-opening': [
-    'a-spell-an-item-casts-that-nothing-executes',
-    'an-item-instance-with-a-state-of-its-own',
-  ],
   'cloak-of-arachnida': ['movement-modes', 'a-speed-an-item-grants'],
   'cloak-of-displacement': ['a-benefit-an-item-suspends-on-a-trigger'],
   'cloak-of-invisibility': [
     'a-condition-an-item-imposes',
     'a-benefit-an-item-suspends-on-a-trigger',
   ],
-  'cloak-of-the-bat': [
-    'a-bonus-narrowed-to-a-skill',
-    'movement-modes',
-    'a-spell-an-item-casts-that-nothing-executes',
-  ],
+  // Polymorph is defined and tracked, and "on yourself" is `targetsSelfOnly`,
+  // so the casting the cloak prints is writable and the per-dawn limit is a
+  // pool of one. What is left is the Stealth Advantage and the Fly Speed.
+  'cloak-of-the-bat': ['a-bonus-narrowed-to-a-skill', 'movement-modes'],
   'cloak-of-the-manta-ray': ['a-speed-an-item-grants', 'movement-modes'],
-  'crystal-ball-of-true-seeing': [
-    'a-spell-an-item-casts-that-nothing-executes',
-    'senses-beyond-declared-sight',
-  ],
   'dagger-of-venom': ['a-condition-an-item-imposes', 'a-benefit-an-item-switches-on-and-off'],
   'dancing-sword': ['an-object-with-statistics-of-its-own'],
   'decanter-of-endless-water': ['a-condition-an-item-imposes'],
+  // The instance shape stays, and the count is the smaller half of it: "A
+  // deck found as treasure is usually missing 1d20 − 1 cards" is a rolled
+  // number, but "that card can't be used again" makes the state *which*
+  // thirty-four cards are left, which a pool cannot say.
   'deck-of-illusions': [
     'a-stat-block-created-mid-fight',
     'a-version-of-an-item-the-book-leaves-to-the-gm',
@@ -5400,8 +5424,11 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'a-rider-on-a-later-weapon-attack',
   ],
   'dimensional-shackles': ['a-condition-an-item-imposes', 'a-fact-only-the-table-can-declare'],
+  // Every spell on the orb's table is defined — Cure Wounds and Suggestion
+  // execute, Daylight, Death Ward, Detect Magic and Scrying are tracked — so
+  // the five castings and their 1d4 + 3 dawn are writable. The Charmed
+  // condition its own save imposes, and the orb's AC and Hit Points, are not.
   'dragon-orb': [
-    'a-spell-an-item-casts-that-nothing-executes',
     'a-condition-an-item-imposes',
     'a-version-of-an-item-the-book-leaves-to-the-gm',
     'an-object-with-statistics-of-its-own',
@@ -5410,28 +5437,41 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'a-version-of-an-item-the-book-leaves-to-the-gm',
     'a-mode-on-the-save-a-spell-forces',
   ],
+  // Re-pointed. "There is enough of it for one use" is the consumable
+  // `useItem` already spends, and carries no state at all; what this packet
+  // really asks for is the **duration** it throws — "the Invisible condition
+  // for 2d4 minutes" — which is a conferral's `durationSeconds`, a whole
+  // number, against dice nothing asks the generator for. The same field
+  // Potion of Diminution's 1d4 hours is re-pointed to.
   'dust-of-disappearance': [
     'a-condition-an-item-imposes',
     'a-benefit-an-item-suspends-on-a-trigger',
-    'an-item-instance-with-a-state-of-its-own',
+    'a-random-outcome-that-is-not-a-d20',
   ],
-  'dust-of-dryness': ['an-item-instance-with-a-state-of-its-own'],
-  'dust-of-sneezing-and-choking': [
-    'a-condition-an-item-imposes',
-    'an-area-an-item-creates',
-    'an-item-instance-with-a-state-of-its-own',
-  ],
+  'dust-of-dryness': {
+    unread:
+      're-read, and the blocker it named is gone without another to take its place. "This small packet contains 1d6 + 4 pinches of dust" is a count the book rolls at the copy’s birth, which `CatalogueItem.chargesRolled` says and `awardItems` throws; and the 10d6 on a DC 13 Constitution save is a priced conferral, which `save-damage` and a printed `saveDc` write. What is left is the seven words that decide **who** it may be sprinkled on — "an Elemental ... composed mostly of water" — and a conferral aims at the target the user names with nothing reading its creature type. That clause *limits* the benefit, so rule 3 in packages/content/src/items.ts leaves the record out rather than handing a party a packet that withers a dragon; and neither vocabulary has an id for a target predicate over a creature type, whose two nearest members are an area’s membership and an attacker’s.',
+  },
+  // "There is enough of it for one use" is the consumable a bottle already is;
+  // the sneezing and the Emanation are what is left.
+  'dust-of-sneezing-and-choking': ['a-condition-an-item-imposes', 'an-area-an-item-creates'],
   'dwarven-thrower': ['a-rider-on-a-later-weapon-attack'],
   'efficient-quiver': ['a-container-with-a-space-of-its-own'],
+  // The instance shape stays, and what it holds is not a count: "The first
+  // time the bottle is opened, the GM rolls on the following table", and the
+  // table sets this bottle on one of three courses for the rest of its life.
+  // A pool counts uses; this remembers an outcome.
   'efreeti-bottle': [
     'a-stat-block-created-mid-fight',
     'a-version-of-an-item-the-book-leaves-to-the-gm',
     'an-item-instance-with-a-state-of-its-own',
   ],
+  // "the gem ceases to be magical" is the single-use consumable `useItem`
+  // already spends, and needs no record of its own; which gem this is stays
+  // the GM's.
   'elemental-gem': [
     'a-stat-block-created-mid-fight',
     'a-version-of-an-item-the-book-leaves-to-the-gm',
-    'an-item-instance-with-a-state-of-its-own',
   ],
   'elixir-of-health': [
     {
@@ -5445,29 +5485,40 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
       note: 'an `end-condition` effect on a `confers` grant, which is exactly the kind packages/engine/src/content.ts admits for an item: it needs no casting id, no D20 Test and no save DC, and it outlasts nothing so the grant states no lifetime. Four condition names, printed in the book’s own order.',
     },
   ],
-  'energy-bow': ['a-condition-an-item-imposes', 'a-spell-an-item-casts-that-nothing-executes'],
+  // **The bow names no spell at all**, which is the plainest stale entry in
+  // this map: the shape was recorded against a line the paragraph does not
+  // contain. Its Restrained condition rides on a ranged attack made with the
+  // weapon — "Whenever you use this weapon to make a ranged attack" — which
+  // is where the blocker really sits.
+  'energy-bow': ['a-condition-an-item-imposes', 'a-rider-on-a-later-weapon-attack'],
   'eversmoking-bottle': ['an-area-an-item-creates', 'a-benefit-an-item-switches-on-and-off'],
   'eyes-of-minute-seeing': ['senses-beyond-declared-sight', 'a-bonus-narrowed-to-a-skill'],
   'eyes-of-the-eagle': ['a-fact-only-the-table-can-declare'],
+  // Which token this is is the GM's, which is a shape of its own; each is
+  // then a single-use consumable and carries no other state.
   'feather-token': [
     'a-version-of-an-item-the-book-leaves-to-the-gm',
     'a-stat-block-created-mid-fight',
     'an-object-with-statistics-of-its-own',
-    'an-item-instance-with-a-state-of-its-own',
   ],
+  // Which figurine this is is the GM's; its cooldown — "it can't be used
+  // again until 5 days have passed" — is a pool of one and a `Recovery` the
+  // vocabulary has no member for, neither of which is an identity.
   'figurine-of-wondrous-power': [
     'a-stat-block-created-mid-fight',
     'a-version-of-an-item-the-book-leaves-to-the-gm',
-    'an-item-instance-with-a-state-of-its-own',
   ],
   'flame-tongue': ['a-benefit-an-item-switches-on-and-off'],
   'folding-boat': ['an-object-with-statistics-of-its-own', 'a-container-with-a-space-of-its-own'],
   'gauntlets-of-ogre-power': ['an-ability-score-a-spell-changes'],
+  // "This prism has 50 charges ... When all of the gem's charges are expended,
+  // the gem becomes a nonmagical jewel": a count spent down to nothing, keyed
+  // to the copy, which `countedUses` writes and `recovers: 'special'` leaves
+  // where it lands.
   'gem-of-brightness': [
     'a-condition-an-item-imposes',
     'an-area-an-item-creates',
     'a-charge-spent-on-something-other-than-a-casting',
-    'an-item-instance-with-a-state-of-its-own',
   ],
   'gem-of-seeing': [
     'senses-beyond-declared-sight',
@@ -5505,6 +5556,11 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'a-version-of-an-item-the-book-leaves-to-the-gm',
   ],
   'headband-of-intellect': ['an-ability-score-a-spell-changes'],
+  // The instance shape stays, and this is the entry that shows why a pool is
+  // not enough of one: "set with 1d10 diamonds, 2d10 rubies, 3d10 fire opals,
+  // and 4d10 opals" is **four** rolled counts spent separately, and an item
+  // declares one pool. Prismatic Spray is still undefined, so the spell shape
+  // stays too.
   'helm-of-brilliance': [
     'an-area-an-item-creates',
     'a-rider-on-a-later-weapon-attack',
@@ -5513,15 +5569,23 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'a-rider-on-the-face-the-die-showed',
     'an-item-instance-with-a-state-of-its-own',
   ],
-  'helm-of-telepathy': [
-    'a-spell-an-item-casts-that-nothing-executes',
-    'a-fact-only-the-table-can-declare',
-  ],
+  // Detect Thoughts is tracked and Suggestion executes, so both castings are
+  // writable; the telepathy is the table's fact and is what is left. One
+  // thing the reading found and no shape holds: the helm limits **each spell
+  // separately** — "Once either spell is cast from the helm, that spell can't
+  // be cast from it again until the next dawn" — and `itemChargePool` returns
+  // the first pool an item declares, so two economies on one object cannot be
+  // written. It changes nothing here, because the telepathy blocks the entry
+  // anyway, and it is written down so the next reader does not rediscover it.
+  'helm-of-telepathy': ['a-fact-only-the-table-can-declare'],
+  // Re-pointed. Nothing about the horn is per copy: "Each use of the horn's
+  // magic has a 20 percent chance of causing the horn to explode" is a die
+  // thrown at every use, and the shape for one is the spell map's own.
   'horn-of-blasting': [
     'an-area-an-item-creates',
     'a-damage-roll-an-item-makes',
     'a-condition-an-item-imposes',
-    'an-item-instance-with-a-state-of-its-own',
+    'a-random-outcome-that-is-not-a-d20',
   ],
   'horn-of-valhalla': [
     'a-stat-block-created-mid-fight',
@@ -5541,7 +5605,14 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'a-reaction-an-item-grants',
     'healing-modified-by-an-effect',
   ],
-  'iron-bands': ['a-condition-an-item-imposes', 'an-item-instance-with-a-state-of-its-own'],
+  // "Once the bands are used, they can't be used again until the next dawn"
+  // is a pool of one on this copy, which is what keying a pool to the
+  // instance bought. The Restrained condition is what is left.
+  'iron-bands': ['a-condition-an-item-imposes'],
+  // The instance shape stays: "The flask can hold only one creature at a
+  // time" and "A newly discovered _Iron Flask_ might already contain a
+  // creature chosen by the GM" are a **creature** kept on this copy, which
+  // no count of uses can hold.
   'iron-flask': [
     'a-save-an-item-forces',
     'a-stat-block-created-mid-fight',
@@ -5574,27 +5645,26 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
       note: 'the whole of the entry, and the whole of its blocker: a `RollSelector` picks a saving throw by ability and by nothing else, so there is no way to select *the ones a spell forced*. The cloak would otherwise be four lines of `roll-mode` with `while-worn` and `while-attuned` on it.',
     },
   ],
-  'manual-of-bodily-health': [
-    'an-ability-score-a-spell-changes',
-    'an-item-instance-with-a-state-of-its-own',
-  ],
-  'manual-of-gainful-exercise': [
-    'an-ability-score-a-spell-changes',
-    'an-item-instance-with-a-state-of-its-own',
-  ],
+  // **The six books are one sentence six times**, and the reading is the
+  // same for all of them: "The manual then loses its magic but regains it in
+  // a century" is one use spent on this copy, which is a pool of one keyed to
+  // the instance, and a century is a `Recovery` the vocabulary has no member
+  // for — under-granting rather than over-granting it, which is the safe
+  // side of rule 3. What blocks all six is the +2 to an ability score.
+  'manual-of-bodily-health': ['an-ability-score-a-spell-changes'],
+  'manual-of-gainful-exercise': ['an-ability-score-a-spell-changes'],
   'manual-of-golems': [
     'a-stat-block-created-mid-fight',
     'a-damage-roll-an-item-makes',
     'a-version-of-an-item-the-book-leaves-to-the-gm',
   ],
-  'manual-of-quickness-of-action': [
-    'an-ability-score-a-spell-changes',
-    'an-item-instance-with-a-state-of-its-own',
-  ],
+  'manual-of-quickness-of-action': ['an-ability-score-a-spell-changes'],
+  // "This fine wooden box contains 1d4 pots of pigment", one spent per
+  // painting: a count the book rolls at the copy's birth, which is
+  // `chargesRolled` and a pool keyed to the instance.
   'marvelous-pigments': [
     'a-concentration-with-no-casting-behind-it',
     'an-object-with-statistics-of-its-own',
-    'an-item-instance-with-a-state-of-its-own',
   ],
   'mirror-of-life-trapping': [
     'an-object-with-statistics-of-its-own',
@@ -5608,7 +5678,14 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'a-selector-for-every-d20-test',
   ],
   'necklace-of-adaptation': ['a-save-keyed-to-a-condition'],
-  'necklace-of-fireballs': ['an-item-instance-with-a-state-of-its-own'],
+  'necklace-of-fireballs': {
+    unread:
+      're-read, and the blocker it named is gone without another to take its place — which is the more surprising because this necklace is the example `CatalogueItem.chargesRolled`’s own docstring is written around. "This necklace has 1d6 + 3 beads" is a count rolled at the copy’s birth and pinned, and Fireball executes, so "the bead detonates as a level 3 _Fireball_ (save DC 15)" is a `casts` grant priced at one bead. What has no id is the clause before it: "you can take a Magic action to detach a bead and **throw it up to 60 feet away**" — Fireball’s own Range is 150 feet, `resolveTargets` enforces that Range, and a `casts` grant has no field that narrows one. The clause *limits* the benefit, so rule 3 in packages/content/src/items.ts leaves the record out rather than handing out a necklace with two and a half times the reach the book gives it. Every other item in the catalogue that casts prints no range of its own, which is why this is the first entry to want the field.',
+  },
+  // The instance shape stays, and it is not the count: the 1d4 + 2 beads are
+  // rolled at the copy's birth, but **which type** each bead is is the GM's
+  // and each keeps a dawn of its own, so this copy carries a list rather than
+  // a number. Shining Smite and Wind Walk are still undefined.
   'necklace-of-prayer-beads': [
     'a-spell-an-item-casts-that-nothing-executes',
     'a-version-of-an-item-the-book-leaves-to-the-gm',
@@ -5619,15 +5696,20 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'a-fact-only-the-table-can-declare',
     'a-benefit-an-item-suspends-on-a-trigger',
   ],
-  'oil-of-etherealness': [
-    'a-spell-an-item-casts-that-nothing-executes',
-    'an-item-instance-with-a-state-of-its-own',
-  ],
+  // A vial is the single-use consumable `useItem` already spends and carries
+  // no state of its own. Etherealness is defined and **tracked**, which is
+  // the second half of the spell shape rather than the first: an oil confers
+  // rather than casts, and an item that confers an empty list confers nothing.
+  'oil-of-etherealness': ['a-spell-an-item-casts-that-nothing-executes'],
+  // The instance shape stays, and this is the one entry where the copy the
+  // state belongs to is a **different** item: "turning the coated weapon into
+  // a _+3 Weapon_" is a fact about that sword, not about this vial.
   'oil-of-sharpness': ['an-item-instance-with-a-state-of-its-own'],
+  // The same vial and the same reading: Freedom of Movement is tracked, so
+  // what the oil would confer is an empty list, and the Grease is an area.
   'oil-of-slipperiness': [
     'a-spell-an-item-casts-that-nothing-executes',
     'an-area-an-item-creates',
-    'an-item-instance-with-a-state-of-its-own',
   ],
   'pearl-of-power': ['a-casting-an-item-stores-or-gives-back'],
   'periapt-of-health': [
@@ -5747,8 +5829,10 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   ],
   'ring-of-regeneration': ['healing-modified-by-an-effect'],
   'ring-of-resistance': ['a-version-of-an-item-the-book-leaves-to-the-gm'],
+  // Dancing Lights, Light and Faerie Fire are all defined and tracked, so the
+  // three castings and the ring's 1d6 dawn are writable. The lightning
+  // spheres are what is left.
   'ring-of-shooting-stars': [
-    'a-spell-an-item-casts-that-nothing-executes',
     'an-area-an-item-creates',
     'a-concentration-with-no-casting-behind-it',
   ],
@@ -5759,10 +5843,10 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'a-damage-roll-an-item-makes',
     'a-charge-spent-on-something-other-than-a-casting',
   ],
-  'ring-of-three-wishes': [
-    'a-spell-an-item-casts-that-nothing-executes',
-    'an-item-instance-with-a-state-of-its-own',
-  ],
+  // "you can expend 1 of its 3 charges ... The ring becomes nonmagical when
+  // you use the last charge" is a pool of three keyed to the copy, spent to
+  // nothing and never given back. Wish is still undefined.
+  'ring-of-three-wishes': ['a-spell-an-item-casts-that-nothing-executes'],
   'ring-of-warmth': ['a-reduction-an-effect-applies-to-damage'],
   'ring-of-x-ray-vision': [
     'senses-beyond-declared-sight',
@@ -5780,6 +5864,9 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'an-area-an-item-creates',
   ],
   'robe-of-the-archmagi': ['a-bonus-to-spell-attack-rolls', 'a-mode-on-the-save-a-spell-forces'],
+  // The instance shape stays: "the robe has 4d4 other patches", each of a
+  // kind rolled on a table and each removable once. A copy carries a list of
+  // kinds, and a pool counts.
   'robe-of-useful-items': [
     'an-object-with-statistics-of-its-own',
     'a-version-of-an-item-the-book-leaves-to-the-gm',
@@ -5798,10 +5885,6 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'a-save-an-item-forces',
     'a-rider-on-a-later-weapon-attack',
   ],
-  'rod-of-resurrection': {
-    unread:
-      'read, both spells are written for it — Heal executes and Resurrection is tracked — and the blocker that is left cannot be named from anything this repository has described. "The rod regains 1 expended charge daily at dawn" is a **stated** number at dawn, and `ResourcePool.regainsAtDawn` takes dice on the recorded reasoning that the SRD "prints dice" and writes one "never once" as a count; a one-sided die is refused by `parseNotation`, which asks for two sides to a thousand. Leaving the field off is not neutral — a `dawn` pool with no dice refills — so the record would be a rod giving back five charges a morning where the book gives one, which is rule 3 in packages/content/src/items.ts. An engine line one field wide, and not a shape.',
-  },
   'rod-of-rulership': ['a-condition-an-item-imposes'],
   'rod-of-security': ['a-fact-only-the-table-can-declare', 'healing-modified-by-an-effect'],
   'rope-of-climbing': ['an-object-with-statistics-of-its-own', 'a-bonus-narrowed-to-a-skill'],
@@ -5811,24 +5894,20 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'a-mode-on-the-save-a-spell-forces',
     'a-charge-spent-on-something-other-than-a-casting',
   ],
+  // The instance shape stays, and it is the plainest case of one: "The target
+  // is the bearer of the other stone" makes each stone's identity a *pair*,
+  // and "If one of the stones in a pair is destroyed, the other one becomes
+  // nonmagical" makes one copy's state read another's. Sending is undefined.
   'sending-stones': [
     'a-spell-an-item-casts-that-nothing-executes',
     'an-item-instance-with-a-state-of-its-own',
   ],
   'shield-of-missile-attraction': ['what-ends-attunement-besides-a-command'],
   'slippers-of-spider-climbing': ['a-speed-an-item-grants', 'movement-modes'],
-  'sovereign-glue': [
-    {
-      clause: 'can form a permanent adhesive bond between any two objects',
-      why: 'table',
-      note: 'an adhesive bond is not a mechanical state: nothing in the engine holds two objects together, and no rule would ask.',
-    },
-    {
-      clause: 'a container contains 1d6 + 1 ounces',
-      why: 'an-item-instance-with-a-state-of-its-own',
-      note: 'the ounces are a count on **this** jar, rolled when it is found and spent an ounce at a time. A catalogue row is the same for everybody, so there is nowhere to put them — which is the identity docs/design/characters-and-equipment.md still owes, arriving on an item with no other rules at all.',
-    },
-  ],
+  // Both shapes stay, and both for the same word: the scroll "bears the words
+  // of a single spell" and never says which, so *which spell this copy holds*
+  // is a fact about the copy that no count can carry, and the entry is a
+  // template over every spell in the book rather than one item.
   'spell-scroll': [
     'a-spell-an-item-casts-that-nothing-executes',
     'a-version-of-an-item-the-book-leaves-to-the-gm',
@@ -5836,8 +5915,11 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   ],
   'spellguard-shield': ['a-mode-on-the-save-a-spell-forces'],
   'sphere-of-annihilation': ['an-object-with-statistics-of-its-own', 'a-damage-roll-an-item-makes'],
+  // Charm Person executes and Command and Comprehend Languages are tracked,
+  // so all three of the staff's castings are writable. The Reaction that
+  // reflects an Enchantment and the failed save it turns into a success are
+  // what is left.
   'staff-of-charming': [
-    'a-spell-an-item-casts-that-nothing-executes',
     'a-reaction-an-item-grants',
     'a-charge-spent-on-something-other-than-a-casting',
     'a-rider-on-the-face-the-die-showed',
@@ -5902,13 +5984,15 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'a-rider-on-the-face-the-die-showed',
     'an-exhaustion-level-a-spell-changes',
   ],
+  // "The talisman has 7 charges ... When you expend the last charge, the
+  // talisman disperses" is a pool spent to nothing on this copy, which a pool
+  // keyed to the instance holds. Its twin below reads the same.
   'talisman-of-pure-good': [
     'a-bonus-to-spell-attack-rolls',
     'a-damage-roll-an-item-makes',
     'a-save-an-item-forces',
     'a-charge-spent-on-something-other-than-a-casting',
     'a-filter-on-the-attackers-creature-type',
-    'an-item-instance-with-a-state-of-its-own',
   ],
   'talisman-of-the-sphere': [
     'a-fact-only-the-table-can-declare',
@@ -5920,7 +6004,6 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'a-save-an-item-forces',
     'a-charge-spent-on-something-other-than-a-casting',
     'a-filter-on-the-attackers-creature-type',
-    'an-item-instance-with-a-state-of-its-own',
   ],
   'thunderous-greatclub': [
     'an-ability-score-a-spell-changes',
@@ -5930,51 +6013,34 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'a-rider-on-a-later-weapon-attack',
     'a-damage-roll-an-item-makes',
   ],
-  'tome-of-clear-thought': [
-    'an-ability-score-a-spell-changes',
-    'an-item-instance-with-a-state-of-its-own',
-  ],
-  'tome-of-leadership-and-influence': [
-    'an-ability-score-a-spell-changes',
-    'an-item-instance-with-a-state-of-its-own',
-  ],
-  'tome-of-understanding': [
-    'an-ability-score-a-spell-changes',
-    'an-item-instance-with-a-state-of-its-own',
-  ],
+  // The three tomes print the three manuals' sentence again; read them there.
+  'tome-of-clear-thought': ['an-ability-score-a-spell-changes'],
+  'tome-of-leadership-and-influence': ['an-ability-score-a-spell-changes'],
+  'tome-of-understanding': ['an-ability-score-a-spell-changes'],
   'trident-of-fish-command': ['a-target-rule-the-format-cannot-state'],
-  'universal-solvent': [
-    {
-      clause: 'a tube contains 1d6 + 1 ounces',
-      why: 'an-item-instance-with-a-state-of-its-own',
-      note: 'the same count Sovereign Glue’s jar carries, and the same absent identity: an ounce spent is a fact about this tube, and a catalogue row is the same for everybody.',
-    },
-    {
-      clause: 'onto a surface within reach',
-      why: 'table',
-      note: 'reach here is the arm’s, not a weapon’s: nothing is targeted, no roll is made, and the engine’s ruler is never asked. Dissolving an adhesive is the table’s.',
-    },
-  ],
   'wand-of-binding': ['a-rider-on-the-face-the-die-showed'],
   'wand-of-enemy-detection': [
     'senses-beyond-declared-sight',
     'a-rider-on-the-face-the-die-showed',
     'a-charge-spent-on-something-other-than-a-casting',
   ],
-  'wand-of-fear': [
-    'a-spell-an-item-casts-that-nothing-executes',
-    'a-rider-on-the-face-the-die-showed',
-  ],
+  // Command is tracked and Fear executes, so both castings on the wand's
+  // table are writable and its 1d6 + 1 dawn is a pool. What is left is the
+  // 1d20 on the last charge — and the same clause is `unmodelled` on the Wand
+  // of Fireballs and the Wand of Web, which are transcribed: this entry and
+  // the two below it are the wand family that clause is still filed as a
+  // blocker on, and the difference wants a reading of its own.
+  'wand-of-fear': ['a-rider-on-the-face-the-die-showed'],
   'wand-of-lightning-bolts': ['a-rider-on-the-face-the-die-showed'],
   'wand-of-magic-missiles': [
     'a-spell-an-item-casts-that-nothing-executes',
     'a-rider-on-the-face-the-die-showed',
   ],
   'wand-of-paralysis': ['a-condition-an-item-imposes', 'a-rider-on-the-face-the-die-showed'],
-  'wand-of-polymorph': [
-    'a-spell-an-item-casts-that-nothing-executes',
-    'a-rider-on-the-face-the-die-showed',
-  ],
+  // Polymorph is defined and tracked, so the wand's one casting, its printed
+  // DC and its 1d6 + 1 dawn are the Wand of Web's record with three words
+  // changed. The 1d20 on the last charge is all that is left.
+  'wand-of-polymorph': ['a-rider-on-the-face-the-die-showed'],
   'wand-of-the-war-mage-1-2-or-3': [
     'a-bonus-to-spell-attack-rolls',
     'a-fact-only-the-table-can-declare',
@@ -5989,10 +6055,12 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     unread:
       'read, and the blocker cannot be named without inventing a shape. A two-way portal between planes is neither an area, nor an object with statistics, nor a teleport destination stated at a casting, and nothing in this repository has described a planar portal as a gap. It is not fiction either — creatures pass through it — so it may not be filed as the table’s.',
   },
-  'wind-fan': [
-    'a-spell-an-item-casts-that-nothing-executes',
-    'an-item-instance-with-a-state-of-its-own',
-  ],
+  // Re-pointed twice over. Gust of Wind is defined and tracked, so the
+  // casting is writable; and what the fan really keeps is not an identity
+  // but a die — "a cumulative 20 percent chance of not working" — which the
+  // spell map already names. The count of uses since dawn behind that
+  // percentage is a pool; the percentage is not.
+  'wind-fan': ['a-random-outcome-that-is-not-a-d20'],
   'winged-boots': [
     'a-speed-an-item-grants',
     'movement-modes',
