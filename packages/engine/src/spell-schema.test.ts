@@ -2409,6 +2409,36 @@ describe('a rider is held to what its host can support', () => {
     ).toContain('repeats_without_save');
   });
 
+  /**
+   * **A casting the rider disowns is a casting the repeat cannot end.**
+   * `outlivesCasting` records the condition under the spell's bare name with
+   * no casting mark in it — that is the whole of what the field does — so a
+   * repeat whose success ends "the spell" would look for one and find a
+   * source `castingIdOf` answers null for.
+   *
+   * The third door of the rule `applyConditionTo` and `checkContent` already
+   * hold: a repeat save under a source that is not a casting may only be
+   * `end-on-target`. This is the one that can be caught at authoring, which is
+   * where a definition's defects belong.
+   */
+  it('refuses a repeat that ends a casting the rider has disowned', () => {
+    const repeats = { at: 'end-of-turn', onSuccess: 'end-casting' } as const;
+    const host = (rider: Record<string, unknown>) => ({
+      kind: 'save',
+      ability: 'wis',
+      condition: 'charmed',
+      ...rider,
+    });
+
+    expect(problems(host({ repeats, outlivesCasting: true }))).toContain('repeat_ends_no_casting');
+    // Either half alone is a sentence the SRD writes, and neither is refused.
+    expect(problems(host({ repeats }))).toEqual([]);
+    expect(problems(host({ outlivesCasting: true }))).toEqual([]);
+    expect(
+      problems(host({ repeats: { at: 'end-of-turn', onSuccess: 'end-on-target' }, outlivesCasting: true })),
+    ).toEqual([]);
+  });
+
   /** And allows it on the two hosts that did roll one, or the rule is vacuous. */
   it('allows a repeat save on a host that rolled one', () => {
     const repeats = { at: 'end-of-turn', onSuccess: 'end-on-target' } as const;

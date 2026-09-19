@@ -249,10 +249,17 @@ export interface RepeatSave {
    *
    * **`end-casting` needs a casting**, and the source is what says whether
    * there is one. A repeat save hung on anything else — a poison in a bottle,
-   * a source a caller supplied — may only be `end-on-target`, because what a
-   * success would end is the condition and there is no spell behind it. Both
-   * doors refuse the other spelling rather than quietly treating it as this
-   * one: `applyConditionTo` for a caller, `checkContent` for a conferral.
+   * a source a caller supplied, a rider that disowned the casting that caused
+   * it — may only be `end-on-target`, because what a success would end is the
+   * condition and there is no spell behind it.
+   *
+   * **Three doors refuse the other spelling** rather than quietly treating it
+   * as this one, and they are the three places a source is settled:
+   * `checkSpellDefinition` for a rider that pairs it with `outlivesCasting`,
+   * `checkContent` for a conferral, and `applyConditionTo` for a caller who
+   * hands one over directly. The first two are at authoring, which is where a
+   * defect in written content belongs; the last is the backstop, because a
+   * caller writes no content to validate.
    */
   readonly onSuccess: 'end-on-target' | 'end-casting';
   /** How the roll reads in the log. */

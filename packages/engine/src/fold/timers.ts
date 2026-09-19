@@ -122,6 +122,16 @@ export function applyTimers({ state, next }: Applying, event: TimersEvent): Game
       // the success ends is the condition and the deadline that was holding
       // it, which is the door `endTimedCondition` already opens when the same
       // condition simply runs out of time.
+      //
+      // **Narrower than a casting's `end-on-target`, deliberately.**
+      // `releaseOnTarget` lifts *everything* the casting hung on that
+      // creature, because a casting is one thing that ends; an item's source
+      // is a label on whatever the bottle did, and SRD's "ending the effect on
+      // a success" is about the condition the save was against. Shaking off a
+      // poison is not putting down a shield the same flask granted. Nothing
+      // can currently tell the two readings apart — `checkContent` admits one
+      // condition per `save` effect and no rider beside it — so this is the
+      // narrow reading written down rather than a fork nothing could take.
       const castingId = castingIdOf(pending.source);
       if (castingId === null) {
         if (pending.onSuccess === 'end-casting') {

@@ -608,6 +608,24 @@ function checkConditionRider(
     });
   }
 
+  // **And a repeat that ends the casting needs one the rider has not
+  // disowned.** `outlivesCasting` is exactly the field that records the
+  // condition under the spell's bare name with no casting mark in it, so a
+  // success that ends "the spell" would look up a source `castingIdOf` answers
+  // null for. The rule is the one `applyConditionTo` and `checkContent`
+  // already keep at their own doors — a repeat under a source that is not a
+  // casting may only end on its target — caught here, at authoring, which is
+  // where a definition's defects belong. A `lasts` rider is untouched: it
+  // shortens the casting's hold on the condition and does not sever the link.
+  if (rider?.repeats?.onSuccess === 'end-casting' && rider.outlivesCasting === true) {
+    found.push({
+      field: `${riderPath}.repeats.onSuccess`,
+      code: 'repeat_ends_no_casting',
+      reason:
+        'outlivesCasting records the condition under the spell\'s name with no casting in it, so a repeat save that ends the casting on a success has none to end; such a rider ends on its target',
+    });
+  }
+
   checkRiderDuration(rider?.lasts, riderPath, found);
 
   // **A rider with no lifetime is checked once, and not here.** The rule that
