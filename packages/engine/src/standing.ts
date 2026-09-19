@@ -296,7 +296,7 @@ export type StandingGrant =
    * **The set never lowers a score.** Every printed sentence says so in its
    * second clause — "It has no effect on you if your Constitution is 19 or
    * higher without it", "unless your Strength is already equal to or greater
-   * than that score" — and that is one rule rather than nine, so
+   * than that score" — and that is one rule rather than one per item, so
    * {@link abilityScoresOf} keeps it rather than each item.
    *
    * A feature may carry it too. No SRD class feature does, and the grant is
