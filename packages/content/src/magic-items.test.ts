@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { ITEM_EFFECT_KINDS, REQUIREMENT_KINDS, checkContent } from '@ie/engine';
+import {
+  ITEM_EFFECT_KINDS,
+  REQUIREMENT_KINDS,
+  type CatalogueItem,
+  checkContent,
+} from '@ie/engine';
 import { normaliseProse, quotedRunsIn } from '../scripts/citations.js';
 import {
   MAGIC_ITEM_KIND_OF,
@@ -103,15 +108,14 @@ const countedUses = (description: string): number | null => {
  * `uses` may be and the only number about one that is not a guess.
  *
  * SRD writes the count as dice — "a container contains 1d6 + 1 ounces" — and
- * `awardItems` throws them at the copy's birth, so the catalogue's `uses` is
- * a placeholder the roll overwrites. Held against the notation rather than
- * left free, because a placeholder somebody typed as seven would be a jar
- * that started full on every door that cannot roll.
+ * `awardItems` throws them at the copy's birth. The dice sit on the item's
+ * pool grant, which is where `checkContent` can see them, and they are the
+ * whole of the sizing: a pool that printed dice **and** a flat `uses` is
+ * refused, so there is no placeholder to hold against them.
  */
-const leastRoll = (notation: string): number => {
-  const parsed = /^(\d+)d(\d+)(?:\s*\+\s*(\d+))?$/.exec(notation.replace(/\s+/g, ''));
-  if (parsed === null) throw new Error(`"${notation}" is not dice this guard can read`);
-  return Number(parsed[1]) + Number(parsed[3] ?? 0);
+const rolledPoolOf = (item: CatalogueItem): string | undefined => {
+  const pool = (item.grants ?? []).find((grant) => grant.kind === 'pool');
+  return pool?.kind === 'pool' ? pool.usesRolled : undefined;
 };
 
 /** The elision-aware containment `containsRun` does, over a string in hand. */
@@ -244,22 +248,21 @@ describe('every transcribed item agrees with the entry it was read from', () => 
 
       // **A count the book rolls at the copy's birth.** SRD Sovereign Glue
       // and Universal Solvent: "When found, a container contains 1d6 + 1
-      // ounces." The dice are the page's and the `uses` beside them is only
-      // the floor they cannot go below — `awardItems` overwrites the maximum
-      // with what it threw — so both are held against the entry rather than
-      // against each other.
-      if (item.chargesRolled !== undefined) {
+      // ounces." The dice live on the pool rather than on the item, which is
+      // where the validator can see them, and they are the whole of the
+      // sizing: a pool printing a rolled maximum **and** a flat `uses` is
+      // refused, so there is no floor to hold them against. `awardItems`
+      // throws the die once at the copy's birth and pins what it threw.
+      if (pool.usesRolled !== undefined) {
         expect(
-          contains(entry.description, item.chargesRolled),
-          `${item.id} rolls "${item.chargesRolled}", which its entry never prints`,
+          contains(entry.description, pool.usesRolled),
+          `${item.id} rolls "${pool.usesRolled}", which its entry never prints`,
         ).toBe(true);
         expect(
           entry.charges?.maximum ?? null,
           `${item.id} rolls its count and its entry prints one`,
         ).toBeNull();
-        expect(pool.uses, `${item.id}'s placeholder is the floor of its own dice`).toBe(
-          leastRoll(item.chargesRolled),
-        );
+        expect(pool.uses, `${item.id} sizes its pool once, and the dice are the sizing`).toBeUndefined();
         expect(pool.regainsAtDawn, item.id).toBeUndefined();
       } else if (entry.charges === null && countedUses(entry.description) !== null) {
         // **A count the book prints and never gives back**: "The chime can be
@@ -389,7 +392,7 @@ describe('every transcribed item agrees with the entry it was read from', () => 
                 grant.charges === 1 &&
                 (limits.length > 0 ||
                   countedUses(entry.description) !== null ||
-                  item.chargesRolled !== undefined)
+                  rolledPoolOf(item) !== undefined)
               : // The three ways the book writes a price: written out, named
                 // as the floor of a range, or parenthesised beside the spell —
                 // SRD Rod of Resurrection's "(expends 1 charge)", and Cubic

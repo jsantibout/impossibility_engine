@@ -231,6 +231,24 @@ const countedUses = (id: string, label: string, uses: number): ItemGrant => ({
 });
 
 /**
+ * The same pool, where the book **rolls** how many it holds.
+ *
+ * SRD Sovereign Glue: "This glue is found in a jar or flask containing 1d6 +
+ * 1 ounces." The count is a die and not a number, so the pool says so and the
+ * door that hands the copy over throws it once, at the copy's birth, and pins
+ * it. A pool may not print both a rolled maximum and a flat `uses` — two
+ * maxima for one pool is what `item_pool_sized_twice` refuses — so this is
+ * the whole of the sizing rather than a floor beneath it.
+ */
+const rolledUses = (id: string, label: string, usesRolled: string): ItemGrant => ({
+  kind: 'pool',
+  key: `${id}:charges`,
+  label,
+  usesRolled,
+  recovers: 'special',
+});
+
+/**
  * "You can cast _X_ from it", as a grant.
  *
  * SRD "Spells Cast from Items" settles what that sentence means and the engine
@@ -1996,17 +2014,17 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
    * `awardItems` is the one door that may throw the die, and the pool it pins
    * is keyed to the copy.
    *
-   * **`uses` is the floor the dice cannot go below**, and it is a placeholder
-   * rather than a claim: `issueItemCopies` leaves a rolled copy's pool
-   * undeclared for the door that can roll, and `awardItems` overwrites the
-   * maximum with the number it threw. Two is what "1d6 + 1" guarantees, so it
-   * is the one number here that is not a guess.
+   * **The dice are the whole of the sizing.** They live on the pool grant
+   * rather than on the item, which is where a validator can see them: a pool
+   * may not print a rolled maximum and a flat `uses` both, so there is no
+   * floor beneath the roll and no placeholder pretending to be one.
+   * `issueItemCopies` leaves such a copy's pool unsized for any door that
+   * cannot roll, and `awardItems` throws the die once and pins what it threw.
    */
   wornItem(
     { id: 'sovereign-glue', name: 'Sovereign Glue', kind: 'wondrous' },
     {
-      chargesRolled: '1d6 + 1',
-      grants: [countedUses('sovereign-glue', 'Sovereign Glue ounces', 2)],
+      grants: [rolledUses('sovereign-glue', 'Sovereign Glue ounces', '1d6 + 1')],
       unmodelled: [
         'the bond itself: a substance that "can form a permanent adhesive bond between any two objects" is not a mechanical state — nothing holds two objects together and no rule would ask — so an ounce is spent and the table says what it stuck to',
         'what dissolves the bond: "the bond it creates can be broken only by the application of _Universal Solvent_ or _Oil of Etherealness_, or with a _Wish_ spell" names the same absent state from the other end',
@@ -2021,8 +2039,7 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
        * The Sovereign Glue's tube, with the same rolled count and the same
        * absent state on the other side of it.
        */
-      chargesRolled: '1d6 + 1',
-      grants: [countedUses('universal-solvent', 'Universal Solvent ounces', 2)],
+      grants: [rolledUses('universal-solvent', 'Universal Solvent ounces', '1d6 + 1')],
       unmodelled: [
         'what an ounce dissolves: "Each ounce instantly dissolves up to 1 square foot of adhesive it touches" — an adhesive is not a state the engine holds, so the ounce is spent and the dissolving is the table\'s',
         '"onto a surface within reach": the reach here is an arm\'s rather than a weapon\'s — nothing is targeted, no roll is made, and the engine\'s ruler is never asked',
