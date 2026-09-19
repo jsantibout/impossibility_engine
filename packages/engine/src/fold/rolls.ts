@@ -3,8 +3,19 @@
  *
  * `rolls-issued` is the only thing that moves `rng` and `rollsIssued`, which
  * is what lets a live session resume its sequence mid-fight. `roll-recorded`
- * changes no state at all: it exists so the log can answer "why did the goblin
- * die", and its consequences arrive as their own events.
+ * exists so the log can answer "why did the goblin die", and this seam writes
+ * nothing for it: its consequences arrive as their own events.
+ *
+ * **It is not, for all that, an event with no consequence of its own.** One
+ * label carries a rule: `interruptedRests` in `fold/apply.ts` breaks a rest
+ * the roller was taking when the label is `INITIATIVE_LABEL`, because SRD
+ * lists "Rolling Initiative" first among the things that interrupt a rest and
+ * names the *roll* rather than the fight. That is a derived pass rather than
+ * a seam — the same shape as Concentration lost to Incapacitation — so it is
+ * outside this file and easy to miss from inside it. This docstring said "no
+ * state at all" for long enough that an architect answered a design question
+ * out of it, which is what a false sentence in the code costs.
+ * `roll-recorded.test.ts` pins both halves.
  */
 import type { GameEvent } from '../events.js';
 import type { GameState } from '../state.js';
@@ -31,7 +42,9 @@ export const isRollsEvent = seamOf(ROLLS_EVENTS);
  */
 export function applyRolls({ state, next }: Applying, event: RollsEvent): GameState {
   switch (event.type) {
-    // A record, not a mutation: the consequences arrive as their own events.
+    // A record, not a mutation *here*: the consequences arrive as their own
+    // events, and the one rule the event itself carries — Initiative breaking
+    // a rest — is a derived pass in `fold/apply.ts`, not this seam's.
     case 'roll-recorded':
       return next;
 
