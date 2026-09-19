@@ -108,6 +108,27 @@ to homebrew.
   scores and gated on a level, and a worn item may set a score outright
   without ever lowering one. A level 19 character is built and folded in a
   test, which had never been done.
+- **Every Improvement and Epic Boon the tables print** — all twelve classes
+  offer the Ability Score Improvement at the levels their own paragraph names,
+  which is 4/8/12/16 for ten of them, 4/6/8/12/14/16 for the Fighter and
+  4/8/10/12/16 for the Rogue, and the level 19 Boon beside it. Sixty-three
+  class features moved from `manual` to executed on no engine change at all,
+  which is what the content door was built to make possible.
+- **A draught whose hours are rolled** — a conferral's lifetime may be a die
+  rather than a printed number. It is thrown once, at the first deadline the
+  use files, down the same non-d20 path a charge pool's maximum takes; what
+  reaches the log is the resolved deadline, so a replay never re-rolls it.
+- **Two refusals a caller can tell apart** — the ground that disagrees with
+  itself asks for a route and is answered by one command carrying it; a
+  carried area asks for single steps and is answered by several, and no route
+  will ever answer it, because a creature the area Restrains stops walking
+  where it stood. A readied move can state its route now, which it could not.
+- **A blocker recorded in words no marker knows** — the spell map may hold an
+  entry whose sentence trips none of the guard's mechanical markers, so
+  writing a definition no longer silently deletes the gaps beside it. Two
+  rules keep it from being an escape hatch: the sentence must genuinely trip
+  nothing, and the entry must name a real missing shape rather than the table.
+  Three definitions that had been written and thrown away over this are in.
 - **Replay** — a scripted four-round fight and two frozen logs fold
   byte-identically.
 
@@ -148,12 +169,20 @@ to homebrew.
   an amount may now be a printed number with no dice in it, which the two
   scaling fields that add dice to a notation refuse and the one that adds a
   flat number does not.
-- A set ability score does not reach an ability check. `attack.ts`, `checks.ts`
-  and the command layer read the sheet directly; two readers ask the sheet as
-  it stands and the rest do not, which the docstrings name one by one.
-- The twenty-four Ability Score Improvements and Epic Boons are still
-  `manual`: the feat they grant exists now, and the one line of transcription
-  per class has not been written.
+- A set ability score reaches the attack roll, its damage, the ability check,
+  the saving throw, Initiative and a Reaction's addend, and **seven readers
+  still take the built sheet**: a spell's save DC and spell attack bonus, an
+  item's casting, two spell-effect modules, the Concentration save — which an
+  Amulet of Health directly prints — the check and save a turn boundary
+  repeats, and `selfHealAddend`. The substitution happens in the commands,
+  where the state is; `attack.ts` and `checks.ts` take a sheet and hold no
+  state, and a roller that went looking for a worn item would be the second
+  derivation `sheetAsItStands` exists to prevent. The remaining seven are
+  named one by one in that function's docstring. Three catalogue entries —
+  Amulet of Health, Gauntlets of Ogre Power, Headband of Intellect — still
+  carry an `unmodelled` note saying the rolls read the built score, which is
+  now false and is pinned by a passing assertion, so the note and the pin move
+  together.
 - Seven emitters of `roll-recorded` pass no modes, so the field's absence
   means both "nobody ruled" and "this emitter never says". An attack roll and
   an Initiative roll can each carry Advantage and neither records it.
@@ -162,27 +191,51 @@ to homebrew.
   model-driven fight can wedge.
 - No carried weight, no ammunition spent. Objects that are not creatures
   are not modelled.
+- An item cannot fail at being used. Wind Fan's cumulative 20% wants a use
+  that records a roll, destroys the fan and produces **no casting** — which is
+  not an `err`, because a refusal carries no events, and not a
+  `SpellResolution`, because that type requires a `castingId` a casting that
+  never happened does not have. It also wants a count of uses since dawn, and
+  the only per-copy state the engine holds is a charge pool whose size the
+  transcription guard reads off the entry's printed text. Wind Fan prints no
+  count, so a pool of six is `100/20` derived.
 - Overriding printed content with homebrew of the same id is refused; only
   adding beside it is supported.
 
 ## Next
 
 Ranked by what each shape **finishes**, which is the column beside the one
-that mis-sized four briefs. Two entries here are specifications a builder
-wrote after finding its own brief void; both are quoted rather than
+that mis-sized four briefs. Entries quoting a builder are quoted rather than
 re-derived.
 
-1. **The twenty-four Improvements and Epic Boons, transcribed.** The feat
-   door is built and the class features still say `manual`. One line per
-   class, twelve files, no engine change — and then the repeats: the table
-   grants the Improvement again at 8, 12 and 16, Fighter also at 6 and 14,
-   Rogue also at 10, which is ~40 entries and the reason a Fighter 16 is
-   offered one grant rather than four. Several fixtures already name ids that
-   do not exist.
-2. **A set score that reaches a check.** Threading `sheetAsItStands` through
-   `attack.ts`, `checks.ts` and the command layer. Until it lands, an item
-   that sets Strength to 21 moves the sheet and not the roll.
-3. **A casting ended by a trigger, re-cut.** The mechanic exists; what is
+1. **A weapon mastery property.** Six manual features, all six finished by
+   this one shape and by nothing else — the top of the feature blocker map by
+   the column that does not lie. It is two halves and they are one brief: the
+   record of which weapons a character has mastery with, and the eight
+   properties' own rules (Cleave, Graze, Nick, Push, Sap, Slow, Topple, Vex)
+   inside the attack layer. Five classes print the feature and a sixth swaps
+   one property for another. It owns `attack.ts` and the attack commands for
+   its batch, so nothing else that touches a roll runs beside it.
+2. **A feature that changes a casting's damage.** Five features, five
+   finished. The notation, the die and the type are the definition's and are
+   pinned when the casting is written, so a modifier on one Evocation's
+   damage, a d6 that becomes a d10, and a maximised backlash each want the
+   same reader that does not exist.
+3. **The seven readers that still take the built sheet.** Named one by one in
+   the `sheetAsItStands` docstring by the builder that closed the first six:
+   `spell-resolution.ts`, `item-casting.ts`, `spell-effect-rolls.ts`,
+   `spell-effect-magic.ts`, `casting.ts` (the Concentration save, which an
+   Amulet of Health directly prints), `turns.ts` and `features.ts`. Each is
+   the same one-line substitution. It also rewords the three catalogue notes
+   that now say something false, and moves the assertion pinning them.
+   `rollSpellDice` is **not** among them and needs no change.
+4. **A tool that can carry a route.** `packages/tools/src/definitions.ts:833`
+   declares `establishes: ['route']` on the `move` tool and its input schema
+   has no `route` field; nothing in `packages/tools` mentions `route` or
+   `via`. So the engine now asks a question precisely and the door advertised
+   for the answer cannot receive it — a model-driven caller still wedges,
+   which was most of the point of telling the two refusals apart.
+5. **A casting ended by a trigger, re-cut.** The mechanic exists; what is
    left is the cause vocabulary, and one brief must own `timers.ts`,
    `spells.ts`, `fold/endings.ts`, `fold/release.ts`, `spell-definitions.ts`
    and `spell-schema.ts` together, because `EFFECT_END_CAUSES ⊆
@@ -191,24 +244,29 @@ re-derived.
    finishes Hat of Disguise. No new event and no fixture moves: `damage-taken`
    carries `by`, `creature-died` covers True Polymorph, `item-unequipped`
    covers the hat. Everything else in that shape finishes nothing alone.
-4. **A chance on an item's use, and a rolled conferral span.** Finishes Wind
-   Fan and Potion of Diminution. There is no primitive to build — `usesRolled`
-   and `regainsAtDawn` already throw a non-d20 roll and write the same
-   three-event batch — only a field at each site. The engine holds
-   `{ dice, rows: [{ from, to }] }` as a shape and not one row's payload.
-   Separately, Augury, Divination, Commune and Secret Chest need a count of
-   castings back to a Long Rest that nothing keeps; do not absorb it.
-5. **A condition an item imposes** — 28 blocked, 5 finished, the heaviest item
+6. **A condition an item imposes** — 28 blocked, 5 finished, the heaviest item
    shape now that identity and the score verbs have been spent.
-6. **Feather Fall, for one small mechanic.** `SpellReactionWindow` admits
+7. **Calm Emotions and Hallow.** Both were blocked only by the marker-less
+   entry form, which now exists; neither has been written. Hallow prints a
+   24-hour casting and eight blockers, so it is the harder of the two by a
+   distance.
+8. **Feather Fall, for one small mechanic.** `SpellReactionWindow` admits
    exactly three triggers and a fall is not one; `falling` is that spell's
    only recorded blocker and its paragraph is one of three clean ones left.
-7. **A marker-less entry form for `TrackedAdjudication`.** A spell moving from
-   blocked to tracked silently drops every blocker whose sentence trips no
-   mechanical marker, and the "no shape unclaimed" rule then demands the shape
-   be retired — deleting a gap that is still real. Three finished definitions
-   were reverted over this rather than ship it.
-8. **Two refusals that cannot be told apart.** Both causes of `route_required`
-   share a code and a request kind, and the carried-area sweep runs first, so
-   a caller that learns "fill in `route`" loops on the other case. A readied
-   move cannot carry a route at all.
+
+**A decision before anything above touches it:** what a use of an item that
+the item fails to make *is*. Wind Fan needs a fourth outcome beside ok, err
+and needs-context, or an optional `failed` arm on `SpellResolution` with
+`castingId` made optional — and it needs to be settled whether a count of
+uses with no printed size may be a charge pool. Both questions are the
+owner's; a builder found them rather than inventing an answer.
+
+**One known flake**, observed independently on an untouched base commit by two
+agents: `fold-import-boundary.test.ts` constructs an `ESLint` and lints text
+in process, and its first case can exceed the 5s default timeout under
+full-suite load. It passes alone. A timeout on that describe block belongs in
+whichever brief next opens the file.
+
+Separately, and absorbed by none of the above: Augury, Divination, Commune
+and Secret Chest need a count of castings back to a Long Rest that nothing
+keeps.
