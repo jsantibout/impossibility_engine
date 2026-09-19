@@ -11,19 +11,27 @@
 import { describe, expect, it } from 'vitest';
 import { asCharacterId, isErr, expect as unwrap, type Result } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
-import { DAY, HOUR, MINUTE, ROUND, days, describeElapsed, hours, minutes, rounds } from './time.js';
 import { conditionInstanceId } from './conditions.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { spellSlotKey } from './resources.js';
 import { castingSource } from './spells.js';
 import {
+  DAY,
+  days,
+  describeElapsed,
   endOfCurrentTurn,
   endOfNextTurn,
   forSeconds,
   hasExpired,
+  HOUR,
+  hours,
   indefinite,
   isDue,
+  MINUTE,
+  minutes,
   resolveDuration,
+  ROUND,
+  rounds,
   startOfNextTurn,
   timeView,
   type Deadline,

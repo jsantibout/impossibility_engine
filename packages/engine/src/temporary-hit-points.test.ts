@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { asCharacterId, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
-import { HOUR, hours, minutes } from './time.js';
-import { forSeconds } from './time.js';
+import { forSeconds, HOUR, hours, minutes } from './time.js';
 import { timerKey, type EffectTarget } from './timers.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { grantTemporaryHpTo } from './commands.js';

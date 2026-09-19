@@ -1747,6 +1747,34 @@ describe('every member of the definition format has a user or a written exemptio
   });
 
   /**
+   * **A field that names a vocabulary still contributes its members**, which
+   * is the branch that keeps this reader honest about `at`.
+   *
+   * Three fields of the format are written `at: TurnMoment` rather than as the
+   * pair spelled out, and a reader that saw only literal unions would report
+   * six fewer members than the format has — silently, because an unseen member
+   * cannot come back unwritten. That is the narrowing this sweep exists to
+   * catch, and it is asserted here rather than trusted: synthetic source, so
+   * the branch is driven whatever the format is written like this week, and
+   * the real `AreaTrigger` beside it so the wiring is real too.
+   */
+  it('derives the members of a field that names a vocabulary', () => {
+    const synthetic = ['export interface Tick {', '  readonly at: TurnMoment;', '}'].join('\n');
+    expect(membersOf(synthetic, 'Tick').map((m) => m.label)).toEqual([
+      "Tick.at='start-of-turn'",
+      "Tick.at='end-of-turn'",
+    ]);
+    // And an optional one keeps its own member too, which is `AreaTrigger.at`.
+    expect(membersOf(source, 'AreaTrigger').map((m) => m.label)).toEqual(
+      expect.arrayContaining([
+        'AreaTrigger.at?',
+        "AreaTrigger.at='start-of-turn'",
+        "AreaTrigger.at='end-of-turn'",
+      ]),
+    );
+  });
+
+  /**
    * The member this task added, named rather than left to the aggregate: its
    * writer is Stinking Cloud's Poisoned, and the sweep can only say so because
    * it can see `RiderDuration` at all. Before the arm-at-a-time read that type
