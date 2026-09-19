@@ -217,10 +217,13 @@ export interface Summons {
  * order. What did not exist is the one event between them —
  * `creature-summoned` — saying that a **casting** is the reason it is there.
  *
- * That link is the whole of what a summons adds, and it buys the sentence
- * every summoning spell in the book prints: when the spell ends, the creature
- * is gone. The ending is found rather than commanded (`departEndedSummons`),
- * because a Concentration broken by a rockfall is nobody's decision.
+ * That link is the whole of what a summons adds, and what it buys is half of
+ * the sentence every summoning spell prints: the engine can *tell* you the
+ * creature should be gone. {@link strandedSummons} is where it says so and
+ * {@link dismissStrandedSummons} is what acts on it — and until a caller
+ * sweeps, a summons whose spell has ended goes on standing in the order and
+ * acting. See {@link strandedSummons} for why that gap is here and what
+ * would close it.
  *
  * **Nothing about the creature is read from content and nothing is derived.**
  * The sheet, the printed Armour Class, the average hit points, "a monster
@@ -353,11 +356,24 @@ export function summonCreature(
  * leaving. The fold finds all four, and the fold emits nothing; a creature
  * leaving is a **batch** (`removeCreatureEverywhere`), because it has to
  * settle what the leaver owed before the key goes. So the two halves cannot
- * meet inside the reducer, and this is the honest seam: the engine reports
- * who is owed a departure and {@link dismissSummons} performs it.
+ * meet inside the reducer, and this is the seam: the engine reports who is
+ * owed a departure and {@link dismissStrandedSummons} performs it.
  *
  * `withheldEndings` is the same shape for the same reason — an ending the
  * engine can see and will not invent.
+ *
+ * **What this does not do, stated plainly.** Nothing in the engine calls the
+ * sweep, and nothing refuses to go on without it: `resolveTurn` will advance
+ * the order past a hound whose Bless ended, and the hound keeps its rung,
+ * keeps attacking and keeps being attacked until a caller sweeps. That is a
+ * weaker guarantee than `owedAreaEffects` has — a **field** on `GameState`
+ * that the turn refuses to advance past — and the difference is not an
+ * oversight but the state of the decision. Closing it means either a debt of
+ * the same kind, which `resolveTurn` would have to refuse on, or a sweep at
+ * the turn boundary, which is the one place a settlement is safe: a boundary
+ * is not inside another command's forward fold, which is what made a derived
+ * departure delete a creature out from under the very command that was about
+ * to settle its hold. Both are decisions above this function.
  *
  * Sorted, so the answer is fixed however the cast was assembled.
  */
@@ -375,9 +391,10 @@ export function strandedSummons(state: GameState): readonly CharacterId[] {
 /**
  * Take away every creature whose casting is over.
  *
- * The settling half of {@link strandedSummons}, and `settleAreaEffects` is
- * the shape it copies: the fold notices, the command performs, and what is
- * performed is whatever is owed rather than something the caller has to name.
+ * The settling half of {@link strandedSummons}. Like `settleAreaEffects` it
+ * performs whatever is owed rather than something the caller has to name —
+ * and **unlike** it, nothing in the engine calls this one and no command
+ * refuses to proceed without it. See {@link strandedSummons}.
  *
  * **The departure is the one the engine already models**, unchanged: each
  * creature goes through {@link removeCreatureEverywhere}, which settles the
@@ -390,7 +407,9 @@ export function strandedSummons(state: GameState): readonly CharacterId[] {
  * for.** A summons may be sustaining a summons — the hound's own spell
  * holding a sprite — and the sprite is stranded only in the world the
  * hound's departure leaves. Same reading `removeCreatureEverywhere` takes of
- * its own settlement, one level up.
+ * its own settlement, one level up. It terminates because every pass removes
+ * a creature from `state.creatures` and {@link strandedSummons} only ever
+ * names creatures that are still in it.
  *
  * **An empty batch is a real answer.** Nothing stranded is not a rule
  * anybody broke, and a caller sweeping after every ending must not have to

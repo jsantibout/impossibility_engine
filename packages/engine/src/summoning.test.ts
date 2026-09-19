@@ -52,10 +52,15 @@ import {
  * - **Whose it is, and how long it lasts, are facts that already had homes.**
  *   The side is the summoner's own; the lifetime is the casting's, which the
  *   ongoing record and the timers already run.
- * - **Its leaving is the departure the engine already models.** The same
- *   function `creature-removed` folds through, reached by a derived pass
- *   rather than by a second answer, because four of the five ways a casting
- *   ends are things nobody decides.
+ * - **Its leaving is the departure the engine already models**, unchanged:
+ *   `removeCreatureEverywhere`, because a creature leaving has to settle
+ *   what it owed before its key goes and a reducer emits nothing. What *is*
+ *   derived is the noticing, which is what catches the four endings nobody
+ *   commands. So the engine says who is owed a departure
+ *   (`strandedSummons`) and a command performs it
+ *   (`dismissStrandedSummons`); until it is called, a summons whose spell
+ *   ended goes on acting, and the tests below say so rather than pretending
+ *   otherwise.
  */
 
 const id = (s: string) => asCharacterId(s);
@@ -607,15 +612,21 @@ describe('what a summoning refuses, and what it asks for', () => {
   });
 
   /**
-   * A rules refusal beats a missing fact. Asking for an Initiative total for
-   * a creature that is already standing there would send the caller off to
-   * establish something it was never going to use.
+   * The casting is checked before the creature is built, so a summoning that
+   * names both a dead casting and a creature already in the game is told
+   * about the casting. Either answer would be true; what matters is that it
+   * is the same one every time, because a caller branching on the code
+   * cannot branch on a coin.
    */
-  it('says what is wrong before it says what is missing', () => {
-    const g = new Game().fight();
-    const castingId = g.cast(WIZ, 'bless', [WIZ]);
-    const refused = summonCreature(g.state, { id: FOE, monster: CONJURED_HOUND, by: WIZ, castingId });
-    expect(isErr(refused) && refused.code).toBe('already_present');
+  it('answers the casting before it answers the creature', () => {
+    const g = new Game();
+    const refused = summonCreature(g.state, {
+      id: FOE,
+      monster: CONJURED_HOUND,
+      by: WIZ,
+      castingId: 'no-such-casting',
+    });
+    expect(isErr(refused) && refused.code).toBe('not_ongoing');
   });
 
   it('refuses a creature already in the game', () => {
@@ -675,6 +686,24 @@ describe('the reducer refuses a log that contradicts itself', () => {
         { type: 'creature-summoned', id: HOUND, by: WIZ, castingId: second },
       ]),
     ).toThrow(/already held by/);
+  });
+
+  it('will not have a finished casting holding anybody', () => {
+    const g = new Game();
+    const castingId = g.cast(WIZ, 'bless', [WIZ]);
+    g.push(
+      unwrap(
+        summonCreature(g.state, { id: HOUND, monster: CONJURED_HOUND, by: WIZ }),
+        'summoning, bound to nothing',
+      ).events,
+    );
+    g.push(unwrap(endOngoingSpell(g.state, WIZ, castingId, null), 'dismissing'));
+
+    // The command refuses this (`not_ongoing`); a log that says it anyway
+    // would carry a creature owed a departure from its first moment.
+    expect(() =>
+      fold('seed', [...g.events, { type: 'creature-summoned', id: HOUND, by: WIZ, castingId }]),
+    ).toThrow(/not a spell that is still running/);
   });
 
   it('will not summon a creature nobody added', () => {

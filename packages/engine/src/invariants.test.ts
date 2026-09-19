@@ -1068,9 +1068,9 @@ const GUARDED: readonly Guarded[] = [
   },
   {
     name: 'dismissStrandedSummons',
-    // A hound the wizard's Bless was holding, with the Bless already ended:
-    // the sweep has exactly one creature to take away, so a retry under one
-    // id is the difference between one departure and a refusal.
+    // A's Disguise Self was holding a Zombie and has already been dismissed,
+    // so the sweep has exactly one creature to take away — and a retry under
+    // one id is the difference between one departure and a refusal.
     log: STRANDED,
     run: (s, commandId) => dismissStrandedSummons(s, { commandId }),
   },

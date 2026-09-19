@@ -111,6 +111,18 @@ export function applyRoster({ state, next }: Applying, event: RosterEvent): Game
 
     case 'creature-summoned': {
       const creature = creatureOf(state, event, event.id);
+      // A casting that is not running cannot be what is holding a creature
+      // here: the link would be born already broken, and `strandedSummons`
+      // would report a departure that was owed from the creature's first
+      // moment. The command refuses it (`not_ongoing`) on the same reading
+      // the duplicate below is refused on, and `state.ongoing` is the seam's
+      // to read — the record is written by `ongoing.ts` from the same log.
+      if (state.ongoing[event.castingId] === undefined) {
+        throw new CorruptLogError(
+          event,
+          `${event.castingId} is not a spell that is still running; it cannot be what holds ${event.id} here`,
+        );
+      }
       // Restating the same binding is harmless; two castings claiming one
       // creature is not a new fact but a rewrite of one whose ending was
       // about to take the creature away. The command refuses that, so a

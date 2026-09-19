@@ -395,10 +395,12 @@ export type GameEvent =
    * opens no catalogue, and this event adds a link between two things the log
    * already named.
    *
-   * There is no matching "unsummoned" event. A casting ending is found rather
-   * than commanded in four of its five forms, so the departure is derived —
-   * see `departEndedSummons` — through the same door `creature-removed`
-   * folds.
+   * There is no matching "unsummoned" event, and none is needed: a summons
+   * leaving is a creature leaving, which is `creature-removed` and the batch
+   * `removeCreatureEverywhere` builds around it. What is *derived* is only
+   * the noticing — `strandedSummons` reads this link against the ongoing
+   * record, so it catches the four endings nobody commands — and
+   * `dismissStrandedSummons` is what acts on the answer.
    */
   | {
       readonly type: 'creature-summoned';
