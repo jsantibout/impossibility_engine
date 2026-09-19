@@ -249,7 +249,9 @@ describe('the debts a surface has to be able to settle', () => {
 });
 
 describe('aiming a directional area', () => {
-  it('asks where a creature is standing rather than guessing a coordinate', () => {
+  it('asks for the room first, when there is not one', () => {
+    // An unplaced creature and an unset room are different missing facts,
+    // and only one of them is repaired by placing anybody.
     const campaign = createCampaign({ content: SRD_CONTENT, seed: 'aiming' });
     const surface = createSurface(campaign);
     const outcome = surface.call({
@@ -265,10 +267,26 @@ describe('aiming a directional area', () => {
     });
     expect(outcome.status).toBe('needs-context');
     if (outcome.status !== 'needs-context') return;
+    expect(outcome.code).toBe('no_scene');
+    expect(outcome.establish[0]!.kind).toBe('scene');
+    expect(outcome.establish[0]!.tools).toContain('set_scene');
+    expect(campaign.log()).toHaveLength(0);
+  });
+
+  it('asks where a creature is standing rather than guessing a coordinate', () => {
+    const t = adjacent();
+    const outcome = t.call('cast_spell', {
+      caster: 'kessa',
+      spellId: 'burning-hands',
+      targets: [],
+      slotLevel: 1,
+      towardsCreature: 'nobody-here',
+    });
+    expect(outcome.status).toBe('needs-context');
+    if (outcome.status !== 'needs-context') return;
     expect(outcome.code).toBe('no_such_position');
     expect(outcome.establish[0]!.kind).toBe('position');
     expect(outcome.establish[0]!.tools).toContain('place_creature');
-    expect(campaign.log()).toHaveLength(0);
   });
 
   it('asks for a landmark nobody has named', () => {
@@ -315,5 +333,26 @@ describe('creating the same character twice', () => {
     if (outcome.status !== 'refused') return;
     expect(outcome.code).toBe('id_taken');
     expect(campaign.log()).toHaveLength(before);
+  });
+
+  it('is a refusal when only the prepared list differs', () => {
+    // The folded creature record is byte-identical here — the sheet holds no
+    // prepared list — so a check that compared creatures would swallow this,
+    // which is a caller correcting a mistake and being told it did not.
+    const other = {
+      ...wizard('Kessa'),
+      preparedSpells: ['magic-missile', 'shield', 'mage-armor', 'sleep', 'thunderwave', 'web'],
+    };
+    const { outcome } = twice(other);
+    expect(outcome.status).toBe('refused');
+    if (outcome.status !== 'refused') return;
+    expect(outcome.code).toBe('id_taken');
+  });
+
+  it('is a refusal when only the starting equipment differs', () => {
+    const { outcome } = twice({ ...wizard('Kessa'), classEquipment: 'B' });
+    expect(outcome.status).toBe('refused');
+    if (outcome.status !== 'refused') return;
+    expect(outcome.code).toBe('id_taken');
   });
 });

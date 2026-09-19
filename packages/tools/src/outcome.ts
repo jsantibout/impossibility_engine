@@ -33,8 +33,8 @@ export type ContextRequestKind = ContextRequest['kind'];
  * Every kind, written out — and a compile error the day the engine grows one.
  *
  * A `Record` rather than a list, because a list would go stale in silence:
- * the engine adding an eighth kind has to break something here, or "every
- * kind has a door" becomes a claim about the kinds this file remembers. A
+ * the engine adding a kind has to break something here, or "every kind has
+ * a door" becomes a claim about the kinds this file happens to remember. A
  * missing key is an error; a key the engine dropped is an excess property.
  */
 const KIND_COVERAGE: Readonly<Record<ContextRequestKind, true>> = {

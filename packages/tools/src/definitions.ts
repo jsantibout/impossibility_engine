@@ -48,7 +48,7 @@
  * `docs/design/claude-integration.md`: "Every `ContextRequest.kind` must map
  * to a tool that declares it — a kind with no door is the failure to test
  * for." So the mapping is a field on the definition rather than a paragraph,
- * and `boundary.test.ts` asserts the seven kinds are covered.
+ * and `boundary.test.ts` asserts that every kind the engine has is covered.
  */
 
 import type { CharacterId, ConditionName, Result } from '@ie/shared';
@@ -56,7 +56,6 @@ import { asCharacterId, needsContext, ok } from '@ie/shared';
 import type {
   CharacterChoices,
   CastSpellRequest,
-  CreatureState,
   Duration,
   CombatantInput,
   GameEvent,
@@ -338,8 +337,27 @@ function towardsOf(
     readonly towards?: z.infer<typeof pointSchema> | undefined;
   },
 ): Result<Point | undefined> {
+  // The scene first, or an unplaced creature and an unset room come back as
+  // the same request — and only one of them is repaired by placing anybody.
+  // `sceneFor` is the engine's own wording for this and is not reachable
+  // from here, so the request is written out in the same shape.
+  if (input.towardsCreature !== undefined || input.towardsLandmark !== undefined) {
+    const subject = input.towardsCreature ?? input.towardsLandmark!;
+    if (state.scene === null) {
+      return needsContext('no_scene', `there is no scene for ${subject} to be aimed at in`, [
+        {
+          kind: 'scene',
+          subject,
+          need: 'a scene, so that a place in it means something',
+          because: `${subject} to be aimed at`,
+          satisfyWith: 'a setScene command',
+        },
+      ]);
+    }
+  }
+
   if (input.towardsCreature !== undefined) {
-    const at = state.scene === null ? null : positionOf(state.scene, who(input.towardsCreature));
+    const at = positionOf(state.scene!, who(input.towardsCreature));
     if (at === null) {
       const subject = input.towardsCreature;
       return needsContext(
@@ -359,7 +377,7 @@ function towardsOf(
     return ok({ x: at.x, y: at.y, z: at.z });
   }
   if (input.towardsLandmark !== undefined) {
-    const at = state.scene?.landmarks[input.towardsLandmark];
+    const at = state.scene!.landmarks[input.towardsLandmark];
     if (at === undefined) {
       const subject = input.towardsLandmark;
       return needsContext(
@@ -501,7 +519,7 @@ const CREATE_CHARACTER = tool({
     const planned = createCharacter(context.campaign.content, choicesOf(args.choices), id);
     const existing = state.creatures[id];
     if (existing !== undefined) {
-      if (planned.ok && sameCharacter(existing, planned.value)) {
+      if (planned.ok && alreadyWritten(context.campaign.log(), id, planned.value)) {
         return okOutcome([], { created: id, duplicate: true });
       }
       return refused(
@@ -514,21 +532,31 @@ const CREATE_CHARACTER = tool({
 });
 
 /**
- * Whether a creature already in the game is the one these events would add.
+ * Whether these are, event for event, the events that already created this
+ * creature.
  *
- * The sheet is the whole of the mechanical character — abilities, armour,
- * proficiency, Speed, spellcasting ability — so comparing it and the two
- * numbers beside it is comparing the character rather than its label.
+ * **The whole batch, not the creature record.** Comparing the folded
+ * `CreatureState` was the first attempt and it compares too little: the
+ * sheet carries abilities, armour, Speed and level, and carries neither the
+ * prepared list, the spellbook, the starting equipment nor the class. A
+ * second Kessa with a different equipment pack folded to a byte-identical
+ * creature and was answered `duplicate: true`, which is the mistake being
+ * swallowed rather than refused.
+ *
+ * Creation is deterministic and reads no state, so the events it would write
+ * now are exactly the events it wrote then — and `settle` appends a
+ * command's events in one block, so they are contiguous from the
+ * `creature-added` that opens them. Comparing that slice is comparing the
+ * character, all of it, with nothing left to remember.
  */
-function sameCharacter(existing: CreatureState, events: readonly GameEvent[]): boolean {
-  const added = events.find((event) => event.type === 'creature-added');
-  if (added === undefined || added.type !== 'creature-added') return false;
-  return (
-    added.name === existing.name &&
-    added.maxHp === existing.vitals.hpMax &&
-    (added.creatureType ?? null) === (existing.creatureType ?? null) &&
-    JSON.stringify(added.sheet) === JSON.stringify(existing.sheet)
-  );
+function alreadyWritten(
+  log: readonly GameEvent[],
+  id: CharacterId,
+  planned: readonly GameEvent[],
+): boolean {
+  const opens = log.findIndex((event) => event.type === 'creature-added' && event.id === id);
+  if (opens === -1) return false;
+  return JSON.stringify(log.slice(opens, opens + planned.length)) === JSON.stringify(planned);
 }
 
 const DECLARE_SIDE = tool({
