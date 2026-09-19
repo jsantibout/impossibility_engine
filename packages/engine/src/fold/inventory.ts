@@ -168,21 +168,26 @@ export function applyInventory({ state, next, legacy }: Applying, event: Invento
     case 'items-lost': {
       const creature = creatureOf(state, event, event.id);
       /**
-       * A loss that would remove nothing is a log contradicting itself, and
-       * both ways of writing one are caught here.
+       * The two ways a *record* can be contradicted, caught here.
        *
        * A negative line merges only with a line under the same key, so a loss
        * that finds none is filtered away by the `quantity > 0` rule and leaves
        * the thing still owned — silently, which is the one outcome a reducer
-       * must not have. Two ways to write it: naming a copy nobody has, and
-       * naming only the *kind* when every copy of that kind has a record of
-       * its own. The second is the one a hand-written log falls into, and it
-       * is also why `loseItems` and `useItem` resolve the copy before they
-       * emit.
+       * must not have. Both ways to write that of a copy with a record are
+       * refused: naming a copy nobody has, and naming only the *kind* when
+       * every copy of that kind has a record of its own. The second is the one
+       * a hand-written log falls into, and it is also why `loseItems` and
+       * `useItem` resolve the copy before they emit.
        *
-       * Counted things keep the reading they have always had: taking five
-       * rations from two removes both and says nothing, because that line did
-       * find its stack. `loseItems` is what refuses to take more than there is.
+       * **Not every loss that removes nothing**, and deliberately so: taking
+       * something the creature owns none of at all has always passed through
+       * here and gone on doing nothing, exactly as taking five rations from
+       * two removes both and says nothing. Those are `loseItems`'s `not_owned`
+       * and its silence about over-taking — a command's rules, not a
+       * contradiction in the log — and tightening them here would be a second
+       * copy of a refusal that already exists. What is new is only that a
+       * record can now be named, and a named record either exists or the log
+       * is wrong.
        */
       for (const line of event.items) {
         if (line.instance === undefined) {

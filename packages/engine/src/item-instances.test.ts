@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
 import {
@@ -441,6 +443,60 @@ describe('a copy that leaves is the copy that leaves', () => {
     );
     const log = run(one, (s) => loseItems(s, GRUM, [{ id: WAND, quantity: 1 }], 'the thief'));
     expect(lines(log, WAND)).toEqual([]);
+  });
+});
+
+/**
+ * The doors a copy can arrive through, pinned — and the instruction for
+ * whoever opens a third one.
+ *
+ * `equipItem` still declares a catalogue-keyed pool for an **unlabelled**
+ * charged copy, which is today's meaning of a line with no record and the only
+ * thing that keeps a hand-written `items-gained` usable: there is no command
+ * for a DM to hand a party what it found, so a hand-written gain is how every
+ * suite in two packages puts a wand in a hand. That branch is a residual with
+ * a deadline, and a test asserting what it *does* would pass happily for as
+ * long as it lived — it can only fail once somebody has already decided to
+ * delete it, which is the wrong way round for a trap.
+ *
+ * So the population is pinned instead, in the idiom `invariants.test.ts` uses
+ * for event emitters: exactly two modules hand items over, and both label a
+ * copy that has state of its own. **A third emitter — the award command step
+ * three adds — fails this test, and the way to make it pass is to label what
+ * it hands over and delete the unlabelled declaration in `equipItem` in the
+ * same commit.** Leave both in and the engine has two gain semantics, one of
+ * which quietly shares a pool between copies.
+ */
+describe('the doors a copy is gained through are the doors that label it', () => {
+  const SRC = fileURLToPath(new URL('.', import.meta.url));
+
+  /**
+   * `events.ts` declares the type and `fold/` consumes it; neither writes one,
+   * and both are excluded by module rather than by regex for the reason the
+   * event-emitter sweep gives: a population that includes the consumer is one
+   * regex change away from calling a `case` label an emission.
+   */
+  const emitters = readdirSync(SRC, { recursive: true, encoding: 'utf8' })
+    .map((entry) => String(entry).split('\\').join('/'))
+    .filter(
+      (file) =>
+        file.endsWith('.ts') &&
+        !file.endsWith('.test.ts') &&
+        file !== 'events.ts' &&
+        !file.startsWith('fold/'),
+    )
+    .filter((file) => readFileSync(`${SRC}${file}`, 'utf8').includes("type: 'items-gained'"))
+    .sort();
+
+  it('is two of them, and a third is step three’s to reconcile', () => {
+    expect(emitters).toEqual(['commands/inventory.ts', 'creation.ts']);
+  });
+
+  /** And both of them label through the one compiler, rather than each deciding. */
+  it('both label through the same compiler', () => {
+    for (const file of emitters) {
+      expect(readFileSync(`${SRC}${file}`, 'utf8')).toContain('issueItemCopies');
+    }
   });
 });
 
