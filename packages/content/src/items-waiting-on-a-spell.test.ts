@@ -714,6 +714,45 @@ describe('the rod the engine cannot price, and the two spells it would cast', ()
     expect(castOf(out.events)?.slotless).toBe('magic-item');
   });
 
+  /**
+   * "The healing increases by 10 for each spell slot level above 6."
+   *
+   * **The second printed number, and the rod cannot reach it.** SRD fixes a
+   * casting from an item at "the lowest possible spell and caster level", so
+   * every charge the rod spends is a level 6 Heal and the per-level ten is
+   * invisible from there. A slot is the only thing that moves it, so a caster
+   * spends one — found by mutation, which turned the ten into a one and left
+   * the whole suite green.
+   */
+  it('grows by ten a slot level above the sixth, which no item can show', () => {
+    const log: readonly GameEvent[] = [
+      added(BEARER),
+      added(OTHER, 120),
+      ...SCENE,
+      {
+        type: 'resource-pool-declared',
+        id: BEARER,
+        pool: { key: spellSlotKey(7), label: 'level 7 spell slot', max: 1, recovers: 'long-rest' },
+      },
+      {
+        type: 'spellcasting-declared',
+        id: BEARER,
+        spellcasting: declaredCasting({ ability: 'int', prepared: ['heal'] }),
+      },
+      { type: 'damage-taken', id: OTHER, amount: 100, source: 'the wight' },
+    ];
+    const out = unwrap(
+      resolveSpell(
+        fold('seed', log),
+        BEARER,
+        { spellId: 'heal', targets: [OTHER], slotLevel: 7 },
+        supply('upcast'),
+      ),
+      'Heal at the seventh',
+    );
+    expect(out.outcomes[0]?.healed).toBe(80);
+  });
+
   it('spends five on Resurrection, and declares the hour the rite takes', () => {
     const content = withRod();
     const log = holdingRod(content);
@@ -797,6 +836,22 @@ describe('three potions confer a spell’s effects without casting it', () => {
     for (const mode of after.creatures[BEARER]?.rollModifiers ?? []) {
       expect(mode.modifier.mode).toBe('advantage');
     }
+
+    // "for 10 minutes", driven to the second: the potion's span rather than
+    // Enlarge/Reduce's minute, and a number nothing else here reads.
+    expect(
+      fold('seed', [
+        ...log,
+        { type: 'time-advanced', seconds: 599, reason: 'the climb' } as GameEvent,
+      ]).creatures[BEARER]?.rollModifiers,
+    ).toHaveLength(2);
+    expect(
+      fold('seed', [
+        ...log,
+        { type: 'time-advanced', seconds: 600, reason: 'the climb' } as GameEvent,
+      ]).creatures[BEARER]?.rollModifiers,
+    ).toEqual([]);
+
     // And the spell itself stays tracked, because neither branch can be written.
     expect(SRD_CONTENT.spell('enlarge-reduce')?.effects).toEqual([]);
   });
@@ -825,8 +880,23 @@ describe('three potions confer a spell’s effects without casting it', () => {
         .slice()
         .sort(),
     ).toEqual(['con', 'dex', 'str']);
-    // The hour, and nothing on the drinker to end it but the timer.
+
+    // Nothing was cast, so there is no casting for anything to end — and the
+    // hour is therefore the *whole* of what ends it, driven to the second
+    // rather than asserted in a comment.
     expect(after.ongoing).toEqual({});
+    const nearly = fold('seed', [
+      ...log,
+      { type: 'time-advanced', seconds: 3599, reason: 'the crawl' } as GameEvent,
+    ]);
+    expect(nearly.creatures[BEARER]?.grantedDefenses).toHaveLength(1);
+    expect(nearly.creatures[BEARER]?.rollModifiers).toHaveLength(3);
+    const gone = fold('seed', [
+      ...log,
+      { type: 'time-advanced', seconds: 3600, reason: 'the crawl' } as GameEvent,
+    ]);
+    expect(gone.creatures[BEARER]?.grantedDefenses).toEqual([]);
+    expect(gone.creatures[BEARER]?.rollModifiers).toEqual([]);
   });
 
   it('is refused the Immunity the spell it copies executes', () => {

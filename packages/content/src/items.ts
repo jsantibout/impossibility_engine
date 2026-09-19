@@ -1431,26 +1431,25 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
   // `spells.some(s => s.id === id)` and `castFromItem` reads `content.spell(id)`
   // — so a tracked definition answers both, and SRD's own sentence about a
   // casting from an item is every word arithmetic a tracked definition carries.
-  /**
-   * **The Boots of Levitation are not here, and the reason is one engine
-   * line rather than a missing rule.**
-   *
-   * SRD: "While you wear these boots, you can cast _Levitate_ on yourself."
-   * Levitate is defined, the grant is an at-will casting narrowed by
-   * `targetsSelfOnly`, and every word of the record is writable. What is not
-   * is the casting: Levitate reaches "One creature ... of your choice that
-   * you can see within range", so the definition carries `requiresSight`,
-   * and `sightBetween` answers **null** for a creature and itself — which
-   * the resolver turns into a request to establish a fact `declareSight`
-   * refuses to record, in the engine’s own words: "a creature can see
-   * itself".
-   *
-   * So the boots would be a record every use of which is refused, which is
-   * rule 1. The defect is older than this entry — Cure Wounds, Healing Word,
-   * Mass Healing Word and Mass Cure Wounds all pair `self` with
-   * `requiresSight` and none of them can be cast on its own caster either —
-   * and `items-waiting-on-a-spell.test.ts` drives both halves of it.
-   */
+
+  // **The Boots of Levitation are not here, and the reason is one engine
+  // line rather than a missing rule.**
+  //
+  // SRD: "While you wear these boots, you can cast _Levitate_ on yourself."
+  // Levitate is defined, the grant is an at-will casting narrowed by
+  // `targetsSelfOnly`, and every word of the record is writable. What is not
+  // is the casting: Levitate reaches "One creature ... of your choice that
+  // you can see within range", so the definition carries `requiresSight`,
+  // and `sightBetween` answers **null** for a creature and itself — which
+  // the resolver turns into a request to establish a fact `declareSight`
+  // refuses to record, in the engine’s own words: "a creature can see
+  // itself".
+  //
+  // So the boots would be a record every use of which is refused, which is
+  // rule 1. The defect is older than this entry — Cure Wounds, Healing Word,
+  // Mass Healing Word and Mass Cure Wounds all pair `self` with
+  // `requiresSight` and none of them can be cast on its own caster either —
+  // and `items-waiting-on-a-spell.test.ts` drives both halves of it.
   wornItem(
     { id: 'circlet-of-blasting', name: 'Circlet of Blasting', kind: 'wondrous' },
     {
