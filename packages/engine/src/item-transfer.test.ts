@@ -282,6 +282,77 @@ describe('the fold refuses a transfer the commands are careful not to write', ()
     });
     expect(() => fold('seed', log)).toThrow(/nothing-of-the-sort/);
   });
+
+  /**
+   * And one onto a creature that already claims it, which is the other half
+   * of `attachPool`: two creatures holding one copy's charges is a world with
+   * two of a thing there is one of.
+   */
+  it('refuses to move a pool the taker already claims', () => {
+    const log: readonly GameEvent[] = [
+      ...party(),
+      {
+        type: 'resource-pool-declared',
+        id: NYX,
+        pool: {
+          key: `${WAND}:charges@item:1`,
+          label: 'somebody else’s wand',
+          max: 3,
+          recovers: 'dawn',
+          regainsAtDawn: '1d3',
+        },
+      },
+      {
+        type: 'item-transferred',
+        from: GRUM,
+        to: NYX,
+        item: WAND,
+        quantity: 1,
+        instance: 'item:1',
+        pools: [`${WAND}:charges@item:1`],
+        source: 'by hand',
+      },
+    ];
+    expect(() => fold('seed', log)).toThrow(CorruptLogError);
+    expect(() => fold('seed', log)).toThrow(/already declared/);
+  });
+
+  /**
+   * The two the command refuses first, and which the fold would otherwise let
+   * through as arithmetic rather than as a contradiction.
+   *
+   * A gift to oneself reads the giver and the taker out of the world *before*
+   * the event, so writing both back would put the second read's inventory
+   * over the first's — the copy given away and still owned, which is an item
+   * made out of nothing.
+   */
+  it('refuses a creature handing something to itself', () => {
+    const log = handWritten({
+      type: 'item-transferred',
+      from: GRUM,
+      to: GRUM,
+      item: 'rations',
+      quantity: 1,
+      source: 'by hand',
+    });
+    expect(() => fold('seed', log)).toThrow(CorruptLogError);
+    expect(() => fold('seed', log)).toThrow(/itself/);
+  });
+
+  it('refuses a quantity that is not a count', () => {
+    for (const quantity of [0, -2, 1.5]) {
+      const log = handWritten({
+        type: 'item-transferred',
+        from: GRUM,
+        to: NYX,
+        item: 'rations',
+        quantity,
+        source: 'by hand',
+      });
+      expect(() => fold('seed', log)).toThrow(CorruptLogError);
+      expect(() => fold('seed', log)).toThrow(/whole number/);
+    }
+  });
 });
 
 /**

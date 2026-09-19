@@ -115,9 +115,9 @@ const supply = (seed: string, content: Content = SRD_CONTENT) => ({
 const carrying = (
   itemId: string,
   content: Content = SRD_CONTENT,
-  wounded = 0,
+  otherMaxHp = 40,
 ): readonly GameEvent[] =>
-  run([added(BEARER), added(OTHER, wounded === 0 ? 40 : wounded), ...SCENE], (s) =>
+  run([added(BEARER), added(OTHER, otherMaxHp), ...SCENE], (s) =>
     awardItems(s, supply('the-hoard', content), BEARER, [{ id: itemId }], 'the hoard'),
   );
 

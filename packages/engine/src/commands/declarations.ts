@@ -335,8 +335,10 @@ export function loseItems(
  * ones keyed to the copy — a suffix the engine wrote itself, read back by
  * `instancedPoolKeys`.
  *
- * Three refusals. **Which copy**, where there are several, is a question and
- * not a guess, exactly as it is for a loss. **Worn or wielded is refused**, on
+ * Three refusals worth the name, beside the bookkeeping ones — an unknown
+ * creature, a gift to oneself, a quantity that is not a count. **Which copy**,
+ * where there are several, is a question and not a guess, exactly as it is
+ * for a loss. **Worn or wielded is refused**, on
  * `loseItems`' rule and for its reason: `equipped` is a separate fact, so
  * giving away what is in your hand would leave the armour still adding its
  * Armour Class on somebody who no longer owns it. And a transfer of more than

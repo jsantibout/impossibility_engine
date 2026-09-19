@@ -1542,13 +1542,14 @@ const GUARDED: readonly Guarded[] = [
       loseItems(s, A, [{ id: 'longsword', quantity: 1 }], 'a thief', { commandId }),
   },
   {
-    // A retried gift is the duplicate that moves a second copy — or, for a
-    // stack, a second three rations — and the pool that travels with a copy
-    // would land on a creature that already holds it, which the fold calls a
-    // contradiction rather than a no-op.
+    // A charged copy on purpose: a retried gift moves the copy's **pool**
+    // again, and the second move lands it on a creature that already holds
+    // the key — which the fold calls a contradiction and throws on, so an
+    // unguarded retry here is a `CorruptLogError` rather than a quiet second
+    // wand.
     name: 'transferItem',
-    log: SETUP,
-    run: (s, commandId) => transferItem(s, A, B, 'longsword', 1, 'a gift', { commandId }),
+    log: awarded(SETUP, 'wand-of-secrets'),
+    run: (s, commandId) => transferItem(s, A, B, 'item:1', 1, 'a gift', { commandId }),
   },
   {
     // A retried award hands the party a second hoard, and for an item whose
