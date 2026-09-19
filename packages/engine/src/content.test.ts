@@ -17,7 +17,14 @@ import {
   REQUIREMENT_KINDS,
   type Content,
 } from './content.js';
-import { activateFeature, attuneItem, chargesLeft, equipItem, resolveSpell } from './commands.js';
+import {
+  activateFeature,
+  attuneItem,
+  awardItems,
+  chargesLeft,
+  equipItem,
+  resolveSpell,
+} from './commands.js';
 import {
   checkCharacter,
   createCharacter,
@@ -736,9 +743,15 @@ describe('a homebrew wand casting a homebrew spell needs no engine change', () =
   });
 
   it('casts it through the public API, spending a charge and no slot', () => {
+    const base = table(content).filter((event) => event.type !== 'resource-pool-declared');
+    // Through the door a DM hands a party what it found, which is what
+    // declares a copy's charges: homebrew reaches it exactly as the SRD does.
     const owned: readonly GameEvent[] = [
-      ...table(content).filter((event) => event.type !== 'resource-pool-declared'),
-      { type: 'items-gained', id: CASTER, items: [{ id: WAND, quantity: 1 }], source: 'a gift' },
+      ...base,
+      ...unwrap(
+        awardItems(fold('seed', base), supply(content), CASTER, [{ id: WAND }], 'a gift'),
+        'a gift',
+      ),
     ];
     const held = [...owned, ...unwrap(equipItem(fold('seed', owned), content, CASTER, WAND), 'equip')];
 

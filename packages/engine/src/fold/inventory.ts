@@ -16,9 +16,11 @@ import {
   type GameState,
   type InventoryLine,
 } from '../state.js';
+import { attachPool, detachPool } from '../resources.js';
 import {
   CorruptLogError,
   creatureOf,
+  must,
   withCreature,
   seamOf,
   unhandledEvent,
@@ -29,6 +31,7 @@ import {
 export const INVENTORY_EVENTS = [
   'items-gained',
   'items-lost',
+  'item-transferred',
   'coins-changed',
   'item-equipped',
   'item-unequipped',
@@ -82,6 +85,43 @@ export function mergeItems(
         (a.id < b.id ? -1 : a.id > b.id ? 1 : 0) ||
         itemInstanceNumber(a.instance ?? '') - itemInstanceNumber(b.instance ?? ''),
     );
+}
+
+/**
+ * The two ways a line *leaving* a creature can contradict the record, thrown
+ * where either is true.
+ *
+ * A negative line merges only with a line under the same key, so a departure
+ * that finds none is filtered away by the `quantity > 0` rule and leaves the
+ * thing still owned — silently, which is the one outcome a reducer must not
+ * have. Both ways to write that of a copy with a record are refused: naming a
+ * copy nobody has, and naming only the *kind* when every copy of that kind has
+ * a record of its own.
+ *
+ * One function because two events ask it — a loss and a transfer — and two
+ * copies of "which copy did you mean" would be two places to answer it
+ * differently.
+ */
+function leavingIsNamed(
+  event: GameEvent,
+  creature: { readonly id: string; readonly inventory: readonly InventoryLine[] },
+  line: InventoryLine,
+): void {
+  if (line.instance === undefined) {
+    const kind = creature.inventory.filter((owned) => owned.id === line.id);
+    if (kind.length > 0 && kind.every((owned) => owned.instance !== undefined)) {
+      throw new CorruptLogError(
+        event,
+        `${creature.id}'s ${line.id} are copies with records of their own (${kind
+          .map((owned) => owned.instance)
+          .join(', ')}); the event has to name which`,
+      );
+    }
+    return;
+  }
+  if (!creature.inventory.some((owned) => owned.instance === line.instance)) {
+    throw new CorruptLogError(event, `${creature.id} does not have ${line.instance}`);
+  }
 }
 
 /** One order for every list of items, so state serialises identically. */
@@ -168,15 +208,9 @@ export function applyInventory({ state, next, legacy }: Applying, event: Invento
     case 'items-lost': {
       const creature = creatureOf(state, event, event.id);
       /**
-       * The two ways a *record* can be contradicted, caught here.
-       *
-       * A negative line merges only with a line under the same key, so a loss
-       * that finds none is filtered away by the `quantity > 0` rule and leaves
-       * the thing still owned — silently, which is the one outcome a reducer
-       * must not have. Both ways to write that of a copy with a record are
-       * refused: naming a copy nobody has, and naming only the *kind* when
-       * every copy of that kind has a record of its own. The second is the one
-       * a hand-written log falls into, and it is also why `loseItems` and
+       * The two ways a *record* can be contradicted — {@link leavingIsNamed},
+       * which a transfer asks the same question of. The second of them is the
+       * one a hand-written log falls into, and it is also why `loseItems` and
        * `useItem` resolve the copy before they emit.
        *
        * **Not every loss that removes nothing**, and deliberately so: taking
@@ -189,28 +223,77 @@ export function applyInventory({ state, next, legacy }: Applying, event: Invento
        * record can now be named, and a named record either exists or the log
        * is wrong.
        */
-      for (const line of event.items) {
-        if (line.instance === undefined) {
-          const kind = creature.inventory.filter((owned) => owned.id === line.id);
-          if (kind.length > 0 && kind.every((owned) => owned.instance !== undefined)) {
-            throw new CorruptLogError(
-              event,
-              `${event.id}'s ${line.id} are copies with records of their own (${kind
-                .map((owned) => owned.instance)
-                .join(', ')}); a loss has to name which`,
-            );
-          }
-          continue;
-        }
-        if (!creature.inventory.some((owned) => owned.instance === line.instance)) {
-          throw new CorruptLogError(event, `${event.id} does not have ${line.instance}`);
-        }
-      }
+      for (const line of event.items) leavingIsNamed(event, creature, line);
       return withCreature(
         next,
         event.id,
         { inventory: removeItems(creature.inventory, event.items) },
         creature,
+      );
+    }
+
+    case 'item-transferred': {
+      const giver = creatureOf(state, event, event.from);
+      const taker = creatureOf(state, event, event.to);
+      if (event.from === event.to) {
+        throw new CorruptLogError(event, `${event.from} cannot hand something to itself`);
+      }
+      const line: InventoryLine = {
+        id: event.item,
+        quantity: event.quantity,
+        ...(event.instance === undefined ? {} : { instance: event.instance }),
+      };
+      leavingIsNamed(event, giver, line);
+
+      /**
+       * **More than is carried would *make* items**, which is the one way this
+       * differs from a loss: a loss over-taking removes what is there and
+       * stops, and a transfer over-moving would put the difference in somebody
+       * else's pack. So the arithmetic is the log's to be consistent about,
+       * and `transferItem` refuses it first with a reason.
+       */
+      if (!Number.isInteger(event.quantity) || event.quantity < 1) {
+        throw new CorruptLogError(
+          event,
+          `a transfer moves a whole number of things, not ${event.quantity}`,
+        );
+      }
+      const carried = giver.inventory
+        .filter((owned) =>
+          line.instance === undefined
+            ? owned.id === line.id && owned.instance === undefined
+            : owned.instance === line.instance,
+        )
+        .reduce((total, owned) => total + owned.quantity, 0);
+      if (carried < event.quantity) {
+        throw new CorruptLogError(
+          event,
+          `${event.from} has ${carried} of ${event.item}, and the transfer moves ${event.quantity}`,
+        );
+      }
+
+      // The copy's own state, moved **whole**: a wand with one charge left
+      // arrives with one charge left, which is the whole of what keying a pool
+      // to the copy bought.
+      let given = giver.resources;
+      let taken = taker.resources;
+      for (const key of event.pools ?? []) {
+        const detached = must(event, detachPool(given, key));
+        given = detached.state;
+        taken = must(event, attachPool(taken, detached.pool));
+      }
+
+      const afterGiving = withCreature(
+        next,
+        event.from,
+        { inventory: removeItems(giver.inventory, [line]), resources: given },
+        giver,
+      );
+      return withCreature(
+        afterGiving,
+        event.to,
+        { inventory: mergeItems(taker.inventory, [line]), resources: taken },
+        taker,
       );
     }
 

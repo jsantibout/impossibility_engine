@@ -8,7 +8,7 @@ import { modifierFor, proficiencyBonus, type CharacterSheet } from './character.
 import { extendContent, type Content } from './content.js';
 import { createRng, type Rng } from './dice.js';
 import { fold, type GameEvent, type GameState } from './events.js';
-import { equipItem, resolveSpell } from './commands.js';
+import { awardItems, equipItem, resolveSpell } from './commands.js';
 import { createRollIssuer } from './rolls.js';
 import { declaredCasting, type SpellcastingState } from './spellcasting.js';
 
@@ -332,14 +332,13 @@ describe('a casting from an item', () => {
   );
 
   const holding = (itemId: string): readonly GameEvent[] => {
+    const scened = scene();
     const base: readonly GameEvent[] = [
-      ...scene(),
-      {
-        type: 'items-gained',
-        id: CASTER,
-        items: [{ id: itemId, quantity: 1 }],
-        source: 'the hoard',
-      },
+      ...scened,
+      ...unwrap(
+        awardItems(state(scened), supply('the-hoard', withWands), CASTER, [{ id: itemId }], 'the hoard'),
+        'the hoard',
+      ),
     ];
     return [
       ...base,
@@ -388,17 +387,18 @@ describe('a casting from an item', () => {
    * failure as a total that does not add up.
    */
   it('names no ability where the item stated the bonus and the wielder has none', () => {
-    const mundane: readonly GameEvent[] = [
-      // No `spellcasting-declared`, and no spellcasting ability on the sheet:
-      // the fighter who picked the wand up off the floor.
+    // No `spellcasting-declared`, and no spellcasting ability on the sheet:
+    // the fighter who picked the wand up off the floor.
+    const plain: readonly GameEvent[] = [
       added(CASTER, { spellcastingAbility: null }),
       ...scene().slice(1).filter((e) => e.type !== 'spellcasting-declared'),
-      {
-        type: 'items-gained',
-        id: CASTER,
-        items: [{ id: PRINTED, quantity: 1 }],
-        source: 'the hoard',
-      },
+    ];
+    const mundane: readonly GameEvent[] = [
+      ...plain,
+      ...unwrap(
+        awardItems(state(plain), supply('the-hoard', withWands), CASTER, [{ id: PRINTED }], 'the hoard'),
+        'the hoard',
+      ),
     ];
     const log: readonly GameEvent[] = [
       ...mundane,

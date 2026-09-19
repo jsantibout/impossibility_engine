@@ -468,6 +468,34 @@ export type GameEvent =
       readonly source: string;
       readonly command?: CommandStamp;
     }
+  /**
+   * Something changing hands: one event, because the world has one fact.
+   *
+   * A loss and a gain written back to back would be two, and the second of
+   * them would be **wrong**: a copy with a record carries its charges in a
+   * pool keyed to itself, and a gain declares a pool full. A wand handed over
+   * that way would arrive with three charges however spent it left. So the
+   * reducer moves the line and its pool record whole, and the giver's
+   * attunement ends through the pass that already ends one for a thief.
+   *
+   * `item` is the catalogue id and `instance` says which copy, exactly as
+   * `item-equipped` splits them. `pools` names the pool records travelling
+   * with the copy — the keys the giver holds, resolved by the command, because
+   * a key's shape is the engine's own and the fold reads no catalogue.
+   */
+  | {
+      readonly type: 'item-transferred';
+      readonly from: CharacterId;
+      readonly to: CharacterId;
+      readonly item: string;
+      readonly quantity: number;
+      /** Which copy, where the copy has a record of its own. */
+      readonly instance?: string;
+      /** The pools moving with it, whole. Absent means none. */
+      readonly pools?: readonly string[];
+      readonly source: string;
+      readonly command?: CommandStamp;
+    }
   /** Money in or out, in copper. Negative spends. */
   | {
       readonly type: 'coins-changed';

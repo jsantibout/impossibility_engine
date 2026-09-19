@@ -3,6 +3,7 @@ import { SRD_CONTENT, SPELL_DEFINITIONS } from '@ie/content';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CatalogueItem, CharacterSheet, Content } from '@ie/engine';
 import {
+  awardItems,
   chargesLeft,
   createRng,
   createRollIssuer,
@@ -86,22 +87,26 @@ const run = (
   command: (s: GameState) => Result<readonly GameEvent[]>,
 ): readonly GameEvent[] => [...log, ...unwrap(command(fold('seed', log)), 'command')];
 
-/** Owned and in hand, which is all either of these two items asks for. */
-const holding = (itemId: string): readonly GameEvent[] => {
-  const base: readonly GameEvent[] = [
-    added(WIELDER, 'Humanoid'),
-    added(BADGER, 'Beast'),
-    ...SCENE,
-    { type: 'items-gained', id: WIELDER, items: [{ id: itemId, quantity: 1 }], source: 'the hoard' },
-  ];
-  return run(base, (s) => equipItem(s, SRD_CONTENT, WIELDER, itemId));
-};
-
 const supply = (seed: string, content: Content = SRD_CONTENT) => ({
   issuer: createRollIssuer('r'),
   rng: createRng(seed) as Rng,
   content,
 });
+
+/**
+ * Owned and in hand, which is all either of these two items asks for.
+ *
+ * Handed over through `awardItems`, the door a DM hands a party what it
+ * found: a charged copy is labelled and given its own pool where it is
+ * gained, so a hand-written gain would leave the wand with no charges.
+ */
+const holding = (itemId: string): readonly GameEvent[] => {
+  const base = run(
+    [added(WIELDER, 'Humanoid'), added(BADGER, 'Beast'), ...SCENE],
+    (s) => awardItems(s, supply('the-hoard'), WIELDER, [{ id: itemId }], 'the hoard'),
+  );
+  return run(base, (s) => equipItem(s, SRD_CONTENT, WIELDER, itemId));
+};
 
 const left = (log: readonly GameEvent[], itemId: string): number =>
   chargesLeft(fold('seed', log), SRD_CONTENT, WIELDER, itemId);

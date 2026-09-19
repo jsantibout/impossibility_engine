@@ -308,14 +308,14 @@ export function itemRoute(
       return err('no_charges', `${item.name} has no charges to spend on a casting`);
     }
     if (!hasPool(creature.resources, pool.key)) {
-      // A copy's pool arrives with the copy and an unlabelled one's with the
-      // equip event, so this is what is left when the item reached this hand
-      // by a route that declared neither — a hand-written log, a fixture, a
-      // migration. Named rather than left looking empty, which is the answer
-      // `expendCharges` gives to the same question.
+      // A copy's pool arrives with the copy, so this is what is left when the
+      // item reached this hand by a route that declared none — a hand-written
+      // log, a fixture, a migration. Named rather than left looking empty,
+      // which is the answer `expendCharges` gives to the same question, and
+      // in the same words.
       return err(
         'unknown_pool',
-        `nothing has declared ${item.name}'s charges for ${creature.id}; take it off and put it back on`,
+        `nothing has declared ${item.name}'s charges for ${creature.id}; a copy's charges are declared when it is gained, so hand it over with awardItems`,
       );
     }
   }

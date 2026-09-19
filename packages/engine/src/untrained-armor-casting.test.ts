@@ -13,6 +13,7 @@ import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { declaredCasting, type SpellcastingState } from './spellcasting.js';
 import {
+  awardItems,
   castSpell,
   chargesLeft,
   equipItem,
@@ -105,7 +106,7 @@ const IN_COMBAT: GameEvent = {
   ],
 };
 
-const table = (items: readonly string[]): readonly GameEvent[] => [
+const prelude = (): readonly GameEvent[] => [
   added(CASTER, { armorTraining: { ...UNTRAINED } }),
   added(VICTIM),
   { type: 'spellcasting-declared', id: CASTER, spellcasting: WIZARDLY },
@@ -117,15 +118,31 @@ const table = (items: readonly string[]): readonly GameEvent[] => [
   { type: 'creature-placed', id: VICTIM, placement: { from: { landmark: 'there' }, feet: 0 } },
   { type: 'sight-declared', from: CASTER, to: VICTIM, seen: true },
   { type: 'sight-declared', from: VICTIM, to: CASTER, seen: true },
-  ...items.map(
-    (item): GameEvent => ({
-      type: 'items-gained',
-      id: CASTER,
-      items: [{ id: item, quantity: 1 }],
-      source: 'the hoard',
-    }),
-  ),
 ];
+
+/**
+ * The hoard, handed over through the command a DM hands one over through: a
+ * charged copy is labelled and given its pool where it is gained, and a
+ * hand-written gain would leave the wand with nothing to spend.
+ */
+const table = (items: readonly string[]): readonly GameEvent[] => {
+  const base = prelude();
+  return items.length === 0
+    ? base
+    : [
+        ...base,
+        ...unwrap(
+          awardItems(
+            fold('seed', base),
+            supply('the-hoard'),
+            CASTER,
+            items.map((item) => ({ id: item })),
+            'the hoard',
+          ),
+          'the hoard',
+        ),
+      ];
+};
 
 const state = (log: readonly GameEvent[]): GameState => fold('seed', log);
 

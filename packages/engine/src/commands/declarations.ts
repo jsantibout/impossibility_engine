@@ -2,12 +2,20 @@
  * The other facts a DM declares mid-play.
  *
  * `commands/scene.ts` closed the eight event types that set up a world for the
- * rules to run in. These are six of the nine that were left: a creature's
- * allegiance, Alert's Initiative swap, a stabilisation, death that is not
- * hit-point loss, an item the DM took away, and a bonus whose source was no
- * casting. Every one was a reducer case with no producer outside a test
- * fixture, so a tool surface — which calls commands and never folds events
- * itself — could not reach any of them.
+ * rules to run in. Six of the commands here are six of the nine that were
+ * left: a creature's allegiance, Alert's Initiative swap, a stabilisation,
+ * death that is not hit-point loss, an item the DM took away, and a bonus
+ * whose source was no casting. Every one was a reducer case with no producer
+ * outside a test fixture, so a tool surface — which calls commands and never
+ * folds events itself — could not reach any of them.
+ *
+ * **Two more arrived the other way round**, and belong here for the same
+ * reason rather than by the same route: `transferItem` and `awardItems` are
+ * what a DM says when the party divides a hoard and when it finds one, and
+ * each brought its own event because no reducer case said it. They sit beside
+ * `loseItems` because taking something away, handing it over and handing it
+ * out are one family of fact — who owns what — and none of the three spends
+ * anything on anybody's turn.
  *
  * **The other three of the nine are not here, and that is the design rather
  * than a scattering.** `mounted`, `dismounted` and `free-interaction-used`
@@ -60,11 +68,15 @@
  */
 
 import { type CharacterId, err, ok, type Result } from '@ie/shared';
+import { instancedPoolKeys, itemChargePool, itemChargeRoll } from '../catalogue.js';
 import { swapInitiative } from '../combat.js';
 import { type GameEvent, type GameState, type InventoryLine } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
+import { rollRecorded } from '../rolls.js';
+import { type PoolDeclaration } from '../resources.js';
+import { type Supply } from './casting.js';
 import { creatureOf, unknownCreature } from './command.js';
-import { copyNamed, quantityOf } from './inventory.js';
+import { copyNamed, issueItemCopies, quantityOf } from './inventory.js';
 
 /**
  * Say which side of the fight a creature is on.
@@ -259,10 +271,6 @@ export function loseItems(
           `a loss takes a positive whole number, got ${line.quantity} of ${line.id}`,
         );
       }
-      if (creature.equipped.some((held) => held.id === line.id)) {
-        return err('equipped', `${line.id} is worn or wielded by ${id}; take it off first`);
-      }
-
       /**
        * **Which copy**, where the copies are told apart, and said out loud in
        * the event.
@@ -281,9 +289,23 @@ export function loseItems(
           : ok(creature.inventory.find((owned) => owned.instance === line.instance) ?? null);
       if (!named.ok) return named;
       const copy = named.value;
-      const held = copy?.instance === undefined ? quantityOf(state, id, line.id) : copy.quantity;
-      if (copy === null || held < line.quantity) {
-        return err('not_owned', `${id} has ${held} of ${line.id}, not ${line.quantity}`);
+      const owned = copy?.instance === undefined ? quantityOf(state, id, line.id) : copy.quantity;
+      if (copy === null || owned < line.quantity) {
+        return err('not_owned', `${id} has ${owned} of ${line.id}, not ${line.quantity}`);
+      }
+
+      /**
+       * **Per copy, and after the copy is resolved**, which is the old rule
+       * read with the record a copy now has. "Worn or wielded" was asked of
+       * the *kind* of thing, because that was the only question an inventory
+       * could answer — so a creature holding one wand could not drop the
+       * other, which was never the rule and only ever the reading. Where
+       * either side is unlabelled the kind is all there is to ask, and the old
+       * answer stands.
+       */
+      const held = creature.equipped.find((worn) => worn.id === copy.id);
+      if (held !== undefined && sameCopy(held.instance, copy.instance)) {
+        return err('equipped', `${line.id} is worn or wielded by ${id}; take it off first`);
       }
       lost.push(copy.instance === undefined ? line : { ...line, instance: copy.instance });
     }
@@ -299,6 +321,221 @@ export function loseItems(
     ]);
   });
 }
+
+/**
+ * Hand something from one creature to another.
+ *
+ * **One event, because the world has one fact.** A loss and a gain written
+ * back to back would be two — and the second would be wrong: a gain declares a
+ * pool full, so a wand handed over that way would arrive with three charges
+ * however spent it left. The reducer moves the line and its pool record whole.
+ *
+ * It reads no catalogue and rolls nothing, which no other inventory command
+ * can say: what moves is what the giver had, and the pools that move are the
+ * ones keyed to the copy — a suffix the engine wrote itself, read back by
+ * `instancedPoolKeys`.
+ *
+ * Three refusals. **Which copy**, where there are several, is a question and
+ * not a guess, exactly as it is for a loss. **Worn or wielded is refused**, on
+ * `loseItems`' rule and for its reason: `equipped` is a separate fact, so
+ * giving away what is in your hand would leave the armour still adding its
+ * Armour Class on somebody who no longer owns it. And a transfer of more than
+ * is carried is refused rather than silently over-giving, because unlike a
+ * loss it would *make* the difference in the taker's pack.
+ *
+ * What is **not** here is attunement: SRD ends it when "you no longer have the
+ * item", nobody decides that, and the derived pass that already ends it for a
+ * thief in the night ends it for a gift without an event.
+ */
+export function transferItem(
+  state: GameState,
+  from: CharacterId,
+  to: CharacterId,
+  itemId: string,
+  quantity: number,
+  source: string,
+  command: CommandIdentity = {},
+): Result<GameEvent[]> {
+  return once(
+    state,
+    `transfer:${from}->${to}`,
+    { ...command, itemId, quantity, source },
+    () => [],
+    (stamp) => {
+      const giver = creatureOf(state, from);
+      if (giver === null) return unknownCreature(from);
+      const taker = creatureOf(state, to);
+      if (taker === null) return unknownCreature(to);
+      if (from === to) {
+        return err('same_creature', `${from} already has it; a transfer needs two creatures`);
+      }
+      if (!Number.isInteger(quantity) || quantity < 1) {
+        return err('bad_quantity', `a transfer moves a positive whole number, got ${quantity}`);
+      }
+
+      const named = copyNamed(giver, itemId);
+      if (!named.ok) return named;
+      const copy = named.value;
+      if (copy === null) return err('not_owned', `${from} does not have ${itemId}`);
+
+      /**
+       * **Per copy, where the copies are told apart.** "Worn or wielded" was
+       * asked of the *kind* of thing, which was the only question an inventory
+       * could answer before a copy had a record — so a creature holding one
+       * wand could not hand over the other. The rule is about the copy in the
+       * hand; where either side is unlabelled the kind is all there is to ask,
+       * and the old answer stands.
+       */
+      const held = giver.equipped.find((worn) => worn.id === copy.id);
+      if (held !== undefined && sameCopy(held.instance, copy.instance)) {
+        return err('equipped', `${copy.id} is worn or wielded by ${from}; take it off first`);
+      }
+
+      if (copy.quantity < quantity) {
+        return err('not_owned', `${from} has ${copy.quantity} of ${copy.id}, not ${quantity}`);
+      }
+
+      // Everything keyed to this copy travels with it: the charges left in a
+      // wand are the wand's, not the hand's.
+      const pools =
+        copy.instance === undefined
+          ? []
+          : instancedPoolKeys(Object.keys(giver.resources.pools), copy.instance);
+
+      return ok([
+        {
+          type: 'item-transferred',
+          from,
+          to,
+          item: copy.id,
+          quantity,
+          ...(copy.instance === undefined ? {} : { instance: copy.instance }),
+          ...(pools.length === 0 ? {} : { pools }),
+          source,
+          ...(stamp === null ? {} : { command: stamp }),
+        },
+      ]);
+    },
+  );
+}
+
+/**
+ * Whether two lines are the same copy, where either of them has a record.
+ *
+ * An unlabelled line answers for its whole kind, which is what "unlabelled"
+ * has always meant: twenty arrows are twenty arrows, and the one in the bow is
+ * not a different arrow.
+ */
+const sameCopy = (held: string | undefined, named: string | undefined): boolean =>
+  held === undefined || named === undefined || held === named;
+
+/** One thing a DM is handing over, and how many of it. */
+export interface AwardedItem {
+  readonly id: string;
+  readonly quantity?: number;
+}
+
+/**
+ * Hand a party what it found.
+ *
+ * The door that did not exist, which is why every fixture's found items were
+ * written by hand — and a hand-written `items-gained` is a line with no
+ * record, which is exactly the copy that used to acquire a shared pool by
+ * being picked up. That branch in `equipItem` went with this command's
+ * arrival: **there is one gain semantics now**, and it is this one — a copy
+ * with state of its own is labelled when it is gained and its pool is
+ * declared beside it, at every door.
+ *
+ * It takes a `Supply` for the dice, which is the one thing separating it from
+ * `purchaseItem`: **some items roll how much they hold.** SRD Necklace of
+ * Fireballs prints "1d6+3 beads" and Sovereign Glue "1d6+1 ounces" — a fact
+ * about the copy the party found rather than about the row in the book — so
+ * the engine rolls it once, here, out of the campaign's own generator, and
+ * pins the number into the pool the copy is born with. Replay reads the log.
+ * A caller never supplies the count; it never supplies the dice either, which
+ * are the item's own line.
+ *
+ * A pack is opened, the way a purchase opens one: a Scholar's Pack handed over
+ * is nine things handed over.
+ */
+export function awardItems(
+  state: GameState,
+  supply: Supply,
+  id: CharacterId,
+  items: readonly AwardedItem[],
+  source: string,
+  command: CommandIdentity = {},
+): Result<GameEvent[]> {
+  return once(state, `award:${id}`, { ...command, items, source }, () => [], (stamp) => {
+    const creature = creatureOf(state, id);
+    if (creature === null) return unknownCreature(id);
+    if (items.length === 0) return err('no_items', 'an award has to name something that was found');
+
+    const requested: InventoryLine[] = [];
+    for (const line of items) {
+      const quantity = line.quantity ?? 1;
+      if (!Number.isInteger(quantity) || quantity < 1) {
+        return err(
+          'bad_quantity',
+          `an award takes a positive whole number, got ${quantity} of ${line.id}`,
+        );
+      }
+      // Unlike a loss, an award has to know what it is handing over: whether
+      // the copy gets a record of its own is read off the catalogue here, and
+      // an item nobody has heard of has no answer to that question.
+      const item = supply.content.item(line.id);
+      if (item === null) return err('unknown_item', `${line.id} is not in the catalogue`);
+      for (const inside of supply.content.expandPack(line.id)) {
+        requested.push({ id: inside.id, quantity: inside.quantity * quantity });
+      }
+    }
+
+    const given = issueItemCopies(state.itemsIssued, supply.content, requested);
+    const events: GameEvent[] = [
+      {
+        type: 'items-gained',
+        id,
+        items: given.items,
+        source,
+        ...(stamp === null ? {} : { command: stamp }),
+      },
+      ...given.pools.map((pool) => ({ type: 'resource-pool-declared' as const, id, pool })),
+    ];
+
+    // The copies whose count the book rolls, which `issueItemCopies` labelled
+    // and deliberately left unsized: it has no generator, and this does.
+    for (const line of given.items) {
+      if (line.instance === undefined) continue;
+      const item = supply.content.item(line.id);
+      const notation = item === null ? null : itemChargeRoll(item);
+      if (item === null || notation === null) continue;
+
+      const issuedBefore = supply.issuer.count;
+      const rolled = rollRecorded(supply.issuer, supply.rng, notation);
+      if (!rolled.ok) return rolled;
+      // Non-null: `itemChargeRoll` answered, so the item declares a pool.
+      const pool = itemChargePool(item, line.instance)!;
+      events.push(
+        {
+          type: 'roll-recorded',
+          who: id,
+          label: `${pool.label} (${notation})`,
+          natural: rolled.value.total,
+          total: rolled.value.total,
+          contributions: [],
+          outcome: `${rolled.value.total} to begin with`,
+        },
+        { type: 'rolls-issued', count: supply.issuer.count - issuedBefore, rng: supply.rng.snapshot() },
+        { type: 'resource-pool-declared', id, pool: rolledPool(pool, rolled.value.total) },
+      );
+    }
+
+    return ok(events);
+  });
+}
+
+/** The pool a rolled count sizes: the item's own declaration, with the number in it. */
+const rolledPool = (pool: PoolDeclaration, max: number): PoolDeclaration => ({ ...pool, max });
 
 /**
  * Stop a named bonus applying.

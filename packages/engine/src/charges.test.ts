@@ -5,7 +5,6 @@ import {
   isErr,
   isNeedsContext,
   expect as unwrap,
-  type CharacterId,
   type Result,
 } from '@ie/shared';
 import type { CatalogueItem } from './catalogue.js';
@@ -18,6 +17,7 @@ import { createRollIssuer, type RollIssuer } from './rolls.js';
 import { remaining } from './resources.js';
 import {
   attuneItem,
+  awardItems,
   chargesLeft,
   declareDawn,
   equipItem,
@@ -99,29 +99,45 @@ const barbarian = (over: Partial<CharacterChoices> = {}): CharacterChoices => ({
 const made = (): readonly GameEvent[] =>
   unwrap(createCharacter(SRD_CONTENT, barbarian(), GRUM), 'create');
 
-const given = (who: CharacterId, itemId: string, quantity = 1): GameEvent => ({
-  type: 'items-gained',
-  id: who,
-  items: [{ id: itemId, quantity }],
-  source: 'the hoard',
-});
-
 const run = (
   log: readonly GameEvent[],
   command: (s: GameState) => Result<GameEvent[]>,
 ): readonly GameEvent[] => [...log, ...unwrap(command(fold('seed', log)), 'command')];
 
+/**
+ * What the DM found in the barrow, handed over.
+ *
+ * `awardItems` rather than a hand-written `items-gained`, which is what this
+ * file used to write: a hand-written gain is a line with **no record**, and
+ * since the equip no longer declares a pool for one, a wand handed over that
+ * way would have no charges at all. That is the point of the command, and this
+ * helper is every test below going through the door a DM goes through.
+ */
+const given = (
+  log: readonly GameEvent[],
+  itemId: string,
+  quantity = 1,
+  content: Content = SRD_CONTENT,
+): readonly GameEvent[] =>
+  run(log, (s) =>
+    awardItems(s, { ...supply('the-hoard'), content }, GRUM, [{ id: itemId, quantity }], 'the hoard'),
+  );
+
 /** Owned and in hand, which is the SRD's "while holding it". */
-const holding = (itemId: string, log: readonly GameEvent[] = made()): readonly GameEvent[] =>
-  run([...log, given(GRUM, itemId)], (s) => equipItem(s, SRD_CONTENT, GRUM, itemId));
+const holding = (
+  itemId: string,
+  log: readonly GameEvent[] = made(),
+  content: Content = SRD_CONTENT,
+): readonly GameEvent[] =>
+  run(given(log, itemId, 1, content), (s) => equipItem(s, content, GRUM, itemId));
 
 /**
  * The pool key, of a copy where one is named and of the kind where none is.
  *
- * Both spellings are real and the engine writes both: a copy gained through a
- * command keeps its charges under its own id, and an unlabelled copy — which
- * is what a hand-written `items-gained` below hands over — keeps them under
- * the key content wrote, exactly as it always has.
+ * Both spellings are real: a copy gained through any of the three doors keeps
+ * its charges under its own id, and the unsuffixed one is what content wrote
+ * — which is still what a homebrew item declares and what an unlabelled line
+ * would have used, if any door still wrote one.
  */
 const keyOf = (itemId: string, instance?: string): string =>
   itemChargePool(SRD_CONTENT.item(itemId)!, instance)!.key;
@@ -130,12 +146,13 @@ const left = (log: readonly GameEvent[], itemId: string): number =>
   chargesLeft(fold('seed', log), SRD_CONTENT, GRUM, itemId);
 
 describe('an SRD item with charges, end to end through the public API', () => {
-  it('declares its pool when it reaches a hand, sized as the book prints it', () => {
+  it('declares its pool when it is handed over, sized as the book prints it', () => {
     const log = holding(WAND);
     // One, beside the Hit Dice and the Rages the character was built with: the
-    // wand's charges are a pool like any other, arriving by the same event.
+    // wand's charges are a pool like any other, arriving by the same event —
+    // and keyed to the copy the DM handed over rather than to the kind.
     const declared = log.filter(
-      (e) => e.type === 'resource-pool-declared' && e.pool.key === keyOf(WAND),
+      (e) => e.type === 'resource-pool-declared' && e.pool.key === keyOf(WAND, 'item:1'),
     );
     expect(declared).toHaveLength(1);
     expect(left(log, WAND)).toBe(3);
@@ -173,7 +190,7 @@ describe('an SRD item with charges, end to end through the public API', () => {
   });
 
   it('refuses an item that has no charges at all', () => {
-    const log = run([...made(), given(GRUM, 'chain-shirt')], (s) =>
+    const log = run(given(made(), 'chain-shirt'), (s) =>
       equipItem(s, SRD_CONTENT, GRUM, 'chain-shirt'),
     );
     const out = expendCharges(fold('seed', log), SRD_CONTENT, GRUM, 'chain-shirt');
@@ -266,21 +283,22 @@ describe('a character created already holding a charged item', () => {
    * And the refusal that was creation's is still reachable, by the only thing
    * left that can reach it.
    *
-   * Both doors the engine has declare the pool, so what `unknown_pool` catches
-   * now is a log nobody's command wrote — a fixture, a migration, a caller
-   * assembling `item-equipped` itself. That is what is assembled here, and the
-   * refusal names the way through rather than letting the wand look empty.
+   * All three doors the engine has declare the pool as the copy is gained, so
+   * what `unknown_pool` catches now is a copy nobody's command handed over — a
+   * fixture, a migration, a caller assembling `items-gained` itself. That is
+   * what is assembled here, and the refusal names the door that works rather
+   * than letting the wand look empty.
    */
-  it('still refuses a hand-written equip that declared no pool', () => {
+  it('refuses a hand-written gain that declared no pool', () => {
     const log: readonly GameEvent[] = [
       ...made(),
-      given(GRUM, WAND),
+      { type: 'items-gained', id: GRUM, items: [{ id: WAND, quantity: 1 }], source: 'by hand' },
       { type: 'item-equipped', id: GRUM, item: WAND, armor: null },
     ];
     const out = expendCharges(fold('seed', log), SRD_CONTENT, GRUM, WAND);
     expect(isErr(out)).toBe(true);
     expect(isErr(out) && out.code).toBe('unknown_pool');
-    expect(isErr(out) && out.reason).toContain('take it off and put it back on');
+    expect(isErr(out) && out.reason).toContain('awardItems');
   });
 
   /** And putting it down and picking it up again finds the charges, not a refill. */
@@ -306,7 +324,7 @@ describe('a rolled recovery is rolled by the engine', () => {
     expect(events.some((e) => e.type === 'rolls-issued')).toBe(true);
 
     const regained = events.find((e) => e.type === 'resource-regained');
-    expect(regained?.type === 'resource-regained' && regained.key).toBe(keyOf(WAND));
+    expect(regained?.type === 'resource-regained' && regained.key).toBe(keyOf(WAND, 'item:1'));
     const amount = regained?.type === 'resource-regained' ? regained.amount : 0;
     expect(amount).toBeGreaterThanOrEqual(1);
     expect(amount).toBeLessThanOrEqual(3);
@@ -345,10 +363,134 @@ describe('a rolled recovery is rolled by the engine', () => {
   });
 });
 
+/**
+ * SRD Rod of Resurrection: "The rod regains 1 expended charge daily at dawn."
+ *
+ * The third kind of dawn, and the one that had nowhere to go. `regainsAtDawn`
+ * took dice on the reasoning that the book prints dice — it prints them
+ * forty-four times — and this rod prints a stated 1, which a one-sided die
+ * cannot say. Leaving the field off was not neutral either: a `dawn` pool with
+ * no dice is refilled by the tag, so the rod would have given back five
+ * charges every morning where the book gives one.
+ *
+ * So a stated number is read as a stated number: no die is thrown, the
+ * generator does not move, and the pool gets back exactly what the line says.
+ */
+describe('a dawn that gives back a stated number gives back that number', () => {
+  const ROD = 'test-rod';
+  const stated: Content = unwrap(
+    extendContent(SRD_CONTENT, {
+      items: [
+        {
+          id: ROD,
+          name: 'Rod of Small Raisings',
+          kind: 'rod',
+          weightLb: 1,
+          costCp: null,
+          armor: null,
+          weapon: null,
+          contents: [],
+          grants: [
+            { kind: 'pool', key: `${ROD}:charges`, uses: 5, recovers: 'dawn', regainsAtDawn: '1' },
+          ],
+        } as unknown as CatalogueItem,
+      ],
+    }),
+    'homebrew',
+  );
+
+  const held = (): readonly GameEvent[] => holding(ROD, made(), stated);
+
+  it('is content the validator accepts, where it refused it before', () => {
+    expect(checkContent({ ...stated, items: [...stated.items] })).toEqual([]);
+  });
+
+  it('gives back the one the line prints, and throws no die for it', () => {
+    let log = run(held(), (s) => expendCharges(s, stated, GRUM, ROD, 3));
+    expect(chargesLeft(fold('seed', log), stated, GRUM, ROD)).toBe(2);
+
+    const dawn = unwrap(declareDawn(fold('seed', log), supply()), 'dawn');
+    expect(dawn.some((e) => e.type === 'roll-recorded')).toBe(false);
+    expect(dawn.some((e) => e.type === 'rolls-issued')).toBe(false);
+    log = [...log, ...dawn];
+    expect(chargesLeft(fold('seed', log), stated, GRUM, ROD)).toBe(3);
+
+    // And the next morning gives back one more, rather than the rest.
+    log = run(log, (s) => declareDawn(s, supply(), { commandId: 'the-second-dawn' }));
+    expect(chargesLeft(fold('seed', log), stated, GRUM, ROD)).toBe(4);
+  });
+
+  it('gives back no more than was spent, and moves no generator at all', () => {
+    const log = run(held(), (s) => expendCharges(s, stated, GRUM, ROD, 1));
+    const rng = createRng('unmoved') as Rng;
+    const dawn = unwrap(declareDawn(fold('seed', log), { issuer: createRollIssuer('r'), rng }), 'dawn');
+    const regained = dawn.find((e) => e.type === 'resource-regained');
+    expect(regained?.type === 'resource-regained' && regained.amount).toBe(1);
+    expect(rng.snapshot()).toEqual(createRng('unmoved').snapshot());
+  });
+
+  it('is still not a stated number for a pool that sees no dawn', () => {
+    const problems = checkContent({
+      ...SRD_CONTENT,
+      items: [
+        ...SRD_CONTENT.items,
+        {
+          id: 'test-rod-of-the-wrong-rest',
+          name: 'Wrong Rest',
+          kind: 'rod',
+          weightLb: 1,
+          costCp: null,
+          armor: null,
+          weapon: null,
+          contents: [],
+          grants: [
+            {
+              kind: 'pool',
+              key: 'test-rod-of-the-wrong-rest:charges',
+              uses: 5,
+              recovers: 'long-rest',
+              regainsAtDawn: '1',
+            },
+          ],
+        } as unknown as CatalogueItem,
+      ],
+    });
+    expect(problems.map((p) => p.code)).toContain('dawn_roll_without_dawn');
+    // And a stated nothing is not a number a pool gives back.
+    expect(
+      checkContent({
+        ...SRD_CONTENT,
+        items: [
+          ...SRD_CONTENT.items,
+          {
+            id: 'test-rod-of-nothing',
+            name: 'Nothing',
+            kind: 'rod',
+            weightLb: 1,
+            costCp: null,
+            armor: null,
+            weapon: null,
+            contents: [],
+            grants: [
+              {
+                kind: 'pool',
+                key: 'test-rod-of-nothing:charges',
+                uses: 5,
+                recovers: 'dawn',
+                regainsAtDawn: '0',
+              },
+            ],
+          } as unknown as CatalogueItem,
+        ],
+      }).map((p) => p.code),
+    ).toContain('bad_dawn_roll');
+  });
+});
+
 describe('one dawn, two kinds of recovery', () => {
   /** The lenses need the Short Rest attunement takes; the wand needs nothing. */
   const both = (): readonly GameEvent[] => {
-    const owned = [...made(), given(GRUM, WAND), given(GRUM, LENSES)];
+    const owned = given(given(made(), WAND), LENSES);
     const resting = run(owned, (s) => beginRest(s, GRUM, 'short'));
     const attuned = run(resting, (s) => attuneItem(s, SRD_CONTENT, GRUM, LENSES));
     const wand = run(attuned, (s) => equipItem(s, SRD_CONTENT, GRUM, WAND));
@@ -378,7 +520,7 @@ describe('one dawn, two kinds of recovery', () => {
     const state = fold('seed', [...log, ...restored]);
     const regained = restored.find((e) => e.type === 'resource-regained');
     const amount = regained?.type === 'resource-regained' ? regained.amount : 0;
-    expect(remaining(state.creatures['grum']!.resources, keyOf(WAND))).toBe(amount);
+    expect(remaining(state.creatures['grum']!.resources, keyOf(WAND, 'item:1'))).toBe(amount);
   });
 });
 
@@ -443,20 +585,24 @@ describe('two of one charged item', () => {
 
   /**
    * An **unlabelled** stack is the stack it has always been, because that is
-   * what an absent record means. A hand-written log is the only thing that
-   * writes one — no command hands a party what it found yet — and it gets
-   * today's reading rather than a refusal: one pool, declared when the first
-   * of them reaches a hand.
+   * what an absent record means — and now that every door labels what it
+   * hands over, a hand-written log is the only thing that writes one. It gets
+   * no pool at all: the equip used to declare a catalogue-keyed one, which was
+   * two wands sharing three charges and is exactly what a record is for.
    */
-  it('is one pool when the log never told them apart', () => {
-    const owned = [...made(), given(GRUM, WAND, 2)];
+  it('is no pool at all when the log never told them apart', () => {
+    const owned: readonly GameEvent[] = [
+      ...made(),
+      { type: 'items-gained', id: GRUM, items: [{ id: WAND, quantity: 2 }], source: 'by hand' },
+    ];
     const held = run(owned, (s) => equipItem(s, SRD_CONTENT, GRUM, WAND));
-    expect(fold('seed', held).creatures.grum?.resources.pools[keyOf(WAND)]?.max).toBe(3);
-    expect(left(held, WAND)).toBe(3);
+    expect(fold('seed', held).creatures.grum?.resources.pools[keyOf(WAND)]).toBeUndefined();
+    expect(left(held, WAND)).toBe(0);
+    expect(isErr(expendCharges(fold('seed', held), SRD_CONTENT, GRUM, WAND))).toBe(true);
   });
 
   it('but two of something uncharged is nobody’s problem', () => {
-    const owned = [...made(), given(GRUM, 'chain-shirt', 2)];
+    const owned = given(made(), 'chain-shirt', 2);
     expect(isErr(equipItem(fold('seed', owned), SRD_CONTENT, GRUM, 'chain-shirt'))).toBe(false);
   });
 });
@@ -471,10 +617,10 @@ describe('what the command read from the catalogue is in the event', () => {
 
   it('carries the whole pool on the declaration, not the item’s id to look up', () => {
     const declared = holding(WAND).find(
-      (e) => e.type === 'resource-pool-declared' && e.pool.key === keyOf(WAND),
+      (e) => e.type === 'resource-pool-declared' && e.pool.key === keyOf(WAND, 'item:1'),
     );
     expect(declared?.type === 'resource-pool-declared' && declared.pool).toMatchObject({
-      key: keyOf(WAND),
+      key: keyOf(WAND, 'item:1'),
       max: 3,
       recovers: 'dawn',
       regainsAtDawn: '1d3',
@@ -575,9 +721,7 @@ describe('homebrew reaches the same mechanism through the same door', () => {
       }),
       'homebrew',
     );
-    let log = run([...made(), given(GRUM, 'test-horn')], (s) =>
-      equipItem(s, content, GRUM, 'test-horn'),
-    );
+    let log = holding('test-horn', made(), content);
     log = run(log, (s) => expendCharges(s, content, GRUM, 'test-horn', 2));
     expect(chargesLeft(fold('seed', log), content, GRUM, 'test-horn')).toBe(0);
     log = run(log, (s) => declareDawn(s, supply()));

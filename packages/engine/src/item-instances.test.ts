@@ -447,25 +447,18 @@ describe('a copy that leaves is the copy that leaves', () => {
 });
 
 /**
- * The doors a copy can arrive through, pinned — and the instruction for
- * whoever opens a third one.
+ * The doors a copy can arrive through, pinned — and the trap sprung.
  *
- * `equipItem` still declares a catalogue-keyed pool for an **unlabelled**
- * charged copy, which is today's meaning of a line with no record and the only
- * thing that keeps a hand-written `items-gained` usable: there is no command
- * for a DM to hand a party what it found, so a hand-written gain is how every
- * suite in two packages puts a wand in a hand. That branch is a residual with
- * a deadline, and a test asserting what it *does* would pass happily for as
- * long as it lived — it can only fail once somebody has already decided to
- * delete it, which is the wrong way round for a trap.
+ * This said two, and said what the third would have to do: "the way to make it
+ * pass is to label what it hands over and delete the unlabelled declaration in
+ * `equipItem` in the same commit". `awardItems` is the third, and it did both
+ * — so the population is three, the branch is gone, and **there is one gain
+ * semantics**: a copy with state of its own is labelled where it is gained and
+ * its pool is declared beside it, at every door there is.
  *
- * So the population is pinned instead, in the idiom `invariants.test.ts` uses
- * for event emitters: exactly two modules hand items over, and both label a
- * copy that has state of its own. **A third emitter — the award command step
- * three adds — fails this test, and the way to make it pass is to label what
- * it hands over and delete the unlabelled declaration in `equipItem` in the
- * same commit.** Leave both in and the engine has two gain semantics, one of
- * which quietly shares a pool between copies.
+ * The pin stays, in the idiom `invariants.test.ts` uses for event emitters,
+ * because the claim it makes has not changed and a fourth door is as easy to
+ * open quietly as the third was.
  */
 describe('the doors a copy is gained through are the doors that label it', () => {
   const SRC = fileURLToPath(new URL('.', import.meta.url));
@@ -488,8 +481,8 @@ describe('the doors a copy is gained through are the doors that label it', () =>
     .filter((file) => readFileSync(`${SRC}${file}`, 'utf8').includes("type: 'items-gained'"))
     .sort();
 
-  it('is two of them, and a third is step three’s to reconcile', () => {
-    expect(emitters).toEqual(['commands/inventory.ts', 'creation.ts']);
+  it('is three of them, and every one labels what it hands over', () => {
+    expect(emitters).toEqual(['commands/declarations.ts', 'commands/inventory.ts', 'creation.ts']);
   });
 
   /** And both of them label through the one compiler, rather than each deciding. */
@@ -504,17 +497,25 @@ describe('an unlabelled copy is the stack it has always been', () => {
   /**
    * A log that names no copy is a log written before copies had names — or one
    * written by hand, which is the only door left that can write one. The fold
-   * reads it exactly as it always did, and the pool it uses is the
-   * catalogue-keyed one the equip event has always declared.
+   * reads it exactly as it always did: one line, no record, nothing issued.
+   *
+   * **What it no longer has is charges.** The equip used to declare a
+   * catalogue-keyed pool for such a copy, which was two wands sharing one pool
+   * and the second of the engine's two gain semantics; `awardItems` took its
+   * place and the branch went in the same commit. So the wand is owned, worn
+   * and empty, and the refusal names the door that fills it.
    */
-  it('folds as it did, with the pool the equip event declares', () => {
+  it('folds as it did, and has no charges nobody declared', () => {
     const owned: readonly GameEvent[] = [
       ...unwrap(createCharacter(SRD_CONTENT, barbarian(), GRUM), 'create'),
       { type: 'items-gained', id: GRUM, items: [{ id: WAND, quantity: 1 }], source: 'by hand' },
     ];
     const log = run(owned, (s) => equipItem(s, SRD_CONTENT, GRUM, WAND));
     expect(state(log).itemsIssued).toBe(0);
-    expect(Object.keys(grum(log).resources.pools)).toContain(`${WAND}:charges`);
-    expect(chargesLeft(state(log), SRD_CONTENT, GRUM, WAND)).toBe(3);
+    expect(lines(log, WAND)).toEqual([{ id: WAND, quantity: 1 }]);
+    expect(Object.keys(grum(log).resources.pools)).not.toContain(`${WAND}:charges`);
+    expect(chargesLeft(state(log), SRD_CONTENT, GRUM, WAND)).toBe(0);
+    const out = expendCharges(state(log), SRD_CONTENT, GRUM, WAND);
+    expect(isErr(out) && out.code).toBe('unknown_pool');
   });
 });

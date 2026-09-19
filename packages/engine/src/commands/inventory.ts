@@ -7,7 +7,13 @@
  */
 
 import { type CharacterId, err, needsContext, ok, type Result } from '@ie/shared';
-import { type CatalogueItem, itemChargePool, itemStandingEffects, type ItemKind } from '../catalogue.js';
+import {
+  type CatalogueItem,
+  itemChargePool,
+  itemChargeRoll,
+  itemStandingEffects,
+  type ItemKind,
+} from '../catalogue.js';
 import { type Content } from '../content.js';
 import {
   itemInstanceFor,
@@ -113,6 +119,13 @@ export interface IssuedCopies {
  * the fold can check them. Takes the count rather than the state because
  * creation has no state to take — it is producing the events that will make
  * one.
+ *
+ * **A copy whose count the book rolls is labelled and left unsized here.**
+ * SRD Necklace of Fireballs has "1d6+3 beads", which is a number only a door
+ * holding a generator can produce — so the copy gets its record and no pool
+ * comes back for it, and the one door that can roll (`awardItems`) declares
+ * it. Handing back the printed number instead would be the engine inventing a
+ * count the book declined to print.
  */
 export function issueItemCopies(
   issued: number,
@@ -136,7 +149,7 @@ export function issueItemCopies(
       const instance = itemInstanceFor(next);
       items.push({ id: line.id, quantity: 1, instance });
       // Non-null: the item was just read as having one.
-      pools.push(itemChargePool(item, instance)!);
+      if (itemChargeRoll(item) === null) pools.push(itemChargePool(item, instance)!);
     }
   }
   return { items, pools };
@@ -303,7 +316,6 @@ export function equipItem(
     }
 
     const grants = itemStandingEffects(item);
-    const unlabelled = itemChargePool(item);
 
     return ok([
       {
@@ -323,23 +335,20 @@ export function equipItem(
         ...(stamp === null ? {} : { command: stamp }),
       },
       /**
-       * **A copy with a record brought its charges with it**, declared when it
-       * was gained, so this declares nothing: that is what lets a wand be put
-       * down and picked back up as spent as it was left.
+       * **And nothing else. A copy brought its charges with it**, declared at
+       * the door it was gained through, which is what lets a wand be put down
+       * and picked back up as spent as it was left.
        *
-       * What is left here is the **unlabelled** copy — a stack a hand-written
-       * log gained, which is the only door that still writes one until a
-       * command exists for a DM to hand over what a party found. Such a copy
-       * has no id to key a pool by, so it uses the catalogue's own key and
-       * arrives the way it always has: once, on the equip that finds no pool.
-       * Two unlabelled copies share that one pool, which is exactly what
-       * "unlabelled" means and what a record is for.
+       * This used to declare a catalogue-keyed pool for an *unlabelled*
+       * charged copy, because a hand-written `items-gained` was the only way
+       * to put a wand in a hand and a wand with no charges at all would have
+       * looked broken. That made two gain semantics, one of which quietly
+       * shared a pool between every copy of a kind. `awardItems` is the door
+       * that was missing; the branch went with its arrival, in the commit that
+       * added it, and an unlabelled charged copy now has no pool — which
+       * `expendCharges` says out loud rather than spending somebody else's
+       * charges.
        */
-      ...(copy.instance !== undefined ||
-      unlabelled === null ||
-      hasPool(creature.resources, unlabelled.key)
-        ? []
-        : [{ type: 'resource-pool-declared' as const, id, pool: unlabelled }]),
     ]);
   });
 }
@@ -501,21 +510,22 @@ export function expendCharges(
     }
     if (!hasPool(creature.resources, pool.key)) {
       /**
-       * A copy's pool arrives with the copy and an unlabelled one's with the
-       * equip event, so this is what is left when the item reached this hand
-       * by a route that declared neither.
+       * A copy's pool arrives **with the copy**, so this is what is left when
+       * the item reached this hand by a route that declared none.
        *
-       * **Every route the engine has declares one.** `purchaseItem` declares
-       * the copy's pool as it hands the copy over, `createCharacter` declares
-       * the same one for anything a character is born owning, and `equipItem`
-       * still declares the unlabelled kind's. What is left for this to catch
-       * is a hand-written log — a fixture, a migration, a caller assembling
-       * `items-gained` itself — and the refusal names the way through rather
+       * **Every route that labels a copy declares one.** `awardItems` declares
+       * it as the DM hands the copy over — rolling the count for an item whose
+       * line rolls it — `purchaseItem` declares it as the copy is bought, and
+       * `createCharacter` declares it for anything a character is born owning.
+       * What is left for this to catch is a copy nobody labelled: a
+       * hand-written `items-gained`, and a rolled count gained through a door
+       * that could not roll it. Neither has a pool, and neither may borrow one
+       * from another copy — so the refusal names the door that works rather
        * than letting the wand look merely empty.
        */
       return err(
         'unknown_pool',
-        `nothing has declared ${item.name}'s charges for ${id}; take it off and put it back on`,
+        `nothing has declared ${item.name}'s charges for ${id}; a copy's charges are declared when it is gained, so hand it over with awardItems`,
       );
     }
 

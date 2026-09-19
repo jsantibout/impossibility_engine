@@ -84,6 +84,7 @@ import {
 } from '../positioning.js';
 import { type Rng } from '../dice.js';
 import { rollRecorded, type RollIssuer } from '../rolls.js';
+import { statedDawnAmount } from '../resources.js';
 import { type SpellcastingState } from '../spellcasting.js';
 import { type Supply } from './casting.js';
 import { creatureOf, sceneFor, unknownCreature } from './command.js';
@@ -359,7 +360,7 @@ export function advanceTime(
  * on. Whoever wants the night to have passed advances the clock through
  * `advanceTime` or rests, which are the two commands that own elapsed time.
  *
- * Two kinds of recovery come out of it, because the SRD prints two:
+ * Three kinds of recovery come out of it, because the SRD prints three:
  *
  * - **"regains all expended charges daily at dawn"** — the `resources-restored`
  *   event a rest already emits, with the `dawn` tag `Recovery` has carried
@@ -369,6 +370,10 @@ export function advanceTime(
  *   than "all", and a caller supplying that number would be the model producing
  *   one. It lands as `resource-regained`, the event Sorcerous Restoration
  *   already uses, with the roll and the generator's state beside it.
+ * - **"regains 1 expended charge daily at dawn"** — Rod of Resurrection's
+ *   line, which is neither of the other two: a stated number, handed back
+ *   without a die and without moving the generator. Nothing is rolled, so
+ *   nothing is recorded as a roll.
  *
  * Everybody at once, because dawn happens to the world rather than to a person
  * — which is the difference between this and a rest, and the reason it takes no
@@ -415,6 +420,24 @@ export function declareDawn(
         // move the generator for a recovery that could not happen, which is the
         // quiet way a replay stops matching.
         if (pool.spent === 0) continue;
+
+        /**
+         * **A stated number is handed back, not rolled for.** SRD Rod of
+         * Resurrection: "The rod regains 1 expended charge daily at dawn" —
+         * there is no die in that sentence, so there is none here either and
+         * the generator does not move. A `roll-recorded` for a number nobody
+         * rolled would be the engine claiming provenance for arithmetic.
+         */
+        const stated = statedDawnAmount(pool.regainsAtDawn);
+        if (stated !== null) {
+          events.push({
+            type: 'resource-regained',
+            id: creature.id,
+            key: pool.key,
+            amount: Math.min(stated, pool.spent),
+          });
+          continue;
+        }
 
         const issuedBefore = supply.issuer.count;
         const rolled = rollRecorded(supply.issuer, supply.rng, pool.regainsAtDawn);

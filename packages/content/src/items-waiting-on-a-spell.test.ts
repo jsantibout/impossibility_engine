@@ -4,6 +4,7 @@ import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/sh
 import type { CatalogueItem, CharacterSheet, Content } from '@ie/engine';
 import {
   advanceTime,
+  awardItems,
   chargesLeft,
   createRng,
   createRollIssuer,
@@ -98,33 +99,35 @@ const run = (
   command: (s: GameState) => Result<readonly GameEvent[]>,
 ): readonly GameEvent[] => [...log, ...unwrap(command(fold('seed', log)), 'command')];
 
-/** Owned, worn, and attuned where the book prints the bracket. */
-const wearing = (itemId: string): readonly GameEvent[] => {
-  const base: readonly GameEvent[] = [
-    added(BEARER),
-    added(OTHER),
-    ...SCENE,
-    { type: 'items-gained', id: BEARER, items: [{ id: itemId, quantity: 1 }], source: 'the hoard' },
-  ];
-  const worn = run(base, (s) => equipItem(s, SRD_CONTENT, BEARER, itemId));
-  return SRD_CONTENT.item(itemId)?.attunement === undefined
-    ? worn
-    : [...worn, { type: 'attuned', id: BEARER, item: itemId }];
-};
-
-/** Owned and not worn, which is what a bottle asks for. */
-const carrying = (itemId: string): readonly GameEvent[] => [
-  added(BEARER),
-  added(OTHER),
-  ...SCENE,
-  { type: 'items-gained', id: BEARER, items: [{ id: itemId, quantity: 1 }], source: 'the hoard' },
-];
-
 const supply = (seed: string, content: Content = SRD_CONTENT) => ({
   issuer: createRollIssuer('r'),
   rng: createRng(seed) as Rng,
   content,
 });
+
+/**
+ * Owned and not worn, which is what a bottle asks for.
+ *
+ * Through `awardItems`, the door a DM hands a party what it found: a copy
+ * with charges is labelled and given its own pool where it is gained, and a
+ * hand-written `items-gained` is a line with no record and no charges.
+ */
+const carrying = (
+  itemId: string,
+  content: Content = SRD_CONTENT,
+  wounded = 0,
+): readonly GameEvent[] =>
+  run([added(BEARER), added(OTHER, wounded === 0 ? 40 : wounded), ...SCENE], (s) =>
+    awardItems(s, supply('the-hoard', content), BEARER, [{ id: itemId }], 'the hoard'),
+  );
+
+/** Owned, worn, and attuned where the book prints the bracket. */
+const wearing = (itemId: string): readonly GameEvent[] => {
+  const worn = run(carrying(itemId), (s) => equipItem(s, SRD_CONTENT, BEARER, itemId));
+  return SRD_CONTENT.item(itemId)?.attunement === undefined
+    ? worn
+    : [...worn, { type: 'attuned', id: BEARER, item: itemId }];
+};
 
 const castOf = (events: readonly GameEvent[]) =>
   events.find((e) => e.type === 'spell-cast') as
@@ -601,30 +604,31 @@ describe('a Ring of Telekinesis casts Telekinesis', () => {
  * SRD Rod of Resurrection: "_Heal_ (expends 1 charge) or _Resurrection_
  * (expends 5 charges). ... The rod regains 1 expended charge daily at dawn."
  *
- * **The one entry of the eighteen that both spells were written for and that
- * still cannot be transcribed**, and the reason is the last sentence rather
- * than either spell: `ResourcePool.regainsAtDawn` takes dice, on the recorded
- * reasoning that the SRD "prints dice" and "never once" a stated number at
- * dawn, and this rod prints a stated 1 — which a one-sided die cannot say,
- * because `parseNotation` asks for two sides to a thousand.
+ * **The engine line this entry was waiting on exists now.**
+ * `ResourcePool.regainsAtDawn` took dice, on the recorded reasoning that the
+ * SRD "prints dice" and "never once" a stated number at dawn — and this rod
+ * printed the exception, a stated 1, which a one-sided die cannot say.
+ * Leaving the field off was not neutral either: a `dawn` pool with no dice
+ * refills, so the record would have given back five charges every morning
+ * where the book gives one, which is rule 3 in `items.ts`.
  *
- * Leaving the field off is not neutral: a `dawn` pool with no dice refills, so
- * the record would give back five charges every morning where the book gives
- * one. That is rule 3 in `items.ts` — the clause the engine cannot say is the
- * one that limits the benefit — so the record waits on an engine line and the
- * map keeps the entry.
+ * The field now reads a bare positive integer as the number it is, and the
+ * dawn hands it back without throwing anything. **What is left is content
+ * work rather than an engine line**: the record has still not been written,
+ * and the map still carries the entry — so this asserts what changed, which
+ * is that the validator now takes the rod's own sentence.
  *
- * Both halves of what the rod *would* do are driven below anyway, out of a
- * homebrew rod built through the door homebrew goes through, because the
- * spells are the part this batch owns and a spell nobody drives is a spell
- * nobody checked.
+ * Both halves of what the rod does are driven below out of a homebrew rod
+ * built through the door homebrew goes through, because the spells are the
+ * part this batch owns and a spell nobody drives is a spell nobody checked.
  */
-describe('the rod the engine cannot price, and the two spells it would cast', () => {
+describe('the rod nobody has transcribed yet, and the two spells it would cast', () => {
   const ROD = 'rod-of-resurrection';
 
-  it('is not in the catalogue, and the dawn line is why', () => {
+  it('is not in the catalogue, and the dawn line no longer stands in the way', () => {
     expect(SRD_CONTENT.item(ROD)).toBeNull();
-    // A stated number at dawn: neither a die nor a refill.
+    // A stated number at dawn: neither a die nor a refill, and now a sentence
+    // the validator takes.
     const flat = extendContent(SRD_CONTENT, {
       items: [
         {
@@ -649,8 +653,34 @@ describe('the rod the engine cannot price, and the two spells it would cast', ()
         },
       ],
     });
-    expect(isErr(flat) && flat.code).toBe('invalid_content');
-    expect(isErr(flat) && flat.reason).toContain('is not valid dice notation');
+    expect(isErr(flat)).toBe(false);
+    // And a number that is not a recovery is still refused, so the reading is
+    // "a stated count" rather than "any string at all".
+    const nothing = extendContent(SRD_CONTENT, {
+      items: [
+        {
+          id: 'rod-of-the-stated-nothing',
+          name: 'rod-of-the-stated-nothing',
+          kind: 'rod',
+          weightLb: null,
+          costCp: null,
+          armor: null,
+          weapon: null,
+          contents: [],
+          grants: [
+            {
+              kind: 'pool',
+              key: 'rod-of-the-stated-nothing:charges',
+              label: 'charges',
+              uses: 5,
+              recovers: 'dawn',
+              regainsAtDawn: '0',
+            },
+          ],
+        },
+      ],
+    });
+    expect(isErr(nothing) && nothing.code).toBe('invalid_content');
   });
 
   /** The homebrew rod, priced the way the book prices it and refilled by a die. */
@@ -692,20 +722,10 @@ describe('the rod the engine cannot price, and the two spells it would cast', ()
    * by nothing. The wound has to be deeper than the healing for the healing
    * to be the number under test.
    */
-  const holdingRod = (content: Content): readonly GameEvent[] => {
-    const base: readonly GameEvent[] = [
-      added(BEARER),
-      added(OTHER, 120),
-      ...SCENE,
-      {
-        type: 'items-gained',
-        id: BEARER,
-        items: [{ id: 'rod-of-raising', quantity: 1 }],
-        source: 'the hoard',
-      },
-    ];
-    return run(base, (s) => equipItem(s, content, BEARER, 'rod-of-raising'));
-  };
+  const holdingRod = (content: Content): readonly GameEvent[] =>
+    run(carrying('rod-of-raising', content, 120), (s) =>
+      equipItem(s, content, BEARER, 'rod-of-raising'),
+    );
 
   it('heals seventy and lifts three conditions for a single charge', () => {
     const content = withRod();

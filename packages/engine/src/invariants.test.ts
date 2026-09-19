@@ -24,6 +24,7 @@ import {
   addCreature,
   addSceneLandmark,
   advanceTime,
+  awardItems,
   beginCombat,
   castSpell,
   continueCasting,
@@ -44,6 +45,7 @@ import {
   setScene,
   stabiliseCreature,
   swapInitiativeBetween,
+  transferItem,
   useFreeObjectInteraction,
   applyConditionTo,
   applySpellEffect,
@@ -261,37 +263,31 @@ const ATTUNING: readonly GameEvent[] = [
 const supply = (seed = 's') => ({ issuer: createRollIssuer('r'), rng: createRng(seed) as Rng, content: SRD_CONTENT });
 
 /**
- * SETUP, plus a charged wand in A's hand — which is what declares its pool.
+ * SETUP, plus a charged wand awarded to A and put in A's hand.
  *
  * The Wand of Secrets needs no attunement and its charges recover on a *rolled*
  * dawn, so this one fixture serves both `expendCharges` and `declareDawn`: the
  * dawn below is a dawn with something to give back and a die to throw for it,
  * which is the retry that would be dangerous if it ran twice.
+ *
+ * Handed over through `awardItems`, which is what declares the copy's pool:
+ * a hand-written gain is a line with no record and a copy with no record has
+ * no charges to spend at all.
  */
-const CHARGED: readonly GameEvent[] = [
-  ...SETUP,
-  { type: 'items-gained', id: A, items: [{ id: 'wand-of-secrets', quantity: 1 }], source: 'the hoard' },
+const awarded = (log: readonly GameEvent[], itemId: string): readonly GameEvent[] => [
+  ...log,
   ...unwrap(
-    equipItem(
-      fold(
-        's',
-        [
-          ...SETUP,
-          {
-            type: 'items-gained',
-            id: A,
-            items: [{ id: 'wand-of-secrets', quantity: 1 }],
-            source: 'the hoard',
-          },
-        ],
-      ),
-      SRD_CONTENT,
-      A,
-      'wand-of-secrets',
-    ),
-    'equip the wand',
+    awardItems(fold('s', log), supply('the-hoard'), A, [{ id: itemId }], 'the hoard'),
+    'the hoard',
   ),
 ];
+
+const held = (log: readonly GameEvent[], itemId: string): readonly GameEvent[] => {
+  const owned = awarded(log, itemId);
+  return [...owned, ...unwrap(equipItem(fold('s', owned), SRD_CONTENT, A, itemId), 'equip')];
+};
+
+const CHARGED: readonly GameEvent[] = held(SETUP, 'wand-of-secrets');
 
 /** And one charge out of it, so a dawn has something to roll for. */
 const SPENT_A_CHARGE: readonly GameEvent[] = [
@@ -310,20 +306,8 @@ const SPENT_A_CHARGE: readonly GameEvent[] = [
  * and gets nothing from it.
  */
 const wandInHand = (attune: boolean): readonly GameEvent[] => {
-  const owned: readonly GameEvent[] = [
-    ...SETUP,
-    {
-      type: 'items-gained',
-      id: A,
-      items: [{ id: 'wand-of-fireballs', quantity: 1 }],
-      source: 'the hoard',
-    },
-  ];
-  const held = [
-    ...owned,
-    ...unwrap(equipItem(fold('s', owned), SRD_CONTENT, A, 'wand-of-fireballs'), 'equip the wand'),
-  ];
-  return attune ? [...held, { type: 'attuned', id: A, item: 'wand-of-fireballs' }] : held;
+  const inHand = held(SETUP, 'wand-of-fireballs');
+  return attune ? [...inHand, { type: 'attuned', id: A, item: 'wand-of-fireballs' }] : inHand;
 };
 
 const FIREBALL_WAND = wandInHand(true);
@@ -1558,6 +1542,24 @@ const GUARDED: readonly Guarded[] = [
       loseItems(s, A, [{ id: 'longsword', quantity: 1 }], 'a thief', { commandId }),
   },
   {
+    // A retried gift is the duplicate that moves a second copy — or, for a
+    // stack, a second three rations — and the pool that travels with a copy
+    // would land on a creature that already holds it, which the fold calls a
+    // contradiction rather than a no-op.
+    name: 'transferItem',
+    log: SETUP,
+    run: (s, commandId) => transferItem(s, A, B, 'longsword', 1, 'a gift', { commandId }),
+  },
+  {
+    // A retried award hands the party a second hoard, and for an item whose
+    // count the book rolls it throws the dice again — the shape `declareDawn`
+    // is guarded for, arriving at the moment a copy is born.
+    name: 'awardItems',
+    log: SETUP,
+    run: (s, commandId) =>
+      awardItems(s, supply(), A, [{ id: 'wand-of-secrets' }], 'the barrow', { commandId }),
+  },
+  {
     name: 'removeBonusFrom',
     log: BLESSED,
     run: (s, commandId) => removeBonusFrom(s, A, 'a quiet word', { commandId }),
@@ -2483,6 +2485,10 @@ const DECLARED_NOT_ACTED: Readonly<Record<string, string>> = {
     'not an action in the turn economy: whatever killed them spent its own cost, and a death the engine did not compute is a fact somebody declares',
   loseItems:
     'not an action in the turn economy: a thief in the night, a mimic, a DM’s ruling — SRD spends nothing when something is taken away from you',
+  transferItem:
+    'not an action in the turn economy: dividing a hoard happens between fights and costs nobody a turn, and the one moment SRD does price — handing something over mid-combat — is the free object interaction, which is spent through useFreeObjectInteraction by whoever is having the turn',
+  awardItems:
+    'not an action in the turn economy: what the party found in the barrow is a fact the DM declares, it happens to the world rather than on anybody’s turn, and SRD spends nothing to be handed treasure',
   removeBonusFrom:
     'not an action in the turn economy: a bonus stopping is the end of something, and nobody spends anything to have an effect wear off',
   addCreature:
@@ -2572,6 +2578,14 @@ describe('the DM-declared commands declare facts rather than taking actions', ()
     {
       name: 'loseItems',
       run: (s) => loseItems(s, A, [{ id: 'longsword', quantity: 1 }], 'a thief'),
+    },
+    {
+      name: 'transferItem',
+      run: (s) => transferItem(s, A, B, 'longsword', 1, 'a gift'),
+    },
+    {
+      name: 'awardItems',
+      run: (s) => awardItems(s, supply(), A, [{ id: 'rope' }], 'the barrow'),
     },
     { name: 'removeBonusFrom', run: (s) => removeBonusFrom(s, A, 'a quiet word') },
     { name: 'addCreature', run: (s) => addCreature(s, id('a-latecomer'), ZOMBIE) },
@@ -3508,22 +3522,7 @@ describe('one channel for a missing fact', () => {
     // attunement, and SRD Dimension Door teleports "to a location within
     // range" — so a destination measured from a creature nobody has placed is
     // a thin record rather than an illegal casting, and the engine asks.
-    const owned: readonly GameEvent[] = [
-      ...SETUP,
-      {
-        type: 'items-gained',
-        id: A,
-        items: [{ id: 'cape-of-the-mountebank', quantity: 1 }],
-        source: 'the hoard',
-      },
-    ];
-    const wearing: readonly GameEvent[] = [
-      ...owned,
-      ...unwrap(
-        equipItem(fold('s', owned), SRD_CONTENT, A, 'cape-of-the-mountebank'),
-        'wear the cape',
-      ),
-    ];
+    const wearing = held(SETUP, 'cape-of-the-mountebank');
 
     const dice = supply();
     const before = {

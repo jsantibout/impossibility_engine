@@ -59,18 +59,26 @@ export interface ResourcePool {
    */
   readonly regainsOnShortRest?: number;
   /**
-   * Dice a **dawn** gives back, instead of a refill.
+   * What a **dawn** gives back, instead of a refill: dice, or a stated number.
    *
    * SRD writes it forty-four times across the magic items and never once as
    * "all" and a number together: the Wand of Secrets "regains 1d3 expended
    * charges daily at dawn", the Staff of Power "2d8 + 4". The `recovers` tag
    * beside it is all-or-nothing and cannot say that, and `regainsOnShortRest`
-   * cannot either, because that one is a *stated* number and these are rolled.
+   * cannot either, because that one is a Short Rest's clause.
    *
-   * Dice notation rather than a count, because the SRD prints dice — and the
-   * number is therefore the engine's to roll (`declareDawn`), never a
-   * caller's to supply. A pool carrying this is left alone by `restoreOn`: the
-   * roll is the whole of its recovery, so refilling it as well would hand back
+   * **Mostly dice, and sometimes a number.** Rod of Resurrection prints "The
+   * rod regains 1 expended charge daily at dawn", which is neither a die nor a
+   * refill — and leaving the field off is not neutral, because a `dawn` pool
+   * with no dice is refilled by the tag and the rod would give back five every
+   * morning where the book gives one. So a bare positive integer is read as
+   * the number it is: {@link statedDawnAmount} says which of the two a string
+   * is, `declareDawn` throws no die for a stated one and the generator does
+   * not move.
+   *
+   * Either way the number is the engine's (`declareDawn`), never a caller's to
+   * supply. A pool carrying this is left alone by `restoreOn`: this line is
+   * the whole of its recovery, so refilling it as well would hand back
    * everything and then roll for it.
    */
   readonly regainsAtDawn?: string;
@@ -95,7 +103,10 @@ export interface PoolDeclaration {
    * flag would be a rule that could only ever mean one.
    */
   readonly regainsOnShortRest?: number;
-  /** Dice a dawn gives back instead of a refill — see {@link ResourcePool.regainsAtDawn}. */
+  /**
+   * What a dawn gives back instead of a refill, as dice or as a stated number
+   * — see {@link ResourcePool.regainsAtDawn}.
+   */
   readonly regainsAtDawn?: string;
 }
 
@@ -168,18 +179,36 @@ export function declarePool(
 }
 
 /**
- * What is wrong with a rolled dawn recovery, or null.
+ * The number a dawn recovery states outright, or null where it prints dice.
+ *
+ * One reading of the string, in one place, because three callers ask: the
+ * validator, the pool's own declaration, and `declareDawn`, which must know
+ * whether to throw a die or hand back what the line says. A positive whole
+ * number and nothing else — "0" is not a recovery and "-1" is not a number a
+ * pool gives back, and both fall through to the dice reading, which refuses
+ * them by name.
+ */
+export const statedDawnAmount = (regainsAtDawn: string): number | null => {
+  const stated = regainsAtDawn.trim();
+  if (!/^\d+$/.test(stated)) return null;
+  const amount = Number(stated);
+  return amount > 0 ? amount : null;
+};
+
+/**
+ * What is wrong with a dawn recovery, or null.
  *
  * Exported because `checkContent` asks the same question of an item's charge
- * grant before any pool exists, and two copies of "is this dice, and does this
- * pool even see a dawn" would be two places to answer it differently.
+ * grant before any pool exists, and two copies of "is this dice or a number,
+ * and does this pool even see a dawn" would be two places to answer it
+ * differently.
  */
 export function dawnRollProblem(
   regainsAtDawn: string | undefined,
   recovers: Recovery,
 ): Err | null {
   if (regainsAtDawn === undefined) return null;
-  // A roll for a dawn this pool never sees is a recovery that never happens,
+  // A recovery for a dawn this pool never sees is one that never happens,
   // which is the quiet kind of wrong: the pool looks recharging and is not.
   if (recovers !== 'dawn') {
     return err(
@@ -187,11 +216,50 @@ export function dawnRollProblem(
       `a pool that regains ${regainsAtDawn} at dawn recovers at dawn, not on a ${recovers}`,
     );
   }
+  // SRD Rod of Resurrection: "regains 1 expended charge daily at dawn". A
+  // stated number is a complete answer, and the one thing dice cannot say.
+  if (statedDawnAmount(regainsAtDawn) !== null) return null;
   const notation = parseNotation(regainsAtDawn);
   if (!notation.ok) {
-    return err('bad_dawn_roll', `"${regainsAtDawn}" is not dice: ${notation.reason}`);
+    return err(
+      'bad_dawn_roll',
+      `"${regainsAtDawn}" is neither dice nor a number of uses: ${notation.reason}`,
+    );
   }
   return null;
+}
+
+/**
+ * Take a pool off one creature, **as it stands**.
+ *
+ * The half of a transfer nothing else could do: `declarePool` starts a pool at
+ * nothing spent, which is right for a pool that is coming into existence and
+ * wrong for one that is changing hands — a wand given away with one charge
+ * left arrives with one charge left, and that is the whole of what keying a
+ * pool to the copy bought. So the record travels whole, `spent` included, and
+ * the two halves are separate functions because they land on two creatures.
+ *
+ * A pool nobody has is a refusal rather than an empty answer: the fold turns
+ * it into a corrupt log, because a transfer naming a pool that is not there is
+ * a log contradicting itself.
+ */
+export function detachPool(
+  state: ResourceState,
+  key: string,
+): Result<{ readonly pool: ResourcePool; readonly state: ResourceState }> {
+  const pool = state.pools[key];
+  if (pool === undefined) return err('unknown_pool', `${key} is not a pool this creature has`);
+  const pools = { ...state.pools };
+  delete pools[key];
+  return ok({ pool, state: derive(pools) });
+}
+
+/** The other half: put a pool on a creature exactly as it was taken off. */
+export function attachPool(state: ResourceState, pool: ResourcePool): Result<ResourceState> {
+  if (state.pools[pool.key] !== undefined) {
+    return err('duplicate_pool', `${pool.key} is already declared`);
+  }
+  return ok(derive({ ...state.pools, [pool.key]: pool }));
 }
 
 export function hasPool(state: ResourceState, key: string): boolean {

@@ -13,6 +13,7 @@ import type { CharacterSheet } from './character.js';
 import { rollAbilityCheck } from './checks.js';
 import {
   attuneItem,
+  awardItems,
   chargesLeft,
   equipItem,
   resolveAttack,
@@ -99,7 +100,7 @@ const HOARD = [
   'periapt-of-proof-against-poison',
 ];
 
-const SETUP: readonly GameEvent[] = [
+const PRELUDE: readonly GameEvent[] = [
   added(HERO, 'party'),
   added(FRIEND, 'party'),
   added(FOE, 'goblins'),
@@ -114,7 +115,6 @@ const SETUP: readonly GameEvent[] = [
     id: WITCH,
     spellcasting: declaredCasting({ ability: 'int', prepared: ['hold-person'] }),
   },
-  { type: 'items-gained', id: HERO, items: HOARD.map((item) => ({ id: item, quantity: 1 })), source: 'the hoard' },
   { type: 'scene-set', extent: { width: 600, depth: 600, height: 40 } },
   { type: 'landmark-added', name: 'the road', at: { x: 200, y: 200, z: 0 } },
   { type: 'creature-placed', id: HERO, placement: { from: { landmark: 'the road' }, feet: 0 } },
@@ -122,6 +122,27 @@ const SETUP: readonly GameEvent[] = [
   { type: 'creature-placed', id: FOE, placement: { from: { creature: HERO }, feet: 5, bearing: 0 } },
   { type: 'creature-placed', id: WITCH, placement: { from: { creature: HERO }, feet: 25, bearing: 180 } },
   { type: 'sight-declared', from: WITCH, to: HERO, seen: true },
+];
+
+/**
+ * The hoard, handed over through the door a DM hands one over through.
+ *
+ * `awardItems` rather than a hand-written `items-gained`: a charged copy is
+ * labelled and given its pool where it is gained, and a line with no record
+ * has no charges to spend at all.
+ */
+const SETUP: readonly GameEvent[] = [
+  ...PRELUDE,
+  ...unwrap(
+    awardItems(
+      fold('seed', PRELUDE),
+      { issuer: createRollIssuer('r'), rng: createRng('the-hoard') as Rng, content: SRD_CONTENT },
+      HERO,
+      HOARD.map((item) => ({ id: item })),
+      'the hoard',
+    ),
+    'the hoard',
+  ),
 ];
 
 const supply = (seed = 'seed') => ({
@@ -562,17 +583,19 @@ const paladinChoices = (): CharacterChoices => ({
 /** A character, plus the hoard, plus a scene to stand in. */
 function made(choices: CharacterChoices): readonly GameEvent[] {
   const who = choices.classId === 'paladin' ? KNIGHT : MAGE;
+  const born = unwrap(createCharacter(SRD_CONTENT, choices, who), 'create');
   return [
-    ...unwrap(createCharacter(SRD_CONTENT, choices, who), 'create'),
-    {
-      type: 'items-gained',
-      id: who,
-      items: ['holy-avenger', 'staff-of-fire', 'wand-of-fireballs'].map((item) => ({
-        id: item,
-        quantity: 1,
-      })),
-      source: 'the hoard',
-    },
+    ...born,
+    ...unwrap(
+      awardItems(
+        fold('seed', born),
+        { issuer: createRollIssuer('r'), rng: createRng('the-hoard') as Rng, content: SRD_CONTENT },
+        who,
+        ['holy-avenger', 'staff-of-fire', 'wand-of-fireballs'].map((item) => ({ id: item })),
+        'the hoard',
+      ),
+      'the hoard',
+    ),
   ];
 }
 

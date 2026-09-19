@@ -92,6 +92,29 @@ export interface CatalogueItem {
    */
   readonly attunement?: ItemAttunement;
   /**
+   * Dice the copy's charge maximum is rolled from, where the book rolls for it
+   * rather than printing a number.
+   *
+   * SRD Necklace of Fireballs: "A necklace has 1d6+3 beads". Sovereign Glue:
+   * "a container contains 1d6+1 ounces". The count is a fact about the copy
+   * the party found — this necklace has five beads, that one has eight — so it
+   * is rolled once, when the copy is gained, and pinned into the pool the copy
+   * is born with. Replay reads the log and rerolls nothing.
+   *
+   * It sits on the item rather than in the `pool` grant beside `uses` for one
+   * reason: a class feature's pool is sized from the class table, and no table
+   * has ever rolled. The grant's four sizings are what a *feature* can read,
+   * and this is the item's own line.
+   *
+   * **Only a door that can roll may hand one of these over.** `awardItems`
+   * takes a `Supply` and rolls; `purchaseItem` and `createCharacter` cannot —
+   * the first has no generator and the second is producing the events a state
+   * will be folded from — so a copy gained through one of those is labelled
+   * and its pool is left undeclared, which `expendCharges` refuses out loud
+   * rather than guessing the printed number.
+   */
+  readonly chargesRolled?: string;
+  /**
    * What the item does, in the vocabulary a class feature is already written
    * in.
    *
@@ -178,6 +201,21 @@ export const instancedPoolKey = (key: string, instance: string | undefined): str
   instance === undefined ? key : `${key}@${instance}`;
 
 /**
+ * The keys a creature holds that belong to one copy: what
+ * {@link instancedPoolKey} wrote, read back off the pools themselves.
+ *
+ * What a transfer needs, and the reason it needs no catalogue: the pool that
+ * moves with a wand is the pool keyed to *that wand*, and the suffix the
+ * engine appended is the only thing that says so. A key is otherwise a name
+ * nothing reads inside — `resources.ts` says as much — so the reading lives
+ * here, beside the writing, rather than there.
+ */
+export const instancedPoolKeys = (
+  keys: readonly string[],
+  instance: string,
+): readonly string[] => keys.filter((key) => key.endsWith(`@${instance}`)).sort();
+
+/**
  * The charge pool an item declares, or null for the almost everything that
  * declares none.
  *
@@ -219,6 +257,22 @@ export function itemChargePool(item: CatalogueItem, instance?: string): PoolDecl
     };
   }
   return null;
+}
+
+/**
+ * The dice this item's charge count is rolled from, or null for the almost
+ * everything that prints a number.
+ *
+ * Read beside {@link itemChargePool} rather than folded into it, because the
+ * answer decides *who may hand the item over*: a pool whose maximum is rolled
+ * cannot be declared by a door with no generator, and a `PoolDeclaration`
+ * carrying dice instead of a number would push that decision into the fold.
+ * An item that rolls nothing and an item with no charges at all both answer
+ * null, so a caller asks one question.
+ */
+export function itemChargeRoll(item: CatalogueItem): string | null {
+  if (item.chargesRolled === undefined || itemChargePool(item) === null) return null;
+  return item.chargesRolled;
 }
 
 /** What the item casts, in the grant's own words. */

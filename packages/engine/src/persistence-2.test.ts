@@ -463,6 +463,14 @@ function declaredEventTypes(): readonly string[] {
  * `attunement.test.ts` folds both and drives them end to end through an SRD
  * item: worn and not attuned, attuned, stowed while attuned, given up, and the
  * two endings nobody commands.
+ *
+ * `item-transferred` is the tenth, and by the same construction: neither log
+ * was written when anything could change hands — there was no command for it
+ * and no event to write, so every item in both belongs to whoever started
+ * with it. `item-transfer.test.ts` folds it and drives it end to end: a spent
+ * wand arriving as spent as it left, its pool record moving whole, the
+ * refusal for what is in hand, the attunement the derived pass ends, and the
+ * four ways a hand-written one contradicts the log.
  */
 const UNCOVERED_EVENT_TYPES: readonly string[] = [
   'attack-rider-granted',
@@ -472,6 +480,7 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   'combatant-joined',
   'condition-immunity-granted',
   'damage-defense-granted',
+  'item-transferred',
   'speed-modifier-granted',
   'turn-payout-granted',
 ];

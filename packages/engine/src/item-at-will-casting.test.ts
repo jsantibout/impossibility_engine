@@ -16,6 +16,7 @@ import { fold, type GameEvent, type GameState } from './events.js';
 import { spellSlotKey } from './resources.js';
 import { declaredCasting } from './spellcasting.js';
 import {
+  awardItems,
   chargesLeft,
   equipItem,
   ongoingSpellOf,
@@ -164,23 +165,22 @@ const run = (
   command: (s: GameState) => Result<readonly GameEvent[]>,
 ): readonly GameEvent[] => [...log, ...unwrap(command(fold('seed', log)), 'command')];
 
-/** Owned and worn, which is all any of these rings asks for. */
-const wearing = (itemId: string): readonly GameEvent[] => {
-  const base: readonly GameEvent[] = [
-    added(WIELDER),
-    added(ALLY),
-    added(MAGE, { spellcastingAbility: 'int' }),
-    ...SCENE,
-    { type: 'items-gained', id: WIELDER, items: [{ id: itemId, quantity: 1 }], source: 'the hoard' },
-  ];
-  return run(base, (s) => equipItem(s, CONTENT, WIELDER, itemId));
-};
-
 const supply = (seed: string) => ({
   issuer: createRollIssuer('r'),
   rng: createRng(seed) as Rng,
   content: CONTENT,
 });
+
+/** Owned and worn, which is all any of these rings asks for. */
+const wearing = (itemId: string): readonly GameEvent[] => {
+  const base = run(
+    [added(WIELDER), added(ALLY), added(MAGE, { spellcastingAbility: 'int' }), ...SCENE],
+    // The door a DM hands a party what it found: a hand-written gain is a
+    // line with no record, and a copy with no record has no charges.
+    (s) => awardItems(s, supply('the-hoard'), WIELDER, [{ id: itemId }], 'the hoard'),
+  );
+  return run(base, (s) => equipItem(s, CONTENT, WIELDER, itemId));
+};
 
 const castOf = (events: readonly GameEvent[]) =>
   events.find((e) => e.type === 'spell-cast') as

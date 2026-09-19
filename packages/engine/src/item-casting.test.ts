@@ -16,6 +16,7 @@ import { fold, type GameEvent, type GameState } from './events.js';
 import { declaredCasting, type SpellcastingState } from './spellcasting.js';
 import type { Point } from './positioning.js';
 import {
+  awardItems,
   chargesLeft,
   damageCreature,
   equipItem,
@@ -155,6 +156,23 @@ const run = (
 ): readonly GameEvent[] => [...log, ...unwrap(command(fold('seed', log)), 'command')];
 
 /**
+ * What the DM found, handed over.
+ *
+ * `awardItems` rather than a hand-written `items-gained`, which this file used
+ * to write: a hand-written gain is a line with no record, and a copy with no
+ * record has no charge pool — nothing declares one for it, since the equip
+ * stopped doing so the day an award command existed to do it properly.
+ */
+const awarded = (
+  log: readonly GameEvent[],
+  itemId: string,
+  content: Content = SRD_CONTENT,
+): readonly GameEvent[] =>
+  run(log, (s) =>
+    awardItems(s, supply('the-hoard', -40, content), WIELDER, [{ id: itemId }], 'the hoard'),
+  );
+
+/**
  * Owned, in hand and — where the item's line prints the bracket — attuned to.
  *
  * The attunement arrives as its own event rather than through `attuneItem`,
@@ -173,13 +191,16 @@ const holding = (
   } = {},
 ): readonly GameEvent[] => {
   const content = over.content ?? SRD_CONTENT;
-  const base: readonly GameEvent[] = [
-    added(WIELDER, over.sheet ?? {}),
-    added(VICTIM),
-    ...(over.spellcasting === undefined ? [] : [casting(over.spellcasting)]),
-    ...SCENE,
-    { type: 'items-gained', id: WIELDER, items: [{ id: itemId, quantity: 1 }], source: 'the hoard' },
-  ];
+  const base = awarded(
+    [
+      added(WIELDER, over.sheet ?? {}),
+      added(VICTIM),
+      ...(over.spellcasting === undefined ? [] : [casting(over.spellcasting)]),
+      ...SCENE,
+    ],
+    itemId,
+    content,
+  );
   const equipped = run(base, (s) => equipItem(s, content, WIELDER, itemId));
   const needsAttunement = content.item(itemId)?.attunement !== undefined;
   return !needsAttunement || over.attune === false
@@ -221,7 +242,7 @@ describe('a wand casts, and what it casts is a casting', () => {
     // The charge went, and it went inside this casting's own batch.
     expect(left([...log, ...out.events], WAND)).toBe(6);
     expect(
-      out.events.filter((e) => e.type === 'resource-spent' && e.key === `${WAND}:charges`),
+      out.events.filter((e) => e.type === 'resource-spent' && e.key === `${WAND}:charges@item:1`),
     ).toHaveLength(1);
 
     // And the spell actually happened: Fireball called for a save.
@@ -356,11 +377,7 @@ describe('a wand casts, and what it casts is a casting', () => {
 
   it('refuses an item nobody is holding, and one the catalogue has never heard of', () => {
     const owned: readonly GameEvent[] = [
-      added(WIELDER),
-      added(VICTIM),
-      casting(WIZARDLY),
-      ...SCENE,
-      { type: 'items-gained', id: WIELDER, items: [{ id: WAND, quantity: 1 }], source: 'a chest' },
+      ...awarded([added(WIELDER), added(VICTIM), casting(WIZARDLY), ...SCENE], WAND),
       { type: 'attuned', id: WIELDER, item: WAND },
     ];
     const inTheBag = resolveSpell(
@@ -1094,10 +1111,7 @@ describe('a command id stands for one casting from one item', () => {
   });
 
   it('refuses the same id for a different item', () => {
-    const log = [
-      ...holding(WAND, { spellcasting: WIZARDLY }),
-      { type: 'items-gained', id: WIELDER, items: [{ id: STAFF, quantity: 1 }], source: 'the hoard' } as GameEvent,
-    ];
+    const log = awarded(holding(WAND, { spellcasting: WIZARDLY }), STAFF);
     const armed = [
       ...run(log, (s) => equipItem(s, SRD_CONTENT, WIELDER, STAFF)),
       { type: 'attuned', id: WIELDER, item: STAFF } as GameEvent,

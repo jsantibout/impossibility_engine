@@ -13,7 +13,7 @@ import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import type { CharacterSheet } from './character.js';
-import { chargesLeft, damageCreature, equipItem, useItem } from './commands.js';
+import { awardItems, chargesLeft, damageCreature, equipItem, useItem } from './commands.js';
 
 /**
  * A conferral paid for with the item's own charges.
@@ -177,14 +177,20 @@ const run = (
   command: (s: GameState) => Result<Emitted>,
 ): readonly GameEvent[] => [...log, ...eventsOf(unwrap(command(fold('seed', log)), 'command'))];
 
-/** Owned, and then in hand — which is what declares the pool. */
-const holding = (itemId: string, content: Content = CONTENT): readonly GameEvent[] => {
-  const owned: readonly GameEvent[] = [
-    ...SCENE,
-    { type: 'items-gained', id: HOLDER, items: [{ id: itemId, quantity: 1 }], source: 'the hoard' },
-  ];
-  return run(owned, (s) => equipItem(s, content, HOLDER, itemId));
-};
+/**
+ * Handed over, and then in hand.
+ *
+ * `awardItems` rather than a hand-written `items-gained`: the pool is declared
+ * as the copy is gained, at the one door a DM hands a party what it found, and
+ * a hand-written gain would leave a rod with no charges to spend at all.
+ */
+const awarded = (itemId: string, content: Content = CONTENT): readonly GameEvent[] =>
+  run(SCENE, (s) =>
+    awardItems(s, supply('the-hoard', content), HOLDER, [{ id: itemId }], 'the hoard'),
+  );
+
+const holding = (itemId: string, content: Content = CONTENT): readonly GameEvent[] =>
+  run(awarded(itemId, content), (s) => equipItem(s, content, HOLDER, itemId));
 
 const hurt = (log: readonly GameEvent[], who: CharacterId, amount: number): readonly GameEvent[] => [
   ...log,
@@ -201,7 +207,7 @@ describe('a rod that mends for a charge', () => {
     const out = unwrap(useItem(fold('seed', wounded), HOLDER, { item: ROD }, supply()), 'use');
     const spent = out.events.filter((e) => e.type === 'resource-spent');
     expect(spent).toHaveLength(1);
-    expect(spent[0]).toMatchObject({ key: 'rod-of-small-mending:charges', amount: 1 });
+    expect(spent[0]).toMatchObject({ key: 'rod-of-small-mending:charges@item:1', amount: 1 });
 
     const after = fold('seed', [...wounded, ...out.events]);
     expect(chargesLeft(after, CONTENT, HOLDER, ROD)).toBe(2);
@@ -228,7 +234,9 @@ describe('a rod that mends for a charge', () => {
     expect(out.events.some((e) => e.type === 'items-lost')).toBe(false);
 
     const after = fold('seed', [...wounded, ...out.events]);
-    expect(after.creatures['holder']!.inventory).toEqual([{ id: ROD, quantity: 1 }]);
+    expect(after.creatures['holder']!.inventory).toEqual([
+      { id: ROD, quantity: 1, instance: 'item:1' },
+    ]);
     expect(after.creatures['holder']!.equipped.map((held) => held.id)).toEqual([ROD]);
   });
 
@@ -262,7 +270,9 @@ describe('a rod that mends for a charge', () => {
     expect(issuer.count).toBe(0);
     expect(fold('seed', log).creatures['holder']!.vitals.hp).toBe(hp);
     expect(chargesLeft(fold('seed', log), CONTENT, HOLDER, ROD)).toBe(0);
-    expect(fold('seed', log).creatures['holder']!.inventory).toEqual([{ id: ROD, quantity: 1 }]);
+    expect(fold('seed', log).creatures['holder']!.inventory).toEqual([
+      { id: ROD, quantity: 1, instance: 'item:1' },
+    ]);
   });
 
   /**
@@ -271,10 +281,7 @@ describe('a rod that mends for a charge', () => {
    * `useItem` refuses while it is still in hand.
    */
   it('refuses a rod nobody is holding', () => {
-    const packed: readonly GameEvent[] = [
-      ...SCENE,
-      { type: 'items-gained', id: HOLDER, items: [{ id: ROD, quantity: 1 }], source: 'the hoard' },
-    ];
+    const packed = awarded(ROD);
     const out = useItem(fold('seed', packed), HOLDER, { item: ROD }, supply());
     expect(isErr(out) ? out.code : 'ok').toBe('not_equipped');
   });
@@ -341,7 +348,7 @@ describe('a staff whose line lets the user choose how many', () => {
   it('spends the count the user chose', () => {
     const out = unwrap(ward(3), 'ward');
     expect(out.events.filter((e) => e.type === 'resource-spent')[0]).toMatchObject({
-      key: 'staff-of-lesser-warding:charges',
+      key: 'staff-of-lesser-warding:charges@item:1',
       amount: 3,
     });
     expect(chargesLeft(fold('seed', [...held, ...out.events]), CONTENT, HOLDER, STAFF)).toBe(1);
@@ -392,10 +399,9 @@ describe('a staff whose line lets the user choose how many', () => {
 });
 
 describe('a conferral that names no price is the potion it has always been', () => {
-  const carried: readonly GameEvent[] = [
-    ...SCENE,
-    { type: 'items-gained', id: HOLDER, items: [{ id: HEALING, quantity: 1 }], source: 'the hoard' },
-  ];
+  const carried: readonly GameEvent[] = run(SCENE, (s) =>
+    awardItems(s, supply('the-hoard', SRD_CONTENT), HOLDER, [{ id: HEALING }], 'the hoard'),
+  );
   const wounded = hurt(carried, HOLDER, 20);
 
   it('is used up, spends nothing and acquires no pool', () => {

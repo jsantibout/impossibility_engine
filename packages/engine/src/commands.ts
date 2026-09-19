@@ -66,13 +66,16 @@ export type { AddCreatureOutcome, DamageCommand } from './commands/creatures.js'
 export { applyConditionTo, liftConditionFrom, whyCondition } from './commands/conditions.js';
 export { declareCreatureType } from './commands/facts.js';
 export {
+  awardItems,
   declareCreatureDead,
   declareCreatureSide,
   loseItems,
   removeBonusFrom,
   stabiliseCreature,
   swapInitiativeBetween,
+  transferItem,
 } from './commands/declarations.js';
+export type { AwardedItem } from './commands/declarations.js';
 export { declareResourcePool, restoreResourcesOn } from './commands/pools.js';
 export {
   attuneItem,
