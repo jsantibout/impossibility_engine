@@ -749,13 +749,16 @@ describe('a count the book rolls at the copy’s birth', () => {
  */
 describe('a sense an item grants, read off what is worn', () => {
   /**
-   * The scene, plus somebody standing past the range the goggles reach.
+   * The scene, plus two creatures that bracket the range the goggles reach.
    *
    * Everybody `PRELUDE` places stands within twenty-five feet, so a grant of
    * thirty feet would answer every question below exactly as one of sixty
-   * does — which is a test agreeing with the wrong number. The sentry is a
-   * hundred feet off, and nobody has declared anything about them.
+   * does — a test agreeing with the wrong number. So the range is pinned
+   * from **both** sides: a scout fifty feet out, whom the lenses reach, and
+   * a sentry a hundred feet out, whom they do not. Nobody has declared
+   * anything about either.
    */
+  const SCOUT = id('scout');
   const SENTRY = id('sentry');
 
   const nightfall = (): readonly GameEvent[] =>
@@ -763,7 +766,13 @@ describe('a sense an item grants, read off what is worn', () => {
       run(
         [
           ...PRELUDE,
+          added(SCOUT, 'goblins'),
           added(SENTRY, 'goblins'),
+          {
+            type: 'creature-placed',
+            id: SCOUT,
+            placement: { from: { creature: HERO }, feet: 50, bearing: 180 },
+          },
           {
             type: 'creature-placed',
             id: SENTRY,
@@ -797,11 +806,13 @@ describe('a sense an item grants, read off what is worn', () => {
     // hero's own answer is the goggles', not the declaration's.
     expect(canSee(state, HERO, WITCH)).toBe(true);
 
-    // **And the sixty is a number rather than a licence.** The sentry is a
-    // hundred feet off, outside what the lenses reach, and the answer there
-    // is the three-valued one the seam is for: `null` is "ask the table",
-    // not "no". A grant of thirty feet would have passed every line above
-    // and fails this one.
+    // **And the sixty is a number rather than a licence**, which takes an
+    // assertion on each side of it: the scout is fifty feet off and inside
+    // what the lenses reach, so a grant of thirty fails here; the sentry is
+    // a hundred and outside it, so a grant of a hundred and fifty fails
+    // below. The answer beyond the range is the three-valued one the seam is
+    // for — `null` is "ask the table", not "no".
+    expect(canSee(state, HERO, SCOUT)).toBe(true);
     expect(canSee(state, HERO, SENTRY)).toBeNull();
 
     // Taken off, the sense goes with them: a worn benefit is derived on every
