@@ -2,6 +2,7 @@ import { err, needsContext, ok, type CharacterId, type Result } from '@ie/shared
 import { abilityModifier } from './character.js';
 import { HOUR, hours } from './clock.js';
 import type { Rng } from './dice.js';
+import { timerKey } from './duration.js';
 import type { GameEvent, GameState } from './events.js';
 import { once } from './idempotency.js';
 import { remaining } from './resources.js';
@@ -325,7 +326,21 @@ export function endRest(
       // SRD: "Temporary Hit Points last until they're depleted or you finish a
       // Long Rest." They are not hit points and healing does not touch them,
       // so the rest has to clear them itself.
-      if (creature.vitals.temporaryHp > 0) events.push({ type: 'temporary-hp-cleared', id });
+      //
+      // **And whether or not a deadline was ever hung on them.** The owner's
+      // ruling of 2026-09-18 makes the rest the end of the default lifetime
+      // *and* the outer bound of a stated one: a stated duration says when
+      // they run out earlier, never that they survive the night. So the event
+      // goes out for a standing deadline as well as for a live pool — the
+      // fold drops the deadline with the points, and a pool already spent to
+      // nothing would otherwise leave its hour behind to come due over
+      // whatever the creature is holding by then.
+      if (
+        creature.vitals.temporaryHp > 0 ||
+        state.timers[timerKey({ kind: 'temporary-hit-points', on: id })] !== undefined
+      ) {
+        events.push({ type: 'temporary-hp-cleared', id });
+      }
 
       // A feature that recharges on a Short Rest recharges on a Long one too,
       // so both tags fire. The pool says which it is; the rest does not guess.

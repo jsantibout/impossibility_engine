@@ -219,7 +219,35 @@ export type EffectTarget =
    * sentence. What ends is *what that source granted*, which is one question
    * however many of the four answers it.
    */
-  | { readonly kind: 'grants'; readonly on: CharacterId; readonly source: string };
+  | { readonly kind: 'grants'; readonly on: CharacterId; readonly source: string }
+  /**
+   * The Temporary Hit Points a creature is holding.
+   *
+   * SRD, and the owner's ruling of 2026-09-18 written the way the engine can
+   * hold it: Temporary Hit Points with no stated duration last until they are
+   * spent or until a Long Rest, and **an effect that states one overrides that
+   * default** — the hour Potion of Heroism prints. The default needs no timer
+   * (the rest clears the pool, and spending it is what damage already does);
+   * the stated hour is a deadline like any other, and this is the thing it is
+   * hung on.
+   *
+   * **No source, and that is the member rather than an omission.** Every other
+   * target here identifies *one of many* — one condition instance, one
+   * casting, one source's grants — because a creature can hold several at
+   * once. A creature holds exactly **one** pool of Temporary Hit Points: SRD
+   * is explicit that they do not stack, so a second grant replaces the first
+   * rather than joining it. A `source` would let two deadlines stand over one
+   * pool, and the older of them would end points it never granted. So the
+   * creature is the whole identity, and {@link timerKey} keys it that way.
+   *
+   * **What expiry means here is a pool, not a fact.** A condition either holds
+   * or it does not; Temporary Hit Points are a number that damage eats away
+   * at, so the moment arrives to find however many are left — ten, four or
+   * none. Removing none is as quiet as removing ten: nothing else about the
+   * creature moves, and a deadline over an emptied pool is not a second
+   * helping of damage. `fold/expiry.ts` says that in code.
+   */
+  | { readonly kind: 'temporary-hit-points'; readonly on: CharacterId };
 
 /**
  * A saving throw an effect gets at a turn boundary.
@@ -603,6 +631,10 @@ export function timerKey(target: EffectTarget): string {
       return `feature|${target.on}|${target.feature}`;
     case 'grants':
       return `grants|${target.on}|${target.source}`;
+    // The creature and nothing else: one creature holds one pool, so a second
+    // grant that replaces it lands on this same key rather than beside it.
+    case 'temporary-hit-points':
+      return `temporary-hit-points|${target.on}`;
     default:
       return `casting|${target.castingId}`;
   }

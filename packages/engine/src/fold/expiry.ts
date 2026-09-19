@@ -21,6 +21,7 @@ import {
 } from '../duration.js';
 import type { GameState } from '../state.js';
 import { endTimedCondition, releaseCasting, releaseGrants } from './release.js';
+import { clearTemporaryHp } from './vitals.js';
 
 /**
  * Every timer except the ones that end something on a creature who has left.
@@ -200,6 +201,20 @@ export function expireEffects(state: GameState): GameState {
           },
         };
       }
+    } else if (target.kind === 'temporary-hit-points') {
+      // SRD, and the owner's ruling of 2026-09-18: Temporary Hit Points with
+      // no stated duration last until spent or until a Long Rest, and a stated
+      // duration — Potion of Heroism's hour — overrides that default. This is
+      // the stated one arriving.
+      //
+      // **What arrives finds however many are left.** The pool is a number
+      // damage eats away at, not a fact that holds or does not, so the moment
+      // may find ten, four, or none — and taking none away is as quiet as
+      // taking ten. `clearTemporaryHp` is quiet on an empty pool for that
+      // reason, and it touches nothing else: a deadline is not a second
+      // helping of damage, so no hit point moves, no death save is reset and
+      // a creature already dead stays exactly as it was.
+      current = clearTemporaryHp(current, target.on);
     } else if (target.kind === 'casting') {
       // Ending the casting takes its Concentration and every effect it created.
       const castingId = target.castingId;

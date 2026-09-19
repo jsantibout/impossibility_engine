@@ -119,6 +119,8 @@
     "VitalsEvent",
     "isVitalsEvent",
     "withoutTimersFor",
+    "clearTemporaryHp",
+    "withoutTemporaryHpDeadline",
     "applyVitals"
   ],
   "fold/upkeep.ts": [

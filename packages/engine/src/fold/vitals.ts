@@ -96,6 +96,54 @@ function withoutTimersFor(
 }
 
 /**
+ * Take the pool of Temporary Hit Points away, whatever is left of it.
+ *
+ * The one place the pool goes to zero, so the two doors that empty it — a Long
+ * Rest, through `temporary-hp-cleared`, and a stated duration running out,
+ * through `expireEffects` — cannot come to disagree about what emptying it
+ * means. It is **only** the pool: hit points, death saves, Stable and dead are
+ * all untouched, because Temporary Hit Points were never any of them.
+ *
+ * Quiet when there is nothing there. A pool spent to nothing before its
+ * deadline still has a deadline, and the moment arriving on it must change
+ * exactly as much as it found, which is none.
+ */
+export function clearTemporaryHp(state: GameState, on: CharacterId): GameState {
+  const creature = state.creatures[on];
+  if (creature === undefined || creature.vitals.temporaryHp === 0) return state;
+  return {
+    ...state,
+    creatures: {
+      ...state.creatures,
+      [on]: { ...creature, vitals: { ...creature.vitals, temporaryHp: 0 } },
+    },
+  };
+}
+
+/**
+ * Drop the deadline hung on a creature's Temporary Hit Points.
+ *
+ * The same rule `withoutTimersFor` applies above, on the one target whose
+ * identity is a creature rather than an instance: a deadline is hung on a
+ * *pool*, so a pool that no longer exists has no deadline. Left standing, it
+ * would come due against whatever pool the creature is holding by then and end
+ * points it never measured — the failure a condition's stale timer already
+ * caused once.
+ *
+ * Insertion order is preserved, so a filtered record is still the sorted one
+ * `sortedTimers` built and a fold stays byte-identical.
+ */
+function withoutTemporaryHpDeadline(state: GameState, on: CharacterId): GameState {
+  const key = timerKey({ kind: 'temporary-hit-points', on });
+  if (state.timers[key] === undefined) return state;
+  const timers: Record<string, TimedEffect> = {};
+  for (const [at, timer] of Object.entries(state.timers)) {
+    if (at !== key) timers[at] = timer;
+  }
+  return { ...state, timers };
+}
+
+/**
  * Reduce one of this seam's events.
  *
  * Exported so `applyOne` may call it and for no other reason: it is not in
@@ -141,22 +189,43 @@ export function applyVitals({ state, next }: Applying, event: VitalsEvent): Game
 
     case 'temporary-hp-granted': {
       const creature = creatureOf(state, event, event.id);
-      return withCreature(
-        next,
-        event.id,
-        { vitals: grantTemporaryHp(creature.vitals, event.amount) },
-        creature,
-      );
+      const vitals = grantTemporaryHp(creature.vitals, event.amount);
+      const granted = withCreature(next, event.id, { vitals }, creature);
+
+      // **And the old deadline goes with the pool the new points replaced.**
+      // SRD: Temporary Hit Points do not stack — "you choose whether to keep
+      // the ones you have or gain the new ones" — so a grant that is taken is
+      // a *new pool*, and an hour hung on the pool that went would come due
+      // against this one. The grant is the whole of what the fold needs to see
+      // that, which is what keeps a grant one event.
+      //
+      // **Only when the points were actually taken.** `grantTemporaryHp` keeps
+      // the larger, so a smaller second grant changes nothing: the points
+      // being held are still the ones the deadline was hung on, and dropping
+      // it there would hand them a lifetime nobody granted. The pool moving is
+      // the honest test of which of the two happened.
+      //
+      // A deadline for the *new* points is hung after this, by whoever granted
+      // them — the order `applyConditionTo` already writes, condition first
+      // and `effect-scheduled` behind it.
+      return vitals.temporaryHp === creature.vitals.temporaryHp
+        ? granted
+        : withoutTemporaryHpDeadline(granted, event.id);
     }
 
     case 'temporary-hp-cleared': {
       const creature = creatureOf(state, event, event.id);
-      return withCreature(
+      // SRD: "Temporary Hit Points last until they're depleted or you finish a
+      // Long Rest." The rest takes the pool **and** any deadline that was hung
+      // on it: an hour that outlived the points it measured would be a timer
+      // over nothing.
+      const cleared = withCreature(
         next,
         event.id,
         { vitals: { ...creature.vitals, temporaryHp: 0 } },
         creature,
       );
+      return withoutTemporaryHpDeadline(cleared, event.id);
     }
 
     case 'death-save-recorded': {
