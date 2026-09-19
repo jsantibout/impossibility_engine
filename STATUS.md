@@ -74,6 +74,20 @@ to homebrew.
   debt the engine can raise; refusals and requests for a missing fact as
   values. The model never produces a number and the surface cannot reach the
   functions that would let it, which is asserted rather than promised.
+- **An item that moves** — a copy may be given away and arrives as spent as it
+  left, its pool travelling whole; a DM may award what a party found, and a
+  count the book rolls is rolled once at the copy's birth and pinned. There is
+  one gain semantics and a sweep that fails if a fourth door forgets it.
+- **A surface a human DM calls** (`@ie/tools/dm`) — a check against a DC the
+  table set, damage it adjudicated, a ruling that ends. Separated from the
+  model's by a directory rather than a flag: the model's factory takes no tool
+  list and its module closure contains no DM file, which is asserted in every
+  import form.
+- **A ranked account of what is not built.** Three blocker maps now — spells,
+  items and features — each naming what a missing shape blocks and what it
+  would finish, all rendered into `COVERAGE.md` and held against the documents
+  they quote. The feature map's two heaviest entries are an Ability Score
+  Improvement and an Epic Boon, neither of which is a rule of combat.
 - **Replay** — a scripted four-round fight and two frozen logs fold
   byte-identically.
 
@@ -114,16 +128,10 @@ to homebrew.
   an amount may now be a printed number with no dice in it, which the two
   scaling fields that add dice to a notation refuse and the one that adds a
   flat number does not.
-- Nothing can be given away. A copy has a record now, but no command hands
-  one creature's item to another, and none hands a party what it found — so
-  `equipItem` still declares a catalogue-keyed pool for an *unlabelled* copy,
-  and the commit that adds an award command must delete that branch in the
-  same breath. A test pins the two doors a copy arrives through so a third
-  cannot be quiet about it.
-- Nothing in play consults a sense yet: every caller of `sightBetween` is a
-  command, and the senses landed beside them rather than in them. The same is
-  true of the hour on Potion of Heroism's Temporary Hit Points — the engine
-  can hang the deadline and no item files one.
+- A rolled charge maximum escapes the content validator. `chargesRolled` is a
+  field on the catalogue row rather than on the `pool` grant, so a malformed
+  one loads clean and refuses later, at the award, where every other pool
+  string is refused at the door. No SRD item uses it yet.
 - No carried weight, no ammunition spent. Objects that are not creatures
   are not modelled.
 - Overriding printed content with homebrew of the same id is refused; only
@@ -131,44 +139,36 @@ to homebrew.
 
 ## Next
 
-Ranked by what each unblocks, which is `COVERAGE.md`'s blocker tables rather
-than the order these were noticed in.
+Ranked by what each unblocks, which is `COVERAGE.md`'s three blocker tables
+rather than the order these were noticed in.
 
-1. **The three one-file follow-ups this batch split off.** Nothing consults a
-   sense (`sightBetween`'s callers are all commands); no item files a
-   Temporary Hit Point deadline, so Potion of Heroism's hour is still a note;
-   and `potion-of-heroism`'s `unmodelled` line is now false. Each is small and
-   each is the difference between a capability and a rule in play.
-2. **Three engine defects the catalogue found, driven by tests that pass
-   today because they assert the defect.** `sightBetween(x, x)` answers null
-   and `declareSight` refuses to record the answer, so **Cure Wounds, Healing
-   Word, Mass Cure Wounds and Mass Healing Word cannot be cast on their own
-   caster** — the worst of the three by far. `RIDER_FIELDS` refuses a
-   conferred effect carrying `conditions`, which is `condition-immunity`'s own
-   required list, so Potion of Gaseous Form is refused the Immunity its spell
-   executes. `regainsAtDawn` takes dice and Rod of Resurrection prints a flat
-   1, which `parseNotation` refuses.
-3. **Transfer and an award command** — steps two and three of the item
-   record. They release the copies-are-distinguishable work into the
-   catalogue, and step three must delete `equipItem`'s unlabelled pool
-   declaration in the same commit.
-4. **The `alert` breach** in `creation.ts`: the engine reads one feat by name
-   and pays the Initiative bonus itself. It needs a way for a feat to confer a
-   bonus through the grant vocabulary, and it is the last entry on the sweep's
-   breach record.
-5. **The DM-facing half of the tool surface** — a check against a DC the DM
-   sets, improvised damage, the wider ruled conditions — kept apart from the
-   model's, which the doctrine's North Star asks for. Then an engine command
-   that lifts a DM-applied condition, which the surface found missing.
-6. **Split `senses-beyond-declared-sight`**, which is three shapes wearing one
-   name: a sense an item or trait grants (built — retire it), an effect
-   excused by the attacker's sense (Blur, Mirror Image, Faerie Fire), and one
-   creature borrowing another's (Find Familiar, Mislead, Project Image). A
-   fourth is Goggles of Night's second clause: a sense that *widens* one the
-   holder already has.
-7. **Dice that scale with what was spent.** Every scaling field reads a slot
-   or a caster level, so Staff of Striking's extra die per charge has nowhere
-   to go, and a conferral priced in charges still buys no SRD entry.
+1. **An Ability Score Improvement, and a score above 20.** The two heaviest
+   entries in the feature map: fourteen features each, twelve finished each,
+   and every class prints both. `FeatureChoice` has no member for two points
+   of ability, and nothing lifts a maximum. Neither needs a rule of combat.
+2. **Where a rolled charge maximum lives.** Decided: beside `uses` in the
+   `pool` grant as an item-only member, validated in `content.ts` on the
+   precedent `casts` already sets. Until then `chargesRolled` is the one pool
+   string refused late rather than at the door.
+3. **Weapon mastery** — six features across five classes, and the only entry
+   in the feature map whose two columns are equal: everything it touches, it
+   finishes. The heaviest thing a fight would notice.
+4. **The item entries a spell stopped blocking.** Twenty-two entries still
+   name `a-spell-an-item-casts-that-nothing-executes` whose spell now exists,
+   and Rod of Resurrection and Sovereign Glue are transcribable. The shape's
+   count is overstated until somebody re-reads them, and that count is what a
+   tranche gets planned from.
+5. **Notation a DM rolls.** The DM surface adjudicates an amount because
+   rolling in the tools layer would advance the generator without the event
+   only a command emits. It wants `rollImprovisedDamage` in the engine, plus a
+   saving throw against a stated DC and the modes for Advantage.
+6. **Three mechanics that must land together** — a resource traded for
+   another, a saving throw a feature forces, a condition a feature imposes.
+   Cunning Strike, Stunning Strike and the Channel Divinities all want all
+   three; any one alone buys nothing.
+7. **Two spells that need a decision before a transcription.** Darkness makes
+   Sunburst's "dispels magical Darkness" reachable and needs a shape for a
+   dispel narrowed to one named spell with a level cap; Magic Missile is held
+   only by two engine tests naming it as a spell with no definition.
 8. **The populations the sweeps do not cover**: subclass ids, and language and
-   alignment names — the last needing a construct allowance, since
-   `CREATURE_TYPES` names `'Giant'` as a mechanic.
+   alignment names, the last needing a construct allowance for `'Giant'`.

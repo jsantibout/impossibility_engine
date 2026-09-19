@@ -123,10 +123,13 @@ one with a charge pool, whose key is the copy rather than the item, declared
 when the copy is gained rather than when it is equipped. So two wands no
 longer share a pool, and one put down keeps what it had left.
 
-Two things a brief still has to decide: **transfer** — `equipItem` still
-declares a catalogue-keyed pool for an *unlabelled* copy, because no command
-exists for a DM to hand a party what it found, and the commit that adds one
-must delete that branch in the same breath or the engine has two gain
-semantics (a test pins the two doors so a third cannot arrive quietly) — and
-what ends attunement besides a command — death, losing the item, another
-creature attuning to it.
+A copy also **moves**. `transferItem` hands one creature's copy to another and
+its pool travels whole, spent charges included, read off the giver's own keys
+rather than out of a catalogue; `awardItems` is the door a DM hands a party
+what it found, and where the book rolls a count it is rolled once at the
+copy's birth and pinned. There is one gain semantics — `equipItem` declares no
+pool of its own any more — and a sweep pins the doors a copy arrives through
+so a fourth cannot be quiet about labelling.
+
+One thing a brief still has to decide: what ends attunement besides a command
+— death, losing the item, another creature attuning to it.
