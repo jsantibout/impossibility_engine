@@ -3,11 +3,12 @@
  * transcribed as data.
  *
  * Every species and background the SRD prints is here, transcribed from
- * `packages/srd/raw/character-origins.md` sentence by sentence. Most of what a
- * species trait does is a mechanic the engine has never had — a sense, a
- * breath weapon, a lineage's spells — so most of these features are `manual`
- * and each note says what the DM is left holding and why. A trait that is one
- * of the shapes already built is wired to it.
+ * `packages/srd/raw/character-origins.md` sentence by sentence. Much of what a
+ * species trait does is still a mechanic the engine has never had — a breath
+ * weapon, a lineage's spells, a Hit Point maximum that grows — so many of
+ * these features are `manual` and each note says what the DM is left holding
+ * and why. A trait that is one of the shapes already built is wired to it,
+ * and Darkvision became one of those the day a sense got a grant kind.
  */
 import type {
   AlignmentDefinition,
@@ -118,8 +119,13 @@ export const DRAGONBORN: SpeciesDefinition = {
       id: 'dragonborn:darkvision',
       name: 'Darkvision',
       level: 1,
-      automation: 'manual',
-      note: 'Darkvision with a range of 60 feet is not applied: sight in this engine is a pairwise declaration and there is nothing else, so what a creature can see in the dark is answered by whoever declares the sight line rather than by a sense on the sheet.',
+      automation: 'engine',
+      note: 'Applied whole, and the trait is one sentence long: the sense and its 60 feet go onto the sheet as a standing grant, and the sight question reads them where nobody has declared a line. What the SRD glossary says Darkvision does to Dim Light and Darkness is not simulated, because the engine holds no light - which is why a declared sight line outranks the sense rather than the other way about.',
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        effects: [{ kind: 'sense', sense: 'darkvision', feet: 60 }],
+      },
     },
     {
       id: 'dragonborn:draconic-flight',
@@ -142,8 +148,13 @@ export const DWARF: SpeciesDefinition = {
       id: 'dwarf:darkvision',
       name: 'Darkvision',
       level: 1,
-      automation: 'manual',
-      note: 'Darkvision with a range of 120 feet is not applied: sight in this engine is a pairwise declaration and there is nothing else, so what a creature can see in the dark is answered by whoever declares the sight line rather than by a sense on the sheet.',
+      automation: 'engine',
+      note: 'Applied whole, and the trait is one sentence long: the sense and its 120 feet go onto the sheet as a standing grant, and the sight question reads them where nobody has declared a line. What the SRD glossary says Darkvision does to Dim Light and Darkness is not simulated, because the engine holds no light - which is why a declared sight line outranks the sense rather than the other way about.',
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        effects: [{ kind: 'sense', sense: 'darkvision', feet: 120 }],
+      },
     },
     {
       id: 'dwarf:dwarven-resilience',
@@ -169,7 +180,7 @@ export const DWARF: SpeciesDefinition = {
       name: 'Stonecunning',
       level: 1,
       automation: 'manual',
-      note: 'Not applied: the engine has no Tremorsense and no notion of a stone surface, so the 60-foot sense and the 10 minutes it lasts are the DM. The uses are not declared either - "a number of times equal to your Proficiency Bonus" is not one of the three ways the engine sizes a pool.',
+      note: 'Not applied: Tremorsense is a sense the engine now names, and none of what this trait does with it is expressible. The sense is switched on for 10 minutes by a Bonus Action rather than had, the engine has no notion of a stone surface for it to be in contact with, and the uses are not declared either - "a number of times equal to your Proficiency Bonus" is not one of the three ways the engine sizes a pool. A DM runs the whole trait.',
     },
   ],
 };
@@ -185,15 +196,20 @@ export const ELF: SpeciesDefinition = {
       id: 'elf:darkvision',
       name: 'Darkvision',
       level: 1,
-      automation: 'manual',
-      note: 'Darkvision with a range of 60 feet is not applied: sight in this engine is a pairwise declaration and there is nothing else, so what a creature can see in the dark is answered by whoever declares the sight line rather than by a sense on the sheet.',
+      automation: 'engine',
+      note: 'Applied whole, and the trait is one sentence long: the sense and its 60 feet go onto the sheet as a standing grant, and the sight question reads them where nobody has declared a line. What the SRD glossary says Darkvision does to Dim Light and Darkness is not simulated, because the engine holds no light - which is why a declared sight line outranks the sense rather than the other way about.',
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        effects: [{ kind: 'sense', sense: 'darkvision', feet: 60 }],
+      },
     },
     {
       id: 'elf:elven-lineage',
       name: 'Elven Lineage',
       level: 1,
       automation: 'manual',
-      note: 'One of the three level 1 benefits is applied and the rest are the DM, which is why this is not marked as executed. The Wood Elf "Speed increases to 35 feet" is five feet of standing Speed, granted only to the lineage that chose it and read by speedOf like any other. The Drow longer Darkvision is not - sight is a pairwise declaration and there is nothing else. Neither is the cantrip each lineage knows, nor the level 3 and level 5 spells that are always prepared and free once per Long Rest: the engine gathers a spells grant only from the features of a class that casts, so a species cannot grant one.',
+      note: 'One of the three level 1 benefits is applied and the rest are the DM, which is why this is not marked as executed. The Wood Elf "Speed increases to 35 feet" is five feet of standing Speed, granted only to the lineage that chose it and read by speedOf like any other. The Drow "range of your Darkvision increases to 120 feet" is a sense the engine now reads, and it is still not applied here: a feature carries at most one grant, this one is already the Wood Elf\'s Speed, and there is no second option gate to hang a Drow sense on. A DM gives the Drow the further sixty feet. Neither the cantrip each lineage knows nor the level 3 and level 5 spells that are always prepared and free once per Long Rest are applied either: the engine gathers a spells grant only from the features of a class that casts, so a species cannot grant one.',
       choice: { kind: 'option', choose: 1, from: ['Drow', 'High Elf', 'Wood Elf'] },
       grants: {
         kind: 'standing',
@@ -241,8 +257,13 @@ export const GNOME: SpeciesDefinition = {
       id: 'gnome:darkvision',
       name: 'Darkvision',
       level: 1,
-      automation: 'manual',
-      note: 'Darkvision with a range of 60 feet is not applied: sight in this engine is a pairwise declaration and there is nothing else, so what a creature can see in the dark is answered by whoever declares the sight line rather than by a sense on the sheet.',
+      automation: 'engine',
+      note: 'Applied whole, and the trait is one sentence long: the sense and its 60 feet go onto the sheet as a standing grant, and the sight question reads them where nobody has declared a line. What the SRD glossary says Darkvision does to Dim Light and Darkness is not simulated, because the engine holds no light - which is why a declared sight line outranks the sense rather than the other way about.',
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        effects: [{ kind: 'sense', sense: 'darkvision', feet: 60 }],
+      },
     },
     {
       id: 'gnome:gnomish-cunning',
@@ -421,8 +442,13 @@ export const ORC: SpeciesDefinition = {
       id: 'orc:darkvision',
       name: 'Darkvision',
       level: 1,
-      automation: 'manual',
-      note: 'Darkvision with a range of 120 feet is not applied: sight in this engine is a pairwise declaration and there is nothing else, so what a creature can see in the dark is answered by whoever declares the sight line rather than by a sense on the sheet.',
+      automation: 'engine',
+      note: 'Applied whole, and the trait is one sentence long: the sense and its 120 feet go onto the sheet as a standing grant, and the sight question reads them where nobody has declared a line. What the SRD glossary says Darkvision does to Dim Light and Darkness is not simulated, because the engine holds no light - which is why a declared sight line outranks the sense rather than the other way about.',
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        effects: [{ kind: 'sense', sense: 'darkvision', feet: 120 }],
+      },
     },
     {
       id: 'orc:relentless-endurance',
@@ -445,8 +471,13 @@ export const TIEFLING: SpeciesDefinition = {
       id: 'tiefling:darkvision',
       name: 'Darkvision',
       level: 1,
-      automation: 'manual',
-      note: 'Darkvision with a range of 60 feet is not applied: sight in this engine is a pairwise declaration and there is nothing else, so what a creature can see in the dark is answered by whoever declares the sight line rather than by a sense on the sheet.',
+      automation: 'engine',
+      note: 'Applied whole, and the trait is one sentence long: the sense and its 60 feet go onto the sheet as a standing grant, and the sight question reads them where nobody has declared a line. What the SRD glossary says Darkvision does to Dim Light and Darkness is not simulated, because the engine holds no light - which is why a declared sight line outranks the sense rather than the other way about.',
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        effects: [{ kind: 'sense', sense: 'darkvision', feet: 60 }],
+      },
     },
     {
       id: 'tiefling:fiendish-legacy',

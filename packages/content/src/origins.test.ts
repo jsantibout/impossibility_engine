@@ -5,6 +5,7 @@ import { SRD_CONTENT } from '@ie/content';
 import { asCharacterId, expect as unwrap, type Ability } from '@ie/shared';
 import {
   advanceCharacter,
+  canSee,
   createCharacter,
   createRng,
   createRollIssuer,
@@ -16,6 +17,7 @@ import {
   remaining,
   resolveSpell,
   resolveTest,
+  sensesOf,
   speedOf,
   type CharacterChoices,
   type FeatChoice,
@@ -477,6 +479,89 @@ describe('a species or background feature marked engine is one something reads',
       featureChoices: { 'elf:elven-lineage': [lineage], 'elf:keen-senses': ['perception'] },
     };
     expect(speedOf(stateOf(choices), WHO)).toBe(feet);
+  });
+
+  /**
+   * SRD Darkvision, the trait six species print: "You have Darkvision with a
+   * range of N feet."
+   *
+   * The ranges are **read out of the book**, not typed here, for the reason
+   * the species roster is: a second transcription would agree with the first
+   * by construction. `character-origins.md` prints the sentence once per
+   * species, and the catalogue is asked whether the sheet carries what the
+   * paragraph beside that species says.
+   */
+  const DARKVISION_LINE = /^_Darkvision\._ You have Darkvision with a range of (\d+) feet\.$/;
+
+  /** The range the book prints under a species' own heading, or null. */
+  const printedDarkvision = (name: string): number | null => {
+    const lines = RAW.split(/\r?\n/);
+    const start = lines.findIndex((line) => line.trim() === `#### ${name}`);
+    if (start < 0) throw new Error(`no "${name}" heading in character-origins.md`);
+    for (const line of lines.slice(start + 1)) {
+      if (/^#{1,4} /.test(line)) break;
+      const printed = DARKVISION_LINE.exec(line.trim());
+      if (printed?.[1] !== undefined) return Number(printed[1]);
+    }
+    return null;
+  };
+
+  it('finds the six species the book gives Darkvision, and three it does not', () => {
+    const withIt = PRINTED_SPECIES.filter((name) => printedDarkvision(name) !== null);
+    expect(withIt).toEqual(['Dragonborn', 'Dwarf', 'Elf', 'Gnome', 'Orc', 'Tiefling']);
+    expect(PRINTED_SPECIES.length - withIt.length).toBe(3);
+  });
+
+  it.each(PRINTED_SPECIES.map((name) => [name, slug(name)] as const))(
+    'gives a %s the Darkvision its own paragraph prints, and no more',
+    (name, speciesId) => {
+      const feet = printedDarkvision(name);
+      const state = stateOf(choicesFor(speciesId, 'sage'));
+      expect(sensesOf(state, WHO)).toEqual(
+        feet === null ? [] : [{ sense: 'darkvision', feet }],
+      );
+    },
+  );
+
+  /**
+   * And it reaches the question it exists for: a creature standing inside the
+   * range is seen without anybody declaring a line, and one beyond it is
+   * still asked about. The Dwarf's 120 feet is the one that separates the two
+   * distances from the Tiefling's 60.
+   */
+  it.each([
+    ['dwarf', 90, true],
+    ['tiefling', 90, null],
+    ['tiefling', 30, true],
+    ['human', 30, null],
+  ] as const)('lets a %s at %i feet see: %s', (speciesId, feet, seen) => {
+    const state = fold('seed', [
+      ...(unwrap(createCharacter(SRD_CONTENT, choicesFor(speciesId, 'sage'), WHO), 'creation') as GameEvent[]),
+      {
+        type: 'creature-added',
+        id: CASTER,
+        name: 'in the dark',
+        sheet: {
+          level: 1,
+          abilities: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
+          skills: {},
+          saveProficiencies: [],
+          armor: null,
+          shield: null,
+          armorTraining: { light: true, medium: true, heavy: true, shields: true },
+          baseSpeed: 30,
+          spellcastingAbility: 'int',
+        },
+        maxHp: 10,
+        diesAtZero: false,
+        creatureType: 'Humanoid',
+      },
+      { type: 'scene-set', extent: { width: 400, depth: 400, height: 40 } },
+      { type: 'landmark-added', name: 'the cave mouth', at: { x: 100, y: 100, z: 0 } },
+      { type: 'creature-placed', id: WHO, placement: { from: { landmark: 'the cave mouth' }, feet: 0 } },
+      { type: 'creature-placed', id: CASTER, placement: { from: { creature: WHO }, feet, bearing: 90 } },
+    ]);
+    expect(canSee(state, WHO, CASTER)).toBe(seen);
   });
 
   /** SRD Alert, which the Criminal background grants: "add your Proficiency Bonus". */

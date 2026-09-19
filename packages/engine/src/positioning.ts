@@ -20,6 +20,10 @@ import type { GameState } from './events.js';
  *
  * Cover and line of sight are declared rather than derived, because computing
  * them needs obstacle geometry, and that is where a rules engine becomes a VTT.
+ * A creature's own **senses** are the one thing the sight question consults
+ * besides the declaration — a fact about the looker rather than a simulation
+ * of the light, and one the declaration always outranks. See
+ * {@link sightBetween}.
  *
  * Rules verified against SRD 5.2.1 (see ATTRIBUTION.md).
  */
@@ -1311,15 +1315,110 @@ export function declareSight(
 }
 
 /**
+ * The senses the SRD rules glossary defines, in the words it defines them in.
+ *
+ * A closed vocabulary rather than a catalogue, on the same test everything
+ * else at this boundary is held to: the book defines these four in its
+ * *rules* glossary, beside the conditions and the actions, and a world that
+ * wanted a fifth would be asking for a mechanic rather than for an entry. So
+ * content may say which of the four a creature has and how far it reaches,
+ * and may not invent a name nothing knows what to do with.
+ *
+ * Declared once, as a list, and the type read off it — two spellings of one
+ * fact is how a validator and a union drift apart.
+ */
+export const SENSE_NAMES = ['blindsight', 'darkvision', 'tremorsense', 'truesight'] as const;
+
+export type SenseName = (typeof SENSE_NAMES)[number];
+
+/**
+ * A sense a creature has, as the sight question reads it: which one, and how
+ * far it reaches.
+ *
+ * "You have Darkvision with a range of 60 feet" is the SRD's sentence for all
+ * four, which is why this is a pair rather than a flag — Goggles of Night
+ * needs the answer to be a number, not a yes.
+ */
+export interface CreatureSense {
+  readonly sense: SenseName;
+  readonly feet: number;
+}
+
+/**
+ * The three that are a form of sight, and the one that is not.
+ *
+ * SRD Tremorsense: a creature "can pinpoint the location of creatures and
+ * moving objects within a specific range... **it doesn't count as a form of
+ * sight**". Blindsight is defined as seeing "without relying on physical
+ * sight" and Truesight as vision that "is enhanced", so both are. A rule, not
+ * a second copy of the list above.
+ */
+export const SIGHT_SENSES: ReadonlySet<SenseName> = new Set<SenseName>([
+  'blindsight',
+  'darkvision',
+  'truesight',
+]);
+
+/**
+ * Which of a creature's senses actually reach another creature right now.
+ *
+ * The senses are passed in rather than read, because they are a fact about a
+ * creature and this module holds space — `sensesOf` in `standing.ts` is what
+ * derives them. Measured the way everything else is: Chebyshev between
+ * volumes, on the cube lattice.
+ *
+ * Empty where either creature is unplaced, and empty for a creature and
+ * itself: where a creature is standing has no right answer until somebody
+ * says, and a creature needs no sense to know where it is.
+ */
+export function sensesReaching(
+  state: PositionState,
+  senses: readonly CreatureSense[],
+  from: CharacterId,
+  to: CharacterId,
+): readonly CreatureSense[] {
+  if (from === to || senses.length === 0) return [];
+  const apart = distanceBetween(state, from, to);
+  if (!apart.ok) return [];
+  return senses.filter((sense) => apart.value <= sense.feet);
+}
+
+/**
  * Whether one creature can see another, or null when nobody has said.
  *
  * Null is the important value: it is not "no", it is "ask". A spell that
  * requires sight turns it into a request to go and establish the fact.
+ *
+ * **A declaration always outranks a sense.** Sight here is a fact the table
+ * states, because computing it needs obstacle geometry; a sense is a fact
+ * about the creature doing the looking, and all it may do is answer where
+ * nobody has stated anything. A dwarf whose Darkvision reaches ninety feet is
+ * still blind to whatever the table said she cannot see, and the engine holds
+ * no Bright, Dim or Darkness to condition the sense on — which is exactly why
+ * the declaration wins rather than the other way about.
+ *
+ * The senses default to none, so a caller that has no creature to read them
+ * off asks the pairwise question and gets the pairwise answer.
+ *
+ * **One narrowing the glossary prints and this does not read**: Blindsight
+ * sees "anything that isn't behind Total Cover", and cover is declared here
+ * beside sight. Nothing grants Blindsight yet, so the clause has no writer;
+ * whichever brief writes the first one owes it.
  */
 export function sightBetween(
   state: PositionState,
   from: CharacterId,
   to: CharacterId,
+  senses: readonly CreatureSense[] = [],
 ): boolean | null {
-  return state.sight[coverKey(from, to)] ?? null;
+  const declared = state.sight[coverKey(from, to)];
+  if (declared !== undefined) return declared;
+
+  const reaching = sensesReaching(
+    state,
+    senses.filter((sense) => SIGHT_SENSES.has(sense.sense)),
+    from,
+    to,
+  );
+  return reaching.length > 0 ? true : null;
 }

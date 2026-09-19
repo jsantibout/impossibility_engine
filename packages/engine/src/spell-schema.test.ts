@@ -1980,11 +1980,18 @@ describe('no spell is special-cased in the runtime', () => {
    *
    * `shield` is a spell and an armour category; `light` is a spell and a
    * weapon property, and `weapon.properties.includes('light')` in `attack.ts`
-   * has nothing to do with the cantrip. Named one word at a time rather than
-   * matched loosely, so each exclusion is reviewed instead of being a
-   * heuristic that quietly stops catching things.
+   * has nothing to do with the cantrip. `darkvision` is the third and the
+   * book itself is the reason: the *rules glossary* defines Darkvision as one
+   * of four senses a creature has, beside the conditions and the actions, and
+   * the spell of that name is the catalogue entry that grants it. `SENSE_NAMES`
+   * in `positioning.ts` transcribes the glossary, so the word is a mechanic
+   * there in exactly the way `shield` is one in `fold/inventory.ts`.
+   *
+   * Named one word at a time rather than matched loosely, so each exclusion
+   * is reviewed instead of being a heuristic that quietly stops catching
+   * things.
    */
-  const ALSO_VOCABULARY: ReadonlySet<string> = new Set(['shield', 'light']);
+  const ALSO_VOCABULARY: ReadonlySet<string> = new Set(['shield', 'light', 'darkvision']);
 
   /**
    * Where naming a spell is **data** rather than a branch.
@@ -2111,12 +2118,16 @@ describe('no spell is special-cased in the runtime', () => {
    * still fails, in the same file as readily as anywhere else.
    */
   it('excludes only words the engine uses for something else', () => {
-    expect([...ALSO_VOCABULARY].sort()).toEqual(['light', 'shield']);
+    expect([...ALSO_VOCABULARY].sort()).toEqual(['darkvision', 'light', 'shield']);
     // `withEquipment` moved with the rest of the reducer in IE-039 and again
     // with its seam in IE-050; the construct the allowance excuses is read
     // where it now lives.
     expect(source('fold/inventory.ts')).toContain("category === 'shield'");
     expect(source('attack.ts')).toContain("weapon.properties.includes('light')");
+    // And the third: the glossary's four senses, transcribed once so that the
+    // validator and the union cannot drift apart.
+    expect(source('positioning.ts')).toContain("export const SENSE_NAMES = [");
+    expect(source('positioning.ts')).toContain("'darkvision'");
   });
 
   it('allows the two data constructs and nothing around them', () => {

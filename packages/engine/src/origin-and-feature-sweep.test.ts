@@ -160,7 +160,13 @@ describe('no species, background, feat or feature is special-cased in the runtim
   // — what the sweep found the day it was written ——————————————————————————
 
   /**
-   * **Two breaches, on the record and not fixed here.**
+   * **One breach, on the record and not fixed here.**
+   *
+   * There were two. The second was cosmetic — `feature-schema.ts` taught the
+   * id format with `"wizard:arcane-recovery"`, a live SRD feature — and it
+   * went the way this record is designed to send a breach: the example became
+   * a generic one, this list's entry was deleted in the same commit, and the
+   * skipped assertion below came back for it.
    *
    * A breach in engine code is its own brief: fixing `creation.ts` means
    * deciding how a feat confers an initiative bonus through the grant
@@ -191,16 +197,6 @@ describe('no species, background, feat or feature is special-cased in the runtim
       line: "const hasAlert = Object.values(choices.feats).some((feat) => feat.featId === 'alert');",
       named: ['feat alert'],
       compared: ["featId === 'alert'"],
-    },
-    {
-      // Cosmetic, and still a scrap of catalogue: the validator's message
-      // teaches the id format with a real SRD feature as the example, so a
-      // homebrew-only campaign is shown an id it does not have. Nothing
-      // branches; a generic example fixes it.
-      file: 'feature-schema.ts',
-      line: 'as in "wizard:arcane-recovery"',
-      named: ['feature wizard:arcane-recovery'],
-      compared: [],
     },
   ];
 

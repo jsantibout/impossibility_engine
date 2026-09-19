@@ -353,16 +353,18 @@ believe it has twelve working classes when it has twelve validated ones.
 
 | Species | Backgrounds | Features | Executed by the engine |
 |---|---|---|---|
-| 9 | 4 | 37 | 8 |
+| 9 | 4 | 37 | 14 |
 
 A species trait and a class feature are the same `FeatureDefinition` and
 declare automation the same way, so this is the column above read by the
 same predicate — `isExecutedFeature` in
 `packages/content/scripts/coverage-data.ts`, which both tables call.
-**Manual is not failure** here either: most of what a species grants is
-Darkvision, a Breath Weapon or a Resistance whose damage type is read off a
-sibling choice, and each carries a note saying exactly what is left to the
-table and why.
+**Manual is not failure** here either: what a species still grants
+manually is a Breath Weapon, a lineage’s spells or a Hit Point maximum
+that grows, and each carries a note saying exactly what is left to the
+table and why. Darkvision used to lead that list and no longer does — it
+is a `sense` grant now, on every species whose paragraph prints one, and
+the rows below are where that shows.
 
 **Feats are not counted.** A `FeatDefinition` declares no automation — it
 carries a note about what a DM still applies and nothing the engine reads —
@@ -373,17 +375,17 @@ derived would be somebody’s opinion instead.
 |---|---|---|---|
 | Acolyte | background | 1 | 1 |
 | Criminal | background | 1 | 1 |
-| Dragonborn | species | 5 | 1 |
-| Dwarf | species | 4 | 0 |
-| Elf | species | 5 | 1 |
-| Gnome | species | 3 | 1 |
+| Dragonborn | species | 5 | 2 |
+| Dwarf | species | 4 | 1 |
+| Elf | species | 5 | 2 |
+| Gnome | species | 3 | 2 |
 | Goliath | species | 3 | 0 |
 | Halfling | species | 4 | 0 |
 | Human | species | 3 | 2 |
-| Orc | species | 3 | 0 |
+| Orc | species | 3 | 1 |
 | Sage | background | 1 | 1 |
 | Soldier | background | 1 | 0 |
-| Tiefling | species | 3 | 0 |
+| Tiefling | species | 3 | 1 |
 
 ## Magic items
 

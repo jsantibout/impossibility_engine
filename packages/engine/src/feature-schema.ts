@@ -152,7 +152,7 @@ export function checkFeatureDefinition(
     found.push({
       field: 'id',
       code: 'bad_feature_id',
-      reason: `"${feature.id}" is not a namespaced id: lower-case hyphenated words either side of one colon, as in "wizard:arcane-recovery"`,
+      reason: `"${feature.id}" is not a namespaced id: lower-case hyphenated words either side of one colon, as in "source:feature-name"`,
     });
   }
 

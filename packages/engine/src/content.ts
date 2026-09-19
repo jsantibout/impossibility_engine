@@ -20,6 +20,7 @@ import {
   type FeatureGrant,
   type SubclassDefinition,
 } from './progression.js';
+import { SENSE_NAMES } from './positioning.js';
 import { dawnRollProblem, type Recovery } from './resources.js';
 import { EFFECT_END_CAUSES } from './duration.js';
 import { rollSelectorProblems } from './roll-modifiers.js';
@@ -180,7 +181,49 @@ export const ITEM_EFFECT_KINDS: ReadonlySet<string> = new Set([
   'damage-resistance',
   'evasion',
   'attack-damage',
+  'sense',
 ]);
+
+/**
+ * Everything wrong with a `sense` grant, wherever one is written.
+ *
+ * Shared by the two doors a standing grant comes through — an item's and a
+ * feature's — because a rule enforced on one of two spellings is a rule with
+ * a hole in it, which is the reasoning `item_narrowing_on_a_feature` already
+ * states next door. Every field this dereferences is one an untyped blob
+ * could have got wrong, so each is judged rather than believed.
+ */
+function senseProblems(
+  effect: Record<string, unknown>,
+  at: string,
+): readonly { readonly code: string; readonly reason: string; readonly field: string }[] {
+  const found: { code: string; reason: string; field: string }[] = [];
+  const named = effect['sense'];
+  if (!isString(named) || !(SENSE_NAMES as readonly string[]).includes(named)) {
+    found.push({
+      code: 'bad_sense',
+      reason: `"${String(named)}" is not one of the senses the rules glossary defines: ${SENSE_NAMES.join(', ')}`,
+      field: `${at}.sense`,
+    });
+  }
+  const feet = effect['feet'];
+  if (!Number.isInteger(feet) || (feet as number) < 0) {
+    found.push({
+      code: 'bad_sense_range',
+      reason: `a sense reaches a whole number of feet, not ${JSON.stringify(feet)}`,
+      field: `${at}.feet`,
+    });
+  } else if (feet === 0) {
+    // The same failure `bonus_of_nothing` names: a line in the book that
+    // silently does nothing at all.
+    found.push({
+      code: 'sense_of_no_range',
+      reason: 'a sense with a range of 0 feet reaches nobody, so nothing would ever read it',
+      field: `${at}.feet`,
+    });
+  }
+  return found;
+}
 
 /**
  * What a flat bonus may be aimed at — `StandingBonusApplies`, written out as
@@ -1055,6 +1098,12 @@ function itemGrantProblems(
         say('bad_item_effect', `"${effect.kind}" is not a standing effect this engine grants`, on);
         return;
       }
+      if (effect.kind === 'sense') {
+        for (const problem of senseProblems(effect as unknown as Record<string, unknown>, on)) {
+          say(problem.code, problem.reason, problem.field);
+        }
+        return;
+      }
       if (effect.kind === 'flat-bonus') {
         const applies = Array.isArray(effect.applies) ? effect.applies : null;
         if (applies === null) {
@@ -1317,6 +1366,18 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
               code: 'item_narrowing_on_a_feature',
               reason: `"made with this item" is read against the id of the item granting it, and a class feature is not an item, so ${feature.id} would grant nothing`,
             });
+          }
+          // A sense, judged by the same rule an item's is — see
+          // {@link senseProblems}. A species prints the commonest one in the
+          // book and an untyped species definition may get it wrong in
+          // exactly the ways an untyped item can.
+          if (effect.kind === 'sense') {
+            for (const problem of senseProblems(
+              effect as unknown as Record<string, unknown>,
+              `${where}.grants.effects[${position}]`,
+            )) {
+              problems.push({ field: problem.field, code: problem.code, reason: problem.reason });
+            }
           }
         });
       }

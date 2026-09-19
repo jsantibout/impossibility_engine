@@ -23,7 +23,12 @@ import {
   type ConditionState,
 } from './conditions.js';
 import { abilityModifier, armorClass } from './character.js';
-import { distanceBetween } from './positioning.js';
+import {
+  distanceBetween,
+  sightBetween,
+  type CreatureSense,
+  type SenseName,
+} from './positioning.js';
 import type { CreatureState, GameState } from './events.js';
 import { spellOfSource } from './spells.js';
 import type { DamageDefenses, DefenseKind } from './attack.js';
@@ -248,6 +253,27 @@ export type StandingGrant =
    * engine reduces one yet.
    */
   | { readonly kind: 'speed'; readonly feet: number }
+  /**
+   * A sense the holder has, and how far it reaches.
+   *
+   * SRD writes one sentence for all four of them — "You have Darkvision with
+   * a range of 60 feet", "the vampire has Blindsight out to 60 feet", "you
+   * have Truesight out to 120 feet" — and a species trait, a monster's stat
+   * block and a magic item all print it the same way, which is what makes it
+   * a shape rather than one species' quirk.
+   *
+   * A standing grant rather than a field on the sheet, and the two clauses
+   * that decides are the SRD's own: Goggles of Night grant Darkvision "while
+   * you wear" them, and Robe of Eyes while it is worn, so the sense has to be
+   * derived on every read exactly as a Monk's Unarmoured Movement is. A
+   * stored copy would be Darkvision that survived taking the goggles off.
+   *
+   * What it is **not** is a claim about light. The engine holds no Bright,
+   * Dim or Darkness — see `sightBetween`, which consults a sense only where
+   * nobody has declared a sight line, and obeys the declaration everywhere
+   * else.
+   */
+  | { readonly kind: 'sense'; readonly sense: SenseName; readonly feet: number }
   | {
       readonly kind: 'attack-damage';
       readonly dice?: string;
@@ -1104,6 +1130,61 @@ export function conditionImmunitiesOf(
     for (const condition of granted.conditions) names.add(condition);
   }
   return [...names].sort();
+}
+
+/**
+ * The senses this creature has right now, and how far each one reaches.
+ *
+ * Gathered through `standingFor`, so everything that grants a benefit grants
+ * a sense by the same route and under the same clauses: a species trait, a
+ * magic item that is worn or attuned to, and — should anything ever print one
+ * — an aura. A sense whose requirement is not met is not had at all, which is
+ * the whole reason this is derived on every read rather than stored.
+ *
+ * **One entry per sense, at the longest range granted.** The SRD writes the
+ * Drow's as an increase — "The range of your Darkvision increases to 120
+ * feet" — and Goggles of Night the same way, so two sources of one sense are
+ * one sense, and the answer cannot depend on which was read first. Sorted by
+ * name, for the reason `conditionImmunitiesOf` is.
+ */
+export function sensesOf(state: GameState, who: CharacterId): readonly CreatureSense[] {
+  const furthest = new Map<SenseName, number>();
+  for (const { effect } of standingFor(state, who)) {
+    if (effect.grant.kind !== 'sense') continue;
+    const had = furthest.get(effect.grant.sense);
+    if (had === undefined || effect.grant.feet > had) {
+      furthest.set(effect.grant.sense, effect.grant.feet);
+    }
+  }
+  return [...furthest.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([sense, feet]) => ({ sense, feet }));
+}
+
+/**
+ * Whether one creature can see another, with the looker's own senses read in.
+ *
+ * The `GameState` half of {@link sightBetween}, and the seam every rule that
+ * asks about sight should come through: a sense lives on a creature and the
+ * declaration lives in the scene, so only a caller holding both can put the
+ * two together. Three-valued like the pairwise question it wraps — null is
+ * "ask", not "no" — and null again outside a scene, where there is no
+ * distance for a range to be measured against.
+ *
+ * Exported for the reason `speedOf` and `armorClassOf` are: a caller reading
+ * the declaration alone gets half the answer, and the half it is missing is
+ * the whole of what a species trait grants.
+ *
+ * **No command routes through this yet.** Every caller of `sightBetween`
+ * today — targeting, movement, teleport, the Opportunity Attack window —
+ * holds a `PositionState` and asks the pairwise question, and re-pointing
+ * them at a creature's senses is a task of its own with its own refusals to
+ * think about. What is here is the seam and the reader, said plainly rather
+ * than a claim that every rule already consults a sense.
+ */
+export function canSee(state: GameState, from: CharacterId, to: CharacterId): boolean | null {
+  if (state.scene === null) return null;
+  return sightBetween(state.scene, from, to, sensesOf(state, from));
 }
 
 /**

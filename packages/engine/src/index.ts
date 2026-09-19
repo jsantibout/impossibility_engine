@@ -52,3 +52,9 @@ export { armorClassOf } from './standing.js';
 // caller outside the engine reading `sheet.baseSpeed` or a budget field would
 // get a number the engine itself never uses.
 export { movementLeftFor, speedOf } from './standing.js';
+// A creature's senses, and the sight question that reads them. Exported for
+// the same reason again: `sightBetween` on the scene alone answers the
+// pairwise question and nothing else, so a caller outside the engine would
+// be asked to establish a sight line the looker's own Darkvision already
+// settles.
+export { canSee, sensesOf } from './standing.js';
