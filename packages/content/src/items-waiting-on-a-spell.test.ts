@@ -718,13 +718,16 @@ describe('the rod the engine cannot price, and the two spells it would cast', ()
    * "The healing increases by 10 for each spell slot level above 6."
    *
    * **The second printed number, and the rod cannot reach it.** SRD fixes a
-   * casting from an item at "the lowest possible spell and caster level", so
-   * every charge the rod spends is a level 6 Heal and the per-level ten is
-   * invisible from there. A slot is the only thing that moves it, so a caster
-   * spends one — found by mutation, which turned the ten into a one and left
-   * the whole suite green.
+   * casting from an item at "the lowest possible spell and caster level", and
+   * `chargesFor` reads that as `(grant.level ?? spellLevel) + (spend - cost)`:
+   * the rod prices Heal at a flat charge with no `upToCharges` above it, so
+   * every casting it pays for is a level 6 Heal and the per-level ten is
+   * invisible from there. An item whose line offers a *range* — the Wand of
+   * Fireballs' shape — could show it; this one cannot. A slot is what moves
+   * it here, so a caster spends one — found by mutation, which turned the ten
+   * into a one and left the whole suite green.
    */
-  it('grows by ten a slot level above the sixth, which no item can show', () => {
+  it('grows by ten a slot level above the sixth, which the rod cannot show', () => {
     const log: readonly GameEvent[] = [
       added(BEARER),
       added(OTHER, 120),
