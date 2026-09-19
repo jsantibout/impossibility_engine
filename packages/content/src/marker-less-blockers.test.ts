@@ -59,8 +59,40 @@ const LANDED: readonly (readonly [string, ShapeId, string])[] = [
   ],
 ];
 
+/**
+ * The two the same derivation named and the same commit did not write.
+ *
+ * The commit that built the entry form derived its three from the shapes
+ * rather than from the spells — *hold the tracked map to the old rule and
+ * exactly three shapes lose their last claimant* — and named no spell at all.
+ * Run the derivation over the **undefined** population instead and it names
+ * five: a spell is unwritable under the old rule exactly when one of its
+ * blockers sits in a sentence no marker can see **and** nothing else in the
+ * book claims that shape. Spare the Dying, Enthrall and Flesh to Stone were
+ * three of the five; these are the other two, and each brings a shape of its
+ * own into the counterfactual below.
+ *
+ * Kept as a second list rather than merged into `LANDED`, because the claim is
+ * about a different pass: `LANDED`'s three are evidence the form was needed,
+ * and these two are evidence it keeps working on paragraphs nobody had read
+ * with it in hand.
+ */
+const SINCE: readonly (readonly [string, ShapeId, string])[] = [
+  [
+    'calm-emotions',
+    'a-condition-a-spell-suppresses',
+    'those conditions are suppressed for the duration',
+  ],
+  [
+    'hallow',
+    'a-cap-on-how-many-castings-run-at-once',
+    'the spell fails if the radius includes an area already under the effect of',
+  ],
+  ['hallow', 'a-choice-made-at-the-casting', 'Choose any of these creature types'],
+];
+
 describe('a blocker no mechanical marker can see survives the spell being written', () => {
-  it.each(LANDED)('writes %s and keeps the reading of %s', (spellId, shape, phrase) => {
+  it.each([...LANDED, ...SINCE])('writes %s and keeps the reading of %s', (spellId, shape, phrase) => {
     // The spell left the undefined population, which is the move that used to
     // cost the reading.
     expect(BLOCKED_ON[spellId], spellId).toBeUndefined();
@@ -79,7 +111,7 @@ describe('a blocker no mechanical marker can see survives the spell being writte
   });
 
   /** And the sentence really is invisible, which is what made the entry necessary. */
-  it.each(LANDED)('finds no marker in %s’s sentence about %s', (spellId, _shape, phrase) => {
+  it.each([...LANDED, ...SINCE])('finds no marker in %s’s sentence about %s', (spellId, _shape, phrase) => {
     const sentence = sentencesOf(spellId).find((text) => text.includes(phrase));
     expect(sentence, `${spellId}: "${phrase}" is in no sentence of the prose`).toBeDefined();
     expect(mechanicalMarkersIn(sentence ?? ''), `${spellId}: ${phrase}`).toEqual([]);
@@ -87,19 +119,42 @@ describe('a blocker no mechanical marker can see survives the spell being writte
 
   /**
    * The counterfactual, which is the whole finding: hold the tracked map to
-   * the old rule — every entry carries a marker — and three shapes the engine
-   * genuinely lacks are left with nothing blocked on them, so the unclaimed
-   * guard demands all three be retired.
+   * the old rule — every entry carries a marker — and the shapes the engine
+   * genuinely lacks whose only claimant is a sentence the markers cannot see
+   * are left with nothing blocked on them, so the unclaimed guard demands
+   * every one of them be retired.
    *
    * That is what "the three were reverted rather than shipped" means, stated
-   * as an assertion instead of as a paragraph in a commit message.
+   * as an assertion instead of as a paragraph in a commit message — **and it
+   * was never three**. Three was the count on the day the form landed, over
+   * the spells that commit wrote; the derivation is over the book, and two
+   * more spells were sitting behind exactly the same sentence. Calm Emotions'
+   * suppression and Hallow's refusal to overlap another Hallow are the sole
+   * claimants of their shapes, so writing either spell under the old rule
+   * would have retired a gap that is still real, which is why neither had been
+   * written.
+   *
+   * Hallow's other marker-less reading is not here and that is the check on
+   * this list: `a-choice-made-at-the-casting` is claimed by a dozen sentences
+   * a marker can see, so the form is what keeps that reading and not what
+   * keeps the shape.
    */
-  it('retires three real gaps if an entry has to carry a marker', () => {
+  it('retires a real gap for every shape a marker-less entry is the last claimant of', () => {
     const narrowed = claimedShapes(withoutMarkerLessEntries(TRACKED_ADJUDICATED));
     const retired = Object.keys(MISSING_SHAPES).filter((shape) => !narrowed.has(shape));
     expect(retired.sort()).toEqual(
-      [...LANDED.map(([, shape]) => shape as string)].sort(),
+      [
+        'a-bonus-narrowed-to-a-skill',
+        'a-cap-on-how-many-castings-run-at-once',
+        'a-condition-a-spell-suppresses',
+        'a-range-that-scales-with-caster-level',
+        'an-automatic-success-by-creature-type',
+      ],
     );
+    // Every one of the three the form landed with is still in it, so the list
+    // grew rather than drifted.
+    for (const [, shape] of LANDED) expect(retired, shape).toContain(shape);
+    expect(retired).not.toContain('a-choice-made-at-the-casting');
   });
 
   /** And under the rule as it stands, nothing is unclaimed at all. */
@@ -170,8 +225,10 @@ describe('the marker-less form cannot silence the rule beside it', () => {
    * against one would keep any shape claimed forever without anybody having
    * read a paragraph. That is the unclaimed rule rotting from the end this
    * form was built to stop it rotting from. A blocker a field prints has an
-   * entry form already: `BlockedClause`, which Hallow's twenty-four hours
-   * uses and which needs no marker to begin with.
+   * entry form already: `BlockedClause`, which Find Familiar's hour uses and
+   * which needs no marker to begin with. Hallow's twenty-four hours used it
+   * too until the spell was written; `refuses Hallow’s casting time as an
+   * adjudication of any kind` below is that clause meeting this rule.
    */
   it('refuses an entry anchored to a printed field', () => {
     for (const marker of [null, 'condition'] as const) {
@@ -220,6 +277,82 @@ describe('the marker-less form cannot silence the rule beside it', () => {
 });
 
 /**
+ * The same two refusals, driven against the entries **this** pass wrote.
+ *
+ * The synthetics above are built out of Flesh to Stone, which is the spell the
+ * form landed with. An entry form is only as good as the next paragraph
+ * somebody points it at, so each reading Calm Emotions and Hallow added is
+ * broken the two ways that matter — moved onto a sentence a marker can see,
+ * and relabelled as narration — and each must be caught. A guard driven only
+ * by the data it was written for is not a guard.
+ */
+describe('the readings this pass added are held to the same two rules', () => {
+  const entry = (spellId: string, phrase: string): TrackedAdjudication => {
+    const written = (TRACKED_ADJUDICATED[spellId] ?? []).find(
+      (candidate) => candidate.clause === phrase,
+    );
+    expect(written, `${spellId} wrote no entry for "${phrase}"`).toBeDefined();
+    return written!;
+  };
+
+  it.each(SINCE)('accepts %s’s entry about %s as written', (spellId, _shape, phrase) => {
+    expect(misanchoredAdjudications(spellId, [entry(spellId, phrase)])).toEqual([]);
+  });
+
+  /**
+   * Moved onto a sentence of the same spell that a marker *can* see. The
+   * clause is a real one the spell prints, so what is being refused is the
+   * filing rather than the phrase.
+   */
+  it.each([
+    ['calm-emotions', 'Immunity to the Charmed and Frightened conditions', 'defence'],
+    ['hallow', 'have Resistance to one damage type of your choice', 'defence'],
+  ] as const)('refuses %s’s reading filed against a sentence naming %s', (spellId, phrase, marker) => {
+    const seen = (TRACKED_ADJUDICATED[spellId] ?? []).find((written) => written.marker === null)!;
+    const found = misanchoredAdjudications(spellId, [{ ...seen, clause: phrase }]);
+    expect(found).toHaveLength(1);
+    expect(found[0]?.complaint).toContain(marker);
+  });
+
+  /** And relabelled as narration, which a tracked definition already has a home for. */
+  it.each(SINCE)('refuses %s’s reading of %s when it records no blocker', (spellId, _shape, phrase) => {
+    for (const why of ['table', 'engine'] as const) {
+      const found = misanchoredAdjudications(spellId, [{ ...entry(spellId, phrase), why }]);
+      expect(found, why).toHaveLength(1);
+      expect(found[0]?.complaint, why).toContain('missing shape');
+    }
+  });
+
+  /**
+   * And Hallow's twenty-four hours cannot ride in this map at all, which is
+   * the sentence the form's own docstring used to point at.
+   *
+   * While the spell was undefined its casting time was a `BlockedClause`
+   * anchored to a printed field, which that form allows and this one does not.
+   * A tracked definition holds the casting time itself — `castingTime: 'long'`
+   * with the span the book prints — so the blocker is spent rather than
+   * dropped; what is asserted here is that it could not have been carried even
+   * if it had not been.
+   */
+  it('refuses Hallow’s casting time as an adjudication of any kind', () => {
+    for (const marker of [null, 'condition'] as const) {
+      const found = misanchoredAdjudications('hallow', [
+        {
+          marker,
+          clause: 'Casting Time: 24 hours',
+          why: 'a-long-casting-time',
+          note: 'a synthetic entry, built to be caught: the field the undefined population may anchor to and this one may not.',
+        },
+      ]);
+      expect(found, `${marker}`).toHaveLength(1);
+      expect(found[0]?.complaint, `${marker}`).toContain('no sentence of the prose');
+    }
+    expect(SRD_CONTENT.spell('hallow')?.castingTime).toBe('long');
+    expect(SRD_CONTENT.spell('hallow')?.castingSeconds).toBe(86_400);
+  });
+});
+
+/**
  * And the report says which is which, because a reader of `COVERAGE.md` is
  * exactly the person the distinction is for.
  *
@@ -239,6 +372,8 @@ describe('the report tells a reading from a marker', () => {
     ['Spare the Dying'],
     ['Enthrall'],
     ['Flesh to Stone'],
+    ['Calm Emotions'],
+    ['Hallow'],
   ])('marks %s’s bullet with the readings a marker could not demand', (name) => {
     expect(lineFor(name)).toMatch(/^- \*\*.+\*\* \(.+\) — \d+ noted, \d+ read$/);
   });
@@ -256,7 +391,7 @@ describe('the report tells a reading from a marker', () => {
   /** The blocker table prints the same fact per shape, in a column of its own. */
   it('prints an unseen column beside the tracked one', () => {
     expect(report).toContain('| Executed | Tracked | of which unseen | Undefined |');
-    for (const [, shape] of LANDED) {
+    for (const [, shape] of [...LANDED, ...SINCE]) {
       const row = report.split('\n').find((line) => line.startsWith(`| \`${shape}\` |`)) ?? '';
       const cells = row.split('|').map((cell) => cell.trim());
       expect(cells.at(-3), shape).toBe(String(consumersOf(shape).unseen.length));

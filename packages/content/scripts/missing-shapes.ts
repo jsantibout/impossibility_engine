@@ -3403,6 +3403,101 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'the only spell in the book whose reach grows with the caster, printed as a Cantrip Upgrade that names no mechanic the markers know — and a definition holds one fixed range, checked before a target is looked at.',
     },
   ],
+  // — the two the same derivation named ——————————————————————————————————————
+  //
+  // The pass above derived its three from the **shapes** — hold this map to the
+  // old rule and exactly three lose their last claimant — and named no spell.
+  // Run the derivation over the undefined population instead and it names five:
+  // a spell was unwritable exactly when one of its blockers sat in a sentence no
+  // marker can see *and* nothing else in the book claimed that shape. These are
+  // the other two, and each carries one reading of that kind — Calm Emotions'
+  // suppression, Hallow's refusal to overlap another Hallow.
+  //
+  // Hallow is also where the lifted cap is spent: three of its entries answer
+  // one sentence, because the Hallowed Ward is one sentence with three
+  // different gaps in it and all three trip the same `condition` marker.
+  'calm-emotions': [
+    {
+      marker: 'saving-throw',
+      clause: 'choose for each creature',
+      why: 'a-spells-effects-applied-to-different-targets',
+      note: 'SRD: "must succeed on a Charisma saving throw or be affected by one of the following effects (choose for each creature)". A casting applies one effect list to every target it caught, so a spell picking a different one per creature has nowhere to record which — which is why the save is not raised at all: neither branch of it could be settled.',
+    },
+    {
+      marker: 'defence',
+      clause: 'Immunity to the Charmed and Frightened conditions',
+      why: 'a-spells-effects-applied-to-different-targets',
+      note: 'the effect itself is expressible — IE-042\'s `condition-immunity`, which Mind Blank writes unconditionally, and two names in one clause is the plural list the kind carries. What blocks it is the sentence above rather than anything about the Immunity: it is one of two outcomes chosen creature by creature, and the casting has nowhere to record which creature got which.',
+    },
+    {
+      marker: null,
+      clause: 'those conditions are suppressed for the duration',
+      why: 'a-condition-a-spell-suppresses',
+      note: 'the sole claimant of its shape and the reason this spell went unwritten: suppression hands the condition back when the spell ends, so it is not `end-condition`, and it is not the Immunity beside it either — that refuses a condition and this silences one that has already landed. The markers see nothing here because `\\bcondition\\b` does not match "conditions".',
+    },
+  ],
+  hallow: [
+    {
+      marker: null,
+      clause: 'the spell fails if the radius includes an area already under the effect of',
+      why: 'a-cap-on-how-many-castings-run-at-once',
+      note: 'the other sole claimant, and the other reason a spell went unwritten: a cap of one read over ground rather than over a caster. `replacesPriorCasting` ends a prior casting and nothing refuses a new one, and `state.ongoing` holds every area a casting keeps without anything asking whether two of them overlap.',
+    },
+    {
+      marker: null,
+      clause: 'Choose any of these creature types',
+      why: 'a-choice-made-at-the-casting',
+      note: 'a casting has nowhere to record a choice made when it was made — the gap Blindness/Deafness carries from the other side — and this one is read by every clause below it. Filed marker-less because the sentence names no mechanic the guard knows, and the shape keeps a dozen claimants it can see, so the form carries the reading rather than the shape.',
+    },
+    {
+      marker: 'condition',
+      clause: 'Creatures of the chosen types',
+      why: 'a-creature-type-predicate-an-area-reads',
+      note: '`designatesUnaffected` is the one filter an area has and it is explicit ids chosen once; a predicate over a creature *type* is a different question, and IE-019 answered it for an outcome rather than for who is caught.',
+    },
+    {
+      marker: 'condition',
+      clause: "can't willingly enter the area",
+      why: 'a-barrier-that-blocks-passage',
+      note: 'the second of three readings of the Hallowed Ward sentence. Cover and line of sight stay declared rather than ray-cast, and a shape that stops a creature crossing it is the geometry\'s missing half — nothing in the mover\'s path may refuse it.',
+    },
+    {
+      marker: 'condition',
+      clause: "isn't possessed, Charmed, or Frightened by them while in the area",
+      why: 'a-condition-immunity-narrowed-to-its-source',
+      note: 'the third, and an Immunity narrowed twice over: "by them" is the chosen creature types, and "while in the area" is the geometry the Extra Effects below already name. IE-042 built the unconditional grant and neither narrowing survived it; possession is not modelled at all.',
+    },
+    {
+      marker: 'condition',
+      clause: "can't gain the Frightened condition while in the area",
+      why: 'a-standing-effect-derived-from-where-a-creature-stands',
+      note: 'Courage. The Immunity itself is unconditional in its cause and IE-042 expresses that, but "while in the area" is not — a grant is keyed by source and nothing re-derives one from where the creature now is. It is the Fear clause below read the other way round.',
+    },
+    {
+      marker: 'teleport',
+      clause: "can't enter or exit the area using teleportation",
+      why: 'an-effect-that-suppresses-other-magic',
+      note: 'IE-037 built the teleport and this is the ward against arriving — an area that stops a spell working inside it, which reads a casting the engine resolves elsewhere and has no state to sit in.',
+    },
+    {
+      marker: 'condition',
+      clause: 'have the Frightened condition while in the area',
+      why: 'a-standing-effect-derived-from-where-a-creature-stands',
+      note: 'Fear, and it is a value derived from current geometry rather than from a pair of enter-and-leave events that have to stay matched — the shape Spirit Guardians\' halved Speed already names.',
+    },
+    {
+      marker: 'defence',
+      clause: 'have Resistance to one damage type of your choice',
+      why: 'a-standing-effect-derived-from-where-a-creature-stands',
+      note: 'a granted Resistance is built and a Resistance that holds only while a creature stands somewhere is not: `defensesOf` reads a grant keyed by source, and nothing re-derives one from where the creature now is.',
+    },
+    {
+      marker: 'defence',
+      clause: 'have Vulnerability to one damage type of your choice',
+      why: 'a-standing-effect-derived-from-where-a-creature-stands',
+      note: 'the same standing spatial effect as Resistance above it, on the other end of `applyDefenses`, and blocked on the same missing derivation rather than on the defence.',
+    },
+  ],
 };
 
 // — the undefined population —————————————————————————————————————————————————
@@ -3578,28 +3673,6 @@ export type BlockedEntry = ShapeId | BlockedClause;
  *   than a declared placeholder.
  */
 export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
-  'calm-emotions': [
-    {
-      clause: 'choose for each creature',
-      why: 'a-spells-effects-applied-to-different-targets',
-      note: 'SRD: "must succeed on a Charisma saving throw or be affected by one of the following effects (choose for each creature)". A casting applies one effect list to every target it caught, so a spell picking a different one per creature has nowhere to record which.',
-    },
-    {
-      clause: 'Immunity to the Charmed and Frightened conditions',
-      why: 'expressible',
-      note: 'IE-042\'s `condition-immunity` effect, which Mind Blank already writes: the sentence is unconditional — "The creature has Immunity to the Charmed and Frightened conditions until the spell ends" — and two names in one clause is the plural list the kind carries. The area, the Charisma save and the duration were always expressible; what is left of this spell is the per-creature choice above and the suppression below.',
-    },
-    {
-      clause: 'those conditions are suppressed for the duration',
-      why: 'a-condition-a-spell-suppresses',
-      note: 'SRD: "If the creature was already Charmed or Frightened, those conditions are suppressed for the duration." **Re-read against the built shape and it is not that shape.** Suppression hands the condition back when the spell ends, so it is not `end-condition` however much it reads like one — and it is not the Immunity in the clause above it either, which refuses a condition rather than silencing one that has already landed. The engine derives suppression from a feature\'s standing effects and no spell can write one.',
-    },
-    {
-      clause: 'This indifference ends if the target takes damage',
-      why: 'table',
-      note: 'The indifference is an attitude, which the engine does not hold and should never decide; a trigger that ends a fact the engine is not keeping belongs to the table for the same reason, and the damage marker fires on the trigger rather than on any damage the spell deals.',
-    },
-  ],
   // **The one place in this reading where the vocabulary ran out.** The upcast
   // line grows the Sphere with the slot, `SpellArea` is a fixed size, and the
   // slot reaches damage dice and a target count and nothing else. No shape id
@@ -3711,77 +3784,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
       clause: 'it leaves behind in its space anything it was wearing or carrying',
       why: 'table',
       note: 'Nothing mechanical follows from the gear staying behind, which is the reading IE-044 already gave Gaseous Form\'s identical clause: an inventory and an equipped set are held, and there is no object on the ground for them to become.',
-    },
-  ],
-  // **The one spell this family still finishes once its paragraphs are read.**
-  // Everything Gate prints is the portal, and a portal is the one-scene model's
-  // absence rather than a mechanism beside it — so the whole entry files under
-  // one shape and nothing else is owed.
-  hallow: [
-    {
-      clause: 'Casting Time: 24 hours',
-      why: 'a-long-casting-time',
-      note: 'A printed field rather than a sentence, which is why a clause may name one: the largest blocker in the book appears in no paragraph. IE-034 built the out-of-combat half and the per-turn Magic action SRD requires in combat is what is left.',
-    },
-    {
-      clause: 'the spell fails if the radius includes an area already under the effect of',
-      why: 'a-cap-on-how-many-castings-run-at-once',
-      note: 'A cap of one, read over ground rather than over a caster: `replacesPriorCasting` ends a prior casting and nothing refuses a new one, and `state.ongoing` holds every area a casting keeps without anything asking whether two of them overlap. Recorded although the sentence trips no marker, because the refusal is one the engine would have to make at the cast.',
-    },
-    {
-      clause: 'Choose any of these creature types',
-      why: 'a-choice-made-at-the-casting',
-      note: 'A casting has nowhere to record a choice made when it was made — the gap Blindness/Deafness carries from the other side — and this one is read by every clause below it.',
-    },
-    {
-      clause: 'Creatures of the chosen types',
-      why: 'a-creature-type-predicate-an-area-reads',
-      note: '`designatesUnaffected` is the one filter an area has and it is explicit ids chosen once; a predicate over a creature *type* is a different question, and IE-019 answered it for an outcome rather than for who is caught.',
-    },
-    {
-      clause: "can't willingly enter the area",
-      why: 'a-barrier-that-blocks-passage',
-      note: 'Cover and line of sight stay declared rather than ray-cast, and a shape that stops a creature crossing it is the geometry\'s missing half — nothing in the mover\'s path may refuse it.',
-    },
-    {
-      clause: "isn't possessed, Charmed, or Frightened by them while in the area",
-      why: 'a-condition-immunity-narrowed-to-its-source',
-      note: 'An Immunity narrowed twice over: "by them" is the chosen creature types, and "while in the area" is the geometry the two Extra Effects below already name. IE-042 built the unconditional grant and neither narrowing survived it. Possession is not modelled at all, and the two conditions beside it are what makes this sentence debt rather than fiction.',
-    },
-    {
-      clause: "can't gain the Frightened condition while in the area",
-      why: 'a-standing-effect-derived-from-where-a-creature-stands',
-      note: 'Courage, **re-read against the built shape and re-filed**: the Immunity itself is unconditional in its cause and IE-042 expresses that, but "while in the area" is not — a grant is keyed by source and nothing re-derives one from where the creature now is. It is the Fear clause below it read the other way round, and it is filed where Fear already was.',
-    },
-    {
-      clause: "Dead bodies interred in the area can't be turned into Undead",
-      why: 'table',
-      note: 'Nothing is interred and no corpse becomes a creature: Animate Dead is undefined and a body in the ground is not a record the engine holds, so a prohibition on raising one reaches nothing it could refuse.',
-    },
-    {
-      clause: "can't enter or exit the area using teleportation",
-      why: 'an-effect-that-suppresses-other-magic',
-      note: 'IE-037 built the teleport and this is the ward against arriving — an area that stops a spell working inside it, which reads a casting the engine resolves elsewhere and has no state to sit in.',
-    },
-    {
-      clause: 'have the Frightened condition while in the area',
-      why: 'a-standing-effect-derived-from-where-a-creature-stands',
-      note: 'Fear, and it is a value derived from current geometry rather than from a pair of enter-and-leave events that have to stay matched — the shape Spirit Guardians\' halved Speed already names.',
-    },
-    {
-      clause: 'have Resistance to one damage type of your choice',
-      why: 'a-standing-effect-derived-from-where-a-creature-stands',
-      note: 'A granted Resistance is built and a Resistance that holds only while a creature stands somewhere is not: `defensesOf` reads a grant keyed by source, and nothing re-derives one from where the creature now is.',
-    },
-    {
-      clause: 'No sound can emanate from within the area',
-      why: 'table',
-      note: 'Sound is not modelled, and the range marker fires here on "reach into it" rather than on any distance the engine measures — which is the marker list being a floor and the written sentence being what the floor is for.',
-    },
-    {
-      clause: 'have Vulnerability to one damage type of your choice',
-      why: 'a-standing-effect-derived-from-where-a-creature-stands',
-      note: 'The same standing spatial effect as Resistance above it, on the other end of `applyDefenses`, and blocked on the same missing derivation rather than on the defence.',
     },
   ],
   // **Both of IE-035's shapes reached it**, which is what that task was for:
@@ -4176,8 +4178,10 @@ export const clausesIn = (entry: readonly BlockedEntry[]): readonly BlockedClaus
  * The shapes an entry names, however it names them.
  *
  * Deduplicated and sorted, because two sentences of one spell may be blocked on
- * one shape — Hallow prints three standing effects — and a shape a spell needs
- * twice is not a spell that needs two shapes.
+ * one shape — Find Familiar wants a stat block in three of them — and a shape a
+ * spell needs twice is not a spell that needs two shapes. Hallow was the
+ * example here until it was written, where the same three sentences of standing
+ * effect now name one shape three times in {@link TRACKED_ADJUDICATED}.
  */
 export const blockersIn = (entry: readonly BlockedEntry[]): readonly ShapeId[] =>
   [
@@ -4313,7 +4317,10 @@ export interface MisanchoredAdjudication {
  * and where a field is a legitimate place for a *blocker* to be printed, and
  * then the unit the marker rule reads must be a sentence.
  * {@link BlockedClause} is the entry form for a blocker a field prints —
- * Hallow's twenty-four hours — and it needs no marker to begin with.
+ * Find Familiar's hour, and Hallow's twenty-four hours until that spell was
+ * written — and it needs no marker to begin with. A blocker a field prints
+ * therefore cannot survive a spell being written, and does not have to: a
+ * definition holds its own casting time.
  *
  * Parameterised over the entries for the reason {@link sentenceGaps} is: a
  * guard that can only be run against the data it already agrees with is not a

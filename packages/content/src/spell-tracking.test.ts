@@ -21,6 +21,7 @@ import {
   TRACKED_ADJUDICATED as ADJUDICATED,
   mechanicalMarkersIn,
   misanchoredAdjudications,
+  sentencesOf,
   unanchoredPhrases,
   unansweredMarkers,
   type MarkerId,
@@ -1091,11 +1092,32 @@ const ADDED_THIRD: readonly string[] = [
  */
 const ADDED_FOURTH: readonly string[] = ['enthrall', 'flesh-to-stone', 'spare-the-dying'];
 
+/**
+ * The fifth pass is the other two the same derivation named.
+ *
+ * The fourth pass shipped three of the spells the marker-less entry form
+ * unblocked and the commit that shipped them named the **shapes** rather than
+ * the spells: three shapes lose their last claimant when the tracked map is
+ * held to the old rule. Two more spells sit behind exactly that sentence —
+ * Calm Emotions, whose suppression clause is the sole claimant of
+ * `a-condition-a-spell-suppresses`, and Hallow, whose refusal to overlap
+ * another Hallow is the sole claimant of
+ * `a-cap-on-how-many-castings-run-at-once`. Neither sentence trips a marker,
+ * so neither spell could be written while an entry had to carry one, and
+ * writing it anyway would have retired a gap that is still real.
+ *
+ * `marker-less-blockers.test.ts` asserts that as a counterfactual over the map
+ * as it now stands: five shapes go, not three, and these are the two spells
+ * the other two belong to.
+ */
+const ADDED_FIFTH: readonly string[] = ['calm-emotions', 'hallow'];
+
 const ADDED: readonly string[] = [
   ...ADDED_FIRST,
   ...ADDED_SECOND,
   ...ADDED_THIRD,
   ...ADDED_FOURTH,
+  ...ADDED_FIFTH,
 ].sort();
 
 describe('every spell this batch added is cast for real', () => {
@@ -1104,11 +1126,12 @@ describe('every spell this batch added is cast for real', () => {
     expect(ADDED_SECOND).toEqual([...ADDED_SECOND].sort());
     expect(ADDED_THIRD).toEqual([...ADDED_THIRD].sort());
     expect(ADDED_FOURTH).toEqual([...ADDED_FOURTH].sort());
+    expect(ADDED_FIFTH).toEqual([...ADDED_FIFTH].sort());
   });
 
-  /** And the four batches are four batches: nothing is claimed by two. */
-  it('keeps the four passes apart', () => {
-    const passes = [ADDED_FIRST, ADDED_SECOND, ADDED_THIRD, ADDED_FOURTH];
+  /** And the five batches are five batches: nothing is claimed by two. */
+  it('keeps the five passes apart', () => {
+    const passes = [ADDED_FIRST, ADDED_SECOND, ADDED_THIRD, ADDED_FOURTH, ADDED_FIFTH];
     for (const [at, pass] of passes.entries()) {
       expect(pass.length, `pass ${at + 1}`).toBeGreaterThan(0);
       const others = passes.filter((_, other) => other !== at).flat();
@@ -1117,18 +1140,51 @@ describe('every spell this batch added is cast for real', () => {
   });
 
   /**
-   * And each of the fourth pass's three carries a blocker the markers cannot
-   * see, which is the whole reason it is a fourth pass rather than part of the
-   * third.
+   * And each of the last two passes' five carries a blocker the markers cannot
+   * see, which is the whole reason they are their own passes rather than part
+   * of the third.
    */
-  it('keeps a marker-less reading for every spell the fourth pass added', () => {
-    for (const spellId of ADDED_FOURTH) {
+  it('keeps a marker-less reading for every spell the last two passes added', () => {
+    for (const spellId of [...ADDED_FOURTH, ...ADDED_FIFTH]) {
       const written = ADJUDICATED[spellId] ?? [];
       expect(
         written.filter((entry) => entry.marker === null).length,
         spellId,
       ).toBeGreaterThan(0);
     }
+  });
+
+  /**
+   * Hallow is the only spell in the tracked map that writes three
+   * adjudications about one sentence, which is the cap IE-044 lifted being
+   * used rather than merely permitted.
+   *
+   * `TRACKED_ADJUDICATED` was a record keyed by marker until then, so a spell
+   * could file one reading per mechanic and no more. Hallow's Hallowed Ward is
+   * one sentence with three different gaps in it — a predicate over creature
+   * type deciding who is caught, a barrier nothing in a mover's path can
+   * refuse, and an Immunity narrowed both to a cause and to a place — and all
+   * three trip the same `condition` marker. A test that only asserted the type
+   * allows two would have gone on passing if the storage quietly narrowed
+   * again.
+   */
+  it('files three readings of Hallow’s one warded sentence', () => {
+    const printed = sentencesOf('hallow');
+    const bySentence = new Map<string, string[]>();
+    for (const entry of ADJUDICATED['hallow'] ?? []) {
+      const sentence = printed.find((text) => text.includes(entry.clause));
+      expect(sentence, entry.clause).toBeDefined();
+      bySentence.set(sentence!, [...(bySentence.get(sentence!) ?? []), entry.why]);
+    }
+    const ward = [...bySentence.entries()].find(([sentence]) =>
+      sentence.startsWith("Creatures of the chosen types can't willingly enter the area"),
+    );
+    expect(ward, 'no entry names the Hallowed Ward sentence').toBeDefined();
+    expect([...(ward?.[1] ?? [])].sort()).toEqual([
+      'a-barrier-that-blocks-passage',
+      'a-condition-immunity-narrowed-to-its-source',
+      'a-creature-type-predicate-an-area-reads',
+    ]);
   });
 
   /** Tracked, so every sweep above is already about every one of them. */
@@ -1276,5 +1332,49 @@ describe('every spell this batch added is cast for real', () => {
     for (const gap of definition.unmodelled ?? []) {
       expect(out.unverified).toContain(`${definition.name}: ${gap}`);
     }
+  });
+
+  /**
+   * SRD Calm Emotions: "Duration: Concentration, up to 1 minute."
+   *
+   * The sweeps above say the Concentration is taken and the minute runs; this
+   * says it is the **same** Concentration every other casting competes for, by
+   * driving the one thing an equality check on a flag cannot — a spell already
+   * being held is let go when this one starts.
+   */
+  it('gives up a held Concentration to start Calm Emotions', () => {
+    const held = [...SETUP, ...resolved('fly').events];
+    const out = resolved('calm-emotions', {}, held);
+    expect(out.events.some((e) => e.type === 'concentration-ended')).toBe(true);
+    const after = fold('seed', [...held, ...out.events]);
+    expect(after.creatures.wizard!.concentration?.castingId).toBe(out.castingId);
+  });
+
+  /**
+   * SRD Hallow: "Casting Time: 24 hours", and "Duration: Until dispelled."
+   *
+   * The longest casting in the book, driven rather than read off the
+   * definition: the declaration stands open for the whole day, a casting
+   * settled before the day is out is refused, and what the day buys never runs
+   * out on its own.
+   */
+  it('holds Hallow open for a day and then never expires', () => {
+    const declaration = resolved('hallow');
+    expect(declaration.events.some((e) => e.type === 'spell-declared')).toBe(true);
+    expect(declaration.events.some((e) => e.type === 'spell-cast')).toBe(false);
+
+    const open = fold('seed', [...SETUP, ...declaration.events]);
+    const castingId = pendingCastingsOf(open)[0]!.castingId;
+    expect(isErr(resolveDeclaredCast(open, castingId, supply()))).toBe(true);
+
+    const tick = unwrap(advanceTime(open, 86_400, 'the rite'), 'a day passes');
+    const ticked = [...SETUP, ...declaration.events, ...tick];
+    const settled = unwrap(
+      resolveDeclaredCast(fold('seed', ticked), castingId, supply()),
+      'the rite finishes',
+    );
+    expect(settled.events.filter((e) => e.type === 'spell-cast')).toHaveLength(1);
+    const after = fold('seed', [...ticked, ...settled.events]);
+    expect(Object.keys(after.timers)).toHaveLength(0);
   });
 });

@@ -12301,6 +12301,117 @@ export const FLESH_TO_STONE: SpellDefinition = {
   ],
 };
 
+/*
+ * — the two the same derivation named —————————————————————————————————————————
+ *
+ * The three above are the spells the marker-less entry form landed with, and
+ * the commit that landed it derived them from the **shapes**: hold the tracked
+ * map to the old rule and exactly three lose their last claimant. Run the same
+ * derivation over the undefined population and it names five spells, because a
+ * spell is unwritable under the old rule exactly when one of its blockers sits
+ * in a sentence no marker can see *and* nothing else in the book claims that
+ * shape.
+ *
+ * These are the other two. Calm Emotions' "those conditions are suppressed for
+ * the duration" is the only claimant of `a-condition-a-spell-suppresses`;
+ * Hallow's "the spell fails if the radius includes an area already under the
+ * effect of _Hallow_" is the only claimant of
+ * `a-cap-on-how-many-castings-run-at-once`. Neither sentence trips a marker —
+ * "conditions" does not match `\bcondition\b` and a refusal to overlap names no
+ * mechanic at all — so writing either spell would have dropped the reading and
+ * retired a gap that is still real. `marker-less-blockers.test.ts` asserts the
+ * counterfactual over the map as it now stands: five shapes, not three.
+ */
+
+/**
+ * SRD Calm Emotions:
+ *
+ * > _Level 2 Enchantment (Bard, Cleric)._ **Casting Time:** Action.
+ * > **Range:** 60 feet. **Duration:** Concentration, up to 1 minute.
+ * > "Each Humanoid in a 20-foot-radius Sphere centered on a point you choose
+ * > within range must succeed on a Charisma saving throw or be affected by one
+ * > of the following effects (choose for each creature): The creature has
+ * > Immunity to the Charmed and Frightened conditions until the spell ends. If
+ * > the creature was already Charmed or Frightened, those conditions are
+ * > suppressed for the duration. The creature becomes Indifferent about
+ * > creatures of your choice that it's Hostile toward."
+ *
+ * One save and two alternative outcomes, and what blocks the spell is the word
+ * **choose**: a casting applies one effect list to everybody it caught, so a
+ * spell picking a different one per creature has nowhere to record which. The
+ * Immunity beside it is expressible — Mind Blank writes exactly that effect —
+ * and is not written here for that reason rather than for its own. The
+ * suppression in the next sentence is a different rule again: an Immunity
+ * refuses a condition, and a suppression lets one land, silences it, and hands
+ * it back when the spell ends.
+ */
+export const CALM_EMOTIONS: SpellDefinition = {
+  id: 'calm-emotions',
+  name: 'Calm Emotions',
+  level: 2,
+  school: 'enchantment',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 60,
+  unmodelled: [
+    'the Charisma saving throw is not raised, because what a failure buys cannot be written down: "be affected by one of the following effects (choose for each creature)" is two different outcomes out of one casting, chosen creature by creature, and a casting applies one list to everybody it caught',
+    'so the Immunity to the Charmed and Frightened conditions is not granted — the effect exists and Mind Blank writes it, and what stops it here is the choice in the sentence above rather than anything about the Immunity',
+    'and a condition the target already has is not silenced: suppression lets a condition land, switches it off and gives it back when the spell ends, which the engine derives from a feature’s standing effects and no spell effect can write',
+    'the Indifferent attitude is the DM’s outright — an attitude toward somebody is not a fact the engine holds, so nothing becomes Indifferent, the indifference does not end when the target takes damage or watches an ally take damage, and nothing returns to normal when the minute is up',
+    'the 20-foot-radius Sphere is the DM’s to draw and who stands in it is theirs to say; what the engine holds is the slot, the Action, the Concentration and the minute',
+  ],
+};
+
+/**
+ * SRD Hallow:
+ *
+ * > _Level 5 Abjuration (Cleric)._ **Casting Time:** 24 hours.
+ * > **Range:** Touch. **Duration:** Until dispelled.
+ * > "You touch a point and infuse an area around it with holy or unholy power.
+ * > The area can have a radius up to 60 feet, and the spell fails if the radius
+ * > includes an area already under the effect of _Hallow_ ... **Hallowed
+ * > Ward.** Choose any of these creature types ... **Extra Effect.** You bind
+ * > an extra effect to the area from the list below."
+ *
+ * The longest casting in the book and the widest entry in the map: a day's rite
+ * that ends with a permanent ward, a choice of creature types every clause
+ * below reads, and ten Extra Effects of which one is bound. Eight blockers were
+ * written against it while it was undefined and the day itself was a ninth —
+ * the one this definition spends, because a casting of a minute or more is a
+ * declared casting the clock finishes.
+ *
+ * The rest is the shape of an area the engine cannot hold: one that refuses to
+ * overlap another of its kind, that catches creatures by **type**, that stops a
+ * creature crossing it, that suppresses somebody else's teleport, and that
+ * confers a Resistance, a Vulnerability, an Immunity or a condition derived
+ * from where a creature is standing rather than from a grant keyed to a source.
+ */
+export const HALLOW: SpellDefinition = {
+  id: 'hallow',
+  name: 'Hallow',
+  level: 5,
+  school: 'abjuration',
+  castingTime: 'long',
+  castingSeconds: 86_400,
+  concentration: false,
+  range: { kind: 'touch' },
+  targets: { count: 0 },
+  effects: [],
+  untilDispelled: true,
+  unmodelled: [
+    'the area is not in the world: a radius of up to 60 feet chosen at the casting is not a template the engine holds, and the spell does not fail when that radius overlaps another Hallow — nothing asks whether two castings cover the same ground',
+    'the creature types the Hallowed Ward is drawn against are chosen when the spell is cast, and a casting has nowhere to record a choice made when it was made; every clause below reads that choice',
+    'so the ward does nothing: creatures of the chosen types are not kept out — nothing in a mover’s path may refuse it — and a creature possessed, Charmed or Frightened by one of them is not released, because an Immunity narrowed to what is causing the condition and to where the creature is standing has no argument to arrive in',
+    'the Extra Effect is not bound either, and each of the ten is its own gap: Courage and Fear hang a condition on standing somewhere, Resistance and Vulnerability hang a defence there, and a grant is keyed by its source with nothing re-deriving one from where a creature now is',
+    'Extradimensional Interference refuses somebody else’s teleport, which is a casting being stopped by an area it is aimed into and has no state to sit in',
+    'Darkness, Daylight, Silence, Tongues and Peaceful Rest are the DM’s: there is no lighting, no sound, no shared language and nothing interred, so a prohibition on any of them reaches nothing it could refuse',
+    'the incense worth 1,000+ GP the spell consumes is not spent, and the point touched is not recorded; what the engine holds is the slot, the day the rite takes, and a casting that runs until something dispels it',
+  ],
+};
+
 export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   ACID_ARROW,
   ACID_SPLASH,
@@ -12339,6 +12450,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   BLUR,
   BURNING_HANDS,
   CALL_LIGHTNING,
+  CALM_EMOTIONS,
   CHAIN_LIGHTNING,
   CHARM_MONSTER,
   CHARM_PERSON,
@@ -12450,6 +12562,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   GUIDANCE,
   GUIDING_BOLT,
   GUST_OF_WIND,
+  HALLOW,
   HALLUCINATORY_TERRAIN,
   HARM,
   HASTE,

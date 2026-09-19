@@ -463,13 +463,16 @@ describe('a read entry answers every sentence that names a mechanic', () => {
    * And the one it must pass, because a guard that reported everything would
    * too — read off a spell that is still undefined and still read.
    *
-   * **The fixture was Heroes' Feast and had to move**, which is the same
-   * hazard Mind Blank's move recorded above: a spell chosen for being read and
-   * undefined stops being the second the day somebody writes it. Hallow is the
-   * replacement, and it is the most heavily read entry left in the map.
+   * **The fixture was Heroes' Feast, then Hallow, and it has had to move
+   * twice** — which is the same hazard Mind Blank's move recorded above,
+   * arriving on schedule: a spell chosen for being read and undefined stops
+   * being the second the day somebody writes it, and being the most heavily
+   * read entry in the map is exactly what makes a spell worth writing next.
+   * Find Familiar is the replacement, and it is what "most heavily read" means
+   * now: twelve clauses over one paragraph.
    */
   it('reports nothing once that sentence is answered', () => {
-    expect(sentenceGaps('hallow')).toEqual([]);
+    expect(sentenceGaps('find-familiar')).toEqual([]);
   });
 
   /**
@@ -480,7 +483,7 @@ describe('a read entry answers every sentence that names a mechanic', () => {
    * told apart by the clause rather than by the silence.
    */
   it('does not call a grandfathered entry read', () => {
-    expect(isSentenceComplete('hallow')).toBe(true);
+    expect(isSentenceComplete('find-familiar')).toBe(true);
     expect(isSentenceComplete('aid')).toBe(false);
     expect(clausesIn(BLOCKED_ON['aid'] ?? [])).toEqual([]);
   });
@@ -616,23 +619,43 @@ describe('the condition-immunity family is read sentence by sentence', () => {
         'a-choice-made-at-the-casting',
         'a-condition-immunity-narrowed-to-its-source',
         'a-creature-type-predicate-an-area-reads',
-        'a-long-casting-time',
         'a-standing-effect-derived-from-where-a-creature-stands',
         'an-effect-that-suppresses-other-magic',
       ],
     ],
   ];
 
-  // **Two of the four have been spent**, and the third catalogue pass spent
-  // them: Magic Circle and Wind Walk are tracked definitions now, so neither
-  // is in this population and neither can be asserted here. What each of them
-  // was read for survives below, in the same two places every spent reading
-  // goes — the tracked map against the same sentence, or the definition's own
-  // `unmodelled`.
+  // **All four are spent now.** The third catalogue pass wrote Magic Circle and
+  // Wind Walk; the marker-less entry form let the last two be written, and each
+  // was written the day that form existed rather than the day it landed. So the
+  // backfill is checked where the readings **went** instead of where they were:
+  // out of `BLOCKED_ON`, into `TRACKED_ADJUDICATED` against the same sentences,
+  // and into the definition's own `unmodelled` for the clauses that name no
+  // shape. That is the same test in a later population and not a weaker one —
+  // the shapes are asserted as a set, so a reading dropped on the way still
+  // fails.
+  //
+  // One shape is deliberately not in Hallow's list any more and it is the one
+  // the spell **spent**: `a-long-casting-time` was the twenty-four hours, and a
+  // tracked definition carries a long casting time itself. It could not have
+  // been kept in any case — it was anchored to a printed field, which the
+  // undefined population's entry form allows and the tracked one refuses.
 
-  it.each(BACKFILLED)('reads every sentence of %s', (spellId, shapes) => {
-    expect(isSentenceComplete(spellId)).toBe(true);
-    expect(blockersOf(spellId)).toEqual(shapes);
+  it.each(BACKFILLED)('keeps every shape %s was read for', (spellId, shapes) => {
+    expect(BLOCKED_ON[spellId], spellId).toBeUndefined();
+    expect(
+      [...new Set((TRACKED_ADJUDICATED[spellId] ?? []).map((entry) => entry.why))].sort(),
+      spellId,
+    ).toEqual(shapes);
+  });
+
+  /** And the twenty-four hours it spent is executed rather than dropped. */
+  it('spends the one shape Hallow no longer names', () => {
+    expect(SRD_CONTENT.spell('hallow')?.castingTime).toBe('long');
+    expect(SRD_CONTENT.spell('hallow')?.castingSeconds).toBe(86_400);
+    expect(
+      (TRACKED_ADJUDICATED['hallow'] ?? []).map((entry) => entry.why),
+    ).not.toContain('a-long-casting-time');
   });
 
   /**
@@ -645,9 +668,12 @@ describe('the condition-immunity family is read sentence by sentence', () => {
    * claim no shape at all.
    */
   it('covers every spell the two residues block', () => {
-    expect(consumersOf('a-condition-immunity-narrowed-to-its-source').undefined).toEqual([
-      'hallow',
-    ]);
+    // **Neither residue has an undefined claimant left**, which is the state
+    // this describe was always heading for: every spell the family was read
+    // for is written, and each reading is in the tracked map against the
+    // sentence it was read from. A shape with no undefined claimant is not a
+    // shape that is finished — it is one nothing is waiting on to be *cast*.
+    expect(consumersOf('a-condition-immunity-narrowed-to-its-source').undefined).toEqual([]);
     // Freedom of Movement was the fourth and Protection from Evil and Good the
     // third; both are **tracked** now, so the shape keeps them in a different
     // population rather than losing them. Each batch that wrote one moved the
@@ -656,6 +682,7 @@ describe('the condition-immunity family is read sentence by sentence', () => {
     // readings there, the third being the Immunity narrowed by the word "them".
     expect(consumersOf('a-condition-immunity-narrowed-to-its-source').tracked).toEqual([
       'freedom-of-movement',
+      'hallow',
       'magic-circle',
     ]);
     expect(
@@ -663,14 +690,17 @@ describe('the condition-immunity family is read sentence by sentence', () => {
         note.includes('"from them" narrows it to those six types'),
       ),
     ).toHaveLength(1);
-    // Calm Emotions is the one spell the suppression residue blocks, and it is
-    // **still undefined for that reason**: the tracked map anchors a clause to
-    // a sentence that trips a mechanical marker, and "those conditions are
+    // Calm Emotions is the one spell the suppression residue blocks, and it
+    // **was undefined for that reason**: the tracked map anchored a clause to a
+    // sentence that trips a mechanical marker, and "those conditions are
     // suppressed for the duration" trips none — so a tracked definition could
     // not carry this reading, and writing one would have retired a shape that
-    // is still missing. The spell waits for the shape rather than the shape
-    // waiting for nobody.
-    expect(consumersOf('a-condition-a-spell-suppresses').undefined).toEqual(['calm-emotions']);
+    // is still missing. `marker: null` is the entry form that ended that, so
+    // the spell is written, the reading is kept, and the shape is claimed by
+    // the one sentence it was always about.
+    expect(consumersOf('a-condition-a-spell-suppresses').undefined).toEqual([]);
+    expect(consumersOf('a-condition-a-spell-suppresses').tracked).toEqual(['calm-emotions']);
+    expect(consumersOf('a-condition-a-spell-suppresses').unseen).toEqual(['calm-emotions']);
   });
 
   /**
@@ -686,8 +716,6 @@ describe('the condition-immunity family is read sentence by sentence', () => {
    * are each an existing shape a sentence had never been filed under.
    */
   it('records the five blockers the bare lists had missed', () => {
-    const filed = (spellId: string, phrase: string) =>
-      clausesIn(BLOCKED_ON[spellId] ?? []).find((clause) => clause.clause === phrase)?.why;
     // Freedom of Movement's was the first of the five, and it is **kept**
     // rather than lost now that the spell is defined: the reading moved into
     // `TRACKED_ADJUDICATED` against the same sentence, and into the
@@ -720,9 +748,19 @@ describe('the condition-immunity family is read sentence by sentence', () => {
           entry.clause === 'Reverting takes 1 minute, during which the target has the Stunned condition',
       )?.why,
     ).toBe('an-activation-taken-by-somebody-other-than-the-caster');
+    // Hallow's was the fourth, and it is **kept** rather than lost now that the
+    // spell is defined — but it could only be kept because the entry may now
+    // carry no marker at all. This is the sentence the review found by reading
+    // the paragraph, and it is the sole claimant of its shape, so the reading
+    // and the gap stood or fell together.
+    expect(BLOCKED_ON['hallow']).toBeUndefined();
     expect(
-      filed('hallow', 'the spell fails if the radius includes an area already under the effect of'),
-    ).toBe('a-cap-on-how-many-castings-run-at-once');
+      (TRACKED_ADJUDICATED['hallow'] ?? []).find(
+        (entry) =>
+          entry.clause ===
+          'the spell fails if the radius includes an area already under the effect of',
+      ),
+    ).toMatchObject({ marker: null, why: 'a-cap-on-how-many-castings-run-at-once' });
     // Gaseous Form's occupancy override was the fifth, and it is **kept**
     // rather than lost now that the spell is defined: the sentence moved from
     // its blocked-on entry into the definition's own `unmodelled`, where it is
@@ -2429,11 +2467,20 @@ describe('a shape that gets built is content work, not a merge', () => {
   // when the spell ends, which is not a removal — and, once IE-042 built the
   // Immunity in the clause beside it, is not that either: an Immunity refuses a
   // condition and a suppression silences one that has already landed.
+  // The spell is tracked now, so the reading moved rather than went: both
+  // shapes are in `TRACKED_ADJUDICATED` against the sentences they were read
+  // from, and the suppression is the marker-less one — "conditions" is not
+  // "condition", so no guard could have demanded it.
   it('reads suppression as neither a removal nor the granted immunity', () => {
-    expect(blockersOf('calm-emotions')).toEqual([
-      'a-condition-a-spell-suppresses',
-      'a-spells-effects-applied-to-different-targets',
-    ]);
+    expect(BLOCKED_ON['calm-emotions']).toBeUndefined();
+    expect(
+      [...new Set((TRACKED_ADJUDICATED['calm-emotions'] ?? []).map((entry) => entry.why))].sort(),
+    ).toEqual(['a-condition-a-spell-suppresses', 'a-spells-effects-applied-to-different-targets']);
+    expect(
+      (TRACKED_ADJUDICATED['calm-emotions'] ?? []).find(
+        (entry) => entry.why === 'a-condition-a-spell-suppresses',
+      )?.marker,
+    ).toBeNull();
   });
 
   /**
@@ -2463,10 +2510,15 @@ describe('a shape that gets built is content work, not a merge', () => {
     expect(BLOCKED_ON['dimension-door']).toBeUndefined();
     expect(BLOCKED_ON['tree-stride']).toBeUndefined();
 
-    // A ward against arriving is suppression, not teleportation. Two of the
-    // three are still undefined; Forbiddance is tracked now, and the reading
-    // moved into `TRACKED_ADJUDICATED` against the same sentence.
-    expect(blockersOf('hallow')).toContain('an-effect-that-suppresses-other-magic');
+    // A ward against arriving is suppression, not teleportation. All three are
+    // tracked definitions now, and each reading moved into
+    // `TRACKED_ADJUDICATED` against the very sentence it was read from —
+    // Hallow's last of the three, filed under the `teleport` marker the
+    // sentence trips.
+    expect(BLOCKED_ON['hallow']).toBeUndefined();
+    expect(TRACKED_ADJUDICATED['hallow']?.map((entry) => entry.why)).toContain(
+      'an-effect-that-suppresses-other-magic',
+    );
     // Magic Circle is tracked now and its half of the re-filing made the same
     // move Forbiddance's did: the ward against arriving is anchored to the
     // very sentence it was read from, in the tracked map.
@@ -2582,7 +2634,10 @@ describe('a shape may finish nothing and still block every long casting there is
     // Arcane are held back by a printed Range the oracle has no kind for
     // rather than by any mechanic, so this floor is near the end of being
     // worth keeping at all.
-    expect(casting.blocks.length).toBeGreaterThan(3);
+    // **Moved from 3 to 2 by Hallow**, which is the fourth and the longest
+    // casting in the book: twenty-four hours, written as a tracked definition
+    // on the same mechanism. The floor follows the population down.
+    expect(casting.blocks.length).toBeGreaterThan(2);
     expect(claimedShapes().has('a-long-casting-time')).toBe(true);
     for (const id of ['scrying', 'tiny-hut', 'private-sanctum', 'resurrection']) {
       expect(BLOCKED_ON[id], id).toBeUndefined();
