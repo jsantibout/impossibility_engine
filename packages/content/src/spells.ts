@@ -7064,49 +7064,6 @@ export const CONJURE_FEY: SpellDefinition = {
 };
 
 /**
- * SRD Magic Missile:
- *
- * > _Level 1 Evocation (Sorcerer, Wizard)._ **Casting Time:** Action.
- * > **Range:** 120 feet. **Duration:** Instantaneous.
- * > "You create three glowing darts of magical force. Each dart strikes a
- * > creature of your choice that you can see within range. A dart deals 1d4 +
- * > 1 Force damage to its target. The darts all strike simultaneously, and
- * > you can direct them to hit one creature or several."
- * > _Using a Higher-Level Spell Slot._ "The spell creates one more dart for
- * > each spell slot level above 1."
- *
- * **The most famous spell in the book, and the engine cannot roll a die of
- * it.** Nothing here is a saving throw and nothing is an attack roll, and
- * every damage-bearing effect kind hangs off one or the other — so three
- * automatic 1d4+1s have no effect to be written as. Scorching Ray's reading
- * is the neighbour worth keeping in mind and the shape is the opposite one:
- * that spell has three *rolls* the format cannot spread, and this one has
- * three *payloads* with no roll at all.
- *
- * The target rule is real and is the half that is: three darts is a maximum
- * of three creatures, one more per slot level, and the caster may put them
- * all on one — which is why `count` is the ceiling rather than a demand.
- */
-export const MAGIC_MISSILE: SpellDefinition = {
-  id: 'magic-missile',
-  name: 'Magic Missile',
-  level: 1,
-  school: 'evocation',
-  castingTime: 'action',
-  concentration: false,
-  range: { kind: 'ranged', feet: 120 },
-  // "you can direct them to hit one creature or several": three is the most
-  // creatures a level 1 casting can reach, not the number it must.
-  targets: { count: 3, extraPerSlotLevelAbove: 1 },
-  requiresSight: true,
-  effects: [],
-  unmodelled: [
-    'no damage is dealt: "A dart deals 1d4 + 1 Force damage to its target" lands with neither an attack roll nor a saving throw, and every damage-bearing effect kind the format has hangs off one of the two',
-    'how the darts are split between the targets is not recorded — "you can direct them to hit one creature or several" is a distribution of one casting’s effects across its targets, and a casting applies its effects to all of them alike',
-  ],
-};
-
-/**
  * SRD Command:
  *
  * > _Level 1 Enchantment (Bard, Cleric, Paladin)._ **Casting Time:** Action.
@@ -7528,7 +7485,6 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   LONGSTRIDER,
   MAGE_ARMOR,
   MAGE_HAND,
-  MAGIC_MISSILE,
   MAGIC_MOUTH,
   MASS_CURE_WOUNDS,
   MASS_HEALING_WORD,

@@ -2070,22 +2070,10 @@ describe('a spell with one blocker is the leverage the map is for', () => {
    * very shape in `ADJUDICATED`.
    */
   it('does not call Magic Missile finished by one shape', () => {
-    // **And the prediction was collected rather than left standing.** Magic
-    // Missile is tracked now, which is the answer a spell blocked on two
-    // shapes gets: the slot, the action and the three darts' target rule are
-    // real, and both clauses are handed to the table. The dice keep their
-    // adjudication against the sentence that prints them; the distribution
-    // trips no marker and so lives in the definition's own `unmodelled`,
-    // exactly as Gaseous Form's occupancy override does.
-    expect(BLOCKED_ON['magic-missile']).toBeUndefined();
-    expect(TRACKED_ADJUDICATED['magic-missile']?.map((entry) => entry.why)).toEqual([
+    expect(blockersOf('magic-missile')).toEqual([
+      'a-spells-effects-applied-to-different-targets',
       'damage-with-neither-an-attack-roll-nor-a-save',
     ]);
-    expect(
-      (SRD_CONTENT.spell('magic-missile')?.unmodelled ?? []).filter((note) =>
-        note.includes('you can direct them to hit one creature or several'),
-      ),
-    ).toHaveLength(1);
     expect(BLOCKED_ON['dimension-door']).toBeUndefined();
     expect(ADJUDICATED['dimension-door']?.map((entry) => entry.why)).toEqual([
       'a-spells-effects-applied-to-different-targets',

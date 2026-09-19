@@ -1997,6 +1997,13 @@ describe('no spell is special-cased in the runtime', () => {
    * catalogue that may never hold two spells because their slugs collide with
    * the vocabulary every spell is written in.
    *
+   * **`command` is the sixth, and it is the flattest collision yet**: SRD
+   * Command is a level 1 Enchantment, and `command` is the field every
+   * idempotent event carries. `fold/apply.ts` writes `if (!('command' in
+   * event) || event.command === undefined)`, which is the retry rule the whole
+   * engine is built on and has nothing whatever to do with a Cleric shouting
+   * "Grovel". Excluded the day the spell catalogue gained the spell.
+   *
    * Named one word at a time rather than matched loosely, so each exclusion
    * is reviewed instead of being a heuristic that quietly stops catching
    * things.
@@ -2007,6 +2014,7 @@ describe('no spell is special-cased in the runtime', () => {
     'darkvision',
     'heal',
     'teleport',
+    'command',
   ]);
 
   /**
@@ -2135,6 +2143,7 @@ describe('no spell is special-cased in the runtime', () => {
    */
   it('excludes only words the engine uses for something else', () => {
     expect([...ALSO_VOCABULARY].sort()).toEqual([
+      'command',
       'darkvision',
       'heal',
       'light',
@@ -2172,6 +2181,10 @@ describe('no spell is special-cased in the runtime', () => {
     // the word is in the union the whole vocabulary is written in.
     expect(source('spell-definitions.ts')).toContain("readonly kind: 'heal'");
     expect(source('spell-definitions.ts')).toContain("readonly kind: 'teleport'");
+    // And the sixth, which is not an effect kind but the retry rule itself:
+    // the field every idempotent event carries, read in the one place the
+    // fold reads it.
+    expect(source('fold/apply.ts')).toContain("!('command' in event)");
   });
 
   it('allows the two data constructs and nothing around them', () => {

@@ -1358,14 +1358,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'there is deliberately no RollModifier member for D20 Tests as a family, and three SRD spells write the phrase; the toll on the caster and the target’s own minus four both need it, and the second needs a deadline anchored to a rest as well.',
     },
   ],
-  'magic-missile': [
-    {
-      marker: 'dice',
-      clause: 'A dart deals 1d4 + 1 Force damage to its target',
-      why: 'damage-with-neither-an-attack-roll-nor-a-save',
-      note: 'the dice are the plainest in the book and there is nothing to hang them on: no attack roll and no saving throw, and every damage-bearing effect kind the format has — `attack`, `attack-damage`, `save-damage` — hangs off one of the two.',
-    },
-  ],
   command: [
     {
       marker: 'saving-throw',
@@ -3139,6 +3131,10 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
       why: 'a-second-place-to-put-a-creature',
       note: 'And the failure branch of it. Death is a transition the engine owns end to end, and what would trigger this one is a soul with nowhere to go.',
     },
+  ],
+  'magic-missile': [
+    'a-spells-effects-applied-to-different-targets',
+    'damage-with-neither-an-attack-roll-nor-a-save',
   ],
   'magic-weapon': ['a-rider-on-a-later-weapon-attack'],
   'magnificent-mansion': [

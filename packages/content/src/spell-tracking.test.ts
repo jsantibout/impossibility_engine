@@ -774,7 +774,6 @@ const ADDED: readonly string[] = [
   'fog-cloud',
   'freedom-of-movement',
   'gust-of-wind',
-  'magic-missile',
   'polymorph',
   'purify-food-and-drink',
   'wall-of-fire',
