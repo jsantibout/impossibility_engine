@@ -202,6 +202,21 @@ const featChoice = z.object({
   cantrips: z.array(z.string().min(1)).optional(),
   levelOneSpell: z.string().optional(),
   proficiencies: z.array(z.string().min(1)).optional(),
+  /**
+   * The Ability Score Improvement's answer, and every Epic Boon's: which
+   * scores the points go into, **one entry per point**. `['str','str']` is
+   * "one ability score by 2" and `['str','dex']` is "two ability scores by
+   * 1"; the spread is counted out of this rather than declared beside it.
+   *
+   * Plain strings rather than {@link abilitySchema}, which is the one place
+   * on this surface a looser type is the faithful one: `FeatChoice.abilities`
+   * is `readonly string[]` in the engine *so that* `checkFeats` can answer
+   * `unknown_ability` naming the word the caller wrote. An enum here would
+   * turn that named refusal into a validation issue about a key, and this
+   * file's job is the shape — whether the spread is one the feat prints is
+   * `planCharacter`'s, as it is for every other choice here.
+   */
+  abilities: z.array(z.string().min(1)).optional(),
 });
 
 /**
