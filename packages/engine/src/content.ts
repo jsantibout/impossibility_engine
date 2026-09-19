@@ -264,22 +264,13 @@ function abilityProblemsOfFeat(feat: FeatDefinition): readonly ContentProblem[] 
 }
 
 /**
- * Everything wrong with a `sense` grant, wherever one is written.
- *
- * Shared by the two doors a standing grant comes through — an item's and a
- * feature's — because a rule enforced on one of two spellings is a rule with
- * a hole in it, which is the reasoning `item_narrowing_on_a_feature` already
- * states next door. Every field this dereferences is one an untyped blob
- * could have got wrong, so each is judged rather than believed.
- */
-/**
  * Everything wrong with an `ability-score-set` grant, wherever one is written.
  *
  * {@link senseProblems}' neighbour and the same argument: the grant reaches
  * the one reader through an item's door and a feature's, so the rule is kept
- * once. A score outside 1–30 is the range the engine already holds a
- * character's assignment to — `checkAbilities` refuses one there — and a set
- * that named a seventh ability would silently set nothing.
+ * once. The range is {@link MAX_ABILITY_SCORE}, the highest score anything in
+ * the rules reaches and the bound `checkAbilities` holds a raw assignment to,
+ * and a set that named a seventh ability would silently set nothing.
  */
 function abilitySetProblems(
   effect: Record<string, unknown>,
@@ -305,6 +296,15 @@ function abilitySetProblems(
   return found;
 }
 
+/**
+ * Everything wrong with a `sense` grant, wherever one is written.
+ *
+ * Shared by the two doors a standing grant comes through — an item's and a
+ * feature's — because a rule enforced on one of two spellings is a rule with
+ * a hole in it, which is the reasoning `item_narrowing_on_a_feature` already
+ * states next door. Every field this dereferences is one an untyped blob
+ * could have got wrong, so each is judged rather than believed.
+ */
 function senseProblems(
   effect: Record<string, unknown>,
   at: string,

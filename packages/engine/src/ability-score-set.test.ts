@@ -15,7 +15,7 @@ import { abilityScoresOf, armorClassOf, sheetAsItStands } from './standing.js';
  * A score an item **sets**, which is a third verb.
  *
  * The engine could raise a score and lift its ceiling, both at creation, and
- * neither says what the SRD says of nine wondrous items: "Your Constitution
+ * neither says what the SRD says of the Amulet of Health: "Your Constitution
  * is 19 while you wear this amulet. It has no effect on you if your
  * Constitution is 19 or higher without it." Three things follow from that one
  * sentence and each is a test below.
@@ -26,14 +26,21 @@ import { abilityScoresOf, armorClassOf, sheetAsItStands } from './standing.js';
  *   off, which is the lifetime `standing.ts` already insists must be derived
  *   on every read rather than stored — "a stored copy would be an
  *   unconditional bonus wearing a feature's name".
- * - **Everything downstream moves with it.** A score is not a number on its
- *   own; the modifier is what rolls read, so the set has to reach the sheet
- *   the readers are handed rather than a second path beside it.
+ * - **The modifier moves with it**, because a score is not a number on its
+ *   own.
+ *
+ * **How far the third one reaches, said plainly.** `sheetAsItStands` is the
+ * substitution, and what asks it today is `armorClassOf` and
+ * `standingSaveBonuses` — both in `standing.ts`. `attack.ts`, `checks.ts`
+ * and every command above them read `creature.sheet` directly, so an ability
+ * check made with a set Strength still rolls the stored one. Those files
+ * were not this batch's to change; the tests below say which side of that
+ * line each of them is on rather than implying the whole pipeline moved.
  *
  * Driven through homebrew items, for `content.test.ts`'s reason and for one
- * more: the SRD items this frees are not in the catalogue yet — see the note
- * at the end of this file — so a test written against them would be testing
- * nothing.
+ * more: the SRD items this frees are not in the catalogue yet — see the
+ * paragraph in `packages/content/src/items.ts` that says why — so a test
+ * written against them would be testing nothing.
  */
 
 const WHO = asCharacterId('vashti');
@@ -191,11 +198,24 @@ describe('a score an item sets', () => {
     expect(abilityScoresOf(wearing(BRACERS.id), WHO).str).toBe(19);
   });
 
-  it('moves the modifier the score derives, which is what a roll reads', () => {
+  /**
+   * The modifier on the sheet `sheetAsItStands` hands back — **not** on the
+   * one a roll reads today. `rollAbilityCheck` is given `creature.sheet` by
+   * its command, and that is the gap this file's header names.
+   */
+  it('moves the modifier on the sheet a reader is handed', () => {
     const state = wearing(BRACERS.id);
     // 10 is a +0 and 19 is a +4: the set is not a number on its own.
     expect(modifierFor(start().creatures[WHO]!.sheet, 'str')).toBe(0);
-    expect(modifierFor(sheetAsItStands(state, WHO), 'str')).toBe(abilityModifier(19));
+    expect(modifierFor(sheetAsItStands(state, WHO)!, 'str')).toBe(abilityModifier(19));
+    // And the stored sheet is untouched, which is what makes the two
+    // different questions rather than one.
+    expect(state.creatures[WHO]?.sheet.abilities.str).toBe(10);
+  });
+
+  /** Nothing to hand back for a creature nobody added. */
+  it('hands back nothing for a creature this game has never heard of', () => {
+    expect(sheetAsItStands(start(), asCharacterId('nobody'))).toBeNull();
   });
 
   it('leaves a score that is already higher exactly where it was', () => {
@@ -229,7 +249,7 @@ describe('a score an item sets', () => {
       ),
     );
     expect(abilityScoresOf(off, WHO).str).toBe(10);
-    expect(modifierFor(sheetAsItStands(off, WHO), 'str')).toBe(0);
+    expect(modifierFor(sheetAsItStands(off, WHO)!, 'str')).toBe(0);
   });
 
   it('takes the highest of two items that set the same score', () => {

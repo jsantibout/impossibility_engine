@@ -95,12 +95,13 @@ const CLASS_ITEMS: readonly CatalogueItem[] = [
  * `packages/engine/src/ability-score-set.test.ts` and the three records wait
  * for one commit that can hold both halves.
  *
- * Two neighbours of theirs are **not** freed by it, and the difference is the
- * verb. The Belt of Giant Strength sets a score and keeps a second blocker —
- * five versions on one printed table. The three manuals and three tomes are
- * "your Constitution increases by 2, to a maximum of 30" after forty-eight
- * hours of study: a *permanent* change, applied by an event nothing emits,
- * which is what is left of `an-ability-score-a-spell-changes`.
+ * Their neighbours are **not** freed by it, and the difference is the verb.
+ * The Belt of Giant Strength sets a score and keeps a second blocker: its
+ * versions are a table of its own. The manuals and the tomes say "your
+ * Constitution increases by 2, to a maximum of 30" after forty-eight hours
+ * of study — a *permanent* change, applied by an event nothing emits, which
+ * is what is left of `an-ability-score-a-spell-changes` once the set is
+ * taken out of it.
  */
 
 /** A `FeatureGrant` in the position an item puts one, named once. */

@@ -278,12 +278,13 @@ export type StandingGrant =
    * An ability score **set** to a number while whatever grants it holds.
    *
    * A third verb beside the two `ability-score-increase` has, and the SRD
-   * prints it on nine wondrous items in one sentence each: "Your Strength is
-   * 19 while you wear these gauntlets", "Your Intelligence is 19 while you
-   * wear this headband", "While wearing this belt, your Strength changes to a
-   * score granted by the belt". Neither of the other two says it. A raise of
+   * prints it in one sentence per item: "Your Strength is 19 while you wear
+   * these gauntlets", "Your Intelligence is 19 while you wear this
+   * headband", "While wearing this belt, your Strength changes to a score
+   * granted by the belt". Neither of the other two verbs says it. A raise of
    * +11 would be a different item on a different character, and a lifted
-   * ceiling raises nothing at all.
+   * ceiling raises nothing at all. How many entries print it is
+   * `COVERAGE.md`'s question.
    *
    * **A standing grant rather than creation's arithmetic**, and the second
    * half of the same sentence decides it: the score holds *while worn*, so
@@ -1232,22 +1233,6 @@ export function canSee(state: GameState, from: CharacterId, to: CharacterId): bo
 }
 
 /**
- * A creature's Armour Class, with whatever is currently raising it.
- *
- * `armorClass` reads a sheet: armour, Dexterity, a shield, or the number a
- * stat block printed. That is the whole answer for a creature nobody has cast
- * anything on, and it was the only answer the engine had — so Shield of Faith
- * had no way to grant its +2 and Shield had no way to grant its +5.
- *
- * Only flat bonuses count. An Armour Class is a standing number rather than a
- * roll, so there is no moment at which a die could be thrown for it, and no
- * SRD spell asks for one. A rolled bonus aimed at `ac` is ignored rather than
- * guessed at.
- *
- * Cover is deliberately *not* here: it is a fact about one attacker's line to
- * one target, not about the target, and the attack that reads it adds it.
- */
-/**
  * This creature's six ability scores **as they stand**: what the sheet says,
  * and whatever is setting one right now.
  *
@@ -1303,6 +1288,11 @@ export function abilityScoresOf(
  * every creature in almost every fight: the copy is paid for only where it
  * changes something, and identity is what a caller can cheaply check.
  *
+ * Null for a creature nobody has added, which is what every other reader in
+ * this file does with an unknown id — `armorClassOf` answers 0 and `sensesOf`
+ * an empty list. A public export that threw where its neighbours degraded
+ * would be a trap laid in the one function a caller is told to prefer.
+ *
  * What this does **not** do is reach the readers that take a sheet straight
  * off the state. `attack.ts`, `checks.ts` and the commands above them read
  * `creature.sheet`, and threading this in there is a change to files this
@@ -1310,13 +1300,29 @@ export function abilityScoresOf(
  * and an Aura of Protection move with a set score and an ability check does
  * not yet.
  */
-export function sheetAsItStands(state: GameState, who: CharacterId): CharacterSheet {
+export function sheetAsItStands(state: GameState, who: CharacterId): CharacterSheet | null {
   const creature = state.creatures[who];
-  if (creature === undefined) throw new Error(`no creature ${who}`);
+  if (creature === undefined) return null;
   const abilities = abilityScoresOf(state, who);
   return abilities === creature.sheet.abilities ? creature.sheet : { ...creature.sheet, abilities };
 }
 
+/**
+ * A creature's Armour Class, with whatever is currently raising it.
+ *
+ * `armorClass` reads a sheet: armour, Dexterity, a shield, or the number a
+ * stat block printed. That is the whole answer for a creature nobody has cast
+ * anything on, and it was the only answer the engine had — so Shield of Faith
+ * had no way to grant its +2 and Shield had no way to grant its +5.
+ *
+ * Only flat bonuses count. An Armour Class is a standing number rather than a
+ * roll, so there is no moment at which a die could be thrown for it, and no
+ * SRD spell asks for one. A rolled bonus aimed at `ac` is ignored rather than
+ * guessed at.
+ *
+ * Cover is deliberately *not* here: it is a fact about one attacker's line to
+ * one target, not about the target, and the attack that reads it adds it.
+ */
 export function armorClassOf(state: GameState, who: CharacterId): number {
   const creature = state.creatures[who];
   if (creature === undefined) return 0;
@@ -1328,7 +1334,7 @@ export function armorClassOf(state: GameState, who: CharacterId): number {
   // The sheet as it stands, so an item that *sets* Dexterity moves the
   // Armour Class that reads it — and an item that sets Strength moves the
   // heavy-armour penalty `armorClass` applies for a Strength requirement.
-  let total = armorClass(sheetAsItStands(state, who), creature.armorClasses);
+  let total = armorClass(sheetAsItStands(state, who) ?? creature.sheet, creature.armorClasses);
   for (const active of creature.bonuses) {
     if (!active.applies.includes('ac')) continue;
     const flat = active.bonus.flat ?? 0;

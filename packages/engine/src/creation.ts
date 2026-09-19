@@ -13,6 +13,7 @@ import {
 } from '@ie/shared';
 import {
   ABILITY_SCORE_MAXIMUM,
+  MAX_ABILITY_SCORE,
   abilityModifier,
   proficiencyBonusForLevel,
   type CharacterSheet,
@@ -521,8 +522,8 @@ function checkAbilities(
 
   for (const ability of ABILITIES) {
     const score = scores[ability];
-    if (!Number.isInteger(score) || score < 1 || score > 30) {
-      problems.push(problem('bad_score', 'abilities', `${ability} must be a score from 1 to 30, got ${score}`));
+    if (!Number.isInteger(score) || score < 1 || score > MAX_ABILITY_SCORE) {
+      problems.push(problem('bad_score', 'abilities', `${ability} must be a score from 1 to ${MAX_ABILITY_SCORE}, got ${score}`));
     }
   }
 
