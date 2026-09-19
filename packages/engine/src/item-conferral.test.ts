@@ -849,24 +849,30 @@ describe('what a conferral may not say yet', () => {
   });
 
   /**
-   * **A `save` is still refused, and not for want of a DC.** Every `save`
-   * effect imposes a condition on its failure — `condition` is required on the
-   * effect — and the fold welds a condition instance to a casting, which a
-   * conferral has none of. A condition from an item is its own brief.
+   * **A `save` is admitted, and the lifetime it prints flat is not.** Every
+   * `save` effect imposes a condition on its failure — `condition` is required
+   * on the effect — and a conferred one is filed under `item:<id>` and held by
+   * the timer the conferral's own `durationSeconds` files. What it may not
+   * carry is a lifetime the *casting* would own, which is the same refusal a
+   * conferred `condition`'s rider gets and is written at the flat path this
+   * kind uses. `item-repeat-save.test.ts` holds the rest of the rule.
    */
-  it('refuses a save whose failure imposes a condition', () => {
+  it('refuses a lifetime on a save whose failure imposes a condition', () => {
     const found = checkContent({
       items: [
         potion({
           kind: 'confers',
           action: 'action',
           saveDc: 13,
+          durationSeconds: 3600,
           effects: [{ kind: 'save', ability: 'con', condition: 'poisoned', lasts: { seconds: 3600 } }],
         }) as unknown as CatalogueItem,
       ],
     });
-    expect(found.map((problem) => problem.code)).toContain('conferral_effect_not_read');
-    expect(found.map((problem) => problem.reason).join(' ')).toContain('condition');
+    expect(found.map((problem) => problem.code)).toEqual([
+      'conferral_condition_needs_a_casting',
+    ]);
+    expect(found.map((problem) => problem.reason).join(' ')).toContain('casts nothing');
   });
 
   /**
@@ -911,15 +917,17 @@ describe('what a conferral may not say yet', () => {
    * **The `condition` kind has moved off this list**, because SRD Potion of
    * Invisibility confers one with nothing cast at all and the four fields that
    * would need a casting are refused one by one instead — see
-   * `item-condition.test.ts`. What is still refused is every kind that needs
-   * the casting for something other than a condition's source: an attack
-   * modifier nobody printed, a destination stated at the cast, a casting read
-   * from both ends, and a `save` whose `repeats` is a debt naming a casting id.
+   * `item-condition.test.ts`. **And `save` has followed it**, because a
+   * `PendingSave` names the source rather than a casting id, so the repeat
+   * that was the last of the weld is raised and rolled under a bare `item:`
+   * source — see `item-repeat-save.test.ts`. What is still refused is every
+   * kind that needs the casting for something other than a condition's source:
+   * an attack modifier nobody printed, a destination stated at the cast, and a
+   * casting read from both ends.
    */
   it('refuses an effect kind an item cannot resolve without a casting', () => {
     for (const effect of [
       { kind: 'attack', damage: { dice: '1d10' }, damageType: 'fire' },
-      { kind: 'save', ability: 'con', condition: 'poisoned' },
       { kind: 'teleport', feet: 30 },
       { kind: 'dispel', maxLevel: 3 },
     ]) {

@@ -22,7 +22,7 @@ import {
   ok,
   type Result,
 } from '@ie/shared';
-import { resolveDuration, timeView } from '../duration.js';
+import { type RepeatSave, resolveDuration, timeView } from '../duration.js';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import {
   type ConditionRider,
@@ -120,6 +120,49 @@ export function scheduleDelayed(
 }
 
 /**
+ * The repeat save a rider asks for, against the host's own saving throw.
+ *
+ * SRD writes "the target repeats **the** save" — the one the effect already
+ * made — so the ability and the DC are the host's and a rider that named its
+ * own would be a second place for one sentence to go wrong.
+ *
+ * **Two callers, one spelling**, which is the reason it is a function.
+ * {@link riderOptions} builds it for a casting; the item arm of
+ * `resolveSaveEffect` builds it for a conferral, where `name` is the item's
+ * rather than the spell's and there is no casting anywhere in it. A second
+ * translation would be a second place for the label, the anchor or the DC to
+ * drift.
+ *
+ * Nothing where the rider asks for none, and nothing where the host rolled no
+ * saving throw to repeat: `checkSpellDefinition` refuses that combination at
+ * authoring, so this reads a value the validator has already rejected rather
+ * than stating a rule of its own.
+ */
+export function repeatSaveFrom(
+  repeats: ConditionRider['repeats'],
+  context: {
+    /** Whose turns the boundary is anchored to: whoever it landed on. */
+    readonly of: CharacterId;
+    /** The ability the host rolled with, or null for a host that rolled none. */
+    readonly ability: Ability | null;
+    readonly dc: number;
+    /** What the log calls the thing that did it: a spell, or an item. */
+    readonly name: string;
+  },
+): RepeatSave | undefined {
+  const { ability } = context;
+  if (repeats === undefined || ability === null) return undefined;
+  return {
+    at: repeats.at,
+    of: context.of,
+    ability,
+    dc: context.dc,
+    onSuccess: repeats.onSuccess,
+    label: `${ABILITY_NAMES[ability]} save vs ${context.name}`,
+  };
+}
+
+/**
  * The `applySpellEffect` options one condition rider asks for.
  *
  * Four effect kinds impose a condition — an `attack` on a hit, a `save-damage`
@@ -158,18 +201,12 @@ export function riderOptions(
 ): SpellEffectOptions {
   const escape = effectCheckFrom(rider.check, context.spell, context.saveDc);
   const duration = riderDuration(rider.lasts, context.casterId);
-  const ability = context.saveAbility;
-  const repeats =
-    rider.repeats === undefined || ability === null
-      ? undefined
-      : {
-          at: rider.repeats.at,
-          of: context.target,
-          ability,
-          dc: context.saveDc,
-          onSuccess: rider.repeats.onSuccess,
-          label: `${ABILITY_NAMES[ability]} save vs ${context.spell}`,
-        };
+  const repeats = repeatSaveFrom(rider.repeats, {
+    of: context.target,
+    ability: context.saveAbility,
+    dc: context.saveDc,
+    name: context.spell,
+  });
   return {
     casting: { castingId: context.castingId, spell: context.spell },
     ...(rider.outlivesCasting === true ? { unowned: true as const } : {}),

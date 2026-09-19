@@ -17,7 +17,7 @@ import {
   unhandledEvent,
   type Applying,
 } from './common.js';
-import { casterOf, releaseCasting, releaseOnTarget } from './release.js';
+import { casterOf, endTimedCondition, releaseCasting, releaseOnTarget } from './release.js';
 
 /** The event types this seam owns. Every one of them, and no other seam's. */
 export const TIMERS_EVENTS = [
@@ -116,12 +116,39 @@ export function applyTimers({ state, next }: Applying, event: TimersEvent): Game
       const cleared: GameState = { ...next, pendingSaves };
       if (!event.success) return cleared;
 
+      // **A source that is not a casting ends on its own timer.** A potion's
+      // Poisoned is filed under `item:<id>` and there is no casting to release
+      // on a target, no Concentration to drop and nothing in `ongoing`; what
+      // the success ends is the condition and the deadline that was holding
+      // it, which is the door `endTimedCondition` already opens when the same
+      // condition simply runs out of time.
+      const castingId = castingIdOf(pending.source);
+      if (castingId === null) {
+        if (pending.onSuccess === 'end-casting') {
+          // Refused at both doors before it could ever be written — see
+          // `RepeatSave.onSuccess` — so a log that says it is a log this
+          // engine did not write.
+          throw new CorruptLogError(
+            event,
+            `${event.effectKey} ends a casting on a success and ${pending.source} is not one`,
+          );
+        }
+        const timer = state.timers[event.effectKey];
+        if (timer === undefined || timer.target.kind !== 'condition') {
+          throw new CorruptLogError(
+            event,
+            `${event.effectKey} ends on its target, and no condition timer is filed under it`,
+          );
+        }
+        return endTimedCondition(cleared, event.effectKey, timer.target);
+      }
+
       // SRD Hold Person: a success ends the spell "on itself" — on that target,
       // not on everyone the casting caught. An effect whose hook says otherwise
       // ends the casting outright.
       return pending.onSuccess === 'end-casting'
-        ? releaseCasting(cleared, casterOf(cleared, pending.castingId), pending.castingId)
-        : releaseOnTarget(cleared, pending.target, pending.castingId);
+        ? releaseCasting(cleared, casterOf(cleared, castingId), castingId)
+        : releaseOnTarget(cleared, pending.target, castingId);
     }
   }
 

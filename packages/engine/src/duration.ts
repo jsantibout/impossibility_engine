@@ -246,6 +246,13 @@ export interface RepeatSave {
    * `end-on-target` is Hold Person's "ending the spell **on itself**" — the
    * casting carries on for anyone else it caught. `end-casting` is for effects
    * that end outright when anyone shakes them off.
+   *
+   * **`end-casting` needs a casting**, and the source is what says whether
+   * there is one. A repeat save hung on anything else — a poison in a bottle,
+   * a source a caller supplied — may only be `end-on-target`, because what a
+   * success would end is the condition and there is no spell behind it. Both
+   * doors refuse the other spelling rather than quietly treating it as this
+   * one: `applyConditionTo` for a caller, `checkContent` for a conferral.
    */
   readonly onSuccess: 'end-on-target' | 'end-casting';
   /** How the roll reads in the log. */
@@ -397,7 +404,26 @@ export interface PendingSave {
   /** The timer this belongs to, which is also how it is keyed. */
   readonly effectKey: string;
   readonly target: CharacterId;
-  readonly castingId: string;
+  /**
+   * What put the effect there — `Hold Person#cast:3`, or a bare `item:<id>`.
+   *
+   * **A source rather than a casting id**, which is the difference between
+   * holding a rule and honouring it. This was `castingId`, and the boundary
+   * that raised it asked `castingIdOf` for one and walked past every timer
+   * that answered null: a repeat save on anything that was never cast — a
+   * poison in a bottle, a source a caller supplied — was dropped without a
+   * word. SRD writes "repeats the save at the end of each of its turns" on
+   * plenty of things that are not spells, so the debt is about the effect and
+   * not about the casting.
+   *
+   * `castingIdOf` still reads the casting out of one where there is a casting,
+   * so `end-casting` and a casting's `end-on-target` are exactly what they
+   * were. A source that answers null ends on its own timer instead —
+   * {@link onSuccess} may only be `end-on-target` for one, which
+   * `applyConditionTo` and `checkContent` both refuse at the door rather than
+   * silently rewriting.
+   */
+  readonly source: string;
   readonly ability: Ability;
   readonly dc: number;
   readonly onSuccess: 'end-on-target' | 'end-casting';

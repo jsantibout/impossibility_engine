@@ -100,6 +100,31 @@ export interface ConditionState {
 export const conditionInstanceId = (condition: ConditionName, source: string): string =>
   `${condition}:${source}`;
 
+/**
+ * What put a condition there, read back out of its instance id.
+ *
+ * The inverse of {@link conditionInstanceId}, and here because that is where
+ * the encoding is: an id is a condition name, a colon and the source, and a
+ * condition name has no colon in it, so the first one is the whole of the
+ * rule. A second place that split the string would be a second place for the
+ * encoding to change out from under.
+ *
+ * **Read off the id rather than off the creature**, which is the same choice
+ * `castingIdOf(timer.target.instance)` already made and for the same reason: a
+ * timer knows its instance and may outlive the instance it names —
+ * `condition-removed` lifts one and leaves the timer standing — so a lookup
+ * through `conditions.instances` would answer differently depending on a bug
+ * that is somebody else's to fix.
+ *
+ * The id unchanged where there is no colon at all, which no id this module
+ * writes can be: a caller that made one up gets back what it put in rather
+ * than an exception, because this answers a question about a string.
+ */
+export const sourceOfInstance = (instance: string): string => {
+  const at = instance.indexOf(':');
+  return at < 0 ? instance : instance.slice(at + 1);
+};
+
 const derive = (
   instances: readonly ConditionInstance[],
   exhaustion: number,

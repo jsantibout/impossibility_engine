@@ -490,16 +490,20 @@ function itemCastsProblems(
  * would need a casting are refused one by one below, which is why admitting
  * the kind admits no casting with it.
  *
- * **`save` is still refused, and not for want of a DC.** Its `condition` is a
+ * **Nor is `save`, which was the last of that weld.** Its `condition` is a
  * required field and its `repeats` is the repeat save that goes with one, and
- * a repeat save is a `PendingSave` that names a casting id. An item that rolls
- * a save to impose a condition waits for that, and `Potion of Poison` is the
- * SRD entry that wants it.
+ * a `PendingSave` now names the **source** rather than a casting id — so a
+ * condition a flask's saving throw imposes repeats its save at the boundary
+ * like a spell's, and a success ends it on the timer the conferral's own hour
+ * filed. The flat fields that still need a casting are refused one by one
+ * below, `repeats`' `end-casting` among them, which is why admitting the kind
+ * admits no casting with it.
  */
 export const CONFERRED_EFFECT_KINDS: ReadonlySet<string> = new Set([
   'heal',
   'temp-hp',
   'save-damage',
+  'save',
   'condition',
   'end-condition',
   'buff',
@@ -595,6 +599,7 @@ function scalingsOf(
  */
 const rollsASave = (record: Record<string, unknown>): boolean =>
   record['kind'] === 'save-damage' ||
+  record['kind'] === 'save' ||
   (record['kind'] === 'buff' && record['ability'] !== undefined);
 
 /**
@@ -619,12 +624,24 @@ const RIDER_FIELDS: readonly string[] = ['conditions', 'modifiers', 'delayed'];
  * | `check` | an escape whose `effect-check-resolved` releases the casting the instance names |
  * | `outlivesCasting` | a mark that says the casting does not keep it, on a thing with no casting |
  *
- * **`repeats` is the fourth and is not here, because it is already refused one
- * step earlier and for a better reason.** `checkEffectValue` answers
- * `repeats_without_save` for *every* `condition` host, cast or conferred: SRD
- * writes "the target repeats **the** save" and this kind rolled none. A second
- * refusal of the same field would report two codes for one defect, and the one
- * that fires first names the rule the author actually broke.
+ * **`repeats` is the fourth and is not here, because on a `condition` it is
+ * already refused one step earlier and for a better reason.**
+ * `checkEffectValue` answers `repeats_without_save` for *every* `condition`
+ * host, cast or conferred: SRD writes "the target repeats **the** save" and
+ * this kind rolled none. A second refusal of the same field would report two
+ * codes for one defect, and the one that fires first names the rule the
+ * author actually broke.
+ *
+ * **On a `save` it is admitted**, because that host did roll one: a
+ * `PendingSave` names the source rather than a casting id, so a flask's
+ * condition repeats its save at the boundary and a success ends it on the
+ * conferral's own timer. Only `onSuccess: 'end-casting'` is refused there, by
+ * `conferral_repeat_needs_a_casting`, and only because a spell that ends needs
+ * to have been cast.
+ *
+ * **This list is read twice**, because `save` spells the same three fields
+ * flat where `condition` nests them in its rider — one rule, asked at two
+ * paths, rather than two lists to keep in step.
  *
  * Refused one by one rather than by admitting a narrowed type, because the
  * validator reads untyped JSON as well as a typed value and the compiler is
@@ -773,6 +790,41 @@ function itemConfersProblems(
             `${on}.condition.${field}`,
           );
         }
+      }
+    }
+
+    // **A saving throw that imposes one hangs it too**, and it says the same
+    // three fields flat rather than inside a rider — `save` is the one host
+    // that keeps that layout. So the rule above is asked again of the record
+    // itself, at the paths this kind writes them at.
+    if (kind === 'save') {
+      hangs = true;
+      conditions += 1;
+      for (const field of CONFERRED_CONDITION_FIELDS) {
+        if (record[field] === undefined) continue;
+        say(
+          'conferral_condition_needs_a_casting',
+          `"${field}" is owned by the casting that imposed the condition — a lifetime, an escape check, a mark that the casting does not keep it — and ${item.id} casts nothing; a conferral's lifetime is durationSeconds and what ends it early is endsEarly`,
+          `${on}.${field}`,
+        );
+      }
+      // **And the repeat that ends a casting.** The other spelling is the one
+      // an item can mean: a `PendingSave` names the source now, so a flask's
+      // condition repeats its save and a success ends it on the timer the
+      // conferral filed — but "the spell ends" needs a spell. Refused rather
+      // than read as `end-on-target`, which would be a rule the item did not
+      // print, applied on its behalf.
+      const repeats = record['repeats'];
+      if (
+        typeof repeats === 'object' &&
+        repeats !== null &&
+        (repeats as Record<string, unknown>)['onSuccess'] === 'end-casting'
+      ) {
+        say(
+          'conferral_repeat_needs_a_casting',
+          `a repeat save that ends the casting on a success needs one, and ${item.id} casts nothing; what a success can end here is the condition on its target`,
+          `${on}.repeats.onSuccess`,
+        );
       }
     }
 

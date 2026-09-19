@@ -19,8 +19,8 @@
  * `openTurnStart` is the boundary a fight *opens* on, which is the same moment
  * arriving by a different door — see its own docstring.
  */
+import { sourceOfInstance } from '../conditions.js';
 import { isDue, pendingSaveKey, type PendingSave } from '../duration.js';
-import { castingIdOf } from '../spells.js';
 import { type CombatState } from '../combat.js';
 
 import type { GameState, PendingCasting } from '../state.js';
@@ -39,6 +39,15 @@ import { releaseCasting } from './release.js';
  *
  * Keyed by effect *and* turn, so folding the log twice raises one save, and a
  * later turn raises it again — which is what "repeats the save" means.
+ *
+ * **The order is the key's, and it is total over every kind of source.** The
+ * timers are walked sorted and merged through `sortedRecord`, so what decides
+ * which of two saves owed at one boundary is rolled first is
+ * `condition|<who>|<condition>:<source>@<turn>` compared as a string — never
+ * the order the timers happened to be filed in, and never a casting number a
+ * potion has not got. That matters at the dice rather than at the tidiness:
+ * `resolvePendingSaves` rolls them in that order out of one generator, so the
+ * order *is* which save gets which die.
  */
 export function raiseTurnSaves(
   state: GameState,
@@ -59,13 +68,15 @@ export function raiseTurnSaves(
       hook.at === 'end-of-turn' ? hook.of === ended : hook.of === begun;
     if (!fires) continue;
 
-    const castingId = castingIdOf(timer.target.instance);
-    if (castingId === null) continue;
-
+    // **What put the condition there, whatever that was.** This asked
+    // `castingIdOf` for a casting id and `continue`d on null, so a repeat save
+    // under any other source — a potion's, a caller's own — was an obligation
+    // the boundary dropped in silence. The debt is about the *effect*, and the
+    // source is what a success later has to end.
     raised[pendingSaveKey(key, after.turnsTaken)] = {
       effectKey: key,
       target: timer.target.on,
-      castingId,
+      source: sourceOfInstance(timer.target.instance),
       ability: hook.ability,
       dc: hook.dc,
       onSuccess: hook.onSuccess,

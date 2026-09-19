@@ -586,12 +586,21 @@ describe('what an item may not say about a condition it confers', () => {
     );
   });
 
-  it('still refuses a save, which brings a repeat nothing here could raise', () => {
+  /**
+   * **A save is admitted now, and its repeat with it.** A `PendingSave` names
+   * the source rather than a casting id, so a condition a flask's saving throw
+   * imposes repeats at the boundary and ends on its own timer. What the kind
+   * still may not carry is the same three fields a rider may not — `save`
+   * spells them flat — and a repeat whose success would end a casting. See
+   * `item-repeat-save.test.ts`, which is where that whole rule is held.
+   */
+  it('admits a save, against the DC the flask prints', () => {
     const codes = codesOf({
       ...GOOD,
+      saveDc: 13,
       effects: [{ kind: 'save', ability: 'con', condition: 'poisoned' }],
     });
-    expect(codes.join(' ')).toContain('conferral_effect_not_read');
+    expect(codes).toEqual([]);
   });
 });
 

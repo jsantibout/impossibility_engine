@@ -19,6 +19,7 @@ import {
 } from '../duration.js';
 import { type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
+import { castingIdOf } from '../spells.js';
 import { conditionImmunitiesOf } from '../standing.js';
 import { creatureOf, turnContextFor, unknownCreature } from './command.js';
 
@@ -87,6 +88,21 @@ export function applyConditionTo(
     }
     if (immuneTo.includes(condition) || conditionImmunitiesOf(state, id).includes(condition)) {
       return err('immune', `${id} is immune to the ${condition} condition`);
+    }
+    // **A success cannot end a casting there is none of.** A repeat save is
+    // honoured under any source now — a poison in a bottle repeats its save
+    // like a spell — and `end-casting` is the one thing that does not
+    // generalise with it: what it ends is read out of the source, and a source
+    // with no casting in it has nothing to end. Refused rather than quietly
+    // treated as `end-on-target`, which would be the engine choosing a rule
+    // the caller did not ask for; and refused *here*, before the condition
+    // lands, so the effect is not applied under a hook that could never fire.
+    if (repeatSave?.onSuccess === 'end-casting' && castingIdOf(source) === null) {
+      return err(
+        'repeat_needs_a_casting',
+        `a repeat save that ends the casting on a success needs one, and "${source}" is not a casting; ` +
+          'a condition from anything else ends on its target',
+      );
     }
 
     const events: GameEvent[] = [

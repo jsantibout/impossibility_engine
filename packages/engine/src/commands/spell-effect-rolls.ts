@@ -15,6 +15,7 @@ import { rollSavingThrow } from '../checks.js';
 import { applyEvent, type CreatureState, type GameState } from '../events.js';
 import { apartFromSource } from '../positioning.js';
 import {
+  conditionRiderOf,
   hasOutcomeRiders,
   isCreatureType,
   outcomeRidersOf,
@@ -27,6 +28,7 @@ import {
   evadesHalfDamage,
   grantedAttackRiders,
 } from '../standing.js';
+import { applyConditionTo } from './conditions.js';
 import { healCreature } from './creatures.js';
 import { dealSpellDamage } from './damage.js';
 import {
@@ -38,7 +40,7 @@ import {
   withFlatAddend,
 } from './rolls.js';
 import { type EffectContext, type EffectOfKind } from './spell-effect-context.js';
-import { applyRiders } from './spell-effect-riders.js';
+import { applyRiders, conditionLanding, repeatSaveFrom } from './spell-effect-riders.js';
 
 /**
  * A spell attack roll, the damage a hit deals, and the riders it carries.
@@ -493,6 +495,23 @@ export function resolveSaveDamageEffect(
 
 /**
  * A saving throw, and whatever a failure carries.
+ *
+ * **Two origins, one roll.** SRD prints the sentence on items as well as on
+ * spells — "must succeed on a DC 13 Constitution saving throw or have the
+ * Poisoned condition for 1 hour" — and the difference between the two is not
+ * the die, the DC or the condition. It is what the condition is filed under
+ * and what a repeat save later ends:
+ *
+ * - A **casting** files it under `Spell#cast:N` and goes out through
+ *   {@link applyRiders}, which is where the other riders a failure may carry
+ *   live — further conditions, a granted penalty, a delayed hit — every one of
+ *   them welded to a casting id.
+ * - An **item** files it under `item:<id>`, hands over the one condition the
+ *   kind requires, and carries the repeat save with it. `checkContent` refuses
+ *   a conferral every field that would need a casting — the extra riders, the
+ *   rider's lifetime, its escape check, its `outlivesCasting`, and a repeat
+ *   whose success would end a casting — so the item arm has nothing to
+ *   translate and never reaches for one.
  */
 export function resolveSaveEffect(
   ctx: EffectContext,
@@ -504,6 +523,7 @@ export function resolveSaveEffect(
   const {
     casterId,
     castLevel,
+    name,
     numbers,
     supply,
     unverified,
@@ -513,10 +533,6 @@ export function resolveSaveEffect(
     saveDc,
     fought,
   } = ctx;
-  // A rider is welded to the casting that hung it and a `damage-scheduled`
-  // names one, so the three kinds that roll a D20 Test are refused on an item
-  // by `checkContent` and the accessor is loud here — see `EffectContext.casting`.
-  const { definition, castingId } = ctx.casting();
   let current = world;
 
   // A saving throw, and a condition on a failure.
@@ -542,7 +558,7 @@ export function resolveSaveEffect(
       ...(effect.advantageIfFought === true && fought?.includes(target) === true
         ? [
             {
-              source: `${definition.name} (you or your allies are fighting it)`,
+              source: `${name} (you or your allies are fighting it)`,
               mode: 'advantage' as const,
             },
           ]
@@ -555,7 +571,7 @@ export function resolveSaveEffect(
   events.push(
     recordD20Test(
       target,
-      `${ABILITY_NAMES[effect.ability]} save vs ${definition.name}`,
+      `${ABILITY_NAMES[effect.ability]} save vs ${name}`,
       save.value,
       save.value.success ? 'resisted' : 'affected',
     ),
@@ -565,6 +581,59 @@ export function resolveSaveEffect(
     outcomes.push({ target, save: save.value, affected: false });
     return ok(current);
   }
+
+  // **The item arm, which hangs one condition and asks for no casting.**
+  // `conditionRiderOf` types the flat fields as a non-empty list, so the first
+  // element is the condition the kind requires rather than a guess; the rest
+  // of that list is `save.conditions`, which `checkContent` refuses on a
+  // conferral. The repeat rides with it and names the item's source through
+  // the instance it is filed under, so the boundary raises it and a success
+  // ends it on the timer the conferral's own lifetime files.
+  if (ctx.origin.kind === 'item') {
+    const [rider] = conditionRiderOf(effect);
+    const conferred = conditionLanding(
+      applyConditionTo(
+        current,
+        target,
+        rider.name,
+        ctx.source,
+        [],
+        undefined,
+        repeatSaveFrom(rider.repeats, {
+          of: target,
+          ability: effect.ability,
+          dc: saveDc,
+          name,
+        }),
+      ),
+    );
+    if (!conferred.ok) return conferred;
+
+    // A target immune to the condition is **unaffected** and not an error —
+    // the flask was still drunk and the save was still rolled, which is the
+    // reading `conditionLanding` holds for both origins.
+    if (!conferred.value.landed) {
+      outcomes.push({ target, save: save.value, affected: false });
+      return ok(current);
+    }
+
+    events.push(...conferred.value.events);
+    current = conferred.value.events.reduce(applyEvent, current);
+    held.add(target);
+    outcomes.push({
+      target,
+      save: save.value,
+      conditions: [rider.name],
+      affected: true,
+    });
+    return ok(current);
+  }
+
+  // A rider is welded to the casting that hung it and a `damage-scheduled`
+  // names one, so a failure that carries more than the one condition is a
+  // casting's — and the accessor is loud rather than absent when it is not.
+  // See `EffectContext.casting`.
+  const { definition, castingId } = ctx.casting();
 
   // `save` writes its first rider flat; `conditionRiderOf` is the one
   // place that knows, so from here the four kinds that impose a

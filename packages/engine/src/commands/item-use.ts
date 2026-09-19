@@ -52,6 +52,7 @@ import {
   type ItemConfersGrant,
 } from '../catalogue.js';
 import { conditionInstanceId } from '../conditions.js';
+import { type EffectTarget, timerKey } from '../duration.js';
 import { grantSourcesOf, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import { type Supply } from './casting.js';
@@ -330,15 +331,23 @@ export function useItem(
       // deadline instead of filing a second one.
       for (const outcome of resolved.value.outcomes) {
         for (const condition of outcome.conditions ?? []) {
+          const on: EffectTarget = {
+            kind: 'condition',
+            on: outcome.target,
+            instance: conditionInstanceId(condition, source),
+          };
           const timer = schedule(
             world,
-            {
-              kind: 'condition',
-              on: outcome.target,
-              instance: conditionInstanceId(condition, source),
-            },
+            on,
             lasts,
-            undefined,
+            // **The repeat the resolution already filed, kept.** A `save`
+            // effect hands its condition over with the repeat the item printed
+            // and no deadline of its own, because the hour is the conferral's
+            // and not the effect's. `timerKey` is the condition's, so this
+            // event lands on that same record — a timer completed rather than
+            // a second one — and re-stating the deadline without the repeat
+            // would drop the sentence the resolver had just written down.
+            world.timers[timerKey(on)]?.repeatSave,
             undefined,
             conferral.endsEarly,
           );
