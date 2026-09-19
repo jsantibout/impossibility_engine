@@ -15,6 +15,7 @@
  * catalogue.
  */
 import type { CharacterId } from '@ie/shared';
+import type { TurnMoment } from '../duration.js';
 import { areaStampKey, type AreaMoment, type OngoingSpell } from '../spells.js';
 import {
   areaPointAt,
@@ -228,7 +229,7 @@ function oweAreaEffect(
  */
 export function raiseAreaBoundary(
   state: GameState,
-  moment: 'end-of-turn' | 'start-of-turn',
+  moment: TurnMoment,
   whose: CharacterId | undefined,
   turn: number,
 ): GameState {

@@ -16,7 +16,7 @@ import {
 } from '@ie/shared';
 import { isIncapacitated } from '../conditions.js';
 import { type Rng } from '../dice.js';
-import { endOfNextTurn, startOfNextTurn } from '../duration.js';
+import { turnAnchored } from '../duration.js';
 import { type CommandStamp, type GameEvent, type GameState, wearsHeavyArmor } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import { remaining } from '../resources.js';
@@ -580,7 +580,11 @@ export function featureTimer(
   const timer = schedule(
     state,
     { kind: 'feature', on: id, feature: definition.feature },
-    definition.lasts === 'start-of-next-turn' ? startOfNextTurn(id) : endOfNextTurn(id),
+    // The feature's own anchor, carried across rather than branched on: a
+    // mapping from each member of the pair to its constructor is what
+    // `turnAnchored` is, and one written here would be a third place a third
+    // member has to be remembered.
+    turnAnchored(definition.lasts, id),
   );
   if (!timer.ok) return timer;
   return ok(timer.value);

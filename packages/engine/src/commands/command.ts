@@ -122,11 +122,20 @@ export function sceneFor(
  * Duration are three different sentences in three different spells, and the
  * only thing they have in common is the member they resolve to — which is
  * precisely the thing that cannot be answered without a turn order.
+ *
+ * **Keyed by every `Duration` kind, with `null` for the two that are not
+ * moments at all.** A span and an indefinite duration have no printed turn
+ * clause, and saying so is what makes this a total mapping: a sixth member
+ * added to `Duration` fails to compile here rather than falling silently
+ * through to the bare refusal — which is the symptomless hole
+ * `turn-context.test.ts` was written to hunt, closed at the table instead.
  */
-const PRINTED_AS: Readonly<Record<string, string>> = {
+const PRINTED_AS: Readonly<Record<Duration['kind'], string | null>> = {
   'start-of-next-turn': 'until the start of your next turn',
   'end-of-next-turn': 'until the end of your next turn',
   'end-of-current-turn': 'until the end of the current turn',
+  seconds: null,
+  indefinite: null,
 };
 
 /**
@@ -180,8 +189,13 @@ const PRINTED_AS: Readonly<Record<string, string>> = {
  * about a casting, and a request has to be about something.
  */
 export function turnContextFor(refused: Err, duration: Duration, holder: string): Err {
-  const printed = PRINTED_AS[duration.kind];
-  if (printed === undefined) return refused;
+  // A duration that names no moment in the order — a span, no end at all, or
+  // a kind that reached here from outside the compiler — has nothing a turn
+  // order would settle, so its refusal stands as written. The `??` is for the
+  // third of those and only the third: the table is total over the union, and
+  // an untyped caller is still a caller.
+  const printed = PRINTED_AS[duration.kind] ?? null;
+  if (printed === null) return refused;
 
   const subject = 'of' in duration ? duration.of : holder;
 

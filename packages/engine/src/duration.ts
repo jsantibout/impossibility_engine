@@ -59,9 +59,58 @@ export type Deadline =
   | { readonly kind: 'turn-end'; readonly of: CharacterId; readonly count: number }
   | { readonly kind: 'indefinite' };
 
+/**
+ * The two moments a turn has, as the vocabulary everything that fires at one
+ * is written in.
+ *
+ * A repeat save, a payout, an area trigger and a boundary the fold raises all
+ * name the same two words, and before this they each spelled them out — in
+ * four different orders, with nothing tying any of them to this module.
+ * `time-vocabulary.test.ts` holds every other file in the engine to the name.
+ *
+ * **Not to be confused with the turn-anchored {@link Duration} kinds**, which
+ * look almost identical and mean something else entirely:
+ *
+ * | | |
+ * |---|---|
+ * | A {@link TurnMoment} | *when a thing fires* — the start or the end of a turn that is happening |
+ * | A {@link TurnAnchor} | *how long a thing lasts* — until a moment in somebody's **next** turn |
+ *
+ * "At the end of each of its turns, it repeats the save" is the first; "until
+ * the end of your next turn" is the second, and they are a round apart.
+ *
+ * As data as well as a type, because untyped content is checked against it:
+ * `checkSpellDefinition` reads this list exactly as it reads `PAYOUT_KINDS`.
+ */
+export const TURN_MOMENTS = ['start-of-turn', 'end-of-turn'] as const;
+
+/** One of {@link TURN_MOMENTS}. */
+export type TurnMoment = (typeof TURN_MOMENTS)[number];
+
+/**
+ * The {@link Duration} kinds that hang on somebody's next turn.
+ *
+ * Derived from the union rather than listed, which is what keeps it honest: a
+ * turn-anchored member added to `Duration` joins this type the day it lands,
+ * and every `lasts` field written over it accepts the new member without a
+ * second list being remembered. The `of` field is what distinguishes them —
+ * `end-of-current-turn` deliberately names no anchor, which is why it is not
+ * one of these.
+ */
+export type TurnAnchor = Extract<Duration, { readonly of: CharacterId }>['kind'];
+
 export const forSeconds = (seconds: number): Duration => ({ kind: 'seconds', seconds });
 export const startOfNextTurn = (of: CharacterId): Duration => ({ kind: 'start-of-next-turn', of });
 export const endOfNextTurn = (of: CharacterId): Duration => ({ kind: 'end-of-next-turn', of });
+/**
+ * Either turn-anchored duration, chosen by a value rather than by a branch.
+ *
+ * For the caller holding a {@link TurnAnchor} that came out of content — a
+ * feature's `lasts`, read off a class table — where an `if` picking between
+ * the two constructors is a mapping the type system already has. It builds
+ * exactly what they build, so the two spellings cannot drift.
+ */
+export const turnAnchored = (kind: TurnAnchor, of: CharacterId): Duration => ({ kind, of });
 /**
  * SRD "until the end of the current turn".
  *
@@ -263,7 +312,7 @@ export type EffectTarget =
  */
 export interface RepeatSave {
   /** Which boundary it fires on. */
-  readonly at: 'start-of-turn' | 'end-of-turn';
+  readonly at: TurnMoment;
   /** Whose turn. Usually the held creature's own, but the SRD does vary it. */
   readonly of: CharacterId;
   readonly ability: Ability;
@@ -572,7 +621,7 @@ export interface GrantedPayout {
   /** The casting (`Heroism#cast:3`) that promised it. */
   readonly source: string;
   /** The recipient's own boundary — never the caster's. */
-  readonly at: 'start-of-turn' | 'end-of-turn';
+  readonly at: TurnMoment;
   readonly payout: PayoutKind;
   /** Rolled when the boundary arrives, never before. Absent when none is printed. */
   readonly dice?: string;

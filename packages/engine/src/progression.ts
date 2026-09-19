@@ -7,7 +7,7 @@ import {
   type Skill,
 } from '@ie/shared';
 import type { ArmorTraining } from './character.js';
-import type { EffectEndCause } from './duration.js';
+import type { EffectEndCause, TurnAnchor } from './duration.js';
 import type { D20TestKind } from './checks.js';
 import type { ReactionReach } from './reactions.js';
 import type { Recovery } from './resources.js';
@@ -398,7 +398,14 @@ export type FeatureGrant =
       readonly recovers?: Recovery;
       /** SRD Rage: "You regain one expended use when you finish a Short Rest." */
       readonly regainsOnShortRest?: number;
-      readonly lasts: 'end-of-next-turn';
+      /**
+       * Narrower than the `ActivatedFeature` this becomes, and deliberately:
+       * Rage's moment is the only one a written feature has needed, and the
+       * other anchor belongs to Dodge, which is an action rather than a grant.
+       * Expressed against {@link TurnAnchor} rather than as a bare literal, so
+       * widening it to the pair is a word here and not a second vocabulary.
+       */
+      readonly lasts: Extract<TurnAnchor, 'end-of-next-turn'>;
       readonly capSeconds?: number;
       readonly endsOn?: readonly ActivationEnd[];
       readonly forbidsCasting?: boolean;

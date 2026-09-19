@@ -24,7 +24,7 @@ import type {
   SpellDefinition,
   SpellEffect,
 } from './spell-definitions.js';
-import type { PayoutKind } from './duration.js';
+import { TURN_MOMENTS, type PayoutKind } from './duration.js';
 import type { DefenseKind } from './attack.js';
 import type { SpeedChange } from './standing.js';
 import {
@@ -110,6 +110,14 @@ const PAYOUT_KINDS: ReadonlySet<string> = new Set<PayoutKind>([
   'healing',
   'damage',
 ]);
+/**
+ * The two boundaries a turn has, read off the vocabulary rather than listed.
+ *
+ * The other sets here transcribe a union because the union is declared as a
+ * type and a validator needs it as data; `TURN_MOMENTS` is already data, so
+ * the transcription would be the copy this file exists to avoid.
+ */
+const TURN_MOMENT_NAMES: ReadonlySet<string> = new Set<string>(TURN_MOMENTS);
 const CASTING_TIMES: ReadonlySet<string> = new Set([
   'action',
   'bonus-action',
@@ -1299,7 +1307,7 @@ function checkEffect(
      *   downstream could meet a Resistance with.
      */
     case 'turn-payout': {
-      if (effect.at !== 'start-of-turn' && effect.at !== 'end-of-turn') {
+      if (!TURN_MOMENT_NAMES.has(effect.at)) {
         found.push({
           field: `${path}.at`,
           code: 'bad_payout_moment',

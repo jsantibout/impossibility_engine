@@ -3,6 +3,7 @@ import { SPELL_DEFINITIONS, SRD_CONTENT } from '@ie/content';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { isErr } from '@ie/shared';
+import { TURN_MOMENTS } from './duration.js';
 import { type SpellDefinition } from './spell-definitions.js';
 import {
   checkSpellDefinition,
@@ -1419,6 +1420,24 @@ const regionOf = (source: string, name: string): string => {
 const LITERAL_UNION = /^\|?\s*(?:'[a-z0-9-]+'\s*\|\s*)*'[a-z0-9-]+'$/;
 
 /**
+ * Vocabularies the format **names** instead of spelling out, and the members
+ * behind each name.
+ *
+ * A field written `at: TurnMoment` has exactly the members it had when it was
+ * written `at: 'start-of-turn' | 'end-of-turn'` — the reader is what changed,
+ * and a reader that stopped seeing them would be this sweep quietly covering
+ * less while reporting the same. Three fields of the format name that type,
+ * and the pair they all mean is one thing the engine declares once.
+ *
+ * Read out of the engine's own exported list rather than transcribed, which is
+ * the same discipline the format types get: a third moment added to the
+ * vocabulary is a member of every field that names it, here, the day it lands.
+ */
+const VOCABULARIES: Readonly<Record<string, readonly string[]>> = {
+  TurnMoment: TURN_MOMENTS,
+};
+
+/**
  * A union's arms, split at the pipes that are actually pipes.
  *
  * `String.split('|')` is right only while no arm contains one, and an object
@@ -1491,6 +1510,9 @@ const membersOf = (source: string, name: string): readonly FormatMember[] => {
     const [, key, optional, raw] = match;
     const type = raw!.replace(/\s+/g, ' ').trim();
     if (optional === '?') add(`${name}.${key}?`, `${key}?`);
+    for (const value of VOCABULARIES[type] ?? []) {
+      add(`${name}.${key}='${value}'`, `${key}='${value}'`);
+    }
     if (LITERAL_UNION.test(type)) {
       for (const literal of type.split('|')) {
         const value = literal.trim().slice(1, -1);

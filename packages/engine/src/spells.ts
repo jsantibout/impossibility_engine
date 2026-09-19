@@ -1,4 +1,5 @@
 import { err, ok, type Result } from '@ie/shared';
+import type { TurnMoment } from './duration.js';
 import type { Point, PointAnchoring } from './positioning.js';
 import type { AreaTrigger, CastingEndTrigger, SpellArea } from './spell-definitions.js';
 
@@ -478,8 +479,15 @@ export interface CastingNumbers {
  *
  * What the two share is the *consequence*: one debt, one queue, one
  * settlement. The cause is distinguished; the machinery is not duplicated.
+ *
+ * **The two boundaries are {@link TurnMoment} and not this module's own
+ * words.** A creature ending its turn in a Web and a creature ending its turn
+ * Poisoned are the same moment reached by two mechanisms, and an area that
+ * spelled out its own copy of the pair would be a second place to rename.
+ * What is left here is what is genuinely the area's: how a creature came to be
+ * in one.
  */
-export type AreaMoment = 'end-of-turn' | 'area-moved' | 'entry' | 'start-of-turn';
+export type AreaMoment = TurnMoment | 'entry' | 'area-moved';
 
 /**
  * An effect a persistent spell area owes a creature, and has not yet dealt.

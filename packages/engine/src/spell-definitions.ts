@@ -7,6 +7,7 @@ import {
   type Duration,
   type EffectEndCause,
   type PayoutKind,
+  type TurnMoment,
 } from './duration.js';
 import type { DefenseKind } from './attack.js';
 import type { Bonus, BonusApplies } from './bonuses.js';
@@ -330,7 +331,7 @@ export interface ConditionRider {
    * its own would be a second place for one sentence to be got wrong.
    */
   readonly repeats?: {
-    readonly at: 'start-of-turn' | 'end-of-turn';
+    readonly at: TurnMoment;
     readonly onSuccess: 'end-on-target' | 'end-casting';
   };
 }
@@ -760,7 +761,7 @@ export type SpellEffect =
        * SRD "at the start of each of its turns" / "at the end of each of its
        * turns", in {@link AreaTrigger.at}'s own two words.
        */
-      readonly at: 'start-of-turn' | 'end-of-turn';
+      readonly at: TurnMoment;
       /** Which of the three the boundary hands over. */
       readonly payout: PayoutKind;
       /**
@@ -953,7 +954,7 @@ export type SpellEffect =
        * Feeds straight into the turn-hook machinery.
        */
       readonly repeats?: {
-        readonly at: 'start-of-turn' | 'end-of-turn';
+        readonly at: TurnMoment;
         readonly onSuccess: 'end-on-target' | 'end-casting';
       };
       /**
@@ -1410,7 +1411,7 @@ export interface AreaTrigger {
    * Absent means the spell names no boundary at all — which is a real state,
    * not an omission: a spell can trigger only on entry.
    */
-  readonly at?: 'start-of-turn' | 'end-of-turn';
+  readonly at?: TurnMoment;
   /**
    * SRD "enters the area", and how often it may do so in one turn.
    *

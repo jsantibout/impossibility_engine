@@ -33,6 +33,7 @@ import {
   type PendingSave,
   type ScheduledDamage,
   timeView,
+  type TurnMoment,
 } from '../duration.js';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
@@ -201,7 +202,7 @@ interface DuePayout {
 function payoutsAt(
   state: GameState,
   who: CharacterId | undefined,
-  at: 'start-of-turn' | 'end-of-turn',
+  at: TurnMoment,
 ): readonly DuePayout[] {
   if (who === undefined) return [];
   const creature = state.creatures[who];

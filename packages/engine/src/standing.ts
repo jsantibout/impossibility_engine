@@ -8,6 +8,7 @@ import {
   type RollMode,
 } from '@ie/shared';
 import type { Bonus, ModeSource, StandingBonusApplies } from './bonuses.js';
+import type { TurnAnchor } from './duration.js';
 import {
   grantedRollModes,
   selectorMatches,
@@ -507,7 +508,7 @@ export interface ActivatedFeature {
    * until the end of your next turn", Dodge "until the start of your next
    * turn". Nothing derives one from the other.
    */
-  readonly lasts: 'end-of-next-turn' | 'start-of-next-turn';
+  readonly lasts: TurnAnchor;
   /** SRD Rage: "You can maintain a Rage for up to 10 minutes." */
   readonly capSeconds?: number;
   /** What ends it early, each read from the feature's own text. */
