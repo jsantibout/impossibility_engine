@@ -28,7 +28,7 @@ than to the table.
 
 | Parsed | Tracked | Executed | of which partial | Verified |
 |---|---|---|---|---|
-| 339 | 214 (63.1%) | 110 (32.4%) | 53 | 84 (24.8%) |
+| 339 | 215 (63.4%) | 110 (32.4%) | 53 | 84 (24.8%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -230,6 +230,7 @@ of, told apart from the ones a marker found.
 - **Fabricate** (level 4) — 3 noted
 - **Faerie Fire** (level 1) — 4 noted
 - **Faithful Hound** (level 4) — 4 noted
+- **Feather Fall** (level 1) — 3 noted, 2 read
 - **Find Steed** (level 2) — 4 noted
 - **Find the Path** (level 6) — 2 noted
 - **Find Traps** (level 2) — 1 noted
@@ -416,7 +417,6 @@ of *Tracked* and is never added to it.
 |---|---|---|---|---|---|---|---|
 | `an-action-a-spell-compels-or-forbids` | 20 | 1 | 0 | 12 | 6 | 0 | 2 |
 | `a-casting-ended-by-a-trigger` | 14 | 0 | 1 | 3 | 9 | 0 | 2 |
-| `falling` | 2 | 0 | 1 | 0 | 1 | 0 | 1 |
 | `a-random-outcome-that-is-not-a-d20` | 17 | 0 | 0 | 0 | 14 | 0 | 3 |
 | `a-choice-made-at-the-casting` | 15 | 0 | 0 | 4 | 11 | 1 | 0 |
 | `a-stat-block-created-mid-fight` | 14 | 0 | 0 | 1 | 12 | 0 | 1 |
@@ -473,6 +473,7 @@ of *Tracked* and is never added to it.
 | `an-ability-score-a-spell-changes` | 2 | 0 | 0 | 0 | 1 | 0 | 1 |
 | `an-area-moved-by-the-casters-own-movement` | 2 | 0 | 0 | 0 | 2 | 0 | 0 |
 | `an-outcome-that-breaks-concentration` | 2 | 0 | 0 | 0 | 2 | 0 | 0 |
+| `falling` | 2 | 0 | 0 | 0 | 2 | 1 | 0 |
 | `targeting-rules-that-differ-within-one-casting` | 2 | 0 | 0 | 2 | 0 | 0 | 0 |
 | `a-bonus-narrowed-to-a-skill` | 1 | 0 | 0 | 0 | 1 | 1 | 0 |
 | `a-cap-on-how-many-castings-run-at-once` | 1 | 0 | 0 | 0 | 1 | 1 | 0 |
