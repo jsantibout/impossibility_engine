@@ -236,23 +236,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'the half a standing roll-mode already says, and the reason this feature is one shape away rather than two.',
     },
   ],
-  'barbarian:ability-score-improvement': [
-    {
-      clause: 'nothing reads an ability-score grant off a feat',
-      why: 'expressible',
-      note: 'the sentence this note was written against, and it is answered: a feat asks which scores through FeatRequirement, gates on minimumLevel, and has its ability-score-increase grant read by creation, so this catalogue publishes the Ability Score Improvement feat and the points land where the player puts them. What is left of this entry is the note itself, which still says the old thing, and the automation flag beside it — one line of transcription in this class’s own file.'
-    },
-    {
-      clause: 'Whether a feat does anything is a property of the feat, not of this feature',
-      why: 'table',
-      note: 'a feat that does nothing is that feat’s debt, and a feat declares no automation for anything to count.',
-    },
-    {
-      clause: 'this catalogue holds one entry for it',
-      why: 'expressible',
-      note: 'the repeats at the later levels, which four entries with their own ids would say today with no engine change — a transcription this catalogue owes rather than a mechanic it lacks.',
-    },
-  ],
   'barbarian:instinctive-pounce': [
     {
       clause: 'no feature hands its holder a move that costs nothing out of the turn’s allowance',
@@ -342,18 +325,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'the D20 Test half of the substitution the damage dice already have.',
     },
   ],
-  'barbarian:epic-boon': [
-    {
-      clause: 'nothing reads such a grant off a feat',
-      why: 'expressible',
-      note: 'answered with the Improvement’s half: the catalogue publishes the seven Epic Boons the SRD prints, each asking which score and carrying the "to a maximum of 30" that lifts that one score’s ceiling and no other’s, and a level 19 character of this class can be built. What each boon still leaves undone is its own second benefit, which is the boon’s note rather than this feature’s.'
-    },
-    {
-      clause: 'Whether a boon does anything beyond the increase is a property of the boon',
-      why: 'table',
-      note: 'a boon that does nothing is that boon’s, which is the reading the ASI note takes of a feat.',
-    },
-  ],
   'berserker:frenzy': [
     {
       clause: 'a standing effect may require a named feature to be active',
@@ -399,23 +370,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'a rules reading rather than a gap, written down so the 2014 answer does not creep back.',
     },
   ],
-  'bard:ability-score-improvement': [
-    {
-      clause: 'nothing reads an ability-score grant off a feat',
-      why: 'expressible',
-      note: 'the sentence this note was written against, and it is answered: a feat asks which scores through FeatRequirement, gates on minimumLevel, and has its ability-score-increase grant read by creation, so this catalogue publishes the Ability Score Improvement feat and the points land where the player puts them. What is left of this entry is the note itself, which still says the old thing, and the automation flag beside it — one line of transcription in this class’s own file.'
-    },
-    {
-      clause: 'Whether a feat does anything is a property of the feat, not of this feature',
-      why: 'table',
-      note: 'a feat that does nothing is that feat’s debt, and a feat declares no automation for anything to count.',
-    },
-    {
-      clause: 'this catalogue holds one entry for it',
-      why: 'expressible',
-      note: 'the repeats at the later levels, which four entries with their own ids would say today with no engine change — a transcription this catalogue owes rather than a mechanic it lacks.',
-    },
-  ],
   'bard:font-of-inspiration': [
     {
       clause: 'Regaining Bardic Inspiration on a Short Rest',
@@ -459,18 +413,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'the moment is built — a recovery may fire at Initiative — and "until you have two" is the sizing that is not.',
     },
   ],
-  'bard:epic-boon': [
-    {
-      clause: 'nothing reads such a grant off a feat',
-      why: 'expressible',
-      note: 'answered with the Improvement’s half: the catalogue publishes the seven Epic Boons the SRD prints, each asking which score and carrying the "to a maximum of 30" that lifts that one score’s ceiling and no other’s, and a level 19 character of this class can be built. What each boon still leaves undone is its own second benefit, which is the boon’s note rather than this feature’s.'
-    },
-    {
-      clause: 'Whether a boon does anything beyond the increase is a property of the boon',
-      why: 'table',
-      note: 'a boon that does nothing is that boon’s, which is the reading the ASI note takes of a feat.',
-    },
-  ],
   'bard:words-of-creation': [
     {
       clause: 'Power Word Heal and Power Word Kill always prepared',
@@ -509,23 +451,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'a number read off the holder’s own sheet, which only a save bonus does.',
     },
   ],
-  'cleric:ability-score-improvement': [
-    {
-      clause: 'nothing reads an ability-score grant off a feat',
-      why: 'expressible',
-      note: 'the sentence this note was written against, and it is answered: a feat asks which scores through FeatRequirement, gates on minimumLevel, and has its ability-score-increase grant read by creation, so this catalogue publishes the Ability Score Improvement feat and the points land where the player puts them. What is left of this entry is the note itself, which still says the old thing, and the automation flag beside it — one line of transcription in this class’s own file.'
-    },
-    {
-      clause: 'Whether a feat does anything is a property of the feat, not of this feature',
-      why: 'table',
-      note: 'a feat that does nothing is that feat’s debt, and a feat declares no automation for anything to count.',
-    },
-    {
-      clause: 'this catalogue holds one entry for it',
-      why: 'expressible',
-      note: 'the repeats at the later levels, which four entries with their own ids would say today with no engine change — a transcription this catalogue owes rather than a mechanic it lacks.',
-    },
-  ],
   'cleric:sear-undead': [
     {
       clause: 'Turn Undead itself is a Channel Divinity option the engine does not execute',
@@ -548,18 +473,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'the once-per-long-rest limit is not tracked',
       why: 'a-casting-paid-for-out-of-a-feature-pool',
       note: 'a pool of one behind a free casting, which only an item’s `casts` grant has.',
-    },
-  ],
-  'cleric:epic-boon': [
-    {
-      clause: 'nothing reads such a grant off a feat',
-      why: 'expressible',
-      note: 'answered with the Improvement’s half: the catalogue publishes the seven Epic Boons the SRD prints, each asking which score and carrying the "to a maximum of 30" that lifts that one score’s ceiling and no other’s, and a level 19 character of this class can be built. What each boon still leaves undone is its own second benefit, which is the boon’s note rather than this feature’s.'
-    },
-    {
-      clause: 'Whether a boon does anything beyond the increase is a property of the boon',
-      why: 'table',
-      note: 'a boon that does nothing is that boon’s, which is the reading the ASI note takes of a feat.',
     },
   ],
   'cleric:greater-divine-intervention': [
@@ -640,23 +553,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'and the catalogue defines no Find Familiar either, so the casting would have nothing to run.',
     },
   ],
-  'druid:ability-score-improvement': [
-    {
-      clause: 'nothing reads an ability-score grant off a feat',
-      why: 'expressible',
-      note: 'the sentence this note was written against, and it is answered: a feat asks which scores through FeatRequirement, gates on minimumLevel, and has its ability-score-increase grant read by creation, so this catalogue publishes the Ability Score Improvement feat and the points land where the player puts them. What is left of this entry is the note itself, which still says the old thing, and the automation flag beside it — one line of transcription in this class’s own file.'
-    },
-    {
-      clause: 'Whether a feat does anything is a property of the feat, not of this feature',
-      why: 'table',
-      note: 'a feat that does nothing is that feat’s debt, and a feat declares no automation for anything to count.',
-    },
-    {
-      clause: 'this catalogue holds one entry for it',
-      why: 'expressible',
-      note: 'the repeats at the later levels, which four entries with their own ids would say today with no engine change — a transcription this catalogue owes rather than a mechanic it lacks.',
-    },
-  ],
   'druid:wild-resurgence': [
     {
       clause: 'Trading a Wild Shape use for a level 1 slot, and the reverse',
@@ -669,18 +565,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'Casting while Wild Shaped is not modelled, because Wild Shape is not',
       why: 'a-creature-fact-an-effect-overrides',
       note: 'Wild Shape writes over what the engine holds authoritatively about a creature, which is the spell map’s own id for Arcanist’s Magic Aura.',
-    },
-  ],
-  'druid:epic-boon': [
-    {
-      clause: 'nothing reads such a grant off a feat',
-      why: 'expressible',
-      note: 'answered with the Improvement’s half: the catalogue publishes the seven Epic Boons the SRD prints, each asking which score and carrying the "to a maximum of 30" that lifts that one score’s ceiling and no other’s, and a level 19 character of this class can be built. What each boon still leaves undone is its own second benefit, which is the boon’s note rather than this feature’s.'
-    },
-    {
-      clause: 'Whether a boon does anything beyond the increase is a property of the boon',
-      why: 'table',
-      note: 'a boon that does nothing is that boon’s, which is the reading the ASI note takes of a feat.',
     },
   ],
   'druid:archdruid': [
@@ -723,23 +607,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'the same shape the other four classes want, with the properties spelled out.',
     },
   ],
-  'fighter:ability-score-improvement': [
-    {
-      clause: 'nothing reads an ability-score grant off a feat',
-      why: 'expressible',
-      note: 'the sentence this note was written against, and it is answered: a feat asks which scores through FeatRequirement, gates on minimumLevel, and has its ability-score-increase grant read by creation, so this catalogue publishes the Ability Score Improvement feat and the points land where the player puts them. What is left of this entry is the note itself, which still says the old thing, and the automation flag beside it — one line of transcription in this class’s own file.'
-    },
-    {
-      clause: 'Whether a feat does anything is a property of the feat, not of this feature',
-      why: 'table',
-      note: 'a feat that does nothing is that feat’s debt, and a feat declares no automation for anything to count.',
-    },
-    {
-      clause: 'this catalogue holds one entry for it',
-      why: 'expressible',
-      note: 'the repeats at the later levels, which four entries with their own ids would say today with no engine change — a transcription this catalogue owes rather than a mechanic it lacks.',
-    },
-  ],
   'fighter:tactical-shift': [
     {
       clause: 'The free half-Speed move on a Second Wind',
@@ -759,18 +626,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'Advantage on the next attack after a miss is not tracked between attacks',
       why: 'a-one-shot-roll-modifier',
       note: 'the spell map’s own id: a mode consumed by the roll it changes.',
-    },
-  ],
-  'fighter:epic-boon': [
-    {
-      clause: 'nothing reads such a grant off a feat',
-      why: 'expressible',
-      note: 'answered with the Improvement’s half: the catalogue publishes the seven Epic Boons the SRD prints, each asking which score and carrying the "to a maximum of 30" that lifts that one score’s ceiling and no other’s, and a level 19 character of this class can be built. What each boon still leaves undone is its own second benefit, which is the boon’s note rather than this feature’s.'
-    },
-    {
-      clause: 'Whether a boon does anything beyond the increase is a property of the boon',
-      why: 'table',
-      note: 'a boon that does nothing is that boon’s, which is the reading the ASI note takes of a feat.',
     },
   ],
   'champion:additional-fighting-style': [
@@ -811,23 +666,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'the attack layer reads a weapon or the fixed Unarmed Strike, and has no notion of a class changing either',
       why: 'an-attack-the-class-redefines',
       note: 'the growing die, the Dexterity fist and the Bonus Action strike are three sentences of one absence.',
-    },
-  ],
-  'monk:ability-score-improvement': [
-    {
-      clause: 'nothing reads an ability-score grant off a feat',
-      why: 'expressible',
-      note: 'the sentence this note was written against, and it is answered: a feat asks which scores through FeatRequirement, gates on minimumLevel, and has its ability-score-increase grant read by creation, so this catalogue publishes the Ability Score Improvement feat and the points land where the player puts them. What is left of this entry is the note itself, which still says the old thing, and the automation flag beside it — one line of transcription in this class’s own file.'
-    },
-    {
-      clause: 'Whether a feat does anything is a property of the feat, not of this feature',
-      why: 'table',
-      note: 'a feat that does nothing is that feat’s debt, and a feat declares no automation for anything to count.',
-    },
-    {
-      clause: 'this catalogue holds one entry for it',
-      why: 'expressible',
-      note: 'the repeats at the later levels, which four entries with their own ids would say today with no engine change — a transcription this catalogue owes rather than a mechanic it lacks.',
     },
   ],
   'monk:slow-fall': [
@@ -911,18 +749,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'and it costs three Focus Points at once, where an activation spends exactly one use.',
     },
   ],
-  'monk:epic-boon': [
-    {
-      clause: 'nothing reads such a grant off a feat',
-      why: 'expressible',
-      note: 'answered with the Improvement’s half: the catalogue publishes the seven Epic Boons the SRD prints, each asking which score and carrying the "to a maximum of 30" that lifts that one score’s ceiling and no other’s, and a level 19 character of this class can be built. What each boon still leaves undone is its own second benefit, which is the boon’s note rather than this feature’s.'
-    },
-    {
-      clause: 'Whether a boon does anything beyond the increase is a property of the boon',
-      why: 'table',
-      note: 'a boon that does nothing is that boon’s, which is the reading the ASI note takes of a feat.',
-    },
-  ],
   'open-hand:technique': [
     {
       clause: 'because Flurry of Blows is not',
@@ -982,23 +808,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'and casting it as a Bonus Action after a hit, which changes what the casting costs and when.',
     },
   ],
-  'paladin:ability-score-improvement': [
-    {
-      clause: 'nothing reads an ability-score grant off a feat',
-      why: 'expressible',
-      note: 'the sentence this note was written against, and it is answered: a feat asks which scores through FeatRequirement, gates on minimumLevel, and has its ability-score-increase grant read by creation, so this catalogue publishes the Ability Score Improvement feat and the points land where the player puts them. What is left of this entry is the note itself, which still says the old thing, and the automation flag beside it — one line of transcription in this class’s own file.'
-    },
-    {
-      clause: 'Whether a feat does anything is a property of the feat, not of this feature',
-      why: 'table',
-      note: 'a feat that does nothing is that feat’s debt, and a feat declares no automation for anything to count.',
-    },
-    {
-      clause: 'this catalogue holds one entry for it',
-      why: 'expressible',
-      note: 'the repeats at the later levels, which four entries with their own ids would say today with no engine change — a transcription this catalogue owes rather than a mechanic it lacks.',
-    },
-  ],
   'paladin:faithful-steed': [
     {
       clause: 'Find Steed always prepared',
@@ -1031,18 +840,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'which is the action economy answering to somebody other than the engine',
       why: 'an-action-a-spell-compels-or-forbids',
       note: 'the restriction on what a Frightened target may do on its turns.',
-    },
-  ],
-  'paladin:epic-boon': [
-    {
-      clause: 'nothing reads such a grant off a feat',
-      why: 'expressible',
-      note: 'answered with the Improvement’s half: the catalogue publishes the seven Epic Boons the SRD prints, each asking which score and carrying the "to a maximum of 30" that lifts that one score’s ceiling and no other’s, and a level 19 character of this class can be built. What each boon still leaves undone is its own second benefit, which is the boon’s note rather than this feature’s.'
-    },
-    {
-      clause: 'Whether a boon does anything beyond the increase is a property of the boon',
-      why: 'table',
-      note: 'a boon that does nothing is that boon’s, which is the reading the ASI note takes of a feat.',
     },
   ],
   'oath-of-devotion:sacred-weapon': [
@@ -1119,23 +916,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'the feat’s own debt, exactly as the Fighter’s Fighting Style is.',
     },
   ],
-  'ranger:ability-score-improvement': [
-    {
-      clause: 'nothing reads an ability-score grant off a feat',
-      why: 'expressible',
-      note: 'the sentence this note was written against, and it is answered: a feat asks which scores through FeatRequirement, gates on minimumLevel, and has its ability-score-increase grant read by creation, so this catalogue publishes the Ability Score Improvement feat and the points land where the player puts them. What is left of this entry is the note itself, which still says the old thing, and the automation flag beside it — one line of transcription in this class’s own file.'
-    },
-    {
-      clause: 'Whether a feat does anything is a property of the feat, not of this feature',
-      why: 'table',
-      note: 'a feat that does nothing is that feat’s debt, and a feat declares no automation for anything to count.',
-    },
-    {
-      clause: 'this catalogue holds one entry for it',
-      why: 'expressible',
-      note: 'the repeats at the later levels, which four entries with their own ids would say today with no engine change — a transcription this catalogue owes rather than a mechanic it lacks.',
-    },
-  ],
   'ranger:tireless': [
     {
       clause: 'Temporary Hit Points as a Magic action',
@@ -1177,18 +957,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'The mark itself is tracked',
       why: 'expressible',
       note: 'recorded because the note used to claim otherwise: Hunter’s Mark is executed and the rider fires only at its target.',
-    },
-  ],
-  'ranger:epic-boon': [
-    {
-      clause: 'nothing reads such a grant off a feat',
-      why: 'expressible',
-      note: 'answered with the Improvement’s half: the catalogue publishes the seven Epic Boons the SRD prints, each asking which score and carrying the "to a maximum of 30" that lifts that one score’s ceiling and no other’s, and a level 19 character of this class can be built. What each boon still leaves undone is its own second benefit, which is the boon’s note rather than this feature’s.'
-    },
-    {
-      clause: 'Whether a boon does anything beyond the increase is a property of the boon',
-      why: 'table',
-      note: 'a boon that does nothing is that boon’s, which is the reading the ASI note takes of a feat.',
     },
   ],
   'ranger:foe-slayer': [
@@ -1276,23 +1044,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'both halves of the Speed sentence are built, which is why they are recorded rather than counted as missing.',
     },
   ],
-  'rogue:ability-score-improvement': [
-    {
-      clause: 'nothing reads an ability-score grant off a feat',
-      why: 'expressible',
-      note: 'the sentence this note was written against, and it is answered: a feat asks which scores through FeatRequirement, gates on minimumLevel, and has its ability-score-increase grant read by creation, so this catalogue publishes the Ability Score Improvement feat and the points land where the player puts them. What is left of this entry is the note itself, which still says the old thing, and the automation flag beside it — one line of transcription in this class’s own file.'
-    },
-    {
-      clause: 'Whether a feat does anything is a property of the feat, not of this feature',
-      why: 'table',
-      note: 'a feat that does nothing is that feat’s debt, and a feat declares no automation for anything to count.',
-    },
-    {
-      clause: 'this catalogue holds one entry for it',
-      why: 'expressible',
-      note: 'the repeats at the later levels, which four entries with their own ids would say today with no engine change — a transcription this catalogue owes rather than a mechanic it lacks.',
-    },
-  ],
   'rogue:cunning-strike': [
     {
       clause: 'spending some of those dice as a price',
@@ -1371,18 +1122,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'No attack roll having Advantage against you while you are not Incapacitated',
       why: 'a-roll-mode-a-feature-takes-away',
       note: 'a mode cancelled rather than opposed, which the presence model has no member for.',
-    },
-  ],
-  'rogue:epic-boon': [
-    {
-      clause: 'nothing reads such a grant off a feat',
-      why: 'expressible',
-      note: 'answered with the Improvement’s half: the catalogue publishes the seven Epic Boons the SRD prints, each asking which score and carrying the "to a maximum of 30" that lifts that one score’s ceiling and no other’s, and a level 19 character of this class can be built. What each boon still leaves undone is its own second benefit, which is the boon’s note rather than this feature’s.'
-    },
-    {
-      clause: 'Whether a boon does anything beyond the increase is a property of the boon',
-      why: 'table',
-      note: 'a boon that does nothing is that boon’s, which is the reading the ASI note takes of a feat.',
     },
   ],
   'rogue:stroke-of-luck': [
@@ -1478,23 +1217,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'every other option changes the casting — its range, its targets, its components, its action — for Sorcery Points.',
     },
   ],
-  'sorcerer:ability-score-improvement': [
-    {
-      clause: 'nothing reads an ability-score grant off a feat',
-      why: 'expressible',
-      note: 'the sentence this note was written against, and it is answered: a feat asks which scores through FeatRequirement, gates on minimumLevel, and has its ability-score-increase grant read by creation, so this catalogue publishes the Ability Score Improvement feat and the points land where the player puts them. What is left of this entry is the note itself, which still says the old thing, and the automation flag beside it — one line of transcription in this class’s own file.'
-    },
-    {
-      clause: 'Whether a feat does anything is a property of the feat, not of this feature',
-      why: 'table',
-      note: 'a feat that does nothing is that feat’s debt, and a feat declares no automation for anything to count.',
-    },
-    {
-      clause: 'this catalogue holds one entry for it',
-      why: 'expressible',
-      note: 'the repeats at the later levels, which four entries with their own ids would say today with no engine change — a transcription this catalogue owes rather than a mechanic it lacks.',
-    },
-  ],
   'sorcerer:sorcery-incarnate': [
     {
       clause: 'Using two Metamagic options on one spell',
@@ -1505,18 +1227,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'spending Sorcery Points to use Innate Sorcery again',
       why: 'a-resource-traded-for-another',
       note: 'one pool spent to refill another.',
-    },
-  ],
-  'sorcerer:epic-boon': [
-    {
-      clause: 'nothing reads such a grant off a feat',
-      why: 'expressible',
-      note: 'answered with the Improvement’s half: the catalogue publishes the seven Epic Boons the SRD prints, each asking which score and carrying the "to a maximum of 30" that lifts that one score’s ceiling and no other’s, and a level 19 character of this class can be built. What each boon still leaves undone is its own second benefit, which is the boon’s note rather than this feature’s.'
-    },
-    {
-      clause: 'Whether a boon does anything beyond the increase is a property of the boon',
-      why: 'table',
-      note: 'a boon that does nothing is that boon’s, which is the reading the ASI note takes of a feat.',
     },
   ],
   'sorcerer:arcane-apotheosis': [
@@ -1578,23 +1288,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'the half of the list that names a mechanic rather than a catalogue entry.',
     },
   ],
-  'warlock:ability-score-improvement': [
-    {
-      clause: 'nothing reads an ability-score grant off a feat',
-      why: 'expressible',
-      note: 'the sentence this note was written against, and it is answered: a feat asks which scores through FeatRequirement, gates on minimumLevel, and has its ability-score-increase grant read by creation, so this catalogue publishes the Ability Score Improvement feat and the points land where the player puts them. What is left of this entry is the note itself, which still says the old thing, and the automation flag beside it — one line of transcription in this class’s own file.'
-    },
-    {
-      clause: 'Whether a feat does anything is a property of the feat, not of this feature',
-      why: 'table',
-      note: 'a feat that does nothing is that feat’s debt, and a feat declares no automation for anything to count.',
-    },
-    {
-      clause: 'this catalogue holds one entry for it',
-      why: 'expressible',
-      note: 'the repeats at the later levels, which four entries with their own ids would say today with no engine change — a transcription this catalogue owes rather than a mechanic it lacks.',
-    },
-  ],
   'warlock:contact-patron': [
     {
       clause: 'Contact Other Plane always prepared',
@@ -1617,18 +1310,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'One free casting each of a level 6, 7, 8 and 9 spell',
       why: 'a-feature-that-carries-a-second-grant',
       note: 'and the spells are chosen at four different levels on one feature, which one grant cannot hold.',
-    },
-  ],
-  'warlock:epic-boon': [
-    {
-      clause: 'nothing reads such a grant off a feat',
-      why: 'expressible',
-      note: 'answered with the Improvement’s half: the catalogue publishes the seven Epic Boons the SRD prints, each asking which score and carrying the "to a maximum of 30" that lifts that one score’s ceiling and no other’s, and a level 19 character of this class can be built. What each boon still leaves undone is its own second benefit, which is the boon’s note rather than this feature’s.'
-    },
-    {
-      clause: 'Whether a boon does anything beyond the increase is a property of the boon',
-      why: 'table',
-      note: 'a boon that does nothing is that boon’s, which is the reading the ASI note takes of a feat.',
     },
   ],
   'warlock:eldritch-master': [
@@ -1683,23 +1364,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'a refusal the casting layer owns, recorded so the feature’s note stays true to it.',
     },
   ],
-  'wizard:ability-score-improvement': [
-    {
-      clause: 'nothing reads an ability-score grant off a feat',
-      why: 'expressible',
-      note: 'the sentence this note was written against, and it is answered: a feat asks which scores through FeatRequirement, gates on minimumLevel, and has its ability-score-increase grant read by creation, so this catalogue publishes the Ability Score Improvement feat and the points land where the player puts them. What is left of this entry is the note itself, which still says the old thing, and the automation flag beside it — one line of transcription in this class’s own file.'
-    },
-    {
-      clause: 'Whether a feat does anything is a property of the feat, not of this feature',
-      why: 'table',
-      note: 'a feat that does nothing is that feat’s debt, and a feat declares no automation for anything to count.',
-    },
-    {
-      clause: 'this catalogue holds one entry for it',
-      why: 'expressible',
-      note: 'the repeats at the later levels, which four entries with their own ids would say today with no engine change — a transcription this catalogue owes rather than a mechanic it lacks.',
-    },
-  ],
   'wizard:memorize-spell': [
     {
       clause: 'Swapping a prepared spell on a Short Rest',
@@ -1712,18 +1376,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'Casting the chosen spells at will',
       why: 'a-casting-paid-for-out-of-a-feature-pool',
       note: 'the at-will end of the same grant: an item may cast for nothing and a feature may not.',
-    },
-  ],
-  'wizard:epic-boon': [
-    {
-      clause: 'nothing reads such a grant off a feat',
-      why: 'expressible',
-      note: 'answered with the Improvement’s half: the catalogue publishes the seven Epic Boons the SRD prints, each asking which score and carrying the "to a maximum of 30" that lifts that one score’s ceiling and no other’s, and a level 19 character of this class can be built. What each boon still leaves undone is its own second benefit, which is the boon’s note rather than this feature’s.'
-    },
-    {
-      clause: 'Whether a boon does anything beyond the increase is a property of the boon',
-      why: 'table',
-      note: 'a boon that does nothing is that boon’s, which is the reading the ASI note takes of a feat.',
     },
   ],
   'wizard:signature-spells': [

@@ -296,18 +296,21 @@ describe('what a shape finishes is the column a tranche is planned from', () => 
     }
 
     /**
-     * And the twenty-four entries stayed, which is the honest state of them:
-     * each still carries `automation: 'manual'` and a note written when the
-     * host was missing, so the coverage guard still wants a line. What
-     * changed is that no clause of any of them names a missing mechanic.
+     * And the twenty-four entries are gone with them, which is the last half
+     * of the same retirement. They stayed one batch longer than the shapes
+     * did — each still carrying `automation: 'manual'` and a note written
+     * when the host was missing — because a line saying "nothing blocks this"
+     * is the honest record of a feature nobody had transcribed yet. The
+     * transcription landed: every Improvement and every Epic Boon declares
+     * `engine`, so the coverage guard wants no line and a line would be
+     * {@link featureCoverageGaps}'s `stale`.
      */
-    const advancement = Object.entries(FEATURE_BLOCKED_ON).filter(
-      ([id]) => id.endsWith(':ability-score-improvement') || id.endsWith(':epic-boon'),
+    const advancement = Object.keys(FEATURE_BLOCKED_ON).filter(
+      (id) => id.includes(':ability-score-improvement') || id.endsWith(':epic-boon'),
     );
-    expect(advancement).toHaveLength(24);
-    for (const [id, entry] of advancement) {
-      expect(featureBlockersIn(entry), id).toEqual([]);
-    }
+    expect(advancement).toEqual([]);
+    expect(MANUAL.filter((id) => id.endsWith(':epic-boon'))).toEqual([]);
+    expect(MANUAL.filter((id) => id.includes(':ability-score-improvement'))).toEqual([]);
 
     // And the two that really do carry the sentence on the feature are
     // executed, so they left the map rather than moving to a new id.
@@ -368,20 +371,25 @@ describe('the features blocked by nothing', () => {
   });
 
   /**
-   * And they are a **smaller** pile than the features blocked by nothing,
-   * which is the distinction the advancement shape’s retirement created.
+   * And the two piles are the same one again, which is what finishing the
+   * advancement work did to them.
    *
-   * Twenty-four features name no missing mechanic now and are not fiction:
-   * the engine does what their sentence says and their entry is waiting on
-   * the note and the automation flag in the class file. Filing them under
-   * the table would tell a builder to stop reading them.
+   * For one batch they differed: twenty-four features named no missing
+   * mechanic, because the engine already did what their sentence said and
+   * only the note and the automation flag in the class file were outstanding.
+   * Transcribing those took all twenty-four out of the map altogether — they
+   * are executed, not blocked by nothing — so what is left blocked by nothing
+   * is exactly what the **table** owns. The two functions are kept apart
+   * rather than merged, because the day a twenty-fifth is transcribed and
+   * half-recorded is the day they differ again and this assertion says so.
    */
-  it('is a smaller pile than the features nothing blocks', () => {
+  it('is the same pile as the features the table owns', () => {
     const nothing = featuresBlockedByNothing();
     for (const id of featuresTheTableOwns()) expect(nothing).toContain(id);
-    expect(nothing.length).toBe(featuresTheTableOwns().length + 24);
-    expect(nothing).toContain('wizard:epic-boon');
-    expect(featuresTheTableOwns()).not.toContain('wizard:epic-boon');
+    expect(nothing.length).toBe(featuresTheTableOwns().length);
+    // The feature that used to be the example on the other side of the line.
+    expect(nothing).not.toContain('wizard:epic-boon');
+    expect(MANUAL).not.toContain('wizard:epic-boon');
   });
 
   /**

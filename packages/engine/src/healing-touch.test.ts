@@ -84,13 +84,13 @@ const paladin = (level: number): CharacterChoices => ({
     'human:versatile': { featId: 'alert' },
     ...(level >= 2 ? { 'paladin:fighting-style': { featId: 'defense' } } : {}),
     ...(level >= 4 ? { 'paladin:ability-score-improvement': { featId: 'savage-attacker' } } : {}),
-    ...(level >= 8 ? { 'paladin:ability-score-improvement-2': { featId: 'alert' } } : {}),
-    ...(level >= 12
-      ? { 'paladin:ability-score-improvement-3': { featId: 'savage-attacker' } }
-      : {}),
-    ...(level >= 16
-      ? { 'paladin:ability-score-improvement-4': { featId: 'savage-attacker' } }
-      : {}),
+    // The three repeats the Paladin's table prints, each a grant of its own.
+    // Only a repeatable feat can fill more than one, and the SRD's Ability
+    // Score Improvement is the repeatable one; its points go into
+    // Intelligence, which nothing here reads.
+    ...(level >= 8 ? { 'paladin:ability-score-improvement-2': { featId: 'ability-score-improvement', abilities: ['int', 'int'] } } : {}),
+    ...(level >= 12 ? { 'paladin:ability-score-improvement-3': { featId: 'ability-score-improvement', abilities: ['int', 'int'] } } : {}),
+    ...(level >= 16 ? { 'paladin:ability-score-improvement-4': { featId: 'ability-score-improvement', abilities: ['int', 'int'] } } : {}),
   },
   dmGrants: { items: [], goldPieces: 0, magicItems: [], note: 'standard' },
 });

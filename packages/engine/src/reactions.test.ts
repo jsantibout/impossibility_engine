@@ -107,13 +107,26 @@ const common = {
   },
 };
 
+/**
+ * Every Ability Score Improvement slot the class table has printed by this
+ * level, answered.
+ *
+ * The ids were written here before the catalogue published them, when the
+ * class held one entry and these keys were quietly ignored; they resolve now,
+ * so the *feats* have to be legal as well as the keys. Only the first is
+ * Savage Attacker, because no feat but a repeatable one may be taken twice
+ * and the SRD's own Ability Score Improvement is the repeatable one. Its
+ * points go into Charisma, which no assertion in this file reads.
+ */
 const asi = (prefix: string, level: number, at: readonly number[]): Record<string, unknown> =>
   Object.fromEntries(
     at
       .filter((n) => level >= n)
       .map((_at, index) => [
         index === 0 ? `${prefix}:ability-score-improvement` : `${prefix}:ability-score-improvement-${index + 1}`,
-        { featId: 'savage-attacker' },
+        index === 0
+          ? { featId: 'savage-attacker' }
+          : { featId: 'ability-score-improvement', abilities: ['cha', 'cha'] },
       ]),
   );
 

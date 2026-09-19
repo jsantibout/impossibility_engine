@@ -48,11 +48,20 @@ import {
  * `ability-score` choice, which no SRD class writes, is driven through a
  * homebrew class in `packages/engine/src/ability-score-improvement.test.ts`.
  *
- * What is still left on the twenty-four is not a mechanic: each carries
- * `automation: 'manual'` and a note written when the host was missing, and
- * the class table grants the Improvement again at levels 8, 12 and 16 while
- * this catalogue holds one entry per class. Both are transcription in
- * `classes/*.ts`, and `missing-feature-shapes.ts` says so against each.
+ * **And the transcription landed.** What was left on the twenty-four after
+ * the host was built was not a mechanic but two lines of catalogue: each
+ * carried `automation: 'manual'` and a note written when the host was
+ * missing, and the class table grants the Improvement again at later levels
+ * where this catalogue held one entry per class. Both are done — the flag
+ * reads `engine`, the notes say what the engine does, and the repeats are
+ * their own entries with their own ids. `advancement-repeats.test.ts` holds
+ * the levels to `classes.md`; the twenty-four entries in
+ * `missing-feature-shapes.ts` are gone, because a map of what is *missing*
+ * has nothing to say about them.
+ *
+ * So the number in the title below is the number of **features the SRD
+ * paragraph is printed on**, twelve of each, and not the number of grants a
+ * party of twelve level 20 characters is offered, which is larger.
  */
 
 /**
@@ -168,19 +177,56 @@ const improving = (abilities: readonly string[]): FeatChoice => ({
 });
 
 /**
- * Both advancement feats a level 19 character of this class owes, answered.
+ * Every Improvement slot a character of this class and level owes, in the
+ * order the table prints them.
  *
- * Charisma by default at both slots, because every class in this file has one
- * to spare and the score under test is whichever a caller names.
+ * Read off the catalogue here, deliberately, and held to the SRD by hand
+ * somewhere else: `advancement-repeats.test.ts` writes the levels out of
+ * `classes.md` and asserts the catalogue matches. This file's subject is the
+ * feat door rather than the table, so what it needs is "whatever slots exist,
+ * filled" — and a fixture that missed one would fail here as a
+ * `missing_feat_choice` rather than pass quietly.
+ */
+const improvementSlots = (classId: string, level: number): readonly string[] =>
+  (SRD_CONTENT.classById(classId)?.features ?? [])
+    .filter(
+      (feature) =>
+        feature.id.startsWith(`${classId}:ability-score-improvement`) && feature.level <= level,
+    )
+    .map((feature) => feature.id);
+
+/**
+ * Every advancement feat a level 19 character of this class owes, answered.
+ *
+ * Charisma by default everywhere, because every class in this file has one to
+ * spare and the score under test is whichever a caller names. The first
+ * Improvement takes the spread the caller passed; the repeats at 8, 12 and 16
+ * — and the Fighter's two more, and the Rogue's one — each take a point in
+ * each of two Charismas, which is a legal spread that disturbs no score any
+ * assertion here is about.
  */
 const atNineteen = (
   classId: string,
   boon: readonly string[] = ['cha'],
   improvement: readonly string[] = ['cha'],
 ): FeatsBySlot => ({
-  [`${classId}:ability-score-improvement`]: improving(improvement),
+  ...improvementsThrough(classId, 19, improvement),
   [`${classId}:epic-boon`]: { featId: BOON, abilities: boon },
 });
+
+/** The Improvement slots up to a level, the first as given and the rest spare. */
+const improvementsThrough = (
+  classId: string,
+  level: number,
+  first: readonly string[],
+  spare: readonly string[] = ['cha', 'cha'],
+): FeatsBySlot =>
+  Object.fromEntries(
+    improvementSlots(classId, level).map((id, index) => [
+      id,
+      improving(index === 0 ? first : spare),
+    ]),
+  );
 
 /** The problems one feature caused, out of everything wrong with the sheet. */
 const about = (
@@ -227,7 +273,11 @@ describe('the twenty-four class features grant a feat, and say so', () => {
         for (const feature of [improvement, boon]) {
           expect(feature.choice?.kind).not.toBe('ability-score');
           expect(feature.grants).toBeUndefined();
-          expect(feature.automation).toBe('manual');
+          // And it is executed all the same: `choice` is a field a reader
+          // discriminates on, so granting a feat the player names *is* the
+          // whole of what the engine has to do here. The flag said `manual`
+          // for as long as nothing read an ability-score grant off a feat.
+          expect(feature.automation).toBe('engine');
         }
       });
 
@@ -423,8 +473,14 @@ describe('Primal Champion and Body and Mind raise two scores each', () => {
 
   const capstone = (classId: string) => featureOn(classId, classId === 'monk' ? 'body-and-mind' : 'primal-champion');
 
+  /**
+   * Every advancement slot, answered so that nothing lands on the four scores
+   * the two capstones name. Charisma and Intelligence are the only two no
+   * assertion below reads, and a spread of one point into each is what the
+   * Improvement feat's second branch prints.
+   */
   const withFeats = (classId: string, level: number): FeatsBySlot => ({
-    ...(level >= 4 ? { [`${classId}:ability-score-improvement`]: { featId: 'savage-attacker' } } : {}),
+    ...(level >= 4 ? improvementsThrough(classId, level, ['cha', 'int'], ['cha', 'int']) : {}),
     ...(level >= 19 ? { [`${classId}:epic-boon`]: { featId: BOON, abilities: ['cha'] } } : {}),
   });
 

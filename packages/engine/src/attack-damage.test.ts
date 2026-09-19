@@ -259,7 +259,13 @@ describe('a feature can add damage of another type instead', () => {
       'human:versatile': { featId: 'alert' },
       'paladin:fighting-style': { featId: 'defense' },
       'paladin:ability-score-improvement': { featId: 'savage-attacker' },
-      'paladin:ability-score-improvement-8': { featId: 'skilled' },
+      // The repeat at Paladin 8. Its id carries the *ordinal* the table prints
+      // it at, not the level — this fixture said `-8` for as long as the
+      // catalogue published no repeat at all and the key went unread.
+      'paladin:ability-score-improvement-2': {
+        featId: 'ability-score-improvement',
+        abilities: ['int', 'int'],
+      },
     },
     dmGrants: { items: [], goldPieces: 0, magicItems: [], note: 'standard' },
   });

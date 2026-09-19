@@ -188,12 +188,26 @@ describe('a ceiling read off a feat, for the score it raised and no other', () =
     abilityIncreases: { str: 2, con: 1 },
   };
 
+  /**
+   * The Fighter's table prints the Improvement six times, so a level 19 one
+   * owes five more grants than this file is about. They take the SRD's own
+   * repeatable Improvement feat and put its points into Charisma, which
+   * nothing here reads.
+   */
+  const spare = (): Readonly<Record<string, Record<string, unknown>>> =>
+    Object.fromEntries(
+      [2, 3, 4, 5, 6].map((ordinal) => [
+        `${ASI}-${ordinal}`,
+        { featId: 'ability-score-improvement', abilities: ['cha', 'cha'] },
+      ]),
+    );
+
   const atNineteen = (boon: readonly string[], asi: readonly string[] = ['wis', 'cha']) =>
     taking(
       19,
       ASI,
       { featId: 'refinement', abilities: asi },
-      { [BOON]: { featId: 'boon-of-sinew', abilities: boon } },
+      { [BOON]: { featId: 'boon-of-sinew', abilities: boon }, ...spare() },
       tall,
     );
 

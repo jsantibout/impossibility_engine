@@ -78,10 +78,15 @@ const fighter = (level: number): CharacterChoices => ({
     ...FEATS,
     'fighter:fighting-style': { featId: 'defense' },
     ...(level >= 10 ? { 'champion:additional-fighting-style': { featId: 'archery' } } : {}),
-    ...(level >= 8 ? { 'fighter:ability-score-improvement-2': { featId: 'alert' } } : {}),
-    // No Epic Boon feat is defined, so nothing above Fighter 18 is buildable;
-    // three levels is enough to pin an addend that is the level itself.
     ...(level >= 4 ? { 'fighter:ability-score-improvement': { featId: 'savage-attacker' } } : {}),
+    // The Fighter's table prints five more, at 6, 8, 12, 14 and 16 — the
+    // ordinal in the id is the count, not the level, which is what this
+    // fixture said before the catalogue published any of them.
+    ...(level >= 6 ? { 'fighter:ability-score-improvement-2': { featId: 'ability-score-improvement', abilities: ['cha', 'int'] } } : {}),
+    ...(level >= 8 ? { 'fighter:ability-score-improvement-3': { featId: 'ability-score-improvement', abilities: ['cha', 'int'] } } : {}),
+    ...(level >= 12 ? { 'fighter:ability-score-improvement-4': { featId: 'ability-score-improvement', abilities: ['cha', 'int'] } } : {}),
+    ...(level >= 14 ? { 'fighter:ability-score-improvement-5': { featId: 'ability-score-improvement', abilities: ['cha', 'int'] } } : {}),
+    ...(level >= 16 ? { 'fighter:ability-score-improvement-6': { featId: 'ability-score-improvement', abilities: ['cha', 'int'] } } : {}),
   },
 });
 
@@ -101,6 +106,9 @@ const monk = (level: number, wis: number): CharacterChoices => ({
   feats: {
     ...FEATS,
     ...(level >= 4 ? { 'monk:ability-score-improvement': { featId: 'savage-attacker' } } : {}),
+    ...(level >= 8 ? { 'monk:ability-score-improvement-2': { featId: 'ability-score-improvement', abilities: ['cha', 'int'] } } : {}),
+    ...(level >= 12 ? { 'monk:ability-score-improvement-3': { featId: 'ability-score-improvement', abilities: ['cha', 'int'] } } : {}),
+    ...(level >= 16 ? { 'monk:ability-score-improvement-4': { featId: 'ability-score-improvement', abilities: ['cha', 'int'] } } : {}),
   },
 });
 

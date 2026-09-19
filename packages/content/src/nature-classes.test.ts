@@ -9,6 +9,28 @@ import { createCharacter, planCharacter, type CharacterChoices } from '@ie/engin
 import { canSee, sensesOf } from '@ie/engine';
 
 /**
+ * The repeats of Ability Score Improvement this class's table has printed by
+ * this level, answered.
+ *
+ * SRD prints the feature again at levels 8, 12 and 16 — and at 6 and 14 for
+ * a Fighter, and at 10 for a Rogue — and each repeat is a grant of its own
+ * with an id of its own. They are filled with the SRD's own Ability Score
+ * Improvement feat because it is the only one of these that may be taken more
+ * than once, and with Charisma and Intelligence because nothing in this file
+ * reads either.
+ */
+const repeatImprovements = (classId: string, level: number) =>
+  Object.fromEntries(
+    (SRD_CONTENT.classById(classId)?.features ?? [])
+      .filter(
+        (one) =>
+          one.id.startsWith(`${classId}:ability-score-improvement-`) && one.level <= level,
+      )
+      .map((one) => [one.id, { featId: 'ability-score-improvement', abilities: ['cha', 'int'] }]),
+  );
+
+
+/**
  * The last three classes, and what completing the set proves.
  *
  * Twelve classes now cover every combination the SRD uses: three spellcasting
@@ -337,6 +359,7 @@ describe("a Ranger's Feral Senses reach past a declaration", () => {
         ...common.feats,
         'ranger:fighting-style': { featId: 'archery' },
         'ranger:ability-score-improvement': { featId: 'savage-attacker' },
+        ...repeatImprovements('ranger', level),
       },
     });
 

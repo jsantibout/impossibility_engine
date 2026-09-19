@@ -20,6 +20,28 @@ import { createRollIssuer, type RollIssuer } from '@ie/engine';
 import { resolveTest, takeTestReaction } from '@ie/engine';
 
 /**
+ * The repeats of Ability Score Improvement this class's table has printed by
+ * this level, answered.
+ *
+ * SRD prints the feature again at levels 8, 12 and 16 — and at 6 and 14 for
+ * a Fighter, and at 10 for a Rogue — and each repeat is a grant of its own
+ * with an id of its own. They are filled with the SRD's own Ability Score
+ * Improvement feat because it is the only one of these that may be taken more
+ * than once, and with Charisma and Intelligence because nothing in this file
+ * reads either.
+ */
+const repeatImprovements = (classId: string, level: number) =>
+  Object.fromEntries(
+    (SRD_CONTENT.classById(classId)?.features ?? [])
+      .filter(
+        (one) =>
+          one.id.startsWith(`${classId}:ability-score-improvement-`) && one.level <= level,
+      )
+      .map((one) => [one.id, { featId: 'ability-score-improvement', abilities: ['cha', 'int'] }]),
+  );
+
+
+/**
  * A feature that *is* a named resource.
  *
  * Nine features were marked executed on the strength of a note saying
@@ -115,6 +137,7 @@ const paladin = (level: number): CharacterChoices => ({
     ...common.feats,
     ...(level >= 2 ? { 'paladin:fighting-style': { featId: 'defense' } } : {}),
     ...(level >= 4 ? { 'paladin:ability-score-improvement': { featId: 'savage-attacker' } } : {}),
+    ...repeatImprovements('paladin', level),
   },
 });
 
@@ -136,6 +159,7 @@ const monk = (level: number): CharacterChoices => ({
   feats: {
     ...common.feats,
     ...(level >= 4 ? { 'monk:ability-score-improvement': { featId: 'savage-attacker' } } : {}),
+    ...repeatImprovements('monk', level),
   },
 });
 
@@ -158,6 +182,7 @@ const fighter = (level: number): CharacterChoices => ({
     ...common.feats,
     'fighter:fighting-style': { featId: 'defense' },
     ...(level >= 4 ? { 'fighter:ability-score-improvement': { featId: 'savage-attacker' } } : {}),
+    ...repeatImprovements('fighter', level),
     // SRD Champion, Additional Fighting Style at level 7 — a second style, and
     // it must be a different feat, because none may be taken twice.
     ...(level >= 7 ? { 'champion:additional-fighting-style': { featId: 'archery' } } : {}),
@@ -595,6 +620,7 @@ describe('advancing a level moves every pool the level moves', () => {
     feats: {
       ...common.feats,
       ...(level >= 4 ? { 'sorcerer:ability-score-improvement': { featId: 'savage-attacker' } } : {}),
+      ...repeatImprovements('sorcerer', level),
     },
   });
 

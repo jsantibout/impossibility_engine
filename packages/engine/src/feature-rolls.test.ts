@@ -73,6 +73,9 @@ const barbarian = (level: number): CharacterChoices => ({
   feats: {
     ...common.feats,
     ...(level >= 4 ? { 'barbarian:ability-score-improvement': { featId: 'savage-attacker' } } : {}),
+    ...(level >= 8 ? { 'barbarian:ability-score-improvement-2': { featId: 'ability-score-improvement', abilities: ['cha', 'cha'] } } : {}),
+    ...(level >= 12 ? { 'barbarian:ability-score-improvement-3': { featId: 'ability-score-improvement', abilities: ['cha', 'cha'] } } : {}),
+    ...(level >= 16 ? { 'barbarian:ability-score-improvement-4': { featId: 'ability-score-improvement', abilities: ['cha', 'cha'] } } : {}),
   },
 });
 
@@ -100,7 +103,8 @@ const rogue = (level: number): CharacterChoices => ({
     ...(level >= 4 ? { 'rogue:ability-score-improvement': { featId: 'savage-attacker' } } : {}),
     ...(level >= 8 ? { 'rogue:ability-score-improvement-2': { featId: 'alert' } } : {}),
     ...(level >= 10 ? { 'rogue:ability-score-improvement-3': { featId: 'skilled', proficiencies: ['medicine', 'religion', 'survival'] } } : {}),
-    ...(level >= 12 ? { 'rogue:ability-score-improvement-4': { featId: 'savage-attacker' } } : {}),
+    ...(level >= 12 ? { 'rogue:ability-score-improvement-4': { featId: 'ability-score-improvement', abilities: ['cha', 'cha'] } } : {}),
+    ...(level >= 16 ? { 'rogue:ability-score-improvement-5': { featId: 'ability-score-improvement', abilities: ['cha', 'cha'] } } : {}),
   },
 });
 
@@ -123,7 +127,8 @@ const monk = (level: number): CharacterChoices => ({
     ...common.feats,
     ...(level >= 4 ? { 'monk:ability-score-improvement': { featId: 'savage-attacker' } } : {}),
     ...(level >= 8 ? { 'monk:ability-score-improvement-2': { featId: 'alert' } } : {}),
-    ...(level >= 12 ? { 'monk:ability-score-improvement-3': { featId: 'savage-attacker' } } : {}),
+    ...(level >= 12 ? { 'monk:ability-score-improvement-3': { featId: 'ability-score-improvement', abilities: ['cha', 'cha'] } } : {}),
+    ...(level >= 16 ? { 'monk:ability-score-improvement-4': { featId: 'ability-score-improvement', abilities: ['cha', 'cha'] } } : {}),
   },
 });
 
