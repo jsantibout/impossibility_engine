@@ -451,9 +451,11 @@ export function applyRiders(
         : undefined;
     // **The target as well as the caster**, because SRD Vicious Mockery
     // anchors its deadline to the creature the rider is on — "before the end
-    // of **its** next turn" — and this is the one call that has that creature
-    // in hand. The pre-flight has only the caster and asks a different
-    // question with it; see `riderDuration`.
+    // of **its** next turn" — and binding it to anybody else would be a
+    // wrong deadline rather than a refusal. The pre-flight asks the same
+    // question of the same creature before a die is thrown, which is what
+    // makes this call the *binding* rather than the first anybody hears of
+    // it; `anchoredOnTarget` is the one reader that keeps the two agreeing.
     const duration = riderDuration(lasts, casterId, target);
     if (duration !== undefined) {
       const timer = schedule(current, { kind: 'grants', on: target, source }, duration);

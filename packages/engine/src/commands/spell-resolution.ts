@@ -638,10 +638,15 @@ export function castOrRelease(
     // same moment and by the same rule: with the targets settled, before the
     // slot, the action and the first die.
     //
-    // SRD writes the moment as "at the end of **its** next turn", so unlike a
-    // rider's deadline it is anchored on the target rather than on the caster
-    // — which is why it is asked here, where the targets exist, rather than in
-    // the `riderDurations` loop above. Outside combat there is no turn whose
+    // SRD writes the moment as "at the end of **its** next turn", so it is
+    // anchored on the target rather than on the caster — which is why it is
+    // asked here, where the targets exist, rather than in the caster-anchored
+    // half of the `riderDurations` loop above. A *rider's* deadline can be
+    // anchored the same way, and the loop below this one asks those in exactly
+    // this place for exactly this reason; `anchoredOnTarget` is what sorts a
+    // deadline into one half or the other, and a new one anchored on the
+    // creature it lands on belongs in that loop rather than in a third.
+    // Outside combat there is no turn whose
     // end that names, and the one thing this engine may never do is quietly
     // call the moment six seconds; so the casting asks for the fact instead,
     // and asks *before* anything is spent, because a `needs-context` promises
