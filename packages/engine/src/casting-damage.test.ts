@@ -946,9 +946,12 @@ describe('a declared casting takes the features it needs no permission for', () 
       expect(out.reason).toContain('Fireball');
     }
 
-    // **And the refusal came before the slot did**, which is the half that
-    // could have gone wrong: the same caster casting the same Fireball
-    // afterwards finds all three of their level 3 slots, and maximises it.
+    // **And the refusal is about the declaration and nothing else.** A refusal
+    // is a value carrying no events, so no assertion could catch a slot spent
+    // before it; what could go wrong instead is this test passing for the wrong
+    // reason — a caster who cannot cast Fireball at all, or has not got
+    // Overchannel, refuses too. So the same casting is made without `hold` and
+    // it works: the slot goes, and the dice are maximised.
     const after = cast(log, {
       spellId: 'fireball',
       targets: [],
