@@ -8,7 +8,7 @@ import {
   type RollMode,
 } from '@ie/shared';
 import type { Bonus, ModeSource, StandingBonusApplies } from './bonuses.js';
-import type { TurnAnchor } from './duration.js';
+import type { TurnAnchor } from './time.js';
 import {
   grantedRollModes,
   selectorMatches,

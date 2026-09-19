@@ -26,7 +26,7 @@ import {
 import { parseNotation } from './dice.js';
 import { SENSE_NAMES } from './positioning.js';
 import { dawnRollProblem, type Recovery } from './resources.js';
-import { EFFECT_END_CAUSES } from './duration.js';
+import { EFFECT_END_CAUSES } from './timers.js';
 import { rollSelectorProblems } from './roll-modifiers.js';
 import type { SpellDefinition } from './spell-definitions.js';
 import { checkEffectValue, checkSpellDefinition, parseSpellDefinition } from './spell-schema.js';

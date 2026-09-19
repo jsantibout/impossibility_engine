@@ -1,8 +1,8 @@
 import { err, needsContext, ok, type CharacterId, type Result } from '@ie/shared';
 import { abilityModifier } from './character.js';
-import { HOUR, hours } from './clock.js';
+import { HOUR, hours } from './time.js';
 import type { Rng } from './dice.js';
-import { timerKey } from './duration.js';
+import { timerKey } from './timers.js';
 import type { GameEvent, GameState } from './events.js';
 import { once } from './idempotency.js';
 import { remaining } from './resources.js';

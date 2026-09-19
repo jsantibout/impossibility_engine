@@ -625,7 +625,7 @@ describe('an action is taken by somebody in the fight', () => {
    * thinned by removals, and this comment said as much. `joinCombat` grows it,
    * so the claim is no longer true by construction and the insertion is driven
    * here on both sides of the creature currently acting. The turn counts are
-   * swept beside the budgets for the same reason: `duration.ts` answers "the
+   * swept beside the budgets for the same reason: `time.ts` answers "the
    * start of your next turn" out of `turnCounts` and refuses `not_in_combat`
    * where it finds none, so a combatant the order holds and the counts do not
    * would strand every turn-anchored effect anchored on them.

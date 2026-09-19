@@ -16,7 +16,7 @@ import {
 } from '@ie/shared';
 import { isIncapacitated } from '../conditions.js';
 import { type Rng } from '../dice.js';
-import { turnAnchored } from '../duration.js';
+import { turnAnchored } from '../time.js';
 import { type CommandStamp, type GameEvent, type GameState, wearsHeavyArmor } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import { remaining } from '../resources.js';

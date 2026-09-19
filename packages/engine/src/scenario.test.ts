@@ -4,7 +4,7 @@ import { asCharacterId, expect as unwrap, type CharacterId, type Result } from '
 import type { Weapon } from '@ie/srd';
 import { armorClass } from './character.js';
 import { rollAttack, rollAttackDamage, applyDamage } from './attack.js';
-import { ROUND } from './clock.js';
+import { ROUND } from './time.js';
 import { rollInitiative, spendAction, spendBonusAction, spendReaction } from './combat.js';
 import { createRng, restoreRng, type Rng } from './dice.js';
 import { fold, type GameEvent, type GameState } from './events.js';

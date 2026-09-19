@@ -1,5 +1,5 @@
 import { err, ok, type Result } from '@ie/shared';
-import type { TurnMoment } from './duration.js';
+import type { TurnMoment } from './time.js';
 import type { Point, PointAnchoring } from './positioning.js';
 import type { AreaTrigger, CastingEndTrigger, SpellArea } from './spell-definitions.js';
 

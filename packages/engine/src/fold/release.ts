@@ -22,7 +22,7 @@
  */
 import type { CharacterId } from '@ie/shared';
 import { removeConditionInstance } from '../conditions.js';
-import { type EffectTarget, type ScheduledDamage, type TimedEffect } from '../duration.js';
+import { type EffectTarget, type ScheduledDamage, type TimedEffect } from '../timers.js';
 import { castingIdOf, castingNumber, type AreaTriggerStamp, type OngoingSpell } from '../spells.js';
 
 import type { CreatureState, GameState, PendingCasting } from '../state.js';

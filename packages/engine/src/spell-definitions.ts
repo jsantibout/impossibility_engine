@@ -5,10 +5,9 @@ import {
   forSeconds,
   startOfNextTurn,
   type Duration,
-  type EffectEndCause,
-  type PayoutKind,
   type TurnMoment,
-} from './duration.js';
+} from './time.js';
+import { type EffectEndCause, type PayoutKind } from './timers.js';
 import type { DefenseKind } from './attack.js';
 import type { Bonus, BonusApplies } from './bonuses.js';
 import type { RollModifier } from './roll-modifiers.js';
@@ -1961,7 +1960,7 @@ export interface SpellDefinition {
  * Guardian of Faith's running total, and the several spells that end on
  * **any** damage rather than on the caster's, are all still there.
  *
- * Four of the five are {@link EffectEndCause}, declared in `duration.ts`
+ * Four of the five are {@link EffectEndCause}, declared in `timers.ts`
  * because a timer an item filed reads them too; the fifth is the one a casting
  * adds, because only a casting has a caster for "you or one of your allies" to
  * be about.
@@ -1976,7 +1975,7 @@ export interface SpellDefinition {
  */
 export type CastingEndCause =
   /**
-   * The four that are a fact about one creature, declared in `duration.ts`.
+   * The four that are a fact about one creature, declared in `timers.ts`.
    *
    * **The same four sentences, whether a casting or a potion is what ends.**
    * SRD prints "the target makes an attack roll, deals damage, or casts a

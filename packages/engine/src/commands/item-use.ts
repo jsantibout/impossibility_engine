@@ -52,7 +52,7 @@ import {
   type ItemConfersGrant,
 } from '../catalogue.js';
 import { conditionInstanceId } from '../conditions.js';
-import { type EffectTarget, timerKey } from '../duration.js';
+import { type EffectTarget, timerKey } from '../timers.js';
 import { grantSourcesOf, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import { type Supply } from './casting.js';

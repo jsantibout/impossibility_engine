@@ -12,13 +12,8 @@
  * again, which is what `dropOrphanedSaves` exists to prevent.
  */
 import type { CharacterId } from '@ie/shared';
-import {
-  hasExpired,
-  type PendingSave,
-  type ScheduledDamage,
-  type TimeView,
-  type TimedEffect,
-} from '../duration.js';
+import { hasExpired, type TimeView } from '../time.js';
+import { type PendingSave, type ScheduledDamage, type TimedEffect } from '../timers.js';
 import type { GameState } from '../state.js';
 import { endTimedCondition, releaseCasting, releaseGrants } from './release.js';
 import { clearTemporaryHp } from './vitals.js';

@@ -9,14 +9,13 @@
 
 import { type CharacterId, type ConditionName, err, ok, type Result } from '@ie/shared';
 import { conditionInstanceId, reasonsFor } from '../conditions.js';
+import { type Duration, resolveDuration } from '../time.js';
 import {
-  type Duration,
   type EffectCheck,
   type EffectEndCause,
   type EffectTarget,
   type RepeatSave,
-  resolveDuration,
-} from '../duration.js';
+} from '../timers.js';
 import { type CommandStamp, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import { castingIdOf } from '../spells.js';

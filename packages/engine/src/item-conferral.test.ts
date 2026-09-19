@@ -13,7 +13,7 @@ import { checkContent, type Content, loadContent } from './content.js';
 import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
-import { timerKey } from './duration.js';
+import { timerKey } from './timers.js';
 import { castingIdOf } from './spells.js';
 import type { CharacterSheet } from './character.js';
 import {

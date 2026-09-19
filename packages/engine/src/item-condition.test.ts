@@ -11,7 +11,7 @@ import { itemConferral, itemSource, type CatalogueItem } from './catalogue.js';
 import { checkContent, loadContent, type Content } from './content.js';
 import { conditionInstanceId } from './conditions.js';
 import { createRng, type Rng } from './dice.js';
-import { EFFECT_END_CAUSES, timerKey } from './duration.js';
+import { EFFECT_END_CAUSES, timerKey } from './timers.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { createRollIssuer } from './rolls.js';
 import { END_TRIGGER_CAUSES } from './spell-schema.js';

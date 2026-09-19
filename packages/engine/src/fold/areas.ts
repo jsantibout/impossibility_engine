@@ -15,7 +15,7 @@
  * catalogue.
  */
 import type { CharacterId } from '@ie/shared';
-import type { TurnMoment } from '../duration.js';
+import type { TurnMoment } from '../time.js';
 import { areaStampKey, type AreaMoment, type OngoingSpell } from '../spells.js';
 import {
   areaPointAt,

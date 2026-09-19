@@ -21,7 +21,7 @@ import { type Bonus, bonusesFor, flatBonusTotal, type ModeSource } from '../bonu
 import { type CharacterSheet } from '../character.js';
 import { type D20TestResult, skillName } from '../checks.js';
 import { type ConditionState, isIncapacitated } from '../conditions.js';
-import { type EffectCheck } from '../duration.js';
+import { type EffectCheck } from '../timers.js';
 import { type CreatureState, type GameEvent, type GameState } from '../events.js';
 import { distanceBetween } from '../positioning.js';
 import { type SpellCheck } from '../spell-definitions.js';

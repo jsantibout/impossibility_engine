@@ -22,7 +22,8 @@ import {
   ok,
   type Result,
 } from '@ie/shared';
-import { type RepeatSave, resolveDuration, timeView } from '../duration.js';
+import { resolveDuration, timeView } from '../time.js';
+import { type RepeatSave } from '../timers.js';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import {
   type ConditionRider,

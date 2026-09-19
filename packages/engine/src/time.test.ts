@@ -1,7 +1,17 @@
+/**
+ * `time.ts`, both halves of it: the clock that counts seconds, and the two
+ * shapes of "how long" that are measured against it.
+ *
+ * One file because there is one module. These were `clock.test.ts` and
+ * `duration.test.ts`, and every assertion in the second was already about the
+ * conversion the first's units feed — `hours(8)` against an elapsed deadline,
+ * a round against a turn count. Nothing here moved; the two halves are
+ * neighbours now, in the order the module declares them.
+ */
 import { describe, expect, it } from 'vitest';
 import { asCharacterId, isErr, expect as unwrap, type Result } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
-import { HOUR, ROUND, hours, minutes, rounds } from './clock.js';
+import { DAY, HOUR, MINUTE, ROUND, days, describeElapsed, hours, minutes, rounds } from './time.js';
 import { conditionInstanceId } from './conditions.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { spellSlotKey } from './resources.js';
@@ -17,7 +27,7 @@ import {
   startOfNextTurn,
   timeView,
   type Deadline,
-} from './duration.js';
+} from './time.js';
 import {
   applyConditionTo,
   applySpellEffect,
@@ -90,6 +100,119 @@ const clock = (seconds: number): GameEvent => ({ type: 'time-advanced', seconds,
 
 const conditionsOf = (state: GameState, who: string) =>
   state.creatures[who]?.conditions.conditions ?? [];
+
+describe('the clock counts seconds', () => {
+  /** SRD: "A round represents about 6 seconds in the game world." */
+  it('knows how long the units of play are', () => {
+    expect(ROUND).toBe(6);
+    expect(MINUTE).toBe(60);
+    expect(HOUR).toBe(3600);
+    expect(DAY).toBe(86_400);
+  });
+
+  it('builds durations from units', () => {
+    expect(rounds(10)).toBe(MINUTE);
+    expect(minutes(60)).toBe(HOUR);
+    expect(hours(24)).toBe(DAY);
+    expect(days(1)).toBe(DAY);
+  });
+
+  /** Everything divides into rounds, so no duration lands between two of them. */
+  it('keeps every unit a whole number of rounds', () => {
+    for (const seconds of [ROUND, MINUTE, HOUR, DAY]) {
+      expect(seconds % ROUND).toBe(0);
+    }
+  });
+
+  it('refuses a duration that is not a whole number of seconds', () => {
+    expect(() => rounds(1.5)).toThrow();
+    expect(() => hours(-1)).toThrow();
+    expect(() => minutes(NaN)).toThrow();
+  });
+
+  it('says an elapsed span out loud', () => {
+    expect(describeElapsed(0)).toBe('no time');
+    expect(describeElapsed(ROUND)).toBe('1 round');
+    expect(describeElapsed(rounds(3))).toBe('3 rounds');
+    expect(describeElapsed(MINUTE)).toBe('1 minute');
+    expect(describeElapsed(HOUR)).toBe('1 hour');
+    expect(describeElapsed(hours(8))).toBe('8 hours');
+    expect(describeElapsed(days(2))).toBe('2 days');
+  });
+});
+
+describe('time passes', () => {
+  it('starts at zero', () => {
+    expect(fold('seed', []).elapsed).toBe(0);
+  });
+
+  it('advances when something says it did', () => {
+    const state = fold('seed', [
+      add('fighter'),
+      { type: 'time-advanced', seconds: hours(4), reason: 'travelling to the pass' },
+    ]);
+    expect(state.elapsed).toBe(hours(4));
+  });
+
+  it('accumulates', () => {
+    const state = fold('seed', [
+      { type: 'time-advanced', seconds: MINUTE, reason: 'searching' },
+      { type: 'time-advanced', seconds: MINUTE, reason: 'searching' },
+    ]);
+    expect(state.elapsed).toBe(minutes(2));
+  });
+
+  it('refuses to run backwards', () => {
+    expect(() =>
+      fold('seed', [{ type: 'time-advanced', seconds: -60, reason: 'nope' }]),
+    ).toThrow();
+  });
+});
+
+describe('a combat round is six seconds', () => {
+  const two = (): GameEvent[] => [
+    add('fighter'),
+    add('goblin'),
+    {
+      type: 'combat-started',
+      combatants: [
+        { id: id('fighter'), initiative: 20, speed: 30 },
+        { id: id('goblin'), initiative: 5, speed: 30 },
+      ],
+    },
+  ];
+
+  /**
+   * Time is not a decision anybody makes, so it is derived rather than
+   * commanded: a round ends when the initiative order wraps, and six seconds
+   * have passed. A caller that had to remember to advance the clock would
+   * eventually forget, and a spell would outlive its duration.
+   */
+  it('does not advance mid-round', () => {
+    const state = fold('seed', [...two(), { type: 'turn-advanced' }]);
+    expect(state.combat?.round).toBe(1);
+    expect(state.elapsed).toBe(0);
+  });
+
+  it('advances when the order wraps', () => {
+    const state = fold('seed', [...two(), { type: 'turn-advanced' }, { type: 'turn-advanced' }]);
+    expect(state.combat?.round).toBe(2);
+    expect(state.elapsed).toBe(ROUND);
+  });
+
+  it('counts a full minute of combat as ten rounds', () => {
+    const log: GameEvent[] = [...two()];
+    for (let i = 0; i < 20; i += 1) log.push({ type: 'turn-advanced' });
+    const state = fold('seed', log);
+    expect(state.combat?.round).toBe(11);
+    expect(state.elapsed).toBe(MINUTE);
+  });
+
+  it('is the same however the log is folded', () => {
+    const log: GameEvent[] = [...two(), { type: 'turn-advanced' }, { type: 'turn-advanced' }];
+    expect(fold('seed', log).elapsed).toBe(fold('seed', log).elapsed);
+  });
+});
 
 describe('elapsed deadlines and turn deadlines are different things', () => {
   /**

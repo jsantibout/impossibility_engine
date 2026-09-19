@@ -25,7 +25,7 @@ import {
   endOfCurrentTurn,
   endOfNextTurn,
   resolveDuration,
-} from './duration.js';
+} from './time.js';
 import { turnContextFor } from './commands/command.js';
 import { scheduleDelayed } from './commands/spell-effect-riders.js';
 import { conditionRiderOf, riderDurations } from './spell-definitions.js';
@@ -679,7 +679,7 @@ describe('no command-layer duration site is left refusing', () => {
  */
 describe('every turn-anchored duration member reaches the conversion', () => {
   const SRC = fileURLToPath(new URL('.', import.meta.url));
-  const DURATION_SOURCE = readFileSync(`${SRC}duration.ts`, 'utf8');
+  const TIME_SOURCE = readFileSync(`${SRC}time.ts`, 'utf8');
 
   /**
    * The kinds `resolveDuration` answers `no_turns` for.
@@ -714,7 +714,7 @@ describe('every turn-anchored duration member reaches the conversion', () => {
    * stopped at the first label would report two members rather than three.
    */
   it('reads the members out of the conversion', () => {
-    expect(refusedForNoTurns(DURATION_SOURCE)).toEqual([
+    expect(refusedForNoTurns(TIME_SOURCE)).toEqual([
       'start-of-next-turn',
       'end-of-next-turn',
       'end-of-current-turn',
@@ -723,7 +723,7 @@ describe('every turn-anchored duration member reaches the conversion', () => {
 
   /** And it sees a member somebody adds, which is the case it exists for. */
   it('sees a sixth member added to the conversion', () => {
-    const invented = DURATION_SOURCE.replace(
+    const invented = TIME_SOURCE.replace(
       "    case 'end-of-current-turn': {",
       [
         "    case 'until-the-moon-rises': {",
@@ -751,7 +751,7 @@ describe('every turn-anchored duration member reaches the conversion', () => {
   });
 
   it('converts every member the conversion can refuse', () => {
-    for (const kind of refusedForNoTurns(DURATION_SOURCE)) {
+    for (const kind of refusedForNoTurns(TIME_SOURCE)) {
       // Only `kind` and the presence of an anchor are read, so the bare shape
       // is the whole of what the conversion needs and a fixture per member
       // would be five spellings of one question.

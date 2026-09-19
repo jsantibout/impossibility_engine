@@ -14,7 +14,7 @@ import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { declaredCasting } from './spellcasting.js';
 import { remaining } from './resources.js';
-import { forSeconds } from './duration.js';
+import { forSeconds } from './time.js';
 import { castingSource } from './spells.js';
 import { armorClassOf } from './standing.js';
 import {

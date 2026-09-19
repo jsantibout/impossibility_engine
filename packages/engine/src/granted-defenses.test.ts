@@ -10,7 +10,7 @@ import { applyEvent, fold, type GameEvent, type GameState } from './events.js';
 import { spellSlotKey } from './resources.js';
 import { declaredCasting } from './spellcasting.js';
 import { applyConditionTo, endConcentration, resolveSpell } from './commands.js';
-import { forSeconds } from './duration.js';
+import { forSeconds } from './time.js';
 import { dealSpellDamage } from './commands/damage.js';
 import { defensesOf } from './standing.js';
 import { adaptMonster, conditionApplicability } from './monster.js';

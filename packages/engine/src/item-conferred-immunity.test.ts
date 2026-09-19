@@ -4,7 +4,7 @@ import type { CatalogueItem } from './catalogue.js';
 import type { CharacterSheet } from './character.js';
 import { checkContent, loadContent, type Content } from './content.js';
 import { createRng, type Rng } from './dice.js';
-import { timerKey } from './duration.js';
+import { timerKey } from './timers.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { createRollIssuer } from './rolls.js';
 import { conditionImmunitiesOf } from './standing.js';

@@ -347,7 +347,7 @@ export function advanceTime(
 /**
  * Declare that dawn has come, and give back what a dawn gives back.
  *
- * **Dawn is declared, never derived**, and `clock.ts` says why in as many
+ * **Dawn is declared, never derived**, and `time.ts` says why in as many
  * words: "There is no calendar and no time of day: those are fiction, and the
  * DM owns them." The clock counts seconds since the campaign began, and no
  * number of seconds is a sunrise — a party that rests eight hours underground

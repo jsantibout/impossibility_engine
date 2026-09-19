@@ -7,7 +7,8 @@ import {
   type Skill,
 } from '@ie/shared';
 import type { ArmorTraining } from './character.js';
-import type { EffectEndCause, TurnAnchor } from './duration.js';
+import type { TurnAnchor } from './time.js';
+import type { EffectEndCause } from './timers.js';
 import type { D20TestKind } from './checks.js';
 import type { ReactionReach } from './reactions.js';
 import type { Recovery } from './resources.js';

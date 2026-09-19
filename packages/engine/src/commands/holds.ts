@@ -19,7 +19,7 @@
  */
 
 import { type CharacterId, err, type Err } from '@ie/shared';
-import { type PendingSave } from '../duration.js';
+import { type PendingSave } from '../timers.js';
 import {
   applyEvent,
   type GameEvent,

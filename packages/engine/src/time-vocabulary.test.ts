@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import type { CharacterId } from '@ie/shared';
-import { TURN_MOMENTS, endOfNextTurn, startOfNextTurn } from './duration.js';
+import { TURN_MOMENTS, endOfNextTurn, startOfNextTurn } from './time.js';
 
 /**
  * The moments of a turn are named once, and every reader says the name.
@@ -52,7 +52,7 @@ describe('the turn vocabulary is named once', () => {
    * really hold the declarations, so it cannot become a file that was waved
    * through after the vocabulary moved out of it.
    */
-  const VOCABULARY = 'duration.ts';
+  const VOCABULARY = 'time.ts';
 
   /** Every non-test source file under `src`, at any depth. */
   const sourcesUnder = (dir: string, prefix = ''): readonly string[] =>
@@ -168,6 +168,10 @@ describe('the turn vocabulary is named once', () => {
     expect(RUNTIME).toContain('spell-definitions.ts');
     expect(RUNTIME).toContain('commands/turns.ts');
     expect(RUNTIME).toContain('fold/areas.ts');
+    // The exemption is the *declaring* file and not the time subsystem: a
+    // repeat save and a payout both name a moment, they live next door in
+    // `timers.ts`, and they are swept like anything else.
+    expect(RUNTIME).toContain('timers.ts');
   });
 
   /** And the pairs really are two apiece, so `every` above is not vacuous. */

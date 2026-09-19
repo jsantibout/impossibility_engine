@@ -48,7 +48,7 @@ import {
   ok,
   type Result,
 } from '@ie/shared';
-import { type Duration, isDue, resolveDuration, timeView } from '../duration.js';
+import { type Duration, isDue, resolveDuration, timeView } from '../time.js';
 import {
   applyEvent,
   type CommandStamp,

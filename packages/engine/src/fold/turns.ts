@@ -20,7 +20,8 @@
  * arriving by a different door — see its own docstring.
  */
 import { sourceOfInstance } from '../conditions.js';
-import { isDue, pendingSaveKey, type PendingSave } from '../duration.js';
+import { isDue } from '../time.js';
+import { pendingSaveKey, type PendingSave } from '../timers.js';
 import { type CombatState } from '../combat.js';
 
 import type { GameState, PendingCasting } from '../state.js';

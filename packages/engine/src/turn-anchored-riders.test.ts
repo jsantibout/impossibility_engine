@@ -37,7 +37,7 @@ import { resolveSpell, resolveTurn } from './commands.js';
  * seconds too long. A rider needs a deadline of its own, and that deadline is
  * a moment in the Initiative order rather than a number of seconds.
  *
- * `duration.ts` has had `startOfNextTurn`/`endOfNextTurn` since durations
+ * `time.ts` has had `startOfNextTurn`/`endOfNextTurn` since durations
  * landed, and `applyConditionTo` has taken a per-condition `Duration` for just
  * as long. What was missing was any way for a *definition* to ask for one.
  */

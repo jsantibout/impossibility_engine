@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
 import { asCharacterId, isErr, expect as unwrap, type Result } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
-import { HOUR, hours, minutes } from './clock.js';
+import { HOUR, hours, minutes } from './time.js';
 import { createRng, restoreRng } from './dice.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { remaining, spellSlotKey } from './resources.js';

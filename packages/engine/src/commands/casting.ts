@@ -33,15 +33,8 @@ import {
 } from '../combat.js';
 import { isIncapacitated } from '../conditions.js';
 import { type Rng } from '../dice.js';
-import {
-  type Deadline,
-  type Duration,
-  type EffectCheck,
-  forSeconds,
-  type RepeatSave,
-  resolveDuration,
-  timeView,
-} from '../duration.js';
+import { type Deadline, type Duration, forSeconds, resolveDuration, timeView } from '../time.js';
+import { type EffectCheck, type RepeatSave } from '../timers.js';
 import {
   applyEvent,
   castingIdFor,

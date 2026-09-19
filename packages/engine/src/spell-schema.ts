@@ -24,7 +24,8 @@ import type {
   SpellDefinition,
   SpellEffect,
 } from './spell-definitions.js';
-import { TURN_MOMENTS, type PayoutKind } from './duration.js';
+import { TURN_MOMENTS } from './time.js';
+import { type PayoutKind } from './timers.js';
 import type { DefenseKind } from './attack.js';
 import type { SpeedChange } from './standing.js';
 import {

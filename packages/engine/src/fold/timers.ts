@@ -5,7 +5,7 @@
  * The passes that *find* an expiry are `expiry.ts` and `turns.ts`; this seam
  * is only the events that file a debt and settle one.
  */
-import { pendingSaveKey, scheduledDamageKey, timerKey } from '../duration.js';
+import { pendingSaveKey, scheduledDamageKey, timerKey } from '../timers.js';
 import { castingIdOf } from '../spells.js';
 import type { GameEvent } from '../events.js';
 import type { GameState } from '../state.js';

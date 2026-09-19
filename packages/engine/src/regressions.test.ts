@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { asCharacterId, isErr, expect as unwrap, type Result } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
-import { HOUR, ROUND, hours, minutes } from './clock.js';
+import { HOUR, ROUND, hours, minutes } from './time.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { spellSlotKey } from './resources.js';
 import { hitDieKey, beginRest, endRest, LONG_REST } from './rest.js';

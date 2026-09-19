@@ -15,7 +15,7 @@ import {
   setExhaustion,
   type ConditionState,
 } from '../conditions.js';
-import { timerKey, type TimedEffect } from '../duration.js';
+import { timerKey, type TimedEffect } from '../timers.js';
 import {
   applyDamageToVitals,
   grantTemporaryHp,

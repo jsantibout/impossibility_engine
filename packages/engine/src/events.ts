@@ -37,15 +37,15 @@ import type { ReactionWindow } from './reactions.js';
 import type { ActiveBonus, ModeSource } from './bonuses.js';
 import { type SpellcastingState } from './spellcasting.js';
 import type { RestBenefit, RestKind } from './rest.js';
+import { type Deadline } from './time.js';
 import {
-  type Deadline,
   type EffectEndCause,
   type EffectTarget,
   type GrantedPayout,
   type RepeatSave,
   type EffectCheck,
   type ScheduledDamage,
-} from './duration.js';
+} from './timers.js';
 import {
   type AreaMoment,
   type CastingTime,

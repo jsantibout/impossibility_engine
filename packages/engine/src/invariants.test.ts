@@ -2766,7 +2766,7 @@ describe('the DM-declared commands declare facts rather than taking actions', ()
 const DECLARATIONS = Object.values(MODULE_SOURCE)
   .join('\n')
   .concat(
-    ['attack.ts', 'combat.ts', 'duration.ts', 'events.ts', 'positioning.ts', 'resources.ts', 'spells.ts']
+    ['attack.ts', 'combat.ts', 'events.ts', 'positioning.ts', 'resources.ts', 'spells.ts', 'time.ts', 'timers.ts']
       .map((f) => readFileSync(`${SRC}${f}`, 'utf8'))
       .join('\n'),
   );

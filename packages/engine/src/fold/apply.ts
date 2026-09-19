@@ -20,7 +20,7 @@ import type { CharacterId } from '@ie/shared';
 import { isIncapacitated } from '../conditions.js';
 import type { Content } from '../content.js';
 import { READY, universalAction } from '../actions.js';
-import { type TimedEffect } from '../duration.js';
+import { type TimedEffect } from '../timers.js';
 // The one spelling of Initiative's label, from the module that owns
 // Initiative — the fold matches on what `commands/initiative.ts` writes, and
 // neither end may spell it for itself. See `INITIATIVE_LABEL`.

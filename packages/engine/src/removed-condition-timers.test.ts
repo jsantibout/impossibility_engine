@@ -11,7 +11,7 @@ import type { CharacterSheet } from './character.js';
 import { createRng, restoreRng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { conditionInstanceId } from './conditions.js';
-import { timerKey } from './duration.js';
+import { timerKey } from './timers.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { spellSlotKey } from './resources.js';
 import {

@@ -21,7 +21,7 @@
 
 import { type CharacterId, err, type Err, needsContext, ok, type Result } from '@ie/shared';
 import { spendAction, spendBonusAction } from '../combat.js';
-import { type Duration } from '../duration.js';
+import { type Duration } from '../time.js';
 import { type GameEvent, type GameState } from '../events.js';
 import { distanceBetween, positionOf, type PositionState } from '../positioning.js';
 

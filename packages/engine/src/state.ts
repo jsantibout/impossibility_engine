@@ -28,14 +28,14 @@ import type { ActiveBonus } from './bonuses.js';
 import { type SpellcastingState } from './spellcasting.js';
 import type { RestState } from './rest.js';
 import type { StandingEffect } from './standing.js';
+import { type Deadline } from './time.js';
 import {
-  type Deadline,
   type GrantedPayout,
   type PendingSave,
   type EffectCheck,
   type ScheduledDamage,
   type TimedEffect,
-} from './duration.js';
+} from './timers.js';
 import {
   type AreaTriggerStamp,
   type CastingNumbers,

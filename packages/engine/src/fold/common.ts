@@ -18,8 +18,8 @@
  */
 import type { Content } from '../content.js';
 import type { CharacterId } from '@ie/shared';
-import { ROUND } from '../clock.js';
-import { type TimedEffect } from '../duration.js';
+import { ROUND } from '../time.js';
+import { type TimedEffect } from '../timers.js';
 import { type CombatState } from '../combat.js';
 import { type PositionState } from '../positioning.js';
 

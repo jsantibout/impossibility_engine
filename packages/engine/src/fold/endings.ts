@@ -22,7 +22,7 @@
  * anything — `allyOfCaster` withholds rather than inventing.
  */
 import type { CharacterId } from '@ie/shared';
-import type { EffectEndCause } from '../duration.js';
+import type { EffectEndCause } from '../timers.js';
 import { castingNumber } from '../spells.js';
 
 import type { GameEvent } from '../events.js';

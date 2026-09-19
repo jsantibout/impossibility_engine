@@ -269,7 +269,7 @@ describe('the ranking a joiner is placed by is the one a fight begins with', () 
 describe('the order and the turn counts stay in exact step', () => {
   /**
    * Every creature the order holds has a budget and a turn count, and nobody
-   * else does. This is the agreement `duration.ts` relies on to answer "the
+   * else does. This is the agreement `time.ts` relies on to answer "the
    * start of your next turn" at all, and an insertion is the first operation
    * that grows the order.
    */

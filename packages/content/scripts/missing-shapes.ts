@@ -2345,7 +2345,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: 'condition',
       clause: 'have the Incapacitated condition until you finish a Long Rest',
       why: 'a-deadline-anchored-to-a-rest',
-      note: 'duration.ts has a span of time and a moment in the turn order, and a rest is neither; the clock records when the last one was and no deadline can name it.',
+      note: 'time.ts has a span of time and a moment in the turn order, and a rest is neither; the clock records when the last one was and no deadline can name it.',
     },
   ],
   'conjure-elemental': [

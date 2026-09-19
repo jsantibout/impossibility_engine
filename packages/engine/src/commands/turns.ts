@@ -26,15 +26,13 @@ import { type Bonus, type ModeSource } from '../bonuses.js';
 import { type D20TestResult, rollAbilityCheck, rollSavingThrow } from '../checks.js';
 import { currentCombatant, spendAction } from '../combat.js';
 import { type CheckContext } from '../conditions.js';
+import { isDue, timeView, type TurnMoment } from '../time.js';
 import {
-  isDue,
   mayAttempt,
   type GrantedPayout,
   type PendingSave,
   type ScheduledDamage,
-  timeView,
-  type TurnMoment,
-} from '../duration.js';
+} from '../timers.js';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import { needsCasterSheet, statedDamageType } from '../spell-definitions.js';

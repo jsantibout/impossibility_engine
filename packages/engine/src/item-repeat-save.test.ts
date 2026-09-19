@@ -11,7 +11,7 @@ import { itemSource, type CatalogueItem } from './catalogue.js';
 import { checkContent, loadContent, type Content } from './content.js';
 import { conditionInstanceId } from './conditions.js';
 import { createRng, restoreRng, type Rng } from './dice.js';
-import { timerKey } from './duration.js';
+import { timerKey } from './timers.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { createRollIssuer } from './rolls.js';
 import { spellSlotKey } from './resources.js';

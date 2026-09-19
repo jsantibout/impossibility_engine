@@ -3,7 +3,7 @@ import { SPELL_DEFINITIONS, SRD_CONTENT } from '@ie/content';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { isErr } from '@ie/shared';
-import { TURN_MOMENTS } from './duration.js';
+import { TURN_MOMENTS } from './time.js';
 import { type SpellDefinition } from './spell-definitions.js';
 import {
   checkSpellDefinition,
@@ -1913,7 +1913,7 @@ describe('a format exemption says something that can stop being true', () => {
    * rather than the sweep being wrong.**
    *
    * It was exempted as "built and driven, but no definition writes it" — the
-   * engine resolved it, `duration.ts` declared it, the reducer branched on it,
+   * engine resolved it, `timers.ts` declared it, the reducer branched on it,
    * and `turn-hooks.test.ts` drove that branch with a hand-built hook. What it
    * lacked was a spell. SRD Hideous Laughter is that spell: "On a successful
    * save, **the spell ends**", which is the value exactly, and the day it got
@@ -1931,7 +1931,10 @@ describe('a format exemption says something that can stop being true', () => {
     );
     expect(writers.map((d) => d.id)).toContain('hideous-laughter');
 
-    expect(read('duration.ts')).toContain("readonly onSuccess: 'end-on-target' | 'end-casting'");
+    // IE's time split moved the record that declares it: a repeat save is a
+    // thing a deadline is hung on, which is `timers.ts`, and `time.ts` is now
+    // the clock and the two shapes of "how long" and nothing else.
+    expect(read('timers.ts')).toContain("readonly onSuccess: 'end-on-target' | 'end-casting'");
     // IE-039 moved the switch out of `events.ts`, which keeps the union, and
     // IE-050 dispatched it by domain; the branch this pins is the reducer's,
     // so it is read where the reducer is — the seam that owns what a casting
@@ -1974,7 +1977,7 @@ describe('a format exemption says something that can stop being true', () => {
  * name `commands/`, `events.ts`, `spells.ts`, `spellcasting.ts` and
  * `standing.ts` — and IE-005 moved seven readers of definitions out of that
  * population into `spell-definitions.ts` itself, while `spell-schema.ts`,
- * `duration.ts`, `attack.ts`, `positioning.ts` and `checks.ts` had never been
+ * `time.ts`, `attack.ts`, `positioning.ts` and `checks.ts` had never been
  * in it at all. No special case was found in any of them; this is a hole
  * closed rather than a breach.
  *
