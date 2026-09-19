@@ -23,12 +23,12 @@ import { type D20TestResult, skillName } from '../checks.js';
 import { type ConditionState, isIncapacitated } from '../conditions.js';
 import { type EffectCheck } from '../duration.js';
 import { type CreatureState, type GameEvent, type GameState } from '../events.js';
-import { distanceBetween, sightBetween } from '../positioning.js';
+import { distanceBetween } from '../positioning.js';
 import { type SpellCheck } from '../spell-definitions.js';
 import {
+  canSee,
   effectiveConditions,
   rollModesFor,
-  sensesOf,
   standingBonuses,
   standingSaveBonuses,
 } from '../standing.js';
@@ -261,12 +261,7 @@ export function defendingModes(
   return rollModesFor(
     state,
     { family: 'attack', roller: attacker, against: target },
-    {
-      seenByHolder:
-        state.scene === null
-          ? null
-          : sightBetween(state.scene, target, attacker, sensesOf(state, target)),
-    },
+    { seenByHolder: canSee(state, target, attacker) },
   );
 }
 
@@ -313,7 +308,7 @@ export function enemyWithinFiveFeet(
     // and the only value that excuses the attacker here is a declared no. It
     // is threaded through anyway so that the looker is named at every call
     // and a later rule that wants to tell null from true already has it.
-    if (sightBetween(scene, other.id, id, sensesOf(state, other.id)) === false) continue;
+    if (canSee(state, other.id, id) === false) continue;
 
     const apart = distanceBetween(scene, id, other.id);
     if (!apart.ok || apart.value > 5) continue;

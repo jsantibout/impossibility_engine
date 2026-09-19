@@ -12,7 +12,7 @@ import { spendMovement, spendReaction } from '../combat.js';
 import { isIncapacitated } from '../conditions.js';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
-import { sensesOf, speedOf } from '../standing.js';
+import { canSee, speedOf } from '../standing.js';
 import {
   dismount,
   distanceToPoint,
@@ -23,7 +23,6 @@ import {
   type Placement,
   type Point,
   positionOf,
-  sightBetween,
 } from '../positioning.js';
 import { type AttackResolution, resolveAttack } from './attacks.js';
 import { type Content } from '../content.js';
@@ -329,7 +328,7 @@ function provokedBy(
     // see: "a creature that you can see leaves your reach" is written from
     // the reactor's side, and a mover's own Darkvision would not help the
     // creature swinging at them one bit.
-    const seen = sightBetween(scene, other.id, mover, sensesOf(state, other.id));
+    const seen = canSee(state, other.id, mover);
     if (seen === false) continue;
     if (seen === null) {
       unverified.push(

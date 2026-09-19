@@ -1165,7 +1165,7 @@ export function sensesOf(state: GameState, who: CharacterId): readonly CreatureS
  * Whether one creature can see another, with the looker's own senses read in.
  *
  * The `GameState` half of {@link sightBetween}, and the seam every rule that
- * asks about sight should come through: a sense lives on a creature and the
+ * asks about sight comes through: a sense lives on a creature and the
  * declaration lives in the scene, so only a caller holding both can put the
  * two together. Three-valued like the pairwise question it wraps — null is
  * "ask", not "no" — and null again outside a scene, where there is no
@@ -1175,16 +1175,24 @@ export function sensesOf(state: GameState, who: CharacterId): readonly CreatureS
  * the declaration alone gets half the answer, and the half it is missing is
  * the whole of what a species trait grants.
  *
- * **Every rule that asks about sight now asks with a sense.** Five call
- * sites do it, and each names the looker rather than the actor, because they
- * are not the same creature: a casting and its shortlist read the *caster's*
- * (`namedTargets`, `eligibleTargets`), a teleport reads the *mover's*
- * (`teleportSight`), an Opportunity Attack and a Reaction feature read the
- * *reactor's* (`provokedBy`, `reaches`), and Dodge's "if you can see the
- * attacker" reads the *target's* (`defendingModes`) — the one clause written
- * from the defending side. Four of those hold a `PositionState` rather than
- * a `GameState` and so call {@link sightBetween} with `sensesOf` directly;
- * this is the reader for everything that holds the whole state.
+ * **Every rule in the engine that asks about sight asks here**, and none of
+ * them calls {@link sightBetween} any more — the pairwise question is for a
+ * caller who genuinely holds no creature to read a sense off. What each call
+ * has to decide is *whose* sight it wants, because the looker is not always
+ * the actor:
+ *
+ * | Rule | The looker |
+ * |---|---|
+ * | a casting and its shortlist (`namedTargets`, `eligibleTargets`) | the caster: "a creature **you** can see" |
+ * | a teleport (`teleportSight`) | the creature moving: "a space **you** can see" |
+ * | an Opportunity Attack (`provokedBy`) | the reactor: "a creature **you** can see leaves your reach" |
+ * | a Reaction feature (`reaches`) | the reactor, whose roll they answer |
+ * | Dodge (`defendingModes`) | the **target**: "if **you** can see the attacker" |
+ * | a ranged attack at close quarters (`enemyWithinFiveFeet`) | the enemy beside you, "who can see you" |
+ *
+ * Dodge is the one that runs against the direction of the action, and the
+ * last is the one a sense cannot move — only a declared no excuses that
+ * attacker. Both say so where they are written.
  */
 export function canSee(state: GameState, from: CharacterId, to: CharacterId): boolean | null {
   if (state.scene === null) return null;

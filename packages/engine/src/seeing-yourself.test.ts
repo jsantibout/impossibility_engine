@@ -32,8 +32,11 @@ import { canSee } from './standing.js';
  * arises.
  *
  * Driven through the public API on all four of the healing spells the SRD
- * writes with `self` in their target line, because a defect nobody casts
- * through is a defect nobody notices was fixed.
+ * writes with `self` in their target line, and on Misty Step — the second
+ * place the same deadlock sat, where a teleport whose destination is stated
+ * relative to the caster's own space asked whether they could see
+ * themselves. A defect nobody casts through is a defect nobody notices was
+ * fixed.
  */
 
 const id = (s: string) => asCharacterId(s);
@@ -125,8 +128,14 @@ const wounded = (): { readonly log: readonly GameEvent[]; readonly state: GameSt
  * Every SRD healing spell whose target line includes the caster, with the
  * slot it is cast at and the point Mass Cure Wounds needs.
  *
- * Listed rather than looped over the catalogue because the *number* of them
- * is the point: four spells, four unreachable casters, one comparison.
+ * **Two of the four were the defect and two are the control.** Healing Word
+ * and Mass Healing Word print "a creature of your choice that you can see"
+ * and carry `requiresSight`, and neither could be cast on its own caster.
+ * Cure Wounds is Touch and Mass Cure Wounds picks its targets out of a
+ * Sphere; neither carries the clause, so both already worked. All four are
+ * driven because the sentence anybody would repeat about this defect is
+ * "no healing spell reaches its own caster", and the only way to know which
+ * of them it was actually true of is to cast every one.
  */
 const SELF_HEALING = [
   ['cure-wounds', 1, undefined],
@@ -180,6 +189,74 @@ describe('the four healing spells land on their own casters', () => {
     const shortlist = eligibleTargets(state, SRD_CONTENT, HEALER, 'healing-word', 1);
     expect(shortlist.eligible).toEqual([HEALER]);
     expect(shortlist.needsContext.map((n) => n.subject)).toEqual([ALLY]);
+  });
+});
+
+// — the second place the same deadlock sat —————————————————————————————————
+
+/**
+ * SRD Misty Step: "you teleport up to 30 feet to an unoccupied space **you
+ * can see**."
+ *
+ * `teleportSight` reads the sight of the creature moving against whatever
+ * their destination is measured *from* — and the most natural way to say
+ * "thirty feet that way" is to measure it from where they are standing. That
+ * made the anchor the caster themselves, and the pre-flight then asked
+ * whether the caster could see themselves and offered a `declareSightBetween`
+ * the fold would have thrown on: the healing spells' deadlock a second time,
+ * in a command nobody had connected to it.
+ */
+describe('a teleport measured from the caster’s own space', () => {
+  const HOP: readonly GameEvent[] = [
+    ...SETUP,
+    {
+      type: 'spellcasting-declared',
+      id: HEALER,
+      spellcasting: declaredCasting({ ability: 'wis', prepared: ['misty-step'] }),
+    },
+    {
+      type: 'resource-pool-declared',
+      id: HEALER,
+      pool: { key: spellSlotKey(2), label: 'level 2 spell slot', max: 2, recovers: 'long-rest' },
+    },
+  ];
+
+  it('goes, with nobody having declared that the caster can see themselves', () => {
+    const out = unwrap(
+      resolveSpell(
+        fold('seed', HOP),
+        HEALER,
+        {
+          spellId: 'misty-step',
+          targets: [HEALER],
+          slotLevel: 2,
+          teleportTo: { from: { creature: HEALER }, feet: 25, bearing: 90 },
+        },
+        supply('step'),
+      ),
+      'Misty Step measured from the caster',
+    );
+    expect(out.events.some((e) => e.type === 'creature-moved')).toBe(true);
+  });
+
+  /**
+   * And the clause is not dead: measured from somebody else, with nothing
+   * declared, the spell still asks.
+   */
+  it('still asks when the destination is measured from another creature', () => {
+    const out = resolveSpell(
+      fold('seed', HOP),
+      HEALER,
+      {
+        spellId: 'misty-step',
+        targets: [HEALER],
+        slotLevel: 2,
+        teleportTo: { from: { creature: ALLY }, feet: 5, bearing: 90 },
+      },
+      supply('step'),
+    );
+    expect(isErr(out) && out.code).toBe('needs_context');
+    expect(isErr(out) && out.reason).toContain('can see');
   });
 });
 

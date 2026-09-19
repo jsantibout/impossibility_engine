@@ -2,9 +2,9 @@ import { type Ability, type CharacterId } from '@ie/shared';
 import type { D20TestKind } from './checks.js';
 import { abilityModifier } from './character.js';
 import { isIncapacitated } from './conditions.js';
-import { distanceBetween, sightBetween } from './positioning.js';
+import { distanceBetween } from './positioning.js';
 import { remaining } from './resources.js';
-import { sensesOf } from './standing.js';
+import { canSee } from './standing.js';
 import type { GameState } from './events.js';
 
 /**
@@ -384,10 +384,7 @@ function seen(
   // see whom — "the reactor must see the creature whose roll they are
   // answering" — so the looker is the reactor, and the Bard's Darkvision is
   // what settles Cutting Words rather than the Ogre's.
-  const line =
-    state.scene === null
-      ? null
-      : sightBetween(state.scene, reactor, actor, sensesOf(state, reactor));
+  const line = canSee(state, reactor, actor);
   if (line === false) return false;
   if (line === null) {
     unverified.push(

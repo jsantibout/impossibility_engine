@@ -39,10 +39,9 @@ import {
   type Point,
   type PointAnchoring,
   positionOf,
-  sightBetween,
   snapToSpace,
 } from '../positioning.js';
-import { sensesOf } from '../standing.js';
+import { canSee } from '../standing.js';
 import { type SlotKind } from '../resources.js';
 import {
   DIRECTIONAL_AREAS,
@@ -1035,7 +1034,7 @@ export function namedTargets(
         // "A creature *you* can see" names the caster in as many words, and
         // a target's own Darkvision says nothing about whether the caster
         // can pick them out. A declaration still outranks both.
-        const seen = sightBetween(state.scene, casterId, target, sensesOf(state, casterId));
+        const seen = canSee(state, casterId, target);
         if (seen === null) {
           needs.push({
             kind: 'visibility',
@@ -1221,7 +1220,7 @@ export function eligibleTargets(
         // The caster's senses again, and for the reason `namedTargets` gives:
         // the shortlist and the resolution must answer one question the same
         // way, or a target the engine offered would be refused when aimed at.
-        const seen = sightBetween(state.scene, casterId, target.id, sensesOf(state, casterId));
+        const seen = canSee(state, casterId, target.id);
         if (seen === null) {
           needsContext.push({
             kind: 'visibility',
