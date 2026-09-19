@@ -450,7 +450,17 @@ const tablePrices = (description: string): ReadonlyMap<string, number> => {
   for (let n = 0; n + 1 < cells.length; n += 2) {
     const spell = (cells[n] ?? '').replace(/[*_]/g, '').trim();
     const cost = Number((cells[n + 1] ?? '').trim());
-    if (spell.length > 0 && Number.isInteger(cost)) prices.set(spell, cost);
+    if (spell.length === 0 || !Number.isInteger(cost)) continue;
+    prices.set(spell, cost);
+    // **A cell may annotate the spell it prices**, and the annotation is not
+    // part of the name: SRD Wand of Fear prints "*Command* (flee or grovel
+    // only)" and "*Fear* (60-foot Cone)", and the Staff of Power prints
+    // "*Fireball* (level 5 version)". What the row is pricing is the spell
+    // before the bracket, so the bracket is indexed away — and it is indexed
+    // *as well as* the whole cell rather than instead of it, so a spell whose
+    // printed name really contains a parenthesis is still found.
+    const annotated = /^(.*?)\s*\([^()]*\)$/.exec(spell);
+    if (annotated !== null) prices.set((annotated[1] ?? '').trim(), cost);
   }
   return prices;
 };

@@ -42,7 +42,17 @@ import {
 const PARSED = parsedItemIds();
 const TRANSCRIBED = transcribedItemIds();
 
-/** A real entry to hang synthetic readings on, chosen for a short, table-free paragraph. */
+/**
+ * A real entry to hang synthetic readings on, chosen for a short, table-free
+ * paragraph.
+ *
+ * It is a **transcribed** entry now — the sense reader landed and the goggles
+ * went into the catalogue — and that changes nothing here: every guard below
+ * passes the classifier an explicit transcribed set and an explicit map, so
+ * the specimen is being used for its two sentences rather than for its pile.
+ * Reaching for the real `TRANSCRIBED` with it would answer `transcribed`
+ * before any of the readings were looked at, which is why none of them does.
+ */
 const SPECIMEN = 'goggles-of-night';
 
 describe('the item blocked-on map covers the untranscribed population', () => {

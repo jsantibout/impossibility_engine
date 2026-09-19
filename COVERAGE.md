@@ -592,7 +592,7 @@ is where a figure like that belongs.
 
 | Parsed | Transcribed | Instances | of which complete | of which partial |
 |---|---|---|---|---|
-| 258 | 67 | 224 | 178 | 46 |
+| 258 | 72 | 229 | 178 | 51 |
 
 An entry with **no** record is one whose whole text is beyond the grant
 vocabulary. `packages/content/src/items.ts` states the three rules that
@@ -615,9 +615,9 @@ inventing a column that nothing checks.
 | Rods | 7 | 1 | 1 | 0 | 1 |
 | Scrolls | 1 | 0 | 0 | 0 | 0 |
 | Staffs | 12 | 1 | 1 | 0 | 1 |
-| Wands | 13 | 4 | 4 | 1 | 3 |
+| Wands | 13 | 8 | 8 | 1 | 7 |
 | Weapons | 33 | 15 | 128 | 115 | 13 |
-| Wondrous Items | 127 | 25 | 25 | 9 | 16 |
+| Wondrous Items | 127 | 26 | 26 | 9 | 17 |
 
 ### Entries transcribed
 
@@ -650,6 +650,7 @@ how many of those still carry a clause the engine does not say.
 - **Frost Brand** (Weapons) — 1 recorded, 1 partial
 - **Giant Slayer** (Weapons) — 1 recorded, 1 partial
 - **Glamoured Studded Leather** (Armor) — 1 recorded, 1 partial
+- **Goggles of Night** (Wondrous Items) — 1 recorded, 1 partial
 - **Hammer of Thunderbolts** (Weapons) — 1 recorded, 1 partial
 - **Helm of Comprehending Languages** (Wondrous Items) — 1 recorded, complete
 - **Helm of Teleportation** (Wondrous Items) — 1 recorded, complete
@@ -685,8 +686,12 @@ how many of those still carry a clause the engine does not say.
 - **Universal Solvent** (Wondrous Items) — 1 recorded, 1 partial
 - **Vicious Weapon** (Weapons) — 1 recorded, complete
 - **Vorpal Sword** (Weapons) — 1 recorded, 1 partial
+- **Wand of Binding** (Wands) — 1 recorded, 1 partial
+- **Wand of Fear** (Wands) — 1 recorded, 1 partial
 - **Wand of Fireballs** (Wands) — 1 recorded, 1 partial
+- **Wand of Lightning Bolts** (Wands) — 1 recorded, 1 partial
 - **Wand of Magic Detection** (Wands) — 1 recorded, complete
+- **Wand of Polymorph** (Wands) — 1 recorded, 1 partial
 - **Wand of Secrets** (Wands) — 1 recorded, 1 partial
 - **Wand of Web** (Wands) — 1 recorded, 1 partial
 - **Weapon of Warning** (Weapons) — 1 recorded, 1 partial
@@ -714,7 +719,7 @@ entry of "Magic Items A–Z" is in exactly one of them.
 
 | Parsed | Transcribed | Blocked | Ready | Fiction | Unread |
 |---|---|---|---|---|---|
-| 258 | 67 | 179 | 2 | 4 | 6 |
+| 258 | 72 | 176 | 2 | 4 | 4 |
 
 **Unread is the honest default**, not a backlog nobody got to. An entry
 whose blocker cannot be named from something this repository has already
@@ -760,24 +765,24 @@ is heaviest now is an item instance with a state of its own.
 |---|---|---|---|
 | `an-ability-score-a-spell-changes` | 15 | 0 | 9 |
 | `a-condition-an-item-imposes` | 28 | 0 | 5 |
-| `a-rider-on-the-face-the-die-showed` | 17 | 0 | 5 |
 | `a-container-with-a-space-of-its-own` | 6 | 0 | 5 |
 | `a-spell-an-item-casts-that-nothing-executes` | 19 | 2 | 2 |
 | `a-stat-block-created-mid-fight` | 17 | 0 | 4 |
-| `a-version-of-an-item-the-book-leaves-to-the-gm` | 27 | 0 | 3 |
+| `a-version-of-an-item-the-book-leaves-to-the-gm` | 28 | 0 | 3 |
 | `an-object-with-statistics-of-its-own` | 17 | 0 | 3 |
 | `a-speed-an-item-grants` | 14 | 0 | 2 |
 | `an-item-instance-with-a-state-of-its-own` | 12 | 0 | 2 |
 | `a-fact-only-the-table-can-declare` | 11 | 0 | 2 |
 | `a-reaction-an-item-grants` | 8 | 0 | 2 |
 | `a-mode-on-the-save-a-spell-forces` | 6 | 1 | 1 |
+| `a-random-outcome-that-is-not-a-d20` | 5 | 1 | 1 |
 | `a-casting-an-item-stores-or-gives-back` | 4 | 0 | 2 |
-| `a-random-outcome-that-is-not-a-d20` | 4 | 1 | 1 |
+| `a-target-rule-the-format-cannot-state` | 2 | 1 | 1 |
 | `a-charge-spent-on-something-other-than-a-casting` | 18 | 0 | 1 |
 | `an-area-an-item-creates` | 17 | 0 | 1 |
+| `a-rider-on-the-face-the-die-showed` | 13 | 0 | 1 |
 | `a-benefit-an-item-switches-on-and-off` | 12 | 0 | 1 |
 | `a-rider-on-a-later-weapon-attack` | 12 | 0 | 1 |
-| `senses-beyond-declared-sight` | 9 | 1 | 0 |
 | `a-bonus-narrowed-to-a-skill` | 7 | 1 | 0 |
 | `a-language-or-a-proficiency-an-item-grants` | 5 | 0 | 1 |
 | `healing-modified-by-an-effect` | 5 | 0 | 1 |
@@ -787,10 +792,10 @@ is heaviest now is an item instance with a state of its own.
 | `a-casting-ended-by-a-trigger` | 1 | 0 | 1 |
 | `a-critical-hit-an-effect-downgrades` | 1 | 0 | 1 |
 | `a-reduction-an-effect-applies-to-damage` | 1 | 0 | 1 |
-| `a-target-rule-the-format-cannot-state` | 1 | 0 | 1 |
 | `movement-modes` | 13 | 0 | 0 |
 | `a-save-an-item-forces` | 12 | 0 | 0 |
 | `a-damage-roll-an-item-makes` | 11 | 0 | 0 |
+| `senses-beyond-declared-sight` | 8 | 0 | 0 |
 | `a-bonus-to-spell-attack-rolls` | 7 | 0 | 0 |
 | `an-exhaustion-level-a-spell-changes` | 4 | 0 | 0 |
 | `a-concentration-with-no-casting-behind-it` | 3 | 0 | 0 |

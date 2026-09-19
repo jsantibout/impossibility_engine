@@ -1170,3 +1170,112 @@ describe('a chime with ten strikes and a rod with one charge a morning', () => {
     expect(left(second, 'rod-of-resurrection')).toBe(3);
   });
 });
+
+/**
+ * The four wands the definitions freed, and the clause that was never a
+ * blocker.
+ *
+ * Every wand in the family prints "If you expend the wand's last charge, roll
+ * 1d20. On a 1, the wand crumbles into ashes and is destroyed", and the Wand
+ * of Fireballs and the Wand of Web have carried it as an `unmodelled` note
+ * since they were written — nothing removes a line from an inventory, so the
+ * record is a wand that lasts *longer* than the book's rather than one that
+ * does more. Four others were filed as **blocked** on the same sentence while
+ * their real blocker was a missing spell; six definitions later, Polymorph,
+ * Lightning Bolt, Hold Monster, Hold Person, Command and Fear all exist, and
+ * each wand is the Wand of Web's record with the numbers changed.
+ */
+describe('the four wands whose remainder was a note', () => {
+  /** All four carry the crumble as a note, and none of them as a grant. */
+  it('records the crumble the way the two transcribed wands already did', () => {
+    for (const id of [
+      'wand-of-polymorph',
+      'wand-of-lightning-bolts',
+      'wand-of-binding',
+      'wand-of-fear',
+    ]) {
+      expect(
+        (SRD_CONTENT.item(id)?.unmodelled ?? []).join(' '),
+        `${id} says nothing about destroying itself`,
+      ).toContain('the wand crumbles into ashes and is destroyed');
+    }
+  });
+
+  it('casts a tracked Polymorph off the wand against the wand’s own fifteen', () => {
+    const held = wearing('wand-of-polymorph');
+    expect(left(held, 'wand-of-polymorph')).toBe(7);
+    const { log, out } = castFrom('wand-of-polymorph', 'polymorph', { targets: [OTHER] });
+    expect(castOf(out.events)?.slotless).toBe('magic-item');
+    expect(ongoingSpellOf(fold('seed', log), out.castingId)?.numbers.saveDc).toBe(15);
+    expect(left(log, 'wand-of-polymorph')).toBe(6);
+  });
+
+  /**
+   * Two prices on one pool, out of the wand's own table — and the two
+   * parentheticals beside them are notes, because each leaves the wand weaker
+   * than the page rather than stronger.
+   */
+  it('prices Command at one charge and Fear at three off one pool', () => {
+    const commanded = castFrom('wand-of-fear', 'command', { targets: [OTHER] });
+    expect(left(commanded.log, 'wand-of-fear')).toBe(6);
+
+    const frightened = unwrap(
+      resolveSpell(
+        fold('seed', commanded.log),
+        BEARER,
+        {
+          spellId: 'fear',
+          targets: [],
+          // A Cone starts at the caster and is only pointed, which is the
+          // area the wand would have widened.
+          towards: { x: 140, y: 100, z: 0 },
+          item: 'wand-of-fear',
+          commandId: 'the-cone',
+        },
+        supply('fear'),
+      ),
+      'Fear from the wand',
+    );
+    expect(left([...commanded.log, ...frightened.events], 'wand-of-fear')).toBe(3);
+
+    // "*Fear* (60-foot Cone)" widens the spell and the record does not, which
+    // is why it is a note: the casting fills Fear's own Cone.
+    expect(SRD_CONTENT.item('wand-of-fear')?.unmodelled?.join(' ')).toContain('60-foot Cone');
+  });
+
+  it('spends up to three charges on one Lightning Bolt, and binds for five', () => {
+    const bolt = unwrap(
+      resolveSpell(
+        fold('seed', wearing('wand-of-lightning-bolts')),
+        BEARER,
+        {
+          spellId: 'lightning-bolt',
+          targets: [],
+          towards: { x: 180, y: 100, z: 0 },
+          item: 'wand-of-lightning-bolts',
+          charges: 3,
+        },
+        supply('bolt'),
+      ),
+      'Lightning Bolt from the wand',
+    );
+    expect(left([...wearing('wand-of-lightning-bolts'), ...bolt.events], 'wand-of-lightning-bolts'))
+      .toBe(4);
+
+    // And the Wand of Binding's two prices, the dearer of them first.
+    const bound = castFrom('wand-of-binding', 'hold-monster', { targets: [OTHER] });
+    expect(left(bound.log, 'wand-of-binding')).toBe(2);
+    const cheaper = resolveSpell(
+      fold('seed', bound.log),
+      BEARER,
+      {
+        spellId: 'hold-person',
+        targets: [OTHER],
+        item: 'wand-of-binding',
+        commandId: 'the-cheaper-one',
+      },
+      supply('hold'),
+    );
+    expect(isErr(cheaper)).toBe(false);
+  });
+});

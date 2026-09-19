@@ -1196,6 +1196,120 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
       ],
     },
   ),
+  /**
+   * **The four wands whose whole remainder was one sentence**, and the
+   * sentence was already a note rather than a blocker.
+   *
+   * Every wand in this family prints "If you expend the wand's last charge,
+   * roll 1d20. On a 1, the wand crumbles into ashes and is destroyed", and
+   * the Wand of Fireballs and the Wand of Web above carry it in
+   * {@link CatalogueItem.unmodelled} — because nothing removes a line from an
+   * inventory, so a record without the clause is a wand that lasts *longer*
+   * than the book's rather than one that does more. That is rule 2 of this
+   * file, not rule 3: the unsayable clause takes the item away, so leaving it
+   * out cannot hand a party a better wand than the page prints.
+   *
+   * What kept these four out was the other half — Polymorph, Command, Fear,
+   * Lightning Bolt, Hold Person and Hold Monster had no definitions — and all
+   * six exist now. Each is the Wand of Web's record with the numbers changed.
+   */
+  wornItem(
+    { id: 'wand-of-polymorph', name: 'Wand of Polymorph', kind: 'wand' },
+    {
+      /**
+       * SRD Wand of Polymorph: "Wand, Very Rare (Requires Attunement by a
+       * Spellcaster). This wand has 7 charges. While holding it, you can
+       * expend 1 charge to cast _Polymorph_ (save DC 15) from it."
+       *
+       * Polymorph is a **tracked** definition, which is the whole of what
+       * `checkContent` asks a `casts` grant for — the casting is recorded
+       * with the wand's DC pinned to it, and what the new shape *does* is the
+       * definition's own note.
+       */
+      attunement: { bySpellcaster: true },
+      grants: [
+        charges('wand-of-polymorph', 'Wand of Polymorph', 7, '1d6 + 1'),
+        castsSpell('polymorph', 1, { saveDc: 15 }),
+      ],
+      unmodelled: [
+        '"If you expend the wand\'s last charge, roll 1d20. On a 1, the wand crumbles into ashes and is destroyed": an item that destroys itself on a die face, which nothing removes from an inventory',
+      ],
+    },
+  ),
+  wornItem(
+    { id: 'wand-of-lightning-bolts', name: 'Wand of Lightning Bolts', kind: 'wand' },
+    {
+      /**
+       * SRD Wand of Lightning Bolts: "Wand, Rare (Requires Attunement by a
+       * Spellcaster). This wand has 7 charges. While holding it, you can
+       * expend no more than 3 charges to cast _Lightning Bolt_ (save DC 15)
+       * from it. For 1 charge, you cast the level 3 version of the spell."
+       *
+       * The Wand of Fireballs' sentence with one spell changed, down to the
+       * range of charges and the level they buy.
+       */
+      attunement: { bySpellcaster: true },
+      grants: [
+        charges('wand-of-lightning-bolts', 'Wand of Lightning Bolts', 7, '1d6 + 1'),
+        castsSpell('lightning-bolt', 1, { upToCharges: 3, saveDc: 15 }),
+      ],
+      unmodelled: [
+        '"If you expend the wand\'s last charge, roll 1d20. On a 1, the wand crumbles into ashes and is destroyed": an item that destroys itself on a die face, which nothing removes from an inventory',
+      ],
+    },
+  ),
+  wornItem(
+    { id: 'wand-of-binding', name: 'Wand of Binding', kind: 'wand' },
+    {
+      /**
+       * SRD Wand of Binding: "Wand, Rare (Requires Attunement). This wand has
+       * 7 charges. _Spells._ While holding the wand, you can cast one of the
+       * spells (save DC 17) on the following table from it" — Hold Monster
+       * for 5 charges, Hold Person for 2.
+       *
+       * Two prices on one pool, out of a table, which is the staff shape; the
+       * DC is printed once and belongs to both.
+       */
+      attunement: {},
+      grants: [
+        charges('wand-of-binding', 'Wand of Binding', 7, '1d6 + 1'),
+        castsSpell('hold-monster', 5, { saveDc: 17 }),
+        castsSpell('hold-person', 2, { saveDc: 17 }),
+      ],
+      unmodelled: [
+        '"If you expend the wand\'s last charge, roll 1d20. On a 1, the wand crumbles into ashes and is destroyed": an item that destroys itself on a die face, which nothing removes from an inventory',
+      ],
+    },
+  ),
+  wornItem(
+    { id: 'wand-of-fear', name: 'Wand of Fear', kind: 'wand' },
+    {
+      /**
+       * SRD Wand of Fear: "Wand, Rare (Requires Attunement). This wand has 7
+       * charges. _Spells._ While holding the wand, you can cast one of the
+       * spells (save DC 15) on the following table from it" — Command "(flee
+       * or grovel only)" for 1 charge, Fear "(60-foot Cone)" for 3.
+       *
+       * **Both parentheticals are notes, and both for the same reason as the
+       * crumble: each leaves the wand weaker than the page.** Command is
+       * tracked and resolves nothing, so there are no options for "flee or
+       * grovel only" to narrow; and Fear's own area is a 30-foot Cone, so a
+       * casting from this wand catches half of what the book's wand catches
+       * rather than twice as much.
+       */
+      attunement: {},
+      grants: [
+        charges('wand-of-fear', 'Wand of Fear', 7, '1d6 + 1'),
+        castsSpell('command', 1, { saveDc: 15 }),
+        castsSpell('fear', 3, { saveDc: 15 }),
+      ],
+      unmodelled: [
+        '"*Fear* (60-foot Cone)": the wand widens the spell\'s area and a `casts` grant hands the definition to the pipeline whole, so a casting from this wand fills Fear\'s own 30-foot Cone — half the page\'s wand rather than twice it',
+        '"*Command* (flee or grovel only)": the narrowing has nothing to narrow, because Command is a tracked definition and the option a caster chooses is what it leaves to the table',
+        '"If you expend the wand\'s last charge, roll 1d20. On a 1, the wand crumbles into ashes and is destroyed": an item that destroys itself on a die face, which nothing removes from an inventory',
+      ],
+    },
+  ),
   wornItem(
     { id: 'wand-of-web', name: 'Wand of Web', kind: 'wand' },
     {
@@ -1609,6 +1723,39 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
     },
   ),
   wornItem(
+    { id: 'goggles-of-night', name: 'Goggles of Night', kind: 'wondrous' },
+    {
+      /**
+       * SRD Goggles of Night: "Wondrous Item, Uncommon. While wearing these
+       * dark lenses, you have Darkvision out to 60 feet. If you already have
+       * Darkvision, wearing the goggles increases its range by 60 feet."
+       *
+       * **The first item in the catalogue to grant a sense**, and the item
+       * the `sense` effect was named for: a species already writes exactly
+       * this grant, and `sensesOf` reads it off whatever is worn and attuned
+       * the same way it reads one off a species.
+       *
+       * The second sentence is a note rather than a blocker, and which of the
+       * two it is turns on how the reader composes: `sensesOf` keeps the
+       * **furthest** range each sense reaches, so a Drow in these goggles
+       * sees 120 feet where the book gives them 180. That is the unsayable
+       * clause leaving the wearer with *less* than the page, which is rule 2
+       * of this file rather than rule 3.
+       */
+      grants: [
+        {
+          kind: 'standing',
+          reach: 'self',
+          effects: [{ kind: 'sense', sense: 'darkvision', feet: 60 }],
+          requires: WORN,
+        },
+      ],
+      unmodelled: [
+        '"If you already have Darkvision, wearing the goggles increases its range by 60 feet": two sources of one sense compose by the furthest of them and never by the sum, so a wearer who already has Darkvision keeps the longer of the two ranges instead of adding the goggles\' sixty to it',
+      ],
+    },
+  ),
+  wornItem(
     { id: 'chime-of-opening', name: 'Chime of Opening', kind: 'wondrous' },
     {
       /**
@@ -1631,7 +1778,6 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
        * "uses its normal casting time, range, and duration" — is every word
        * arithmetic a tracked definition carries.
        */
-      weightLb: 1,
       grants: [
         countedUses('chime-of-opening', 'Chime of Opening strikes', 10),
         castsSpell('knock', 1),

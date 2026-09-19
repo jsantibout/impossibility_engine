@@ -21,6 +21,7 @@ import {
   resolveAttack,
   resolveSpell,
   rollInitiativeFor,
+  unequipItem,
 } from './commands.js';
 import { checkBonuses } from './commands/rolls.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
@@ -30,7 +31,15 @@ import { spellSlotKey } from './resources.js';
 import { beginRest } from './rest.js';
 import { createRollIssuer } from './rolls.js';
 import { declaredCasting } from './spellcasting.js';
-import { armorClassOf, defensesOf, effectiveConditions, rollModesFor, suppressedConditions } from './standing.js';
+import {
+  armorClassOf,
+  canSee,
+  defensesOf,
+  effectiveConditions,
+  rollModesFor,
+  sensesOf,
+  suppressedConditions,
+} from './standing.js';
 import { speed } from './character.js';
 
 /**
@@ -623,6 +632,25 @@ describe('an attunement prerequisite, asked of whoever picks the item up', () =>
     const armed = run(knight, (s) => equipItem(s, SRD_CONTENT, KNIGHT, 'holy-avenger'));
     expect(contributionsOf(swingAt(armed, KNIGHT, 'holy-avenger', 'smite').events)['Holy Avenger']).toBe(3);
   });
+
+  /**
+   * Three answers and not two: a creature nobody has said anything about is an
+   * unanswered question rather than a refusal, and the engine says which
+   * command would settle it.
+   */
+  it('asks about a creature whose spellcasting nobody has declared, and takes a Wizard', () => {
+    const stranger = run(SETUP, (s) => beginRest(s, HERO, 'short'));
+    const asked = attuneItem(fold('seed', stranger), SRD_CONTENT, HERO, 'wand-of-fireballs');
+    expect(isNeedsContext(asked)).toBe(true);
+    // And it names the command that would settle it: an ask nobody can answer
+    // is a refusal wearing a question's clothes.
+    expect(contextRequestsOf(asked)[0]?.subject).toBe(HERO);
+    expect(contextRequestsOf(asked)[0]?.satisfyWith).toMatch(/declareSpellcasting/);
+
+    const mage = attuned(made(wizardChoices()), 'wand-of-fireballs', MAGE);
+    const held = run(mage, (s) => equipItem(s, SRD_CONTENT, MAGE, 'wand-of-fireballs'));
+    expect(chargesLeft(fold('seed', held), SRD_CONTENT, MAGE, 'wand-of-fireballs')).toBe(7);
+  });
 });
 
 /**
@@ -706,23 +734,55 @@ describe('a count the book rolls at the copy’s birth', () => {
     const morning = run(empty, (s) => declareDawn(s, supply('dawn')));
     expect(chargesLeft(fold('seed', morning), SRD_CONTENT, HERO, 'universal-solvent')).toBe(0);
   });
+});
+
+/**
+ * The first item in the catalogue that grants a **sense**, and the reason its
+ * entry stopped being blocked.
+ *
+ * The map's line against the Goggles of Night said "a standing grant has no
+ * member that would say so", and that was true when it was written and is not
+ * now: `sense` is a member of `ITEM_EFFECT_KINDS` with a validated range, a
+ * species already writes exactly this grant, and `sensesOf` reads one off
+ * whatever is worn and attuned — so the goggles are the same grant on a
+ * different source, which is the whole claim a catalogue makes.
+ */
+describe('a sense an item grants, read off what is worn', () => {
+  const nightfall = (): readonly GameEvent[] =>
+    worn(
+      run(PRELUDE, (s) =>
+        awardItems(s, supply('the-goggles'), HERO, [{ id: 'goggles-of-night' }], 'the hoard'),
+      ),
+      'goggles-of-night',
+    );
+
+  it('gives its wearer Darkvision out to sixty feet, and nobody else', () => {
+    const dark = nightfall();
+    expect(sensesOf(fold('seed', dark), HERO)).toEqual([{ sense: 'darkvision', feet: 60 }]);
+    // "While wearing these dark lenses": the friend standing beside them has
+    // nothing, which is the requirement doing its work rather than the grant.
+    expect(sensesOf(fold('seed', dark), FRIEND)).toEqual([]);
+  });
 
   /**
-   * Three answers and not two: a creature nobody has said anything about is an
-   * unanswered question rather than a refusal, and the engine says which
-   * command would settle it.
+   * And the sense reaches the question sight asks — the seam the same landing
+   * built, and the difference between a grant that applies and one that is
+   * merely stored.
    */
-  it('asks about a creature whose spellcasting nobody has declared, and takes a Wizard', () => {
-    const stranger = run(SETUP, (s) => beginRest(s, HERO, 'short'));
-    const asked = attuneItem(fold('seed', stranger), SRD_CONTENT, HERO, 'wand-of-fireballs');
-    expect(isNeedsContext(asked)).toBe(true);
-    // And it names the command that would settle it: an ask nobody can answer
-    // is a refusal wearing a question's clothes.
-    expect(contextRequestsOf(asked)[0]?.subject).toBe(HERO);
-    expect(contextRequestsOf(asked)[0]?.satisfyWith).toMatch(/declareSpellcasting/);
+  it('answers the sight question for a creature inside the range and not beyond it', () => {
+    const state = fold('seed', nightfall());
+    // FOE stands five feet away and FRIEND twenty, both inside sixty.
+    expect(canSee(state, HERO, FOE)).toBe(true);
+    expect(canSee(state, HERO, FRIEND)).toBe(true);
+    // WITCH is twenty-five feet away and can see the hero by declaration; the
+    // hero's own answer is the goggles', not the declaration's.
+    expect(canSee(state, HERO, WITCH)).toBe(true);
 
-    const mage = attuned(made(wizardChoices()), 'wand-of-fireballs', MAGE);
-    const held = run(mage, (s) => equipItem(s, SRD_CONTENT, MAGE, 'wand-of-fireballs'));
-    expect(chargesLeft(fold('seed', held), SRD_CONTENT, MAGE, 'wand-of-fireballs')).toBe(7);
+    // Taken off, the sense goes with them: a worn benefit is derived on every
+    // read rather than stored, so nothing has to remember to take it away.
+    const bare = run(nightfall(), (s) =>
+      unequipItem(s, SRD_CONTENT, HERO, 'goggles-of-night'),
+    );
+    expect(sensesOf(fold('seed', bare), HERO)).toEqual([]);
   });
 });

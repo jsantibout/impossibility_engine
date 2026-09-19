@@ -5312,10 +5312,21 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     unread:
       'read, and the blocker cannot be named from anything this repository has written down. "you can’t be targeted by Divination spells or perceived through magical scrying sensors" is a filter on the *school* of a spell reaching the targeting check, and no document here describes a school axis as a gap. Filing it as the table’s would put an entry with nothing to record on the ready list; naming a shape for it would be an architecture decision smuggled in as a note.',
   },
-  'amulet-of-the-planes': {
-    unread:
-      're-read, and the blocker it named is gone without another to take its place. Plane Shift is a **tracked** definition now, which is what `checkContent` asks a `casts` grant for, so "On a successful check, you cast _Plane Shift_" is not waiting on a spell. What it is waiting on is the six words before it — "Then make a DC 15 Intelligence (Arcana) check" — an ability check that **gates** a casting from an item, which no grant kind has a field for and which no document here describes as a gap. The 1d100 destination table is the GM’s, and would be a second blocker if the first were nameable. Inventing a shape for a gated casting would be the architecture decision this vocabulary refuses to smuggle in as a note.',
-  },
+  // Re-pointed, and the spell shape was never the blocker: Plane Shift is a
+  // tracked definition, which is what `checkContent` asks a `casts` grant
+  // for. What stays is the amulet's failure branch — "travel to a random
+  // destination determined by rolling 1d100 and consulting the following
+  // table" — which is the spell map's own 1d100 mishap roll, and the GM's
+  // table underneath it. The clause with **no** id in either vocabulary is
+  // the gate on the success branch, "Then make a DC 15 Intelligence (Arcana)
+  // check": an ability check that decides whether an item's casting happens
+  // at all, which no grant kind has a field for. It is written down here
+  // rather than given a shape, because inventing one would be the
+  // architecture decision this vocabulary refuses to smuggle into a note.
+  'amulet-of-the-planes': [
+    'a-random-outcome-that-is-not-a-d20',
+    'a-version-of-an-item-the-book-leaves-to-the-gm',
+  ],
   'animated-shield': ['a-benefit-an-item-switches-on-and-off', 'what-a-creature-is-holding'],
   'apparatus-of-the-crab': ['an-object-with-statistics-of-its-own'],
   'armor-of-resistance': ['a-version-of-an-item-the-book-leaves-to-the-gm'],
@@ -5448,10 +5459,28 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'a-benefit-an-item-suspends-on-a-trigger',
     'a-random-outcome-that-is-not-a-d20',
   ],
-  'dust-of-dryness': {
-    unread:
-      're-read, and the blocker it named is gone without another to take its place. "This small packet contains 1d6 + 4 pinches of dust" is a count the book rolls at the copy’s birth, which `CatalogueItem.chargesRolled` says and `awardItems` throws; and the 10d6 on a DC 13 Constitution save is a priced conferral, which `save-damage` and a printed `saveDc` write. What is left is the seven words that decide **who** it may be sprinkled on — "an Elemental ... composed mostly of water" — and a conferral aims at the target the user names with nothing reading its creature type. That clause *limits* the benefit, so rule 3 in packages/content/src/items.ts leaves the record out rather than handing a party a packet that withers a dragon; and neither vocabulary has an id for a target predicate over a creature type, whose two nearest members are an area’s membership and an attacker’s.',
-  },
+  'dust-of-dryness': [
+    {
+      clause: 'contains 1d6 + 4 pinches of dust',
+      why: 'expressible',
+      note: 'a count the book rolls at the copy’s birth and spends a pinch at a time, which is `CatalogueItem.chargesRolled` beside a pool keyed to the instance — the same pair Sovereign Glue’s ounces are written with. This is the clause that came off `an-item-instance-with-a-state-of-its-own` when a copy got a pool of its own.',
+    },
+    {
+      clause: 'turning up to a 15-foot Cube of water into one marble-sized pellet',
+      why: 'table',
+      note: 'water is not a thing the engine holds — there is no terrain, no volume of liquid and no rule that would ask — so a Cube of it becoming a pellet changes nothing the engine could record. The pellet, its weight and the smashing of it are the same answer: an object with no statistics, handled by the table.',
+    },
+    {
+      clause: 'on an Elemental within 5 feet of yourself that is composed mostly of water',
+      why: 'a-target-rule-the-format-cannot-state',
+      note: 'the clause that keeps this entry out, and it is the Trident of Fish Command’s shape rather than a new one: a type the format **can** state ("an Elemental", as the trident says "a Beast") narrowed by a fact it cannot ("composed mostly of water", as the trident says "that has a Swim Speed"). A `confers` grant carries an effect list and no `TargetRule` at all, so a packet written today would wither whatever its user pointed it at — which is the unsayable clause *limiting* the benefit, rule 3 in packages/content/src/items.ts, and the reason the record waits rather than shipping narrowed by nothing.',
+    },
+    {
+      clause: 'taking 10d6 Necrotic damage on a failed save',
+      why: 'expressible',
+      note: 'a `save-damage` effect on a priced `confers` grant, against the packet’s own printed DC — packages/engine/src/content.ts: "A saving throw is not on that list any more." This is the clause that came off `a-save-an-item-forces`, and it is what makes the entry a transcription waiting on one narrowing rather than an entry with nothing to write down.',
+    },
+  ],
   // "There is enough of it for one use" is the consumable a bottle already is;
   // the sneezing and the Emanation are what is left.
   'dust-of-sneezing-and-choking': ['a-condition-an-item-imposes', 'an-area-an-item-creates'],
@@ -5535,18 +5564,6 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
       clause: 'a +5 bonus to Dexterity (Sleight of Hand) checks',
       why: 'a-bonus-narrowed-to-a-skill',
       note: 'a `flat-bonus` reaches `ability-check` and that is the whole family, so this five would land on every Intelligence, Wisdom and Strength check the wearer ever makes. The narrowing to one skill is the shape the spell map already names for SRD Enthrall’s Perception penalty, and a pair of gloves prints it the other way up.',
-    },
-  ],
-  'goggles-of-night': [
-    {
-      clause: 'you have Darkvision out to 60 feet',
-      why: 'senses-beyond-declared-sight',
-      note: 'sight is a pairwise declaration and there is nothing else, so Darkvision has no reader: no rule asks whether the goggles’ wearer can see in the dark, and a standing grant has no member that would say so.',
-    },
-    {
-      clause: 'increases its range by 60 feet',
-      why: 'senses-beyond-declared-sight',
-      note: 'and the second sentence needs the first sentence’s answer to be a **number** rather than a fact, which is a second thing the missing reader has to hold.',
     },
   ],
   'handy-haversack': ['a-container-with-a-space-of-its-own'],
@@ -6018,29 +6035,29 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   'tome-of-leadership-and-influence': ['an-ability-score-a-spell-changes'],
   'tome-of-understanding': ['an-ability-score-a-spell-changes'],
   'trident-of-fish-command': ['a-target-rule-the-format-cannot-state'],
-  'wand-of-binding': ['a-rider-on-the-face-the-die-showed'],
   'wand-of-enemy-detection': [
     'senses-beyond-declared-sight',
     'a-rider-on-the-face-the-die-showed',
     'a-charge-spent-on-something-other-than-a-casting',
   ],
-  // Command is tracked and Fear executes, so both castings on the wand's
-  // table are writable and its 1d6 + 1 dawn is a pool. What is left is the
-  // 1d20 on the last charge — and the same clause is `unmodelled` on the Wand
-  // of Fireballs and the Wand of Web, which are transcribed: this entry and
-  // the two below it are the wand family that clause is still filed as a
-  // blocker on, and the difference wants a reading of its own.
-  'wand-of-fear': ['a-rider-on-the-face-the-die-showed'],
-  'wand-of-lightning-bolts': ['a-rider-on-the-face-the-die-showed'],
   'wand-of-magic-missiles': [
     'a-spell-an-item-casts-that-nothing-executes',
     'a-rider-on-the-face-the-die-showed',
   ],
+  // **What `a-rider-on-the-face-the-die-showed` blocks and what it merely
+  // annotates**, settled here because four wands were filed under it for a
+  // clause three transcribed items already carry as a note. "If you expend
+  // the wand's last charge, roll 1d20. On a 1, the wand crumbles into ashes
+  // and is destroyed" is `unmodelled` on the Wand of Fireballs and the Wand
+  // of Web, and on the Rod of Resurrection: nothing removes a line from an
+  // inventory, so the clause is an *addition* the record leaves out and a
+  // record without it is a wand that lasts longer than the book's, not one
+  // that does more. The four whose whole remainder was that sentence are
+  // transcribed. It stays a blocker on the entries below, where the die face
+  // buys something — a Fire Opal's beams, a staff regaining charges on a 20,
+  // a sword's extra damage — and on the wands whose spell or condition
+  // blocks them anyway.
   'wand-of-paralysis': ['a-condition-an-item-imposes', 'a-rider-on-the-face-the-die-showed'],
-  // Polymorph is defined and tracked, so the wand's one casting, its printed
-  // DC and its 1d6 + 1 dawn are the Wand of Web's record with three words
-  // changed. The 1d20 on the last charge is all that is left.
-  'wand-of-polymorph': ['a-rider-on-the-face-the-die-showed'],
   'wand-of-the-war-mage-1-2-or-3': [
     'a-bonus-to-spell-attack-rolls',
     'a-fact-only-the-table-can-declare',
