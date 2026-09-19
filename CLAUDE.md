@@ -45,7 +45,7 @@ line: **AI interprets possibility; the Engine adjudicates reality.**
 ## Architecture
 
 ```
-React/Fastify/orchestrator (M2+, not built) ──► @ie/tools (not built)
+React/Fastify/orchestrator (M2+, not built) ──► @ie/tools
                                                      │
       @ie/content  ──(a validated Content value)──►  @ie/engine  ──► @ie/srd, @ie/shared
 ```
@@ -56,6 +56,7 @@ React/Fastify/orchestrator (M2+, not built) ──► @ie/tools (not built)
 | `@ie/srd` | SRD 5.2.1 parsed into typed, schema-validated data: spells index, monsters, equipment |
 | `@ie/engine` | The rules: dice, rolls, checks, attacks, damage, conditions, positioning, combat, casting, durations, rests, creation, the fold. Plus the **vocabulary** content is written in (`SpellDefinition`, `FeatureGrant`, …), the two validators (`spell-schema.ts`, `feature-schema.ts`) and the registry (`content.ts`) |
 | `@ie/content` | The SRD catalogue as data: spell definitions, the twelve classes and subclasses, species, backgrounds, feats, items, languages, alignments. Built once into `SRD_CONTENT` through `createContent`, the same call homebrew uses |
+| `@ie/tools` | The door above the engine: a `Campaign` (seed, content, log; state a cache stepped by `applyEvent`), the Zod-validated tools a DM or a model calls, and the four outcomes a call returns. It holds no rules and the engine does not know it exists. A tool states intent and never carries a number the caller produced — `boundary.test.ts` proves the external-roll functions are unreachable from it |
 
 Dependency direction is strict: content depends on engine; engine never
 imports content. Engine tests that drive SRD spells import `@ie/content` as a
@@ -66,7 +67,7 @@ fixture, which is the only place that edge exists.
 - Commands that roll take a `Supply` — `{ issuer, rng, content }` — beside
   the state. Commands that only read content take `content` explicitly
   (`takeReady`, `equipItem`, `purchaseItem`, `eligibleTargets`, …).
-- Creation takes content first: `createCharacter(content, choices, id)`,
+- Creation takes content first: `createCharacter(content, choices, id, into?)`,
   `advanceCharacter(state, content, id, advance)`.
 - The fold takes none. `fold(seed, events)` is content-free for any log this
   engine writes.
@@ -130,7 +131,7 @@ The load-bearing tests, so you know what a change can break:
 | the D20 pipeline, modifiers, damage, reaction windows | `docs/design/rolls-and-damage.md` |
 | creation, advancement, features, multiclassing, items, monsters | `docs/design/characters-and-equipment.md` |
 | a rules question, or the SRD parsers | `docs/rules/srd-policy.md` |
-| the orchestration layer above the engine | `docs/design/claude-integration.md` |
+| the tool surface, the session boundary, the orchestration layer | `docs/design/claude-integration.md` |
 
 `STATUS.md` says what runs and what is next. `CONTRIBUTING.md` says how two
 people share the tree. `docs/dev/WORKFLOW.md` is the agent workflow.

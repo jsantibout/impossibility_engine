@@ -15,6 +15,12 @@ into the other:
   the end of the current turn: has a meaning only inside an Initiative order,
   and depends on whose turn the effect began.
 
+A deadline is hung on an `EffectTarget`: a condition, a bonus, a grant, a
+casting, or a creature's Temporary Hit Points. The last takes no source,
+because Temporary Hit Points do not stack and a creature holds exactly one
+pool, so the creature is the whole of the identity and two deadlines can
+never stand over one pool.
+
 `resolveDuration` converts a relative duration to an absolute `Deadline` and
 **refuses** a turn-anchored one it cannot pin; a command turns that refusal
 into a `needs-context` request naming `beginCombat` (no order) or

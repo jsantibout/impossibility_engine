@@ -11,7 +11,13 @@ one of three states: placed, declared absent, or **nobody has said** — and
 the third is a `needs-context` request, never a default. Distance is
 Chebyshev between creature volumes (a creature occupies its size in cubes),
 so reach, range and area membership are all measured the same way. Sight and
-cover are declared pairwise; a rule that needs one asks for it.
+cover are declared pairwise; a rule that needs one asks for it. A creature
+may also **have a sense** — Darkvision, Blindsight, Tremorsense, Truesight,
+the glossary's four — granted while a trait or a worn item says so and
+consulted by the sight question when no declaration answers it: a declaration
+wins, declared Total Cover silences the sense, and then a sight-sense whose
+range covers the distance answers. Tremorsense is not among those, because
+the glossary says it does not count as a form of sight.
 
 ## Areas
 

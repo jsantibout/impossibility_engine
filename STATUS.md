@@ -56,14 +56,34 @@ to homebrew.
   deadline that was holding it. An item may also cast a spell the book prices
   at nothing, and narrow the spell it casts to its own holder. The catalogue
   holds what those shapes express.
+- **A copy of an item, told apart from its twin** — an inventory line may
+  carry an engine-issued `instance`, minted from a counter the fold verifies
+  rather than assigns; a line without one is the counted stack it always was.
+  A charge pool is keyed to the copy and declared when the copy is gained, so
+  two wands no longer share one and a wand put down keeps what it had left.
+- **Senses** — the glossary's four, granted by a trait or a worn item and
+  consulted by the sight question: a declaration wins, Total Cover silences
+  the sense, then a sight-sense in range answers. Six species carry
+  Darkvision as a grant rather than a note.
+- **A lifetime for Temporary Hit Points** — a deadline may be hung on the
+  pool, and with none stated they last until spent or until the holder
+  finishes a Long Rest.
+- **A door above the engine** (`@ie/tools`) — a `Campaign` holding the seed,
+  the content and the log with state as a cache; Zod-validated tools enough
+  to run one fight from Initiative to the last turn, with a tool for every
+  debt the engine can raise; refusals and requests for a missing fact as
+  values. The model never produces a number and the surface cannot reach the
+  functions that would let it, which is asserted rather than promised.
 - **Replay** — a scripted four-round fight and two frozen logs fold
   byte-identically.
 
 ## What does not
 
-- No tool surface, orchestration, persistence or web app. The engine has no
-  idea a language model exists, which is the point; the layer above it is
-  the next milestone.
+- No orchestration, persistence or web app. `@ie/tools` covers one fight;
+  the DM-facing half of the surface — a check against a DC the DM sets,
+  improvised damage, the wider ruled conditions — is not built, and nothing
+  stores a log. The engine still has no idea a language model exists, which
+  is the point.
 - Spells whose text needs a mechanic the engine lacks are *tracked* (cast,
   costed, timed, and the effect left to the table) rather than executed;
   `COVERAGE.md` lists which and names the missing shape.
@@ -94,10 +114,16 @@ to homebrew.
   an amount may now be a printed number with no dice in it, which the two
   scaling fields that add dice to a notation refuse and the one that adds a
   flat number does not.
-- Two copies of one item cannot be told apart: an inventory line is an id
-  and a count, so a charged item is refused in multiples and a wand given
-  away would not carry its charges. Items need a record of their own before
-  transfer does.
+- Nothing can be given away. A copy has a record now, but no command hands
+  one creature's item to another, and none hands a party what it found — so
+  `equipItem` still declares a catalogue-keyed pool for an *unlabelled* copy,
+  and the commit that adds an award command must delete that branch in the
+  same breath. A test pins the two doors a copy arrives through so a third
+  cannot be quiet about it.
+- Nothing in play consults a sense yet: every caller of `sightBetween` is a
+  command, and the senses landed beside them rather than in them. The same is
+  true of the hour on Potion of Heroism's Temporary Hit Points — the engine
+  can hang the deadline and no item files one.
 - No carried weight, no ammunition spent. Objects that are not creatures
   are not modelled.
 - Overriding printed content with homebrew of the same id is refused; only
@@ -105,38 +131,44 @@ to homebrew.
 
 ## Next
 
-1. **An item's own record, step one.** An inventory line is an id and a count,
-   so two wands share a pool and nothing can be given away with its charges.
-   The shape is decided: the line gains an optional engine-issued `instance`,
-   minted from a counter the fold *verifies* rather than assigns — the
-   discipline `castingsBegun` already uses — and a charge pool moves to the
-   copy and to the moment the copy is gained. Only items with per-copy state
-   are born instanced, so mundane stacks do not move, and neither frozen log
-   does either. Transfer and an award command that can roll a charge maximum
-   are steps two and three.
-2. **The tool surface** (`@ie/tools`): the Zod-validated commands a DM or a
-   model calls. Its session boundary is decided —
-   `docs/design/claude-integration.md` — and `tools/llm-probe` already drives
-   a live model through a smaller version of it, so this is promotion more
-   than authorship.
-3. **Content as files**: a loader in the app layer that reads homebrew JSON
-   (and, later, a database) into `loadContent`.
-4. **A lifetime for Temporary Hit Points.** The rule is settled — unstated
-   ones last until spent or until the end of a Long Rest — and what it needs
-   is a way to hang a deadline on them: either an effect target that names a
-   creature's temporary Hit Points or an event that carries their source.
-5. **Two breaches a sweep found and left standing.** `creation.ts` reads one
-   feat by name and pays out the Initiative bonus itself, which is Rule 4
-   mechanically and needs a way for a feat to confer that bonus through the
-   grant vocabulary; and `feature-schema.ts` teaches its id format with a live
-   SRD feature as the example, which is one word. Both are on the record in
-   `origin-and-feature-sweep.test.ts`, which fails if either changes.
-6. **Dice that scale with what was spent.** Every scaling field reads a slot
+Ranked by what each unblocks, which is `COVERAGE.md`'s blocker tables rather
+than the order these were noticed in.
+
+1. **The three one-file follow-ups this batch split off.** Nothing consults a
+   sense (`sightBetween`'s callers are all commands); no item files a
+   Temporary Hit Point deadline, so Potion of Heroism's hour is still a note;
+   and `potion-of-heroism`'s `unmodelled` line is now false. Each is small and
+   each is the difference between a capability and a rule in play.
+2. **Three engine defects the catalogue found, driven by tests that pass
+   today because they assert the defect.** `sightBetween(x, x)` answers null
+   and `declareSight` refuses to record the answer, so **Cure Wounds, Healing
+   Word, Mass Cure Wounds and Mass Healing Word cannot be cast on their own
+   caster** — the worst of the three by far. `RIDER_FIELDS` refuses a
+   conferred effect carrying `conditions`, which is `condition-immunity`'s own
+   required list, so Potion of Gaseous Form is refused the Immunity its spell
+   executes. `regainsAtDawn` takes dice and Rod of Resurrection prints a flat
+   1, which `parseNotation` refuses.
+3. **Transfer and an award command** — steps two and three of the item
+   record. They release the copies-are-distinguishable work into the
+   catalogue, and step three must delete `equipItem`'s unlabelled pool
+   declaration in the same commit.
+4. **The `alert` breach** in `creation.ts`: the engine reads one feat by name
+   and pays the Initiative bonus itself. It needs a way for a feat to confer a
+   bonus through the grant vocabulary, and it is the last entry on the sweep's
+   breach record.
+5. **The DM-facing half of the tool surface** — a check against a DC the DM
+   sets, improvised damage, the wider ruled conditions — kept apart from the
+   model's, which the doctrine's North Star asks for. Then an engine command
+   that lifts a DM-applied condition, which the surface found missing.
+6. **Split `senses-beyond-declared-sight`**, which is three shapes wearing one
+   name: a sense an item or trait grants (built — retire it), an effect
+   excused by the attacker's sense (Blur, Mirror Image, Faerie Fire), and one
+   creature borrowing another's (Find Familiar, Mislead, Project Image). A
+   fourth is Goggles of Night's second clause: a sense that *widens* one the
+   holder already has.
+7. **Dice that scale with what was spent.** Every scaling field reads a slot
    or a caster level, so Staff of Striking's extra die per charge has nowhere
-   to go, and a conferral priced in charges buys no SRD entry until it does.
-7. **The populations the sweep does not cover.** Subclass ids, and language
-   and alignment names — the last of which needs a construct allowance, since
+   to go, and a conferral priced in charges still buys no SRD entry.
+8. **The populations the sweeps do not cover**: subclass ids, and language and
+   alignment names — the last needing a construct allowance, since
    `CREATURE_TYPES` names `'Giant'` as a mechanic.
-8. **SRD Fly is transcribed without `self: true`**, the same defect Jump had:
-   "You touch a willing creature" includes you, and the caster is not
-   currently a legal target of it.

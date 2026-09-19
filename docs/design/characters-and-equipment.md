@@ -114,8 +114,19 @@ the moment to the GM in as many words. Dawn is a command that emits the
 restoration the rests already emit, with no span and no movement of the
 clock.
 
-Two things a brief will have to decide before it can finish: an item
-**instance identity** (charges keyed on a catalogue id cannot tell two wands
-apart, and a wand given away carries its charges while pools are per
-creature), and what ends attunement besides a command — death, losing the
-item, another creature attuning to it.
+An item copy **has** an identity now. An inventory line may carry an
+`instance`, minted from a counter on the state and *verified* by the fold
+rather than assigned there, the way a casting id already is; a line without
+one is the counted stack it has always been, so arrows are untouched. Only a
+copy whose catalogue record has state of its own is born labelled — today,
+one with a charge pool, whose key is the copy rather than the item, declared
+when the copy is gained rather than when it is equipped. So two wands no
+longer share a pool, and one put down keeps what it had left.
+
+Two things a brief still has to decide: **transfer** — `equipItem` still
+declares a catalogue-keyed pool for an *unlabelled* copy, because no command
+exists for a DM to hand a party what it found, and the commit that adds one
+must delete that branch in the same breath or the engine has two gain
+semantics (a test pins the two doors so a third cannot arrive quietly) — and
+what ends attunement besides a command — death, losing the item, another
+creature attuning to it.
