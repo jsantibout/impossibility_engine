@@ -254,6 +254,16 @@ const castsSpellAtWill = (
   extra: {
     /** SRD Ring of Jumping: "but can target only yourself when you do so." */
     readonly targetsSelfOnly?: true;
+    /**
+     * SRD Crystal Ball: "you can cast _Scrying_ (save DC 17) with it."
+     *
+     * A printed number and no price at all, which the two clauses were never
+     * exclusive about: what `atWill` refuses beside it is a *cost*, and a DC
+     * is not one. Left off, `numbersForItem` substitutes the holder's own
+     * number rather than leaving the field empty, so an orb anybody may pick
+     * up would scry against whatever the person holding it happened to be.
+     */
+    readonly saveDc?: number;
   } = {},
 ): ItemGrant => ({ kind: 'casts', spell, atWill: true, ...extra });
 
@@ -1412,6 +1422,317 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
       ],
     },
   ),
+
+  // ── the spells eighteen entries were waiting for ─────────────────────────
+  //
+  // `ITEM_SHAPES`'s heaviest blocker was never an item mechanism: these entries
+  // print a spell and the catalogue had no definition of it. The word that
+  // decides one is *definition* rather than *executable* — `checkContent` asks
+  // `spells.some(s => s.id === id)` and `castFromItem` reads `content.spell(id)`
+  // — so a tracked definition answers both, and SRD's own sentence about a
+  // casting from an item is every word arithmetic a tracked definition carries.
+  /**
+   * **The Boots of Levitation are not here, and the reason is one engine
+   * line rather than a missing rule.**
+   *
+   * SRD: "While you wear these boots, you can cast _Levitate_ on yourself."
+   * Levitate is defined, the grant is an at-will casting narrowed by
+   * `targetsSelfOnly`, and every word of the record is writable. What is not
+   * is the casting: Levitate reaches "One creature ... of your choice that
+   * you can see within range", so the definition carries `requiresSight`,
+   * and `sightBetween` answers **null** for a creature and itself — which
+   * the resolver turns into a request to establish a fact `declareSight`
+   * refuses to record, in the engine’s own words: "a creature can see
+   * itself".
+   *
+   * So the boots would be a record every use of which is refused, which is
+   * rule 1. The defect is older than this entry — Cure Wounds, Healing Word,
+   * Mass Healing Word and Mass Cure Wounds all pair `self` with
+   * `requiresSight` and none of them can be cast on its own caster either —
+   * and `items-waiting-on-a-spell.test.ts` drives both halves of it.
+   */
+  wornItem(
+    { id: 'circlet-of-blasting', name: 'Circlet of Blasting', kind: 'wondrous' },
+    {
+      /**
+       * SRD Circlet of Blasting: "Wondrous Item, Uncommon. While wearing this
+       * circlet, you can cast _Scorching Ray_ with it (+5 to hit). The circlet
+       * can't cast this spell again until the next dawn."
+       *
+       * **The item `castsSpell.attackBonus` was written for**, named in that
+       * field's own docstring and until now used by nothing: "+5 to hit" is
+       * the circlet's number and not its wearer's, exactly as a printed save
+       * DC is, and it is pinned at the casting whoever is wearing the thing.
+       *
+       * The per-day line is a pool of one — the Cape of the Mountebank's
+       * shape, in the circlet's own wording rather than the book's usual one.
+       */
+      grants: [
+        charges('circlet-of-blasting', 'Circlet of Blasting', 1),
+        castsSpell('scorching-ray', 1, { attackBonus: 5 }),
+      ],
+    },
+  ),
+  wornItem(
+    { id: 'crystal-ball', name: 'Crystal Ball', kind: 'wondrous' },
+    {
+      /**
+       * SRD Crystal Ball: "Wondrous Item, Very Rare (Requires Attunement).
+       * While touching this crystal orb, you can cast _Scrying_ (save DC 17)
+       * with it."
+       *
+       * A printed DC on a casting the book prices at nothing, which is a pair
+       * no item in the catalogue had yet: `atWill` refuses a *cost* beside it
+       * and a save DC is not one. Scrying takes ten minutes, so the orb is
+       * also where a long casting time meets an item's route — the rite is
+       * declared and settles on the clock exactly as a Wizard's would.
+       */
+      attunement: {},
+      grants: [castsSpellAtWill('scrying', { saveDc: 17 })],
+    },
+  ),
+  wornItem(
+    {
+      id: 'crystal-ball-of-mind-reading',
+      name: 'Crystal Ball of Mind Reading',
+      kind: 'wondrous',
+    },
+    {
+      /**
+       * SRD Crystal Ball of Mind Reading: "While touching this crystal orb,
+       * you can cast _Scrying_ (save DC 17) with it. In addition, you can cast
+       * _Detect Thoughts_ (save DC 17) targeting creatures you can see within
+       * 30 feet of the spell's sensor."
+       *
+       * Two castings, both free and both against the orb's own seventeen. What
+       * the second sentence does *to* the second casting is the note: it
+       * retargets Detect Thoughts through a sensor the engine has nowhere to
+       * put, and it takes the Concentration off it while welding its ending to
+       * the Scrying's.
+       */
+      attunement: {},
+      grants: [
+        castsSpellAtWill('scrying', { saveDc: 17 }),
+        castsSpellAtWill('detect-thoughts', { saveDc: 17 }),
+      ],
+      unmodelled: [
+        'where the second casting reaches: "targeting creatures you can see within 30 feet of the spell\'s sensor" measures from the Scrying sensor, and the sensor is the one thing about Scrying the engine does not hold — so Detect Thoughts is cast from the orb at its own Range of Self instead',
+        'the two exceptions the orb prints on that casting: "You don\'t need to concentrate on this _Detect Thoughts_ spell to maintain it during its duration, but it ends if the _Scrying_ spell ends" — a `casts` grant hands the spell to the pipeline whole, so the Concentration the spell prints is taken, and one casting ending another is a cause nothing can express',
+      ],
+    },
+  ),
+  wornItem(
+    { id: 'crystal-ball-of-telepathy', name: 'Crystal Ball of Telepathy', kind: 'wondrous' },
+    {
+      /**
+       * SRD Crystal Ball of Telepathy: "While touching this crystal orb, you
+       * can cast _Scrying_ (save DC 17) with it. ... You can also cast
+       * _Suggestion_ (save DC 17) through the sensor on one of those
+       * creatures. ... You can't cast _Suggestion_ in this way again until the
+       * next dawn."
+       *
+       * **The first item in the catalogue with two economies on one line.**
+       * The book puts no limit at all on the Scrying and puts a per-day limit
+       * on the Suggestion, so one grant is `atWill` and the other is priced
+       * out of a pool of one — and a record that gave them one economy would
+       * either ration a casting the book gives freely or hand out a Suggestion
+       * every round.
+       */
+      attunement: {},
+      grants: [
+        charges('crystal-ball-of-telepathy', 'Crystal Ball of Telepathy', 1),
+        castsSpellAtWill('scrying', { saveDc: 17 }),
+        castsSpell('suggestion', 1, { saveDc: 17 }),
+      ],
+      unmodelled: [
+        'the telepathy the orb is named for: "you can communicate telepathically with creatures you can see within 30 feet of the spell\'s sensor" is conversation through a sensor, and neither the conversation nor the sensor is a thing the engine holds',
+        'where the Suggestion reaches: "through the sensor on one of those creatures" measures from that same sensor, so the spell is cast from the orb at its own range instead',
+        'the exception the orb prints on that casting: "You don\'t need to concentrate on this _Suggestion_ to maintain it during its duration, but it ends if _Scrying_ ends" — a `casts` grant hands the spell to the pipeline whole, so the Concentration the spell prints is taken, and one casting ending another is a cause nothing can express',
+      ],
+    },
+  ),
+  wornItem(
+    { id: 'cube-of-force', name: 'Cube of Force', kind: 'wondrous' },
+    {
+      /**
+       * SRD Cube of Force: "Wondrous Item, Rare (Requires Attunement). ... You
+       * can press one of those faces, expend the number of charges required
+       * for it, and thereby cast the spell associated with it (save DC 17), as
+       * shown in the Cube of Force Faces table. The cube starts with 10
+       * charges, and it regains 1d6 expended charges daily at dawn."
+       *
+       * **Six rows, six grants, and every one of them priced by the table.**
+       * The Staff of Fire writes a grant per row and leaves out the row it
+       * would get wrong; this cube leaves out nothing, because all six spells
+       * are defined — two of them since before this batch, and three written
+       * for this entry. The DC is printed once, before the table, so it
+       * governs every row, including the two that roll nothing.
+       */
+      attunement: {},
+      grants: [
+        charges('cube-of-force', 'Cube of Force', 10, '1d6'),
+        castsSpell('mage-armor', 1, { saveDc: 17 }),
+        castsSpell('shield', 1, { saveDc: 17 }),
+        castsSpell('tiny-hut', 3, { saveDc: 17 }),
+        castsSpell('private-sanctum', 4, { saveDc: 17 }),
+        castsSpell('resilient-sphere', 4, { saveDc: 17 }),
+        castsSpell('wall-of-force', 5, { saveDc: 17 }),
+      ],
+      unmodelled: [
+        'the faces themselves are the DM\'s: "This cube is about an inch across. Each face has a distinct marking on it" describes an object, and which marking a face carries is not a fact the engine holds — what it holds is that six spells come out of one pool at six prices',
+      ],
+    },
+  ),
+  wornItem(
+    { id: 'cubic-gate', name: 'Cubic Gate', kind: 'wondrous' },
+    {
+      /**
+       * SRD Cubic Gate: "Wondrous Item, Legendary. ... The cube has 3 charges
+       * and regains 1d3 expended charges daily at dawn. As a Magic action, you
+       * can expend 1 of the cube's charges to cast one of the following spells
+       * using the cube. _Gate._ ... _Plane Shift._ ..."
+       *
+       * Two rows at one price, over the two spells in the book that are most
+       * plainly about the second scene there is not — so the cube is the
+       * clearest case in this batch of an item that is whole as an *economy*
+       * and empty as a *journey*, and the notes on each spell say so rather
+       * than this record repeating them.
+       *
+       * No bracket on the type line, which is the surprising half of a
+       * Legendary entry: anybody may pick the cube up and press a side.
+       */
+      grants: [
+        charges('cubic-gate', 'Cubic Gate', 3, '1d3'),
+        castsSpell('gate', 1),
+        castsSpell('plane-shift', 1),
+      ],
+      unmodelled: [
+        'the six sides and what they lead to: "The six sides of the cube are each keyed to a different plane of existence, one of which is the Material Plane. The other sides are linked to planes determined by the GM" — the GM chooses the planes and the engine holds one scene, so which side was pressed decides nothing it could read',
+        'how each casting is asked for: "Pressing one side of the cube" and "Pressing one side of the cube twice" are the gesture that chooses the row, and a `casts` grant is chosen by naming the spell',
+      ],
+    },
+  ),
+  wornItem(
+    { id: 'helm-of-teleportation', name: 'Helm of Teleportation', kind: 'wondrous' },
+    {
+      /**
+       * SRD Helm of Teleportation: "Wondrous Item, Rare (Requires Attunement).
+       * This helm has 3 charges. While wearing it, you can expend 1 charge to
+       * cast _Teleport_ from it. The helm regains 1d3 expended charges daily
+       * at dawn."
+       *
+       * Four sentences and no fifth: a pool, a price, a spell and a die at
+       * dawn. So the record carries no `unmodelled` at all, and what Teleport
+       * does not do is Teleport's note, handed to the table through
+       * `unverified` on every casting.
+       */
+      attunement: {},
+      grants: [
+        charges('helm-of-teleportation', 'Helm of Teleportation', 3, '1d3'),
+        castsSpell('teleport', 1),
+      ],
+    },
+  ),
+  wornItem(
+    { id: 'medallion-of-thoughts', name: 'Medallion of Thoughts', kind: 'wondrous' },
+    {
+      /**
+       * SRD Medallion of Thoughts: "Wondrous Item, Uncommon (Requires
+       * Attunement). The medallion has 5 charges. While wearing it, you can
+       * expend 1 charge to cast _Detect Thoughts_ (save DC 13) from it. The
+       * medallion regains 1d4 expended charges daily at dawn."
+       *
+       * The Wand of Magic Detection's four sentences with a printed DC added,
+       * and nothing else — so no `unmodelled` here either. The thirteen is the
+       * medallion's: an Archmage wearing it still probes against 13.
+       */
+      attunement: {},
+      grants: [
+        charges('medallion-of-thoughts', 'Medallion of Thoughts', 5, '1d4'),
+        castsSpell('detect-thoughts', 1, { saveDc: 13 }),
+      ],
+    },
+  ),
+  magicArmor(
+    {
+      id: 'plate-armor-of-etherealness',
+      name: 'Plate Armor of Etherealness',
+      row: 'plate-armor',
+    },
+    {
+      /**
+       * SRD Plate Armor of Etherealness: "Armor (Half Plate Armor or Plate
+       * Armor), Legendary (Requires Attunement). While you're wearing this
+       * armor, you can take a Magic action and use a command word to gain the
+       * effect of the _Etherealness_ spell. The spell ends immediately if you
+       * remove the armor or take a Magic action to repeat the command word.
+       * This property of the armor can't be used again until the next dawn."
+       *
+       * **Armour and a casting on one record**, which nothing in the catalogue
+       * had: the armour half is the Plate Armor row pinned into the equip
+       * event like any other, and the casting half is a pool of one and a
+       * `casts` grant. "Gain the effect of the spell" is a casting rather than
+       * a conferral here, and that is the book's own fork read the right way
+       * round: a conferral carries an effect list, and Etherealness resolves
+       * nothing, so a conferral would confer nothing — where a casting spends
+       * no slot, takes the Magic action the entry asks for, and starts the
+       * eight-hour clock the spell prints.
+       *
+       * The entry is two suits of armour and the record is one. The book names
+       * both in its type line rather than leaving the GM to choose, so this is
+       * not the "GM chooses the version" shape — it is one entry that would
+       * need two ids, and the Half Plate version is the note below rather than
+       * a second record invented here.
+       */
+      attunement: {},
+      grants: [
+        charges('plate-armor-of-etherealness', 'Plate Armor of Etherealness', 1),
+        castsSpell('etherealness', 1),
+      ],
+      unmodelled: [
+        'the Half Plate version: the book files this entry under Half Plate Armor or Plate Armor, and this record is the Plate one — a catalogue holds a suit of armour rather than a template, so the second suit would need an id of its own',
+        'what ends the casting early: "The spell ends immediately if you remove the armor or take a Magic action to repeat the command word" — taking an item off is not one of the causes a casting can end on, and the command word is a dismissal by the caster that the book charges a Magic action for where `endOngoingSpell` charges nothing',
+      ],
+    },
+  ),
+  wornItem(
+    { id: 'ring-of-telekinesis', name: 'Ring of Telekinesis', kind: 'ring' },
+    {
+      /**
+       * SRD Ring of Telekinesis: "Ring, Very Rare (Requires Attunement). While
+       * wearing this ring, you can cast _Telekinesis_ from it."
+       *
+       * One sentence, priced at nothing, over a Concentration spell that runs
+       * ten minutes — so the ring costs its wearer whatever they were already
+       * holding, which is the whole of what the engine can say about it and
+       * the whole of what the entry says.
+       */
+      attunement: {},
+      grants: [castsSpellAtWill('telekinesis')],
+    },
+  ),
+  /**
+   * **The Rod of Resurrection is not here, and rule 3 is why.**
+   *
+   * SRD: "The rod has 5 charges. While you hold it, you can cast one of the
+   * following spells from it: _Heal_ (expends 1 charge) or _Resurrection_
+   * (expends 5 charges). The rod regains 1 expended charge daily at dawn."
+   *
+   * Both spells are defined for it — Heal executes and Resurrection is an
+   * hour's rite the clock runs — and the two prices are a pool and two
+   * `casts` grants. What cannot be written is the last sentence:
+   * `ResourcePool.regainsAtDawn` takes **dice**, on the reasoning that the
+   * SRD "prints dice" and "never once" a stated number at dawn, and this rod
+   * prints a stated 1. A die with one face is refused by `parseNotation`,
+   * which asks for two to a thousand sides.
+   *
+   * Leaving the field off does not leave the recovery empty: a `dawn` pool
+   * with no dice **refills**, so the record would be a rod that gives back
+   * five charges every morning instead of one — a Resurrection a day where
+   * the book prints one every five. That is the clause the engine cannot say
+   * being the one that limits the benefit, which is rule 3, so the whole
+   * record waits. The gap is the engine's and is one line wide.
+   */
 ];
 
 /**
@@ -1595,6 +1916,166 @@ const POTIONS: readonly CatalogueItem[] = [
     ],
     unmodelled: [
       '"if you make an attack roll": the engine reads `target-attacks` off `attack-made`, which is the Attack action rather than every attack roll. A free swing that misses — an Opportunity Attack, an attack outside combat — leaves the potion running, because the only event naming the roller of one is `roll-recorded` and that event changes no state by rule. A free swing that lands deals damage, and `target-deals-damage` catches it. The same residue SRD Invisibility records',
+    ],
+  },
+  {
+    /**
+     * SRD Potion of Growth: "Potion, Uncommon. When you drink this potion, you
+     * gain the 'enlarge' effect of the _Enlarge/Reduce_ spell for 10 minutes
+     * (no Concentration required)."
+     *
+     * **The bottle makes the choice the casting cannot record.** Enlarge/Reduce
+     * is a tracked definition and stays one, because its two branches say
+     * opposite things about Strength checks and Strength saving throws and a
+     * choice made at the casting has nowhere to be kept. A potion has no such
+     * problem: the label says "enlarge", so the conferral writes that branch
+     * and nothing is guessed — which is the Potion of Heroism's Bless written
+     * out rather than named, arriving at a spell the catalogue does not
+     * execute.
+     *
+     * "No Concentration required" is then a description of what a conferral
+     * already is rather than a clause to honour, and the ten minutes are the
+     * potion's own rather than the spell's minute.
+     */
+    id: 'potion-of-growth',
+    name: 'Potion of Growth',
+    kind: 'potion',
+    weightLb: 0.5,
+    costCp: null,
+    armor: null,
+    weapon: null,
+    contents: [],
+    grants: [
+      {
+        kind: 'confers',
+        action: 'bonus-action',
+        durationSeconds: 600,
+        effects: [
+          // "The target also has Advantage on Strength checks and Strength
+          // saving throws": two rolls named in one clause, so two selectors.
+          {
+            kind: 'roll-mode',
+            modifier: { mode: 'advantage', selector: { roll: 'ability-check', relation: 'roller', ability: 'str' } },
+          },
+          {
+            kind: 'roll-mode',
+            modifier: { mode: 'advantage', selector: { roll: 'saving-throw', relation: 'roller', ability: 'str' } },
+          },
+        ],
+      },
+    ],
+    unmodelled: [
+      'the size category the enlarge branch grants — one step up, Medium to Large — is not applied: size is a fact the engine holds authoritatively and reads for sharing a space, passing through and what a template catches, and nothing may write over one for a duration (see the Enlarge/Reduce definition, whose notes this repeats because a conferral carries an effect list rather than a spell id)',
+      'the extra 1d4 on the drinker\'s later attacks with enlarged weapons or Unarmed Strikes is not hung: the damage has no type printed and so is the weapon\'s own, which no rider says',
+      'the gear changing size with the drinker, and a thrown weapon returning to normal after it hits or misses, are the DM\'s',
+    ],
+  },
+  {
+    /**
+     * SRD Potion of Speed: "Potion, Very Rare. When you drink this potion, you
+     * gain the effect of the _Haste_ spell for 1 minute (no Concentration
+     * required) without suffering the wave of lethargy that typically occurs
+     * when the effect ends."
+     *
+     * Haste's two writable benefits, out of a bottle: the +2 to Armour Class
+     * and the Advantage on Dexterity saving throws, for the potion's minute.
+     * What the spell cannot say the potion cannot either, and the note says
+     * which halves those are.
+     *
+     * **The lethargy clause is the one that needs care.** It *removes* a
+     * drawback, and the engine never applies that drawback — so the sentence
+     * is honoured by accident rather than by rule, and saying so is the
+     * difference between a transcription and a coincidence.
+     */
+    id: 'potion-of-speed',
+    name: 'Potion of Speed',
+    kind: 'potion',
+    weightLb: 0.5,
+    costCp: null,
+    armor: null,
+    weapon: null,
+    contents: [],
+    grants: [
+      {
+        kind: 'confers',
+        action: 'bonus-action',
+        // "for 1 minute" — the potion's own span, where Haste runs on
+        // Concentration for up to the same minute.
+        durationSeconds: 60,
+        effects: [
+          { kind: 'buff', bonus: { source: 'Potion of Speed', flat: 2 }, applies: ['ac'], direction: 'add' },
+          {
+            kind: 'roll-mode',
+            modifier: { mode: 'advantage', selector: { roll: 'saving-throw', relation: 'roller', ability: 'dex' } },
+          },
+        ],
+      },
+    ],
+    unmodelled: [
+      'the doubled Speed Haste grants is not applied: a Speed is composed from a halving, which is presence rather than count, and a zero, which is last and wins, and there is no operation that multiplies one',
+      'the additional action Haste grants on each of the target\'s turns, and the five actions it may be spent on, are not granted: the action economy counts what a turn holds and nothing an effect writes adds to that count',
+      '"without suffering the wave of lethargy that typically occurs when the effect ends": the lethargy is Haste\'s own clause and the engine does not apply it either, because nothing fires when a duration runs out — so this potion is no better than the spell here, and the sentence is honoured by an absence rather than by a rule',
+    ],
+  },
+  {
+    /**
+     * SRD Potion of Gaseous Form: "Potion, Rare. When you drink this potion,
+     * you gain the effect of the _Gaseous Form_ spell for 1 hour (no
+     * Concentration required) or until you end the effect as a Bonus Action."
+     *
+     * Four effects out of one sentence of the spell: the Resistance to three
+     * physical damage types, and Advantage on saving throws with each of
+     * three abilities. Everything else about being a cloud is the spell's
+     * note, and the ones a drinker would notice are repeated here because a
+     * conferral hands nothing over from a definition — it carries its own
+     * list, so it carries its own gaps too.
+     *
+     * **The fifth clause is a name collision rather than a missing mechanic**,
+     * and the note below says so. Gaseous Form the *spell* grants Immunity to
+     * the Prone condition with a `condition-immunity` effect, and
+     * `CONFERRED_EFFECT_KINDS` admits that kind — but `RIDER_FIELDS` refuses
+     * any conferred effect carrying a field called `conditions`, which is the
+     * name of the outcome rider a saving throw hangs *and* the name of this
+     * kind's own required list. So the validator refuses the one sentence the
+     * spell it is copied from executes, and the gap is an engine one line
+     * wide rather than a rule nobody has built.
+     */
+    id: 'potion-of-gaseous-form',
+    name: 'Potion of Gaseous Form',
+    kind: 'potion',
+    weightLb: 0.5,
+    costCp: null,
+    armor: null,
+    weapon: null,
+    contents: [],
+    grants: [
+      {
+        kind: 'confers',
+        action: 'bonus-action',
+        durationSeconds: 3600,
+        effects: [
+          { kind: 'damage-defense', damageTypes: ['bludgeoning', 'piercing', 'slashing'], defense: 'resistant' },
+          {
+            kind: 'roll-mode',
+            modifier: { mode: 'advantage', selector: { roll: 'saving-throw', relation: 'roller', ability: 'str' } },
+          },
+          {
+            kind: 'roll-mode',
+            modifier: { mode: 'advantage', selector: { roll: 'saving-throw', relation: 'roller', ability: 'dex' } },
+          },
+          {
+            kind: 'roll-mode',
+            modifier: { mode: 'advantage', selector: { roll: 'saving-throw', relation: 'roller', ability: 'con' } },
+          },
+        ],
+      },
+    ],
+    unmodelled: [
+      '"or until you end the effect as a Bonus Action": a conferral is a moment with a lifetime the item states and there is no casting for a dismissal to address, so the hour runs to the end',
+      'the Immunity to the Prone condition that Gaseous Form grants is not conferred: `CONFERRED_EFFECT_KINDS` admits the `condition-immunity` kind and `RIDER_FIELDS` refuses any conferred effect carrying a field named `conditions`, which is that kind\'s own required list as well as the name of a saving throw\'s outcome rider — so the two rules collide on the field name and the potion is refused a sentence the spell it copies executes',
+      'the movement Gaseous Form prescribes — a Fly Speed of 10 feet and hovering, and no other method — is not applied: the engine tracks one Speed and no movement modes, so the drinker keeps the Speed they had',
+      'what Gaseous Form forbids is not forbidden: talking, manipulating objects, letting go of anything held, attacking and casting are an action economy rider and a fact about what is in a creature\'s hands, and the engine has neither',
+      'passing through narrow openings, treating liquids as solid surfaces, and occupying another creature\'s space are the DM\'s',
     ],
   },
 ];

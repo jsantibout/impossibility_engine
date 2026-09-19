@@ -1,6 +1,7 @@
 import { readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { SRD_CONTENT } from '@ie/content';
 import {
   misquotes as misquotedIn,
   namesIn,
@@ -515,6 +516,14 @@ describe('the condition-immunity family is read sentence by sentence', () => {
    * Mind Blank is not here: it is defined, and a defined spell is not in this
    * population at all. What is left of its entry is one `table` clause in
    * `ADJUDICATED`.
+   *
+   * **Gaseous Form left the same way and for the same reason**, on the batch
+   * that unblocked the magic items waiting on it: the sentence this family was
+   * read for — "it has Immunity to the Prone condition" beside a Resistance and
+   * three Advantages — is executed now, and the six blockers its entry named
+   * are the definition's own `unmodelled`, four of them adjudicated and two
+   * tripping no marker. A defined spell is not in this population, however
+   * partial its definition.
    */
   const BACKFILLED: readonly (readonly [string, readonly ShapeId[]])[] = [
     [
@@ -529,17 +538,6 @@ describe('the condition-immunity family is read sentence by sentence', () => {
         'an-effect-that-suppresses-other-magic',
         'difficult-terrain-an-area-creates',
         'movement-modes',
-      ],
-    ],
-    [
-      'gaseous-form',
-      [
-        'a-casting-dismissed-early',
-        'a-casting-ended-by-a-trigger',
-        'a-creature-fact-an-effect-overrides',
-        'an-action-a-spell-compels-or-forbids',
-        'movement-modes',
-        'what-a-creature-is-holding',
       ],
     ],
     [
@@ -638,9 +636,18 @@ describe('the condition-immunity family is read sentence by sentence', () => {
     expect(
       filed('hallow', 'the spell fails if the radius includes an area already under the effect of'),
     ).toBe('a-cap-on-how-many-castings-run-at-once');
-    expect(filed('gaseous-form', 'The target can enter and occupy the space of another creature')).toBe(
-      'a-creature-fact-an-effect-overrides',
-    );
+    // Gaseous Form's occupancy override was the fifth, and it is **kept**
+    // rather than lost now that the spell is defined: the sentence moved from
+    // its blocked-on entry into the definition's own `unmodelled`, where it is
+    // handed to the table on every casting. A reading that survives the spell
+    // being written is the reading that was worth doing.
+    expect(
+      (SRD_CONTENT.spell('gaseous-form')?.unmodelled ?? []).filter((note) =>
+        note.includes('The target can enter and occupy the space of another creature'),
+      ),
+    ).toHaveLength(1);
+    expect(BLOCKED_ON['gaseous-form']).toBeUndefined();
+
     // And the marker list really cannot see those two, which is what makes them
     // the floor's counterexamples rather than a guard that fired and was obeyed.
     for (const [spellId, phrase] of [
@@ -768,8 +775,6 @@ describe('the four highest-leverage families are read sentence by sentence', () 
         'conjure-woodland-beings',
         'expeditious-retreat',
         'eyebite',
-        'gaseous-form',
-        'haste',
         'irresistible-dance',
         'magic-jar',
         'power-word-heal',
@@ -790,9 +795,7 @@ describe('the four highest-leverage families are read sentence by sentence', () 
         'blink',
         'dispel-evil-and-good',
         'divine-word',
-        'etherealness',
         'find-familiar',
-        'gate',
         'imprisonment',
         'magic-jar',
         'magnificent-mansion',
@@ -803,7 +806,6 @@ describe('the four highest-leverage families are read sentence by sentence', () 
         'project-image',
         'secret-chest',
         'sending',
-        'teleport',
         'teleportation-circle',
       ],
       ['prismatic-spray', 'prismatic-wall'],
@@ -841,18 +843,24 @@ describe('the four highest-leverage families are read sentence by sentence', () 
   /**
    * The counts the next cycle would be planned from, before and after.
    *
-   * Every one of these read **zero** on `main`. Three are now non-zero and the
-   * fourth is honestly still zero, which is the whole point of printing the two
-   * numbers apart: a tranche may be briefed from the first column and not from
-   * the second, and this task's finding is that the book's largest summon family
-   * is not brief-ready however it is ranked.
+   * Every one of these read **zero** on `main`. Three went non-zero when the
+   * paragraphs were read, and **one of the three has since been collected**:
+   * Gate was the one spell `a-second-place-to-put-a-creature` was the only
+   * blocker for, and the batch that unblocked Cubic Gate wrote it as a tracked
+   * definition rather than waiting for the shape — which takes that count back
+   * to zero from the other end. A read count going to zero because the spell
+   * was written and a read count that was never anything but zero are opposite
+   * findings, and the difference is that one of them left a definition behind.
    */
-  it('moves three of the four counts off zero, and says why the fourth stays', () => {
+  it('moves three of the four counts off zero, and says what became of each', () => {
     expect(consumersOf('an-action-a-spell-compels-or-forbids').unblocksRead).toEqual([
       'conjure-woodland-beings',
       'expeditious-retreat',
     ]);
-    expect(consumersOf('a-second-place-to-put-a-creature').unblocksRead).toEqual(['gate']);
+    // Collected: Gate is defined, so the shape finishes nobody who is left.
+    expect(consumersOf('a-second-place-to-put-a-creature').unblocksRead).toEqual([]);
+    expect(BLOCKED_ON['gate']).toBeUndefined();
+    expect(SRD_CONTENT.spell('gate')).not.toBeNull();
     expect(consumersOf('a-wall-or-several-templates-in-one-area').unblocksRead).toEqual([
       'fire-storm',
       'meteor-swarm',
@@ -999,12 +1007,6 @@ describe('reading four families found blockers the bare lists had missed', () =>
       'dispel-evil-and-good',
       'You can end the spell early by using either of the following special functions',
       'a-casting-dismissed-early',
-    ],
-    ['etherealness', 'you are shunted to the nearest unoccupied space', 'forced-movement-a-spell-causes'],
-    [
-      'etherealness',
-      'take Force damage equal to twice the number of feet you are moved',
-      'a-flat-amount-with-no-dice',
     ],
     ['imprisonment', 'Duration: Until dispelled', 'a-casting-dismissed-early'],
     ['imprisonment', 'The target becomes 1 inch tall', 'a-creature-fact-an-effect-overrides'],
@@ -1597,14 +1599,22 @@ describe('the split bundles add back up', () => {
    * Each recorded `[spellId, clause, wentTo]` triple must still be an
    * adjudication filed exactly where the split put it.
    *
-   * **Unless what it went to has since been built**, which is the only honest
-   * reason a clause may leave the map, and it comes two ways. The shape may be
-   * gone: IE-019 built `an-outcome-that-varies-by-creature-type` and executed
-   * Shatter with it. Or the shape may stand while *this clause* is finished,
-   * which is {@link BUILT_CLAUSES} — a reviewed list, because a shape can be
-   * built in part and nothing derived can tell that from a silent loss. A
-   * clause that vanished under neither reason fails here, which is what keeps
-   * the exception a branch rather than a hole.
+   * **Unless what it went to has since been built**, which was the only honest
+   * reason a clause could leave the map, and it comes two ways. The shape may
+   * be gone: IE-019 built `an-outcome-that-varies-by-creature-type` and
+   * executed Shatter with it. Or the shape may stand while *this clause* is
+   * finished, which is {@link BUILT_CLAUSES} — a reviewed list, because a
+   * shape can be built in part and nothing derived can tell that from a silent
+   * loss.
+   *
+   * **The third reason is that the spell got written anyway**, which the batch
+   * that unblocked the magic items is the first to cause: Etherealness is a
+   * tracked definition now, so its entry is gone from `BLOCKED_ON` and its two
+   * movement clauses are sentences of its own `unmodelled`, held by
+   * `spell-tracking.test.ts` and handed to the table on every casting. The
+   * clause did not vanish and the shape was not built — the population moved.
+   * A clause that vanished under none of the three fails here, which is what
+   * keeps the exception a branch rather than a hole.
    */
   /**
    * Where an entry is filed **now**, whichever population it belongs to.
@@ -1646,7 +1656,9 @@ describe('the split bundles add back up', () => {
       const why = filedAt(spellId, clause, wentTo);
       if (why === undefined) {
         expect(
-          live.has(wentTo) && !built.has(`${spellId}/${clause}`),
+          live.has(wentTo) &&
+            !built.has(`${spellId}/${clause}`) &&
+            !DEFINED_SPELL_IDS.has(spellId),
           `${spellId}: "${clause}" left the map while ${wentTo} is still missing`,
         ).toBe(false);
       } else {
@@ -1783,11 +1795,18 @@ describe('the fought fact is a second build that corrected the query', () => {
    * perfectly well and nothing can say which check is the one made to find the
    * quarry. A spell moving from `BLOCKED_ON` into `ADJUDICATED` while keeping
    * a shape is exactly what a partial definition is.
+   *
+   * **And a third population claims it now.** Scrying was undefined here until
+   * the Crystal Ball needed it; it is tracked, and the two tables that modify
+   * its save — how well the caster knows the target, and what of the target's
+   * they are holding — are the same fact, recorded in `TRACKED_ADJUDICATED`
+   * instead. The shape did not move; the spell did.
    */
   it('keeps the shape for the facts the build did not reach', () => {
     const fact = consumersOf('a-fact-only-the-table-can-declare');
-    expect(fact.undefined).toEqual(['call-lightning', 'enthrall', 'scrying']);
+    expect(fact.undefined).toEqual(['call-lightning', 'enthrall']);
     expect(fact.executed).toEqual(['hunters-mark']);
+    expect(fact.tracked).toEqual(['scrying']);
   });
 });
 
@@ -1926,17 +1945,19 @@ describe('a consumer count is a query', () => {
    * A shape both a definition and an undefined spell name is counted once each.
    *
    * `speed-and-movement-modes` was the example and is gone; `movement-modes`
-   * is the half of it that stands, and it still spans two populations — two
-   * tracked definitions and a run of undefined spells — which is the property
-   * being asserted. The executed population has none, and that is the split's
-   * own result rather than an accident: IE-033 built the modifier half, which
-   * is the only half any *definition* had.
+   * is the half of it that stands, and it now spans all three populations —
+   * one executed definition, two tracked ones and a run of undefined spells —
+   * which is the property being asserted. The executed claimant is Gaseous
+   * Form, whose Fly Speed of 10 feet is the one clause of a partial definition
+   * this shape still holds; it had none until that spell was written, because
+   * IE-033 built the modifier half, which was the only half any *definition*
+   * had.
    */
   it('adds all three populations up', () => {
     const modes = consumersOf('movement-modes');
-    expect(modes.executed).toEqual([]);
+    expect(modes.executed).toEqual(['gaseous-form']);
     expect(modes.tracked).toEqual(['fly', 'spider-climb']);
-    expect(modes.undefined.length).toBeGreaterThan(5);
+    expect(modes.undefined.length).toBeGreaterThan(3);
     expect(modes.blocks.length).toBe(
       modes.executed.length + modes.tracked.length + modes.undefined.length,
     );
@@ -1972,13 +1993,19 @@ describe('a consumer count is a query', () => {
 
   /**
    * The single largest blocker in the undefined population, named rather than
-   * felt: fifty-odd spells cannot be cast at all because the casting takes a
-   * minute or more, which `resolveCast` refuses.
+   * felt: the spells that cannot be cast at all because the casting takes a
+   * minute or more, which `resolveCast` once refused outright.
+   *
+   * The floor sits well below the population rather than on it, which is the
+   * lesson this file records about `> 200`: four of the spells it held left on
+   * the batch that wrote Scrying, Tiny Hut, Private Sanctum and Resurrection,
+   * and a floor set at the old count would have failed by succeeding. The real
+   * number is `COVERAGE.md`'s.
    */
   it('names the largest blocker in the undefined population', () => {
     const ranked = [...allShapeConsumers()].sort((a, b) => b.blocks.length - a.blocks.length);
     expect(ranked[0]!.shape).toBe('a-long-casting-time');
-    expect(ranked[0]!.blocks.length).toBeGreaterThan(40);
+    expect(ranked[0]!.blocks.length).toBeGreaterThan(30);
   });
 });
 
@@ -2022,22 +2049,26 @@ describe('a spell with one blocker is the leverage the map is for', () => {
    * Spot-checks, each transcribed from the spell's own SRD paragraph, because
    * a map that nothing reads back is the prose it replaced in another costume.
    *
-   * **A row leaves this list by being built**, which has now happened twice:
-   * Stoneskin stood here until IE-017 defined it, and Divine Favor —
+   * **A row leaves this list by being built**, which has now happened three
+   * times: Stoneskin stood here until IE-017 defined it, Divine Favor —
    * "your attacks with weapons deal an extra 1d4 Radiant damage on a hit" —
-   * until IE-035 did. Both were the map's prediction coming true, and the row
-   * going rather than the assertion being loosened is what keeps the list a
-   * claim about spells nobody has finished.
+   * until IE-035 did, and **Heal** until the printed half of
+   * `a-flat-amount-with-no-dice` was built and the Rod of Resurrection came
+   * for it. Each was the map's prediction coming true, and the row going
+   * rather than the assertion being loosened is what keeps the list a claim
+   * about spells nobody has finished.
+   *
+   * **A row may also leave because the spell was written without the shape**,
+   * which Scorching Ray is the first of: three rays from one casting is still
+   * missing, and the spell is a tracked definition that spends the slot and
+   * says so. That is a different departure from the other three and the
+   * assertion below says which — the shape stands, and the spell no longer
+   * waits on it to be cast at all.
    */
   const SOLE: readonly (readonly [string, ShapeId])[] = [
     // "the target's skin assumes a bark-like appearance, and the target has an
     // Armor Class of 17 if its AC is lower than that" — a floor on the total.
     ['barkskin', 'an-armor-class-a-spell-floors'],
-    // "restoring 70 Hit Points" — the conditions it ends are `end-condition`
-    // now, and the printed 70 is the whole of what is left.
-    ['heal', 'a-flat-amount-with-no-dice'],
-    // "Make a ranged spell attack for each ray."
-    ['scorching-ray', 'several-attack-rolls-from-one-casting'],
     // "You touch a creature that has died within the last minute."
     ['revivify', 'healing-that-raises-the-dead'],
     // "Choose up to five falling creatures within range."
@@ -2046,6 +2077,23 @@ describe('a spell with one blocker is the leverage the map is for', () => {
 
   it.each(SOLE)('%s is blocked on %s and nothing else', (spellId, shape) => {
     expect(blockersOf(spellId)).toEqual([shape]);
+  });
+
+  /**
+   * The two rows that left, and the two different reasons — pinned, because a
+   * row silently deleted looks exactly like a row that was never right.
+   */
+  it('records the two that left, and which way each went', () => {
+    // Built: the printed half of the amount shape exists, so Heal executes and
+    // carries no residue at all.
+    expect(BLOCKED_ON['heal']).toBeUndefined();
+    expect(ADJUDICATED['heal']).toBeUndefined();
+    expect(SRD_CONTENT.spell('heal')?.unmodelled ?? []).toEqual([]);
+
+    // Written anyway: the shape still blocks somebody, and the spell is cast.
+    expect(BLOCKED_ON['scorching-ray']).toBeUndefined();
+    expect(claimedShapes().has('several-attack-rolls-from-one-casting')).toBe(true);
+    expect(SRD_CONTENT.spell('scorching-ray')?.effects).toEqual([]);
   });
 });
 
@@ -2066,9 +2114,15 @@ describe('a shape that gets built is content work, not a merge', () => {
   });
 
   // Heal ends "the Blinded, Deafened, and Poisoned conditions" — a printed
-  // list, so the removal is done and the flat 70 is all that is left.
-  it('finishes the removal half of Heal', () => {
-    expect(blockersOf('heal')).toEqual(['a-flat-amount-with-no-dice']);
+  // list, so the removal was done here and the flat 70 was all that was left.
+  // The amount shape's printed half has since been built too, so both halves
+  // of the sentence are executed and the spell has left this map entirely.
+  it('finishes the removal half of Heal, and then the other half', () => {
+    expect(blockersOf('heal')).toEqual([]);
+    expect(SRD_CONTENT.spell('heal')?.effects.map((effect) => effect.kind)).toEqual([
+      'heal',
+      'end-condition',
+    ]);
   });
 
   // Greater Restoration removes "one of the following", and one of them is
@@ -2126,10 +2180,17 @@ describe('a shape that gets built is content work, not a merge', () => {
       expect(blockersOf(id), id).toContain('an-effect-that-suppresses-other-magic');
     }
     // A destination off the scene is the second place, which one of the two
-    // already named and the other had never recorded at all.
-    for (const id of ['teleport', 'teleportation-circle']) {
-      expect(blockersOf(id), id).toContain('a-second-place-to-put-a-creature');
-    }
+    // already named and the other had never recorded at all. Teleport is a
+    // tracked definition now, so its half of the re-filing lives in the
+    // definition's own notes rather than here, and the sentence that trips a
+    // marker — the GM's d100 — is in `TRACKED_ADJUDICATED`.
+    expect(blockersOf('teleportation-circle')).toContain('a-second-place-to-put-a-creature');
+    expect(BLOCKED_ON['teleport']).toBeUndefined();
+    expect(
+      (SRD_CONTENT.spell('teleport')?.unmodelled ?? []).some((note) =>
+        note.includes('a second place to put a creature'),
+      ),
+    ).toBe(true);
     // And Blink keeps the two halves this build does not reach.
     expect(blockersOf('blink')).toEqual([
       'a-random-outcome-that-is-not-a-d20',
@@ -2183,8 +2244,16 @@ describe('a shape may finish nothing and still block forty-two spells', () => {
     // count in a column a tranche is planned from — which is why it is
     // asserted rather than loosened.
     expect(casting.unblocks).toEqual(['regenerate']);
-    expect(casting.blocks.length).toBeGreaterThan(40);
+    // A floor below the population rather than on it: four more of the
+    // claimants left when the magic items came for Scrying, Tiny Hut, Private
+    // Sanctum and Resurrection, each written as a tracked definition on the
+    // mechanism IE-034 built. The count belongs to `COVERAGE.md`.
+    expect(casting.blocks.length).toBeGreaterThan(30);
     expect(claimedShapes().has('a-long-casting-time')).toBe(true);
+    for (const id of ['scrying', 'tiny-hut', 'private-sanctum', 'resurrection']) {
+      expect(BLOCKED_ON[id], id).toBeUndefined();
+      expect(SRD_CONTENT.spell(id)?.castingTime, id).toBe('long');
+    }
   });
 
   /** The twelve are out of the map, and every one of them is now a definition. */

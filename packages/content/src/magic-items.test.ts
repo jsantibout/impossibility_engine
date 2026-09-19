@@ -62,6 +62,27 @@ const prerequisiteClasses = (printed: string): readonly string[] =>
     .map((part) => part.replace(/^(?:or\s+)?(?:an?\s+)?/i, '').trim().toLowerCase())
     .filter((part) => part.length > 0);
 
+/**
+ * **A per-day property, in every wording the book gives it.**
+ *
+ * "This property can't be used again until the next dawn" is the sentence the
+ * guards below were written against, and it is not the only one the book
+ * prints: the Circlet of Blasting says "The circlet can't cast this spell
+ * again until the next dawn", and the Crystal Ball of Telepathy says "You
+ * can't cast _Suggestion_ in this way again until the next dawn" — beside a
+ * Scrying it puts no limit on at all. What every one of them shares is the
+ * last five words, so that is what is matched, and the *subject* of each
+ * sentence is then what says which casting it limits.
+ */
+const DAWN_LIMIT = 'again until the next dawn';
+
+/** The sentences of an entry that print a per-day limit. */
+const dawnSentences = (description: string): readonly string[] =>
+  description
+    .split(/(?<=\.)\s+/)
+    .map((sentence) => sentence.trim())
+    .filter((sentence) => contains(sentence, DAWN_LIMIT));
+
 /** The elision-aware containment `containsRun` does, over a string in hand. */
 const contains = (text: string, run: string): boolean => {
   const haystack = normaliseProse(text);
@@ -200,9 +221,9 @@ describe('every transcribed item agrees with the entry it was read from', () => 
         expect(pool.uses, `${item.id} has no charge count in the book`).toBe(1);
         expect(pool.regainsAtDawn, `${item.id} refills whole`).toBeUndefined();
         expect(
-          contains(entry.description, "can't be used again until the next dawn"),
+          dawnSentences(entry.description).length,
           `${item.id} declares a pool the entry prints nothing for`,
-        ).toBe(true);
+        ).toBeGreaterThan(0);
         expect(pool.recovers, item.id).toBe('dawn');
         continue;
       }
@@ -259,21 +280,43 @@ describe('every transcribed item agrees with the entry it was read from', () => 
         // limit, so `atWill` is held against the *absence* of all three. An
         // entry that does print one of them would be an item quietly made
         // free, which is the mirror of a staff quietly made cheap.
+        // **A per-day sentence may limit one casting and not another**, which
+        // is the Crystal Ball of Telepathy: the book prints no limit at all on
+        // its Scrying and a nightly one on its Suggestion. So a free casting
+        // is held against the per-day sentences that could be about *it* —
+        // one naming another spell the same item prices is somebody else's —
+        // rather than against the presence of any such sentence anywhere.
+        const limits = dawnSentences(entry.description).filter(
+          (sentence) =>
+            !(item.grants ?? []).some(
+              (other) =>
+                other.kind === 'casts' &&
+                other.atWill !== true &&
+                other.spell !== grant.spell &&
+                contains(sentence, SRD_SPELLS.find((s) => s.id === other.spell)?.name ?? ''),
+            ),
+        );
         if (grant.atWill === true) {
           expect(grant.charges, `${item.id} casts ${name} at will and names a price`)
             .toBeUndefined();
           expect(entry.charges, `${item.id} casts ${name} at will and its entry has charges`)
             .toBeNull();
           expect(
-            contains(entry.description, "can't be used again until the next dawn"),
+            limits,
             `${item.id} casts ${name} at will and its entry prints a per-day limit`,
-          ).toBe(false);
+          ).toEqual([]);
         } else {
           const printed =
             entry.charges === null
-              ? grant.charges === 1 &&
-                contains(entry.description, "can't be used again until the next dawn")
-              : contains(entry.description, `expend ${grant.charges} charge`) ||
+              ? grant.charges === 1 && limits.length > 0
+              : // The three ways the book writes a price: written out, named
+                // as the floor of a range, or parenthesised beside the spell —
+                // SRD Rod of Resurrection's "(expends 1 charge)", and Cubic
+                // Gate's "expend 1 of the cube's charges", which is the same
+                // clause with the possessive in the way.
+                contains(entry.description, `expend ${grant.charges} charge`) ||
+                contains(entry.description, `expends ${grant.charges} charge`) ||
+                contains(entry.description, `expend ${grant.charges} of the`) ||
                 contains(entry.description, `For ${grant.charges} charge`) ||
                 tablePrices(entry.description).get(name ?? '') === grant.charges;
           expect(printed, `${item.id} prices ${name} at ${grant.charges}, and its entry does not`)

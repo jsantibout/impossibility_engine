@@ -664,19 +664,42 @@ describe('the shape stops where the SRD stops being expressible', () => {
    * condition applied with no saving throw, a save whose failure creates
    * something that is not a condition, an ongoing effect a later turn acts
    * through. A value nothing can be written with would be a value nothing
-   * reads, so the union does not carry one — and these spells are absent from
-   * the catalogue rather than approximated into it.
+   * reads, so the union does not carry one — and no definition approximates
+   * one into existence.
    */
   // Web left this list when persistent areas landed: its escape check is
   // "no longer Restrained", which is `end-on-target` and always was — what
   // blocked it was the trigger that hands out the Restrained in the first
   // place, not the check that takes it away.
-  it.each([['maze'], ['phantasmal-force'], ['detect-thoughts'], ['entangle']])(
+  it.each([['maze'], ['phantasmal-force'], ['entangle']])(
     'has not quietly implemented %s',
     (spellId) => {
       expect(SRD_CONTENT.spell(spellId)).toBeNull();
     },
   );
+
+  /**
+   * **Detect Thoughts left that list by being written, not by being built**,
+   * and the distinction is the whole of what this guard is about.
+   *
+   * The magic items waiting on it — a Medallion of Thoughts, a Crystal Ball of
+   * Mind Reading — needed a *definition*, and a tracked one spends the slot,
+   * takes the Action, holds the Concentration and runs the minute without
+   * resolving anything. So the claim is no longer that the spell is absent: it
+   * is that the spell offers **no check**, which is the same claim made where
+   * it can now be checked. An approximation would be a `check` carrying
+   * `end-on-target`, quietly ending the probe on its target instead of ending
+   * the casting the SRD says it ends.
+   */
+  it('defines Detect Thoughts and offers no check on it', () => {
+    const definition = SRD_CONTENT.spell('detect-thoughts');
+    expect(definition).not.toBeNull();
+    expect(definition?.check).toBeUndefined();
+    expect(definition?.effects).toEqual([]);
+    expect(
+      (definition?.unmodelled ?? []).some((note) => note.includes('Intelligence (Arcana) check')),
+    ).toBe(true);
+  });
 
   /** No definition claims an outcome the engine cannot carry out. */
   it('offers only the two outcomes it can perform', () => {

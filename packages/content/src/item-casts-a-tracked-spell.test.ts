@@ -144,15 +144,20 @@ describe('the gate an item’s casting has to pass is a definition, not an effec
 
   /**
    * And refuses one whose spell the catalogue has no definition of at all,
-   * which is what the blocker on Cubic Gate and the thirteen undefined spells
-   * really names.
+   * which is what the blocker on the entries still under that shape names.
+   *
+   * **The example used to be Gate**, and the batch that transcribed the Cubic
+   * Gate wrote it as a tracked definition — which is the distinction this file
+   * exists for, arriving from the other side. Wish is the one now, and it is a
+   * better one: nothing this repository has described would let it be written.
    */
   it('refuses an item that casts a spell nothing defines', () => {
-    expect(SRD_CONTENT.spellEntry('gate'), 'the index knows Gate').not.toBeNull();
-    expect(SRD_CONTENT.spell('gate'), 'and nothing defines it').toBeNull();
+    expect(SRD_CONTENT.spellEntry('wish'), 'the index knows Wish').not.toBeNull();
+    expect(SRD_CONTENT.spell('wish'), 'and nothing defines it').toBeNull();
+    expect(SRD_CONTENT.spell('gate'), 'where Gate is tracked now').not.toBeNull();
 
     const built = extendContent(SRD_CONTENT, {
-      items: [homebrewWand('wand-of-the-undefined-spell', 'gate')],
+      items: [homebrewWand('wand-of-the-undefined-spell', 'wish')],
     });
     expect(isErr(built) && built.code).toBe('invalid_content');
     expect(isErr(built) && built.reason).toContain('no executable definition of');

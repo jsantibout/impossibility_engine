@@ -1,0 +1,862 @@
+import { describe, expect, it } from 'vitest';
+import { SPELL_DEFINITIONS, SRD_CONTENT } from '@ie/content';
+import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
+import type { CatalogueItem, CharacterSheet, Content } from '@ie/engine';
+import {
+  advanceTime,
+  chargesLeft,
+  createRng,
+  createRollIssuer,
+  declareDawn,
+  declaredCasting,
+  equipItem,
+  extendContent,
+  fold,
+  ongoingSpellOf,
+  pendingCastingsOf,
+  resolveDeclaredCast,
+  resolveSpell,
+  spellSlotKey,
+  useItem,
+  type GameEvent,
+  type GameState,
+  type Rng,
+} from '@ie/engine';
+import { type Result } from '@ie/shared';
+
+/**
+ * The magic items whose only blocker was the spell underneath them.
+ *
+ * `ITEM_SHAPES`'s heaviest entry — `a-spell-an-item-casts-that-nothing-executes`
+ * — says the word that decides it is **definition**, not *executable*:
+ * `checkContent` hands `itemCastsProblems` the predicate `spells.some(s => s.id
+ * === id)` and `castFromItem` reads `content.spell(id)`, so a **tracked**
+ * definition answers both, and SRD's own sentence about what a casting from an
+ * item is — "The spell uses its normal casting time, range, and duration, and
+ * the user of the item must concentrate if the spell requires Concentration" —
+ * is every word of it arithmetic a tracked definition already carries.
+ *
+ * `item-casts-a-tracked-spell.test.ts` proved that on a Wand of Magic
+ * Detection and a Ring of Animal Influence. This drives the batch the finding
+ * paid for: twelve items whose spell had no definition at all until this
+ * commit, and three potions that **confer** a spell's effects rather than
+ * casting anything — the other side of the same shape, and the side where the
+ * blocker is a definition that resolves *nothing* rather than one that is
+ * missing.
+ *
+ * Every one is driven through the public API rather than inspected, because a
+ * record that parses and never casts is the failure a catalogue cannot see.
+ */
+
+const id = (s: string) => asCharacterId(s);
+const BEARER = id('bearer');
+const OTHER = id('other');
+
+const sheet = (over: Partial<CharacterSheet> = {}): CharacterSheet => ({
+  level: 9,
+  abilities: { str: 10, dex: 12, con: 12, int: 16, wis: 10, cha: 10 },
+  skills: {},
+  saveProficiencies: [],
+  armor: null,
+  shield: null,
+  armorTraining: { light: true, medium: true, heavy: true, shields: true },
+  baseSpeed: 30,
+  /**
+   * Nobody here casts spells of their own. Every number these items use is the
+   * item's, which is what a printed save DC is for.
+   */
+  spellcastingAbility: null,
+  ...over,
+});
+
+const added = (who: CharacterId): GameEvent => ({
+  type: 'creature-added',
+  id: who,
+  name: who,
+  sheet: sheet(),
+  maxHp: 40,
+  diesAtZero: false,
+  creatureType: 'Humanoid',
+  side: 'party',
+});
+
+const SCENE: readonly GameEvent[] = [
+  { type: 'scene-set', extent: { width: 400, depth: 400, height: 40 } },
+  { type: 'landmark-added', name: 'the vault', at: { x: 100, y: 100, z: 0 } },
+  { type: 'creature-placed', id: BEARER, placement: { from: { landmark: 'the vault' }, feet: 0 } },
+  {
+    type: 'creature-placed',
+    id: OTHER,
+    placement: { from: { creature: BEARER }, feet: 5, bearing: 0 },
+  },
+  { type: 'sight-declared', from: BEARER, to: OTHER, seen: true },
+  { type: 'sight-declared', from: OTHER, to: BEARER, seen: true },
+];
+
+const run = (
+  log: readonly GameEvent[],
+  command: (s: GameState) => Result<readonly GameEvent[]>,
+): readonly GameEvent[] => [...log, ...unwrap(command(fold('seed', log)), 'command')];
+
+/** Owned, worn, and attuned where the book prints the bracket. */
+const wearing = (itemId: string): readonly GameEvent[] => {
+  const base: readonly GameEvent[] = [
+    added(BEARER),
+    added(OTHER),
+    ...SCENE,
+    { type: 'items-gained', id: BEARER, items: [{ id: itemId, quantity: 1 }], source: 'the hoard' },
+  ];
+  const worn = run(base, (s) => equipItem(s, SRD_CONTENT, BEARER, itemId));
+  return SRD_CONTENT.item(itemId)?.attunement === undefined
+    ? worn
+    : [...worn, { type: 'attuned', id: BEARER, item: itemId }];
+};
+
+/** Owned and not worn, which is what a bottle asks for. */
+const carrying = (itemId: string): readonly GameEvent[] => [
+  added(BEARER),
+  added(OTHER),
+  ...SCENE,
+  { type: 'items-gained', id: BEARER, items: [{ id: itemId, quantity: 1 }], source: 'the hoard' },
+];
+
+const supply = (seed: string, content: Content = SRD_CONTENT) => ({
+  issuer: createRollIssuer('r'),
+  rng: createRng(seed) as Rng,
+  content,
+});
+
+const castOf = (events: readonly GameEvent[]) =>
+  events.find((e) => e.type === 'spell-cast') as
+    | Extract<GameEvent, { type: 'spell-cast' }>
+    | undefined;
+
+const left = (log: readonly GameEvent[], itemId: string): number =>
+  chargesLeft(fold('seed', log), SRD_CONTENT, BEARER, itemId);
+
+/**
+ * A casting from an item, driven all the way to the `spell-cast` that records
+ * it — through the declaration where the spell takes a minute or more.
+ *
+ * Four of these spells do: Scrying's ten minutes, Tiny Hut's minute, Private
+ * Sanctum's ten and Resurrection's hour. A casting of that length is
+ * *declared* and settles when the clock arrives, and SRD says an item's
+ * casting "uses its normal casting time", so the rite is the item's too. The
+ * span moved is the definition's own `castingSeconds`, which the oracle holds
+ * against the printed casting time.
+ */
+const castFrom = (
+  itemId: string,
+  spellId: string,
+  over: Partial<Parameters<typeof resolveSpell>[2]> = {},
+  seed = 'item',
+) => {
+  const log = wearing(itemId);
+  const first = unwrap(
+    resolveSpell(
+      fold('seed', log),
+      BEARER,
+      { spellId, targets: [], item: itemId, ...over },
+      supply(seed),
+    ),
+    `${itemId} casting ${spellId}`,
+  );
+  const definition = SRD_CONTENT.spell(spellId);
+  if (definition?.castingTime !== 'long') {
+    return { log: [...log, ...first.events], out: first };
+  }
+
+  const open = fold('seed', [...log, ...first.events]);
+  const castingId = pendingCastingsOf(open)[0]!.castingId;
+  const tick = unwrap(advanceTime(open, definition.castingSeconds!, 'the rite'), `tick ${spellId}`);
+  const ticked = [...log, ...first.events, ...tick];
+  const settled = unwrap(
+    resolveDeclaredCast(fold('seed', ticked), castingId, supply(seed)),
+    `settle ${spellId}`,
+  );
+  return {
+    log: [...ticked, ...settled.events],
+    out: {
+      ...settled,
+      events: [...first.events, ...tick, ...settled.events],
+      unverified: [...first.unverified, ...settled.unverified],
+    },
+  };
+};
+
+/**
+ * The spells this batch wrote, and which of the two buckets each landed in.
+ *
+ * Written down rather than derived, because the claim the brief turns on is
+ * *which* definitions were needed: a list read back off the catalogue would
+ * agree with a batch that wrote none of them.
+ */
+const WRITTEN: Readonly<Record<string, 'tracked' | 'executed'>> = {
+  'detect-thoughts': 'tracked',
+  'enlarge-reduce': 'tracked',
+  etherealness: 'tracked',
+  'gaseous-form': 'executed',
+  gate: 'tracked',
+  haste: 'executed',
+  heal: 'executed',
+  levitate: 'tracked',
+  'private-sanctum': 'tracked',
+  'resilient-sphere': 'tracked',
+  resurrection: 'tracked',
+  'scorching-ray': 'tracked',
+  scrying: 'tracked',
+  telekinesis: 'tracked',
+  teleport: 'tracked',
+  'tiny-hut': 'tracked',
+};
+
+describe('the spells the eighteen items were waiting for', () => {
+  it('are all defined, and each is in the bucket its paragraph put it in', () => {
+    for (const [spellId, bucket] of Object.entries(WRITTEN)) {
+      const definition = SPELL_DEFINITIONS.find((d) => d.id === spellId);
+      expect(definition, `${spellId} has no definition`).toBeDefined();
+      expect(
+        definition!.effects.length === 0 ? 'tracked' : 'executed',
+        `${spellId} is ${bucket}`,
+      ).toBe(bucket);
+    }
+  });
+
+  /**
+   * And every tracked one says what it leaves to the table, because a tracked
+   * definition that declared nothing would be a spell that silently did
+   * nothing — which is worse than the refusal it replaced.
+   */
+  it('leaves a written gap on every tracked one', () => {
+    for (const [spellId, bucket] of Object.entries(WRITTEN)) {
+      if (bucket !== 'tracked') continue;
+      expect(SRD_CONTENT.spell(spellId)?.unmodelled ?? [], spellId).not.toEqual([]);
+    }
+  });
+});
+
+/**
+ * SRD Boots of Levitation: "_Wondrous Item, Rare (Requires Attunement)._ While
+ * you wear these boots, you can cast _Levitate_ on yourself."
+ *
+ * **The item Levitate was written for, and the one entry of this batch an
+ * engine line still stops.** Levitate reaches "One creature ... of your choice
+ * that you can see within range", so the definition carries `requiresSight`;
+ * the boots narrow it to the wearer; and `sightBetween(scene, x, x)` answers
+ * **null**, which `resolveTargets` turns into a request to establish whether
+ * the wearer can see themselves. There is no way to satisfy it: `declareSight`
+ * refuses the pair outright, in the engine's own words — "a creature can see
+ * itself" — so the fact the resolver asks for is one the fold will not record.
+ *
+ * Two rules disagreeing about the same pair is an engine defect one line wide,
+ * and it is **older than this batch**: Healing Word, Mass Healing Word, Mass
+ * Cure Wounds and Cure Wounds all carry `self` beside `requiresSight` and
+ * every one of them is unreachable on its own caster. Driven here because a
+ * defect nobody drives is a defect nobody fixes, and the boots are left out
+ * for the reason `items.ts` rule 1 gives: a record whose every use is refused
+ * would be an item that arrives in a pack and looks transcribed.
+ */
+describe('the boots the engine will not let anybody see themselves through', () => {
+  it('is not in the catalogue, and Levitate is', () => {
+    expect(SRD_CONTENT.item('boots-of-levitation')).toBeNull();
+    expect(SRD_CONTENT.spell('levitate')?.requiresSight).toBe(true);
+    expect(SRD_CONTENT.spell('levitate')?.targets.self).toBe(true);
+  });
+
+  /** The spell itself is fine, and casts at anybody the caster has been said to see. */
+  it('casts Levitate at a neighbour, Concentration and all', () => {
+    const log: readonly GameEvent[] = [
+      added(BEARER),
+      added(OTHER),
+      ...SCENE,
+      {
+        type: 'resource-pool-declared',
+        id: BEARER,
+        pool: { key: spellSlotKey(2), label: 'level 2 spell slot', max: 2, recovers: 'long-rest' },
+      },
+      {
+        type: 'spellcasting-declared',
+        id: BEARER,
+        spellcasting: declaredCasting({ ability: 'int', prepared: ['levitate'] }),
+      },
+    ];
+    const out = unwrap(
+      resolveSpell(
+        fold('seed', log),
+        BEARER,
+        { spellId: 'levitate', targets: [OTHER], slotLevel: 2 },
+        supply('levitate'),
+      ),
+      'Levitate on a neighbour',
+    );
+    expect(castOf(out.events)?.concentration).toBe(true);
+    expect(out.events).toContainEqual({
+      type: 'effect-scheduled',
+      target: { kind: 'casting', castingId: out.castingId },
+      deadline: { kind: 'elapsed', at: 600 },
+    });
+    expect(out.unverified.join(' ')).toContain('Levitate');
+  });
+
+  /** And the defect, from both ends: the ask nobody can answer. */
+  it('asks whether a creature can see itself, and refuses to be told', () => {
+    const log: readonly GameEvent[] = [added(BEARER), added(OTHER), ...SCENE];
+    const built = extendContent(SRD_CONTENT, {
+      items: [
+        {
+          id: 'boots-of-rising',
+          name: 'boots-of-rising',
+          kind: 'wondrous',
+          weightLb: null,
+          costCp: null,
+          armor: null,
+          weapon: null,
+          contents: [],
+          grants: [{ kind: 'casts', spell: 'levitate', atWill: true, targetsSelfOnly: true }],
+        },
+      ],
+    });
+    if (!built.ok) throw new Error('the homebrew boots: ' + JSON.stringify(built));
+    const content = built.value;
+    const worn = run(
+      [
+        ...log,
+        {
+          type: 'items-gained',
+          id: BEARER,
+          items: [{ id: 'boots-of-rising', quantity: 1 }],
+          source: 'the hoard',
+        },
+      ],
+      (s) => equipItem(s, content, BEARER, 'boots-of-rising'),
+    );
+    const out = resolveSpell(
+      fold('seed', worn),
+      BEARER,
+      { spellId: 'levitate', targets: [BEARER], item: 'boots-of-rising' },
+      supply('boots', content),
+    );
+    expect(isErr(out) && out.code).toBe('needs_context');
+    expect(isErr(out) && out.reason).toContain('can see');
+
+    // And the fact it asks for cannot be recorded, which is the other half.
+    expect(() =>
+      fold('seed', [...worn, { type: 'sight-declared', from: BEARER, to: BEARER, seen: true }]),
+    ).toThrow(/a creature can see itself/);
+  });
+});
+
+/**
+ * SRD Circlet of Blasting: "While wearing this circlet, you can cast
+ * _Scorching Ray_ with it (+5 to hit). The circlet can't cast this spell again
+ * until the next dawn."
+ *
+ * A per-day property is a pool of one — the Cape of the Mountebank's shape —
+ * and "(+5 to hit)" is the attack bonus the item prints, which is the field
+ * `castsSpell` has carried since it was written and which nothing used.
+ */
+describe('a Circlet of Blasting casts Scorching Ray once a day', () => {
+  const CIRCLET = 'circlet-of-blasting';
+
+  it('spends its one use and prints its own attack bonus', () => {
+    const circlet = SRD_CONTENT.item(CIRCLET);
+    const grant = circlet?.grants?.find((one) => one.kind === 'casts');
+    expect(grant?.kind === 'casts' && grant.attackBonus).toBe(5);
+
+    const { log, out } = castFrom(CIRCLET, 'scorching-ray', { targets: [OTHER] });
+    expect(left(log, CIRCLET)).toBe(0);
+    expect(castOf(out.events)?.slotless).toBe('magic-item');
+    expect(castOf(out.events)?.level).toBe(2);
+  });
+
+  it('refuses a second casting before the next dawn, and allows one after it', () => {
+    const { log } = castFrom(CIRCLET, 'scorching-ray', { targets: [OTHER] });
+    const again = resolveSpell(
+      fold('seed', log),
+      BEARER,
+      { spellId: 'scorching-ray', targets: [OTHER], item: CIRCLET, commandId: 'second' },
+      supply('again'),
+    );
+    expect(isErr(again) && again.code).toBe('exhausted');
+
+    const dawned = run(log, (s) => declareDawn(s, supply('dawn')));
+    expect(left(dawned, CIRCLET)).toBe(1);
+  });
+});
+
+/**
+ * SRD Crystal Ball: "While touching this crystal orb, you can cast _Scrying_
+ * (save DC 17) with it."
+ *
+ * The at-will casting of a spell that takes **ten minutes** — so the orb is
+ * where a long casting time and an item's route meet, and the rite is declared
+ * and settled exactly as a Wizard's would be.
+ */
+describe('a Crystal Ball scrys, and the two that scry and do more', () => {
+  it('declares the ten-minute rite and settles it on the clock', () => {
+    const log = wearing('crystal-ball');
+    const declaration = unwrap(
+      resolveSpell(
+        fold('seed', log),
+        BEARER,
+        { spellId: 'scrying', targets: [], item: 'crystal-ball' },
+        supply('orb'),
+      ),
+      'the orb declaring Scrying',
+    );
+    expect(declaration.events.some((e) => e.type === 'spell-declared')).toBe(true);
+    expect(castOf(declaration.events)).toBeUndefined();
+
+    const { log: settled, out } = castFrom('crystal-ball', 'scrying');
+    expect(castOf(out.events)?.slotless).toBe('magic-item');
+    const record = ongoingSpellOf(fold('seed', settled), out.castingId);
+    // "(save DC 17)" is the orb's number, and the bearer has no spellcasting
+    // ability at all to have supplied one.
+    expect(record?.numbers.saveDc).toBe(17);
+    expect(out.unverified.join(' ')).toContain('Scrying');
+  });
+
+  /** The Legendary orb that scrys and reads minds casts both, and prices neither. */
+  it('reads minds off the Crystal Ball of Mind Reading', () => {
+    const { log, out } = castFrom('crystal-ball-of-mind-reading', 'detect-thoughts');
+    expect(castOf(out.events)?.slotless).toBe('magic-item');
+    const record = ongoingSpellOf(fold('seed', log), out.castingId);
+    expect(record?.numbers.saveDc).toBe(17);
+  });
+
+  /**
+   * And the one that suggests does it once a day, out of a pool of one, beside
+   * a Scrying the book puts no limit on at all.
+   */
+  it('suggests once a day off the Crystal Ball of Telepathy', () => {
+    const BALL = 'crystal-ball-of-telepathy';
+    const { log, out } = castFrom(BALL, 'suggestion', { targets: [OTHER] });
+    expect(castOf(out.events)?.slotless).toBe('magic-item');
+    expect(left(log, BALL)).toBe(0);
+    expect(ongoingSpellOf(fold('seed', log), out.castingId)?.numbers.saveDc).toBe(17);
+
+    // The Scrying beside it is free, and the spent Suggestion has not touched
+    // it — which is the whole reason the two grants are priced separately.
+    const scry = resolveSpell(
+      fold('seed', log),
+      BEARER,
+      { spellId: 'scrying', targets: [], item: BALL, commandId: 'scry-after' },
+      supply('scry'),
+    );
+    expect(isErr(scry)).toBe(false);
+  });
+});
+
+/**
+ * SRD Cube of Force: six faces, six spells, a charge cost each, and one save
+ * DC printed before the table.
+ */
+describe('a Cube of Force presses six faces', () => {
+  const CUBE = 'cube-of-force';
+
+  it('prices every row the way the book’s table prices it', () => {
+    const cube = SRD_CONTENT.item(CUBE);
+    const priced = (cube?.grants ?? [])
+      .filter((grant) => grant.kind === 'casts')
+      .map((grant) => (grant.kind === 'casts' ? [grant.spell, grant.charges] : []));
+    expect(priced).toEqual([
+      ['mage-armor', 1],
+      ['shield', 1],
+      ['tiny-hut', 3],
+      ['private-sanctum', 4],
+      ['resilient-sphere', 4],
+      ['wall-of-force', 5],
+    ]);
+  });
+
+  /** Four charges for a sphere, off a cube that started with ten. */
+  it('spends four charges on Resilient Sphere', () => {
+    const { log, out } = castFrom(CUBE, 'resilient-sphere', { targets: [OTHER] });
+    expect(left(log, CUBE)).toBe(6);
+    expect(ongoingSpellOf(fold('seed', log), out.castingId)?.numbers.saveDc).toBe(17);
+  });
+
+  /** And three on a hut, which is a rite of a minute rather than an Action. */
+  it('spends three on Tiny Hut and declares the minute it takes', () => {
+    const { log, out } = castFrom(CUBE, 'tiny-hut');
+    expect(left(log, CUBE)).toBe(7);
+    expect(out.events.some((e) => e.type === 'spell-declared')).toBe(true);
+    expect(castOf(out.events)?.slotless).toBe('magic-item');
+  });
+});
+
+/**
+ * SRD Cubic Gate: "The cube has 3 charges and regains 1d3 expended charges
+ * daily at dawn. As a Magic action, you can expend 1 of the cube's charges to
+ * cast one of the following spells using the cube."
+ */
+describe('a Cubic Gate opens a portal and shifts a plane', () => {
+  const CUBE = 'cubic-gate';
+
+  it('casts Gate for one charge, with Concentration and a minute on the clock', () => {
+    const { log, out } = castFrom(CUBE, 'gate');
+    expect(left(log, CUBE)).toBe(2);
+    expect(castOf(out.events)?.concentration).toBe(true);
+    expect(out.events).toContainEqual({
+      type: 'effect-scheduled',
+      target: { kind: 'casting', castingId: out.castingId },
+      deadline: { kind: 'elapsed', at: 60 },
+    });
+  });
+
+  it('casts Plane Shift for another, on the eight the spell takes', () => {
+    const { log, out } = castFrom(CUBE, 'plane-shift', { targets: [OTHER] });
+    expect(left(log, CUBE)).toBe(2);
+    expect(castOf(out.events)?.slotless).toBe('magic-item');
+  });
+});
+
+/** SRD Helm of Teleportation: three charges, one spent to cast _Teleport_. */
+describe('a Helm of Teleportation casts Teleport', () => {
+  it('spends one of three and takes an Action', () => {
+    const { log, out } = castFrom('helm-of-teleportation', 'teleport', { targets: [OTHER] });
+    expect(left(log, 'helm-of-teleportation')).toBe(2);
+    expect(castOf(out.events)?.slotless).toBe('magic-item');
+    expect(SRD_CONTENT.spell('teleport')?.castingTime).toBe('action');
+  });
+});
+
+/** SRD Medallion of Thoughts: five charges, one spent, save DC 13. */
+describe('a Medallion of Thoughts casts Detect Thoughts', () => {
+  it('spends one of five against the medallion’s own thirteen', () => {
+    const { log, out } = castFrom('medallion-of-thoughts', 'detect-thoughts');
+    expect(left(log, 'medallion-of-thoughts')).toBe(4);
+    expect(ongoingSpellOf(fold('seed', log), out.castingId)?.numbers.saveDc).toBe(13);
+  });
+});
+
+/**
+ * SRD Plate Armor of Etherealness: "While you're wearing this armor, you can
+ * take a Magic action and use a command word to gain the effect of the
+ * _Etherealness_ spell."
+ *
+ * Armour and a casting on one record, and the per-day property is the pool of
+ * one the Cape of the Mountebank already writes.
+ */
+describe('Plate Armor of Etherealness steps sideways once a day', () => {
+  const PLATE = 'plate-armor-of-etherealness';
+
+  it('is armour that casts, and both halves are on the record', () => {
+    const plate = SRD_CONTENT.item(PLATE);
+    expect(plate?.kind).toBe('armor');
+    expect(plate?.armor?.category).toBe('heavy');
+    expect(plate?.grants?.some((grant) => grant.kind === 'casts')).toBe(true);
+  });
+
+  it('spends its one use and runs the eight hours without Concentration', () => {
+    const { log, out } = castFrom(PLATE, 'etherealness');
+    expect(left(log, PLATE)).toBe(0);
+    expect(castOf(out.events)?.concentration).toBe(false);
+    expect(out.events).toContainEqual({
+      type: 'effect-scheduled',
+      target: { kind: 'casting', castingId: out.castingId },
+      deadline: { kind: 'elapsed', at: 28_800 },
+    });
+  });
+});
+
+/** SRD Ring of Telekinesis: "While wearing this ring, you can cast _Telekinesis_ from it." */
+describe('a Ring of Telekinesis casts Telekinesis', () => {
+  it('casts at will and holds the ten minutes of Concentration', () => {
+    const { log, out } = castFrom('ring-of-telekinesis', 'telekinesis');
+    expect(castOf(out.events)?.slotless).toBe('magic-item');
+    expect(fold('seed', log).creatures[BEARER]?.concentration?.castingId).toBe(out.castingId);
+    expect(out.events).toContainEqual({
+      type: 'effect-scheduled',
+      target: { kind: 'casting', castingId: out.castingId },
+      deadline: { kind: 'elapsed', at: 600 },
+    });
+  });
+});
+
+/**
+ * SRD Rod of Resurrection: "_Heal_ (expends 1 charge) or _Resurrection_
+ * (expends 5 charges). ... The rod regains 1 expended charge daily at dawn."
+ *
+ * **The one entry of the eighteen that both spells were written for and that
+ * still cannot be transcribed**, and the reason is the last sentence rather
+ * than either spell: `ResourcePool.regainsAtDawn` takes dice, on the recorded
+ * reasoning that the SRD "prints dice" and "never once" a stated number at
+ * dawn, and this rod prints a stated 1 — which a one-sided die cannot say,
+ * because `parseNotation` asks for two sides to a thousand.
+ *
+ * Leaving the field off is not neutral: a `dawn` pool with no dice refills, so
+ * the record would give back five charges every morning where the book gives
+ * one. That is rule 3 in `items.ts` — the clause the engine cannot say is the
+ * one that limits the benefit — so the record waits on an engine line and the
+ * map keeps the entry.
+ *
+ * Both halves of what the rod *would* do are driven below anyway, out of a
+ * homebrew rod built through the door homebrew goes through, because the
+ * spells are the part this batch owns and a spell nobody drives is a spell
+ * nobody checked.
+ */
+describe('the rod the engine cannot price, and the two spells it would cast', () => {
+  const ROD = 'rod-of-resurrection';
+
+  it('is not in the catalogue, and the dawn line is why', () => {
+    expect(SRD_CONTENT.item(ROD)).toBeNull();
+    // A stated number at dawn: neither a die nor a refill.
+    const flat = extendContent(SRD_CONTENT, {
+      items: [
+        {
+          id: 'rod-of-the-stated-dawn',
+          name: 'rod-of-the-stated-dawn',
+          kind: 'rod',
+          weightLb: null,
+          costCp: null,
+          armor: null,
+          weapon: null,
+          contents: [],
+          grants: [
+            {
+              kind: 'pool',
+              key: 'rod-of-the-stated-dawn:charges',
+              label: 'charges',
+              uses: 5,
+              recovers: 'dawn',
+              regainsAtDawn: '1',
+            },
+          ],
+        },
+      ],
+    });
+    expect(isErr(flat) && flat.code).toBe('invalid_content');
+    expect(isErr(flat) && flat.reason).toContain('is not valid dice notation');
+  });
+
+  /** The homebrew rod, priced the way the book prices it and refilled by a die. */
+  const HOMEBREW: CatalogueItem = {
+    id: 'rod-of-raising',
+    name: 'rod-of-raising',
+    kind: 'rod',
+    weightLb: null,
+    costCp: null,
+    armor: null,
+    weapon: null,
+    contents: [],
+    grants: [
+      {
+        kind: 'pool',
+        key: 'rod-of-raising:charges',
+        label: 'rod-of-raising charges',
+        uses: 5,
+        recovers: 'dawn',
+        regainsAtDawn: '1d2',
+      },
+      { kind: 'casts', spell: 'heal', charges: 1 },
+      { kind: 'casts', spell: 'resurrection', charges: 5 },
+    ],
+  };
+
+  const withRod = () => {
+    const built = extendContent(SRD_CONTENT, { items: [HOMEBREW] });
+    if (!built.ok) throw new Error('the homebrew rod: ' + JSON.stringify(built));
+    return built.value;
+  };
+
+  const holdingRod = (content: Content): readonly GameEvent[] => {
+    const base: readonly GameEvent[] = [
+      added(BEARER),
+      added(OTHER),
+      ...SCENE,
+      {
+        type: 'items-gained',
+        id: BEARER,
+        items: [{ id: 'rod-of-raising', quantity: 1 }],
+        source: 'the hoard',
+      },
+    ];
+    return run(base, (s) => equipItem(s, content, BEARER, 'rod-of-raising'));
+  };
+
+  it('heals seventy and lifts three conditions for a single charge', () => {
+    const content = withRod();
+    const log: readonly GameEvent[] = [
+      ...holdingRod(content),
+      { type: 'damage-taken', id: OTHER, amount: 30, source: 'the wight' },
+      { type: 'condition-applied', id: OTHER, condition: 'poisoned', source: 'the wight' },
+    ];
+    const out = unwrap(
+      resolveSpell(
+        fold('seed', log),
+        BEARER,
+        { spellId: 'heal', targets: [OTHER], item: 'rod-of-raising' },
+        supply('rod', content),
+      ),
+      'the rod casting Heal',
+    );
+    const after = fold('seed', [...log, ...out.events]);
+    expect(
+      chargesLeft(after, content, BEARER, 'rod-of-raising'),
+      'one of five charges',
+    ).toBe(4);
+    // Seventy restores the thirty that were lost, and no more.
+    expect(after.creatures[OTHER]?.vitals.hp).toBe(40);
+    expect(out.outcomes[0]?.healed).toBe(30);
+    expect(after.creatures[OTHER]?.conditions.conditions ?? []).not.toContain('poisoned');
+    // No slot, and no spellcasting modifier on top of the printed seventy.
+    expect(castOf(out.events)?.slotless).toBe('magic-item');
+  });
+
+  it('spends five on Resurrection, and declares the hour the rite takes', () => {
+    const content = withRod();
+    const log = holdingRod(content);
+    const declaration = unwrap(
+      resolveSpell(
+        fold('seed', log),
+        BEARER,
+        { spellId: 'resurrection', targets: [OTHER], item: 'rod-of-raising' },
+        supply('raise', content),
+      ),
+      'the rod declaring Resurrection',
+    );
+    expect(declaration.events.some((e) => e.type === 'spell-declared')).toBe(true);
+    expect(castOf(declaration.events)).toBeUndefined();
+    expect(
+      chargesLeft(fold('seed', [...log, ...declaration.events]), content, BEARER, 'rod-of-raising'),
+    ).toBe(0);
+  });
+});
+
+/**
+ * The three potions, which cast nothing.
+ *
+ * SRD "Magic Items": "Many items, such as Potions, **bypass the casting of a
+ * spell** and confer the spell's effects with its usual duration." So the
+ * spell is written out rather than named — the Potion of Heroism's Bless is
+ * the precedent — and "(no Concentration required)" is not a clause the engine
+ * has to honour but a description of what a conferral already is.
+ */
+describe('three potions confer a spell’s effects without casting it', () => {
+  const drink = (itemId: string, seed = 'drink') => {
+    const log = carrying(itemId);
+    const out = unwrap(
+      useItem(fold('seed', log), BEARER, { item: itemId }, supply(seed)),
+      `drinking ${itemId}`,
+    );
+    return { log: [...log, ...out.events], out };
+  };
+
+  /** SRD Potion of Speed: "the effect of the _Haste_ spell for 1 minute". */
+  it('a Potion of Speed grants the Armour Class and the Dexterity Advantage', () => {
+    const { log } = drink('potion-of-speed');
+    const after = fold('seed', log);
+    expect(after.creatures[BEARER]?.bonuses.map((bonus) => bonus.bonus.flat)).toEqual([2]);
+    expect(after.creatures[BEARER]?.bonuses[0]?.applies).toContain('ac');
+    expect(
+      after.creatures[BEARER]?.rollModifiers.map((mode) => mode.modifier.selector),
+    ).toEqual([{ roll: 'saving-throw', relation: 'roller', ability: 'dex' }]);
+
+    // "for 1 minute", and the minute is the potion's rather than Haste's own —
+    // a `grants` timer, because there is no casting for anything else to end.
+    expect(Object.keys(after.timers).length).toBe(1);
+    const nearly = fold('seed', [
+      ...log,
+      { type: 'time-advanced', seconds: 59, reason: 'the fight' } as GameEvent,
+    ]);
+    expect(nearly.creatures[BEARER]?.bonuses).toHaveLength(1);
+    const gone = fold('seed', [
+      ...log,
+      { type: 'time-advanced', seconds: 60, reason: 'the fight' } as GameEvent,
+    ]);
+    expect(gone.creatures[BEARER]?.bonuses).toEqual([]);
+    expect(gone.creatures[BEARER]?.rollModifiers).toEqual([]);
+  });
+
+  /**
+   * SRD Potion of Growth: the "enlarge" half, for ten minutes.
+   *
+   * **The bottle makes the choice the casting cannot record**, which is why
+   * the spell stays tracked and the potion does not: Enlarge/Reduce prints
+   * Advantage on one branch and Disadvantage on the other, and nothing on a
+   * casting says which was chosen. The label says "enlarge".
+   */
+  it('a Potion of Growth grants both halves of the enlarge branch', () => {
+    const { log } = drink('potion-of-growth');
+    const after = fold('seed', log);
+    expect(after.creatures[BEARER]?.rollModifiers.map((mode) => mode.modifier.selector)).toEqual([
+      { roll: 'ability-check', relation: 'roller', ability: 'str' },
+      { roll: 'saving-throw', relation: 'roller', ability: 'str' },
+    ]);
+    for (const mode of after.creatures[BEARER]?.rollModifiers ?? []) {
+      expect(mode.modifier.mode).toBe('advantage');
+    }
+    // And the spell itself stays tracked, because neither branch can be written.
+    expect(SRD_CONTENT.spell('enlarge-reduce')?.effects).toEqual([]);
+  });
+
+  /**
+   * SRD Potion of Gaseous Form: the Resistance and the three saves.
+   *
+   * **Four and not five**, and the fifth is a collision rather than a missing
+   * mechanic: the spell grants Immunity to the Prone condition through a
+   * `condition-immunity` effect, `CONFERRED_EFFECT_KINDS` admits that kind,
+   * and `RIDER_FIELDS` refuses a conferred effect carrying a field called
+   * `conditions` — which is the outcome rider a saving throw hangs *and* this
+   * kind's own required list. Driven in both directions, because a note
+   * saying "the engine refuses this" is worth exactly as much as the refusal
+   * it claims.
+   */
+  it('a Potion of Gaseous Form confers four of the spell’s own effects', () => {
+    const { log } = drink('potion-of-gaseous-form');
+    const after = fold('seed', log);
+    expect(
+      after.creatures[BEARER]?.grantedDefenses.map((one) => [one.damageTypes, one.defense]),
+    ).toEqual([[['bludgeoning', 'piercing', 'slashing'], 'resistant']]);
+    expect(
+      after.creatures[BEARER]?.rollModifiers
+        .map((mode) => mode.modifier.selector.ability)
+        .slice()
+        .sort(),
+    ).toEqual(['con', 'dex', 'str']);
+    // The hour, and nothing on the drinker to end it but the timer.
+    expect(after.ongoing).toEqual({});
+  });
+
+  it('is refused the Immunity the spell it copies executes', () => {
+    // The spell does grant it.
+    expect(
+      SRD_CONTENT.spell('gaseous-form')?.effects.some(
+        (effect) => effect.kind === 'condition-immunity',
+      ),
+    ).toBe(true);
+
+    const built = extendContent(SRD_CONTENT, {
+      items: [
+        {
+          id: 'potion-of-the-refused-immunity',
+          name: 'potion-of-the-refused-immunity',
+          kind: 'potion',
+          weightLb: null,
+          costCp: null,
+          armor: null,
+          weapon: null,
+          contents: [],
+          grants: [
+            {
+              kind: 'confers',
+              action: 'bonus-action',
+              durationSeconds: 3600,
+              effects: [{ kind: 'condition-immunity', conditions: ['prone'] }],
+            },
+          ],
+        },
+      ],
+    });
+    expect(isErr(built) && built.code).toBe('invalid_content');
+    expect(isErr(built) && built.reason).toContain('a "conditions" rider is welded to the casting');
+  });
+
+  /** A bottle is used up, which is the other half of a conferral's economy. */
+  it('empties the bottle', () => {
+    const { log } = drink('potion-of-growth');
+    const after = fold('seed', log);
+    expect(after.creatures[BEARER]?.inventory.find((one) => one.id === 'potion-of-growth')).toBeUndefined();
+  });
+});

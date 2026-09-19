@@ -3092,7 +3092,11 @@ export const FLY: SpellDefinition = {
   castingTime: 'action',
   concentration: true,
   range: { kind: 'touch' },
-  targets: { count: 1, extraPerSlotLevelAbove: 1 },
+  // "A willing creature" you touch includes you, which Guidance, Jump and Mage
+  // Armor are already transcribed as — and which SRD says of this spell from
+  // the other end too: a Wizard casting Fly on themselves is the most ordinary
+  // use the spell has, and without `self` the engine refused it outright.
+  targets: { count: 1, extraPerSlotLevelAbove: 1, self: true },
   effects: [],
   durationSeconds: 600,
   unmodelled: [
@@ -6025,6 +6029,674 @@ export const MENDING: SpellDefinition = {
   ],
 };
 
+// — the fourth batch: the spells eighteen magic items were waiting for ————————
+//
+// `ITEM_SHAPES`'s heaviest blocker is not an item mechanism at all: forty-eight
+// entries of "Magic Items A–Z" print a spell the catalogue had no definition of.
+// The word that decides one is **definition** rather than *executable* — a
+// `casts` grant is validated against `spells.some(s => s.id === id)` and
+// resolved through `content.spell(id)` — so a tracked definition unblocks a
+// wand exactly as an executed one does, which is SRD's own sentence about what
+// a casting from an item is: "The spell uses its normal casting time, range,
+// and duration, and the user of the item must concentrate if the spell
+// requires Concentration."
+//
+// Sixteen definitions, read paragraph by paragraph, and the reading is what put
+// each in its bucket. Three execute, and each of the three is partial in a way
+// its own notes say: Heal's seventy Hit Points are now writable because an
+// amount may carry a `flat` alone, and Haste and Gaseous Form print runs of
+// clauses in which the Armour Class, the Resistance, the Immunity and the
+// Advantages are all things the engine owns. The other thirteen are tracked,
+// because the clause that carries the spell is a mechanic the engine lacks —
+// three attack rolls from one casting, a second plane to put a creature on, a
+// barrier that stops passage, an activation that forces a saving throw — and
+// stretching one of those into an approximation would be a worse answer than
+// the honest one.
+
+/**
+ * SRD Heal:
+ *
+ * > _Level 6 Abjuration (Cleric, Druid)._ **Casting Time:** Action.
+ * > **Range:** 60 feet. **Duration:** Instantaneous.
+ * > "Choose a creature that you can see within range. Positive energy washes
+ * > through the target, restoring 70 Hit Points. This spell also ends the
+ * > Blinded, Deafened, and Poisoned conditions on the target."
+ * > _Using a Higher-Level Spell Slot._ "The healing increases by 10 for each
+ * > spell slot level above 6."
+ *
+ * **The spell `a-flat-amount-with-no-dice` was named for, and the half of that
+ * shape that is built.** `DiceScaling.dice` became optional when magic items
+ * started printing bare numbers, and `flatPerSlotLevelAbove` grew the amount
+ * beside it — which is seventy and ten per level, exactly. Nothing is thrown,
+ * so the generator does not move, and `addSpellcastingModifier` is false
+ * because the book prints no modifier to add.
+ *
+ * The three conditions are `end-condition`'s whole sentence and every one of
+ * them is ended, which is right here where Lesser Restoration's "one" is not:
+ * SRD says "ends the Blinded, Deafened, and Poisoned conditions", with no
+ * choice for a caster to make.
+ *
+ * So the entry is whole and carries no `unmodelled` at all.
+ */
+export const HEAL: SpellDefinition = {
+  id: 'heal',
+  name: 'Heal',
+  level: 6,
+  school: 'abjuration',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 1, self: true },
+  requiresSight: true,
+  effects: [
+    {
+      kind: 'heal',
+      healing: { flat: 70, flatPerSlotLevelAbove: 10 },
+      addSpellcastingModifier: false,
+    },
+    { kind: 'end-condition', conditions: ['blinded', 'deafened', 'poisoned'] },
+  ],
+};
+
+/**
+ * SRD Haste:
+ *
+ * > _Level 3 Transmutation (Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 30 feet. **Duration:** Concentration, up to 1 minute.
+ * > "Choose a willing creature that you can see within range. Until the spell
+ * > ends, the target's Speed is doubled, it gains a +2 bonus to Armor Class,
+ * > it has Advantage on Dexterity saving throws, and it gains an additional
+ * > action on each of its turns. That action can be used to take only the
+ * > Attack (one attack only), Dash, Disengage, Hide, or Utilize action."
+ * > "When the spell ends, the target is Incapacitated and has a Speed of 0
+ * > until the end of its next turn, as a wave of lethargy washes over it."
+ *
+ * **Two of the four benefits in that run are things the engine owns**, and
+ * they are written: the +2 is Shield of Faith's sentence word for word, and
+ * the Advantage is a `roll-mode` narrowed to saving throws and to one ability,
+ * which Beacon of Hope already writes twice in one definition.
+ *
+ * The other two are not, and each is a named shape rather than a shortcut. A
+ * doubled Speed is the one sentence in the book that multiplies one, and
+ * `SpeedChange` composes from a halving and a zero and has no third member.
+ * An extra action — and then a narrowing of what it may be spent on — is the
+ * action economy, which is the engine's outright and which nothing a spell
+ * writes may add to. The lethargy fires when the casting *ends*, and expiry is
+ * derived rather than recorded, so there is no hook to hang it on.
+ */
+export const HASTE: SpellDefinition = {
+  id: 'haste',
+  name: 'Haste',
+  level: 3,
+  school: 'transmutation',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 30 },
+  // "Choose a willing creature that you can see within range", which includes
+  // you: Fly, Jump and Mage Armor are all transcribed that way, and willingness
+  // is fiction.
+  targets: { count: 1, self: true },
+  requiresSight: true,
+  effects: [
+    // "it gains a +2 bonus to Armor Class"
+    {
+      kind: 'buff',
+      bonus: { source: 'Haste', flat: 2 },
+      applies: ['ac'],
+      direction: 'add',
+    },
+    // "it has Advantage on Dexterity saving throws"
+    {
+      kind: 'roll-mode',
+      modifier: { mode: 'advantage', selector: { roll: 'saving-throw', relation: 'roller', ability: 'dex' } },
+    },
+  ],
+  durationSeconds: 60,
+  unmodelled: [
+    'the doubled Speed: "the target’s Speed is doubled" is the only sentence in SRD that multiplies one, and a Speed is composed from a halving, which is presence rather than count, and a zero, which is last and wins — there is no third operation and no rule saying how a doubling meets a halving',
+    'the extra action and the five it may be spent on: "it gains an additional action on each of its turns. That action can be used to take only the Attack (one attack only), Dash, Disengage, Hide, or Utilize action" — the action economy counts what a turn holds and nothing an effect writes adds to that count',
+    'the lethargy: "When the spell ends, the target is Incapacitated and has a Speed of 0 until the end of its next turn" fires at the moment the casting runs out, and expiry is derived rather than recorded, so nothing hangs a consequence on it',
+  ],
+};
+
+/**
+ * SRD Gaseous Form:
+ *
+ * > _Level 3 Transmutation (Sorcerer, Warlock, Wizard)._
+ * > **Casting Time:** Action. **Range:** Touch.
+ * > **Duration:** Concentration, up to 1 hour.
+ * > "A willing creature you touch shape-shifts, along with everything it's
+ * > wearing and carrying, into a misty cloud for the duration. ... The target
+ * > has Resistance to Bludgeoning, Piercing, and Slashing damage; it has
+ * > Immunity to the Prone condition; and it has Advantage on Strength,
+ * > Dexterity, and Constitution saving throws."
+ * > _Using a Higher-Level Spell Slot._ "You can target one additional creature
+ * > for each spell slot level above 3."
+ *
+ * **One sentence of the paragraph is five effects, and all five are built.**
+ * The Resistance is Stoneskin's `damage-defense` over three types; the
+ * Immunity is IE-042's `condition-immunity`; and three abilities named in one
+ * clause are three `roll-mode` effects, because a mode is selected by roll
+ * family and ability and there is one selector per ability.
+ *
+ * Everything else about being a cloud is not, and the notes say which gap each
+ * clause waits on. The spell is therefore **partial** rather than tracked: the
+ * misty-cloud half is the table's and the five numbers are the engine's, and
+ * writing none of them because some of them are missing would be a Gaseous
+ * Form that a Fireball hurt at full price.
+ */
+export const GASEOUS_FORM: SpellDefinition = {
+  id: 'gaseous-form',
+  name: 'Gaseous Form',
+  level: 3,
+  school: 'transmutation',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'touch' },
+  // "A willing creature you touch", which includes you, plus one more per slot
+  // level above the third.
+  targets: { count: 1, extraPerSlotLevelAbove: 1, self: true },
+  effects: [
+    { kind: 'damage-defense', damageTypes: ['bludgeoning', 'piercing', 'slashing'], defense: 'resistant' },
+    { kind: 'condition-immunity', conditions: ['prone'] },
+    {
+      kind: 'roll-mode',
+      modifier: { mode: 'advantage', selector: { roll: 'saving-throw', relation: 'roller', ability: 'str' } },
+    },
+    {
+      kind: 'roll-mode',
+      modifier: { mode: 'advantage', selector: { roll: 'saving-throw', relation: 'roller', ability: 'dex' } },
+    },
+    {
+      kind: 'roll-mode',
+      modifier: { mode: 'advantage', selector: { roll: 'saving-throw', relation: 'roller', ability: 'con' } },
+    },
+  ],
+  durationSeconds: 3600,
+  unmodelled: [
+    'the cloud itself is the DM’s: what the target looks like, that it "can pass through narrow openings", and that "it treats liquids as though they were solid surfaces" are fiction, and the gear coming along changes nothing the engine holds',
+    'the spell ending "if it drops to 0 Hit Points" is not applied: a casting ends by its deadline, its Concentration, a dispel or one of five transcribed causes, and dropping to 0 is not among them',
+    'the target ending it "as a Magic action" is not offered: `endOngoingSpell` is the caster’s door and costs nothing, and this sentence prints both exceptions — the **target** ends it, and the book charges a Magic action for the ending',
+    'the movement is not changed: "the target’s only method of movement is a Fly Speed of 10 feet, and it can hover" needs a movement mode, and the engine tracks one Speed and no modes — so the target keeps the Speed it had',
+    '"The target can enter and occupy the space of another creature" is not applied: occupancy is a rule the engine owns outright, and nothing lets an effect tell that rule to believe something different about one creature',
+    'the things the cloud cannot do are not forbidden: "The target can’t talk or manipulate objects", "any objects it was carrying or holding can’t be dropped, used, or otherwise interacted with", and "the target can’t attack or cast spells" are an action economy rider and a fact about what is in a creature’s hands, and the engine has neither',
+  ],
+};
+
+/**
+ * SRD Levitate:
+ *
+ * > _Level 2 Transmutation (Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 60 feet. **Duration:** Concentration, up to 10 minutes.
+ * > "One creature or loose object of your choice that you can see within range
+ * > rises vertically up to 20 feet and remains suspended there for the
+ * > duration. ... An unwilling creature that succeeds on a Constitution saving
+ * > throw is unaffected."
+ *
+ * Tracked, because the only thing the save decides is a lift the engine cannot
+ * perform: nothing moves a creature vertically, and nothing holds one there.
+ */
+export const LEVITATE: SpellDefinition = {
+  id: 'levitate',
+  name: 'Levitate',
+  level: 2,
+  school: 'transmutation',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 60 },
+  // "One creature ... of your choice that you can see within range" — which may
+  // be you, and which SRD says from the other end: the Boots of Levitation cast
+  // this "on yourself", a sentence with no meaning if the caster were not a
+  // legal target of it.
+  targets: { count: 1, self: true },
+  requiresSight: true,
+  effects: [],
+  durationSeconds: 600,
+  unmodelled: [
+    'the lift is not applied: "rises vertically up to 20 feet and remains suspended there for the duration" is forced movement a spell causes, and no effect reaches the one function that performs it',
+    'the Constitution saving throw is not rolled, because a save is written as the gate on an outcome and the outcome here is that lift — "An unwilling creature that succeeds on a Constitution saving throw is unaffected", with nothing to be affected by',
+    'moving the target afterwards is the DM’s: the 20 feet of altitude a turn, the climbing along a wall, and the Magic action somebody else spends to move it are all that same missing movement',
+    'the object the spell may target instead, and its 500-pound limit, are the DM’s: objects are not modelled',
+    '"the target floats gently to the ground if it is still aloft" ends a lift that never happened',
+  ],
+};
+
+/**
+ * SRD Scorching Ray:
+ *
+ * > _Level 2 Evocation (Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 120 feet. **Duration:** Instantaneous.
+ * > "You hurl three fiery rays. You can hurl them at one target within range
+ * > or at several. Make a ranged spell attack for each ray. On a hit, the
+ * > target takes 2d6 Fire damage."
+ * > _Using a Higher-Level Spell Slot._ "You create one additional ray for each
+ * > spell slot level above 2."
+ *
+ * **Tracked, and it is the clearest case in the batch for not stretching.**
+ * An `attack` effect rolls one attack per target; three rays that may all go
+ * at one target, or at three, is the shape Eldritch Blast is blocked on and
+ * the definition vocabulary already records by name. A definition that rolled
+ * one ray would be a Scorching Ray dealing a third of its damage, and one that
+ * rolled 6d6 in a single attack would be a Scorching Ray that hits or misses
+ * as a whole — both are wrong answers wearing the look of a right one, where a
+ * tracked definition is a right answer that spends the slot.
+ */
+export const SCORCHING_RAY: SpellDefinition = {
+  id: 'scorching-ray',
+  name: 'Scorching Ray',
+  level: 2,
+  school: 'evocation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 120 },
+  // "at one target within range or at several", and one more ray per slot level
+  // above the second — so up to three targets at the spell's own level.
+  targets: { count: 3, extraPerSlotLevelAbove: 1 },
+  effects: [],
+  unmodelled: [
+    'the three rays are not thrown: "Make a ranged spell attack for each ray. On a hit, the target takes 2d6 Fire damage" is several attack rolls from one casting, which one casting cannot make — an effect rolls one attack per target and cannot put two rays on one creature',
+    'the extra ray a higher slot buys is therefore not thrown either; the target count grows with the slot so the casting still records who was aimed at',
+  ],
+};
+
+/**
+ * SRD Scrying:
+ *
+ * > _Level 5 Divination (Bard, Cleric, Druid, Warlock, Wizard)._
+ * > **Casting Time:** 10 minutes. **Range:** Self.
+ * > **Duration:** Concentration, up to 10 minutes.
+ * > "You can see and hear a creature you choose that is on the same plane of
+ * > existence as you. The target makes a Wisdom saving throw, which is
+ * > modified (see the tables below) by how well you know the target and the
+ * > sort of physical connection you have to it."
+ *
+ * The rite takes ten minutes and then runs for ten, and both are the engine's.
+ * What is not is the save: its DC is modified by two printed tables of facts
+ * the engine does not hold and should never guess — how well a caster knows a
+ * stranger, and whether they are holding a lock of the stranger's hair.
+ */
+export const SCRYING: SpellDefinition = {
+  id: 'scrying',
+  name: 'Scrying',
+  level: 5,
+  school: 'divination',
+  // "Casting Time: 10 minutes."
+  castingTime: 'long',
+  castingSeconds: 600,
+  concentration: true,
+  // "Range: Self" — the sensor is the spell's, and the creature scryed upon is
+  // chosen in the fiction rather than named as a target within reach.
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 600,
+  unmodelled: [
+    'the save is not rolled: "The target makes a Wisdom saving throw, which is modified (see the tables below) by how well you know the target and the sort of physical connection you have to it" reads two tables of facts the engine does not hold — a knowledge band and a possession — and the DM owns both, which is the line declared cover and declared sight already draw',
+    'the sensor is the DM’s: "an Invisible, intangible sensor within 10 feet of the target" that moves with it, what is seen and heard through it, and the luminous orb somebody might spot are all fiction',
+    'the 24 hours a successful save buys the target are not held: nothing records that a creature has already resisted this spell',
+    'targeting a location instead of a creature is the DM’s, for the same reason: a place you have seen is not a thing the scene holds',
+  ],
+};
+
+/**
+ * SRD Detect Thoughts:
+ *
+ * > _Level 2 Divination (Bard, Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** Self. **Duration:** Concentration, up to 1 minute.
+ * > "You activate one of the effects below. Until the spell ends, you can
+ * > activate either effect as a Magic action on your later turns."
+ *
+ * Tracked on the machinery beside it rather than on any of it. A `SpellActivation`
+ * runs an attack or moves an area on a later turn, and neither of this spell's
+ * two options is either: one senses thoughts, which is narration, and the other
+ * probes a mind and makes its owner save — a later action that forces a saving
+ * throw, which has the machinery beside it and no consumer.
+ */
+export const DETECT_THOUGHTS: SpellDefinition = {
+  id: 'detect-thoughts',
+  name: 'Detect Thoughts',
+  level: 2,
+  school: 'divination',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 60,
+  unmodelled: [
+    'Sense Thoughts is the DM’s: which thinking creatures are within 30 feet, and the blocking rule — 1 foot of stone, dirt or wood, 1 inch of metal, a thin sheet of lead — are facts about a room',
+    'Read Thoughts is the DM’s: "You learn what is most on the target’s mind right now" is information rather than state',
+    'the deeper probe is not run: "As a Magic action on your next turn, you can try to probe deeper into the target’s mind. If you probe deeper, the target makes a Wisdom saving throw" is an activation that forces a saving throw, and every registered activation resolves an attack or moves an area instead',
+    'the target’s escape is not offered: "the target can take an action on its turn to make an Intelligence (Arcana) check against your spell save DC, ending the spell on a success" is a check made by somebody the casting holds nothing on, and whose success ends the casting — an outcome `SpellCheck` deliberately has no member for, naming this spell',
+  ],
+};
+
+/**
+ * SRD Enlarge/Reduce:
+ *
+ * > _Level 2 Transmutation (Artificer, Bard, Druid, Sorcerer, Wizard)._
+ * > **Casting Time:** Action. **Range:** 30 feet.
+ * > **Duration:** Concentration, up to 1 minute.
+ * > "For the duration, the spell enlarges or reduces a creature or an object
+ * > you can see within range (see the chosen effect below)."
+ *
+ * **The spell in the batch that is blocked by the choice rather than by the
+ * effect.** Each branch's Advantage or Disadvantage on Strength checks and
+ * Strength saving throws is a `roll-mode` the engine writes easily — and the
+ * two branches say opposite things, so a definition would have to record which
+ * the caster picked, and a choice made at the casting has nowhere to be
+ * recorded. Writing either branch would be a spell that always enlarges.
+ *
+ * The Potion of Growth is the other end of that: the bottle **makes** the
+ * choice, so the conferral writes the enlarge branch and nothing is guessed.
+ */
+export const ENLARGE_REDUCE: SpellDefinition = {
+  id: 'enlarge-reduce',
+  name: 'Enlarge/Reduce',
+  level: 2,
+  school: 'transmutation',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 30 },
+  targets: { count: 1, self: true },
+  requiresSight: true,
+  effects: [],
+  durationSeconds: 60,
+  unmodelled: [
+    'which of the two effects was chosen is not recorded, and nothing below can be applied without it: the branches say opposite things — "The target also has Advantage on Strength checks and Strength saving throws" against "Disadvantage on Strength checks and Strength saving throws" — and a choice made at the casting has nowhere to be kept',
+    'the size change is not applied either way: "The target’s size increases by one category" and "decreases by one category" write over a fact the engine holds authoritatively and reads for sharing a space, passing through and what an area catches',
+    'the rider on the target’s later attacks is not hung: "deal an extra 1d4 damage on a hit" is extra damage with no type, so it is the weapon’s own, and "deal 1d4 less damage on a hit (this can’t reduce the damage below 1)" is a penalty on a damage roll that nothing grants',
+    'the Constitution saving throw is not rolled, because what it gates is the size change above',
+    'the gear changing size with the target, and a thrown weapon returning to normal after it hits or misses, are the DM’s',
+  ],
+};
+
+/**
+ * SRD Tiny Hut:
+ *
+ * > _Level 3 Evocation (Ritual) (Bard, Wizard)._
+ * > **Casting Time:** 1 minute or Ritual. **Range:** Self.
+ * > **Duration:** 8 hours.
+ * > "A 10-foot Emanation springs into existence around you and remains
+ * > stationary for the duration."
+ *
+ * The rite, the eight hours and the recast are the engine's; the dome is not.
+ * Nothing in the scene stops a creature crossing a line, so a hut whose whole
+ * rule is that it keeps people out has nothing to be.
+ */
+export const TINY_HUT: SpellDefinition = {
+  id: 'tiny-hut',
+  name: 'Tiny Hut',
+  level: 3,
+  school: 'evocation',
+  // "Casting Time: 1 minute or Ritual" — so the Ritual version takes 660
+  // seconds, which is the sum Alarm is the fixture for.
+  castingTime: 'long',
+  castingSeconds: 60,
+  ritual: true,
+  concentration: false,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 28_800,
+  // "The spell ends early if ... you cast it again."
+  replacesPriorCasting: true,
+  unmodelled: [
+    'the dome is not in the scene: "All other creatures and objects are barred from passing through it" is a barrier that blocks passage, and movement consults no walls — which is the boundary that keeps this a rules engine rather than a map editor',
+    'the spell failing at the casting "if the Emanation isn’t big enough to fully encapsulate all creatures in its area" is the DM’s, because there is no Emanation for anybody to be inside of',
+    'the ward against magic is not applied: "Spells of level 3 or lower can’t be cast through it, and the effects of such spells can’t extend into it" is an area that refuses other magic, and no state says a casting is being refused',
+    'the other half of the ending — "The spell ends early if you leave the Emanation" — is not applied: a casting ends by its deadline, its Concentration, a dispel, a recast or one of five transcribed causes, and leaving an area is not among them',
+    'the weather, the light the caster commands inside, the opacity and the colour are all the DM’s',
+  ],
+};
+
+/**
+ * SRD Private Sanctum:
+ *
+ * > _Level 4 Abjuration (Wizard)._ **Casting Time:** 10 minutes.
+ * > **Range:** 120 feet. **Duration:** 24 hours.
+ * > "You make an area within range magically secure. The area is a Cube that
+ * > can be as small as 5 feet to as large as 100 feet on each side."
+ * > _Using a Higher-Level Spell Slot._ "You can increase the size of the Cube
+ * > by 100 feet for each spell slot level above 4."
+ *
+ * Six properties chosen at the casting, and every one of them is a thing that
+ * does not happen: sound, sight, divination sensors, targeting, teleportation
+ * and planar travel are all refusals an area makes, and nothing in the engine
+ * can be refused by a place.
+ */
+export const PRIVATE_SANCTUM: SpellDefinition = {
+  id: 'private-sanctum',
+  name: 'Private Sanctum',
+  level: 4,
+  school: 'abjuration',
+  // "Casting Time: 10 minutes."
+  castingTime: 'long',
+  castingSeconds: 600,
+  concentration: false,
+  // "Range: 120 feet", to the area rather than to a creature.
+  range: { kind: 'ranged', feet: 120 },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 86_400,
+  unmodelled: [
+    'the Cube is not placed: the spell wards an area rather than catching creatures in one, and the size the caster chooses — 5 to 100 feet a side, and 100 feet more per slot level above the fourth — has nothing to be the size of',
+    'the barrier is not a barrier: "Sound can’t pass through the barrier at the edge of the warded area" and the fog that prevents vision through it are things that stop passage, and nothing consults a wall',
+    'the wards against other magic are not applied: "Sensors created by Divination spells can’t appear inside the protected area", "Creatures in the area can’t be targeted by Divination spells", "Nothing can teleport into or out of the warded area" and "Planar travel is blocked within the warded area" are an area refusing other magic, and no state says a casting is being refused',
+    '"Casting this spell on the same spot every day for 365 days makes the spell last until dispelled" is the DM’s: the clock holds elapsed seconds and nothing counts a rite repeated on a spot',
+  ],
+};
+
+/**
+ * SRD Resilient Sphere:
+ *
+ * > _Level 4 Abjuration (Artificer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 30 feet. **Duration:** Concentration, up to 1 minute.
+ * > "A shimmering sphere encloses a Large or smaller creature or object within
+ * > range. An unwilling creature must succeed on a Dexterity saving throw or
+ * > be enclosed for the duration."
+ *
+ * Every rule the sphere has is the sphere's, and there is no sphere: what it
+ * keeps out, what it is immune to, and the half-Speed roll somebody inside
+ * gives it are all facts about a barrier the scene has no room for.
+ */
+export const RESILIENT_SPHERE: SpellDefinition = {
+  id: 'resilient-sphere',
+  name: 'Resilient Sphere',
+  level: 4,
+  school: 'abjuration',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 30 },
+  targets: { count: 1, self: true },
+  effects: [],
+  durationSeconds: 60,
+  unmodelled: [
+    'being enclosed is not a state: "An unwilling creature must succeed on a Dexterity saving throw or be enclosed for the duration" gates a barrier rather than one of the fifteen conditions, so the save has nothing to impose and is not rolled',
+    'what the sphere keeps apart is not enforced: "Nothing—not physical objects, energy, or other spell effects—can pass through the barrier, in or out", the Immunity of the sphere itself, and neither side being able to damage the other are a barrier that blocks passage',
+    'the sphere cannot be moved: "An enclosed creature can take an action to push against the sphere’s walls and thus roll the sphere at up to half the creature’s Speed" moves the barrier, and the barrier is the thing that does not exist — the same is true of other creatures picking the globe up',
+    '"A _Disintegrate_ spell targeting the globe destroys it without harming anything inside" targets the same absent barrier; Disintegrate reaches creatures and objects, and the globe is neither',
+    'the size limit — "a Large or smaller creature or object" — is not checked: a target rule selects by creature type and by whether armour is worn, and size is held and read by nothing here',
+  ],
+};
+
+/**
+ * SRD Gate:
+ *
+ * > _Level 9 Conjuration (Cleric, Sorcerer, Warlock, Wizard)._
+ * > **Casting Time:** Action. **Range:** 60 feet.
+ * > **Duration:** Concentration, up to 1 minute.
+ * > "You conjure a portal linking an unoccupied space you can see within range
+ * > to a precise location on a different plane of existence."
+ *
+ * There is one scene, so the far end of the portal has nowhere to be — and
+ * that is the whole of the debt. The near end is an ordinary space, the minute
+ * is an ordinary minute and the Concentration is real.
+ */
+export const GATE: SpellDefinition = {
+  id: 'gate',
+  name: 'Gate',
+  level: 9,
+  school: 'conjuration',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 60 },
+  // The portal stands in a space rather than on a creature.
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 60,
+  unmodelled: [
+    'the portal has no far end: "a precise location on a different plane of existence" is a second place to put a creature, and there is one scene — so the diameter the caster chooses, the direction it is oriented in and the destination visible through it are all geometry of a thing with nowhere to be',
+    'nobody travels through it: "Travel through the portal is possible only by moving through its front" and "Anything that does so is instantly transported to the other plane" move a creature off the scene entirely, which no command does',
+    'the creature the caster names is not brought through: "the portal opens next to the named creature and transports it" fetches somebody from a plane the model has no room for, and what it does next — "It might leave, attack you, or help you" — the book gives to the GM in the same breath',
+    '"Deities and other planar rulers can prevent portals created by this spell from opening in their presence" is the DM’s',
+  ],
+};
+
+/**
+ * SRD Teleport:
+ *
+ * > _Level 7 Conjuration (Bard, Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 10 feet. **Duration:** Instantaneous.
+ * > "This spell instantly transports you and up to eight willing creatures
+ * > that you can see within range, or a single object that you can see within
+ * > range, to a destination you select."
+ *
+ * Eight travellers counted the way Plane Shift counts them — the caster goes
+ * along and is not one of the eight — and a destination the scene has no room
+ * for. The whole of the familiarity table is then a d100 the GM throws.
+ */
+export const TELEPORT: SpellDefinition = {
+  id: 'teleport',
+  name: 'Teleport',
+  level: 7,
+  school: 'conjuration',
+  castingTime: 'action',
+  range: { kind: 'ranged', feet: 10 },
+  concentration: false,
+  // "you and up to eight willing creatures that you can see within range": the
+  // caster travels regardless, so eight is the list and `self` is not offered,
+  // which is Plane Shift's sentence and Plane Shift's transcription.
+  targets: { count: 8, optional: true },
+  requiresSight: true,
+  effects: [],
+  unmodelled: [
+    'the destination is not reached: "to a destination you select" is a second place to put a creature and there is one scene, so nobody is moved and the object a casting may carry instead is not held by the scene either',
+    'the familiarity roll is not made: "The GM rolls 1d100 and consults the Teleportation Outcome table" is a die the generator could throw that no effect asks it for, and the table it indexes reads how well the caster knows a place — a fact the engine does not hold',
+    'the three ways it can go wrong are therefore not applied: the Mishap’s "3d10 Force damage, and the GM rerolls on the table", the Off Target "2d12 miles away from the destination in a random direction" with a 1d8 for the compass point, and the Similar Area are all outcomes of that roll',
+  ],
+};
+
+/**
+ * SRD Etherealness:
+ *
+ * > _Level 7 Conjuration (Bard, Cleric, Sorcerer, Warlock, Wizard)._
+ * > **Casting Time:** Action. **Range:** Self. **Duration:** Up to 8 hours.
+ * > "You step into the border regions of the Ethereal Plane, where it overlaps
+ * > with your current plane. You remain in the Border Ethereal for the
+ * > duration."
+ * > _Using a Higher-Level Spell Slot._ "You can target up to three willing
+ * > creatures (including yourself) for each spell slot level above 7. The
+ * > creatures must be within 10 feet of you when you cast the spell."
+ *
+ * The eight hours run without Concentration, which makes it the longest clock
+ * an item in this batch starts. Where the caster has gone is the one scene's
+ * absence in its most awkward form: the creature keeps its position and is
+ * unreachable, and nothing can hold both of those at once.
+ */
+export const ETHEREALNESS: SpellDefinition = {
+  id: 'etherealness',
+  name: 'Etherealness',
+  level: 7,
+  school: 'conjuration',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'self' },
+  // At its own level it reaches nobody but the caster; three more per slot
+  // level above the seventh, and "(including yourself)" is `self`.
+  targets: { count: 0, extraPerSlotLevelAbove: 3, self: true },
+  effects: [],
+  durationSeconds: 28_800,
+  unmodelled: [
+    'the Border Ethereal is not a place: "You step into the border regions of the Ethereal Plane" is a second place to put a creature, and there is one scene — so nobody leaves, nobody becomes unreachable, and "you can affect and be affected only by creatures, objects, and effects on that plane" is the DM’s',
+    'the movement there is not charged: "you can move in any direction" and "If you move up or down, every foot of movement costs an extra foot" are a movement mode and the per-foot cost that rides with it',
+    'the sight is not bounded: "you can’t see anything there more than 60 feet away" reaches from one plane into another, and sight here is a declaration between two creatures in one scene',
+    'the return is not performed: "you return to the plane you left in the spot that corresponds to your space", the shunt to the nearest unoccupied space, and the "Force damage equal to twice the number of feet you are moved" are forced movement and an amount derived from it rather than printed',
+    '"This spell ends instantly if you cast it while you are on the Ethereal Plane" reads which plane the caster is already on, which is the same absence as a precondition',
+    'the 10 feet the extra targets must be within is not checked: the spell’s Range is Self, so no per-target distance is measured, and the clause travels with the slot rather than with the range',
+  ],
+};
+
+/**
+ * SRD Telekinesis:
+ *
+ * > _Level 5 Transmutation (Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 60 feet. **Duration:** Concentration, up to 10 minutes.
+ * > "You gain the ability to move or manipulate creatures or objects by
+ * > thought. When you cast the spell and as a Magic action on your later turns
+ * > before the spell ends, you can exert your will on one creature or object
+ * > that you can see within range."
+ *
+ * Everything this spell does is an **exertion** — at the casting and on every
+ * later turn — and an activation that forces a saving throw has the machinery
+ * beside it and no consumer. So the casting is real and takes no target: who
+ * is being lifted is chosen by an exertion, and the spell may change its mind
+ * round after round.
+ */
+export const TELEKINESIS: SpellDefinition = {
+  id: 'telekinesis',
+  name: 'Telekinesis',
+  level: 5,
+  school: 'transmutation',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 600,
+  unmodelled: [
+    'the exertion is not run: "as a Magic action on your later turns before the spell ends, you can exert your will on one creature or object" is an activation that forces a saving throw, and every registered activation resolves an attack or moves an area instead — so no target is named at the casting either',
+    'a creature is not moved: "The target must succeed on a Strength saving throw, or you move it up to 30 feet in any direction within the spell’s range" is forced movement a spell causes',
+    'the Restrained condition the failed save would impose is not applied, because nothing rolls the save that would impose it; nor is the fall "at the end of your next turn unless you use this option on it again"',
+    'the object half is not applied: moving a loose object is a fact about objects, and pulling one away from whoever holds it reads what a creature is holding, which the engine does not keep',
+    'the size limit — "a Huge or smaller creature" — is not checked: size is held and read by no target rule',
+    'the fine control — "manipulating a simple tool, opening a door or a container, stowing or retrieving an item" — is the DM’s',
+  ],
+};
+
+/**
+ * SRD Resurrection:
+ *
+ * > _Level 7 Necromancy (Bard, Cleric)._ **Casting Time:** 1 hour.
+ * > **Range:** Touch. **Duration:** Instantaneous.
+ * > "With a touch, you revive a dead creature that has been dead for no more
+ * > than a century, didn't die of old age, and wasn't Undead when it died."
+ *
+ * An hour's rite the engine now runs, over a raising it cannot perform:
+ * `healCreature` refuses a corpse and the refusal costs no slot, so hit points
+ * alone will not bring anybody back.
+ */
+export const RESURRECTION: SpellDefinition = {
+  id: 'resurrection',
+  name: 'Resurrection',
+  level: 7,
+  school: 'necromancy',
+  // "Casting Time: 1 hour."
+  castingTime: 'long',
+  castingSeconds: 3600,
+  concentration: false,
+  range: { kind: 'touch' },
+  targets: { count: 1 },
+  effects: [],
+  unmodelled: [
+    'nobody is raised: "The creature returns to life with all its Hit Points" is healing that raises the dead, and `healCreature` refuses a creature that is dead — a debt rather than fiction, because the hit points themselves are ordinary',
+    'the three conditions on the corpse are the DM’s: how long it has been dead, whether it died of old age, and whether it was Undead are facts about a body the engine does not hold',
+    'the −4 penalty on D20 Tests is not applied, and neither is its recovery: "Every time the target finishes a Long Rest, the penalty is reduced by 1 until it becomes 0" needs a selector for every D20 Test, which is deliberately absent, and a deadline anchored to a rest',
+    'the cost to the caster is not applied: "Until you finish a Long Rest, you can’t cast spells again, and you have Disadvantage on D20 Tests" is the same missing selector, over a rest the clock measures and no deadline can name',
+    'the poisons neutralised, the mortal wounds closed and the body parts restored are the DM’s',
+  ],
+};
+
 export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   ACID_ARROW,
   ACID_SPLASH,
@@ -6064,6 +6736,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   DETECT_EVIL_AND_GOOD,
   DETECT_MAGIC,
   DETECT_POISON_AND_DISEASE,
+  DETECT_THOUGHTS,
   DIMENSION_DOOR,
   DISGUISE_SELF,
   DISINTEGRATE,
@@ -6075,6 +6748,8 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   DOMINATE_MONSTER,
   DOMINATE_PERSON,
   ELDRITCH_BLAST,
+  ENLARGE_REDUCE,
+  ETHEREALNESS,
   FABRICATE,
   FALSE_LIFE,
   FEAR,
@@ -6088,6 +6763,8 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   FLOATING_DISK,
   FLY,
   FREEZING_SPHERE,
+  GASEOUS_FORM,
+  GATE,
   GENTLE_REPOSE,
   GREASE,
   GREATER_INVISIBILITY,
@@ -6095,6 +6772,8 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   GUIDING_BOLT,
   HALLUCINATORY_TERRAIN,
   HARM,
+  HASTE,
+  HEAL,
   HEALING_WORD,
   HELLISH_REBUKE,
   HEROISM,
@@ -6115,6 +6794,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   KNOCK,
   LEGEND_LORE,
   LESSER_RESTORATION,
+  LEVITATE,
   LIGHT,
   LIGHTNING_BOLT,
   LOCATE_ANIMALS_OR_PLANTS,
@@ -6141,14 +6821,19 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   PLANE_SHIFT,
   POISON_SPRAY,
   PRESTIDIGITATION,
+  PRIVATE_SANCTUM,
   PRODUCE_FLAME,
   PROTECTION_FROM_ENERGY,
   PROTECTION_FROM_POISON,
   RAY_OF_FROST,
   RAY_OF_SICKNESS,
   REMOVE_CURSE,
+  RESILIENT_SPHERE,
+  RESURRECTION,
   ROPE_TRICK,
   SACRED_FLAME,
+  SCORCHING_RAY,
+  SCRYING,
   SEE_INVISIBILITY,
   SHATTER,
   SHIELD,
@@ -6167,8 +6852,11 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   SUGGESTION,
   SUNBEAM,
   SUNBURST,
+  TELEKINESIS,
   TELEPATHIC_BOND,
+  TELEPORT,
   THUNDERWAVE,
+  TINY_HUT,
   TONGUES,
   TRANSPORT_VIA_PLANTS,
   TREE_STRIDE,

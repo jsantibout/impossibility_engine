@@ -1987,11 +1987,27 @@ describe('no spell is special-cased in the runtime', () => {
    * in `positioning.ts` transcribes the glossary, so the word is a mechanic
    * there in exactly the way `shield` is one in `fold/inventory.ts`.
    *
+   * **`heal` and `teleport` are the fourth and fifth, and they are the
+   * sharper case: both are `SpellEffect` kinds.** `{ kind: 'heal' }` has
+   * restored hit points since Cure Wounds landed and `{ kind: 'teleport' }`
+   * has moved a creature since IE-037, and the two words appear in the union,
+   * in the validator, in the resolvers and in the conferral rules — none of it
+   * about SRD Heal or SRD Teleport, neither of which had a definition until
+   * the magic items came for them. The alternative to an exclusion is a
+   * catalogue that may never hold two spells because their slugs collide with
+   * the vocabulary every spell is written in.
+   *
    * Named one word at a time rather than matched loosely, so each exclusion
    * is reviewed instead of being a heuristic that quietly stops catching
    * things.
    */
-  const ALSO_VOCABULARY: ReadonlySet<string> = new Set(['shield', 'light', 'darkvision']);
+  const ALSO_VOCABULARY: ReadonlySet<string> = new Set([
+    'shield',
+    'light',
+    'darkvision',
+    'heal',
+    'teleport',
+  ]);
 
   /**
    * Where naming a spell is **data** rather than a branch.
@@ -2118,7 +2134,13 @@ describe('no spell is special-cased in the runtime', () => {
    * still fails, in the same file as readily as anywhere else.
    */
   it('excludes only words the engine uses for something else', () => {
-    expect([...ALSO_VOCABULARY].sort()).toEqual(['darkvision', 'light', 'shield']);
+    expect([...ALSO_VOCABULARY].sort()).toEqual([
+      'darkvision',
+      'heal',
+      'light',
+      'shield',
+      'teleport',
+    ]);
     // `withEquipment` moved with the rest of the reducer in IE-039 and again
     // with its seam in IE-050; the construct the allowance excuses is read
     // where it now lives.
@@ -2146,6 +2168,10 @@ describe('no spell is special-cased in the runtime', () => {
         .filter((line) => line.includes("'darkvision'"))
         .map((line) => line.trim()),
     ).toEqual([GLOSSARY[0], "'darkvision',"]);
+    // And the two that are effect **kinds**, which is the sharper collision:
+    // the word is in the union the whole vocabulary is written in.
+    expect(source('spell-definitions.ts')).toContain("readonly kind: 'heal'");
+    expect(source('spell-definitions.ts')).toContain("readonly kind: 'teleport'");
   });
 
   it('allows the two data constructs and nothing around them', () => {

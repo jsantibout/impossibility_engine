@@ -28,7 +28,7 @@ than to the table.
 
 | Parsed | Tracked | Executed | of which partial | Verified |
 |---|---|---|---|---|
-| 339 | 57 (16.8%) | 99 (29.2%) | 48 | 77 (22.7%) |
+| 339 | 70 (20.6%) | 102 (30.1%) | 50 | 77 (22.7%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -81,11 +81,14 @@ a plain statement of what the table decides.
 - **Flame Blade** (level 2) — verified, partial — a clause the engine owns is still unbuilt
 - **Flame Strike** (level 5) — verified
 - **Freezing Sphere** (level 6) — untested, partial — a clause the engine owns is still unbuilt
+- **Gaseous Form** (level 3) — untested, partial — a clause the engine owns is still unbuilt
 - **Grease** (level 1) — verified, partial — a clause the engine owns is still unbuilt
 - **Greater Invisibility** (level 4) — verified
 - **Guidance** (cantrip) — verified, partial — a clause the engine owns is still unbuilt
 - **Guiding Bolt** (level 1) — verified, partial — a clause the engine owns is still unbuilt
 - **Harm** (level 6) — verified, partial — a clause the engine owns is still unbuilt
+- **Haste** (level 3) — untested, partial — a clause the engine owns is still unbuilt
+- **Heal** (level 6) — untested
 - **Healing Word** (level 1) — verified
 - **Hellish Rebuke** (level 1) — untested
 - **Heroism** (level 1) — verified
@@ -153,12 +156,16 @@ Cast for real; the effect is narrated. Each says what it leaves to the DM.
 - **Detect Evil and Good** (level 1) — 3 noted
 - **Detect Magic** (level 1) — 2 noted
 - **Detect Poison and Disease** (level 1) — 2 noted
+- **Detect Thoughts** (level 2) — 4 noted
 - **Disguise Self** (level 1) — 2 noted
+- **Enlarge/Reduce** (level 2) — 5 noted
+- **Etherealness** (level 7) — 6 noted
 - **Fabricate** (level 4) — 3 noted
 - **Find the Path** (level 6) — 2 noted
 - **Find Traps** (level 2) — 1 noted
 - **Floating Disk** (level 1) — 2 noted
 - **Fly** (level 3) — 2 noted
+- **Gate** (level 9) — 4 noted
 - **Gentle Repose** (level 2) — 2 noted
 - **Hallucinatory Terrain** (level 4) — 3 noted
 - **Identify** (level 1) — 2 noted
@@ -167,6 +174,7 @@ Cast for real; the effect is narrated. Each says what it leaves to the DM.
 - **Jump** (level 1) — 1 noted
 - **Knock** (level 2) — 3 noted
 - **Legend Lore** (level 5) — 2 noted
+- **Levitate** (level 2) — 5 noted
 - **Light** (cantrip) — 3 noted
 - **Locate Animals or Plants** (level 2) — 1 noted
 - **Locate Creature** (level 4) — 2 noted
@@ -181,15 +189,23 @@ Cast for real; the effect is narrated. Each says what it leaves to the DM.
 - **Passwall** (level 5) — 2 noted
 - **Plane Shift** (level 7) — 2 noted
 - **Prestidigitation** (cantrip) — 2 noted
+- **Private Sanctum** (level 4) — 4 noted
 - **Remove Curse** (level 3) — 2 noted
+- **Resilient Sphere** (level 4) — 5 noted
+- **Resurrection** (level 7) — 5 noted
 - **Rope Trick** (level 2) — 2 noted
+- **Scorching Ray** (level 2) — 2 noted
+- **Scrying** (level 5) — 4 noted
 - **See Invisibility** (level 2) — 2 noted
 - **Silent Image** (level 1) — 3 noted
 - **Speak with Animals** (level 1) — 2 noted
 - **Speak with Dead** (level 3) — 2 noted
 - **Spider Climb** (level 2) — 1 noted
 - **Stone Shape** (level 4) — 1 noted
+- **Telekinesis** (level 5) — 6 noted
 - **Telepathic Bond** (level 5) — 1 noted
+- **Teleport** (level 7) — 3 noted
+- **Tiny Hut** (level 3) — 5 noted
 - **Tongues** (level 3) — 1 noted
 - **Transport via Plants** (level 6) — 2 noted
 - **Tree Stride** (level 5) — 2 noted
@@ -233,31 +249,27 @@ always made in the same words.
 | Shape | Blocks | Finishes (read) | Finishes (unread) | Executed | Tracked | Undefined |
 |---|---|---|---|---|---|---|
 | `a-stat-block-created-mid-fight` | 17 | 0 | 3 | 1 | 0 | 16 |
-| `an-action-a-spell-compels-or-forbids` | 30 | 2 | 0 | 10 | 0 | 20 |
-| `a-target-rule-the-format-cannot-state` | 16 | 0 | 2 | 0 | 0 | 16 |
+| `an-action-a-spell-compels-or-forbids` | 30 | 2 | 0 | 12 | 0 | 18 |
+| `a-target-rule-the-format-cannot-state` | 13 | 0 | 2 | 0 | 0 | 13 |
 | `a-wall-or-several-templates-in-one-area` | 10 | 2 | 0 | 0 | 0 | 10 |
-| `a-rider-on-a-later-weapon-attack` | 7 | 0 | 2 | 0 | 0 | 7 |
+| `a-rider-on-a-later-weapon-attack` | 7 | 0 | 2 | 0 | 1 | 6 |
 | `a-spell-that-answers-a-later-attack` | 5 | 0 | 2 | 0 | 0 | 5 |
-| `a-long-casting-time` | 43 | 0 | 1 | 0 | 0 | 43 |
-| `a-casting-ended-by-a-trigger` | 28 | 0 | 1 | 2 | 0 | 26 |
-| `a-second-place-to-put-a-creature` | 20 | 1 | 0 | 1 | 0 | 19 |
-| `a-random-outcome-that-is-not-a-d20` | 19 | 0 | 1 | 0 | 0 | 19 |
+| `a-long-casting-time` | 39 | 0 | 1 | 0 | 0 | 39 |
+| `a-casting-ended-by-a-trigger` | 27 | 0 | 1 | 3 | 0 | 24 |
+| `a-random-outcome-that-is-not-a-d20` | 19 | 0 | 1 | 0 | 1 | 18 |
 | `difficult-terrain-an-area-creates` | 19 | 0 | 1 | 5 | 0 | 14 |
-| `a-barrier-that-blocks-passage` | 12 | 0 | 1 | 0 | 0 | 12 |
 | `a-spells-effects-applied-to-different-targets` | 11 | 0 | 1 | 1 | 0 | 10 |
 | `a-standing-effect-derived-from-where-a-creature-stands` | 11 | 0 | 1 | 1 | 0 | 10 |
-| `what-a-creature-is-holding` | 9 | 0 | 1 | 3 | 0 | 6 |
+| `a-barrier-that-blocks-passage` | 10 | 0 | 1 | 0 | 1 | 9 |
 | `a-repeat-save-that-does-something-on-a-failure` | 8 | 0 | 1 | 2 | 0 | 6 |
-| `a-flat-amount-with-no-dice` | 7 | 0 | 1 | 0 | 0 | 7 |
+| `what-a-creature-is-holding` | 7 | 0 | 1 | 3 | 0 | 4 |
 | `an-outcome-that-reads-the-targets-hit-points` | 6 | 0 | 1 | 1 | 0 | 5 |
-| `healing-that-raises-the-dead` | 6 | 0 | 1 | 0 | 0 | 6 |
-| `a-creature-fact-an-effect-overrides` | 5 | 0 | 1 | 0 | 0 | 5 |
+| `healing-that-raises-the-dead` | 6 | 0 | 1 | 0 | 1 | 5 |
 | `a-hit-point-maximum-a-spell-moves` | 5 | 0 | 1 | 1 | 0 | 4 |
-| `an-activation-that-forces-a-saving-throw` | 5 | 0 | 1 | 0 | 0 | 5 |
+| `a-creature-fact-an-effect-overrides` | 4 | 0 | 1 | 0 | 1 | 3 |
 | `a-duration-the-slot-changes` | 4 | 0 | 1 | 0 | 0 | 4 |
 | `falling` | 4 | 0 | 1 | 0 | 0 | 4 |
 | `an-area-trigger-measured-from-a-point` | 3 | 0 | 1 | 0 | 0 | 3 |
-| `several-attack-rolls-from-one-casting` | 3 | 0 | 1 | 1 | 0 | 2 |
 | `a-die-behaviour-a-spell-asks-for` | 2 | 0 | 1 | 0 | 0 | 2 |
 | `a-roll-result-an-effect-replaces` | 2 | 0 | 1 | 0 | 0 | 2 |
 | `a-world-fact-nothing-can-represent` | 2 | 0 | 1 | 0 | 1 | 1 |
@@ -265,27 +277,30 @@ always made in the same words.
 | `a-second-roll-sequenced-after-the-first` | 1 | 0 | 1 | 0 | 0 | 1 |
 | `an-armor-class-a-spell-floors` | 1 | 0 | 1 | 0 | 0 | 1 |
 | `an-effect-that-intercepts-dropping-to-0` | 1 | 0 | 1 | 0 | 0 | 1 |
-| `a-choice-made-at-the-casting` | 25 | 0 | 0 | 4 | 0 | 21 |
-| `an-effect-that-suppresses-other-magic` | 16 | 0 | 0 | 0 | 0 | 16 |
-| `forced-movement-a-spell-causes` | 13 | 0 | 0 | 1 | 0 | 12 |
-| `a-casting-dismissed-early` | 10 | 0 | 0 | 0 | 0 | 10 |
-| `movement-modes` | 9 | 0 | 0 | 0 | 2 | 7 |
+| `a-choice-made-at-the-casting` | 25 | 0 | 0 | 4 | 1 | 20 |
+| `a-second-place-to-put-a-creature` | 17 | 0 | 0 | 1 | 0 | 16 |
+| `an-effect-that-suppresses-other-magic` | 15 | 0 | 0 | 0 | 1 | 14 |
+| `a-casting-dismissed-early` | 10 | 0 | 0 | 1 | 0 | 9 |
+| `forced-movement-a-spell-causes` | 10 | 0 | 0 | 1 | 1 | 8 |
 | `a-repeat-save-raised-by-a-trigger` | 8 | 0 | 0 | 6 | 0 | 2 |
 | `damage-with-neither-an-attack-roll-nor-a-save` | 8 | 0 | 0 | 2 | 0 | 6 |
 | `an-area-that-filters-its-catch` | 7 | 0 | 0 | 1 | 0 | 6 |
-| `a-deadline-anchored-to-a-rest` | 6 | 0 | 0 | 0 | 0 | 6 |
+| `movement-modes` | 7 | 0 | 0 | 1 | 2 | 4 |
 | `an-activation-that-resolves-an-area` | 6 | 0 | 0 | 1 | 0 | 5 |
 | `an-area-trigger-on-the-casters-turn` | 6 | 0 | 0 | 0 | 0 | 6 |
 | `senses-beyond-declared-sight` | 6 | 0 | 0 | 1 | 0 | 5 |
+| `a-check-another-creature-may-attempt` | 5 | 0 | 0 | 0 | 1 | 4 |
 | `a-creature-type-predicate-an-area-reads` | 5 | 0 | 0 | 0 | 0 | 5 |
-| `an-effect-that-fires-when-the-casting-ends` | 5 | 0 | 0 | 0 | 0 | 5 |
+| `a-deadline-anchored-to-a-rest` | 5 | 0 | 0 | 0 | 0 | 5 |
+| `a-flat-amount-with-no-dice` | 5 | 0 | 0 | 0 | 0 | 5 |
+| `an-activation-that-forces-a-saving-throw` | 5 | 0 | 0 | 0 | 2 | 3 |
+| `an-effect-that-fires-when-the-casting-ends` | 5 | 0 | 0 | 1 | 0 | 4 |
 | `a-casting-that-casts-another-spell` | 4 | 0 | 0 | 0 | 0 | 4 |
-| `a-check-another-creature-may-attempt` | 4 | 0 | 0 | 0 | 0 | 4 |
 | `a-condition-benefit-an-effect-takes-away` | 4 | 0 | 0 | 2 | 0 | 2 |
 | `a-condition-immunity-narrowed-to-its-source` | 4 | 0 | 0 | 0 | 0 | 4 |
-| `a-fact-only-the-table-can-declare` | 4 | 0 | 0 | 1 | 0 | 3 |
+| `a-fact-only-the-table-can-declare` | 4 | 0 | 0 | 1 | 1 | 2 |
 | `a-repeat-save-counted-to-a-tally` | 4 | 0 | 0 | 1 | 0 | 3 |
-| `a-selector-for-every-d20-test` | 4 | 0 | 0 | 0 | 0 | 4 |
+| `a-selector-for-every-d20-test` | 4 | 0 | 0 | 0 | 1 | 3 |
 | `an-ability-score-a-spell-changes` | 4 | 0 | 0 | 0 | 0 | 4 |
 | `an-activation-taken-by-somebody-other-than-the-caster` | 4 | 0 | 0 | 0 | 0 | 4 |
 | `an-area-that-moves-by-itself` | 4 | 0 | 0 | 2 | 0 | 2 |
@@ -293,8 +308,10 @@ always made in the same words.
 | `a-one-shot-roll-modifier` | 3 | 0 | 0 | 2 | 0 | 1 |
 | `a-success-branch-that-does-something` | 3 | 0 | 0 | 0 | 0 | 3 |
 | `healing-modified-by-an-effect` | 3 | 0 | 0 | 2 | 0 | 1 |
+| `several-attack-rolls-from-one-casting` | 3 | 0 | 0 | 1 | 1 | 1 |
 | `a-cap-on-how-many-castings-run-at-once` | 2 | 0 | 0 | 0 | 0 | 2 |
 | `a-condition-that-ends-when-its-holder-leaves-an-area` | 2 | 0 | 0 | 1 | 0 | 1 |
+| `a-damage-penalty-a-spell-grants` | 2 | 0 | 0 | 0 | 1 | 1 |
 | `a-rest-an-effect-gives-or-denies` | 2 | 0 | 0 | 0 | 0 | 2 |
 | `an-area-moved-by-the-casters-own-movement` | 2 | 0 | 0 | 0 | 0 | 2 |
 | `an-exhaustion-level-a-spell-changes` | 2 | 0 | 0 | 0 | 0 | 2 |
@@ -302,14 +319,13 @@ always made in the same words.
 | `targeting-rules-that-differ-within-one-casting` | 2 | 0 | 0 | 2 | 0 | 0 |
 | `a-bonus-narrowed-to-a-skill` | 1 | 0 | 0 | 0 | 0 | 1 |
 | `a-condition-a-spell-suppresses` | 1 | 0 | 0 | 0 | 0 | 1 |
-| `a-damage-penalty-a-spell-grants` | 1 | 0 | 0 | 0 | 0 | 1 |
 | `a-dc-the-caster-does-not-set` | 1 | 0 | 0 | 0 | 0 | 1 |
 | `a-distance-a-creature-travels-inside-an-area` | 1 | 0 | 0 | 0 | 0 | 1 |
 | `a-mode-on-the-save-a-spell-forces` | 1 | 0 | 0 | 0 | 0 | 1 |
 | `a-range-that-scales-with-caster-level` | 1 | 0 | 0 | 0 | 0 | 1 |
 | `a-repeat-save-on-the-clock` | 1 | 0 | 0 | 1 | 0 | 0 |
 | `a-save-keyed-to-a-condition` | 1 | 0 | 0 | 1 | 0 | 0 |
-| `a-speed-an-effect-multiplies` | 1 | 0 | 0 | 0 | 0 | 1 |
+| `a-speed-an-effect-multiplies` | 1 | 0 | 0 | 1 | 0 | 0 |
 | `a-turn-a-spell-inserts-into-the-order` | 1 | 0 | 0 | 0 | 0 | 1 |
 | `an-automatic-success-by-creature-type` | 1 | 0 | 0 | 0 | 0 | 1 |
 | `an-effect-that-stabilises-a-dying-creature` | 1 | 0 | 0 | 0 | 0 | 1 |
@@ -353,18 +369,16 @@ believe it has twelve working classes when it has twelve validated ones.
 
 | Species | Backgrounds | Features | Executed by the engine |
 |---|---|---|---|
-| 9 | 4 | 37 | 14 |
+| 9 | 4 | 37 | 8 |
 
 A species trait and a class feature are the same `FeatureDefinition` and
 declare automation the same way, so this is the column above read by the
 same predicate — `isExecutedFeature` in
 `packages/content/scripts/coverage-data.ts`, which both tables call.
-**Manual is not failure** here either: what a species still grants
-manually is a Breath Weapon, a lineage’s spells or a Hit Point maximum
-that grows, and each carries a note saying exactly what is left to the
-table and why. Darkvision used to lead that list and no longer does — it
-is a `sense` grant now, on every species whose paragraph prints one, and
-the rows below are where that shows.
+**Manual is not failure** here either: most of what a species grants is
+Darkvision, a Breath Weapon or a Resistance whose damage type is read off a
+sibling choice, and each carries a note saying exactly what is left to the
+table and why.
 
 **Feats are not counted.** A `FeatDefinition` declares no automation — it
 carries a note about what a DM still applies and nothing the engine reads —
@@ -375,17 +389,17 @@ derived would be somebody’s opinion instead.
 |---|---|---|---|
 | Acolyte | background | 1 | 1 |
 | Criminal | background | 1 | 1 |
-| Dragonborn | species | 5 | 2 |
-| Dwarf | species | 4 | 1 |
-| Elf | species | 5 | 2 |
-| Gnome | species | 3 | 2 |
+| Dragonborn | species | 5 | 1 |
+| Dwarf | species | 4 | 0 |
+| Elf | species | 5 | 1 |
+| Gnome | species | 3 | 1 |
 | Goliath | species | 3 | 0 |
 | Halfling | species | 4 | 0 |
 | Human | species | 3 | 2 |
-| Orc | species | 3 | 1 |
+| Orc | species | 3 | 0 |
 | Sage | background | 1 | 1 |
 | Soldier | background | 1 | 0 |
-| Tiefling | species | 3 | 1 |
+| Tiefling | species | 3 | 0 |
 
 ## Magic items
 
@@ -413,7 +427,7 @@ is where a figure like that belongs.
 
 | Parsed | Transcribed | Instances | of which complete | of which partial |
 |---|---|---|---|---|
-| 258 | 48 | 205 | 171 | 34 |
+| 258 | 61 | 218 | 176 | 42 |
 
 An entry with **no** record is one whose whole text is beyond the grant
 vocabulary. `packages/content/src/items.ts` states the three rules that
@@ -430,15 +444,15 @@ inventing a column that nothing checks.
 
 | Category | Parsed | Transcribed | Instances | Complete | Partial |
 |---|---|---|---|---|---|
-| Armor | 19 | 9 | 53 | 48 | 5 |
-| Potions | 24 | 3 | 3 | 0 | 3 |
-| Rings | 22 | 4 | 4 | 3 | 1 |
+| Armor | 19 | 10 | 54 | 48 | 6 |
+| Potions | 24 | 6 | 6 | 0 | 6 |
+| Rings | 22 | 5 | 5 | 4 | 1 |
 | Rods | 7 | 0 | 0 | 0 | 0 |
 | Scrolls | 1 | 0 | 0 | 0 | 0 |
 | Staffs | 12 | 1 | 1 | 0 | 1 |
 | Wands | 13 | 4 | 4 | 1 | 3 |
 | Weapons | 33 | 15 | 128 | 115 | 13 |
-| Wondrous Items | 127 | 12 | 12 | 4 | 8 |
+| Wondrous Items | 127 | 20 | 20 | 8 | 12 |
 
 ### Entries transcribed
 
@@ -452,8 +466,14 @@ how many of those still carry a clause the engine does not say.
 - **Bracers of Defense** (Wondrous Items) — 1 recorded, complete
 - **Brooch of Shielding** (Wondrous Items) — 1 recorded, 1 partial
 - **Cape of the Mountebank** (Wondrous Items) — 1 recorded, 1 partial
+- **Circlet of Blasting** (Wondrous Items) — 1 recorded, complete
 - **Cloak of Elvenkind** (Wondrous Items) — 1 recorded, 1 partial
 - **Cloak of Protection** (Wondrous Items) — 1 recorded, complete
+- **Crystal Ball** (Wondrous Items) — 1 recorded, complete
+- **Crystal Ball of Mind Reading** (Wondrous Items) — 1 recorded, 1 partial
+- **Crystal Ball of Telepathy** (Wondrous Items) — 1 recorded, 1 partial
+- **Cube of Force** (Wondrous Items) — 1 recorded, 1 partial
+- **Cubic Gate** (Wondrous Items) — 1 recorded, 1 partial
 - **Defender** (Weapons) — 1 recorded, 1 partial
 - **Dragon Slayer** (Weapons) — 1 recorded, 1 partial
 - **Dwarven Plate** (Armor) — 1 recorded, 1 partial
@@ -464,18 +484,25 @@ how many of those still carry a clause the engine does not say.
 - **Glamoured Studded Leather** (Armor) — 1 recorded, 1 partial
 - **Hammer of Thunderbolts** (Weapons) — 1 recorded, 1 partial
 - **Helm of Comprehending Languages** (Wondrous Items) — 1 recorded, complete
+- **Helm of Teleportation** (Wondrous Items) — 1 recorded, complete
 - **Holy Avenger** (Weapons) — 1 recorded, 1 partial
 - **Mace of Smiting** (Weapons) — 1 recorded, 1 partial
+- **Medallion of Thoughts** (Wondrous Items) — 1 recorded, complete
 - **Mithral Armor** (Armor) — 8 recorded, complete
 - **Nine Lives Stealer** (Weapons) — 1 recorded, 1 partial
 - **Periapt of Proof against Poison** (Wondrous Items) — 1 recorded, 1 partial
+- **Plate Armor of Etherealness** (Armor) — 1 recorded, 1 partial
+- **Potion of Gaseous Form** (Potions) — 1 recorded, 1 partial
+- **Potion of Growth** (Potions) — 1 recorded, 1 partial
 - **Potion of Heroism** (Potions) — 1 recorded, 1 partial
 - **Potion of Invisibility** (Potions) — 1 recorded, 1 partial
+- **Potion of Speed** (Potions) — 1 recorded, 1 partial
 - **Potions of Healing** (Potions) — 1 recorded, 1 partial
 - **Quarterstaff of the Acrobat** (Weapons) — 1 recorded, 1 partial
 - **Ring of Animal Influence** (Rings) — 1 recorded, 1 partial
 - **Ring of Jumping** (Rings) — 1 recorded, complete
 - **Ring of Protection** (Rings) — 1 recorded, complete
+- **Ring of Telekinesis** (Rings) — 1 recorded, complete
 - **Ring of Water Walking** (Rings) — 1 recorded, complete
 - **Robe of Stars** (Wondrous Items) — 1 recorded, 1 partial
 - **Scimitar of Speed** (Weapons) — 1 recorded, 1 partial
@@ -516,7 +543,7 @@ entry of "Magic Items A–Z" is in exactly one of them.
 
 | Parsed | Transcribed | Blocked | Ready | Fiction | Unread |
 |---|---|---|---|---|---|
-| 258 | 48 | 201 | 2 | 4 | 3 |
+| 258 | 61 | 186 | 2 | 4 | 5 |
 
 **Unread is the honest default**, not a backlog nobody got to. An entry
 whose blocker cannot be named from something this repository has already
@@ -546,13 +573,20 @@ somebody reads it.
 
 Shapes from the spell vocabulary appear here too, and that is the point of
 there being one vocabulary: the heaviest blocker in the whole of "Magic
-Items A–Z" is a spell the catalogue cannot execute, so a tranche aimed at
-wands buys nothing until the spells underneath them exist. A Belt of Giant
-Strength waits on the same missing reader SRD Feeblemind does.
+Items A–Z" **was** a spell the catalogue could not execute, so a tranche
+aimed at wands would have bought nothing until the spells underneath them
+existed. A Belt of Giant Strength still waits on the same missing reader
+SRD Feeblemind does.
+
+That finding was then spent: the spells were written, the entries waiting
+on them alone came off, and `a-spell-an-item-casts-that-nothing-executes`
+finishes only the two potions whose spell is *defined and resolves
+nothing* — the half of that shape no amount of transcription reaches,
+because a potion confers an effect list rather than casting a spell. What
+is heaviest now is an item instance with a state of its own.
 
 | Shape | Blocks | Finishes (read) | Finishes (unread) |
 |---|---|---|---|
-| `a-spell-an-item-casts-that-nothing-executes` | 48 | 0 | 18 |
 | `an-item-instance-with-a-state-of-its-own` | 41 | 2 | 4 |
 | `a-container-with-a-space-of-its-own` | 6 | 0 | 5 |
 | `a-condition-an-item-imposes` | 28 | 0 | 4 |
@@ -561,6 +595,7 @@ Strength waits on the same missing reader SRD Feeblemind does.
 | `a-rider-on-the-face-the-die-showed` | 17 | 0 | 3 |
 | `an-object-with-statistics-of-its-own` | 17 | 0 | 3 |
 | `an-ability-score-a-spell-changes` | 15 | 0 | 3 |
+| `a-spell-an-item-casts-that-nothing-executes` | 32 | 2 | 0 |
 | `a-speed-an-item-grants` | 14 | 0 | 2 |
 | `a-reaction-an-item-grants` | 8 | 0 | 2 |
 | `a-mode-on-the-save-a-spell-forces` | 6 | 1 | 1 |
@@ -579,6 +614,7 @@ Strength waits on the same missing reader SRD Feeblemind does.
 | `a-save-keyed-to-a-condition` | 3 | 0 | 1 |
 | `a-casting-ended-by-a-trigger` | 1 | 0 | 1 |
 | `a-critical-hit-an-effect-downgrades` | 1 | 0 | 1 |
+| `a-random-outcome-that-is-not-a-d20` | 1 | 1 | 0 |
 | `a-reduction-an-effect-applies-to-damage` | 1 | 0 | 1 |
 | `a-target-rule-the-format-cannot-state` | 1 | 0 | 1 |
 | `movement-modes` | 13 | 0 | 0 |
