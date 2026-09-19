@@ -817,7 +817,7 @@ the next tranche makes false.
 
 | Shape | Blocks | Finishes (read) | Finishes (unread) |
 |---|---|---|---|
-| `an-ability-score-a-spell-changes` | 12 | 0 | 6 |
+| `an-ability-score-a-spell-changes` | 11 | 0 | 6 |
 | `a-condition-an-item-imposes` | 28 | 0 | 5 |
 | `a-container-with-a-space-of-its-own` | 6 | 0 | 5 |
 | `a-spell-an-item-casts-that-nothing-executes` | 19 | 2 | 2 |

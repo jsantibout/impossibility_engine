@@ -97,13 +97,13 @@ const CLASS_ITEMS: readonly CatalogueItem[] = [
  * - a **bounded delta with a lifetime** — an Ioun Stone's "Your Dexterity
  *   increases by 2, to a maximum of 20, while this deep-red sphere orbits
  *   your head", the Belt of Dwarvenkind's "Your Constitution increases by 2,
- *   to a maximum of 20", and the Thunderous Greatclub's +4 on top of "the
- *   Strength score bestowed by your _Belt of Giant Strength_ or _Gauntlets
- *   of Ogre Power_" — which lands on one item still blocked and one this
- *   paragraph has just transcribed. That is `ability-score-increase`'s
- *   arithmetic on a standing grant's lifetime, and neither member has both:
- *   the one with the arithmetic is answered at creation, and the one with
- *   the lifetime writes absolutes.
+ *   to a maximum of 20", and the Hammer of Thunderbolts' Might of Giants,
+ *   which adds 4 to "the Strength score bestowed by your _Belt of Giant
+ *   Strength_ or _Gauntlets of Ogre Power_" — a delta on top of a set, one
+ *   of whose two sources is now in this file. That is
+ *   `ability-score-increase`'s arithmetic on a standing grant's lifetime,
+ *   and neither member has both: the one with the arithmetic is answered at
+ *   creation, and the one with the lifetime writes absolutes.
  * - a **set with a deadline** rather than a garment — the Potion of Giant
  *   Strength's "your Strength score changes for 1 hour", which wants a
  *   conferral, and `CONFERRED_EFFECT_KINDS` does not admit this kind.
@@ -111,8 +111,12 @@ const CLASS_ITEMS: readonly CatalogueItem[] = [
  *   a maximum of 30" after forty-eight hours of study outlives every rest
  *   and lands on a folded number rather than a derived one.
  *
- * The Belt of Giant Strength does print the set, and keeps a second blocker:
- * its versions are a table of its own.
+ * Two more entries do print the set and are still out. The Belt of Giant
+ * Strength keeps a second blocker — its versions are a table of its own —
+ * and the Thunderous Greatclub's "your Strength is 20 unless your Strength
+ * is already equal to or greater than that score" is one clause of six, the
+ * other five being an area, a save, a condition, a rider and a damage roll
+ * an item makes. The score is no longer what blocks either of them.
  */
 
 /** A `FeatureGrant` in the position an item puts one, named once. */
@@ -1688,7 +1692,7 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
       ],
       unmodelled: [
         'what the charges buy: "You can expend 1 charge and make a ranged attack with the weapon, hurling it as if it had the Thrown property ... The target and every creature within 30 feet of it other than you must succeed on a DC 17 Constitution saving throw or have the Stunned condition until the end of your next turn"',
-        '"_Giant\'s Bane._ While you are attuned to the weapon and wearing either a _Belt of Giant Strength_ or _Gauntlets of Ogre Power_ to which you are also attuned, you gain the following benefits": a benefit conditional on *another item* being attuned, which no requirement asks — and neither of the two named items is transcribed, because both set an ability score',
+        '"_Giant\'s Bane._ While you are attuned to the weapon and wearing either a _Belt of Giant Strength_ or _Gauntlets of Ogre Power_ to which you are also attuned, you gain the following benefits": a benefit conditional on *another item* being attuned, which no requirement asks. The Gauntlets are in this catalogue now and the Belt is not, so even a requirement that could say it would find one of the two named items missing — and _Might of Giants_, which adds 4 to the score either of them bestows, is a bounded delta on a lifetime that no grant member carries',
       ],
     },
   ),
