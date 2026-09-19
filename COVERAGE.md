@@ -28,7 +28,7 @@ than to the table.
 
 | Parsed | Tracked | Executed | of which partial | Verified |
 |---|---|---|---|---|
-| 339 | 214 (63.1%) | 110 (32.4%) | 55 | 84 (24.8%) |
+| 339 | 214 (63.1%) | 110 (32.4%) | 53 | 84 (24.8%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -88,7 +88,7 @@ a plain statement of what the table decides.
 - **Grease** (level 1) — verified, partial — a clause the engine owns is still unbuilt
 - **Greater Invisibility** (level 4) — verified
 - **Guidance** (cantrip) — verified, partial — a clause the engine owns is still unbuilt
-- **Guiding Bolt** (level 1) — verified, partial — a clause the engine owns is still unbuilt
+- **Guiding Bolt** (level 1) — verified
 - **Harm** (level 6) — verified, partial — a clause the engine owns is still unbuilt
 - **Haste** (level 3) — untested, partial — a clause the engine owns is still unbuilt
 - **Heal** (level 6) — untested
@@ -143,7 +143,7 @@ a plain statement of what the table decides.
 - **Sunburst** (level 8) — verified
 - **Thunderwave** (level 1) — verified, partial — a clause the engine owns is still unbuilt
 - **Vampiric Touch** (level 3) — verified, partial — a clause the engine owns is still unbuilt
-- **Vicious Mockery** (cantrip) — verified, partial — a clause the engine owns is still unbuilt
+- **Vicious Mockery** (cantrip) — verified
 - **Vitriolic Sphere** (level 4) — verified
 - **Web** (level 2) — verified, partial — a clause the engine owns is still unbuilt
 - **Weird** (level 9) — untested, partial — a clause the engine owns is still unbuilt
@@ -450,7 +450,6 @@ of *Tracked* and is never added to it.
 | `a-condition-immunity-narrowed-to-its-source` | 3 | 0 | 0 | 0 | 3 | 0 | 0 |
 | `a-filter-on-the-attackers-creature-type` | 3 | 0 | 0 | 0 | 3 | 0 | 0 |
 | `a-long-casting-time` | 3 | 0 | 0 | 0 | 0 | 0 | 3 |
-| `a-one-shot-roll-modifier` | 3 | 0 | 0 | 2 | 1 | 0 | 0 |
 | `a-repeat-save-counted-to-a-tally` | 3 | 0 | 0 | 1 | 2 | 0 | 0 |
 | `a-selector-for-every-d20-test` | 3 | 0 | 0 | 0 | 3 | 0 | 0 |
 | `a-spell-that-answers-a-later-attack` | 3 | 0 | 0 | 1 | 2 | 0 | 0 |
@@ -696,7 +695,7 @@ is where a figure like that belongs.
 
 | Parsed | Transcribed | Instances | of which complete | of which partial |
 |---|---|---|---|---|
-| 258 | 76 | 233 | 180 | 53 |
+| 258 | 77 | 234 | 180 | 54 |
 
 An entry with **no** record is one whose whole text is beyond the grant
 vocabulary. `packages/content/src/items.ts` states the three rules that
@@ -721,7 +720,7 @@ inventing a column that nothing checks.
 | Staffs | 12 | 1 | 1 | 0 | 1 |
 | Wands | 13 | 8 | 8 | 1 | 7 |
 | Weapons | 33 | 15 | 128 | 115 | 13 |
-| Wondrous Items | 127 | 29 | 29 | 11 | 18 |
+| Wondrous Items | 127 | 30 | 30 | 11 | 19 |
 
 ### Entries transcribed
 
@@ -804,6 +803,7 @@ how many of those still carry a clause the engine does not say.
 - **Wand of Web** (Wands) — 1 recorded, 1 partial
 - **Weapon of Warning** (Weapons) — 1 recorded, 1 partial
 - **Weapon, +1, +2, or +3** (Weapons) — 114 recorded, complete
+- **Wind Fan** (Wondrous Items) — 1 recorded, 1 partial
 
 ### What blocks the rest
 
@@ -827,7 +827,7 @@ entry of "Magic Items A–Z" is in exactly one of them.
 
 | Parsed | Transcribed | Blocked | Ready | Fiction | Unread |
 |---|---|---|---|---|---|
-| 258 | 76 | 172 | 2 | 4 | 4 |
+| 258 | 77 | 171 | 2 | 4 | 4 |
 
 **Unread is the honest default**, not a backlog nobody got to. An entry
 whose blocker cannot be named from something this repository has already
@@ -895,7 +895,6 @@ the next tranche makes false.
 | `a-language-or-a-proficiency-an-item-grants` | 5 | 0 | 1 |
 | `healing-modified-by-an-effect` | 5 | 0 | 1 |
 | `a-benefit-an-item-suspends-on-a-trigger` | 4 | 0 | 1 |
-| `a-random-outcome-that-is-not-a-d20` | 4 | 0 | 1 |
 | `what-ends-attunement-besides-a-command` | 4 | 0 | 1 |
 | `a-save-keyed-to-a-condition` | 3 | 0 | 1 |
 | `a-casting-ended-by-a-trigger` | 1 | 0 | 1 |
@@ -908,6 +907,7 @@ the next tranche makes false.
 | `a-bonus-to-spell-attack-rolls` | 7 | 0 | 0 |
 | `an-exhaustion-level-a-spell-changes` | 4 | 0 | 0 |
 | `a-concentration-with-no-casting-behind-it` | 3 | 0 | 0 |
+| `a-random-outcome-that-is-not-a-d20` | 3 | 0 | 0 |
 | `a-filter-on-the-attackers-creature-type` | 2 | 0 | 0 |
 | `a-roll-result-an-effect-replaces` | 2 | 0 | 0 |
 | `a-selector-for-every-d20-test` | 2 | 0 | 0 |
