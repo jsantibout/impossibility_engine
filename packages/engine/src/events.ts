@@ -680,6 +680,26 @@ export type GameEvent =
       readonly key: string;
       readonly amount: number;
       /**
+       * That this key names a **tally** rather than a pool, and what zeroes it.
+       *
+       * A tally is a count with no size — SRD Wind Fan's "each subsequent time
+       * the fan is used before the next dawn", Augury's "more than once before
+       * finishing a Long Rest" — and using one is this same event: something
+       * was spent, and what it came out of has no ceiling to run into. See
+       * `Tally` in `resources.ts`.
+       *
+       * **The tag rides the use because nothing declares a tally.** A pool's
+       * recovery arrives on its `resource-pool-declared`; a tally has no size
+       * to declare and so no declaration to carry one, which is exactly what
+       * lets a *spell* have a tally — nothing could have declared one in
+       * advance for every spell a caster might cast twice. So the count springs
+       * into existence here, with what empties it written beside it, and the
+       * fold needs no catalogue to know what a morning gives back.
+       *
+       * Absent is a pool, which is every other spend in the log.
+       */
+      readonly tally?: Recovery;
+      /**
        * The command this spend settles, where the spend is the only event a
        * command always emits.
        *

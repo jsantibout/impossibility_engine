@@ -397,7 +397,16 @@ export function declareDawn(
           const pool = creature.resources.pools[poolKey];
           return pool === undefined || pool.recovers !== 'dawn' ? [] : [pool];
         });
-      if (pools.length === 0) continue;
+      // **And the counts, which are the other thing a morning empties.** SRD
+      // Wind Fan counts "each subsequent time the fan is used before the next
+      // dawn" and the fan has no charges at all, so a creature holding one
+      // holds no dawn *pool* — and skipping on the pools alone left that count
+      // standing through every sunrise. `restoreOn` zeroes both by the one tag;
+      // what this decides is only whether the creature is written about.
+      const counted = Object.values(creature.resources.tallies).some(
+        (one) => one.recovers === 'dawn',
+      );
+      if (pools.length === 0 && !counted) continue;
 
       // One restoration for the creature, whatever it holds: `restoreOn` is
       // all-or-nothing by tag and steps over the pools whose recovery is a

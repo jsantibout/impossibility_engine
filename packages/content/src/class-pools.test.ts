@@ -8,6 +8,7 @@ import { advanceCharacter, createCharacter, type CharacterChoices } from '@ie/en
 import {
   declarePool,
   remaining,
+  resourceState,
   restoreOn,
   spend,
   type ResourcePool,
@@ -365,6 +366,7 @@ describe('a Short Rest that gives back one use without emptying the pool', () =>
   };
 
   const poolsFrom = (choices: CharacterChoices): ResourceState => ({
+    ...resourceState(),
     pools: poolsOf(choices),
   });
 
@@ -428,7 +430,7 @@ describe('a Short Rest that gives back one use without emptying the pool', () =>
   it('gives back one only on a Short Rest, whatever else the pool recovers on', () => {
     const dawn = unwrapResource(
       declarePool(
-        { pools: {} },
+        resourceState(),
         { key: 'moonlight', label: 'Moonlight', max: 3, recovers: 'dawn', regainsOnShortRest: 1 },
       ),
       'declare',
@@ -444,7 +446,7 @@ describe('a Short Rest that gives back one use without emptying the pool', () =>
   /** And the amount is validated where it is declared. */
   it('refuses a partial refill that is not a positive whole number', () => {
     const bad = declarePool(
-      { pools: {} },
+      resourceState(),
       { key: 'x', label: 'X', max: 3, recovers: 'long-rest', regainsOnShortRest: 0 },
     );
     expect(bad.ok).toBe(false);

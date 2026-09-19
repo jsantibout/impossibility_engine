@@ -110,8 +110,51 @@ export interface PoolDeclaration {
   readonly regainsAtDawn?: string;
 }
 
+/**
+ * A count with **no size**: a pool's sibling, and the other thing the SRD
+ * counts.
+ *
+ * A pool is a count with a ceiling and running out of it is a *refusal* — "you
+ * are out of level 3 spell slots". A tally is a count with no ceiling at all,
+ * and what reads it multiplies rather than permits: SRD Wind Fan's "each
+ * subsequent time the fan is used before the next dawn, it has a cumulative 20
+ * percent chance of not working", Augury's "a cumulative 25 percent chance for
+ * each casting after the first", Potion of Longevity's 10 percent.
+ *
+ * **The distinction is semantic rather than bureaucratic.** A pool of six would
+ * make the seventh use of the fan a refusal, and the book has the sixth roll at
+ * 100 percent and tear the fan into tatters. A pool refuses; a tally only
+ * counts, and what the number means belongs to whoever reads it.
+ *
+ * Everything else is the pool's machinery reused. The tag is the same
+ * {@link Recovery}, so the `resources-restored` event a rest and a declared
+ * dawn already emit zeroes one; and a use is counted through the same
+ * `resource-spent` event a pool is spent through, which is what keeps "the fan
+ * was waved a third time" out of the `GameEvent` union as a member of its own.
+ *
+ * **There is no declaration.** A pool is declared because its size is a fact
+ * somebody has to state; a tally has no size and nothing to state, so it
+ * springs into existence the first time something is counted and carries its
+ * tag from that first use. That is also what lets a *spell* have one — nothing
+ * could have declared a tally for every spell a caster might cast twice.
+ */
+export interface Tally {
+  readonly key: string;
+  /** How many times, since the last recovery that answered for it. */
+  readonly count: number;
+  readonly recovers: Recovery;
+}
+
 export interface ResourceState {
   readonly pools: Readonly<Record<string, ResourcePool>>;
+  /**
+   * Counts with no ceiling, keyed the way pools are — see {@link Tally}.
+   *
+   * Kept beside the pools rather than among them: `remaining`, `resize` and
+   * `slotLevelsAvailable` all answer for a maximum, and a sizeless member of
+   * that record would be a pool answering `NaN` to every one of them.
+   */
+  readonly tallies: Readonly<Record<string, Tally>>;
 }
 
 /**
@@ -122,17 +165,28 @@ export interface ResourceState {
  * for two identical characters — which breaks replay comparison exactly the
  * way an unsorted condition set did.
  */
-const derive = (pools: Readonly<Record<string, ResourcePool>>): ResourceState => {
+const derive = (
+  pools: Readonly<Record<string, ResourcePool>>,
+  tallies: Readonly<Record<string, Tally>> = {},
+): ResourceState => {
   const sorted: Record<string, ResourcePool> = {};
   for (const key of Object.keys(pools).sort()) {
     const pool = pools[key];
     if (pool !== undefined) sorted[key] = pool;
   }
-  return { pools: sorted };
+  // The tallies for the same reason and by the same rule: they reach state,
+  // and a record whose key order depended on the order things happened to be
+  // used in would serialise two ways for one history.
+  const counted: Record<string, Tally> = {};
+  for (const key of Object.keys(tallies).sort()) {
+    const tally = tallies[key];
+    if (tally !== undefined) counted[key] = tally;
+  }
+  return { pools: sorted, tallies: counted };
 };
 
 export function resourceState(): ResourceState {
-  return { pools: {} };
+  return { pools: {}, tallies: {} };
 }
 
 export function declarePool(
@@ -174,7 +228,7 @@ export function declarePool(
         ...(regainsOnShortRest === undefined ? {} : { regainsOnShortRest }),
         ...(regainsAtDawn === undefined ? {} : { regainsAtDawn }),
       },
-    }),
+    }, state.tallies),
   );
 }
 
@@ -251,7 +305,7 @@ export function detachPool(
   if (pool === undefined) return err('unknown_pool', `${key} is not a pool this creature has`);
   const pools = { ...state.pools };
   delete pools[key];
-  return ok({ pool, state: derive(pools) });
+  return ok({ pool, state: derive(pools, state.tallies) });
 }
 
 /** The other half: put a pool on a creature exactly as it was taken off. */
@@ -259,7 +313,7 @@ export function attachPool(state: ResourceState, pool: ResourcePool): Result<Res
   if (state.pools[pool.key] !== undefined) {
     return err('duplicate_pool', `${pool.key} is already declared`);
   }
-  return ok(derive({ ...state.pools, [pool.key]: pool }));
+  return ok(derive({ ...state.pools, [pool.key]: pool }, state.tallies));
 }
 
 export function hasPool(state: ResourceState, key: string): boolean {
@@ -288,7 +342,7 @@ export function spend(state: ResourceState, key: string, amount = 1): Result<Res
     return err('exhausted', `${pool.label} has ${pool.max - pool.spent} left, needed ${amount}`);
   }
 
-  return ok(derive({ ...state.pools, [key]: { ...pool, spent: pool.spent + amount } }));
+  return ok(derive({ ...state.pools, [key]: { ...pool, spent: pool.spent + amount } }, state.tallies));
 }
 
 /** Give uses back, never more than the pool holds. */
@@ -300,7 +354,70 @@ export function restore(state: ResourceState, key: string, amount: number): Resu
   }
 
   const spent = Math.max(0, pool.spent - amount);
-  return ok(derive({ ...state.pools, [key]: { ...pool, spent } }));
+  return ok(derive({ ...state.pools, [key]: { ...pool, spent } }, state.tallies));
+}
+
+/**
+ * How many times this has been counted, since whatever last answered for it.
+ *
+ * A tally nobody has counted has been used no times, rather than throwing —
+ * the answer {@link remaining} gives for a pool nobody declared, and the reason
+ * a first use needs nothing to exist before it.
+ */
+export function tallied(state: ResourceState, key: string): number {
+  return state.tallies[key]?.count ?? 0;
+}
+
+/**
+ * Count one more use — see {@link Tally}.
+ *
+ * **It cannot run out**, which is the whole of why it is not a pool: there is
+ * no maximum to refuse against, and whoever reads the count decides what a high
+ * one costs. The fan tears at 100 percent because the fan's own line says so,
+ * not because this said no.
+ *
+ * **The tag arrives with the use**, because nothing declares a tally. Restating
+ * it every time is what makes the log self-describing — a replay reads what
+ * zeroes this count off the very event that created it — and a *different* tag
+ * for a key that already has one is refused rather than taken: a count
+ * answering to two recoveries would be emptied by whichever came first, which
+ * is a rule nobody wrote.
+ *
+ * A key that names a pool is refused for the neighbouring reason. A key is a
+ * name and nothing reads inside one, so the only thing that can keep a spend
+ * and a use apart is that one name never means both.
+ */
+export function tally(
+  state: ResourceState,
+  key: string,
+  recovers: Recovery,
+  amount = 1,
+): Result<ResourceState> {
+  if (key.trim() === '') return err('bad_key', 'a tally needs a key');
+  if (!Number.isInteger(amount) || amount <= 0) {
+    return err('bad_amount', `counting takes a positive integer, got ${amount}`);
+  }
+  if (state.pools[key] !== undefined) {
+    return err(
+      'pool_not_a_tally',
+      `${key} is a pool of this creature's, which is spent rather than counted`,
+    );
+  }
+
+  const held = state.tallies[key];
+  if (held !== undefined && held.recovers !== recovers) {
+    return err(
+      'tally_recovers_otherwise',
+      `${key} is counted until a ${held.recovers} and this use says a ${recovers}; one count answers to one recovery`,
+    );
+  }
+
+  return ok(
+    derive(state.pools, {
+      ...state.tallies,
+      [key]: { key, count: (held?.count ?? 0) + amount, recovers },
+    }),
+  );
 }
 
 /**
@@ -331,7 +448,19 @@ export function restoreOn(state: ResourceState, recovers: Recovery): ResourceSta
     }
     pools[key] = pool;
   }
-  return derive(pools);
+
+  // **And every tally the same tag answers for, zeroed rather than reduced.**
+  // SRD Wind Fan counts "before the next dawn" and Augury "before finishing a
+  // Long Rest": both are a count that starts again, and neither has a partial
+  // half for `regainsOnShortRest` to be about. A tally at zero is a tally that
+  // has not happened, so it is dropped rather than kept at nothing —
+  // {@link tallied} cannot tell the two apart, and a record that grew a line
+  // for every key ever counted would carry a history nothing reads.
+  const tallies: Record<string, Tally> = {};
+  for (const [key, counted] of Object.entries(state.tallies)) {
+    if (counted.recovers !== recovers) tallies[key] = counted;
+  }
+  return derive(pools, tallies);
 }
 
 const SLOT_PREFIX = 'spell-slot:';
@@ -416,5 +545,7 @@ export function resize(state: ResourceState, key: string, max: number): Result<R
   if (!Number.isInteger(max) || max < 0) {
     return err('bad_max', `a pool's maximum must be a non-negative integer, got ${max}`);
   }
-  return ok(derive({ ...state.pools, [key]: { ...pool, max, spent: Math.min(pool.spent, max) } }));
+  return ok(
+    derive({ ...state.pools, [key]: { ...pool, max, spent: Math.min(pool.spent, max) } }, state.tallies),
+  );
 }

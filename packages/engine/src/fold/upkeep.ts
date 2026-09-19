@@ -6,7 +6,14 @@
  * it ends, and what it pays out is a pool. Splitting the three would put the
  * two halves of one SRD sentence in three modules.
  */
-import { declarePool, resize, restore, restoreOn, spend as spendResource } from '../resources.js';
+import {
+  declarePool,
+  resize,
+  restore,
+  restoreOn,
+  spend as spendResource,
+  tally,
+} from '../resources.js';
 import type { GameEvent } from '../events.js';
 import type { GameState } from '../state.js';
 import {
@@ -54,7 +61,15 @@ export function applyUpkeep({ state, next }: Applying, event: UpkeepEvent): Game
 
     case 'resource-spent': {
       const creature = creatureOf(state, event, event.id);
-      const resources = must(event, spendResource(creature.resources, event.key, event.amount));
+      // **One event, two things it can come out of.** A pool is spent and can
+      // run out; a tally is counted and cannot — see `Tally` in
+      // `resources.ts`. Which of the two this is, is said on the event rather
+      // than guessed from whether the key happens to name a pool, because a
+      // guess would turn a typo into a new count instead of a corrupt log.
+      const resources =
+        event.tally === undefined
+          ? must(event, spendResource(creature.resources, event.key, event.amount))
+          : must(event, tally(creature.resources, event.key, event.tally, event.amount));
       return withCreature(next, event.id, { resources }, creature);
     }
 
