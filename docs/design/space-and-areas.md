@@ -32,8 +32,11 @@ A **persistent area** catches creatures at the moments the spell prints
 (`AreaTrigger`: start or end of turn, on entry, first-per-turn, on the area
 moving onto a creature). The fold detects those moments off the **pinned**
 record and raises an `owedAreaEffects` debt; `settleAreaEffects` rolls it.
-A move of more than one space through a carried area must state its route
-(`route_required`), so nothing is caught in a square nobody named.
+A move of more than one space through a carried area is refused
+`single_steps_required` and comes back as one 5-foot step at a time, so
+nothing is caught in a square nobody named — and so no space is entered
+before the last one is settled, because a creature the area Restrains stops
+walking where it stood.
 
 **Difficult Terrain is a declared fact about the lattice**, held beside
 sight and cover: the table declares which ground is expensive, how expensive
@@ -44,8 +47,13 @@ whether the patch is still there. A patch naming a casting lapses when the
 casting does, derived at read time so there is no window in which the webs
 are gone and the ground still costs double. Two overlapping patches do not
 stack; the dearer governs, as overlapping cover does. A move whose cost the
-path decides raises `route_required` too — the same refusal for a different
-reason, and the two are told apart only by what their `satisfyWith` says.
+path decides raises `route_required`, which is the other question rather than
+the same one: it wants the spaces named, in order, in the command's own
+`route` field, and one command answers it. The carried area's is
+`single_steps_required`, and no route will ever answer that one. Both carry
+requests of kind `route`; the **code** is what says how to supply what is
+missing, and `commands/command.ts` holds the pair with the rule that
+separates them.
 
 ## Movement and teleportation
 
