@@ -1311,18 +1311,24 @@ export function abilityScoresOf(
  * `standingSaveBonuses` through {@link abilityScoresOf}, which wants one
  * holder's one score rather than a sheet.
  *
- * **What is still outside it is the casting family**, named here rather than
- * implied so the next batch has a list and not an impression: a spell's own
- * numbers (`numbersFor` in `commands/spell-resolution.ts`, and
- * `numbersForItem` for one an item casts), the attack and the saves its
- * effects roll (`commands/spell-effect-rolls.ts`,
- * `commands/spell-effect-magic.ts`), the Concentration save
+ * **And the casting family is inside it now.** A spell's own numbers
+ * (`numbersFor` in `commands/spell-resolution.ts`, and `numbersForItem` for
+ * one an item casts, which takes the sheet the command hands it), the rolls
+ * its effects make for caster and victim (`commands/spell-effect-rolls.ts`
+ * and `commands/spell-effect-magic.ts`, through the `casterSheet` accessor
+ * `resolveEffects` substitutes once), the Concentration save
  * (`commands/casting.ts`), the check and the save a turn boundary repeats
- * (`commands/turns.ts`) and a self-heal's addend (`commands/features.ts`).
- * Each is the same one-line substitution as the ones above; none of them was
- * this batch's to make. What is *not* a gap is `rollSpellDice`: it keeps only
- * the components whose source is the spell, so no ability modifier reaches it
- * and the sheet it is handed contributes nothing.
+ * (`commands/turns.ts`) and a self-heal's addend (`commands/features.ts`) all
+ * ask here. What is *not* a gap is `rollSpellDice`: it keeps only the
+ * components whose source is the spell, so no ability modifier reaches it and
+ * the sheet it is handed contributes nothing.
+ *
+ * **One reader is still outside it, and it is not a roll a command makes.**
+ * `rest.ts` adds `abilityModifier(creature.sheet.abilities.con)` to each Hit
+ * Die spent on a Short Rest, off the score the sheet was built with. It is the
+ * last raw-sheet ability read in the engine, the Amulet of Health's own
+ * `unmodelled` note records it, and it is the same one-line substitution
+ * whenever somebody owns `rest.ts`.
  */
 export function sheetAsItStands(state: GameState, who: CharacterId): CharacterSheet | null {
   const creature = state.creatures[who];
