@@ -90,20 +90,33 @@ export type FeatureChoice =
    * level 20 capstones, name their scores outright with an
    * `ability-score-increase` grant instead.
    *
-   * **So the catalogue's own user of this member is not here yet**, and that
-   * is the honest state of it: a feat can neither be asked a question nor
-   * have a grant read off it — `FeatDefinition` carries `requires` and one
-   * `grants`, `FeatRequirement` has three members and none is an ability, and
-   * `FEAT_GRANT_KINDS` admits one kind. What holds it up meanwhile is the
-   * standard this repository holds new vocabulary to: a reader, a validator
-   * that refuses eight malformed shapes by name, and a homebrew class driving
-   * it through `loadContent`.
+   * **So the SRD's own user of this member is on the feat**, not here:
+   * `FeatRequirement`'s `ability-score` member is the same sentence in the
+   * same units, read by the same checker and paid out by the same
+   * arithmetic. What keeps this member is homebrew — a class that writes the
+   * points onto the feature, which the vocabulary should be able to say even
+   * though the book does not — and it is held to the standard this repository
+   * holds new vocabulary to: a reader, a validator that refuses eight
+   * malformed shapes by name, and a homebrew class driving it through
+   * `loadContent`.
    *
    * **Answered one ability per point.** `featureChoices` is a list of strings
    * and a point is the unit the sentence counts in, so `['str', 'str']` is
    * the first branch and `['str', 'dex']` the second. The spread a player took
    * is therefore *counted out of their answer* rather than declared beside it,
    * and there is no second field for the two to disagree through.
+   *
+   * **`orFeat` was here and is gone.** It said "these points, or a feat
+   * instead", written when the level 4 feature was read as offering the fork.
+   * The book does not: the class feature grants a feat and the feat carries
+   * the points, so the fork the SRD prints is between two *feats* and
+   * `kind: 'feat'` already says it. It had no writer the day it was added,
+   * the Ability Score Improvement feat gave it none, and it cost three
+   * branches of creation — `offersOne` in `checkFeats`, the category read off
+   * it, and the both-and-neither pair in `checkAbilityChoice` — that no
+   * catalogue could reach. A member no content writes is a guess dressed up
+   * as a structure; a homebrew class wanting the fork writes two features or
+   * `kind: 'feat'`.
    */
   | {
       readonly kind: 'ability-score';
@@ -120,27 +133,6 @@ export type FeatureChoice =
        * the length of a legal answer is read from it.
        */
       readonly spreads: readonly (readonly number[])[];
-      /**
-       * That the same sentence offers a feat *instead of* the points.
-       *
-       * The fork is unambiguous because the two halves are answered in
-       * different places: the scores go in `featureChoices` and the feat in
-       * `feats`, both keyed by this feature's id. `checkCharacter` refuses
-       * neither and refuses both.
-       *
-       * **Nothing in the SRD catalogue writes it, and it may never.** It was
-       * added reading the level 4 feature as "points, or a feat" — which the
-       * book does not say: the class feature grants a feat and the feat
-       * carries the points, so the fork is between two *feats* and
-       * `kind: 'feat'` already says it. When the Ability Score Improvement
-       * feat is published it will ask which scores and offer no alternative,
-       * so this field will still have no user. It survives for a homebrew
-       * class that writes the older sentence, which is the one thing it is
-       * good for; a member with no writer at all is a guess dressed up as a
-       * structure, and whether this is one is a call for whoever next owns
-       * this file.
-       */
-      readonly orFeat?: { readonly category?: string };
     };
 
 /**

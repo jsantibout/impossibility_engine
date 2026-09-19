@@ -88,8 +88,6 @@ import {
 export const FEATURE_SHAPES = {
   'a-weapon-mastery-property':
     'Cleave, Graze, Nick, Push, Sap, Slow, Topple and Vex are parsed onto the weapons that print them and executed by nothing, and no feature records **which** weapons a character has mastery with. Five classes print the feature and a sixth swaps one property for another. `FeatureGrant` in packages/engine/src/progression.ts is the list of what a feature may do — "Deliberately few. A feature whose effect does not fit one of these is `automation: \'manual\'` with a note saying what a DM still has to do" — and a mastery is not on it, at either end: neither the choice of weapons nor the property\'s own rule.',
-  'a-grant-read-off-a-feat':
-    'a grant read off a **feat**, and a question asked of one. Both advancement sentences are printed on a feat rather than on the class feature that hands one out — SRD writes level 4 as "You gain the Ability Score Improvement feat ... or another feat of your choice for which you qualify", and it is the feat that says "Increase one ability score of your choice by 2, or increase two ability scores of your choice by 1", exactly as each Epic Boon rather than the level 19 feature says "Increase one ability score of your choice by 1, to a maximum of 30". The *grant* for the points and the lifted ceiling exists and the two level 20 capstones use it; a feat can neither carry it nor ask anything. packages/engine/src/content.ts closes the first door and names the key: FEAT_GRANT_KINDS holds one member because "a feat is not a feature and goes through none of that", so "a feat declaring anything else is refused rather than accepted and never executed". The second is that a feat declares only what it requires and what it grants, and neither of those is a question about an ability, which both sentences above ask. And this catalogue publishes neither the Ability Score Improvement feat nor any Epic Boon for one to sit on.',
   'a-saving-throw-a-feature-forces':
     'a feature that makes **somebody else** roll. A casting forces a save through its definition and an item through a `save` conferral; packages/engine/src/content.ts enumerates what an item\'s readers run — "only a standing grant, a charge pool, a spell it casts and the effects it confers are read from one" — and a class feature reaches none of those, so a Breath Weapon, a Stunning Strike and a Channel Divinity that Frightens have a printed DC and nothing to roll it against.',
   'a-condition-a-feature-imposes':
@@ -241,8 +239,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   'barbarian:ability-score-improvement': [
     {
       clause: 'nothing reads an ability-score grant off a feat',
-      why: 'a-grant-read-off-a-feat',
-      note: 'the feature’s own blocker, and the one every class prints: the points live on the feat this feature grants, and no feat can carry them yet.',
+      why: 'expressible',
+      note: 'the sentence this note was written against, and it is answered: a feat asks which scores through FeatRequirement, gates on minimumLevel, and has its ability-score-increase grant read by creation, so this catalogue publishes the Ability Score Improvement feat and the points land where the player puts them. What is left of this entry is the note itself, which still says the old thing, and the automation flag beside it — one line of transcription in this class’s own file.'
     },
     {
       clause: 'Whether a feat does anything is a property of the feat, not of this feature',
@@ -347,8 +345,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   'barbarian:epic-boon': [
     {
       clause: 'nothing reads such a grant off a feat',
-      why: 'a-grant-read-off-a-feat',
-      note: 'the same blocker one book further on: the increase is each boon’s sentence, and this catalogue publishes no boon for it to sit on.',
+      why: 'expressible',
+      note: 'answered with the Improvement’s half: the catalogue publishes the seven Epic Boons the SRD prints, each asking which score and carrying the "to a maximum of 30" that lifts that one score’s ceiling and no other’s, and a level 19 character of this class can be built. What each boon still leaves undone is its own second benefit, which is the boon’s note rather than this feature’s.'
     },
     {
       clause: 'Whether a boon does anything beyond the increase is a property of the boon',
@@ -404,8 +402,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   'bard:ability-score-improvement': [
     {
       clause: 'nothing reads an ability-score grant off a feat',
-      why: 'a-grant-read-off-a-feat',
-      note: 'the feature’s own blocker, and the one every class prints: the points live on the feat this feature grants, and no feat can carry them yet.',
+      why: 'expressible',
+      note: 'the sentence this note was written against, and it is answered: a feat asks which scores through FeatRequirement, gates on minimumLevel, and has its ability-score-increase grant read by creation, so this catalogue publishes the Ability Score Improvement feat and the points land where the player puts them. What is left of this entry is the note itself, which still says the old thing, and the automation flag beside it — one line of transcription in this class’s own file.'
     },
     {
       clause: 'Whether a feat does anything is a property of the feat, not of this feature',
@@ -464,8 +462,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   'bard:epic-boon': [
     {
       clause: 'nothing reads such a grant off a feat',
-      why: 'a-grant-read-off-a-feat',
-      note: 'the same blocker one book further on: the increase is each boon’s sentence, and this catalogue publishes no boon for it to sit on.',
+      why: 'expressible',
+      note: 'answered with the Improvement’s half: the catalogue publishes the seven Epic Boons the SRD prints, each asking which score and carrying the "to a maximum of 30" that lifts that one score’s ceiling and no other’s, and a level 19 character of this class can be built. What each boon still leaves undone is its own second benefit, which is the boon’s note rather than this feature’s.'
     },
     {
       clause: 'Whether a boon does anything beyond the increase is a property of the boon',
@@ -514,8 +512,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   'cleric:ability-score-improvement': [
     {
       clause: 'nothing reads an ability-score grant off a feat',
-      why: 'a-grant-read-off-a-feat',
-      note: 'the feature’s own blocker, and the one every class prints: the points live on the feat this feature grants, and no feat can carry them yet.',
+      why: 'expressible',
+      note: 'the sentence this note was written against, and it is answered: a feat asks which scores through FeatRequirement, gates on minimumLevel, and has its ability-score-increase grant read by creation, so this catalogue publishes the Ability Score Improvement feat and the points land where the player puts them. What is left of this entry is the note itself, which still says the old thing, and the automation flag beside it — one line of transcription in this class’s own file.'
     },
     {
       clause: 'Whether a feat does anything is a property of the feat, not of this feature',
@@ -555,8 +553,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   'cleric:epic-boon': [
     {
       clause: 'nothing reads such a grant off a feat',
-      why: 'a-grant-read-off-a-feat',
-      note: 'the same blocker one book further on: the increase is each boon’s sentence, and this catalogue publishes no boon for it to sit on.',
+      why: 'expressible',
+      note: 'answered with the Improvement’s half: the catalogue publishes the seven Epic Boons the SRD prints, each asking which score and carrying the "to a maximum of 30" that lifts that one score’s ceiling and no other’s, and a level 19 character of this class can be built. What each boon still leaves undone is its own second benefit, which is the boon’s note rather than this feature’s.'
     },
     {
       clause: 'Whether a boon does anything beyond the increase is a property of the boon',
@@ -645,8 +643,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   'druid:ability-score-improvement': [
     {
       clause: 'nothing reads an ability-score grant off a feat',
-      why: 'a-grant-read-off-a-feat',
-      note: 'the feature’s own blocker, and the one every class prints: the points live on the feat this feature grants, and no feat can carry them yet.',
+      why: 'expressible',
+      note: 'the sentence this note was written against, and it is answered: a feat asks which scores through FeatRequirement, gates on minimumLevel, and has its ability-score-increase grant read by creation, so this catalogue publishes the Ability Score Improvement feat and the points land where the player puts them. What is left of this entry is the note itself, which still says the old thing, and the automation flag beside it — one line of transcription in this class’s own file.'
     },
     {
       clause: 'Whether a feat does anything is a property of the feat, not of this feature',
@@ -676,8 +674,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   'druid:epic-boon': [
     {
       clause: 'nothing reads such a grant off a feat',
-      why: 'a-grant-read-off-a-feat',
-      note: 'the same blocker one book further on: the increase is each boon’s sentence, and this catalogue publishes no boon for it to sit on.',
+      why: 'expressible',
+      note: 'answered with the Improvement’s half: the catalogue publishes the seven Epic Boons the SRD prints, each asking which score and carrying the "to a maximum of 30" that lifts that one score’s ceiling and no other’s, and a level 19 character of this class can be built. What each boon still leaves undone is its own second benefit, which is the boon’s note rather than this feature’s.'
     },
     {
       clause: 'Whether a boon does anything beyond the increase is a property of the boon',
@@ -728,8 +726,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   'fighter:ability-score-improvement': [
     {
       clause: 'nothing reads an ability-score grant off a feat',
-      why: 'a-grant-read-off-a-feat',
-      note: 'the feature’s own blocker, and the one every class prints: the points live on the feat this feature grants, and no feat can carry them yet.',
+      why: 'expressible',
+      note: 'the sentence this note was written against, and it is answered: a feat asks which scores through FeatRequirement, gates on minimumLevel, and has its ability-score-increase grant read by creation, so this catalogue publishes the Ability Score Improvement feat and the points land where the player puts them. What is left of this entry is the note itself, which still says the old thing, and the automation flag beside it — one line of transcription in this class’s own file.'
     },
     {
       clause: 'Whether a feat does anything is a property of the feat, not of this feature',
@@ -766,8 +764,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   'fighter:epic-boon': [
     {
       clause: 'nothing reads such a grant off a feat',
-      why: 'a-grant-read-off-a-feat',
-      note: 'the same blocker one book further on: the increase is each boon’s sentence, and this catalogue publishes no boon for it to sit on.',
+      why: 'expressible',
+      note: 'answered with the Improvement’s half: the catalogue publishes the seven Epic Boons the SRD prints, each asking which score and carrying the "to a maximum of 30" that lifts that one score’s ceiling and no other’s, and a level 19 character of this class can be built. What each boon still leaves undone is its own second benefit, which is the boon’s note rather than this feature’s.'
     },
     {
       clause: 'Whether a boon does anything beyond the increase is a property of the boon',
@@ -818,8 +816,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   'monk:ability-score-improvement': [
     {
       clause: 'nothing reads an ability-score grant off a feat',
-      why: 'a-grant-read-off-a-feat',
-      note: 'the feature’s own blocker, and the one every class prints: the points live on the feat this feature grants, and no feat can carry them yet.',
+      why: 'expressible',
+      note: 'the sentence this note was written against, and it is answered: a feat asks which scores through FeatRequirement, gates on minimumLevel, and has its ability-score-increase grant read by creation, so this catalogue publishes the Ability Score Improvement feat and the points land where the player puts them. What is left of this entry is the note itself, which still says the old thing, and the automation flag beside it — one line of transcription in this class’s own file.'
     },
     {
       clause: 'Whether a feat does anything is a property of the feat, not of this feature',
@@ -916,8 +914,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   'monk:epic-boon': [
     {
       clause: 'nothing reads such a grant off a feat',
-      why: 'a-grant-read-off-a-feat',
-      note: 'the same blocker one book further on: the increase is each boon’s sentence, and this catalogue publishes no boon for it to sit on.',
+      why: 'expressible',
+      note: 'answered with the Improvement’s half: the catalogue publishes the seven Epic Boons the SRD prints, each asking which score and carrying the "to a maximum of 30" that lifts that one score’s ceiling and no other’s, and a level 19 character of this class can be built. What each boon still leaves undone is its own second benefit, which is the boon’s note rather than this feature’s.'
     },
     {
       clause: 'Whether a boon does anything beyond the increase is a property of the boon',
@@ -987,8 +985,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   'paladin:ability-score-improvement': [
     {
       clause: 'nothing reads an ability-score grant off a feat',
-      why: 'a-grant-read-off-a-feat',
-      note: 'the feature’s own blocker, and the one every class prints: the points live on the feat this feature grants, and no feat can carry them yet.',
+      why: 'expressible',
+      note: 'the sentence this note was written against, and it is answered: a feat asks which scores through FeatRequirement, gates on minimumLevel, and has its ability-score-increase grant read by creation, so this catalogue publishes the Ability Score Improvement feat and the points land where the player puts them. What is left of this entry is the note itself, which still says the old thing, and the automation flag beside it — one line of transcription in this class’s own file.'
     },
     {
       clause: 'Whether a feat does anything is a property of the feat, not of this feature',
@@ -1038,8 +1036,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   'paladin:epic-boon': [
     {
       clause: 'nothing reads such a grant off a feat',
-      why: 'a-grant-read-off-a-feat',
-      note: 'the same blocker one book further on: the increase is each boon’s sentence, and this catalogue publishes no boon for it to sit on.',
+      why: 'expressible',
+      note: 'answered with the Improvement’s half: the catalogue publishes the seven Epic Boons the SRD prints, each asking which score and carrying the "to a maximum of 30" that lifts that one score’s ceiling and no other’s, and a level 19 character of this class can be built. What each boon still leaves undone is its own second benefit, which is the boon’s note rather than this feature’s.'
     },
     {
       clause: 'Whether a boon does anything beyond the increase is a property of the boon',
@@ -1124,8 +1122,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   'ranger:ability-score-improvement': [
     {
       clause: 'nothing reads an ability-score grant off a feat',
-      why: 'a-grant-read-off-a-feat',
-      note: 'the feature’s own blocker, and the one every class prints: the points live on the feat this feature grants, and no feat can carry them yet.',
+      why: 'expressible',
+      note: 'the sentence this note was written against, and it is answered: a feat asks which scores through FeatRequirement, gates on minimumLevel, and has its ability-score-increase grant read by creation, so this catalogue publishes the Ability Score Improvement feat and the points land where the player puts them. What is left of this entry is the note itself, which still says the old thing, and the automation flag beside it — one line of transcription in this class’s own file.'
     },
     {
       clause: 'Whether a feat does anything is a property of the feat, not of this feature',
@@ -1184,8 +1182,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   'ranger:epic-boon': [
     {
       clause: 'nothing reads such a grant off a feat',
-      why: 'a-grant-read-off-a-feat',
-      note: 'the same blocker one book further on: the increase is each boon’s sentence, and this catalogue publishes no boon for it to sit on.',
+      why: 'expressible',
+      note: 'answered with the Improvement’s half: the catalogue publishes the seven Epic Boons the SRD prints, each asking which score and carrying the "to a maximum of 30" that lifts that one score’s ceiling and no other’s, and a level 19 character of this class can be built. What each boon still leaves undone is its own second benefit, which is the boon’s note rather than this feature’s.'
     },
     {
       clause: 'Whether a boon does anything beyond the increase is a property of the boon',
@@ -1281,8 +1279,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   'rogue:ability-score-improvement': [
     {
       clause: 'nothing reads an ability-score grant off a feat',
-      why: 'a-grant-read-off-a-feat',
-      note: 'the feature’s own blocker, and the one every class prints: the points live on the feat this feature grants, and no feat can carry them yet.',
+      why: 'expressible',
+      note: 'the sentence this note was written against, and it is answered: a feat asks which scores through FeatRequirement, gates on minimumLevel, and has its ability-score-increase grant read by creation, so this catalogue publishes the Ability Score Improvement feat and the points land where the player puts them. What is left of this entry is the note itself, which still says the old thing, and the automation flag beside it — one line of transcription in this class’s own file.'
     },
     {
       clause: 'Whether a feat does anything is a property of the feat, not of this feature',
@@ -1378,8 +1376,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   'rogue:epic-boon': [
     {
       clause: 'nothing reads such a grant off a feat',
-      why: 'a-grant-read-off-a-feat',
-      note: 'the same blocker one book further on: the increase is each boon’s sentence, and this catalogue publishes no boon for it to sit on.',
+      why: 'expressible',
+      note: 'answered with the Improvement’s half: the catalogue publishes the seven Epic Boons the SRD prints, each asking which score and carrying the "to a maximum of 30" that lifts that one score’s ceiling and no other’s, and a level 19 character of this class can be built. What each boon still leaves undone is its own second benefit, which is the boon’s note rather than this feature’s.'
     },
     {
       clause: 'Whether a boon does anything beyond the increase is a property of the boon',
@@ -1483,8 +1481,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   'sorcerer:ability-score-improvement': [
     {
       clause: 'nothing reads an ability-score grant off a feat',
-      why: 'a-grant-read-off-a-feat',
-      note: 'the feature’s own blocker, and the one every class prints: the points live on the feat this feature grants, and no feat can carry them yet.',
+      why: 'expressible',
+      note: 'the sentence this note was written against, and it is answered: a feat asks which scores through FeatRequirement, gates on minimumLevel, and has its ability-score-increase grant read by creation, so this catalogue publishes the Ability Score Improvement feat and the points land where the player puts them. What is left of this entry is the note itself, which still says the old thing, and the automation flag beside it — one line of transcription in this class’s own file.'
     },
     {
       clause: 'Whether a feat does anything is a property of the feat, not of this feature',
@@ -1512,8 +1510,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   'sorcerer:epic-boon': [
     {
       clause: 'nothing reads such a grant off a feat',
-      why: 'a-grant-read-off-a-feat',
-      note: 'the same blocker one book further on: the increase is each boon’s sentence, and this catalogue publishes no boon for it to sit on.',
+      why: 'expressible',
+      note: 'answered with the Improvement’s half: the catalogue publishes the seven Epic Boons the SRD prints, each asking which score and carrying the "to a maximum of 30" that lifts that one score’s ceiling and no other’s, and a level 19 character of this class can be built. What each boon still leaves undone is its own second benefit, which is the boon’s note rather than this feature’s.'
     },
     {
       clause: 'Whether a boon does anything beyond the increase is a property of the boon',
@@ -1583,8 +1581,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   'warlock:ability-score-improvement': [
     {
       clause: 'nothing reads an ability-score grant off a feat',
-      why: 'a-grant-read-off-a-feat',
-      note: 'the feature’s own blocker, and the one every class prints: the points live on the feat this feature grants, and no feat can carry them yet.',
+      why: 'expressible',
+      note: 'the sentence this note was written against, and it is answered: a feat asks which scores through FeatRequirement, gates on minimumLevel, and has its ability-score-increase grant read by creation, so this catalogue publishes the Ability Score Improvement feat and the points land where the player puts them. What is left of this entry is the note itself, which still says the old thing, and the automation flag beside it — one line of transcription in this class’s own file.'
     },
     {
       clause: 'Whether a feat does anything is a property of the feat, not of this feature',
@@ -1624,8 +1622,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   'warlock:epic-boon': [
     {
       clause: 'nothing reads such a grant off a feat',
-      why: 'a-grant-read-off-a-feat',
-      note: 'the same blocker one book further on: the increase is each boon’s sentence, and this catalogue publishes no boon for it to sit on.',
+      why: 'expressible',
+      note: 'answered with the Improvement’s half: the catalogue publishes the seven Epic Boons the SRD prints, each asking which score and carrying the "to a maximum of 30" that lifts that one score’s ceiling and no other’s, and a level 19 character of this class can be built. What each boon still leaves undone is its own second benefit, which is the boon’s note rather than this feature’s.'
     },
     {
       clause: 'Whether a boon does anything beyond the increase is a property of the boon',
@@ -1688,8 +1686,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   'wizard:ability-score-improvement': [
     {
       clause: 'nothing reads an ability-score grant off a feat',
-      why: 'a-grant-read-off-a-feat',
-      note: 'the feature’s own blocker, and the one every class prints: the points live on the feat this feature grants, and no feat can carry them yet.',
+      why: 'expressible',
+      note: 'the sentence this note was written against, and it is answered: a feat asks which scores through FeatRequirement, gates on minimumLevel, and has its ability-score-increase grant read by creation, so this catalogue publishes the Ability Score Improvement feat and the points land where the player puts them. What is left of this entry is the note itself, which still says the old thing, and the automation flag beside it — one line of transcription in this class’s own file.'
     },
     {
       clause: 'Whether a feat does anything is a property of the feat, not of this feature',
@@ -1719,8 +1717,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   'wizard:epic-boon': [
     {
       clause: 'nothing reads such a grant off a feat',
-      why: 'a-grant-read-off-a-feat',
-      note: 'the same blocker one book further on: the increase is each boon’s sentence, and this catalogue publishes no boon for it to sit on.',
+      why: 'expressible',
+      note: 'answered with the Improvement’s half: the catalogue publishes the seven Epic Boons the SRD prints, each asking which score and carrying the "to a maximum of 30" that lifts that one score’s ceiling and no other’s, and a level 19 character of this class can be built. What each boon still leaves undone is its own second benefit, which is the boon’s note rather than this feature’s.'
     },
     {
       clause: 'Whether a boon does anything beyond the increase is a property of the boon',
@@ -2211,6 +2209,21 @@ export const knownFeatureBlockers = (): ReadonlySet<string> =>
   ]);
 
 /**
+ * Manual features that name no missing mechanic at all.
+ *
+ * Two kinds, and they were one kind until the advancement shape retired: a
+ * feature the **table** owns, which is fiction and will never be executed,
+ * and a feature whose every mechanic now exists and whose entry is waiting on
+ * transcription rather than on the engine. {@link featuresTheTableOwns}
+ * separates them.
+ */
+export const featuresBlockedByNothing = (): readonly string[] =>
+  Object.entries(FEATURE_BLOCKED_ON)
+    .filter(([, entry]) => featureBlockersIn(entry).length === 0)
+    .map(([id]) => id)
+    .sort();
+
+/**
  * Manual features whose every clause is the table's — finished business.
  *
  * The *fiction* pile on the other book, and it is reported rather than
@@ -2218,9 +2231,16 @@ export const knownFeatureBlockers = (): ReadonlySet<string> =>
  * a conclusion somebody reached about Thieves' Cant and about Hunter's Lore,
  * and an entry silently missing from the ranking looks exactly like an entry
  * nobody read.
+ *
+ * **Every clause, not merely no blocker.** The two used to coincide and no
+ * longer do: the twenty-four advancement features name no missing mechanic
+ * now and are not the table's — their clauses read `expressible`, which
+ * says the engine does this and the entry is waiting on a line of
+ * transcription. Filing those under fiction would tell a builder to stop
+ * reading them.
  */
 export const featuresTheTableOwns = (): readonly string[] =>
   Object.entries(FEATURE_BLOCKED_ON)
-    .filter(([, entry]) => featureBlockersIn(entry).length === 0)
+    .filter(([, entry]) => featureClausesIn(entry).every((clause) => clause.why === 'table'))
     .map(([id]) => id)
     .sort();

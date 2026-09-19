@@ -21,6 +21,7 @@ import {
   featureConsumersOf,
   featureCoverageGaps,
   featureNoteOf,
+  featuresBlockedByNothing,
   featuresTheTableOwns,
   knownFeatureBlockers,
   manualFeatureIds,
@@ -266,44 +267,50 @@ describe('what a shape finishes is the column a tranche is planned from', () => 
   });
 
   /**
-   * The finding that planned the first batch, and what reading the book did
-   * to it.
+   * The finding that planned the first batch, what reading the book did to
+   * it, and what building it did next.
    *
    * Reading a hundred and sixty notes put two shapes at the top — an Ability
    * Score Improvement the engine could only take as a feat, and an Epic Boon
    * whose one mechanical sentence raised a score past 20 — and they were
    * ranked apart because nobody had opened `classes.md` beside `feats.md`.
-   * They are one shape and it is neither of those: SRD prints both sentences
-   * on **the feat the class feature grants**, so what stands in the way is
-   * that nothing reads a grant off a feat.
+   * They were one shape and it was neither of those: SRD prints both
+   * sentences on **the feat the class feature grants**, so what stood in the
+   * way was that nothing read a grant off a feat.
    *
-   * The engine vocabulary those two shapes asked for was built — the
-   * `ability-score` choice, the `ability-score-increase` grant, a per-score
-   * ceiling — and the two capstones that genuinely carry the sentence on the
-   * feature use it. The twenty-four class features do not, because the
-   * catalogue may not print a rule the book does not: a feature handing out
-   * bare points offers a branch SRD never writes. So the two ids retire, the
-   * one that is really in the way replaces them, and it blocks the
-   * twenty-four rather than being their second spelling.
+   * All three ids are gone now. The engine vocabulary the first two asked for
+   * was built and the two capstones use it; the third was the host, and the
+   * host exists — a feat asks which scores, gates on a level, and has its
+   * grant read — so the catalogue publishes the Improvement feat and the
+   * seven Epic Boons and every clause that named the shape reads
+   * `expressible`.
    */
-  it('has replaced the two advancement shapes with the one really in the way', () => {
+  it('has retired all three advancement shapes, the host last', () => {
     for (const shape of [
       'an-ability-score-an-advancement-raises',
       'an-ability-score-maximum-above-20',
+      'a-grant-read-off-a-feat',
     ]) {
       expect(Object.keys(FEATURE_SHAPES)).not.toContain(shape);
       expect(claimedFeatureShapes().has(shape)).toBe(false);
     }
 
-    // The twenty-four are blocked on one thing, and it is the feat's host.
-    const feats = featureConsumersOf('a-grant-read-off-a-feat');
-    expect(feats.blocks).toHaveLength(24);
-    expect(feats.finishes).toHaveLength(24);
-    expect(feats.blocks).toContain('barbarian:ability-score-improvement');
-    expect(feats.blocks).toContain('wizard:epic-boon');
+    /**
+     * And the twenty-four entries stayed, which is the honest state of them:
+     * each still carries `automation: 'manual'` and a note written when the
+     * host was missing, so the coverage guard still wants a line. What
+     * changed is that no clause of any of them names a missing mechanic.
+     */
+    const advancement = Object.entries(FEATURE_BLOCKED_ON).filter(
+      ([id]) => id.endsWith(':ability-score-improvement') || id.endsWith(':epic-boon'),
+    );
+    expect(advancement).toHaveLength(24);
+    for (const [id, entry] of advancement) {
+      expect(featureBlockersIn(entry), id).toEqual([]);
+    }
 
-    // And the two that really do carry it on the feature are executed, so
-    // they left the map rather than moving to the new id.
+    // And the two that really do carry the sentence on the feature are
+    // executed, so they left the map rather than moving to a new id.
     for (const id of ['barbarian:primal-champion', 'monk:body-and-mind']) {
       expect(FEATURE_BLOCKED_ON[id]).toBeUndefined();
       expect(MANUAL).not.toContain(id);
@@ -311,16 +318,15 @@ describe('what a shape finishes is the column a tranche is planned from', () => 
   });
 
   /**
-   * And the heaviest thing a **fight** would notice, which is a different
-   * question and deliberately answered apart.
+   * The heaviest thing left, which is now also the heaviest thing a **fight**
+   * would notice.
    *
-   * The advancement shape still stands above it and is still not a combat
-   * mechanic; it is one shape now rather than two.
+   * The advancement shape stood above weapon mastery and was not a combat
+   * mechanic, so this assertion used to filter it out. It is retired, so the
+   * filter is gone and the ranking is read straight off the map.
    */
-  it('ranks weapon mastery first among the shapes a fight would notice', () => {
-    const inCombat = allFeatureShapeConsumers().filter(
-      (row) => row.shape !== 'a-grant-read-off-a-feat',
-    );
+  it('ranks weapon mastery first now the advancement shape has gone', () => {
+    const inCombat = allFeatureShapeConsumers();
     expect(inCombat[0]?.shape).toBe('a-weapon-mastery-property');
     expect(featureConsumersOf('a-weapon-mastery-property').blocks).toEqual([
       'barbarian:weapon-mastery',
@@ -359,6 +365,23 @@ describe('the features blocked by nothing', () => {
         id,
       ).toBe(true);
     }
+  });
+
+  /**
+   * And they are a **smaller** pile than the features blocked by nothing,
+   * which is the distinction the advancement shape’s retirement created.
+   *
+   * Twenty-four features name no missing mechanic now and are not fiction:
+   * the engine does what their sentence says and their entry is waiting on
+   * the note and the automation flag in the class file. Filing them under
+   * the table would tell a builder to stop reading them.
+   */
+  it('is a smaller pile than the features nothing blocks', () => {
+    const nothing = featuresBlockedByNothing();
+    for (const id of featuresTheTableOwns()) expect(nothing).toContain(id);
+    expect(nothing.length).toBe(featuresTheTableOwns().length + 24);
+    expect(nothing).toContain('wizard:epic-boon');
+    expect(featuresTheTableOwns()).not.toContain('wizard:epic-boon');
   });
 
   /**

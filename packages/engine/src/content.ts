@@ -1,6 +1,8 @@
 import { err, ok, SKILL_ABILITY, type Result } from '@ie/shared';
 import { CONFERRED_LEVEL, itemChargePool, type CatalogueItem } from './catalogue.js';
 import {
+  abilityGrantProblemsOf,
+  abilitySpreadProblems,
   checkFeatureDefinition,
   duplicateFeatureIds,
   parseFeatureDefinition,
@@ -167,7 +169,15 @@ export const READABLE_GRANT_KINDS: ReadonlySet<string> = new Set([
  * the same way: a kind joins this list in the commit that teaches creation to
  * read it off a feat, with the test that proves it arrives.
  */
-export const FEAT_GRANT_KINDS: ReadonlySet<string> = new Set(['initiative-proficiency']);
+export const FEAT_GRANT_KINDS: ReadonlySet<string> = new Set([
+  'initiative-proficiency',
+  // SRD prints the ceiling on a feat and on nothing else: every Epic Boon is
+  // "Increase one ability score of your choice by 1, **to a maximum of 30**",
+  // and the level 19 class feature says only that you gain one. Read by
+  // `abilityPointsFrom` and `abilityMaximums` in `creation.ts`, beside the
+  // feature's own.
+  'ability-score-increase',
+]);
 
 /** The optional `FeatureDefinition` fields a reader dereferences — see {@link READABLE_GRANT_KINDS}. */
 export const READABLE_FEATURE_FIELDS: ReadonlySet<string> = new Set([
@@ -203,6 +213,53 @@ export const ITEM_EFFECT_KINDS: ReadonlySet<string> = new Set([
   'attack-damage',
   'sense',
 ]);
+
+/**
+ * What a feat says about ability scores: the question it asks, the ceiling it
+ * lifts, and the level the bracket gates it on.
+ *
+ * The feat half of the pair `checkFeatureDefinition` already runs on a
+ * feature, calling the same two checkers, so the rules are one set of rules
+ * with two doors rather than two sets that will drift. What is not shared is
+ * the level, because only a feat prints one.
+ *
+ * Untyped input reaches here as well as typed — `loadContent` parses a blob —
+ * so every field is judged rather than believed.
+ */
+function abilityProblemsOfFeat(feat: FeatDefinition): readonly ContentProblem[] {
+  const problems: ContentProblem[] = [];
+  const at = `feats[${feat.id}]`;
+  const requires: unknown = (feat as { readonly requires?: unknown }).requires;
+  const asks =
+    typeof requires === 'object' &&
+    requires !== null &&
+    (requires as { kind?: unknown }).kind === 'ability-score';
+
+  if (asks) {
+    const asked = requires as { spreads?: unknown; from?: unknown };
+    for (const problem of abilitySpreadProblems(asked.spreads, asked.from, 'requires')) {
+      problems.push({ ...problem, field: `${at}.${problem.field}` });
+    }
+  }
+
+  for (const problem of abilityGrantProblemsOf(feat.grants, asks, feat.id)) {
+    problems.push({ ...problem, field: `${at}.${problem.field}` });
+  }
+
+  // SRD prints the bracket as a character level — "Prerequisite: Level 4+",
+  // "Level 19+" — so a number outside the twenty levels there are gates on a
+  // level nobody reaches, in one direction or the other.
+  const level: unknown = (feat as { readonly minimumLevel?: unknown }).minimumLevel;
+  if (level !== undefined && (!Number.isInteger(level) || (level as number) < 1 || (level as number) > MAX_LEVEL)) {
+    problems.push({
+      field: `${at}.minimumLevel`,
+      code: 'bad_feat_level',
+      reason: `a feat's prerequisite is one of the ${MAX_LEVEL} character levels, not ${String(level)}`,
+    });
+  }
+
+  return problems;
+}
 
 /**
  * Everything wrong with a `sense` grant, wherever one is written.
@@ -1388,6 +1445,7 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
   // executes is a line in the book that quietly does nothing. Untyped input
   // reaches here as well as typed, so the shape is asked before the kind.
   for (const feat of feats) {
+    problems.push(...abilityProblemsOfFeat(feat));
     const declared: unknown = (feat as { readonly grants?: unknown }).grants;
     if (declared === undefined) continue;
     const where = `feats[${feat.id}].grants`;
@@ -2135,7 +2193,16 @@ function parseFeatDefinition(value: unknown): Result<FeatDefinition> {
       ? { kind, lists: s.strings(requiresShape, 'lists') }
       : kind === 'proficiencies'
         ? { kind, choose: s.int(requiresShape, 'choose') }
-        : { kind: 'none' };
+        : kind === 'ability-score'
+          ? // Shape only, exactly as the grant below: whether the branches are
+            // answerable and the narrowing names abilities is `checkContent`'s
+            // question, asked of typed and untyped input alike.
+            ({
+              kind,
+              spreads: requiresShape['spreads'],
+              ...(requiresShape['from'] === undefined ? {} : { from: requiresShape['from'] }),
+            } as FeatDefinition['requires'])
+          : { kind: 'none' };
   // Shape only, exactly as `checkFeatureShape` reads a feature's grant: an
   // object with a string kind. Whether the kind is one creation reads off a
   // feat is `checkContent`'s question, asked of typed and untyped input alike.
@@ -2152,6 +2219,11 @@ function parseFeatDefinition(value: unknown): Result<FeatDefinition> {
     requires,
     repeatable: s.bool(value, 'repeatable'),
     note: s.string(value, 'note'),
+    // Carried through as it arrived: what a legal level is, `checkContent`
+    // asks, for the reason the grant's kind is asked there.
+    ...(value['minimumLevel'] === undefined
+      ? {}
+      : { minimumLevel: value['minimumLevel'] as number }),
     ...(grants === undefined ? {} : { grants }),
   };
   const problems = s.problems();

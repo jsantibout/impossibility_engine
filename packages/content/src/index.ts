@@ -30,7 +30,9 @@ import { SRD_ITEMS } from './items.js';
 import {
   ALIGNMENTS,
   BACKGROUNDS,
+  EPIC_BOON_FEATS,
   FIGHTING_STYLE_FEATS,
+  GENERAL_FEATS,
   LANGUAGES,
   ORIGIN_FEATS,
   SPECIES,
@@ -93,7 +95,7 @@ export const SRD_CONTENT_INPUT = {
   subclasses: SRD_SUBCLASSES,
   species: SPECIES,
   backgrounds: BACKGROUNDS,
-  feats: [...ORIGIN_FEATS, ...FIGHTING_STYLE_FEATS],
+  feats: [...ORIGIN_FEATS, ...GENERAL_FEATS, ...FIGHTING_STYLE_FEATS, ...EPIC_BOON_FEATS],
   items: SRD_ITEMS,
   languages: LANGUAGES,
   alignments: ALIGNMENTS,

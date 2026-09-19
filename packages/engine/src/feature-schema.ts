@@ -137,26 +137,37 @@ const asSpread = (points: readonly number[]): string =>
   [...points].sort((a, b) => b - a).join('+');
 
 /**
- * The branches an `ability-score` choice prints, judged against the two
- * things that read them.
+ * The branches an ability-score question prints, judged against the two
+ * things that read them — **wherever the question is asked**.
  *
- * `checkFeatureChoices` counts the player's answer into a spread and looks for
- * it here, and it reads the length a legal answer must have off the branches'
- * common total — so branches that disagree about the total would make one of
- * them unanswerable, which is the quiet kind of wrong.
+ * A class feature asks it through `FeatureChoice` and a feat through
+ * `FeatRequirement`, in the same units and with the same meaning, so one
+ * checker answers for both: a rule enforced on one of two spellings is a rule
+ * with a hole in it, which is the reasoning `senseProblems` in `content.ts`
+ * already states for a standing grant's two doors.
+ *
+ * `checkFeatureChoices` and `checkFeatChoice` each count the player's answer
+ * into a spread and look for it here, and each reads the length a legal
+ * answer must have off the branches' common total — so branches that disagree
+ * about the total would make one of them unanswerable, which is the quiet
+ * kind of wrong.
+ *
+ * `at` is the path the caller's own shape puts this under, because the two
+ * callers spell it differently (`choice.spreads`, `requires.spreads`) and a
+ * problem that pointed at the wrong field would send a reader to the wrong
+ * line.
  */
-function abilityChoiceProblems(
-  feature: FeatureDefinition,
+export function abilitySpreadProblems(
+  spreads: unknown,
+  from: unknown,
+  at: string,
 ): readonly FeatureDefinitionProblem[] {
-  const asked = feature.choice;
-  if (asked === undefined || asked.kind !== 'ability-score') return [];
   const found: FeatureDefinitionProblem[] = [];
-  const spreads: unknown = asked.spreads;
 
   if (!Array.isArray(spreads) || spreads.length === 0) {
     return [
       {
-        field: 'choice.spreads',
+        field: `${at}.spreads`,
         code: 'bad_ability_spread',
         reason:
           'a choice that raises ability scores prints at least one branch, as the points it puts into that many distinct scores',
@@ -166,11 +177,12 @@ function abilityChoiceProblems(
 
   const totals = new Set<number>();
   const seen = new Set<string>();
+  let widest = 0;
   (spreads as readonly unknown[]).forEach((spread, index) => {
-    const at = `choice.spreads[${index}]`;
+    const at2 = `${at}.spreads[${index}]`;
     if (!Array.isArray(spread) || spread.length === 0) {
       found.push({
-        field: at,
+        field: at2,
         code: 'bad_ability_spread',
         reason: 'a branch puts points into at least one score; one that puts none raises nothing',
       });
@@ -180,7 +192,7 @@ function abilityChoiceProblems(
     // scores than a creature has could never be answered.
     if (spread.length > ABILITY_NAMES.size) {
       found.push({
-        field: at,
+        field: at2,
         code: 'bad_ability_spread',
         reason: `a branch spreads points over ${String(spread.length)} distinct scores and a creature has ${String(ABILITY_NAMES.size)}`,
       });
@@ -189,18 +201,19 @@ function abilityChoiceProblems(
     const bad = (spread as readonly unknown[]).findIndex((points) => !isCount(points));
     if (bad !== -1) {
       found.push({
-        field: `${at}[${bad}]`,
+        field: `${at2}[${bad}]`,
         code: 'bad_ability_spread',
         reason: `a score is raised by a whole number of at least one point, not ${String((spread as readonly unknown[])[bad])}`,
       });
       return;
     }
     const points = spread as readonly number[];
+    widest = Math.max(widest, points.length);
     totals.add(points.reduce((sum, one) => sum + one, 0));
     const shape = asSpread(points);
     if (seen.has(shape)) {
       found.push({
-        field: at,
+        field: at2,
         code: 'duplicate_ability_spread',
         reason: `${shape} is printed twice, and one branch of a sentence is one way of answering it`,
       });
@@ -210,31 +223,79 @@ function abilityChoiceProblems(
 
   if (totals.size > 1) {
     found.push({
-      field: 'choice.spreads',
+      field: `${at}.spreads`,
       code: 'uneven_ability_spreads',
       reason: `the branches hand out ${[...totals].sort((a, b) => a - b).join(' and ')} points, and the length of a legal answer is read off that total, so one of them could never be answered`,
     });
   }
 
+  // The narrowing, where the sentence prints one: SRD Boon of Irresistible
+  // Offense is "your Strength or Dexterity score". A set naming something
+  // that is not an ability offers nothing, and a set smaller than the widest
+  // branch leaves that branch with nowhere to put its last point — both are
+  // a sentence no player could answer, which is what this whole function
+  // exists to catch.
+  if (from !== undefined) {
+    if (!Array.isArray(from) || from.length === 0) {
+      found.push({
+        field: `${at}.from`,
+        code: 'bad_ability_choice',
+        reason: 'a narrowed choice names at least one ability; one that names none offers nothing',
+      });
+    } else {
+      (from as readonly unknown[]).forEach((ability, index) => {
+        if (typeof ability !== 'string' || !ABILITY_NAMES.has(ability)) {
+          found.push({
+            field: `${at}.from[${index}]`,
+            code: 'bad_ability_choice',
+            reason: `"${String(ability)}" is not one of the six abilities`,
+          });
+        }
+      });
+      if (new Set(from as readonly unknown[]).size < widest) {
+        found.push({
+          field: `${at}.from`,
+          code: 'bad_ability_choice',
+          reason: `a branch spreads points over ${String(widest)} distinct scores and the choice offers ${String(new Set(from as readonly unknown[]).size)}, so that branch could never be answered`,
+        });
+      }
+    }
+  }
+
   return found;
+}
+
+/** The feature half of {@link abilitySpreadProblems}: its own path, its own field. */
+function abilityChoiceProblems(
+  feature: FeatureDefinition,
+): readonly FeatureDefinitionProblem[] {
+  const asked = feature.choice;
+  if (asked === undefined || asked.kind !== 'ability-score') return [];
+  return abilitySpreadProblems(asked.spreads, undefined, 'choice');
 }
 
 /**
  * The scores an `ability-score-increase` grant raises, and the ceiling it
  * lifts for them.
  *
- * A grant that lifts a maximum for no score lifts it for nobody, and a
- * feature that both names its scores and asks which is two sentences the SRD
- * never prints together — both would read as transcribed and grant something
- * other than what the book says.
+ * A grant that lifts a maximum for no score lifts it for nobody, and a holder
+ * that both names its scores and asks which is two sentences the SRD never
+ * prints together — both would read as transcribed and grant something other
+ * than what the book says.
+ *
+ * **Asked of a feat as well as a feature**, for the reason
+ * {@link abilitySpreadProblems} is: the grant is one member of one
+ * vocabulary, and the two holders differ only in where the question beside it
+ * was asked. `asks` is whichever of the two said yes, and `who` is the id a
+ * refusal names.
  */
-function abilityGrantProblems(
-  feature: FeatureDefinition,
+export function abilityGrantProblemsOf(
+  grant: FeatureDefinition['grants'],
+  asks: boolean,
+  who: string,
 ): readonly FeatureDefinitionProblem[] {
-  const grant = feature.grants;
   if (grant === undefined || grant.kind !== 'ability-score-increase') return [];
   const found: FeatureDefinitionProblem[] = [];
-  const asks = feature.choice?.kind === 'ability-score';
   const raises: unknown = grant.raises;
 
   if (raises !== undefined) {
@@ -242,7 +303,7 @@ function abilityGrantProblems(
       found.push({
         field: 'grants.raises',
         code: 'ability_raise_and_choice',
-        reason: `${feature.id} names the scores it raises and asks which to raise; the SRD writes one sentence or the other, and a reader cannot tell which the maximum belongs to`,
+        reason: `${who} names the scores it raises and asks which to raise; the SRD writes one sentence or the other, and a reader cannot tell which the maximum belongs to`,
       });
     }
     if (!Array.isArray(raises) || raises.length === 0) {
@@ -300,7 +361,7 @@ function abilityGrantProblems(
       found.push({
         field: 'grants.maximum',
         code: 'ability_maximum_lifts_nothing',
-        reason: `${feature.id} lifts a ceiling for the scores it touches, and it neither names a score nor asks for one, so it would lift nothing for anybody`,
+        reason: `${who} lifts a ceiling for the scores it touches, and it neither names a score nor asks for one, so it would lift nothing for anybody`,
       });
     }
   }
@@ -309,7 +370,7 @@ function abilityGrantProblems(
     found.push({
       field: 'grants',
       code: 'empty_ability_grant',
-      reason: `${feature.id} neither raises a score nor lifts a ceiling, so nothing about it reaches a sheet`,
+      reason: `${who} neither raises a score nor lifts a ceiling, so nothing about it reaches a sheet`,
     });
   }
 
@@ -586,7 +647,13 @@ export function checkFeatureDefinition(
   // because both live on the same feature: the branches the sentence offers,
   // and the scores its grant raises or lifts a ceiling for.
   found.push(...abilityChoiceProblems(feature));
-  found.push(...abilityGrantProblems(feature));
+  found.push(
+    ...abilityGrantProblemsOf(
+      feature.grants,
+      feature.choice?.kind === 'ability-score',
+      feature.id,
+    ),
+  );
 
   // And the reading end of the same rule: the field says where a choice is
   // read *from*, so a grant that reads no choice names a source for nothing.

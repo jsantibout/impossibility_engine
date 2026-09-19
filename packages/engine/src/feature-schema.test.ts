@@ -623,7 +623,12 @@ describe('rule 7 — no FeatureGrant member sits unwritten', () => {
         feat.grants === undefined ? [] : [String(feat.grants.kind)],
       ),
     );
-    expect([...fromFeats]).toEqual(['initiative-proficiency']);
+    // The Epic Boons write the second: SRD prints "to a maximum of 30" on
+    // the boon rather than on the level 19 class feature that grants one, so
+    // this kind is written by a class table *and* by a feat, which is the
+    // sharing this assertion is here to make visible.
+    expect([...fromFeats].sort()).toEqual(['ability-score-increase', 'initiative-proficiency']);
+    expect(fromClasses.has('ability-score-increase')).toBe(true);
   });
 
   it('reports a member nobody writes, driven over a synthetic one', () => {

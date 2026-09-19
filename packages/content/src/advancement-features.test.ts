@@ -6,13 +6,11 @@ import {
   checkCharacter,
   checkContent,
   createCharacter,
-  extendContent,
   fold,
   planCharacter,
   type CharacterChoices,
   type Content,
   type CreationProblem,
-  type FeatDefinition,
   type FeatureDefinition,
   type GameEvent,
 } from '@ie/engine';
@@ -39,12 +37,21 @@ import {
  * are held here to doing exactly that: a class feature that handed out bare
  * points would print a branch the book never writes.
  *
- * The vocabulary is not idle for it — the capstones use the grant, and
- * `packages/engine/src/ability-score-improvement.test.ts` drives the choice,
- * the spreads, the cap and the lifted ceiling through a homebrew class and
- * `loadContent`. What is missing is the **host**, and it is missing twice
- * over: a feat cannot have a grant read off it and cannot be asked a
- * question. That is one blocker with its own id on the map now.
+ * **The host exists now**, which is what this file changed to say. A feat
+ * asks which scores through `FeatRequirement`, answers in `FeatChoice`,
+ * gates on `minimumLevel` and has an `ability-score-increase` grant read off
+ * it, so the catalogue publishes the Ability Score Improvement feat and the
+ * seven Epic Boons and the twenty-four features grant them. The engine half
+ * is driven through homebrew in
+ * `packages/engine/src/feat-ability-scores.test.ts`; the feature’s own
+ * `ability-score` choice, which no SRD class writes, is driven through a
+ * homebrew class in `packages/engine/src/ability-score-improvement.test.ts`.
+ *
+ * What is still left on the twenty-four is not a mechanic: each carries
+ * `automation: 'manual'` and a note written when the host was missing, and
+ * the class table grants the Improvement again at levels 8, 12 and 16 while
+ * this catalogue holds one entry per class. Both are transcription in
+ * `classes/*.ts`, and `missing-feature-shapes.ts` says so against each.
  */
 
 /**
@@ -85,32 +92,19 @@ const featureOn = (classId: string, suffix: string): FeatureDefinition => {
 };
 
 /**
- * An Epic Boon feat, which the SRD catalogue publishes none of.
+ * The boon a level 19 character takes, and the improvement a level 4 one
+ * takes — both printed feats now, and both the book's own.
  *
- * Homebrew, and it has to be: no character of any class can reach level 19
- * against `SRD_CONTENT` alone, because the level 19 feature asks for a feat of
- * a category nothing fills. The boon below is the sentence every printed boon
- * opens with, written where the book writes it — on the feat — and it is what
- * lets the two level 20 capstones be driven at all.
- *
- * It carries **no grant**, and could not: `FEAT_GRANT_KINDS` admits one kind,
- * so the sentence the book prints on it is refused by name — which the last
- * test in the first block asserts. So the boon's own +1 is not applied here
- * and the capstone's four points are.
+ * This file used to carry a homebrew stand-in here, because `SRD_CONTENT`
+ * published no Epic Boon at all and no character of any class could reach
+ * level 19 against it. It publishes seven now, so the fixture is a name
+ * rather than a definition and the catalogue under test is the book's.
  */
-const BOON_OF_MIGHT: FeatDefinition = {
-  id: 'boon-of-might',
-  name: 'Boon of Might',
-  category: 'epic-boon',
-  requires: { kind: 'none' },
-  repeatable: false,
-  note: 'Homebrew, and a stand-in: the ability score increase every SRD Epic Boon prints is not applied, because nothing reads an ability-score grant off a feat. It exists so a level 19 character can be built at all.',
-};
+const BOON = 'boon-of-combat-prowess';
+const IMPROVEMENT = 'ability-score-improvement';
 
-const WITH_BOONS: Content = unwrap(
-  extendContent(SRD_CONTENT, { feats: [BOON_OF_MIGHT] }),
-  'boons',
-);
+/** The catalogue these run against: the SRD's, with nothing added. */
+const WITH_BOONS: Content = SRD_CONTENT;
 
 /**
  * A character of this class at this level, with everything this test is not
@@ -125,7 +119,7 @@ const character = (
   classId: string,
   level: number,
   featureChoices: Readonly<Record<string, readonly string[]>> = {},
-  feats: Readonly<Record<string, { readonly featId: string }>> = {},
+  feats: FeatsBySlot = {},
 ): CharacterChoices => ({
   name: 'Vashti',
   classId,
@@ -161,6 +155,30 @@ const character = (
     ...feats,
   },
   dmGrants: { items: [], goldPieces: 0, magicItems: [], note: 'standard' },
+});
+
+/** Feats keyed by the feature that granted them, as the choices carry them. */
+type FeatsBySlot = Readonly<Record<string, FeatChoice>>;
+
+/** The Improvement feat, with the scores the player put its points into. */
+const improving = (abilities: readonly string[]): FeatChoice => ({
+  featId: IMPROVEMENT,
+  abilities,
+});
+
+/**
+ * Both advancement feats a level 19 character of this class owes, answered.
+ *
+ * Charisma by default at both slots, because every class in this file has one
+ * to spare and the score under test is whichever a caller names.
+ */
+const atNineteen = (
+  classId: string,
+  boon: readonly string[] = ['cha'],
+  improvement: readonly string[] = ['cha'],
+): FeatsBySlot => ({
+  [`${classId}:ability-score-improvement`]: improving(improvement),
+  [`${classId}:epic-boon`]: { featId: BOON, abilities: boon },
 });
 
 /** The problems one feature caused, out of everything wrong with the sheet. */
@@ -234,68 +252,161 @@ describe('the twenty-four class features grant a feat, and say so', () => {
         );
         expect(codesAbout(wrong, boon)).toEqual(['wrong_feat_category']);
 
-        const right = character(
-          classId,
-          19,
-          {},
-          {
-            [improvement.id]: { featId: 'savage-attacker' },
-            [boon.id]: { featId: 'boon-of-might' },
-          },
-        );
+        const right = character(classId, 19, {}, atNineteen(classId));
         expect(codesAbout(right, boon)).toEqual([]);
+      });
+
+      /**
+       * The points, where the book puts them: the feature grants the feat and
+       * the **feat** raises the score.
+       *
+       * Asked through the cap rather than through the sheet, because these
+       * fixtures are deliberately not complete characters — see
+       * {@link character} — and `planCharacter` refuses an incomplete one.
+       * A score of 19 plus the feat’s two points is 21 and is refused; the
+       * same 19 plus the other branch’s one point is 20 and is not. Nothing
+       * but the points reaching the arithmetic makes both of those true.
+       */
+      it('puts the Improvement feat’s points into the arithmetic at level 4', () => {
+        const tall = {
+          method: 'manual' as const,
+          assignment: { str: 15, dex: 19, con: 13, int: 12, wis: 10, cha: 8 },
+        };
+        const took = (abilities: readonly string[]) =>
+          checkCharacter(WITH_BOONS, {
+            ...character(classId, 4, {}, { [improvement.id]: improving(abilities) }),
+            abilities: tall,
+          }).map((one) => one.code);
+
+        expect(took(['dex', 'dex'])).toContain('score_above_maximum');
+        expect(took(['dex', 'wis'])).not.toContain('score_above_maximum');
+        // And a spread the feat’s own sentence does not print.
+        expect(took(['dex'])).toContain('ability_spread_not_offered');
+      });
+
+      /**
+       * The boon’s ceiling, for the score it raised and for no other — the
+       * whole of what "to a maximum of 30" buys, asked of every class.
+       */
+      it('lets the boon’s own score pass twenty at level 19 and no other score', () => {
+        const tall = {
+          method: 'manual' as const,
+          assignment: { str: 15, dex: 20, con: 13, int: 12, wis: 10, cha: 8 },
+        };
+        const at = (boon: readonly string[], asi: readonly string[]) =>
+          checkCharacter(WITH_BOONS, {
+            ...character(classId, 19, {}, atNineteen(classId, boon, asi)),
+            abilities: tall,
+          }).map((one) => one.code);
+
+        // The boon named Dexterity, so its twenty-first point is allowed.
+        expect(at(['dex'], ['wis', 'cha'])).not.toContain('score_above_maximum');
+        // The boon named Wisdom, so the Improvement’s point on Dexterity is
+        // the twenty-first and is refused.
+        expect(at(['wis'], ['dex', 'cha'])).toContain('score_above_maximum');
       });
     });
   }
 
   /**
-   * And the reason no level 19 character exists yet, asserted rather than
-   * described: against the book's own catalogue the feat has nothing to be.
+   * A level 19 character, built end to end against the book’s own catalogue
+   * — which nothing in this repository had ever done, because the level 19
+   * feature asked for a feat of a category the catalogue did not publish.
    */
-  it('cannot reach level 19 against a catalogue with no Epic Boon feat', () => {
-    expect(SRD_CONTENT.feats.filter((feat) => feat.category === 'epic-boon')).toEqual([]);
-    const named = character(
+  it('builds a level 19 Barbarian against SRD_CONTENT and folds the boon’s point on', () => {
+    const who = asCharacterId('vashti');
+    const choices: CharacterChoices = {
+      ...character('barbarian', 19, {}, atNineteen('barbarian', ['str'], ['str', 'con'])),
+      classSkills: ['athletics', 'survival'],
+      featureChoices: {
+        'human:skillful': ['perception'],
+        'barbarian:primal-knowledge': ['nature'],
+      },
+    };
+    expect(checkCharacter(SRD_CONTENT, choices)).toEqual([]);
+    const log = unwrap(createCharacter(SRD_CONTENT, choices, who), 'create') as GameEvent[];
+    const creature = fold('seed', log).creatures[who];
+    expect(creature?.sheet.level).toBe(19);
+    // 15 assigned, one of the Improvement’s two points and the boon’s one.
+    expect(creature?.sheet.abilities.str).toBe(17);
+    // The Improvement’s other point went to Constitution, on top of the
+    // background’s two, and the boon lifted nothing there.
+    expect(creature?.sheet.abilities.con).toBe(16);
+  });
+
+  /**
+   * The catalogue publishes the host now, and this is the assertion that used
+   * to say it did not.
+   *
+   * Seven Epic Boons rather than the nine an earlier note counted:
+   * `feats.md` prints Combat Prowess, Dimensional Travel, Fate, Irresistible
+   * Offense, Spell Recall, the Night Spirit and Truesight, and the SRD’s
+   * list is shorter than the wider game’s.
+   */
+  it('publishes the seven Epic Boons and the Improvement the features ask for', () => {
+    expect(
+      SRD_CONTENT.feats.filter((feat) => feat.category === 'epic-boon').map((one) => one.id),
+    ).toEqual([
+      'boon-of-combat-prowess',
+      'boon-of-dimensional-travel',
+      'boon-of-fate',
+      'boon-of-irresistible-offense',
+      'boon-of-spell-recall',
+      'boon-of-the-night-spirit',
+      'boon-of-truesight',
+    ]);
+    expect(SRD_CONTENT.featById(IMPROVEMENT)?.category).toBe('general');
+    const named = character('barbarian', 19, {}, atNineteen('barbarian'));
+    expect(checkCharacter(SRD_CONTENT, named).map((p) => p.code)).not.toContain('unknown_feat');
+  });
+
+  /**
+   * The bracket, enforced: SRD gates both of these feats on a level and the
+   * engine asks the character’s total level about it.
+   */
+  it('refuses a boon to a character below the bracket', () => {
+    const tooSoon = character(
+      'barbarian',
+      4,
+      {},
+      { 'barbarian:ability-score-improvement': { featId: BOON, abilities: ['str'] } },
+    );
+    expect(checkCharacter(SRD_CONTENT, tooSoon).map((p) => p.code)).toContain('feat_level_too_low');
+  });
+
+  /** And the two boons whose sentence narrows which score it may raise. */
+  it('refuses a score outside the set a narrowed boon offers', () => {
+    const wrong = character(
       'barbarian',
       19,
       {},
       {
-        'barbarian:ability-score-improvement': { featId: 'savage-attacker' },
-        'barbarian:epic-boon': { featId: 'boon-of-might' },
+        'barbarian:ability-score-improvement': improving(['wis', 'cha']),
+        'barbarian:epic-boon': { featId: 'boon-of-irresistible-offense', abilities: ['wis'] },
       },
     );
-    // The boon this fixture names is homebrew, so the book's own catalogue
-    // has nothing to resolve it to — and naming a printed feat instead is the
-    // wrong category. There is no third answer.
-    expect(checkCharacter(SRD_CONTENT, named).map((p) => p.code)).toContain('unknown_feat');
-    expect(checkCharacter(WITH_BOONS, named).map((p) => p.code)).not.toContain('unknown_feat');
+    expect(checkCharacter(SRD_CONTENT, wrong).map((p) => p.code)).toContain('ability_not_offered');
   });
 
   /**
-   * One of the two refusals that stand between the vocabulary and its host.
+   * The refusal that stood between the vocabulary and its host, now the
+   * reader that answers for it.
    *
-   * A feat that declares the sentence the book prints on it is refused by
-   * name, because `FEAT_GRANT_KINDS` admits one kind and creation reads a
-   * feat's declaration on its own. Pinning it here means the follow-up fails
-   * this test until it lands.
-   *
-   * **It is not the whole of the work**, and saying so is the point of the
-   * comment: both printed sentences say "of your choice", and a feat has no
-   * way to ask. `FeatDefinition` carries `requires` and one `grants`;
-   * `FeatRequirement` has three members and none of them is an ability; and
-   * `FeatChoice` — the answer bag beside them — has a field per existing
-   * requirement and none for a score. So the brief that finishes this owns
-   * both `origins.ts` files, publishes the Ability Score Improvement feat and
-   * the nine Epic Boons, adds the requirement and the answer, and teaches
-   * creation to read an `ability-score-increase` grant off a feat.
+   * `FEAT_GRANT_KINDS` admits `ability-score-increase` because creation reads
+   * one off a feat. It is still an allowlist, and a kind nothing reads is
+   * still refused by name.
    */
-  it('refuses the grant a boon feat would need, which is half the work left', () => {
-    const declaring = {
-      ...BOON_OF_MIGHT,
-      grants: { kind: 'ability-score-increase', maximum: 30 },
-    };
-    expect(checkContent({ feats: [declaring as never] }).map((one) => one.code)).toEqual([
-      'feat_grant_not_read',
-    ]);
+  it('reads the grant a boon feat declares, and still refuses one nothing reads', () => {
+    const declared = SRD_CONTENT.featById(BOON);
+    expect(declared?.grants).toEqual({ kind: 'ability-score-increase', maximum: 30 });
+    expect(declared?.minimumLevel).toBe(19);
+    expect(declared?.requires).toEqual({ kind: 'ability-score', spreads: [[1]] });
+
+    expect(
+      checkContent({ feats: [{ ...declared, grants: { kind: 'expertise' } } as never] }).map(
+        (one) => one.code,
+      ),
+    ).toEqual(['feat_grant_not_read']);
   });
 });
 
@@ -311,9 +422,9 @@ describe('Primal Champion and Body and Mind raise two scores each', () => {
 
   const capstone = (classId: string) => featureOn(classId, classId === 'monk' ? 'body-and-mind' : 'primal-champion');
 
-  const withFeats = (classId: string, level: number): Record<string, { featId: string }> => ({
+  const withFeats = (classId: string, level: number): FeatsBySlot => ({
     ...(level >= 4 ? { [`${classId}:ability-score-improvement`]: { featId: 'savage-attacker' } } : {}),
-    ...(level >= 19 ? { [`${classId}:epic-boon`]: { featId: 'boon-of-might' } } : {}),
+    ...(level >= 19 ? { [`${classId}:epic-boon`]: { featId: BOON, abilities: ['cha'] } } : {}),
   });
 
   const barbarian = (level: number, over: Partial<CharacterChoices> = {}): CharacterChoices => {

@@ -129,6 +129,17 @@ export interface FeatChoice {
   readonly levelOneSpell?: string | undefined;
   /** Skilled: three skills or tools. */
   readonly proficiencies?: readonly string[] | undefined;
+  /**
+   * Ability Score Improvement and every Epic Boon: which scores the points go
+   * into, **one entry per point**.
+   *
+   * The same units a feature's `ability-score` answer is written in, because
+   * it is the same sentence at a different door: `['str','str']` is "one
+   * ability score by 2" and `['str','dex']` is "two ability scores by 1". The
+   * spread the player took is counted out of this rather than declared beside
+   * it, so there is no second field for the two to disagree through.
+   */
+  readonly abilities?: readonly string[] | undefined;
 }
 
 /**
@@ -381,12 +392,20 @@ function resolveParts(content: Content, choices: CharacterChoices): { parts: Par
  * Strength and Constitution scores increase by 4" is not — and `checkContent`
  * refuses a feature that does both, so at most one branch here contributes.
  *
- * **A feat answers the same question**, where the feature's sentence offers
- * one: the two halves live in different fields of the choices, and a feat
- * taken means the points were not. Nothing here refuses; `checkAbilityChoice`
- * does, and this is the derivation a legal character is built from.
+ * **And the feat this feature granted answers it too**, which is where the
+ * SRD puts the sentence: the class feature at level 4 says only "You gain the
+ * Ability Score Improvement feat", and the *feat* says "Increase one ability
+ * score of your choice by 2, or increase two ability scores of your choice by
+ * 1". So the points of one advancement are the feature's own answer or the
+ * feat's, summed under the feature that granted it — the key both halves are
+ * already filed under, which is what lets {@link abilityMaximums} ask a
+ * ceiling about the scores *this* advancement raised.
+ *
+ * Nothing here refuses; `checkAbilityChoice` and `checkFeatChoice` do, and
+ * this is the derivation a legal character is built from.
  */
 function abilityPointsFrom(
+  content: Content,
   choices: CharacterChoices,
   feature: FeatureDefinition,
 ): Partial<Record<Ability, number>> {
@@ -394,30 +413,63 @@ function abilityPointsFrom(
   const add = (ability: Ability, amount: number): void => {
     points[ability] = (points[ability] ?? 0) + amount;
   };
+  // One entry per point, which is the unit the SRD's sentence counts in —
+  // the same units at both doors, so the same counting.
+  const spend = (picked: readonly string[]): void => {
+    for (const one of picked) {
+      if ((ABILITIES as readonly string[]).includes(one)) add(one as Ability, 1);
+    }
+  };
 
   const grant = feature.grants;
   if (grant?.kind === 'ability-score-increase') {
     for (const raise of grant.raises ?? []) add(raise.ability, raise.points);
   }
 
-  if (feature.choice?.kind === 'ability-score' && choices.feats[feature.id] === undefined) {
-    // One entry per point, which is the unit the SRD's sentence counts in.
-    for (const picked of choices.featureChoices[feature.id] ?? []) {
-      if ((ABILITIES as readonly string[]).includes(picked)) add(picked as Ability, 1);
+  const feat = choices.feats[feature.id];
+  if (feature.choice?.kind === 'ability-score' && feat === undefined) {
+    spend(choices.featureChoices[feature.id] ?? []);
+  }
+
+  if (feat !== undefined) {
+    const definition = content.featById(feat.featId);
+    if (definition !== null) {
+      const taken = definition.grants;
+      if (taken?.kind === 'ability-score-increase') {
+        for (const raise of taken.raises ?? []) add(raise.ability, raise.points);
+      }
+      if (definition.requires.kind === 'ability-score') spend(feat.abilities ?? []);
     }
   }
 
   return points;
 }
 
+/** The ceiling this advancement lifted, from the feature or from its feat. */
+function abilityCeilingFrom(
+  content: Content,
+  choices: CharacterChoices,
+  feature: FeatureDefinition,
+): number | undefined {
+  const own = feature.grants?.kind === 'ability-score-increase' ? feature.grants.maximum : undefined;
+  const feat = choices.feats[feature.id];
+  const definition = feat === undefined ? null : content.featById(feat.featId);
+  const fromFeat =
+    definition?.grants?.kind === 'ability-score-increase' ? definition.grants.maximum : undefined;
+  if (own === undefined) return fromFeat;
+  if (fromFeat === undefined) return own;
+  return Math.max(own, fromFeat);
+}
+
 /** Every point every feature adds, summed across the character's sources. */
 function featureAbilityPoints(
+  content: Content,
   choices: CharacterChoices,
   features: readonly FeatureDefinition[],
 ): Partial<Record<Ability, number>> {
   const total: Partial<Record<Ability, number>> = {};
   for (const feature of features) {
-    for (const [ability, points] of Object.entries(abilityPointsFrom(choices, feature))) {
+    for (const [ability, points] of Object.entries(abilityPointsFrom(content, choices, feature))) {
       total[ability as Ability] = (total[ability as Ability] ?? 0) + points;
     }
   }
@@ -427,14 +479,19 @@ function featureAbilityPoints(
 /**
  * The ceiling each of this character's six scores may reach.
  *
- * {@link ABILITY_SCORE_MAXIMUM} for every score, and higher for the ones a
- * feature's `ability-score-increase` grant lifted — **only** those. An Epic
- * Boon that raised Strength lifts Strength's ceiling to 30 and leaves the
- * other five at 20; two capstones name their own pair and reach 25. The
- * highest wins where two features lift the same score, which is the move
- * `criticalOn` already makes with two thresholds.
+ * {@link ABILITY_SCORE_MAXIMUM} for every score, and higher for the ones an
+ * `ability-score-increase` grant lifted — **only** those. An Epic Boon that
+ * raised Strength lifts Strength's ceiling to 30 and leaves the other five at
+ * 20; two capstones name their own pair and reach 25. The highest wins where
+ * two features lift the same score, which is the move `criticalOn` already
+ * makes with two thresholds.
+ *
+ * The grant is read off the feature **and off the feat the feature granted**,
+ * because the SRD prints the boon's ceiling on the boon. Which scores it
+ * covers is the same question either way: the ones this advancement raised.
  */
 function abilityMaximums(
+  content: Content,
   choices: CharacterChoices,
   features: readonly FeatureDefinition[],
 ): Record<Ability, number> {
@@ -443,10 +500,10 @@ function abilityMaximums(
   ) as Record<Ability, number>;
 
   for (const feature of features) {
-    const grant = feature.grants;
-    if (grant?.kind !== 'ability-score-increase' || grant.maximum === undefined) continue;
-    for (const ability of Object.keys(abilityPointsFrom(choices, feature)) as Ability[]) {
-      ceilings[ability] = Math.max(ceilings[ability], grant.maximum);
+    const maximum = abilityCeilingFrom(content, choices, feature);
+    if (maximum === undefined) continue;
+    for (const ability of Object.keys(abilityPointsFrom(content, choices, feature)) as Ability[]) {
+      ceilings[ability] = Math.max(ceilings[ability], maximum);
     }
   }
   return ceilings;
@@ -454,6 +511,7 @@ function abilityMaximums(
 
 /** SRD: increase one by 2 and another by 1, or all three by 1. */
 function checkAbilities(
+  content: Content,
   choices: CharacterChoices,
   background: BackgroundDefinition,
   features: readonly FeatureDefinition[],
@@ -520,9 +578,9 @@ function checkAbilities(
   // scores now and an Epic Boon lifts the ceiling for the one it raised, so
   // the question is what the score comes to and what that score's own
   // maximum is.
-  const maximums = abilityMaximums(choices, features);
-  const totals = finalScores(choices, features);
-  const fromFeatures = featureAbilityPoints(choices, features);
+  const maximums = abilityMaximums(content, choices, features);
+  const totals = finalScores(content, choices, features);
+  const fromFeatures = featureAbilityPoints(content, choices, features);
   for (const ability of ABILITIES) {
     const ceiling = maximums[ability];
     if (totals[ability] <= ceiling) continue;
@@ -539,11 +597,12 @@ function checkAbilities(
 }
 
 const finalScores = (
+  content: Content,
   choices: CharacterChoices,
   features: readonly FeatureDefinition[],
 ): Record<Ability, number> => {
   const scores = { ...choices.abilities.assignment } as Record<Ability, number>;
-  const fromFeatures = featureAbilityPoints(choices, features);
+  const fromFeatures = featureAbilityPoints(content, choices, features);
   for (const ability of ABILITIES) {
     scores[ability] =
       (scores[ability] ?? 10) +
@@ -693,7 +752,7 @@ function checkMulticlass(
 
   const starting = content.classById(choices.classId);
   const all = starting === null ? definitions : [starting, ...definitions];
-  const qualified = meetsPrerequisites(finalScores(choices, features), all);
+  const qualified = meetsPrerequisites(finalScores(content, choices, features), all);
   if (!qualified.ok) {
     problems.push(problem(qualified.code, 'multiclass', qualified.reason));
   }
@@ -817,10 +876,8 @@ const spreadOf = (points: readonly number[]): string =>
  *
  * Three things, and the third is the one the shape exists for:
  *
- * - **Exactly one answer.** The sentence offers points *or* a feat, and the
- *   two are written in different fields of the choices — `featureChoices` and
- *   `feats`, both keyed by this feature's id — so neither and both are the two
- *   ways of getting it wrong, and each is refused by name.
+ * - **An answer at all.** A feature that asks for points and got none is a
+ *   sheet with an advancement missing, refused by name.
  * - **Abilities, not words.** A pick that is not one of the six raises
  *   nothing, and a spread counted out of it would be counted out of nonsense,
  *   so the spread is left unjudged when one is wrong.
@@ -828,6 +885,9 @@ const spreadOf = (points: readonly number[]): string =>
  *   rather than declared beside it — see `FeatureChoice`'s `ability-score`
  *   member — so `['str', 'str']` is one score by 2 and `['str', 'dex']` is two
  *   by 1, and a feature offering only the second refuses the first.
+ *
+ * The last two are {@link spreadProblems}, shared with the feat that asks the
+ * same sentence.
  *
  * The **ceiling is not asked here**: a score's maximum is a fact about the
  * whole character, since a background raised scores before any feature did,
@@ -838,52 +898,16 @@ function checkAbilityChoice(
   feature: FeatureDefinition,
   asked: Extract<FeatureChoice, { kind: 'ability-score' }>,
 ): CreationProblem[] {
-  const problems: CreationProblem[] = [];
   const made = choices.featureChoices[feature.id] ?? [];
-  const feat = choices.feats[feature.id];
   const offers = asked.spreads.map(spreadOf).join(', or ');
 
-  if (feat !== undefined && asked.orFeat !== undefined) {
-    if (made.length > 0) {
-      problems.push(
-        problem('ability_increase_and_feat', 'featureChoices', `${feature.name} raises ability scores or grants a feat, and this character took both`),
-      );
-    }
-    // The feat half is `checkFeats`', including whether it is one this
-    // feature's sentence allows.
-    return problems;
-  }
-
   if (made.length === 0) {
-    problems.push(
-      problem('missing_feature_choice', 'featureChoices', `${feature.id} (${feature.name}) raises ${offers}${asked.orFeat === undefined ? '' : ', or grants a feat'}, and nothing was chosen`),
-    );
-    return problems;
+    return [
+      problem('missing_feature_choice', 'featureChoices', `${feature.id} (${feature.name}) raises ${offers}, and nothing was chosen`),
+    ];
   }
 
-  const counts = new Map<Ability, number>();
-  let unknown = false;
-  for (const picked of made) {
-    if (!(ABILITIES as readonly string[]).includes(picked)) {
-      problems.push(
-        problem('unknown_ability', 'featureChoices', `${feature.name} raises ability scores, and ${picked} is not one of the six`),
-      );
-      unknown = true;
-      continue;
-    }
-    const ability = picked as Ability;
-    counts.set(ability, (counts.get(ability) ?? 0) + 1);
-  }
-  if (unknown) return problems;
-
-  const taken = spreadOf([...counts.values()]);
-  if (!asked.spreads.some((spread) => spreadOf(spread) === taken)) {
-    problems.push(
-      problem('ability_spread_not_offered', 'featureChoices', `${feature.name} raises ${offers}; this raises ${taken}`),
-    );
-  }
-
-  return problems;
+  return spreadProblems(made, asked.spreads, undefined, 'featureChoices', feature.name, offers);
 }
 
 /**
@@ -1351,17 +1375,14 @@ function checkFeats(
   const problems: CreationProblem[] = [];
   const taken: { feature: string; feat: FeatDefinition; choice: FeatChoice }[] = [];
 
+  const level = totalLevelOf(choices);
+
   for (const feature of features) {
     const fixed = feature.grantsFeat;
     const choice = feature.choice;
     const asksForOne = choice?.kind === 'feat';
-    // The other half of the Ability Score Improvement's fork: its sentence
-    // offers a feat *instead of* the points, so a feat is judged when one was
-    // taken and demanded when one was not. Which of the two a character owes
-    // is `checkAbilityChoice`'s question, asked where the points are.
-    const offersOne = choice?.kind === 'ability-score' && choice.orFeat !== undefined;
     const made = choices.feats[feature.id];
-    if (fixed === undefined && !asksForOne && !(offersOne && made !== undefined)) continue;
+    if (fixed === undefined && !asksForOne) continue;
 
     if (made === undefined) {
       problems.push(
@@ -1381,17 +1402,22 @@ function checkFeats(
       );
       continue;
     }
-    // The category the feature's own sentence names, whichever of the two
-    // sentences it is: "an Epic Boon feat" is the same clause whether the
-    // alternative is another feat or two points of ability.
-    const category = asksForOne
-      ? choice.category
-      : offersOne
-        ? choice.orFeat?.category
-        : undefined;
+    // The category the feature's own sentence names: "an Epic Boon feat".
+    const category = asksForOne ? choice.category : undefined;
     if (category !== undefined && definition.category !== category) {
       problems.push(
         problem('wrong_feat_category', 'feats', `${feature.name} grants a ${category} feat; ${definition.name} is ${definition.category}`),
+      );
+      continue;
+    }
+
+    // SRD prints the bracket on the feat — "Prerequisite: Level 4+" — so it
+    // is asked of whoever took it rather than of the feature that offered
+    // one, and it is the *character's* level, which is what the bracket
+    // means for a multiclassed character too.
+    if (definition.minimumLevel !== undefined && level < definition.minimumLevel) {
+      problems.push(
+        problem('feat_level_too_low', 'feats', `${definition.name} is a level ${definition.minimumLevel}+ feat and this character is level ${level}`),
       );
       continue;
     }
@@ -1481,6 +1507,77 @@ function checkFeatChoice(
     }
   }
 
+  // The Ability Score Improvement's sentence and every Epic Boon's, asked
+  // where the book asks it. Judged by the same three rules a feature's own
+  // answer is — an answer at all, abilities rather than words, and a spread
+  // the sentence prints — plus the narrowing only a feat prints today.
+  if (requires.kind === 'ability-score') {
+    const offers = requires.spreads.map(spreadOf).join(', or ');
+    const picked = made.abilities ?? [];
+    if (picked.length === 0) {
+      problems.push(
+        problem('missing_ability_choice', 'feats', `${where} raises ${offers}, and no score was named`),
+      );
+      return problems;
+    }
+    problems.push(
+      ...spreadProblems(picked, requires.spreads, requires.from, 'feats', where, offers),
+    );
+  }
+
+  return problems;
+}
+
+/**
+ * Whether an answer to an ability-score question is one the sentence prints.
+ *
+ * The counting half of the pair `abilitySpreadProblems` is the authoring half
+ * of: that one asks whether the *branches* are answerable, this asks whether
+ * this answer is one of them. Shared by the feature's door and the feat's for
+ * the same reason the authoring check is — the two sentences are one sentence
+ * printed in two places, and a rule kept at one of them is a rule with a hole
+ * in it.
+ */
+function spreadProblems(
+  picked: readonly string[],
+  spreads: readonly (readonly number[])[],
+  from: readonly Ability[] | undefined,
+  field: string,
+  who: string,
+  offers: string,
+): CreationProblem[] {
+  const problems: CreationProblem[] = [];
+  const counts = new Map<Ability, number>();
+  let unknown = false;
+
+  for (const one of picked) {
+    if (!(ABILITIES as readonly string[]).includes(one)) {
+      problems.push(
+        problem('unknown_ability', field, `${who} raises ability scores, and ${one} is not one of the six`),
+      );
+      unknown = true;
+      continue;
+    }
+    const ability = one as Ability;
+    if (from !== undefined && !from.includes(ability)) {
+      problems.push(
+        problem('ability_not_offered', field, `${who} raises ${from.join(', ')}, not ${ability}`),
+      );
+      unknown = true;
+      continue;
+    }
+    counts.set(ability, (counts.get(ability) ?? 0) + 1);
+  }
+  // A spread counted out of nonsense would be nonsense, so it is left
+  // unjudged when one of the picks is.
+  if (unknown) return problems;
+
+  const taken = spreadOf([...counts.values()]);
+  if (!spreads.some((spread) => spreadOf(spread) === taken)) {
+    problems.push(
+      problem('ability_spread_not_offered', field, `${who} raises ${offers}; this raises ${taken}`),
+    );
+  }
   return problems;
 }
 
@@ -1870,7 +1967,7 @@ export function checkCharacter(
 
   const all = [
     ...problems,
-    ...checkAbilities(choices, parts.background, features),
+    ...checkAbilities(content, choices, parts.background, features),
     ...checkSkills(choices, parts.definition),
     ...checkLanguages(content, choices),
     ...checkDmGrants(choices),
@@ -1931,7 +2028,7 @@ export function planCharacter(
   const { definition, species } = parts;
 
   const features = grantedFeatures(content, choices, parts);
-  const scores = finalScores(choices, features);
+  const scores = finalScores(content, choices, features);
   const { skills: proficient, tools, warnings } = gatherProficiencies(content, choices, parts);
 
   const expertise = new Set(expertiseSkills(content, choices, parts));
@@ -2509,6 +2606,7 @@ function declaredInitiativeBonuses(
  * multiclassed Bard's inspiration does not grow with their Fighter levels.
  */
 function poolSizeOf(
+  content: Content,
   choices: CharacterChoices,
   features: readonly FeatureDefinition[],
   featureId: string,
@@ -2529,7 +2627,7 @@ function poolSizeOf(
   }
 
   if (grant.fromAbilityModifier !== undefined) {
-    const scores = finalScores(choices, features);
+    const scores = finalScores(content, choices, features);
     const modifier = abilityModifier(scores[grant.fromAbilityModifier] ?? 10);
     return Math.max(grant.minimum ?? 0, modifier);
   }
@@ -2809,7 +2907,7 @@ function poolsFor(
     pools.push({
       key: grant.key,
       label: grant.label ?? feature.name,
-      max: poolSizeOf(choices, features, feature.id, grant),
+      max: poolSizeOf(content, choices, features, feature.id, grant),
       recovers: grant.recovers,
       ...(grant.regainsOnShortRest === undefined
         ? {}
@@ -2832,7 +2930,7 @@ function poolsFor(
       // The same three sizings every other pool uses, read by the same
       // function: Indomitable is a column of the Fighter table, Dark One's
       // Own Luck is a Charisma modifier with a floor.
-      max: poolSizeOf(choices, features, feature.id, grant.declares),
+      max: poolSizeOf(content, choices, features, feature.id, grant.declares),
       recovers: grant.declares.recovers,
     });
   }

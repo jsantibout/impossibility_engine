@@ -700,6 +700,131 @@ export const ORIGIN_FEATS: readonly FeatDefinition[] = [
 ];
 
 /**
+ * SRD "General Feats" — the one of the two whose whole text the engine says.
+ *
+ * The other is Grappler, and it is **left out** for rule 1 of `items.ts`
+ * applied to a feat: its bracket prints "Strength or Dexterity 13+", which is
+ * a prerequisite on a *score* and `FeatDefinition` gates only on a level, and
+ * three of its four benefits are Unarmed Strike and Grapple rules the attack
+ * layer has no notion of. A record carrying one point and four notes would be
+ * a feat that looks transcribed.
+ */
+export const GENERAL_FEATS: readonly FeatDefinition[] = [
+  {
+    id: 'ability-score-improvement',
+    name: 'Ability Score Improvement',
+    category: 'general',
+    // SRD: "Increase one ability score of your choice by 2, or increase two
+    // ability scores of your choice by 1." Both branches of one sentence,
+    // each as the points it puts into that many distinct scores.
+    requires: { kind: 'ability-score', spreads: [[2], [1, 1]] },
+    // SRD: "_General Feat (Prerequisite: Level 4+)_".
+    minimumLevel: 4,
+    // SRD: "You can take this feat more than once."
+    repeatable: true,
+    // No grant: "This feat can't increase an ability score above 20" is the
+    // ceiling every score already has, so there is nothing for the feat to
+    // lift and a grant saying 20 would be refused for saying nothing.
+    note: 'The whole of the feat is applied: the points land on the scores the player named, and the 20 they cannot pass is the maximum every score of every character already keeps.',
+  },
+];
+
+/**
+ * SRD "Epic Boon Feats" — the seven the SRD publishes.
+ *
+ * **Seven, and the count is worth saying**, because the note this brief
+ * inherited said nine: `feats.md` prints Combat Prowess, Dimensional Travel,
+ * Fate, Irresistible Offense, Spell Recall, the Night Spirit and Truesight,
+ * and the wider game's list is longer than the SRD's.
+ *
+ * Every one of them opens with the same mechanical sentence — "Increase one
+ * ability score of your choice by 1, to a maximum of 30" — and that is the
+ * half transcribed here: the question in `requires`, the lifted ceiling in
+ * `grants`. Two of the seven narrow which scores and say so.
+ *
+ * **The second benefit is a note on every one of them**, and each note says
+ * which mechanic is missing rather than "not automated". Truesight's is the
+ * closest to expressible and still is not: `sense` is a standing grant the
+ * vocabulary has, and a feat carries **one** grant, which this feat has
+ * already spent on the ceiling — the `a-feature-that-carries-a-second-grant`
+ * shape, arriving at a feat's door.
+ */
+export const EPIC_BOON_FEATS: readonly FeatDefinition[] = [
+  {
+    id: 'boon-of-combat-prowess',
+    name: 'Boon of Combat Prowess',
+    category: 'epic-boon',
+    requires: { kind: 'ability-score', spreads: [[1]] },
+    minimumLevel: 19,
+    repeatable: false,
+    grants: { kind: 'ability-score-increase', maximum: 30 },
+    note: 'Peerless Aim is not applied: "When you miss with an attack roll, you can hit instead" replaces the outcome of a roll after it is made, which is the substitution the D20 pipeline has for damage dice and not for a D20 Test, and it is spent out of a once-per-turn allowance no feat can declare.',
+  },
+  {
+    id: 'boon-of-dimensional-travel',
+    name: 'Boon of Dimensional Travel',
+    category: 'epic-boon',
+    requires: { kind: 'ability-score', spreads: [[1]] },
+    minimumLevel: 19,
+    repeatable: false,
+    grants: { kind: 'ability-score-increase', maximum: 30 },
+    note: 'Blink Steps is not applied: teleporting up to 30 feet immediately after the Attack or Magic action is a move a feature hands its holder outside the turn’s allowance, and nothing in the grant vocabulary offers one.',
+  },
+  {
+    id: 'boon-of-fate',
+    name: 'Boon of Fate',
+    category: 'epic-boon',
+    requires: { kind: 'ability-score', spreads: [[1]] },
+    minimumLevel: 19,
+    repeatable: false,
+    grants: { kind: 'ability-score-increase', maximum: 30 },
+    note: 'Improve Fate is not applied: rolling 2d4 and applying it as a bonus or a penalty to somebody else’s finished D20 Test is a modifier put on another creature after the roll, and the recovery it is spent against ("until you roll Initiative or finish a Short or Long Rest") is a pool a feat cannot declare.',
+  },
+  {
+    id: 'boon-of-irresistible-offense',
+    name: 'Boon of Irresistible Offense',
+    category: 'epic-boon',
+    // SRD: "Increase your Strength or Dexterity score by 1, to a maximum of 30."
+    requires: { kind: 'ability-score', spreads: [[1]], from: ['str', 'dex'] },
+    minimumLevel: 19,
+    repeatable: false,
+    grants: { kind: 'ability-score-increase', maximum: 30 },
+    note: 'Overcome Defenses is not applied: "the Bludgeoning, Piercing, and Slashing damage you deal always ignores Resistance" reads the target’s defences as an input to the attacker’s own damage, and applyDamage is the only reader of a defence. Overwhelming Strike is not applied either: extra damage on a natural 20, sized by the very score this feat raised.',
+  },
+  {
+    id: 'boon-of-spell-recall',
+    name: 'Boon of Spell Recall',
+    category: 'epic-boon',
+    // SRD: "Increase your Intelligence, Wisdom, or Charisma score by 1."
+    requires: { kind: 'ability-score', spreads: [[1]], from: ['int', 'wis', 'cha'] },
+    minimumLevel: 19,
+    repeatable: false,
+    grants: { kind: 'ability-score-increase', maximum: 30 },
+    note: 'The second half of the bracket is not enforced: SRD prints "Prerequisite: Level 19+, Spellcasting Feature" and a feat gates on a level and on nothing else, so a character with no Spellcasting feature is not refused this boon. Free Casting is not applied either: rolling 1d4 against the slot’s level to refund it is a roll made inside a casting, which no grant hangs anything on.',
+  },
+  {
+    id: 'boon-of-the-night-spirit',
+    name: 'Boon of the Night Spirit',
+    category: 'epic-boon',
+    requires: { kind: 'ability-score', spreads: [[1]] },
+    minimumLevel: 19,
+    repeatable: false,
+    grants: { kind: 'ability-score-increase', maximum: 30 },
+    note: 'Merge with Shadows and Shadowy Form are not applied: both are gated on standing "within Dim Light or Darkness", which is a fact about where a creature is standing that no StandingRequirement asks; the first also gives its holder the Invisible condition, which no feature may impose.',
+  },
+  {
+    id: 'boon-of-truesight',
+    name: 'Boon of Truesight',
+    category: 'epic-boon',
+    requires: { kind: 'ability-score', spreads: [[1]] },
+    minimumLevel: 19,
+    repeatable: false,
+    grants: { kind: 'ability-score-increase', maximum: 30 },
+    note: 'Truesight with a range of 60 feet is not applied, and it is the one clause in this family the vocabulary could otherwise say: a sense standing grant is exactly that sentence. What stops it is that a feat carries one grant and this one is spent on the ceiling, which is the second-grant shape arriving at a feat’s door.',
+  },
+];
+
+/**
  * SRD "Fighting Style Feats" — the four the SRD publishes.
  *
  * Their prerequisite is the Fighting Style *feature*, which is how the SRD

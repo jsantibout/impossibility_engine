@@ -26,6 +26,14 @@ import {
  * might be reading the book. Every SRD feature that uses it is driven in
  * `packages/content/src/advancement-features.test.ts`, against the printed
  * classes.
+ *
+ * **The fork is not here any more, because the book does not print it here.**
+ * SRD writes level 4 as "You gain the Ability Score Improvement feat ... or
+ * another feat of your choice", so the choice between the points and a feat
+ * is a choice between two *feats* — and `orFeat` is gone with the two tests
+ * that drove it. The feat's half of the same sentence is
+ * `feat-ability-scores.test.ts`; what is left here is the feature's own, which
+ * no SRD class writes and homebrew may.
  */
 
 const id = (s: string) => asCharacterId(s);
@@ -72,7 +80,7 @@ const ASCENDANT = {
       level: 4,
       automation: 'engine',
       note: 'Increase one ability score by 2, or two ability scores by 1 each, or take a feat.',
-      choice: { kind: 'ability-score', spreads: [[2], [1, 1]], orFeat: {} },
+      choice: { kind: 'ability-score', spreads: [[2], [1, 1]] },
     },
     {
       id: 'ascendant:epic-boon',
@@ -80,7 +88,7 @@ const ASCENDANT = {
       level: 19,
       automation: 'engine',
       note: 'Increase one ability score by 1, to a maximum of 30.',
-      choice: { kind: 'ability-score', spreads: [[1]], orFeat: { category: 'epic-boon' } },
+      choice: { kind: 'ability-score', spreads: [[1]] },
       grants: { kind: 'ability-score-increase', maximum: 30 },
     },
     {
@@ -201,17 +209,6 @@ describe('a choice that raises ability scores', () => {
     expect(codesFor(raising(4, { [ASI]: ['luck', 'luck'] }))).toContain('unknown_ability');
   });
 
-  /** The fork the SRD prints: the same sentence offers a feat instead. */
-  it('takes a feat instead, and refuses a character that took both', () => {
-    const base = ascendant(4);
-    const withFeat = { ...base, feats: { ...base.feats, [ASI]: { featId: 'savage-attacker' } } };
-    expect(codesFor(withFeat as CharacterChoices)).toEqual([]);
-    expect(scoresOf(withFeat as CharacterChoices).str).toBe(15);
-
-    const both = { ...withFeat, featureChoices: { ...base.featureChoices, [ASI]: ['str', 'str'] } };
-    expect(codesFor(both as CharacterChoices)).toContain('ability_increase_and_feat');
-  });
-
   /** And the level a choice arrives at is the level it is asked at. */
   it('asks nothing of a character who has not reached the level', () => {
     expect(codesFor(ascendant(3))).toEqual([]);
@@ -273,17 +270,6 @@ describe('a maximum a boon lifts, for one score and not for another', () => {
       raising(19, { [ASI]: ['dex', 'wis'], [BOON]: ['str'] }, tall),
     );
     expect(codes).toContain('score_above_maximum');
-  });
-
-  it('lifts nothing at all for a character who took the feat half', () => {
-    const base = atNineteen({});
-    const withFeat = {
-      ...base,
-      featureChoices: { ...base.featureChoices },
-      feats: { ...base.feats, [BOON]: { featId: 'savage-attacker' } },
-    };
-    // The boon's own category is what the feat half is held to.
-    expect(codesFor(withFeat as CharacterChoices)).toContain('wrong_feat_category');
   });
 
   /** A capstone that names its own scores and asks nothing. */
