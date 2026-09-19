@@ -118,7 +118,7 @@ const CLASS_ITEMS: readonly CatalogueItem[] = [
  * and what keeps it out is the other five clauses: an area, a save, a
  * condition, a rider and a damage roll an item makes. The Belt of Giant
  * Strength prints none: "your Strength changes to a score granted by the
- * belt ... see the table below", and the table is a row per giant. So the
+ * belt ... see the table below", and the table is a row per belt. So the
  * score is still its blocker as well as the versions, and it will stay one
  * until a record can say which belt this is.
  */
