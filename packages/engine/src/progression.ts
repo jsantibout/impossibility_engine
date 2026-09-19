@@ -634,14 +634,49 @@ export type FeatureGrant =
       /**
        * What one use costs, in the item's own charges.
        *
-       * Absent is the common case and means the item is **used up** — which is
-       * every Potion in the book. Declared and **refused by `checkContent`**,
-       * because nothing spends it yet: an item whose price was quietly ignored
-       * would be a free benefit wearing a charged item's name. It is in the
-       * type because refusing a named field is a better answer than silently
-       * ignoring one — the reading {@link saveDc} was admitted out of.
+       * **Absent is the common case and means the item is used up** — which is
+       * every Potion in the book: SRD, "Once used, a potion takes effect
+       * immediately, and it is used up." Present is the other half of the same
+       * sentence, and it is a staff or a rod rather than a bottle: the item's
+       * line prints a charge count and the object survives the use.
+       *
+       * So the two are one fork and never both. `useItem` takes the price out
+       * of the item's own pool through `expendCharges` — the one spender,
+       * which is also where "while holding it" and the attunement the line
+       * asks for are enforced — and leaves the `items-lost` for the bottle.
+       *
+       * `checkContent` refuses a price that is not a whole number of at least
+       * one, and a price with no {@link FeatureGrant} `pool` on the same item
+       * for it to come out of; both are the rules a `casts` grant's price has
+       * always kept, asked of a second host rather than spelled a second way.
        */
       readonly charges?: number;
+      /**
+       * The most one use may spend, where the item's line lets the user
+       * choose.
+       *
+       * SRD Staff of Striking: "When you hit with a melee attack using it, you
+       * can expend up to 3 charges." The shape a Wand of Fireballs prints over
+       * a *casting* — see {@link FeatureGrant} `casts` `upToCharges` — printed
+       * over a use that casts nothing, and read the same way: a maximum above
+       * the cost, the user choosing where in the range to land, and a count
+       * outside it a rules-legal refusal.
+       *
+       * **What the extra charges buy is not here, and that is a gap rather
+       * than an omission.** The staff's own sentence goes on: "For each charge
+       * you expend, the target takes an extra 1d6 Force damage." Nothing in the
+       * effect vocabulary scales dice by a charge count — `attack-rider`
+       * carries a bare notation on purpose, and every `DiceScaling` field
+       * reads a slot level or a caster level a conferral has neither of — so
+       * an item written with this today pays a chosen price for a fixed
+       * benefit. A field that said otherwise is a decision this vocabulary has
+       * not made.
+       *
+       * Refused by `checkContent` when it is not a whole number above
+       * {@link charges}, and when there is no {@link charges} for it to be a
+       * maximum above: an item that is used up rather than spent names neither.
+       */
+      readonly upToCharges?: number;
     }
   /**
    * A feature that gives a *different* pool's uses back — see

@@ -714,7 +714,15 @@ describe('what a conferral may not say yet', () => {
     return found;
   };
 
-  it('refuses charges, which nothing pays yet', () => {
+  /**
+   * **A price is read now, and what is refused is a price with no pool.**
+   * `conferral_charges_unread` is gone: `useItem` spends the charge through
+   * `expendCharges`, so the cost is a cost somebody pays. What survives is the
+   * economy rule a `casts` grant already keeps — see `item-honesty.test.ts`
+   * for the whole of the price's validation and
+   * `item-conferral-charges.test.ts` for what spends it.
+   */
+  it('refuses a price with no pool for it to come out of', () => {
     expect(
       problems({
         kind: 'confers',
@@ -722,7 +730,7 @@ describe('what a conferral may not say yet', () => {
         charges: 1,
         effects: [{ kind: 'heal', healing: { dice: '1d4' }, addSpellcastingModifier: false }],
       }),
-    ).toContain('conferral_charges_unread');
+    ).toContain('confers_without_charges');
   });
 
   /**

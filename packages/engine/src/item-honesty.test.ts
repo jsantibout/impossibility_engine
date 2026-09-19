@@ -259,6 +259,119 @@ describe('an item that casts a spell says which, for what, and out of what', () 
   });
 });
 
+/**
+ * What an item's **conferral** costs, judged at the same door.
+ *
+ * SRD prints the price of a use on the item's own line — "you can expend up to
+ * 3 charges" — and until now a conferral could not name one at all: an item
+ * that confers was an item that is used up. A staff is not, so the price is
+ * read, and the rules it is held to are the ones a `casts` grant's price is
+ * already held to, asked of a second host rather than spelled a second way.
+ */
+describe('an item that confers for a price says what it costs, and out of what', () => {
+  /** A well-formed charged conferral, so each case changes exactly one thing. */
+  const POOL = {
+    kind: 'pool',
+    key: 'rod-of-small-mending:charges',
+    label: 'Rod of Small Mending charges',
+    uses: 3,
+    recovers: 'dawn',
+  };
+  const CONFERS = {
+    kind: 'confers',
+    action: 'action',
+    charges: 1,
+    effects: [{ kind: 'heal', healing: { dice: '1d4' }, addSpellcastingModifier: false }],
+  };
+  const ROD = {
+    id: 'rod-of-small-mending',
+    name: 'Rod of Small Mending',
+    kind: 'rod',
+    weightLb: 2,
+    costCp: null,
+    armor: null,
+    weapon: null,
+    contents: [],
+    grants: [POOL, CONFERS],
+  };
+
+  const problemsOf = (grants: unknown): readonly string[] =>
+    checkContent({ items: [{ ...ROD, grants } as unknown as CatalogueItem] }).map(
+      (problem) => `${problem.code} @ ${problem.field}`,
+    );
+
+  /** The conferral with named fields changed, the pool left where it is. */
+  const confers = (over: Record<string, unknown>): unknown => [POOL, { ...CONFERS, ...over }];
+
+  /** The same, with named fields taken off: these cases are about silence. */
+  const confersWithout = (
+    drop: readonly string[],
+    over: Record<string, unknown> = {},
+  ): Record<string, unknown> => {
+    const grant: Record<string, unknown> = { ...CONFERS, ...over };
+    for (const field of drop) delete grant[field];
+    return grant;
+  };
+
+  it('accepts a conferral priced in the item’s own charges', () => {
+    expect(problemsOf(ROD.grants)).toEqual([]);
+    const loaded = unwrap(loadContent({ items: [JSON.parse(JSON.stringify(ROD))] }), 'load');
+    expect((loaded.item('rod-of-small-mending')?.grants ?? [])[1]).toMatchObject({ charges: 1 });
+  });
+
+  /** The rule a `casts` grant's price keeps: a whole number of at least one. */
+  it('refuses a price that is not a price', () => {
+    expect(problemsOf(confers({ charges: 0 }))).toEqual([
+      'bad_conferral_charge_cost @ items[rod-of-small-mending].grants[1].charges',
+    ]);
+    expect(problemsOf(confers({ charges: 1.5 }))).toEqual([
+      'bad_conferral_charge_cost @ items[rod-of-small-mending].grants[1].charges',
+    ]);
+    expect(problemsOf(confers({ charges: 'one' }))).toEqual([
+      'bad_conferral_charge_cost @ items[rod-of-small-mending].grants[1].charges',
+    ]);
+  });
+
+  /**
+   * "You can expend up to 3 charges" is a maximum above the cost, which is the
+   * shape a Wand of Fireballs already prints over a casting.
+   */
+  it('refuses a maximum that is not above the cost', () => {
+    expect(problemsOf(confers({ upToCharges: 1 }))).toEqual([
+      'bad_conferral_charge_range @ items[rod-of-small-mending].grants[1].upToCharges',
+    ]);
+    expect(problemsOf(confers({ upToCharges: 2.5 }))).toEqual([
+      'bad_conferral_charge_range @ items[rod-of-small-mending].grants[1].upToCharges',
+    ]);
+    expect(problemsOf(confers({ upToCharges: 3 }))).toEqual([]);
+  });
+
+  /** And a range over no price at all, which is a maximum above nothing. */
+  it('refuses a maximum on a conferral that costs nothing', () => {
+    expect(problemsOf([POOL, confersWithout(['charges'], { upToCharges: 3 })])).toEqual([
+      'conferral_range_without_a_price @ items[rod-of-small-mending].grants[1].upToCharges',
+    ]);
+  });
+
+  /**
+   * The charges come out of the item's own pool — the same economy with
+   * nothing behind it that `casts_without_charges` refuses one grant along.
+   */
+  it('refuses an item that confers for charges it does not have', () => {
+    expect(problemsOf([CONFERS])).toEqual([
+      'confers_without_charges @ items[rod-of-small-mending].grants[0].charges',
+    ]);
+  });
+
+  /**
+   * **A potion names no price and acquires no pool.** SRD's common case is an
+   * item that is used up, and nothing about reading the price changes it.
+   */
+  it('accepts a conferral that names no price and declares no pool', () => {
+    expect(problemsOf([confersWithout(['charges'])])).toEqual([]);
+  });
+});
+
 describe('the clause that was a comment is now countable', () => {
   /**
    * SRD Cloak of Elvenkind: "While you wear this cloak, Wisdom (Perception)

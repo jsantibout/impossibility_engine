@@ -666,12 +666,44 @@ function itemConfersProblems(
     );
   }
 
-  // The two fields the type carries for the day they are read, refused today
-  // rather than ignored. See the `confers` grant in `progression.ts`.
-  if (grant.charges !== undefined) {
+  // **What one use costs, judged the way a casting's price is.** SRD prints
+  // both on the item's own line — "you can expend 1 charge to cast _Web_" and
+  // "you can expend up to 3 charges" — so the rules `itemCastsProblems` keeps
+  // about a price are asked of a second host rather than spelled a second way:
+  // a whole number of at least one, a maximum strictly above it, and a pool on
+  // the same item for the charges to come out of.
+  //
+  // **Absent stays the common case and stays a bottle.** A conferral that
+  // names no price is used up, declares no pool and is refused nothing here.
+  if (grant.charges !== undefined && (!Number.isInteger(grant.charges) || grant.charges < 1)) {
     say(
-      'conferral_charges_unread',
-      `nothing spends a charge for a conferral yet — an item that confers is used up — so ${item.id}'s price would be a cost nobody pays`,
+      'bad_conferral_charge_cost',
+      `the SRD prints what one use of an item costs on the item's own line, and ${item.id} names ${String(grant.charges)}`,
+      `${at}.charges`,
+    );
+  }
+  if (grant.upToCharges !== undefined) {
+    if (grant.charges === undefined) {
+      say(
+        'conferral_range_without_a_price',
+        `"up to N charges" is a maximum above a price, and ${item.id} confers for none — an item that is used up rather than spent names neither`,
+        `${at}.upToCharges`,
+      );
+    } else if (!Number.isInteger(grant.upToCharges) || grant.upToCharges <= grant.charges) {
+      say(
+        'bad_conferral_charge_range',
+        `"up to N charges" is a maximum above the cost, and ${item.id} names ${String(grant.upToCharges)}`,
+        `${at}.upToCharges`,
+      );
+    }
+  }
+  // An item that confers for a price and declares no pool is an economy with
+  // nothing behind it, and `useItem` would refuse every use of it — the same
+  // refusal `casts_without_charges` makes one grant along.
+  if (grant.charges !== undefined && itemChargePool(item) === null) {
+    say(
+      'confers_without_charges',
+      `${item.id} confers for charges and declares no charge pool for them to come out of`,
       `${at}.charges`,
     );
   }
