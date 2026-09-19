@@ -508,7 +508,7 @@ engine could take it today — is recorded as such rather than omitted.
 
 | Classes | Subclasses | Features | Executed by the engine |
 |---|---|---|---|
-| 12 / 12 | 12 / 12 | 269 | 157 |
+| 12 / 12 | 12 / 12 | 269 | 162 |
 
 A feature declares its own automation, so this column is read rather than
 guessed. **Manual is not failure**: several features are judgement the
@@ -525,11 +525,11 @@ believe it has twelve working classes when it has twelve validated ones.
 | Fighter | none | 26 | 18 |
 | Monk | none | 29 | 17 |
 | Paladin | prepared-from-list | 25 | 17 |
-| Ranger | known | 25 | 13 |
+| Ranger | known | 25 | 14 |
 | Rogue | none | 28 | 13 |
-| Sorcerer | known | 18 | 10 |
+| Sorcerer | known | 18 | 11 |
 | Warlock | known | 17 | 10 |
-| Wizard | spellbook | 18 | 10 |
+| Wizard | spellbook | 18 | 13 |
 
 ### What blocks the rest
 
@@ -554,7 +554,6 @@ be the second spelling of one derivation.
 
 | Shape | Blocks | Finishes |
 |---|---|---|
-| `a-feature-that-changes-a-castings-damage` | 5 | 5 |
 | `a-casting-paid-for-out-of-a-feature-pool` | 10 | 4 |
 | `an-action-a-spell-compels-or-forbids` | 10 | 4 |
 | `a-roll-result-an-effect-replaces` | 5 | 4 |
