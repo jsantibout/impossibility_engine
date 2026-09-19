@@ -40,6 +40,18 @@ export type AbilityScores = Readonly<Record<Ability, number>>;
  */
 export const ABILITY_SCORE_MAXIMUM = 20;
 
+/**
+ * The highest score anything in the rules reaches, lifted ceiling included.
+ *
+ * SRD's Epic Boons print "to a maximum of 30" and nothing prints more, so 30
+ * is what a score *can* be rather than what a character may raise one to —
+ * the difference between this and {@link ABILITY_SCORE_MAXIMUM}. It is the
+ * bound `checkAbilities` holds a raw assignment to and the bound an item that
+ * **sets** a score is held to, and it is one name because it was the same
+ * literal in two files the moment the second reader existed.
+ */
+export const MAX_ABILITY_SCORE = 30;
+
 export type ProficiencyLevel = 'none' | 'proficient' | 'expertise';
 
 export interface ArmorTraining {

@@ -22,7 +22,7 @@ import {
   withoutConditions,
   type ConditionState,
 } from './conditions.js';
-import { abilityModifier, armorClass } from './character.js';
+import { abilityModifier, armorClass, type CharacterSheet } from './character.js';
 import {
   distanceBetween,
   sightBetween,
@@ -274,6 +274,36 @@ export type StandingGrant =
    * else.
    */
   | { readonly kind: 'sense'; readonly sense: SenseName; readonly feet: number }
+  /**
+   * An ability score **set** to a number while whatever grants it holds.
+   *
+   * A third verb beside the two `ability-score-increase` has, and the SRD
+   * prints it on nine wondrous items in one sentence each: "Your Strength is
+   * 19 while you wear these gauntlets", "Your Intelligence is 19 while you
+   * wear this headband", "While wearing this belt, your Strength changes to a
+   * score granted by the belt". Neither of the other two says it. A raise of
+   * +11 would be a different item on a different character, and a lifted
+   * ceiling raises nothing at all.
+   *
+   * **A standing grant rather than creation's arithmetic**, and the second
+   * half of the same sentence decides it: the score holds *while worn*, so
+   * taking the gauntlets off has to take the Strength with them. That is the
+   * lifetime this file already insists must be derived on every read, for the
+   * reason `sense` is — "a stored copy would be Darkvision that survived
+   * taking the goggles off".
+   *
+   * **The set never lowers a score.** Every printed sentence says so in its
+   * second clause — "It has no effect on you if your Constitution is 19 or
+   * higher without it", "unless your Strength is already equal to or greater
+   * than that score" — and that is one rule rather than nine, so
+   * {@link abilityScoresOf} keeps it rather than each item.
+   *
+   * A feature may carry it too. No SRD class feature does, and the grant is
+   * a member of the one vocabulary read by the one reader, so refusing it on
+   * a feature would be refusing a homebrew sentence the engine executes
+   * perfectly well.
+   */
+  | { readonly kind: 'ability-score-set'; readonly ability: Ability; readonly score: number }
   | {
       readonly kind: 'attack-damage';
       readonly dice?: string;
@@ -838,9 +868,11 @@ export function standingSaveBonuses(
     const holder = state.creatures[from];
     if (holder === undefined) continue;
 
+    // The holder's score as it stands, so a Paladin wearing something that
+    // sets their Charisma radiates the aura that score gives.
     const flat = Math.max(
       effect.grant.minimum,
-      abilityModifier(holder.sheet.abilities[effect.grant.fromAbility]),
+      abilityModifier(abilityScoresOf(state, from)[effect.grant.fromAbility]),
     );
     const current = best.get(effect.feature);
     if (current === undefined || (current.flat ?? 0) < flat) {
@@ -1215,6 +1247,76 @@ export function canSee(state: GameState, from: CharacterId, to: CharacterId): bo
  * Cover is deliberately *not* here: it is a fact about one attacker's line to
  * one target, not about the target, and the attack that reads it adds it.
  */
+/**
+ * This creature's six ability scores **as they stand**: what the sheet says,
+ * and whatever is setting one right now.
+ *
+ * The reader for `ability-score-set`, and the only one — every other question
+ * about a score goes through {@link sheetAsItStands} so that no second path
+ * can disagree with this one about what a Strength is.
+ *
+ * Two rules, and both are the SRD's own sentence rather than a policy:
+ *
+ * - **A set never lowers.** "It has no effect on you if your Constitution is
+ *   19 or higher without it" is printed on every item that sets a score, so
+ *   it is kept here once instead of nine times.
+ * - **The highest of several wins**, which follows from the first: two belts
+ *   are two sentences, each saying "your Strength is at least this", and the
+ *   order they are read in cannot be allowed to matter. It is the move
+ *   `armorClassCalculation` already makes with two Unarmoured Defenses.
+ *
+ * Derived on every read, like everything else in this file: the score is
+ * gone the moment the item is off, and nothing has to remember to take it
+ * away.
+ */
+export function abilityScoresOf(
+  state: GameState,
+  who: CharacterId,
+): Readonly<Record<Ability, number>> {
+  const creature = state.creatures[who];
+  const own = creature?.sheet.abilities;
+  if (own === undefined) return { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 };
+
+  let changed: Record<Ability, number> | null = null;
+  for (const active of standingFor(state, who)) {
+    const grant = active.effect.grant;
+    if (grant.kind !== 'ability-score-set') continue;
+    const standing: Record<Ability, number> = changed ?? { ...own };
+    if (grant.score > standing[grant.ability]) standing[grant.ability] = grant.score;
+    changed = standing;
+  }
+  return changed ?? own;
+}
+
+/**
+ * The sheet a reader should be handed for this creature, rather than the one
+ * stored on it.
+ *
+ * **One substitution, not a second pipeline.** Every modifier the engine
+ * derives — a check, a save, an attack, a spell save DC, an Armour Class —
+ * reads a score off a `CharacterSheet` through `modifierFor`, so an item that
+ * sets a score reaches all of them by changing the sheet those functions are
+ * given. Writing a second path for each would be the "second spelling of a
+ * derivation" this repository keeps a record of.
+ *
+ * The **same object** comes back when nothing is setting a score, which is
+ * every creature in almost every fight: the copy is paid for only where it
+ * changes something, and identity is what a caller can cheaply check.
+ *
+ * What this does **not** do is reach the readers that take a sheet straight
+ * off the state. `attack.ts`, `checks.ts` and the commands above them read
+ * `creature.sheet`, and threading this in there is a change to files this
+ * did not own; the two readers in this file do it today, so an Armour Class
+ * and an Aura of Protection move with a set score and an ability check does
+ * not yet.
+ */
+export function sheetAsItStands(state: GameState, who: CharacterId): CharacterSheet {
+  const creature = state.creatures[who];
+  if (creature === undefined) throw new Error(`no creature ${who}`);
+  const abilities = abilityScoresOf(state, who);
+  return abilities === creature.sheet.abilities ? creature.sheet : { ...creature.sheet, abilities };
+}
+
 export function armorClassOf(state: GameState, who: CharacterId): number {
   const creature = state.creatures[who];
   if (creature === undefined) return 0;
@@ -1223,7 +1325,10 @@ export function armorClassOf(state: GameState, who: CharacterId): number {
   // in the same pass as the creature’s own features — SRD Multiclassing settles
   // that once for all of them, and `armorClassCalculation` is where it is
   // settled. Only then the flat bonuses, which genuinely do add.
-  let total = armorClass(creature.sheet, creature.armorClasses);
+  // The sheet as it stands, so an item that *sets* Dexterity moves the
+  // Armour Class that reads it — and an item that sets Strength moves the
+  // heavy-armour penalty `armorClass` applies for a Strength requirement.
+  let total = armorClass(sheetAsItStands(state, who), creature.armorClasses);
   for (const active of creature.bonuses) {
     if (!active.applies.includes('ac')) continue;
     const flat = active.bonus.flat ?? 0;

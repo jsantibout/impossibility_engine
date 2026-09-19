@@ -58,3 +58,10 @@ export { movementLeftFor, speedOf } from './standing.js';
 // be asked to establish a sight line the looker's own Darkvision already
 // settles.
 export { canSee, sensesOf } from './standing.js';
+// The scores as they stand, and the sheet a reader should be handed. Exported
+// for the third time for the same reason: an item that *sets* a score means
+// `creature.sheet.abilities` is the score the character had rather than the
+// one they have, and a caller reading it would get a Strength the engine
+// disagrees with. `sheetAsItStands` hands back the same object when nothing
+// is setting anything, so asking costs nothing.
+export { abilityScoresOf, sheetAsItStands } from './standing.js';

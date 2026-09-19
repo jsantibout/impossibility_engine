@@ -82,6 +82,25 @@ const CLASS_ITEMS: readonly CatalogueItem[] = [
  * where the item is a magical version of a row that does print one: a +1
  * Longsword is a Longsword, and it weighs what the table says a Longsword
  * weighs.
+ *
+ * **Three entries are expressible and are not here**, which is a boundary
+ * rather than a reading. The `ability-score-set` standing grant landed with
+ * the batch that wrote this paragraph, so "Your Constitution is 19 while you
+ * wear this amulet" is now a sentence the vocabulary says — the Amulet of
+ * Health, the Gauntlets of Ogre Power and the Headband of Intellect each
+ * have that one clause and nothing else. Transcribing one makes its line in
+ * `scripts/missing-shapes.ts` stale, and `blocked-on-items.test.ts` fails
+ * until the line goes with the record; that file was reserved to other work
+ * while this was written, so the grant is proved through homebrew in
+ * `packages/engine/src/ability-score-set.test.ts` and the three records wait
+ * for one commit that can hold both halves.
+ *
+ * Two neighbours of theirs are **not** freed by it, and the difference is the
+ * verb. The Belt of Giant Strength sets a score and keeps a second blocker —
+ * five versions on one printed table. The three manuals and three tomes are
+ * "your Constitution increases by 2, to a maximum of 30" after forty-eight
+ * hours of study: a *permanent* change, applied by an event nothing emits,
+ * which is what is left of `an-ability-score-a-spell-changes`.
  */
 
 /** A `FeatureGrant` in the position an item puts one, named once. */

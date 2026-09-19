@@ -1,5 +1,6 @@
-import { err, ok, SKILL_ABILITY, type Result } from '@ie/shared';
+import { ABILITIES, err, ok, SKILL_ABILITY, type Result } from '@ie/shared';
 import { CONFERRED_LEVEL, itemChargePool, type CatalogueItem } from './catalogue.js';
+import { MAX_ABILITY_SCORE } from './character.js';
 import {
   abilityGrantProblemsOf,
   abilitySpreadProblems,
@@ -212,6 +213,7 @@ export const ITEM_EFFECT_KINDS: ReadonlySet<string> = new Set([
   'evasion',
   'attack-damage',
   'sense',
+  'ability-score-set',
 ]);
 
 /**
@@ -270,6 +272,39 @@ function abilityProblemsOfFeat(feat: FeatDefinition): readonly ContentProblem[] 
  * states next door. Every field this dereferences is one an untyped blob
  * could have got wrong, so each is judged rather than believed.
  */
+/**
+ * Everything wrong with an `ability-score-set` grant, wherever one is written.
+ *
+ * {@link senseProblems}' neighbour and the same argument: the grant reaches
+ * the one reader through an item's door and a feature's, so the rule is kept
+ * once. A score outside 1–30 is the range the engine already holds a
+ * character's assignment to — `checkAbilities` refuses one there — and a set
+ * that named a seventh ability would silently set nothing.
+ */
+function abilitySetProblems(
+  effect: Record<string, unknown>,
+  at: string,
+): readonly { readonly code: string; readonly reason: string; readonly field: string }[] {
+  const found: { code: string; reason: string; field: string }[] = [];
+  const ability = effect['ability'];
+  if (!isString(ability) || !(ABILITIES as readonly string[]).includes(ability)) {
+    found.push({
+      code: 'bad_ability_set',
+      reason: `"${String(ability)}" is not one of the six abilities`,
+      field: `${at}.ability`,
+    });
+  }
+  const score = effect['score'];
+  if (!Number.isInteger(score) || (score as number) < 1 || (score as number) > MAX_ABILITY_SCORE) {
+    found.push({
+      code: 'bad_ability_set',
+      reason: `a score a creature can have is a whole number from 1 to ${MAX_ABILITY_SCORE}, not ${JSON.stringify(score)}`,
+      field: `${at}.score`,
+    });
+  }
+  return found;
+}
+
 function senseProblems(
   effect: Record<string, unknown>,
   at: string,
@@ -1281,6 +1316,12 @@ function itemGrantProblems(
         }
         return;
       }
+      if (effect.kind === 'ability-score-set') {
+        for (const problem of abilitySetProblems(effect as unknown as Record<string, unknown>, on)) {
+          say(problem.code, problem.reason, problem.field);
+        }
+        return;
+      }
       if (effect.kind === 'flat-bonus') {
         const applies = Array.isArray(effect.applies) ? effect.applies : null;
         if (applies === null) {
@@ -1585,6 +1626,15 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
           // exactly the ways an untyped item can.
           if (effect.kind === 'sense') {
             for (const problem of senseProblems(
+              effect as unknown as Record<string, unknown>,
+              `${where}.grants.effects[${position}]`,
+            )) {
+              problems.push({ field: problem.field, code: problem.code, reason: problem.reason });
+            }
+          }
+          // And a set score, by the same rule at the same two doors.
+          if (effect.kind === 'ability-score-set') {
+            for (const problem of abilitySetProblems(
               effect as unknown as Record<string, unknown>,
               `${where}.grants.effects[${position}]`,
             )) {
