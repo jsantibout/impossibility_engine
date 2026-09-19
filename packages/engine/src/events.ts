@@ -56,7 +56,13 @@ import {
 } from './spells.js';
 import { type CombatantInput, type GrantedActionRule } from './combat.js';
 import { type GrantedAttackRider, type GrantedSpeed, type StandingEffect } from './standing.js';
-import { type CoverDegree, type Placement, type SceneExtent, type Point } from './positioning.js';
+import {
+  type CoverDegree,
+  type Placement,
+  type SceneExtent,
+  type Point,
+  type TerrainRegion,
+} from './positioning.js';
 
 // `CreatureState` is deliberately not imported: the union names it only in a
 // `{@link}`, and the barrel below re-exports it, so the link resolves in this
@@ -1397,6 +1403,26 @@ export type GameEvent =
       readonly from: CharacterId;
       readonly to: CharacterId;
       readonly degree: CoverDegree;
+      readonly command?: CommandStamp;
+    }
+  /**
+   * A patch of ground that costs more to cross, and what a foot of it costs.
+   *
+   * Declared, like cover and sight, and for the same reason: five of the
+   * SRD's six environmental examples of Difficult Terrain are fiction the
+   * engine holds no record of. `costPerFoot` rather than a flag because the
+   * book prints two rates — the glossary's two feet per foot, and the four
+   * that Plant Growth and Wall of Thorns each print. `source` names the
+   * casting that made the ground expensive, and the patch stops charging when
+   * that casting stops running.
+   */
+  | {
+      readonly type: 'difficult-terrain-declared';
+      /** The table's name for this patch, which a refusal quotes back. */
+      readonly patch: string;
+      readonly region: TerrainRegion;
+      readonly costPerFoot: number;
+      readonly source?: string;
       readonly command?: CommandStamp;
     }
   | {

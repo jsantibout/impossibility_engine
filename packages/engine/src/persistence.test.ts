@@ -235,6 +235,7 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'damage-taken',
   'dash-taken',
   'death-save-recorded',
+  'difficult-terrain-declared',
   'disengage-taken',
   'dismounted',
   'effect-check-resolved',

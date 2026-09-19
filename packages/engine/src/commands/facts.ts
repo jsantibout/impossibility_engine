@@ -10,7 +10,8 @@
 import { type CharacterId, err, ok, type Result } from '@ie/shared';
 import { type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
-import { creatureOf, unknownCreature } from './command.js';
+import { DIFFICULT_TERRAIN, declareDifficultPatch, type TerrainRegion } from '../positioning.js';
+import { creatureOf, sceneFor, unknownCreature } from './command.js';
 
 /**
  * Establish a creature's type, once.
@@ -59,3 +60,80 @@ export function declareCreatureType(
   });
 }
 
+export interface DifficultTerrainCommand extends CommandIdentity {
+  /** Where the expensive ground is, in the vocabulary an area of effect uses. */
+  readonly region: TerrainRegion;
+  /**
+   * Feet of movement per foot of ground. Defaults to the SRD glossary's rate.
+   *
+   * A number rather than a flag because the book prints two: Difficult
+   * Terrain costs two feet per foot, and Plant Growth and Wall of Thorns each
+   * cost four. A flag would have had to be widened into this the first time
+   * either was transcribed.
+   */
+  readonly costPerFoot?: number;
+  /** The casting that made this ground expensive, if one did. */
+  readonly source?: string;
+}
+
+/**
+ * Declare a patch of ground Difficult Terrain.
+ *
+ * The table's half of a rule the engine finishes. SRD gives six examples of
+ * Difficult Terrain and five of them — rubble, undergrowth, furniture, a
+ * slope, a narrow opening — are fiction no engine holds a record of; the
+ * sixth, another creature's space, `isDifficultTerrain` has answered since
+ * positioning landed. So the *fact* is declared, exactly as cover and sight
+ * are, and everything downstream of it is computed: which spaces the patch
+ * covers, what a move through them costs, what happens when two overlap, and
+ * whether the patch is still there.
+ *
+ * A patch may name the casting that made it. That casting's record is the
+ * patch's lifetime — when the webs are dispelled, expire or lose their
+ * Concentration, the ground stops costing double at the same instant and
+ * through no machinery of its own. Naming a casting nobody is running is
+ * refused rather than absorbed, because a patch hung on nothing would never
+ * charge and the table would never be told why.
+ *
+ * Re-declaring the same patch replaces it, which is `declareCover`'s rule and
+ * not `declareCreatureType`'s: a creature's type is a fact about what it *is*
+ * and cannot be contradicted, while ground genuinely changes — a mire freezes
+ * over, a rockfall doubles the rubble.
+ */
+export function declareDifficultTerrain(
+  state: GameState,
+  patch: string,
+  command: DifficultTerrainCommand,
+): Result<GameEvent[]> {
+  const { region, costPerFoot = DIFFICULT_TERRAIN, source } = command;
+
+  return once(state, `declare-terrain:${patch}`, { ...command }, () => [], (stamp) => {
+    // Homework rather than a verdict: a patch of ground needs a lattice to
+    // lie on, and `setScene` is what settles that.
+    const scene = sceneFor(state, patch, `the ground under ${patch} to be`);
+    if (!scene.ok) return scene;
+
+    if (source !== undefined && state.ongoing[source] === undefined) {
+      return err(
+        'unknown_casting',
+        `no casting ${source} is running, so there is nothing for ${patch} to last as long as`,
+      );
+    }
+
+    // The refusal is the pure function's — the rate is its rule, and a second
+    // spelling here would be a second chance to disagree with the fold.
+    const declared = declareDifficultPatch(scene.value, patch, region, costPerFoot, source);
+    if (!declared.ok) return declared;
+
+    return ok([
+      {
+        type: 'difficult-terrain-declared',
+        patch,
+        region,
+        costPerFoot,
+        ...(source === undefined ? {} : { source }),
+        ...(stamp === null ? {} : { command: stamp }),
+      },
+    ]);
+  });
+}

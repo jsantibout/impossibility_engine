@@ -492,6 +492,14 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // acknowledgement this list exists to collect.
   'creature-summoned',
   'damage-defense-granted',
+  // A patch of Difficult Terrain the table declared: neither log was written
+  // when the ground could cost anything but a foot per foot — the scene held
+  // no terrain at all — and both fixtures fold to exactly the states they
+  // always folded to with an empty one. `difficult-terrain.test.ts` folds it
+  // and drives it end to end: a budget reaching half as far, a patch entered
+  // and left mid-move, two that overlap, a refusal that names what slowed the
+  // walker, and a patch that stops charging when its casting stops running.
+  'difficult-terrain-declared',
   'item-transferred',
   'speed-modifier-granted',
   'turn-payout-granted',

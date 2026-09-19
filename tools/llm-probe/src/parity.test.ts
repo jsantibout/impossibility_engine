@@ -196,6 +196,9 @@ const AUDIT: readonly {
       difficultFeet: because(
         'a DM ruling that this ground costs extra. Legitimate authorship rather than a forbidden number, and no beat in either benchmark asked for it — the one persistent area that would, Grease, prints its Difficult Terrain in `unmodelled`',
       ),
+      route: because(
+        'the 5-foot spaces a move crossed, which the engine asks for only when a declared patch of Difficult Terrain covers some of the ground between the endpoints and not the rest. Nothing in either benchmark declares one, so the question is never put; and it is a fact rather than a number — the engine still works out what the crossing cost',
+      ),
     },
   },
   {

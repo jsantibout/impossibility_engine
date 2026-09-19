@@ -14,6 +14,8 @@ import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import { canSee, speedOf } from '../standing.js';
 import {
+  checkRoute,
+  costOfRoute,
   dismount,
   distanceToPoint,
   mount,
@@ -22,7 +24,9 @@ import {
   moveCreature,
   type Placement,
   type Point,
+  type PositionState,
   positionOf,
+  uniformTerrainBetween,
 } from '../positioning.js';
 import { type AttackResolution, resolveAttack } from './attacks.js';
 import { type Content } from '../content.js';
@@ -59,6 +63,36 @@ export interface MoveCommand extends CommandIdentity {
    * landed, for a caller working out the number to declare.
    */
   readonly difficultFeet?: number;
+  /**
+   * The 5-foot spaces this move passed through, in order, ending where it ends.
+   *
+   * **The table's half of a cost the engine works out.** A move records where
+   * it began and where it ended and nothing in between, so a walk that clips
+   * the corner of a Web has a cost the endpoints cannot answer — and inferring
+   * a line between them would be the engine deciding a route nobody took.
+   * Stated here, the engine reads each space against the patches it already
+   * holds and charges what they say.
+   *
+   * Needed only when the ground disagrees with itself along the way: if every
+   * space a shortest route could enter charges the same, every shortest route
+   * costs the same and the move is charged without asking. Where they
+   * disagree the move is refused `route_required`, which is a context request
+   * of kind `route` — the one kind satisfied by sending the same command again
+   * with a field filled in.
+   *
+   * **Not the same answer `sweptRoute` gives, and the difference is a rule
+   * rather than a preference.** A carried area that catches what it moves over
+   * has to *settle* what each space raised before the next is entered, so it
+   * asks for the move to be re-sent as single steps. Terrain settles nothing —
+   * it changes a number — so stating the spaces in one command is the whole of
+   * what it needs.
+   *
+   * A route is a **shortest** path; see `checkRoute` for why a wandering one
+   * is refused rather than charged. {@link MoveCommand.forced} never needs
+   * one, because Difficult Terrain costs movement and forced movement spends
+   * none.
+   */
+  readonly route?: readonly Point[];
 }
 
 export interface MoveResolution {
@@ -67,6 +101,8 @@ export interface MoveResolution {
   readonly feet: number;
   /** What it cost, which is the distance plus every difficult foot again. */
   readonly cost: number;
+  /** The patches of Difficult Terrain that charged for it, by name. */
+  readonly terrain: readonly string[];
   /** Facts the engine could not check — see `AttackResolution.unverified`. */
   readonly unverified: readonly string[];
   readonly duplicate: boolean;
@@ -114,7 +150,7 @@ export function moveWithin(
   void supply;
 
   return once(state, `move:${id}`, command, () => {
-    return { events: [], feet: 0, cost: 0, unverified: [], duplicate: true };
+    return { events: [], feet: 0, cost: 0, terrain: [], unverified: [], duplicate: true };
   }, (stamp) => {
     if (state.pendingMove !== null) {
       return err('move_pending', `${state.pendingMove.mover} is already mid-move; settle it first`);
@@ -174,6 +210,23 @@ export function moveWithin(
     }
 
     // SRD: "every foot of movement in that space costs 1 extra foot."
+    //
+    // **Two ways in, and they add rather than compete.** The patches the table
+    // has declared are read off the lattice here; the number the mover
+    // declares is for ground no patch covers — the snow, the slope, the narrow
+    // opening — and every foot of that still costs a foot extra.
+    const ground = chargeTerrain(
+      state,
+      scene.value,
+      id,
+      from,
+      to,
+      feet,
+      command.forced === true,
+      command.route,
+    );
+    if (!ground.ok) return ground;
+
     const difficult = command.difficultFeet ?? 0;
     if (!Number.isInteger(difficult) || difficult < 0 || difficult > feet) {
       return err(
@@ -181,7 +234,8 @@ export function moveWithin(
         `a ${feet}-foot move cannot pass through ${difficult} feet of Difficult Terrain`,
       );
     }
-    const cost = feet + difficult;
+    const terrain = ground.value.patches;
+    const cost = ground.value.cost + difficult;
 
     // — what it costs ——————————————————————————————————————————————————————
     //
@@ -194,7 +248,7 @@ export function moveWithin(
       if (cost > allowance) {
         return err(
           'not_enough_movement',
-          `${id} may move up to ${allowance} feet in response, and that move costs ${cost}`,
+          `${id} may move up to ${allowance} feet in response, and that move costs ${cost}${becauseOf(state, terrain)}`,
         );
       }
     } else if (
@@ -213,7 +267,19 @@ export function moveWithin(
       const spent = spendMovement(state.combat, id, cost, speedOf(state, id), {
         rules: mover.actionRules,
       });
-      if (!spent.ok) return spent;
+      // **Running out of movement mid-square has to say what made the ground
+      // expensive.** The economy knows a number was too big and nothing about
+      // why, so a walker stopped halfway across a Web reads as arithmetic
+      // unless the patch is named. The *code* is untouched — a caller may
+      // branch on it, and this is the same refusal it always was.
+      if (!spent.ok) {
+        return spent.code === 'not_enough_movement' && terrain.length > 0
+          ? err(
+              'not_enough_movement',
+              `${spent.reason}, and this ${feet}-foot move costs ${cost}${becauseOf(state, terrain)}`,
+            )
+          : spent;
+      }
       events.push({ type: 'movement-spent', id, feet: cost });
     }
 
@@ -243,7 +309,14 @@ export function moveWithin(
         ...(command.forced === true ? { forced: true } : {}),
         ...(stamp === null ? {} : { command: stamp }),
       });
-      return ok({ events, feet, cost, unverified: opportunity.unverified, duplicate: false });
+      return ok({
+        events,
+        feet,
+        cost,
+        terrain,
+        unverified: opportunity.unverified,
+        duplicate: false,
+      });
     }
 
     events.push({
@@ -257,8 +330,84 @@ export function moveWithin(
       ...(stamp === null ? {} : { command: stamp }),
     });
 
-    return ok({ events, feet, cost, unverified: opportunity.unverified, duplicate: false });
+    return ok({ events, feet, cost, terrain, unverified: opportunity.unverified, duplicate: false });
   });
+}
+
+/**
+ * What the ground charged for this move, and which patches charged it.
+ *
+ * Three cases, and only the middle one costs the caller a second round trip:
+ *
+ * - **a route was stated** — check it, and read the spaces one by one;
+ * - **the ground along the way disagrees with itself** — refuse
+ *   `route_required`, naming the field that answers it;
+ * - **every space a shortest route could enter charges the same** — charge
+ *   the distance at that rate, because no route could have cost differently.
+ *
+ * The third is what keeps a Web in the far corner of a room from turning
+ * every move in that room into a two-step conversation, and it is exact
+ * rather than generous: a route of the length the ruler measured never leaves
+ * the box between the two endpoints, so if the box agrees, so does every
+ * shortest path across it.
+ */
+function chargeTerrain(
+  state: GameState,
+  scene: PositionState,
+  id: CharacterId,
+  from: Point,
+  to: Point,
+  feet: number,
+  forced: boolean,
+  route: readonly Point[] | undefined,
+): Result<{ readonly cost: number; readonly patches: readonly string[] }> {
+  // **Difficult Terrain costs movement, and forced movement spends none.** A
+  // creature shoved by Thunderwave is not moving, and the engine already
+  // reads the SRD that way for a spell's own point: `relocateOrigin` records
+  // that "no Speed is spent, no Difficult Terrain is charged" for exactly
+  // this reason. Asking a shove for its route would be asking the table to
+  // itemise a cost nobody pays.
+  if (forced) return ok({ cost: feet, patches: [] });
+
+  if (route !== undefined) {
+    const checked = checkRoute(scene, from, to, route);
+    if (!checked.ok) return checked;
+    return ok(costOfRoute(state, checked.value));
+  }
+
+  // Nothing was entered, so nothing charged. A zero-foot move is a mount, a
+  // dismount, or a placement that resolved to where the creature already was.
+  if (feet === 0) return ok({ cost: 0, patches: [] });
+
+  const uniform = uniformTerrainBetween(state, from, to);
+  if (uniform === null) {
+    return needsContext(
+      'route_required',
+      `the ground between (${from.x}, ${from.y}, ${from.z}) and (${to.x}, ${to.y}, ${to.z}) is Difficult Terrain in some places and not others, so a ${feet}-foot move costs a different number of feet depending which spaces ${id} crossed`,
+      [
+        {
+          kind: 'route',
+          subject: id,
+          need: `the ${feet / 5} spaces ${id} passed through, in order, ending where the move ends`,
+          because:
+            'every foot of movement in Difficult Terrain costs one extra foot, and which feet those were is not something the engine may decide',
+          satisfyWith: `the same resolveMove command with route filled in, as ${feet / 5} points of 5 feet each`,
+        },
+      ],
+    );
+  }
+
+  return ok({ cost: feet * uniform.costPerFoot, patches: uniform.patches });
+}
+
+/** The tail of a refusal that names what slowed the mover, or nothing at all. */
+function becauseOf(state: GameState, patches: readonly string[]): string {
+  if (patches.length === 0) return '';
+  const named = patches.map((patch) => {
+    const rate = state.scene?.terrain[patch]?.costPerFoot;
+    return rate === undefined ? patch : `${patch} at ${rate} feet per foot`;
+  });
+  return `, crossing ${named.join(' and ')}`;
 }
 
 /**

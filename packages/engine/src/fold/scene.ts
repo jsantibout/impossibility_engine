@@ -9,6 +9,7 @@
 import {
   addLandmark,
   declareCover,
+  declareDifficultPatch,
   declareSight,
   dismount,
   mount,
@@ -31,6 +32,7 @@ export const SCENE_EVENTS = [
   'creature-unplaced',
   'sight-declared',
   'cover-declared',
+  'difficult-terrain-declared',
   'mounted',
   'dismounted',
 ] as const;
@@ -92,6 +94,25 @@ export function applyScene({ state, next }: Applying, event: SceneEvent): GameSt
       return {
         ...next,
         scene: must(event, declareCover(sceneOf(state, event), event.from, event.to, event.degree)),
+      };
+
+    // A declared fact about the ground, held beside the declared facts about
+    // sight and cover. Nothing is raised by it: terrain changes what a move
+    // costs and catches nobody, so it is a property of the scene and not a
+    // moment in it.
+    case 'difficult-terrain-declared':
+      return {
+        ...next,
+        scene: must(
+          event,
+          declareDifficultPatch(
+            sceneOf(state, event),
+            event.patch,
+            event.region,
+            event.costPerFoot,
+            event.source,
+          ),
+        ),
       };
 
     // Mounting and dismounting move a creature to a space it was not in — SRD

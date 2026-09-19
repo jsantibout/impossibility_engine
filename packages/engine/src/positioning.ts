@@ -61,6 +61,17 @@ export interface PositionState {
    * third as a fact to go and establish, not as a no.
    */
   readonly sight: Readonly<Record<string, boolean>>;
+  /**
+   * Ground that costs more to cross, by the name the table gave the patch.
+   *
+   * Declared, and for the same reason cover and sight are: five of the SRD's
+   * six environmental examples — snow, rubble, furniture, a slope, a narrow
+   * opening — are fiction, and working them out means modelling the room.
+   * What the engine computes is everything downstream of the declaration:
+   * which spaces the patch covers, what a crossing costs, and whether the
+   * patch is still there. See {@link DifficultPatch}.
+   */
+  readonly terrain: Readonly<Record<string, DifficultPatch>>;
   /** Who is riding what, and whether the mount consented. */
   readonly riding: Readonly<Record<string, Ride>>;
 }
@@ -84,6 +95,7 @@ export function scene(extent: SceneExtent): PositionState {
     heights: {},
     cover: {},
     sight: {},
+    terrain: {},
     riding: {},
   };
 }
@@ -1226,6 +1238,59 @@ function boxInShape(
 /** Shapes whose point of origin is part of the area by default. */
 const ORIGIN_INCLUDED_BY_DEFAULT = new Set(['sphere', 'cylinder']);
 
+/** Everything a shape has to be resolved against, once the origin is known. */
+interface AreaFrame {
+  /** The origin as a world point, which every predicate below consumes. */
+  readonly world: Point;
+  /** The origin's coordinate on the lattice, which the Cylinder's height reads. */
+  readonly anchor: Point;
+  /** The origin creature's volume, for an Emanation. Null for a bare point. */
+  readonly originBox: Box | null;
+  /**
+   * The space the origin sits in, when it sits in one at all.
+   *
+   * A corner is not a space, so nobody can be standing on it — which is why
+   * this is null there rather than the coordinate. The exclusion in
+   * {@link creaturesInArea} asks "is this creature standing *on* the point of
+   * origin", and for a corner the honest answer is nobody.
+   */
+  readonly originSpace: Point | null;
+  readonly originCreature: CharacterId | null;
+}
+
+/**
+ * Where an area sits, resolved once for whatever wants to ask what it covers.
+ *
+ * Two callers and one spelling: {@link creaturesInArea} asks which creatures a
+ * shape catches, and {@link spaceInRegion} asks whether it lies over one
+ * 5-foot space. A second copy of this would be a second chance for a Cylinder
+ * to measure its height from a different plane than the one the ruler uses.
+ */
+function areaFrame(state: PositionState, origin: AreaOrigin): Result<AreaFrame> {
+  if ('creature' in origin) {
+    const found = state.positions[origin.creature];
+    if (found === undefined) {
+      return needsContext('unplaced', `${origin.creature} needs placing before its area can be resolved`);
+    }
+    return ok({
+      world: cubeCentre(found),
+      anchor: found,
+      originBox: boxOf(state, origin.creature),
+      originSpace: found,
+      originCreature: origin.creature,
+    });
+  }
+
+  const anchor = snapPoint(coordinateOf(origin));
+  return ok({
+    world: worldPointOf(origin),
+    anchor,
+    originBox: null,
+    originSpace: 'space' in origin ? anchor : null,
+    originCreature: null,
+  });
+}
+
 /**
  * Which placed creatures an area of effect catches.
  *
@@ -1239,37 +1304,9 @@ export function creaturesInArea(
   shape: AreaShape,
   options: AreaOptions = {},
 ): Result<CharacterId[]> {
-  let world: Point;
-  /** The origin's coordinate on the lattice, which the Cylinder's height reads. */
-  let anchor: Point;
-  /** The origin creature's volume, for an Emanation. */
-  let originBox: Box | null = null;
-  /**
-   * The space the origin sits in, when it sits in one at all.
-   *
-   * A corner is not a space, so nobody can be standing on it — which is why
-   * this is null there rather than the coordinate. The exclusion below asks
-   * "is this creature standing *on* the point of origin", and for a corner the
-   * honest answer is nobody.
-   */
-  let originSpace: Point | null = null;
-  let originCreature: CharacterId | null = null;
-
-  if ('creature' in origin) {
-    const found = state.positions[origin.creature];
-    if (found === undefined) {
-      return needsContext('unplaced', `${origin.creature} needs placing before its area can be resolved`);
-    }
-    originCreature = origin.creature;
-    originSpace = found;
-    anchor = found;
-    world = cubeCentre(found);
-    originBox = boxOf(state, origin.creature);
-  } else {
-    anchor = snapPoint(coordinateOf(origin));
-    world = worldPointOf(origin);
-    if ('space' in origin) originSpace = anchor;
-  }
+  const frame = areaFrame(state, origin);
+  if (!frame.ok) return frame;
+  const { world, anchor, originBox, originSpace, originCreature } = frame.value;
 
   const towards = 'towards' in shape ? worldPointOf(shape.towards) : null;
 
@@ -1301,6 +1338,312 @@ export function creaturesInArea(
   }
 
   return ok(caught);
+}
+
+// — Difficult Terrain ————————————————————————————————————————————————————
+//
+// SRD: "If a space is Difficult Terrain, every foot of movement in that space
+// costs 1 extra foot. For example, moving 5 feet through Difficult Terrain
+// costs 10 feet of movement. Difficult Terrain isn't cumulative; either a
+// space is Difficult Terrain or it isn't."
+//
+// **The line between what the table says and what the engine works out, drawn
+// in one place because the whole design is where it falls.** The table
+// declares the *patch*: which ground is expensive, how expensive, and which
+// casting — if any — made it so. Five of the SRD's six environmental examples
+// are fiction the engine holds no record of, and a spell's own area would
+// only ever have covered the sixth. Everything after the declaration is the
+// engine's: which spaces the shape covers, what crossing them costs, whether
+// two patches overlap, and whether the patch is still there at all.
+//
+// The rate is a number rather than a flag because the book prints two of
+// them. The glossary's Difficult Terrain is {@link DIFFICULT_TERRAIN}; Plant
+// Growth and Wall of Thorns each cost four feet per foot, which no boolean
+// can say and which a boolean would have had to be widened into the first
+// time anybody transcribed them.
+
+/** SRD's glossary rate: a foot of Difficult Terrain costs two feet to cross. */
+export const DIFFICULT_TERRAIN = 2;
+
+/** Ordinary ground: a foot costs a foot. */
+const ORDINARY_GROUND = 1;
+
+/**
+ * Where a patch of ground lies, in the same vocabulary an area of effect uses.
+ *
+ * Deliberately the *same* vocabulary: a Web is a 20-foot Cube and a bank of
+ * fog is a Sphere, and a second geometry for terrain would be a second place
+ * for a Cylinder's height to be measured from the wrong plane.
+ */
+export interface TerrainRegion {
+  readonly origin: AreaOrigin;
+  readonly shape: AreaShape;
+}
+
+/** A patch of expensive ground, as the table declared it. */
+export interface DifficultPatch {
+  readonly region: TerrainRegion;
+  /** Feet of movement spent per foot of ground. At least {@link DIFFICULT_TERRAIN}. */
+  readonly costPerFoot: number;
+  /**
+   * The casting that made this ground expensive, if one did.
+   *
+   * A patch hung on a casting stops charging the moment that casting leaves
+   * `state.ongoing` — dispelled, expired, Concentration broken, however it
+   * went. That is derived at the moment the question is asked rather than
+   * swept up by a pass of its own, so there is no window in which the webs
+   * are gone and the ground still costs double.
+   */
+  readonly source?: string;
+}
+
+/**
+ * Declare a patch of ground expensive to cross.
+ *
+ * Overwrites a patch of the same name, exactly as {@link declareCover} does
+ * and for the same reason: ground changes. A mire freezes over, a rockfall
+ * doubles the rubble, and the table says so again rather than arguing with
+ * what it said before.
+ */
+export function declareDifficultPatch(
+  state: PositionState,
+  patch: string,
+  region: TerrainRegion,
+  costPerFoot: number,
+  source?: string,
+): Result<PositionState> {
+  if (patch.trim().length === 0) {
+    return err('bad_patch', 'a patch of ground needs a name, so a refusal can say what it was');
+  }
+  if (!Number.isInteger(costPerFoot) || costPerFoot < DIFFICULT_TERRAIN) {
+    return err(
+      'bad_terrain_cost',
+      `${costPerFoot} feet per foot is not Difficult Terrain; the glossary's rate is ${DIFFICULT_TERRAIN} and a spell that prints its own prints a larger whole number`,
+    );
+  }
+
+  return ok({
+    ...state,
+    terrain: {
+      ...state.terrain,
+      [patch]: { region, costPerFoot, ...(source === undefined ? {} : { source }) },
+    },
+  });
+}
+
+/**
+ * Whether a region lies over one 5-foot space.
+ *
+ * The same geometry {@link creaturesInArea} uses, against the space itself
+ * rather than against a creature's volume — and with **no origin exclusion**.
+ * SRD's "the point of origin isn't included unless its creator decides
+ * otherwise" is a sentence about a creature not being caught by their own
+ * spell; a patch of ground has no creator standing on it, and Arcane Hand's
+ * "its space counts as Difficult Terrain" wants the origin space included.
+ */
+export function spaceInRegion(
+  state: PositionState,
+  region: TerrainRegion,
+  space: Point,
+): boolean {
+  const frame = areaFrame(state, region.origin);
+  // An unplaced origin creature is not anywhere, so its patch covers nothing.
+  // The engine does not guess where the ground it carries might be.
+  if (!frame.ok) return false;
+
+  const at = snapPoint(space);
+  const box: Box = { min: at, max: { x: at.x + CUBE, y: at.y + CUBE, z: at.z + CUBE } };
+  const towards = 'towards' in region.shape ? worldPointOf(region.shape.towards) : null;
+
+  return boxInShape(
+    frame.value.world,
+    frame.value.anchor,
+    frame.value.originBox,
+    towards,
+    region.shape,
+    box,
+  );
+}
+
+/** What a foot of one space costs, and which patches made it cost that. */
+export interface TerrainCharge {
+  /** Feet of movement per foot of ground; {@link ORDINARY_GROUND} for open floor. */
+  readonly costPerFoot: number;
+  /** The patches lying over it, named so a refusal can say what slowed the mover. */
+  readonly patches: readonly string[];
+}
+
+const OPEN_FLOOR: TerrainCharge = { costPerFoot: ORDINARY_GROUND, patches: [] };
+
+/**
+ * The patches still charging, in a fixed order.
+ *
+ * A patch a casting made lapses when that casting does, and this is where it
+ * lapses: read from `state.ongoing` at the moment the question is asked,
+ * rather than dropped by a pass that has to be remembered. Nothing can then
+ * be stale, and a log folded a second time answers the same way because it
+ * reads the same two facts.
+ */
+function livePatches(state: GameState): readonly (readonly [string, DifficultPatch])[] {
+  const scene = state.scene;
+  if (scene === null) return [];
+  return Object.keys(scene.terrain)
+    .sort()
+    .flatMap((name) => {
+      const patch = scene.terrain[name];
+      if (patch === undefined) return [];
+      if (patch.source !== undefined && state.ongoing[patch.source] === undefined) return [];
+      return [[name, patch] as const];
+    });
+}
+
+/**
+ * What crossing one space costs, and why.
+ *
+ * SRD: "Difficult Terrain isn't cumulative; either a space is Difficult
+ * Terrain or it isn't." So two patches over one space cost what one does.
+ * Where they disagree the dearer governs — the same shape the book gives
+ * overlapping cover, where a target "benefits only from the most protective
+ * degree" — because a space covered by thorns is thorny whatever else is also
+ * growing there.
+ */
+export function terrainAt(state: GameState, space: Point): TerrainCharge {
+  const scene = state.scene;
+  if (scene === null) return OPEN_FLOOR;
+
+  let costPerFoot = ORDINARY_GROUND;
+  const patches: string[] = [];
+  for (const [name, patch] of livePatches(state)) {
+    if (!spaceInRegion(scene, patch.region, space)) continue;
+    patches.push(name);
+    if (patch.costPerFoot > costPerFoot) costPerFoot = patch.costPerFoot;
+  }
+
+  return patches.length === 0 ? OPEN_FLOOR : { costPerFoot, patches };
+}
+
+/** What a stated route costs in feet of movement, and what charged for it. */
+export interface RouteCharge {
+  readonly cost: number;
+  readonly patches: readonly string[];
+}
+
+/**
+ * The cost of entering each space of a route, in order.
+ *
+ * The space a creature starts in is not among them: it is the space being
+ * left, and SRD charges the extra foot for movement **in** a space, which a
+ * creature entering the next one is no longer doing in the last.
+ */
+export function costOfRoute(state: GameState, spaces: readonly Point[]): RouteCharge {
+  let cost = 0;
+  const patches = new Set<string>();
+  for (const space of spaces) {
+    const here = terrainAt(state, space);
+    cost += CUBE * here.costPerFoot;
+    for (const name of here.patches) patches.add(name);
+  }
+  return { cost, patches: [...patches].sort() };
+}
+
+/**
+ * The rate every space a shortest route could enter agrees on, or null.
+ *
+ * **This is what keeps the engine from asking for a route it does not need.**
+ * A route of the length the ruler measured never leaves the box between the
+ * two endpoints, so if every space in that box charges the same, every
+ * shortest route costs the same and there is nothing the path could tell the
+ * engine that it does not already know. Where they disagree, the number
+ * depends on ground nobody has named and the engine asks.
+ *
+ * The starting space is excluded, because it is the one space a move does not
+ * enter.
+ */
+export function uniformTerrainBetween(
+  state: GameState,
+  from: Point,
+  to: Point,
+): TerrainCharge | null {
+  if (livePatches(state).length === 0) return OPEN_FLOOR;
+
+  const start = snapPoint(from);
+  const end = snapPoint(to);
+  const span = (a: number, b: number): readonly number[] => {
+    const lo = Math.min(a, b);
+    const hi = Math.max(a, b);
+    const out: number[] = [];
+    for (let v = lo; v <= hi; v += CUBE) out.push(v);
+    return out;
+  };
+
+  let agreed: TerrainCharge | null = null;
+  const patches = new Set<string>();
+  for (const x of span(start.x, end.x)) {
+    for (const y of span(start.y, end.y)) {
+      for (const z of span(start.z, end.z)) {
+        if (x === start.x && y === start.y && z === start.z) continue;
+        const here = terrainAt(state, { x, y, z });
+        if (agreed === null) agreed = here;
+        else if (agreed.costPerFoot !== here.costPerFoot) return null;
+        for (const name of here.patches) patches.add(name);
+      }
+    }
+  }
+
+  return agreed === null
+    ? OPEN_FLOOR
+    : { costPerFoot: agreed.costPerFoot, patches: [...patches].sort() };
+}
+
+/**
+ * Check a stated route: the spaces a mover says they passed through.
+ *
+ * A route is a **shortest** path, and a wandering one is refused rather than
+ * charged. The budget is charged the distance the ruler measured, and an
+ * Opportunity Attack is offered by comparing where the mover stood with where
+ * they ended — so a detour through somebody's reach is a move that has to be
+ * sent as segments, each of which the engine sees whole.
+ */
+export function checkRoute(
+  state: PositionState,
+  from: Point,
+  to: Point,
+  route: readonly Point[],
+): Result<readonly Point[]> {
+  const spaces = route.map(snapPoint);
+  const steps = distanceBetweenPoints(from, to) / CUBE;
+
+  if (spaces.length !== steps) {
+    return err(
+      'bad_route',
+      `a ${steps * CUBE}-foot move crosses ${steps} spaces, and this route names ${spaces.length}; a route is the shortest path, so a longer way round is two moves rather than one`,
+    );
+  }
+
+  let previous = snapPoint(from);
+  for (const space of spaces) {
+    const step = distanceBetweenPoints(previous, space);
+    if (step !== CUBE) {
+      return err(
+        'bad_route',
+        `a route is a walk of single spaces, and (${previous.x}, ${previous.y}, ${previous.z}) to (${space.x}, ${space.y}, ${space.z}) is ${step} feet`,
+      );
+    }
+    if (!isInsideScene(state, space)) {
+      return err('bad_route', `(${space.x}, ${space.y}, ${space.z}) is outside this scene`);
+    }
+    previous = space;
+  }
+
+  const end = snapPoint(to);
+  if (previous.x !== end.x || previous.y !== end.y || previous.z !== end.z) {
+    return err(
+      'bad_route',
+      `this route ends at (${previous.x}, ${previous.y}, ${previous.z}) and the move ends at (${end.x}, ${end.y}, ${end.z})`,
+    );
+  }
+
+  return ok(spaces);
 }
 
 /** Declare whether one creature can see another. Directional, like cover. */

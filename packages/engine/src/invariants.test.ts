@@ -56,6 +56,7 @@ import {
   liftConditionFrom,
   damageCreature,
   declareCreatureType,
+  declareDifficultTerrain,
   declineOpportunity,
   endConcentration,
   endOngoingSpell,
@@ -1284,6 +1285,22 @@ const GUARDED: readonly Guarded[] = [
     name: 'declareCreatureType',
     log: untyped(),
     run: (s, commandId) => declareCreatureType(s, C, 'Fey', { commandId }),
+  },
+  {
+    name: 'declareDifficultTerrain',
+    log: SETUP,
+    run: (s, commandId) =>
+      declareDifficultTerrain(
+        s,
+        'the rubble',
+        {
+          region: {
+            origin: { space: { x: 100, y: 100, z: 0 } },
+            shape: { kind: 'sphere', radius: 10 },
+          },
+          commandId,
+        },
+      ),
   },
   /**
    * The interruptible casting pair. Both halves need the guard and for
