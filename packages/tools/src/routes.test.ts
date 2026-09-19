@@ -247,11 +247,12 @@ describe('ground that disagrees with itself is answered by `move.route`', () => 
   }
 
   /**
-   * **The patch is named back, which is what makes the tool worth having.** A
-   * refusal about a move quotes the table's own word for the ground, so the
-   * narration and the mechanics are talking about the same mire.
+   * **The patch is named back, which is what makes the tool worth having.** The
+   * move reports the table's own word for the ground that charged it, so the
+   * narration and the mechanics are talking about the same mire — and the
+   * extra five feet are explained rather than merely charged.
    */
-  it('is declared through a tool, and charges the glossary’s rate', () => {
+  it('is declared through a tool, and charges the glossary’s rate under its own name', () => {
     const t = mired();
     const crossed = expectOk(
       t.call('move', {
@@ -263,7 +264,10 @@ describe('ground that disagrees with itself is answered by `move.route`', () => 
       }),
     );
     expect(crossed.resolution['feetMoved']).toBe(10);
+    // Ten feet, one space of which is mire: 5 + 10. The rate is the glossary's
+    // and no call named it.
     expect(crossed.resolution['movementCost']).toBe(15);
+    expect(crossed.resolution['terrain']).toEqual(['the mire']);
   });
 
   /** Fifteen feet east of the ford: (105, 100), (110, 100), (115, 100). */
@@ -318,7 +322,7 @@ describe('ground that disagrees with itself is answered by `move.route`', () => 
     expect(t.surface.observe().creatures[0]?.budget?.movementFeet).toBe(10);
   });
 
-/**
+  /**
    * **A route is checked, not taken on trust**, which is the other half of why
    * stating one is not producing a number. Two spaces is not a fifteen-foot
    * walk, and the engine says so rather than charging whatever it was handed.
@@ -344,6 +348,7 @@ describe('ground that disagrees with itself is answered by `move.route`', () => 
     );
     expect(round.resolution['feetMoved']).toBe(15);
     expect(round.resolution['movementCost']).toBe(15);
+    expect(round.resolution['terrain']).toEqual([]);
   });
 });
 
@@ -494,10 +499,24 @@ describe('a carried area is answered by several `move` calls, one space each', (
     let settlements = 0;
     for (const feet of [5, 10, 15]) {
       expectOk(t.call('move', { who: 'brannor', fromLandmark: 'the ford', feet, bearing: EAST }));
-      if (t.surface.observe().owed.owedAreaEffects > 0) {
-        expectOk(t.call('settle_area_effects'));
-        settlements += 1;
-      }
+      if (t.surface.observe().owed.owedAreaEffects === 0) continue;
+
+      // **Settled before the next space is entered, and not by convention.**
+      // The next step is refused while the arrival stands unanswered, which is
+      // the rule the single-step remedy exists for: what a creature walks its
+      // aura onto can stop the walk, so the engine will not hear about the
+      // space after until this one is closed.
+      const early = t.call('move', {
+        who: 'brannor',
+        fromLandmark: 'the ford',
+        feet: feet + 5,
+        bearing: EAST,
+      });
+      expect(early.status).toBe('refused');
+      expect(early.status === 'refused' ? early.code : '').toBe('area_effect_owed');
+
+      expectOk(t.call('settle_area_effects'));
+      settlements += 1;
     }
 
     expect(settlements).toBeGreaterThan(0);

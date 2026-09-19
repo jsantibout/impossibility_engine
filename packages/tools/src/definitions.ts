@@ -29,7 +29,7 @@
  * | `width`, `depth`, `height` on a scene | nothing. A room's size is fiction, and the engine holds it only so a 60-foot tavern cannot contain a 1000-foot gap |
  * | `difficultFeet` on a move | the move's own distance. Declared terrain, on the same grounds as cover: five of SRD's six cases are fiction, and working them out means modelling the room. Its only direction of abuse is self-harm |
  * | `route` on a move, `via` on an activation | `checkRoute`, which takes only a walk of single spaces between two endpoints the engine worked out itself — and then charges what its own ground says. A route is which way somebody went, and the cost of going that way is never the caller's |
- * | `damageType` on a casting | the list the spell prints. Two spells print one, and the SRD leaves which lands to the caster or to what the caster is; the engine refuses to choose, and refused to hear an answer until this field existed |
+ * | `damageType` on a casting | the list the spell prints. A handful print one — Chromatic Orb, Sorcerous Burst, Protection from Energy, Fire Shield, Spirit Guardians — and the SRD leaves which lands to the caster or to what the caster is; the engine refuses to choose, and refused to hear an answer until this field existed |
  *
  * The consequence is deliberate: an action the engine does not model has no
  * legal path through this surface at step one. It finds a rule the engine
@@ -942,7 +942,18 @@ const MOVE = tool({
         context.campaign.supply(),
       ),
       (value) => value.events,
-      (value) => ({ feetMoved: value.feet, movementCost: value.cost, duplicate: value.duplicate }),
+      // `terrain` is the patches that charged for this move, by the table's own
+      // name for them. Reported because the difference between `feetMoved` and
+      // `movementCost` is otherwise an unexplained number: a caller told a
+      // 15-foot walk cost 20 and not which ground took the other five has to
+      // narrate a slog it cannot see. It is also the only way the answer to a
+      // `route_required` is visibly *about* the patch the question named.
+      (value) => ({
+        feetMoved: value.feet,
+        movementCost: value.cost,
+        terrain: value.terrain,
+        duplicate: value.duplicate,
+      }),
       (value) => value.unverified,
     ),
 });
@@ -1023,7 +1034,7 @@ const CAST_SPELL = tool({
     damageType: damageTypeSchema
       .optional()
       .describe(
-        'Only for a spell that prints two types and leaves which one to the casting — Spirit Guardians’ Radiant or Necrotic, Protection from Energy’s choice of five. Naming one for a spell that prints a single type is refused, and so is leaving it out for a spell that prints a list.',
+        'Which of the types a spell prints this casting uses, for the few that print a list and leave the choice to the caster or to what the caster is — Spirit Guardians’ Radiant or Necrotic, Chromatic Orb’s whole list, Protection from Energy’s. Leaving it out for one of those is refused, and so is naming one for a spell that prints a single type.',
       ),
   }),
   run: (context, args) => {
