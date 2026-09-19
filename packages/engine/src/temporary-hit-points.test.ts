@@ -258,7 +258,9 @@ describe('a Long Rest ends them however they were granted', () => {
    * write, and the seam refuses it as it always did.
    */
   it('still refuses a clearing aimed at nobody', () => {
-    expect(() => at([add(HERO), { type: 'temporary-hp-cleared', id: OTHER }])).toThrow();
+    expect(() => at([add(HERO), { type: 'temporary-hp-cleared', id: OTHER }])).toThrow(
+      /is not in this game/,
+    );
   });
 });
 
