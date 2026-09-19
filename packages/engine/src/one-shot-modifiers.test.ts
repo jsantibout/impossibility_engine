@@ -49,6 +49,8 @@ const id = (s: string) => asCharacterId(s);
 const CASTER = id('caster');
 const TARGET = id('target');
 const OTHER = id('other');
+/** Placed, visible and targetable — and not in the initiative order. */
+const LATECOMER = id('latecomer');
 
 const sheet = (over: Partial<CharacterSheet> = {}): CharacterSheet => ({
   level: 11,
@@ -91,6 +93,7 @@ const PLACED: readonly GameEvent[] = [
   added(CASTER),
   added(TARGET, { abilities: FRAIL }),
   added(OTHER, { abilities: FRAIL }),
+  added(LATECOMER, { abilities: FRAIL }),
   ...slots,
   {
     type: 'spellcasting-declared',
@@ -105,9 +108,16 @@ const PLACED: readonly GameEvent[] = [
   { type: 'landmark-added', name: 'here', at: { x: 100, y: 100, z: 0 } },
   { type: 'landmark-added', name: 'there', at: { x: 105, y: 100, z: 0 } },
   { type: 'landmark-added', name: 'beside', at: { x: 105, y: 105, z: 0 } },
+  { type: 'landmark-added', name: 'the doorway', at: { x: 100, y: 105, z: 0 } },
   { type: 'creature-placed', id: CASTER, placement: { from: { landmark: 'here' }, feet: 0 } },
   { type: 'creature-placed', id: TARGET, placement: { from: { landmark: 'there' }, feet: 0 } },
   { type: 'creature-placed', id: OTHER, placement: { from: { landmark: 'beside' }, feet: 0 } },
+  {
+    type: 'creature-placed',
+    id: LATECOMER,
+    placement: { from: { landmark: 'the doorway' }, feet: 0 },
+  },
+  { type: 'sight-declared', from: CASTER, to: LATECOMER, seen: true },
   { type: 'sight-declared', from: CASTER, to: TARGET, seen: true },
   { type: 'sight-declared', from: CASTER, to: OTHER, seen: true },
   { type: 'sight-declared', from: TARGET, to: CASTER, seen: true },
@@ -401,6 +411,65 @@ describe('a one-shot grant outside combat asks for a turn order', () => {
 });
 
 /**
+ * A deadline anchored on the target asks about **the target**.
+ *
+ * SRD Vicious Mockery ends at "the end of **its** next turn", and a creature
+ * can be in the fight without being in the order: `joinCombat` exists for
+ * exactly that. So the pre-flight that asks whether the moment can exist has
+ * to ask it of the creature the moment is about, one request per target that
+ * cannot be pinned — which is the shape `delayedDuration` already uses two
+ * paragraphs further down the same function, and the reason its comment gives
+ * is the one that applies here: "It used to resolve in part and forgive the
+ * rest: the slot went, the attack rolled, the first hit landed."
+ *
+ * Asked of the caster instead, this casting passed the pre-flight, rolled the
+ * save, and was then refused by `schedule` with a bare `not_in_combat` —
+ * after the generator had moved, which is the one thing asking early exists to
+ * prevent.
+ */
+describe('a target outside the initiative order is asked about before the die', () => {
+  it('asks for the turn order and spends nothing at all', () => {
+    const before = fold('seed', SETUP);
+    expect(whoseTurn(before)).toBe(CASTER);
+    // In the fight in every sense the world records, and not in the order.
+    expect(before.combat?.turnCounts[LATECOMER]).toBeUndefined();
+
+    const dice = supply('mock');
+    const snapshot = { rng: dice.rng.snapshot(), rolls: dice.issuer.count };
+
+    const out = resolveSpell(
+      before,
+      CASTER,
+      { spellId: 'vicious-mockery', targets: [LATECOMER] },
+      dice,
+    );
+
+    expect(isNeedsContext(out)).toBe(true);
+    const requests = contextRequestsOf(out);
+    expect(requests.map((r) => r.kind)).toEqual(['turn-order']);
+    // **About the target, not the caster** — which is the whole defect.
+    expect(requests[0]?.subject).toBe(LATECOMER);
+
+    // Nothing was spent: no die, no action, no state.
+    expect(fold('seed', SETUP)).toEqual(before);
+    expect(dice.rng.snapshot()).toEqual(snapshot.rng);
+    expect(dice.issuer.count).toBe(snapshot.rolls);
+  });
+
+  /** And the caster-anchored member still asks about the caster. */
+  it('leaves Guiding Bolt asking about the caster', () => {
+    const out = resolveSpell(
+      fold('seed', PLACED),
+      CASTER,
+      { spellId: 'guiding-bolt', targets: [TARGET], slotLevel: 1 },
+      supply('bolt'),
+    );
+    expect(isNeedsContext(out)).toBe(true);
+    expect(contextRequestsOf(out)[0]?.subject).toBe(CASTER);
+  });
+});
+
+/**
  * The counterpart: the other participant, pinned.
  *
  * Two SRD sentences narrow a modifier to one named creature rather than to
@@ -547,6 +616,26 @@ describe('a one-shot modifier off an attack roll is refused at authoring', () =>
         'one_shot_off_an_attack',
       );
     },
+  );
+});
+
+/**
+ * A casting has one duration and may have caught several creatures, so the
+ * member that names *its* next turn means nothing in that position.
+ *
+ * Refused where it is written, which is also what keeps `riderDuration`'s one
+ * throw — the target-anchored moment with no target — out of a content
+ * author's reach: after the pre-flight split, the only callers that pass no
+ * target are the ones that cannot reach the member.
+ */
+it('refuses a casting whose own deadline is anchored on a target', () => {
+  const definition = {
+    ...SRD_CONTENT.spell('guiding-bolt')!,
+    durationUntil: 'end-of-targets-next-turn',
+  } as unknown as SpellDefinition;
+
+  expect(checkSpellDefinition(definition).map((p) => p.code)).toContain(
+    'casting_duration_without_a_target',
   );
 });
 

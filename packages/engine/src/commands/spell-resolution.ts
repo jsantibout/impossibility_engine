@@ -76,6 +76,7 @@ import {
   ranged,
   durationSecondsAt,
   riderDuration,
+  anchoredOnTarget,
   riderDurations,
   type SpellDefinition,
   type SpellEffect,
@@ -479,7 +480,16 @@ export function castOrRelease(
     // what would settle it. Raised here, the request costs a caller nothing to
     // answer: the slot, the action and the generator are all still where they
     // were, so the same casting is sent again unchanged.
+    //
+    // **The caster-anchored deadlines only**, which is the half that can be
+    // asked here at all: they are the same moment for every target a casting
+    // catches, so the caster answers for all of them and the targets need not
+    // exist yet. A deadline anchored on the creature the rider lands on is a
+    // different moment per target and is asked below, where the targets are
+    // settled — the division {@link anchoredOnTarget} owns, and the one
+    // `delayedDuration` has always made for the same reason.
     for (const lasts of riderDurations(definition)) {
+      if (anchoredOnTarget(lasts)) continue;
       const wants = riderDuration(lasts, casterId) as Duration;
       const pinned = resolveDuration({ elapsed: state.elapsed, combat: state.combat }, wants);
       if (!pinned.ok) return turnContextFor(pinned, wants, casterId);
@@ -651,6 +661,35 @@ export function castOrRelease(
     if (delaysDamage(definition)) {
       for (const target of targets) {
         const owed = delayedDuration(target);
+        const pinned = resolveDuration(timeView(state), owed);
+        if (pinned.ok) continue;
+        const asked = turnContextFor(pinned, owed, target);
+        const requests = contextRequestsOf(asked);
+        if (requests.length === 0) return asked;
+        needs.push(...requests);
+      }
+    }
+
+    // **And a rider's own deadline, where the rider anchors it on the creature
+    // it lands on** — the other half of the loop above, asked here for the
+    // reason the paragraph above gives and in the same shape.
+    //
+    // SRD Vicious Mockery: "Disadvantage on the next attack roll it makes
+    // before the end of **its** next turn", on an Instantaneous cantrip, so
+    // the rider's own deadline is the only thing that could ever lift the
+    // Disadvantage and "its" is the target rather than the caster. A creature
+    // can be in the fight and not in the order — `joinCombat` is what that
+    // command is for — so asking the caster would pass the pre-flight and
+    // leave `schedule` to refuse after the save had been rolled. That is the
+    // failure the paragraph above records in the past tense, and this is the
+    // same fix for the same shape of sentence.
+    //
+    // One request per target that cannot be pinned, because the fact is about
+    // that creature.
+    for (const lasts of riderDurations(definition)) {
+      if (!anchoredOnTarget(lasts)) continue;
+      for (const target of targets) {
+        const owed = riderDuration(lasts, casterId, target) as Duration;
         const pinned = resolveDuration(timeView(state), owed);
         if (pinned.ok) continue;
         const asked = turnContextFor(pinned, owed, target);

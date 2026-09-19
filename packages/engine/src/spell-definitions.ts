@@ -2322,15 +2322,16 @@ export function riderDurationPhrase(lasts: RiderDuration | undefined): string {
  * separate members is that none of them is interchangeable with another — see
  * {@link RiderDuration}.
  *
- * **`targetId` is optional, and where it is absent the target-anchored member
- * falls back to the caster.** The one caller that has no target is the
- * *pre-flight*, which asks `resolveDuration` whether the moment a rider names
- * could exist at all before a slot or a die is spent — and at that point the
- * spell's targets are still a request rather than creatures. What it is
- * actually asking is whether there are turns to anchor to, which the caster
- * answers as well as anybody; the binding that matters is the one the resolver
- * makes, with the creature in hand. A target outside the fight is caught there
- * instead, as a refusal rather than as a wrong deadline.
+ * **`targetId` is optional and the target-anchored member requires it**, which
+ * is not a contradiction: the two callers that pass none are the two that
+ * cannot reach that member. The pre-flight asks the caster-anchored deadlines
+ * once and the target-anchored ones per target, splitting on
+ * {@link anchoredOnTarget}; and a definition's own `durationUntil` is one
+ * casting's duration rather than one creature's, which the validator refuses
+ * the member on. So the combination is programmer error and says so, rather
+ * than falling back to the caster — a fallback there would be a *wrong
+ * deadline* rather than a refusal, and a closed vocabulary exists to make that
+ * impossible.
  */
 export function riderDuration(
   lasts: RiderDuration | undefined,
@@ -2340,10 +2341,31 @@ export function riderDuration(
   if (lasts === undefined) return undefined;
   if (typeof lasts === 'object') return forSeconds(lasts.seconds);
   if (lasts === 'end-of-current-turn') return endOfCurrentTurn;
-  if (lasts === 'end-of-targets-next-turn') return endOfNextTurn(targetId ?? casterId);
+  if (lasts === 'end-of-targets-next-turn') {
+    if (targetId === undefined) {
+      throw new Error(
+        'a deadline anchored on the target needs the target; ask it per target, as the pre-flight and the rider resolvers do',
+      );
+    }
+    return endOfNextTurn(targetId);
+  }
   return lasts === 'end-of-casters-next-turn'
     ? endOfNextTurn(casterId)
     : startOfNextTurn(casterId);
+}
+
+/**
+ * Whether a rider's deadline is about the creature it lands on.
+ *
+ * The one reader of the distinction, so the pre-flight and the resolvers
+ * cannot come to different views of which member anchors where. A caster's
+ * deadline is the same moment for every target a casting catches and is asked
+ * once; a target's is a different moment per target and is asked per target,
+ * which is the rule {@link delayedDuration} already obeys and the reason it is
+ * asked where the targets exist.
+ */
+export function anchoredOnTarget(lasts: RiderDuration): boolean {
+  return lasts === 'end-of-targets-next-turn';
 }
 
 /**

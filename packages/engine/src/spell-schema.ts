@@ -2147,6 +2147,23 @@ export function checkSpellDefinition(
     });
   }
 
+  // **A casting's own deadline may not be anchored on a target**, because a
+  // casting has as many targets as it caught and one duration. `RiderDuration`
+  // is shared with the riders, where a deadline *is* about one creature —
+  // SRD Vicious Mockery's "the end of **its** next turn" — and the member
+  // that says so means nothing in this position: there is no "it". Refused
+  // here rather than left to bind to whoever, which is the same argument
+  // `anchoredOnTarget` makes at the pre-flight, and it is what keeps
+  // `riderDuration`'s one throw out of a content author's reach.
+  if (definition.durationUntil === 'end-of-targets-next-turn') {
+    found.push({
+      field: 'durationUntil',
+      code: 'casting_duration_without_a_target',
+      reason:
+        'a casting runs for one duration and may have caught several creatures, so its own deadline cannot be the end of "its" next turn; put the moment on the rider that is about one creature',
+    });
+  }
+
   // "Until dispelled" is the absence of a deadline. A definition that carries
   // one as well is claiming both that the spell ends at a moment and that it
   // never does, and `persists` would answer on whichever field it read first.
