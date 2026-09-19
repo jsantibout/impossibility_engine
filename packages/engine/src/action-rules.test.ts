@@ -262,8 +262,8 @@ const BEFUDDLING_WORD = JSON.stringify({
 });
 
 /**
- * Something for the victim to cast, so a Bonus Action and a Magic action have
- * a spender the fixtures can actually reach.
+ * Something for the victim to cast as a **Bonus Action**, so that slot has a
+ * spender the fixtures can actually reach.
  */
 const QUICK_SPARK = JSON.stringify({
   id: 'quick-spark',
@@ -271,6 +271,28 @@ const QUICK_SPARK = JSON.stringify({
   level: 0,
   school: 'evocation',
   castingTime: 'bonus-action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 30 },
+  targets: { count: 1 },
+  effects: [{ kind: 'attack', attack: 'ranged', damage: { dice: '1d6' }, damageType: 'fire' }],
+});
+
+/**
+ * The same, at the ordinary casting time, and it is a separate spell for one
+ * reason: **the named-axis fixture has to refuse and permit the same slot.**
+ *
+ * With only the Bonus Action cantrip, "one named action refused, the slot it
+ * came out of left alone" refused out of the Bonus Action slot and showed the
+ * *Action* slot open — two true statements about two different slots, and a
+ * title claiming something narrower than it said. An Action-time casting
+ * makes the slot refused and the slot shown open the same one.
+ */
+const STEADY_SPARK = JSON.stringify({
+  id: 'steady-spark',
+  name: 'Steady Spark',
+  level: 0,
+  school: 'evocation',
+  castingTime: 'action',
   concentration: false,
   range: { kind: 'ranged', feet: 30 },
   targets: { count: 1 },
@@ -287,6 +309,7 @@ const HOMEBREW = unwrap(
       JSON.parse(STILLING_WORD),
       JSON.parse(BEFUDDLING_WORD),
       JSON.parse(QUICK_SPARK),
+      JSON.parse(STEADY_SPARK),
     ],
   }),
   'load',
@@ -324,7 +347,11 @@ const PLACED: readonly GameEvent[] = [
   {
     type: 'spellcasting-declared',
     id: TARGET,
-    spellcasting: declaredCasting({ ability: 'int', cantrips: ['quick-spark'], prepared: [] }),
+    spellcasting: declaredCasting({
+      ability: 'int',
+      cantrips: ['quick-spark', 'steady-spark'],
+      prepared: [],
+    }),
   },
   { type: 'scene-set', extent: { width: 400, depth: 400, height: 40 } },
   { type: 'landmark-added', name: 'here', at: { x: 100, y: 100, z: 0 } },
@@ -557,9 +584,12 @@ describe('a forbidden action is refused as a value, naming what forbade it', () 
    *
    * **The named axis, with no slot forbidden at all.** Every other fixture
    * here bites through a slot, so mutating `forbids`\' action list to match
-   * nothing left them all green. The pair of assertions is the test: the
-   * Magic action is gone and the Action slot it would have come out of is
-   * not.
+   * nothing left them all green. The pair of assertions is the test, and both
+   * halves are about **the Action slot**: a Magic action taken out of it is
+   * refused, and a Dodge out of the very same slot lands. The casting is
+   * `steady-spark` rather than the Bonus Action cantrip for exactly that
+   * reason — refusing one slot and showing another open is two true sentences
+   * about two different slots, which is a narrower claim than the title.
    */
   it('refuses one named action and leaves the slot it came out of alone', () => {
     const log = [...SETUP, ...castAt(SETUP, 'befuddling-word', [TARGET], 1)];
@@ -568,12 +598,12 @@ describe('a forbidden action is refused as a value, naming what forbade it', () 
     const refused = resolveSpell(
       state,
       TARGET,
-      { spellId: 'quick-spark', targets: [CASTER] },
+      { spellId: 'steady-spark', targets: [CASTER] },
       supply('spark'),
     );
     expect(isErr(refused) && refused.code).toBe('action_forbidden');
 
-    // And the Action itself is untouched, which is the half a slot-shaped
+    // The same slot, still there to spend — which is the half a slot-shaped
     // rule could not say.
     expect(must(takeDodge(state, TARGET, {})).some((e) => e.type === 'action-spent')).toBe(true);
   });
@@ -776,7 +806,7 @@ describe('a spell may widen what a turn permits as well as narrow it', () => {
 // — the definition format ——————————————————————————————————————————————————
 
 describe('the validator holds the vocabulary', () => {
-  const bad = (effect: unknown): readonly string[] =>
+  const problems = (effect: unknown) =>
     checkSpellDefinitionValue({
       id: 'x',
       name: 'X',
@@ -788,7 +818,22 @@ describe('the validator holds the vocabulary', () => {
       range: { kind: 'ranged', feet: 30 },
       targets: { count: 1 },
       effects: [effect],
-    }).map((p) => p.code);
+    });
+
+  const bad = (effect: unknown): readonly string[] => problems(effect).map((p) => p.code);
+
+  /**
+   * The reasons, not only the codes — because two arms of `checkActionRule`
+   * share one code and differ only in what they say.
+   *
+   * Mutating the "already costs" arm to `if (false)` left the whole suite
+   * green: the pair check below it catches the same input under the same
+   * code, with a different message, and a helper that threw the reason away
+   * could not tell them apart. The comment claiming the first arm is reported
+   * "because it is the more useful complaint" was therefore a sentence
+   * nothing held, and swapping the two arms was a silent mutation.
+   */
+  const said = (effect: unknown): string => problems(effect).map((p) => p.reason).join(' | ');
 
   it('refuses a rule that names nothing', () => {
     expect(bad({ kind: 'action-rule', rule: { kind: 'forbids' } })).toContain('bad_action_rule');
@@ -833,6 +878,16 @@ describe('the validator holds the vocabulary', () => {
     expect(
       bad({ kind: 'action-rule', rule: { kind: 'permits-only', slot: 'movement', actions: [] } }),
     ).toContain('bad_action_rule');
+  });
+
+  it('says the sentence is redundant before it says nothing can charge it', () => {
+    // The same code from two arms, told apart by what they say.
+    expect(said({ kind: 'action-rule', rule: { kind: 'allows', action: 'disengage', from: 'action' } })).toMatch(
+      /already costs/,
+    );
+    expect(said({ kind: 'action-rule', rule: { kind: 'allows', action: 'disengage', from: 'reaction' } })).toMatch(
+      /no command will charge/,
+    );
   });
 
   it('refuses an allowance that costs what it already costs', () => {
