@@ -60,6 +60,7 @@ import { applyConditionTo, liftConditionFrom, resolveDamage, resolveTest, settle
 import { z } from 'zod';
 import {
   identity,
+  ruled,
   senses,
   settle,
   settleEvents,
@@ -76,16 +77,6 @@ import {
   sensesFields,
   skillSchema,
 } from '../schemas.js';
-
-/**
- * A DM's phrase for why, turned into the source the log will carry.
- *
- * The same prefix `apply_condition` writes on the model's surface, so a
- * reader of the log cannot tell which surface a ruling came through — and
- * should not be able to. It is one function because `end_condition` has to
- * reproduce it exactly to lift the instance it names.
- */
-const ruled = (why: string): string => `DM ruling: ${why}`;
 
 /**
  * A Difficulty Class, which is the DM's to set and nobody else's.

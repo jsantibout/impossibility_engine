@@ -302,6 +302,19 @@ function choicesOf(input: z.infer<typeof characterChoicesSchema>): CharacterChoi
 
 export const who = (id: string): CharacterId => asCharacterId(id);
 
+/**
+ * A caller's phrase for why, turned into the source the log will carry.
+ *
+ * **One function because two surfaces write it.** The model's
+ * `apply_condition` imposes a ruled condition and the DM's `end_condition`
+ * lifts one *by naming its source*, so the two have to spell the prefix
+ * identically or a condition applied through one door cannot be lifted
+ * through the other. One campaign may have both surfaces over it, which makes
+ * that a live crossing rather than a hypothetical one — and two string
+ * literals agreeing is not a thing a reader can check.
+ */
+export const ruled = (why: string): string => `DM ruling: ${why}`;
+
 const point = (input: z.infer<typeof pointSchema>): Point => ({
   x: input.x,
   y: input.y,
@@ -980,7 +993,7 @@ const APPLY_CONDITION = tool({
         context.campaign.state(),
         who(args.who),
         args.condition as ConditionName,
-        `DM ruling: ${args.ruling}`,
+        ruled(args.ruling),
         [],
         until,
         undefined,

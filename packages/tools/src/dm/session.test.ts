@@ -16,7 +16,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
-import { createCampaign, createDmSurface, type ToolOutcome } from '@ie/tools';
+import { createCampaign, createDmSurface, createSurface, type ToolOutcome } from '@ie/tools';
 
 const BOOK = [
   'magic-missile',
@@ -136,8 +136,9 @@ describe('a check against a Difficulty Class the table decided', () => {
     expect(outcome.resolution['natural']).toBeGreaterThanOrEqual(1);
     expect(outcome.resolution['natural']).toBeLessThanOrEqual(20);
     expect(typeof outcome.resolution['total']).toBe('number');
-    expect(typeof outcome.resolution['success']).toBe('boolean');
     expect(outcome.resolution['dc']).toBe(14);
+    // And the DC decided the outcome, rather than being echoed beside one.
+    expect(outcome.resolution['success']).toBe((outcome.resolution['total'] as number) >= 14);
 
     // And the log says why the number was what it was.
     const recorded = outcome.events.find((event) => event.type === 'roll-recorded');
@@ -156,6 +157,44 @@ describe('a check against a Difficulty Class the table decided', () => {
       ['a', 'b', 'c', 'd', 'e', 'f'].map((seed) => ask(atTheTable(`seed-${seed}`))),
     );
     expect(seeds.size).toBeGreaterThan(1);
+  });
+
+  /**
+   * The DC is the whole of what the DM supplies, so it has to be shown
+   * arriving. One seed throws one die; two Difficulty Classes decide it two
+   * ways, and a `dc` echoed back into the resolution beside an outcome it did
+   * not reach would pass every other assertion in this file.
+   */
+  it('and the class the DM set is what the roll is measured against', () => {
+    const against = (dc: number) =>
+      expectOk(atTheTable('one-die').call('ability_check', { who: 'kessa', ability: 'dex', dc }));
+    const trivial = against(1);
+    const impossible = against(30);
+    expect(trivial.resolution['natural']).toBe(impossible.resolution['natural']);
+    expect(trivial.resolution['success']).toBe(true);
+    expect(impossible.resolution['success']).toBe(false);
+  });
+
+  /**
+   * And the skill, which is the other half of what a DM chooses. Kessa is
+   * proficient in Stealth and in nothing else Dexterous, so the same die
+   * under the same seed totals higher when the DM names it.
+   */
+  it('and the skill the DM named is added by the engine, not by the caller', () => {
+    const raw = expectOk(
+      atTheTable('one-die').call('ability_check', { who: 'kessa', ability: 'dex', dc: 10 }),
+    ).resolution;
+    const sneaking = expectOk(
+      atTheTable('one-die').call('ability_check', {
+        who: 'kessa',
+        ability: 'dex',
+        skill: 'stealth',
+        dc: 10,
+      }),
+    ).resolution;
+    expect(sneaking['natural']).toBe(raw['natural']);
+    // Proficiency at level 3 is +2, and the caller never said so.
+    expect(sneaking['total']).toBe((raw['total'] as number) + 2);
   });
 
   it('records the DM’s words for why, so a later reader knows it was a ruling', () => {
@@ -254,7 +293,33 @@ describe('a condition ruled, and later ruled over', () => {
       }),
     );
     expect(t.surface.observe().creatures[0]!.conditions).toContain('frightened');
-    expect(outcome.events.some((event) => event.type === 'effect-scheduled')).toBe(true);
+
+    // And the span reached the clock. `effect-scheduled` alone would pass for
+    // any number of seconds, including one the tool dropped on the floor: the
+    // engine converts a Duration into a Deadline against its own elapsed
+    // time, and the deadline is where the ten minutes actually lands.
+    const scheduled = outcome.events.find((event) => event.type === 'effect-scheduled');
+    expect(scheduled).toBeDefined();
+    expect(scheduled).toMatchObject({
+      deadline: { kind: 'elapsed', at: t.surface.observe().elapsedSeconds + 600 },
+    });
+  });
+
+  it('and a different span is a different deadline', () => {
+    const at = (seconds: number) => {
+      const t = atTheTable();
+      const outcome = expectOk(
+        t.call('rule_condition', {
+          who: 'kessa',
+          condition: 'frightened',
+          ruling: 'the shrieking',
+          until: { kind: 'seconds', seconds },
+        }),
+      );
+      const scheduled = outcome.events.find((event) => event.type === 'effect-scheduled');
+      return JSON.stringify(scheduled === undefined ? null : scheduled);
+    };
+    expect(at(60)).not.toBe(at(600));
   });
 
   it('and lifts it again when the ruling is over', () => {
@@ -365,5 +430,47 @@ describe('the whole evening, through one surface', () => {
     expectOk(t.call('place_creature', { who: 'kessa', fromLandmark: 'the hearth', feet: 5 }));
     expectOk(t.call('roll_initiative', { combatants: [{ who: 'kessa' }] }));
     expect(t.surface.observe().round).toBe(1);
+  });
+});
+
+describe('one campaign, both surfaces', () => {
+  /**
+   * The crossing `dm/surface.ts` says is allowed, asserted rather than
+   * described: a table with an AI narrator and a human DM is two callers over
+   * one log, and a condition the model ruled is one the DM can end.
+   *
+   * It works because both doors spell the source with the same function. Two
+   * string literals agreeing is not a thing a reader can check, and this is
+   * the test that notices when they stop.
+   */
+  it('a condition the model ruled is one the DM can lift by name', () => {
+    const campaign = createCampaign({ content: SRD_CONTENT, seed: 'two-doors' });
+    const narrator = createSurface(campaign);
+    const dm = createDmSurface(campaign);
+
+    expectOk(
+      narrator.call({
+        tool: 'create_character',
+        input: { id: 'kessa', choices: wizard('Kessa') },
+        commandId: 'toolu_1',
+      }),
+    );
+    expectOk(
+      narrator.call({
+        tool: 'apply_condition',
+        input: { who: 'kessa', condition: 'frightened', ruling: 'the shrieking in the walls' },
+        commandId: 'toolu_2',
+      }),
+    );
+    expect(dm.observe().creatures[0]!.conditions).toContain('frightened');
+
+    expectOk(
+      dm.call({
+        tool: 'end_condition',
+        input: { who: 'kessa', condition: 'frightened', ruling: 'the shrieking in the walls' },
+        commandId: 'toolu_3',
+      }),
+    );
+    expect(dm.observe().creatures[0]!.conditions).not.toContain('frightened');
   });
 });

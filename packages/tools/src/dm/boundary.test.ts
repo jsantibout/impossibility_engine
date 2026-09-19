@@ -58,7 +58,48 @@ const swept = (): { file: string; text: string }[] =>
 
 // — the detectors, borrowed in shape from the sweep one directory up ————————
 
-const FORBIDDEN_EVERYWHERE = ['recordExternalD20', 'recordExternalDamage'];
+/**
+ * The names no file under `dm/` may import from the engine.
+ *
+ * **Step one's list, minus exactly one name, plus exactly one.** The first
+ * two are the rule both surfaces keep — `recordExternalD20` and
+ * `recordExternalDamage` stamp a roll as the engine's own, and a DM stating
+ * a number is not the same act. The rest are step one's, and they stay
+ * forbidden here because they state an **outcome the rules decide**, which is
+ * nobody's to state: `recordD20Test` and `setExhaustionLevel` are named in
+ * `dm/definitions.ts`'s own "no" column, `damageCreature` skips the
+ * Concentration save that `resolveDamage` settles, and healing and Temporary
+ * Hit Points are simply not in this slice and should have to be argued for.
+ *
+ * `rollAttackDamage` is the addition, and it is not on step one's list
+ * because step one had no reason to want it. It is the engine's one damage
+ * roller and it is *public*, so a DM tool that wanted dice for a chandelier
+ * could reach it — and would advance a generator whose `rolls-issued` event
+ * only a command emits, leaving the campaign's dice out of step with its log.
+ * That is the gap this batch reports rather than the hole it digs.
+ */
+const FORBIDDEN_HERE = [
+  'recordExternalD20',
+  'recordExternalDamage',
+  'damageCreature',
+  'healCreature',
+  'grantTemporaryHpTo',
+  'setExhaustionLevel',
+  'recordD20Test',
+  'rollAttackDamage',
+];
+
+/**
+ * The one name that comes off step one's list, with the reason.
+ *
+ * `resolveDamage` takes an `amount`, which is exactly the difference between
+ * the two surfaces: a decision the rules leave open, adjudicated by the
+ * person the rules leave it to.
+ */
+const ALLOWED_A_DM: Readonly<Record<string, string>> = {
+  resolveDamage:
+    'takes an amount the DM adjudicated, which is the decision the rules leave open rather than an outcome they decide — and settles the Concentration save that `damageCreature` alone would forget',
+};
 
 function engineImports(text: string): string[] {
   const found: string[] = [];
@@ -82,17 +123,31 @@ const opaqueForms = (module: string): readonly { readonly what: string; readonly
 const ENGINE_FORMS = opaqueForms('@ie/engine');
 
 /**
- * The same four forms, aimed at the DM's own modules.
+ * The same four forms, aimed at the two specifiers that reach a DM tool.
  *
- * A model-side file could reach a DM tool by any of them, and a *named* import
+ * **Two specifiers, not one.** `./dm/...` is the obvious door and `@ie/tools`
+ * is the other: this package's own barrel republishes `DM_TOOLS`, so a
+ * model-side source importing the package it lives in would hold the DM's
+ * list, and a walk that follows only relative paths would never see it. No
+ * source file here does that and every test file does, which is exactly the
+ * kind of idiom that becomes a breach nobody reads.
+ *
+ * A model-side file could reach one by any of them, and a *named* import
  * is the fifth — so the pair of detectors below is the pair step one used,
  * with the module pattern changed and nothing else.
  */
 const DM_PATH = String.raw`\.{1,2}/dm/[\w./-]+`;
+const BARREL = '@ie/tools';
+
+const formsFor = (module: string): readonly { readonly what: string; readonly pattern: RegExp }[] => [
+  ...opaqueForms(module),
+  { what: 'a named import', pattern: new RegExp(`import\\s+(?:type\\s+)?\\{[^}]*\\}\\s*from\\s*'${module}'`) },
+  { what: 'a bare import', pattern: new RegExp(`import\\s*'${module}'`) },
+];
+
 const DM_FORMS: readonly { readonly what: string; readonly pattern: RegExp }[] = [
-  ...opaqueForms(DM_PATH),
-  { what: 'a named import', pattern: new RegExp(`import\\s+(?:type\\s+)?\\{[^}]*\\}\\s*from\\s*'${DM_PATH}'`) },
-  { what: 'a bare import', pattern: new RegExp(`import\\s*'${DM_PATH}'`) },
+  ...formsFor(DM_PATH),
+  ...formsFor(BARREL).map(({ what, pattern }) => ({ what: `${what} of this package's barrel`, pattern })),
 ];
 
 const reachesTheDm = (text: string): boolean => DM_FORMS.some(({ pattern }) => pattern.test(text));
@@ -184,9 +239,16 @@ describe('the model’s surface cannot reach a DM tool', () => {
     expect(reachesTheDm("const dm = await import('./dm/definitions.js');")).toBe(true);
     expect(reachesTheDm("import './dm/definitions.js';")).toBe(true);
     expect(reachesTheDm("import { DM_TOOLS } from '../dm/definitions.js';")).toBe(true);
+    // And the way round the relative paths: the package's own barrel.
+    expect(reachesTheDm("import { DM_TOOLS } from '@ie/tools';")).toBe(true);
+    expect(reachesTheDm("import * as tools from '@ie/tools';")).toBe(true);
+    expect(reachesTheDm("export * from '@ie/tools';")).toBe(true);
+    expect(reachesTheDm("const { DM_TOOLS } = await import('@ie/tools');")).toBe(true);
     // And it does not cry wolf at the imports the model's files actually make.
     expect(reachesTheDm("import { TOOLS } from './definitions.js';")).toBe(false);
     expect(reachesTheDm("import { observe } from './observe.js';")).toBe(false);
+    expect(reachesTheDm("import { z } from 'zod';")).toBe(false);
+    expect(reachesTheDm("import { resolveAttack } from '@ie/engine';")).toBe(false);
   });
 
   it('takes no tool list, so none can be handed to it', () => {
@@ -267,11 +329,11 @@ describe('the DM surface cannot reach the external-roll functions either', () =>
     expect(typeof (engine as Record<string, unknown>)['recordExternalDamage']).toBe('function');
   });
 
-  it('imports neither of them, in any file under dm/', () => {
+  it('imports none of them, in any file under dm/', () => {
     const breaches: string[] = [];
     for (const { file, text } of swept()) {
       for (const name of engineImports(text)) {
-        if (FORBIDDEN_EVERYWHERE.includes(name)) breaches.push(`${file} imports ${name}`);
+        if (FORBIDDEN_HERE.includes(name)) breaches.push(`${file} imports ${name}`);
       }
     }
     expect(breaches).toEqual([]);
@@ -289,7 +351,7 @@ describe('the DM surface cannot reach the external-roll functions either', () =>
 
   it('and between them the two sweeps catch every way of writing it', () => {
     const caught = (text: string) =>
-      engineImports(text).some((name) => FORBIDDEN_EVERYWHERE.includes(name)) ||
+      engineImports(text).some((name) => FORBIDDEN_HERE.includes(name)) ||
       ENGINE_FORMS.some(({ pattern }) => pattern.test(text));
 
     expect(caught("import { recordExternalD20 } from '@ie/engine';")).toBe(true);
@@ -299,9 +361,42 @@ describe('the DM surface cannot reach the external-roll functions either', () =>
     expect(caught("export * from '@ie/engine';")).toBe(true);
     expect(caught("export { recordExternalD20 } from '@ie/engine';")).toBe(true);
     expect(caught("const { recordExternalDamage } = await import('@ie/engine');")).toBe(true);
-    // The DM surface *does* import the commands that take a number, which is
+    // And the four this list adds to the pair, each of which states an
+    // outcome rather than a decision.
+    expect(caught("import { recordD20Test } from '@ie/engine';")).toBe(true);
+    expect(caught("import { setExhaustionLevel } from '@ie/engine';")).toBe(true);
+    expect(caught("import { damageCreature } from '@ie/engine';")).toBe(true);
+    expect(caught("import { rollAttackDamage } from '@ie/engine';")).toBe(true);
+    // The DM surface *does* import the command that takes an amount, which is
     // the whole difference between the two surfaces — and is not a breach.
     expect(caught("import { resolveDamage, resolveTest } from '@ie/engine';")).toBe(false);
+  });
+
+  it('forbids everything step one forbade but the one name it names', () => {
+    // The two lists cannot be derived from each other — one is about a model
+    // and one about a DM — but they can be held to a *stated* difference,
+    // which is what stops this one quietly shrinking. Step one's list is read
+    // out of its own source rather than transcribed.
+    const stepOne = /const FORBIDDEN = \[([\s\S]*?)\];/.exec(
+      readFileSync(`${ABOVE}boundary.test.ts`, 'utf8'),
+    );
+    expect(stepOne, 'step one still declares a FORBIDDEN list').not.toBeNull();
+    const theirs = [...stepOne![1]!.matchAll(/'(\w+)'/g)].map((match) => match[1]!);
+    expect(theirs.length).toBeGreaterThan(5);
+
+    const dropped = theirs.filter((name) => !FORBIDDEN_HERE.includes(name));
+    expect(dropped).toEqual(Object.keys(ALLOWED_A_DM));
+    expect(Object.values(ALLOWED_A_DM).every((why) => why.length > 20)).toBe(true);
+    // And an exemption is not a note: a name excused here must really be one
+    // step one forbade, or it is a sentence about nothing.
+    expect(Object.keys(ALLOWED_A_DM).filter((name) => !theirs.includes(name))).toEqual([]);
+  });
+
+  it('and the ones that are forbidden here are really reachable', () => {
+    // A guard aimed at a name the engine does not export is not a guard.
+    for (const name of FORBIDDEN_HERE) {
+      expect(typeof (engine as Record<string, unknown>)[name], name).toBe('function');
+    }
   });
 
   it('sweeps something: the DM files do import the engine', () => {
