@@ -2125,9 +2125,13 @@ describe('no spell is special-cased in the runtime', () => {
     expect(source('fold/inventory.ts')).toContain("category === 'shield'");
     expect(source('attack.ts')).toContain("weapon.properties.includes('light')");
     // And the third: the glossary's four senses, transcribed once so that the
-    // validator and the union cannot drift apart.
-    expect(source('positioning.ts')).toContain("export const SENSE_NAMES = [");
-    expect(source('positioning.ts')).toContain("'darkvision'");
+    // validator and the union cannot drift apart. The whole construct is
+    // pinned rather than the word, so the allowance is as narrow as the two
+    // above — a `darkvision` written anywhere else in that file would be the
+    // cantrip and would still have to justify itself here.
+    expect(source('positioning.ts')).toContain(
+      "export const SENSE_NAMES = ['blindsight', 'darkvision', 'tremorsense', 'truesight'] as const;",
+    );
   });
 
   it('allows the two data constructs and nothing around them', () => {

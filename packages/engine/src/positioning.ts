@@ -1400,10 +1400,14 @@ export function sensesReaching(
  * The senses default to none, so a caller that has no creature to read them
  * off asks the pairwise question and gets the pairwise answer.
  *
- * **One narrowing the glossary prints and this does not read**: Blindsight
- * sees "anything that isn't behind Total Cover", and cover is declared here
- * beside sight. Nothing grants Blindsight yet, so the clause has no writer;
- * whichever brief writes the first one owes it.
+ * **Declared Total Cover silences a sense**, which is the other half of the
+ * same rule: cover is a declaration too, it lives in this state beside
+ * sight, and a target under it "can't be targeted directly". The glossary
+ * spells the consequence out on Blindsight — "you can see anything that
+ * **isn't** behind Total Cover" — and it is no less true of the other two.
+ * The answer then falls back to null rather than to `false`: the sense has
+ * nothing to say, and what the table declared was about cover rather than
+ * about sight, so the honest response is still to ask.
  */
 export function sightBetween(
   state: PositionState,
@@ -1413,6 +1417,7 @@ export function sightBetween(
 ): boolean | null {
   const declared = state.sight[coverKey(from, to)];
   if (declared !== undefined) return declared;
+  if (!canBeTargeted(coverBetween(state, from, to))) return null;
 
   const reaching = sensesReaching(
     state,

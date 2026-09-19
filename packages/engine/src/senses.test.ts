@@ -298,6 +298,63 @@ describe('the sight question consults the seer’s own senses', () => {
     expect(canSee(state, SEER, FAR)).toBe(true);
   });
 
+  /**
+   * The edge of the range, which is the one number the grant carries.
+   *
+   * "A range of 60 feet" includes sixty, and the lattice is five feet a
+   * space, so the first distance that is out of range is sixty-five. Both are
+   * asserted because the difference between them is a single comparison.
+   */
+  it.each([
+    [55, true],
+    [60, true],
+    [65, null],
+  ] as const)('reaches %i feet: %s', (feet, seen) => {
+    const state = fold('seed', [
+      added(SEER, { standing: [DARKVISION_60] }),
+      added(NEAR),
+      { type: 'scene-set', extent: { width: 400, depth: 400, height: 40 } },
+      { type: 'landmark-added', name: 'the well', at: { x: 100, y: 100, z: 0 } },
+      { type: 'creature-placed', id: SEER, placement: { from: { landmark: 'the well' }, feet: 0 } },
+      {
+        type: 'creature-placed',
+        id: NEAR,
+        placement: { from: { creature: SEER }, feet, bearing: 90 },
+      },
+    ]);
+    expect(canSee(state, SEER, NEAR)).toBe(seen);
+  });
+
+  /**
+   * SRD Total Cover: the target "can't be targeted directly", and the
+   * glossary spells the consequence out on Blindsight — "you can see anything
+   * that **isn't** behind Total Cover". Cover is a declaration like sight, so
+   * a sense may not talk over it either; what is left is the question, not a
+   * no.
+   */
+  it.each([
+    ['none', true],
+    ['half', true],
+    ['three-quarters', true],
+    ['total', null],
+  ] as const)('answers through %s cover: %s', (degree, seen) => {
+    const state = fold('seed', [
+      ...PLACED,
+      { type: 'cover-declared', from: SEER, to: NEAR, degree },
+    ]);
+    expect(canSee(state, SEER, NEAR)).toBe(seen);
+  });
+
+  /** And a declaration still outranks the cover, in both directions. */
+  it('obeys a declared yes through Total Cover', () => {
+    const state = fold('seed', [
+      ...PLACED,
+      { type: 'cover-declared', from: SEER, to: NEAR, degree: 'total' },
+      { type: 'sight-declared', from: SEER, to: NEAR, seen: true },
+    ]);
+    expect(canSee(state, SEER, NEAR)).toBe(true);
+  });
+
   /** SRD Tremorsense: "it doesn't count as a form of sight." */
   it('does not let Tremorsense answer a question about sight', () => {
     const state = fold('seed', [
