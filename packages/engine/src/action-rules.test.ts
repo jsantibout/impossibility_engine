@@ -262,6 +262,38 @@ const BEFUDDLING_WORD = JSON.stringify({
 });
 
 /**
+ * SRD Magic Jar's two sentences, which is the shape one casting could not say.
+ *
+ * > "While your soul is in the container, **you can't move or take
+ * > Reactions** … **The only action you can take** is to project your soul…"
+ *
+ * A `forbids` and a `permits-only` out of one entry, and the store keyed them
+ * both under the casting's one source — so the second silently evicted the
+ * first and the victim could take Reactions the spell had taken away. The
+ * body's own sentence rather than the container's, transcribed as homebrew
+ * like every fixture above it, and aimed at a target rather than at the
+ * caster so that the one creature these fixtures can drive is the one the
+ * rules land on. "Project your soul" is no action the engine can tell apart,
+ * so the permitted action is the Magic one — the narrowing is the claim, not
+ * which name is left inside it.
+ */
+const BINDING_JAR = JSON.stringify({
+  id: 'binding-jar',
+  name: 'Binding Jar',
+  level: 2,
+  school: 'necromancy',
+  castingTime: 'action',
+  concentration: true,
+  durationSeconds: 600,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 1 },
+  effects: [
+    { kind: 'action-rule', rule: { kind: 'forbids', slots: ['reaction', 'movement'] } },
+    { kind: 'action-rule', rule: { kind: 'permits-only', slot: 'action', actions: ['magic'] } },
+  ],
+});
+
+/**
  * Something for the victim to cast as a **Bonus Action**, so that slot has a
  * spender the fixtures can actually reach.
  */
@@ -308,6 +340,7 @@ const HOMEBREW = unwrap(
       JSON.parse(NIMBLE_STEP),
       JSON.parse(STILLING_WORD),
       JSON.parse(BEFUDDLING_WORD),
+      JSON.parse(BINDING_JAR),
       JSON.parse(QUICK_SPARK),
       JSON.parse(STEADY_SPARK),
     ],
@@ -315,7 +348,14 @@ const HOMEBREW = unwrap(
   'load',
 );
 
-const PREPARED = ['binding-word', 'harrying-word', 'nimble-step', 'stilling-word', 'befuddling-word'];
+const PREPARED = [
+  'binding-word',
+  'harrying-word',
+  'nimble-step',
+  'stilling-word',
+  'befuddling-word',
+  'binding-jar',
+];
 
 const PLACED: readonly GameEvent[] = [
   added(CASTER),
@@ -928,6 +968,159 @@ describe('the validator holds the vocabulary', () => {
     for (const json of [BINDING_WORD, STILLING_TOUCH, HARRYING_WORD, NIMBLE_STEP]) {
       expect(checkSpellDefinition(JSON.parse(json))).toEqual([]);
     }
+  });
+
+  /** And the two-sentence one, which is ordinary data like any other. */
+  it('accepts an entry that prints two rules', () => {
+    expect(checkSpellDefinition(JSON.parse(BINDING_JAR))).toEqual([]);
+  });
+});
+
+// — two rules out of one entry ——————————————————————————————————————————————
+
+/**
+ * **A casting may hang more than one rule.**
+ *
+ * The store keyed a rule by its source alone, which is the identity seven of
+ * the nine grant families use and the right one for every sentence that says
+ * a single thing. SRD Magic Jar prints two in one entry — "you can't move or
+ * take Reactions" beside "the only action you can take is…" — and under that
+ * key the second grant silently evicted the first: the spell's own paragraph
+ * lost half of itself between the definition and the state, which is exactly
+ * what `rollModifierKey` was written for when Beacon of Hope did it two cases
+ * above.
+ *
+ * So the identity here is the source **and what the rule is about**: the
+ * kind, with the slot for a `permits-only` and the action for an `allows`.
+ * Re-granting the same statement still replaces rather than stacks, which is
+ * what the source-keyed store was protecting; a *different* statement from
+ * the same casting sits beside it, because it is a different sentence.
+ */
+describe('one casting can hang two rules, and neither evicts the other', () => {
+  const jarred = (): readonly GameEvent[] => [
+    ...SETUP,
+    ...castAt(SETUP, 'binding-jar', [TARGET], 2),
+  ];
+
+  it('keeps both, under one source, with one kind each', () => {
+    const rules = fold('seed', jarred()).creatures[TARGET]?.actionRules ?? [];
+
+    expect(rules).toHaveLength(2);
+    expect(new Set(rules.map((r) => r.source)).size).toBe(1);
+    expect(rules[0]?.source).toMatch(/^Binding Jar#cast:/);
+    expect(rules.map((r) => r.rule.kind).sort()).toEqual(['forbids', 'permits-only']);
+  });
+
+  /**
+   * And both are **live**, which is the half that matters: a rule in state
+   * that no spender consults would be the failure this repository finds most
+   * often. Three spends, one per sentence and one to prove the narrowing is a
+   * narrowing rather than a closure.
+   */
+  it('refuses the Reaction the first sentence took away', () => {
+    // Readied before the jar lands, so there is a Reaction to try to spend.
+    const readied = [
+      ...turnOf(SETUP, TARGET),
+      ...must(
+        takeReady(
+          fold('seed', turnOf(SETUP, TARGET)),
+          TARGET,
+          { trigger: 'anybody comes close', response: { kind: 'move' } },
+          HOMEBREW,
+        ),
+      ),
+    ];
+    const casting = turnOf(readied, CASTER);
+    const state = fold('seed', [...casting, ...castAt(casting, 'binding-jar', [TARGET], 2)]);
+
+    const refused = releaseReady(
+      state,
+      TARGET,
+      { placement: { from: { landmark: 'here' }, feet: 15, bearing: 90 } },
+      supply('rel'),
+    );
+    expect(isErr(refused) && refused.code).toBe('action_forbidden');
+    expect(isErr(refused) ? refused.reason : '').toContain('Binding Jar');
+  });
+
+  it('refuses an Action the second sentence did not name', () => {
+    const state = fold('seed', turnOf(jarred(), TARGET));
+    const refused = takeDodge(state, TARGET, {});
+    expect(isErr(refused) && refused.code).toBe('action_forbidden');
+    expect(isErr(refused) ? refused.reason : '').toContain('permits only Magic');
+  });
+
+  /** A narrowing rather than a closure: the one action it names still lands. */
+  it('lets the Action the second sentence named through', () => {
+    const state = fold('seed', turnOf(jarred(), TARGET));
+    const cast = must(
+      resolveSpell(state, TARGET, { spellId: 'steady-spark', targets: [CASTER] }, supply('spark')),
+    );
+    expect(cast.events.some((e) => e.type === 'action-spent')).toBe(true);
+  });
+
+  /**
+   * And they end together. A deadline and an ending match on the **bare**
+   * source — `releaseGrants` and `releaseCasting` both do, for the reason
+   * Beacon of Hope's two modifiers go together — so the compound identity
+   * decides re-granting and nothing else.
+   */
+  it('takes both away when the casting ends', () => {
+    const log = jarred();
+    const ended = [...log, ...must(endConcentration(fold('seed', log), CASTER, 'voluntary'))];
+    const state = fold('seed', ended);
+
+    expect(state.creatures[TARGET]?.actionRules ?? []).toEqual([]);
+    expect(isErr(takeDodge(fold('seed', turnOf(ended, TARGET)), TARGET, {}))).toBe(false);
+  });
+
+  /**
+   * The half the source-keyed store was protecting, kept: **the same
+   * statement from the same source replaces rather than stacks.** Said as
+   * events rather than through a spell, because no definition re-resolves one
+   * of its own effects onto a target it has already reached — and a rule the
+   * fold is asked to hold twice is exactly what a re-grant is.
+   */
+  it('still replaces a statement restated by its own source', () => {
+    const granted = (until: string): GameEvent => ({
+      type: 'action-rule-granted',
+      id: TARGET,
+      rule: {
+        source: 'a word#cast:9',
+        rule: { kind: 'forbids', slots: ['reaction'] },
+        label: 'A Word',
+        until,
+      },
+    });
+    const rules =
+      fold('seed', [...PLACED, granted('the spell ends'), granted('your next turn')]).creatures[
+        TARGET
+      ]?.actionRules ?? [];
+
+    expect(rules).toHaveLength(1);
+    expect(rules[0]?.until).toBe('your next turn');
+  });
+
+  /**
+   * And two `permits-only` narrowing **different slots** are two statements,
+   * which is what puts the slot in the key rather than the kind alone.
+   */
+  it('keeps two narrowings of two different slots', () => {
+    const granted = (slot: 'action' | 'bonus-action'): GameEvent => ({
+      type: 'action-rule-granted',
+      id: TARGET,
+      rule: {
+        source: 'a word#cast:9',
+        rule: { kind: 'permits-only', slot, actions: ['dash'] },
+        label: 'A Word',
+        until: 'the spell ends',
+      },
+    });
+    const rules =
+      fold('seed', [...PLACED, granted('action'), granted('bonus-action')]).creatures[TARGET]
+        ?.actionRules ?? [];
+
+    expect(rules).toHaveLength(2);
   });
 });
 

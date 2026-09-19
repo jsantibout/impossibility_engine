@@ -1127,6 +1127,168 @@ describe('resolveTest', () => {
     );
     expect(isErr(out) ? out.kind : 'ok').toBe('needs-context');
   });
+
+  // — one seam, not two ————————————————————————————————————————————————————
+
+  /**
+   * **`kind` is the whole of the difference, and it was not.**
+   *
+   * The two branches gathered their modes differently: the ability check
+   * concatenated whatever it was handed and the saving throw merged it by
+   * source through `savingSupport`. A `ModeSource`'s `source` is an
+   * *identity* wherever this engine deduplicates — that is the property that
+   * stops a caller who also knows about Danger Sense applying it twice — so
+   * one branch treated it as an identity and the other as a label.
+   *
+   * It has already cost a real bug: two rulings a DM spelled the same
+   * collapsed into one on the save, which then rolled at Disadvantage while
+   * reporting a single ruling. That was fixed at the caller, by prefixing the
+   * mode into the phrase, which protects one caller and leaves the next to
+   * find it again.
+   *
+   * So the seam converges: one gatherer, and the engine's own ruling on a
+   * source that contradicts itself — `rollModifierKey`'s "the later word
+   * wins" — applies to a check exactly as it already applied to a save.
+   */
+  const bothKinds = (
+    command: Omit<Parameters<typeof resolveTest>[2], 'kind'>,
+    operation = supply(),
+  ) =>
+    (['ability-check', 'saving-throw'] as const).map((kind) => {
+      const state = fold('seed', alone(BRAM, plain()));
+      return unwrap(resolveTest(state, BRAM, { ...command, kind }, operation), kind).test!;
+    });
+
+  it('reads one source as one identity on both kinds of test', () => {
+    // Two things the table said, spelled alike. Merged they are one ruling
+    // and the later word wins; concatenated they are two and cancel.
+    const [check, save] = bothKinds({
+      ability: 'dex',
+      dc: 15,
+      modes: [
+        { source: 'the smoke', mode: 'disadvantage' },
+        { source: 'the smoke', mode: 'advantage' },
+      ],
+    });
+
+    expect(check!.mode).toBe(save!.mode);
+    expect(check!.modeSources).toEqual(save!.modeSources);
+    expect(check!.mode).toBe('advantage');
+  });
+
+  /**
+   * And the modes the *operation* carries reach both. `Supply.modes` is
+   * "modifiers on the rolls this operation makes"; the check branch read the
+   * command's and dropped the supply's, which is the same silent loss the
+   * save branch was fixed for the other way round.
+   */
+  it('honours a mode the operation supplied, whichever kind it is', () => {
+    const operation = { ...supply(), modes: [{ source: 'War Caster', mode: 'advantage' as const }] };
+    const [check, save] = bothKinds({ ability: 'dex', dc: 15 }, operation);
+
+    expect(check!.mode).toBe('advantage');
+    expect(save!.mode).toBe('advantage');
+    expect(check!.modeSources.map((m) => m.source)).toContain('War Caster');
+  });
+
+  /** A bare `RollMode` has no source to key on and still rides through. */
+  it('carries an unattributed mode through both branches', () => {
+    const [check, save] = bothKinds({ ability: 'dex', dc: 15, modes: ['advantage'] });
+    expect(check!.mode).toBe('advantage');
+    expect(save!.mode).toBe('advantage');
+  });
+
+  // — the ruling, in the log ————————————————————————————————————————————————
+
+  /**
+   * **A DM's Advantage, readable from the log alone.**
+   *
+   * `roll-recorded` declared `contributions` — named *amounts* — and
+   * Advantage is not an amount, so the only trace of a ruling in the log was
+   * a total that happened to be higher, which is indistinguishable from a
+   * good die. The attribution lived in the returned result and nowhere else,
+   * and a result is not persisted.
+   *
+   * The field is optional and additive, so a roll nothing modified records
+   * nothing extra and the two frozen logs are unmoved.
+   */
+  it('writes the modes and their sources onto the event', () => {
+    const g = new Game(alone(BRAM, plain()));
+    const out = unwrap(
+      resolveTest(
+        g.state,
+        BRAM,
+        {
+          kind: 'saving-throw',
+          ability: 'dex',
+          dc: 15,
+          modes: [{ source: 'ruled: she has the high ground', mode: 'advantage' }],
+        },
+        supply(),
+      ),
+      'save',
+    );
+    g.push(out.events);
+
+    // Through JSON and back, because the claim is about the *log*.
+    const replayed = JSON.parse(JSON.stringify(g.log)) as GameEvent[];
+    const record = replayed.find((e) => e.type === 'roll-recorded');
+    if (record?.type !== 'roll-recorded') throw new Error('no roll was recorded');
+
+    expect(record.modes).toEqual([
+      { source: 'ruled: she has the high ground', mode: 'advantage' },
+    ]);
+    // Two dice were thrown for it, and the log now says why.
+    expect(out.test?.rolls).toHaveLength(2);
+    expect(fold('seed', replayed)).toEqual(g.state);
+  });
+
+  /** Including the sources that cancelled, which is the case a total hides. */
+  it('records a ruling that cancelled another, on both sides', () => {
+    const g = new Game(alone(BRAM, plain()));
+    const out = unwrap(
+      resolveTest(
+        g.state,
+        BRAM,
+        {
+          kind: 'ability-check',
+          ability: 'dex',
+          dc: 15,
+          modes: [
+            { source: 'ruled: the high ground', mode: 'advantage' },
+            { source: 'ruled: the treacherous footing', mode: 'disadvantage' },
+          ],
+        },
+        supply(),
+      ),
+      'check',
+    );
+
+    const record = out.events.find((e) => e.type === 'roll-recorded');
+    if (record?.type !== 'roll-recorded') throw new Error('no roll was recorded');
+    expect(record.modes?.map((m) => m.source)).toEqual([
+      'ruled: the high ground',
+      'ruled: the treacherous footing',
+    ]);
+    // One die, because they cancelled — which the totals alone cannot show.
+    expect(out.test?.mode).toBe('normal');
+  });
+
+  /** And a roll nobody ruled on says nothing, rather than saying `[]`. */
+  it('leaves the field off a roll no mode reached', () => {
+    const out = unwrap(
+      resolveTest(
+        fold('seed', alone(BRAM, plain())),
+        BRAM,
+        { kind: 'saving-throw', ability: 'dex', dc: 15 },
+        supply(),
+      ),
+      'save',
+    );
+    const record = out.events.find((e) => e.type === 'roll-recorded');
+    if (record?.type !== 'roll-recorded') throw new Error('no roll was recorded');
+    expect('modes' in record).toBe(false);
+  });
 });
 
 describe('Indomitable', () => {

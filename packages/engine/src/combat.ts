@@ -332,6 +332,46 @@ export interface GrantedActionRule {
   readonly until: string;
 }
 
+/**
+ * What makes two granted rules the same rule, for a store that replaces.
+ *
+ * **The source alone is not enough, and one spell proves it.** SRD Magic Jar
+ * prints two rules in one entry — "you can't move or take Reactions" beside
+ * "The only action you can take is to project your soul" — a `forbids` and a
+ * `permits-only` from one casting, one source string. Keyed by the source
+ * alone, which is the rule seven of the nine grant families follow, the
+ * second silently evicted the first: the paragraph lost half of itself
+ * between the definition and the state. `rollModifierKey` is the same
+ * function written for the same reason two cases above, when Beacon of Hope's
+ * one sentence granted two modifiers.
+ *
+ * So identity is the source **and what the rule is about**: the kind, plus
+ * the slot a `permits-only` narrows and the action an `allows` widens. Two
+ * narrowings of two different slots are two statements and stand together;
+ * the same statement restated by its own source still replaces rather than
+ * stacks, which is what the source-keyed store was protecting.
+ *
+ * A `forbids` needs nothing past its kind, because it is already written as
+ * one rule naming several slots and actions — Stinking Cloud's "an action or
+ * a Bonus Action" is the plural inside it. `allows` keys on the action rather
+ * than on the slot it is paid from: one source offering a cheaper price twice
+ * for one action is restating the price, and `allowsPrice` matches the pair
+ * anyway.
+ *
+ * **It decides a re-grant and nothing else.** An ending and a deadline both
+ * match on the bare source — see `releaseGrants` — so a casting that ends
+ * takes every rule it hung, exactly as it takes Beacon of Hope's two
+ * modifiers.
+ */
+export function actionRuleKey(source: string, rule: ActionRule): string {
+  return [
+    source,
+    rule.kind,
+    rule.kind === 'permits-only' ? rule.slot : '',
+    rule.kind === 'allows' ? rule.action : '',
+  ].join('|');
+}
+
 /** Whether a rule reaches this spend at all. */
 const governs = (rule: ActionRule, slot: ActionSlot, as: NamedAction | undefined): boolean =>
   rule.kind === 'forbids'
@@ -394,7 +434,8 @@ const listed = (actions: readonly NamedAction[]): string => {
  * with a sentence naming what forbade the action and until when.
  *
  * The first rule that bites wins, and rules are visited in the order the fold
- * keeps them — sorted by source — so the answer is fixed however they arrived.
+ * keeps them — sorted by {@link actionRuleKey}, which begins with the source
+ * — so the answer is fixed however they arrived.
  */
 function refuseSpend(
   id: CharacterId,

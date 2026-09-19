@@ -7,6 +7,7 @@
  * replaces rather than stacks** in every one of them; what differs is only what
  * counts as the source's identity, which each case states where it departs.
  */
+import { actionRuleKey } from '../combat.js';
 import { rollModifierKey } from '../roll-modifiers.js';
 import type { GameEvent } from '../events.js';
 import type { GameState } from '../state.js';
@@ -186,34 +187,28 @@ export function applyGrants({ state, next }: Applying, event: GrantsEvent): Game
 
     case 'action-rule-granted': {
       const creature = creatureOf(state, event, event.id);
-      // Re-granting from the same source replaces rather than stacking, the
-      // rule every grant in the family follows. **The source alone is the
-      // identity**, as it is for a defence, a Speed, a rider, an Immunity and
-      // a payout. Stinking Cloud's "an action or a Bonus Action" is one rule
-      // naming two slots, which is the plural `slots` inside it rather than
-      // two grants from one source.
+      // Re-granting the same **statement** from the same source replaces
+      // rather than stacking — the rule every grant in the family follows —
+      // but **the source alone is not the identity here**, for the reason it
+      // is not in `roll-modifier-granted` two cases above: one casting can
+      // say two things. SRD Magic Jar prints them in one entry — "You can't
+      // move or take Reactions" and "The only action you can take is to
+      // project your soul", a `forbids` and a `permits-only` — and under a
+      // source key the second silently evicted the first, so the spell's own
+      // paragraph lost half of itself between the definition and the state.
       //
-      // **So a casting hangs exactly one rule here, and that is a known
-      // limitation rather than a rule of the book.** SRD Magic Jar prints
-      // two in one entry — "You can't move or take Reactions" and "The only
-      // action you can take is to project your soul" — a `forbids` and a
-      // `permits-only` from one casting, and under this key the second would
-      // silently evict the first. Nothing in the catalogue writes two today,
-      // and Magic Jar is blocked on five other shapes besides, so the pair
-      // has never met.
-      //
-      // Closing it is the compound identity `roll-modifier-granted` already
-      // uses two cases above, for the same reason: Beacon of Hope grants two
-      // modifiers in one sentence, so `rollModifierKey` keys on more than the
-      // source. Here that would be the source plus what the rule is *about* —
-      // the kind, with the slot for a `permits-only` and the action for an
-      // `allows` — so that re-granting the same statement replaces it and a
-      // different statement sits beside it. Whoever needs a second rule
-      // should do that rather than emit two events and wonder where one went.
+      // Stinking Cloud's "an action or a Bonus Action" is still *one* rule
+      // naming two slots, which is the plural `slots` inside it; what the
+      // compound key admits is a second **sentence**. See `actionRuleKey`.
+      const key = actionRuleKey(event.rule.source, event.rule.rule);
       const actionRules = [
-        ...creature.actionRules.filter((held) => held.source !== event.rule.source),
+        ...creature.actionRules.filter((held) => actionRuleKey(held.source, held.rule) !== key),
         event.rule,
-      ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
+      ].sort((a, b) => {
+        const left = actionRuleKey(a.source, a.rule);
+        const right = actionRuleKey(b.source, b.rule);
+        return left < right ? -1 : left > right ? 1 : 0;
+      });
       return withCreature(next, event.id, { actionRules }, creature);
     }
 

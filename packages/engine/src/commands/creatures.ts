@@ -219,11 +219,9 @@ export interface Summons {
  *
  * That link is the whole of what a summons adds, and what it buys is half of
  * the sentence every summoning spell prints: the engine can *tell* you the
- * creature should be gone. {@link strandedSummons} is where it says so and
- * {@link dismissStrandedSummons} is what acts on it — and until a caller
- * sweeps, a summons whose spell has ended goes on standing in the order and
- * acting. See {@link strandedSummons} for why that gap is here and what
- * would close it.
+ * creature should be gone. {@link strandedSummons} is where it says so,
+ * {@link dismissStrandedSummons} is what acts on it, and `resolveTurn`
+ * refuses to advance the order until somebody has.
  *
  * **Nothing about the creature is read from content and nothing is derived.**
  * The sheet, the printed Armour Class, the average hit points, "a monster
@@ -362,18 +360,25 @@ export function summonCreature(
  * `withheldEndings` is the same shape for the same reason — an ending the
  * engine can see and will not invent.
  *
- * **What this does not do, stated plainly.** Nothing in the engine calls the
- * sweep, and nothing refuses to go on without it: `resolveTurn` will advance
- * the order past a hound whose Bless ended, and the hound keeps its rung,
- * keeps attacking and keeps being attacked until a caller sweeps. That is a
- * weaker guarantee than `owedAreaEffects` has — a **field** on `GameState`
- * that the turn refuses to advance past — and the difference is not an
- * oversight but the state of the decision. Closing it means either a debt of
- * the same kind, which `resolveTurn` would have to refuse on, or a sweep at
- * the turn boundary, which is the one place a settlement is safe: a boundary
- * is not inside another command's forward fold, which is what made a derived
- * departure delete a creature out from under the very command that was about
- * to settle its hold. Both are decisions above this function.
+ * **And the turn refuses to advance while this answers anybody.** That was
+ * once the gap here — nothing called the sweep, so the order went on past a
+ * hound whose Bless had ended and the hound kept its rung, kept attacking and
+ * kept being attacked. It is now a debt of the kind `owedAreaEffects` is, for
+ * the same reason: forgetting a rule stops the game rather than quietly
+ * losing it, and a ghost creature still standing is precisely the thing that
+ * goes unnoticed for months. `resolveTurn` answers `summons_stranded` and
+ * names whoever is owed a departure.
+ *
+ * **Derived rather than filed**, which is the one way it differs from an area
+ * debt: that one records a moment that has passed and could not be recomputed
+ * later, while this is a question about the world as it stands. So there is
+ * no field, and nothing to keep in step with the answer below.
+ *
+ * The *settlement* still cannot live in the fold, which is why the debt
+ * exists at all: a reducer emits nothing, and a departure is a batch that has
+ * to close the leaver's holds before its key goes — a derived departure once
+ * deleted a creature out from under the very command that was about to settle
+ * its hold, which wedged the fight either way.
  *
  * Sorted, so the answer is fixed however the cast was assembled.
  */
@@ -391,10 +396,10 @@ export function strandedSummons(state: GameState): readonly CharacterId[] {
 /**
  * Take away every creature whose casting is over.
  *
- * The settling half of {@link strandedSummons}. Like `settleAreaEffects` it
- * performs whatever is owed rather than something the caller has to name —
- * and **unlike** it, nothing in the engine calls this one and no command
- * refuses to proceed without it. See {@link strandedSummons}.
+ * The settling half of {@link strandedSummons}, and like `settleAreaEffects`
+ * in both halves now: it performs whatever is owed rather than something the
+ * caller has to name, and the turn refuses to advance until it has been
+ * called. See {@link strandedSummons}.
  *
  * **The departure is the one the engine already models**, unchanged: each
  * creature goes through {@link removeCreatureEverywhere}, which settles the

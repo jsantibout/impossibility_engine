@@ -34,7 +34,7 @@ import type { DamageDefenses, DamageReduction, GrantedDefense } from './attack.j
 import type { GrantedConditionImmunity } from './conditions.js';
 import type { D20TestResult } from './checks.js';
 import type { ReactionWindow } from './reactions.js';
-import type { ActiveBonus } from './bonuses.js';
+import type { ActiveBonus, ModeSource } from './bonuses.js';
 import { type SpellcastingState } from './spellcasting.js';
 import type { RestBenefit, RestKind } from './rest.js';
 import {
@@ -1436,6 +1436,30 @@ export type GameEvent =
       readonly total: number;
       /** Every named contribution, including ones that subtracted. */
       readonly contributions: readonly { readonly source: string; readonly amount: number }[];
+      /**
+       * Advantage and Disadvantage, with who said so — including sources that
+       * cancelled each other out.
+       *
+       * **`contributions` are named *amounts*, and Advantage is not an
+       * amount.** So without this a reader of the log alone could see that a
+       * d20 came to 17 and not that two were thrown for it, and a DM's ruling
+       * was invisible the moment the returned result was discarded: the only
+       * trace of a granted Advantage was a total that happened to be higher,
+       * which is indistinguishable from a good die. An audit trail that
+       * cannot be read back from the log is not one.
+       *
+       * The same list the roll itself carried (`D20Roll.modeSources`), which
+       * is why the cancelled sources are here too: a roll that came out
+       * `normal` because the table ruled twice in opposite directions is a
+       * different fact from a roll nobody ruled on, and only this tells them
+       * apart.
+       *
+       * **Optional and absent when empty**, which is not tidiness: this event
+       * has been written since the first log and the two frozen fixtures
+       * carry it. An additive field nothing fills in for an unmodified roll
+       * leaves every one of those bytes where it was.
+       */
+      readonly modes?: readonly ModeSource[];
       /** How it came out, in the caller's own words. */
       readonly outcome?: string;
       /**

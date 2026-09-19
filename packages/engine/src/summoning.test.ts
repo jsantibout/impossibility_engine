@@ -807,3 +807,110 @@ describe('one departure can be the end of another', () => {
     expect(strandedSummons(g.state)).toEqual([]);
   });
 });
+
+// — the debt the turn refuses to advance past ————————————————————————————————
+
+/**
+ * **A rule forgotten stops the game rather than being quietly lost.**
+ *
+ * The query and the sweep have been here since the door was built, and until
+ * now nothing called either: `resolveTurn` would advance the order past a
+ * hound whose spell had ended, and the hound would keep its rung, keep
+ * attacking and keep being attacked. That is a weaker guarantee than
+ * `owedAreaEffects` has, and the difference was never a rule — it was the
+ * state of a decision.
+ *
+ * So a stranded summons is engine debt of exactly that kind. It is
+ * **derived** rather than filed, which is the one way it differs from
+ * `owedAreaEffects` and the reason it needs no field: an area debt records a
+ * moment that has passed and could not be recomputed later, while "who is
+ * standing on a casting that is over" is a question about the world as it is
+ * now, and `strandedSummons` answers it from `creatures` and `ongoing` alone.
+ * A field would be a second copy of an answer the state already gives, and
+ * two copies of one fact are two things that can disagree.
+ */
+describe('a turn will not advance past a summons nobody took away', () => {
+  /** A hound the wizard's Bless is holding here, with a fight running. */
+  const summonedIntoAFight = (): { g: Game; castingId: string } => {
+    const g = new Game().fight();
+    const castingId = g.cast(WIZ, 'bless', [WIZ]);
+    g.push(
+      unwrap(
+        summonCreature(g.state, {
+          id: HOUND,
+          monster: CONJURED_HOUND,
+          by: WIZ,
+          castingId,
+          placement: { from: { creature: WIZ }, feet: 10, bearing: 90 },
+          initiative: 12,
+        }),
+        'summoning',
+      ).events,
+    );
+    return { g, castingId };
+  };
+
+  /**
+   * Driven through a casting that really ended, rather than a state written
+   * to look like one: the whole value of the debt is that it catches the four
+   * endings nobody commands, and a synthetic fixture would prove only that
+   * the guard reads its own query.
+   */
+  it('refuses the advance, names the creature, and advances once it is swept', () => {
+    const { g, castingId } = summonedIntoAFight();
+    // 20, then 12, then 5: the wizard is up, and the turn would ordinarily go.
+    expect(currentCombatant(g.state.combat!).id).toBe(WIZ);
+    expect(isErr(resolveTurn(g.state, supply('turn')))).toBe(false);
+
+    g.push(unwrap(endOngoingSpell(g.state, WIZ, castingId, null), 'dismissing'));
+    expect(strandedSummons(g.state)).toEqual([HOUND]);
+
+    const refused = resolveTurn(g.state, supply('turn'));
+    expect(isErr(refused) ? refused.code : 'ok').toBe('summons_stranded');
+    expect(isErr(refused) ? refused.reason : '').toContain(HOUND);
+    // And nothing moved: the wizard is still the one having a turn.
+    expect(currentCombatant(g.state.combat!).id).toBe(WIZ);
+
+    g.push(unwrap(dismissStrandedSummons(g.state), 'sweeping'));
+    const advanced = unwrap(resolveTurn(g.state, supply('turn')), 'the turn after the sweep');
+    g.push(advanced.events);
+    // The hound is gone, so the rung after the wizard's is the foe's.
+    expect(currentCombatant(g.state.combat!).id).toBe(FOE);
+  });
+
+  /**
+   * The ending nobody decided, which is the one the debt exists for: a
+   * rockfall breaks the Concentration in the fold, no command was sent, and
+   * the turn is what notices.
+   */
+  it('refuses when nobody decided the casting was over', () => {
+    const { g } = summonedIntoAFight();
+    g.push(unwrap(damageCreature(g.state, WIZ, { amount: 200, source: 'a rockfall' }), 'felling'));
+
+    const refused = resolveTurn(g.state, supply('turn'));
+    expect(isErr(refused) ? refused.code : 'ok').toBe('summons_stranded');
+  });
+
+  /**
+   * And a refusal spends nothing. The guard sits inside the command's own
+   * identity wrapper, so the caller comes back with the same command id once
+   * the debt is settled and gets the turn rather than the empty batch a spent
+   * id answers with.
+   */
+  it('leaves the command id unspent, so the same one advances after the sweep', () => {
+    const { g, castingId } = summonedIntoAFight();
+    g.push(unwrap(endOngoingSpell(g.state, WIZ, castingId, null), 'dismissing'));
+
+    expect(isErr(resolveTurn(g.state, supply('turn'), { commandId: 'end-the-wizards-turn' }))).toBe(
+      true,
+    );
+    g.push(unwrap(dismissStrandedSummons(g.state), 'sweeping'));
+
+    const again = unwrap(
+      resolveTurn(g.state, supply('turn'), { commandId: 'end-the-wizards-turn' }),
+      'the same command id',
+    );
+    expect(again.duplicate ?? false).toBe(false);
+    expect(again.events.length).toBeGreaterThan(0);
+  });
+});

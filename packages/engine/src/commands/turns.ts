@@ -49,7 +49,7 @@ import { isDown, rollDeathSave } from '../vitals.js';
 import { type Supply } from './casting.js';
 import { type DamageComponent } from '../attack.js';
 import { creatureOf, unknownCreature, ZERO_HIT_POINTS } from './command.js';
-import { grantTemporaryHpTo, healCreature } from './creatures.js';
+import { grantTemporaryHpTo, healCreature, strandedSummons } from './creatures.js';
 import { dealSpellDamage } from './damage.js';
 import { mayAct, pendingCastingsOf, pendingSavesOf } from './holds.js';
 import { checkBonuses, recordD20Test, rollSpellDice, savingSupport } from './rolls.js';
@@ -872,6 +872,12 @@ export function resolvePendingSaves(
  * That is the difference between a debt and a leak: forgetting stops the game
  * rather than quietly dropping a rule. `resolvePendingSaves` clears it.
  *
+ * A summons whose casting has ended is a debt of the same kind and refuses
+ * for the same reason, cleared by `dismissStrandedSummons`; it is the one
+ * that is **derived** rather than filed, because unlike an owed area effect
+ * it is a question about the world as it stands rather than a record of a
+ * moment that has passed.
+ *
  * A success ends the effect on that target, or the whole casting, as the
  * effect's own hook says. Either way the caster's Concentration, the other
  * targets, and anything an unrelated source put there are left alone.
@@ -962,6 +968,38 @@ export function resolveTurn(
       return err(
         'saves_pending',
         `${outstanding.length} turn-boundary save(s) are still owed; resolve them before the turn moves on`,
+      );
+    }
+
+    // **A creature standing on a casting that is over.** SRD summons go when
+    // their spell does, and a casting ends four ways nobody commands — a
+    // deadline, a Concentration broken by unconsciousness, a trigger, the
+    // caster leaving — so the fold finds the ending and emits nothing, and the
+    // departure itself is a batch (`removeCreatureEverywhere`) because the
+    // leaver's holds have to be settled before its key goes. Those two halves
+    // cannot meet inside the reducer, and until now nothing joined them: the
+    // order advanced past a hound whose spell had ended and the hound went on
+    // holding its rung, attacking and being attacked.
+    //
+    // So it is a debt, on `owedAreaEffects`' pattern and for its reason — the
+    // engine's posture is that forgetting a rule stops the game rather than
+    // quietly losing it. **Derived rather than filed**, which is the one way
+    // it differs: an area debt records a moment that has passed and could not
+    // be recomputed, while this is a question about the world as it stands and
+    // `strandedSummons` answers it from `creatures` and `ongoing` alone. A
+    // field would be a second copy of an answer the state already gives.
+    //
+    // **Asked of the world this command begins in, and not again afterwards.**
+    // The boundary's own settlements can end a casting — an area effect that
+    // drops a caster — and re-checking after the batch would mean discarding
+    // events that have already happened. The debt is derived, so it is simply
+    // standing when the *next* advance asks, which is exactly where
+    // `owedAreaEffects` leaves one raised at a boundary too.
+    const stranded = strandedSummons(state);
+    if (stranded.length > 0) {
+      return err(
+        'summons_stranded',
+        `${stranded.join(', ')} ${stranded.length === 1 ? 'is' : 'are'} still standing on a casting that has ended; dismissStrandedSummons takes ${stranded.length === 1 ? 'it' : 'them'} away before the turn moves on`,
       );
     }
 

@@ -2569,7 +2569,7 @@ const DECLARED_NOT_ACTED: Readonly<Record<string, string>> = {
   dismissStrandedSummons:
     'not an action in the turn economy: the spell that was holding the creature here has already ended, through whatever spent its own cost \u2014 a dismissal, a deadline, a rockfall \u2014 and clearing away what that ending left behind costs nobody a turn\u2019s budget, exactly as removeCreatureEverywhere beside it costs nobody one',
   strandedSummons:
-    'not an action in the turn economy, and not an action at all: it is the question "who is standing here on a spell that is over", read off state and answering it changes nothing. It is in this list rather than exempt from it because the list\u2019s scope is the module, and a question the engine can answer must stay answerable while a mandatory area effect stands owed \u2014 which is exactly what the half below proves',
+    'not an action in the turn economy, and not an action at all: it is the question "who is standing here on a spell that is over", read off state and answering it changes nothing. It is in this list rather than exempt from it because the list\u2019s scope is the module \u2014 and the entry earns its place rather than excusing anything, because being named here is strictly harder than being absent: the roster is derived from the module and the barrel, so a sentence can only explain a name the derivation already found, and the behavioural half below then demands the function actually succeed. For this one that is a real claim rather than a formality. resolveTurn now refuses to advance while this answers anybody, so a query that refused while a mandatory area effect stood owed would be a deadlock rather than a rule',
   summonCreature:
     'not an action in the turn economy: the casting that conjured the creature spent its own Action, its slot and its Concentration through resolveSpell, and the creature then arriving costs nobody a second budget — the same reading damage and healing take, applied to the thing a spell produced rather than to the thing it did',
   damageCreature:
@@ -2675,9 +2675,16 @@ describe('the DM-declared commands declare facts rather than taking actions', ()
     // Nothing is stranded in this fixture, so what it proves is the half the
     // list is about: a command that may be sent while a mandatory area effect
     // stands owed. The sweep it does is driven in `summoning.test.ts`.
+    //
+    // It matters more now than it did. `resolveTurn` refuses to advance while
+    // a summons is stranded, so a settlement that could itself be refused
+    // while an area effect stood owed would be two debts each waiting on the
+    // other — the deadlock `settleAreaEffects` is exempt for in the same
+    // words.
     { name: 'dismissStrandedSummons', run: (s) => dismissStrandedSummons(s) },
     // A question rather than a command, wrapped so this list can ask it: what
-    // it proves here is that the engine goes on answering while a debt stands.
+    // it proves here is that the engine goes on answering while a debt stands
+    // — which is what the turn's own refusal is now reading.
     { name: 'strandedSummons', run: (s) => ok(strandedSummons(s)) },
     // C is the creature on the floor at 0 hit points, so healing has something
     // to do and a removal has somebody to remove; A is whole, so damage does.

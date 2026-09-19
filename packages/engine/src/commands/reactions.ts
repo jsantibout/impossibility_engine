@@ -68,7 +68,7 @@ import {
   spendReactionCost,
 } from './damage.js';
 import { completeIfSettled, pendingCastingsOf } from './holds.js';
-import { checkBonuses, recordD20Test, savingSupport } from './rolls.js';
+import { checkBonuses, mergedModes, recordD20Test, savingSupport } from './rolls.js';
 
 export interface DamageReactionCommand extends CommandIdentity {
   readonly feature: string;
@@ -419,20 +419,35 @@ export function resolveTest(
 
     const issuedBefore = supply.issuer.count;
 
+    // Everything the caller said, on either kind of test: what the operation
+    // carries and what this command was sent with.
+    //
+    // **One list, because the two branches used to build it two ways.** The
+    // save merged by source and the check concatenated, so a `ModeSource`'s
+    // `source` was an identity on one kind of D20 Test and a label on the
+    // other — and `mergedModes` is where that is now decided once, for the
+    // reason a vocabulary with two meanings is not one. The divergence had
+    // already cost a bug (two rulings spelled alike collapsing on the save,
+    // which then rolled at Disadvantage while reporting one ruling); it was
+    // fixed at the caller, and this is the same fix at the seam.
+    //
+    // Both halves of each list, because both were being dropped — the save
+    // read the supply and not the command until somebody noticed, and the
+    // check read the command and not the supply. `Supply.modes` is
+    // "modifiers on the rolls this operation makes", and a test is a roll it
+    // makes.
+    const saidModes = [...(supply.modes ?? []), ...(command.modes ?? [])];
+    const saidBonuses = [...(supply.bonuses ?? []), ...(command.bonuses ?? [])];
+
     // Everything standing on this creature — a Paladin's aura, Bless, the
     // feature that grants Advantage on this very skill — read rather than
     // remembered, which is the rule every roll in this engine follows.
     const rolled =
       command.kind === 'saving-throw'
         ? (() => {
-            // The command's own modes and bonuses, alongside the operation's.
-            // They were dropped here — `TestCommand` declares both, the ability
-            // check branch below honours both, and the saving throw branch
-            // handed `savingSupport` the *supply* and nothing else. A DM
-            // imposing Disadvantage on one save was silently ignored.
             const support = savingSupport(state, who, creature, command.ability, {
-              modes: [...(supply.modes ?? []), ...(command.modes ?? [])],
-              bonuses: [...(supply.bonuses ?? []), ...(command.bonuses ?? [])],
+              modes: saidModes,
+              bonuses: saidBonuses,
             });
             return rollSavingThrow(supply.issuer, supply.rng, creature.sheet, command.ability, {
               dc: command.dc,
@@ -445,20 +460,27 @@ export function resolveTest(
             dc: command.dc,
             ...(command.skill === undefined ? {} : { skill: command.skill }),
             conditions: effectiveConditions(state, who),
-            modes: [
-              ...rollModesFor(state, {
+            modes: mergedModes(
+              rollModesFor(state, {
                 family: 'ability-check',
                 roller: who,
                 ability: command.ability,
                 ...(command.skill === undefined ? {} : { skill: command.skill }),
               }).modes,
-              ...(command.modes ?? []),
-            ],
+              saidModes,
+            ),
             ...(command.senses === undefined ? {} : { conditionContext: command.senses }),
             // The other half of "everything standing on this creature": the
             // saving-throw branch above gets it from `savingSupport`, and a
             // worn item's "+1 bonus to ability checks" reaches this one.
-            bonuses: checkBonuses(state, who, command.bonuses),
+            //
+            // **Two gatherers rather than one, and that difference stays.**
+            // A saving throw has one command behind it and an ability check
+            // four, so `checkBonuses` answers the narrower question the four
+            // of them share; what the two branches must not disagree about is
+            // the *identity rule*, and they do not — both merge by source and
+            // let the caller's copy win.
+            bonuses: checkBonuses(state, who, saidBonuses),
           });
     if (!rolled.ok) return rolled;
 

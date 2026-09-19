@@ -40,6 +40,14 @@ import { type Supply } from './casting.js';
  * `roll-recorded` changes no state; it exists so the log can say why a number
  * was what it was. Every named contribution goes in, including ones that
  * subtracted, so a normal-looking total can still explain itself.
+ *
+ * **And every mode, with its source.** A contribution is a named *amount* and
+ * Advantage is not one, so a ruling reached the returned result and nothing
+ * else: the log showed a d20 at 17 and could not say that two were thrown for
+ * it. The sources that cancelled are here too, because a roll that came out
+ * `normal` from two opposite rulings is a different fact from a roll nobody
+ * ruled on. Omitted entirely when nothing modified the roll, so a log that
+ * carried no such field goes on not carrying one.
  */
 export function recordD20Test(
   who: CharacterId,
@@ -53,6 +61,7 @@ export function recordD20Test(
     label,
     natural: result.natural,
     total: result.total,
+    ...(result.modeSources.length === 0 ? {} : { modes: result.modeSources }),
     contributions: [
       // What is left of the modifier once every named flat bonus inside it has
       // been named: the ability, the proficiency, and whatever else the sheet
@@ -138,6 +147,42 @@ export function rollSpellDice(
 }
 
 /**
+ * The modes standing on a roll and the modes a caller supplied, as one list.
+ *
+ * **A `ModeSource`'s source is an identity**, and this is the one place that
+ * is decided. Two things named the same are one thing: a caller who also
+ * knows about Danger Sense does not apply it twice, and a source that
+ * contradicts itself is a contradiction rather than a cancellation, so the
+ * later word wins — the same ruling `rollModifierKey` states for a casting
+ * that grants Advantage and then Disadvantage on the same rolls.
+ *
+ * **It exists because the two branches of one command disagreed about that.**
+ * `resolveTest`'s saving throw merged through {@link savingSupport} and its
+ * ability check concatenated, so a `source` was an identity on one kind of
+ * D20 Test and a label on the other. That produced a real bug — two rulings a
+ * DM spelled alike collapsed into one on the save, which then rolled at
+ * Disadvantage while reporting a single ruling — and it was fixed at the
+ * caller, which protects one caller. One gatherer is the fix at the seam.
+ *
+ * A bare `RollMode` has no source to key on, so it rides through as given and
+ * ahead of the named ones; `checks.ts` gives it the name `situational`. The
+ * named keep insertion order, which is what puts what the world already had
+ * before what the caller has just said.
+ */
+export function mergedModes(
+  standing: readonly (RollMode | ModeSource)[],
+  supplied: readonly (RollMode | ModeSource)[],
+): readonly (RollMode | ModeSource)[] {
+  const named = new Map<string, ModeSource>();
+  const bare: RollMode[] = [];
+  for (const mode of [...standing, ...supplied]) {
+    if (typeof mode === 'string') bare.push(mode);
+    else named.set(mode.source, mode);
+  }
+  return [...bare, ...named.values()];
+}
+
+/**
  * Everything that applies to a creature's saving throw, gathered in one place.
  *
  * Same rule as Alert on Initiative: a modifier somebody has to remember is a
@@ -180,20 +225,15 @@ export function savingSupport(
 
   // A bare RollMode has no source to deduplicate on, so it rides through as
   // given; a ModeSource is keyed, which is what stops a caller who also knows
-  // about Danger Sense applying it twice.
-  const named = new Map<string, ModeSource>();
-  const bare: RollMode[] = [];
-  for (const mode of rollModesFor(state, { family: 'saving-throw', roller: who, ability }).modes) {
-    named.set(mode.source, mode);
-  }
-  for (const mode of supply.modes ?? []) {
-    if (typeof mode === 'string') bare.push(mode);
-    else named.set(mode.source, mode);
-  }
-
+  // about Danger Sense applying it twice. {@link mergedModes} is that rule,
+  // and it is a function rather than a block here because the ability check
+  // needs the same one.
   return {
     bonuses: [...merged.values()],
-    modes: [...bare, ...named.values()],
+    modes: mergedModes(
+      rollModesFor(state, { family: 'saving-throw', roller: who, ability }).modes,
+      supply.modes ?? [],
+    ),
     conditions: effectiveConditions(state, who),
   };
 }
