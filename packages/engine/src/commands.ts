@@ -61,8 +61,9 @@ export {
   healCreature,
   removeCreatureEverywhere,
   setExhaustionLevel,
+  summonCreature,
 } from './commands/creatures.js';
-export type { AddCreatureOutcome, DamageCommand } from './commands/creatures.js';
+export type { AddCreatureOutcome, DamageCommand, Summons } from './commands/creatures.js';
 export { applyConditionTo, liftConditionFrom, whyCondition } from './commands/conditions.js';
 export { declareCreatureType } from './commands/facts.js';
 export {

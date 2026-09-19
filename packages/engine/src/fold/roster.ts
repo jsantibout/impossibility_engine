@@ -15,8 +15,9 @@ import { conditionState } from '../conditions.js';
 import { resourceState } from '../resources.js';
 import { noSpellcasting } from '../spellcasting.js';
 import { vitals } from '../vitals.js';
+import type { CharacterId } from '@ie/shared';
 import type { GameEvent } from '../events.js';
-import type { GameState } from '../state.js';
+import type { CreatureState, GameState } from '../state.js';
 import {
   CorruptLogError,
   creatureOf,
@@ -32,6 +33,7 @@ import { withEquipment } from './inventory.js';
 /** The event types this seam owns. Every one of them, and no other seam's. */
 export const ROSTER_EVENTS = [
   'creature-added',
+  'creature-summoned',
   'creature-removed',
   'character-created',
   'character-advanced',
@@ -45,6 +47,48 @@ export type RosterEvent = Extract<GameEvent, { type: (typeof ROSTER_EVENTS)[numb
 
 /** Whether an event is this seam's. Built from the same list, so the two cannot drift. */
 export const isRosterEvent = seamOf(ROSTER_EVENTS);
+
+/**
+ * A creature leaving the game, and everything that hung off its being in it.
+ *
+ * **One departure, two ways of arriving at it.** `creature-removed` is the
+ * commanded one — a DM saying somebody has gone, `removeCreatureEverywhere`'s
+ * batch. The other is derived: a summoned creature whose casting has ended
+ * (`departEndedSummons`), which no command can be waiting for, because four
+ * of the five ways a casting ends are things nobody decides. Writing the
+ * second one out again beside the first is how the two come to disagree about
+ * what a departure takes with it, so there is exactly this function.
+ *
+ * It owns the `creatures` keyspace and what a leaver strands in it, and
+ * nothing else: the map and the Initiative order are other seams' regions,
+ * and each door reaches them its own way — the command by emitting
+ * `creature-unplaced` and `combatant-removed` ahead of the removal, and the
+ * derived pass by the same primitives those events fold through.
+ */
+export function departCreature(
+  base: GameState,
+  id: CharacterId,
+  creature: CreatureState,
+): GameState {
+  // A caster who leaves the game takes their ongoing spell with them. Their
+  // record is about to be deleted, so the casting id has to be read off it
+  // first or the effects it created would dangle for good.
+  const cleaned =
+    creature.concentration === null
+      ? base
+      : releaseCasting(base, id, creature.concentration.castingId);
+  const creatures = { ...cleaned.creatures };
+  delete creatures[id];
+  // Every *other* spell that was on them stops being on them. Not ended —
+  // SRD does not end a Cleric's Bless because one of the blessed walked out —
+  // but a name in `on` that no longer belongs to anybody is a dispellable
+  // target that does not exist.
+  return withoutTarget(
+    { ...cleaned, creatures, timers: timersApartFrom(cleaned.timers, id) },
+    id,
+    null,
+  );
+}
 
 /**
  * Reduce one of this seam's events.
@@ -81,6 +125,10 @@ export function applyRoster({ state, next }: Applying, event: RosterEvent): Game
             // field existed says — so both frozen fixtures fold unchanged.
             conditionImmunities: event.conditionImmunities ?? [],
             side: event.side ?? null,
+            // Nobody's, until a `creature-summoned` says otherwise. Which is
+            // what every log written before summoning existed says, so both
+            // frozen fixtures fold unchanged.
+            summonedBy: null,
             activeFeatures: [],
             readied: null,
             lastDamage: null,
@@ -104,27 +152,35 @@ export function applyRoster({ state, next }: Applying, event: RosterEvent): Game
       };
     }
 
-    case 'creature-removed': {
+    case 'creature-summoned': {
       const creature = creatureOf(state, event, event.id);
-      // A caster who leaves the game takes their ongoing spell with them.
-      // Their record is about to be deleted, so the casting id has to be read
-      // off it first or the effects it created would dangle for good.
-      const cleaned =
-        creature.concentration === null
-          ? next
-          : releaseCasting(next, event.id, creature.concentration.castingId);
-      const creatures = { ...cleaned.creatures };
-      delete creatures[event.id];
-      // Every *other* spell that was on them stops being on them. Not ended —
-      // SRD does not end a Cleric's Bless because one of the blessed walked
-      // out — but a name in `on` that no longer belongs to anybody is a
-      // dispellable target that does not exist.
-      return withoutTarget(
-        { ...cleaned, creatures, timers: timersApartFrom(cleaned.timers, event.id) },
+      // Restating the same binding is harmless; two castings claiming one
+      // creature is not a new fact but a rewrite of one whose ending was
+      // about to take the creature away. The command refuses that, so a
+      // contradiction in the log means it was bypassed — the corrupt-log
+      // case, exactly as `creature-type-declared` reads it.
+      if (
+        creature.summonedBy?.castingId === event.castingId &&
+        creature.summonedBy.by === event.by
+      ) {
+        return next;
+      }
+      if (creature.summonedBy !== null) {
+        throw new CorruptLogError(
+          event,
+          `${event.id} is already held by ${creature.summonedBy.castingId}; ${event.castingId} cannot also be holding it`,
+        );
+      }
+      return withCreature(
+        next,
         event.id,
-        null,
+        { summonedBy: { by: event.by, castingId: event.castingId } },
+        creature,
       );
     }
+
+    case 'creature-removed':
+      return departCreature(next, event.id, creatureOf(state, event, event.id));
 
     case 'character-created': {
       const creature = creatureOf(state, event, event.id);

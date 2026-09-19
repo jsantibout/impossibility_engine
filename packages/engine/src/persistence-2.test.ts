@@ -488,6 +488,9 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   'casting-continued',
   'combatant-joined',
   'condition-immunity-granted',
+  // A summons: the fixtures predate it, and appending a type here is the
+  // acknowledgement this list exists to collect.
+  'creature-summoned',
   'damage-defense-granted',
   'item-transferred',
   'speed-modifier-granted',

@@ -19,12 +19,15 @@
  * that against the code rather than against this sentence.
  */
 
-import { type CharacterId, err, ok, type Result } from '@ie/shared';
+import { type CharacterId, err, needsContext, ok, type Result } from '@ie/shared';
 import type { Monster } from '@ie/srd';
 import { hasCondition } from '../conditions.js';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
+import { addCombatant } from '../combat.js';
 import { adaptMonster } from '../monster.js';
+import type { Placement } from '../positioning.js';
+import { speedOf } from '../standing.js';
 import { applyDamageToVitals, isDown } from '../vitals.js';
 import { creatureOf, unknownCreature, ZERO_HIT_POINTS } from './command.js';
 import { settleHoldsInvolving } from './holds.js';
@@ -141,6 +144,191 @@ export function addCreature(
         ],
         duplicate: false,
       });
+    },
+  );
+}
+
+/**
+ * A creature a casting is putting into the world, and where it arrives.
+ *
+ * Everything here except `monster` and `by` is optional, and each absence is
+ * a real answer rather than a gap: a creature bound to no casting outlives
+ * every spell, a summoner with no declared side gives none, a creature nobody
+ * placed is unplaced exactly as any other creature is, and a fight that is
+ * not running has no order to join.
+ */
+export interface Summons {
+  /** What to call the new creature. */
+  readonly id: CharacterId;
+  /** The stat block, whole, exactly as {@link addCreature} takes one. */
+  readonly monster: Monster;
+  /** The summoner. */
+  readonly by: CharacterId;
+  /**
+   * The casting that holds it here, if one does.
+   *
+   * Omitted for a creature a spell *made* rather than sustains — SRD Animate
+   * Dead is Instantaneous and its Skeleton is still standing next week — and
+   * for a stat block a DM simply walks through the door, which is what
+   * {@link addCreature} is.
+   */
+  readonly castingId?: string;
+  /**
+   * Which side it is on, when it is not the summoner's.
+   *
+   * Defaults to the summoner's own, because that is what a summons is. It is
+   * still `side` — declared, changeable, the thing a bribed bandit and a
+   * turned summons both move — rather than a second notion of ownership.
+   */
+  readonly side?: string;
+  /** Where it appears. Its size is the stat block's and is not the caller's to state. */
+  readonly placement?: Omit<Placement, 'size'>;
+  /**
+   * Its Initiative total, which the caller rolled.
+   *
+   * The engine ranks and does not roll on anybody's behalf — `joinCombat`
+   * says so at length — so a fight that is running and no total is a
+   * `needs-context` naming the command that would produce one.
+   */
+  readonly initiative?: number;
+  /** Ties, as `beginCombat` and `joinCombat` take them. */
+  readonly tiebreak?: number;
+}
+
+/**
+ * Bring a creature into a scene that is already running, on a spell's terms.
+ *
+ * **A door rather than a subsystem**, and the measurement that says so is the
+ * body: every line below calls something that was already built.
+ * {@link addCreature} turns the stat block into a creature with its numbers
+ * pinned into `creature-added`; `creature-placed` puts it on the map at the
+ * size the stat block prints; `combatant-joined` gives it a rung in a running
+ * order. What did not exist is the one event between them —
+ * `creature-summoned` — saying that a **casting** is the reason it is there.
+ *
+ * That link is the whole of what a summons adds, and it buys the sentence
+ * every summoning spell in the book prints: when the spell ends, the creature
+ * is gone. The ending is found rather than commanded (`departEndedSummons`),
+ * because a Concentration broken by a rockfall is nobody's decision.
+ *
+ * **Nothing about the creature is read from content and nothing is derived.**
+ * The sheet, the printed Armour Class, the average hit points, "a monster
+ * dies the instant it drops to 0", the creature type, both halves of the
+ * defence run and the size are the adapter's, pinned into the log at the
+ * moment of arrival — so a log replayed next year raises this creature
+ * without opening anything.
+ *
+ * **Three things it deliberately does not do.** It does not roll Initiative,
+ * for the reason `joinCombat` does not. It does not decide what the creature
+ * can cast — `declareSpellcasting` is that, exactly as it is for any monster.
+ * And it does not derive a statistic from the summoner: a stat block whose
+ * numbers come from a caster's level or a spell's slot is a different
+ * mechanic, and `Summons` has nowhere to put one on purpose.
+ */
+export function summonCreature(
+  state: GameState,
+  summons: Summons,
+  command: CommandIdentity = {},
+): Result<AddCreatureOutcome> {
+  const { id, monster, by, castingId } = summons;
+
+  // The stat block's **id** rather than the whole of it, for the reason
+  // `addCreature` fingerprints it that way.
+  return once(
+    state,
+    `summon-creature:${id}`,
+    { ...command, monster: monster.id, by, ...(castingId === undefined ? {} : { castingId }) },
+    () => ({ events: [], unverified: [], duplicate: true }),
+    (stamp) => {
+      const summoner = creatureOf(state, by);
+      if (summoner === null) return unknownCreature(by);
+
+      // A binding to a casting that is not running would be taken away by the
+      // very next fold, so the creature would arrive and vanish in one batch.
+      // Refusing is the honest answer, and it is the same code `endOngoingSpell`
+      // answers for a casting nobody is running.
+      if (castingId !== undefined && state.ongoing[castingId] === undefined) {
+        return err('not_ongoing', `${castingId} is not a spell that is still running`);
+      }
+
+      // Everything the creature *is* comes from here, unchanged and
+      // uncomputed. Unstamped on purpose: a summons is **one** command, and
+      // the arrival minting an identity of its own would put two entries in
+      // `appliedCommands` for one thing that happened.
+      const arrival = addCreature(state, id, monster);
+      if (!arrival.ok) return arrival;
+
+      // The one event this command always emits, so the stamp rides it rather
+      // than a placement or a rung in the order that a summons may not have.
+      const events: GameEvent[] = arrival.value.events.map((event, index) =>
+        index === 0 && stamp !== null ? { ...event, command: stamp } : event,
+      );
+
+      // SRD summons are the summoner's. Declared rather than derived even
+      // here: if nobody has said whose side the caster is on, nobody has said
+      // whose side its hound is on either.
+      const side = summons.side ?? summoner.side;
+      if (side !== null && side !== undefined) {
+        events.push({ type: 'creature-side-declared', id, side });
+      }
+
+      if (castingId !== undefined) {
+        events.push({ type: 'creature-summoned', id, by, castingId });
+      }
+
+      if (summons.placement !== undefined) {
+        events.push({
+          type: 'creature-placed',
+          id,
+          // The size is the stat block's. A caller restating it is a second
+          // reader of a fact the adapter already read, and the one place the
+          // two could disagree about how many cubes a Conjured Hound holds.
+          placement: { ...summons.placement, size: adaptMonster(monster, id).size },
+        });
+      }
+
+      // **Last, and after every refusal**, so a creature that was already in
+      // the game is told so rather than asked for a number it would never
+      // have used. A fight is on and nobody has said where this creature
+      // falls in it: the engine ranks and does not roll, so that is a missing
+      // fact rather than a broken rule.
+      if (state.combat !== null) {
+        if (summons.initiative === undefined) {
+          return needsContext(
+            'initiative_required',
+            `a fight is running and nothing has said where ${id} falls in the order`,
+            [
+              {
+                kind: 'turn-order',
+                subject: id,
+                need: `${id}'s Initiative total`,
+                because: `${id} is arriving in a fight that is already under way`,
+                satisfyWith: `a rollInitiativeFor command for ${id}, then this summonCreature command carrying the total`,
+              },
+            ],
+          );
+        }
+
+        const joining = {
+          id,
+          initiative: summons.initiative,
+          // **Asked of the one reader, against the world the arrival leaves.**
+          // The order pins a walking Speed and the command layer derives none
+          // of its own — so rather than reading the stat block a second time,
+          // this folds the `creature-added` forward and asks `speedOf` about a
+          // creature that now exists. The same reading `removeCreatureEverywhere`
+          // takes when it asks what a settlement left behind.
+          speed: speedOf(events.reduce(applyEvent, state), id),
+          ...(summons.tiebreak === undefined ? {} : { tiebreak: summons.tiebreak }),
+        };
+        // Asked here and asked again by the reducer, so the command and the
+        // fold cannot disagree about where the creature landed.
+        const joined = addCombatant(state.combat, joining);
+        if (!joined.ok) return joined;
+        events.push({ type: 'combatant-joined', combatant: joining });
+      }
+
+      return ok({ events, unverified: arrival.value.unverified, duplicate: false });
     },
   );
 }

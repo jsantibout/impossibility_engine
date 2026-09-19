@@ -118,6 +118,22 @@ export interface AttunedItem {
   readonly grants?: readonly StandingEffect[];
 }
 
+/**
+ * A creature and the casting that is holding it in the world.
+ *
+ * Two fields and no third. A deadline is not here because the casting already
+ * has one; a side is not here because allegiance is declared and can change;
+ * a stat block is not here because the sheet arrived pinned on
+ * `creature-added` and this is a link rather than a second copy of the
+ * creature.
+ */
+export interface SummonBond {
+  /** Whose creature this is. */
+  readonly by: CharacterId;
+  /** The casting whose ending takes it away. */
+  readonly castingId: string;
+}
+
 export interface CreatureState {
   readonly id: CharacterId;
   readonly name: string;
@@ -207,6 +223,29 @@ export interface CreatureState {
    * that asks for allies reaches nobody the table has not placed.
    */
   readonly side: string | null;
+  /**
+   * The casting that is the reason this creature is standing here, or null.
+   *
+   * **Not a second lifetime.** A summons has exactly one — the casting's —
+   * and this is the link to it rather than a deadline of its own: the ongoing
+   * record already says whether the spell is still running, the timers
+   * already say when a time span runs out, and a broken Concentration is
+   * already found by a fold nobody commanded. What was missing was the
+   * sentence "and the creature goes with it", which needs the creature and
+   * the casting named in one place.
+   *
+   * Null is the ordinary state and the common one. A monster that walked
+   * through the door is nobody's, and a creature a spell *created*
+   * permanently — an Animate Dead Skeleton, raised by an Instantaneous
+   * casting that is over before the Skeleton stands up — is bound to nothing
+   * and outlives everything, which is exactly what null means here.
+   *
+   * `by` is the summoner, carried for the reason a casting's caster is: a
+   * rule that asks whose creature this is has nowhere else to look.
+   * Allegiance is **not** here — that is {@link CreatureState.side},
+   * declared, because a summoned creature can turn.
+   */
+  readonly summonedBy: SummonBond | null;
   /**
    * Features this creature has switched on and is still in.
    *

@@ -44,6 +44,7 @@ import {
   rollInitiativeAndBeginCombat,
   setScene,
   stabiliseCreature,
+  summonCreature,
   swapInitiativeBetween,
   transferItem,
   useFreeObjectInteraction,
@@ -1031,6 +1032,15 @@ const GUARDED: readonly Guarded[] = [
     name: 'addCreature',
     log: SETUP,
     run: (s, commandId) => addCreature(s, id('a-zombie'), ZOMBIE, { commandId }),
+  },
+  {
+    name: 'summonCreature',
+    log: SETUP,
+    // A fight is running in SETUP, so the total is supplied rather than
+    // asked for; the summons is bound to no casting, which is the Animate
+    // Dead reading and keeps this entry about the identity and nothing else.
+    run: (s, commandId) =>
+      summonCreature(s, { id: id('a-hound'), monster: ZOMBIE, by: A, initiative: 14 }, { commandId }),
   },
   {
     name: 'continueCasting',
@@ -2513,6 +2523,8 @@ const DECLARED_NOT_ACTED: Readonly<Record<string, string>> = {
     'not an action in the turn economy: a bonus stopping is the end of something, and nobody spends anything to have an effect wear off',
   addCreature:
     'not an action in the turn economy: a monster walking through the door is a fact the DM declares, and SRD spends nothing on anybody’s turn to have one arrive',
+  summonCreature:
+    'not an action in the turn economy: the casting that conjured the creature spent its own Action, its slot and its Concentration through resolveSpell, and the creature then arriving costs nobody a second budget — the same reading damage and healing take, applied to the thing a spell produced rather than to the thing it did',
   damageCreature:
     'not an action in the turn economy: damage is the outcome of an attack, a spell or a trap, each of which spent its own cost through its own command',
   healCreature:
@@ -2609,6 +2621,10 @@ describe('the DM-declared commands declare facts rather than taking actions', ()
     },
     { name: 'removeBonusFrom', run: (s) => removeBonusFrom(s, A, 'a quiet word') },
     { name: 'addCreature', run: (s) => addCreature(s, id('a-latecomer'), ZOMBIE) },
+    {
+      name: 'summonCreature',
+      run: (s) => summonCreature(s, { id: id('a-conjured-thing'), monster: ZOMBIE, by: A, initiative: 14 }),
+    },
     // C is the creature on the floor at 0 hit points, so healing has something
     // to do and a removal has somebody to remove; A is whole, so damage does.
     { name: 'damageCreature', run: (s) => damageCreature(s, A, { amount: 5, source: 'a trap' }) },

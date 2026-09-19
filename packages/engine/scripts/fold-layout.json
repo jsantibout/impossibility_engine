@@ -1,5 +1,6 @@
 {
   "state.ts": [
+    "SummonBond",
     "CreatureState",
     "AppliedCommand",
     "CommandStamp",
@@ -117,6 +118,7 @@
     "ROSTER_EVENTS",
     "RosterEvent",
     "isRosterEvent",
+    "departCreature",
     "applyRoster"
   ],
   "fold/vitals.ts": [
@@ -196,6 +198,7 @@
     "interruptedRests",
     "endLostFeatures",
     "dropLapsedReady",
+    "departEndedSummons",
     "sustains",
     "wearsHeavyArmor",
     "applyOne",

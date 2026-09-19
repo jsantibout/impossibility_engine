@@ -24,7 +24,7 @@ import { type TimedEffect } from '../duration.js';
 // The one spelling of Initiative's label, from the module that owns
 // Initiative — the fold matches on what `commands/initiative.ts` writes, and
 // neither end may spell it for itself. See `INITIATIVE_LABEL`.
-import { INITIATIVE_LABEL } from '../combat.js';
+import { INITIATIVE_LABEL, removeCombatant } from '../combat.js';
 
 import type { GameEvent } from '../events.js';
 import type { CreatureState, GameState } from '../state.js';
@@ -32,11 +32,12 @@ import { initialState } from '../state.js';
 import { type Applying, unhandledEvent } from './common.js';
 import { releaseCasting } from './release.js';
 import { dropOrphanedAreaEffects } from './areas.js';
-import { openTurnStart, reachStartOfTurn } from './turns.js';
+import { removeCreature } from '../positioning.js';
+import { forgetSustainedTurns, openTurnStart, reachStartOfTurn } from './turns.js';
 import { dropOrphanedSaves, dropStrandedDamage, expireEffects } from './expiry.js';
 import { endTriggeredCastings, endTriggeredEffects } from './endings.js';
 
-import { applyRoster, isRosterEvent } from './roster.js';
+import { applyRoster, departCreature, isRosterEvent } from './roster.js';
 import { applyVitals, isVitalsEvent } from './vitals.js';
 import { applyUpkeep, isUpkeepEvent } from './upkeep.js';
 import { applyCasting, isCastingEvent } from './casting.js';
@@ -269,29 +270,38 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
         dropStrandedDamage(
           dropOrphanedSaves(
             dropLapsedReady(
-              expireEffects(
-                endLostFeatures(
-                  // Between the two passes that already end a casting nobody
-                  // decided to end — a lost Concentration above, an arrived
-                  // deadline below — because it is the same kind of fact, and
-                  // because the four `drop*` passes below are the safety net
-                  // for anything a release orphaned.
-                  //
-                  // **Two populations, one reading of the event.** The inner
-                  // pass ends castings a trigger pulled; this one ends timed
-                  // conditions nothing ever cast — a potion's Invisible — and
-                  // both read the same `EndingFact`s. Outermost of the two so
-                  // a casting released above has already taken its own
-                  // conditions with it, leaving this walk only what a casting
-                  // never owned.
-                  endTriggeredEffects(
-                    endTriggeredCastings(
-                      breakLostConcentration(
-                        recordCommand(interruptedRests(applied, event), event),
+              // **After every pass that can end a casting, before every pass
+              // that cleans up after one.** A summons goes when its spell
+              // does, and four of the five ways a spell ends are found here
+              // rather than commanded — so it sits outside the Concentration
+              // break, the triggered endings and the expiries, and inside the
+              // four `drop*` passes that are the safety net for whatever a
+              // departure orphaned.
+              departEndedSummons(
+                expireEffects(
+                  endLostFeatures(
+                    // Between the two passes that already end a casting nobody
+                    // decided to end — a lost Concentration above, an arrived
+                    // deadline below — because it is the same kind of fact, and
+                    // because the four `drop*` passes below are the safety net
+                    // for anything a release orphaned.
+                    //
+                    // **Two populations, one reading of the event.** The inner
+                    // pass ends castings a trigger pulled; this one ends timed
+                    // conditions nothing ever cast — a potion's Invisible — and
+                    // both read the same `EndingFact`s. Outermost of the two so
+                    // a casting released above has already taken its own
+                    // conditions with it, leaving this walk only what a casting
+                    // never owned.
+                    endTriggeredEffects(
+                      endTriggeredCastings(
+                        breakLostConcentration(
+                          recordCommand(interruptedRests(applied, event), event),
+                        ),
+                        event,
                       ),
                       event,
                     ),
-                    event,
                   ),
                 ),
               ),
@@ -301,6 +311,75 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
       ),
     ),
   );
+}
+
+/**
+ * Summoned creatures whose casting is over.
+ *
+ * SRD writes the sentence on every summons it prints — the creature is there
+ * "for the duration", and when the spell ends it is not. **Nobody decides
+ * it**, which is why this is a derived pass and not a command: a casting ends
+ * five ways and only one of them, a dismissal, is somebody's decision. The
+ * other four — a deadline arrived, a Concentration broken by unconsciousness,
+ * a trigger pulled, the caster leaving the game — are found in exactly this
+ * file, and a summons that only vanished when a command said so would outlive
+ * its spell in all four.
+ *
+ * **The departure is `departCreature`**, the same one `creature-removed`
+ * folds through, so the two cannot disagree about what a leaver strands.
+ * What this adds beyond it is the map and the Initiative order, reached
+ * through `removeCreature` and `removeCombatant` — the same two functions
+ * `creature-unplaced` and `combatant-removed` fold through, so this is the
+ * batch `removeCreatureEverywhere` emits, applied by the one authority that
+ * can see the moment. Including its last rule: a fight cannot lose its last
+ * combatant, so it ends instead, and that is read off `removeCombatant`'s own
+ * refusal rather than re-derived from the length of the order.
+ *
+ * A creature bound to nothing is untouched, which is the ordinary case and
+ * also the right answer for a creature a spell *created* rather than
+ * sustained: an Animate Dead Skeleton's casting is Instantaneous and long
+ * over, and the Skeleton stays.
+ */
+function departEndedSummons(state: GameState): GameState {
+  // Nobody's a summons, which is the state of almost every fight.
+  if (!anyCreature(state, (c) => c.summonedBy !== null)) return state;
+
+  let current = state;
+
+  // **To a fixed point, and this one is genuinely reachable** — unlike the
+  // Concentration loop above, which settles in a pass today and keeps its
+  // loop against a future. A summons may itself be concentrating, and
+  // `departCreature` releases what it was holding, so one departure can be
+  // the end of the casting a second summons was standing on. Visiting the
+  // cast in sorted order once would leave that second creature behind until
+  // the next event happened to arrive.
+  for (;;) {
+    const gone = Object.keys(current.creatures)
+      .sort()
+      .find((key) => {
+        const bond = current.creatures[key]?.summonedBy;
+        return bond != null && current.ongoing[bond.castingId] === undefined;
+      });
+    if (gone === undefined) return current;
+
+    const creature = current.creatures[gone]!;
+
+    if (current.scene !== null && current.scene.positions[creature.id] !== undefined) {
+      const left = removeCreature(current.scene, creature.id);
+      if (left.ok) current = { ...current, scene: left.value };
+    }
+
+    if (current.combat !== null && current.combat.order.some((c) => c.id === creature.id)) {
+      const left = removeCombatant(current.combat, creature.id);
+      current = left.ok
+        ? { ...current, combat: left.value }
+        : // "combat needs at least one combatant" — the fight is over, which
+          // is the branch `removeCreatureEverywhere` makes for the same case.
+          forgetSustainedTurns({ ...current, combat: null });
+    }
+
+    current = departCreature(current, creature.id, creature);
+  }
 }
 
 /**

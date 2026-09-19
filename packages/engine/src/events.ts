@@ -126,6 +126,7 @@ export type {
   PendingTest,
   ReadiedAction,
   ReadiedResponse,
+  SummonBond,
 } from './state.js';
 export {
   initialState,
@@ -375,6 +376,38 @@ export type GameEvent =
       readonly type: 'spellcasting-declared';
       readonly id: CharacterId;
       readonly spellcasting: SpellcastingState;
+      readonly command?: CommandStamp;
+    }
+  /**
+   * A creature already in the cast is one a casting is holding there.
+   *
+   * **Its own event rather than a field on `creature-added`**, for the reason
+   * `damage-defense-granted` is its own rather than a second table write:
+   * what a creature *is* and what a casting has *done* are two facts with two
+   * lifetimes. The sheet, the printed hit points, the creature type and both
+   * halves of the defence run are the stat block's and stand for as long as
+   * the creature does; this one says the creature is here on a spell's
+   * sufferance, and it is the only part a dismissal, a broken Concentration
+   * or an arrived deadline takes away.
+   *
+   * **Nothing about the creature itself is on it**, which is the whole point:
+   * the arrival pinned every number, so the fold raising a summoned creature
+   * opens no catalogue, and this event adds a link between two things the log
+   * already named.
+   *
+   * There is no matching "unsummoned" event. A casting ending is found rather
+   * than commanded in four of its five forms, so the departure is derived —
+   * see `departEndedSummons` — through the same door `creature-removed`
+   * folds.
+   */
+  | {
+      readonly type: 'creature-summoned';
+      /** The creature, which `creature-added` has already put in the cast. */
+      readonly id: CharacterId;
+      /** The summoner. */
+      readonly by: CharacterId;
+      /** The casting whose ending takes the creature with it. */
+      readonly castingId: string;
       readonly command?: CommandStamp;
     }
   | {
