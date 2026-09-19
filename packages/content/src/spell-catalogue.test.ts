@@ -488,6 +488,64 @@ describe('every definition this batch executed resolves its own dice', () => {
    * the stated type then lands in the damage is `held-casting-facts.test.ts`'s
    * and is not restated here.
    */
+  /**
+   * The damage one casting deals, over two dozen generators, and its mean.
+   *
+   * **One seeded casting cannot pin a number of dice**, and the mutation that
+   * proved it was cutting Conjure Fey's 3d12 to 1d12: a single roll still
+   * cleared the floor of three dice plus a +5 modifier, so the suite went
+   * green on a spell dealing a third of its damage. A floor is what the
+   * SRD-policy note says catches a dropped *addend*; a dropped **die** needs
+   * something else, because the two distributions overlap at both ends once a
+   * natural 20 doubles them. What does not overlap is the middle, so each
+   * spell below is held to two numbers: a minimum no roll of the right
+   * notation can go under, and an average only the right count of dice
+   * reaches.
+   *
+   * Deterministic, because every seed is written down. **Misses are dropped
+   * rather than counted as nothing**: a natural 1 misses however large the
+   * bonus, which is an attack-roll rule the SRD-policy note names, and a zero
+   * folded into the average would say a spell rolls fewer dice than it does.
+   * The count that survives is asserted, so the filter cannot hide a spell
+   * that stopped hitting altogether.
+   */
+  const SEEDS: readonly string[] = Array.from({ length: 24 }, (_, i) => `roll-${i}`);
+
+  const damageOver = (
+    spellId: string,
+    over: Record<string, unknown> = {},
+    log: readonly GameEvent[] = SETUP,
+  ): readonly number[] =>
+    SEEDS.map((seed) => {
+      const definition = SRD_CONTENT.spell(spellId)!;
+      const out = unwrap(
+        resolveSpell(
+          fold('seed', log),
+          CASTER,
+          {
+            spellId,
+            targets: [TARGET],
+            ...(definition.level === 0 ? {} : { slotLevel: definition.level }),
+            ...(definition.damageTypeStated === undefined
+              ? {}
+              : { damageType: definition.damageTypeStated[0]! }),
+            // A casting that holds a point takes one: the caster's own
+            // square, which `castAt` uses for the same reason.
+            ...(definition.origin === undefined ? {} : { at: { x: 100, y: 100, z: 0 } }),
+            ...over,
+          },
+          // A bonus large enough that the attack cannot miss, because what is
+          // being measured is the payload rather than the roll.
+          supply(seed, 40),
+        ),
+        `${spellId} @ ${seed}`,
+      );
+      return out.outcomes[0]?.attack?.hit === false ? null : (out.outcomes[0]?.damage ?? 0);
+    }).filter((damage): damage is number => damage !== null);
+
+  const mean = (rolled: readonly number[]): number =>
+    rolled.reduce((total, one) => total + one, 0) / rolled.length;
+
   const statingType = (spellId: string, damageType: string | undefined) =>
     resolveSpell(
       base(),
@@ -508,22 +566,23 @@ describe('every definition this batch executed resolves its own dice', () => {
    * plus your spellcasting ability modifier, and the target has the Frightened
    * condition until the start of your next turn."
    *
-   * Driven with a bonus large enough that the attack cannot miss, because what
-   * is being asserted is the payload rather than the roll: the floor of 3d12
-   * is 3 and the caster's Intelligence modifier is +5, so anything under 8 is
-   * dice the definition did not roll.
+   * Three dice and the caster's +5, so no casting comes to less than 8 and
+   * the mean sits above twenty-four. One die instead of three averages eleven
+   * and a half, which is the mutation this pair was written against.
    */
   it('strikes with the Feywild spirit, and frightens what it hits', () => {
     // Driven in a fight, because "until the start of your next turn" has no
     // meaning outside one and the engine refuses rather than inventing six
     // seconds. `logFor` supplies the turn order for exactly that reason.
-    const out = unwrap(
-      castAt(fold('seed', logFor('conjure-fey')), 'conjure-fey', 40, 'fey'),
-      'conjure-fey',
-    );
+    const fight = logFor('conjure-fey');
+    const out = unwrap(castAt(fold('seed', fight), 'conjure-fey', 40, 'fey'), 'conjure-fey');
     expect(out.outcomes[0]?.attack?.hit).toBe(true);
-    expect(out.outcomes[0]?.damage ?? 0).toBeGreaterThanOrEqual(8);
     expect(out.outcomes[0]?.conditions).toEqual(['frightened']);
+
+    const rolled = damageOver('conjure-fey', {}, fight);
+    expect(rolled.length).toBeGreaterThan(18);
+    expect(Math.min(...rolled)).toBeGreaterThanOrEqual(8);
+    expect(mean(rolled)).toBeGreaterThan(18);
   });
 
   /**
@@ -547,7 +606,13 @@ describe('every definition this batch executed resolves its own dice', () => {
   it('throws four dice of Sorcerous Burst at a level 20 caster, in the type stated', () => {
     const out = unwrap(castAt(base(), 'sorcerous-burst', 40, 'burst'), 'sorcerous-burst');
     expect(out.outcomes[0]?.attack?.hit).toBe(true);
-    expect(out.outcomes[0]?.damage ?? 0).toBeGreaterThanOrEqual(4);
+
+    // Four dice of eight: never under four, averaging eighteen where a
+    // cantrip that had lost its upgrade would average four and a half.
+    const rolled = damageOver('sorcerous-burst');
+    expect(rolled.length).toBeGreaterThan(18);
+    expect(Math.min(...rolled)).toBeGreaterThanOrEqual(4);
+    expect(mean(rolled)).toBeGreaterThan(12);
 
     // And the seven printed types are the whole of the list: Psychic is one
     // of them, Radiant is not, and a casting that names neither is refused
@@ -567,25 +632,24 @@ describe('every definition this batch executed resolves its own dice', () => {
    * written and never read.
    */
   it('grows Chromatic Orb by a die a slot level', () => {
-    const low = unwrap(castAt(base(), 'chromatic-orb', 40, 'orb'), 'low');
-    expect(low.outcomes[0]?.damage ?? 0).toBeGreaterThanOrEqual(3);
+    // Three dice of eight at its own level: never under three, averaging
+    // thirteen and a half.
+    const low = damageOver('chromatic-orb');
+    expect(low.length).toBeGreaterThan(18);
+    expect(Math.min(...low)).toBeGreaterThanOrEqual(3);
+    expect(mean(low)).toBeGreaterThan(9);
+
+    // Eleven at a level 9 slot: never under eleven, and averaging about fifty
+    // where a definition that had lost its per-slot scaling still averages
+    // thirteen.
+    const high = damageOver('chromatic-orb', { slotLevel: 9 });
+    expect(Math.min(...high)).toBeGreaterThanOrEqual(11);
+    expect(mean(high)).toBeGreaterThan(35);
+
     // Six printed types rather than Sorcerous Burst's seven — this one omits
     // Psychic — so the same refusal falls on a different word.
     const wrong = statingType('chromatic-orb', 'psychic');
     expect(isErr(wrong)).toBe(true);
-
-    const high = unwrap(
-      resolveSpell(
-        base(),
-        CASTER,
-        { spellId: 'chromatic-orb', targets: [TARGET], slotLevel: 9, damageType: 'acid' },
-        supply('orb', 40),
-      ),
-      'high',
-    );
-    // Eleven dice at a level 9 slot, so eleven is a floor nothing but eleven
-    // dice reaches — and three dice cannot get there however they land.
-    expect(high.outcomes[0]?.damage ?? 0).toBeGreaterThanOrEqual(11);
   });
 
   /**
