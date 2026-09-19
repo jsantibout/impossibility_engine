@@ -1931,9 +1931,24 @@ describe('a consumer count is a query', () => {
     }
     // And still blocks one whose choice is anything else: an ability, a
     // condition, one of six wonders, which of five effects to remove.
-    for (const id of ['hex', 'blindness-deafness', 'thaumaturgy', 'greater-restoration']) {
+    // Four spells across all three populations, which is what makes the
+    // claim about the *shape* rather than about one map: two are undefined,
+    // one is executed and one is tracked, and each is read out of whichever
+    // map holds it.
+    for (const id of [
+      'hex',
+      'blindness-deafness',
+      'thaumaturgy',
+      'greater-restoration',
+      'enhance-ability',
+    ]) {
       const shapes =
-        BLOCKED_ON[id] === undefined ? (ADJUDICATED[id]?.map((e) => e.why) ?? []) : blockersOf(id);
+        BLOCKED_ON[id] !== undefined
+          ? blockersOf(id)
+          : [
+              ...(ADJUDICATED[id]?.map((e) => e.why) ?? []),
+              ...(TRACKED_ADJUDICATED[id]?.map((e) => e.why) ?? []),
+            ];
       expect(shapes, id).toContain('a-choice-made-at-the-casting');
     }
   });
@@ -2190,12 +2205,23 @@ describe('a shape that gets built is content work, not a merge', () => {
   // "1 Exhaustion level" — a level rather than a condition, which a list of
   // condition names cannot say.
   it('keeps what a list of condition names cannot remove', () => {
-    expect(blockersOf('greater-restoration')).toContain('an-exhaustion-level-a-spell-changes');
-    expect(blockersOf('greater-restoration')).toContain('a-choice-made-at-the-casting');
-    expect(consumersOf('an-exhaustion-level-a-spell-changes').blocks).toEqual([
-      'greater-restoration',
-      'wish',
+    // The spell is tracked now, so the reading moved rather than went: the
+    // choice among five is in `TRACKED_ADJUDICATED` against the line it is
+    // about, and the Exhaustion level is in the definition's own `unmodelled`
+    // because that line trips no marker for a guard to demand one against.
+    // Gaseous Form's occupancy override made the same move first.
+    expect(BLOCKED_ON['greater-restoration']).toBeUndefined();
+    expect(TRACKED_ADJUDICATED['greater-restoration']?.map((entry) => entry.why)).toEqual([
+      'a-choice-made-at-the-casting',
+      'a-hit-point-maximum-a-spell-moves',
     ]);
+    expect(
+      (SRD_CONTENT.spell('greater-restoration')?.unmodelled ?? []).filter((note) =>
+        note.includes('Exhaustion is a level the engine counts'),
+      ),
+    ).toHaveLength(1);
+    // And the shape keeps one claimant, which is what keeps it in the map.
+    expect(consumersOf('an-exhaustion-level-a-spell-changes').blocks).toEqual(['wish']);
   });
 
   // Calm Emotions *suppresses* a condition it did not cause and restores it

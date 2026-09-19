@@ -8512,6 +8512,531 @@ export const SHAPECHANGE: SpellDefinition = {
   ],
 };
 
+/**
+ * SRD Heat Metal:
+ *
+ * > _Level 2 Transmutation (Bard, Druid)._ **Casting Time:** Action.
+ * > **Range:** 60 feet. **Duration:** Concentration, up to 1 minute.
+ * > "Choose a manufactured metal object … Any creature in physical contact
+ * > with the object takes 2d8 Fire damage when you cast the spell. Until the
+ * > spell ends, you can take a Bonus Action on each of your later turns to
+ * > deal this damage again if the object is within range. If a creature is
+ * > holding or wearing the object and takes the damage from it, the creature
+ * > must succeed on a Constitution saving throw or drop the object if it can.
+ * > If it doesn't drop the object, it has Disadvantage on attack rolls and
+ * > ability checks until the start of your next turn."
+ *
+ * **The target is an object and every consequence reads who is touching it.**
+ * A suit of armour a creature is wearing is a fact the engine keeps — armour
+ * is equipped — and a weapon in somebody's hands is not, so "any creature in
+ * physical contact with the object" has no answer to be derived from.
+ */
+export const HEAT_METAL: SpellDefinition = {
+  id: 'heat-metal',
+  name: 'Heat Metal',
+  level: 2,
+  school: 'transmutation',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 0 },
+  requiresSight: true,
+  effects: [],
+  durationSeconds: 60,
+  unmodelled: [
+    'the object is not chosen and nobody is burned: "Any creature in physical contact with the object takes 2d8 Fire damage" lands with neither an attack roll nor a saving throw, on whoever is touching a thing the engine does not track the touching of',
+    'the Bonus Action that deals the damage again on a later turn is an activation with no consumer, and the range check it carries is measured to the object',
+    'the Constitution save that makes a creature drop what it is holding has nothing to drop: what is in a creature’s hands is not a fact the engine keeps',
+    'the Disadvantage on attack rolls and ability checks for hanging on is ordinary, and it hangs off the failed save above it',
+  ],
+};
+
+/**
+ * SRD Flaming Sphere:
+ *
+ * > _Level 2 Conjuration (Druid, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 60 feet. **Duration:** Concentration, up to 1 minute.
+ * > "You create a 5-foot-diameter sphere of fire in an unoccupied space on
+ * > the ground within range. … Any creature that ends its turn within 5 feet
+ * > of the sphere makes a Dexterity saving throw, taking 2d6 Fire damage on a
+ * > failed save or half as much damage on a successful one. As a Bonus
+ * > Action, you can move the sphere up to 30 feet, rolling it along the
+ * > ground."
+ *
+ * **Spiritual Weapon's point with Web's trigger**, and the pair is exactly
+ * what the engine does not have: `CastingOrigin` holds a point a later Bonus
+ * Action may move, and `AreaTrigger` raises a save at a turn boundary over an
+ * *area the casting placed* — not over a radius measured from a point that
+ * moves. Either half alone is written elsewhere in this catalogue.
+ */
+export const FLAMING_SPHERE: SpellDefinition = {
+  id: 'flaming-sphere',
+  name: 'Flaming Sphere',
+  level: 2,
+  school: 'conjuration',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 60,
+  unmodelled: [
+    'the sphere burns nobody: "Any creature that ends its turn within 5 feet of the sphere makes a Dexterity saving throw, taking 2d6 Fire damage on a failed save or half as much damage on a successful one" is an ordinary save for half, raised at a turn boundary over a radius measured from a point the casting holds — and a trigger reads the area a casting placed rather than a distance from a movable point',
+    'the Bonus Action that rolls the sphere up to 30 feet, and the save a creature makes when the sphere is rolled into its space, are the same absence from the other end',
+    'the barriers it is directed over, the pits it jumps, the flammable objects it sets alight and the Bright Light it sheds are the DM’s',
+  ],
+};
+
+/**
+ * SRD Ray of Enfeeblement:
+ *
+ * > _Level 2 Necromancy (Warlock, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 60 feet. **Duration:** Concentration, up to 1 minute.
+ * > "A beam of enervating energy shoots from you toward a creature within
+ * > range. The target must make a Constitution saving throw. On a successful
+ * > save, the target has Disadvantage on the next attack roll it makes until
+ * > the start of your next turn. On a failed save, the target has
+ * > Disadvantage on Strength-based D20 Tests for the duration. During that
+ * > time, it also subtracts 1d8 from all its damage rolls. The target repeats
+ * > the save at the end of each of its turns, ending the spell on a success."
+ *
+ * **The success branch does something**, which is the rarest shape in the
+ * book: a saving throw here is not a gate but a fork, and the engine's
+ * `onSuccess` releases an effect or does nothing. Both branches then want
+ * machinery nobody has — a modifier consumed by the one roll it changes, a
+ * selector for a family of D20 Tests, and dice subtracted from a damage roll.
+ */
+export const RAY_OF_ENFEEBLEMENT: SpellDefinition = {
+  id: 'ray-of-enfeeblement',
+  name: 'Ray of Enfeeblement',
+  level: 2,
+  school: 'necromancy',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 1 },
+  effects: [],
+  durationSeconds: 60,
+  unmodelled: [
+    'the save is not rolled, because succeeding at it *does* something: "On a successful save, the target has Disadvantage on the next attack roll it makes" is an outcome on the branch that normally buys a creature its freedom, and no effect writes one',
+    'that Disadvantage is also consumed by the roll it changes rather than running to a deadline, which no modifier does',
+    'the failure branch is not applied either: "Disadvantage on Strength-based D20 Tests" needs a selector for a family of D20 Tests, which `RollModifier` deliberately does not carry',
+    'nor is the die taken away: "it also subtracts 1d8 from all its damage rolls" is a penalty on a later damage roll, and every rider the format has adds',
+    'the repeat save at the end of each of the target’s turns is ordinary, and there is nothing for it to end',
+  ],
+};
+
+/**
+ * SRD Arcane Eye:
+ *
+ * > _Level 4 Divination (Wizard)._ **Casting Time:** Action.
+ * > **Range:** 30 feet. **Duration:** Concentration, up to 1 hour.
+ * > "You create an Invisible, invulnerable eye within range that hovers for
+ * > the duration. You mentally receive visual information from the eye, which
+ * > can see in every direction. It also has Darkvision with a range of 30
+ * > feet. As a Bonus Action, you can move the eye up to 30 feet in any
+ * > direction. A solid barrier blocks the eye's movement, but the eye can
+ * > pass through an opening as small as 1 inch in diameter."
+ *
+ * Not one sentence trips a marker and the spell is still blocked, which is
+ * the floor working as a floor: **movement consults no walls.** The eye is a
+ * point that flies where it likes and stops at a solid barrier, and there is
+ * no barrier in the model for it to stop at.
+ */
+export const ARCANE_EYE: SpellDefinition = {
+  id: 'arcane-eye',
+  name: 'Arcane Eye',
+  level: 4,
+  school: 'divination',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 30 },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 3600,
+  unmodelled: [
+    'the eye is not in the world: an Invisible, invulnerable point that hovers, sees in every direction and has Darkvision out to 30 feet is the DM’s, and what the caster sees through it is narration',
+    'the Bonus Action that moves the eye up to 30 feet is not offered, and the rule that stops it — "A solid barrier blocks the eye’s movement, but the eye can pass through an opening as small as 1 inch in diameter" — is a barrier that blocks passage, which movement never consults',
+  ],
+};
+
+/**
+ * SRD Fire Shield:
+ *
+ * > _Level 4 Evocation (Druid, Wizard)._ **Casting Time:** Action.
+ * > **Range:** Self. **Duration:** 10 minutes.
+ * > "Wispy flames wreathe your body for the duration, shedding Bright Light
+ * > in a 10-foot radius and Dim Light for an additional 10 feet. The flames
+ * > provide you with a warm shield or a chill shield, as you choose. The warm
+ * > shield grants you Resistance to Cold damage, and the chill shield grants
+ * > you Resistance to Fire damage. In addition, whenever a creature within 5
+ * > feet of you hits you with a melee attack roll, the shield erupts with
+ * > flame. The attacker takes 2d8 Fire damage from a warm shield or 2d8 Cold
+ * > damage from a chill shield."
+ *
+ * **The fourth user of `damageTypeStated`, and the choice arrives sideways.**
+ * The book names the two shields and then says what each resists, so the
+ * caster's choice *is* a damage type once the sentence after it is read:
+ * stating Cold is the warm shield and stating Fire is the chill one. Two
+ * printed options, both in the list, and a casting that names neither is
+ * refused rather than guessed at — the discipline Protection from Energy
+ * already follows.
+ *
+ * What is not executed is the eruption, which answers somebody else's melee
+ * attack after it has hit.
+ */
+export const FIRE_SHIELD: SpellDefinition = {
+  id: 'fire-shield',
+  name: 'Fire Shield',
+  level: 4,
+  school: 'evocation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'self' },
+  targets: { count: 1, self: true },
+  // The type the caster asks for Resistance to, which is the shield they
+  // chose said in the engine's vocabulary rather than the book's.
+  damageTypeStated: ['cold', 'fire'],
+  effects: [{ kind: 'damage-defense', damageTypes: ['cold'], defense: 'resistant' }],
+  durationSeconds: 600,
+  unmodelled: [
+    'the eruption is not resolved: "whenever a creature within 5 feet of you hits you with a melee attack roll, the shield erupts with flame" answers somebody else’s attack after it has landed, and a casting is offered no such window',
+    'so the 2d8 the attacker takes is not dealt, and neither is the rule that its type is the opposite of the Resistance — Fire from a warm shield, Cold from a chill one',
+    'the Bright Light in a 10-foot radius and the Dim Light beyond it are the DM’s; the engine has no lighting',
+  ],
+};
+
+/**
+ * SRD Guardian of Faith:
+ *
+ * > _Level 4 Conjuration (Cleric, Paladin)._ **Casting Time:** Action.
+ * > **Range:** 30 feet. **Duration:** 8 hours.
+ * > "A Large spectral guardian appears and hovers for the duration in an
+ * > unoccupied space that you can see within range. The guardian occupies
+ * > that space and is invulnerable … Any enemy that moves to a space within
+ * > 10 feet of the guardian for the first time on a turn or starts its turn
+ * > there makes a Dexterity saving throw, taking 20 Radiant damage on a
+ * > failed save or half as much damage on a successful one. The guardian
+ * > vanishes when it has dealt a total of 60 damage."
+ *
+ * **The guardian is not a creature**, which is the correction
+ * `blocked-on.test.ts` records against a prose row that once filed it under a
+ * stat block: it is invulnerable, it takes no turn, and it deals its damage
+ * through a save. What blocks it is the *shape of the trigger* — ten feet
+ * measured from a point rather than an area the casting placed — and the
+ * running total that ends the spell at sixty.
+ */
+export const GUARDIAN_OF_FAITH: SpellDefinition = {
+  id: 'guardian-of-faith',
+  name: 'Guardian of Faith',
+  level: 4,
+  school: 'conjuration',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 30 },
+  targets: { count: 0 },
+  requiresSight: true,
+  effects: [],
+  durationSeconds: 28_800,
+  unmodelled: [
+    'the guardian strikes nobody: the save is raised on the two moments `AreaTrigger` already names, and it is measured ten feet from a point the casting holds rather than over an area the casting placed',
+    'the flat 20 Radiant with half on a success is ordinary arithmetic waiting on that trigger, and so is the filter that catches only an enemy',
+    'the guardian does not vanish: "The guardian vanishes when it has dealt a total of 60 damage" is a running total the casting would have to keep, and no casting-end cause counts anything',
+    'the space it occupies is the DM’s: the guardian is not a creature, so nothing stands anywhere',
+  ],
+};
+
+/**
+ * SRD Faithful Hound:
+ *
+ * > _Level 4 Conjuration (Wizard)._ **Casting Time:** Action.
+ * > **Range:** 30 feet. **Duration:** 8 hours.
+ * > "You conjure a phantom watchdog in an unoccupied space that you can see
+ * > within range. The hound remains for the duration or until the two of you
+ * > are more than 300 feet apart … At the start of each of your turns, the
+ * > hound attempts to bite one enemy within 5 feet of it. That enemy must
+ * > succeed on a Dexterity saving throw or take 4d8 Force damage. On your
+ * > later turns, you can take a Magic action to move the hound up to 30
+ * > feet."
+ *
+ * Guardian of Faith's sibling and the same correction: intangible,
+ * invulnerable, no turn of its own. The difference is **whose** turn the bite
+ * fires on — the caster's, not the victim's — and `AreaTrigger` reads the
+ * boundaries of the creature standing in the area rather than the boundaries
+ * of the caster who made it.
+ */
+export const FAITHFUL_HOUND: SpellDefinition = {
+  id: 'faithful-hound',
+  name: 'Faithful Hound',
+  level: 4,
+  school: 'conjuration',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 30 },
+  targets: { count: 0 },
+  requiresSight: true,
+  effects: [],
+  durationSeconds: 28_800,
+  unmodelled: [
+    'the hound bites nobody: "At the start of each of your turns, the hound attempts to bite one enemy within 5 feet of it" fires on the **caster’s** turn boundary, and an area trigger reads the boundaries of whoever is standing in the area',
+    'so the Dexterity save and the 4d8 Force damage behind it are not rolled either',
+    'the spell does not end when the two of you are more than 300 feet apart: a distance between two creatures is a cause no `CastingEndTrigger` expresses',
+    'the barking at a Small or larger creature that comes within 30 feet without the password, the hound’s Truesight, and the Magic action that walks it 30 feet are the DM’s',
+  ],
+};
+
+/**
+ * SRD Antilife Shell:
+ *
+ * > _Level 5 Abjuration (Druid)._ **Casting Time:** Action. **Range:** Self.
+ * > **Duration:** Concentration, up to 1 hour.
+ * > "An aura extends from you in a 10-foot Emanation for the duration. The
+ * > aura prevents creatures other than Constructs and Undead from passing or
+ * > reaching through it. An affected creature can cast spells or make attacks
+ * > with Ranged or Reach weapons through the barrier. If you move so that an
+ * > affected creature is forced to pass through the barrier, the spell ends."
+ *
+ * Four sentences, no markers, and a barrier in every one of them. Movement
+ * consults no walls, so an aura that stops creatures walking through it has
+ * nothing to stop them with — and the ending, which fires when the caster
+ * walks *into* somebody, is that same absence read from the other side.
+ */
+export const ANTILIFE_SHELL: SpellDefinition = {
+  id: 'antilife-shell',
+  name: 'Antilife Shell',
+  level: 5,
+  school: 'abjuration',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 3600,
+  unmodelled: [
+    'nobody is kept out: "The aura prevents creatures other than Constructs and Undead from passing or reaching through it" is a barrier that blocks passage, and a move is checked against distance, the scene and who is standing where rather than against anything in the way',
+    'so the exception for Constructs and Undead, and the one that lets an affected creature shoot or reach through, have nothing to be exceptions to',
+    'the spell does not end: "If you move so that an affected creature is forced to pass through the barrier, the spell ends" is a cause no `CastingEndTrigger` expresses, and the barrier it reads is the one that is not there',
+  ],
+};
+
+/**
+ * SRD Greater Restoration:
+ *
+ * > _Level 5 Abjuration (Bard, Cleric, Druid)._ **Casting Time:** Action.
+ * > **Range:** Touch. **Duration:** Instantaneous.
+ * > "You touch a creature and magically remove one of the following effects
+ * > from it: 1 Exhaustion level; the Charmed or Petrified condition; a curse,
+ * > including the target's Attunement to a cursed magic item; any reduction
+ * > to one of the target's ability scores; any reduction to the target's Hit
+ * > Point maximum."
+ *
+ * **One of five, and the five are five different mechanics.** `end-condition`
+ * takes a list of condition names and would do the second line whole; what it
+ * cannot do is be told which of the five lines this casting chose — and three
+ * of the other four are things the engine has no state for at all.
+ */
+export const GREATER_RESTORATION: SpellDefinition = {
+  id: 'greater-restoration',
+  name: 'Greater Restoration',
+  level: 5,
+  school: 'abjuration',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'touch' },
+  targets: { count: 1, self: true },
+  effects: [],
+  unmodelled: [
+    'which of the five effects is being removed is not recorded, and here the choice decides something: `end-condition` would end the Charmed or the Petrified outright, and writing it would be a spell that always does that one',
+    'the Exhaustion level is not removed: Exhaustion is a level the engine counts and no effect decrements one',
+    'the ability score reduction and the Hit Point maximum reduction are not restored, because nothing reduces either of them for an effect to undo',
+    'the curse, and the Attunement to a cursed magic item that comes with it, are the DM’s',
+  ],
+};
+
+/**
+ * SRD Forcecage:
+ *
+ * > _Level 7 Evocation (Bard, Warlock, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 100 feet. **Duration:** Concentration, up to 1 hour.
+ * > "An immobile, Invisible, Cube-shaped prison composed of magical force
+ * > springs into existence around an area you choose within range. … When you
+ * > cast the spell, any creature that is completely inside the cage's area is
+ * > trapped. Creatures only partially within the area, or those too large to
+ * > fit inside it, are pushed away from the center … If the creature tries to
+ * > use teleportation or interplanar travel to leave, it must first make a
+ * > Charisma saving throw. … This spell can't be dispelled by _Dispel
+ * > Magic_."
+ *
+ * A prison, and the engine has no walls: being trapped is not one of the
+ * fifteen conditions and is not a state at all. Three further absences ride
+ * on top — who is *completely* inside a Cube rather than merely in it, a
+ * shove for everyone who is not, and a saving throw raised in front of
+ * somebody else's teleport.
+ */
+export const FORCECAGE: SpellDefinition = {
+  id: 'forcecage',
+  name: 'Forcecage',
+  level: 7,
+  school: 'evocation',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 100 },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 3600,
+  unmodelled: [
+    'nobody is caged: being trapped is not one of the fifteen conditions and not a state at all, and a creature that "can’t leave it by nonmagical means" is stopped by a barrier movement never consults',
+    'who the cage catches is not decided: "any creature that is completely inside the cage’s area" asks whether a creature fits entirely within a template rather than whether it is in one, and the creatures "only partially within the area, or those too large to fit inside it" are then pushed clear, which is forced movement no effect performs',
+    'the Charisma save is not raised: it stands in front of a teleport somebody else is casting, and a casting is not offered another creature’s magic to interrupt',
+    'the box that blocks matter and spells, the extension into the Ethereal Plane, and the immunity to Dispel Magic are three more refusals of other magic, and there is no state in which a casting is being refused by a place',
+  ],
+};
+
+/**
+ * SRD Reverse Gravity:
+ *
+ * > _Level 7 Transmutation (Druid, Sorcerer, Wizard)._ **Casting Time:**
+ * > Action. **Range:** 100 feet. **Duration:** Concentration, up to 1 minute.
+ * > "This spell reverses gravity in a 50-foot-radius, 100-foot high Cylinder
+ * > centered on a point within range. All creatures and objects in that area
+ * > that aren't anchored to the ground fall upward and reach the top of the
+ * > Cylinder. A creature can make a Dexterity saving throw to grab a fixed
+ * > object it can reach, thus avoiding the fall upward. … When the spell
+ * > ends, affected objects and creatures fall downward."
+ *
+ * The Cylinder is a shape the engine has and **falling is not a rule it
+ * owns**: nothing computes the damage of a drop, and this spell needs it
+ * upwards, then again downwards when the Concentration goes. The save is
+ * ordinary and what it avoids is the fall.
+ */
+export const REVERSE_GRAVITY: SpellDefinition = {
+  id: 'reverse-gravity',
+  name: 'Reverse Gravity',
+  level: 7,
+  school: 'transmutation',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 100 },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 60,
+  unmodelled: [
+    'nobody falls upward: "All creatures and objects in that area that aren’t anchored to the ground fall upward and reach the top of the Cylinder" is forced movement along an axis, and falling is not a rule the engine has at all',
+    'so the Dexterity saving throw that grabs a fixed object is not rolled, because what it avoids is the fall',
+    'striking a ceiling on the way up, hovering at the top for the duration, and dropping back down when the spell ends are the same absence three more times',
+  ],
+};
+
+/**
+ * SRD Sequester:
+ *
+ * > _Level 7 Transmutation (Wizard)._ **Casting Time:** Action.
+ * > **Range:** Touch. **Duration:** Until dispelled.
+ * > "With a touch, you magically sequester an object or a willing creature.
+ * > For the duration, the target has the Invisible condition and can't be
+ * > targeted by Divination spells, detected by magic, or viewed remotely with
+ * > magic. If the target is a creature, it enters a state of suspended
+ * > animation; it has the Unconscious condition … You can set a condition for
+ * > the spell to end early. … This spell also ends if the target takes any
+ * > damage."
+ *
+ * **Two of the conditions are real and neither may be written alone.** The
+ * Invisible and the Unconscious are ordinary `condition` effects the engine
+ * applies all day; they arrive welded to a refusal of Divination magic, to an
+ * ending the caster invents at the casting, and to another that fires on any
+ * damage from anybody. A definition that imposed the two conditions and none
+ * of the three endings would be a spell nobody could wake from.
+ */
+export const SEQUESTER: SpellDefinition = {
+  id: 'sequester',
+  name: 'Sequester',
+  level: 7,
+  school: 'transmutation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'touch' },
+  targets: { count: 1, self: true },
+  effects: [],
+  untilDispelled: true,
+  unmodelled: [
+    'the Invisible and the Unconscious are not applied, because neither may be written without the endings they come with: a spell that put a creature into suspended animation for ever would be a worse answer than one that puts it there not at all',
+    'the refusal of magic is not applied: "can’t be targeted by Divination spells, detected by magic, or viewed remotely with magic" is an effect suppressing other magic, and there is no state in which a casting is being refused by its target',
+    'the early ending the caster invents — "You can set a condition for the spell to end early" — is a cause chosen at the casting, which no `CastingEndTrigger` expresses and no casting records',
+    '"This spell also ends if the target takes any damage" is any damage from anybody, which is the cause that shape names as still missing',
+    'not ageing and not needing food, water or air are the DM’s',
+  ],
+};
+
+/**
+ * SRD Holy Aura:
+ *
+ * > _Level 8 Abjuration (Cleric)._ **Casting Time:** Action. **Range:** Self.
+ * > **Duration:** Concentration, up to 1 minute.
+ * > "For the duration, you emit an aura in a 30-foot Emanation. While in the
+ * > aura, creatures of your choice have Advantage on all saving throws, and
+ * > other creatures have Disadvantage on attack rolls against them. In
+ * > addition, when a Fiend or an Undead hits an affected creature with a
+ * > melee attack roll, the attacker must succeed on a Constitution saving
+ * > throw or have the Blinded condition until the end of its next turn."
+ *
+ * Every benefit is fenced by **"while in the aura"**, which is a standing
+ * effect derived from where a creature is standing; and the retaliation is
+ * offered somebody else's attack after it has hit, filtered by that
+ * attacker's creature type. Three absences, none of them about Advantage or
+ * about the Blinded condition, both of which the engine writes readily.
+ */
+export const HOLY_AURA: SpellDefinition = {
+  id: 'holy-aura',
+  name: 'Holy Aura',
+  level: 8,
+  school: 'abjuration',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 60,
+  unmodelled: [
+    'the Advantage on saving throws is not granted: it holds only "While in the aura", a 30-foot Emanation that travels with the caster, and no effect derives a modifier from where somebody is standing',
+    'nor is the Disadvantage on attack rolls against them, which is the same fence around a mode the attacker rolls with',
+    'the retaliation is not offered: a Fiend or an Undead hitting an affected creature is somebody else’s attack after it has landed, filtered by the attacker’s creature type, and a casting is offered no window on either',
+  ],
+};
+
+/**
+ * SRD Mass Heal:
+ *
+ * > _Level 9 Abjuration (Cleric)._ **Casting Time:** Action. **Range:** 60
+ * > feet. **Duration:** Instantaneous.
+ * > "A flood of healing energy flows from you into creatures around you. You
+ * > restore up to 700 Hit Points, divided as you choose among any number of
+ * > creatures that you can see within range. Creatures healed by this spell
+ * > also have the Blinded, Deafened, and Poisoned conditions removed from
+ * > them."
+ *
+ * Heal's two halves at nine levels and any number of targets, and the second
+ * word is what stops it: **divided.** Seven hundred hit points shared out as
+ * the caster likes is one casting whose effects differ from target to target,
+ * and a casting applies its effects to all of them alike — so writing it
+ * would heal every creature in range for seven hundred.
+ */
+export const MASS_HEAL: SpellDefinition = {
+  id: 'mass-heal',
+  name: 'Mass Heal',
+  level: 9,
+  school: 'abjuration',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 0, unlimited: true },
+  requiresSight: true,
+  effects: [],
+  unmodelled: [
+    'nobody is healed: "You restore up to 700 Hit Points, divided as you choose among any number of creatures" splits one casting’s effect across its targets, and a casting applies its effects to all of them alike — so the flat amount is expressible and the division is not',
+    'the Blinded, Deafened and Poisoned are not removed either: `end-condition` takes exactly that printed list, and it hangs on the healing above it, which picks out the creatures it applies to',
+  ],
+};
+
 export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   ACID_ARROW,
   ACID_SPLASH,
@@ -8519,6 +9044,8 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   ALARM,
   ANIMAL_FRIENDSHIP,
   ANIMAL_MESSENGER,
+  ANTILIFE_SHELL,
+  ARCANE_EYE,
   ARCANE_LOCK,
   ARCANE_SWORD,
   ARCANISTS_MAGIC_AURA,
@@ -8582,18 +9109,22 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   EXPEDITIOUS_RETREAT,
   FABRICATE,
   FAERIE_FIRE,
+  FAITHFUL_HOUND,
   FALSE_LIFE,
   FEAR,
   FIND_THE_PATH,
   FIND_TRAPS,
   FINGER_OF_DEATH,
   FIRE_BOLT,
+  FIRE_SHIELD,
   FIREBALL,
   FLAME_BLADE,
   FLAME_STRIKE,
+  FLAMING_SPHERE,
   FLOATING_DISK,
   FLY,
   FOG_CLOUD,
+  FORCECAGE,
   FORESIGHT,
   FREEDOM_OF_MOVEMENT,
   FREEZING_SPHERE,
@@ -8605,6 +9136,8 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   GOODBERRY,
   GREASE,
   GREATER_INVISIBILITY,
+  GREATER_RESTORATION,
+  GUARDIAN_OF_FAITH,
   GUIDANCE,
   GUIDING_BOLT,
   GUST_OF_WIND,
@@ -8613,11 +9146,13 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   HASTE,
   HEAL,
   HEALING_WORD,
+  HEAT_METAL,
   HELLISH_REBUKE,
   HEROISM,
   HIDEOUS_LAUGHTER,
   HOLD_MONSTER,
   HOLD_PERSON,
+  HOLY_AURA,
   HUNTERS_MARK,
   HYPNOTIC_PATTERN,
   ICE_KNIFE,
@@ -8646,6 +9181,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   MAGIC_WEAPON,
   MAJOR_IMAGE,
   MASS_CURE_WOUNDS,
+  MASS_HEAL,
   MASS_HEALING_WORD,
   MASS_SUGGESTION,
   MELD_INTO_STONE,
@@ -8671,12 +9207,14 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   PROTECTION_FROM_ENERGY,
   PROTECTION_FROM_POISON,
   PURIFY_FOOD_AND_DRINK,
+  RAY_OF_ENFEEBLEMENT,
   RAY_OF_FROST,
   RAY_OF_SICKNESS,
   REMOVE_CURSE,
   RESILIENT_SPHERE,
   RESISTANCE,
   RESURRECTION,
+  REVERSE_GRAVITY,
   ROPE_TRICK,
   SACRED_FLAME,
   SANCTUARY,
@@ -8685,6 +9223,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   SEARING_SMITE,
   SEE_INVISIBILITY,
   SEEMING,
+  SEQUESTER,
   SHAPECHANGE,
   SHATTER,
   SHIELD,

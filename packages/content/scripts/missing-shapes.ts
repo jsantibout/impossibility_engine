@@ -715,6 +715,18 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: "A Humanoid killed by this spell rises at the start of your next turn as a **Zombie**", one "that follows your verbal orders". Nothing creates a creature from a stat block during play, which is the summons seam every Conjure waits on.',
     },
   ],
+  'fire-shield': [
+    {
+      clause: 'the shield erupts with flame',
+      why: 'a-spell-that-answers-a-later-attack',
+      note: 'the eruption fires on somebody else\u2019s melee attack after it has hit, and a casting is offered no window on another creature\u2019s attack \u2014 the same absence Sanctuary, Shield and Mirror Image all wait on.',
+    },
+    {
+      clause: 'the 2d8 the attacker takes is not dealt',
+      why: 'a-spell-that-answers-a-later-attack',
+      note: 'the dice are ordinary and so is the rule that picks their type \u2014 Fire from a warm shield, Cold from a chill one \u2014 and both hang on the eruption above, which has no moment to happen at.',
+    },
+  ],
   'flame-blade': [
     {
       clause: 'letting go of the blade',
@@ -1646,6 +1658,167 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'dropping to 0 Hit Points is one of the causes that shape names as still missing, and the clause beside it — the two creatures drifting more than sixty feet apart — is another of them in the same sentence.',
     },
   ],
+  'heat-metal': [
+    {
+      marker: 'dice',
+      clause: 'takes 2d8 Fire damage when you cast the spell',
+      why: 'damage-with-neither-an-attack-roll-nor-a-save',
+      note: 'the dice land on whoever is in physical contact with a glowing object, with neither an attack roll nor a saving throw between them \u2014 and every damage-bearing effect kind the format has hangs off one of the two.',
+    },
+    {
+      marker: 'saving-throw',
+      clause: 'the creature must succeed on a Constitution saving throw or drop the object if it can',
+      why: 'what-a-creature-is-holding',
+      note: '`inventory` and `equipped` are real and only armour and weapons have a slot, so what is in a creature\u2019s hands is not a fact the engine keeps and a rule that makes it let go has nothing to call.',
+    },
+    {
+      marker: 'roll-mode',
+      clause: 'it has Disadvantage on attack rolls and ability checks until the start of your next turn',
+      why: 'what-a-creature-is-holding',
+      note: 'the mode and the deadline are both ordinary; what they hang on is a creature choosing to keep hold of an object the engine does not know it is holding.',
+    },
+  ],
+  'flaming-sphere': [
+    {
+      marker: 'saving-throw',
+      clause: 'Any creature that ends its turn within 5 feet of the sphere makes a Dexterity saving throw',
+      why: 'an-area-trigger-measured-from-a-point',
+      note: 'the turn boundary is one `AreaTrigger` already names and the geometry is not: five feet measured from a point the casting holds, rather than an area the casting placed \u2014 and the point moves on a Bonus Action besides.',
+    },
+    {
+      marker: 'dice',
+      clause: 'taking 2d6 Fire damage on a failed save',
+      why: 'an-area-trigger-measured-from-a-point',
+      note: 'an ordinary save for half with ordinary slot scaling, waiting on the trigger above it to have somewhere to fire from.',
+    },
+  ],
+  'ray-of-enfeeblement': [
+    {
+      marker: 'saving-throw',
+      clause: 'The target must make a Constitution saving throw',
+      why: 'a-success-branch-that-does-something',
+      note: 'the save is a fork rather than a gate: succeeding at it costs the target something, and `onSuccess` releases an effect or does nothing at all \u2014 there is nowhere to put an outcome on the branch that normally buys a creature its freedom.',
+    },
+    {
+      marker: 'roll-mode',
+      clause: 'the target has Disadvantage on the next attack roll it makes until the start of your next turn',
+      why: 'a-one-shot-roll-modifier',
+      note: 'the modifier is consumed by the one roll it changes rather than running to a deadline, and a durable grant runs until its casting ends \u2014 Vicious Mockery prints the same sentence and is adjudicated the same way.',
+    },
+    {
+      marker: 'roll-mode',
+      clause: 'Disadvantage on Strength-based D20 Tests for the duration',
+      why: 'a-selector-for-every-d20-test',
+      note: 'a family of D20 Tests picked out by the ability behind them, and `RollModifier` deliberately carries no selector for D20 Tests as a family.',
+    },
+    {
+      marker: 'dice',
+      clause: 'it also subtracts 1d8 from all its damage rolls',
+      why: 'a-damage-penalty-a-spell-grants',
+      note: 'a rider that takes dice away from a later damage roll; every rider the format has adds, and nothing subtracts from one.',
+    },
+  ],
+  'guardian-of-faith': [
+    {
+      marker: 'saving-throw',
+      clause: 'makes a Dexterity saving throw, taking 20 Radiant damage on a failed save',
+      why: 'an-area-trigger-measured-from-a-point',
+      note: 'the two moments are `AreaTrigger`\u2019s by name and the flat 20 with half on a success is expressible; the ten feet are measured from a point the casting holds rather than over an area the casting placed.',
+    },
+  ],
+  'faithful-hound': [
+    {
+      marker: 'saving-throw',
+      clause: 'That enemy must succeed on a Dexterity saving throw or take 4d8 Force damage',
+      why: 'an-area-trigger-on-the-casters-turn',
+      note: 'the bite fires at the start of the **caster\u2019s** turn, and an area trigger reads the turn boundaries of whoever is standing in the area rather than those of the creature who made it.',
+    },
+    {
+      marker: 'dice',
+      clause: 'take 4d8 Force damage',
+      why: 'an-area-trigger-on-the-casters-turn',
+      note: 'the dice are ordinary and wait on the trigger above them; the same sentence, and the other mechanic in it.',
+    },
+  ],
+  'greater-restoration': [
+    {
+      marker: 'condition',
+      clause: '- The Charmed or Petrified condition',
+      why: 'a-choice-made-at-the-casting',
+      note: '`end-condition` takes a printed list of condition names and would do this line whole; what it cannot be told is that this line is the one of five the casting chose, so writing it would be a spell that always ends those two.',
+    },
+    {
+      marker: 'hit-points',
+      clause: "- Any reduction to the target's Hit Point maximum",
+      why: 'a-hit-point-maximum-a-spell-moves',
+      note: 'nothing reduces a Hit Point maximum for an effect to undo, which is the same absence Aid has from the other direction \u2014 one spell wants to raise a maximum and this one wants to restore one.',
+    },
+  ],
+  'antilife-shell': [],
+  forcecage: [
+    {
+      marker: 'saving-throw',
+      clause: 'it must first make a Charisma saving throw',
+      why: 'an-effect-that-suppresses-other-magic',
+      note: 'the save stands in front of a teleport somebody else is casting, and a casting is not offered another creature\u2019s magic to refuse \u2014 which is the half of the suppression shape Dispel Magic did not build.',
+    },
+    {
+      marker: 'teleport',
+      clause: 'If the creature tries to use teleportation or interplanar travel to leave',
+      why: 'an-effect-that-suppresses-other-magic',
+      note: 'the teleport the cage is refusing, named in the same sentence. `teleportOf` moves a creature a casting names; nothing reads a casting somebody else is making in order to stop it.',
+    },
+  ],
+  'reverse-gravity': [
+    {
+      marker: 'saving-throw',
+      clause: 'A creature can make a Dexterity saving throw to grab a fixed object it can reach',
+      why: 'falling',
+      note: 'the save is ordinary and what it avoids is a fall upward; falling is not a rule the engine has at all, so there is nothing for a success to prevent.',
+    },
+  ],
+  sequester: [
+    {
+      marker: 'condition',
+      clause: 'the target has the Invisible condition',
+      why: 'an-effect-that-suppresses-other-magic',
+      note: 'the Invisible is an ordinary condition welded in one sentence to a refusal of Divination magic and of being detected or viewed remotely, and there is no state in which a casting is being refused by its target.',
+    },
+    {
+      marker: 'condition',
+      clause: 'You can set a condition for the spell to end early',
+      why: 'a-casting-ended-by-a-trigger',
+      note: 'condition here means circumstance rather than any of the fifteen: a cause the caster invents when the slot is spent, which no `CastingEndTrigger` member expresses and no casting records.',
+    },
+  ],
+  'holy-aura': [
+    {
+      marker: 'saving-throw',
+      clause: 'creatures of your choice have Advantage on all saving throws',
+      why: 'a-standing-effect-derived-from-where-a-creature-stands',
+      note: 'the Advantage is ordinary and the fence is not: it holds only "While in the aura", a 30-foot Emanation that travels with the caster, and no effect derives a modifier from where a creature is standing.',
+    },
+    {
+      marker: 'roll-mode',
+      clause: 'other creatures have Disadvantage on attack rolls against them',
+      why: 'a-standing-effect-derived-from-where-a-creature-stands',
+      note: 'the other half of the same sentence and the same fence, over a mode the attacker rolls with rather than the protected creature.',
+    },
+    {
+      marker: 'condition',
+      clause: 'the attacker must succeed on a Constitution saving throw or have the Blinded condition',
+      why: 'a-spell-that-answers-a-later-attack',
+      note: 'the Blinded and its deadline are both written easily; what they hang on is a Fiend or an Undead having just hit somebody, which is an attack the casting is offered no window on.',
+    },
+  ],
+  'mass-heal': [
+    {
+      marker: 'hit-points',
+      clause: 'You restore up to 700 Hit Points, divided as you choose',
+      why: 'a-spells-effects-applied-to-different-targets',
+      note: 'a flat amount with no dice is expressible now; splitting it across the creatures one casting caught is not, and a casting applies its effects to all of its targets alike \u2014 so writing it would heal everybody in range for seven hundred.',
+    },
+  ],
   resistance: [
     {
       marker: 'dice',
@@ -2045,7 +2218,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
       note: 'An upcast that scales an attack printed in a stat block rather than in the spell. `DiceScaling` scales a notation a definition writes down, and this notation belongs to a creature the definition cannot create.',
     },
   ],
-  'antilife-shell': ['a-barrier-that-blocks-passage', 'a-casting-ended-by-a-trigger'],
   // **Eight sentences and one marker between them.** Every mechanical clause
   // this spell prints is invisible to `CLAUSE_MARKERS` except the teleport one,
   // which is the floor under-firing exactly as it was designed to — a clause
@@ -2184,7 +2356,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
       note: 'A creature that refuses this effect for a minute, which is IE-044\'s reading of Freedom of Movement arriving with a clock on it — the same missing state at a different holder. Filed to the nearest honest existing shape rather than a new one, and said so here.',
     },
   ],
-  'arcane-eye': ['a-barrier-that-blocks-passage'],
   // The longest paragraph in this family and the one the bare list understated
   // worst: six shapes were recorded and reading it finds four more, every one
   // of them a shape this map already names. Two of the four trip no marker.
@@ -2885,7 +3056,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
       note: 'The third branch, and the plainest of the three: a `condition` effect naming Poisoned with nothing riding on it.',
     },
   ],
-  'faithful-hound': ['a-casting-ended-by-a-trigger', 'an-area-trigger-on-the-casters-turn'],
   'feather-fall': ['falling'],
   'find-familiar': [
     {
@@ -2950,7 +3120,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     },
   ],
   'find-steed': ['a-stat-block-created-mid-fight'],
-  'fire-shield': ['a-spell-that-answers-a-later-attack'],
   // One of the two spells this family still finishes once its paragraphs are
   // read, and the shape's own description names it: "Meteor Swarm's four
   // Spheres, Fire Storm's ten Cubes". Everything else it prints is ordinary.
@@ -2981,7 +3150,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
       note: 'The engine holds an inventory and an equipped set and no objects standing in a scene, so nothing catches fire and nothing follows from it mechanically.',
     },
   ],
-  'flaming-sphere': ['an-area-trigger-measured-from-a-point'],
   'flesh-to-stone': [
     'a-repeat-save-counted-to-a-tally',
     'a-success-branch-that-does-something',
@@ -2992,12 +3160,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     'a-creature-type-predicate-an-area-reads',
     'a-long-casting-time',
     'an-effect-that-suppresses-other-magic',
-  ],
-  forcecage: [
-    'a-barrier-that-blocks-passage',
-    'a-target-rule-the-format-cannot-state',
-    'an-effect-that-suppresses-other-magic',
-    'forced-movement-a-spell-causes',
   ],
   // **The one spell this family still finishes once its paragraphs are read.**
   // Everything Gate prints is the portal, and a portal is the one-scene model's
@@ -3010,17 +3172,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     'a-choice-made-at-the-casting',
     'a-creature-type-predicate-an-area-reads',
     'a-long-casting-time',
-  ],
-  'greater-restoration': [
-    'a-choice-made-at-the-casting',
-    'a-hit-point-maximum-a-spell-moves',
-    'an-ability-score-a-spell-changes',
-    'an-exhaustion-level-a-spell-changes',
-  ],
-  'guardian-of-faith': [
-    'a-casting-ended-by-a-trigger',
-    'a-flat-amount-with-no-dice',
-    'an-area-trigger-measured-from-a-point',
   ],
   'guards-and-wards': [
     'a-casting-that-casts-another-spell',
@@ -3094,7 +3245,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
       note: 'The same standing spatial effect as Resistance above it, on the other end of `applyDefenses`, and blocked on the same missing derivation rather than on the defence.',
     },
   ],
-  'heat-metal': ['damage-with-neither-an-attack-roll-nor-a-save', 'what-a-creature-is-holding'],
   'heroes-feast': [
     {
       clause: 'Casting Time: 10 minutes',
@@ -3133,10 +3283,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
   // must not have two answers, and the number it moves is a leverage count a
   // tranche gets planned from.
   hex: ['a-choice-made-at-the-casting', 'an-outcome-that-reads-the-targets-hit-points'],
-  'holy-aura': [
-    'a-spell-that-answers-a-later-attack',
-    'a-standing-effect-derived-from-where-a-creature-stands',
-  ],
   imprisonment: [
     {
       clause: 'Casting Time: 1 minute',
@@ -3415,10 +3561,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
       why: 'a-second-place-to-put-a-creature',
       note: 'Creatures coming back out when the day runs out, from the place they could not have been in. Placement into the nearest unoccupied spaces is ordinary and never gets to run.',
     },
-  ],
-  'mass-heal': [
-    'a-flat-amount-with-no-dice',
-    'a-spells-effects-applied-to-different-targets',
   ],
   // **The second blocker the design document had already written down.**
   // `SpellCheck.onSuccess` says outright that there is deliberately no
@@ -3712,12 +3854,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     'a-selector-for-every-d20-test',
     'healing-that-raises-the-dead',
   ],
-  'ray-of-enfeeblement': [
-    'a-damage-penalty-a-spell-grants',
-    'a-one-shot-roll-modifier',
-    'a-selector-for-every-d20-test',
-    'a-success-branch-that-does-something',
-  ],
   // **The payout half is built and this entry is re-read rather than edited.**
   // "For the duration, the target regains 1 Hit Point at the start of each of
   // its turns" is a `turn-payout` of healing carrying a printed number, word
@@ -3728,7 +3864,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     'a-random-outcome-that-is-not-a-d20',
     'healing-that-raises-the-dead',
   ],
-  'reverse-gravity': ['falling', 'forced-movement-a-spell-causes'],
   revivify: ['healing-that-raises-the-dead'],
   'secret-chest': [
     {
@@ -3789,7 +3924,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
       note: 'A creature that refuses a casting aimed at it, for a stated span. That is IE-044\'s reading of Freedom of Movement with a clock on it — the same missing state arriving at a holder rather than an area — and it is filed to the nearest honest existing shape rather than a new one.',
     },
   ],
-  sequester: ['a-casting-ended-by-a-trigger', 'an-effect-that-suppresses-other-magic'],
   'shining-smite': [
     'a-condition-benefit-an-effect-takes-away',
     'a-spells-effects-applied-to-different-targets',
