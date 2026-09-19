@@ -859,6 +859,42 @@ const CONDITIONS_IS_THE_KINDS_OWN: ReadonlySet<string> = new Set([
 const CONFERRED_CONDITION_FIELDS: readonly string[] = ['lasts', 'check', 'outlivesCasting'];
 
 /**
+ * Whether a rolled span is dice and a unit, judged defensively.
+ *
+ * SRD Potion of Diminution: "for 1d4 hours". Two fields because the book
+ * writes two things — the dice and the unit they count — and both are held to
+ * exactly the reading their printed counterparts are: the notation goes
+ * through `parseNotation`, the same parser `usesRolled` and `regainsAtDawn`
+ * answer to, so a stated number is refused here as it is there and "a while"
+ * is refused wherever it is written; and the unit is a whole number of seconds
+ * above zero, because that is what `durationSeconds` is.
+ *
+ * One code for the whole shape. A caller who wrote the field wrong has written
+ * one thing wrong — the span — and three codes for one clause would be three
+ * ways of saying a lifetime this item cannot have.
+ */
+function rolledSpanProblems(span: unknown, field: string): readonly ContentProblem[] {
+  const bad = (reason: string): readonly ContentProblem[] => [
+    { field, code: 'bad_rolled_span', reason },
+  ];
+  if (span === null || typeof span !== 'object') {
+    return bad('a rolled span is the dice the line prints and what one point of them is worth');
+  }
+  const { dice, secondsEach } = span as { dice?: unknown; secondsEach?: unknown };
+  if (!isString(dice) || !parseNotation(dice).ok) {
+    return bad(
+      `"${String(dice)}" is not dice a lifetime can be rolled from; a printed span is "durationSeconds"`,
+    );
+  }
+  if (!Number.isInteger(secondsEach) || (secondsEach as number) <= 0) {
+    return bad(
+      `one point of "${dice}" is worth a whole number of seconds above zero — 3600 for an hour — and this says ${String(secondsEach)}`,
+    );
+  }
+  return [];
+}
+
+/**
  * What an item's `confers` grant has to say, and what it may not.
  *
  * SRD "Magic Items" decides the shape: "Many items, such as Potions, bypass
@@ -1116,7 +1152,26 @@ function itemConfersProblems(
   // because unstated they last until they are spent or until a Long Rest. So
   // `hangs` decides whether a lifetime is *required* and `outlasts` whether
   // one is *allowed*, and every other kind sets both together.
-  if (grant.durationSeconds === undefined) {
+  //
+  // **And the lifetime is one clause however the line writes it.** SRD Potion
+  // of Diminution rolls for its span — "for 1d4 hours" — where Potion of
+  // Heroism prints one, so the two fields answer the same question and an item
+  // that names both has been sized twice. Every rule below is asked of
+  // whichever one the item wrote.
+  const rolledSpan: unknown = grant.durationRolled;
+  const stated = grant.durationSeconds !== undefined;
+  if (rolledSpan !== undefined && stated) {
+    say(
+      'conferral_span_twice',
+      `${item.id} prints how long its benefit lasts and rolls for it too; an item's line does one or the other`,
+      `${at}.durationRolled`,
+    );
+  }
+  if (rolledSpan !== undefined) {
+    found.push(...rolledSpanProblems(rolledSpan, `${at}.durationRolled`));
+  }
+
+  if (!stated && rolledSpan === undefined) {
     if (hangs) {
       say(
         'conferral_without_lifetime',
@@ -1124,7 +1179,7 @@ function itemConfersProblems(
         `${at}.durationSeconds`,
       );
     }
-  } else if (!Number.isInteger(grant.durationSeconds) || grant.durationSeconds <= 0) {
+  } else if (stated && (!Number.isInteger(grant.durationSeconds) || (grant.durationSeconds ?? 0) <= 0)) {
     say(
       'bad_conferral_duration',
       `a conferral lasts a whole number of seconds, got ${String(grant.durationSeconds)}`,
@@ -1134,7 +1189,7 @@ function itemConfersProblems(
     say(
       'conferral_lifetime_ends_nothing',
       `${item.id} confers nothing that outlasts the moment it is used, so a duration would end nothing`,
-      `${at}.durationSeconds`,
+      stated ? `${at}.durationSeconds` : `${at}.durationRolled`,
     );
   }
 
@@ -1227,6 +1282,22 @@ function itemGrantProblems(
         'rolled_uses_without_a_pool',
         `${item.id} rolls for a charge maximum on a "${grant.kind}" grant, and a rolled maximum sizes the item's charge pool; nothing would read it here`,
         `${at}.usesRolled`,
+      );
+    }
+    // And the same refusal about the other rolled field, for the same reason.
+    // A rolled span is a **conferral's** lifetime — `useItem` throws it and
+    // hangs the deadline it decided — and a benefit had by wearing the item or
+    // by casting from it has no such moment to end at. Written on one of those
+    // it would be inert, which is indistinguishable from a line the transcriber
+    // thought had landed.
+    if (
+      grant.kind !== 'confers' &&
+      (grant as Record<string, unknown>)['durationRolled'] !== undefined
+    ) {
+      say(
+        'rolled_span_without_a_conferral',
+        `${item.id} rolls for how long a "${grant.kind}" grant lasts, and a rolled span is the lifetime of what the item confers when it is used; nothing would read it here`,
+        `${at}.durationRolled`,
       );
     }
     if (grant.kind === 'pool') {

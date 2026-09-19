@@ -746,6 +746,37 @@ export type FeatureGrant =
        */
       readonly durationSeconds?: number;
       /**
+       * The same lifetime where the item's line **rolls** for it rather than
+       * printing it — SRD Potion of Diminution's "for 1d4 hours".
+       *
+       * Beside {@link durationSeconds} and never with it: a span is stated or
+       * rolled, and one that is both is sized twice, which is the rule
+       * `usesRolled` already keeps beside `uses` on a charge pool. Everything
+       * else about a lifetime is unchanged — it is required exactly when
+       * something hangs and refused when nothing does, by the same two
+       * questions `checkContent` asks of the printed half.
+       *
+       * **The engine throws it, once, at the moment the item is used**, down
+       * the path `regainsAtDawn` goes down and into the same three-event
+       * batch; what reaches the fold is the deadline it decided. So the span
+       * is a fact in the log rather than a die a replay would throw again,
+       * which is what rule 3 asks of every number.
+       */
+      readonly durationRolled?: {
+        /** The dice the line prints: "1d4". Read by `parseNotation`. */
+        readonly dice: string;
+        /**
+         * What one point of that roll is worth in seconds — 3600 for an hour,
+         * 60 for a minute.
+         *
+         * The unit rather than a scale factor, because the book writes the
+         * unit: "1d4 hours", "2d4 minutes". Seconds are what a `Duration`
+         * speaks, and the multiplication is arithmetic the engine does once
+         * rather than a second notation for a caller to get wrong.
+         */
+        readonly secondsEach: number;
+      };
+      /**
        * What ends the conferred condition **before** its hour is up.
        *
        * SRD Potion of Invisibility prints the sentence right after the

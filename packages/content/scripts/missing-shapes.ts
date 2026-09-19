@@ -5019,13 +5019,6 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'movement-modes',
     'a-bonus-narrowed-to-a-skill',
   ],
-  'potion-of-diminution': [
-    {
-      clause: 'for 1d4 hours (no Concentration required)',
-      why: 'a-random-outcome-that-is-not-a-d20',
-      note: 're-pointed, and the spell is no longer the blocker. Its sibling the Potion of Growth is transcribed on the same sentence — a bottle **makes** the choice Enlarge/Reduce cannot record, so the reduce branch is two `roll-mode` effects the same way the enlarge branch is. What stops this one is the duration: a conferral lasts `durationSeconds`, a whole number the item prints, and this item prints a die. The generator could throw the 1d4 and no field asks it to, which is this shape exactly.',
-    },
-  ],
   'potion-of-flying': ['a-speed-an-item-grants', 'movement-modes'],
   'potion-of-giant-strength': [
     'an-ability-score-a-spell-changes',

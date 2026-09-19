@@ -2348,6 +2348,52 @@ const POTIONS: readonly CatalogueItem[] = [
   },
   {
     /**
+     * SRD Potion of Diminution: "Potion, Rare. When you drink this potion, you
+     * gain the 'reduce' effect of the _Enlarge/Reduce_ spell for 1d4 hours (no
+     * Concentration required)."
+     *
+     * **The Potion of Growth's sentence with the other branch and a die in
+     * it.** The bottle makes the choice the casting cannot record — the label
+     * says reduce — so the conferral writes that branch and nothing is
+     * guessed; and where its sibling prints ten minutes, this one prints
+     * dice, which is `durationRolled`: the engine throws it once when the
+     * potion is drunk and pins the moment it decided into the log.
+     */
+    id: 'potion-of-diminution',
+    name: 'Potion of Diminution',
+    kind: 'potion',
+    weightLb: 0.5,
+    costCp: null,
+    armor: null,
+    weapon: null,
+    contents: [],
+    grants: [
+      {
+        kind: 'confers',
+        action: 'bonus-action',
+        durationRolled: { dice: '1d4', secondsEach: 3600 },
+        effects: [
+          // "The target also has Disadvantage on Strength checks and Strength
+          // saving throws": two rolls named in one clause, so two selectors.
+          {
+            kind: 'roll-mode',
+            modifier: { mode: 'disadvantage', selector: { roll: 'ability-check', relation: 'roller', ability: 'str' } },
+          },
+          {
+            kind: 'roll-mode',
+            modifier: { mode: 'disadvantage', selector: { roll: 'saving-throw', relation: 'roller', ability: 'str' } },
+          },
+        ],
+      },
+    ],
+    unmodelled: [
+      'the size category the reduce branch takes away — one step down, Medium to Small — is not applied: size is a fact the engine holds authoritatively and reads for sharing a space, passing through and what a template catches, and nothing may write over one for a duration (see the Enlarge/Reduce definition, whose notes this repeats because a conferral carries an effect list rather than a spell id)',
+      'the 1d4 taken off the drinker\'s later attacks with reduced weapons or Unarmed Strikes is not hung: it is a penalty on a damage roll, and nothing in the grant vocabulary reduces one — the same half of the same sentence the Potion of Growth leaves out from the other end',
+      'the gear changing size with the drinker, and a thrown weapon returning to normal after it hits or misses, are the DM\'s',
+    ],
+  },
+  {
+    /**
      * SRD Potion of Growth: "Potion, Uncommon. When you drink this potion, you
      * gain the 'enlarge' effect of the _Enlarge/Reduce_ spell for 10 minutes
      * (no Concentration required)."

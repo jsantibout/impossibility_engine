@@ -55,6 +55,7 @@ import { conditionInstanceId } from '../conditions.js';
 import { type EffectTarget, timerKey } from '../timers.js';
 import { grantSourcesOf, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
+import { rollRecorded } from '../rolls.js';
 import { type Supply } from './casting.js';
 import { creatureOf, reachedBy, spendFor, unknownCreature } from './command.js';
 import { schedule } from './conditions.js';
@@ -327,10 +328,64 @@ export function useItem(
     //
     // `checkContent` has already refused a conferral that hangs either and
     // names no duration, and one that names a duration and hangs nothing.
-    if (conferral.durationSeconds !== undefined) {
+    if (conferral.durationSeconds !== undefined || conferral.durationRolled !== undefined) {
       const source = itemSource(item.id);
-      const lasts = { kind: 'seconds', seconds: conferral.durationSeconds } as const;
       const world = resolved.value.state;
+
+      // **The span, where the item's line rolls for one instead of printing
+      // it.** SRD Potion of Diminution: "for 1d4 hours". The die goes down the
+      // path a pool's dawn recovery goes down — `rollRecorded`, then the roll,
+      // the issue and the consequence, in that order — and what the fold reads
+      // is the deadline it decided rather than the dice it came from, so a
+      // replay cannot roll a second, different hour.
+      //
+      // **Once, and only if something is actually hung.** A die thrown for a
+      // deadline nobody files would move the generator for nothing, which is
+      // the quiet way a replay stops matching — the reason a full pool is not
+      // rolled for at dawn either. So the span is asked for at the first timer
+      // and remembered, and the three kinds of deadline below share the one
+      // answer: a draught whose condition and whose grant expired an hour
+      // apart would be two lifetimes out of one sentence.
+      const rolled = conferral.durationRolled;
+      let span: { readonly kind: 'seconds'; readonly seconds: number } | null =
+        conferral.durationSeconds === undefined
+          ? null
+          : { kind: 'seconds', seconds: conferral.durationSeconds };
+      const lastsFor = (): Result<{ readonly kind: 'seconds'; readonly seconds: number }> => {
+        if (span !== null) return ok(span);
+        // `checkContent` has refused a conferral that names neither, so this
+        // is a catalogue that did not come through the door — said as a value
+        // rather than asserted away, because the alternative is a deadline of
+        // `undefined` seconds reaching the fold.
+        if (rolled === undefined) {
+          return err(
+            'conferral_without_lifetime',
+            `${item.name} hangs a benefit no casting ends and its line says for how long nowhere`,
+          );
+        }
+        const issuedBefore = supply.issuer.count;
+        const thrown = rollRecorded(supply.issuer, supply.rng, rolled.dice);
+        if (!thrown.ok) return thrown;
+        const seconds = thrown.value.total * rolled.secondsEach;
+        events.push(
+          {
+            type: 'roll-recorded',
+            who: id,
+            label: `${item.name} lasts (${rolled.dice})`,
+            natural: thrown.value.total,
+            total: thrown.value.total,
+            contributions: [],
+            outcome: `${seconds} seconds`,
+          },
+          {
+            type: 'rolls-issued',
+            count: supply.issuer.count - issuedBefore,
+            rng: supply.rng.snapshot(),
+          },
+        );
+        span = { kind: 'seconds', seconds };
+        return ok(span);
+      };
 
       // **A condition is its own timer, keyed by the instance.** SRD Potion of
       // Invisibility: "you have the Invisible condition for 1 hour. The effect
@@ -350,10 +405,12 @@ export function useItem(
             on: outcome.target,
             instance: conditionInstanceId(condition, source),
           };
+          const lasts = lastsFor();
+          if (!lasts.ok) return lasts;
           const timer = schedule(
             world,
             on,
-            lasts,
+            lasts.value,
             // **The repeat the resolution already filed, kept.** A `save`
             // effect hands its condition over with the repeat the item printed
             // and no deadline of its own, because the hour is the conferral's
@@ -406,10 +463,12 @@ export function useItem(
         const after = world.creatures[outcome.target]?.vitals.temporaryHp ?? 0;
         if (after === before) continue;
         pooled.add(outcome.target);
+        const lasts = lastsFor();
+        if (!lasts.ok) return lasts;
         const timer = schedule(
           world,
           { kind: 'temporary-hit-points', on: outcome.target },
-          lasts,
+          lasts.value,
         );
         if (!timer.ok) return timer;
         events.push(timer.value);
@@ -426,7 +485,9 @@ export function useItem(
       for (const on of [...resolved.value.held].sort()) {
         const creature = world.creatures[on];
         if (creature === undefined || !grantSourcesOf(creature).includes(source)) continue;
-        const timer = schedule(world, { kind: 'grants', on, source }, lasts);
+        const lasts = lastsFor();
+        if (!lasts.ok) return lasts;
+        const timer = schedule(world, { kind: 'grants', on, source }, lasts.value);
         if (!timer.ok) return timer;
         events.push(timer.value);
       }
