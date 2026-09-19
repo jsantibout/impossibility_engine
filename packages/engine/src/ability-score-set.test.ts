@@ -44,10 +44,11 @@ import {
  * change; the tests below say which side of that line each of them is on
  * rather than implying the whole pipeline moved.
  *
- * Driven through homebrew items, for `content.test.ts`'s reason and for one
- * more: the SRD items this frees are not in the catalogue yet — see the
- * paragraph in `packages/content/src/items.ts` that says why — so a test
- * written against them would be testing nothing.
+ * Driven through homebrew items for `content.test.ts`'s reason — a mechanic
+ * proved only against the book's own catalogue is a mechanic that might be
+ * reading the book — and then through the three SRD entries it frees, in the
+ * last block, because a vocabulary with no printed consumer is a vocabulary
+ * nobody has checked against a page.
  */
 
 const WHO = asCharacterId('vashti');
@@ -400,5 +401,122 @@ describe('a homebrew item says it through loadContent', () => {
       ),
     );
     expect(abilityScoresOf(on, WHO).str).toBe(19);
+  });
+});
+
+
+/**
+ * The three entries whose whole printed text is this one grant.
+ *
+ * SRD prints the same sentence three times over three scores — "Your
+ * Constitution is 19 while you wear this amulet", "Your Strength is 19 while
+ * you wear these gauntlets", "Your Intelligence is 19 while you wear this
+ * headband" — and each is a Rare or Uncommon wondrous item with an
+ * attunement bracket. Driven against `SRD_CONTENT` itself, so the catalogue
+ * records are held to the mechanic rather than to each other.
+ */
+describe('the three SRD items the grant frees', () => {
+  const PRINTED = [
+    { id: 'amulet-of-health', ability: 'con' },
+    { id: 'gauntlets-of-ogre-power', ability: 'str' },
+    { id: 'headband-of-intellect', ability: 'int' },
+  ] as const;
+
+  /** A Fighter who owns the three, with every score low enough for a set to show. */
+  const owner = (assignment: Record<string, number>): CharacterChoices => ({
+    ...fighter(),
+    abilities: { method: 'manual', assignment: assignment as CharacterChoices['abilities']['assignment'] },
+    abilityIncreases: { str: 2, con: 1 },
+    dmGrants: {
+      items: PRINTED.map((one) => ({ id: one.id, quantity: 1 })),
+      goldPieces: 0,
+      magicItems: PRINTED.map((one) => one.id),
+      note: 'the three printed items under test',
+    },
+  });
+
+  const LOW = { str: 8, dex: 15, con: 13, int: 12, wis: 10, cha: 14 };
+
+  /**
+   * The assignment that puts each score at exactly 20 on the finished sheet.
+   *
+   * The background raises Strength by 2 and Constitution by 1 here, so a
+   * score's own number is 20 less whatever lands on it — and 20 is the
+   * ceiling, so a fixture that ignored the increases would be refused by
+   * `checkCharacter` rather than tested.
+   */
+  const AT_TWENTY: Readonly<Record<string, Record<string, number>>> = {
+    con: { str: 18, con: 19 },
+    str: { str: 18, con: 12 },
+    int: { str: 18, con: 12, int: 20 },
+  };
+
+  /** Owned, rested, attuned and worn — the whole path the bracket asks for. */
+  const putOn = (item: string, assignment: Record<string, number> = LOW) => {
+    const owned = built(owner(assignment), SRD_CONTENT);
+    const rested = after(owned, (state) => unwrap(beginRest(state, WHO, 'short'), 'rest'));
+    const attuned = after(rested, (state) =>
+      unwrap(attuneItem(state, SRD_CONTENT, WHO, item, `attune-${item}`), item),
+    );
+    return after(attuned, (state) =>
+      unwrap(equipItem(state, SRD_CONTENT, WHO, item, `equip-${item}`), item),
+    );
+  };
+
+  for (const { id, ability } of PRINTED) {
+    describe(id, () => {
+      it('is in the catalogue, attuned and worn, and sets its score to 19', () => {
+        expect(SRD_CONTENT.item(id)?.attunement).toBeDefined();
+        const on = fold('seed', putOn(id));
+        expect(abilityScoresOf(on, WHO)[ability]).toBe(19);
+      });
+
+      it('leaves a score that is already higher exactly where it was', () => {
+        // SRD: "It has no effect on you if your ... is 19 or higher without
+        // it." The assignment is set so the score reaches exactly 20 once
+        // the background's own increases land — str +2 and con +1 — because
+        // 20 is the ceiling a character with no boon may reach.
+        const tall = fold('seed', putOn(id, { ...LOW, ...AT_TWENTY[ability] }));
+        // The fixture really is at 20 before the item, which is what makes
+        // the assertion below about the item rather than about the sheet.
+        expect(tall.creatures[WHO]?.sheet.abilities[ability]).toBe(20);
+        expect(abilityScoresOf(tall, WHO)[ability]).toBe(20);
+      });
+
+      it('moves the modifier on the sheet a reader is handed, and gives it back', () => {
+        const on = putOn(id);
+        expect(modifierFor(sheetAsItStands(fold('seed', on), WHO)!, ability)).toBe(
+          abilityModifier(19),
+        );
+
+        const off = fold(
+          'seed',
+          after(on, (state) =>
+            unwrap(unequipItem(state, SRD_CONTENT, WHO, id, `off-${id}`), 'unequip'),
+          ),
+        );
+        // Taking it off takes the score with it, even though the attunement
+        // survives: the grant asks to be worn as well.
+        expect(abilityScoresOf(off, WHO)[ability]).toBe(
+          off.creatures[WHO]?.sheet.abilities[ability],
+        );
+        expect(abilityScoresOf(off, WHO)[ability]).toBeLessThan(19);
+      });
+    });
+  }
+
+  /**
+   * And what each of them still does not do, recorded rather than implied:
+   * three records carry the note, and it is the same note.
+   */
+  it('says in the catalogue how far the set reaches', () => {
+    for (const { id } of PRINTED) {
+      const notes = SRD_CONTENT.item(id)?.unmodelled ?? [];
+      expect(notes.length, id).toBeGreaterThan(0);
+      expect(notes.some((note) => note.includes('creature.sheet')), id).toBe(true);
+    }
+    // The amulet carries a second, because a Constitution is not only a
+    // modifier.
+    expect(SRD_CONTENT.item('amulet-of-health')?.unmodelled).toHaveLength(2);
   });
 });

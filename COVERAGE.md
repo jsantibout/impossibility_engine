@@ -642,7 +642,7 @@ is where a figure like that belongs.
 
 | Parsed | Transcribed | Instances | of which complete | of which partial |
 |---|---|---|---|---|
-| 258 | 72 | 229 | 178 | 51 |
+| 258 | 75 | 232 | 178 | 54 |
 
 An entry with **no** record is one whose whole text is beyond the grant
 vocabulary. `packages/content/src/items.ts` states the three rules that
@@ -667,13 +667,14 @@ inventing a column that nothing checks.
 | Staffs | 12 | 1 | 1 | 0 | 1 |
 | Wands | 13 | 8 | 8 | 1 | 7 |
 | Weapons | 33 | 15 | 128 | 115 | 13 |
-| Wondrous Items | 127 | 26 | 26 | 9 | 17 |
+| Wondrous Items | 127 | 29 | 29 | 9 | 20 |
 
 ### Entries transcribed
 
 Each is one entry of "Magic Items A–Z", with the records it expands to and
 how many of those still carry a clause the engine does not say.
 
+- **Amulet of Health** (Wondrous Items) — 1 recorded, 1 partial
 - **Armor of Invulnerability** (Armor) — 1 recorded, 1 partial
 - **Armor, +1, +2, or +3** (Armor) — 36 recorded, complete
 - **Boots of Elvenkind** (Wondrous Items) — 1 recorded, 1 partial
@@ -698,10 +699,12 @@ how many of those still carry a clause the engine does not say.
 - **Elven Chain** (Armor) — 1 recorded, 1 partial
 - **Eyes of Charming** (Wondrous Items) — 1 recorded, 1 partial
 - **Frost Brand** (Weapons) — 1 recorded, 1 partial
+- **Gauntlets of Ogre Power** (Wondrous Items) — 1 recorded, 1 partial
 - **Giant Slayer** (Weapons) — 1 recorded, 1 partial
 - **Glamoured Studded Leather** (Armor) — 1 recorded, 1 partial
 - **Goggles of Night** (Wondrous Items) — 1 recorded, 1 partial
 - **Hammer of Thunderbolts** (Weapons) — 1 recorded, 1 partial
+- **Headband of Intellect** (Wondrous Items) — 1 recorded, 1 partial
 - **Helm of Comprehending Languages** (Wondrous Items) — 1 recorded, complete
 - **Helm of Teleportation** (Wondrous Items) — 1 recorded, complete
 - **Holy Avenger** (Weapons) — 1 recorded, 1 partial
@@ -769,7 +772,7 @@ entry of "Magic Items A–Z" is in exactly one of them.
 
 | Parsed | Transcribed | Blocked | Ready | Fiction | Unread |
 |---|---|---|---|---|---|
-| 258 | 72 | 176 | 2 | 4 | 4 |
+| 258 | 75 | 173 | 2 | 4 | 4 |
 
 **Unread is the honest default**, not a backlog nobody got to. An entry
 whose blocker cannot be named from something this repository has already
@@ -814,7 +817,7 @@ the next tranche makes false.
 
 | Shape | Blocks | Finishes (read) | Finishes (unread) |
 |---|---|---|---|
-| `an-ability-score-a-spell-changes` | 15 | 0 | 9 |
+| `an-ability-score-a-spell-changes` | 12 | 0 | 6 |
 | `a-condition-an-item-imposes` | 28 | 0 | 5 |
 | `a-container-with-a-space-of-its-own` | 6 | 0 | 5 |
 | `a-spell-an-item-casts-that-nothing-executes` | 19 | 2 | 2 |

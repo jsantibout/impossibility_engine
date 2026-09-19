@@ -647,6 +647,88 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
     },
   ),
 
+  // ── worn things that set an ability score ──────────────────────────
+  wornItem(
+    { id: 'amulet-of-health', name: 'Amulet of Health', kind: 'wondrous' },
+    {
+      /**
+       * SRD Amulet of Health: "Wondrous Item, Rare (Requires Attunement).
+       * Your Constitution is 19 while you wear this amulet. It has no effect
+       * on you if your Constitution is 19 or higher without it."
+       *
+       * The first of three entries whose whole text is one `ability-score-set`
+       * grant. The second sentence is not a second clause to record: never
+       * lowering a score is the rule {@link abilityScoresOf} keeps for every
+       * item that sets one, so an item saying it again would be the same rule
+       * written twice.
+       *
+       * Two requirements from two clauses, as the Ring of Protection has:
+       * the bracket on the type line and "while you wear" in the sentence.
+       */
+      attunement: {},
+      grants: [
+        {
+          kind: 'standing',
+          reach: 'self',
+          effects: [{ kind: 'ability-score-set', ability: 'con', score: 19 }],
+          requires: WORN_AND_ATTUNED,
+        },
+      ],
+      unmodelled: [
+        'the score reaches the readers that derive from state and not the ones that take a sheet: `abilityScoresOf` and `sheetAsItStands` answer with it, and `armorClassOf` and a save-bonus aura move with it, while an ability check, a saving throw and an attack roll are still rolled off the score the sheet was built with, because `checks.ts` and `attack.ts` are handed `creature.sheet` by their commands',
+        'what a Constitution of 19 does to a hit point maximum. "Your Constitution is 19 while you wear this amulet" changes the modifier every level paid, and a maximum is a folded number rather than a derived one, so putting the amulet on does not add hit points and taking it off does not take them away',
+      ],
+    },
+  ),
+  wornItem(
+    { id: 'gauntlets-of-ogre-power', name: 'Gauntlets of Ogre Power', kind: 'wondrous' },
+    {
+      /**
+       * SRD Gauntlets of Ogre Power: "Wondrous Item, Uncommon (Requires
+       * Attunement). Your Strength is 19 while you wear these gauntlets. They
+       * have no effect on you if your Strength is 19 or higher without them."
+       *
+       * The Amulet of Health's sentence on a different score, which is what
+       * made a `set` a shape rather than one item's quirk.
+       */
+      attunement: {},
+      grants: [
+        {
+          kind: 'standing',
+          reach: 'self',
+          effects: [{ kind: 'ability-score-set', ability: 'str', score: 19 }],
+          requires: WORN_AND_ATTUNED,
+        },
+      ],
+      unmodelled: ['the score reaches the readers that derive from state and not the ones that take a sheet: `abilityScoresOf` and `sheetAsItStands` answer with it, and `armorClassOf` and a save-bonus aura move with it, while an ability check, a saving throw and an attack roll are still rolled off the score the sheet was built with, because `checks.ts` and `attack.ts` are handed `creature.sheet` by their commands'],
+    },
+  ),
+  wornItem(
+    { id: 'headband-of-intellect', name: 'Headband of Intellect', kind: 'wondrous' },
+    {
+      /**
+       * SRD Headband of Intellect: "Wondrous Item, Uncommon (Requires
+       * Attunement). Your Intelligence is 19 while you wear this headband. It
+       * has no effect on you if your Intelligence is 19 or higher without
+       * it."
+       *
+       * The third printing of the same sentence. A Wizard's spell save DC is
+       * derived from Intelligence and is one of the readers the note below
+       * says this does not reach yet.
+       */
+      attunement: {},
+      grants: [
+        {
+          kind: 'standing',
+          reach: 'self',
+          effects: [{ kind: 'ability-score-set', ability: 'int', score: 19 }],
+          requires: WORN_AND_ATTUNED,
+        },
+      ],
+      unmodelled: ['the score reaches the readers that derive from state and not the ones that take a sheet: `abilityScoresOf` and `sheetAsItStands` answer with it, and `armorClassOf` and a save-bonus aura move with it, while an ability check, a saving throw and an attack roll are still rolled off the score the sheet was built with, because `checks.ts` and `attack.ts` are handed `creature.sheet` by their commands'],
+    },
+  ),
+
   // ── worn things that grant a defence ─────────────────────────────────────
   wornItem(
     { id: 'boots-of-the-winterlands', name: 'Boots of the Winterlands', kind: 'wondrous' },

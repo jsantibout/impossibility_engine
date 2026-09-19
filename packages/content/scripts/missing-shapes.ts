@@ -130,7 +130,7 @@ export const MISSING_SHAPES = {
   'a-creature-fact-an-effect-overrides':
     'an effect that changes what **other** rules believe about a creature. PROGRESS.md names it: "Arcanist’s Magic Aura changes what other spells believe a creature’s type to be, which `mustBeType` reads on every casting." Type and size are facts the engine holds authoritatively, and nothing may write over them for the duration of a spell. IE-044 read a third fact of the same shape off SRD Gaseous Form — "The target can enter and occupy the space of another creature", where what the other rule believes is that a creature holds its space against a willing mover.',
   'an-ability-score-a-spell-changes':
-    '`docs/design/time-and-turns.md`, on what a rest does not restore: "**Reduced ability scores and a reduced hit point maximum are not restored**, because neither is modelled in the first place." A score is set at creation and by advancement; no effect moves one, and nothing puts one back.',
+    'a score an effect **moves and moves back**, or moves for good. `docs/design/time-and-turns.md`, on what a rest does not restore: "**Reduced ability scores and a reduced hit point maximum are not restored**, because neither is modelled in the first place." One verb of the three is built: an item may now *set* a score for as long as it is worn, which is a standing grant derived on every read, and the three entries that printed only that sentence are transcribed. What still has no writer is a score an effect **lowers**, a score a study or a boon raises **permanently** — the manuals and the tomes, whose +2 outlives every rest and is a folded number rather than a derived one — and a hit point maximum moving with either.',
   'a-stat-block-created-mid-fight':
     'summons. `docs/design/casting.md`, "Which spells this reaches": "A stat block created mid-fight | Unseen Servant, Arcane Hand, Phantom Steed, Summon Dragon, Giant Insect ...". That row lost three entries to this reading — "the four Conjures", Guardian of Faith and Faithful Hound — because SRD 5.2.1 rewrote the Conjure family as spirits and none of the eight prints an Armour Class, Hit Points or a turn.',
   'movement-modes':
@@ -4568,7 +4568,6 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'a-version-of-an-item-the-book-leaves-to-the-gm',
     'an-item-instance-with-a-state-of-its-own',
   ],
-  'amulet-of-health': ['an-ability-score-a-spell-changes'],
   'amulet-of-proof-against-detection-and-location': {
     unread:
       'read, and the blocker cannot be named from anything this repository has written down. "you can’t be targeted by Divination spells or perceived through magical scrying sensors" is a filter on the *school* of a spell reaching the targeting check, and no document here describes a school axis as a gap. Filing it as the table’s would put an entry with nothing to record on the ready list; naming a shape for it would be an architecture decision smuggled in as a note.',
@@ -4800,7 +4799,6 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   ],
   'flame-tongue': ['a-benefit-an-item-switches-on-and-off'],
   'folding-boat': ['an-object-with-statistics-of-its-own', 'a-container-with-a-space-of-its-own'],
-  'gauntlets-of-ogre-power': ['an-ability-score-a-spell-changes'],
   // "This prism has 50 charges ... When all of the gem's charges are expended,
   // the gem becomes a nonmagical jewel": a count spent down to nothing, keyed
   // to the copy, which `countedUses` writes and `recovers: 'special'` leaves
@@ -4833,7 +4831,6 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'a-spell-an-item-casts-that-nothing-executes',
     'a-version-of-an-item-the-book-leaves-to-the-gm',
   ],
-  'headband-of-intellect': ['an-ability-score-a-spell-changes'],
   // The instance shape stays, and this is the entry that shows why a pool is
   // not enough of one: "set with 1d10 diamonds, 2d10 rubies, 3d10 fire opals,
   // and 4d10 opals" is **four** rolled counts spent separately, and an item
