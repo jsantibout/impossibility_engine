@@ -356,7 +356,7 @@ describe('a held casting settles with the fact its caster stated', () => {
     const open = world(declared.events);
     expect(pendingCastingsOf(open)[0]?.fought).toEqual([TURNCOAT]);
 
-    const settled = unwrap(resolveDeclaredCast(open, declared.castingId, supply('settle')), 'settled');
+    const settled = unwrap(resolveDeclaredCast(open, declared.castingId!, supply('settle')), 'settled');
     expect(settled.outcomes[0]!.save!.mode).toBe('advantage');
     expect(
       settled.outcomes[0]!.save!.modeSources.some((m) => m.source.includes('Charm Person')),
@@ -377,7 +377,7 @@ describe('a held casting settles with the fact its caster stated', () => {
     const open = world(declared.events);
     expect(pendingCastingsOf(open)[0]?.fought).toEqual([]);
 
-    const settled = unwrap(resolveDeclaredCast(open, declared.castingId, supply('settle')), 'settled');
+    const settled = unwrap(resolveDeclaredCast(open, declared.castingId!, supply('settle')), 'settled');
     expect(settled.outcomes[0]!.save!.mode).toBe('normal');
   });
 });

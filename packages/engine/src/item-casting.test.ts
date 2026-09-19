@@ -499,7 +499,7 @@ describe('a wand casting Web does everything a casting does', () => {
    */
   it('leaves an ongoing record carrying its area, its trigger and its numbers', () => {
     const { log, castingId } = conjured();
-    const record = ongoingSpellOf(fold('seed', log), castingId);
+    const record = ongoingSpellOf(fold('seed', log), castingId!);
     expect(record?.spellId).toBe('web');
     expect(record?.area).toEqual({ kind: 'cube', size: 20, origin: 'point' });
     expect(record?.areaTrigger?.at).toBe('start-of-turn');
@@ -570,7 +570,7 @@ describe('a casting held open outlives the wand that made it', () => {
 
   it('pins the item’s numbers on the declaration', () => {
     const { log, castingId } = declared();
-    const pending = fold('seed', log).pendingCastings[castingId];
+    const pending = fold('seed', log).pendingCastings[castingId!];
     expect(pending?.route).toBe(`item:${WEB_WAND}`);
     expect(pending?.numbers?.saveDc).toBe(13);
     expect(pending?.numbers?.casterLevel).toBe(1);
@@ -636,12 +636,12 @@ describe('a casting held open outlives the wand that made it', () => {
       'declaring the dispel',
     );
     const after = [...log, ...declared.events];
-    expect(fold('seed', after).pendingCastings[declared.castingId]?.ability).toBe('wis');
+    expect(fold('seed', after).pendingCastings[declared.castingId!]?.ability).toBe('wis');
 
     // And it settles, rather than refusing a casting whose charge is gone.
     const settled = resolveDeclaredCast(
       fold('seed', after),
-      declared.castingId,
+      declared.castingId!,
       supply('settling-dispel', -40, content),
     );
     expect(isErr(settled) ? `${settled.code}: ${settled.reason}` : 'ok').toBe('ok');
@@ -653,10 +653,10 @@ describe('a casting held open outlives the wand that made it', () => {
     expect(fold('seed', dropped).creatures[WIELDER]?.equipped).toEqual([]);
 
     const settled = unwrap(
-      resolveDeclaredCast(fold('seed', dropped), castingId, supply('settling')),
+      resolveDeclaredCast(fold('seed', dropped), castingId!, supply('settling')),
       'settling a casting whose wand is put away',
     );
-    const record = ongoingSpellOf(fold('seed', [...dropped, ...settled.events]), castingId);
+    const record = ongoingSpellOf(fold('seed', [...dropped, ...settled.events]), castingId!);
     expect(record?.numbers.saveDc).toBe(13);
     expect(record?.area).toEqual({ kind: 'cube', size: 20, origin: 'point' });
   });
@@ -746,7 +746,7 @@ describe('the numbers are the item’s, then the wielder’s', () => {
       ),
       'the wand casting Web',
     );
-    expect(dcOf(log, out.events, out.castingId)).toBe(13);
+    expect(dcOf(log, out.events, out.castingId!)).toBe(13);
     expect(WIZARD_DC).toBe(17);
   });
 
@@ -807,7 +807,7 @@ describe('the numbers are the item’s, then the wielder’s', () => {
     const chosen = plainWeb(TWO_MINDED, 'class:cleric');
     const out = unwrap(chosen.out, 'naming the cleric half');
     // Wisdom 16 is +3, so 8 + 4 + 3 rather than the wizard's 17.
-    expect(dcOf(chosen.log, out.events, out.castingId)).toBe(8 + PROFICIENCY + 3);
+    expect(dcOf(chosen.log, out.events, out.castingId!)).toBe(8 + PROFICIENCY + 3);
 
     const wrong = plainWeb(TWO_MINDED, 'class:bard');
     expect(isErr(wrong.out) && wrong.out.code).toBe('source_does_not_supply');
@@ -978,8 +978,8 @@ describe('the numbers are the item’s, then the wielder’s', () => {
   it('gives a wielder with no spellcasting +0 and their Proficiency Bonus', () => {
     const { log, out: result } = plainWeb(undefined);
     const out = unwrap(result, 'a wand in a hand that casts nothing');
-    expect(dcOf(log, out.events, out.castingId)).toBe(8 + PROFICIENCY);
-    const record = ongoingSpellOf(fold('seed', [...log, ...out.events]), out.castingId);
+    expect(dcOf(log, out.events, out.castingId!)).toBe(8 + PROFICIENCY);
+    const record = ongoingSpellOf(fold('seed', [...log, ...out.events]), out.castingId!);
     expect(record?.numbers.attackModifier).toBe(PROFICIENCY);
     expect(record?.numbers.spellcastingModifier).toBe(0);
   });

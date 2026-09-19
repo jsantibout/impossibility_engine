@@ -274,7 +274,7 @@ class Game {
       `${by} casting ${spellId}`,
     );
     this.push(out.events);
-    return out.castingId;
+    return out.castingId!;
   }
 
   /**

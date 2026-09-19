@@ -1,6 +1,6 @@
 import type { Armor, Weapon } from '@ie/srd';
 import type { FeatureGrant } from './progression.js';
-import type { PoolDeclaration } from './resources.js';
+import type { PoolDeclaration, Recovery } from './resources.js';
 import type { StandingEffect } from './standing.js';
 
 /**
@@ -285,6 +285,54 @@ export function itemCasting(item: CatalogueItem, spellId: string): ItemCastsGran
 export function itemCastings(item: CatalogueItem): readonly ItemCastsGrant[] {
   return (item.grants ?? []).filter((grant): grant is ItemCastsGrant => grant.kind === 'casts');
 }
+
+/**
+ * What this item counts its uses under and what each one adds to the chance of
+ * failing — or null for everything that cannot fail, which is every other item
+ * in the book.
+ *
+ * The fifth half of the item's compiler, running where the others run — **in
+ * the command** — so the key and the percentage reach the events pinned, and a
+ * replay reads the chance the engine actually used out of the roll it wrote
+ * rather than out of this year's catalogue.
+ *
+ * **The count is the copy's**, by the same argument and the same suffix the
+ * charges use: a fan waved five times is that fan, not the other one in the
+ * pack. A copy with no record of its own keeps the unsuffixed key, which is
+ * what an item no door labels gets.
+ *
+ * The chance itself is {@link cumulativeChance} over the count the command
+ * reads back under this key, because the count is state and this function has
+ * none.
+ */
+export function itemFailureCount(
+  grant: ItemCastsGrant,
+  instance: string | undefined,
+): { readonly key: string; readonly recovers: Recovery; readonly percentEach: number } | null {
+  const clause = grant.failsCumulatively;
+  if (clause === undefined) return null;
+  return {
+    key: instancedPoolKey(clause.key, instance),
+    recovers: clause.recovers,
+    percentEach: clause.percent,
+  };
+}
+
+/**
+ * The chance this use fails, as a percentage: what each use adds, times the
+ * uses before it.
+ *
+ * SRD Wind Fan: "Each subsequent time the fan is used before the next dawn, it
+ * has a cumulative 20 percent chance of not working." **Each subsequent time**
+ * — so the first use is a zero and cannot fail, and the sixth is a hundred and
+ * cannot succeed.
+ *
+ * Capped at a hundred, which is not a rounding: a cumulative chance the book
+ * lets run past certainty still means certainty, and a percentage above a
+ * hundred would be a number no die can be rolled against.
+ */
+export const cumulativeChance = (percentEach: number, used: number): number =>
+  Math.min(100, Math.max(0, percentEach * used));
 
 /** What the item confers without casting it, in the grant's own words. */
 export type ItemConfersGrant = Extract<FeatureGrant, { kind: 'confers' }>;

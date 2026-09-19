@@ -186,7 +186,7 @@ class Game {
       `${who} casting ${spellId}`,
     );
     this.push(out.events);
-    return out.castingId;
+    return out.castingId!;
   }
 
   hp(who: CharacterId): number {
@@ -312,7 +312,7 @@ describe('a casting becomes a live record when it leaves something running', () 
     // The rider landed, which is what makes the rest of this a question at all.
     expect(g.state.creatures[FOE]!.conditions.conditions).toContain('blinded');
 
-    expect(spellOn(g.state, ongoingSpellOf(g.state, beam.castingId)!)).toEqual([FOE, WIZ].sort());
+    expect(spellOn(g.state, ongoingSpellOf(g.state, beam.castingId!)!)).toEqual([FOE, WIZ].sort());
     // And the sentence that matters at the table: a Dispel Magic aimed at the
     // blinded creature finds the spell that blinded them.
     expect(ongoingSpellsOn(g.state, FOE).map((o) => o.castingId)).toEqual([beam.castingId]);
@@ -1041,7 +1041,7 @@ describe('a spell whose text says a second casting ends the first', () => {
     );
     expect(retry.events).toEqual([]);
     expect(fold('seed', [...g.log, ...retry.events])).toEqual(after);
-    expect(ongoingSpellOf(g.state, first.castingId)).not.toBeNull();
+    expect(ongoingSpellOf(g.state, first.castingId!)).not.toBeNull();
   });
 });
 
@@ -1148,7 +1148,7 @@ describe('a readied spell is a running spell once released', () => {
     expect(g.state.ongoing).toEqual({});
     const released = unwrap(releaseReady(g.state, WIZ, { targets: [ALLY] }, supply()), 'release');
     g.push(released.events);
-    return { g, castingId: released.spell!.castingId };
+    return { g, castingId: released.spell!.castingId! };
   };
 
   it('records the release on whom it landed, at the level it was readied at', () => {
@@ -1506,7 +1506,7 @@ describe('Produce Flame hurls its fire on later turns', () => {
       out: activateSpell(
         g.state,
         who,
-        { castingId: conjured.castingId, targets: [at] },
+        { castingId: conjured.castingId!, targets: [at] },
         hitting(seed),
       ),
     };
@@ -1536,7 +1536,7 @@ describe('Produce Flame hurls its fire on later turns', () => {
     expect(out.outcomes).toEqual([]);
     expect(g.hp(FOE)).toBe(80);
     expect(out.unverified.join(' ')).toContain('light is not modelled');
-    expect(ongoingSpellOf(g.state, out.castingId)?.spellId).toBe('produce-flame');
+    expect(ongoingSpellOf(g.state, out.castingId!)?.spellId).toBe('produce-flame');
   });
 
   /** "you can take a Magic action to hurl fire": the Action, and a ranged attack. */
@@ -1614,8 +1614,8 @@ describe('Produce Flame hurls its fire on later turns', () => {
     );
     g.push(second.events);
 
-    expect(ongoingSpellOf(g.state, conjured.castingId)).toBeNull();
-    expect(ongoingSpellOf(g.state, second.castingId)).not.toBeNull();
+    expect(ongoingSpellOf(g.state, conjured.castingId!)).toBeNull();
+    expect(ongoingSpellOf(g.state, second.castingId!)).not.toBeNull();
     expect(ongoingSpellsBy(g.state, WIZ).filter((o) => o.spellId === 'produce-flame')).toHaveLength(
       1,
     );
@@ -1957,7 +1957,7 @@ describe('a spell that lasts until dispelled', () => {
       spellId,
     );
     g.push(out.events);
-    return { g, castingId: out.castingId };
+    return { g, castingId: out.castingId! };
   };
 
   for (const [spellId, name] of [

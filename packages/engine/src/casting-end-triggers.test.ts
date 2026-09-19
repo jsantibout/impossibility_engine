@@ -197,7 +197,7 @@ class Game {
       `${who} casting ${spellId}`,
     );
     this.push(out.events);
-    return out.castingId;
+    return out.castingId!;
   }
 
   /** Damage one creature, naming who dealt it — the fact the trigger reads. */

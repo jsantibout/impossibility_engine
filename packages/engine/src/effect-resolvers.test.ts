@@ -143,8 +143,8 @@ describe('a Dispel Magic that fails one check goes on to the next spell', () => 
     );
     return {
       state: applyAll(afterFirst, second.events),
-      seeing: first.castingId,
-      skin: second.castingId,
+      seeing: first.castingId!,
+      skin: second.castingId!,
     };
   };
 

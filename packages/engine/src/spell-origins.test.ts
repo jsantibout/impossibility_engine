@@ -202,7 +202,7 @@ class Game {
       `${who} casting Spiritual Weapon`,
     );
     this.push(out.events);
-    return out.castingId;
+    return out.castingId!;
   }
 
   originOf(castingId: string): Point | undefined {
@@ -315,7 +315,7 @@ describe('a casting can own a point in the scene', () => {
       'bless',
     );
     g.push(out.events);
-    expect(ongoingSpellOf(g.state, out.castingId)?.origin).toBeUndefined();
+    expect(ongoingSpellOf(g.state, out.castingId!)?.origin).toBeUndefined();
   });
 });
 
@@ -828,7 +828,7 @@ describe('the later turn is a Bonus Action that moves and strikes', () => {
     const moved = activateSpell(
       g.state,
       CLERIC,
-      { castingId: out.castingId, targets: [], to: AT_RANGE },
+      { castingId: out.castingId!, targets: [], to: AT_RANGE },
       supply(),
     );
     expect(isErr(moved)).toBe(true);
@@ -875,14 +875,14 @@ describe('two forces are two points', () => {
       [hand.castingId, casting].sort(),
     );
 
-    const before = ongoingSpellOf(g.state, hand.castingId);
+    const before = ongoingSpellOf(g.state, hand.castingId!);
     const out = unwrap(
       activateSpell(g.state, CLERIC, { castingId: casting, targets: [], to: { x: 200, y: 280, z: 0 } }, supply()),
       'moving the force',
     );
     g.push(out.events);
 
-    expect(ongoingSpellOf(g.state, hand.castingId)).toEqual(before);
+    expect(ongoingSpellOf(g.state, hand.castingId!)).toEqual(before);
   });
 });
 
@@ -1044,7 +1044,7 @@ describe('replay reconstructs the point, however it got there', () => {
     );
     g.push(out.events);
     expect(() =>
-      fold('seed', [...g.log, { type: 'spell-origin-moved', castingId: out.castingId, to: AT_RANGE }]),
+      fold('seed', [...g.log, { type: 'spell-origin-moved', castingId: out.castingId!, to: AT_RANGE }]),
     ).toThrow();
   });
 });
@@ -1244,12 +1244,12 @@ describe('a declared casting keeps the space it was declared with', () => {
     g.push(declared.events);
     expect(pendingCastingsOf(g.state)[0]?.origin).toEqual(AT_RANGE);
     // No record yet: the slot is unspent and the spell has not happened.
-    expect(ongoingSpellOf(g.state, declared.castingId)).toBeNull();
+    expect(ongoingSpellOf(g.state, declared.castingId!)).toBeNull();
 
-    const settled = unwrap(resolveDeclaredCast(g.state, declared.castingId, supply('settle')), 'settling');
+    const settled = unwrap(resolveDeclaredCast(g.state, declared.castingId!, supply('settle')), 'settling');
     g.push(settled.events);
 
-    expect(g.originOf(declared.castingId)).toEqual(AT_RANGE);
+    expect(g.originOf(declared.castingId!)).toEqual(AT_RANGE);
     expect(g.hp(FAR)).toBeLessThan(80);
   });
 
@@ -1265,11 +1265,11 @@ describe('a declared casting keeps the space it was declared with', () => {
       'declaring',
     );
     g.push(declared.events);
-    g.push(unwrap(resolveDeclaredCast(g.state, declared.castingId, supply('settle'), { commandId: 's1' }), 'settling').events);
+    g.push(unwrap(resolveDeclaredCast(g.state, declared.castingId!, supply('settle'), { commandId: 's1' }), 'settling').events);
     const after = g.state;
     const hurt = g.hp(FAR);
 
-    const retry = unwrap(resolveDeclaredCast(g.state, declared.castingId, supply('settle'), { commandId: 's1' }), 'retrying');
+    const retry = unwrap(resolveDeclaredCast(g.state, declared.castingId!, supply('settle'), { commandId: 's1' }), 'retrying');
     expect(retry.events).toEqual([]);
     expect(fold('seed', [...g.log, ...retry.events])).toEqual(after);
     expect(g.hp(FAR)).toBe(hurt);
@@ -1294,7 +1294,7 @@ describe('a declared casting keeps the space it was declared with', () => {
     g.push([
       {
         type: 'spell-interrupted',
-        castingId: declared.castingId,
+        castingId: declared.castingId!,
         id: CLERIC,
         by: RIVAL,
         reason: 'countered',
@@ -1430,7 +1430,7 @@ describe('Arcane Sword strikes from the point it hovers at', () => {
   it('reaches a creature beside the sword that the caster cannot reach', () => {
     const g = new Game();
     const out = conjure(g, AT_RANGE, [FAR]);
-    expect(ongoingSpellOf(g.state, out.castingId)?.origin).toEqual(AT_RANGE);
+    expect(ongoingSpellOf(g.state, out.castingId!)?.origin).toEqual(AT_RANGE);
     expect(g.hp(FAR)).toBeLessThan(80);
   });
 
@@ -1539,14 +1539,14 @@ describe('Arcane Sword strikes from the point it hovers at', () => {
       activateSpell(
         g.state,
         CLERIC,
-        { castingId: out.castingId, targets: [NEAR], to: BESIDE_NEAR },
+        { castingId: out.castingId!, targets: [NEAR], to: BESIDE_NEAR },
         hitting('again'),
       ),
       'swinging again',
     );
     g.push(again.events);
 
-    expect(g.originOf(out.castingId)).toEqual(BESIDE_NEAR);
+    expect(g.originOf(out.castingId!)).toEqual(BESIDE_NEAR);
     expect(g.hp(NEAR)).toBeLessThan(80);
   });
 
@@ -1559,7 +1559,7 @@ describe('Arcane Sword strikes from the point it hovers at', () => {
     const far = activateSpell(
       g.state,
       CLERIC,
-      { castingId: out.castingId, targets: [MIDDLE], to: { x: 200, y: 130, z: 0 } },
+      { castingId: out.castingId!, targets: [MIDDLE], to: { x: 200, y: 130, z: 0 } },
       hitting('too far'),
     );
     expect(isErr(far)).toBe(true);
@@ -1578,7 +1578,7 @@ describe('Arcane Sword strikes from the point it hovers at', () => {
     const empty = activateSpell(
       g.state,
       CLERIC,
-      { castingId: out.castingId, targets: [] },
+      { castingId: out.castingId!, targets: [] },
       hitting('empty'),
     );
     expect(isErr(empty)).toBe(true);

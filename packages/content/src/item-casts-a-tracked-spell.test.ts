@@ -212,7 +212,7 @@ describe('a Wand of Magic Detection casts Detect Magic', () => {
     const state = fold('seed', log);
     expect(castOf(out.events)?.concentration).toBe(true);
     expect(state.creatures[WIELDER]?.concentration?.castingId).toBe(out.castingId);
-    const record = ongoingSpellOf(state, out.castingId);
+    const record = ongoingSpellOf(state, out.castingId!);
     expect(record?.spellId).toBe('detect-magic');
     // SRD: "The spell is cast at the lowest possible spell and caster level."
     expect(record?.numbers.casterLevel).toBe(1);
@@ -282,7 +282,7 @@ describe('a Ring of Animal Influence casts what its table prices', () => {
       ),
       'the wand, which prints no DC',
     );
-    return ongoingSpellOf(fold('seed', [...log, ...out.events]), out.castingId)?.numbers.saveDc;
+    return ongoingSpellOf(fold('seed', [...log, ...out.events]), out.castingId!)?.numbers.saveDc;
   };
 
   it('charms a Beast against the ring’s own DC, not the wielder’s', () => {
@@ -302,7 +302,7 @@ describe('a Ring of Animal Influence casts what its table prices', () => {
     // The ring's 13, pinned at the casting — and demonstrably not the
     // wielder's, who has no spellcasting ability at all and whose fallback
     // number the wand below arrives at instead.
-    const record = ongoingSpellOf(fold('seed', [...log, ...out.events]), out.castingId);
+    const record = ongoingSpellOf(fold('seed', [...log, ...out.events]), out.castingId!);
     expect(record?.numbers.saveDc).toBe(13);
     expect(fallbackDcOfTheWielder()).not.toBe(13);
 
@@ -343,7 +343,7 @@ describe('a Ring of Animal Influence casts what its table prices', () => {
     // "(save DC 13)" is printed once, before the list, so it governs all
     // three; leaving it off this grant would not leave the field empty but
     // substitute the wielder's own number, which the book contradicts.
-    const record = ongoingSpellOf(fold('seed', [...log, ...out.events]), out.castingId);
+    const record = ongoingSpellOf(fold('seed', [...log, ...out.events]), out.castingId!);
     expect(record?.numbers.saveDc).toBe(13);
     expect(fallbackDcOfTheWielder()).not.toBe(13);
   });

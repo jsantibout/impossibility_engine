@@ -200,7 +200,7 @@ describe('a casting that has been declared and has not yet resolved', () => {
     const opened = fold('s', [...TABLE, ...declared.events]);
 
     // A large negative bonus on the ogre's save settles the branch outright.
-    const settled = unwrap(resolveDeclaredCast(opened, declared.castingId, supply(-40)), 'settle');
+    const settled = unwrap(resolveDeclaredCast(opened, declared.castingId!, supply(-40)), 'settle');
     const after = fold('s', [...TABLE, ...declared.events, ...settled.events]);
 
     expect(pendingCastingsOf(after)).toEqual([]);
@@ -267,7 +267,7 @@ describe('Counterspell', () => {
     // The counterspeller still paid.
     expect(slot3(after, WIZARD)).toBe(3);
 
-    const settled = unwrap(resolveDeclaredCast(after, open.castingId, supply(-40)), 'settle');
+    const settled = unwrap(resolveDeclaredCast(after, open.castingId!, supply(-40)), 'settle');
     const done = fold('s', [...log, ...countered.events, ...settled.events]);
     expect(done.creatures[OGRE]!.conditions.conditions).toContain('paralyzed');
     expect(remaining(done.creatures[ENEMY]!.resources, spellSlotKey(2))).toBe(3);
@@ -324,7 +324,7 @@ describe('what the window costs, and what it does not', () => {
   it('spends the slot exactly once across declaration and settlement', () => {
     const open = unwrap(declareHoldPerson(TABLE), 'declare');
     const log = [...TABLE, ...open.events];
-    const settled = unwrap(resolveDeclaredCast(fold('s', log), open.castingId, supply(-40)), 'settle');
+    const settled = unwrap(resolveDeclaredCast(fold('s', log), open.castingId!, supply(-40)), 'settle');
 
     const casts = [...open.events, ...settled.events].filter((e) => e.type === 'spell-cast');
     expect(casts).toHaveLength(1);
@@ -403,7 +403,7 @@ describe('what the window costs, and what it does not', () => {
     const log = [...TABLE, ...open.events];
     expect(fold('s', log).creatures[ENEMY]!.concentration).toBeNull();
 
-    const settled = unwrap(resolveDeclaredCast(fold('s', log), open.castingId, supply(-40)), 'settle');
+    const settled = unwrap(resolveDeclaredCast(fold('s', log), open.castingId!, supply(-40)), 'settle');
     const after = fold('s', [...log, ...settled.events]);
     expect(after.creatures[ENEMY]!.concentration?.castingId).toBe(open.castingId);
   });
@@ -531,13 +531,13 @@ describe('retrying any of the three commands changes nothing', () => {
     const log = [...TABLE, ...open.events];
 
     const settled = unwrap(
-      resolveDeclaredCast(fold('s', log), open.castingId, supply(-40), { commandId: 'settle-1' }),
+      resolveDeclaredCast(fold('s', log), open.castingId!, supply(-40), { commandId: 'settle-1' }),
       'settle',
     );
     const done = [...log, ...settled.events];
     const after = fold('s', done);
 
-    const retry = unwrap(resolveDeclaredCast(after, open.castingId, supply(-40), { commandId: 'settle-1' }), 'retry');
+    const retry = unwrap(resolveDeclaredCast(after, open.castingId!, supply(-40), { commandId: 'settle-1' }), 'retry');
     expect(retry.events).toEqual([]);
     expect(retry.castingId).toBe(open.castingId);
     expect(fold('s', [...done, ...retry.events])).toEqual(after);
@@ -594,7 +594,7 @@ describe('the window is a window, not a standing permission', () => {
   it('cannot counter a casting that has already settled', () => {
     const open = unwrap(declareHoldPerson(TABLE), 'declare');
     const log = [...TABLE, ...open.events];
-    const settled = unwrap(resolveDeclaredCast(fold('s', log), open.castingId, supply(-40)), 'settle');
+    const settled = unwrap(resolveDeclaredCast(fold('s', log), open.castingId!, supply(-40)), 'settle');
     const after = [...log, ...settled.events];
 
     const late = resolveSpell(
@@ -787,7 +787,7 @@ describe('the window is a window, not a standing permission', () => {
     const confused = resolveSpell(
       fold('s', log),
       WIZARD,
-      { spellId: 'fireball', targets: [], at, slotLevel: 3, answers: open.castingId },
+      { spellId: 'fireball', targets: [], at, slotLevel: 3, answers: open.castingId! },
       supply(-40),
     );
     expect(isErr(confused) && confused.code).toBe('no_answer_clause');
@@ -968,7 +968,7 @@ describe('the log is the whole truth', () => {
       'counterspell',
     );
     const settled = unwrap(
-      resolveDeclaredCast(fold('s', [...TABLE, ...open.events, ...countered.events]), open.castingId, supply(-40)),
+      resolveDeclaredCast(fold('s', [...TABLE, ...open.events, ...countered.events]), open.castingId!, supply(-40)),
       'settle',
     );
     const log = [...TABLE, ...open.events, ...countered.events, ...settled.events];
@@ -1005,8 +1005,8 @@ describe('the log is the whole truth', () => {
     });
 
     // And a fresh fold of the same log settles to the same place.
-    const a = unwrap(resolveDeclaredCast(reloaded, open.castingId, supply(-40)), 'settle a');
-    const b = unwrap(resolveDeclaredCast(fold('s', log), open.castingId, supply(-40)), 'settle b');
+    const a = unwrap(resolveDeclaredCast(reloaded, open.castingId!, supply(-40)), 'settle a');
+    const b = unwrap(resolveDeclaredCast(fold('s', log), open.castingId!, supply(-40)), 'settle b');
     expect(a).toEqual(b);
   });
 
@@ -1068,7 +1068,7 @@ describe('the log is the whole truth', () => {
     );
     expect(isErr(resolveTurn(fold('s', [...log, ...countered.events]), supply()))).toBe(false);
 
-    const settled = unwrap(resolveDeclaredCast(fold('s', log), open.castingId, supply(-40)), 'settle');
+    const settled = unwrap(resolveDeclaredCast(fold('s', log), open.castingId!, supply(-40)), 'settle');
     expect(isErr(resolveTurn(fold('s', [...log, ...settled.events]), supply()))).toBe(false);
   });
 });

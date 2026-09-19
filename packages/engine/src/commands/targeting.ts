@@ -153,7 +153,29 @@ export interface SpellTargetOutcome {
  */
 export interface SpellResolution {
   readonly events: readonly GameEvent[];
-  readonly castingId: string;
+  /**
+   * The casting this made, or **null where the use made none**.
+   *
+   * SRD Wind Fan: "it has a cumulative 20 percent chance of not working; if
+   * the fan fails to work, it tears into useless, nonmagical tatters." The use
+   * happened — the action went, the die fell, the fan is gone — and no spell
+   * was cast, so there is no id for anything to hang on.
+   *
+   * **A failed use is an ordinary success**, in the sense a missed attack is:
+   * `AttackResolution.attack.hit === false` is the same shape, and so is
+   * `affected: false` on a {@link SpellTargetOutcome}. It is not a fourth
+   * outcome beside `ok`, `err` and `needs-context` — those three answer
+   * whether the engine could do what it was asked, and it could: it asked the
+   * dice and the dice said no. A fourth arm would land in `@ie/shared`'s
+   * `Result` and be branched on at every command in the engine, to say
+   * something only this one can say.
+   *
+   * Nothing downstream may read it without asking, which is the point of the
+   * `null` rather than an empty string: a caller that hangs an effect on a
+   * casting there is none of is a type error rather than a `cast:undefined` in
+   * a log.
+   */
+  readonly castingId: string | null;
   readonly outcomes: readonly SpellTargetOutcome[];
   /** Checks the rules call for that the engine still cannot make. */
   readonly unverified: readonly string[];

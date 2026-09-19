@@ -360,7 +360,7 @@ describe('a casting of a minute or more is declared, and completes on the clock'
     const running = fold('seed', [...log, ...settled.events]);
 
     const castingId = settled.castingId;
-    expect(running.ongoing[castingId]).toBeDefined();
+    expect(running.ongoing[castingId!]).toBeDefined();
     // The timer survived the Concentration ending in the same batch.
     expect(Object.values(running.timers).map((t) => t.target)).toContainEqual({
       kind: 'casting',
@@ -374,7 +374,7 @@ describe('a casting of a minute or more is declared, and completes on the clock'
       ...settled.events,
       ...unwrap(advanceTime(running, 3600, 'an hour of reading'), 'hour'),
     ]);
-    expect(later.ongoing[castingId]).toBeUndefined();
+    expect(later.ongoing[castingId!]).toBeUndefined();
   });
 });
 

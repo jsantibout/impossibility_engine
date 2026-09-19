@@ -272,7 +272,7 @@ describe('an item may cast a spell the book prices at nothing', () => {
     expect(castOf(out.events)?.concentration).toBe(true);
     expect(held.creatures[WIELDER]?.concentration?.castingId).toBe(out.castingId);
 
-    const record = ongoingSpellOf(held, out.castingId);
+    const record = ongoingSpellOf(held, out.castingId!);
     expect(record?.spellId).toBe('shield-of-faith');
     // SRD: "The spell is cast at the lowest possible spell and caster level."
     expect(record?.numbers.casterLevel).toBe(1);
@@ -290,7 +290,7 @@ describe('an item may cast a spell the book prices at nothing', () => {
       'dispelling the ring’s spell',
     );
     const after = fold('seed', [...log, ...dispelled.events]);
-    expect(ongoingSpellOf(after, out.castingId)).toBeNull();
+    expect(ongoingSpellOf(after, out.castingId!)).toBeNull();
     expect(after.creatures[WIELDER]?.concentration).toBeNull();
   });
 });

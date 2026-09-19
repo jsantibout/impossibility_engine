@@ -329,7 +329,7 @@ describe('a rite runs for ten minutes and the rest of the table carries on', () 
     expect(settled.events.find((e) => e.type === 'effect-scheduled')).toMatchObject({
       deadline: { kind: 'elapsed', at: 660 + 28_800 },
     });
-    expect(done.ongoing[settled.castingId]?.spellId).toBe('alarm');
+    expect(done.ongoing[settled.castingId!]?.spellId).toBe('alarm');
 
     // And it really ends: eight hours later there is nothing left standing.
     const after = fold('seed', [
@@ -337,7 +337,7 @@ describe('a rite runs for ten minutes and the rest of the table carries on', () 
       ...settled.events,
       ...unwrap(advanceTime(done, 28_800, 'the watch'), 'the night'),
     ]);
-    expect(after.ongoing[settled.castingId]).toBeUndefined();
+    expect(after.ongoing[settled.castingId!]).toBeUndefined();
   });
 });
 
@@ -397,8 +397,8 @@ describe('the clauses the engine still owns', () => {
    * the creature or name nobody — which is exactly `TargetRule.optional`.
    */
   it('lets Identify name the creature it touched, or name nobody', () => {
-    expect(unwrap(declare('identify'), 'an object').castingId.length).toBeGreaterThan(0);
-    expect(unwrap(declare('identify', { targets: [ALLY] }), 'a creature').castingId.length)
+    expect(unwrap(declare('identify'), 'an object').castingId!.length).toBeGreaterThan(0);
+    expect(unwrap(declare('identify', { targets: [ALLY] }), 'a creature').castingId!.length)
       .toBeGreaterThan(0);
   });
 
@@ -435,7 +435,7 @@ describe('the clauses the engine still owns', () => {
       expect(defined(spellId).untilDispelled).toBe(true);
       expect(defined(spellId).durationSeconds).toBeUndefined();
       expect(Object.keys(done.timers)).toHaveLength(0);
-      expect(done.ongoing[settled.castingId]?.spellId).toBe(spellId);
+      expect(done.ongoing[settled.castingId!]?.spellId).toBe(spellId);
     },
   );
 

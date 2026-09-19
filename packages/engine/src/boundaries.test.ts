@@ -237,7 +237,7 @@ describe('a missing fact is a request, not a refusal', () => {
   it('does not ask about sight for a spell that does not need it', () => {
     const unseen = table().filter((e) => e.type !== 'sight-declared');
     const outcome = unwrap(castOn(unseen, { spellId: 'fire-bolt', targets: [GOBLIN] }), 'cast');
-    expect(outcome.castingId.length).toBeGreaterThan(0);
+    expect(outcome.castingId!.length).toBeGreaterThan(0);
   });
 
   /** Declared unseen is an answer, and the answer is no. */
@@ -270,7 +270,7 @@ describe('a missing fact is a request, not a refusal', () => {
       castOn(answered, { spellId: 'hold-person', targets: [THUG], slotLevel: 2 }, DOOMED),
       'cast',
     );
-    expect(outcome.castingId.length).toBeGreaterThan(0);
+    expect(outcome.castingId!.length).toBeGreaterThan(0);
   });
 });
 
@@ -748,7 +748,7 @@ describe('answering a request keeps what was already established', () => {
       castOn(whole, { spellId: 'hold-person', targets: [THUG], slotLevel: 2 }, DOOMED),
       'cast',
     );
-    expect(resolved.castingId.length).toBeGreaterThan(0);
+    expect(resolved.castingId!.length).toBeGreaterThan(0);
 
     const state = fold('seed', whole);
     expect(state.creatures.thug?.creatureType).toBe('Humanoid');

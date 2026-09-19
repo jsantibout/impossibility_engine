@@ -539,7 +539,7 @@ describe('a feat-granted spell casts on the feat terms', () => {
       resolveSpell(state, WIZARD, { spellId: 'ray-of-frost', targets: [GOBLIN] }, supply(state)),
       'ray-of-frost',
     );
-    expect(out.castingId.length).toBeGreaterThan(0);
+    expect(out.castingId!.length).toBeGreaterThan(0);
   });
 });
 
@@ -577,7 +577,7 @@ describe('casting is retry-safe and replays', () => {
     const both = cast(table(), { spellId: 'hold-person', targets: [GOBLIN, OGRE], slotLevel: 3 }, DOOMED);
     const hurt: GameEvent[] = [
       ...both.log,
-      { type: 'concentration-ended', id: WIZARD, castingId: both.outcome.castingId, reason: 'dispelled' },
+      { type: 'concentration-ended', id: WIZARD, castingId: both.outcome.castingId!, reason: 'dispelled' },
     ];
     const after = fold('seed', hurt);
 

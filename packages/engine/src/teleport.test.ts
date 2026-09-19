@@ -598,7 +598,7 @@ describe('a destination is stated or refused, never defaulted', () => {
     expect(pendingCastingsOf(fold('seed', declared))).toHaveLength(1);
 
     const settled = unwrap(
-      resolveDeclaredCast(fold('seed', declared), held.castingId, supply()),
+      resolveDeclaredCast(fold('seed', declared), held.castingId!, supply()),
       'settling Dimension Door',
     );
     expect(settled.events.some((e) => e.type === 'creature-moved')).toBe(true);

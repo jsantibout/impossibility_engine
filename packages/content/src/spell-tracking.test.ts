@@ -321,7 +321,7 @@ describe('a tracked spell still obeys its target rule', () => {
     if (isErr(two)) expect(two.code).toBe('too_many_targets');
 
     const out = unwrap(cast('fly', { targets: [ALLY, FOE], slotLevel: 4 }), 'fly at 4');
-    expect(out.castingId.length).toBeGreaterThan(0);
+    expect(out.castingId!.length).toBeGreaterThan(0);
   });
 
   /** SRD Water Breathing: "up to ten willing creatures of your choice". */
@@ -1278,7 +1278,7 @@ describe('every spell this batch added is cast for real', () => {
    * not, which no wrong number sits between.
    */
   it('takes the three creatures Aid names, and refuses a fourth', () => {
-    expect(unwrap(cast('aid', { targets: [ALLY, FOE, BEAST] }), 'aid at three').castingId.length)
+    expect(unwrap(cast('aid', { targets: [ALLY, FOE, BEAST] }), 'aid at three').castingId!.length)
       .toBeGreaterThan(0);
     const four = cast('aid', { targets: [ALLY, FOE, BEAST, WIZARD] });
     expect(isErr(four)).toBe(true);

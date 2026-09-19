@@ -411,7 +411,7 @@ describe('every definition in the catalogue actually casts', () => {
     // A failed save for anything that allows one, so the interesting branch is
     // the one that runs.
     const out = castFully(spellId);
-    expect(out.castingId.length).toBeGreaterThan(0);
+    expect(out.castingId!.length).toBeGreaterThan(0);
 
     expect(out.events.length).toBeGreaterThan(0);
 

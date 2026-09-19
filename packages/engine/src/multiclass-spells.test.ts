@@ -502,7 +502,7 @@ describe('which class is casting is not the engine’s to decide', () => {
       resolveSpell(table(), MYSTIC, { spellId: 'fire-bolt', targets: [GOBLIN] }, supply()),
       'fire-bolt',
     );
-    expect(out.castingId.length).toBeGreaterThan(0);
+    expect(out.castingId!.length).toBeGreaterThan(0);
   });
 });
 

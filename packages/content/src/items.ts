@@ -346,6 +346,19 @@ const castsSpellAtWill = (
      * up would scry against whatever the person holding it happened to be.
      */
     readonly saveDc?: number;
+    /**
+     * SRD Wind Fan: "Each subsequent time the fan is used before the next
+     * dawn, it has a cumulative 20 percent chance of not working; if the fan
+     * fails to work, it tears into useless, nonmagical tatters."
+     *
+     * A clause beside `atWill` rather than a price, and the two say different
+     * things: the fan costs nothing to use, and using it is not free of
+     * consequence. A pool would have said the second badly — running out is a
+     * refusal, and what the book prints is a die and a torn fan.
+     */
+    readonly failsCumulatively?: NonNullable<
+      Extract<ItemGrant, { kind: 'casts' }>['failsCumulatively']
+    >;
   } = {},
 ): ItemGrant => ({ kind: 'casts', spell, atWill: true, ...extra });
 
@@ -2177,6 +2190,55 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
       unmodelled: [
         'what an ounce dissolves: "Each ounce instantly dissolves up to 1 square foot of adhesive it touches" — an adhesive is not a state the engine holds, so the ounce is spent and the dissolving is the table\'s',
         '"onto a surface within reach": the reach here is an arm\'s rather than a weapon\'s — nothing is targeted, no roll is made, and the engine\'s ruler is never asked',
+      ],
+    },
+  ),
+
+  // ── the item that can fail ───────────────────────────────────────────────
+  //
+  // One entry, and the only one in the book whose use may simply not work.
+  // What kept it out was never its spell — Gust of Wind has been defined and
+  // tracked since the tracked definitions landed — but the die behind "a
+  // cumulative 20 percent chance", and the count of uses that die is rolled
+  // against. Both are the engine's now: a tally, which is a pool with no size
+  // and so nothing that can refuse, and an outcome on the resolution rather
+  // than a fourth kind of answer.
+  wornItem(
+    { id: 'wind-fan', name: 'Wind Fan', kind: 'wondrous' },
+    {
+      /**
+       * SRD Wind Fan: "Wondrous Item, Uncommon. While holding this fan, you
+       * can cast _Gust of Wind_ (save DC 13) from it. Each subsequent time the
+       * fan is used before the next dawn, it has a cumulative 20 percent
+       * chance of not working; if the fan fails to work, it tears into
+       * useless, nonmagical tatters."
+       *
+       * **Every word of it, and the second sentence is the interesting one.**
+       * The first is the Crystal Ball's shape — a casting the book prices at
+       * nothing, against a DC the item prints rather than its holder's — and
+       * no bracket on the type line, so anybody may pick the fan up.
+       *
+       * The second is a **count** and a **chance**, and it is why the fan is
+       * not a pool of five. A pool would refuse the sixth use with nothing
+       * left to spend; the book rolls for the sixth at a hundred percent and
+       * tears the fan in half. So the uses are tallied under the key below and
+       * zeroed at the next declared dawn, and the percentage is rolled against
+       * `1d100` before the spell is cast at all — a failed use costs the
+       * holder the action and the fan, and makes no casting.
+       */
+      grants: [
+        castsSpellAtWill('gust-of-wind', {
+          saveDc: 13,
+          failsCumulatively: {
+            percent: 20,
+            key: 'wind-fan:uses',
+            recovers: 'dawn',
+            destroyed: true,
+          },
+        }),
+      ],
+      unmodelled: [
+        'two fans in one pack share one count of uses: the count is keyed to the copy wherever a copy has a record, and only an item with a charge pool is given one when it is gained — the fan has no charges at all, so its copies are the stack they have always been',
       ],
     },
   ),

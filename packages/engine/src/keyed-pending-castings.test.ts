@@ -194,8 +194,8 @@ const twoCasters = () => {
   const first = unwrap(holdPerson(world(), WIZARD, 'a'), 'first');
   const second = unwrap(bless(world(first.events), ENEMY, 'b'), 'second');
   return {
-    firstId: first.castingId,
-    secondId: second.castingId,
+    firstId: first.castingId!,
+    secondId: second.castingId!,
     log: [...first.events, ...second.events],
   };
 };
@@ -439,8 +439,8 @@ describe('two pending castings belonging to one caster', () => {
       'shield',
     );
     return {
-      riteId: declared.castingId,
-      shieldId: shield.castingId,
+      riteId: declared.castingId!,
+      shieldId: shield.castingId!,
       log: [...declared.events, ...begun, hit, ...shield.events],
     };
   };
@@ -598,7 +598,7 @@ describe('two pending castings belonging to one caster', () => {
     // The wizard's own first turn: the rite is kept at, and the turn passes.
     const opened = [...declared.events, ...begun];
     const kept = unwrap(
-      continueCasting(world(opened), WIZARD, declared.castingId, { commandId: 'keep-1' }),
+      continueCasting(world(opened), WIZARD, declared.castingId!, { commandId: 'keep-1' }),
       'keep at it',
     );
     const carried = [...opened, ...kept];
@@ -606,7 +606,7 @@ describe('two pending castings belonging to one caster', () => {
       ...carried,
       ...unwrap(resolveTurn(world(carried), supply('turn')), 'on to the ally').events,
     ];
-    return { riteId: declared.castingId, log: turned };
+    return { riteId: declared.castingId!, log: turned };
   };
 
   it('holds a Shield open beside a rite on another creature’s turn', () => {
@@ -654,7 +654,7 @@ describe('two pending castings belonging to one caster', () => {
     const settled = unwrap(
       resolveDeclaredCast(
         world([...log, hit, ...shield.events]),
-        shield.castingId,
+        shield.castingId!,
         supply('settle-shield'),
       ),
       'settle shield',
@@ -757,7 +757,7 @@ describe('what refuses a second casting is the rule, never the record', () => {
     expect(open.combat?.budgets[WIZARD]?.action).toBe(false);
     expect(open.combat?.budgets[WIZARD]?.spellSlotSpentOnTurn).toBeNull();
 
-    const settled = unwrap(resolveDeclaredCast(open, castingId, supply('settle', -40)), 'settle');
+    const settled = unwrap(resolveDeclaredCast(open, castingId!, supply('settle', -40)), 'settle');
     const after = fold('seed', [...log, ...settled.events]);
     expect(after.combat?.budgets[WIZARD]?.spellSlotSpentOnTurn).toBe(after.combat?.turnsTaken);
 
@@ -792,7 +792,7 @@ describe('what refuses a second casting is the rule, never the record', () => {
     const second = unwrap(bless(holding, WIZARD, 'b'), 'bless');
     const after = world([...first.events, ...second.events]);
     expect(after.creatures.wizard!.concentration).toBeNull();
-    expect(after.ongoing[first.castingId]).toBeUndefined();
+    expect(after.ongoing[first.castingId!]).toBeUndefined();
     expect(Object.keys(after.pendingCastings)).toEqual([second.castingId]);
   });
 });
@@ -808,13 +808,13 @@ describe('settling a declared casting addresses one casting id', () => {
     const held = unwrap(holdPerson(world(), WIZARD, 'a'), 'hold');
     const open = world(held.events);
     const settled = unwrap(
-      resolveDeclaredCast(open, held.castingId, supply('s', -40), { commandId: 'settle-1' }),
+      resolveDeclaredCast(open, held.castingId!, supply('s', -40), { commandId: 'settle-1' }),
       'settle',
     );
     const after = world([...held.events, ...settled.events]);
 
     const again = unwrap(
-      resolveDeclaredCast(after, held.castingId, supply('s', -40), { commandId: 'settle-1' }),
+      resolveDeclaredCast(after, held.castingId!, supply('s', -40), { commandId: 'settle-1' }),
       'retry',
     );
     expect(again.events).toEqual([]);

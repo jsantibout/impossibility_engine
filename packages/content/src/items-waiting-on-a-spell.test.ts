@@ -407,7 +407,7 @@ describe('the boots nothing stops any more', () => {
 
     expect(castOf(out.events)?.concentration).toBe(true);
     expect(castOf(out.events)?.slotless).toBe('magic-item');
-    expect(ongoingSpellOf(fold('seed', [...worn, ...out.events]), out.castingId)).not.toBeNull();
+    expect(ongoingSpellOf(fold('seed', [...worn, ...out.events]), out.castingId!)).not.toBeNull();
   });
 
   /**
@@ -485,7 +485,7 @@ describe('a Crystal Ball scrys, and the two that scry and do more', () => {
 
     const { log: settled, out } = castFrom('crystal-ball', 'scrying');
     expect(castOf(out.events)?.slotless).toBe('magic-item');
-    const record = ongoingSpellOf(fold('seed', settled), out.castingId);
+    const record = ongoingSpellOf(fold('seed', settled), out.castingId!);
     // "(save DC 17)" is the orb's number, and the bearer has no spellcasting
     // ability at all to have supplied one.
     expect(record?.numbers.saveDc).toBe(17);
@@ -500,7 +500,7 @@ describe('a Crystal Ball scrys, and the two that scry and do more', () => {
   it('scrys off the Crystal Ball of True Seeing against the orb’s own seventeen', () => {
     const { log, out } = castFrom('crystal-ball-of-true-seeing', 'scrying');
     expect(castOf(out.events)?.slotless).toBe('magic-item');
-    expect(ongoingSpellOf(fold('seed', log), out.castingId)?.numbers.saveDc).toBe(17);
+    expect(ongoingSpellOf(fold('seed', log), out.castingId!)?.numbers.saveDc).toBe(17);
     expect(
       SRD_CONTENT.item('crystal-ball-of-true-seeing')?.unmodelled?.join(' '),
       'the Truesight says where it is centred',
@@ -511,7 +511,7 @@ describe('a Crystal Ball scrys, and the two that scry and do more', () => {
   it('reads minds off the Crystal Ball of Mind Reading', () => {
     const { log, out } = castFrom('crystal-ball-of-mind-reading', 'detect-thoughts');
     expect(castOf(out.events)?.slotless).toBe('magic-item');
-    const record = ongoingSpellOf(fold('seed', log), out.castingId);
+    const record = ongoingSpellOf(fold('seed', log), out.castingId!);
     expect(record?.numbers.saveDc).toBe(17);
   });
 
@@ -524,7 +524,7 @@ describe('a Crystal Ball scrys, and the two that scry and do more', () => {
     const { log, out } = castFrom(BALL, 'suggestion', { targets: [OTHER] });
     expect(castOf(out.events)?.slotless).toBe('magic-item');
     expect(left(log, BALL)).toBe(0);
-    expect(ongoingSpellOf(fold('seed', log), out.castingId)?.numbers.saveDc).toBe(17);
+    expect(ongoingSpellOf(fold('seed', log), out.castingId!)?.numbers.saveDc).toBe(17);
 
     // The Scrying beside it is free, and the spent Suggestion has not touched
     // it — which is the whole reason the two grants are priced separately.
@@ -564,7 +564,7 @@ describe('a Cube of Force presses six faces', () => {
   it('spends four charges on Resilient Sphere', () => {
     const { log, out } = castFrom(CUBE, 'resilient-sphere', { targets: [OTHER] });
     expect(left(log, CUBE)).toBe(6);
-    expect(ongoingSpellOf(fold('seed', log), out.castingId)?.numbers.saveDc).toBe(17);
+    expect(ongoingSpellOf(fold('seed', log), out.castingId!)?.numbers.saveDc).toBe(17);
   });
 
   /** And three on a hut, which is a rite of a minute rather than an Action. */
@@ -617,7 +617,7 @@ describe('a Medallion of Thoughts casts Detect Thoughts', () => {
   it('spends one of five against the medallion’s own thirteen', () => {
     const { log, out } = castFrom('medallion-of-thoughts', 'detect-thoughts');
     expect(left(log, 'medallion-of-thoughts')).toBe(4);
-    expect(ongoingSpellOf(fold('seed', log), out.castingId)?.numbers.saveDc).toBe(13);
+    expect(ongoingSpellOf(fold('seed', log), out.castingId!)?.numbers.saveDc).toBe(13);
   });
 });
 
@@ -1206,7 +1206,7 @@ describe('the four wands whose remainder was a note', () => {
     expect(left(held, 'wand-of-polymorph')).toBe(7);
     const { log, out } = castFrom('wand-of-polymorph', 'polymorph', { targets: [OTHER] });
     expect(castOf(out.events)?.slotless).toBe('magic-item');
-    expect(ongoingSpellOf(fold('seed', log), out.castingId)?.numbers.saveDc).toBe(15);
+    expect(ongoingSpellOf(fold('seed', log), out.castingId!)?.numbers.saveDc).toBe(15);
     expect(left(log, 'wand-of-polymorph')).toBe(6);
   });
 

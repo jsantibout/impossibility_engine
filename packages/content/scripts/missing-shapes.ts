@@ -5579,12 +5579,13 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     unread:
       'read, and the blocker cannot be named without inventing a shape. A two-way portal between planes is neither an area, nor an object with statistics, nor a teleport destination stated at a casting, and nothing in this repository has described a planar portal as a gap. It is not fiction either — creatures pass through it — so it may not be filed as the table’s.',
   },
-  // Re-pointed twice over. Gust of Wind is defined and tracked, so the
-  // casting is writable; and what the fan really keeps is not an identity
-  // but a die — "a cumulative 20 percent chance of not working" — which the
-  // spell map already names. The count of uses since dawn behind that
-  // percentage is a pool; the percentage is not.
-  'wind-fan': ['a-random-outcome-that-is-not-a-d20'],
+  // The Wind Fan is transcribed. It was re-pointed twice before it was built:
+  // Gust of Wind is defined and tracked, so the casting was always writable,
+  // and what was left was the die behind "a cumulative 20 percent chance of
+  // not working" and the count of uses it is rolled against. The count is a
+  // tally — a pool with no size, which is what let the sixth use roll at a
+  // hundred instead of being refused — and the die is a `1d100` the engine
+  // throws before the spell is cast at all.
   'winged-boots': [
     'a-speed-an-item-grants',
     'movement-modes',

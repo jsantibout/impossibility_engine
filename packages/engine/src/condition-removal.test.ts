@@ -303,7 +303,7 @@ describe('Protection from Poison ends the Poisoned condition', () => {
     const next = fold('seed', [...SETUP, applied('poisoned', 'a wyvern'), ...out.events]);
 
     expect(Object.keys(next.ongoing)).toContain(out.castingId);
-    expect(spellOn(next, next.ongoing[out.castingId]!)).toEqual([ALLY]);
+    expect(spellOn(next, next.ongoing[out.castingId!]!)).toEqual([ALLY]);
   });
 
   /** Lesser Restoration is Instantaneous, so it leaves no record at all. */

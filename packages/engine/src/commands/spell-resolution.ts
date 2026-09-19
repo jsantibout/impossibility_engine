@@ -36,7 +36,15 @@
  * each kind a separate function over one gathered context.
  */
 
-import { CONFERRED_LEVEL, itemSource } from '../catalogue.js';
+import {
+  CONFERRED_LEVEL,
+  cumulativeChance,
+  itemCasting,
+  itemFailureCount,
+  itemSource,
+} from '../catalogue.js';
+import { spendAction, spendBonusAction, spendReaction } from '../combat.js';
+import { rollRecorded } from '../rolls.js';
 import { type CommandIdentity, commandOutcome, once } from '../idempotency.js';
 import {
   type Ability,
@@ -58,7 +66,7 @@ import {
 } from '../events.js';
 import { ONGOING_RECORD_VERSION } from '../ongoing-compatibility.js';
 import { type Placement, type Point, type PointAnchoring } from '../positioning.js';
-import { remaining } from '../resources.js';
+import { remaining, tallied } from '../resources.js';
 import {
   creatureTypesRead,
   delayedDuration,
@@ -350,11 +358,18 @@ export function castOrRelease(
   return once(state, `resolve-spell:${casterId}`, castingIdentity(request), () => {
     // The casting it already made is the one to report; `nextCastingId` would
     // name the casting that *would* come next, which is a different spell.
+    //
+    // **Including where it made none.** A use of a Wind Fan that tore records
+    // `castingId: null` in the ledger, because the event it stamped was the
+    // loss rather than a `spell-cast` — and a retry has to say the same thing.
+    // Reading the ledger's `null` as "nothing remembered" and answering with
+    // the next id would hand a caller the id of a casting that has not
+    // happened, for a command that already landed and never will.
     const already =
       request.commandId === undefined ? null : commandOutcome(state, request.commandId);
     return {
       events: [],
-      castingId: already?.castingId ?? nextCastingId(state),
+      castingId: already === null ? nextCastingId(state) : already.castingId,
       outcomes: [],
       unverified: [],
     };
@@ -806,6 +821,181 @@ export function castingOf(
   };
 }
 
+/** SRD writes these chances as percentages, so the die has a hundred faces. */
+const FAILURE_DIE = '1d100';
+
+/** Nothing happened, which is what using an item that cannot fail comes to. */
+const WORKED = { events: [] as readonly GameEvent[], torn: false };
+
+/**
+ * Whether the item this casting comes from **works at all**, and what it costs
+ * when it does not.
+ *
+ * SRD Wind Fan: "Each subsequent time the fan is used before the next dawn, it
+ * has a cumulative 20 percent chance of not working; if the fan fails to work,
+ * it tears into useless, nonmagical tatters." Two mechanisms in one sentence
+ * and neither of them is a casting: a count of uses, and a die thrown against
+ * it before the spell is cast at all.
+ *
+ * **The use is counted whether it works or not**, because the book counts uses
+ * rather than successes — and the count is a tally rather than a pool, so
+ * there is nothing here that can refuse. See `Tally` in `resources.ts`.
+ *
+ * **The die is thrown where the charge is spent**: after every validation and
+ * before the first die of the spell itself. That is the line this file's own
+ * docstring already draws for a charge, and the fan's percentage sits on it for
+ * the same reason — everything that can refuse has refused, so a failure is an
+ * outcome rather than a refusal that arrived late.
+ *
+ * **Not thrown at all on the first use**, where the chance is zero. A die
+ * thrown for an outcome that is already decided moves the generator for
+ * nothing, which is the quiet way a replay stops matching — the same rule that
+ * keeps `declareDawn` from rolling for a pool with nothing spent.
+ *
+ * **The action is settled before the die and spent on the way out.** A failed
+ * use still costs its user the Magic action — the fan was waved — and the
+ * ordinary path spends that inside `resolveCastWith`, which a failure never
+ * reaches. So the economy is asked here first, where a refusal ("it is not your
+ * turn") still costs no die and no fan, and the event it hands back is either
+ * pushed by the failure or dropped for the casting to spend properly.
+ *
+ * **And the fan leaves the hand it was held in.** `items-lost` takes the copy
+ * off the inventory and no more; a torn fan left standing in `equipped` would
+ * be a route `itemRoute` still finds, and the tatters would go on casting.
+ */
+function itemFailure(
+  state: GameState,
+  casterId: CharacterId,
+  caster: CreatureState,
+  definition: SpellDefinition,
+  route: CastingRoute,
+  castingTime: CastingTime,
+  supply: Supply,
+  stamp: CommandStamp | null,
+): Result<{ readonly events: readonly GameEvent[]; readonly torn: boolean }> {
+  if (route.kind !== 'item') return ok(WORKED);
+  const item = supply.content.item(route.item);
+  const grant = item === null ? null : itemCasting(item, definition.id);
+  // Both were read by `itemRoute` before this casting had a route at all, so
+  // neither miss is reachable; answering "it worked" is what a reader of an
+  // item that says nothing about failing gets, and there is nothing else true
+  // to say.
+  if (item === null || grant === null) return ok(WORKED);
+
+  const held = caster.equipped.find((worn) => worn.id === item.id);
+  const counting = itemFailureCount(grant, held?.instance);
+  if (counting === null) return ok(WORKED);
+
+  const chance = cumulativeChance(counting.percentEach, tallied(caster.resources, counting.key));
+  const counted: GameEvent = {
+    type: 'resource-spent',
+    id: casterId,
+    key: counting.key,
+    amount: 1,
+    tally: counting.recovers,
+  };
+  if (chance <= 0) return ok({ events: [counted], torn: false });
+
+  const economy = castingEconomy(state, casterId, caster, castingTime);
+  if (!economy.ok) return economy;
+
+  const issuedBefore = supply.issuer.count;
+  const thrown = rollRecorded(supply.issuer, supply.rng, FAILURE_DIE);
+  if (!thrown.ok) return thrown;
+
+  // A percentage is the chance of *failing*, so the roll fails at or under it
+  // — and a hundred takes every face of the die, which is what the sixth wave
+  // of a Wind Fan is.
+  const torn = thrown.value.total <= chance;
+  const rolled: readonly GameEvent[] = [
+    {
+      type: 'roll-recorded',
+      who: casterId,
+      label: `${item.name} works (${FAILURE_DIE} against ${chance}%)`,
+      natural: thrown.value.total,
+      total: thrown.value.total,
+      contributions: [],
+      outcome: torn ? 'it fails' : 'it works',
+    },
+    {
+      type: 'rolls-issued',
+      count: supply.issuer.count - issuedBefore,
+      rng: supply.rng.snapshot(),
+    },
+  ];
+  if (!torn) return ok({ events: [counted, ...rolled], torn: false });
+
+  // **The stamp rides the loss**, because it is the one event a failed use
+  // always writes: the action exists only in combat and the count is not this
+  // command's to answer for. A batch carrying no stamped event is a command
+  // the fold never records, and the retry would wave the fan again.
+  return ok({
+    events: [
+      ...(economy.value === null ? [] : [economy.value]),
+      counted,
+      ...rolled,
+      ...(held === undefined
+        ? []
+        : [{ type: 'item-unequipped' as const, id: casterId, item: item.id }]),
+      {
+        type: 'items-lost',
+        id: casterId,
+        items: [
+          {
+            id: item.id,
+            quantity: 1,
+            ...(held?.instance === undefined ? {} : { instance: held.instance }),
+          },
+        ],
+        source: `${item.name}, which failed to work`,
+        ...(stamp === null ? {} : { command: stamp }),
+      },
+    ],
+    torn: true,
+  });
+}
+
+/**
+ * The action, Bonus Action or Reaction a casting spends, or null outside
+ * combat — worked out **without spending it**.
+ *
+ * The same three-way `resolveCastWith` takes, asked ahead of time by the one
+ * path that has to know the answer before it has decided whether there will be
+ * a casting to spend it on. Pure, so asking twice costs nothing: a use that
+ * works drops this and lets the casting spend the action itself, through the
+ * call that owns it.
+ *
+ * **Every casting route is the Magic action**, which is why the name travels
+ * with all three — SRD Befuddlement forbids "casting spells" rather than an
+ * Action, and a fan waved by somebody who cannot cast is not waved.
+ */
+function castingEconomy(
+  state: GameState,
+  casterId: CharacterId,
+  caster: CreatureState,
+  castingTime: CastingTime,
+): Result<GameEvent | null> {
+  const combat = state.combat;
+  if (combat === null || combat.budgets[casterId] === undefined) return ok(null);
+
+  const spend = { rules: caster.actionRules, as: 'magic' as const };
+  const spent =
+    castingTime === 'reaction'
+      ? spendReaction(combat, casterId, caster.conditions, spend)
+      : castingTime === 'bonus-action'
+        ? spendBonusAction(combat, casterId, caster.conditions, spend)
+        : spendAction(combat, casterId, caster.conditions, spend);
+  if (!spent.ok) return spent;
+
+  return ok(
+    castingTime === 'reaction'
+      ? { type: 'reaction-spent', id: casterId }
+      : castingTime === 'bonus-action'
+        ? { type: 'bonus-action-spent', id: casterId }
+        : { type: 'action-spent', id: casterId },
+  );
+}
+
 /**
  * Pay for the casting and apply its effects to the targets already settled.
  *
@@ -998,6 +1188,37 @@ function resolveOnTargets(
       );
     }
     events.push({ type: 'resource-spent', id: casterId, key: charge.key, amount: charge.amount });
+  }
+
+  // **And whether the item works at all**, which stands exactly where the
+  // charge stands and for the same reason: after every validation, before the
+  // first die of the spell. SRD Wind Fan's "cumulative 20 percent chance of not
+  // working" is the only line in the book that reaches here, and what it can
+  // produce is an *outcome* rather than a refusal — the use happened, the fan
+  // tore, and no casting came of it.
+  const attempt = itemFailure(
+    state,
+    casterId,
+    caster,
+    definition,
+    route,
+    casting.castingTime,
+    supply,
+    stamp,
+  );
+  if (!attempt.ok) return attempt;
+  events.push(...attempt.value.events);
+  if (attempt.value.torn) {
+    // No casting id, because there is no casting: nothing was cast, nothing is
+    // running, and a caller that tries to hang an effect on this is stopped by
+    // the type rather than by a `cast:undefined` in a log.
+    //
+    // **And nothing unverified**, though the definition has plenty. What that
+    // list carries is the clauses of *this casting* a DM still has to apply —
+    // Gust of Wind's unrolled Strength save, its untemplated Line — and handing
+    // them to a narrator who has just been told the fan tore would be homework
+    // for a spell nobody cast.
+    return ok({ events, castingId: null, outcomes: [], unverified: [] });
   }
 
   // The identity is the wrapper's: `castOrRelease` established it over the

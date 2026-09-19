@@ -183,7 +183,7 @@ class Game {
       `declaring ${spellId}`,
     );
     this.push(out.events);
-    return { castingId: out.castingId, events: out.events };
+    return { castingId: out.castingId!, events: out.events };
   }
 
   /** Cast the same spell in one breath, which is the path that already works. */
@@ -201,7 +201,7 @@ class Game {
       `casting ${spellId}`,
     );
     this.push(out.events);
-    return { castingId: out.castingId, events: out.events };
+    return { castingId: out.castingId!, events: out.events };
   }
 
   /** These fixtures hold exactly one casting open, and settle it by its id. */

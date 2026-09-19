@@ -829,7 +829,7 @@ const held = run(
 );
 run(
   'and it lands',
-  resolveDeclaredCast(state(), held.castingId, supply(-40), { commandId: 'vex-settle-2' }),
+  resolveDeclaredCast(state(), held.castingId!, supply(-40), { commandId: 'vex-settle-2' }),
 );
 
 // — Dispel Magic, which reads the level of what it is dispelling ——————————————
@@ -1012,7 +1012,7 @@ run(
     state(),
     THORN,
     {
-      castingId: beam.castingId,
+      castingId: beam.castingId!,
       targets: [],
       to: { x: 275, y: LANE, z: 0 },
       via: [

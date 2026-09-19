@@ -319,6 +319,31 @@ const wandInHand = (attune: boolean): readonly GameEvent[] => {
 const FIREBALL_WAND = wandInHand(true);
 const UNATTUNED_WAND = wandInHand(false);
 
+/**
+ * SETUP, plus a Wind Fan in A's hand that has already been waved five times
+ * today — so the next wave rolls at a hundred percent and tears it.
+ *
+ * The one command in the engine that can succeed without making a casting, and
+ * the reason it is here: a failed use is an ordinary `ok` carrying
+ * `castingId: null`, which makes it exactly the shape a retry can get wrong.
+ * The stamp rides the loss rather than a `spell-cast`, and the ledger has to
+ * remember that no casting came of it.
+ *
+ * The five uses are written rather than played, because uses two through five
+ * fail on a percentage and a fixture that waved the fan five times would be a
+ * fixture about the seed.
+ */
+const TORN_NEXT: readonly GameEvent[] = [
+  ...held(SETUP, 'wind-fan'),
+  ...Array.from({ length: 5 }, () => ({
+    type: 'resource-spent' as const,
+    id: A,
+    key: 'wind-fan:uses',
+    amount: 1,
+    tally: 'dawn' as const,
+  })),
+];
+
 /** What is left in the Wand of Fireballs, for the refusals that must not touch it. */
 const wandCharges = (log: readonly GameEvent[]): number =>
   chargesLeft(fold('s', log), SRD_CONTENT, A, 'wand-of-fireballs');
@@ -1047,13 +1072,13 @@ const STRANDED: readonly GameEvent[] = (() => {
         id: id('a-summoned-thing'),
         monster: ZOMBIE,
         by: A,
-        castingId: cast.castingId,
+        castingId: cast.castingId!,
         initiative: 14,
       }),
       'the summons',
     ).events,
   ];
-  return [...log, ...unwrap(endOngoingSpell(fold('s', log), A, cast.castingId, null), 'the end')];
+  return [...log, ...unwrap(endOngoingSpell(fold('s', log), A, cast.castingId!, null), 'the end')];
 })();
 
 const GUARDED: readonly Guarded[] = [
@@ -1318,6 +1343,19 @@ const GUARDED: readonly Guarded[] = [
     name: 'resolveDeclaredCast',
     log: declaring(),
     run: (s, commandId) => resolveDeclaredCast(s, DECLARED_CASTING, supply(), { commandId }),
+  },
+  /**
+   * The same command on the one exit that makes no casting: the Wind Fan that
+   * fails to work. A retry has no `spell-cast` to recover an id from and a fan
+   * that is already in tatters, so an unguarded one would answer `not_equipped`
+   * for a command that landed — the exact confusion command ids exist to
+   * prevent.
+   */
+  {
+    name: 'resolveSpell (a use of an item that fails)',
+    log: TORN_NEXT,
+    run: (s, commandId) =>
+      resolveSpell(s, A, { spellId: 'gust-of-wind', targets: [], item: 'wind-fan', commandId }, supply()),
   },
   {
     name: 'resolveEffectCheck',

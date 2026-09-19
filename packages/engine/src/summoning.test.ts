@@ -189,7 +189,7 @@ class Game {
       `${who} casting ${spellId}`,
     );
     this.push(out.events);
-    return out.castingId;
+    return out.castingId!;
   }
 
   fight(): this {

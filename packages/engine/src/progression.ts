@@ -698,6 +698,47 @@ export type FeatureGrant =
       readonly saveDc?: number;
       /** SRD Circlet of Blasting: "(+5 to hit)", read the same way. */
       readonly attackBonus?: number;
+      /**
+       * That using it gets likelier to **fail** the more it is used, and that
+       * failing destroys it.
+       *
+       * SRD Wind Fan: "Each subsequent time the fan is used before the next
+       * dawn, it has a cumulative 20 percent chance of not working; if the fan
+       * fails to work, it tears into useless, nonmagical tatters."
+       *
+       * **A count, not a pool.** The chance is `percent` times the number of
+       * uses *before* this one, so the first use never fails and the sixth
+       * rolls at a hundred. A pool of five would have refused the sixth with
+       * nothing left to spend, where the book has it rolled for and the fan
+       * torn — which is the whole of why `Tally` exists. The uses are counted
+       * under {@link key}, and {@link recovers} is what starts the count again
+       * ("before the next dawn").
+       *
+       * **Failing is an outcome and not a refusal.** The use happened, the
+       * action went, the die fell and there is no casting: the resolution
+       * comes back with `castingId: null`, exactly as a missed attack comes
+       * back with `hit: false`. Nothing about it is retryable.
+       */
+      readonly failsCumulatively?: {
+        /** SRD Wind Fan: "a cumulative **20 percent** chance of not working". */
+        readonly percent: number;
+        /** What the uses are counted under — a tally's key, as a pool's is. */
+        readonly key: string;
+        /** SRD Wind Fan: "before the next **dawn**", which zeroes the count. */
+        readonly recovers: Recovery;
+        /**
+         * That a failed use destroys the item: "it tears into useless,
+         * nonmagical tatters".
+         *
+         * Stated rather than assumed, because it is the *consequence* and not
+         * the chance. Augury prints the same cumulative percentage and pays
+         * for it with a wrong answer instead, so an item that fails some other
+         * way is a field beside this one rather than a new mechanism — and a
+         * clause that said nothing about the cost would be a fan that failed
+         * and stayed whole.
+         */
+        readonly destroyed: true;
+      };
     }
   /**
    * What the item does **without casting anything**.

@@ -623,6 +623,48 @@ function itemCastsProblems(
     }
   }
 
+  // **A use that can fail, and the count behind the chance.**
+  //
+  // SRD Wind Fan: "Each subsequent time the fan is used before the next dawn,
+  // it has a cumulative 20 percent chance of not working; if the fan fails to
+  // work, it tears into useless, nonmagical tatters." Three fields and a rule
+  // for each: a percentage a die can be rolled against, a key to count the
+  // uses under, and what failing costs — which is stated rather than assumed,
+  // because an item that failed and stayed whole would be a better item than
+  // the book prints.
+  const failing = grant.failsCumulatively;
+  if (failing !== undefined) {
+    if (!Number.isInteger(failing.percent) || failing.percent < 1 || failing.percent > 100) {
+      say(
+        'bad_failure_chance',
+        `a cumulative chance of not working is a percentage from 1 to 100, and ${item.id} names ${String(failing.percent)}`,
+        `${at}.failsCumulatively.percent`,
+      );
+    }
+    if (!isString(failing.key) || failing.key.trim() === '') {
+      say(
+        'bad_failure_key',
+        `${item.id} counts the uses behind its chance of failing, and names nothing to count them under`,
+        `${at}.failsCumulatively.key`,
+      );
+    } else if (itemChargePool(item)?.key === failing.key) {
+      // One name never means two things: the fold spends a pool and counts a
+      // tally, and a key that is both is a log it cannot read either way.
+      say(
+        'failure_key_is_a_pool',
+        `${item.id} counts its uses under ${failing.key}, which is also its charge pool; a count of uses and a pool of charges cannot share a name`,
+        `${at}.failsCumulatively.key`,
+      );
+    }
+    if (failing.destroyed !== true) {
+      say(
+        'failure_costs_nothing',
+        `${item.id} can fail to work and says nothing about what that costs; the SRD's one such item tears into tatters, and a failure with no consequence is a better item than the book prints`,
+        `${at}.failsCumulatively.destroyed`,
+      );
+    }
+  }
+
   // The charges come out of the item's own pool, which is the mechanism
   // `resources.ts` named "a magic item with seven charges" on the day it was
   // written. An item that casts for a price and declares no pool has an

@@ -1281,7 +1281,7 @@ describe('a casting of a minute or more, and the Ritual that is one', () => {
       'declare',
     );
     const open = peace(declared.events);
-    expect(refusal(resolveDeclaredCast(open, declared.castingId, supply()))).toBe('still_casting');
+    expect(refusal(resolveDeclaredCast(open, declared.castingId!, supply()))).toBe('still_casting');
   });
 
   /** A spell the book does not tag as a Ritual has no Ritual version. */
