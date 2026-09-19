@@ -2378,7 +2378,7 @@ describe('a rider never rolls, and nothing below an effect is an effect', () => 
 });
 
 /**
- * The two rules a rider carries that the type system cannot state, because one
+ * The rules a rider carries that the type system cannot state, because one
  * `ConditionRider` is shared by all four hosts — which is the whole point of
  * it, and therefore the whole reason these live here.
  */
@@ -2437,6 +2437,10 @@ describe('a rider is held to what its host can support', () => {
     expect(
       problems(host({ repeats: { at: 'end-of-turn', onSuccess: 'end-on-target' }, outlivesCasting: true })),
     ).toEqual([]);
+    // And `lasts` is not the same field wearing a different name: it shortens
+    // the casting's hold on the condition and leaves the link in the source,
+    // so there is still a casting for the success to end.
+    expect(problems(host({ repeats, lasts: { seconds: 30 } }))).toEqual([]);
   });
 
   /** And allows it on the two hosts that did roll one, or the rule is vacuous. */

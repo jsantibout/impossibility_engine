@@ -50,10 +50,13 @@ import {
  * condition running out of time.
  *
  * `end-casting` is the one thing that does not generalise: a success that ends
- * "the spell" needs a spell. It is refused at both doors — by `checkContent`
- * for a conferral and by `applyConditionTo` for a caller — rather than quietly
- * treated as `end-on-target`, because a rule silently changed is the failure
- * this whole file exists about.
+ * "the spell" needs a spell. It is refused at every door a source is settled
+ * at — `checkContent` for a conferral, `applyConditionTo` for a caller, and
+ * `checkSpellDefinition` for a rider that disowned its own casting, which
+ * `spell-schema.test.ts` holds — rather than quietly treated as
+ * `end-on-target`, because a rule silently changed is the failure this whole
+ * file exists about. The two below are this file's; the third is a
+ * definition's defect and belongs with the definitions.
  */
 
 const id = (s: string) => asCharacterId(s);

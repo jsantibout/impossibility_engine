@@ -135,7 +135,7 @@ export function applyTimers({ state, next }: Applying, event: TimersEvent): Game
       const castingId = castingIdOf(pending.source);
       if (castingId === null) {
         if (pending.onSuccess === 'end-casting') {
-          // Refused at both doors before it could ever be written — see
+          // Refused at all three doors before it could ever be written — see
           // `RepeatSave.onSuccess` — so a log that says it is a log this
           // engine did not write.
           throw new CorruptLogError(
