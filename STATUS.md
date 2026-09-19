@@ -161,6 +161,21 @@ to homebrew.
   of doing. The fact is `lastDamage`'s twin with the dealer dropped, carrying
   no height, no rate and no landing, and it closes on the same two facts every
   other window does. Feather Fall is cast against it.
+- **A caster's feature that reaches into a casting's arithmetic** — one
+  `StandingGrant` arm rather than five, because all five SRD sentences ask one
+  question at one moment about a notation already in hand: which castings do I
+  reach, and what do I do to the damage they were going to deal. An ability
+  modifier on one damage roll, a die substituted, a floor under a miss or a
+  made save, every die at its maximum. What it alters is pinned as altered, so
+  a replay throws the Ranger's d10 with no idea Foe Slayer exists, and a
+  maximised casting throws nothing at all.
+- **A guard that derives its own list** — every tool that says it establishes
+  a fact has the field that carries it, every kind the engine raises has a
+  door, every fact the engine can be told has a tool that tells it, and every
+  refusal naming a missing field is answerable through it. All four sets are
+  read out of the engine's source rather than typed into a list, so a new one
+  fails here until somebody opens the door or writes down why it stays shut.
+  Four declarations are recorded as deliberately withheld, with reasons.
 - **Replay** — a scripted four-round fight and two frozen logs fold
   byte-identically.
 
@@ -225,78 +240,109 @@ to homebrew.
   labelled with an instance when it is gained, and a fan has no charges; the
   key already goes through `instancedPoolKey`, so the day that predicate
   widens the count follows the copy with no further change.
-- **Nothing above the engine can declare a fall**, so Feather Fall is
-  uncastable from the tool surface although the engine casts it. That is the
-  fourth time a door has been found shut behind a room that was finished, after
-  the route field, the damage type and the Improvement's abilities — which is
-  a pattern rather than three accidents.
+- **No monster can be put on the board from the model's surface.** `@ie/srd`
+  parses 330 stat blocks and `addCreature` is reachable from no tool, so the
+  only creature a session can add is a character it builds. The fight driven
+  end to end through the surface is a wizard against a copy of itself, and it
+  is symmetric because it had to be.
+- **No class feature can be activated from the model's surface.** Rage, Second
+  Wind, Action Surge, Bardic Inspiration, Channel Divinity, Lay on Hands and
+  Wild Shape are all executed by the engine and reachable by nothing:
+  `activateFeature`, `useSelfHeal`, `useHealingTouch`, `useRecovery` and
+  `spendFor` are not imported there. A Rogue plays because Sneak Attack is a
+  standing grant; a Barbarian cannot rage.
+- **No reaction spell and no held casting.** `cast_spell` has no trigger
+  field and `takeDamageReaction` / `takeTestReaction` are unimported, so Shield
+  sits in the test wizard's spellbook uncast. Counterspell needs more than a
+  field: `hold` and `answers` are unoffered and a held casting also wants a
+  `resolve_declared_cast` door.
+- **No rest, no item used, nothing readied, nothing summoned** from above the
+  engine. Each is a command the engine has and the surface does not call.
+- **A feature cannot be elected on a casting.** `usingFeatures` reaches no
+  tool, so no session can spend Overchannel or add Elemental Affinity's
+  Charisma. Unlike the other shut doors this one needs a companion: a model
+  cannot elect a feature it has not been told it holds.
 - Overriding printed content with homebrew of the same id is refused; only
   adding beside it is supported.
 
 ## Next
 
-Ranked by what each shape **finishes**. That column mis-sized briefs in three
-consecutive batches, and once was wrong in the table itself — read the shape's
-own description, then check it against the book and the code, before briefing
-anything here.
+**The engine is ahead of its door, and that is now the whole of the gap.** A
+session driven by a model can run a fight — Initiative, movement over declared
+ground, attacks, spells with slots and Concentration and areas, conditions,
+opportunity attacks, turn boundaries — and the fight it can run is a wizard
+against a copy of itself, because no monster can be placed and no class
+feature can be spent. The rules under all of it are built and tested. Measured
+at level 5: 73 of 114 class features at those levels are engine-executed, and
+of the 183 SRD spells at level 3 and below, 71 are executed and 105 more are
+cast for real with their text handed to the table. Ten doors have been found
+shut; six of them on the day a guard first looked.
 
-1. **A door for every fact the engine can be told.** Four times now a room has
-   been finished and the door left shut: the `move` tool declared
-   `establishes: ['route']` with no `route` field behind it, `cast_spell` had
-   nowhere to name a damage type five spells print, `featChoice` had no
-   `abilities` so the Improvement this repository published could not be
-   taken, and `declareFalling` is reachable from no tool at all, so Feather
-   Fall is uncastable from the surface that exists to cast it. Three were
-   found by builders doing something else. **The brief is the sweep, not the
-   fourth patch**: a test that every `establishes` has a field, every engine
-   `needs-context` kind has a door, and every declared fact has a tool — then
-   whatever it finds.
-2. **A feature that changes a casting's damage.** Five features, five
-   finished; the leader of the feature map, read off the data.
-3. **Weapon mastery's buildable half.** The record of which weapons, plus
-   Graze, Cleave, Push, Slow and Topple, each routed through events that
-   already exist and written out in the shape's description. Sap and Vex are
-   no longer blocked — `oneShot` and `counterpart` landed this batch — so what
-   remains outside it is Nick (the Light property's extra attack) and the Long
-   Rest re-choice. Two wrinkles it must settle: nothing derives a bearing from
-   two positions, and creature size lives only on the map, where an undeclared
-   size silently becomes Medium with no counterpart to `isHeightDeclared`.
-4. **A condition an item imposes** — 28 blocked, 5 finished, the heaviest item
+Ranked by what each finishes.
+
+1. **A monster on the board.** One tool, plus the decision of where the stat
+   block comes from — `addCreature` takes a `Monster`, `@ie/srd` has 330 of
+   them, and the surface can reach neither. Nothing else on this list changes
+   what a session can *be* as much: until it lands, every fight is
+   player-versus-player.
+2. **A feature a session can spend.** `activateFeature`, `useSelfHeal`,
+   `useHealingTouch`, `useRecovery`, `spendFor` — four or five tools over
+   commands that already exist and are already tested. It turns Barbarian,
+   Fighter, Cleric, Bard, Paladin, Druid and Monk from characters that can be
+   built into characters that can be played. Ship `usingFeatures` in the same
+   brief, with the roster of what a character holds that a model must be told
+   before it can elect anything.
+3. **A reaction spell, and a held casting.** A trigger field on `cast_spell`
+   and doors onto `takeDamageReaction` / `takeTestReaction` gets Shield and
+   Absorb Elements. Counterspell needs `hold`, `answers` and a
+   `resolve_declared_cast` door, and is the larger half.
+4. **A rest, an item used, an action readied.** Three more commands the engine
+   has and the surface does not call. A Short Rest is what makes a Warlock and
+   a Fighter work across two fights rather than one.
+5. **Monk's Martial Arts**, the only class whose level 1 is `manual`. Unarmed
+   strikes, the growing die and Flurry are outside the attack layer, which is
+   `an-attack-the-class-redefines` — and the Monk is the one class a batch
+   cannot fix by opening a door.
+6. **A condition an item imposes** — 28 blocked, 5 finished, the heaviest item
    shape left.
-5. **Falling damage**, which `monk:slow-fall` waits on and Reverse Gravity's
-   producer needs: a damage tagged as a fall, with a height the table
-   declares. `falling` keeps two claimants until both are written.
-6. **An instance for an item with no charges.** Widening
-   `issueItemCopies`'s predicate in `commands/inventory.ts` (and the
-   `itemChargePool(item, instance)!` beneath it, which would otherwise push a
-   null) makes the Wind Fan complete rather than partial, and is the last of
-   the copy-identity work.
-7. **The Light property's extra attack.** The action economy counts one Attack
-   action, not the attacks in it. Nick is nothing without it.
+7. **Weapon mastery's buildable half** — the record, Graze, Cleave, Push, Slow
+   and Topple, all routed through events that exist. Sap and Vex are unblocked
+   now; Nick waits on the Light property's extra attack and the re-choice on
+   `an-option-re-chosen-on-a-rest`.
+8. **Falling damage**, which `monk:slow-fall` and Reverse Gravity's producer
+   both wait on. `falling` keeps two claimants until they are written.
+9. **An instance for an item with no charges**, which makes the Wind Fan
+   complete rather than partial: widen `issueItemCopies`'s predicate and the
+   `itemChargePool(item, instance)!` beneath it.
 
-### Guards that would have caught something this session
+### Guards that would have caught something
 
 - `riderDuration`'s tail is a ternary, so a **new** `RiderDuration` member
-  would compile and silently become a caster start-of-turn deadline. It
-  predates this batch and no member added since can fall through both
-  pre-flight loops, but it is exactly what a sweep should hold.
+  would compile and silently become a caster start-of-turn deadline.
 - `content.ts` validates a feature's `roll-mode` grant through the selector
-  alone, so `oneShot` is unchecked there. Meaningless on a derived standing
-  grant today; one line when the feature door is built.
-- A `SOLE`-style `it.each([])` registers zero tests and passes for ever. One
-  list held exactly one row this batch and a builder noticed while emptying
-  it; nothing would have said so.
+  alone, so `oneShot` is unchecked there.
+- A `SOLE`-style `it.each([])` registers zero tests and passes for ever.
+- `casting-damage` is legal on an **item** — `standingFor` gathers item
+  effects — and no SRD item prints the sentence, so the path is untested
+  beyond the validator.
 - `fold-import-boundary.test.ts` constructs an `ESLint` and lints text in
-  process; its first case can exceed the 5s default timeout under full-suite
-  load and passes warm. Observed independently by three agents on untouched
-  commits. A timeout on that describe block, in whichever brief next opens it.
+  process; its first case can exceed the 5s default timeout under load and
+  passes warm. Seen by four agents on untouched commits.
+
+### A trap in the worktrees, not in the code
+
+A builder worktree starts with an empty `node_modules`, so `tsc -b` for
+`packages/content` and `tools/` resolves `@ie/engine` through the **main
+checkout's** symlinks and typechecks the worktree's content against the main
+checkout's `dist`. It is silent while the two agree, which means a builder's
+own engine change can be hidden from its own typecheck. Junction all six
+(`engine, content, shared, srd, tools, llm-probe`) when the worktree is made,
+beside copying `packages/srd/src/generated/`.
 
 ### Decisions waiting on the owner
 
-None. The three from last session — the failed item-use, the grant ended by
-name, the fall as a declared fact — were answered, and all three answers
-changed the design the question assumed.
+None.
 
-Separately, and absorbed by none of the above: Augury, Divination, Commune and
-Secret Chest print a cumulative chance the tally now holds; what they still
-need is the consequence a failed one has.
+Separately, absorbed by none of the above: Augury, Divination, Commune and
+Secret Chest print a cumulative chance the tally now holds; what they need is
+the consequence a failed one has.
