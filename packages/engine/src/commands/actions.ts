@@ -9,7 +9,16 @@
 import { type CommandIdentity, once } from '../idempotency.js';
 import { type CharacterId, err, ok, type Result } from '@ie/shared';
 import { DODGE, DODGE_ACTION, READY, READY_ACTION } from '../actions.js';
-import { dash, disengage, spendAction, spendReaction, useFreeInteraction } from '../combat.js';
+import {
+  allowsPrice,
+  dash,
+  disengage,
+  spendAction,
+  spendBonusAction,
+  spendReaction,
+  useFreeInteraction,
+  type ActionSlot,
+} from '../combat.js';
 import { speedOf } from '../standing.js';
 import {
   applyEvent,
@@ -56,7 +65,10 @@ export function takeDash(
     // Validate the whole operation before any of it is emitted: the action has
     // to be there to spend, and the increase has to be one this creature can
     // actually receive.
-    const spent = spendAction(state.combat, id, creature.conditions);
+    const spent = spendAction(state.combat, id, creature.conditions, {
+      rules: creature.actionRules,
+      as: 'dash',
+    });
     if (!spent.ok) return spent;
     const dashed = dash(spent.value, id, speedOf(state, id));
     if (!dashed.ok) return dashed;
@@ -68,6 +80,22 @@ export function takeDash(
   });
 }
 
+/** Which slot the caller is offering to pay a Disengage out of. */
+export interface DisengageOptions {
+  /**
+   * SRD Conjure Woodland Beings: "you can take the Disengage action **as a
+   * Bonus Action** for the spell's duration."
+   *
+   * Absent means what the book charges, which is an Action — so an allowance
+   * a caller never invokes changes nothing, and the engine never quietly
+   * spends a slot nobody named. Stating one the caller does not hold is a
+   * rules-legal refusal (`action_not_allowed`), not a silent downgrade to the
+   * ordinary price: a caller asking for the Bonus Action wanted to keep the
+   * Action, and charging it anyway would be the wrong answer told quietly.
+   */
+  readonly from?: ActionSlot;
+}
+
 /**
  * SRD Disengage: "your movement doesn't provoke Opportunity Attacks for the
  * rest of the current turn."
@@ -76,6 +104,7 @@ export function takeDisengage(
   state: GameState,
   id: CharacterId,
   command: CommandIdentity,
+  options: DisengageOptions = {},
 ): Result<GameEvent[]> {
   return once(state, `disengage:${id}`, command, () => [], (stamp) => {
     // A mandatory effect this creature has been caught by, or a turn whose start
@@ -89,13 +118,28 @@ export function takeDisengage(
       return err('not_in_combat', 'there are no Opportunity Attacks to avoid outside combat');
     }
 
-    const spent = spendAction(state.combat, id, creature.conditions);
+    // SRD Conjure Woodland Beings: "you can take the Disengage action as a
+    // Bonus Action for the spell's duration." **The caller asks for the
+    // cheaper price and the engine rules on whether they may have it** — an
+    // allowance nobody invokes changes nothing, exactly as a Dodge nobody
+    // takes does, and the engine never spends a slot the caller did not name.
+    const from: ActionSlot = options.from ?? 'action';
+    if (from !== 'action') {
+      const allowed = allowsPrice(id, 'disengage', from, creature.actionRules);
+      if (!allowed.ok) return allowed;
+    }
+
+    const spend = { rules: creature.actionRules, as: 'disengage' as const };
+    const spent =
+      from === 'bonus-action'
+        ? spendBonusAction(state.combat, id, creature.conditions, spend)
+        : spendAction(state.combat, id, creature.conditions, spend);
     if (!spent.ok) return spent;
     const taken = disengage(spent.value, id);
     if (!taken.ok) return taken;
 
     return ok([
-      { type: 'action-spent', id },
+      { type: from === 'bonus-action' ? 'bonus-action-spent' : 'action-spent', id },
       { type: 'disengage-taken', id, ...(stamp === null ? {} : { command: stamp }) },
     ]);
   });
@@ -130,7 +174,10 @@ export function takeDodge(
 
     const events: GameEvent[] = [];
     if (state.combat !== null && state.combat.budgets[id] !== undefined) {
-      const spent = spendAction(state.combat, id, creature.conditions);
+      const spent = spendAction(state.combat, id, creature.conditions, {
+        rules: creature.actionRules,
+        as: 'dodge',
+      });
       if (!spent.ok) return spent;
       events.push({ type: 'action-spent', id });
     }
@@ -315,7 +362,9 @@ export function takeReady(
     // Validate the whole thing before any of it is emitted, casting included:
     // a Ready that refuses must leave the action, the slot and the
     // Concentration exactly as they were.
-    const spent = spendAction(state.combat, id, creature.conditions);
+    const spent = spendAction(state.combat, id, creature.conditions, {
+      rules: creature.actionRules,
+    });
     if (!spent.ok) return spent;
 
     const events: GameEvent[] = [{ type: 'action-spent', id }];
@@ -582,7 +631,9 @@ export function releaseReady(
     if (state.combat === null || state.combat.budgets[id] === undefined) {
       return err('not_in_combat', 'there is no Reaction to spend outside combat');
     }
-    const spent = spendReaction(state.combat, id, creature.conditions);
+    const spent = spendReaction(state.combat, id, creature.conditions, {
+      rules: creature.actionRules,
+    });
     if (!spent.ok) return spent;
 
     const events: GameEvent[] = [

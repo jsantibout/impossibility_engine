@@ -115,6 +115,24 @@ export function applyCombat({ state, next }: Applying, event: CombatEvent): Game
       );
     }
 
+    // **The action rules are deliberately not re-checked here, and that is a
+    // decision rather than an omission.** `spendAction` takes them and this
+    // call passes none, exactly as it passes no `conditions`: the reducer has
+    // never re-derived whether a creature was Incapacitated when it acted.
+    //
+    // The reason it must not start with *these* is the one the Speed above
+    // records with the sign reversed. A rule may narrow a slot to a named few
+    // — SRD Wind Walk, SRD Fear — and `action-spent` does not say **which**
+    // named action was taken; only the command knew. So a fold that asked
+    // would fail closed on a Dodge the command had legally permitted, and
+    // refuse the very event the command emitted. That is the Dodge-versus-
+    // Fire-Bolt fork arriving on a new field, and a backstop with inputs the
+    // command did not have is not a guard.
+    //
+    // Putting the name on the event would close it, and is not this task's:
+    // it widens `action-spent`, which every emitter and both frozen logs
+    // already write. Whoever needs the fold to hold this line should add the
+    // name there first, and then this call can ask with what the command had.
     case 'action-spent':
       return withCombat(next, state, must(event, spendAction(combatOf(state, event), event.id)));
 

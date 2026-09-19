@@ -12,6 +12,7 @@ import type { DefenseKind } from './attack.js';
 import type { Bonus, BonusApplies } from './bonuses.js';
 import type { RollModifier } from './roll-modifiers.js';
 import type { SpeedChange } from './standing.js';
+import type { ActionRule } from './combat.js';
 import type { PointAnchoring } from './positioning.js';
 import type { CastingTime } from './spells.js';
 import type { SpellReactionWindow } from './reactions.js';
@@ -402,6 +403,34 @@ export type ModifierRider =
        * Omitted, it ends with the casting — which a definition that never
        * becomes an ongoing casting may not say, and the validator refuses.
        */
+      readonly lasts?: RiderDuration;
+    }
+  /**
+   * A rule about the target's turn that the same roll imposes.
+   *
+   * SRD Stinking Cloud: "have the Poisoned condition … **While Poisoned in
+   * this way, the creature can't take an action or a Bonus Action.**" One
+   * Constitution save, a condition and a restriction — and a second effect
+   * would roll a second save for one sentence, which is the argument every
+   * member of this union makes.
+   *
+   * **It is `action` and not `action-rule`, because a rider kind may never be
+   * an effect kind.** `checkShape`'s denylist refuses a nested `kind` that is
+   * an effect kind, so a name shared between the two vocabularies would let
+   * recursion in through a collision — the same reason `buff`'s rider is
+   * `bonus`, `roll-mode`'s is `mode` and `speed`'s is `speed-change`.
+   *
+   * **The second rider that carries `lasts`**, and for exactly the reason the
+   * first does. SRD Shocking Grasp: "the target can't make Opportunity
+   * Attacks **until the start of its next turn**" — a cantrip, Instantaneous,
+   * so the casting is over the moment it resolves and nothing it hung could
+   * ever be lifted. `EffectTarget.grants` is that deadline and
+   * `checkGrantLifetimes` is what insists on it.
+   */
+  | {
+      readonly kind: 'action';
+      readonly rule: ActionRule;
+      /** A deadline of the rider's own, shorter than the casting's. */
       readonly lasts?: RiderDuration;
     };
 
@@ -1179,6 +1208,33 @@ export type SpellEffect =
       readonly change: SpeedChange;
       /** Signed feet, required by `add` and refused by the other two. */
       readonly feet?: number;
+    }
+  /**
+   * What the spell changes about how its target may spend a turn.
+   *
+   * SRD Wind Walk: "The only actions a target can take in this form are the
+   * Dash action, the Hide action, and the Search action." SRD Conjure
+   * Woodland Beings: "you can take the Disengage action as a Bonus Action for
+   * the spell's duration." SRD Antimagic Field: "No one can cast spells, take
+   * Magic actions". None of those asks anybody to roll, which is what makes
+   * this a standalone kind and not only a rider — the shape `armor-class`,
+   * `damage-defense` and `speed` already take, on the fifth thing a spell
+   * hands out that is not a roll.
+   *
+   * {@link ActionRule} in `combat.ts` is the vocabulary, the three SRD
+   * sentences it was derived from, and the argument that a compelled action
+   * is a fact about legality rather than an instruction the engine executes.
+   *
+   * **It carries no `lasts` of its own**, for the reason `speed`,
+   * `attack-rider`, `condition-immunity` and `turn-payout` carry none: every
+   * SRD sentence in *this* position runs for the spell's own duration, and an
+   * Instantaneous casting would leave a rule nothing could ever lift.
+   * `checkGrantLifetimes` refuses that pairing. The shorter deadline lives on
+   * the rider, because a rider is what Shocking Grasp writes.
+   */
+  | {
+      readonly kind: 'action-rule';
+      readonly rule: ActionRule;
     }
   /**
    * Extra damage the spell adds to the **caster's later attacks**.
@@ -2169,6 +2225,27 @@ export function statedDamageType(
  * the turn. The whole reason they are separate members is that none of them is
  * interchangeable with another — see {@link RiderDuration}.
  */
+/**
+ * How a deadline finishes the sentence a refusal starts.
+ *
+ * "…until **the spell ends**", "…until **the start of the caster's next
+ * turn**". Beside {@link riderDuration}, which answers the same question for
+ * the timer, because the two must never disagree about which moment they
+ * mean: a refusal that names a moment the grant does not actually end at is
+ * worse than one that names none.
+ *
+ * Pinned onto {@link GrantedActionRule.until} at the cast, for the reason
+ * every other number on a casting is pinned — the fold opens no catalogue.
+ */
+export function riderDurationPhrase(lasts: RiderDuration | undefined): string {
+  if (lasts === undefined) return 'the spell ends';
+  if (typeof lasts === 'object') return `${lasts.seconds} seconds have passed`;
+  if (lasts === 'end-of-current-turn') return 'the end of the current turn';
+  return lasts === 'end-of-casters-next-turn'
+    ? "the end of the caster's next turn"
+    : "the start of the caster's next turn";
+}
+
 export function riderDuration(
   lasts: RiderDuration | undefined,
   casterId: CharacterId,
@@ -2279,7 +2356,15 @@ export function riderDurations(definition: SpellDefinition): readonly RiderDurat
       if (rider.lasts !== undefined) found.push(rider.lasts);
     }
     for (const rider of modifierRidersOf(effect)) {
-      if (rider.kind === 'speed-change' && rider.lasts !== undefined) found.push(rider.lasts);
+      // The two riders that may carry a deadline of their own — see
+      // {@link ModifierRider}, where both are argued from an Instantaneous
+      // host that could never lift what it hung.
+      if (
+        (rider.kind === 'speed-change' || rider.kind === 'action') &&
+        rider.lasts !== undefined
+      ) {
+        found.push(rider.lasts);
+      }
     }
   }
   return found;
@@ -2517,6 +2602,7 @@ export function numbersRead(definition: SpellDefinition): NumbersRead {
       case 'attack-rider':
       case 'heal':
       case 'turn-payout':
+      case 'action-rule':
       case 'dispel':
       case 'teleport':
         break;

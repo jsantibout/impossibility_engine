@@ -45,7 +45,7 @@ import {
   type OwedAreaEffect,
   type SlotlessReason,
 } from './spells.js';
-import { type CombatState } from './combat.js';
+import { type CombatState, type GrantedActionRule } from './combat.js';
 import { type GrantedAttackRider, type GrantedSpeed } from './standing.js';
 import {
   type PointAnchoring,
@@ -395,6 +395,15 @@ export interface CreatureState {
    * existed.
    */
   readonly payouts: readonly GrantedPayout[];
+  /**
+   * What a running effect has changed about what this creature may spend a
+   * turn on — the ninth member of the family the eight above form.
+   *
+   * See {@link ActionRule} in `combat.ts`, where the vocabulary, the three
+   * SRD sentences behind it and the doctrine on compulsion all live. Linked
+   * by its `source` exactly as the other eight are.
+   */
+  readonly actionRules: readonly GrantedActionRule[];
   /**
    * Bonuses this creature's own features add to Initiative.
    *

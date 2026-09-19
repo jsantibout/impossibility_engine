@@ -210,7 +210,9 @@ export function moveWithin(
       // said "it is not b's turn". A caller branching on the code and a DM
       // reading the reason were given two different answers to one question,
       // which is exactly what a refusal being a value is meant to prevent.
-      const spent = spendMovement(state.combat, id, cost, speedOf(state, id));
+      const spent = spendMovement(state.combat, id, cost, speedOf(state, id), {
+        rules: mover.actionRules,
+      });
       if (!spent.ok) return spent;
       events.push({ type: 'movement-spent', id, feet: cost });
     }
@@ -378,7 +380,13 @@ export function takeOpportunityAttack(
     const events: GameEvent[] = [];
     if (state.combat !== null && state.combat.budgets[reactor] !== undefined) {
       const creature = creatureOf(state, reactor);
-      const spent = spendReaction(state.combat, reactor, creature?.conditions);
+      // SRD Shocking Grasp: "can't make Opportunity Attacks until the start
+      // of its next turn." This is the one place the engine offers that
+      // Reaction, so it is the one place the name can be told apart.
+      const spent = spendReaction(state.combat, reactor, creature?.conditions, {
+        rules: creature?.actionRules ?? [],
+        as: 'opportunity-attack',
+      });
       if (!spent.ok) return spent;
       events.push({ type: 'reaction-spent', id: reactor });
     }
@@ -494,7 +502,9 @@ function spendMounting(state: GameState, rider: CharacterId): Result<readonly Ga
   // The economy's refusal is passed through under its own code, for the reason
   // `resolveMove` records above — this rewrite was copied from there, and the
   // rider climbing up out of turn is the case it got wrong.
-  const spent = spendMovement(state.combat, rider, feet, speed);
+  const spent = spendMovement(state.combat, rider, feet, speed, {
+    rules: creatureOf(state, rider)?.actionRules ?? [],
+  });
   if (!spent.ok) return spent;
 
   return ok([{ type: 'movement-spent', id: rider, feet }]);

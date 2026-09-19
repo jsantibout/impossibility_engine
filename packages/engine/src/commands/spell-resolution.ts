@@ -117,6 +117,7 @@ import {
   resolveConditionImmunityEffect,
   resolveDamageDefenseEffect,
   resolveRollModeEffect,
+  resolveActionRuleEffect,
   resolveSpeedEffect,
 } from './spell-effect-grants.js';
 import {
@@ -1216,6 +1217,8 @@ function resolveOneEffect(
       return resolveConditionImmunityEffect(ctx, effect, target, world);
     case 'speed':
       return resolveSpeedEffect(ctx, effect, target, world);
+    case 'action-rule':
+      return resolveActionRuleEffect(ctx, effect, target, world);
     case 'attack-rider':
       return resolveAttackRiderEffect(ctx, effect, target, world);
     case 'heal':

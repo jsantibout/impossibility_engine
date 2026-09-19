@@ -235,6 +235,43 @@ export function resolveSpeedEffect(
 }
 
 /**
+ * What the spell changes about how its target may spend a turn.
+ *
+ * SRD Wind Walk, Antimagic Field and Conjure Woodland Beings all write this
+ * sentence with nothing to roll, so this is the shape the Armour Class, the
+ * defence and the Speed above already take, on the fifth thing a spell hands
+ * out that is not a roll — and the ninth sourced grant.
+ *
+ * The casting is in the source, so `releaseCasting`, `releaseOnTarget`, a
+ * dispel, a broken Concentration and the deadline all end it through the door
+ * every other grant already uses; the standalone kind carries no deadline of
+ * its own, because no SRD sentence writes one without a roll to hang it on.
+ * A rider does — see `applyRiders`, and SRD Shocking Grasp.
+ */
+export function resolveActionRuleEffect(
+  ctx: EffectContext,
+  effect: EffectOfKind<'action-rule'>,
+  target: CharacterId,
+  world: GameState,
+): Result<GameState> {
+  const { source, events, outcomes, held, name } = ctx;
+  let current = world;
+
+  held.add(target);
+  events.push({
+    type: 'action-rule-granted',
+    id: target,
+    // **Both strings pinned here**, because a refusal has to name what
+    // forbade the action and until when, and `combat.ts` sits beneath
+    // `GameState` and can reach neither the catalogue nor the timer.
+    rule: { source, rule: effect.rule, label: name, until: 'the spell ends' },
+  });
+  current = events.slice(-1).reduce(applyEvent, current);
+  outcomes.push({ target, affected: true });
+  return ok(current);
+}
+
+/**
  * Extra damage on the **caster's** later attacks, for as long as the spell
  * runs. SRD Divine Favor: "Until the spell ends, your attacks with weapons
  * deal an extra 1d4 Radiant damage on a hit." Nothing is rolled here and

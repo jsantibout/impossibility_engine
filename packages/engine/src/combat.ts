@@ -106,6 +106,323 @@ export function passiveInitiative(sheet: CharacterSheet, mode: RollMode = 'norma
   return 10 + initiativeModifier(sheet) + shift;
 }
 
+/**
+ * The slots a turn is spent out of — the action economy, named.
+ *
+ * Exactly the budget's own spenders, because a member here is a promise that
+ * some primitive below refuses it: `spendAction`, `spendBonusAction`,
+ * `spendReaction` and `spendMovement`. A rule naming anything else would be a
+ * sentence nothing enforces, which is this repository's most-repeated finding.
+ *
+ * `freeInteraction` is the sixth field of a {@link TurnBudget} and is
+ * deliberately **not** here: no SRD sentence forbids a creature the one free
+ * object interaction a turn, and a member arrives with the paragraph that
+ * writes it.
+ */
+export const ACTION_SLOTS = ['action', 'bonus-action', 'reaction', 'movement'] as const;
+
+/** One of {@link ACTION_SLOTS}. */
+export type ActionSlot = (typeof ACTION_SLOTS)[number];
+
+/**
+ * The book's named actions, as far as a spender can tell them apart.
+ *
+ * A slot says *how much* a thing costs and this says *what it is*, because
+ * SRD writes restrictions both ways: Stinking Cloud forbids "an action or a
+ * Bonus Action" and Befuddlement forbids "the Magic action" while leaving the
+ * rest of the slot alone.
+ *
+ * **Every member has a spender that names it and an SRD sentence that asks
+ * for it**, which is the rule that keeps the list from becoming a wish:
+ *
+ * | | Named by | Asked for by |
+ * |---|---|---|
+ * | `attack` | `attackCreature` | Confusion, "it takes the Attack action" |
+ * | `dash` | `takeDash` | Fear, Eyebite, Wind Walk |
+ * | `disengage` | `takeDisengage` | Conjure Woodland Beings |
+ * | `dodge` | `takeDodge` | Bestow Curse, "forced to take the Dodge action" |
+ * | `magic` | every casting route | Befuddlement, Antimagic Field, True Polymorph |
+ * | `opportunity-attack` | the Reaction a leaving move offers | Shocking Grasp |
+ *
+ * Hide, Search, Study, Influence, Ready and Utilize are the book's too and are
+ * absent: the engine has no spender that could be told one of them apart, so
+ * a rule naming one would read as enforced and would not be. Wind Walk's
+ * "Dash, Hide, Search" is therefore writable as the part the engine can
+ * adjudicate — see {@link ActionRule}, `permits-only`, which fails closed.
+ */
+export const NAMED_ACTIONS = [
+  'attack',
+  'dash',
+  'disengage',
+  'dodge',
+  'magic',
+  'opportunity-attack',
+] as const;
+
+/** One of {@link NAMED_ACTIONS}. */
+export type NamedAction = (typeof NAMED_ACTIONS)[number];
+
+/**
+ * The actions whose command lets a caller state which slot to pay out of.
+ *
+ * The consumer side of `ActionRule`'s `allows` member, and the reason it is
+ * written down: an allowance naming an action nobody can ask for at a
+ * different price is data no code reads — a sentence that validates, loads,
+ * lands on a creature and does nothing, which is the failure this repository
+ * finds most often. `checkSpellDefinition` refuses one against this list, so
+ * the vocabulary can only say what some command will actually honour.
+ *
+ * One member today. SRD Conjure Woodland Beings is the one sentence in the
+ * book that moves an action to a cheaper slot, and {@link takeDisengage}'s
+ * `from` is what answers it. A second arrives with its own command and its
+ * own paragraph, and this list is where it is admitted.
+ */
+export const ACTIONS_WITH_A_STATABLE_PRICE: readonly NamedAction[] = ['disengage'];
+
+/**
+ * The slots a named action can actually come out of.
+ *
+ * `permits-only` narrows a slot to a few named actions, so a slot no action
+ * is ever named in can only be narrowed to *nothing* — which is what
+ * `forbids` already says, in fewer words. Two spellings of one rule is two
+ * places for it to be wrong, so the validator refuses the second.
+ *
+ * Movement is the slot that is not here: nothing spends it by a name.
+ */
+export const SLOTS_WITH_NAMED_ACTIONS: readonly ActionSlot[] = [
+  'action',
+  'bonus-action',
+  'reaction',
+];
+
+/**
+ * What a running effect has changed about what a creature may spend a turn on.
+ *
+ * **This is not a condition, and the distinction is the whole design.** The
+ * fifteen are the book's closed list and none of them forbids the Magic
+ * action and leaves the rest of a turn alone; SRD writes that sentence
+ * twenty-nine times across the spell list and the engine could say none of
+ * it. `mayAct` is not it either — that answers a question about mandatory
+ * *debt* the world owes, and it cannot know which action is being taken.
+ *
+ * So it is a standing effect with a source and a deadline: the ninth sourced
+ * grant, hung on the creature, released by `releaseCasting`, by
+ * `releaseOnTarget`, by a dispel, by a broken Concentration and by a `grants`
+ * timer, through exactly the doors the other eight already use.
+ *
+ * ### Three members, because the SRD writes three sentences
+ *
+ * | | SRD | |
+ * |---|---|---|
+ * | `forbids` | Stinking Cloud: "can't take an action or a Bonus Action" | takes named slots or named actions away |
+ * | `permits-only` | Wind Walk: "The only actions a target can take … are the Dash action, the Hide action, and the Search action" | narrows one slot to a named few |
+ * | `allows` | Conjure Woodland Beings: "you can take the Disengage action as a Bonus Action" | widens, rather than narrows |
+ *
+ * The third has the opposite polarity from the first two and is in the same
+ * union because it is the same fact — what this creature's action economy
+ * permits *now*, as against what the rules permit in general — read from the
+ * other end. A second mechanism for it would be a second place for one
+ * sentence to be wrong.
+ *
+ * ### What a compulsion is, and what it is not
+ *
+ * **A compelled action is a fact about what is legal, never an instruction
+ * that executes.** SRD Fear says a Frightened creature "must take the Dash
+ * action"; this engine writes that as `permits-only` on the Action slot with
+ * `dash` the only member, refuses every other Action, and makes nobody run.
+ * The doctrine is the reason and it is not negotiable: the engine adjudicates
+ * reality and does not play creatures. A turn on which the table narrates
+ * nothing is a turn on which nothing happened, and that is the honest answer
+ * — where an engine that took the Dash itself would be writing fiction into
+ * the log and calling it a rule.
+ *
+ * **The sentences that go the other way are deliberately still open**, and
+ * they are a different shape rather than a gap in this one: Dissonant
+ * Whispers' "must immediately use its Reaction … to move as far away from you
+ * as it can", Compulsion's Bonus Action designating a direction, and the
+ * three Dominates' telepathic link all *spend somebody else's budget*.
+ * Nothing here can express that, on purpose. Whoever meets one of those next
+ * is looking at a shape that has to decide who is playing the creature, which
+ * is a question this union does not answer and must not be stretched to.
+ */
+export type ActionRule =
+  /**
+   * SRD Stinking Cloud, Slow, Befuddlement: a slot or a named action taken
+   * away, with everything the sentence does not name left alone.
+   *
+   * Both lists are optional and at least one must be present, which
+   * `checkSpellDefinition` enforces: a rule that forbids nothing is a
+   * sentence somebody meant to finish.
+   */
+  | {
+      readonly kind: 'forbids';
+      readonly slots?: readonly ActionSlot[];
+      readonly actions?: readonly NamedAction[];
+    }
+  /**
+   * SRD Wind Walk, Fear, Magic Jar: one slot narrowed to a named few.
+   *
+   * **It fails closed**, which is what makes it honest about the actions the
+   * engine cannot tell apart. A spend out of the governed slot that does not
+   * name itself as one of {@link actions} is refused — so Wind Walk's "Dash,
+   * Hide, Search" refuses the Attack action and the Magic action, and leaves
+   * Hide and Search to a table the engine was never adjudicating anyway. The
+   * alternative, letting an unnamed spend through, would silently permit
+   * exactly the thing the spell forbade.
+   */
+  | {
+      readonly kind: 'permits-only';
+      readonly slot: ActionSlot;
+      readonly actions: readonly NamedAction[];
+    }
+  /**
+   * SRD Conjure Woodland Beings: a named action that may be paid for out of a
+   * slot it does not normally come out of.
+   *
+   * The caller asks for the cheaper price and the engine rules on whether
+   * they may have it, which is the same direction every other rule here runs
+   * in — an allowance nobody invokes changes nothing, exactly as a Dodge
+   * nobody takes does.
+   */
+  | {
+      readonly kind: 'allows';
+      readonly action: NamedAction;
+      readonly from: ActionSlot;
+    };
+
+/**
+ * One rule a running effect hung on one creature.
+ *
+ * The ninth sourced grant, and it carries two strings the others do not
+ * because of what a refusal has to say. `err('raging', …)` — the engine's one
+ * prior sentence of this shape, SRD Rage's "you can't cast spells" — names
+ * what forbade the casting and not for how long, and "you cannot do this" with
+ * no end in sight is the least useful true thing a rules engine can say.
+ *
+ * So both are **pinned at the cast**, for the reason every other number on a
+ * casting is: the fold opens no catalogue, and a spell already cast does not
+ * change when its book does.
+ */
+export interface GrantedActionRule {
+  /** `Binding Word#cast:3` — the casting, which is how it ends. */
+  readonly source: string;
+  readonly rule: ActionRule;
+  /** What the log calls the thing that did it: a spell's name, or an item's. */
+  readonly label: string;
+  /** How the refusal finishes its sentence: "the spell ends", "your next turn". */
+  readonly until: string;
+}
+
+/** Whether a rule reaches this spend at all. */
+const governs = (rule: ActionRule, slot: ActionSlot, as: NamedAction | undefined): boolean =>
+  rule.kind === 'forbids'
+    ? (rule.slots?.includes(slot) ?? false) || (as !== undefined && (rule.actions?.includes(as) ?? false))
+    : rule.kind === 'permits-only'
+      ? rule.slot === slot && !(as !== undefined && rule.actions.includes(as))
+      : false;
+
+/**
+ * What one spend is: the slot it comes out of, and what the book calls it.
+ *
+ * **The whole record, not the rules alone**, because a refusal has to name the
+ * source and the deadline and a bare `ActionRule` carries neither.
+ */
+export interface Spend {
+  /** Every rule standing on this creature: `CreatureState.actionRules`. */
+  readonly rules: readonly GrantedActionRule[];
+  /** Which of {@link NAMED_ACTIONS} this is, where the spender can tell. */
+  readonly as?: NamedAction;
+}
+
+/** How a slot reads in a refusal. */
+const SLOT_NAMES: Readonly<Record<ActionSlot, string>> = {
+  action: 'an action',
+  'bonus-action': 'a Bonus Action',
+  reaction: 'a Reaction',
+  movement: 'movement',
+};
+
+/**
+ * How a named action reads in a refusal: the book's own capitalisation.
+ *
+ * A refusal is read by a person, and "the only action it permits is dash" is
+ * the engine's spelling rather than the SRD's. One table, so the sentence and
+ * the vocabulary cannot come apart.
+ */
+const ACTION_TITLES: Readonly<Record<NamedAction, string>> = {
+  attack: 'Attack',
+  dash: 'Dash',
+  disengage: 'Disengage',
+  dodge: 'Dodge',
+  magic: 'Magic',
+  'opportunity-attack': 'Opportunity Attack',
+};
+
+/** "Dash", "Dash or Dodge", "Dash, Dodge or Attack" — and "nothing" for none. */
+const listed = (actions: readonly NamedAction[]): string => {
+  const titles = actions.map((a) => ACTION_TITLES[a]);
+  if (titles.length === 0) return 'nothing at all';
+  if (titles.length === 1) return titles[0]!;
+  return `${titles.slice(0, -1).join(', ')} or ${titles[titles.length - 1]!}`;
+};
+
+/**
+ * The one refusal, so every spender says it the same way.
+ *
+ * **Rules-legal, therefore a value.** A creature attempting something a spell
+ * forbade has not made a programmer error and has not merely failed to supply
+ * a fact, so this is neither an exception nor a `needs-context`: it is `err`,
+ * with a sentence naming what forbade the action and until when.
+ *
+ * The first rule that bites wins, and rules are visited in the order the fold
+ * keeps them — sorted by source — so the answer is fixed however they arrived.
+ */
+function refuseSpend(
+  id: CharacterId,
+  slot: ActionSlot,
+  spend: Spend | undefined,
+): Result<true> {
+  for (const held of spend?.rules ?? []) {
+    if (!governs(held.rule, slot, spend?.as)) continue;
+    if (held.rule.kind === 'permits-only') {
+      return err(
+        'action_forbidden',
+        `${id} cannot take ${SLOT_NAMES[slot]}: ${held.label} permits only ${listed(held.rule.actions)} until ${held.until}`,
+      );
+    }
+    return err(
+      'action_forbidden',
+      `${id} cannot take ${SLOT_NAMES[slot]}: ${held.label} forbids it until ${held.until}`,
+    );
+  }
+  return ok(true);
+}
+
+/**
+ * Whether a named action may be paid for out of a slot it does not cost.
+ *
+ * The `allows` half, asked by the command rather than by the primitive,
+ * because it is the *command* that knows a Disengage normally costs an Action
+ * and is being asked for a Bonus Action instead. A refusal here is the same
+ * kind of value as {@link refuseSpend}'s and reads the same way.
+ */
+export function allowsPrice(
+  id: CharacterId,
+  action: NamedAction,
+  from: ActionSlot,
+  rules: readonly GrantedActionRule[],
+): Result<true> {
+  for (const held of rules) {
+    if (held.rule.kind === 'allows' && held.rule.action === action && held.rule.from === from) {
+      return ok(true);
+    }
+  }
+  return err(
+    'action_not_allowed',
+    `nothing lets ${id} take the ${ACTION_TITLES[action]} action as ${SLOT_NAMES[from]}`,
+  );
+}
+
 export interface Combatant {
   readonly id: CharacterId;
   /** The Initiative check total. */
@@ -410,13 +727,37 @@ const withBudget = (
   budgets: { ...state.budgets, [id]: { ...budget, ...patch } },
 });
 
+/**
+ * **`spend` is where a spell reaches the action economy**, on this primitive
+ * and the three below it.
+ *
+ * It is a parameter rather than a field on the combat state for the reason
+ * `conditions` and `spendMovement`'s `allowance` are: this module sits beneath
+ * `GameState` and a rule standing on a creature is not a fact about the turn
+ * order. The caller has the creature in hand already — it is passing
+ * `creature.conditions` on the line above — so it passes
+ * `creature.actionRules` with it.
+ *
+ * **Optional, and the reason is the opposite of `allowance`'s.** That one is
+ * required because a defaulted Speed silently *permitted* a move the fold then
+ * refused, and the two readings forked. Here the default is "no rule stands on
+ * this creature", which is the truth for every creature nobody has cast one of
+ * these spells at and is the answer the engine gave before this existed. A
+ * caller that forgets it refuses nothing it should have refused — a rule not
+ * applied, which the action-economy sweep in `invariants.test.ts` is what
+ * catches — rather than permitting something it should have refused twice over.
+ */
 export function spendAction(
   state: CombatState,
   id: CharacterId,
   conditions?: ConditionState,
+  spend?: Spend,
 ): Result<CombatState> {
   const capable = requireCapable(id, conditions);
   if (!capable.ok) return capable;
+
+  const allowed = refuseSpend(id, 'action', spend);
+  if (!allowed.ok) return allowed;
 
   const budget = requireTheirTurn(state, id);
   if (!budget.ok) return budget;
@@ -430,9 +771,13 @@ export function spendBonusAction(
   state: CombatState,
   id: CharacterId,
   conditions?: ConditionState,
+  spend?: Spend,
 ): Result<CombatState> {
   const capable = requireCapable(id, conditions);
   if (!capable.ok) return capable;
+
+  const allowed = refuseSpend(id, 'bonus-action', spend);
+  if (!allowed.ok) return allowed;
 
   const budget = requireTheirTurn(state, id);
   if (!budget.ok) return budget;
@@ -455,9 +800,13 @@ export function spendReaction(
   state: CombatState,
   id: CharacterId,
   conditions?: ConditionState,
+  spend?: Spend,
 ): Result<CombatState> {
   const capable = requireCapable(id, conditions);
   if (!capable.ok) return capable;
+
+  const allowed = refuseSpend(id, 'reaction', spend);
+  if (!allowed.ok) return allowed;
 
   const budget = requireCombatant(state, id);
   if (!budget.ok) return budget;
@@ -481,6 +830,7 @@ export function spendAttack(
   id: CharacterId,
   attacksPerAction: number,
   conditions?: ConditionState,
+  spend?: Spend,
 ): Result<{ readonly state: CombatState; readonly tookAction: boolean }> {
   const budget = requireTheirTurn(state, id);
   if (!budget.ok) return budget;
@@ -501,7 +851,13 @@ export function spendAttack(
     });
   }
 
-  const taken = spendAction(state, id, conditions);
+  // **Through `spendAction`, naming itself.** The first swing of an Attack
+  // action *is* an Action, so a rule forbidding the slot catches it here and
+  // one naming `attack` in particular catches it too — Confusion's third row
+  // compels the Attack action, which is `permits-only` on the same slot.
+  // Swings after the first spend nothing and are above this line, which is
+  // the same asymmetry the action budget already has.
+  const taken = spendAction(state, id, conditions, { rules: spend?.rules ?? [], as: 'attack' });
   if (!taken.ok) return taken;
 
   const after = requireTheirTurn(taken.value, id);
@@ -629,10 +985,18 @@ export function spendMovement(
   id: CharacterId,
   feet: number,
   allowance: number,
+  spend?: Spend,
 ): Result<CombatState> {
   if (!Number.isFinite(feet) || feet < 0) {
     return err('bad_distance', `${feet} is not a distance that can be moved`);
   }
+
+  // SRD Tsunami: "it can't move". A Speed of 0 is a *different* sentence —
+  // `speedOf`'s, and Hypnotic Pattern's — and the two are kept apart because
+  // a Dash banked before the rule landed still spends against a Speed of 0
+  // and must not spend against a prohibition.
+  const permitted = refuseSpend(id, 'movement', spend);
+  if (!permitted.ok) return permitted;
 
   const budget = requireTheirTurn(state, id);
   if (!budget.ok) return budget;

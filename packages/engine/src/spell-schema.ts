@@ -27,6 +27,13 @@ import type {
 import type { PayoutKind } from './duration.js';
 import type { DefenseKind } from './attack.js';
 import type { SpeedChange } from './standing.js';
+import {
+  ACTION_SLOTS,
+  ACTIONS_WITH_A_STATABLE_PRICE,
+  NAMED_ACTIONS,
+  SLOTS_WITH_NAMED_ACTIONS,
+  type ActionRule,
+} from './combat.js';
 import type { Bonus, BonusApplies } from './bonuses.js';
 import type { RollModifier } from './roll-modifiers.js';
 
@@ -656,6 +663,138 @@ interface RiderHost {
   readonly rollsSave: boolean;
 }
 
+/** The action economy's own vocabulary, as sets, for untyped input. */
+const SLOT_NAMES: ReadonlySet<string> = new Set(ACTION_SLOTS);
+const ACTION_NAMES: ReadonlySet<string> = new Set(NAMED_ACTIONS);
+
+/** What each named action normally costs, so an allowance granting nothing is refused. */
+const NORMAL_PRICE: Readonly<Record<string, string>> = {
+  attack: 'action',
+  dash: 'action',
+  disengage: 'action',
+  dodge: 'action',
+  magic: 'action',
+  'opportunity-attack': 'reaction',
+};
+
+/** Every member of a list that is not in the vocabulary, named. */
+const strangers = (list: unknown, known: ReadonlySet<string>): readonly string[] =>
+  Array.isArray(list) ? list.filter((v) => typeof v !== 'string' || !known.has(v)).map(String) : [];
+
+/**
+ * A rule about a turn, held to the spenders that could enforce it.
+ *
+ * **The vocabulary is `combat.ts`'s, read as data rather than restated.** A
+ * slot is a field of the turn budget and a named action is one a spender can
+ * tell apart; both lists are exported from the module that enforces them, so
+ * a rule this validator accepts is one some primitive actually refuses. A
+ * second copy written out here is how a definition comes to name an action
+ * nothing checks — which is a sentence that reads as adjudicated and is not.
+ */
+function checkActionRule(
+  rule: ActionRule | undefined,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  const bad = (reason: string): void => {
+    found.push({ field: path, code: 'bad_action_rule', reason });
+  };
+  const noSuchSlot = (v: unknown): string =>
+    `"${String(v)}" is not a slot a turn is spent out of; the engine has ${[...SLOT_NAMES].join(', ')}`;
+  const noSuchAction = (v: unknown): string =>
+    `"${String(v)}" is not an action a spender can tell apart; the engine names ${[...ACTION_NAMES].join(', ')}`;
+
+  if (typeof rule !== 'object' || rule === null || Array.isArray(rule)) {
+    bad(
+      `a rule about a turn is an object saying what it forbids, permits or allows, and this is ${nameOf(rule)}`,
+    );
+    return;
+  }
+
+  if (rule.kind === 'forbids') {
+    if (rule.slots !== undefined && !Array.isArray(rule.slots)) {
+      bad('the slots a rule forbids are a list');
+      return;
+    }
+    if (rule.actions !== undefined && !Array.isArray(rule.actions)) {
+      bad('the actions a rule forbids are a list');
+      return;
+    }
+    const slots = strangers(rule.slots, SLOT_NAMES);
+    if (slots.length > 0) {
+      bad(noSuchSlot(slots.join('", "')));
+      return;
+    }
+    const actions = strangers(rule.actions, ACTION_NAMES);
+    if (actions.length > 0) {
+      bad(noSuchAction(actions.join('", "')));
+      return;
+    }
+    // **A rule that forbids nothing is a sentence somebody meant to finish.**
+    // It would validate, load, land on a creature and refuse nothing at all,
+    // which is the silent wrong answer this whole file exists to refuse.
+    if ((rule.slots?.length ?? 0) + (rule.actions?.length ?? 0) === 0) {
+      bad('a rule that forbids no slot and no action forbids nothing; name what the spell takes away');
+    }
+    return;
+  }
+
+  if (rule.kind === 'permits-only') {
+    if (typeof rule.slot !== 'string' || !SLOT_NAMES.has(rule.slot)) {
+      bad(noSuchSlot(rule.slot));
+      return;
+    }
+    // **A slot nothing is ever named in cannot be narrowed to a few.** It can
+    // only be narrowed to nothing, which is what `forbids` already says — and
+    // one sentence with two spellings is two places for it to go wrong.
+    if (!SLOTS_WITH_NAMED_ACTIONS.includes(rule.slot)) {
+      bad(`no action is ever taken by name out of ${rule.slot}, so narrowing it to a named few says nothing; forbid it instead`);
+      return;
+    }
+    if (!Array.isArray(rule.actions)) {
+      bad('the actions a narrowed slot still permits are a list');
+      return;
+    }
+    const actions = strangers(rule.actions, ACTION_NAMES);
+    if (actions.length > 0) bad(noSuchAction(actions.join('", "')));
+    // **An empty list is legal, and is not the mistake `forbids` makes with
+    // one.** SRD Confusion's fallback row is "the target takes no action",
+    // which is exactly a slot narrowed to nothing and says so on purpose.
+    return;
+  }
+
+  if (rule.kind === 'allows') {
+    if (typeof rule.action !== 'string' || !ACTION_NAMES.has(rule.action)) {
+      bad(noSuchAction(rule.action));
+      return;
+    }
+    // **An allowance has to reach a command that offers the price.** Nothing
+    // else could ever read it: `allowsPrice` is asked by the command that
+    // lets a caller name a slot, and an allowance for an action with no such
+    // command is a clause that validates, loads, lands and does nothing.
+    if (!ACTIONS_WITH_A_STATABLE_PRICE.includes(rule.action)) {
+      bad(`no command lets a caller choose what to pay for the ${rule.action} action, so an allowance about its price would be read by nothing; the engine offers ${ACTIONS_WITH_A_STATABLE_PRICE.join(', ')}`);
+      return;
+    }
+    if (typeof rule.from !== 'string' || !SLOT_NAMES.has(rule.from)) {
+      bad(noSuchSlot(rule.from));
+      return;
+    }
+    // **An allowance has to change the price**, or it grants what the rules
+    // already grant. SRD Conjure Woodland Beings is worth writing because
+    // Disengage costs an Action and this one costs a Bonus Action; "you may
+    // Disengage as an Action" is simply the book.
+    if (NORMAL_PRICE[rule.action] === rule.from) {
+      bad(`the ${rule.action} action already costs ${rule.from}, so this allowance grants nothing`);
+    }
+    return;
+  }
+
+  bad(
+    `"${String((rule as { readonly kind?: unknown }).kind)}" is not something a spell does to a turn; a spell forbids, permits only, or allows`,
+  );
+}
+
 /**
  * A grant an outcome imposes, held to exactly what the standalone kinds are.
  *
@@ -687,10 +826,17 @@ function checkModifierRider(
     checkRiderDuration(rider.lasts, path, found);
     return;
   }
+  if (rider?.kind === 'action') {
+    checkActionRule(rider.rule, `${path}.rule`, found);
+    // The second rider that may carry a deadline of its own. Whether it
+    // *must* is {@link checkGrantLifetimes}', exactly as for `speed-change`.
+    checkRiderDuration(rider.lasts, path, found);
+    return;
+  }
   found.push({
     field: `${path}.kind`,
     code: 'unknown_modifier_rider',
-    reason: `"${String((rider as { kind?: unknown } | undefined)?.kind)}" is not a grant a rider carries; a rider adds a bonus, grants a mode, or changes a Speed`,
+    reason: `"${String((rider as { kind?: unknown } | undefined)?.kind)}" is not a grant a rider carries; a rider adds a bonus, grants a mode, changes a Speed, or changes what a turn permits`,
   });
 }
 
@@ -1226,6 +1372,10 @@ function checkEffect(
       checkSpeedChange(effect, path, found);
       return;
 
+    case 'action-rule':
+      checkActionRule(effect.rule, `${path}.rule`, found);
+      return;
+
     // Two printed numbers and nothing else to be wrong about: how far, and
     // whether the space has to be one the caster can see. Where it goes is the
     // casting's to state, so the definition carries no destination at all.
@@ -1611,6 +1761,12 @@ function grantCarried(effect: SpellEffect): string | null {
     // casting would be an arrangement with no turns left to pay out on.
     case 'turn-payout':
       return 'a payout at every turn boundary';
+    // The ninth, and it carries no deadline of its own for the reason the
+    // fifth through eighth do not: every SRD sentence in the standalone
+    // position runs for the spell's own duration, and an Instantaneous
+    // casting would forbid a creature an action with nothing able to lift it.
+    case 'action-rule':
+      return 'a rule about what a turn may be spent on';
     default: {
       for (const rider of conditionRiderOf(withReadableRiders(effect))) {
         // Unreadable first, lifetime second. A rider that is missing, null or
@@ -1653,6 +1809,13 @@ function grantCarried(effect: SpellEffect): string | null {
             // the rider owns, so a casting that ends the instant it resolves
             // still has something that takes the Speed back.
             if (rider.lasts === undefined) return 'a changed Speed';
+            break;
+          case 'action':
+            // The second, for the same reason: SRD Shocking Grasp forbids an
+            // Opportunity Attack "until the start of its next turn" on an
+            // Instantaneous cantrip, and without the rider's own deadline
+            // nothing could ever hand the Reaction back.
+            if (rider.lasts === undefined) return 'a rule about what a turn may be spent on';
             break;
           default:
             break;
@@ -2657,7 +2820,7 @@ const RIDER_DEPTH_LIMIT = 6;
  * a name collision rather than through a type. `spell-schema.test.ts` asserts
  * the intersection is empty.
  */
-export const RIDER_KINDS: ReadonlySet<string> = new Set(['bonus', 'mode', 'speed-change']);
+export const RIDER_KINDS: ReadonlySet<string> = new Set(['bonus', 'mode', 'speed-change', 'action']);
 
 /**
  * The effect kinds, as a set.
@@ -2689,4 +2852,5 @@ export const EFFECT_KINDS: ReadonlySet<string> = new Set([
   'attack-rider',
   'teleport',
   'turn-payout',
+  'action-rule',
 ]);

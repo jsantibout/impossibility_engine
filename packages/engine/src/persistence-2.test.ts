@@ -471,8 +471,17 @@ function declaredEventTypes(): readonly string[] {
  * wand arriving as spent as it left, its pool record moving whole, the
  * refusal for what is in hand, the attunement the derived pass ends, and the
  * four ways a hand-written one contradicts the log.
+ *
+ * `action-rule-granted` is the eleventh, and by the same construction: neither
+ * log was written when a spell could reach the action economy at all — no
+ * creature had an `actionRules` list and no definition could ask for one — and
+ * both fixtures fold to exactly the states they always folded to with an empty
+ * one. `action-rules.test.ts` drives it end to end on homebrew: forbidden,
+ * narrowed, widened, refused with a reason, lifted at a rider's own deadline,
+ * and ended by the casting and by a broken Concentration.
  */
 const UNCOVERED_EVENT_TYPES: readonly string[] = [
+  'action-rule-granted',
   'attack-rider-granted',
   'attuned',
   'attunement-ended',

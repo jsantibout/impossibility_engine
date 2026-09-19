@@ -183,7 +183,9 @@ export function spendReactionCost(
 
   if (feature.costsReaction) {
     if (state.combat !== null && state.combat.budgets[reactor] !== undefined) {
-      const spent = spendReaction(state.combat, reactor, creature.conditions);
+      const spent = spendReaction(state.combat, reactor, creature.conditions, {
+        rules: creature.actionRules,
+      });
       if (!spent.ok) return spent;
       events.push({ type: 'reaction-spent', id: reactor });
     } else if (isIncapacitated(creature.conditions)) {

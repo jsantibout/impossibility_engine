@@ -191,6 +191,7 @@ function declaredEventTypes(): readonly string[] {
  * migrations**, and editing this list is how you say you meant to.
  */
 const KNOWN_EVENT_TYPES: readonly string[] = [
+  'action-rule-granted',
   'action-spent',
   'area-effect-settled',
   'armor-class-granted',

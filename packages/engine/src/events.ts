@@ -54,7 +54,7 @@ import {
   type SlotlessReason,
   type WrittenOngoing,
 } from './spells.js';
-import { type CombatantInput } from './combat.js';
+import { type CombatantInput, type GrantedActionRule } from './combat.js';
 import { type GrantedAttackRider, type GrantedSpeed, type StandingEffect } from './standing.js';
 import { type CoverDegree, type Placement, type SceneExtent, type Point } from './positioning.js';
 
@@ -343,6 +343,24 @@ export type GameEvent =
       readonly type: 'turn-payout-granted';
       readonly id: CharacterId;
       readonly payout: GrantedPayout;
+    }
+
+  /**
+   * A rule this creature's turn is now subject to — the ninth sourced grant.
+   *
+   * SRD Stinking Cloud: "can't take an action or a Bonus Action." SRD Wind
+   * Walk: "The only actions a target can take in this form are …" SRD Conjure
+   * Woodland Beings: "you can take the Disengage action as a Bonus Action."
+   * Three sentences, one record; see {@link ActionRule} in `combat.ts` for the
+   * vocabulary and for why a compulsion is a legality rather than an order.
+   *
+   * Ended by the source it carries, exactly as the other eight grants are, so
+   * there is no removal event.
+   */
+  | {
+      readonly type: 'action-rule-granted';
+      readonly id: CharacterId;
+      readonly rule: GrantedActionRule;
     }
 
   /**

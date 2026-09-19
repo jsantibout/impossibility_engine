@@ -30,6 +30,7 @@ import {
   type DelayedDamage,
   type OutcomeRiders,
   riderDuration,
+  riderDurationPhrase,
   scaledDiceFor,
   type SpellDefinition,
 } from '../spell-definitions.js';
@@ -360,7 +361,24 @@ export function applyRiders(
     // Instantaneous host has no alternative to.
     held.add(target);
     const granted: GameEvent =
-      modifier.kind === 'bonus'
+      modifier.kind === 'action'
+        ? {
+            type: 'action-rule-granted',
+            id: target,
+            // **Both strings pinned at the cast**, because `combat.ts` sits
+            // beneath `GameState` and a refusal there can reach neither the
+            // catalogue that named the spell nor the timer that holds the
+            // deadline. `riderDurationPhrase` is the same reader
+            // `riderDuration` below is, so the sentence a refusal prints and
+            // the moment the grant actually ends cannot come apart.
+            rule: {
+              source,
+              rule: modifier.rule,
+              label: definition.name,
+              until: riderDurationPhrase(modifier.lasts),
+            },
+          }
+        : modifier.kind === 'bonus'
         ? {
             type: 'bonus-applied',
             id: target,
@@ -399,7 +417,12 @@ export function applyRiders(
     // Scheduled after the grant, because the deadline is only meaningful once
     // there is something to end; and the duration is `resolveDuration`'s to
     // refuse, which `riderDurations` has already asked before a die was thrown.
-    const lasts = modifier.kind === 'speed-change' ? modifier.lasts : undefined;
+    // The two riders that may end sooner than the casting — see
+    // {@link ModifierRider}, where each is argued from its Instantaneous host.
+    const lasts =
+      modifier.kind === 'speed-change' || modifier.kind === 'action'
+        ? modifier.lasts
+        : undefined;
     const duration = riderDuration(lasts, casterId);
     if (duration !== undefined) {
       const timer = schedule(current, { kind: 'grants', on: target, source }, duration);

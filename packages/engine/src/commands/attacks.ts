@@ -242,6 +242,7 @@ export function resolveAttack(
         id,
         attacker.sheet.attacksPerAction ?? 1,
         attacker.conditions,
+        { rules: attacker.actionRules },
       );
       if (!spent.ok) return spent;
       events.push({ type: 'attack-made', id });

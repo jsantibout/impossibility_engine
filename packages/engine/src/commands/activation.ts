@@ -225,10 +225,14 @@ export function activateSpell(
 
     const combat = state.combat;
     if (combat !== null && combat.budgets[casterId] !== undefined) {
+      // SRD calls a later action through a running spell a Magic action —
+      // Spiritual Weapon's swing, Moonbeam's move — so it is named as one and
+      // a spell forbidding the Magic action stops it.
+      const spend = { rules: caster.actionRules, as: 'magic' as const };
       const spent =
         activation.action === 'bonus-action'
-          ? spendBonusAction(combat, casterId, caster.conditions)
-          : spendAction(combat, casterId, caster.conditions);
+          ? spendBonusAction(combat, casterId, caster.conditions, spend)
+          : spendAction(combat, casterId, caster.conditions, spend);
       if (!spent.ok) return spent;
       happened(
         activation.action === 'bonus-action'

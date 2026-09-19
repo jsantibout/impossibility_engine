@@ -506,7 +506,9 @@ export function resolveEffectCheck(
     const combat = state.combat;
     const inCombat = combat !== null && combat.budgets[who] !== undefined;
     if (inCombat) {
-      const spent = spendAction(combat, who, creature.conditions);
+      const spent = spendAction(combat, who, creature.conditions, {
+        rules: creature.actionRules,
+      });
       if (!spent.ok) return spent;
     }
 

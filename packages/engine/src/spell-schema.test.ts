@@ -1579,6 +1579,8 @@ const FORMAT_TYPES = [
 const FORMAT_EXEMPTIONS: Readonly<Record<string, string>> = {
   'SpellDefinition.anchoring?':
     'SRD 5.2.1 mandates no footprint convention for an area of effect — its "Playing on a Grid" sidebar covers squares, Speed, entering a square, corners and ranges and says nothing about areas, and the intersection convention comes from a 2014 optional rule. Declaring one per spell would be the engine choosing a rule the book declined to give. The field exists so a deliberate geometry pass, or an author of content the SRD never printed, says it in data rather than in runtime logic, and `spatial-model.test.ts` drives both precedence branches through `anchoringFor`.',
+  "SpellEffect.kind='action-rule'":
+    'the standalone half of the ninth sourced grant, whose catalogue users belong to two other builders this batch — IE briefs may not write a spell definition from here. SRD Conjure Woodland Beings ("you can take the Disengage action as a Bonus Action for the spell\'s duration") is the one undefined spell blocked on this shape and nothing else, and Wind Walk, Antimagic Field and Magic Jar each write it beside a blocker of their own. The reader is live — `resolveActionRuleEffect` is dispatched from `resolveOneEffect`, and `action-rules.test.ts` drives it end to end through `loadContent` and `resolveSpell` on homebrew — so what is absent is a definition, not a use. The day Conjure Woodland Beings gets one, this fails rather than going on excusing a member that now has a writer.',
   'SpellCheck.dc?':
     'SRD Maze prints "a DC 20 Intelligence (Investigation) check", which is exactly this field, and Maze has no definition because it is blocked on a demiplane the engine does not model. The reader is live on every executed check — `effectCheckFrom` writes `check.dc ?? saveDc` — so what is absent is a definition, not a use. The pin below is the one Sunburst\'s dispel clause already takes: the day Maze gets a definition it must write the number the book prints, and this fails rather than going on excusing a field that now has a user.',
 };
@@ -3042,6 +3044,18 @@ describe('every branch judges untyped input rather than throwing on it', () => {
         flat: NUMBER_JUNK,
         damageType: STRING_JUNK,
       },
+    },
+    {
+      kind: 'action-rule',
+      base: {
+        kind: 'action-rule',
+        rule: { kind: 'allows', action: 'disengage', from: 'bonus-action' },
+      },
+      // One field, and it is the whole of the effect: what the spell changes
+      // about the turn. `checkActionRule` reads the vocabulary out of
+      // `combat.ts`, so a rule naming a slot or an action no spender knows is
+      // refused by the same list the primitives enforce.
+      fields: { rule: required(OBJECT_JUNK) },
     },
     {
       kind: 'teleport',

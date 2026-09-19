@@ -295,12 +295,19 @@ export function spendFor(
   if (combat === null) {
     return err('not_in_combat', 'there is no action economy outside combat');
   }
-  const conditions = creatureOf(state, id)?.conditions;
+  const creature = creatureOf(state, id);
+  const conditions = creature?.conditions;
+
+  // **No name**, because this helper does not know one: it is what a feature
+  // or an item activation costs, and the engine has no member of
+  // `NAMED_ACTIONS` for "whatever this feature is". The slot-level rules
+  // still bite, which is what SRD Stinking Cloud's sentence actually says.
+  const spend = { rules: creature?.actionRules ?? [] };
 
   const spent =
     action === 'bonus-action'
-      ? spendBonusAction(combat, id, conditions)
-      : spendAction(combat, id, conditions);
+      ? spendBonusAction(combat, id, conditions, spend)
+      : spendAction(combat, id, conditions, spend);
   if (!spent.ok) return spent;
 
   return ok(

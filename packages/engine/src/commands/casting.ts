@@ -1656,7 +1656,14 @@ export function continueCasting(
     // Whose turn it is, whether the Action is still there and whether the
     // caster is Incapacitated are all this one call's — the economy's own
     // question, asked where the economy answers it.
-    const spent = spendAction(combat, casterId, caster.conditions);
+    // SRD "Longer Casting Times" spends the **Magic action** each turn, so a
+    // spell that forbids that action stops the rite as surely as it stops a
+    // fresh casting — SRD Befuddlement: "can't cast spells or take the Magic
+    // action". The slot was never spent, so nothing is refunded.
+    const spent = spendAction(combat, casterId, caster.conditions, {
+      rules: caster.actionRules,
+      as: 'magic',
+    });
     if (!spent.ok) return spent;
 
     return ok([
@@ -1687,15 +1694,23 @@ export function resolveCastWith(
     return cast;
   }
 
-  const conditions = creatureOf(state, id)?.conditions;
+  const caster = creatureOf(state, id);
+  const conditions = caster?.conditions;
   const castingTime = command.castingTime ?? 'action';
+
+  // **Every casting route is the Magic action, whatever slot it comes out
+  // of.** SRD Befuddlement, Antimagic Field and True Polymorph all forbid
+  // "casting spells" rather than an Action, and a Bonus Action casting and a
+  // Reaction casting are both castings — so the name travels with all three
+  // and the slot is what differs.
+  const spend = { rules: caster?.actionRules ?? [], as: 'magic' as const };
 
   const spent =
     castingTime === 'reaction'
-      ? spendReaction(combat, id, conditions)
+      ? spendReaction(combat, id, conditions, spend)
       : castingTime === 'bonus-action'
-        ? spendBonusAction(combat, id, conditions)
-        : spendAction(combat, id, conditions);
+        ? spendBonusAction(combat, id, conditions, spend)
+        : spendAction(combat, id, conditions, spend);
   if (!spent.ok) return spent;
 
   const economy: GameEvent =

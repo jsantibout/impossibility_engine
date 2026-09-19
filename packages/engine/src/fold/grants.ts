@@ -1,8 +1,9 @@
 /**
- * The eight families of granted modifier, and the one rule they share.
+ * The nine families of granted modifier, and the one rule they share.
  *
  * A bonus, an Armour Class, a roll modifier, a damage defence, a Speed, an
- * attack rider, a condition Immunity and a payout at a turn boundary. **Re-granting from the same source
+ * attack rider, a condition Immunity, a payout at a turn boundary and a rule
+ * about what a turn may be spent on. **Re-granting from the same source
  * replaces rather than stacks** in every one of them; what differs is only what
  * counts as the source's identity, which each case states where it departs.
  */
@@ -21,6 +22,7 @@ export const GRANTS_EVENTS = [
   'attack-rider-granted',
   'condition-immunity-granted',
   'turn-payout-granted',
+  'action-rule-granted',
   'bonus-removed',
 ] as const;
 
@@ -180,6 +182,22 @@ export function applyGrants({ state, next }: Applying, event: GrantsEvent): Game
         event.payout,
       ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
       return withCreature(next, event.id, { payouts }, creature);
+    }
+
+    case 'action-rule-granted': {
+      const creature = creatureOf(state, event, event.id);
+      // Re-granting from the same source replaces rather than stacking, the
+      // rule every grant in the family follows. **The source alone is the
+      // identity**, as it is for a defence, a Speed, a rider, an Immunity and
+      // a payout: SRD writes one restriction per sentence and a casting's
+      // sentence is one — Stinking Cloud's "an action or a Bonus Action" is
+      // one rule naming two slots, which is the plural `slots` inside it
+      // rather than two grants from one source.
+      const actionRules = [
+        ...creature.actionRules.filter((held) => held.source !== event.rule.source),
+        event.rule,
+      ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
+      return withCreature(next, event.id, { actionRules }, creature);
     }
 
     case 'bonus-removed': {
