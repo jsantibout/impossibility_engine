@@ -98,11 +98,12 @@ function withoutTimersFor(
 /**
  * Take the pool of Temporary Hit Points away, whatever is left of it.
  *
- * The one place the pool goes to zero, so the two doors that empty it — a Long
- * Rest, through `temporary-hp-cleared`, and a stated duration running out,
- * through `expireEffects` — cannot come to disagree about what emptying it
- * means. It is **only** the pool: hit points, death saves, Stable and dead are
- * all untouched, because Temporary Hit Points were never any of them.
+ * The one place the pool goes to zero, and **both** doors that empty it go
+ * through here — a Long Rest, through `temporary-hp-cleared` below, and a
+ * stated duration running out, through `expireEffects` — so the two cannot
+ * come to disagree about what emptying it means. It is **only** the pool: hit
+ * points, death saves, Stable and dead are all untouched, because Temporary
+ * Hit Points were never any of them.
  *
  * Quiet when there is nothing there. A pool spent to nothing before its
  * deadline still has a deadline, and the moment arriving on it must change
@@ -214,18 +215,18 @@ export function applyVitals({ state, next }: Applying, event: VitalsEvent): Game
     }
 
     case 'temporary-hp-cleared': {
-      const creature = creatureOf(state, event, event.id);
+      // Read the creature first and use the helper second. `clearTemporaryHp`
+      // is deliberately quiet about a creature it cannot find, because the
+      // expiry pass may arrive after one has left; an *event* naming nobody is
+      // a log this engine did not write, and this seam refuses it as it
+      // refuses every other.
+      creatureOf(state, event, event.id);
+
       // SRD: "Temporary Hit Points last until they're depleted or you finish a
       // Long Rest." The rest takes the pool **and** any deadline that was hung
       // on it: an hour that outlived the points it measured would be a timer
       // over nothing.
-      const cleared = withCreature(
-        next,
-        event.id,
-        { vitals: { ...creature.vitals, temporaryHp: 0 } },
-        creature,
-      );
-      return withoutTemporaryHpDeadline(cleared, event.id);
+      return withoutTemporaryHpDeadline(clearTemporaryHp(next, event.id), event.id);
     }
 
     case 'death-save-recorded': {

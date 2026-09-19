@@ -250,6 +250,16 @@ describe('a Long Rest ends them however they were granted', () => {
     expect(vitalsOf(at(rested)).temporaryHp).toBe(0);
     expect(deadlineOn(at(rested))).toBeUndefined();
   });
+
+  /**
+   * Clearing is quiet about an empty pool and must not become quiet about an
+   * absent creature with it: the expiry pass may arrive after somebody has
+   * left the game, but an *event* naming nobody is a log this engine did not
+   * write, and the seam refuses it as it always did.
+   */
+  it('still refuses a clearing aimed at nobody', () => {
+    expect(() => at([add(HERO), { type: 'temporary-hp-cleared', id: OTHER }])).toThrow();
+  });
 });
 
 describe('what a lifetime must not change', () => {
