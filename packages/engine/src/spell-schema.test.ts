@@ -1785,6 +1785,7 @@ describe('every member of the definition format has a user or a written exemptio
     expect(membersOf(source, 'RiderDuration').map((m) => m.label)).toEqual([
       "RiderDuration='start-of-casters-next-turn'",
       "RiderDuration='end-of-casters-next-turn'",
+      "RiderDuration='end-of-targets-next-turn'",
       "RiderDuration='end-of-current-turn'",
     ]);
     expect(unused.map((member) => member.label)).not.toContain(

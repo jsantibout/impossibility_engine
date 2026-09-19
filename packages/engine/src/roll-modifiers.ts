@@ -83,10 +83,14 @@ export type RollFamily =
  * `against-holder` selector on a save would match every save ever rolled. The
  * validator refuses it.
  *
- * A third relation is visible in the book and is not built: Bestow Curse's
- * "Disadvantage on attack rolls **against you**" names the *caster*
- * specifically rather than whoever holds the effect. That needs the source of
- * the effect to be a participant in the match, which nothing else asks for.
+ * **There is deliberately no third relation**, and two SRD sentences are why
+ * rather than why not. Bestow Curse's "Disadvantage on attack rolls **against
+ * you**" and the Vex property's "Advantage on your next attack roll **against
+ * that creature**" both narrow a roll to one *named* creature — and an enum
+ * member cannot hold an id, so a third member would still need the id written
+ * down beside it. What they want is the other participant pinned, which is
+ * {@link RollSelector.counterpart}, and it composes with both members here
+ * rather than being a third alternative to them.
  */
 export type RollRelation = 'roller' | 'against-holder';
 
@@ -127,12 +131,67 @@ export interface RollSelector {
    * "ability checks using the chosen ability".
    */
   readonly skill?: Skill;
+  /**
+   * The other participant, pinned — so the selector picks out rolls involving
+   * one named creature rather than anybody.
+   *
+   * SRD writes two sentences that need it, and they sit on opposite sides of
+   * {@link RollRelation}:
+   *
+   * > Vex: "you have Advantage on your next attack roll **against that
+   * > creature**." The holder is the attacker (`roller`), and the creature
+   * > they hit is the counterpart.
+   * > Bestow Curse: "The target has Disadvantage on attack rolls **against
+   * > you**." The holder is the cursed creature (`roller`), and the caster is
+   * > the counterpart.
+   *
+   * **It is the participant the relation does not name.** For a `roller`
+   * selector the holder is who rolls, so the counterpart is who the roll is
+   * against; for `against-holder` the holder is who it is against, so the
+   * counterpart is who rolls. One field, read from the end that is still free,
+   * rather than two fields of which one is always the holder over again.
+   *
+   * **A `CharacterId`, so only an attack roll can carry it**, for the reason
+   * `against-holder` is confined to one: an attack is the single D20 Test the
+   * engine records a second participant for, and a selector naming one on a
+   * saving throw would describe a roll the engine cannot recognise. The
+   * validator refuses it.
+   *
+   * **A definition names a role and the command pins the id**, the rule every
+   * other number on a casting follows: the fold opens no catalogue, and "that
+   * creature" is not a fact a book can hold. See `ModifierRider`'s
+   * `counterpart`.
+   */
+  readonly counterpart?: CharacterId;
 }
 
 /** A mode, and the rolls it reaches. */
 export interface RollModifier {
   readonly mode: RollMode;
   readonly selector: RollSelector;
+  /**
+   * Spent by the first roll it reaches, rather than running to a deadline.
+   *
+   * SRD Guiding Bolt: "**the next attack roll** made against it before the end
+   * of your next turn has Advantage." SRD Vicious Mockery: "Disadvantage on
+   * **the next attack roll it makes** before the end of its next turn." A
+   * durable grant applies until the thing that made it ends, so neither of
+   * those sentences could be written at all: both name a roll that *uses the
+   * grant up*.
+   *
+   * **The roll it reaches, not the roll it changed.** A one-shot Disadvantage
+   * met by an Advantage cancels to `normal` — and it is still spent, because
+   * SRD says "the next attack roll it makes" and does not say "the next one
+   * that came out worse". `combineRollModes` settles the outcome and this is
+   * about the selector, so the two questions never have to agree.
+   *
+   * **Both endings, and neither replaces the other.** The sentence names a
+   * moment as well as a roll, and the moment is the `grants` timer's to keep:
+   * a grant that is consumed leaves a timer standing over nothing, which costs
+   * nothing, because `withoutGrants` hands the creature back by reference when
+   * it matches no grant.
+   */
+  readonly oneShot?: true;
 }
 
 /**
@@ -171,6 +230,17 @@ export interface ActiveRollModifier {
  * casting is a second grant, because it is a second sentence. The mode is not
  * part of the identity — one casting granting Advantage and then Disadvantage
  * on the same rolls is a contradiction, and the later word wins.
+ *
+ * **The counterpart is part of it too**, and one property proves that the way
+ * Beacon of Hope proved the rest. SRD Vex hangs its Advantage on the attacker,
+ * narrowed to the creature they just hit; an attacker who hits two goblins in
+ * one turn holds two of them from one source, and under a key that stopped at
+ * the selector's roll the second would have evicted the first — the same
+ * sentence losing half of itself between the state and the roll.
+ *
+ * **`oneShot` is not**, for the reason the mode is not: it says how a grant
+ * ends rather than which rolls it reaches, and one source cannot mean both
+ * about the same rolls at once.
  */
 export function rollModifierKey(source: string, selector: RollSelector): string {
   return [
@@ -179,6 +249,7 @@ export function rollModifierKey(source: string, selector: RollSelector): string 
     selector.relation,
     selector.ability ?? '',
     selector.skill ?? '',
+    selector.counterpart ?? '',
   ].join('|');
 }
 
@@ -220,14 +291,24 @@ export function selectorMatches(
 ): boolean {
   if (selector.roll !== query.family) return false;
 
+  const against = query.against ?? null;
+
   if (selector.relation === 'roller') {
     if (holder !== query.roller) return false;
   } else {
     // An attack with no recorded target matches nothing: the rule needs a
     // second participant and there is none, which is a miss rather than a
     // guess in either direction.
-    const against = query.against ?? null;
     if (against === null || holder !== against) return false;
+  }
+
+  // The other participant, where the selector pins one — the end the relation
+  // has not already spoken for. A roll that records nobody there is a miss for
+  // the reason an `against-holder` selector is: the rule names a creature and
+  // the roll cannot say whether this is them.
+  if (selector.counterpart !== undefined) {
+    const other = selector.relation === 'roller' ? against : query.roller;
+    if (other === null || other !== selector.counterpart) return false;
   }
 
   if (selector.ability !== undefined && selector.ability !== query.ability) return false;
@@ -304,7 +385,34 @@ export function rollSelectorProblems(
     });
   }
 
+  if (selector.counterpart !== undefined) {
+    const wrong = counterpartProblem(selector.roll);
+    if (wrong !== null) found.push(wrong);
+  }
+
   return found;
+}
+
+/**
+ * A counterpart names the other participant, and only one roll has one.
+ *
+ * The same sentence `against_holder_without_target` says on the other axis,
+ * and it is the same fact underneath: an attack roll is the one D20 Test the
+ * engine records a second participant for, so on any other family a pinned
+ * counterpart picks out nothing for ever.
+ *
+ * **Its own function because two readers ask it of two different things.**
+ * `rollSelectorProblems` asks it of a selector that already holds an id — a
+ * feature's grant, a homebrew written against the state vocabulary — and the
+ * definition validator asks it of a rider that holds a *role*, before anything
+ * has been pinned. One rule and one wording, or two places for it to drift.
+ */
+export function counterpartProblem(roll: RollFamily): RollSelectorProblem | null {
+  if (roll === 'attack') return null;
+  return {
+    code: 'counterpart_without_target',
+    reason: `an attack roll is the only D20 Test the engine records a second participant for, so naming the other creature cannot pick out a ${roll}`,
+  };
 }
 
 /**
@@ -330,4 +438,56 @@ export function grantedRollModes(state: GameState, query: RollQuery): readonly M
   }
 
   return modes;
+}
+
+/** One creature's grant, named the way the deadline on it is named. */
+export interface SpentRollModifier {
+  readonly holder: CharacterId;
+  readonly source: string;
+}
+
+/**
+ * The one-shot grants this roll uses up.
+ *
+ * {@link grantedRollModes}' walk asked a second time for a second question,
+ * and the two are deliberately not one call: what a roll *reads* is a list of
+ * attributed modes that `combineRollModes` settles, and what it *spends* is a
+ * list of grants that were reached. A roll can read a mode without spending
+ * anything, and — the case that matters — it spends a grant it read even when
+ * the reading cancelled to `normal`. The predicate is the same
+ * {@link selectorMatches}, so the two can never disagree about whether the
+ * grant applied.
+ *
+ * **Holder and bare source, which is what the ending takes.** `releaseGrants`
+ * matches the bare source for the reason a `grants` deadline does: Beacon of
+ * Hope's two modifiers are one source's grant, and whatever ends one ends
+ * both. So a source appears once however many of its modifiers this roll
+ * reached, and the caller emits one event for it.
+ *
+ * Sorted by holder and then source, because the answer reaches the log and two
+ * readers of one state have to agree about the order.
+ */
+export function consumedRollModifiers(
+  state: GameState,
+  query: RollQuery,
+): readonly SpentRollModifier[] {
+  const spent: SpentRollModifier[] = [];
+
+  for (const holder of Object.keys(state.creatures).sort()) {
+    const creature = state.creatures[holder];
+    if (creature === undefined) continue;
+
+    const sources = new Set<string>();
+    for (const held of creature.rollModifiers) {
+      if (held.modifier.oneShot !== true) continue;
+      if (!selectorMatches(held.modifier.selector, holder as CharacterId, query)) continue;
+      sources.add(held.source);
+    }
+
+    for (const source of [...sources].sort()) {
+      spent.push({ holder: holder as CharacterId, source });
+    }
+  }
+
+  return spent;
 }

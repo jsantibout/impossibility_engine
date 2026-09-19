@@ -936,10 +936,26 @@ export const GUIDING_BOLT: SpellDefinition = {
       attack: 'ranged',
       damage: { dice: '4d6', perSlotLevelAbove: '1d6' },
       damageType: 'radiant',
+      // "the **next** attack roll made against it ... has Advantage": one roll,
+      // whoever makes it, and then gone — `oneShot`, which is the half of
+      // the sentence a durable grant could never say. The other half is the
+      // deadline, and both endings stand: whichever arrives first.
+      //
+      // `against-holder` because the Advantage is on rolls made *against* the
+      // creature carrying it, and `lasts` because the spell's own Duration of
+      // one round leaves no casting that could take the grant back.
+      modifiers: [
+        {
+          kind: 'mode',
+          modifier: {
+            mode: 'advantage',
+            selector: { roll: 'attack', relation: 'against-holder' },
+            oneShot: true,
+          },
+          lasts: 'end-of-casters-next-turn',
+        },
+      ],
     },
-  ],
-  unmodelled: [
-    'the next attack roll against the target before the end of your next turn has Advantage',
   ],
 };
 
@@ -2838,10 +2854,28 @@ export const VICIOUS_MOCKERY: SpellDefinition = {
       damage: { dice: '1d6', cantripUpgradesAt: [5, 11, 17] },
       damageType: 'psychic',
       onSuccess: 'none',
+      // "Disadvantage on the **next attack roll it makes** before the end of
+      // **its** next turn": Guiding Bolt's sentence from the other end of the
+      // relation — the mode is on rolls the holder makes rather than on
+      // rolls made against them — and the same two endings, whichever
+      // comes first.
+      //
+      // A cantrip and Instantaneous, so there is no casting that could ever
+      // lift the Disadvantage; `lasts` is the rider's own deadline, anchored
+      // to the target because the SRD anchors it to "its" turn rather than
+      // yours.
+      modifiers: [
+        {
+          kind: 'mode',
+          modifier: {
+            mode: 'disadvantage',
+            selector: { roll: 'attack', relation: 'roller' },
+            oneShot: true,
+          },
+          lasts: 'end-of-targets-next-turn',
+        },
+      ],
     },
-  ],
-  unmodelled: [
-    'Disadvantage on the target\u2019s next attack roll before the end of its next turn',
   ],
 };
 

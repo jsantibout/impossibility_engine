@@ -340,11 +340,20 @@ describe('what a shape finishes is the column a tranche is planned from', () => 
    * So the shape still blocks six and now finishes **none** of them, which is
    * the honest reading of a feature whose sentence needs four mechanics: the
    * first one built takes nothing off this list. The id the two properties
-   * reach for is the **spell** map's own `a-one-shot-roll-modifier` rather
+   * reach for was the **spell** map's own `a-one-shot-roll-modifier` rather
    * than a second spelling of it, on the precedent `monk:slow-fall` set with
    * `falling` — Guiding Bolt's "the next attack roll against it" and Vex's
-   * "your next attack roll against that creature" are one missing mechanic
+   * "your next attack roll against that creature" were one missing mechanic
    * arriving at two doors.
+   *
+   * **And then one of the two doors was built, so the id moved rather than
+   * splitting.** The casting half landed with Guiding Bolt and Vicious
+   * Mockery, which left no *spell* blocked on it — and the spell map's own
+   * rule is that a shape nothing claims is removed rather than kept as a
+   * private language. What is still missing under the name is true of a
+   * feature and false of a casting, which is exactly the test
+   * `FEATURE_SHAPES` applies to its own entries, so that is where the id now
+   * lives. The feature entries did not change what they say.
    */
   it('files each mastery feature against every shape that blocks it', () => {
     const mastery = [

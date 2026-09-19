@@ -12,8 +12,9 @@ import { ABILITY_NAMES, type CharacterId, type ConditionName, ok, type Result } 
 import { type DamageComponent, rollAttack, rollAttackDamage } from '../attack.js';
 import { bonusesFor } from '../bonuses.js';
 import { rollSavingThrow } from '../checks.js';
-import { applyEvent, type CreatureState, type GameState } from '../events.js';
+import { applyEvent, type CreatureState, type GameEvent, type GameState } from '../events.js';
 import { apartFromSource } from '../positioning.js';
+import { consumedRollModifiers } from '../roll-modifiers.js';
 import {
   conditionRiderOf,
   hasOutcomeRiders,
@@ -143,6 +144,25 @@ export function resolveAttackEffect(
     contributions: [{ source: 'spell attack', amount: attackModifier }],
     outcome: attack.value.hit ? 'hit' : 'miss',
   });
+
+  // **A spell attack is an attack roll**, which is the sentence this whole
+  // resolver keeps having to say: a one-shot grant SRD Guiding Bolt hung on a
+  // creature is spent by a Fire Bolt exactly as it is by a club, and the query
+  // is the one `defendingModes` asked at the top. Before the miss branch,
+  // because "the next attack roll made against it" does not wait for a hit.
+  for (const spent of consumedRollModifiers(current, {
+    family: 'attack',
+    roller: casterId,
+    against: target,
+  })) {
+    const consumed: GameEvent = {
+      type: 'roll-modifier-consumed',
+      id: spent.holder,
+      source: spent.source,
+    };
+    events.push(consumed);
+    current = applyEvent(current, consumed);
+  }
 
   if (!attack.value.hit) {
     // SRD Acid Arrow: "On a miss, the arrow splashes the target with

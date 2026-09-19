@@ -394,7 +394,27 @@ export function applyRiders(
           ? {
               type: 'roll-modifier-granted',
               id: target,
-              modifier: { source, modifier: modifier.modifier },
+              modifier: {
+                source,
+                modifier:
+                  modifier.counterpart === undefined
+                    ? modifier.modifier
+                    : {
+                        ...modifier.modifier,
+                        // **The only place a role becomes an id**, which is
+                        // the rule every number on a casting follows: a
+                        // definition is written once and cast at whoever is
+                        // standing there, and the fold opens no catalogue, so
+                        // "that creature" has to be pinned here or it is not a
+                        // fact at all. SRD Bestow Curse's "attack rolls
+                        // against you" is the caster; the Vex property's
+                        // "against that creature" is the target.
+                        selector: {
+                          ...modifier.modifier.selector,
+                          counterpart: modifier.counterpart === 'caster' ? casterId : target,
+                        },
+                      },
+              },
             }
           : {
               type: 'speed-modifier-granted',
@@ -418,13 +438,18 @@ export function applyRiders(
     // Scheduled after the grant, because the deadline is only meaningful once
     // there is something to end; and the duration is `resolveDuration`'s to
     // refuse, which `riderDurations` has already asked before a die was thrown.
-    // The two riders that may end sooner than the casting — see
+    // The three riders that may end sooner than the casting — see
     // {@link ModifierRider}, where each is argued from its Instantaneous host.
     const lasts =
-      modifier.kind === 'speed-change' || modifier.kind === 'action'
+      modifier.kind === 'speed-change' || modifier.kind === 'action' || modifier.kind === 'mode'
         ? modifier.lasts
         : undefined;
-    const duration = riderDuration(lasts, casterId);
+    // **The target as well as the caster**, because SRD Vicious Mockery
+    // anchors its deadline to the creature the rider is on — "before the end
+    // of **its** next turn" — and this is the one call that has that creature
+    // in hand. The pre-flight has only the caster and asks a different
+    // question with it; see `riderDuration`.
+    const duration = riderDuration(lasts, casterId, target);
     if (duration !== undefined) {
       const timer = schedule(current, { kind: 'grants', on: target, source }, duration);
       if (!timer.ok) return timer;

@@ -322,7 +322,7 @@ describe('a casting from an item', () => {
         uses: 7,
         recovers: 'dawn',
       },
-      { kind: 'casts', spell: 'guiding-bolt', charges: 1, ...over },
+      { kind: 'casts', spell: 'fire-bolt', charges: 1, ...over },
     ],
   });
 
@@ -355,7 +355,7 @@ describe('a casting from an item', () => {
     expect(
       bonusOn(
         holding(WAND),
-        { spellId: 'guiding-bolt', targets: [VICTIM], item: WAND },
+        { spellId: 'fire-bolt', targets: [VICTIM], item: WAND },
         'wand',
         withWands,
       ),
@@ -367,7 +367,7 @@ describe('a casting from an item', () => {
     expect(
       bonusOn(
         holding(PRINTED),
-        { spellId: 'guiding-bolt', targets: [VICTIM], item: PRINTED },
+        { spellId: 'fire-bolt', targets: [VICTIM], item: PRINTED },
         'wand',
         withWands,
       ),
@@ -409,7 +409,7 @@ describe('a casting from an item', () => {
       resolveSpell(
         state(log),
         CASTER,
-        { spellId: 'guiding-bolt', targets: [VICTIM], item: PRINTED },
+        { spellId: 'fire-bolt', targets: [VICTIM], item: PRINTED },
         supply('wand', withWands),
       ),
       'the wand',

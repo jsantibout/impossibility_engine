@@ -155,8 +155,6 @@ export const MISSING_SHAPES = {
     '`docs/design/casting.md`: "Cloudkill and Incendiary Cloud, blocked on automatic turn-start drift". PROGRESS.md says why it is not transcription: the move has to land before the start-of-turn clauses are determined, the direction is derived for one spell and chosen for the other, and a caster with no position has no "away from you" at all.',
   'an-area-trigger-on-the-casters-turn':
     '`AreaTrigger.at` in spell-definitions.ts transcribes the SRD’s two boundary clauses — "starts its turn there" and "ends its turn there" — and both are the **caught creature’s** turn. A storm that acts at the end of each of the *caster’s* turns is a third boundary, and the queue that raises area debt is keyed to the creature whose turn it is.',
-  'a-one-shot-roll-modifier':
-    '`docs/design/rolls-and-damage.md`: "A one-shot mode is a different mechanic, not a short-lived one." Guiding Bolt’s "the **next** attack roll against it" and Vicious Mockery’s "the next attack roll it makes" need a modifier **consumed** by the roll it changes, and a durable grant applies until its casting ends.',
   'a-selector-for-every-d20-test':
     '`docs/design/rolls-and-damage.md`: "**There is deliberately no member for “D20 Tests”.** Three SRD spells write the phrase — Foresight, Resurrection, Ray of Enfeeblement — and every one is blocked on something else". The absence is a decision rather than an oversight, and it is still what stands between these spells and a definition once their other blockers go.',
   'a-roll-result-an-effect-replaces':
@@ -782,13 +780,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: "You touch a willing creature and choose a skill", and the creature "adds 1d4 to any ability check using the chosen skill". The bonus is granted to the whole ability-check family instead, which is broader than the spell, and the clause says why: a per-casting choice has nowhere to be recorded.',
     },
   ],
-  'guiding-bolt': [
-    {
-      clause: 'the next attack roll against the target',
-      why: 'a-one-shot-roll-modifier',
-      note: 'SRD: "the next attack roll made against it before the end of your next turn has Advantage." A durable grant applies until its casting ends; nothing is consumed by the roll it changes.',
-    },
-  ],
   harm: [
     {
       clause: 'Hit Point maximum reduction',
@@ -1032,13 +1023,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'goes unchecked',
       why: 'targeting-rules-that-differ-within-one-casting',
       note: 'The spell’s printed Range is Self, which is what the targeting rules read, and the five feet belong to the attack rather than to the spell. Every later use of the casting checks the reach; the attack made at the moment of casting does not.',
-    },
-  ],
-  'vicious-mockery': [
-    {
-      clause: 'next attack roll before the end of its next turn',
-      why: 'a-one-shot-roll-modifier',
-      note: 'SRD: the target must succeed on the save or "have Disadvantage on the next attack roll it makes before the end of its next turn". Nothing here is consumed by the roll it changes — a durable grant runs until its casting ends — so the Disadvantage is not granted at all.',
     },
   ],
   web: [
@@ -1755,12 +1739,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'The target must make a Constitution saving throw',
       why: 'a-success-branch-that-does-something',
       note: 'the save is a fork rather than a gate: succeeding at it costs the target something, and `onSuccess` releases an effect or does nothing at all \u2014 there is nowhere to put an outcome on the branch that normally buys a creature its freedom.',
-    },
-    {
-      marker: 'roll-mode',
-      clause: 'the target has Disadvantage on the next attack roll it makes until the start of your next turn',
-      why: 'a-one-shot-roll-modifier',
-      note: 'the modifier is consumed by the one roll it changes rather than running to a deadline, and a durable grant runs until its casting ends \u2014 Vicious Mockery prints the same sentence and is adjudicated the same way.',
     },
     {
       marker: 'roll-mode',

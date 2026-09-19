@@ -151,11 +151,44 @@ export interface DiceScaling {
  * own turn is two turn-endings away. That off-by-a-round is why this is a
  * member of `Duration` rather than a spelling of one that was already there.
  */
+/**
+ * **A fifth member, and it is the first anchored to the creature the rider is
+ * on.**
+ *
+ * SRD Vicious Mockery: "Disadvantage on the next attack roll it makes before
+ * the end of **its** next turn". The two caster-anchored members are a full
+ * turn out for that sentence and `end-of-current-turn` is a different moment
+ * again, so the clause had no spelling at all — on an Instantaneous cantrip,
+ * where a rider with no deadline is refused outright.
+ *
+ * **The moment already existed**, which is why this is a spelling rather than
+ * a primitive: `delayedDuration` anchors SRD Acid Arrow's later hit to "the end
+ * of **its** next turn" through the same `endOfNextTurn`, and that function
+ * already encodes the asymmetry that makes it right. What was missing was a
+ * word a rider could say it with.
+ */
 export type RiderDuration =
   | 'start-of-casters-next-turn'
   | 'end-of-casters-next-turn'
+  | 'end-of-targets-next-turn'
   | 'end-of-current-turn'
   | { readonly seconds: number };
+
+/**
+ * The other participant a narrowed roll modifier pins, as a definition says it.
+ *
+ * `RollSelector.counterpart` is a `CharacterId`, because a match needs the
+ * creature and not a description of it. A definition is written once and cast
+ * at whoever is standing there, so it names the **role** and the resolver binds
+ * it — the rule every number on a casting follows, and the reason the fold
+ * never has to know what "you" meant.
+ *
+ * Two members because a rider's world has two creatures in it: the caster and
+ * the target it is being hung on. SRD Bestow Curse names the first
+ * ("Disadvantage on attack rolls **against you**") and the Vex property names
+ * the second, on a weapon rather than a spell.
+ */
+export type CounterpartRole = 'caster' | 'target';
 
 /**
  * An ability check a creature may attempt against what the spell is doing.
@@ -350,15 +383,17 @@ export interface ConditionRider {
  * those two branches already emit, the source is the casting, and
  * `releaseCasting` ends them through the door every other grant uses.
  *
- * **Exactly one member carries `lasts`, and it is the one whose consumer asks
- * for it.** `EffectTarget`'s fourth member — `grants`, every grant one source
- * made on one creature — made a deadline on a grant expressible when IE-017
- * built it for SRD Superior Hunter's Defense, and for a while nothing asked.
- * SRD Ray of Frost does: "until the start of your next turn", on a cantrip, so
- * the casting is over the instant it resolves and could never take the
- * reduction back. `bonus` and `mode` still carry none, because no SRD sentence
- * in *their* position asks — Phantasmal Killer's "for the duration" fits the
- * casting exactly, and a field with no user is a guess dressed as a structure.
+ * **A member carries `lasts` when its own consumer asks for it.**
+ * `EffectTarget`'s fourth member — `grants`, every grant one source made on one
+ * creature — made a deadline on a grant expressible when IE-017 built it for
+ * SRD Superior Hunter's Defense, and for a while nothing asked. SRD Ray of
+ * Frost did first: "until the start of your next turn", on a cantrip, so the
+ * casting is over the instant it resolves and could never take the reduction
+ * back. Shocking Grasp's forbidden Opportunity Attack is the same shape, and
+ * Vicious Mockery's Disadvantage the third — an Instantaneous host every time,
+ * which is the only position from which the field is not a guess. `bonus`
+ * still carries none, because no SRD sentence there asks: Phantasmal Killer's
+ * "for the duration" fits the casting exactly.
  */
 export type ModifierRider =
   | {
@@ -367,7 +402,44 @@ export type ModifierRider =
       readonly applies: readonly BonusApplies[];
       readonly direction: 'add' | 'subtract';
     }
-  | { readonly kind: 'mode'; readonly modifier: RollModifier }
+  /**
+   * A mode the same roll grants, and — where the sentence says so — the moment
+   * it ends at and the creature it is about.
+   *
+   * SRD Vicious Mockery: "take 1d6 Psychic damage **and** have Disadvantage on
+   * the next attack roll it makes before the end of its next turn." One save,
+   * two consequences, which is the argument every member of this union makes.
+   *
+   * **`lasts` is here for the reason `speed-change` has it**, arriving with
+   * the second spell to need it: Vicious Mockery is a cantrip and
+   * Instantaneous, so its casting is over the moment it resolves and could
+   * never take the Disadvantage back. The clause names a moment of its own and
+   * `EffectTarget.grants` is the deadline that holds it. Guiding Bolt writes
+   * the same shape from the other end of the relation.
+   *
+   * The paragraph above {@link ModifierRider} said `mode` carried none because
+   * no SRD sentence in its position asked; two do, and both of them are the
+   * one-shot clause. `bonus` still carries none.
+   *
+   * **`counterpart` names the other participant** — see
+   * `RollSelector.counterpart` for why this is not a third `RollRelation` — as
+   * a *role*, which the resolver binds to an id. No SRD spell in the
+   * catalogue writes one yet; Bestow Curse's "attack rolls against you" is the
+   * sentence it is for, and the Vex property writes it on a weapon.
+   */
+  | {
+      readonly kind: 'mode';
+      readonly modifier: RollModifier;
+      /**
+       * A deadline of the rider's own, shorter than the casting's.
+       *
+       * Omitted, it ends with the casting — which a definition that never
+       * becomes an ongoing casting may not say, and the validator refuses.
+       */
+      readonly lasts?: RiderDuration;
+      /** Whose roll it is about, where the sentence narrows it to one creature. */
+      readonly counterpart?: CounterpartRole;
+    }
   /**
    * A Speed the same roll changes.
    *
@@ -2234,6 +2306,7 @@ export function riderDurationPhrase(lasts: RiderDuration | undefined): string {
   if (lasts === undefined) return 'the spell ends';
   if (typeof lasts === 'object') return `${lasts.seconds} seconds have passed`;
   if (lasts === 'end-of-current-turn') return 'the end of the current turn';
+  if (lasts === 'end-of-targets-next-turn') return "the end of the target's next turn";
   return lasts === 'end-of-casters-next-turn'
     ? "the end of the caster's next turn"
     : "the start of the caster's next turn";
@@ -2242,19 +2315,32 @@ export function riderDurationPhrase(lasts: RiderDuration | undefined): string {
 /**
  * The deadline a rider clause names.
  *
- * Two of the four members are anchored to the caster's own turn; one is a span
- * on the clock; and one — the turn in progress ending — is anchored to nobody,
- * so it ignores the caster entirely and is resolved against whoever is taking
- * the turn. The whole reason they are separate members is that none of them is
- * interchangeable with another — see {@link RiderDuration}.
+ * Two of the five members are anchored to the caster's own turn; one to the
+ * creature the rider is being hung on; one is a span on the clock; and one —
+ * the turn in progress ending — is anchored to nobody, so it ignores both and
+ * is resolved against whoever is taking the turn. The whole reason they are
+ * separate members is that none of them is interchangeable with another — see
+ * {@link RiderDuration}.
+ *
+ * **`targetId` is optional, and where it is absent the target-anchored member
+ * falls back to the caster.** The one caller that has no target is the
+ * *pre-flight*, which asks `resolveDuration` whether the moment a rider names
+ * could exist at all before a slot or a die is spent — and at that point the
+ * spell's targets are still a request rather than creatures. What it is
+ * actually asking is whether there are turns to anchor to, which the caster
+ * answers as well as anybody; the binding that matters is the one the resolver
+ * makes, with the creature in hand. A target outside the fight is caught there
+ * instead, as a refusal rather than as a wrong deadline.
  */
 export function riderDuration(
   lasts: RiderDuration | undefined,
   casterId: CharacterId,
+  targetId?: CharacterId,
 ): Duration | undefined {
   if (lasts === undefined) return undefined;
   if (typeof lasts === 'object') return forSeconds(lasts.seconds);
   if (lasts === 'end-of-current-turn') return endOfCurrentTurn;
+  if (lasts === 'end-of-targets-next-turn') return endOfNextTurn(targetId ?? casterId);
   return lasts === 'end-of-casters-next-turn'
     ? endOfNextTurn(casterId)
     : startOfNextTurn(casterId);
@@ -2358,11 +2444,11 @@ export function riderDurations(definition: SpellDefinition): readonly RiderDurat
       if (rider.lasts !== undefined) found.push(rider.lasts);
     }
     for (const rider of modifierRidersOf(effect)) {
-      // The two riders that may carry a deadline of their own — see
-      // {@link ModifierRider}, where both are argued from an Instantaneous
+      // The three riders that may carry a deadline of their own — see
+      // {@link ModifierRider}, where each is argued from an Instantaneous
       // host that could never lift what it hung.
       if (
-        (rider.kind === 'speed-change' || rider.kind === 'action') &&
+        (rider.kind === 'speed-change' || rider.kind === 'action' || rider.kind === 'mode') &&
         rider.lasts !== undefined
       ) {
         found.push(rider.lasts);

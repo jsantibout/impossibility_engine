@@ -10,7 +10,7 @@ import {
   type Result,
   type Skill,
 } from '@ie/shared';
-import { rollSelectorProblems } from './roll-modifiers.js';
+import { counterpartProblem, rollSelectorProblems } from './roll-modifiers.js';
 import { parseNotation } from './dice.js';
 import { LONG_CASTING_SECONDS } from './spells.js';
 import { conditionRiderOf, CREATURE_TYPES, modifierRidersOf } from './spell-definitions.js';
@@ -513,6 +513,7 @@ function checkRiderDuration(
   } else if (
     lasts !== 'start-of-casters-next-turn' &&
     lasts !== 'end-of-casters-next-turn' &&
+    lasts !== 'end-of-targets-next-turn' &&
     lasts !== 'end-of-current-turn'
   ) {
     found.push({
@@ -832,6 +833,29 @@ function checkModifierRider(
   }
   if (rider?.kind === 'mode') {
     checkRollModifier(rider.modifier, `${path}.modifier`, found);
+    // The third rider that may carry a deadline of its own. Whether it *must*
+    // is {@link checkGrantLifetimes}', exactly as for `speed-change`: SRD
+    // Vicious Mockery hangs a Disadvantage off an Instantaneous cantrip, so
+    // the casting is over before anything could lift it.
+    checkRiderDuration(rider.lasts, path, found);
+    // **And the other participant, where the sentence names one.** A role
+    // rather than an id — the definition is written once and cast at whoever
+    // is standing there — so the vocabulary is checked here and the rule about
+    // *which rolls can carry one* comes from the same {@link
+    // counterpartProblem} that judges a selector already holding an id. One
+    // rule, one wording, two askers.
+    if (rider.counterpart !== undefined) {
+      if (rider.counterpart !== 'caster' && rider.counterpart !== 'target') {
+        found.push({
+          field: `${path}.counterpart`,
+          code: 'bad_counterpart',
+          reason: `"${String(rider.counterpart)}" is not a role a casting can bind; the other creature in a rider's world is the caster or the target`,
+        });
+      } else if (ROLL_FAMILIES.has(rider.modifier?.selector?.roll)) {
+        const wrong = counterpartProblem(rider.modifier.selector.roll);
+        if (wrong !== null) found.push({ field: `${path}.counterpart`, ...wrong });
+      }
+    }
     return;
   }
   if (rider?.kind === 'speed-change') {
@@ -1724,15 +1748,15 @@ function checkEndsEarly(
  * behind a first one that did.
  *
  * **A `modifiers` rider is in the list unless it says how long it lasts**, and
- * only one member can. `bonus` and `mode` carry no `lasts` and no
- * `outlivesCasting`, so on a spell with no casting to end them there is no way
- * to write them correctly and the only honest answer is to refuse; a
- * `speed-change` may name a deadline of its own, and `EffectTarget.grants` is
- * what then takes the grant away. That asymmetry is the *reason* this walks
- * every modifier rider rather than the first: while both members carried
- * unconditionally the two readings agreed, and the third is the first that may
- * carry a lifetime or not — so a Ray of Frost written beside a Bless would
- * have hidden behind it.
+ * not every member can. `bonus` carries no `lasts` and no `outlivesCasting`,
+ * so on a spell with no casting to end it there is no way to write it
+ * correctly and the only honest answer is to refuse; `speed-change`, `action`
+ * and `mode` may each name a deadline of their own, and `EffectTarget.grants`
+ * is what then takes the grant away. That asymmetry is the *reason* this walks
+ * every modifier rider rather than the first: while every member carried
+ * unconditionally the two readings agreed, and a member that may carry a
+ * lifetime or not is one a Ray of Frost written beside a Bless would have
+ * hidden behind.
  *
  * **Every rider is read through `?.`, because this meets untyped input like
  * every other reader in this file.** `checkShape` establishes an effect's
@@ -1821,7 +1845,13 @@ function grantCarried(effect: SpellEffect): string | null {
           case 'bonus':
             return 'a bonus';
           case 'mode':
-            return 'a granted Advantage or Disadvantage';
+            // The third rider with an escape of its own, and it arrived with
+            // SRD Vicious Mockery: a Disadvantage on "the next attack roll it
+            // makes before the end of its next turn", hung off a cantrip whose
+            // casting ends the instant it resolves. `lasts` is the rider's own
+            // deadline and `EffectTarget.grants` is what takes the mode away.
+            if (rider.lasts === undefined) return 'a granted Advantage or Disadvantage';
+            break;
           case 'speed-change':
             // The one rider with an escape of its own. `lasts` is a deadline
             // the rider owns, so a casting that ends the instant it resolves

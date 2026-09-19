@@ -235,6 +235,45 @@ export type GameEvent =
     }
 
   /**
+   * A roll has used up what a source granted this creature.
+   *
+   * SRD Guiding Bolt: "**the next attack roll** made against it ... has
+   * Advantage." SRD Vicious Mockery: "Disadvantage on **the next attack roll
+   * it makes**." A grant that a roll *spends* is the one ending the engine had
+   * no door for: every other grant ends when the thing that made it ends, or
+   * when a deadline arrives, and neither of those is a die being thrown.
+   *
+   * **An event rather than a second reader of the fold**, because a door in
+   * the fold *is* an event plus a fold case: `GameState` is `fold(events)`, so
+   * a release nothing in the log records is a state two replays of the same
+   * log would disagree about.
+   *
+   * **Not a widening of `roll-recorded`.** That event is the audit trail of a
+   * roll and only one of its eleven emitters fills in `modes` at all; a fold
+   * that read the list would also be matching mixed provenance, because a
+   * standing feature contributes its display *name* there and a granted
+   * modifier its source string. Consumption is decided by
+   * {@link consumedRollModifiers} from the same selector the roll matched on,
+   * and says so in its own event.
+   *
+   * **The body is `releaseGrants`, which is the `grants` deadline's body.**
+   * What ends is everything that source granted *this* creature, which is one
+   * question however many families answer it — so a spell that hung a mode and
+   * a bonus in one sentence loses both, exactly as it would have at the
+   * deadline. The two endings are the same ending arriving two ways, and a
+   * consumed grant simply leaves its timer standing over nothing.
+   *
+   * `source` is the bare source a grant carries, never a `rollModifierKey`:
+   * see {@link releaseGrants}, which says why the identity that decides a
+   * re-grant is not the identity that decides an ending.
+   */
+  | {
+      readonly type: 'roll-modifier-consumed';
+      readonly id: CharacterId;
+      readonly source: string;
+    }
+
+  /**
    * An ongoing effect grants Resistance, Immunity or Vulnerability.
    *
    * Its own event rather than a second `creature-added`-style table write,

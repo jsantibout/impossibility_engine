@@ -6,12 +6,19 @@
  * about what a turn may be spent on. **Re-granting from the same source
  * replaces rather than stacks** in every one of them; what differs is only what
  * counts as the source's identity, which each case states where it departs.
+ *
+ * And the two removals that are nobody else's: a bonus taken off by name, and
+ * a grant a roll **used up**. The second is the ending SRD Guiding Bolt and
+ * Vicious Mockery name, and its body is the one `fold/expiry.ts` performs when
+ * a `grants` deadline arrives — the same release, reached by a die rather than
+ * by the clock.
  */
 import { actionRuleKey } from '../combat.js';
 import { rollModifierKey } from '../roll-modifiers.js';
 import type { GameEvent } from '../events.js';
 import type { GameState } from '../state.js';
 import { creatureOf, withCreature, seamOf, unhandledEvent, type Applying } from './common.js';
+import { releaseGrants } from './release.js';
 
 /** The event types this seam owns. Every one of them, and no other seam's. */
 export const GRANTS_EVENTS = [
@@ -25,6 +32,7 @@ export const GRANTS_EVENTS = [
   'turn-payout-granted',
   'action-rule-granted',
   'bonus-removed',
+  'roll-modifier-consumed',
 ] as const;
 
 /** The narrowed union this seam reduces, `Extract`ed from the list above. */
@@ -220,6 +228,22 @@ export function applyGrants({ state, next }: Applying, event: GrantsEvent): Game
         { bonuses: creature.bonuses.filter((held) => held.source !== event.source) },
         creature,
       );
+    }
+
+    case 'roll-modifier-consumed': {
+      const creature = creatureOf(state, event, event.id);
+      // **One line, and it is the `grants` deadline's line.** SRD Guiding Bolt
+      // and Vicious Mockery each name a roll that uses the grant up, which is
+      // an ending nothing else in the family has — and the *body* of that
+      // ending is the one `fold/expiry.ts` already performs when a deadline
+      // arrives: everything that source granted this creature, in every
+      // family, matched on the bare source.
+      //
+      // Which is deliberately more than "the modifier that was spent". A
+      // source is what a grant is linked by, and no SRD sentence spends half
+      // of one; `releaseGrants` says why the identity that decides whether a
+      // re-grant replaces is not the identity that decides an ending.
+      return withCreature(next, event.id, releaseGrants(creature, event.source), creature);
     }
   }
 

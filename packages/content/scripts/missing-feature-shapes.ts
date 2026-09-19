@@ -124,6 +124,8 @@ export const FEATURE_SHAPES = {
     'a Speed taken **away** from another creature. packages/engine/src/standing.ts draws the line on the member that adds one — "Speed *reductions* are not this member\'s business" — and files what does reduce a Speed under the condition layer, where nothing but Exhaustion writes one. A Hamstring Blow that takes fifteen feet off a target until your next turn has the arithmetic and no writer.',
   'a-modifier-a-feature-puts-on-another-creature':
     'a mode or a number a feature hangs on **somebody else**, raised by something that happened. A standing grant is derived from its holder\'s own state on every read, and `against-holder` in packages/engine/src/roll-modifiers.ts is the furthest one reaches — "Attack rolls against the affected creature have Advantage" — which is still a fact about the holder. A Disadvantage that starts when a creature hits you and lasts the rest of their turn, and a bonus the next attacker against your target gets, are durable grants on a third party no feature can write.',
+  'a-one-shot-roll-modifier':
+    'a mode a feature hangs on somebody at a **moment**, spent by the first roll that reaches it. The mechanic itself is built and is a casting’s: packages/engine/src/roll-modifiers.ts carries `RollModifier.oneShot` — "Spent by the first roll it reaches, rather than running to a deadline." — with `RollSelector.counterpart` beside it for the sentences that narrow one to a named creature, and SRD Guiding Bolt and Vicious Mockery write both ends of it through a spell’s rider. What no **feature** has is the door: a `FeatureGrant` of kind `roll-mode` is a standing grant, derived from its holder’s own state on every read, and packages/engine/src/progression.ts says what the list is for — "Deliberately few. A feature whose effect does not fit one of these is" — so nothing lets a feature *emit* a grant when something happens. Sap and Vex wait on the weapon-mastery record before they could be hung at all; Steady Aim’s Bonus Action, Studied Attacks’ miss and Improved Brutal Strike’s landed hit are three more moments with nothing to fire at them.',
   'a-roll-mode-a-feature-takes-away':
     'a mode **cancelled** rather than granted. packages/engine/src/roll-modifiers.ts builds the axis as presence — "The mode is not part of the identity" — and `combineRollModes` weighs Advantage against Disadvantage — and SRD Elusive says something else again: no attack roll may **have** Advantage against you at all, which is neither a grant of Disadvantage nor a cancellation the vocabulary can express.',
   'a-turn-boundary-payout-a-feature-owes':
@@ -227,7 +229,7 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
     {
       clause: 'Sap and Vex each want a modifier consumed by the roll it changes',
       why: 'a-one-shot-roll-modifier',
-      note: 'the spell map’s own id rather than a feature-side twin, and it takes both directions the spell map names for it: Vex is Guiding Bolt’s "the next attack roll against it" and Sap is Vicious Mockery’s "the next attack roll it makes", arriving on a weapon instead of a spell. Vex wants a second thing besides — a selector narrowed to the attacker, which roll-modifiers.ts names as the unbuilt third relation — and that is why it is filed here rather than treated as expressible.',
+      note: 'the spell map’s own id rather than a feature-side twin, and it takes both directions the spell map names for it: Vex is Guiding Bolt’s "the next attack roll against it" and Sap is Vicious Mockery’s "the next attack roll it makes", arriving on a weapon instead of a spell. The mechanic itself is now built for both spells, and Vex’s second want with it — `RollSelector.counterpart` pins the creature a narrowed modifier is about, which is what roll-modifiers.ts had called an unbuilt third relation. What is left here is the door rather than the mechanism: nothing records which weapons the character chose, so there is nothing for either property to hang off.',
     },
     {
       clause:
@@ -303,7 +305,7 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
     {
       clause: 'Disadvantage on its next saving throw',
       why: 'a-one-shot-roll-modifier',
-      note: 'a mode consumed by the roll it changes, which the spell map already names for Guiding Bolt.',
+      note: 'a mode consumed by the roll it changes, built for Guiding Bolt and Vicious Mockery — and on a *saving throw* here, where the mechanic reaches but the moment that hangs it, a Brutal Strike landing, does not.',
     },
     {
       clause: 'stops its Opportunity Attacks until the start of your next turn',
@@ -664,7 +666,7 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
     {
       clause: 'Advantage on the next attack after a miss is not tracked between attacks',
       why: 'a-one-shot-roll-modifier',
-      note: 'the spell map’s own id: a mode consumed by the roll it changes.',
+      note: 'the spell map’s own id: a mode consumed by the roll it changes, which is now built — what this feature still has no door for is the *moment*, which is a miss rather than a casting or a deadline.',
     },
   ],
   'champion:additional-fighting-style': [
@@ -1121,7 +1123,7 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
     {
       clause: 'a one-shot Advantage that is consumed by the roll it changes, which nothing here consumes',
       why: 'a-one-shot-roll-modifier',
-      note: 'the clause the feature is actually for.',
+      note: 'the clause the feature is actually for. The mechanic is built — `RollModifier.oneShot`, spent by the roll that reaches it — and what is still missing is the moment: a Bonus Action a feature spends to hang one on its own owner.',
     },
     {
       clause: 'the "haven’t moved during this turn" condition on spending the Bonus Action',

@@ -501,6 +501,13 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // walker, and a patch that stops charging when its casting stops running.
   'difficult-terrain-declared',
   'item-transferred',
+  // A grant a roll used up. No frozen log carries a one-shot modifier — the
+  // mechanic postdates both of them by a long way — so neither could carry the
+  // event that spends one. `one-shot-modifiers.test.ts` folds it and drives it
+  // end to end: SRD Guiding Bolt and Vicious Mockery from both ends of the
+  // relation, a roll that cancellation brought back to normal spending it
+  // anyway, and the deadline that ends one nobody spent.
+  'roll-modifier-consumed',
   'speed-modifier-granted',
   'turn-payout-granted',
 ];

@@ -895,8 +895,8 @@ describe('the numbers are the item’s, then the wielder’s', () => {
    */
   it.each([
     // A printed DC, a spell that attacks: the attack modifier is the deferred
-    // number, and Guiding Bolt is what reads it.
-    ['a printed DC beside a spell attack', 'guiding-bolt', { saveDc: 15 }],
+    // number, and Fire Bolt is what reads it.
+    ['a printed DC beside a spell attack', 'fire-bolt', { saveDc: 15 }],
     // And the mirror: a printed attack bonus beside a spell that only saves.
     ['a printed attack bonus beside a saving throw', 'web', { attackBonus: 9 }],
     // SRD Bane is a `buff` that a Charisma save resists, so the DC is read by

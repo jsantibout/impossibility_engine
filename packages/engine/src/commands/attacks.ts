@@ -53,6 +53,7 @@ import { landDamage } from './damage.js';
 import { mayAct } from './holds.js';
 import { quantityOf } from './inventory.js';
 import { defendingModes, enemyWithinFiveFeet } from './rolls.js';
+import { consumedRollModifiers } from '../roll-modifiers.js';
 
 export interface AttackCommand extends CommandIdentity {
   readonly target: CharacterId;
@@ -343,6 +344,20 @@ export function resolveAttack(
       // and a missed swing must not be retryable.
       ...(stamp === null ? {} : { command: stamp }),
     });
+
+    // **Beside the roll, and before the miss returns.** SRD Vicious Mockery
+    // says "the next attack roll it makes" and Guiding Bolt "the next attack
+    // roll made against it"; neither says "the next one that hits", and a
+    // grant spent only by a hit would give a fumbling attacker several bites
+    // at one sentence. The same query `defendingModes` asked above, so what is
+    // spent is exactly what was read.
+    for (const spent of consumedRollModifiers(state, {
+      family: 'attack',
+      roller: id,
+      against: command.target,
+    })) {
+      events.push({ type: 'roll-modifier-consumed', id: spent.holder, source: spent.source });
+    }
 
     if (!attack.value.hit) {
       events.push({
