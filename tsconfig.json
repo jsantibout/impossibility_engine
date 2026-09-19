@@ -5,6 +5,7 @@
     { "path": "./packages/srd" },
     { "path": "./packages/engine" },
     { "path": "./packages/content" },
+    { "path": "./packages/tools" },
     { "path": "./tools/llm-probe" }
   ]
 }

@@ -13,6 +13,7 @@ export default defineConfig({
       '@ie/srd': pkg('srd'),
       '@ie/engine': pkg('engine'),
       '@ie/content': pkg('content'),
+      '@ie/tools': pkg('tools'),
     },
   },
   test: {

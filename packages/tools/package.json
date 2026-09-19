@@ -1,0 +1,24 @@
+{
+  "name": "@ie/tools",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The tool surface: the only door a DM or a model has to the engine. Zod in, a four-valued outcome out, and never a number the caller supplied.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "@ie/content": "*",
+    "@ie/engine": "*",
+    "@ie/shared": "*",
+    "zod": "^4.0.0"
+  }
+}

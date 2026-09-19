@@ -1,0 +1,316 @@
+/**
+ * The three things this layer has to keep, asserted rather than assumed.
+ *
+ * 1. **The caller never produces a number**, which at this layer means the
+ *    external-roll functions are unreachable. Not "not called today" — not
+ *    *importable*, proved by sweeping this package's own imports.
+ * 2. **Every `ContextRequest.kind` has a door.** `docs/design/claude-
+ *    integration.md`: "a kind with no door is the failure to test for."
+ * 3. **The campaign's cache is the fold.** The session boundary says
+ *    `GameState` is a derived cache stepped by `applyEvent`, and that
+ *    stepping and refolding agree; here that is an assertion after every
+ *    call rather than a sentence.
+ *
+ * Unlike `fight.test.ts`, this file *does* import the engine — it has to, to
+ * show that the functions it forbids are real and that the fold it compares
+ * against is the engine's own.
+ */
+
+import { readdirSync, readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
+import { SRD_CONTENT } from '@ie/content';
+import * as engine from '@ie/engine';
+import { fold } from '@ie/engine';
+import * as tools from '@ie/tools';
+import {
+  CONTEXT_REQUEST_KINDS,
+  createCampaign,
+  createSurface,
+  TOOL_NAMES,
+  TOOLS,
+  type ToolOutcome,
+} from '@ie/tools';
+
+const HERE = fileURLToPath(new URL('.', import.meta.url));
+
+const sources = (): { file: string; text: string }[] =>
+  readdirSync(HERE)
+    .filter((file) => file.endsWith('.ts'))
+    .map((file) => ({ file, text: readFileSync(HERE + file, 'utf8') }));
+
+/**
+ * This file, which is the one the sweeps do not sweep.
+ *
+ * It holds both detectors *and* the fixtures they are tested against, so it
+ * contains every forbidden form written out on purpose — and it uses a
+ * namespace import to show that the functions it forbids are real. Exempting
+ * it costs nothing a caller could reach: it is a test, and ships nothing.
+ * `every other file is swept` is what keeps the exemption to one file.
+ */
+const GUARD_FILE = 'boundary.test.ts';
+
+const swept = (): { file: string; text: string }[] =>
+  sources().filter(({ file }) => file !== GUARD_FILE);
+
+/**
+ * The names this package may not import from the engine.
+ *
+ * The first two are the rule: `recordExternalD20` and `recordExternalDamage`
+ * are the human-DM override path, and `CLAUDE.md` says they are "never
+ * exposed to an AI one". The rest all take a mechanically authoritative
+ * number from their caller, which is the same rule one step further out.
+ */
+const FORBIDDEN = [
+  'recordExternalD20',
+  'recordExternalDamage',
+  'damageCreature',
+  'healCreature',
+  'grantTemporaryHpTo',
+  'setExhaustionLevel',
+  'recordD20Test',
+  'resolveDamage',
+];
+
+/** Every identifier this package imports from `@ie/engine`, file by file. */
+function engineImports(text: string): string[] {
+  const found: string[] = [];
+  const pattern = /import\s+(?:type\s+)?\{([^}]*)\}\s*from\s*'@ie\/engine'/g;
+  for (const match of text.matchAll(pattern)) {
+    for (const raw of match[1]!.split(',')) {
+      const name = raw.replace(/\btype\b/, '').trim().split(/\s+as\s+/)[0]!.trim();
+      if (name.length > 0) found.push(name);
+    }
+  }
+  return found;
+}
+
+/**
+ * The ways of reaching `@ie/engine` that the name sweep cannot read.
+ *
+ * A named-import sweep is a guard only while named imports are the only
+ * door, and they are not: a namespace import reaches every export through a
+ * property, `export * from '@ie/engine'` would republish the external-roll
+ * functions on **this package's own** public surface in silence, and a
+ * dynamic import is invisible to any regex over the import section. So the
+ * second half of the rule is that none of those forms appears at all — a
+ * blunt instrument, and the right one, because this package has never needed
+ * one and a file that starts needing one should have to say so here.
+ */
+const OPAQUE_IMPORT_FORMS: readonly { readonly what: string; readonly pattern: RegExp }[] = [
+  { what: 'a namespace import', pattern: /import\s+\*\s+as\s+\w+\s+from\s*'@ie\/engine'/ },
+  { what: 'a star re-export', pattern: /export\s+\*\s+(?:as\s+\w+\s+)?from\s*'@ie\/engine'/ },
+  { what: 'a named re-export', pattern: /export\s+(?:type\s+)?\{[^}]*\}\s*from\s*'@ie\/engine'/ },
+  { what: 'a dynamic import', pattern: /import\s*\(\s*'@ie\/engine'\s*\)/ },
+];
+
+describe('the surface cannot reach the external-roll functions', () => {
+  it('and they are real, so the guard is aimed at something', () => {
+    // A guard nothing can reach is not a rule. These exist on the engine's
+    // public surface for a human DM, and that is exactly why this matters.
+    expect(typeof (engine as Record<string, unknown>)['recordExternalD20']).toBe('function');
+    expect(typeof (engine as Record<string, unknown>)['recordExternalDamage']).toBe('function');
+  });
+
+  it('imports none of them, in any file of this package', () => {
+    const breaches: string[] = [];
+    for (const { file, text } of swept()) {
+      for (const name of engineImports(text)) {
+        if (FORBIDDEN.includes(name)) breaches.push(`${file} imports ${name}`);
+      }
+    }
+    expect(breaches).toEqual([]);
+  });
+
+  it('reaches the engine only through named imports, which the sweep can read', () => {
+    const breaches: string[] = [];
+    for (const { file, text } of swept()) {
+      for (const { what, pattern } of OPAQUE_IMPORT_FORMS) {
+        if (pattern.test(text)) breaches.push(`${file} reaches @ie/engine through ${what}`);
+      }
+    }
+    expect(breaches).toEqual([]);
+  });
+
+  it('and between them the two sweeps catch every way of writing it', () => {
+    // A detector nobody tested is a guard nobody tested. These are the forms
+    // a breach could actually take, written out and fed to the detectors
+    // rather than trusted to a reading of the regex.
+    const caught = (text: string) =>
+      engineImports(text).some((name) => FORBIDDEN.includes(name)) ||
+      OPAQUE_IMPORT_FORMS.some(({ pattern }) => pattern.test(text));
+
+    expect(caught("import { recordExternalD20 } from '@ie/engine';")).toBe(true);
+    expect(caught("import { recordExternalD20 as roll } from '@ie/engine';")).toBe(true);
+    expect(caught("import type { recordExternalDamage } from '@ie/engine';")).toBe(true);
+    expect(caught("import * as anything from '@ie/engine';")).toBe(true);
+    expect(caught("export * from '@ie/engine';")).toBe(true);
+    expect(caught("export { recordExternalD20 } from '@ie/engine';")).toBe(true);
+    expect(caught("const { recordExternalDamage } = await import('@ie/engine');")).toBe(true);
+    // And it does not cry wolf at the imports this package actually makes.
+    expect(caught("import { resolveAttack, resolveSpell } from '@ie/engine';")).toBe(false);
+  });
+
+  it('publishes neither of them on its own surface', () => {
+    // The end of the argument. Whatever the source says, what a caller can
+    // reach is what `@ie/tools` exports, and neither name is on it.
+    const published = Object.keys(tools);
+    expect(published.filter((name) => /^record(External|D20)/.test(name))).toEqual([]);
+    // Non-vacuous: the barrel does publish things.
+    expect(published).toContain('createSurface');
+  });
+
+  it('sweeps something: this package does import the engine', () => {
+    // The name sweep is vacuous if the regex matches nothing, which is how a
+    // guard quietly stops guarding. It has to find the imports that *are*
+    // there before its silence means anything.
+    const all = swept().flatMap(({ text }) => engineImports(text));
+    expect(all).toContain('resolveAttack');
+    expect(all).toContain('resolveSpell');
+  });
+
+  it('exempts exactly one file, and it is the one holding the detectors', () => {
+    expect(sources().map(({ file }) => file)).toContain(GUARD_FILE);
+    expect(sources().length - swept().length).toBe(1);
+    expect(swept().map(({ file }) => file)).not.toContain(GUARD_FILE);
+  });
+
+  it('and the fight is driven without reaching past the surface at all', () => {
+    // `fight.test.ts` runs a whole fight through `surface.call`. If it needed
+    // the engine, the package would not yet be a door — so its import list is
+    // part of the claim rather than a convention.
+    const fight = sources().find((source) => source.file === 'fight.test.ts');
+    expect(fight).toBeDefined();
+    expect(fight!.text).not.toContain("from '@ie/engine'");
+  });
+
+  it('publishes no tool whose name suggests one', () => {
+    expect(TOOL_NAMES.filter((name) => /external|record_d20|set_hp|deal_damage/.test(name))).toEqual([]);
+  });
+
+  it('answers a call to one as an unknown tool, not as a refusal', () => {
+    const surface = createSurface(createCampaign({ content: SRD_CONTENT, seed: 'boundary' }));
+    for (const tool of ['record_external_d20', 'recordExternalD20', 'record_external_damage']) {
+      const outcome = surface.call({ tool, input: {}, commandId: 'toolu_1' });
+      expect(outcome.status).toBe('invalid');
+      if (outcome.status !== 'invalid') continue;
+      expect(outcome.code).toBe('unknown_tool');
+    }
+  });
+});
+
+describe('nothing reaches the log except through an engine command', () => {
+  it('has exactly the two append call sites it documents', () => {
+    // `Campaign.append` is the only writer, and it cannot check what it is
+    // handed. So the discipline is here: two call sites, both passing a
+    // `Result`'s own events. A third has to be argued for by moving this
+    // number, which is what makes it a decision rather than a drift.
+    const definitions = sources().find((source) => source.file === 'definitions.ts')!;
+    const sites = definitions.text.match(/campaign\.append\(/g) ?? [];
+    expect(sites).toHaveLength(2);
+    // And nothing else in the package appends at all.
+    for (const { file, text } of swept()) {
+      if (file === 'definitions.ts' || file === 'campaign.ts') continue;
+      expect(text).not.toContain('.append(');
+    }
+  });
+});
+
+describe('every context request kind has a door', () => {
+  it('and the doors are tools on this surface', () => {
+    const surface = createSurface(createCampaign({ content: SRD_CONTENT, seed: 'boundary' }));
+    const missing = CONTEXT_REQUEST_KINDS.filter((kind) => surface.doorsFor(kind).length === 0);
+    expect(missing).toEqual([]);
+    for (const kind of CONTEXT_REQUEST_KINDS) {
+      for (const door of surface.doorsFor(kind)) expect(TOOL_NAMES).toContain(door);
+    }
+  });
+
+  it('declares no kind the engine does not have', () => {
+    const declared = new Set(TOOLS.flatMap((definition) => definition.establishes));
+    for (const kind of declared) expect(CONTEXT_REQUEST_KINDS).toContain(kind);
+  });
+});
+
+describe('a refusal is a value', () => {
+  const table = () => {
+    const campaign = createCampaign({ content: SRD_CONTENT, seed: 'boundary' });
+    const surface = createSurface(campaign);
+    let calls = 0;
+    const call = (tool: string, input: unknown = {}): ToolOutcome =>
+      surface.call({ tool, input, commandId: `toolu_${++calls}` });
+    return { campaign, surface, call };
+  };
+
+  it('a rules refusal comes back as a refusal, with a code and a reason', () => {
+    const t = table();
+    t.call('set_scene', { width: 30, depth: 30, height: 10 });
+    // The room is thirty feet across and the landmark is a hundred feet out.
+    // Nothing the caller could declare makes that fit, so it is a verdict and
+    // not homework — and it arrives as a value either way.
+    const outcome = t.call('add_landmark', { name: 'the far tree', at: { x: 100, y: 100 } });
+    expect(outcome.status).toBe('refused');
+    if (outcome.status !== 'refused') return;
+    expect(outcome.code.length).toBeGreaterThan(0);
+    expect(outcome.reason.length).toBeGreaterThan(0);
+  });
+
+  it('a missing fact comes back as a question naming what would settle it', () => {
+    const t = table();
+    // No scene has been set, so where a creature stands is not a thing the
+    // engine can be wrong about — it has not been told.
+    const outcome = t.call('place_creature', { who: 'kessa', fromLandmark: 'the bar', feet: 0 });
+    expect(outcome.status).toBe('needs-context');
+    if (outcome.status !== 'needs-context') return;
+    expect(outcome.establish.length).toBeGreaterThan(0);
+    const asked = outcome.establish[0]!;
+    expect(asked.kind).toBe('scene');
+    expect(asked.need.length).toBeGreaterThan(0);
+    expect(asked.because.length).toBeGreaterThan(0);
+    // The engine's own prose, untouched — and the doors on *this* surface.
+    expect(asked.satisfyWith).toContain('setScene');
+    expect(asked.tools).toContain('set_scene');
+  });
+
+  it('a refusal writes nothing and spends no die', () => {
+    const t = table();
+    const before = { log: t.campaign.log().length, rolls: t.campaign.state().rollsIssued };
+    expect(t.call('place_creature', { who: 'kessa', fromLandmark: 'the bar', feet: 0 }).status).toBe(
+      'needs-context',
+    );
+    expect(t.campaign.log()).toHaveLength(before.log);
+    expect(t.campaign.state().rollsIssued).toBe(before.rolls);
+  });
+});
+
+describe('the campaign cache is the fold', () => {
+  it('agrees with a fresh fold after every call', () => {
+    const campaign = createCampaign({ content: SRD_CONTENT, seed: 'boundary' });
+    const surface = createSurface(campaign);
+    let calls = 0;
+    const call = (tool: string, input: unknown = {}) => {
+      surface.call({ tool, input, commandId: `toolu_${++calls}` });
+      expect(JSON.stringify(campaign.state())).toBe(
+        JSON.stringify(fold(campaign.seed, campaign.log())),
+      );
+    };
+
+    call('set_scene', { width: 30, depth: 30, height: 10 });
+    call('add_landmark', { name: 'the well', at: { x: 5, y: 5 } });
+    call('place_creature', { who: 'nobody', fromLandmark: 'the well', feet: 5 });
+    call('look');
+  });
+});
+
+describe('a campaign draws exactly one thing nobody chose', () => {
+  it('uses the seed it was given', () => {
+    expect(createCampaign({ content: SRD_CONTENT, seed: 'chosen' }).seed).toBe('chosen');
+  });
+
+  it('draws one when it is not given, and two campaigns do not share it', () => {
+    const a = createCampaign({ content: SRD_CONTENT });
+    const b = createCampaign({ content: SRD_CONTENT });
+    expect(a.seed).not.toBe(b.seed);
+    expect(a.seed.length).toBeGreaterThan(0);
+  });
+});
