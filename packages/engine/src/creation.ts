@@ -32,7 +32,8 @@ import type {
   ReactionEffect,
   ReactionFeature,
 } from './reactions.js';
-import { goldToCopper, itemChargePool, itemStandingEffects } from './catalogue.js';
+import { goldToCopper, itemStandingEffects } from './catalogue.js';
+import { issueItemCopies } from './commands/inventory.js';
 import type { Content } from './content.js';
 import { mergeItems } from './events.js';
 import type { GameEvent, GameState, InventoryLine } from './events.js';
@@ -1511,7 +1512,17 @@ function inventoryOf(
   });
 }
 
-/** Only what is owned can be worn or held. */
+/**
+ * Only what is owned can be worn or held.
+ *
+ * **Two of one charged item is not refused here**, and the record that used to
+ * be missing is why: a copy with charges is born with an id of its own and a
+ * pool keyed by it, so a character may start the campaign owning two wands and
+ * spend one of them. Which of the two is in hand is creation's own pick — the
+ * first — because `duplicate_equipped` below has already refused holding both,
+ * and a character being created has no history that could make one copy the
+ * meant one.
+ */
 function checkEquipped(
   content: Content,
   choices: CharacterChoices,
@@ -1530,32 +1541,6 @@ function checkEquipped(
   }
   for (const itemId of duplicates(choices.equipped)) {
     problems.push(problem('duplicate_equipped', 'equipped', `${itemId} is equipped twice`));
-  }
-
-  /**
-   * One charged item per creature, which is the refusal `equipItem` makes and
-   * for the same missing record.
-   *
-   * Charges are a pool keyed by catalogue id, so two Wands of Secrets would be
-   * one pool of three between them: spend from either and both are emptier.
-   * Item instance identity is what fixes that, and it is named as a later
-   * brief's subject in `docs/design/characters-and-equipment.md`. Until then
-   * creation refuses what the command refuses, or being *born* holding the
-   * second wand is the way round a rule play already enforces.
-   */
-  for (const itemId of new Set(choices.equipped)) {
-    const item = content.item(itemId);
-    if (item === null || itemChargePool(item) === null) continue;
-    const copies = owned.find((line) => line.id === itemId)?.quantity ?? 0;
-    if (copies > 1) {
-      problems.push(
-        problem(
-          'no_item_instance',
-          'equipped',
-          `${itemId} is owned ${copies} times and the engine has no item instance record to tell them apart — their charges would be one pool across all of them. Start with one`,
-        ),
-      );
-    }
   }
 
   // SRD wears one suit of body armour and holds one Shield. `equipItem`
@@ -2622,17 +2607,21 @@ function poolsFor(
  * log is wrong for good.
  *
  * The compilers are therefore shared rather than copied — `itemStandingEffects`
- * and `itemChargePool` are the same two functions `equipItem` reads, so an item
- * that grows a grant tomorrow reaches both doors on the same day.
+ * here and `issueItemCopies` above are what `equipItem` and `purchaseItem`
+ * read, so an item that grows a grant tomorrow reaches both doors on the same
+ * day.
  *
- * The pool lands **beside its equip event** exactly as the command emits it,
- * and unconditionally, because nothing has declared anything yet: a creature
- * being created has no pool for the charges to already be sitting in.
+ * **The charges are not here**, and that is the same agreement rather than a
+ * gap in it: a charged item's pool belongs to the copy and is declared when
+ * the copy is *gained*, which for a character being created is the
+ * `items-gained` above. `equipItem` declares nothing either. What this pins is
+ * which copy went into the hand.
  */
 function equipEvents(
   content: Content,
   id: CharacterId,
   choices: CharacterChoices,
+  owned: readonly InventoryLine[],
 ): GameEvent[] {
   const events: GameEvent[] = [];
   for (const itemId of choices.equipped) {
@@ -2641,18 +2630,23 @@ function equipEvents(
     // than throwing, which is what the armour read has always done.
     const item = content.item(itemId);
     const grants = item === null ? [] : itemStandingEffects(item);
+    // Which copy is in hand. The first of them, which is a real pick and not
+    // an arbitrary one: the copies are identical at birth — each was just
+    // issued its record and its pool full — so the only way they differ is
+    // which id they carry.
+    const copy = owned.find((line) => line.id === itemId && line.instance !== undefined);
     events.push({
       type: 'item-equipped',
       id,
       item: itemId,
-      // Pinned, all of it: what the item *is* and what it *grants*. Omitted
-      // when there is nothing, so every mundane equip event is the event it
-      // has always been — which is what keeps the frozen logs where they are.
+      // Pinned, all of it: what the item *is*, what it *grants*, and which
+      // copy it is. Omitted when there is nothing, so every mundane equip
+      // event is the event it has always been — which is what keeps the
+      // frozen logs where they are.
       armor: item?.armor ?? null,
       ...(grants.length === 0 ? {} : { grants }),
+      ...(copy?.instance === undefined ? {} : { instance: copy.instance }),
     });
-    const charges = item === null ? null : itemChargePool(item);
-    if (charges !== null) events.push({ type: 'resource-pool-declared', id, pool: charges });
   }
   return events;
 }
@@ -2672,17 +2666,37 @@ function poolEvents(
   }));
 }
 
-/** Create a character: the creature, its pools, and the choices that made it. */
+/**
+ * Create a character: the creature, its pools, and the choices that made it.
+ *
+ * **`into` is the state these events are about to be folded into**, and it is
+ * needed for one thing: an item copy with state of its own is given an id from
+ * a counter on that state, and the fold checks the id is the next one. A
+ * character starting with a charged item therefore has to be created against
+ * the world it is joining — omit it and the copies are numbered from one,
+ * which is right for the empty world every other caller creates into and which
+ * the fold refuses loudly rather than silently if it is not.
+ *
+ * Optional, and last, because it is not what creation is *about*: a character
+ * is made out of content and choices, and every caller who starts with rope
+ * and a longsword may go on ignoring it.
+ */
 export function createCharacter(
   content: Content,
   choices: CharacterChoices,
   id: CharacterId,
+  into?: GameState,
 ): Result<GameEvent[]> {
   const plan = planCharacter(content, choices);
   if (!plan.ok) return plan;
 
   const definition = content.classById(choices.classId);
   if (definition === null) return err('unknown_class', `no class called ${choices.classId}`);
+
+  // The starting kit, split into stacks and copies by the same function a
+  // purchase uses, so a wand bought and a wand started with are the same
+  // record.
+  const kit = issueItemCopies(into?.itemsIssued ?? 0, content, plan.value.inventory);
 
   return ok([
     {
@@ -2707,16 +2721,19 @@ export function createCharacter(
         choices,
       },
     },
-    ...(plan.value.inventory.length === 0
+    ...(kit.items.length === 0
       ? []
       : [
           {
             type: 'items-gained' as const,
             id,
-            items: plan.value.inventory,
+            items: kit.items,
             source: 'starting equipment',
           },
         ]),
+    // The copies' charges, beside the copies they belong to: a wand is born
+    // with three charges in it whether or not anybody picks it up.
+    ...kit.pools.map((pool) => ({ type: 'resource-pool-declared' as const, id, pool })),
     ...(plan.value.goldPieces === 0
       ? []
       : [
@@ -2729,7 +2746,7 @@ export function createCharacter(
         ]),
     // What a creature wears, and everything those items carry, pinned so it is
     // a fact of the log rather than of whichever catalogue folds it later.
-    ...equipEvents(content, id, choices),
+    ...equipEvents(content, id, choices, kit.items),
     ...poolEvents(content, id, plan.value, plan.value.features, choices),
   ]);
 }

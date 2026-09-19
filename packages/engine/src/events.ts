@@ -127,7 +127,12 @@ export type {
   ReadiedAction,
   ReadiedResponse,
 } from './state.js';
-export { initialState } from './state.js';
+export {
+  initialState,
+  itemInstanceFor,
+  itemInstanceNumber,
+  ITEM_INSTANCE_PREFIX,
+} from './state.js';
 export * from './fold/index.js';
 
 export type GameEvent =
@@ -442,6 +447,11 @@ export type GameEvent =
    *
    * One event for a whole batch, because a starting package or a pack is one
    * transaction: a character never half-receives a Scholar's Pack.
+   *
+   * A line that carries an `instance` is **one copy being given a record of
+   * its own**, and this is the event that issues it: the command computed the
+   * id from `itemsIssued` and the fold checks it is the next one. A line
+   * without is the counted stack it has always been.
    */
   | {
       readonly type: 'items-gained';
@@ -497,6 +507,15 @@ export type GameEvent =
        * both frozen fixtures fold unchanged.
        */
       readonly grants?: readonly StandingEffect[];
+      /**
+       * Which copy went into the hand, where the copies have records.
+       *
+       * The `item` above stays the catalogue id — it is what every reader of
+       * `equipped` asks — and this says which of them, so the charges spent
+       * are the held wand's. Absent for an unlabelled copy, which is every
+       * mundane item and every log written before a copy could be labelled.
+       */
+      readonly instance?: string;
       readonly command?: CommandStamp;
     }
   | {

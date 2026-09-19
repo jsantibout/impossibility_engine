@@ -8,7 +8,14 @@
  */
 import type { CharacterSheet } from '../character.js';
 import type { GameEvent } from '../events.js';
-import type { AttunedItem, EquippedItem, GameState, InventoryLine } from '../state.js';
+import {
+  itemInstanceFor,
+  itemInstanceNumber,
+  type AttunedItem,
+  type EquippedItem,
+  type GameState,
+  type InventoryLine,
+} from '../state.js';
 import {
   CorruptLogError,
   creatureOf,
@@ -36,22 +43,45 @@ export type InventoryEvent = Extract<GameEvent, { type: (typeof INVENTORY_EVENTS
 export const isInventoryEvent = seamOf(INVENTORY_EVENTS);
 
 /**
+ * What a line is merged under: the copy, where it has a record; the kind of
+ * thing, where it has not.
+ *
+ * The whole of the distinction, in one expression. Two wands with three
+ * charges between them are not one wand with six, so a labelled copy merges
+ * with nothing — not even with another copy of the same wand — while twenty
+ * arrows and twenty more are forty arrows, exactly as they have always been.
+ */
+const mergeKey = (line: InventoryLine): string =>
+  line.instance === undefined ? `kind:${line.id}` : `copy:${line.instance}`;
+
+/**
  * Quantities merge and the list stays sorted, so two identical packs agree.
  *
  * Exported because a plan has to describe the same inventory the log will
  * produce: two packages that both hold a quarterstaff own one line of two, not
  * two lines of one, before a single event is appended.
+ *
+ * **A labelled copy merges with nothing**, which is what having a record
+ * means; the sort puts a kind's copies after its stack and in the order they
+ * were gained, numerically, so the same log always serialises the same way.
  */
 export function mergeItems(
   inventory: readonly InventoryLine[],
   items: readonly InventoryLine[],
 ): readonly InventoryLine[] {
-  const counts = new Map(inventory.map((line) => [line.id, line.quantity]));
-  for (const line of items) counts.set(line.id, (counts.get(line.id) ?? 0) + line.quantity);
-  return [...counts.entries()]
-    .filter(([, quantity]) => quantity > 0)
-    .map(([id, quantity]) => ({ id, quantity }))
-    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const lines = new Map<string, InventoryLine>();
+  for (const line of [...inventory, ...items]) {
+    const key = mergeKey(line);
+    const held = lines.get(key);
+    lines.set(key, { ...line, quantity: (held?.quantity ?? 0) + line.quantity });
+  }
+  return [...lines.values()]
+    .filter((line) => line.quantity > 0)
+    .sort(
+      (a, b) =>
+        (a.id < b.id ? -1 : a.id > b.id ? 1 : 0) ||
+        itemInstanceNumber(a.instance ?? '') - itemInstanceNumber(b.instance ?? ''),
+    );
 }
 
 /** One order for every list of items, so state serialises identically. */
@@ -99,16 +129,55 @@ export function applyInventory({ state, next, legacy }: Applying, event: Invento
   switch (event.type) {
     case 'items-gained': {
       const creature = creatureOf(state, event, event.id);
-      return withCreature(
-        next,
-        event.id,
-        { inventory: mergeItems(creature.inventory, event.items) },
-        creature,
-      );
+      /**
+       * The copies being given records get them **in sequence**, checked here
+       * rather than assigned here.
+       *
+       * The pattern `fold/casting.ts` already runs on a casting id, and for
+       * the same two reasons: the command has to know the id before the event
+       * exists — a pool is declared under it in the same batch — and the fold
+       * has to be the thing that says an id is real, or a batch appended twice
+       * would quietly hand one creature two records of the same copy.
+       */
+      let itemsIssued = state.itemsIssued;
+      for (const line of event.items) {
+        if (line.instance === undefined) continue;
+        if (line.quantity !== 1) {
+          throw new CorruptLogError(
+            event,
+            `${line.instance} is one copy of ${line.id}, and the line claims ${line.quantity}`,
+          );
+        }
+        const expected = itemInstanceFor(itemsIssued + 1);
+        if (line.instance !== expected) {
+          throw new CorruptLogError(event, `expected item ${expected}, got ${line.instance}`);
+        }
+        itemsIssued += 1;
+      }
+      return {
+        ...withCreature(
+          next,
+          event.id,
+          { inventory: mergeItems(creature.inventory, event.items) },
+          creature,
+        ),
+        itemsIssued,
+      };
     }
 
     case 'items-lost': {
       const creature = creatureOf(state, event, event.id);
+      // A named copy that is not there is a log contradicting itself, and it
+      // would otherwise vanish silently: a negative line merges with nothing
+      // and is filtered away, leaving the copy still owned. Counted things
+      // keep the reading they have always had — `loseItems` is what refuses to
+      // take more rope than there is.
+      for (const line of event.items) {
+        if (line.instance === undefined) continue;
+        if (!creature.inventory.some((owned) => owned.instance === line.instance)) {
+          throw new CorruptLogError(event, `${event.id} does not have ${line.instance}`);
+        }
+      }
       return withCreature(
         next,
         event.id,
@@ -143,12 +212,28 @@ export function applyInventory({ state, next, legacy }: Applying, event: Invento
         }
         armor = legacy.item(event.item)?.armor ?? null;
       }
+      // Which copy went into the hand, where the log says. A named copy that
+      // is not owned is a contradiction of the same kind as equipping
+      // something nobody has.
+      if (
+        event.instance !== undefined &&
+        !creature.inventory.some((line) => line.instance === event.instance)
+      ) {
+        throw new CorruptLogError(event, `${event.id} does not have ${event.instance}`);
+      }
       const equipped = [
         ...creature.equipped,
-        // Pinned, both of them: what the item *is* and what it *grants*. A log
-        // older than the grants field was written before an item could grant
-        // anything, so an absent list is none rather than a question.
-        { id: event.item, armor, ...(event.grants === undefined ? {} : { grants: event.grants }) },
+        // Pinned, all of it: what the item *is*, what it *grants*, and which
+        // copy it is. A log older than the grants field was written before an
+        // item could grant anything, so an absent list is none rather than a
+        // question — and an absent copy is an unlabelled one, which is what
+        // every log written before this field holds.
+        {
+          id: event.item,
+          armor,
+          ...(event.grants === undefined ? {} : { grants: event.grants }),
+          ...(event.instance === undefined ? {} : { instance: event.instance }),
+        },
       ].sort(byId);
       return withCreature(
         next,

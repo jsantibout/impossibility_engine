@@ -59,7 +59,7 @@ import { type Supply } from './casting.js';
 import { creatureOf, reachedBy, spendFor, unknownCreature } from './command.js';
 import { schedule } from './conditions.js';
 import { mayAct } from './holds.js';
-import { expendCharges, quantityOf } from './inventory.js';
+import { copyNamed, expendCharges } from './inventory.js';
 import { runEffects } from './spell-resolution.js';
 import { type SpellTargetOutcome } from './targeting.js';
 
@@ -186,7 +186,13 @@ export function useItem(
       );
     }
 
-    if (quantityOf(state, id, command.item) < 1) {
+    // Which copy is being used, where the copies are told apart: a flask used
+    // up has to be taken off the inventory by its own id, or the loss would
+    // remove nothing and leave the benefit running out of a full bottle.
+    const named = copyNamed(creature, command.item);
+    if (!named.ok) return named;
+    const copy = named.value;
+    if (copy === null) {
       return err('not_owned', `${id} does not have ${item.name}`);
     }
     // **Owning and wearing are two facts**, and using the item up moves only
@@ -254,7 +260,13 @@ export function useItem(
       events.push({
         type: 'items-lost',
         id,
-        items: [{ id: item.id, quantity: 1 }],
+        items: [
+          {
+            id: item.id,
+            quantity: 1,
+            ...(copy.instance === undefined ? {} : { instance: copy.instance }),
+          },
+        ],
         source: `${item.name}, used`,
         ...(stamp === null ? {} : { command: stamp }),
       });

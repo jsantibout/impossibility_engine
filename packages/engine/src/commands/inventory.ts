@@ -9,11 +9,17 @@
 import { type CharacterId, err, needsContext, ok, type Result } from '@ie/shared';
 import { type CatalogueItem, itemChargePool, itemStandingEffects, type ItemKind } from '../catalogue.js';
 import { type Content } from '../content.js';
-import { type CreatureState, type GameEvent, type GameState, type InventoryLine } from '../events.js';
+import {
+  itemInstanceFor,
+  type CreatureState,
+  type GameEvent,
+  type GameState,
+  type InventoryLine,
+} from '../events.js';
 import { creatureOf, unknownCreature } from './command.js';
 import { mayAct } from './holds.js';
 import { once } from '../idempotency.js';
-import { hasPool, remaining } from '../resources.js';
+import { hasPool, remaining, type PoolDeclaration } from '../resources.js';
 
 /** Everything this creature is carrying, by catalogue id. */
 export function carrying(state: GameState, id: CharacterId): readonly InventoryLine[] {
@@ -25,8 +31,123 @@ export function coinsOf(state: GameState, id: CharacterId): number {
   return creatureOf(state, id)?.coins ?? 0;
 }
 
+/**
+ * How many of a kind of thing this creature has, copies with records of their
+ * own included.
+ *
+ * Summed rather than looked up, because a kind of thing is no longer always
+ * one line: two wands with charges of their own are two lines of one, and a
+ * caller asking "do they have a wand" must not be told "one" when they have
+ * two, nor "none" when the only line is labelled.
+ */
 export const quantityOf = (state: GameState, id: CharacterId, itemId: string): number =>
-  carrying(state, id).find((line) => line.id === itemId)?.quantity ?? 0;
+  carrying(state, id)
+    .filter((line) => line.id === itemId)
+    .reduce((total, line) => total + line.quantity, 0);
+
+/**
+ * The copy a caller means, where a name can mean a kind of thing or one of
+ * them.
+ *
+ * Three answers, and each is the honest one. A name that matches a copy's own
+ * id is that copy. A name that matches a kind of thing with one line is that
+ * line — which is every mundane item and every single wand, so nothing a
+ * caller wrote before copies had records has to change. A kind of thing with
+ * several copies is a **question**, refused as a value with the copies named:
+ * "spend a charge from a wand" cannot be answered when two wands are in the
+ * pack and one of them is empty, and guessing would spend somebody's last
+ * charge for them.
+ *
+ * `null` for a thing this creature does not have at all, so each caller gives
+ * its own refusal for that — `not_owned` reads differently from `not_equipped`.
+ */
+export function copyNamed(creature: CreatureState, named: string): Result<InventoryLine | null> {
+  const labelled = creature.inventory.find((line) => line.instance === named);
+  if (labelled !== undefined) return ok(labelled);
+
+  const lines = creature.inventory.filter((line) => line.id === named);
+  if (lines.length === 0) return ok(null);
+  if (lines.length === 1) return ok(lines[0]!);
+  return err(
+    'ambiguous_copy',
+    `${creature.id} has ${lines.length} of ${named}, each with a record of its own (${lines
+      .map((line) => line.instance ?? 'an unlabelled copy')
+      .join(', ')}); name the one you mean`,
+  );
+}
+
+/**
+ * The kind of thing a name means: a copy's own id names the kind it is a copy
+ * of.
+ *
+ * For the questions that are about the kind and not the copy — attunement is
+ * a yes or no per kind of item — so that a caller holding a copy's id can ask
+ * them without having to know which sort of id each command wants.
+ */
+const kindNamed = (creature: CreatureState, named: string): string =>
+  creature.inventory.find((line) => line.instance === named)?.id ?? named;
+
+/** Lines to gain, and the pools the copies among them arrive with. */
+export interface IssuedCopies {
+  readonly items: readonly InventoryLine[];
+  readonly pools: readonly PoolDeclaration[];
+}
+
+/**
+ * Split what is being handed over into stacks and copies, and size the copies'
+ * pools.
+ *
+ * **The one place the decision is made**, because it is made at two doors: a
+ * purchase and a character's starting equipment. Which of them a thing is,
+ * is read from content here — an item with a charge pool has state of its own
+ * and gets a record; everything else is a count — and the *presence* of the
+ * record on the line is what the event pins, so the fold never asks the
+ * question again.
+ *
+ * The pools come back beside the lines rather than being looked up later, for
+ * the reason every other read of the catalogue in a command travels with its
+ * event: a wand's three charges are what the book said on the day it was
+ * handed over.
+ *
+ * `issued` is what the log has issued so far, so the ids are consecutive and
+ * the fold can check them. Takes the count rather than the state because
+ * creation has no state to take — it is producing the events that will make
+ * one.
+ */
+export function issueItemCopies(
+  issued: number,
+  content: Content,
+  requested: readonly InventoryLine[],
+): IssuedCopies {
+  const items: InventoryLine[] = [];
+  const pools: PoolDeclaration[] = [];
+  let next = issued;
+  for (const line of requested) {
+    const item = content.item(line.id);
+    // A miss is not this function's to refuse — every caller has already
+    // looked the item up, or is a caller who skipped a check somebody else
+    // makes. It travels as the counted stack it was.
+    if (item === null || itemChargePool(item) === null) {
+      items.push(line);
+      continue;
+    }
+    for (let copy = 0; copy < line.quantity; copy += 1) {
+      next += 1;
+      const instance = itemInstanceFor(next);
+      items.push({ id: line.id, quantity: 1, instance });
+      // Non-null: the item was just read as having one.
+      pools.push(itemChargePool(item, instance)!);
+    }
+  }
+  return { items, pools };
+}
+
+/** The same, against a state that knows how many records it has issued. */
+const issueCopies = (
+  state: GameState,
+  content: Content,
+  requested: readonly InventoryLine[],
+): IssuedCopies => issueItemCopies(state.itemsIssued, content, requested);
 
 /**
  * Buy something, at the price the SRD prints.
@@ -74,20 +195,28 @@ export function purchaseItem(
       );
     }
 
-    const items = content.expandPack(itemId).map((line) => ({
-      id: line.id,
-      quantity: line.quantity * quantity,
-    }));
+    const bought = issueCopies(
+      state,
+      content,
+      content.expandPack(itemId).map((line) => ({
+        id: line.id,
+        quantity: line.quantity * quantity,
+      })),
+    );
 
     return ok([
       {
         type: 'items-gained',
         id,
-        items,
+        items: bought.items,
         source: `bought ${quantity} × ${item.name}`,
         ...(stamp === null ? {} : { command: stamp }),
       },
       { type: 'coins-changed', id, copper: -price, source: `bought ${item.name}` },
+      // The charges arrive with the copy, not with the hand it later reaches:
+      // a wand bought and left in the pack is a wand with three charges in it,
+      // and putting it down later does not empty it.
+      ...bought.pools.map((pool) => ({ type: 'resource-pool-declared' as const, id, pool })),
     ]);
   });
 }
@@ -137,15 +266,24 @@ export function equipItem(
     const creature = creatureOf(state, id);
     if (creature === null) return unknownCreature(id);
 
-    const item = content.item(itemId);
+    // Which copy, asked first: the name may be a kind of thing or one of them,
+    // and an item's own id is not in the catalogue under that name.
+    const named = copyNamed(creature, itemId);
+    if (!named.ok) return named;
+    const copy = named.value;
+
+    const item = content.item(copy?.id ?? itemId);
     if (item === null) return err('unknown_item', `${itemId} is not in the catalogue`);
     if (!EQUIPPABLE.has(item.kind)) {
       return err('not_equippable', `${item.name} is carried, not worn or wielded`);
     }
-    if (quantityOf(state, id, itemId) < 1) {
+    if (copy === null) {
       return err('not_owned', `${id} does not have ${item.name}`);
     }
-    if (creature.equipped.some((held) => held.id === itemId)) {
+    // Per kind of thing and not per copy, which is the reading `equipped` has
+    // always had: its readers ask what a creature is wearing, and two of one
+    // wand in one pair of hands would be one item's grants counted twice.
+    if (creature.equipped.some((held) => held.id === item.id)) {
       return err('already_equipped', `${item.name} is already in hand`);
     }
 
@@ -165,36 +303,13 @@ export function equipItem(
     }
 
     const grants = itemStandingEffects(item);
-    const charges = itemChargePool(item);
-
-    /**
-     * **A second copy of a charged item is refused**, and the refusal names
-     * the record that is missing rather than pretending it is a rule.
-     *
-     * `InventoryLine` is `{ id, quantity }`: two Wands of Secrets are one line
-     * of two, and a creature's pools are keyed by name, so one pool would hold
-     * both wands' charges — spend three from one and the other is empty too.
-     * Item instance identity is the decision that fixes it and it is named as
-     * a later brief's subject in `docs/design/characters-and-equipment.md`.
-     *
-     * **A brief that adds item *transfer* cannot defer it.** Charges follow
-     * the creature and not the object today, so a wand handed over would leave
-     * its charges behind and arrive full — which no refusal here can catch,
-     * because by then nothing says the two wands were ever the same wand.
-     */
-    const copies = quantityOf(state, id, itemId);
-    if (charges !== null && copies > 1) {
-      return err(
-        'no_item_instance',
-        `${id} has ${copies} of ${item.name}, and the engine has no item instance record to tell them apart — their charges would be one pool across all of them. Put all but one down, or split them between creatures`,
-      );
-    }
+    const unlabelled = itemChargePool(item);
 
     return ok([
       {
         type: 'item-equipped',
         id,
-        item: itemId,
+        item: item.id,
         // Pinned: what this item *is* travels with the event, so the fold
         // never has to open a catalogue to know what the creature wears.
         armor: item.armor,
@@ -202,19 +317,29 @@ export function equipItem(
         // Omitted when there is nothing, so every mundane equip event is the
         // event it has always been.
         ...(grants.length === 0 ? {} : { grants }),
+        // And which copy, where the copy has a record, so a charge comes out
+        // of the wand in the hand rather than out of the kind of wand.
+        ...(copy.instance === undefined ? {} : { instance: copy.instance }),
         ...(stamp === null ? {} : { command: stamp }),
       },
-      // And the charges, declared as the pool they are. Pinned by construction:
-      // `resource-pool-declared` carries the whole declaration, so the fold
-      // never opens a catalogue to know how many charges a wand had.
-      //
-      // Declared **once**, on the equip that finds no pool. Putting a wand down
-      // does not empty it — `unequipItem` leaves the pool alone — so picking it
-      // back up finds the charges where it left them rather than refilling
-      // them, which is what a fresh declaration would quietly do.
-      ...(charges === null || hasPool(creature.resources, charges.key)
+      /**
+       * **A copy with a record brought its charges with it**, declared when it
+       * was gained, so this declares nothing: that is what lets a wand be put
+       * down and picked back up as spent as it was left.
+       *
+       * What is left here is the **unlabelled** copy — a stack a hand-written
+       * log gained, which is the only door that still writes one until a
+       * command exists for a DM to hand over what a party found. Such a copy
+       * has no id to key a pool by, so it uses the catalogue's own key and
+       * arrives the way it always has: once, on the equip that finds no pool.
+       * Two unlabelled copies share that one pool, which is exactly what
+       * "unlabelled" means and what a record is for.
+       */
+      ...(copy.instance !== undefined ||
+      unlabelled === null ||
+      hasPool(creature.resources, unlabelled.key)
         ? []
-        : [{ type: 'resource-pool-declared' as const, id, pool: charges }]),
+        : [{ type: 'resource-pool-declared' as const, id, pool: unlabelled }]),
     ]);
   });
 }
@@ -232,15 +357,40 @@ export function unequipItem(
   return once(state, `unequip:${id}`, inputs, () => [], (stamp) => {
     const creature = creatureOf(state, id);
     if (creature === null) return unknownCreature(id);
-    if (!creature.equipped.some((held) => held.id === itemId)) {
+    // By kind of thing or by copy, whichever the caller has to hand: only one
+    // copy of a kind is ever in a pair of hands, so the two names find the
+    // same thing and the event names the kind, as it always has.
+    const held = creature.equipped.find((worn) => worn.id === itemId || worn.instance === itemId);
+    if (held === undefined) {
       const item = content.item(itemId);
       return err('not_equipped', `${item?.name ?? itemId} is not worn or wielded`);
     }
 
     return ok([
-      { type: 'item-unequipped', id, item: itemId, ...(stamp === null ? {} : { command: stamp }) },
+      { type: 'item-unequipped', id, item: held.id, ...(stamp === null ? {} : { command: stamp }) },
     ]);
   });
+}
+
+/**
+ * Which copy a charge question is about, given a kind of thing or a copy.
+ *
+ * The copy in hand first, because "while holding it" is the sentence every
+ * charged item in the book prints and the held one is what a caller naming a
+ * kind of thing almost always means. Failing that the one copy there is — so
+ * a pack with a single wand answers to the wand's name — and failing *that*,
+ * nothing, because two idle wands with different charges left cannot be
+ * answered for as one.
+ */
+function copyAsked(creature: CreatureState, named: string): InventoryLine | null {
+  const labelled = creature.inventory.find((line) => line.instance === named);
+  if (labelled !== undefined) return labelled;
+  const held = creature.equipped.find((worn) => worn.id === named)?.instance;
+  if (held !== undefined) {
+    return creature.inventory.find((line) => line.instance === held) ?? null;
+  }
+  const lines = creature.inventory.filter((line) => line.id === named);
+  return lines.length === 1 ? lines[0]! : null;
 }
 
 /**
@@ -248,15 +398,18 @@ export function unequipItem(
  *
  * Zero for an item that has no charges at all and for one whose pool nobody
  * has declared yet, on the same rule `remaining` follows: a pool nobody
- * declared has none, rather than throwing.
+ * declared has none, rather than throwing. Zero, too, for a kind of thing
+ * this creature has several idle copies of, which is a question with no
+ * single answer — name the copy and it has one.
  *
- * **Held, rather than still holding.** The pool is keyed by catalogue id and
- * outlives both `unequipItem` and `loseItems`, which is deliberate for the
- * first — putting a wand down does not empty it — and an artefact of the
- * missing item instance record for the second: a wand taken by a thief leaves
- * its charges behind, and one re-acquired later is picked up as spent as the
- * last one was. `expendCharges` is the guard that matters, and it asks whether
- * the thing is in hand; this answers about a pool, and says so.
+ * **Held, rather than still holding.** The pool outlives both `unequipItem`
+ * and `loseItems`, which is deliberate for the first — putting a wand down
+ * does not empty it, and it is the wand's pool now rather than the wand
+ * kind's, so picking it back up finds it where it was left. For the second it
+ * is a pool nobody can reach any more: a wand taken by a thief leaves a record
+ * behind that nothing in this creature's inventory names, and the copy the
+ * thief holds keeps its own. `expendCharges` is the guard that matters, and it
+ * asks whether the thing is in hand; this answers about a pool, and says so.
  */
 export function chargesLeft(
   state: GameState,
@@ -264,10 +417,12 @@ export function chargesLeft(
   id: CharacterId,
   itemId: string,
 ): number {
-  const item = content.item(itemId);
-  const pool = item === null ? null : itemChargePool(item);
   const creature = creatureOf(state, id);
-  if (pool === null || creature === null) return 0;
+  if (creature === null) return 0;
+  const copy = copyAsked(creature, itemId);
+  const item = content.item(copy?.id ?? itemId);
+  const pool = item === null ? null : itemChargePool(item, copy?.instance);
+  if (pool === null) return 0;
   return remaining(creature.resources, pool.key);
 }
 
@@ -311,16 +466,31 @@ export function expendCharges(
     const creature = creatureOf(state, id);
     if (creature === null) return unknownCreature(id);
 
-    const item = content.item(itemId);
+    // Which copy, before the catalogue: a copy's own id is not a catalogue id,
+    // and the answer decides which pool is spent from.
+    const named = copyNamed(creature, itemId);
+    if (!named.ok) return named;
+    const copy = named.value;
+
+    const item = content.item(copy?.id ?? itemId);
     if (item === null) return err('unknown_item', `${itemId} is not in the catalogue`);
 
-    const pool = itemChargePool(item);
+    const held = creature.equipped.find((worn) => worn.id === item.id);
+    // Keyed by the copy in hand, which is the whole of what an item's record
+    // buys: the charges spent are the held wand's and not the other one's.
+    const pool = itemChargePool(item, held?.instance);
     if (pool === null) return err('no_charges', `${item.name} has no charges to spend`);
 
-    if (!creature.equipped.some((held) => held.id === itemId)) {
+    if (held === undefined) {
       return err('not_equipped', `${item.name}'s charges are spent while holding it, and ${id} is not`);
     }
-    if (item.attunement !== undefined && !creature.attuned.some((held) => held.id === itemId)) {
+    if (copy !== null && copy.instance !== undefined && held.instance !== copy.instance) {
+      return err(
+        'not_equipped',
+        `${copy.instance} is not the ${item.name} in ${id}'s hand, and charges are spent while holding it`,
+      );
+    }
+    if (item.attunement !== undefined && !creature.attuned.some((worn) => worn.id === item.id)) {
       return err(
         'not_attuned',
         `${item.name} requires attunement, and ${id} has not attuned to it`,
@@ -331,15 +501,17 @@ export function expendCharges(
     }
     if (!hasPool(creature.resources, pool.key)) {
       /**
-       * The pool arrives with the equip event, so this is what is left when
-       * the item reached this hand by some route that did not declare it.
+       * A copy's pool arrives with the copy and an unlabelled one's with the
+       * equip event, so this is what is left when the item reached this hand
+       * by a route that declared neither.
        *
-       * **Both routes the engine has do declare it.** `equipItem` emits the
-       * declaration above; `createCharacter` emits the same one, compiled from
-       * the same `itemChargePool`, for anything in `choices.equipped`. What is
-       * left for this to catch is a hand-written log — a fixture, a migration,
-       * a caller assembling `item-equipped` itself — and the refusal names the
-       * way through rather than letting the wand look merely empty.
+       * **Every route the engine has declares one.** `purchaseItem` declares
+       * the copy's pool as it hands the copy over, `createCharacter` declares
+       * the same one for anything a character is born owning, and `equipItem`
+       * still declares the unlabelled kind's. What is left for this to catch
+       * is a hand-written log — a fixture, a migration, a caller assembling
+       * `items-gained` itself — and the refusal names the way through rather
+       * than letting the wand look merely empty.
        */
       return err(
         'unknown_pool',
@@ -466,7 +638,9 @@ export function attuneItem(
     const creature = creatureOf(state, id);
     if (creature === null) return unknownCreature(id);
 
-    const item = content.item(itemId);
+    // Attunement is a yes or no per kind of item, so a copy's own id is read
+    // as the kind it is a copy of rather than refused for not being one.
+    const item = content.item(kindNamed(creature, itemId));
     if (item === null) return err('unknown_item', `${itemId} is not in the catalogue`);
     if (item.attunement === undefined) {
       return err('no_attunement', `${item.name} works for anybody holding it; nothing to attune`);
@@ -474,10 +648,10 @@ export function attuneItem(
     // "While being in physical contact with it": owning it is the engine's
     // reading of that, rather than wearing it — you attune to a ring by
     // holding it, and the benefit is what asks to be worn.
-    if (quantityOf(state, id, itemId) < 1) {
+    if (quantityOf(state, id, item.id) < 1) {
       return err('not_owned', `${id} does not have ${item.name}`);
     }
-    if (creature.attuned.some((held) => held.id === itemId)) {
+    if (creature.attuned.some((held) => held.id === item.id)) {
       return err('already_attuned', `${id} is already attuned to ${item.name}`);
     }
     if (creature.attuned.length >= ATTUNEMENT_LIMIT) {
@@ -511,7 +685,7 @@ export function attuneItem(
       {
         type: 'attuned',
         id,
-        item: itemId,
+        item: item.id,
         // Pinned exactly as `item-equipped` pins what it reads, so an
         // attunement goes on offering what the catalogue said at the time.
         ...(grants.length === 0 ? {} : { grants }),
@@ -543,13 +717,14 @@ export function endAttunement(
   return once(state, `unattune:${id}`, inputs, () => [], (stamp) => {
     const creature = creatureOf(state, id);
     if (creature === null) return unknownCreature(id);
-    if (!creature.attuned.some((held) => held.id === itemId)) {
-      const item = content.item(itemId);
+    const kind = kindNamed(creature, itemId);
+    if (!creature.attuned.some((held) => held.id === kind)) {
+      const item = content.item(kind);
       return err('not_attuned', `${id} is not attuned to ${item?.name ?? itemId}`);
     }
 
     return ok([
-      { type: 'attunement-ended', id, item: itemId, ...(stamp === null ? {} : { command: stamp }) },
+      { type: 'attunement-ended', id, item: kind, ...(stamp === null ? {} : { command: stamp }) },
     ]);
   });
 }

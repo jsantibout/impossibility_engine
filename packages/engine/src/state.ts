@@ -69,6 +69,17 @@ export interface EquippedItem {
   readonly id: string;
   readonly armor: Armor | null;
   /**
+   * Which copy is in hand, where the copies are told apart.
+   *
+   * The id above stays the catalogue id, because that is what every reader of
+   * `equipped` asks — Armour Class, a weapon's record, an item's standing
+   * grants. This says *which one*, so a wand's charges are spent out of the
+   * pool belonging to the wand being held and not out of the other one in the
+   * pack. Absent for everything unlabelled, which is everything mundane and
+   * every log written before a copy could have a record.
+   */
+  readonly instance?: string;
+  /**
    * What this item grants while it is worn, pinned when it was put on.
    *
    * The same rule the armour record above follows: what a command read from
@@ -83,22 +94,17 @@ export interface EquippedItem {
 /**
  * An item this creature has attuned to.
  *
- * Keyed by catalogue id, which is the whole of what an inventory can say
- * today: `InventoryLine` counts copies and gives none of them an identity, so
- * two Wands of Magic Missiles cannot be told apart. That is survivable here —
- * attunement is a yes or no per kind of item, and attuning to the second of
- * two identical wands grants exactly what the first one does — and it stops
- * being survivable the moment two of a **charged** item are in one pack,
- * because charges are spent from *one* wand.
+ * Keyed by catalogue id, and **deliberately still so** now that a copy can
+ * have a record: attunement is a yes or no per kind of item, and attuning to
+ * the second of two identical wands grants exactly what the first one does.
+ * What could not survive one key per kind was the *charges*, which are spent
+ * from one wand and not from both — and those are keyed by the copy now
+ * ({@link InventoryLine.instance}), which is where per-copy state belongs.
  *
- * Charges have landed and that line is held by a refusal rather than by a
- * record, at **both** doors: `equipItem` declines to put a second copy of a
- * charged item in anybody's hand, and `checkEquipped` declines to let a
- * character be born holding one, each naming the missing instance record in
- * its reason. Item instance identity is still a later brief's subject in
- * `docs/design/characters-and-equipment.md`, and the brief that adds item
- * *transfer* cannot defer it — a wand handed over leaves its charges behind,
- * and no refusal can catch that.
+ * So the refusals that stood in for the missing record are gone from both
+ * doors: `equipItem` and creation put a second copy of a charged item in a
+ * pack without complaint, because the two copies now have two pools. What
+ * `equipItem` asks instead is *which* copy, where the answer is not obvious.
  */
 export interface AttunedItem {
   readonly id: string;
@@ -1029,6 +1035,18 @@ export interface GameState {
    * `castingNumber` exists: `cast:2` ended before `cast:10`.
    */
   readonly castingsEnded: readonly string[];
+  /**
+   * Item copies given a record of their own, so the next one's id is known
+   * before it is handed over.
+   *
+   * The counter `castingsBegun` is, for the same reason and by the same rule:
+   * the command computes the next id and the fold **verifies** it, so an id is
+   * a function of the log's own position rather than of a generator the engine
+   * is not allowed to have. Only a copy with per-copy state is counted — today
+   * that is a copy with charges — so a campaign whose characters carry nothing
+   * but rope and arrows leaves this at zero forever.
+   */
+  readonly itemsIssued: number;
   /** Command ids already applied, by caller-supplied key. */
   readonly appliedCommands: Readonly<Record<string, AppliedCommand>>;
   /**
@@ -1195,6 +1213,7 @@ export function initialState(seed: string): GameState {
     eventCount: 0,
     castingsBegun: 0,
     castingsEnded: [],
+    itemsIssued: 0,
     appliedCommands: {},
     elapsed: 0,
     timers: {},
@@ -1212,9 +1231,45 @@ export function initialState(seed: string): GameState {
   };
 }
 
-/** One kind of thing, and how many of it. */
+/** One kind of thing, and how many of it — or one copy, with a record. */
 export interface InventoryLine {
   readonly id: string;
   readonly quantity: number;
+  /**
+   * This one copy's own id, where the copy has state of its own.
+   *
+   * **Absent is the ordinary line and exactly what it has always meant**: a
+   * count of interchangeable things, twenty arrows on one line, merged with
+   * the next twenty. Present, the line is a *single* copy — the fold refuses
+   * any other quantity — and nothing ever merges it with another, because two
+   * wands with three charges between them are not one wand with six.
+   *
+   * Issued by the command from {@link GameState.itemsIssued} and verified by
+   * the fold, on the pattern a casting id already follows. **Only where the
+   * catalogue record has per-copy state**: today that is a charge pool, whose
+   * key is this id rather than the item's, so putting a wand down, picking it
+   * up or handing it over finds the charges where they were left. What is in
+   * this field is the command's pinned decision; the fold never opens a
+   * catalogue to second-guess it.
+   */
+  readonly instance?: string;
 }
+
+/** What every item instance id begins with. One spelling, read and written here. */
+export const ITEM_INSTANCE_PREFIX = 'item:';
+
+/** The id of the nth copy the engine has issued a record to. */
+export const itemInstanceFor = (n: number): string => `${ITEM_INSTANCE_PREFIX}${n}`;
+
+/**
+ * The number inside an instance id, for putting copies in the order they were
+ * gained.
+ *
+ * Numerically, for the reason `castingNumber` is: `item:2` was gained before
+ * `item:10`, and a string sort would put ten first — which would reorder an
+ * inventory, and an inventory that sorts differently on the same log is a
+ * state that does not serialise identically.
+ */
+export const itemInstanceNumber = (instance: string): number =>
+  Number(instance.slice(ITEM_INSTANCE_PREFIX.length)) || 0;
 

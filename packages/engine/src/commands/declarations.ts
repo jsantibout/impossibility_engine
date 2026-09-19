@@ -64,6 +64,7 @@ import { swapInitiative } from '../combat.js';
 import { type GameEvent, type GameState, type InventoryLine } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import { creatureOf, unknownCreature } from './command.js';
+import { copyNamed, quantityOf } from './inventory.js';
 
 /**
  * Say which side of the fight a creature is on.
@@ -250,6 +251,7 @@ export function loseItems(
 
     if (items.length === 0) return err('no_items', 'a loss has to name something that was lost');
 
+    const lost: InventoryLine[] = [];
     for (const line of items) {
       if (!Number.isInteger(line.quantity) || line.quantity < 1) {
         return err(
@@ -257,17 +259,43 @@ export function loseItems(
           `a loss takes a positive whole number, got ${line.quantity} of ${line.id}`,
         );
       }
-      const held = creature.inventory.find((owned) => owned.id === line.id)?.quantity ?? 0;
-      if (held < line.quantity) {
-        return err('not_owned', `${id} has ${held} of ${line.id}, not ${line.quantity}`);
-      }
       if (creature.equipped.some((held) => held.id === line.id)) {
         return err('equipped', `${line.id} is worn or wielded by ${id}; take it off first`);
       }
+
+      /**
+       * **Which copy**, where the copies are told apart, and said out loud in
+       * the event.
+       *
+       * A wand with charges of its own is a line the reducer finds by that
+       * copy's id; a loss naming only the kind of thing would remove nothing
+       * at all and do it silently. So the line is resolved here — the copy the
+       * caller named, or the only one there is — and a kind of thing with
+       * several copies is a question rather than a guess: a thief takes *a*
+       * wand, and which one they took decides how many charges the party has
+       * left.
+       */
+      const named =
+        line.instance === undefined
+          ? copyNamed(creature, line.id)
+          : ok(creature.inventory.find((owned) => owned.instance === line.instance) ?? null);
+      if (!named.ok) return named;
+      const copy = named.value;
+      const held = copy?.instance === undefined ? quantityOf(state, id, line.id) : copy.quantity;
+      if (copy === null || held < line.quantity) {
+        return err('not_owned', `${id} has ${held} of ${line.id}, not ${line.quantity}`);
+      }
+      lost.push(copy.instance === undefined ? line : { ...line, instance: copy.instance });
     }
 
     return ok([
-      { type: 'items-lost', id, items, source, ...(stamp === null ? {} : { command: stamp }) },
+      {
+        type: 'items-lost',
+        id,
+        items: lost,
+        source,
+        ...(stamp === null ? {} : { command: stamp }),
+      },
     ]);
   });
 }

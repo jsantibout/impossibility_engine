@@ -15,6 +15,11 @@ import { parseNotation } from './dice.js';
  * declares the pools; this module only spends and restores them. Keeping the
  * two apart is what lets a monster with three uses of a breath weapon, a magic
  * item with seven charges, and a Wizard's slots all be the same mechanism.
+ *
+ * **A key is a name and nothing here reads inside one.** That is what lets an
+ * item's charges be kept per *copy* — `wand-of-secrets:charges@item:3` — so
+ * two wands in one pack are two pools, without this module ever learning that
+ * copies of a thing exist.
  */
 
 /** What refills a pool. Rests are not implemented yet; the tag still records intent. */

@@ -278,7 +278,8 @@ export function itemRoute(
     );
   }
 
-  if (!creature.equipped.some((held) => held.id === item.id)) {
+  const held = creature.equipped.find((worn) => worn.id === item.id);
+  if (held === undefined) {
     return err(
       'not_equipped',
       `${item.name} is used while holding it, and ${creature.id} is not`,
@@ -298,17 +299,20 @@ export function itemRoute(
   // cannot be refused for the want of one. `checkContent` has already refused
   // an item that is priced and declares none, so the two cases below are only
   // ever reached by a casting that really does have something to spend.
+  // Keyed by the copy in hand, where the copies are told apart: a wand casts
+  // out of its own charges and not out of the other wand's in the same pack.
   const priced = grant.atWill !== true;
-  const pool = priced ? itemChargePool(item) : null;
+  const pool = priced ? itemChargePool(item, held.instance) : null;
   if (priced) {
     if (pool === null) {
       return err('no_charges', `${item.name} has no charges to spend on a casting`);
     }
     if (!hasPool(creature.resources, pool.key)) {
-      // The pool arrives with the equip event, so this is what is left when the
-      // item reached this hand by a route that declared none — a hand-written
-      // log, a fixture, a migration. Named rather than left looking empty, which
-      // is the answer `expendCharges` gives to the same question.
+      // A copy's pool arrives with the copy and an unlabelled one's with the
+      // equip event, so this is what is left when the item reached this hand
+      // by a route that declared neither — a hand-written log, a fixture, a
+      // migration. Named rather than left looking empty, which is the answer
+      // `expendCharges` gives to the same question.
       return err(
         'unknown_pool',
         `nothing has declared ${item.name}'s charges for ${creature.id}; take it off and put it back on`,

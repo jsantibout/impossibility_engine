@@ -115,7 +115,16 @@ const run = (
 const holding = (itemId: string, log: readonly GameEvent[] = made()): readonly GameEvent[] =>
   run([...log, given(GRUM, itemId)], (s) => equipItem(s, SRD_CONTENT, GRUM, itemId));
 
-const keyOf = (itemId: string): string => itemChargePool(SRD_CONTENT.item(itemId)!)!.key;
+/**
+ * The pool key, of a copy where one is named and of the kind where none is.
+ *
+ * Both spellings are real and the engine writes both: a copy gained through a
+ * command keeps its charges under its own id, and an unlabelled copy — which
+ * is what a hand-written `items-gained` below hands over — keeps them under
+ * the key content wrote, exactly as it always has.
+ */
+const keyOf = (itemId: string, instance?: string): string =>
+  itemChargePool(SRD_CONTENT.item(itemId)!, instance)!.key;
 
 const left = (log: readonly GameEvent[], itemId: string): number =>
   chargesLeft(fold('seed', log), SRD_CONTENT, GRUM, itemId);
@@ -212,8 +221,10 @@ describe('a character created already holding a charged item', () => {
 
   it('is born with the pool declared, sized as the book prints it', () => {
     const log = bornHolding();
+    // Under the copy's own key, because the wand it was born holding is the
+    // first copy this campaign has issued a record to.
     const declared = log.filter(
-      (e) => e.type === 'resource-pool-declared' && e.pool.key === keyOf(WAND),
+      (e) => e.type === 'resource-pool-declared' && e.pool.key === keyOf(WAND, 'item:1'),
     );
     expect(declared).toHaveLength(1);
     expect(left(log, WAND)).toBe(3);
@@ -395,16 +406,53 @@ describe('dawn is a moment, not a duration', () => {
 
 describe('two of one charged item', () => {
   /**
-   * The deferred decision, made visible. `InventoryLine` is `{ id, quantity }`,
-   * so two Wands of Secrets are one line of two and the pool would be one pool
-   * — which would let a wand handed to somebody else carry its charges.
+   * The decision that was deferred, taken — and this is what it bought.
+   *
+   * Two Wands of Secrets used to be one line of two with one pool between
+   * them, so both doors refused the second copy rather than let a charge
+   * spent from one empty the other. Each copy has a record of its own now,
+   * and `item-instances.test.ts` holds the whole of what that is worth. What
+   * is left here is the door: it no longer refuses, and what it asks instead
+   * is *which* wand, because "equip a wand" has two answers and spending
+   * somebody's last charge for them is not one of them.
    */
-  it('is refused, and the refusal names what is missing', () => {
-    const owned = [...made(), given(GRUM, WAND, 2)];
+  it('is a question rather than a refusal, and the question names the copies', () => {
+    const owned = unwrap(
+      createCharacter(
+        SRD_CONTENT,
+        barbarian({
+          dmGrants: {
+            items: [{ id: WAND, quantity: 2 }],
+            goldPieces: 0,
+            magicItems: [WAND],
+            note: 'two from the same barrow',
+          },
+        }),
+        GRUM,
+      ),
+      'create',
+    );
     const out = equipItem(fold('seed', owned), SRD_CONTENT, GRUM, WAND);
     expect(isErr(out)).toBe(true);
-    expect(isErr(out) && out.code).toBe('no_item_instance');
-    expect(isErr(out) && out.reason).toMatch(/instance/i);
+    expect(isErr(out) && out.code).toBe('ambiguous_copy');
+    expect(isErr(out) && out.reason).toMatch(/item:1/);
+    // And naming one of them equips that one, with charges of its own.
+    const held = run(owned, (s) => equipItem(s, SRD_CONTENT, GRUM, 'item:2'));
+    expect(left(held, 'item:2')).toBe(3);
+  });
+
+  /**
+   * An **unlabelled** stack is the stack it has always been, because that is
+   * what an absent record means. A hand-written log is the only thing that
+   * writes one — no command hands a party what it found yet — and it gets
+   * today's reading rather than a refusal: one pool, declared when the first
+   * of them reaches a hand.
+   */
+  it('is one pool when the log never told them apart', () => {
+    const owned = [...made(), given(GRUM, WAND, 2)];
+    const held = run(owned, (s) => equipItem(s, SRD_CONTENT, GRUM, WAND));
+    expect(fold('seed', held).creatures.grum?.resources.pools[keyOf(WAND)]?.max).toBe(3);
+    expect(left(held, WAND)).toBe(3);
   });
 
   it('but two of something uncharged is nobody’s problem', () => {

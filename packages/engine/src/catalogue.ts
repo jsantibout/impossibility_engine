@@ -166,6 +166,18 @@ export function itemStandingEffects(item: CatalogueItem): readonly StandingEffec
 }
 
 /**
+ * The key one copy's charges are kept under: what content declared, suffixed.
+ *
+ * Two wands are two pools, and the only thing that can tell them apart is the
+ * copy's own id. Written here, once, so the command that declares the pool and
+ * the command that spends from it cannot spell it differently — and an
+ * unlabelled copy keeps the unsuffixed key it has always had, which is what
+ * makes every log written before copies had records fold unchanged.
+ */
+export const instancedPoolKey = (key: string, instance: string | undefined): string =>
+  instance === undefined ? key : `${key}@${instance}`;
+
+/**
  * The charge pool an item declares, or null for the almost everything that
  * declares none.
  *
@@ -184,12 +196,19 @@ export function itemStandingEffects(item: CatalogueItem): readonly StandingEffec
  *
  * The **first** pool grant, because `checkContent` refuses an item that carries
  * two: an item's charges are one pool in the book and one pool here.
+ *
+ * **Per copy, where the copy has a record.** Charges are the one piece of
+ * state an item keeps for itself, so the pool belongs to the wand rather than
+ * to the kind of wand: give the copy's instance id and the key content wrote
+ * comes back with that copy appended. Content writes one key per item and
+ * knows nothing about copies, which is what lets a homebrew wand get a record
+ * per copy without a line of content changing.
  */
-export function itemChargePool(item: CatalogueItem): PoolDeclaration | null {
+export function itemChargePool(item: CatalogueItem, instance?: string): PoolDeclaration | null {
   for (const grant of item.grants ?? []) {
     if (grant.kind !== 'pool') continue;
     return {
-      key: grant.key,
+      key: instancedPoolKey(grant.key, instance),
       label: grant.label ?? `${item.name} charges`,
       max: grant.uses ?? 0,
       recovers: grant.recovers,

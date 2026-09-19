@@ -710,23 +710,39 @@ describe('what an item carries reaches a character created wearing it', () => {
   });
 
   /**
-   * `equipItem` refuses a second copy of a charged item because the pool is
-   * keyed by catalogue id and two wands would share one. Creation is the door
-   * that could walk round that refusal, so it makes the same one.
+   * Creation used to refuse a character born holding the second of two
+   * charged items, because the pool was keyed by catalogue id and two wands
+   * would have shared one. Each copy carries its own record now, so the
+   * refusal is gone and what it stood in for is here: two lines, two pools,
+   * and the one in hand named.
    */
-  it('refuses a character created holding two of the same charged item', () => {
-    rejects(
-      {
-        dmGrants: {
-          items: [{ id: 'wand-of-secrets', quantity: 2 }],
-          goldPieces: 0,
-          magicItems: ['Wand of Secrets'],
-          note: 'two wands from the same hoard',
-        },
-        equipped: ['wand-of-secrets'],
-      },
-      'no_item_instance',
+  it('creates a character holding one of two charged items, and keeps them apart', () => {
+    const WAND = 'wand-of-secrets';
+    const log = unwrap(
+      createCharacter(
+        SRD_CONTENT,
+        kessa({
+          dmGrants: {
+            items: [{ id: WAND, quantity: 2 }],
+            goldPieces: 0,
+            magicItems: ['Wand of Secrets'],
+            note: 'two wands from the same hoard',
+          },
+          equipped: [WAND],
+        }),
+        KESSA,
+      ),
+      'create',
     );
+    const creature = fold('seed', log).creatures.kessa!;
+    expect(creature.inventory.filter((line) => line.id === WAND)).toEqual([
+      { id: WAND, quantity: 1, instance: 'item:1' },
+      { id: WAND, quantity: 1, instance: 'item:2' },
+    ]);
+    expect(creature.equipped.find((held) => held.id === WAND)?.instance).toBe('item:1');
+    expect(
+      Object.keys(creature.resources.pools).filter((key) => key.startsWith(`${WAND}:charges`)),
+    ).toHaveLength(2);
   });
 });
 
