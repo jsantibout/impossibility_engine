@@ -39,9 +39,10 @@ export function resolveBuffEffect(
   if (effect.ability !== undefined) {
     const support = savingSupport(current, target, victim, effect.ability, supply);
     // The victim's sheet as it stands: an item that *sets* the score this save
-    // is made with is on the creature, and `checks.ts` takes a sheet. Read off
-    // `current` rather than the world this effect started in, because an
-    // earlier effect in the same casting may already have moved it.
+    // is made with is on the creature, and `checks.ts` takes a sheet. Asked of
+    // `current` because that is the world every other reader in this function
+    // is asked of — `savingSupport` above it and `armorClassOf` in its
+    // neighbours — and not because anything has moved it yet.
     const rolled = rollSavingThrow(
       supply.issuer,
       supply.rng,

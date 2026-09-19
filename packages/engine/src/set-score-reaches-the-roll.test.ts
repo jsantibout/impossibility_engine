@@ -15,7 +15,14 @@ import { sheetAsItStands } from './standing.js';
 import { awardItems } from './commands/declarations.js';
 import { rollInitiativeFor } from './commands/initiative.js';
 import { equipItem, unequipItem } from './commands/inventory.js';
-import { resolveAttack, resolveSpell, resolveTest, takeDamageReaction } from './commands.js';
+import {
+  resolveAttack,
+  resolveAttackDamage,
+  resolveSpell,
+  resolveTest,
+  takeDamageReaction,
+  takeTestReaction,
+} from './commands.js';
 
 /**
  * A set ability score, at the moment a die is thrown for it.
@@ -166,8 +173,49 @@ const BRACED: ReactionFeature = {
   },
 };
 
+/**
+ * And the other window, so both halves of `takeTestReaction` are driven.
+ *
+ * Shaped on SRD Peerless Skill, which pushes a D20 Test that has been rolled
+ * and not yet had its effects. `outcome: 'either'` so the offer stands however
+ * the die fell, and `tests` names the check the test below makes.
+ */
+const STEADY: ReactionFeature = {
+  feature: 'steady',
+  name: 'Steady',
+  window: 'test-rolled',
+  costsReaction: false,
+  pool: null,
+  reach: { kind: 'self' },
+  does: {
+    kind: 'intervene',
+    amount: { plus: [{ kind: 'ability', ability: 'str', label: 'Strength modifier' }] },
+    direction: 'bonus',
+    tests: ['ability-check'],
+    outcome: 'either',
+  },
+};
+
+/**
+ * And the reroll shape of the same window, which reads the score by a
+ * different door — `modifierFor` rather than `reactionAddends`.
+ *
+ * Shaped on SRD Indomitable, so like every reroll it answers a failed saving
+ * throw and nothing else. The test below fails it with a Difficulty Class no
+ * d20 can reach, so the offer stands whatever the die did.
+ */
+const DOGGED: ReactionFeature = {
+  feature: 'dogged',
+  name: 'Dogged',
+  window: 'test-rolled',
+  costsReaction: false,
+  pool: null,
+  reach: { kind: 'self' },
+  does: { kind: 'reroll', bonus: { kind: 'ability', ability: 'str', label: 'Strength modifier' } },
+};
+
 const SETUP: readonly GameEvent[] = [
-  added(HERO, { reactions: [BRACED] }),
+  added(HERO, { reactions: [BRACED, STEADY, DOGGED] }),
   // A stated Armour Class low enough that the swing below lands, so the test
   // is about the modifier rather than about the die.
   added(THUG, { stated: { armorClass: 5 } }),
@@ -245,7 +293,7 @@ const swing = (log: readonly GameEvent[]) =>
     'attack',
   );
 
-const testModifier = (log: readonly GameEvent[], kind: 'ability-check' | 'saving-throw') =>
+const takeTest = (log: readonly GameEvent[], kind: 'ability-check' | 'saving-throw') =>
   unwrap(
     resolveTest(
       at(log),
@@ -254,13 +302,102 @@ const testModifier = (log: readonly GameEvent[], kind: 'ability-check' | 'saving
       supply('test'),
     ),
     'test',
-  ).test!.modifier;
+  );
+
+const testModifier = (log: readonly GameEvent[], kind: 'ability-check' | 'saving-throw') =>
+  takeTest(log, kind).test!.modifier;
+
+/**
+ * What Steady adds to a check the hero has already rolled.
+ *
+ * `resolveTest` holds the result open because the hero holds a `test-rolled`
+ * feature, and answering it pushes the total by the feature's whole amount —
+ * here one ability modifier and no die, so the difference between the two
+ * totals is the modifier and nothing else.
+ */
+const steadyAdds = (log: readonly GameEvent[]) => {
+  const rolled = takeTest(log, 'ability-check');
+  expect(rolled.offers.some((offer) => offer.feature === STEADY.feature)).toBe(true);
+  const pushed = unwrap(
+    takeTestReaction(
+      at([...log, ...rolled.events]),
+      HERO,
+      { feature: STEADY.feature, commandId: 'steady' },
+      supply('steady'),
+    ),
+    'steady',
+  );
+  return pushed.test!.total - rolled.test!.total;
+};
+
+/**
+ * What Dogged adds to the save it rerolls.
+ *
+ * `rerollTest` folds the new flat bonus into the rerolled test's own modifier,
+ * so the difference between the two modifiers is the bonus and nothing else —
+ * the ability modifier already inside the first one cancels.
+ */
+const doggedAdds = (log: readonly GameEvent[]) => {
+  const rolled = unwrap(
+    resolveTest(
+      at(log),
+      HERO,
+      // No d20 reaches 30 with either Strength behind it, so the save fails
+      // and the offer a reroll only makes against a failure is always there.
+      { kind: 'saving-throw', ability: 'str', dc: 30, commandId: 'doomed-save' },
+      supply('test'),
+    ),
+    'test',
+  );
+  expect(rolled.test!.success).toBe(false);
+  const pushed = unwrap(
+    takeTestReaction(
+      at([...log, ...rolled.events]),
+      HERO,
+      { feature: DOGGED.feature, commandId: 'dogged' },
+      supply('dogged'),
+    ),
+    'dogged',
+  );
+  return pushed.test!.modifier - rolled.test!.modifier;
+};
 
 const initiativeModifier = (log: readonly GameEvent[]) =>
   unwrap(
     rollInitiativeFor(at(log), HERO, createRollIssuer('r'), createRng('initiative'), {}),
     'initiative',
   ).modifier;
+
+/**
+ * The same swing, held and then settled, which is the other damage roller.
+ *
+ * SRD Divine Smite lands between the two, so `resolveAttackDamage` rolls the
+ * damage separately — and it is a separate reader of the attacker's sheet.
+ * The score is asked for again when the blow is settled rather than pinned
+ * when the hit landed, because "while you wear this" is the item's own clause.
+ */
+const heldSwingDamage = (log: readonly GameEvent[]) => {
+  const swung = unwrap(
+    resolveAttack(
+      at(log),
+      HERO,
+      { target: THUG, weapon: null, hold: true, commandId: 'held-swing' },
+      supply('fist'),
+    ),
+    'attack',
+  );
+  expect(swung.attack!.hit).toBe(true);
+  expect(swung.damage).toBeUndefined();
+  return unwrap(
+    resolveAttackDamage(
+      at([...log, ...swung.events]),
+      HERO,
+      { commandId: 'settle-held-swing' },
+      supply('fist'),
+    ),
+    'settle',
+  ).damage;
+};
 
 /**
  * How much Braced takes off a blow aimed at the hero.
@@ -357,9 +494,24 @@ describe('a score an item sets reaches the dice', () => {
     expect(initiativeModifier(wearing(BOOTS.id))).toBe(abilityModifier(SET));
   });
 
+  it('is on the damage of a hit that was held and settled separately', () => {
+    expect(heldSwingDamage(SETUP)).toBe(1 + abilityModifier(BASE));
+    expect(heldSwingDamage(wearing(BELT.id))).toBe(1 + abilityModifier(SET));
+  });
+
   it('is on the ability modifier a Reaction adds to what it takes off', () => {
     expect(braceAgainst(SETUP)).toBe(abilityModifier(BASE));
     expect(braceAgainst(wearing(BELT.id))).toBe(abilityModifier(SET));
+  });
+
+  it('is on the ability modifier a Reaction adds to a test already rolled', () => {
+    expect(steadyAdds(SETUP)).toBe(abilityModifier(BASE));
+    expect(steadyAdds(wearing(BELT.id))).toBe(abilityModifier(SET));
+  });
+
+  it('is on the ability modifier a Reaction adds to the test it rerolls', () => {
+    expect(doggedAdds(SETUP)).toBe(abilityModifier(BASE));
+    expect(doggedAdds(wearing(BELT.id))).toBe(abilityModifier(SET));
   });
 });
 
