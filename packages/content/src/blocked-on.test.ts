@@ -102,11 +102,14 @@ describe('the blocked-on map covers the undefined population', () => {
 
   /** And the other direction: an entry for a spell that is no longer undefined. */
   it('reports an entry for a spell that has since been defined', () => {
-    // The case this guard has already caught for real, three times: IE-014
+    // The case this guard has already caught for real, four times over: IE-014
     // defined Lesser Restoration and Protection from Poison, IE-017 Stoneskin
-    // and Protection from Energy. The synthetic stands in for the next one.
-    const defined = new Set([...DEFINED_SPELL_IDS, 'magic-missile']);
-    expect(coverageGaps(PARSED, defined).stale).toEqual(['magic-missile']);
+    // and Protection from Energy, and the spell catalogue batch twenty-four at
+    // once — Magic Missile, which used to stand here, among them. The
+    // synthetic has to name a spell that is **still** undefined, which is why
+    // it moves every time the real thing catches up with it.
+    const defined = new Set([...DEFINED_SPELL_IDS, 'chromatic-orb']);
+    expect(coverageGaps(PARSED, defined).stale).toEqual(['chromatic-orb']);
   });
 
   /** Neither synthetic case is vacuous: the real catalogue has no gap either way. */
@@ -126,9 +129,13 @@ describe('the blocked-on map covers the undefined population', () => {
    * filter that reads nothing, or a map that has quietly stopped being
    * populated at all. So it is generous on purpose, and the number of spells
    * the engine actually defines is `COVERAGE.md`'s to print.
+   *
+   * Lowered from 150 by the batch that wrote two dozen of them, for the reason
+   * the docstring above already gives: a floor that sits on the population is
+   * a guard the next success fails.
    */
   it('covers a population worth deriving', () => {
-    expect(Object.keys(BLOCKED_ON).length).toBeGreaterThan(150);
+    expect(Object.keys(BLOCKED_ON).length).toBeGreaterThan(100);
   });
 
   it('names only shapes the vocabulary has', () => {
@@ -209,19 +216,48 @@ describe('the blocked-on map covers the undefined population', () => {
     const free = Object.entries(BLOCKED_ON)
       .filter(([, entry]) => blockersIn(entry).length === 0)
       .map(([id]) => id);
-    expect(free).toEqual([
+    expect(free).toEqual(['darkness', 'programmed-illusion']);
+  });
+
+  /**
+   * And the nine that left it are **collected**, not lost.
+   *
+   * "The engine could take this spell today" is a claim with a shelf life: the
+   * honest end of it is a definition, and eight of the eleven got one in a
+   * single batch. What is asserted here is the end rather than the snapshot,
+   * the way Gate, Mind Blank, Gaseous Form and Heroism are asserted elsewhere
+   * in this file — each is out of the undefined population *and* in the
+   * catalogue, which is the pair of facts a stale entry could not satisfy.
+   *
+   * The two still standing are the two that are not free after all, and both
+   * say why in one word. **Darkness** would make Sunburst's "dispels magical
+   * Darkness" reachable, and `spell-honesty.test.ts` pins that clause as the
+   * table's on exactly the grounds that no Darkness casting exists — so
+   * writing it is a decision about what a dispel narrowed to one named spell
+   * and a level cap is called, rather than a transcription. **Programmed
+   * Illusion** is refused its Investigation check by `check_without_duration`,
+   * which reads `durationSeconds` and `durationUntil` and not
+   * `untilDispelled`; the casting it would hang on is ongoing and has no
+   * deadline, and widening that rule is engine work.
+   */
+  it('collected the eight that were written, and says why two are left', () => {
+    for (const spellId of [
       'conjure-fey',
       'create-or-destroy-water',
       'dancing-lights',
-      'darkness',
       'daylight',
       'druidcraft',
       'elementalism',
       'fog-cloud',
-      'programmed-illusion',
       'purify-food-and-drink',
       'zone-of-truth',
-    ]);
+    ]) {
+      expect(BLOCKED_ON[spellId], spellId).toBeUndefined();
+      expect(SRD_CONTENT.spell(spellId), spellId).not.toBeNull();
+    }
+    for (const spellId of ['darkness', 'programmed-illusion']) {
+      expect(SRD_CONTENT.spell(spellId), spellId).toBeNull();
+    }
   });
 
   /**
@@ -531,16 +567,6 @@ describe('the condition-immunity family is read sentence by sentence', () => {
       ['a-condition-a-spell-suppresses', 'a-spells-effects-applied-to-different-targets'],
     ],
     [
-      'freedom-of-movement',
-      [
-        'a-condition-immunity-narrowed-to-its-source',
-        'an-activation-taken-by-somebody-other-than-the-caster',
-        'an-effect-that-suppresses-other-magic',
-        'difficult-terrain-an-area-creates',
-        'movement-modes',
-      ],
-    ],
-    [
       'hallow',
       [
         'a-barrier-that-blocks-passage',
@@ -601,10 +627,16 @@ describe('the condition-immunity family is read sentence by sentence', () => {
    */
   it('covers every spell the two residues block', () => {
     expect(consumersOf('a-condition-immunity-narrowed-to-its-source').undefined).toEqual([
-      'freedom-of-movement',
       'hallow',
       'magic-circle',
       'protection-from-evil-and-good',
+    ]);
+    // Freedom of Movement was the fourth and is **tracked** now, so the shape
+    // keeps it in a different population rather than losing it: the batch that
+    // wrote the spell moved the clause into `TRACKED_ADJUDICATED`, where it
+    // says the same thing about the same sentence.
+    expect(consumersOf('a-condition-immunity-narrowed-to-its-source').tracked).toEqual([
+      'freedom-of-movement',
     ]);
     expect(consumersOf('a-condition-a-spell-suppresses').undefined).toEqual(['calm-emotions']);
   });
@@ -624,9 +656,17 @@ describe('the condition-immunity family is read sentence by sentence', () => {
   it('records the five blockers the bare lists had missed', () => {
     const filed = (spellId: string, phrase: string) =>
       clausesIn(BLOCKED_ON[spellId] ?? []).find((clause) => clause.clause === phrase)?.why;
-    expect(filed('freedom-of-movement', "can neither reduce the target's Speed")).toBe(
-      'an-effect-that-suppresses-other-magic',
-    );
+    // Freedom of Movement's was the first of the five, and it is **kept**
+    // rather than lost now that the spell is defined: the reading moved into
+    // `TRACKED_ADJUDICATED` against the same sentence, and into the
+    // definition's own `unmodelled`, where the table hears it on every
+    // casting. Gaseous Form's clause below made the same move first.
+    expect(
+      (TRACKED_ADJUDICATED['freedom-of-movement'] ?? []).find(
+        (entry) => entry.clause === "can neither reduce the target's Speed",
+      )?.why,
+    ).toBe('an-effect-that-suppresses-other-magic');
+    expect(BLOCKED_ON['freedom-of-movement']).toBeUndefined();
     expect(filed('magic-circle', 'Choose one or more of the following types of creatures')).toBe(
       'a-choice-made-at-the-casting',
     );
@@ -770,7 +810,6 @@ describe('the four highest-leverage families are read sentence by sentence', () 
         'antimagic-field',
         'antipathy-sympathy',
         'bestow-curse',
-        'command',
         'confusion',
         'conjure-woodland-beings',
         'expeditious-retreat',
@@ -818,7 +857,6 @@ describe('the four highest-leverage families are read sentence by sentence', () 
         'meteor-swarm',
         'prismatic-wall',
         'tsunami',
-        'wall-of-fire',
         'wall-of-ice',
         'wall-of-stone',
         'wall-of-thorns',
@@ -1026,11 +1064,6 @@ describe('reading four families found blockers the bare lists had missed', () =>
       'sending',
       'a creature can block your ability to reach it again with this spell for 8 hours',
       'an-effect-that-suppresses-other-magic',
-    ],
-    [
-      'wall-of-fire',
-      'deals 5d8 Fire damage to each creature that ends its turn within 10 feet of that side',
-      'damage-with-neither-an-attack-roll-nor-a-save',
     ],
     ['wall-of-ice', 'It has AC 12 and 30 Hit Points per 10-foot section', 'a-stat-block-created-mid-fight'],
     ['wall-of-stone', 'Each panel has AC 15 and 30 Hit Points per inch of thickness', 'a-stat-block-created-mid-fight'],
@@ -1956,8 +1989,11 @@ describe('a consumer count is a query', () => {
   it('adds all three populations up', () => {
     const modes = consumersOf('movement-modes');
     expect(modes.executed).toEqual(['gaseous-form']);
-    expect(modes.tracked).toEqual(['fly', 'spider-climb']);
-    expect(modes.undefined.length).toBeGreaterThan(3);
+    expect(modes.tracked).toEqual(['fly', 'freedom-of-movement', 'spider-climb']);
+    // A floor below the population rather than on it, lowered by the batch
+    // that wrote Freedom of Movement — which moved a spell from the third
+    // population into the second and so shrank this one by one.
+    expect(modes.undefined.length).toBeGreaterThan(2);
     expect(modes.blocks.length).toBe(
       modes.executed.length + modes.tracked.length + modes.undefined.length,
     );
@@ -2034,10 +2070,22 @@ describe('a spell with one blocker is the leverage the map is for', () => {
    * very shape in `ADJUDICATED`.
    */
   it('does not call Magic Missile finished by one shape', () => {
-    expect(blockersOf('magic-missile')).toEqual([
-      'a-spells-effects-applied-to-different-targets',
+    // **And the prediction was collected rather than left standing.** Magic
+    // Missile is tracked now, which is the answer a spell blocked on two
+    // shapes gets: the slot, the action and the three darts' target rule are
+    // real, and both clauses are handed to the table. The dice keep their
+    // adjudication against the sentence that prints them; the distribution
+    // trips no marker and so lives in the definition's own `unmodelled`,
+    // exactly as Gaseous Form's occupancy override does.
+    expect(BLOCKED_ON['magic-missile']).toBeUndefined();
+    expect(TRACKED_ADJUDICATED['magic-missile']?.map((entry) => entry.why)).toEqual([
       'damage-with-neither-an-attack-roll-nor-a-save',
     ]);
+    expect(
+      (SRD_CONTENT.spell('magic-missile')?.unmodelled ?? []).filter((note) =>
+        note.includes('you can direct them to hit one creature or several'),
+      ),
+    ).toHaveLength(1);
     expect(BLOCKED_ON['dimension-door']).toBeUndefined();
     expect(ADJUDICATED['dimension-door']?.map((entry) => entry.why)).toEqual([
       'a-spells-effects-applied-to-different-targets',

@@ -581,6 +581,18 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'The engine owns the death and records it; what the corpse then looks like, and whether it ever thaws, is narration with no mechanical consequence the engine could read back. There is nothing here for a rule to decide.',
     },
   ],
+  'conjure-fey': [
+    {
+      clause: 'a Fey creature of your choice',
+      why: 'table',
+      note: 'the creature-type word is the marker firing on a costume: the spirit is a point on the casting rather than a creature, so nothing asks what type it is and no rule reads the answer. What it looks like is narration in the same way the weapon Spiritual Weapon resembles is.',
+    },
+    {
+      clause: 'both you and the spirit as the source of the fear',
+      why: 'table',
+      note: 'the Frightened condition itself is applied, by the rider on the attack, and what is left over is the second source: a condition carries the casting that imposed it, and the spirit is not a creature anything could be frightened of separately. Which of the two a later ruling reads is the table’s.',
+    },
+  ],
   contagion: [
     {
       clause: 'the ability chosen at the cast',
@@ -1346,6 +1358,151 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'there is deliberately no RollModifier member for D20 Tests as a family, and three SRD spells write the phrase; the toll on the caster and the target’s own minus four both need it, and the second needs a deadline anchored to a rest as well.',
     },
   ],
+  'magic-missile': [
+    {
+      marker: 'dice',
+      clause: 'A dart deals 1d4 + 1 Force damage to its target',
+      why: 'damage-with-neither-an-attack-roll-nor-a-save',
+      note: 'the dice are the plainest in the book and there is nothing to hang them on: no attack roll and no saving throw, and every damage-bearing effect kind the format has — `attack`, `attack-damage`, `save-damage` — hangs off one of the two.',
+    },
+  ],
+  command: [
+    {
+      marker: 'saving-throw',
+      clause: 'follow the command on its next turn',
+      why: 'an-action-a-spell-compels-or-forbids',
+      note: 'the Wisdom save is ordinary and what it gates is a creature’s whole next turn spent doing what somebody else said. The action economy is the engine’s and the only lever a spell has on it is a condition the engine names, so the save would decide nothing that could be applied.',
+    },
+    {
+      marker: 'condition',
+      clause: 'The target has the Prone condition and then ends its turn',
+      why: 'an-action-a-spell-compels-or-forbids',
+      note: 'the Prone half is an ordinary `condition` effect; the clause beside it that ends the creature’s turn is not, and a definition that wrote only the condition would be half a sentence — which is the whole reason all five options are the table’s together.',
+    },
+  ],
+  'gust-of-wind': [
+    {
+      marker: 'saving-throw',
+      clause: 'be pushed 15 feet away from you in a direction following the Line',
+      why: 'forced-movement-a-spell-causes',
+      note: 'the Strength save is ordinary and the shove is not: `moveCreature` already takes `forced: true` and reports whose space is being shared, and no spell effect reaches it — so the save would gate a push nothing can perform.',
+    },
+    {
+      marker: 'movement-cost',
+      clause: 'must spend 2 feet of movement for every 1 foot it moves when moving closer to you',
+      why: 'difficult-terrain-an-area-creates',
+      note: 'a doubled cost to walk into the wind is Difficult Terrain by another name, and Difficult Terrain is charged exactly — declared by the foot on the move that crosses it. No area declares any, so there is nowhere for the wind to make the ground cost double.',
+    },
+    {
+      marker: 'chance',
+      clause: 'has a 50 percent chance to extinguish them',
+      why: 'a-random-outcome-that-is-not-a-d20',
+      note: 'the generator throws any notation `parseNotation` reads and no spell effect asks it for one that is not a D20 Test, so a coin flip over a lantern has nothing to ask and nowhere for the answer to be read.',
+    },
+  ],
+  'freedom-of-movement': [
+    {
+      marker: 'speed',
+      clause: "can neither reduce the target's Speed",
+      why: 'an-effect-that-suppresses-other-magic',
+      note: '`speedOf` reads every grant a source hung and has no notion of a creature that refuses one, so this half is an effect stopping another effect from landing — the suppression shape read from the target’s side rather than from an area’s.',
+    },
+    {
+      // The same sentence again, and **the marker is the sentence's rather
+      // than the clause's**: SRD writes the Speed and the two conditions in
+      // one breath, and `condition` does not fire on "conditions" — the
+      // pattern needs a word boundary the plural does not give it. So the
+      // second half of a sentence the Speed made a claim is filed under the
+      // marker that made it one.
+      marker: 'speed',
+      clause: 'nor cause the target to have the Paralyzed or Restrained conditions',
+      why: 'a-condition-immunity-narrowed-to-its-source',
+      note: 'the subject is "spells and other magical effects", so a Ghoul’s Paralyzed still lands and a Hold Person’s does not. `conditionImmunitiesOf` answers about a condition and knows nothing of what is causing it, which is the narrower residue rather than the grant that was built.',
+    },
+    {
+      marker: 'speed',
+      clause: 'a Swim Speed equal to its Speed',
+      why: 'movement-modes',
+      note: 'Fly, Climb and Swim have no reader — no rule in the engine asks about one — so a vocabulary for them would be shape built ahead of every mechanic that could use it.',
+    },
+    {
+      marker: 'movement-cost',
+      clause: 'spend 5 feet of movement to automatically escape from nonmagical restraints',
+      why: 'an-activation-taken-by-somebody-other-than-the-caster',
+      note: 'a later action through the spell, taken by the target rather than by the caster — and `SpellActivation` pins the caster because nobody else may act through a casting, which is exactly the rule this sentence inverts.',
+    },
+    {
+      marker: 'condition',
+      clause: 'a creature imposing the Grappled condition on it',
+      why: 'an-activation-taken-by-somebody-other-than-the-caster',
+      note: 'the Grappled condition is what the escape is *from*, and the engine ends one readily; what it cannot do is let the target spend its own movement through somebody else’s casting to do it. Same sentence as the five feet above, and the marker the other half of it trips.',
+    },
+  ],
+  'wall-of-fire': [
+    {
+      marker: 'saving-throw',
+      clause: 'each creature in its area makes a Dexterity saving throw, taking 5d8 Fire damage',
+      why: 'a-wall-or-several-templates-in-one-area',
+      note: 'a typed `save-damage` effect with the ordinary half-on-a-success branch, and nowhere for it to happen: `SpellArea` has six shapes and none of them is a wall, so the save is blocked on the geometry rather than on anything about saving throws.',
+    },
+    {
+      marker: 'dice',
+      clause: 'deals 5d8 Fire damage to each creature that ends its turn within 10 feet of that side',
+      why: 'damage-with-neither-an-attack-roll-nor-a-save',
+      note: 'damage that lands with no attack roll and no saving throw at all, on a turn boundary `AreaTrigger` can already name. Every damage-bearing effect kind the format has hangs off a roll, so this one has nothing to be written as even once the wall exists.',
+    },
+  ],
+  'faerie-fire': [
+    {
+      marker: 'saving-throw',
+      clause: 'Each creature in the Cube is also outlined if it fails a Dexterity saving throw',
+      why: 'a-condition-benefit-an-effect-takes-away',
+      note: 'the save is ordinary and what failing it buys is a subtraction rather than a condition: the creature loses the benefit of one it may already have. A `save` effect with no condition to impose would be a die thrown to record nothing.',
+    },
+    {
+      marker: 'condition',
+      clause: "can't benefit from the Invisible condition",
+      why: 'a-condition-benefit-an-effect-takes-away',
+      note: 'the other end of the same sentence. `conditionApplicability` grants the Invisible condition its effects wholesale and nothing narrows them for one creature, so there is no state in which a creature has the condition and not its benefit.',
+    },
+  ],
+  'animal-messenger': [
+    {
+      marker: 'saving-throw',
+      clause: 'must succeed on a Charisma saving throw',
+      why: 'a-target-rule-the-format-cannot-state',
+      note: 'the save is decided before it is rolled by the parenthesis beside it — "if the target’s Challenge Rating isn’t 0, it automatically succeeds" — and a Challenge Rating is not a fact any target rule can ask for, any more than the Tiny that picks the Beast is. What a failure buys is an errand across the countryside, which is the DM’s.',
+    },
+  ],
+  polymorph: [
+    {
+      marker: 'saving-throw',
+      clause: 'shape-shift into a Beast form for the duration',
+      why: 'a-creature-fact-an-effect-overrides',
+      note: 'the Wisdom save is ordinary and what it gates is a creature’s whole sheet. A sheet is a fact the engine holds authoritatively and reads for every roll it makes, and nothing lets an effect write over one for a duration.',
+    },
+    {
+      marker: 'hit-points',
+      clause: "The target's game statistics are replaced by the stat block of the chosen Beast",
+      why: 'a-creature-fact-an-effect-overrides',
+      note: 'the sentence that says so outright, with the list of what survives it — alignment, personality, creature type, Hit Points and Hit Point Dice. Every number this spell needs comes off a second creature’s sheet, and a creature has one.',
+    },
+    {
+      marker: 'hit-points',
+      clause: 'The spell ends early on the target if it has no Temporary Hit Points left',
+      why: 'a-casting-ended-by-a-trigger',
+      note: 'a Temporary Hit Point total running out is one of the causes that shape names this spell for by name: the five transcribed causes are the target attacking, dealing damage, casting, donning armour, and the caster or an ally damaging it, and this is none of them.',
+    },
+  ],
+  'zone-of-truth': [
+    {
+      marker: 'saving-throw',
+      clause:
+        "a creature that enters the spell's area for the first time on a turn or starts its turn there makes a Charisma saving throw",
+      why: 'a-standing-effect-derived-from-where-a-creature-stands',
+      note: 'both moments are `AreaTrigger` members and the save itself is ordinary; what a failure buys is not. "On a failed save, a creature can’t speak a deliberate lie while in the radius" is a silence that holds for as long as the creature is in the Sphere and lifts when it steps out — a standing effect derived from where it is standing, with no condition and no state to carry it. A trigger that rolled the save and imposed nothing would be dice thrown for no reason.',
+    },
+  ],
   teleport: [
     {
       marker: 'dice',
@@ -1541,7 +1698,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     'a-rider-on-a-later-weapon-attack',
     'movement-modes',
   ],
-  'animal-messenger': ['a-target-rule-the-format-cannot-state'],
   'animal-shapes': [
     'a-casting-dismissed-early',
     'a-spells-effects-applied-to-different-targets',
@@ -2096,53 +2252,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
   ],
   'chromatic-orb': ['a-die-behaviour-a-spell-asks-for', 'several-attack-rolls-from-one-casting'],
   clone: ['a-long-casting-time', 'healing-that-raises-the-dead'],
-  command: [
-    {
-      clause: 'You speak a one-word command to a creature you can see within range',
-      why: 'expressible',
-      note: 'A single named target at sixty feet with a sight requirement, which `targets` and `requiresSight` write between them and which half the catalogue already does.',
-    },
-    {
-      clause: 'follow the command on its next turn',
-      why: 'an-action-a-spell-compels-or-forbids',
-      note: 'The whole spell in five words: a creature\'s next turn is spent doing what somebody else said. The economy is the engine\'s and the only lever a spell has on it is a condition the engine names.',
-    },
-    {
-      clause: 'Choose the command from these options',
-      why: 'a-choice-made-at-the-casting',
-      note: 'Five alternatives decided when the slot is spent, and a per-casting choice has nowhere to be recorded — a damage type is the one choice that does, and that field generalised while the reason did not.',
-    },
-    {
-      clause: 'The target moves toward you by the shortest and most direct route',
-      why: 'an-action-a-spell-compels-or-forbids',
-      note: 'Compelled movement along a route nobody chose, ending the turn early if it arrives. `moveCreature` charges a budget for a move somebody commanded and has no notion of a move the rules require.',
-    },
-    {
-      clause: 'The target drops whatever it is holding',
-      why: 'what-a-creature-is-holding',
-      note: '`inventory` and `equipped` are real and only armour and weapons have a slot, so what is in a creature\'s hands is not a fact the engine holds and a rule that makes it let go has nothing to call.',
-    },
-    {
-      clause: 'The target spends its turn moving away from you by the fastest available means',
-      why: 'an-action-a-spell-compels-or-forbids',
-      note: 'The mirror of Approach, spending the whole turn instead of ending it. Two sentences of one shape are two entries here, because each is a sentence somebody has to have read.',
-    },
-    {
-      clause: '**Grovel.** The target has the Prone condition',
-      why: 'an-action-a-spell-compels-or-forbids',
-      note: 'The Prone is an ordinary `condition` effect; what is not is the clause beside it that ends the creature\'s turn, and a definition that wrote only the condition would be half the sentence.',
-    },
-    {
-      clause: "the target doesn't move and takes no action or Bonus Action",
-      why: 'an-action-a-spell-compels-or-forbids',
-      note: 'Forbidding every action and the movement with it, which is the Incapacitated condition\'s effect without the condition. Nothing lets a spell reach `mayAct` except by naming a condition the engine already knows.',
-    },
-    {
-      clause: 'You can affect one additional creature for each spell slot level above 1',
-      why: 'expressible',
-      note: '`TargetRule.extraPerSlotLevelAbove`, which is what Bless and every other upcast target count in the catalogue already writes.',
-    },
-  ],
   commune: ['a-long-casting-time', 'a-random-outcome-that-is-not-a-d20'],
   // **The one place in this reading where the vocabulary ran out.** The upcast
   // line grows the Sphere with the slot, `SpellArea` is a fixed size, and the
@@ -2220,7 +2329,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     'a-repeat-save-that-does-something-on-a-failure',
     'an-area-that-filters-its-catch',
   ],
-  'conjure-fey': [],
   'conjure-minor-elementals': [
     'a-choice-made-at-the-casting',
     'a-rider-on-a-later-weapon-attack',
@@ -2284,7 +2392,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     'forced-movement-a-spell-causes',
   ],
   'control-weather': ['a-long-casting-time', 'a-random-outcome-that-is-not-a-d20'],
-  'create-or-destroy-water': [],
   'create-undead': [
     {
       clause: 'Casting Time: 1 minute',
@@ -2343,9 +2450,7 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     },
   ],
   creation: ['a-choice-made-at-the-casting', 'a-long-casting-time'],
-  'dancing-lights': [],
   darkness: [],
-  daylight: [],
   'death-ward': ['an-effect-that-intercepts-dropping-to-0'],
   'delayed-blast-fireball': [
     'an-area-trigger-on-the-casters-turn',
@@ -2437,7 +2542,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     'an-activation-that-resolves-an-area',
   ],
   dream: ['a-long-casting-time', 'a-rest-an-effect-gives-or-denies'],
-  druidcraft: [],
   earthquake: [
     'a-random-outcome-that-is-not-a-d20',
     'an-area-trigger-on-the-casters-turn',
@@ -2445,7 +2549,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     'difficult-terrain-an-area-creates',
     'forced-movement-a-spell-causes',
   ],
-  elementalism: [],
   'enhance-ability': [
     'a-choice-made-at-the-casting',
     'a-spells-effects-applied-to-different-targets',
@@ -2529,7 +2632,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
       note: 'The third branch, and the plainest of the three: a `condition` effect naming Poisoned with nothing riding on it.',
     },
   ],
-  'faerie-fire': ['a-condition-benefit-an-effect-takes-away', 'senses-beyond-declared-sight'],
   'faithful-hound': ['a-casting-ended-by-a-trigger', 'an-area-trigger-on-the-casters-turn'],
   'feather-fall': ['falling'],
   'find-familiar': [
@@ -2633,7 +2735,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     'an-automatic-success-by-creature-type',
     'an-effect-that-fires-when-the-casting-ends',
   ],
-  'fog-cloud': [],
   forbiddance: [
     'a-creature-type-predicate-an-area-reads',
     'a-long-casting-time',
@@ -2646,38 +2747,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     'forced-movement-a-spell-causes',
   ],
   foresight: ['a-long-casting-time', 'a-selector-for-every-d20-test'],
-  'freedom-of-movement': [
-    {
-      clause: 'unaffected by Difficult Terrain',
-      why: 'difficult-terrain-an-area-creates',
-      note: 'Difficult Terrain is charged exactly and declared by the foot on the move that crosses it, so a creature excused from it has nothing to be excused from: `MoveCommand.difficultFeet` is the caller\'s statement and the engine has no record of which ground was difficult.',
-    },
-    {
-      clause: "can neither reduce the target's Speed",
-      why: 'an-effect-that-suppresses-other-magic',
-      note: 'A blocker the bare list had missed. `speedOf` reads every grant a source hung and has no notion of a creature that refuses one, so this half is an effect stopping another effect from landing — the suppression shape read from the target\'s side rather than from an area\'s.',
-    },
-    {
-      clause: 'nor cause the target to have the Paralyzed or Restrained conditions',
-      why: 'a-condition-immunity-narrowed-to-its-source',
-      note: 'The condition half of the same sentence, and **the clause that says IE-042\'s grant is not enough for it**: the subject is "spells and other magical effects", so a Paralyzed from a Ghoul\'s claws still lands and a Hold Person\'s does not. `conditionImmunitiesOf` answers about a condition and knows nothing of what is causing it, which is the narrower residue rather than the shape that was built.',
-    },
-    {
-      clause: 'a Swim Speed equal to its Speed',
-      why: 'movement-modes',
-      note: 'Fly, Climb and Swim have no reader — no rule in the engine asks about one — so a vocabulary for them would be shape built ahead of every mechanic that could use it, which is the refusal CLAUDE.md makes by name.',
-    },
-    {
-      clause: 'spend 5 feet of movement to automatically escape from nonmagical restraints',
-      why: 'an-activation-taken-by-somebody-other-than-the-caster',
-      note: 'A later action through the spell, taken by the target rather than by the caster — and `SpellActivation` pins the caster because nobody else may act through a casting, which is exactly the rule this sentence inverts.',
-    },
-    {
-      clause: 'one additional creature for each spell slot level above 4',
-      why: 'expressible',
-      note: '`TargetRule.extraPerSlotLevelAbove` is this sentence, and thirty definitions already write it. Recorded rather than left out, because a sentence nobody wrote down is indistinguishable from a sentence nobody read.',
-    },
-  ],
   // **The one spell this family still finishes once its paragraphs are read.**
   // Everything Gate prints is the portal, and a portal is the one-scene model's
   // absence rather than a mechanism beside it — so the whole entry files under
@@ -2711,12 +2780,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     'a-casting-that-casts-another-spell',
     'a-long-casting-time',
     'a-random-outcome-that-is-not-a-d20',
-  ],
-  'gust-of-wind': [
-    'a-random-outcome-that-is-not-a-d20',
-    'an-activation-that-resolves-an-area',
-    'difficult-terrain-an-area-creates',
-    'forced-movement-a-spell-causes',
   ],
   hallow: [
     {
@@ -3077,10 +3140,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
       note: 'And the failure branch of it. Death is a transition the engine owns end to end, and what would trigger this one is a soul with nowhere to go.',
     },
   ],
-  'magic-missile': [
-    'a-spells-effects-applied-to-different-targets',
-    'damage-with-neither-an-attack-roll-nor-a-save',
-  ],
   'magic-weapon': ['a-rider-on-a-later-weapon-attack'],
   'magnificent-mansion': [
     {
@@ -3301,7 +3360,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     'an-area-that-filters-its-catch',
     'difficult-terrain-an-area-creates',
   ],
-  polymorph: ['a-casting-ended-by-a-trigger', 'a-target-rule-the-format-cannot-state'],
   'power-word-heal': [
     {
       clause: 'washes over one creature you can see within range',
@@ -3408,7 +3466,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
       note: 'The one clause that genuinely needs a save to remember what it was against — the sentence that has blocked Countercharm since it was written, and the only claimant keeping this shape in the vocabulary after IE-030 took the other five.',
     },
   ],
-  'purify-food-and-drink': [],
   'raise-dead': [
     'a-deadline-anchored-to-a-rest',
     'a-long-casting-time',
@@ -3941,48 +3998,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
       note: 'A distance two creatures drift apart, which that shape\'s description already names for Faithful Hound, Warding Bond and Antilife Shell. One shape a spell needs twice is still one shape, and both sentences are recorded because both are sentences.',
     },
   ],
-  'wall-of-fire': [
-    {
-      clause: 'You create a wall of fire on a solid surface within range',
-      why: 'a-wall-or-several-templates-in-one-area',
-      note: 'A wall placed at a point and held for a minute. `SpellArea` has six shapes and none of them is a wall.',
-    },
-    {
-      clause: 'up to 60 feet long, 20 feet high, and 1 foot thick',
-      why: 'a-wall-or-several-templates-in-one-area',
-      note: 'The three numbers this shape\'s description names, with a ringed alternative beside them. **Recorded although the sentence trips no marker.**',
-    },
-    {
-      clause: 'each creature in its area makes a Dexterity saving throw, taking 5d8 Fire damage',
-      why: 'expressible',
-      note: 'A typed `save-damage` effect with the ordinary half-on-a-success branch, resolved when the area appears.',
-    },
-    {
-      clause: 'One side of the wall, selected by you when you cast this spell',
-      why: 'an-area-that-filters-its-catch',
-      note: 'An area catches every creature in it, and this one catches only what is on one of its two faces. A wall with sides is geometry the vocabulary does not have, and which side is a choice that cannot be recorded until it does.',
-    },
-    {
-      clause: 'deals 5d8 Fire damage to each creature that ends its turn within 10 feet of that side',
-      why: 'damage-with-neither-an-attack-roll-nor-a-save',
-      note: 'Damage that lands with no attack roll and no saving throw at all. Every damage-bearing effect kind the format has — `attack`, `attack-damage`, `save-damage` — hangs off a roll, so automatic damage on a turn boundary has no effect to be written as.',
-    },
-    {
-      clause: 'when it enters the wall for the first time on a turn or ends its turn there',
-      why: 'expressible',
-      note: '`AreaTrigger.onEntry: "first-per-turn"` and `at: "end-of-turn"` are the book\'s clauses transcribed, and this sentence is both of them.',
-    },
-    {
-      clause: 'The other side of the wall deals no damage',
-      why: 'an-area-that-filters-its-catch',
-      note: 'The sentence that makes the side selection load-bearing rather than decorative: half the area does nothing, and an area here reaches everybody inside it.',
-    },
-    {
-      clause: 'The damage increases by 1d8 for each spell slot level above 4',
-      why: 'expressible',
-      note: '`DiceScaling` by slot, which is one of the two axes the format keeps deliberately apart and the one a levelled spell reads.',
-    },
-  ],
   // **Both of these walls carry an Armour Class and a Hit Point total**, and
   // neither entry had recorded it. A thing with vitals that a casting puts into
   // a fight is `a-stat-block-created-mid-fight` — the same shape Arcane Hand's
@@ -4233,7 +4248,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     'an-ability-score-a-spell-changes',
     'an-exhaustion-level-a-spell-changes',
   ],
-  'zone-of-truth': [],
 };
 
 // — the query ————————————————————————————————————————————————————————————————

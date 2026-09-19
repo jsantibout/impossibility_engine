@@ -53,6 +53,7 @@ const id = (s: string) => asCharacterId(s);
 const WIZARD = id('wizard');
 const ALLY = id('ally');
 const FOE = id('foe');
+const BEAST = id('beast');
 
 const sheet = (over: Partial<CharacterSheet> = {}): CharacterSheet => ({
   level: 9,
@@ -67,14 +68,14 @@ const sheet = (over: Partial<CharacterSheet> = {}): CharacterSheet => ({
   ...over,
 });
 
-const added = (who: CharacterId): GameEvent => ({
+const added = (who: CharacterId, creatureType = 'Humanoid'): GameEvent => ({
   type: 'creature-added',
   id: who,
   name: who,
   sheet: sheet(),
   maxHp: 50,
   diesAtZero: false,
-  creatureType: 'Humanoid',
+  creatureType,
 });
 
 /**
@@ -94,10 +95,25 @@ const TRACKED: readonly string[] = SPELL_DEFINITIONS.filter(
   .map((d) => d.id)
   .sort();
 
+/**
+ * A creature of every type a tracked definition may demand, so a spell that
+ * checks one is aimed at something it accepts rather than excused the check.
+ *
+ * `spell-catalogue.test.ts` already draws this line for the executed bucket —
+ * "the fixture says what the target is rather than the spell being excused" —
+ * and it arrived here the day a tracked definition first wrote `mustBeType`.
+ * A type is durable, so the table holds one creature per type rather than
+ * rewriting one; the lookup throws for a type nobody added, because a fixture
+ * silently aiming at the wrong creature is how a refusal becomes the
+ * fixture's rather than the spell's.
+ */
+const TYPED: Readonly<Record<string, CharacterId>> = { Humanoid: ALLY, Beast: BEAST };
+
 const SETUP: readonly GameEvent[] = [
   added(WIZARD),
   added(ALLY),
   added(FOE),
+  added(BEAST, 'Beast'),
   ...[1, 2, 3, 4, 5, 6, 7, 8, 9].map(
     (level): GameEvent => ({
       type: 'resource-pool-declared',
@@ -115,8 +131,10 @@ const SETUP: readonly GameEvent[] = [
   { type: 'creature-placed', id: WIZARD, placement: { from: { landmark: 'the door' }, feet: 0 } },
   { type: 'creature-placed', id: ALLY, placement: { from: { creature: WIZARD }, feet: 5, bearing: 0 } },
   { type: 'creature-placed', id: FOE, placement: { from: { creature: WIZARD }, feet: 5, bearing: 90 } },
+  { type: 'creature-placed', id: BEAST, placement: { from: { creature: WIZARD }, feet: 5, bearing: 180 } },
   { type: 'sight-declared', from: WIZARD, to: ALLY, seen: true },
   { type: 'sight-declared', from: WIZARD, to: FOE, seen: true },
+  { type: 'sight-declared', from: WIZARD, to: BEAST, seen: true },
   {
     type: 'spellcasting-declared',
     id: WIZARD,
@@ -139,7 +157,10 @@ const cast = (
 ) => {
   const definition = SRD_CONTENT.spell(spellId);
   if (definition === null) throw new Error(`${spellId} has no definition`);
-  const targets = definition.targets.count === 0 ? [] : [ALLY];
+  const wanted = definition.targets.mustBeType;
+  const at = wanted === undefined ? ALLY : TYPED[wanted];
+  if (at === undefined) throw new Error(`${spellId} wants a ${wanted} and this table has none`);
+  const targets = definition.targets.count === 0 ? [] : [at];
   return resolveSpell(
     fold('seed', log),
     WIZARD,
@@ -721,5 +742,133 @@ describe('a tracked spell’s target rule is the SRD’s, not a placeholder', ()
     const out = cast('plane-shift', { targets: [WIZARD] });
     expect(isErr(out)).toBe(true);
     if (isErr(out)) expect(out.code).toBe('cannot_target_self');
+  });
+});
+
+/**
+ * The spells this batch added, driven one at a time as well as swept.
+ *
+ * Every sweep above is parameterised over whatever the catalogue happens to
+ * hold, which is what makes them worth keeping and what makes them useless as
+ * the *first* test of a definition: a spell that does not exist is a spell no
+ * sweep has an entry for, so a catalogue that never gained one of these would
+ * go green. This list is written out for the reason `blocked-on.test.ts`
+ * writes out the set blocked on nothing — a spell joining or leaving it is
+ * somebody's decision, and it should have to say so here.
+ *
+ * What each is asserted to do is what a **tracked** definition is for: the
+ * slot goes, the action the book prints goes, Concentration moves exactly
+ * where the printed Duration says it does, the clock runs the span the book
+ * prints, and the table is told what it is being left to decide. Anything
+ * further is that spell's own test.
+ */
+const ADDED: readonly string[] = [
+  'animal-messenger',
+  'command',
+  'create-or-destroy-water',
+  'dancing-lights',
+  'daylight',
+  'druidcraft',
+  'elementalism',
+  'faerie-fire',
+  'fog-cloud',
+  'freedom-of-movement',
+  'gust-of-wind',
+  'magic-missile',
+  'polymorph',
+  'purify-food-and-drink',
+  'wall-of-fire',
+  'zone-of-truth',
+];
+
+describe('every spell this batch added is cast for real', () => {
+  it('names them in an order two branches can both append to', () => {
+    expect(ADDED).toEqual([...ADDED].sort());
+  });
+
+  /** Tracked, so every sweep above is already about every one of them. */
+  it.each(ADDED.map((s) => [s] as const))('tracks %s', (spellId) => {
+    const definition = SRD_CONTENT.spell(spellId);
+    expect(definition, `${spellId} has no definition`).not.toBeNull();
+    expect(definition?.effects, spellId).toEqual([]);
+    expect(TRACKED, spellId).toContain(spellId);
+  });
+
+  /** A levelled casting spends exactly one slot of its own level. */
+  it.each(ADDED.filter((s) => (SRD_CONTENT.spell(s)?.level ?? 0) > 0).map((s) => [s] as const))(
+    'spends one slot for %s',
+    (spellId) => {
+      const level = SRD_CONTENT.spell(spellId)!.level;
+      const out = driven(spellId);
+      const after = fold('seed', [...SETUP, ...out.events]);
+      expect(remaining(after.creatures.wizard!.resources, spellSlotKey(level)), spellId).toBe(3);
+    },
+  );
+
+  /** And the action the book prints, out of the turn that has one to spend. */
+  it.each(ADDED.map((s) => [s] as const))('takes the action the book prints for %s', (spellId) => {
+    const inCombat: readonly GameEvent[] = [
+      ...SETUP,
+      {
+        type: 'combat-started',
+        combatants: [
+          { id: WIZARD, initiative: 20, speed: 30 },
+          { id: ALLY, initiative: 10, speed: 30 },
+          { id: FOE, initiative: 5, speed: 30 },
+        ],
+      },
+    ];
+    const out = resolved(spellId, {}, inCombat);
+    const budget = fold('seed', [...inCombat, ...out.events]).combat?.budgets.wizard;
+    if (SRD_CONTENT.spell(spellId)!.castingTime === 'bonus-action') {
+      expect(budget?.bonusAction, spellId).toBe(false);
+      expect(budget?.action, spellId).toBe(true);
+    } else {
+      expect(budget?.action, spellId).toBe(false);
+    }
+  });
+
+  /** Concentration exactly where the printed Duration says so, and nowhere else. */
+  it.each(ADDED.map((s) => [s] as const))('concentrates on %s only if the book does', (spellId) => {
+    const out = driven(spellId);
+    const after = fold('seed', [...SETUP, ...out.events]);
+    expect(after.creatures.wizard!.concentration !== null, spellId).toBe(
+      SRD_CONTENT.spell(spellId)!.concentration,
+    );
+  });
+
+  /**
+   * A span the book prints runs out on the clock, and a spell with no span
+   * schedules nothing. Driven a second short of the deadline as well as past
+   * it, because a timer that expired early would still leave zero behind.
+   */
+  it.each(ADDED.map((s) => [s] as const))('runs %s’s duration on the clock', (spellId) => {
+    const seconds = SRD_CONTENT.spell(spellId)!.durationSeconds;
+    const log = [...SETUP, ...driven(spellId).events];
+    if (seconds === undefined) {
+      expect(Object.keys(fold('seed', log).timers), spellId).toHaveLength(0);
+      return;
+    }
+    expect(Object.keys(fold('seed', log).timers), spellId).toHaveLength(1);
+    const almost = fold('seed', [
+      ...log,
+      { type: 'time-advanced', seconds: seconds - 1, reason: 'the party waits' },
+    ]);
+    expect(Object.keys(almost.timers), spellId).toHaveLength(1);
+    const expired = fold('seed', [
+      ...log,
+      { type: 'time-advanced', seconds, reason: 'the party waits' },
+    ]);
+    expect(Object.keys(expired.timers), spellId).toHaveLength(0);
+  });
+
+  /** And every one of them tells the table what it is being left, verbatim. */
+  it.each(ADDED.map((s) => [s] as const))('hands %s’s own sentences to the table', (spellId) => {
+    const definition = SRD_CONTENT.spell(spellId)!;
+    const out = driven(spellId);
+    expect(definition.unmodelled ?? [], spellId).not.toEqual([]);
+    for (const gap of definition.unmodelled ?? []) {
+      expect(out.unverified).toContain(`${definition.name}: ${gap}`);
+    }
   });
 });

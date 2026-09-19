@@ -6697,11 +6697,725 @@ export const RESURRECTION: SpellDefinition = {
   ],
 };
 
+/**
+ * SRD Dancing Lights:
+ *
+ * > _Illusion Cantrip (Bard, Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 120 feet. **Duration:** Concentration, up to 1 minute.
+ * > "You create up to four torch-size lights within range, making them appear
+ * > as torches, lanterns, or glowing orbs that hover for the duration.
+ * > Alternatively, you combine the four lights into one glowing Medium form
+ * > that is vaguely humanlike. Whichever form you choose, each light sheds Dim
+ * > Light in a 10-foot radius."
+ * > "As a Bonus Action, you can move the lights up to 60 feet to a space
+ * > within range. A light must be within 20 feet of another light created by
+ * > this spell, and a light vanishes if it exceeds the spell's range."
+ *
+ * The whole spell is light, and the engine has no lighting — so not one
+ * sentence of it trips a mechanical marker and the definition owes the table
+ * every word. What it does owe the *engine* is the minute of Concentration a
+ * cantrip is charging for, which is the thing that was going unspent.
+ */
+export const DANCING_LIGHTS: SpellDefinition = {
+  id: 'dancing-lights',
+  name: 'Dancing Lights',
+  level: 0,
+  school: 'illusion',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 120 },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 60,
+  unmodelled: [
+    'the lights are not in the world: four torch-size lights, or one glowing Medium form, are the DM’s, and nothing can be positioned at, moved with or seen by them',
+    'the Dim Light each one sheds in a 10-foot radius is not applied; the engine has no lighting',
+    'the Bonus Action that moves the lights up to 60 feet is not offered, and neither the 20-foot tether between two lights nor a light vanishing outside the spell’s range is checked — the lights have no positions to measure',
+  ],
+};
+
+/**
+ * SRD Daylight:
+ *
+ * > _Level 3 Evocation (Cleric, Druid, Paladin, Ranger, Sorcerer)._
+ * > **Casting Time:** Action. **Range:** 60 feet. **Duration:** 1 hour.
+ * > "For the duration, sunlight spreads from a point within range and fills a
+ * > 60-foot-radius Sphere. The sunlight's area is Bright Light and sheds Dim
+ * > Light for an additional 60 feet."
+ * > "Alternatively, you cast the spell on an object that isn't being worn or
+ * > carried, causing the sunlight to fill a 60-foot Emanation originating from
+ * > that object. Covering that object with something opaque, such as a bowl or
+ * > helm, blocks the sunlight."
+ * > "If any of this spell's area overlaps with an area of Darkness created by
+ * > a spell of level 3 or lower, that other spell is dispelled."
+ *
+ * **No area is recorded, and that is deliberate.** A `SpellArea` is what an
+ * effect is resolved over, and there is no effect here: sunlight reaches
+ * nothing the engine holds. A Sphere with nothing in it would be a template
+ * the casting pins and nobody reads, which is a second place to get the radius
+ * wrong for no gain — so the sixty feet are quoted to the table instead, where
+ * the thing that reads them is a person.
+ */
+export const DAYLIGHT: SpellDefinition = {
+  id: 'daylight',
+  name: 'Daylight',
+  level: 3,
+  school: 'evocation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 3600,
+  unmodelled: [
+    'the light is not modelled: a 60-foot-radius Sphere of Bright Light, and Dim Light for an additional 60 feet, are the DM’s — the engine has no lighting and nothing reads whether a square is lit',
+    'the object the spell may be cast on instead, the 60-foot Emanation it carries, and covering it with a bowl or a helm are the DM’s; objects are not modelled',
+    'the dispel is not performed: "If any of this spell’s area overlaps with an area of Darkness created by a spell of level 3 or lower, that other spell is dispelled" — ending a casting is an operation the engine has, and no Darkness definition compiles in for it to reach',
+  ],
+};
+
+/**
+ * SRD Druidcraft:
+ *
+ * > _Transmutation Cantrip (Druid)._ **Casting Time:** Action.
+ * > **Range:** 30 feet. **Duration:** Instantaneous.
+ * > "Whispering to the spirits of nature, you create one of the following
+ * > effects within range."
+ * > _Weather Sensor._ … _Bloom._ … _Sensory Effect._ … _Fire Play._
+ *
+ * A choice of four, and **not one of the four is arithmetic** — which is the
+ * whole of why the choice needs nowhere to be recorded. `blocked-on.test.ts`
+ * draws that line by name against Thaumaturgy, whose sixth branch grants
+ * Advantage on a Charisma (Intimidation) check and so *does* decide something.
+ */
+export const DRUIDCRAFT: SpellDefinition = {
+  id: 'druidcraft',
+  name: 'Druidcraft',
+  level: 0,
+  school: 'transmutation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 30 },
+  targets: { count: 0 },
+  effects: [],
+  unmodelled: [
+    'which of the four effects is chosen is not recorded, because none of them is arithmetic: a weather sensor, a blossom, a sensory effect and a lit or snuffed flame are all the DM’s',
+    'the weather sensor’s round of existence is not a duration the engine runs: the spell is Instantaneous and the Tiny effect it leaves is fiction',
+  ],
+};
+
+/**
+ * SRD Elementalism:
+ *
+ * > _Transmutation Cantrip (Druid, Sorcerer, Warlock, Wizard)._
+ * > **Casting Time:** Action. **Range:** 30 feet. **Duration:**
+ * > Instantaneous.
+ * > "You exert control over the elements, creating one of the following
+ * > effects within range."
+ * > _Beckon Air._ … _Beckon Earth._ … _Beckon Fire._ … _Beckon Water._ …
+ * > _Sculpt Element._
+ *
+ * Druidcraft with five branches instead of four, and the same answer for the
+ * same reason: a breeze, a shroud of dust, a cloud of embers, a spray of mist
+ * and a crude shape are the DM's, so nothing has to remember which was picked.
+ */
+export const ELEMENTALISM: SpellDefinition = {
+  id: 'elementalism',
+  name: 'Elementalism',
+  level: 0,
+  school: 'transmutation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 30 },
+  targets: { count: 0 },
+  effects: [],
+  unmodelled: [
+    'which of the five effects is chosen is not recorded, because none of them is arithmetic: a breeze that closes shutters, a shroud of dust, a cloud of harmless embers, a spray of cool mist and a crude sculpted shape are all the DM’s',
+    'the 5-foot Cube each branch fits in is not a template: nothing is resolved over it, so the size is quoted rather than pinned',
+    'the minute the smoke’s scent lingers, the minute the cup of water takes to evaporate and the hour a sculpted shape holds are the DM’s; the spell itself is Instantaneous and runs no clock',
+  ],
+};
+
+/**
+ * SRD Create or Destroy Water:
+ *
+ * > _Level 1 Transmutation (Cleric, Druid)._ **Casting Time:** Action.
+ * > **Range:** 30 feet. **Duration:** Instantaneous.
+ * > "You do one of the following:"
+ * > _Create Water._ "You create up to 10 gallons of clean water within range
+ * > in an open container. Alternatively, the water falls as rain in a 30-foot
+ * > Cube within range, extinguishing exposed flames there."
+ * > _Destroy Water._ "You destroy up to 10 gallons of water in an open
+ * > container within range. Alternatively, you destroy fog in a 30-foot Cube
+ * > within range."
+ * > _Using a Higher-Level Spell Slot._ "You create or destroy 10 additional
+ * > gallons of water, or the size of the Cube increases by 5 feet, for each
+ * > spell slot level above 1."
+ *
+ * The slot buys gallons and feet of Cube, and the engine holds neither — so
+ * the scaling is quoted to the table with everything else rather than being
+ * half-applied to a target count nothing uses.
+ */
+export const CREATE_OR_DESTROY_WATER: SpellDefinition = {
+  id: 'create-or-destroy-water',
+  name: 'Create or Destroy Water',
+  level: 1,
+  school: 'transmutation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 30 },
+  targets: { count: 0 },
+  effects: [],
+  unmodelled: [
+    'the water is not a thing in the world: ten gallons created in an open container, or destroyed in one, are the DM’s',
+    'the rain in a 30-foot Cube and the exposed flames it extinguishes are the DM’s, and so is the fog destroyed in a Cube of the same size — fog is not a state the engine holds, even where another spell made it',
+    'the higher slot buys gallons and feet — "You create or destroy 10 additional gallons of water, or the size of the Cube increases by 5 feet" — and neither is a number any effect of this definition reads',
+  ],
+};
+
+/**
+ * SRD Fog Cloud:
+ *
+ * > _Level 1 Conjuration (Druid, Ranger, Sorcerer, Wizard)._
+ * > **Casting Time:** Action. **Range:** 120 feet.
+ * > **Duration:** Concentration, up to 1 hour.
+ * > "You create a 20-foot-radius Sphere of fog centered on a point within
+ * > range. The Sphere is Heavily Obscured. It lasts for the duration or until
+ * > a strong wind (such as one created by _Gust of Wind_) disperses it."
+ * > _Using a Higher-Level Spell Slot._ "The fog's radius increases by 20 feet
+ * > for each spell slot level above 1."
+ *
+ * **The slot grows the area, and an area is one fixed size.** That is the
+ * clause `blocked-on.test.ts` records under protest for Confusion's Sphere,
+ * and it is the second spell in the book to print it — so a definition that
+ * pinned a 20-foot Sphere would resolve a level 5 casting over the level 1
+ * template. Nothing is resolved over this fog at all, which is what makes the
+ * omission safe here and makes the sentence the table's rather than a
+ * template's.
+ */
+export const FOG_CLOUD: SpellDefinition = {
+  id: 'fog-cloud',
+  name: 'Fog Cloud',
+  level: 1,
+  school: 'conjuration',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 120 },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 3600,
+  unmodelled: [
+    'the fog is not in the world: a 20-foot-radius Sphere that is Heavily Obscured is the DM’s, because obscurement is not a state the engine holds and no square is inside or outside anything',
+    'the radius growing by 20 feet for each slot level above 1 is not applied; a slot reaches damage dice, a target count and a duration, and never an area',
+    '"until a strong wind (such as one created by Gust of Wind) disperses it" is the DM’s: the wind is fiction here, and a casting the engine ends is one it can see ending',
+  ],
+};
+
+/**
+ * SRD Purify Food and Drink:
+ *
+ * > _Level 1 Transmutation (Cleric, Druid, Paladin) (Ritual)._
+ * > **Casting Time:** Action or Ritual. **Range:** 10 feet.
+ * > **Duration:** Instantaneous.
+ * > "You remove poison and rot from nonmagical food and drink in a 5-foot-
+ * > radius Sphere centered on a point within range."
+ *
+ * One sentence, and every noun in it is an object. What is left for the engine
+ * is a slot, an action and a Ritual tag — which is the whole argument for the
+ * tracked bucket in its smallest possible form.
+ */
+export const PURIFY_FOOD_AND_DRINK: SpellDefinition = {
+  id: 'purify-food-and-drink',
+  name: 'Purify Food and Drink',
+  level: 1,
+  school: 'transmutation',
+  castingTime: 'action',
+  ritual: true,
+  concentration: false,
+  range: { kind: 'ranged', feet: 10 },
+  targets: { count: 0 },
+  effects: [],
+  unmodelled: [
+    'the food and drink are objects and objects are not modelled: which of them were in the 5-foot-radius Sphere, and that they are no longer poisoned or rotten, are the DM’s',
+    'the Poisoned condition is a creature’s and is untouched by this spell — nothing here cures anybody, and a definition that removed one would be inventing a rule the sentence does not print',
+  ],
+};
+
+/**
+ * SRD Zone of Truth:
+ *
+ * > _Level 2 Enchantment (Bard, Cleric, Paladin)._ **Casting Time:** Action.
+ * > **Range:** 60 feet. **Duration:** 10 minutes.
+ * > "You create a magical zone that guards against deception in a 15-foot-
+ * > radius Sphere centered on a point within range. Until the spell ends, a
+ * > creature that enters the spell's area for the first time on a turn or
+ * > starts its turn there makes a Charisma saving throw. On a failed save, a
+ * > creature can't speak a deliberate lie while in the radius. You know
+ * > whether a creature succeeds or fails on this save."
+ * > "An affected creature is aware of the spell and can avoid answering
+ * > questions to which it would normally respond with a lie. Such a creature
+ * > can be evasive yet must be truthful."
+ *
+ * **The save is real and what it gates is not.** `AreaTrigger` would raise the
+ * Charisma save on exactly the two moments the sentence names — the engine has
+ * had both since Web — and a failure would then have to impose *not being able
+ * to lie*, which is neither a condition nor any other state the engine holds.
+ * A trigger that rolled a save and did nothing with it would be dice thrown
+ * for no reason, so the save goes to the table with the silence it buys.
+ */
+export const ZONE_OF_TRUTH: SpellDefinition = {
+  id: 'zone-of-truth',
+  name: 'Zone of Truth',
+  level: 2,
+  school: 'enchantment',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 600,
+  unmodelled: [
+    'the Charisma saving throw is not rolled: what a failure buys — "a creature can’t speak a deliberate lie while in the radius" — is not a condition and not any state the engine holds, so the trigger that would raise the save on entering the zone or starting a turn there has nothing to impose and is not registered',
+    'the zone is not in the world: a 15-foot-radius Sphere centred on a point is the DM’s, because nothing is resolved over it',
+    'the caster knowing whether each creature succeeded or failed, a creature being aware of the spell, and its evasions are the DM’s',
+  ],
+};
+
+/**
+ * SRD Conjure Fey:
+ *
+ * > _Level 6 Conjuration (Druid)._ **Casting Time:** Action.
+ * > **Range:** 60 feet. **Duration:** Concentration, up to 10 minutes.
+ * > "You conjure a Medium spirit from the Feywild in an unoccupied space you
+ * > can see within range. The spirit lasts for the duration, and it looks
+ * > like a Fey creature of your choice.
+ * >
+ * > When the spirit appears, you can make one melee spell attack against a
+ * > creature within 5 feet of it. On a hit, the target takes Psychic damage
+ * > equal to 3d12 plus your spellcasting ability modifier, and the target has
+ * > the Frightened condition until the start of your next turn, with both you
+ * > and the spirit as the source of the fear.
+ * >
+ * > As a Bonus Action on your later turns, you can teleport the spirit to an
+ * > unoccupied space you can see within 30 feet of the space it left and make
+ * > the attack against a creature within 5 feet of it."
+ * > _Using a Higher-Level Spell Slot._ "The damage increases by 1d12 for each
+ * > spell slot level above 6."
+ *
+ * **The Conjure that is not a summon.** `CLAUDE.md` once filed "the four
+ * Conjures" under a stat block created mid-fight, and SRD 5.2.1 rewrote the
+ * family as spirits: this one prints no Armour Class, no Hit Points and no
+ * turn of its own. What it prints is Spiritual Weapon's three numbers in
+ * Spiritual Weapon's three places — a Range that says where the point may
+ * first be put, a reach the attack is measured by, and an allowance a later
+ * Bonus Action may move it by — so it is executed with the machinery that
+ * already existed, which is the whole of what `blocked-on.test.ts` meant by
+ * recording it as blocked on nothing.
+ *
+ * The one word that differs is **teleport**, and it changes nothing here: the
+ * spirit is a coordinate on the casting rather than a creature, so moving it
+ * thirty feet and teleporting it thirty feet are the same write.
+ */
+export const CONJURE_FEY: SpellDefinition = {
+  id: 'conjure-fey',
+  name: 'Conjure Fey',
+  level: 6,
+  school: 'conjuration',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 60 },
+  // "you **can** make one melee spell attack": the spirit appears whether or
+  // not there is anything standing next to it — Spiritual Weapon's wording,
+  // against Arcane Sword's "you make".
+  targets: { count: 1, optional: true },
+  origin: { reach: 5, movableBy: 30 },
+  effects: [
+    {
+      kind: 'attack',
+      attack: 'melee',
+      damage: { dice: '3d12', perSlotLevelAbove: '1d12' },
+      damageType: 'psychic',
+      addSpellcastingModifier: true,
+      conditions: [{ name: 'frightened', lasts: 'start-of-casters-next-turn' }],
+    },
+  ],
+  durationSeconds: 600,
+  activation: {
+    action: 'bonus-action',
+    // No `range`: the five feet are the spirit's reach and live on `origin`.
+    // The thirty feet the spirit may move are `origin.movableBy` for the same
+    // reason — one sentence, one field.
+    label: 'Conjure Fey (the spirit strikes again)',
+    effects: [
+      {
+        kind: 'attack',
+        attack: 'melee',
+        damage: { dice: '3d12', perSlotLevelAbove: '1d12' },
+        damageType: 'psychic',
+        addSpellcastingModifier: true,
+        conditions: [{ name: 'frightened', lasts: 'start-of-casters-next-turn' }],
+      },
+    ],
+  },
+  unmodelled: [
+    'what the spirit looks like — "a Fey creature of your choice" — is narration, and nothing mechanical reads it',
+    '"with both you and the spirit as the source of the fear" names two sources for one Frightened condition; a condition carries the casting that imposed it and the spirit is not a creature, so the second source is the DM’s',
+  ],
+};
+
+/**
+ * SRD Magic Missile:
+ *
+ * > _Level 1 Evocation (Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 120 feet. **Duration:** Instantaneous.
+ * > "You create three glowing darts of magical force. Each dart strikes a
+ * > creature of your choice that you can see within range. A dart deals 1d4 +
+ * > 1 Force damage to its target. The darts all strike simultaneously, and
+ * > you can direct them to hit one creature or several."
+ * > _Using a Higher-Level Spell Slot._ "The spell creates one more dart for
+ * > each spell slot level above 1."
+ *
+ * **The most famous spell in the book, and the engine cannot roll a die of
+ * it.** Nothing here is a saving throw and nothing is an attack roll, and
+ * every damage-bearing effect kind hangs off one or the other — so three
+ * automatic 1d4+1s have no effect to be written as. Scorching Ray's reading
+ * is the neighbour worth keeping in mind and the shape is the opposite one:
+ * that spell has three *rolls* the format cannot spread, and this one has
+ * three *payloads* with no roll at all.
+ *
+ * The target rule is real and is the half that is: three darts is a maximum
+ * of three creatures, one more per slot level, and the caster may put them
+ * all on one — which is why `count` is the ceiling rather than a demand.
+ */
+export const MAGIC_MISSILE: SpellDefinition = {
+  id: 'magic-missile',
+  name: 'Magic Missile',
+  level: 1,
+  school: 'evocation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 120 },
+  // "you can direct them to hit one creature or several": three is the most
+  // creatures a level 1 casting can reach, not the number it must.
+  targets: { count: 3, extraPerSlotLevelAbove: 1 },
+  requiresSight: true,
+  effects: [],
+  unmodelled: [
+    'no damage is dealt: "A dart deals 1d4 + 1 Force damage to its target" lands with neither an attack roll nor a saving throw, and every damage-bearing effect kind the format has hangs off one of the two',
+    'how the darts are split between the targets is not recorded — "you can direct them to hit one creature or several" is a distribution of one casting’s effects across its targets, and a casting applies its effects to all of them alike',
+  ],
+};
+
+/**
+ * SRD Command:
+ *
+ * > _Level 1 Enchantment (Bard, Cleric, Paladin)._ **Casting Time:** Action.
+ * > **Range:** 60 feet. **Duration:** Instantaneous.
+ * > "You speak a one-word command to a creature you can see within range. The
+ * > target must succeed on a Wisdom saving throw or follow the command on its
+ * > next turn. Choose the command from these options:"
+ * > _Approach._ … _Drop._ … _Flee._ … _Grovel._ … _Halt._
+ * > _Using a Higher-Level Spell Slot._ "You can affect one additional
+ * > creature for each spell slot level above 1."
+ *
+ * The whole spell in five words: **a creature's next turn is spent doing what
+ * somebody else said.** The action economy is the engine's and the only lever
+ * a spell has on it is a condition the engine names, so all five options are
+ * the table's — including Grovel, whose Prone is an ordinary `condition`
+ * effect and whose "and then ends its turn" is not. Writing the Prone alone
+ * would be half a sentence.
+ */
+export const COMMAND: SpellDefinition = {
+  id: 'command',
+  name: 'Command',
+  level: 1,
+  school: 'enchantment',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 1, extraPerSlotLevelAbove: 1 },
+  requiresSight: true,
+  effects: [],
+  unmodelled: [
+    'the Wisdom saving throw is not rolled, because what it gates cannot be imposed: "follow the command on its next turn" spends somebody else’s turn, and nothing lets a spell reach the action economy except by naming a condition',
+    'which of the five commands was spoken is not recorded; a per-casting choice has nowhere to be kept, and a damage type is the one choice that does',
+    'Approach and Flee are not applied: a route nobody chose, a turn that ends early on arrival, and a whole turn spent running are compelled movement, and `moveCreature` has no notion of a move the rules require',
+    'Drop is not applied: what is in a creature’s hands is not a fact the engine holds, so a rule that makes it let go has nothing to call',
+    'Grovel is not applied: the Prone is an ordinary condition and the clause beside it that ends the creature’s turn is not, so the engine writes neither rather than half of one',
+    'Halt is not applied: forbidding the move, the action and the Bonus Action together is the Incapacitated condition’s effect without the condition, and nothing reaches `mayAct` except through a condition the engine knows',
+  ],
+};
+
+/**
+ * SRD Faerie Fire:
+ *
+ * > _Level 1 Evocation (Bard, Druid)._ **Casting Time:** Action.
+ * > **Range:** 60 feet. **Duration:** Concentration, up to 1 minute.
+ * > "Objects in a 20-foot Cube within range are outlined in blue, green, or
+ * > violet light (your choice). Each creature in the Cube is also outlined if
+ * > it fails a Dexterity saving throw. For the duration, objects and affected
+ * > creatures shed Dim Light in a 10-foot radius and can't benefit from the
+ * > Invisible condition."
+ * > "Attack rolls against an affected creature or object have Advantage if
+ * > the attacker can see it."
+ *
+ * **The save is ordinary and what it buys is a subtraction.** Failing it does
+ * not *give* the target a condition; it takes away the benefit of one it may
+ * already have — `conditionApplicability` grants the Invisible its effects
+ * and nothing narrows them for a single creature — and hands every attacker
+ * who can see it Advantage besides. A `save` effect with no condition to
+ * impose would be a die thrown for nothing, so the Cube is not resolved over
+ * and the sentence goes to the table whole.
+ */
+export const FAERIE_FIRE: SpellDefinition = {
+  id: 'faerie-fire',
+  name: 'Faerie Fire',
+  level: 1,
+  school: 'evocation',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 60,
+  unmodelled: [
+    'the Dexterity saving throw is not rolled: what a failure buys is the loss of a condition’s benefit rather than a condition, and nothing narrows what the Invisible condition does to one creature',
+    'the 20-foot Cube is not a template: nothing is resolved over it, so which creatures and objects are inside it is the DM’s',
+    'the Dim Light each outlined thing sheds in a 10-foot radius is not applied; the engine has no lighting',
+    '"Attack rolls against an affected creature or object have Advantage if the attacker can see it" is not granted: the Advantage is ordinary and the gate on it is not, because declared sight is a pairwise fact and the outline is not a state anything reads',
+  ],
+};
+
+/**
+ * SRD Animal Messenger:
+ *
+ * > _Level 2 Enchantment (Bard, Druid, Ranger) (Ritual)._
+ * > **Casting Time:** Action or Ritual. **Range:** 30 feet.
+ * > **Duration:** 24 hours.
+ * > "A Tiny Beast of your choice that you can see within range must succeed
+ * > on a Charisma saving throw, or it attempts to deliver a message for you
+ * > (if the target's Challenge Rating isn't 0, it automatically succeeds). …"
+ * > _Using a Higher-Level Spell Slot._ "The spell's duration increases by 48
+ * > hours for each spell slot level above 2."
+ *
+ * The one clause here the engine could have got wrong quietly is the
+ * **duration band**, and `durationAtSlot` takes the whole table: twenty-four
+ * hours at level 2 and forty-eight more for every level above it, written out
+ * rather than computed, because the SRD prints a different table for each
+ * spell that has one.
+ */
+export const ANIMAL_MESSENGER: SpellDefinition = {
+  id: 'animal-messenger',
+  name: 'Animal Messenger',
+  level: 2,
+  school: 'enchantment',
+  castingTime: 'action',
+  ritual: true,
+  concentration: false,
+  range: { kind: 'ranged', feet: 30 },
+  targets: { count: 1, mustBeType: 'Beast' },
+  requiresSight: true,
+  effects: [],
+  durationSeconds: 86_400,
+  // "+48 hours for each spell slot level above 2", as the band table the
+  // field takes: the value is the whole duration rather than the increase.
+  durationAtSlot: {
+    3: 259_200,
+    4: 432_000,
+    5: 604_800,
+    6: 777_600,
+    7: 950_400,
+    8: 1_123_200,
+    9: 1_296_000,
+  },
+  unmodelled: [
+    'the Charisma saving throw is not rolled: the parenthesis that decides it — "if the target’s Challenge Rating isn’t 0, it automatically succeeds" — reads a Challenge Rating no target rule can ask for, and neither can the Tiny that picks the Beast',
+    'the errand is the DM’s: the location, the recipient "who matches a general description", the message of up to twenty-five words, the 25 or 50 miles a day and the Beast returning if it does not arrive are all narration',
+  ],
+};
+
+/**
+ * SRD Gust of Wind:
+ *
+ * > _Level 2 Evocation (Druid, Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** Self. **Duration:** Concentration, up to 1 minute.
+ * > "A Line of strong wind 60 feet long and 10 feet wide blasts from you in a
+ * > direction you choose for the duration. Each creature in the Line must
+ * > succeed on a Strength saving throw or be pushed 15 feet away from you in
+ * > a direction following the Line. A creature that ends its turn in the Line
+ * > must make the same save. Any creature in the Line must spend 2 feet of
+ * > movement for every 1 foot it moves when moving closer to you. The gust
+ * > disperses gas or vapor, and it extinguishes candles and similar
+ * > unprotected flames in the area. It causes protected flames, such as those
+ * > of lanterns, to dance wildly and has a 50 percent chance to extinguish
+ * > them. As a Bonus Action on your later turns, you can change the direction
+ * > in which the Line blasts from you."
+ *
+ * A Line is a shape the engine has and a Line that **turns** is not: the
+ * Bonus Action re-aims it every round, and an area is fixed where the casting
+ * put it. So the wind is tracked, and the three sentences underneath it — a
+ * save that pushes, a doubled cost to walk into it, and a coin flip over a
+ * lantern — are three different missing shapes stacked in one paragraph.
+ */
+export const GUST_OF_WIND: SpellDefinition = {
+  id: 'gust-of-wind',
+  name: 'Gust of Wind',
+  level: 2,
+  school: 'evocation',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 60,
+  unmodelled: [
+    'the Strength saving throw is not rolled: what a failure buys is "pushed 15 feet away from you in a direction following the Line", and no spell effect reaches the forced movement `moveCreature` already performs',
+    'the Line is not a template: 60 feet long and 10 feet wide is a shape the engine has, and the Bonus Action that changes the direction it blasts in on a later turn re-aims an area a casting fixed where it was put',
+    'the repeat save a creature makes for ending its turn in the Line is not raised, because the Line is not there to end a turn in',
+    'the doubled cost of walking into the wind — "must spend 2 feet of movement for every 1 foot it moves when moving closer to you" — is not charged: Difficult Terrain is declared by the foot on the move that crosses it, and no area declares any',
+    'the gas dispersed, the unprotected candles snuffed and the protected flames dancing are the DM’s, and so is the "50 percent chance to extinguish them", which is a random outcome that is not a d20',
+  ],
+};
+
+/**
+ * SRD Polymorph:
+ *
+ * > _Level 4 Transmutation (Bard, Druid, Sorcerer, Wizard)._
+ * > **Casting Time:** Action. **Range:** 60 feet.
+ * > **Duration:** Concentration, up to 1 hour.
+ * > "You attempt to transform a creature that you can see within range into a
+ * > Beast. The target must succeed on a Wisdom saving throw or shape-shift
+ * > into a Beast form for the duration. … The target's game statistics are
+ * > replaced by the stat block of the chosen Beast, but the target retains
+ * > its alignment, personality, creature type, Hit Points, and Hit Point
+ * > Dice. … The target gains a number of Temporary Hit Points equal to the
+ * > Hit Points of the Beast form. These Temporary Hit Points vanish if any
+ * > remain when the spell ends. The spell ends early on the target if it has
+ * > no Temporary Hit Points left."
+ *
+ * Every number in this spell comes off a **second creature's** sheet, and the
+ * engine holds one sheet per creature and no way to lend another. The
+ * Temporary Hit Points are the clause that makes that concrete: the amount is
+ * the Beast's Hit Points, which nothing can look up, and their running out is
+ * the trigger `a-casting-ended-by-a-trigger` names this spell for by name.
+ */
+export const POLYMORPH: SpellDefinition = {
+  id: 'polymorph',
+  name: 'Polymorph',
+  level: 4,
+  school: 'transmutation',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 1 },
+  requiresSight: true,
+  effects: [],
+  durationSeconds: 3600,
+  unmodelled: [
+    'the Wisdom saving throw is not rolled: what a failure buys is "The target’s game statistics are replaced by the stat block of the chosen Beast", and a creature’s sheet is a fact the engine holds authoritatively with nothing that writes over one for a duration',
+    'which Beast was chosen is the DM’s, and so is the bound on it: "a Challenge Rating equal to or less than the target’s (or the target’s level if it doesn’t have a Challenge Rating)" selects a form by a number no target rule can ask for',
+    'the Temporary Hit Points are not granted: the amount is the Hit Points of a Beast form nothing can look up, and their vanishing when the spell ends and the spell ending early when they run out are the two halves of a trigger no casting-end cause expresses',
+    'the limits on the new form are the DM’s: the anatomy that bounds its actions, being unable to speak or cast spells, and the gear that melds into it and stops working',
+  ],
+};
+
+/**
+ * SRD Freedom of Movement:
+ *
+ * > _Level 4 Abjuration (Bard, Cleric, Druid, Ranger)._
+ * > **Casting Time:** Action. **Range:** Touch. **Duration:** 1 hour.
+ * > "You touch a willing creature. For the duration, the target's movement is
+ * > unaffected by Difficult Terrain, and spells and other magical effects can
+ * > neither reduce the target's Speed nor cause the target to have the
+ * > Paralyzed or Restrained conditions. The target also has a Swim Speed
+ * > equal to its Speed."
+ * > "In addition, the target can spend 5 feet of movement to automatically
+ * > escape from nonmagical restraints, such as manacles or a creature
+ * > imposing the Grappled condition on it."
+ *
+ * **Four sentences and four different absences**, which is why reading this
+ * paragraph found a blocker the bare list had missed. Every clause is a
+ * refusal — of terrain, of a Speed reduction, of two conditions, of a
+ * restraint — and a refusal needs a state in which something is *being*
+ * refused. `speedOf` reads every grant a source hung and has no notion of one
+ * that does not land; `conditionImmunitiesOf` answers about a condition and
+ * knows nothing of what caused it, so a Ghoul's Paralyzed would be turned
+ * aside along with Hold Person's.
+ */
+export const FREEDOM_OF_MOVEMENT: SpellDefinition = {
+  id: 'freedom-of-movement',
+  name: 'Freedom of Movement',
+  level: 4,
+  school: 'abjuration',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'touch' },
+  targets: { count: 1, extraPerSlotLevelAbove: 1, self: true },
+  effects: [],
+  durationSeconds: 3600,
+  unmodelled: [
+    'being "unaffected by Difficult Terrain" is not applied: Difficult Terrain is charged exactly and declared by the foot on the move that crosses it, so a creature excused from it has nothing to be excused from',
+    'the refusal of a Speed reduction is not applied: "spells and other magical effects can neither reduce the target’s Speed" is an effect stopping another effect from landing, and `speedOf` reads every grant a source hung with no notion of one being refused',
+    'the two conditions are not refused: the subject is "spells and other magical effects", so a Ghoul’s Paralyzed still lands and a Hold Person’s does not, and a condition Immunity here answers about the condition rather than about what caused it',
+    'the Swim Speed equal to its Speed is not granted; the engine tracks one Speed and no movement modes',
+    'the escape is not offered: "the target can spend 5 feet of movement to automatically escape from nonmagical restraints" is a later action taken by the target rather than by the caster, and a casting is acted through by its caster and nobody else',
+    'whether the creature touched is willing is not modelled; willingness is fiction',
+  ],
+};
+
+/**
+ * SRD Wall of Fire:
+ *
+ * > _Level 4 Evocation (Druid, Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 120 feet. **Duration:** Concentration, up to 1 minute.
+ * > "You create a wall of fire on a solid surface within range. You can make
+ * > the wall up to 60 feet long, 20 feet high, and 1 foot thick, or a ringed
+ * > wall up to 20 feet in diameter, 20 feet high, and 1 foot thick. The wall
+ * > is opaque and lasts for the duration. When the wall appears, each
+ * > creature in its area makes a Dexterity saving throw, taking 5d8 Fire
+ * > damage on a failed save or half as much damage on a successful one. One
+ * > side of the wall, selected by you when you cast this spell, deals 5d8
+ * > Fire damage to each creature that ends its turn within 10 feet of that
+ * > side or inside the wall. A creature takes the same damage when it enters
+ * > the wall for the first time on a turn or ends its turn there. The other
+ * > side of the wall deals no damage."
+ * > _Using a Higher-Level Spell Slot._ "The damage increases by 1d8 for each
+ * > spell slot level above 4."
+ *
+ * **Everything but the shape is already expressible, and the shape is the
+ * spell.** The opening burst is an ordinary `save-damage` with the ordinary
+ * half-on-a-success branch; the entry and end-of-turn clauses are
+ * `AreaTrigger`'s `first-per-turn` and `end-of-turn` transcribed; the slot
+ * scaling is `DiceScaling`. What none of them has is somewhere to happen:
+ * `SpellArea` holds six shapes and none of them is a wall, and this one has
+ * two faces that do different things besides.
+ */
+export const WALL_OF_FIRE: SpellDefinition = {
+  id: 'wall-of-fire',
+  name: 'Wall of Fire',
+  level: 4,
+  school: 'evocation',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 120 },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 60,
+  unmodelled: [
+    'there is no wall: "You create a wall of fire on a solid surface within range", up to 60 feet long, 20 feet high and 1 foot thick, or a ring 20 feet across, is a shape `SpellArea` does not have',
+    'the opening burst is not resolved: "each creature in its area makes a Dexterity saving throw, taking 5d8 Fire damage" is an ordinary save for half and has no area to be resolved over',
+    'the damage on a turn boundary is not dealt: "deals 5d8 Fire damage to each creature that ends its turn within 10 feet of that side" lands with neither an attack roll nor a saving throw',
+    'the wall has no sides: which face was chosen, and that "The other side of the wall deals no damage", are a filter on what an area catches, and an area reaches everybody inside it',
+    'the slot scaling — "The damage increases by 1d8 for each spell slot level above 4" — is ordinary and is not applied, because no damage is rolled to scale',
+  ],
+};
+
 export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   ACID_ARROW,
   ACID_SPLASH,
   ALARM,
   ANIMAL_FRIENDSHIP,
+  ANIMAL_MESSENGER,
   ARCANE_LOCK,
   ARCANE_SWORD,
   BANE,
@@ -6722,16 +7436,21 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   CLAIRVOYANCE,
   CLOUDKILL,
   COLOR_SPRAY,
+  COMMAND,
   COMMUNE_WITH_NATURE,
   COMPREHEND_LANGUAGES,
   COMPULSION,
   CONE_OF_COLD,
+  CONJURE_FEY,
   CONTAGION,
   CONTINUAL_FLAME,
   COUNTERSPELL,
   CREATE_FOOD_AND_WATER,
+  CREATE_OR_DESTROY_WATER,
   CURE_WOUNDS,
+  DANCING_LIGHTS,
   DARKVISION,
+  DAYLIGHT,
   DEMIPLANE,
   DETECT_EVIL_AND_GOOD,
   DETECT_MAGIC,
@@ -6747,10 +7466,13 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   DOMINATE_BEAST,
   DOMINATE_MONSTER,
   DOMINATE_PERSON,
+  DRUIDCRAFT,
   ELDRITCH_BLAST,
+  ELEMENTALISM,
   ENLARGE_REDUCE,
   ETHEREALNESS,
   FABRICATE,
+  FAERIE_FIRE,
   FALSE_LIFE,
   FEAR,
   FIND_THE_PATH,
@@ -6762,6 +7484,8 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   FLAME_STRIKE,
   FLOATING_DISK,
   FLY,
+  FOG_CLOUD,
+  FREEDOM_OF_MOVEMENT,
   FREEZING_SPHERE,
   GASEOUS_FORM,
   GATE,
@@ -6770,6 +7494,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   GREATER_INVISIBILITY,
   GUIDANCE,
   GUIDING_BOLT,
+  GUST_OF_WIND,
   HALLUCINATORY_TERRAIN,
   HARM,
   HASTE,
@@ -6803,6 +7528,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   LONGSTRIDER,
   MAGE_ARMOR,
   MAGE_HAND,
+  MAGIC_MISSILE,
   MAGIC_MOUTH,
   MASS_CURE_WOUNDS,
   MASS_HEALING_WORD,
@@ -6820,11 +7546,13 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   PHANTASMAL_KILLER,
   PLANE_SHIFT,
   POISON_SPRAY,
+  POLYMORPH,
   PRESTIDIGITATION,
   PRIVATE_SANCTUM,
   PRODUCE_FLAME,
   PROTECTION_FROM_ENERGY,
   PROTECTION_FROM_POISON,
+  PURIFY_FOOD_AND_DRINK,
   RAY_OF_FROST,
   RAY_OF_SICKNESS,
   REMOVE_CURSE,
@@ -6864,10 +7592,12 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   VAMPIRIC_TOUCH,
   VICIOUS_MOCKERY,
   VITRIOLIC_SPHERE,
+  WALL_OF_FIRE,
   WALL_OF_FORCE,
   WATER_BREATHING,
   WATER_WALK,
   WEB,
   WEIRD,
   WORD_OF_RECALL,
+  ZONE_OF_TRUTH,
 ];
