@@ -32,6 +32,29 @@ the granted modifiers on it, then from what the caller supplied. A
 (roller or target), one selector for spells and class features alike.
 Exhaustion is a flat penalty per level, not Disadvantage.
 
+**A grant can also be spent.** SRD Guiding Bolt says "the next attack roll
+made against it" and Vicious Mockery "the next attack roll it makes": a
+modifier used up by the roll it reaches, rather than one that runs until the
+thing that made it ends. `RollModifier.oneShot` marks it, and
+`roll-modifier-consumed` is how it ends — one event, emitted by the rolling
+command beside `roll-recorded`, whose fold body is the same `releaseGrants`
+call a `grants` deadline makes. Both endings stand and the first to arrive
+wins; a consumed grant simply leaves its timer standing over nothing. **The
+rule is the roll it reached, not the roll it changed**: a one-shot
+Disadvantage cancelled to `normal` by an Advantage is still spent, because the
+SRD sentence counts rolls and not outcomes. Only the two attack rollers spend
+one today, and `oneShotProblem` refuses the flag on any other family rather
+than letting a definition promise an ending nothing keeps.
+
+**A selector may pin the other participant.** `RollSelector.counterpart`
+narrows a modifier to rolls involving one named creature — Vex's "against that
+creature", Bestow Curse's "against you" — and it is the participant the
+relation does not name. It is not a third `RollRelation`, because an enum
+member cannot hold an id; it is part of `rollModifierKey`, so an attacker
+holds one per creature rather than one in total; and it is legal only on an
+attack roll, for the reason `against-holder` is. A definition names a role and
+the rider resolver binds it.
+
 ## Damage
 
 Damage is typed components, not a number: each component has a type and a
@@ -50,3 +73,16 @@ resolution holds open (`pendingAttack`, `pendingDamage`, `pendingTest`) while
 a window has takers; `reactionOpportunities(state, content)` lists who may
 answer and with what, and the hold settles when every taker has acted or
 declined. Spells and features share one `ReactionWindow` vocabulary.
+
+A sixth window, `creature-falling`, and **the first opened by a declaration
+rather than by a resolution**. The other five are points in something the
+engine is in the middle of doing — an attack it rolled, damage it typed, a
+test it settled, a casting it is holding — and the moment is open because the
+engine has not finished. Nothing in the engine drops a creature off anything,
+so this one is open because somebody at the table said a fall happened,
+exactly as they say where the cover is. It is still a *window* rather than a
+trigger bus because it closes on the same two facts as the rest — the turn in
+combat, the clock outside one — and holds nothing open. The fact is
+`CreatureState.falling`, `lastDamage`'s twin with the dealer dropped, and it
+carries no height, no rate and no landing: those are the table's numbers, and
+a window that recorded one would be the engine inventing it.
