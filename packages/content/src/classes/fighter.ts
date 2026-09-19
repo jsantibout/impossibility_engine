@@ -176,7 +176,7 @@ export const FIGHTER: ClassDefinition = {
       name: 'Weapon Mastery',
       level: 1,
       automation: 'manual',
-      note: 'The mastery properties (Cleave, Graze, Nick, Push, Sap, Slow, Topple, Vex) are parsed onto weapons but not executed, and which weapons a Fighter has mastery with is recorded nowhere yet.',
+      note: 'How many kinds of Simple or Martial weapon a Fighter has mastery with is a column of the Fighter Features table, and which ones is recorded nowhere, and the eight properties are parsed onto the weapons that print them and executed by nothing. Cleave, Graze, Push, Slow and Topple would follow the record; Sap and Vex each want a modifier consumed by the roll it changes; Nick redirects the extra attack the Light property gives, and the Attack action holds no such attack to redirect; and changing one of the choices on a Long Rest is an option re-answered, which a choice frozen at creation cannot be.',
     },
     {
       id: 'fighter:action-surge',
@@ -290,7 +290,7 @@ export const FIGHTER: ClassDefinition = {
       name: 'Tactical Master',
       level: 9,
       automation: 'manual',
-      note: 'Swapping a weapon’s mastery property for Push, Sap or Slow is not modelled, because mastery properties are not executed.',
+      note: 'Swapping a weapon’s mastery property for Push, Sap or Slow needs the properties to run at all, and none of the eight does. Push and Slow would follow the record Weapon Mastery still lacks; Sap wants a modifier consumed by the roll it changes, which no grant kind expresses, so one of the three this feature offers stays out of reach after the other two arrive.',
     },
     {
       id: 'fighter:two-extra-attacks',

@@ -87,7 +87,7 @@ import {
  */
 export const FEATURE_SHAPES = {
   'a-weapon-mastery-property':
-    'Cleave, Graze, Nick, Push, Sap, Slow, Topple and Vex are parsed onto the weapons that print them and executed by nothing, and no feature records **which** weapons a character has mastery with. Five classes print the feature and a sixth swaps one property for another. `FeatureGrant` in packages/engine/src/progression.ts is the list of what a feature may do — "Deliberately few. A feature whose effect does not fit one of these is `automation: \'manual\'` with a note saying what a DM still has to do" — and a mastery is not on it, at either end: neither the choice of weapons nor the property\'s own rule.',
+    'the record of **which** weapons a character has mastery with, and the five of the eight properties that need nothing else. Cleave, Graze, Nick, Push, Sap, Slow, Topple and Vex are parsed onto the weapons that print them — the closed eight is `WEAPON_MASTERIES` in packages/srd/src/schemas.ts — and executed by nothing. Five classes print Weapon Mastery, and the sixth entry is the Fighter\'s own Tactical Master, which swaps one property for another: a sixth **feature** on a class already counted, not a sixth class. `FeatureGrant` in packages/engine/src/progression.ts is the list of what a feature may do — "Deliberately few. A feature whose effect does not fit one of these is `automation: \'manual\'` with a note saying what a DM still has to do" — and a mastery is on it at neither end. **The record wants two members, because no existing one fits.** A `FeatureChoice` for N weapons, narrowed to what the holder is proficient with and, for the Barbarian alone, to Melee — where N is a column of the class table for the Barbarian and the Fighter and a flat two for the other three, and every choice member the vocabulary has takes a fixed `choose`. And a `FeatureGrant` that lands the answer on the sheet beside `criticalOn`, carrying Tactical Master\'s substitution list as its other shape. **Five of the eight then run on events that already exist**, worked out against the engine rather than guessed: Graze deals the ability modifier on a miss through the damage an attack already lands; Cleave is a second attack roll whose damage drops the modifier, spent once a turn through the `feature-used` event; Push is `creature-moved` carrying `forced: true`; Slow is a `speed-modifier-granted` of minus ten feet under one shared source, ended by a `grants` deadline, which is the rider SRD Ray of Frost already files; Topple is a Constitution save down the ordinary saving-throw path with Prone applied on a failure. **Two wrinkles, written down so the next builder does not rediscover them.** Nothing in the engine derives a bearing from two positions, so SRD Push\'s "straight away from yourself" has no helper and the away-vector is the builder\'s to compute; and a creature\'s size lives only on the map, where an undeclared one silently becomes Medium and there is no counterpart to `isHeightDeclared`, so SRD\'s "Large or smaller" is answerable and the answer may be a default nobody stated. Sap, Vex, Nick and the Long Rest re-choice are **not** this shape — they are three others — which is why this one blocks six features and finishes none of them.',
   'a-saving-throw-a-feature-forces':
     'a feature that makes **somebody else** roll. A casting forces a save through its definition and an item through a `save` conferral; packages/engine/src/content.ts enumerates what an item\'s readers run — "only a standing grant, a charge pool, a spell it casts and the effects it confers are read from one" — and a class feature reaches none of those, so a Breath Weapon, a Stunning Strike and a Channel Divinity that Frightens have a printed DC and nothing to roll it against.',
   'a-condition-a-feature-imposes':
@@ -219,9 +219,26 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   // — Barbarian —
   'barbarian:weapon-mastery': [
     {
-      clause: 'Mastery properties are parsed onto weapons but not executed',
+      clause:
+        'recorded nowhere, and the eight properties are parsed onto the weapons that print them and executed by nothing',
       why: 'a-weapon-mastery-property',
-      note: 'the properties and the record of which weapons the Barbarian chose, which are the two halves of one shape.',
+      note: 'the record of which weapons the Barbarian chose and the five properties that follow from it, which are the two halves of one shape.',
+    },
+    {
+      clause: 'Sap and Vex each want a modifier consumed by the roll it changes',
+      why: 'a-one-shot-roll-modifier',
+      note: 'the spell map’s own id rather than a feature-side twin: "its next attack roll" and "your next attack roll against that creature" are Guiding Bolt’s missing mechanic arriving on a weapon. Vex wants a second thing besides — a selector narrowed to the attacker, which roll-modifiers.ts names as the unbuilt third relation — and that is why it is filed here rather than treated as expressible.',
+    },
+    {
+      clause:
+        'Nick redirects the extra attack the Light property gives, and the Attack action holds no such attack to redirect',
+      why: 'an-attack-the-class-redefines',
+      note: 'the neighbouring half this shape already files — extra attacks inside the Attack action — reached from the weapon rather than from the Monk. Nick changes where the Light property’s swing is paid for, and nothing pays for one today.',
+    },
+    {
+      clause: 'changing one of the choices on a Long Rest is an option re-answered',
+      why: 'an-option-re-chosen-on-a-rest',
+      note: 'the feature’s second paragraph, which every printing class writes and which the record alone does not satisfy: a FeatureChoice is answered once at creation and frozen into the sheet.',
     },
   ],
   'barbarian:reckless-attack': [
@@ -602,9 +619,26 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
   'fighter:weapon-mastery': [
     {
-      clause: 'are parsed onto weapons but not executed',
+      clause:
+        'recorded nowhere, and the eight properties are parsed onto the weapons that print them and executed by nothing',
       why: 'a-weapon-mastery-property',
-      note: 'the same shape the other four classes want, with the properties spelled out.',
+      note: 'the same shape the other four classes want, and the one that needs a count off a class table: the Fighter knows three at level 1 and six at 16, which no FeatureChoice member can say.',
+    },
+    {
+      clause: 'Sap and Vex each want a modifier consumed by the roll it changes',
+      why: 'a-one-shot-roll-modifier',
+      note: 'the same two properties on the class that has the most of them: a Fighter picks six kinds by level 16, and two of the eight cannot be executed however many are picked.',
+    },
+    {
+      clause:
+        'Nick redirects the extra attack the Light property gives, and the Attack action holds no such attack to redirect',
+      why: 'an-attack-the-class-redefines',
+      note: 'the Light property is parsed and its extra attack is modelled nowhere, so the sentence Nick rewrites has no subject in the engine at all.',
+    },
+    {
+      clause: 'changing one of the choices on a Long Rest is an option re-answered',
+      why: 'an-option-re-chosen-on-a-rest',
+      note: 'the second paragraph again, and the reason the record alone leaves the feature manual: a rest is observable and nothing hangs a re-choice off one.',
     },
   ],
   'fighter:tactical-shift': [
@@ -616,9 +650,14 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
   'fighter:tactical-master': [
     {
-      clause: 'because mastery properties are not executed',
+      clause: 'needs the properties to run at all',
       why: 'a-weapon-mastery-property',
-      note: 'inherited whole: swapping a property for another is nothing until the properties run.',
+      note: 'inherited whole: swapping a property for another is nothing until the properties run, and Push and Slow are two of the five that would.',
+    },
+    {
+      clause: 'Sap wants a modifier consumed by the roll it changes',
+      why: 'a-one-shot-roll-modifier',
+      note: 'the reason this feature is not finished by the mastery shape either. It offers three properties and one of them is a one-shot modifier, so the record and the five runnable properties leave a third of this feature unexecuted.',
     },
   ],
   'fighter:studied-attacks': [
@@ -779,9 +818,26 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   // — Paladin —
   'paladin:weapon-mastery': [
     {
-      clause: 'Mastery properties are parsed onto weapons but not executed',
+      clause:
+        'recorded nowhere, and the eight properties are parsed onto the weapons that print them and executed by nothing',
       why: 'a-weapon-mastery-property',
-      note: 'the same shape the other four classes want.',
+      note: 'the same shape the other four classes want, narrowed the way the Paladin writes it: two weapons the character is already proficient with, rather than a category.',
+    },
+    {
+      clause: 'Sap and Vex each want a modifier consumed by the roll it changes',
+      why: 'a-one-shot-roll-modifier',
+      note: 'two of the eight, and a Paladin who picks a Longsword and a Rapier picks exactly those two — which is why this is not a rare corner of the feature.',
+    },
+    {
+      clause:
+        'Nick redirects the extra attack the Light property gives, and the Attack action holds no such attack to redirect',
+      why: 'an-attack-the-class-redefines',
+      note: 'the same missing subject: a Scimitar or a Dagger is a legal pick and the sentence its mastery writes has nothing in the economy to rewrite.',
+    },
+    {
+      clause: 'changing one of the choices on a Long Rest is an option re-answered',
+      why: 'an-option-re-chosen-on-a-rest',
+      note: 'the Paladin prints the widest version of it — the kinds, plural, rather than one of them — so the record being written once at creation is further from the book here than anywhere else.',
     },
   ],
   'paladin:fighting-style': [
@@ -904,9 +960,26 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
   'ranger:weapon-mastery': [
     {
-      clause: 'Mastery properties are parsed onto weapons but not executed',
+      clause:
+        'recorded nowhere, and the eight properties are parsed onto the weapons that print them and executed by nothing',
       why: 'a-weapon-mastery-property',
-      note: 'the same shape the other four classes want.',
+      note: 'the same shape the other four classes want, and the class the book gives a ranged example for: a Longbow is Slow, which is one of the five that would run.',
+    },
+    {
+      clause: 'Sap and Vex each want a modifier consumed by the roll it changes',
+      why: 'a-one-shot-roll-modifier',
+      note: 'the book’s own second example for this class is a Shortsword, which is Vex — so the sentence the SRD chose to illustrate the feature with is one of the two it cannot execute.',
+    },
+    {
+      clause:
+        'Nick redirects the extra attack the Light property gives, and the Attack action holds no such attack to redirect',
+      why: 'an-attack-the-class-redefines',
+      note: 'the Ranger’s own worked example swaps to Scimitars, which is the Nick property, so this is not a corner of the feature either.',
+    },
+    {
+      clause: 'changing one of the choices on a Long Rest is an option re-answered',
+      why: 'an-option-re-chosen-on-a-rest',
+      note: 'the whole of the feature’s second half: the book spends two sentences on the swap and the engine can record neither the original choice nor the swap.',
     },
   ],
   'ranger:fighting-style': [
@@ -1015,9 +1088,26 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
   'rogue:weapon-mastery': [
     {
-      clause: 'Mastery properties are parsed onto weapons but not executed',
+      clause:
+        'recorded nowhere, and the eight properties are parsed onto the weapons that print them and executed by nothing',
       why: 'a-weapon-mastery-property',
-      note: 'the same shape the other four classes want.',
+      note: 'the same shape the other four classes want, on the class whose proficiencies are the narrowest — Martial weapons that have the Finesse or Light property — so the record has the most to validate against here.',
+    },
+    {
+      clause: 'Sap and Vex each want a modifier consumed by the roll it changes',
+      why: 'a-one-shot-roll-modifier',
+      note: 'the worst case of the four, because Vex is on almost everything a Rogue is proficient with: a Rapier, a Shortsword, a Shortbow and a Hand Crossbow are all Vex, so the property a Rogue is most likely to pick is one of the two nothing can run.',
+    },
+    {
+      clause:
+        'Nick redirects the extra attack the Light property gives, and the Attack action holds no such attack to redirect',
+      why: 'an-attack-the-class-redefines',
+      note: 'the book’s own example for this class is Daggers, which is Nick, and a Rogue is the character most likely to want the Light property’s second swing in the first place.',
+    },
+    {
+      clause: 'changing one of the choices on a Long Rest is an option re-answered',
+      why: 'an-option-re-chosen-on-a-rest',
+      note: 'the second paragraph once more, and the last of the four mechanics one Weapon Mastery feature is waiting on.',
     },
   ],
   'rogue:cunning-action': [

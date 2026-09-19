@@ -321,17 +321,70 @@ describe('what a shape finishes is the column a tranche is planned from', () => 
   });
 
   /**
-   * The heaviest thing left, which is now also the heaviest thing a **fight**
-   * would notice.
+   * The claim that ranked weapon mastery first, and what reading the book and
+   * the engine did to it.
    *
-   * The advancement shape stood above weapon mastery and was not a combat
-   * mechanic, so this assertion used to filter it out. It is retired, so the
-   * filter is gone and the ranking is read straight off the map.
+   * It said blocks 6 / finishes 6 — the only shape on the map that finished
+   * every feature it touched — and two batches were sized off that number. It
+   * was wrong, and wrong in the direction a ranking is least able to survive:
+   * the shape was one **entry** per feature where the feature's own paragraphs
+   * name four different mechanics.
+   *
+   * | | |
+   * |---|---|
+   * | the record, and Cleave, Graze, Push, Slow, Topple | `a-weapon-mastery-property` |
+   * | Sap and Vex, each a modifier consumed by the roll it changes | `a-one-shot-roll-modifier` |
+   * | Nick, which redirects an extra attack the Attack action does not hold | `an-attack-the-class-redefines` |
+   * | "change one of those weapon choices" after a Long Rest | `an-option-re-chosen-on-a-rest` |
+   *
+   * So the shape still blocks six and now finishes **none** of them, which is
+   * the honest reading of a feature whose sentence needs four mechanics: the
+   * first one built takes nothing off this list. The id the two properties
+   * reach for is the **spell** map's own `a-one-shot-roll-modifier` rather
+   * than a second spelling of it, on the precedent `monk:slow-fall` set with
+   * `falling` — Guiding Bolt's "the next attack roll against it" and Vex's
+   * "your next attack roll against that creature" are one missing mechanic
+   * arriving at two doors.
    */
-  it('ranks weapon mastery first now the advancement shape has gone', () => {
-    const inCombat = allFeatureShapeConsumers();
-    expect(inCombat[0]?.shape).toBe('a-weapon-mastery-property');
-    expect(featureConsumersOf('a-weapon-mastery-property').blocks).toEqual([
+  it('files each mastery feature against every shape that blocks it', () => {
+    const mastery = [
+      'barbarian:weapon-mastery',
+      'fighter:weapon-mastery',
+      'paladin:weapon-mastery',
+      'ranger:weapon-mastery',
+      'rogue:weapon-mastery',
+    ];
+    for (const id of mastery) {
+      expect(featureBlockersOf(id), id).toEqual([
+        'a-one-shot-roll-modifier',
+        'a-weapon-mastery-property',
+        'an-attack-the-class-redefines',
+        'an-option-re-chosen-on-a-rest',
+      ]);
+    }
+
+    // Tactical Master has no Long Rest re-choice and no Nick of its own: it
+    // swaps a property for Push, Sap or Slow, so it waits on the properties
+    // running at all and on the one of the three that cannot.
+    expect(featureBlockersOf('fighter:tactical-master')).toEqual([
+      'a-one-shot-roll-modifier',
+      'a-weapon-mastery-property',
+    ]);
+  });
+
+  /**
+   * Blocks unchanged, finishes emptied — which is the whole of the
+   * correction, and what it does to the ranking.
+   *
+   * Weapon mastery was first on a *finishes* column of 6 and is now on one of
+   * 0, so the heaviest thing left is a shape that was second all along. The
+   * new leader is pinned here rather than left derived, because that is what
+   * the assertion this replaces was for: it is the number a tranche is sized
+   * from, and a ranking nobody asserts is one nobody notices going wrong.
+   */
+  it('leaves weapon mastery blocking six and finishing none', () => {
+    const consumers = featureConsumersOf('a-weapon-mastery-property');
+    expect(consumers.blocks).toEqual([
       'barbarian:weapon-mastery',
       'fighter:tactical-master',
       'fighter:weapon-mastery',
@@ -339,6 +392,40 @@ describe('what a shape finishes is the column a tranche is planned from', () => 
       'ranger:weapon-mastery',
       'rogue:weapon-mastery',
     ]);
+    expect(consumers.finishes).toEqual([]);
+
+    const ranked = allFeatureShapeConsumers();
+    expect(ranked[0]?.shape).toBe('a-feature-that-changes-a-castings-damage');
+    expect(ranked.map((row) => row.shape).indexOf('a-weapon-mastery-property')).toBeGreaterThan(0);
+  });
+
+  /**
+   * And the six arrive on a shape that was already there, which is the point
+   * of reusing the spell map's id rather than coining a feature-side twin.
+   */
+  it('hands the six to the one-shot modifier the spell map already names', () => {
+    const oneShot = featureConsumersOf('a-one-shot-roll-modifier');
+    const rest = featureConsumersOf('an-option-re-chosen-on-a-rest');
+    const six = [
+      'barbarian:weapon-mastery',
+      'fighter:tactical-master',
+      'fighter:weapon-mastery',
+      'paladin:weapon-mastery',
+      'ranger:weapon-mastery',
+      'rogue:weapon-mastery',
+    ];
+    for (const id of six) expect(oneShot.blocks, id).toContain(id);
+
+    // The re-choice takes the five that print it; Tactical Master does not.
+    for (const id of six.filter((one) => one !== 'fighter:tactical-master')) {
+      expect(rest.blocks, id).toContain(id);
+    }
+    expect(rest.blocks).not.toContain('fighter:tactical-master');
+
+    // Neither receiving shape *finishes* any of them: each of the six names
+    // at least one more, which is why the correction moves no shape to the
+    // top of the ranking — it only takes one off it.
+    for (const id of [...oneShot.finishes, ...rest.finishes]) expect(six).not.toContain(id);
   });
 });
 

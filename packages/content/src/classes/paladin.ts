@@ -129,7 +129,7 @@ export const PALADIN: ClassDefinition = {
       name: 'Weapon Mastery',
       level: 1,
       automation: 'manual',
-      note: 'Mastery properties are parsed onto weapons but not executed, and which two a Paladin has mastery with is recorded nowhere yet.',
+      note: 'Which two weapons a Paladin is proficient with and has mastery with is recorded nowhere, and the eight properties are parsed onto the weapons that print them and executed by nothing. Cleave, Graze, Push, Slow and Topple would follow the record; Sap and Vex each want a modifier consumed by the roll it changes; Nick redirects the extra attack the Light property gives, and the Attack action holds no such attack to redirect; and changing one of the choices on a Long Rest is an option re-answered, which a choice frozen at creation cannot be.',
     },
     {
       id: 'paladin:fighting-style',
