@@ -402,6 +402,12 @@ const PROSE: ReadonlyMap<string, string> = new Map(
   ).map((spell) => [spell.id, `${spell.description}\n${spell.higherLevel ?? ''}`]),
 );
 
+/**
+ * Every spell the book prints, which is the population the marker list is
+ * honestly measured against — see the bound below.
+ */
+const PARSED: readonly string[] = [...PROSE.keys()].sort();
+
 /** The mechanical clauses the SRD's own text for this spell contains. */
 const markersIn = (spellId: string): readonly MarkerId[] => {
   const text = PROSE.get(spellId);
@@ -428,37 +434,73 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
    * from being a demand that every tracked spell be justified sentence by
    * sentence.
    *
-   * **This read "most" and no longer can, and the reason is the finding.**
-   * The bucket was built easy end first: Disguise Self, Speak with Animals,
-   * Detect Magic and the rest of the spells whose whole text is fiction went
-   * in before anything that prints a die. As the catalogue works down the
-   * book the share of tracked spells with a mechanical sentence in them rises,
-   * and it passed half on the batch that wrote fifty-five of them. What the
-   * guard is for is unchanged — a marker list that fired on every paragraph
-   * would make the adjudication map a tax rather than a record.
+   * ### The bound was measuring the wrong population, and it was never going
+   * to stop moving
    *
-   * **The new bound follows the population rather than clearing it.** A
-   * review caught the first attempt at this moving from a half to a third,
-   * which left nineteen spells of slack — the guard would then have tolerated
-   * the share falling by another third in silence, which is giving the claim
-   * away rather than restating it. So the bound sits a spell or two behind the
-   * share and has to be restated whenever the catalogue moves. How many spells
-   * sit on each side is `COVERAGE.md`'s to print rather than this file's.
+   * This was `clean.length > TRACKED.length * 0.37` over the **tracked
+   * bucket**, and it had already been moved once, from 45 per cent, with a
+   * docstring saying it "has to be restated whenever the catalogue moves".
+   * That sentence is the defect rather than the caveat. A share taken over
+   * the tracked bucket measures **the order the catalogue was written in**,
+   * not whether the marker list over-fires: the bucket was built easy end
+   * first, so every later pass adds denominators and almost no numerators,
+   * and the only way to keep it green is to lower it again. A guard that has
+   * to be edited every time somebody does the work it is guarding is not
+   * guarding anything.
    *
-   * **Moved from 45 per cent to 37 by the second catalogue pass, and the new
-   * one is tighter than the old.** That pass wrote fifty-two definitions,
-   * forty-nine of them tracked, and only seven of the forty-nine were clean:
-   * what is left in `BLOCKED_ON` is the mechanically dense tail, so the
-   * numerator grew far more slowly than the denominator. Against the
-   * population it was written for, 45 per cent left 4.75 spells of slack and
-   * a gap of 3.8 points; 37 leaves 3.6 spells and 2.1 points against the
-   * population now — so the guard has less room to lose the claim in than
-   * before, not more, which is the only thing that makes moving it honest.
+   * ### And the measurement says it is unreachable, not merely tight
+   *
+   * Over all 339 parsed spells, 71 paragraphs trip no marker. **Every one of
+   * those 71 is already tracked or still undefined; the executed bucket holds
+   * none at all** — which is not a coincidence, because a spell with nothing
+   * mechanical in its text is exactly a spell with nothing to execute. So the
+   * numerator of the old ratio is all but spent: three clean paragraphs are
+   * left in the whole book, one of them is Darkness and is held back by a
+   * decision rather than by transcription, and the denominator has the whole
+   * mechanically dense tail still to come. A finished catalogue could not
+   * satisfy 37 per cent however it was written.
+   *
+   * ### So it is re-pointed rather than lowered
+   *
+   * The claim — "the marker list does not fire on every paragraph in the
+   * book" — is about the **book**, and the book is a fixed population that a
+   * definition cannot move. A fifth of it trips nothing, and that number
+   * changes only when the markers change or the SRD is re-ingested, which are
+   * precisely the two events this guard should catch and the two it used to
+   * be unable to distinguish from somebody writing a spell. The floor sits
+   * three spells under the measurement, where the old one sat 3.6 under a
+   * measurement that fell every pass.
+   *
+   * The tracked bucket keeps the two claims that are honestly about it: some
+   * of it is clean and not all of it is. Neither can be satisfied by choosing
+   * which spells to write next.
    */
-  it('leaves a large part of the tracked bucket with nothing mechanical to explain', () => {
+  it('leaves a fifth of the book with nothing mechanical to explain', () => {
+    const book = PARSED.filter((spellId) => markersIn(spellId).length === 0);
+    expect(book.length).toBeGreaterThan(PARSED.length * 0.2);
+    expect(book.length).toBeLessThan(PARSED.length);
+  });
+
+  /**
+   * The fact that makes the bound above the right one, pinned rather than
+   * asserted in prose: **an executed spell never has a clean paragraph.**
+   *
+   * If this ever fails, the re-pointing above was wrong — the tracked share
+   * would then be a quantity that could recover rather than one that only
+   * falls, and a floor over the tracked bucket would mean something again.
+   */
+  it('finds every clean paragraph outside the executed bucket', () => {
+    const executed = SPELL_DEFINITIONS.filter(
+      (d) => !TRACKED.includes(d.id) && PROSE.has(d.id),
+    ).map((d) => d.id);
+    expect(executed.length).toBeGreaterThan(100);
+    expect(executed.filter((spellId) => markersIn(spellId).length === 0)).toEqual([]);
+  });
+
+  /** And the tracked bucket is neither all clean nor all mechanical. */
+  it('holds tracked spells on both sides of the marker list', () => {
     const clean = TRACKED.filter((spellId) => markersIn(spellId).length === 0);
-    expect(clean.length).toBeGreaterThan(TRACKED.length * 0.37);
-    // And the other side is non-empty too, or the sweep below checks nothing.
+    expect(clean.length).toBeGreaterThan(0);
     expect(clean.length).toBeLessThan(TRACKED.length);
   });
 
@@ -935,18 +977,77 @@ const ADDED_SECOND: readonly string[] = [
   'wind-wall',
 ];
 
-const ADDED: readonly string[] = [...ADDED_FIRST, ...ADDED_SECOND].sort();
+/**
+ * The third pass, and the population is what the first two left.
+ *
+ * `ADDED_SECOND` said its ground was "the tail"; this is the end of it. Every
+ * spell here was in `BLOCKED_ON` naming at least one shape the engine really
+ * does not have — **the set blocked on nothing is empty of writable spells
+ * now**, and the two entries still in it are held back by decisions rather
+ * than by transcription: Darkness, whose definition makes Sunburst's dispel
+ * clause reachable, and Programmed Illusion, whose `untilDispelled` no
+ * `SpellCheck` can hang a duration on.
+ *
+ * So the ordering was derived rather than chosen. Nothing in the undefined
+ * population is waited on by an item or a feature, no pocket of expressible
+ * effects is left, and what remains is the book from level 0 upward with ten
+ * spells set aside for reasons written in the digest rather than re-derived
+ * here.
+ */
+const ADDED_THIRD: readonly string[] = [
+  'animal-shapes',
+  'antimagic-field',
+  'antipathy-sympathy',
+  'arcane-hand',
+  'astral-projection',
+  'bestow-curse',
+  'call-lightning',
+  'confusion',
+  'conjure-animals',
+  'conjure-celestial',
+  'conjure-minor-elementals',
+  'control-water',
+  'delayed-blast-fireball',
+  'dispel-evil-and-good',
+  'divine-word',
+  'earthquake',
+  'ensnaring-strike',
+  'eyebite',
+  'find-steed',
+  'giant-insect',
+  'glyph-of-warding',
+  'hex',
+  'imprisonment',
+  'magic-circle',
+  'magic-jar',
+  'prismatic-spray',
+  'prismatic-wall',
+  'project-image',
+  'simulacrum',
+  'storm-of-vengeance',
+  'summon-dragon',
+  'symbol',
+  'true-polymorph',
+  'tsunami',
+  'wind-walk',
+];
+
+const ADDED: readonly string[] = [...ADDED_FIRST, ...ADDED_SECOND, ...ADDED_THIRD].sort();
 
 describe('every spell this batch added is cast for real', () => {
   it('names them in an order two branches can both append to', () => {
     expect(ADDED_FIRST).toEqual([...ADDED_FIRST].sort());
     expect(ADDED_SECOND).toEqual([...ADDED_SECOND].sort());
+    expect(ADDED_THIRD).toEqual([...ADDED_THIRD].sort());
   });
 
-  /** And the two batches are two batches: nothing is claimed by both. */
-  it('keeps the two passes apart', () => {
+  /** And the three batches are three batches: nothing is claimed by two. */
+  it('keeps the three passes apart', () => {
     expect(ADDED_SECOND.filter((id) => ADDED_FIRST.includes(id))).toEqual([]);
+    expect(ADDED_THIRD.filter((id) => ADDED_FIRST.includes(id))).toEqual([]);
+    expect(ADDED_THIRD.filter((id) => ADDED_SECOND.includes(id))).toEqual([]);
     expect(ADDED_SECOND.length).toBeGreaterThan(0);
+    expect(ADDED_THIRD.length).toBeGreaterThan(0);
   });
 
   /** Tracked, so every sweep above is already about every one of them. */

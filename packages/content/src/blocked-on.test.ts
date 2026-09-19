@@ -107,9 +107,13 @@ describe('the blocked-on map covers the undefined population', () => {
     // and Protection from Energy, and the spell catalogue batch twenty-four at
     // once — Magic Missile, which used to stand here, among them. The
     // synthetic has to name a spell that is **still** undefined, which is why
-    // it moves every time the real thing catches up with it.
-    const defined = new Set([...DEFINED_SPELL_IDS, 'true-polymorph']);
-    expect(coverageGaps(PARSED, defined).stale).toEqual(['true-polymorph']);
+    // it moves every time the real thing catches up with it — and it has now
+    // moved a third time, off True Polymorph, which the third catalogue pass
+    // defined along with twenty-nine others. Maze is the safest perch left:
+    // `packages/engine`'s own tests pin it as a spell with no definition, so
+    // it cannot be written out from under this synthetic by a content task.
+    const defined = new Set([...DEFINED_SPELL_IDS, 'maze']);
+    expect(coverageGaps(PARSED, defined).stale).toEqual(['maze']);
   });
 
   /** Neither synthetic case is vacuous: the real catalogue has no gap either way. */
@@ -136,14 +140,21 @@ describe('the blocked-on map covers the undefined population', () => {
    * next success fails.
    *
    * **The slack is the seven spells it has always been**, measured in spells
-   * rather than as a share: 100 sat seven below a map of 107 and 48 sits seven
-   * below a map of 55. As a *proportion* of a map half the size that is a
-   * wider window, and that is the honest way round — what this floor watches
-   * for is a filter reading nothing or a wrong directory, which empties the
-   * map outright rather than shaving two spells off it.
+   * rather than as a share: 100 sat seven below a map of 107, 48 sat seven
+   * below a map of 55, and 13 sits seven below a map of 20. As a *proportion*
+   * of a map that keeps halving that is a wider window each time, and that is
+   * the honest way round — what this floor watches for is a filter reading
+   * nothing or a wrong directory, which empties the map outright rather than
+   * shaving two spells off it.
+   *
+   * **And it is now close to the floor under the floor.** Ten of the twenty
+   * entries left are spells a decision rather than a transcription is holding
+   * back, so the next pass cannot take the map far below thirteen without the
+   * engine gaining a mechanic first. When it can, this guard stops being worth
+   * keeping rather than being lowered again.
    */
   it('covers a population worth deriving', () => {
-    expect(Object.keys(BLOCKED_ON).length).toBeGreaterThan(48);
+    expect(Object.keys(BLOCKED_ON).length).toBeGreaterThan(13);
   });
 
   it('names only shapes the vocabulary has', () => {
@@ -592,28 +603,14 @@ describe('the condition-immunity family is read sentence by sentence', () => {
         'an-effect-that-suppresses-other-magic',
       ],
     ],
-    [
-      'magic-circle',
-      [
-        'a-barrier-that-blocks-passage',
-        'a-choice-made-at-the-casting',
-        'a-condition-immunity-narrowed-to-its-source',
-        'a-filter-on-the-attackers-creature-type',
-        'a-long-casting-time',
-        'an-effect-that-suppresses-other-magic',
-      ],
-    ],
-    [
-      'wind-walk',
-      [
-        'a-long-casting-time',
-        'an-action-a-spell-compels-or-forbids',
-        'an-activation-taken-by-somebody-other-than-the-caster',
-        'falling',
-        'movement-modes',
-      ],
-    ],
   ];
+
+  // **Two of the four have been spent**, and the third catalogue pass spent
+  // them: Magic Circle and Wind Walk are tracked definitions now, so neither
+  // is in this population and neither can be asserted here. What each of them
+  // was read for survives below, in the same two places every spent reading
+  // goes — the tracked map against the same sentence, or the definition's own
+  // `unmodelled`.
 
   it.each(BACKFILLED)('reads every sentence of %s', (spellId, shapes) => {
     expect(isSentenceComplete(spellId)).toBe(true);
@@ -632,7 +629,6 @@ describe('the condition-immunity family is read sentence by sentence', () => {
   it('covers every spell the two residues block', () => {
     expect(consumersOf('a-condition-immunity-narrowed-to-its-source').undefined).toEqual([
       'hallow',
-      'magic-circle',
     ]);
     // Freedom of Movement was the fourth and Protection from Evil and Good the
     // third; both are **tracked** now, so the shape keeps them in a different
@@ -642,6 +638,7 @@ describe('the condition-immunity family is read sentence by sentence', () => {
     // readings there, the third being the Immunity narrowed by the word "them".
     expect(consumersOf('a-condition-immunity-narrowed-to-its-source').tracked).toEqual([
       'freedom-of-movement',
+      'magic-circle',
     ]);
     expect(
       (SRD_CONTENT.spell('protection-from-evil-and-good')?.unmodelled ?? []).filter((note) =>
@@ -684,11 +681,26 @@ describe('the condition-immunity family is read sentence by sentence', () => {
       )?.why,
     ).toBe('an-effect-that-suppresses-other-magic');
     expect(BLOCKED_ON['freedom-of-movement']).toBeUndefined();
-    expect(filed('magic-circle', 'Choose one or more of the following types of creatures')).toBe(
-      'a-choice-made-at-the-casting',
-    );
+    // Magic Circle's was the second, and it is **kept** rather than lost now
+    // that the spell is defined: the type the circle is drawn against is
+    // chosen at the casting, and the definition says so on every casting.
+    // There is no tracked entry for it because the sentence the reading was
+    // anchored to trips no mechanical marker — which is the same reason Calm
+    // Emotions is still undefined, met from the other side.
+    expect(BLOCKED_ON['magic-circle']).toBeUndefined();
     expect(
-      filed('wind-walk', 'Reverting takes 1 minute, during which the target has the Stunned condition'),
+      (SRD_CONTENT.spell('magic-circle')?.unmodelled ?? []).filter((note) =>
+        note.includes('is chosen when the spell is cast'),
+      ),
+    ).toHaveLength(1);
+    // Wind Walk's was the third, and that one *does* trip a marker, so it moved
+    // into the tracked map against the very sentence it was read from.
+    expect(BLOCKED_ON['wind-walk']).toBeUndefined();
+    expect(
+      (TRACKED_ADJUDICATED['wind-walk'] ?? []).find(
+        (entry) =>
+          entry.clause === 'Reverting takes 1 minute, during which the target has the Stunned condition',
+      )?.why,
     ).toBe('an-activation-taken-by-somebody-other-than-the-caster');
     expect(
       filed('hallow', 'the spell fails if the radius includes an area already under the effect of'),
@@ -799,55 +811,14 @@ describe('the four highest-leverage families are read sentence by sentence', () 
    * can be anchored to. The block below proves that rather than asserting it.
    */
   const FAMILIES: readonly (readonly [ShapeId, readonly string[], readonly string[]])[] = [
-    [
-      'a-stat-block-created-mid-fight',
-      [
-        'arcane-hand',
-        'find-familiar',
-        'find-steed',
-        'giant-insect',
-        'simulacrum',
-        'summon-dragon',
-        'true-polymorph',
-      ],
-      ['find-steed', 'giant-insect', 'summon-dragon'],
-    ],
-    [
-      'an-action-a-spell-compels-or-forbids',
-      [
-        'antimagic-field',
-        'antipathy-sympathy',
-        'bestow-curse',
-        'confusion',
-        'conjure-woodland-beings',
-        'eyebite',
-        'magic-jar',
-        'slow',
-        'symbol',
-        'true-polymorph',
-        'tsunami',
-        'wind-walk',
-      ],
-      [],
-    ],
-    [
-      'a-second-place-to-put-a-creature',
-      [
-        'astral-projection',
-        'dispel-evil-and-good',
-        'divine-word',
-        'find-familiar',
-        'imprisonment',
-        'magic-jar',
-        'maze',
-        'prismatic-spray',
-        'prismatic-wall',
-        'project-image',
-        'sending',
-      ],
-      ['prismatic-spray', 'prismatic-wall'],
-    ],
-    ['a-wall-or-several-templates-in-one-area', ['prismatic-wall', 'tsunami'], ['prismatic-wall']],
+    // **The third catalogue pass emptied three of the four**, by writing the
+    // spells rather than by building anything. What is left of each family in
+    // the undefined population is written here; what left it is asserted
+    // below, and the shapes all survive in the tracked population.
+    ['a-stat-block-created-mid-fight', ['find-familiar'], []],
+    ['an-action-a-spell-compels-or-forbids', ['conjure-woodland-beings', 'slow'], []],
+    ['a-second-place-to-put-a-creature', ['find-familiar', 'maze', 'sending'], []],
+    ['a-wall-or-several-templates-in-one-area', [], []],
   ];
 
   /**
@@ -914,6 +885,18 @@ describe('the four highest-leverage families are read sentence by sentence', () 
     expect(consumersOf(shape).undefined).toEqual([...consumers]);
   });
 
+  /**
+   * And an empty list is a real answer here rather than a sweep that stopped
+   * checking: `a-wall-or-several-templates-in-one-area` blocks no undefined
+   * spell at all now, and still blocks plenty — the claim moved from the
+   * undefined population into the tracked one rather than going away.
+   */
+  it('keeps a family the undefined population has run out of', () => {
+    const walls = consumersOf('a-wall-or-several-templates-in-one-area');
+    expect(walls.undefined).toEqual([]);
+    expect(walls.blocks.length).toBeGreaterThan(1);
+  });
+
   /** And every one of them is read, except the ones the guard demonstrably cannot reach. */
   it.each(FAMILIES)('reads every sentence of every spell %s blocks', (_shape, consumers, skipped) => {
     for (const spellId of consumers) {
@@ -943,6 +926,14 @@ describe('the four highest-leverage families are read sentence by sentence', () 
     expect(consumersOf('an-action-a-spell-compels-or-forbids').unblocksRead).toEqual([
       'conjure-woodland-beings',
     ]);
+    // And Conjure Woodland Beings is the last one, which is worth saying
+    // plainly: it is the only spell left in the book whose effects the engine
+    // could execute today, and the third catalogue pass left it deliberately
+    // rather than tracking it — an Emanation, a trigger, a save and 5d8 Force
+    // is Spirit Guardians' shape, and tracking it would have written a
+    // definition that resolves nothing where one that resolves the spell was
+    // available.
+    expect(consumersOf('an-action-a-spell-compels-or-forbids').unblocksRead).toHaveLength(1);
     expect(BLOCKED_ON['expeditious-retreat']).toBeUndefined();
     expect(SRD_CONTENT.spell('expeditious-retreat')).not.toBeNull();
     // Collected: Gate is defined, so the shape finishes nobody who is left.
@@ -960,9 +951,20 @@ describe('the four highest-leverage families are read sentence by sentence', () 
       expect(BLOCKED_ON[id], id).toBeUndefined();
       expect(SRD_CONTENT.spell(id)?.effects, id).toEqual([]);
     }
+    // Collected, all three of them, and this is the one that had been called
+    // "the **whole** of what `a-stat-block-created-mid-fight` finishes" and
+    // "the highest-leverage family in the book". Find Steed, Giant Insect and
+    // Summon Dragon were unreadable — the repeated `SAVE` cell below defeats
+    // any clause — so no read count could ever have been planned from them,
+    // and the third catalogue pass wrote all three as tracked definitions
+    // instead. A family that could not be read can still be written.
     const statBlock = consumersOf('a-stat-block-created-mid-fight');
     expect(statBlock.unblocksRead).toEqual([]);
-    expect(statBlock.unblocksUnread).toEqual(['find-steed', 'giant-insect', 'summon-dragon']);
+    expect(statBlock.unblocksUnread).toEqual([]);
+    for (const id of ['find-steed', 'giant-insect', 'summon-dragon']) {
+      expect(BLOCKED_ON[id], id).toBeUndefined();
+      expect(SRD_CONTENT.spell(id)?.effects, id).toEqual([]);
+    }
   });
 });
 
@@ -1021,9 +1023,20 @@ describe('a unit the book repeats verbatim can carry no clause', () => {
    * in them is distinct, so both are read.
    */
   it('reads a spell whose table cells happen to differ', () => {
-    expect(isSentenceComplete('confusion')).toBe(true);
-    expect(isSentenceComplete('divine-word')).toBe(true);
-    expect(unanchoredPhrases('divine-word', ['<td>The target dies.</td>'])).toEqual([]);
+    // **Both are defined now, so `isSentenceComplete` cannot be the measure.**
+    // It reads a `BLOCKED_ON` entry, and a defined spell has none — so it
+    // would answer false for a spell whose cells are perfectly distinct, which
+    // is the opposite of what this claims. The anchoring is the claim, and the
+    // anchoring is a property of the printed entry rather than of the map, so
+    // it is asserted directly and goes on holding after the spell is written.
+    for (const [spellId, cell] of [
+      ['divine-word', '<td>The target dies.</td>'],
+      ['confusion', '<td>The target chooses its behavior.</td>'],
+    ] as const) {
+      const sentence = sentencesOf(spellId).find((text) => text.includes(cell));
+      expect(sentence, `${spellId} does not print ${cell}`).toBeDefined();
+      expect(unanchoredPhrases(spellId, [cell]), spellId).toEqual([]);
+    }
   });
 });
 
@@ -1056,14 +1069,6 @@ describe('reading four families found blockers the bare lists had missed', () =>
 
   /** The spell, the sentence that forced it, and the shape it was filed under. */
   const FOUND: readonly (readonly [string, string, ShapeId])[] = [
-    ['arcane-hand', 'If it drops to 0 Hit Points, the spell ends', 'a-casting-ended-by-a-trigger'],
-    ['arcane-hand', "The hand doesn't occupy its space", 'a-creature-fact-an-effect-overrides'],
-    ['arcane-hand', 'The hand moves with the target', 'an-area-that-moves-by-itself'],
-    [
-      'arcane-hand',
-      'dealing Bludgeoning damage to the target equal to 4d6',
-      'damage-with-neither-an-attack-roll-nor-a-save',
-    ],
     ['find-familiar', 'you can temporarily dismiss the familiar to a pocket dimension', 'a-second-place-to-put-a-creature'],
     [
       'find-familiar',
@@ -1071,49 +1076,12 @@ describe('reading four families found blockers the bare lists had missed', () =>
       'an-activation-taken-by-somebody-other-than-the-caster',
     ],
     ['find-familiar', "you can see through the familiar's eyes and hear what it hears", 'senses-beyond-declared-sight'],
-    ['simulacrum', 'Duration: Until dispelled', 'a-casting-dismissed-early'],
-    ['simulacrum', 'the only way to restore its Hit Points', 'healing-modified-by-an-effect'],
-    ['simulacrum', 'The simulacrum lasts until it drops to 0 Hit Points', 'a-casting-ended-by-a-trigger'],
-    ['true-polymorph', 'the spell lasts until dispelled', 'a-casting-dismissed-early'],
-    ['true-polymorph', "it can't speak or cast spells", 'an-action-a-spell-compels-or-forbids'],
-    ['antipathy-sympathy', 'target one creature or object that is Huge or smaller', 'a-target-rule-the-format-cannot-state'],
-    [
-      'antipathy-sympathy',
-      'is immune to it for 1 minute, after which it can be affected again',
-      'an-effect-that-suppresses-other-magic',
-    ],
-    ['symbol', 'Duration: Until dispelled or triggered', 'a-casting-dismissed-early'],
-    ['symbol', 'A creature awakens if it takes damage', 'a-casting-ended-by-a-trigger'],
-    [
-      'astral-projection',
-      "If a target's body or astral form drops to 0 Hit Points, the spell ends for that target",
-      'a-casting-ended-by-a-trigger',
-    ],
-    [
-      'dispel-evil-and-good',
-      'You can end the spell early by using either of the following special functions',
-      'a-casting-dismissed-early',
-    ],
-    ['imprisonment', 'Duration: Until dispelled', 'a-casting-dismissed-early'],
-    ['imprisonment', 'The target becomes 1 inch tall', 'a-creature-fact-an-effect-overrides'],
-    ['magic-jar', 'Duration: Until dispelled', 'a-casting-dismissed-early'],
-    ['magic-jar', "You can't move or take Reactions", 'an-action-a-spell-compels-or-forbids'],
     ['maze', 'If it succeeds, it escapes, and the spell ends', 'a-casting-ended-by-a-trigger'],
-    [
-      'magic-jar',
-      "creatures warded by a _Protection from Evil and Good_ or _Magic Circle_ spell can't be possessed",
-      'an-effect-that-suppresses-other-magic',
-    ],
-    ['project-image', "You can see through the illusion's eyes and hear through its ears", 'senses-beyond-declared-sight'],
     [
       'sending',
       'a creature can block your ability to reach it again with this spell for 8 hours',
       'an-effect-that-suppresses-other-magic',
     ],
-    ['tsunami', 'Any Huge or smaller creature inside the wall', 'an-area-that-filters-its-catch'],
-    ['tsunami', "If it fails the check, it can't move", 'an-action-a-spell-compels-or-forbids'],
-    ['tsunami', 'A creature caught in the wall can move by swimming', 'movement-modes'],
-    ['tsunami', 'A creature that moves out of the wall falls to the ground', 'falling'],
   ];
 
   it.each(FOUND)('records %s: "%s"', (spellId, phrase, shape) => {
@@ -1159,6 +1127,36 @@ describe('reading four families found blockers the bare lists had missed', () =>
     ['create-undead', 'unmodelled', 'selects corpses rather than creatures'],
     ['secret-chest', 'unmodelled', 'the Ethereal Plane they go to is a second place'],
     ['secret-chest', 'unmodelled', 'nor does it end on a recasting'],
+    // The third catalogue pass spent twenty-five more rows in one commit,
+    // which is what happens when a batch takes the whole mechanically dense
+    // tail at once. Each is the same claim as the ten above: the entry is
+    // gone, the definition is there, and the sentence somebody read is still
+    // somewhere a reader meets it.
+    ['arcane-hand', 'tracked', 'a-casting-ended-by-a-trigger'],
+    ['arcane-hand', 'unmodelled', 'does not occupy its space'],
+    ['arcane-hand', 'unmodelled', 'an area that moves by itself'],
+    ['arcane-hand', 'unmodelled', 'with neither an attack roll nor a saving throw in front of it'],
+    ['simulacrum', 'tracked', 'healing-modified-by-an-effect'],
+    ['simulacrum', 'tracked', 'a-casting-ended-by-a-trigger'],
+    ['simulacrum', 'unmodelled', 'dismisses it as a Magic action'],
+    ['true-polymorph', 'unmodelled', 'lasts until dispelled'],
+    ['true-polymorph', 'unmodelled', 'cannot speak or cast spells'],
+    ['antipathy-sympathy', 'unmodelled', 'a target rule selecting by size'],
+    ['antipathy-sympathy', 'unmodelled', 'the minute of immunity after a success'],
+    ['symbol', 'unmodelled', 'lasts until dispelled or triggered'],
+    ['symbol', 'unmodelled', 'awakens if it takes damage'],
+    ['astral-projection', 'tracked', 'a-casting-ended-by-a-trigger'],
+    ['dispel-evil-and-good', 'tracked', 'a-casting-dismissed-early'],
+    ['imprisonment', 'tracked', 'a-creature-fact-an-effect-overrides'],
+    ['imprisonment', 'unmodelled', 'a dismissal a spell offers'],
+    ['magic-jar', 'unmodelled', 'a casting dismissed early'],
+    ['magic-jar', 'unmodelled', 'an action economy belonging to somebody else'],
+    ['magic-jar', 'unmodelled', 'a second casting refusing this one'],
+    ['project-image', 'unmodelled', 'sight is a pairwise declaration'],
+    ['tsunami', 'tracked', 'an-action-a-spell-compels-or-forbids'],
+    ['tsunami', 'unmodelled', 'a catch filtered by size'],
+    ['tsunami', 'unmodelled', 'swimming creatures being unaffected'],
+    ['tsunami', 'unmodelled', 'nothing falls and there is no water'],
   ];
 
   it.each(SPENT)('kept %s’s reading after the definition landed (%s)', (spellId, where, what) => {
@@ -1243,11 +1241,18 @@ describe('reading four families found blockers the bare lists had missed', () =>
  */
 describe('one clause is filed under protest, and says so', () => {
   it('records the slot-scaled area as a placeholder rather than an adjudication', () => {
-    const clause = clausesIn(BLOCKED_ON['confusion'] ?? []).find((entry) =>
-      entry.clause.startsWith("The Sphere's radius increases"),
-    );
-    expect(clause?.why).toBe('table');
-    expect(clause?.note).toContain('placeholder and is wrong on purpose');
+    // **The placeholder has been spent rather than resolved**, and that is
+    // worth saying plainly: Confusion is a tracked definition now, so the
+    // entry that carried the protest is gone, and the shape nobody would name
+    // was never named. What survives is the sentence itself, handed to the
+    // table on every casting — and Fog Cloud below still prints it, so the
+    // gap is as unclaimed as it ever was.
+    expect(BLOCKED_ON['confusion']).toBeUndefined();
+    expect(
+      (SRD_CONTENT.spell('confusion')?.unmodelled ?? []).filter((note) =>
+        note.includes('a slot reaches damage dice, a target count and a duration, and never an area'),
+      ),
+    ).toHaveLength(1);
   });
 
   /** And the sentence really is one the spell prints, anchored like any other. */
@@ -1960,9 +1965,14 @@ describe('the fought fact is a second build that corrected the query', () => {
    */
   it('keeps the shape for the facts the build did not reach', () => {
     const fact = consumersOf('a-fact-only-the-table-can-declare');
-    expect(fact.undefined).toEqual(['call-lightning', 'enthrall']);
+    // Call Lightning was the second undefined consumer and is tracked now, so
+    // its reading — the extra 1d10 for being outdoors in a storm — moved into
+    // the tracked map against the sentence it was read from. Enthrall is the
+    // one left, and it is still undefined for the reason the two residues
+    // above record: its blocker sits in a sentence no mechanical marker sees.
+    expect(fact.undefined).toEqual(['enthrall']);
     expect(fact.executed).toEqual(['hunters-mark']);
-    expect(fact.tracked).toEqual(['scrying']);
+    expect(fact.tracked).toEqual(['call-lightning', 'scrying']);
   });
 });
 
@@ -2071,10 +2081,15 @@ describe('a consumer count is a query', () => {
   it('files no Conjure spell under a stat block, and keeps the ones that print one', () => {
     const statBlock = consumersOf('a-stat-block-created-mid-fight');
     expect(statBlock.blocks.filter((id) => id.startsWith('conjure-'))).toEqual([]);
+    // All three are tracked now — the third catalogue pass took the whole
+    // family — so the shape is claimed entirely from the tracked population
+    // and the undefined column holds only Find Familiar, which `packages/
+    // engine`'s own tests pin as having no definition.
     for (const id of ['arcane-hand', 'summon-dragon', 'giant-insect']) {
-      expect(statBlock.undefined, id).toContain(id);
+      expect(statBlock.tracked, id).toContain(id);
     }
-    // Unseen Servant was the fourth and is tracked now, which is the third
+    expect(statBlock.undefined).toEqual(['find-familiar']);
+    // Unseen Servant was the fourth and is tracked too, which is the third
     // population claiming the shape rather than the shape losing a consumer.
     expect(statBlock.tracked).toContain('unseen-servant');
     // Guardian of Faith and Faithful Hound are the pair that proves the row was
@@ -2130,14 +2145,29 @@ describe('a consumer count is a query', () => {
   it('adds all three populations up', () => {
     const modes = consumersOf('movement-modes');
     expect(modes.executed).toEqual(['gaseous-form']);
-    expect(modes.tracked).toEqual(['alter-self', 'fly', 'freedom-of-movement', 'spider-climb']);
+    expect(modes.tracked).toEqual([
+      'alter-self',
+      'fly',
+      'freedom-of-movement',
+      'spider-climb',
+      'wind-walk',
+    ]);
     // A floor below the population rather than on it, lowered by the batch
     // that wrote Freedom of Movement — which moved a spell from the third
     // population into the second and so shrank this one by one.
     // A floor below the population rather than on it, lowered again by the
     // batch that wrote Alter Self — which moved the fourth claimant from the
     // third population into the second, as Freedom of Movement did before it.
-    expect(modes.undefined.length).toBeGreaterThan(1);
+    // **The third catalogue pass emptied the third column**, moving Wind Walk
+    // and Tsunami into the tracked one, so the floor that used to sit under it
+    // is gone rather than lowered: a floor of zero is not a claim. What this
+    // test is actually for is the sum — a shape's `blocks` is the three
+    // populations added up and never one of them mistaken for the total — and
+    // that claim is stronger now, because a shape whose undefined column is
+    // empty is exactly where a reader who only counted that column would read
+    // zero and stop.
+    expect(modes.undefined).toEqual([]);
+    expect(modes.executed.length + modes.tracked.length).toBeGreaterThan(0);
     expect(modes.blocks.length).toBe(
       modes.executed.length + modes.tracked.length + modes.undefined.length,
     );
@@ -2193,7 +2223,14 @@ describe('a consumer count is a query', () => {
   it('names the largest blocker in the undefined population', () => {
     const ranked = [...allShapeConsumers()].sort((a, b) => b.blocks.length - a.blocks.length);
     expect(ranked[0]!.shape).toBe('an-action-a-spell-compels-or-forbids');
-    expect(ranked[0]!.blocks.length).toBeGreaterThan(20);
+    // **Moved from 20 to 15 by the third catalogue pass.** Not one of the
+    // twelve undefined spells this shape blocked was finished by building it,
+    // and ten of them were written as tracked definitions instead — so the
+    // consumers moved from the undefined column into the tracked one and the
+    // total fell by the two that are still held back. The ranking is
+    // unchanged, which is the point: a shape nobody has built is still the
+    // heaviest thing in the book.
+    expect(ranked[0]!.blocks.length).toBeGreaterThan(15);
   });
 });
 
@@ -2391,9 +2428,14 @@ describe('a shape that gets built is content work, not a merge', () => {
     // A ward against arriving is suppression, not teleportation. Two of the
     // three are still undefined; Forbiddance is tracked now, and the reading
     // moved into `TRACKED_ADJUDICATED` against the same sentence.
-    for (const id of ['magic-circle', 'hallow']) {
-      expect(blockersOf(id), id).toContain('an-effect-that-suppresses-other-magic');
-    }
+    expect(blockersOf('hallow')).toContain('an-effect-that-suppresses-other-magic');
+    // Magic Circle is tracked now and its half of the re-filing made the same
+    // move Forbiddance's did: the ward against arriving is anchored to the
+    // very sentence it was read from, in the tracked map.
+    expect(BLOCKED_ON['magic-circle']).toBeUndefined();
+    expect(TRACKED_ADJUDICATED['magic-circle']?.map((entry) => entry.why)).toContain(
+      'an-effect-that-suppresses-other-magic',
+    );
     expect(BLOCKED_ON['forbiddance']).toBeUndefined();
     expect(TRACKED_ADJUDICATED['forbiddance']?.map((entry) => entry.why)).toContain(
       'an-effect-that-suppresses-other-magic',
@@ -2494,7 +2536,14 @@ describe('a shape may finish nothing and still block forty-two spells', () => {
     // mechanism IE-034 built. **Moved from 30 to 10 by the second catalogue
     // pass, which wrote twenty-four more of them** — the floor follows the
     // population down and the count belongs to `COVERAGE.md`.
-    expect(casting.blocks.length).toBeGreaterThan(10);
+    // **Moved from 10 to 3 by the third catalogue pass**, which wrote eight
+    // more of them — Antipathy/Sympathy, Astral Projection, Glyph of Warding,
+    // Imprisonment, Magic Circle, Magic Jar, Simulacrum, Symbol, Tsunami and
+    // Wind Walk. The floor follows the population down and the count belongs
+    // to `COVERAGE.md`; what is left in the undefined population is three
+    // spells and two of them are held back by a decision rather than by a
+    // mechanic, so this floor is near the end of being worth keeping.
+    expect(casting.blocks.length).toBeGreaterThan(3);
     expect(claimedShapes().has('a-long-casting-time')).toBe(true);
     for (const id of ['scrying', 'tiny-hut', 'private-sanctum', 'resurrection']) {
       expect(BLOCKED_ON[id], id).toBeUndefined();
@@ -2651,10 +2700,21 @@ describe('a trigger that ends a casting is a partial build, and the map says whi
         phrase,
       ).toHaveLength(1);
     }
-    for (const spellId of ['find-familiar', 'project-image']) {
-      expect(blockersOf(spellId), spellId).toContain('senses-beyond-declared-sight');
-    }
-    expect(blockersOf('project-image')).toContain('a-second-place-to-put-a-creature');
+    expect(blockersOf('find-familiar')).toContain('senses-beyond-declared-sight');
+    // Project Image was the second and is a tracked definition now. Its
+    // senses clause trips no mechanical marker, so it could not move into the
+    // tracked map; what carries it is the definition's own note, which the
+    // table hears on every casting. The shape keeps Find Familiar and keeps
+    // its claim.
+    expect(BLOCKED_ON['project-image']).toBeUndefined();
+    expect(
+      (SRD_CONTENT.spell('project-image')?.unmodelled ?? []).filter((note) =>
+        note.includes('no creature borrows another'),
+      ),
+    ).toHaveLength(1);
+    expect(TRACKED_ADJUDICATED['project-image']?.map((entry) => entry.why)).toContain(
+      'a-second-place-to-put-a-creature',
+    );
   });
 
   /**
