@@ -12378,10 +12378,10 @@ export const CALM_EMOTIONS: SpellDefinition = {
  *
  * The longest casting in the book and the widest entry in the map: a day's rite
  * that ends with a permanent ward, a choice of creature types every clause
- * below reads, and ten Extra Effects of which one is bound. Eight blockers were
- * written against it while it was undefined and the day itself was a ninth —
- * the one this definition spends, because a casting of a minute or more is a
- * declared casting the clock finishes.
+ * below reads, and ten Extra Effects of which one is bound. It was the most
+ * heavily read entry in the undefined map, and one of the blockers written
+ * against it is the one this definition **spends**: the day, because a casting
+ * of a minute or more is a declared casting the clock finishes.
  *
  * The rest is the shape of an area the engine cannot hold: one that refuses to
  * overlap another of its kind, that catches creatures by **type**, that stops a

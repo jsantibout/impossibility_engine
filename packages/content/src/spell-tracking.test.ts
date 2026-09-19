@@ -1155,36 +1155,41 @@ describe('every spell this batch added is cast for real', () => {
   });
 
   /**
-   * Hallow is the only spell in the tracked map that writes three
-   * adjudications about one sentence, which is the cap IE-044 lifted being
-   * used rather than merely permitted.
+   * Hallow writes three readings of one sentence **under one marker**, which is
+   * the cap IE-044 lifted being spent rather than merely permitted.
    *
-   * `TRACKED_ADJUDICATED` was a record keyed by marker until then, so a spell
-   * could file one reading per mechanic and no more. Hallow's Hallowed Ward is
-   * one sentence with three different gaps in it — a predicate over creature
-   * type deciding who is caught, a barrier nothing in a mover's path can
-   * refuse, and an Immunity narrowed both to a cause and to a place — and all
-   * three trip the same `condition` marker. A test that only asserted the type
-   * allows two would have gone on passing if the storage quietly narrowed
-   * again.
+   * Three entries about one sentence is not the rare thing — Warding Bond files
+   * an Armour Class, a saving throw and a Resistance against its one bonus
+   * sentence, and each answers a different marker. What the record could not
+   * hold is *this*: Hallow's Hallowed Ward is one sentence with three different
+   * gaps in it — a predicate over creature type deciding who is caught, a
+   * barrier nothing in a mover's path can refuse, and an Immunity narrowed both
+   * to a cause and to a place — and all three trip the same `condition` marker,
+   * so a map keyed by marker could keep exactly one of them. A test that only
+   * asserted the type allows two would have gone on passing if the storage
+   * quietly narrowed again.
    */
-  it('files three readings of Hallow’s one warded sentence', () => {
+  it('files three readings of Hallow’s one warded sentence under one marker', () => {
     const printed = sentencesOf('hallow');
-    const bySentence = new Map<string, string[]>();
+    const bySentence = new Map<string, TrackedAdjudication[]>();
     for (const entry of ADJUDICATED['hallow'] ?? []) {
       const sentence = printed.find((text) => text.includes(entry.clause));
       expect(sentence, entry.clause).toBeDefined();
-      bySentence.set(sentence!, [...(bySentence.get(sentence!) ?? []), entry.why]);
+      bySentence.set(sentence!, [...(bySentence.get(sentence!) ?? []), entry]);
     }
     const ward = [...bySentence.entries()].find(([sentence]) =>
       sentence.startsWith("Creatures of the chosen types can't willingly enter the area"),
     );
     expect(ward, 'no entry names the Hallowed Ward sentence').toBeDefined();
-    expect([...(ward?.[1] ?? [])].sort()).toEqual([
+    expect([...(ward?.[1] ?? [])].map((entry) => entry.why).sort()).toEqual([
       'a-barrier-that-blocks-passage',
       'a-condition-immunity-narrowed-to-its-source',
       'a-creature-type-predicate-an-area-reads',
     ]);
+    // The half the record could not hold: one marker, three readings. Without
+    // this the assertion above is satisfied by three entries under three
+    // different markers, which the map already allowed.
+    expect([...new Set((ward?.[1] ?? []).map((entry) => entry.marker))]).toEqual(['condition']);
   });
 
   /** Tracked, so every sweep above is already about every one of them. */
