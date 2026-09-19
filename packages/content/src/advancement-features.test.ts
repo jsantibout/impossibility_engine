@@ -11,6 +11,7 @@ import {
   type CharacterChoices,
   type Content,
   type CreationProblem,
+  type FeatChoice,
   type FeatureDefinition,
   type GameEvent,
 } from '@ie/engine';

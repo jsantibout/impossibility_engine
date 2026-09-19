@@ -83,7 +83,7 @@ const CIRCLET: CatalogueItem = {
   armor: null,
   weapon: null,
   contents: [],
-  attunement: { required: true },
+  attunement: {},
   grants: [
     {
       kind: 'standing',
