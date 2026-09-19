@@ -1143,10 +1143,14 @@ export type MarkerId = (typeof MECHANICAL_MARKERS)[number][0];
  *
  * {@link markersIn} asks the same question of {@link CLAUSE_MARKERS}, which is
  * a different list for a different population, and the two were never going to
- * be one. What was two spellings until now is *this* one: the report, the
- * tracked bucket's coverage guard and the marker-less entry rule all ask which
- * mechanical markers a run of text trips, and a copy that drifted would let an
- * entry be filed marker-less against a sentence another copy could see.
+ * be one. This is the other list, and it has three callers that must agree:
+ * {@link unansweredMarkers}, which demands an adjudication for every marker a
+ * spell's prose trips; {@link misanchoredAdjudications}, which refuses a
+ * marker-less entry over a sentence the markers can see; and
+ * `spell-tracking.test.ts`, which measures how much of the book they fire on.
+ * A copy that drifted would let an entry be filed marker-less against a
+ * sentence another copy could see, which is exactly the hole the marker-less
+ * form would then be.
  */
 export const mechanicalMarkersIn = (text: string): readonly MarkerId[] =>
   MECHANICAL_MARKERS.filter(([, pattern]) => pattern.test(text)).map(([marker]) => marker);
@@ -4293,10 +4297,23 @@ export interface MisanchoredAdjudication {
  * Every tracked adjudication of this spell the anchoring rule refuses.
  *
  * One function for both entry forms, because they are one rule read two ways:
- * an entry names one printed unit, and it says truthfully whether the markers
- * can see that unit. A marker entry must sit in a unit tripping its own marker;
- * a marker-less one must sit in a unit tripping none, and must name a shape
- * that is actually missing.
+ * an entry names one **sentence** of the spell's prose, and it says truthfully
+ * whether the markers can see that sentence. A marker entry must sit in a
+ * sentence tripping its own marker; a marker-less one must sit in a sentence
+ * tripping none, and must name a shape that is actually missing.
+ *
+ * ### A printed field is not an anchor here, and that is the whole of why
+ *
+ * `Casting Time: Action` trips no `MECHANICAL_MARKERS` pattern and never will,
+ * so a field is a **permanently marker-free anchor on every spell in the
+ * book** — and a marker-less entry written against one would keep any shape
+ * claimed forever without anybody reading a paragraph. That is the unclaimed
+ * rule rotting from the other end. So the phrase must occur exactly once
+ * across the printed units, which is one question asked of every population
+ * and where a field is a legitimate place for a *blocker* to be printed, and
+ * then the unit the marker rule reads must be a sentence.
+ * {@link BlockedClause} is the entry form for a blocker a field prints —
+ * Hallow's twenty-four hours — and it needs no marker to begin with.
  *
  * Parameterised over the entries for the reason {@link sentenceGaps} is: a
  * guard that can only be run against the data it already agrees with is not a
@@ -4308,6 +4325,7 @@ export const misanchoredAdjudications = (
   entries: readonly TrackedAdjudication[] = TRACKED_ADJUDICATED[spellId] ?? [],
 ): readonly MisanchoredAdjudication[] => {
   const units = printedUnitsOf(spellId);
+  const sentences = sentencesOf(spellId);
   const found: MisanchoredAdjudication[] = [];
   const complain = (clause: string, complaint: string) =>
     found.push({ spell: spellId, clause, complaint });
@@ -4322,7 +4340,14 @@ export const misanchoredAdjudications = (
       );
       continue;
     }
-    const unit = units.find((text) => text.includes(phrase))!;
+    const unit = sentences.find((text) => text.includes(phrase));
+    if (unit === undefined) {
+      complain(
+        entry.clause,
+        'it is in no sentence of the prose: a printed field trips no marker, so an entry anchored to one says nothing either rule can read',
+      );
+      continue;
+    }
     const named = mechanicalMarkersIn(unit);
     if (entry.marker === null) {
       if (named.length > 0) {

@@ -17,9 +17,9 @@ import {
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import {
-  MECHANICAL_MARKERS,
   MISSING_SHAPES,
   TRACKED_ADJUDICATED as ADJUDICATED,
+  mechanicalMarkersIn,
   misanchoredAdjudications,
   unanchoredPhrases,
   unansweredMarkers,
@@ -409,11 +409,20 @@ const PROSE: ReadonlyMap<string, string> = new Map(
  */
 const PARSED: readonly string[] = [...PROSE.keys()].sort();
 
-/** The mechanical clauses the SRD's own text for this spell contains. */
+/**
+ * The mechanical clauses the SRD's own text for this spell contains.
+ *
+ * Through `mechanicalMarkersIn` rather than by filtering `MECHANICAL_MARKERS`
+ * here: this file used to hold the only copy of that expression, and the day a
+ * tracked entry was allowed to say *no marker sees this sentence* there were
+ * two — one deciding whether an entry may be filed marker-less, and this one
+ * deciding whether the book trips anything. Two copies of that question is how
+ * the marker-less form becomes a hole.
+ */
 const markersIn = (spellId: string): readonly MarkerId[] => {
   const text = PROSE.get(spellId);
   if (text === undefined) throw new Error(`${spellId} is not in the parsed SRD`);
-  return MECHANICAL_MARKERS.filter(([, pattern]) => pattern.test(text)).map(([marker]) => marker);
+  return mechanicalMarkersIn(text);
 };
 
 describe('a tracked spell may not hide a rule the engine owns', () => {

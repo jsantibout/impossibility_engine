@@ -161,6 +161,39 @@ describe('the marker-less form cannot silence the rule beside it', () => {
     }
   });
 
+  /**
+   * And a **printed field** is not an anchor, which is the same hole reached
+   * from the other side.
+   *
+   * `Casting Time: Action` trips no marker and never will, so every spell in
+   * the book carries a permanently marker-free unit — and an entry written
+   * against one would keep any shape claimed forever without anybody having
+   * read a paragraph. That is the unclaimed rule rotting from the end this
+   * form was built to stop it rotting from. A blocker a field prints has an
+   * entry form already: `BlockedClause`, which Hallow's twenty-four hours
+   * uses and which needs no marker to begin with.
+   */
+  it('refuses an entry anchored to a printed field', () => {
+    for (const marker of [null, 'condition'] as const) {
+      const found = misanchoredAdjudications(
+        'flesh-to-stone',
+        synthetic({ marker, clause: 'Range: 60 feet' }),
+      );
+      expect(found, `${marker}`).toHaveLength(1);
+      expect(found[0]?.complaint, `${marker}`).toContain('no sentence of the prose');
+    }
+  });
+
+  /** And no entry in the map is anchored to one, so the rule costs nothing. */
+  it('anchors every written entry to a sentence', () => {
+    const fields = Object.entries(TRACKED_ADJUDICATED).flatMap(([spellId, written]) =>
+      written
+        .filter((entry) => !sentencesOf(spellId).some((text) => text.includes(entry.clause)))
+        .map((entry) => `${spellId}: ${entry.clause}`),
+    );
+    expect(fields).toEqual([]);
+  });
+
   /** A phrase the spell does not print exactly once is refused as it always was. */
   it('refuses a marker-less entry anchored to nothing', () => {
     const found = misanchoredAdjudications(
