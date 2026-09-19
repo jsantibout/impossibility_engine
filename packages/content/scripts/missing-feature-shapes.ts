@@ -89,7 +89,7 @@ export const FEATURE_SHAPES = {
   'a-weapon-mastery-property':
     'Cleave, Graze, Nick, Push, Sap, Slow, Topple and Vex are parsed onto the weapons that print them and executed by nothing, and no feature records **which** weapons a character has mastery with. Five classes print the feature and a sixth swaps one property for another. `FeatureGrant` in packages/engine/src/progression.ts is the list of what a feature may do — "Deliberately few. A feature whose effect does not fit one of these is `automation: \'manual\'` with a note saying what a DM still has to do" — and a mastery is not on it, at either end: neither the choice of weapons nor the property\'s own rule.',
   'a-grant-read-off-a-feat':
-    'a grant read off a **feat**. Both advancement sentences are printed on a feat rather than on the class feature that hands one out — SRD writes level 4 as "You gain the Ability Score Improvement feat ... or another feat of your choice for which you qualify", and it is the feat that says "Increase one ability score of your choice by 2, or increase two ability scores of your choice by 1", exactly as each Epic Boon rather than the level 19 feature says "Increase one ability score of your choice by 1, to a maximum of 30". The vocabulary for the points and for the lifted ceiling exists and two level 20 capstones use it; what is missing is the host. packages/engine/src/content.ts closes the door and names the key: FEAT_GRANT_KINDS holds one member because "a feat is not a feature and goes through none of that", so "a feat declaring anything else is refused rather than accepted and never executed", and this catalogue publishes neither the Ability Score Improvement feat nor any Epic Boon for one to sit on.',
+    'a grant read off a **feat**, and a question asked of one. Both advancement sentences are printed on a feat rather than on the class feature that hands one out — SRD writes level 4 as "You gain the Ability Score Improvement feat ... or another feat of your choice for which you qualify", and it is the feat that says "Increase one ability score of your choice by 2, or increase two ability scores of your choice by 1", exactly as each Epic Boon rather than the level 19 feature says "Increase one ability score of your choice by 1, to a maximum of 30". The *grant* for the points and the lifted ceiling exists and the two level 20 capstones use it; a feat can neither carry it nor ask anything. packages/engine/src/content.ts closes the first door and names the key: FEAT_GRANT_KINDS holds one member because "a feat is not a feature and goes through none of that", so "a feat declaring anything else is refused rather than accepted and never executed". The second is that a feat declares only what it requires and what it grants, and neither of those is a question about an ability, which both sentences above ask. And this catalogue publishes neither the Ability Score Improvement feat nor any Epic Boon for one to sit on.',
   'a-saving-throw-a-feature-forces':
     'a feature that makes **somebody else** roll. A casting forces a save through its definition and an item through a `save` conferral; packages/engine/src/content.ts enumerates what an item\'s readers run — "only a standing grant, a charge pool, a spell it casts and the effects it confers are read from one" — and a class feature reaches none of those, so a Breath Weapon, a Stunning Strike and a Channel Divinity that Frightens have a printed DC and nothing to roll it against.',
   'a-condition-a-feature-imposes':
@@ -249,6 +249,11 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       why: 'table',
       note: 'a feat that does nothing is that feat’s debt, and a feat declares no automation for anything to count.',
     },
+    {
+      clause: 'this catalogue holds one entry for it',
+      why: 'expressible',
+      note: 'the repeats at the later levels, which four entries with their own ids would say today with no engine change — a transcription this catalogue owes rather than a mechanic it lacks.',
+    },
   ],
   'barbarian:instinctive-pounce': [
     {
@@ -407,6 +412,11 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       why: 'table',
       note: 'a feat that does nothing is that feat’s debt, and a feat declares no automation for anything to count.',
     },
+    {
+      clause: 'this catalogue holds one entry for it',
+      why: 'expressible',
+      note: 'the repeats at the later levels, which four entries with their own ids would say today with no engine change — a transcription this catalogue owes rather than a mechanic it lacks.',
+    },
   ],
   'bard:font-of-inspiration': [
     {
@@ -511,6 +521,11 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'Whether a feat does anything is a property of the feat, not of this feature',
       why: 'table',
       note: 'a feat that does nothing is that feat’s debt, and a feat declares no automation for anything to count.',
+    },
+    {
+      clause: 'this catalogue holds one entry for it',
+      why: 'expressible',
+      note: 'the repeats at the later levels, which four entries with their own ids would say today with no engine change — a transcription this catalogue owes rather than a mechanic it lacks.',
     },
   ],
   'cleric:sear-undead': [
@@ -638,6 +653,11 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       why: 'table',
       note: 'a feat that does nothing is that feat’s debt, and a feat declares no automation for anything to count.',
     },
+    {
+      clause: 'this catalogue holds one entry for it',
+      why: 'expressible',
+      note: 'the repeats at the later levels, which four entries with their own ids would say today with no engine change — a transcription this catalogue owes rather than a mechanic it lacks.',
+    },
   ],
   'druid:wild-resurgence': [
     {
@@ -715,6 +735,11 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'Whether a feat does anything is a property of the feat, not of this feature',
       why: 'table',
       note: 'a feat that does nothing is that feat’s debt, and a feat declares no automation for anything to count.',
+    },
+    {
+      clause: 'this catalogue holds one entry for it',
+      why: 'expressible',
+      note: 'the repeats at the later levels, which four entries with their own ids would say today with no engine change — a transcription this catalogue owes rather than a mechanic it lacks.',
     },
   ],
   'fighter:tactical-shift': [
@@ -800,6 +825,11 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'Whether a feat does anything is a property of the feat, not of this feature',
       why: 'table',
       note: 'a feat that does nothing is that feat’s debt, and a feat declares no automation for anything to count.',
+    },
+    {
+      clause: 'this catalogue holds one entry for it',
+      why: 'expressible',
+      note: 'the repeats at the later levels, which four entries with their own ids would say today with no engine change — a transcription this catalogue owes rather than a mechanic it lacks.',
     },
   ],
   'monk:slow-fall': [
@@ -965,6 +995,11 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       why: 'table',
       note: 'a feat that does nothing is that feat’s debt, and a feat declares no automation for anything to count.',
     },
+    {
+      clause: 'this catalogue holds one entry for it',
+      why: 'expressible',
+      note: 'the repeats at the later levels, which four entries with their own ids would say today with no engine change — a transcription this catalogue owes rather than a mechanic it lacks.',
+    },
   ],
   'paladin:faithful-steed': [
     {
@@ -1096,6 +1131,11 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'Whether a feat does anything is a property of the feat, not of this feature',
       why: 'table',
       note: 'a feat that does nothing is that feat’s debt, and a feat declares no automation for anything to count.',
+    },
+    {
+      clause: 'this catalogue holds one entry for it',
+      why: 'expressible',
+      note: 'the repeats at the later levels, which four entries with their own ids would say today with no engine change — a transcription this catalogue owes rather than a mechanic it lacks.',
     },
   ],
   'ranger:tireless': [
@@ -1248,6 +1288,11 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'Whether a feat does anything is a property of the feat, not of this feature',
       why: 'table',
       note: 'a feat that does nothing is that feat’s debt, and a feat declares no automation for anything to count.',
+    },
+    {
+      clause: 'this catalogue holds one entry for it',
+      why: 'expressible',
+      note: 'the repeats at the later levels, which four entries with their own ids would say today with no engine change — a transcription this catalogue owes rather than a mechanic it lacks.',
     },
   ],
   'rogue:cunning-strike': [
@@ -1446,6 +1491,11 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       why: 'table',
       note: 'a feat that does nothing is that feat’s debt, and a feat declares no automation for anything to count.',
     },
+    {
+      clause: 'this catalogue holds one entry for it',
+      why: 'expressible',
+      note: 'the repeats at the later levels, which four entries with their own ids would say today with no engine change — a transcription this catalogue owes rather than a mechanic it lacks.',
+    },
   ],
   'sorcerer:sorcery-incarnate': [
     {
@@ -1540,6 +1590,11 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'Whether a feat does anything is a property of the feat, not of this feature',
       why: 'table',
       note: 'a feat that does nothing is that feat’s debt, and a feat declares no automation for anything to count.',
+    },
+    {
+      clause: 'this catalogue holds one entry for it',
+      why: 'expressible',
+      note: 'the repeats at the later levels, which four entries with their own ids would say today with no engine change — a transcription this catalogue owes rather than a mechanic it lacks.',
     },
   ],
   'warlock:contact-patron': [
@@ -1640,6 +1695,11 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'Whether a feat does anything is a property of the feat, not of this feature',
       why: 'table',
       note: 'a feat that does nothing is that feat’s debt, and a feat declares no automation for anything to count.',
+    },
+    {
+      clause: 'this catalogue holds one entry for it',
+      why: 'expressible',
+      note: 'the repeats at the later levels, which four entries with their own ids would say today with no engine change — a transcription this catalogue owes rather than a mechanic it lacks.',
     },
   ],
   'wizard:memorize-spell': [

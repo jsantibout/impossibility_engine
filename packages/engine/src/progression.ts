@@ -78,14 +78,26 @@ export type FeatureChoice =
   | { readonly kind: 'subclass'; readonly choose: 1 }
   | { readonly kind: 'feat'; readonly choose: number; readonly category?: string }
   /**
-   * Points of ability score, spread the way the feature's own sentence
+   * Points of ability score, spread the way the sentence that grants them
    * spreads them.
    *
-   * SRD Ability Score Improvement: "increase one ability score of your choice
-   * by 2, or increase two ability scores of your choice by 1 each"; an Epic
-   * Boon: "Increase one ability score of your choice by 1". Every class prints
-   * both and neither was sayable, so every Improvement in the catalogue
-   * offered the feat half and refused the other.
+   * The **Ability Score Improvement feat**: "Increase one ability score of
+   * your choice by 2, or increase two ability scores of your choice by 1."
+   * Every Epic Boon feat: "Increase one ability score of your choice by 1, to
+   * a maximum of 30." Both are printed on a *feat*, and the class feature at
+   * level 4 or 19 only grants one — which is why no SRD class feature carries
+   * this member and the two that raise scores on the feature itself, the
+   * level 20 capstones, name their scores outright with an
+   * `ability-score-increase` grant instead.
+   *
+   * **So the catalogue's own user of this member is not here yet**, and that
+   * is the honest state of it: a feat can neither be asked a question nor
+   * have a grant read off it — `FeatDefinition` carries `requires` and one
+   * `grants`, `FeatRequirement` has three members and none is an ability, and
+   * `FEAT_GRANT_KINDS` admits one kind. What holds it up meanwhile is the
+   * standard this repository holds new vocabulary to: a reader, a validator
+   * that refuses eight malformed shapes by name, and a homebrew class driving
+   * it through `loadContent`.
    *
    * **Answered one ability per point.** `featureChoices` is a list of strings
    * and a point is the unit the sentence counts in, so `['str', 'str']` is
@@ -109,13 +121,24 @@ export type FeatureChoice =
        */
       readonly spreads: readonly (readonly number[])[];
       /**
-       * That the same sentence offers a feat instead — SRD: "or another feat
-       * of your choice for which you qualify", and an Epic Boon's category.
+       * That the same sentence offers a feat *instead of* the points.
        *
        * The fork is unambiguous because the two halves are answered in
        * different places: the scores go in `featureChoices` and the feat in
        * `feats`, both keyed by this feature's id. `checkCharacter` refuses
        * neither and refuses both.
+       *
+       * **Nothing in the SRD catalogue writes it, and it may never.** It was
+       * added reading the level 4 feature as "points, or a feat" — which the
+       * book does not say: the class feature grants a feat and the feat
+       * carries the points, so the fork is between two *feats* and
+       * `kind: 'feat'` already says it. When the Ability Score Improvement
+       * feat is published it will ask which scores and offer no alternative,
+       * so this field will still have no user. It survives for a homebrew
+       * class that writes the older sentence, which is the one thing it is
+       * good for; a member with no writer at all is a guess dressed up as a
+       * structure, and whether this is one is a call for whoever next owns
+       * this file.
        */
       readonly orFeat?: { readonly category?: string };
     };

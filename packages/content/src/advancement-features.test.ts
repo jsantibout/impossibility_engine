@@ -42,8 +42,9 @@ import {
  * The vocabulary is not idle for it — the capstones use the grant, and
  * `packages/engine/src/ability-score-improvement.test.ts` drives the choice,
  * the spreads, the cap and the lifted ceiling through a homebrew class and
- * `loadContent`. What is missing is the **host**, which is one blocker with
- * its own id on the map now.
+ * `loadContent`. What is missing is the **host**, and it is missing twice
+ * over: a feat cannot have a grant read off it and cannot be asked a
+ * question. That is one blocker with its own id on the map now.
  */
 
 /**
@@ -94,8 +95,7 @@ const featureOn = (classId: string, suffix: string): FeatureDefinition => {
  *
  * It carries **no grant**, and could not: `FEAT_GRANT_KINDS` admits one kind,
  * so the sentence the book prints on it is refused by name — which the last
- * test in the first block asserts, because that refusal is the specification
- * for the brief that finishes this. So the boon's own +1 is not applied here
+ * test in the first block asserts. So the boon's own +1 is not applied here
  * and the capstone's four points are.
  */
 const BOON_OF_MIGHT: FeatDefinition = {
@@ -271,16 +271,24 @@ describe('the twenty-four class features grant a feat, and say so', () => {
   });
 
   /**
-   * And the refusal that is the specification for finishing this.
+   * One of the two refusals that stand between the vocabulary and its host.
    *
-   * The vocabulary exists and the host does not: a feat that declares the
-   * sentence the book prints on it is refused by name, because
-   * `FEAT_GRANT_KINDS` admits one kind and creation reads a feat's
-   * declaration on its own. Pinning it here means the follow-up — publish the
-   * Ability Score Improvement feat and the nine Epic Boons, and teach
-   * creation to read a feat's grants — fails this test until it lands.
+   * A feat that declares the sentence the book prints on it is refused by
+   * name, because `FEAT_GRANT_KINDS` admits one kind and creation reads a
+   * feat's declaration on its own. Pinning it here means the follow-up fails
+   * this test until it lands.
+   *
+   * **It is not the whole of the work**, and saying so is the point of the
+   * comment: both printed sentences say "of your choice", and a feat has no
+   * way to ask. `FeatDefinition` carries `requires` and one `grants`;
+   * `FeatRequirement` has three members and none of them is an ability; and
+   * `FeatChoice` — the answer bag beside them — has a field per existing
+   * requirement and none for a score. So the brief that finishes this owns
+   * both `origins.ts` files, publishes the Ability Score Improvement feat and
+   * the nine Epic Boons, adds the requirement and the answer, and teaches
+   * creation to read an `ability-score-increase` grant off a feat.
    */
-  it('refuses the grant a boon feat would need, which is the work left', () => {
+  it('refuses the grant a boon feat would need, which is half the work left', () => {
     const declaring = {
       ...BOON_OF_MIGHT,
       grants: { kind: 'ability-score-increase', maximum: 30 },

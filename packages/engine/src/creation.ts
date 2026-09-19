@@ -375,8 +375,9 @@ function resolveParts(content: Content, choices: CharacterChoices): { parts: Par
  * The points one feature adds to ability scores, from what the player chose
  * and from what the feature names outright.
  *
- * SRD writes both halves of the same subject — "increase one ability score of
- * your choice by 2, or two by 1 each" is asked, and Primal Champion's "Your
+ * SRD writes both halves of the same subject: the Ability Score Improvement
+ * feat's "Increase one ability score of your choice by 2, or increase two
+ * ability scores of your choice by 1" is asked, and Primal Champion's "Your
  * Strength and Constitution scores increase by 4" is not — and `checkContent`
  * refuses a feature that does both, so at most one branch here contributes.
  *
