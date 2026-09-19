@@ -18,7 +18,7 @@
 import { ABILITY_NAMES, type CharacterId, ok, type Result } from '@ie/shared';
 import { type D20TestResult, rollSavingThrow } from '../checks.js';
 import { applyEvent, type CreatureState, type GameState } from '../events.js';
-import { armorClassOf, speedOf } from '../standing.js';
+import { armorClassOf, sheetAsItStands, speedOf } from '../standing.js';
 import { recordD20Test, savingSupport } from './rolls.js';
 import { type EffectContext, type EffectOfKind } from './spell-effect-context.js';
 
@@ -38,12 +38,22 @@ export function resolveBuffEffect(
   let save: D20TestResult | null = null;
   if (effect.ability !== undefined) {
     const support = savingSupport(current, target, victim, effect.ability, supply);
-    const rolled = rollSavingThrow(supply.issuer, supply.rng, victim.sheet, effect.ability, {
-      dc: saveDc,
-      conditions: support.conditions,
-      modes: support.modes,
-      bonuses: support.bonuses,
-    });
+    // The victim's sheet as it stands: an item that *sets* the score this save
+    // is made with is on the creature, and `checks.ts` takes a sheet. Read off
+    // `current` rather than the world this effect started in, because an
+    // earlier effect in the same casting may already have moved it.
+    const rolled = rollSavingThrow(
+      supply.issuer,
+      supply.rng,
+      sheetAsItStands(current, target) ?? victim.sheet,
+      effect.ability,
+      {
+        dc: saveDc,
+        conditions: support.conditions,
+        modes: support.modes,
+        bonuses: support.bonuses,
+      },
+    );
     if (!rolled.ok) return rolled;
     save = rolled.value;
 

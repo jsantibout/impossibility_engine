@@ -56,7 +56,7 @@ import { type Rng } from '../dice.js';
 import { type CommandStamp, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import { type RollIssuer } from '../rolls.js';
-import { effectiveConditions, rollModesFor } from '../standing.js';
+import { effectiveConditions, rollModesFor, sheetAsItStands } from '../standing.js';
 import { type Supply } from './casting.js';
 import { creatureOf, unknownCreature } from './command.js';
 import { checkBonuses } from './rolls.js';
@@ -112,7 +112,11 @@ export function rollInitiativeFor(
     else named.set(mode.source, mode);
   }
 
-  return rollInitiative(issuer, rng, id, creature.sheet, {
+  // SRD makes Initiative a Dexterity check, so the Dexterity it reads is the
+  // one the creature has rather than the one they were built with: Boots that
+  // *set* a Dexterity move this roll the way they move an Armour Class. The
+  // same object comes back when nothing is setting a score.
+  return rollInitiative(issuer, rng, id, sheetAsItStands(state, id) ?? creature.sheet, {
     ...options,
     conditions: options.conditions ?? effectiveConditions(state, id),
     bonuses: [...supplied, ...mine],

@@ -34,15 +34,16 @@ import {
  * - **The modifier moves with it**, because a score is not a number on its
  *   own.
  *
- * **How far the third one reaches, said plainly.** Two readers move with a
- * set score, both in `standing.ts`: `armorClassOf`, which asks
- * `sheetAsItStands` because it wants a whole sheet, and
+ * **What this file drives, and what drives the rest.** Two readers in
+ * `standing.ts` move with a set score and are proved here: `armorClassOf`,
+ * which asks `sheetAsItStands` because it wants a whole sheet, and
  * `standingSaveBonuses`, which asks `abilityScoresOf` because it wants one
- * holder's one score. `attack.ts`, `checks.ts` and every command above them
- * read `creature.sheet` directly, so an ability check made with a set
- * Strength still rolls the stored one. Those files were not this batch's to
- * change; the tests below say which side of that line each of them is on
- * rather than implying the whole pipeline moved.
+ * holder's one score. The rollers above them — an attack, its damage, an
+ * ability check, a saving throw, Initiative — move too, and are driven
+ * through the public commands in `set-score-reaches-the-roll.test.ts`,
+ * because `attack.ts` and `checks.ts` take a sheet and hold no state: the
+ * substitution is the command's to make. `sheetAsItStands` names what is
+ * still outside it.
  *
  * Driven through homebrew items for `content.test.ts`'s reason — a mechanic
  * proved only against the book's own catalogue is a mechanic that might be
@@ -247,9 +248,9 @@ describe('a score an item sets', () => {
   });
 
   /**
-   * The modifier on the sheet `sheetAsItStands` hands back — **not** on the
-   * one a roll reads today. `rollAbilityCheck` is given `creature.sheet` by
-   * its command, and that is the gap this file's header names.
+   * The modifier on the sheet `sheetAsItStands` hands back, which is the one
+   * `rollAbilityCheck` is now given: the stored sheet keeps the built score,
+   * and the substituted one carries the worn score down to the die.
    */
   it('moves the modifier on the sheet a reader is handed', () => {
     const state = wearing(BRACERS.id);
@@ -511,6 +512,14 @@ describe('the three SRD items the grant frees', () => {
   /**
    * And what each of them still does not do, recorded rather than implied:
    * three records carry the note, and it is the same note.
+   *
+   * **The note as written is now out of date and this assertion pins it.** It
+   * says an ability check, a saving throw and an attack roll are rolled off
+   * the built score "because `checks.ts` and `attack.ts` are handed
+   * `creature.sheet` by their commands", and they no longer are — the commands
+   * hand them {@link sheetAsItStands}. Rewording it is a `packages/content`
+   * change, which this batch did not own; when it happens, the string this
+   * matches on moves with it.
    */
   it('says in the catalogue how far the set reaches', () => {
     for (const { id } of PRINTED) {

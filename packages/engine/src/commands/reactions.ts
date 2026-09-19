@@ -53,7 +53,12 @@ import {
 } from '../reactions.js';
 import { remaining } from '../resources.js';
 import { type Content } from '../content.js';
-import { defensesOf, effectiveConditions, rollModesFor } from '../standing.js';
+import {
+  defensesOf,
+  effectiveConditions,
+  rollModesFor,
+  sheetAsItStands,
+} from '../standing.js';
 import { type AttackResolution, resolveAttack } from './attacks.js';
 import {
   type ConcentrationConsequence,
@@ -150,7 +155,12 @@ export function takeDamageReaction(
       total: heldDamageTotal(pending),
     };
     const amount = feature.does.amount;
-    const addends = reactionAddends(amount, creature.sheet.abilities);
+    // The scores as they stand: `ReactionAddend` says its ability case is
+    // "resolved when the die is thrown rather than at creation", and an item
+    // that *sets* a score is the same kind of fact as the class table it was
+    // written to outlive.
+    const abilities = (sheetAsItStands(state, reactor) ?? creature.sheet).abilities;
+    const addends = reactionAddends(amount, abilities);
     // SRD Uncanny Dodge: "halve the attack's damage against you (**round
     // down**)". What is taken off is therefore the upper half, which is what
     // makes an odd total round the target's way.
@@ -175,12 +185,7 @@ export function takeDamageReaction(
       label: feature.name,
       natural: applied.roll?.total ?? 0,
       total: applied.amount,
-      contributions: reactionContributions(
-        amount,
-        creature.sheet.abilities,
-        applied.roll?.total ?? 0,
-        halved,
-      ),
+      contributions: reactionContributions(amount, abilities, applied.roll?.total ?? 0, halved),
       outcome: `${applied.amount} damage prevented`,
     });
 
@@ -441,7 +446,11 @@ export function resolveTest(
 
     // Everything standing on this creature — a Paladin's aura, Bless, the
     // feature that grants Advantage on this very skill — read rather than
-    // remembered, which is the rule every roll in this engine follows.
+    // remembered, which is the rule every roll in this engine follows. The
+    // *score* is read the same way: an item that sets a Strength is standing
+    // on the creature too, and `checks.ts` takes a sheet, so the substitution
+    // is made here rather than by teaching the roller about items.
+    const sheet = sheetAsItStands(state, who) ?? creature.sheet;
     const rolled =
       command.kind === 'saving-throw'
         ? (() => {
@@ -449,14 +458,14 @@ export function resolveTest(
               modes: saidModes,
               bonuses: saidBonuses,
             });
-            return rollSavingThrow(supply.issuer, supply.rng, creature.sheet, command.ability, {
+            return rollSavingThrow(supply.issuer, supply.rng, sheet, command.ability, {
               dc: command.dc,
               conditions: support.conditions,
               modes: support.modes,
               bonuses: support.bonuses,
             });
           })()
-        : rollAbilityCheck(supply.issuer, supply.rng, creature.sheet, command.ability, {
+        : rollAbilityCheck(supply.issuer, supply.rng, sheet, command.ability, {
             dc: command.dc,
             ...(command.skill === undefined ? {} : { skill: command.skill }),
             conditions: effectiveConditions(state, who),
@@ -577,6 +586,9 @@ export function takeTestReaction(
 
     const issuedBefore = supply.issuer.count;
     const does = feature.does;
+    // As it stands, for the reason `takeDamageReaction` reads it that way: an
+    // ability addend is resolved at the moment the die is thrown.
+    const sheet = sheetAsItStands(state, reactor) ?? creature.sheet;
 
     let pushed: Result<D20TestResult>;
     if (does.kind === 'reroll') {
@@ -589,11 +601,11 @@ export function takeTestReaction(
           ? undefined
           : {
               source: feature.name,
-              flat: bonus.kind === 'level' ? bonus.level : modifierFor(creature.sheet, bonus.ability),
+              flat: bonus.kind === 'level' ? bonus.level : modifierFor(sheet, bonus.ability),
             },
       );
     } else {
-      const addends = reactionAddends(does.amount, creature.sheet.abilities);
+      const addends = reactionAddends(does.amount, sheet.abilities);
       pushed = interveneAfterRoll(supply.issuer, supply.rng, pending.result, {
         source: feature.name,
         direction: does.direction,

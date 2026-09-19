@@ -37,6 +37,7 @@ import {
   armorClassOf,
   checkFeatureDamageTypes,
   effectiveConditions,
+  sheetAsItStands,
   standingAttackDamage,
   standingBonuses,
 } from '../standing.js';
@@ -190,6 +191,13 @@ export function resolveAttack(
 
     const attacker = creatureOf(state, id);
     if (attacker === null) return unknownCreature(id, 'has no record here yet; add it first');
+    // The sheet as it stands, not the one the character was built with: a Belt
+    // of Giant Strength sets a Strength and `attack.ts` takes a sheet, so the
+    // substitution is made here, where the state is, rather than by teaching
+    // the roller to read items. The same object comes back for a creature
+    // nothing is setting a score on, which is nearly every creature in nearly
+    // every fight.
+    const sheet = sheetAsItStands(state, id) ?? attacker.sheet;
     // Not a claim that no such creature exists. A DM who has just narrated a
     // second ogre out of the treeline has a real ogre; the engine has simply not
     // been told about it, and being told is all this refusal asks for.
@@ -240,7 +248,7 @@ export function resolveAttack(
       const spent = spendAttack(
         state.combat,
         id,
-        attacker.sheet.attacksPerAction ?? 1,
+        sheet.attacksPerAction ?? 1,
         attacker.conditions,
         { rules: attacker.actionRules },
       );
@@ -285,12 +293,10 @@ export function resolveAttack(
     const swing: AttackOptions = {
       weapon,
       targetAc: armorClassOf(state, command.target) + coverAcBonus(cover),
-      proficient: proficientWith(attacker.sheet, weapon),
+      proficient: proficientWith(sheet, weapon),
       // SRD Improved Critical, off the attacker's own sheet rather than the
       // caller's hand: a Champion's 19 is a critical whoever is narrating.
-      ...(attacker.sheet.criticalOn === undefined
-        ? {}
-        : { criticalOn: attacker.sheet.criticalOn }),
+      ...(sheet.criticalOn === undefined ? {} : { criticalOn: sheet.criticalOn }),
       ...(command.twoHanded === undefined ? {} : { twoHanded: command.twoHanded }),
       ...(command.thrown === undefined ? {} : { thrown: command.thrown }),
       ...(command.finesseAbility === undefined ? {} : { finesseAbility: command.finesseAbility }),
@@ -307,7 +313,7 @@ export function resolveAttack(
       ...(withinFiveFeet === undefined ? {} : { withinFiveFeet }),
     };
 
-    const attack = rollAttack(supply.issuer, supply.rng, attacker.sheet, swing);
+    const attack = rollAttack(supply.issuer, supply.rng, sheet, swing);
     if (!attack.ok) return attack;
 
     // **A weapon attack always names an ability.** `AttackResult.ability` is
@@ -315,7 +321,7 @@ export function resolveAttack(
     // attack comes through here — so this asks the same question of the same
     // options rather than widening `attack-landed` to carry a null it could
     // never hold.
-    const ability = attackAbility(attacker.sheet, swing);
+    const ability = attackAbility(sheet, swing);
 
     const namedFlat = attackBonuses.filter((bonus) => (bonus.flat ?? 0) !== 0);
 
@@ -405,7 +411,7 @@ export function resolveAttack(
     const rolled = rollAttackDamage(
       supply.issuer,
       supply.rng,
-      attacker.sheet,
+      sheet,
       {
         weapon,
         targetAc: attack.value.targetAc,
@@ -570,6 +576,13 @@ export function resolveAttackDamage(
 
     const attacker = creatureOf(state, id);
     if (attacker === null) return unknownCreature(id);
+    // The sheet as it stands, for `resolveAttack`'s reason: the damage carries
+    // an ability modifier, and a belt that sets the Strength is on the creature
+    // rather than on the sheet the character was built with. Read now rather
+    // than pinned when the hit landed — the SRD's benefit lasts "while you wear
+    // this", so an item taken off between the roll and the blow takes its
+    // modifier with it.
+    const sheet = sheetAsItStands(state, id) ?? attacker.sheet;
 
     const weapon = pending.weapon === null ? null : (supply.content.item(pending.weapon)?.weapon ?? null);
     const events: GameEvent[] = [];
@@ -608,7 +621,7 @@ export function resolveAttackDamage(
     const rolled = rollAttackDamage(
       supply.issuer,
       supply.rng,
-      attacker.sheet,
+      sheet,
       {
         weapon,
         targetAc: pending.targetAc,

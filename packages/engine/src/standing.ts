@@ -1299,14 +1299,30 @@ export function abilityScoresOf(
  * an empty list. A public export that threw where its neighbours degraded
  * would be a trap laid in the one function a caller is told to prefer.
  *
- * What this does **not** do is reach the readers that take a sheet straight
- * off the state. `attack.ts`, `checks.ts` and the commands above them read
- * `creature.sheet`, and threading this in there is a change to files this
- * did not own. Two things in this file move with a set score today —
- * `armorClassOf` through this function, and `standingSaveBonuses` through
- * {@link abilityScoresOf}, because it wants one holder's one score rather
- * than a sheet — so an Armour Class and an Aura of Protection follow a set
- * and an ability check does not yet.
+ * **The substitution is made where the state is, which is the commands.**
+ * `attack.ts`, `checks.ts` and `combat.ts` take a `CharacterSheet` and hold
+ * no `GameState`, and that is right rather than a gap: a roller that went
+ * looking for a worn item would be the second derivation this function exists
+ * to prevent. So each command asks here and hands the answer down, and an
+ * attack roll, the damage it carries, an ability check, a saving throw,
+ * Initiative, the save a spell rolls for its victim and the ability modifier a
+ * Reaction adds all move with a set score — alongside the two readers in this
+ * file that already did, `armorClassOf` through this function and
+ * `standingSaveBonuses` through {@link abilityScoresOf}, which wants one
+ * holder's one score rather than a sheet.
+ *
+ * **What is still outside it is the casting family**, named here rather than
+ * implied so the next batch has a list and not an impression: a spell's own
+ * numbers (`numbersFor` in `commands/spell-resolution.ts`, and
+ * `numbersForItem` for one an item casts), the attack and the saves its
+ * effects roll (`commands/spell-effect-rolls.ts`,
+ * `commands/spell-effect-magic.ts`), the Concentration save
+ * (`commands/casting.ts`), the check and the save a turn boundary repeats
+ * (`commands/turns.ts`) and a self-heal's addend (`commands/features.ts`).
+ * Each is the same one-line substitution as the ones above; none of them was
+ * this batch's to make. What is *not* a gap is `rollSpellDice`: it keeps only
+ * the components whose source is the spell, so no ability modifier reaches it
+ * and the sheet it is handed contributes nothing.
  */
 export function sheetAsItStands(state: GameState, who: CharacterId): CharacterSheet | null {
   const creature = state.creatures[who];
