@@ -319,6 +319,75 @@ describe('the die, thrown the way every non-d20 die is thrown', () => {
     );
     expect(sipped.some((event) => event.type === 'rolls-issued')).toBe(false);
   });
+
+  /**
+   * **And nothing rolled where the deadline is not filed at run time either.**
+   *
+   * The item prints the die and the drinker is already holding a bigger pool,
+   * so `grantTemporaryHp` keeps what it had, no timer is filed, and the die
+   * must stay in the cup: a generator moved for a deadline that was never
+   * written is the difference between a log that replays and one that does
+   * not. The same question the potion's hour is asked — the pool moving — and
+   * the reason the span is thrown at the first timer rather than at the sip.
+   */
+  it('throws no die where the grant it would measure was not taken', () => {
+    const pooled = LOADED(
+      conferring({
+        effects: [{ kind: 'temp-hp', amount: { flat: 8 }, addSpellcastingModifier: false }],
+      }),
+    );
+    const stocked: readonly GameEvent[] = [
+      ...held,
+      { type: 'temporary-hp-granted', id: DRINKER, amount: 20 },
+    ];
+
+    const kept = run(stocked, (s) => useItem(s, DRINKER, { item: DRAUGHT }, supply('span', pooled)));
+    expect(fold('seed', kept).creatures['drinker']!.vitals.temporaryHp).toBe(20);
+    expect(kept.some((event) => event.type === 'rolls-issued')).toBe(false);
+    expect(fold('seed', kept).timers).toEqual({});
+
+    // And the same draught over an empty cup does file one, and does roll for
+    // it — so the silence above is the pool's answer and not a dead field.
+    const taken = run(held, (s) => useItem(s, DRINKER, { item: DRAUGHT }, supply('span', pooled)));
+    expect(taken.filter((event) => event.type === 'rolls-issued')).toHaveLength(1);
+  });
+
+  /**
+   * **One sentence, one span, however many deadlines it measures.**
+   *
+   * A conferral that hangs a condition *and* a sourced grant files two timers
+   * out of one printed clause, and they are two kinds keyed two ways — the
+   * condition by its instance, the grants by their source. One die is thrown
+   * for both: a draught whose Poisoned wore off an hour before its Advantage
+   * did would be two lifetimes out of one sentence.
+   */
+  it('throws one die for a clause that files two kinds of deadline', () => {
+    const doubled = LOADED(
+      conferring({
+        effects: [
+          {
+            kind: 'roll-mode',
+            modifier: {
+              mode: 'disadvantage',
+              selector: { roll: 'ability-check', relation: 'roller', ability: 'str' },
+            },
+          },
+          { kind: 'condition', condition: { name: 'poisoned' } },
+        ],
+      }),
+    );
+    const sipped = run(held, (s) =>
+      useItem(s, DRINKER, { item: DRAUGHT }, supply('span', doubled)),
+    );
+
+    expect(sipped.filter((event) => event.type === 'roll-recorded')).toHaveLength(1);
+    const filed = sipped.filter((event) => event.type === 'effect-scheduled');
+    expect(filed.map((event) => (event as { target: { kind: string } }).target.kind).sort()).toEqual(
+      ['condition', 'grants'],
+    );
+    const deadlines = filed.map((event) => (event as { deadline: unknown }).deadline);
+    expect(deadlines[0]).toEqual(deadlines[1]);
+  });
 });
 
 describe('SRD Potion of Diminution, end to end', () => {

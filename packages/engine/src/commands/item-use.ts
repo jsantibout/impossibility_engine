@@ -144,6 +144,76 @@ function chargesForUse(
   return ok(spend);
 }
 
+/** How long a conferral's deadlines are measured out to. */
+type ConferredSpan = { readonly kind: 'seconds'; readonly seconds: number };
+
+/**
+ * How long what this item hangs lasts, or null where it hangs nothing that
+ * outlasts the moment.
+ *
+ * **One question with two answers**, because the SRD writes the same clause
+ * two ways: Potion of Heroism prints "for 1 hour" and Potion of Diminution
+ * rolls one — "for 1d4 hours". Which of the two an item is was settled by
+ * `checkContent`, which refuses a conferral that says both and one that says
+ * neither while hanging something, so the fork is taken here once and the
+ * three kinds of deadline below share whichever answer came back.
+ *
+ * **The die goes down the path a pool's dawn recovery goes down** —
+ * `rollRecorded`, then the roll, the issue and the consequence, in that order
+ * — and what reaches the fold is the deadline it decided rather than the dice
+ * it came from, so a replay reads the span out of the log instead of throwing
+ * a second, different one.
+ *
+ * **Thrown at the first deadline and not before.** A die thrown for a timer
+ * nobody files would move the generator for nothing, which is the quiet way a
+ * replay stops matching — the reason a full pool is not rolled for at dawn
+ * either. And thrown once: a draught whose condition and whose grant expired
+ * an hour apart would be two lifetimes out of one printed sentence.
+ */
+function spanOf(
+  conferral: ItemConfersGrant,
+  itemName: string,
+  who: CharacterId,
+  supply: Supply,
+  events: GameEvent[],
+): (() => Result<ConferredSpan>) | null {
+  const printed = conferral.durationSeconds;
+  if (printed !== undefined) {
+    const span: ConferredSpan = { kind: 'seconds', seconds: printed };
+    return () => ok(span);
+  }
+
+  const rolled = conferral.durationRolled;
+  if (rolled === undefined) return null;
+
+  let span: ConferredSpan | null = null;
+  return () => {
+    if (span !== null) return ok(span);
+    const issuedBefore = supply.issuer.count;
+    const thrown = rollRecorded(supply.issuer, supply.rng, rolled.dice);
+    if (!thrown.ok) return thrown;
+    const seconds = thrown.value.total * rolled.secondsEach;
+    events.push(
+      {
+        type: 'roll-recorded',
+        who,
+        label: `${itemName} lasts (${rolled.dice})`,
+        natural: thrown.value.total,
+        total: thrown.value.total,
+        contributions: [],
+        outcome: `${seconds} seconds`,
+      },
+      {
+        type: 'rolls-issued',
+        count: supply.issuer.count - issuedBefore,
+        rng: supply.rng.snapshot(),
+      },
+    );
+    span = { kind: 'seconds', seconds };
+    return ok(span);
+  };
+}
+
 /**
  * Drink a potion, or administer one — and everything else an item confers
  * without casting.
@@ -328,64 +398,10 @@ export function useItem(
     //
     // `checkContent` has already refused a conferral that hangs either and
     // names no duration, and one that names a duration and hangs nothing.
-    if (conferral.durationSeconds !== undefined || conferral.durationRolled !== undefined) {
+    const lastsFor = spanOf(conferral, item.name, id, supply, events);
+    if (lastsFor !== null) {
       const source = itemSource(item.id);
       const world = resolved.value.state;
-
-      // **The span, where the item's line rolls for one instead of printing
-      // it.** SRD Potion of Diminution: "for 1d4 hours". The die goes down the
-      // path a pool's dawn recovery goes down — `rollRecorded`, then the roll,
-      // the issue and the consequence, in that order — and what the fold reads
-      // is the deadline it decided rather than the dice it came from, so a
-      // replay cannot roll a second, different hour.
-      //
-      // **Once, and only if something is actually hung.** A die thrown for a
-      // deadline nobody files would move the generator for nothing, which is
-      // the quiet way a replay stops matching — the reason a full pool is not
-      // rolled for at dawn either. So the span is asked for at the first timer
-      // and remembered, and the three kinds of deadline below share the one
-      // answer: a draught whose condition and whose grant expired an hour
-      // apart would be two lifetimes out of one sentence.
-      const rolled = conferral.durationRolled;
-      let span: { readonly kind: 'seconds'; readonly seconds: number } | null =
-        conferral.durationSeconds === undefined
-          ? null
-          : { kind: 'seconds', seconds: conferral.durationSeconds };
-      const lastsFor = (): Result<{ readonly kind: 'seconds'; readonly seconds: number }> => {
-        if (span !== null) return ok(span);
-        // `checkContent` has refused a conferral that names neither, so this
-        // is a catalogue that did not come through the door — said as a value
-        // rather than asserted away, because the alternative is a deadline of
-        // `undefined` seconds reaching the fold.
-        if (rolled === undefined) {
-          return err(
-            'conferral_without_lifetime',
-            `${item.name} hangs a benefit no casting ends and its line says for how long nowhere`,
-          );
-        }
-        const issuedBefore = supply.issuer.count;
-        const thrown = rollRecorded(supply.issuer, supply.rng, rolled.dice);
-        if (!thrown.ok) return thrown;
-        const seconds = thrown.value.total * rolled.secondsEach;
-        events.push(
-          {
-            type: 'roll-recorded',
-            who: id,
-            label: `${item.name} lasts (${rolled.dice})`,
-            natural: thrown.value.total,
-            total: thrown.value.total,
-            contributions: [],
-            outcome: `${seconds} seconds`,
-          },
-          {
-            type: 'rolls-issued',
-            count: supply.issuer.count - issuedBefore,
-            rng: supply.rng.snapshot(),
-          },
-        );
-        span = { kind: 'seconds', seconds };
-        return ok(span);
-      };
 
       // **A condition is its own timer, keyed by the instance.** SRD Potion of
       // Invisibility: "you have the Invisible condition for 1 hour. The effect
