@@ -12,6 +12,7 @@ import { DODGE, DODGE_ACTION, READY, READY_ACTION } from '../actions.js';
 import {
   allowsPrice,
   dash,
+  isStatablePrice,
   disengage,
   spendAction,
   spendBonusAction,
@@ -124,6 +125,22 @@ export function takeDisengage(
     // allowance nobody invokes changes nothing, exactly as a Dodge nobody
     // takes does, and the engine never spends a slot the caller did not name.
     const from: ActionSlot = options.from ?? 'action';
+
+    // **A price with no spender is refused, not quietly rounded to the
+    // ordinary one.** The ternary below charges an Action for anything that
+    // is not a Bonus Action, so a caller asking to Disengage out of their
+    // Reaction used to have their *Action* taken — the substitution the
+    // options type promises never to make, arriving through a fall-through.
+    // `STATABLE_PRICES` is the one map of what a command will charge, and
+    // `checkSpellDefinition` refuses an allowance against the same one; this
+    // is the door, because a caller may state a price with no definition
+    // anywhere in it.
+    if (from !== 'action' && !isStatablePrice('disengage', from)) {
+      return err(
+        'no_such_price',
+        `Disengage cannot be paid for out of ${from}; this command charges an action, or a Bonus Action where something has allowed it`,
+      );
+    }
     if (from !== 'action') {
       const allowed = allowsPrice(id, 'disengage', from, creature.actionRules);
       if (!allowed.ok) return allowed;

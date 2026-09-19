@@ -23,6 +23,7 @@ import {
   takeDisengage,
   takeDodge,
   takeReady,
+  releaseReady,
 } from './commands.js';
 
 /**
@@ -203,6 +204,79 @@ const NIMBLE_STEP = JSON.stringify({
   ],
 });
 
+/**
+ * SRD Slow: "it can't take Reactions", and SRD Tsunami: "it can't move".
+ *
+ * Two slots the Action-shaped fixtures above never reach. One casting carries
+ * one rule — the fold keys a rule by its source, so a sentence naming two
+ * slots is one rule with two, which is exactly how the SRD writes Stinking
+ * Cloud's.
+ */
+const STILLING_WORD = JSON.stringify({
+  id: 'stilling-word',
+  name: 'Stilling Word',
+  level: 1,
+  school: 'enchantment',
+  castingTime: 'action',
+  concentration: true,
+  durationSeconds: 60,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 1 },
+  effects: [
+    {
+      kind: 'save',
+      ability: 'wis',
+      condition: 'poisoned',
+      modifiers: [
+        { kind: 'action', rule: { kind: 'forbids', slots: ['reaction', 'movement'] } },
+      ],
+    },
+  ],
+});
+
+/**
+ * SRD Befuddlement: the target "can't cast spells or take the Magic action".
+ *
+ * The **named** axis with no slot in it, which is the half of `forbids` the
+ * slot fixtures cannot reach: the Action slot stays open and the Magic action
+ * alone is gone.
+ */
+const BEFUDDLING_WORD = JSON.stringify({
+  id: 'befuddling-word',
+  name: 'Befuddling Word',
+  level: 1,
+  school: 'enchantment',
+  castingTime: 'action',
+  concentration: true,
+  durationSeconds: 60,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 1 },
+  effects: [
+    {
+      kind: 'save',
+      ability: 'wis',
+      condition: 'poisoned',
+      modifiers: [{ kind: 'action', rule: { kind: 'forbids', actions: ['magic'] } }],
+    },
+  ],
+});
+
+/**
+ * Something for the victim to cast, so a Bonus Action and a Magic action have
+ * a spender the fixtures can actually reach.
+ */
+const QUICK_SPARK = JSON.stringify({
+  id: 'quick-spark',
+  name: 'Quick Spark',
+  level: 0,
+  school: 'evocation',
+  castingTime: 'bonus-action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 30 },
+  targets: { count: 1 },
+  effects: [{ kind: 'attack', attack: 'ranged', damage: { dice: '1d6' }, damageType: 'fire' }],
+});
+
 const HOMEBREW = unwrap(
   loadContent({
     spells: [
@@ -210,12 +284,15 @@ const HOMEBREW = unwrap(
       JSON.parse(STILLING_TOUCH),
       JSON.parse(HARRYING_WORD),
       JSON.parse(NIMBLE_STEP),
+      JSON.parse(STILLING_WORD),
+      JSON.parse(BEFUDDLING_WORD),
+      JSON.parse(QUICK_SPARK),
     ],
   }),
   'load',
 );
 
-const PREPARED = ['binding-word', 'harrying-word', 'nimble-step'];
+const PREPARED = ['binding-word', 'harrying-word', 'nimble-step', 'stilling-word', 'befuddling-word'];
 
 const PLACED: readonly GameEvent[] = [
   added(CASTER),
@@ -241,6 +318,13 @@ const PLACED: readonly GameEvent[] = [
       cantrips: ['stilling-touch'],
       prepared: PREPARED,
     }),
+  },
+  // The victim casts as well, because a Bonus Action and the Magic action
+  // have no other spender in this engine that a fixture can reach.
+  {
+    type: 'spellcasting-declared',
+    id: TARGET,
+    spellcasting: declaredCasting({ ability: 'int', cantrips: ['quick-spark'], prepared: [] }),
   },
   { type: 'scene-set', extent: { width: 400, depth: 400, height: 40 } },
   { type: 'landmark-added', name: 'here', at: { x: 100, y: 100, z: 0 } },
@@ -377,12 +461,31 @@ describe('a forbidden action is refused as a value, naming what forbade it', () 
     expect(refused.reason).toMatch(/action/i);
   });
 
-  it('refuses a Bonus Action by the same rule', () => {
+  it('refuses a second Action-slot spender, so the guard is not one command deep', () => {
     const { state } = held();
-    // Dash is an Action, so reach for the one spender that is not: casting a
-    // Bonus Action spell. Nothing here has one, so the primitive is exercised
-    // through the Action's sibling and the rule's own reader.
     const refused = takeDash(state, TARGET, {});
+    expect(isErr(refused) && refused.code).toBe('action_forbidden');
+  });
+
+  /**
+   * **The Bonus Action, actually spent.**
+   *
+   * This test was titled "refuses a Bonus Action" and called `takeDash`,
+   * which spends an Action — its own comment said it was reaching for a Bonus
+   * Action spender and then did not. Every `action_forbidden` assertion in
+   * the file was an Action-slot refusal, so deleting `refuseSpend` from
+   * `spendBonusAction` left the suite green. A title claiming ground it does
+   * not hold is worse than a missing test, because the next reader believes
+   * it.
+   */
+  it('refuses a Bonus Action, through a spender that really spends one', () => {
+    const { state } = held();
+    const refused = resolveSpell(
+      state,
+      TARGET,
+      { spellId: 'quick-spark', targets: [CASTER] },
+      supply('spark'),
+    );
     expect(isErr(refused) && refused.code).toBe('action_forbidden');
   });
 
@@ -399,6 +502,80 @@ describe('a forbidden action is refused as a value, naming what forbade it', () 
     );
     expect(isErr(moved)).toBe(false);
     expect(log.length).toBeGreaterThan(0);
+  });
+
+  /**
+   * SRD Slow: "it can't take Reactions."
+   *
+   * A Reaction is spent on somebody else's turn, so the hold is set up first
+   * and released after the spell lands — which also proves the refusal is not
+   * confined to the holder's own turn, the one way a Reaction differs from
+   * every other spender.
+   */
+  it('refuses a Reaction, on a turn that is not the holder’s', () => {
+    const readied = [
+      ...turnOf(SETUP, TARGET),
+      ...must(
+        takeReady(
+          fold('seed', turnOf(SETUP, TARGET)),
+          TARGET,
+          { trigger: 'anybody comes close', response: { kind: 'move' } },
+          HOMEBREW,
+        ),
+      ),
+    ];
+    const casting = turnOf(readied, CASTER);
+    const log = [...casting, ...castAt(casting, 'stilling-word', [TARGET], 1)];
+    const state = fold('seed', log);
+    expect(whoseTurn(state)).toBe(CASTER);
+
+    const refused = releaseReady(state, TARGET, { placement: { from: { landmark: 'here' }, feet: 15, bearing: 90 } }, supply('rel'));
+    expect(isErr(refused) && refused.code).toBe('action_forbidden');
+  });
+
+  /**
+   * SRD Tsunami: "it can't move."
+   *
+   * The sentence the neighbouring fixture proves the *absence* of — Binding
+   * Word leaves walking alone — said by a rule that names the slot. Without
+   * both, "movement is only refused when the spell says so" is half a claim.
+   */
+  it('refuses movement when the rule names it', () => {
+    const log = [...SETUP, ...castAt(SETUP, 'stilling-word', [TARGET], 1)];
+    const state = fold('seed', turnOf(log, TARGET));
+    const refused = resolveMove(
+      state,
+      TARGET,
+      { placement: { from: { landmark: 'here' }, feet: 20, bearing: 180 } },
+      supply('walk'),
+    );
+    expect(isErr(refused) && refused.code).toBe('action_forbidden');
+  });
+
+  /**
+   * SRD Befuddlement: the target "can't cast spells or take the Magic action".
+   *
+   * **The named axis, with no slot forbidden at all.** Every other fixture
+   * here bites through a slot, so mutating `forbids`\' action list to match
+   * nothing left them all green. The pair of assertions is the test: the
+   * Magic action is gone and the Action slot it would have come out of is
+   * not.
+   */
+  it('refuses one named action and leaves the slot it came out of alone', () => {
+    const log = [...SETUP, ...castAt(SETUP, 'befuddling-word', [TARGET], 1)];
+    const state = fold('seed', turnOf(log, TARGET));
+
+    const refused = resolveSpell(
+      state,
+      TARGET,
+      { spellId: 'quick-spark', targets: [CASTER] },
+      supply('spark'),
+    );
+    expect(isErr(refused) && refused.code).toBe('action_forbidden');
+
+    // And the Action itself is untouched, which is the half a slot-shaped
+    // rule could not say.
+    expect(must(takeDodge(state, TARGET, {})).some((e) => e.type === 'action-spent')).toBe(true);
   });
 
   it('is a refusal and never an exception', () => {
@@ -549,6 +726,18 @@ describe('a spell may widen what a turn permits as well as narrow it', () => {
   });
 
   /**
+   * A price this command has no spender for is refused rather than rounded to
+   * the ordinary one. It used to fall through the ternary and take the
+   * caller's **Action** — the substitution `DisengageOptions` says it never
+   * makes — and a caller may state a price with no definition anywhere in it,
+   * so the door checks as well as the validator.
+   */
+  it.each(['reaction', 'movement'] as const)('refuses a price it cannot charge: %s', (from) => {
+    const refused = takeDisengage(fold('seed', SETUP), CASTER, {}, { from });
+    expect(isErr(refused) && refused.code).toBe('no_such_price');
+  });
+
+  /**
    * A round later, because casting it spent the Action — and the benefit is
    * precisely that the *next* turn's Action survives the Disengage.
    */
@@ -624,6 +813,18 @@ describe('the validator holds the vocabulary', () => {
   it('refuses an allowance no command could ever honour', () => {
     expect(
       bad({ kind: 'action-rule', rule: { kind: 'allows', action: 'dash', from: 'bonus-action' } }),
+    ).toContain('bad_action_rule');
+  });
+
+  /**
+   * **The slot, not only the action.** This validated while the guard was a
+   * list of action names, and `takeDisengage` then fell through its ternary
+   * and spent an Action — the quiet substitution its options type promises
+   * never to make. `STATABLE_PRICES` is a map of pairs for that reason.
+   */
+  it.each(['reaction', 'movement'])('refuses an allowance to pay out of %s', (from) => {
+    expect(
+      bad({ kind: 'action-rule', rule: { kind: 'allows', action: 'disengage', from } }),
     ).toContain('bad_action_rule');
   });
 

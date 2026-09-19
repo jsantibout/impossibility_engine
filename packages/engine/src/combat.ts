@@ -163,21 +163,40 @@ export const NAMED_ACTIONS = [
 export type NamedAction = (typeof NAMED_ACTIONS)[number];
 
 /**
- * The actions whose command lets a caller state which slot to pay out of.
+ * The prices a command can actually charge: which action, out of which slots.
  *
  * The consumer side of `ActionRule`'s `allows` member, and the reason it is
- * written down: an allowance naming an action nobody can ask for at a
- * different price is data no code reads — a sentence that validates, loads,
- * lands on a creature and does nothing, which is the failure this repository
- * finds most often. `checkSpellDefinition` refuses one against this list, so
- * the vocabulary can only say what some command will actually honour.
+ * written down: an allowance nobody can ask for is data no code reads — a
+ * sentence that validates, loads, lands on a creature and does nothing, which
+ * is the failure this repository finds most often.
  *
- * One member today. SRD Conjure Woodland Beings is the one sentence in the
- * book that moves an action to a cheaper slot, and {@link takeDisengage}'s
- * `from` is what answers it. A second arrives with its own command and its
- * own paragraph, and this list is where it is admitted.
+ * **It is a map rather than a list of action names, and that is a defect
+ * being closed rather than a flourish.** A list guarded the action and left
+ * the slot to a separate "is it the normal price" check, so
+ * `{ action: 'disengage', from: 'reaction' }` validated — and `takeDisengage`
+ * then fell through its ternary and spent an **Action**, which is precisely
+ * the quiet substitution {@link DisengageOptions} promises never to make. The
+ * pair is the fact, so the pair is what is written down.
+ *
+ * **Both readers ask this**, which is what makes it a guard rather than a
+ * comment: `checkSpellDefinition` refuses an allowance outside it at
+ * authoring, and {@link takeDisengage} refuses a `from` outside it at the
+ * door — because a caller may state one directly, with no definition anywhere
+ * in it. The normal price is **not** a member: an allowance that charges what
+ * the book charges grants nothing, and the validator says so in those words.
+ *
+ * One entry today. SRD Conjure Woodland Beings is the one sentence in the
+ * book that moves an action to a cheaper slot, and `takeDisengage`'s `from`
+ * is what answers it. A second arrives with its own command and its own
+ * paragraph, and this map is where it is admitted.
  */
-export const ACTIONS_WITH_A_STATABLE_PRICE: readonly NamedAction[] = ['disengage'];
+export const STATABLE_PRICES: Readonly<Partial<Record<NamedAction, readonly ActionSlot[]>>> = {
+  disengage: ['bonus-action'],
+};
+
+/** Whether some command will actually charge this slot for this action. */
+export const isStatablePrice = (action: NamedAction, from: ActionSlot): boolean =>
+  STATABLE_PRICES[action]?.includes(from) ?? false;
 
 /**
  * The slots a named action can actually come out of.

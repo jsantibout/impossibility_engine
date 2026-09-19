@@ -2217,25 +2217,18 @@ export function statedDamageType(
 }
 
 /**
- * The deadline a rider clause names.
- *
- * Two of the four members are anchored to the caster's own turn; one is a span
- * on the clock; and one — the turn in progress ending — is anchored to nobody,
- * so it ignores the caster entirely and is resolved against whoever is taking
- * the turn. The whole reason they are separate members is that none of them is
- * interchangeable with another — see {@link RiderDuration}.
- */
-/**
  * How a deadline finishes the sentence a refusal starts.
  *
  * "…until **the spell ends**", "…until **the start of the caster's next
- * turn**". Beside {@link riderDuration}, which answers the same question for
- * the timer, because the two must never disagree about which moment they
- * mean: a refusal that names a moment the grant does not actually end at is
- * worse than one that names none.
+ * turn**". Beside {@link riderDuration} below, which answers the same
+ * question for the *timer*, because the two must never disagree about which
+ * moment they mean: a refusal naming a moment the grant does not actually end
+ * at is worse than one naming none. Absent is the casting's own deadline,
+ * which is what a rider with no `lasts` borrows.
  *
  * Pinned onto {@link GrantedActionRule.until} at the cast, for the reason
- * every other number on a casting is pinned — the fold opens no catalogue.
+ * every other number on a casting is pinned — the fold opens no catalogue,
+ * and `combat.ts` sits beneath `GameState` and can reach neither.
  */
 export function riderDurationPhrase(lasts: RiderDuration | undefined): string {
   if (lasts === undefined) return 'the spell ends';
@@ -2246,6 +2239,15 @@ export function riderDurationPhrase(lasts: RiderDuration | undefined): string {
     : "the start of the caster's next turn";
 }
 
+/**
+ * The deadline a rider clause names.
+ *
+ * Two of the four members are anchored to the caster's own turn; one is a span
+ * on the clock; and one — the turn in progress ending — is anchored to nobody,
+ * so it ignores the caster entirely and is resolved against whoever is taking
+ * the turn. The whole reason they are separate members is that none of them is
+ * interchangeable with another — see {@link RiderDuration}.
+ */
 export function riderDuration(
   lasts: RiderDuration | undefined,
   casterId: CharacterId,

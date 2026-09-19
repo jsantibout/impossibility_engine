@@ -208,6 +208,7 @@ export {
   useFreeObjectInteraction,
 } from './commands/actions.js';
 export type {
+  DisengageOptions,
   ReadyCommand,
   ReadyRelease,
   ReadyResponse,

@@ -29,9 +29,10 @@ import type { DefenseKind } from './attack.js';
 import type { SpeedChange } from './standing.js';
 import {
   ACTION_SLOTS,
-  ACTIONS_WITH_A_STATABLE_PRICE,
+  isStatablePrice,
   NAMED_ACTIONS,
   SLOTS_WITH_NAMED_ACTIONS,
+  STATABLE_PRICES,
   type ActionRule,
 } from './combat.js';
 import type { Bonus, BonusApplies } from './bonuses.js';
@@ -768,14 +769,6 @@ function checkActionRule(
       bad(noSuchAction(rule.action));
       return;
     }
-    // **An allowance has to reach a command that offers the price.** Nothing
-    // else could ever read it: `allowsPrice` is asked by the command that
-    // lets a caller name a slot, and an allowance for an action with no such
-    // command is a clause that validates, loads, lands and does nothing.
-    if (!ACTIONS_WITH_A_STATABLE_PRICE.includes(rule.action)) {
-      bad(`no command lets a caller choose what to pay for the ${rule.action} action, so an allowance about its price would be read by nothing; the engine offers ${ACTIONS_WITH_A_STATABLE_PRICE.join(', ')}`);
-      return;
-    }
     if (typeof rule.from !== 'string' || !SLOT_NAMES.has(rule.from)) {
       bad(noSuchSlot(rule.from));
       return;
@@ -783,9 +776,25 @@ function checkActionRule(
     // **An allowance has to change the price**, or it grants what the rules
     // already grant. SRD Conjure Woodland Beings is worth writing because
     // Disengage costs an Action and this one costs a Bonus Action; "you may
-    // Disengage as an Action" is simply the book.
+    // Disengage as an Action" is simply the book. Reported before the pair
+    // check below, because it is the more useful complaint about the same
+    // clause: it says the sentence is redundant rather than unsupported.
     if (NORMAL_PRICE[rule.action] === rule.from) {
       bad(`the ${rule.action} action already costs ${rule.from}, so this allowance grants nothing`);
+      return;
+    }
+    // **The pair has to reach a command that will charge it.** Not the action
+    // alone: a command that offers a Bonus Action price does not thereby
+    // offer a Reaction one, and an allowance naming a slot no command can
+    // charge is a clause that validates, loads, lands and is never read —
+    // and, before this was a pair, one whose command spent a different slot
+    // than the one the spell named. `STATABLE_PRICES` is that map, and
+    // `takeDisengage` refuses against the same one.
+    if (!isStatablePrice(rule.action, rule.from)) {
+      const offered = Object.entries(STATABLE_PRICES)
+        .map(([action, slots]) => `${action} as ${(slots ?? []).join(' or ')}`)
+        .join('; ');
+      bad(`no command will charge ${rule.from} for the ${rule.action} action, so an allowance saying so would be read by nothing; the engine offers ${offered}`);
     }
     return;
   }
