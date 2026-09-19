@@ -219,6 +219,19 @@ describe('only the feet inside it cost extra', () => {
     expect(out.terrain).toEqual([]);
   });
 
+  /**
+   * The slack is three-dimensional, because a shortest path is. Ten feet
+   * along the ground is two steps, and a flier may spend one of them going
+   * up and the other coming down — so a patch one space above the straight
+   * line is on a route the engine would accept, and has to be asked about.
+   */
+  it('follows the slack upwards as well as sideways', () => {
+    const overhead = declare(SETUP, 'the branches', ball({ x: 105, y: 100, z: 5 }, 0));
+    const out = resolveMove(fold('seed', overhead), WALKER, east(10), supply());
+    expect(isErr(out)).toBe(true);
+    if (isErr(out)) expect(out.code).toBe('route_required');
+  });
+
   it('charges that route what its own spaces cost', () => {
     const out = move(declare(SETUP, 'the snag', SNAG), {
       ...CORNER,
@@ -292,6 +305,48 @@ describe('a move outside combat', () => {
     const out = move(declare(PEACE, 'the puddle', PUDDLE), east(25));
     expect(out.cost).toBe(25);
     expect(out.unverified.join(' ')).toContain('the puddle');
+  });
+
+  /**
+   * And the sentence names the live patches only. A patch whose casting has
+   * ended charges nothing anywhere and made nothing about the figure
+   * approximate, so naming it would be the one place in this design that
+   * ignored the lapse rule.
+   */
+  it('names no patch whose casting has ended', () => {
+    const CASTING = 'casting-of-the-ghost';
+    const cast: readonly GameEvent[] = [
+      ...PEACE,
+      {
+        type: 'spell-ongoing',
+        casting: {
+          castingId: CASTING,
+          caster: WALKER,
+          spellId: 'homebrew-mire',
+          spell: 'Mire',
+          level: 2,
+          version: 3,
+          numbers: { saveDc: 13, attackModifier: 5, spellcastingModifier: 3, casterLevel: 5 },
+          on: [],
+        },
+      },
+    ];
+    const haunted: readonly GameEvent[] = [
+      ...declare(declare(cast, 'the puddle', PUDDLE), 'the ghost', EVERYWHERE, { source: CASTING }),
+      { type: 'spell-ended', castingId: CASTING, on: null, reason: 'dispelled' },
+    ];
+
+    const said = move(haunted, east(25)).unverified.join(' ');
+    expect(said).toContain('the puddle');
+    expect(said).not.toContain('the ghost');
+  });
+
+  /** No figure is quoted, because the declared feet are added after this. */
+  it('says no patch was charged rather than naming a number', () => {
+    const out = move(declare(PEACE, 'the puddle', PUDDLE), { ...east(25), difficultFeet: 10 });
+    expect(out.cost).toBe(35);
+    expect(out.unverified.join(' ')).toContain('no patch was charged');
+    expect(out.unverified.join(' ')).not.toContain('25 feet');
   });
 });
 

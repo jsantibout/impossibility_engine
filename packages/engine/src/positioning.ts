@@ -1498,6 +1498,18 @@ function livePatches(state: GameState): readonly (readonly [string, DifficultPat
 }
 
 /**
+ * The patches still charging, by name.
+ *
+ * For a caller that wants to say which declarations are in play without
+ * asking about a space — a report rather than a charge. It reads the same
+ * live view every other answer does, so a patch whose casting has ended is
+ * absent here exactly as it is absent from the cost.
+ */
+export function liveTerrainNames(state: GameState): readonly string[] {
+  return livePatches(state).map(([name]) => name);
+}
+
+/**
  * What crossing one space costs, and why.
  *
  * SRD: "Difficult Terrain isn't cumulative; either a space is Difficult

@@ -25,6 +25,7 @@ import {
   type Placement,
   type Point,
   type PositionState,
+  liveTerrainNames,
   positionOf,
   uniformTerrainBetween,
 } from '../positioning.js';
@@ -437,7 +438,7 @@ function chargeTerrain(
       cost: feet,
       patches: [],
       unverified: [
-        `${nearby(state)} lies between (${from.x}, ${from.y}, ${from.z}) and (${to.x}, ${to.y}, ${to.z}), and no route was stated, so ${feet} feet is what this move would have cost on open ground; outside combat nothing was spent either way`,
+        `the ground between (${from.x}, ${from.y}, ${from.z}) and (${to.x}, ${to.y}, ${to.z}) is Difficult Terrain in some places and not others — ${declaredHere(state)} — and no route was stated, so no patch was charged for this move; outside combat there was no budget for one to be charged against`,
       ],
     });
   }
@@ -459,17 +460,19 @@ function chargeTerrain(
 }
 
 /**
- * What to call the mixed ground in a report nobody asked a question about.
+ * Which patches are in play, for a report that asked nobody a question.
  *
- * The patches anywhere in the scene, because the point of the sentence is to
- * tell a reader which declaration made the figure approximate, and a walk
- * that could have crossed any of them is exactly the case this branch is in.
+ * **The live ones, through the same view every charge reads.** A patch whose
+ * casting has ended charges nothing anywhere and made nothing about this
+ * figure approximate, so naming it would be the one place in this design
+ * that ignored the lapse rule. The names are *declared in this scene* and
+ * the sentence says only that — which of them the walk could have crossed is
+ * precisely the thing no route was stated to settle.
  */
-function nearby(state: GameState): string {
-  const scene = state.scene;
-  if (scene === null) return 'Difficult Terrain';
-  const names = Object.keys(scene.terrain).sort();
-  return names.length === 0 ? 'Difficult Terrain' : names.join(' or ');
+function declaredHere(state: GameState): string {
+  const names = liveTerrainNames(state);
+  if (names.length === 0) return 'nothing is declared here';
+  return `${names.join(' and ')} ${names.length === 1 ? 'is' : 'are'} declared in this scene`;
 }
 
 /** The tail of a refusal that names what slowed the mover, or nothing at all. */
