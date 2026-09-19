@@ -42,13 +42,22 @@ Three rules, written down after a batch of five briefs moved the catalogue by
 three entries while the two heaviest blockers sat untouched at the top of a
 table that ranks them.
 
-1. **Rank by reach, not by recency.** `COVERAGE.md`'s blocker tables say what
-   each missing shape blocks and what it would finish; that ranking decides
-   what is briefed. `STATUS.md`'s "Next" is a list of things somebody noticed,
-   in the order they noticed them, and is not the same question. Read the
-   shape's own description in `packages/content/scripts/missing-shapes.ts`
-   before ruling it out — more than one entry there says a cheaper thing
-   finishes it than its name suggests.
+1. **Rank by what a shape *finishes*, never by what it blocks.** The blocker
+   tables print both and the Blocks column is the seductive one; it is a
+   count of *consumers*, and four briefs in two batches were mis-sized by
+   reading it. A shape blocking thirty entries that finishes one will ship
+   one. Read the other columns too: `executed 0` means no consumer inside an
+   effect resolver, and a shape whose entries each name a second blocker
+   finishes none of them alone.
+
+   Then read the shape's own description in
+   `packages/content/scripts/missing-shapes.ts` and, before briefing it,
+   **check the claim against the code and the book**. Of those four, one
+   shape was a marker rather than a blocker, one was three mechanisms wearing
+   a single id, and one described a mechanic `main` had already built — each
+   found by a builder in minutes, after a brief had been written from the
+   table alone. `STATUS.md`'s "Next" is a list of things somebody noticed, in
+   the order they noticed them, and is not this question either.
 2. **A batch is four to six hours of work running at once**, which means
    briefs measured in hours rather than in fields, as many of them as can run
    simultaneously. Partition them by **file ownership** rather than by topic:

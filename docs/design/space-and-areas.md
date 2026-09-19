@@ -35,6 +35,18 @@ record and raises an `owedAreaEffects` debt; `settleAreaEffects` rolls it.
 A move of more than one space through a carried area must state its route
 (`route_required`), so nothing is caught in a square nobody named.
 
+**Difficult Terrain is a declared fact about the lattice**, held beside
+sight and cover: the table declares which ground is expensive, how expensive
+(`costPerFoot`, because Plant Growth and Wall of Thorns print four feet per
+foot where the glossary prints two), and which casting made it so — and the
+engine computes which spaces the region covers, what a crossing costs, and
+whether the patch is still there. A patch naming a casting lapses when the
+casting does, derived at read time so there is no window in which the webs
+are gone and the ground still costs double. Two overlapping patches do not
+stack; the dearer governs, as overlapping cover does. A move whose cost the
+path decides raises `route_required` too — the same refusal for a different
+reason, and the two are told apart only by what their `satisfyWith` says.
+
 ## Movement and teleportation
 
 `resolveMove` spends movement, provokes Opportunity Attacks from creatures

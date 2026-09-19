@@ -98,6 +98,16 @@ to homebrew.
 - **A DM who rolls** — dice notation the engine throws down the ordinary
   damage path, a saving throw against a DC the table set, and Advantage from
   a ruling recorded as its source.
+- **Ground that costs more to cross** — the table declares a patch difficult,
+  how difficult, and which casting made it so; the engine works out which
+  spaces it covers, what a crossing costs, what two overlapping patches cost,
+  and whether the patch is still there. A rate rather than a flag, because
+  Plant Growth prints four feet per foot where the glossary prints two.
+- **A score a feat raises and an item sets** — the Ability Score Improvement
+  feat and the seven Epic Boons are published, a feat may be asked which
+  scores and gated on a level, and a worn item may set a score outright
+  without ever lowering one. A level 19 character is built and folded in a
+  test, which had never been done.
 - **Replay** — a scripted four-round fight and two frozen logs fold
   byte-identically.
 
@@ -138,21 +148,18 @@ to homebrew.
   an amount may now be a printed number with no dice in it, which the two
   scaling fields that add dice to a notation refuse and the one that adds a
   flat number does not.
-- A summons is not taken away when its spell ends. The fold notices —
-  `strandedSummons` reports every creature standing on a casting that is no
-  longer running — and a command performs the removal, because a reducer
-  emits nothing and a creature deleted inside another command's forward fold
-  wedges the fight. But nothing calls the sweep and nothing refuses to
-  proceed without it, which is weaker than the debt `resolveTurn` will not
-  advance past.
-- A casting hangs exactly one action rule, keyed by its source, so SRD Magic
-  Jar's two sentences would evict each other. The remedy is the compound key
-  `rollModifierKey` already uses.
-- An ability score cannot be raised by the thing that raises it. The
-  vocabulary is built and two capstones use it; SRD puts both the Improvement
-  and the Epic Boon on a **feat**, and a feat can neither carry a grant a
-  reader reads nor be asked which scores. Nothing above level 19 is buildable
-  until it can.
+- A set ability score does not reach an ability check. `attack.ts`, `checks.ts`
+  and the command layer read the sheet directly; two readers ask the sheet as
+  it stands and the rest do not, which the docstrings name one by one.
+- The twenty-four Ability Score Improvements and Epic Boons are still
+  `manual`: the feat they grant exists now, and the one line of transcription
+  per class has not been written.
+- Seven emitters of `roll-recorded` pass no modes, so the field's absence
+  means both "nobody ruled" and "this emitter never says". An attack roll and
+  an Initiative roll can each carry Advantage and neither records it.
+- Nothing above the engine can summon, so no session can reach the stranded
+  debt. The day a summoning tool lands, the sweep must land beside it or a
+  model-driven fight can wedge.
 - No carried weight, no ammunition spent. Objects that are not creatures
   are not modelled.
 - Overriding printed content with homebrew of the same id is refused; only
@@ -160,41 +167,48 @@ to homebrew.
 
 ## Next
 
-Ranked by what each unblocks, which is `COVERAGE.md`'s three blocker tables
-rather than the order these were noticed in. Two entries near the top exist
-because a builder read the book and found the table overstated.
+Ranked by what each shape **finishes**, which is the column beside the one
+that mis-sized four briefs. Two entries here are specifications a builder
+wrote after finding its own brief void; both are quoted rather than
+re-derived.
 
-1. **A grant read off a feat** — 24 features blocked, 24 finished, and the
-   single heaviest entry in any of the three tables. One brief owning both
-   `origins.ts` files: publish the Ability Score Improvement feat and the nine
-   Epic Boons, give `FeatRequirement` a member for which ability scores (and a
-   level prerequisite, which it also lacks), admit the grant to
-   `FEAT_GRANT_KINDS`, and add the reader beside the `initiative-proficiency`
-   one. A level 19 character becomes buildable for the first time.
-2. **An action a spell compels, split three ways.** The shape is three
-   mechanisms wearing one id and the count was measuring consumers: forbidding
-   (built), repricing or granting an extra action (half built — an additional
-   action is a change to the budget's size), and taking the turn for you (not
-   buildable without deciding who plays the creature). Split the id before
-   anyone plans from it again.
-3. **Make the stranded-summons sweep a debt.** Decided: a debt `resolveTurn`
-   refuses to advance past, on `owedAreaEffects`' pattern, rather than a
-   boundary sweep — the engine's posture is that forgetting a rule stops the
-   game instead of quietly losing it, and a ghost creature left standing after
-   its spell ended is exactly what goes unnoticed.
-4. **The Improvement's repeats** — the class table grants it again at 8, 12
-   and 16, Fighter also at 6 and 14, Rogue also at 10, and the catalogue holds
-   one entry per class, so a Fighter 16 is offered one grant rather than four.
-   ~40 entries, and several fixtures already name ids that do not exist.
-5. **A condition an item imposes** — now the heaviest item blocker at 28,
-   having overtaken the instance shape when that dropped from 41 to 12.
-6. **Damage with neither an attack roll nor a save** — Magic Missile and
-   Power Word Kill record the identical gap, and two engine tests name Magic
-   Missile as a spell with no definition, which is what holds it.
-7. **Three mechanics that must land together** — a resource traded for
-   another, a saving throw a feature forces, a condition a feature imposes.
-   Cunning Strike, Stunning Strike and the Channel Divinities want all three.
-8. **Two seams a review named.** `resolveTest`'s branches treat
-   `command.modes` differently — one concatenates, one merges by source — and
-   `roll-recorded` carries no modes, so a DM's ruling cannot be audited from
-   the log alone.
+1. **The twenty-four Improvements and Epic Boons, transcribed.** The feat
+   door is built and the class features still say `manual`. One line per
+   class, twelve files, no engine change — and then the repeats: the table
+   grants the Improvement again at 8, 12 and 16, Fighter also at 6 and 14,
+   Rogue also at 10, which is ~40 entries and the reason a Fighter 16 is
+   offered one grant rather than four. Several fixtures already name ids that
+   do not exist.
+2. **A set score that reaches a check.** Threading `sheetAsItStands` through
+   `attack.ts`, `checks.ts` and the command layer. Until it lands, an item
+   that sets Strength to 21 moves the sheet and not the roll.
+3. **A casting ended by a trigger, re-cut.** The mechanic exists; what is
+   left is the cause vocabulary, and one brief must own `duration.ts`,
+   `spells.ts`, `fold/endings.ts`, `fold/release.ts`, `spell-definitions.ts`
+   and `spell-schema.ts` together, because `EFFECT_END_CAUSES ⊆
+   END_TRIGGER_CAUSES` is pinned by a test. `target-takes-damage` finishes
+   Modify Memory; a source-item cause plus a route field on `OngoingSpell`
+   finishes Hat of Disguise. No new event and no fixture moves: `damage-taken`
+   carries `by`, `creature-died` covers True Polymorph, `item-unequipped`
+   covers the hat. Everything else in that shape finishes nothing alone.
+4. **A chance on an item's use, and a rolled conferral span.** Finishes Wind
+   Fan and Potion of Diminution. There is no primitive to build — `usesRolled`
+   and `regainsAtDawn` already throw a non-d20 roll and write the same
+   three-event batch — only a field at each site. The engine holds
+   `{ dice, rows: [{ from, to }] }` as a shape and not one row's payload.
+   Separately, Augury, Divination, Commune and Secret Chest need a count of
+   castings back to a Long Rest that nothing keeps; do not absorb it.
+5. **A condition an item imposes** — 28 blocked, 5 finished, the heaviest item
+   shape now that identity and the score verbs have been spent.
+6. **Feather Fall, for one small mechanic.** `SpellReactionWindow` admits
+   exactly three triggers and a fall is not one; `falling` is that spell's
+   only recorded blocker and its paragraph is one of three clean ones left.
+7. **A marker-less entry form for `TrackedAdjudication`.** A spell moving from
+   blocked to tracked silently drops every blocker whose sentence trips no
+   mechanical marker, and the "no shape unclaimed" rule then demands the shape
+   be retired — deleting a gap that is still real. Three finished definitions
+   were reverted over this rather than ship it.
+8. **Two refusals that cannot be told apart.** Both causes of `route_required`
+   share a code and a request kind, and the carried-area sweep runs first, so
+   a caller that learns "fill in `route`" loops on the other case. A readied
+   move cannot carry a route at all.

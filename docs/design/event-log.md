@@ -54,6 +54,13 @@ Interruptible resolutions live in state so a reload cannot lose them:
 `pendingCastings`, `pendingSaves`, `scheduledDamage`, `owedAreaEffects`,
 `readied`. The turn refuses to advance past one it cannot settle.
 
+A creature summoned by a casting that has since ended is the same kind of
+debt and is **not** state: who is standing on a casting that is over is a
+question about the world as it stands, which `strandedSummons` answers from
+the roster and the ongoing records, where an owed area effect records a
+moment that has passed and could not be recomputed. `resolveTurn` refuses on
+the answer either way.
+
 ## Conditions
 
 A creature's conditions are a set of *reasons* with sources; implication

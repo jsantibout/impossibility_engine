@@ -149,12 +149,16 @@ const ADVANTAGE_FIELDS = {
  * decorative.** A `ModeSource`'s `source` is an *identity* wherever the
  * engine deduplicates: `savingSupport` keys named modes in a `Map` by it, so
  * that a caller who also knows about Danger Sense cannot apply it twice.
- * `resolveTest`'s two branches therefore do not treat these alike — the
- * ability check concatenates them and the saving throw merges them — and two
- * rulings a DM happened to spell the same way ("the smoke", for both) would
- * collapse into one on the save, rolling it at Disadvantage while reporting a
- * single ruling. Prefixing the mode makes the two phrases two identities, so
- * both branches cancel and both rulings are recorded.
+ * Two rulings a DM happened to spell the same way ("the smoke", for both)
+ * would otherwise be one identity, and the saving throw would drop one of
+ * them. Prefixing the mode makes the two phrases two identities, so both
+ * cancel and both are recorded.
+ *
+ * **The seam beneath has since converged**: `resolveTest`'s two branches
+ * both merge through one rule, where the check used to concatenate and only
+ * the save merged. So this prefix is no longer the thing standing between a
+ * DM and a dropped ruling — it is the reason the two phrases differ at all,
+ * which the merge then keeps.
  *
  * Built through {@link ruled} rather than beside it so the prefix a reader
  * looks for has one spelling in this package.
@@ -180,12 +184,12 @@ const ruledModes = (args: {
  * only trace of a granted Advantage would be a total that happened to be
  * higher, which is indistinguishable from a good die.
  *
- * **The `roll-recorded` event does not carry them**, and that is a gap in the
- * log rather than a choice made here: the event declares `contributions`,
- * which are named *amounts*, and Advantage is not an amount. So a reader of
- * the log alone can see that a d20 came to 17 and not that two were thrown
- * for it. Closing that means a field on `GameEvent`, which is a decision
- * about the log's shape and belongs to whoever owns it.
+ * **`roll-recorded` carries them too**, so a ruling is auditable from the
+ * log alone rather than only from this answer: the event gained an optional
+ * `modes`, filled from the test's own `modeSources` and omitted when nobody
+ * ruled. What is still true is that most emitters do not fill it — an attack
+ * roll and an Initiative roll can each carry Advantage and neither says so —
+ * so the field's absence means two things until they do.
  */
 const testResolution = (
   value: TestResolution,
