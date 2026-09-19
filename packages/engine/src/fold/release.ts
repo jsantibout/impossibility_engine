@@ -18,7 +18,9 @@
  * readers of it agreeing.
  *
  * It is the bottom of the fold's own graph — it calls nothing else in `fold/`,
- * and expiry, the triggered endings and the switch all call it.
+ * and expiry, the triggered endings, the grants seam and the switch all call
+ * it. The grants seam is the newest and the shortest: `roll-modifier-consumed`
+ * is `releaseGrants` reached by a die rather than by the clock.
  */
 import type { CharacterId } from '@ie/shared';
 import { removeConditionInstance } from '../conditions.js';

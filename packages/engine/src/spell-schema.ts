@@ -10,7 +10,7 @@ import {
   type Result,
   type Skill,
 } from '@ie/shared';
-import { counterpartProblem, rollSelectorProblems } from './roll-modifiers.js';
+import { counterpartProblem, oneShotProblem, rollSelectorProblems } from './roll-modifiers.js';
 import { parseNotation } from './dice.js';
 import { LONG_CASTING_SECONDS } from './spells.js';
 import { conditionRiderOf, CREATURE_TYPES, modifierRidersOf } from './spell-definitions.js';
@@ -1105,6 +1105,17 @@ function checkRollModifier(
       code: 'bad_roll_mode',
       reason: 'a granted mode is Advantage or Disadvantage; "normal" grants nothing',
     });
+  }
+
+  // **A grant that says it is spent by a roll, on a roll that spends nothing.**
+  // Only the two attack rollers emit `roll-modifier-consumed`, so the flag is
+  // a promise about an ending that nothing keeps anywhere else — and the
+  // grant would run to its deadline while the definition read as a one-shot.
+  // Asked of a readable selector only, for the reason the combination rules
+  // below are: a family that is not a family draws its own problem first.
+  if (modifier.oneShot === true && readable && ROLL_FAMILIES.has(selector.roll)) {
+    const wrong = oneShotProblem(selector.roll);
+    if (wrong !== null) found.push({ field: `${path}.oneShot`, ...wrong });
   }
 
   if (!readable) return;

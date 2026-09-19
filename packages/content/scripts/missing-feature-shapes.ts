@@ -305,7 +305,7 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
     {
       clause: 'Disadvantage on its next saving throw',
       why: 'a-one-shot-roll-modifier',
-      note: 'a mode consumed by the roll it changes, built for Guiding Bolt and Vicious Mockery — and on a *saving throw* here, where the mechanic reaches but the moment that hangs it, a Brutal Strike landing, does not.',
+      note: 'a mode consumed by the roll it changes, built for Guiding Bolt and Vicious Mockery — and on a *saving throw* here, which the mechanic does not reach: only the two attack rollers spend a one-shot, so `oneShotProblem` in packages/engine/src/roll-modifiers.ts refuses one on any other family until a save roller spends one. The moment that would hang it, a Brutal Strike landing, is missing as well.',
     },
     {
       clause: 'stops its Opportunity Attacks until the start of your next turn',

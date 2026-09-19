@@ -97,7 +97,7 @@ const PLACED: readonly GameEvent[] = [
     id: CASTER,
     spellcasting: declaredCasting({
       ability: 'cha',
-      cantrips: ['vicious-mockery'],
+      cantrips: ['vicious-mockery', 'fire-bolt'],
       prepared: ['guiding-bolt'],
     }),
   },
@@ -313,6 +313,36 @@ describe('Guiding Bolt is spent by the next attack made against the target', () 
     expect(second.attack?.roll.mode).toBe('normal');
   });
 
+  /**
+   * **A spell attack is an attack roll**, which the resolver asserts in a
+   * comment and this is what holds it to. The grant is Guiding Bolt's own and
+   * the roll that spends it is a Fire Bolt: the emitter in
+   * `spell-effect-rolls.ts` is a second copy of the weapon attack's line, and
+   * a second copy nothing drives is a line that stops being true quietly.
+   */
+  it('is spent by a spell attack as readily as by a club', () => {
+    // The casting spent this turn's Action, so the Fire Bolt comes on the
+    // caster's next one — which the grant outlives, as the deadline fixture
+    // below asserts from the other side.
+    let log: readonly GameEvent[] = [...SETUP, ...hitting(SETUP)];
+    for (let i = 0; i < 3; i += 1) log = nextTurn(log);
+    const state = fold('seed', log);
+    expect(whoseTurn(state)).toBe(CASTER);
+    expect(modifiersOn(state, TARGET)).toHaveLength(1);
+
+    const bolted = must(
+      resolveSpell(state, CASTER, { spellId: 'fire-bolt', targets: [TARGET] }, supply('fire')),
+    );
+    expect(bolted.outcomes[0]?.attack?.roll.mode).toBe('advantage');
+
+    const spent = applyAll(state, bolted.events);
+    expect(modifiersOn(spent, TARGET)).toEqual([]);
+
+    // And the next attack finds nothing left, whoever makes it and however.
+    const after = must(swing(spent, OTHER, TARGET));
+    expect(after.attack?.roll.mode).toBe('normal');
+  });
+
   it('ends at the caster’s deadline when nobody swings', () => {
     let log: readonly GameEvent[] = [...SETUP, ...hitting(SETUP)];
     // "before the end of your next turn": the caster acts first, so their
@@ -352,6 +382,17 @@ describe('a one-shot grant outside combat asks for a turn order', () => {
 
     expect(isNeedsContext(out)).toBe(true);
     expect(contextRequestsOf(out).map((r) => r.kind)).toEqual(['turn-order']);
+
+    // And the other end of the relation says the same, so this is the shape
+    // asking rather than one spell's transcription.
+    const bolt = resolveSpell(
+      before,
+      CASTER,
+      { spellId: 'guiding-bolt', targets: [TARGET], slotLevel: 1 },
+      supply('bolt'),
+    );
+    expect(isNeedsContext(bolt)).toBe(true);
+    expect(contextRequestsOf(bolt).map((r) => r.kind)).toEqual(['turn-order']);
     // Nothing moved: not the generator, not the state.
     expect(fold('seed', PLACED)).toEqual(before);
     expect(dice.rng.snapshot()).toEqual(snapshot.rng);
@@ -452,6 +493,61 @@ describe('a counterpart off a non-attack roll is refused at authoring', () => {
     const problems = checkSpellDefinition(withRider('saving-throw'));
     expect(problems.map((p) => p.code)).toContain('counterpart_without_target');
   });
+});
+
+/**
+ * A one-shot on a roll nothing spends is refused where it is written.
+ *
+ * Only the two attack rollers emit the consumption, so the flag would compile,
+ * land, and then run to its deadline while the definition read as a one-shot
+ * — a durable grant wearing the field's name. The restriction is this
+ * engine's and not the book's, and the refusal says so.
+ */
+describe('a one-shot modifier off an attack roll is refused at authoring', () => {
+  const onFamily = (roll: string): SpellDefinition =>
+    ({
+      id: 'homebrew-jinx',
+      name: 'Homebrew Jinx',
+      level: 1,
+      school: 'enchantment',
+      castingTime: 'action',
+      concentration: true,
+      durationSeconds: 60,
+      range: { kind: 'ranged', feet: 30 },
+      targets: { count: 1 },
+      effects: [
+        {
+          kind: 'save-damage',
+          ability: 'wis',
+          damage: { dice: '1d6' },
+          damageType: 'psychic',
+          onSuccess: 'none',
+          modifiers: [
+            {
+              kind: 'mode',
+              modifier: {
+                mode: 'disadvantage',
+                selector: { roll, relation: 'roller' },
+                oneShot: true,
+              },
+            },
+          ],
+        },
+      ],
+    }) as unknown as SpellDefinition;
+
+  it('accepts one on an attack roll', () => {
+    expect(checkSpellDefinition(onFamily('attack'))).toEqual([]);
+  });
+
+  it.each(['saving-throw', 'ability-check', 'initiative', 'death-save'])(
+    'refuses one on a %s',
+    (roll) => {
+      expect(checkSpellDefinition(onFamily(roll)).map((p) => p.code)).toContain(
+        'one_shot_off_an_attack',
+      );
+    },
+  );
 });
 
 /** Both catalogue entries say what they do, with nothing left over. */

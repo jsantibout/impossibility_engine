@@ -202,7 +202,12 @@ export function riderOptions(
   },
 ): SpellEffectOptions {
   const escape = effectCheckFrom(rider.check, context.spell, context.saveDc);
-  const duration = riderDuration(rider.lasts, context.casterId);
+  // **The target as well as the caster**, for the reason the modifier rider
+  // below passes both: `RiderDuration` has a member anchored to the creature
+  // the rider lands on, and this is where that creature is known. Bound to
+  // the caster it would be a *wrong deadline* rather than a refusal, which is
+  // the one failure a closed vocabulary is supposed to make impossible.
+  const duration = riderDuration(rider.lasts, context.casterId, context.target);
   const repeats = repeatSaveFrom(rider.repeats, {
     of: context.target,
     ability: context.saveAbility,
