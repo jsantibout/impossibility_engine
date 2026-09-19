@@ -112,6 +112,9 @@ The load-bearing tests, so you know what a change can break:
   text, created and cast through the public API with no engine change.
 - `spell-schema.test.ts` (sweep) — no engine file names a catalogue id, a
   fixed spell grant, or a class; no command branches on a spell's name.
+- `origin-and-feature-sweep.test.ts` (sweep) — the same of every species,
+  background, feat and feature id, with the breaches it found held to the
+  record so that fixing one fails until its entry goes.
 - `invariants.test.ts` — every command is idempotent under its command id and
   asks rather than refuses when a fact is merely missing.
 

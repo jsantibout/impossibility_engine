@@ -73,15 +73,17 @@ refused an effect kind a conferral cannot resolve, one that scales by a slot or
 a caster level an item does not have, a lifetime that ends nothing, a grant
 hung with no lifetime at all, a save DC on a conferral where nothing rolls
 against it and a conferral that rolls without one, a rider on a conferred
-effect — all three riders are welded to a casting — and, until it is built, a
-charge count; and, on a conferred condition, a lifetime that outlives a
-casting there is none of, a check, a second duration, or an end trigger that
-is malformed, names an unknown cause, or ends no condition. A conferral may
-print a DC and be rolled against, and may impose a condition that its own
-timer ends — on its deadline, or early on a cause the item's line prints.
-What the `save` kind still may not do is carry its repeat, which is a
-`PendingSave` naming a casting id; that is the last of the weld rather than
-anything about the DC.
+effect — all three riders are welded to a casting; and, on a conferred
+condition, a lifetime that outlives a casting there is none of, a check, a
+second duration, or an end trigger that is malformed, names an unknown cause,
+or ends no condition. A conferral may print a DC and be rolled against, may
+impose a condition that its own timer ends — on its deadline, or early on a
+cause the item's line prints — and may be paid for out of the item's own
+charges, at a fixed price or within a range above it. **The `save` kind
+carries its repeat**, because a repeat save names whatever put the condition
+there rather than a casting id; what such a repeat may not say is
+`end-casting`, which is refused at every door that could write one rather
+than quietly read as something else.
 
 ## Adding content
 
@@ -95,6 +97,7 @@ the content.
 Content-specific assumptions the engine may **not** grow back: class names
 as strings, feature ids as strings, spell ids compared to literals. The
 sweep in `spell-schema.test.ts` holds the spell and class half of that and
-fails on any of them. The species and feature half is held by review and by
-nothing else — a gap noticed while the sibling-choice grant was built, and
-worth closing with a test rather than a habit.
+fails on any of them; `origin-and-feature-sweep.test.ts` holds the species,
+background, feat and feature half the same way, and records the two breaches
+it found the day it was written rather than exempting them. Subclass ids, and
+language and alignment names, are still held by review and by nothing else.

@@ -48,8 +48,14 @@ to homebrew.
   effects run through the same resolvers under a source that is a bare
   `item:` string rather than a casting id, so the ordinary timer expires it
   and the ordinary command ends it early, while Dispel Magic and the ongoing
-  records pass it by without being told to. The catalogue holds what those
-  shapes express.
+  records pass it by without being told to. **The weld between a condition and
+  a casting is gone**: a repeat save names whatever put the condition there
+  rather than a casting id, so a conferred `save` imposes its condition against
+  the DC the item prints and the boundary raises its repeat like any other,
+  and a success under a source that is not a casting ends the condition and the
+  deadline that was holding it. An item may also cast a spell the book prices
+  at nothing, and narrow the spell it casts to its own holder. The catalogue
+  holds what those shapes express.
 - **Replay** — a scripted four-round fight and two frozen logs fold
   byte-identically.
 
@@ -71,22 +77,20 @@ to homebrew.
   uncounted, because a `FeatDefinition` declares no automation and the report
   refuses to guess at one.
 - A conferral carries the shapes a potion needs and refuses the rest by name.
-  A conferred save may be rolled against a DC the item prints, and a conferred
-  condition ends on its own timer — on its deadline, or early on a cause the
-  item's line prints — so the weld between a condition and a casting is gone
-  except at the `save` kind's repeat, which is a `PendingSave` naming a casting
-  id. What is still ahead: a conferral paid for with charges, and an item that
-  casts a spell at will, which a `casts` grant cannot say. Bonuses to spell
-  attack rolls, ability scores an item sets, senses, curses and Speed from an
-  item are each named and refused rather than half-built.
-- `condition-removed` lifts a condition's instance and leaves its timer
-  standing, so a repeat save can be raised at a later boundary against a
-  condition that is gone; and a repeat save handed to `applyConditionTo` under
-  a source of the caller's own is silently unhonoured. Both are on the casting
-  side and both predate the items that found them.
+  Bonuses to spell attack rolls, ability scores an item sets, senses, curses
+  and Speed from an item are each named and refused rather than half-built.
+  A conferral may be paid for with the item's own charges, at a fixed price or
+  within a range — but no SRD entry comes off that alone: Staff of Striking's
+  extra die per charge needs dice that scale with the *charge count*, and every
+  scaling field the vocabulary has reads a slot or a caster level. That
+  scaling, and a charge spent on something no grant kind executes, are what is
+  still ahead for an item that confers.
 - Temporary Hit Points have no lifetime of their own — the event carries no
   source and no effect target names them — so the hour Potion of Heroism's ten
-  last is a note rather than a deadline. The ten themselves are in its grant:
+  last is a note rather than a deadline. **What they should do is no longer an
+  open question**: unless the granting effect prints a duration, they last
+  until they run out or until the creature holding them finishes a Long Rest.
+  Only the mechanism is missing. The ten themselves are in its grant:
   an amount may now be a printed number with no dice in it, which the two
   scaling fields that add dice to a notation refuse and the one that adds a
   flat number does not.
@@ -101,10 +105,15 @@ to homebrew.
 
 ## Next
 
-1. **An item's own record.** An inventory line is an id and a count, so two
-   wands share a pool, a charged item is refused in multiples, and nothing
-   can be given away with its charges. It also blocks a rolled charge
-   maximum and every item whose benefit the GM picks when it is found.
+1. **An item's own record, step one.** An inventory line is an id and a count,
+   so two wands share a pool and nothing can be given away with its charges.
+   The shape is decided: the line gains an optional engine-issued `instance`,
+   minted from a counter the fold *verifies* rather than assigns — the
+   discipline `castingsBegun` already uses — and a charge pool moves to the
+   copy and to the moment the copy is gained. Only items with per-copy state
+   are born instanced, so mundane stacks do not move, and neither frozen log
+   does either. Transfer and an award command that can roll a charge maximum
+   are steps two and three.
 2. **The tool surface** (`@ie/tools`): the Zod-validated commands a DM or a
    model calls. Its session boundary is decided —
    `docs/design/claude-integration.md` — and `tools/llm-probe` already drives
@@ -112,18 +121,22 @@ to homebrew.
    than authorship.
 3. **Content as files**: a loader in the app layer that reads homebrew JSON
    (and, later, a database) into `loadContent`.
-4. **A spell an item casts at will.** A `casts` grant spends a charge, and
-   `content.ts` refuses a cost of none three separate ways — so a helm, a hat
-   and two rings that cast without a pool are each blocked on the absence of a
-   price rather than on anything about the spell. The cheapest entry in the
-   report, and `COVERAGE.md` names who is waiting.
-5. **The rest of what an item confers.** A conferral paid for with charges,
-   and the `save` kind's repeat, which is the last of the condition weld.
-6. **The one the potion asked and could not answer.** Whether Temporary Hit
-   Points should carry a lifetime, which needs either a new effect target or a
-   new event: the event carries no source and nothing names them, so the hour
-   Potion of Heroism's ten last is a note. A decision before it is work.
-7. **Rule 4's other half has no test.** The sweep in `spell-schema.test.ts`
-   fails on a class name or a spell id in engine code; a species id or a
-   feature id is caught by a reader and by nothing else. A sweep, on the
-   pattern of the one beside it.
+4. **A lifetime for Temporary Hit Points.** The rule is settled — unstated
+   ones last until spent or until the end of a Long Rest — and what it needs
+   is a way to hang a deadline on them: either an effect target that names a
+   creature's temporary Hit Points or an event that carries their source.
+5. **Two breaches a sweep found and left standing.** `creation.ts` reads one
+   feat by name and pays out the Initiative bonus itself, which is Rule 4
+   mechanically and needs a way for a feat to confer that bonus through the
+   grant vocabulary; and `feature-schema.ts` teaches its id format with a live
+   SRD feature as the example, which is one word. Both are on the record in
+   `origin-and-feature-sweep.test.ts`, which fails if either changes.
+6. **Dice that scale with what was spent.** Every scaling field reads a slot
+   or a caster level, so Staff of Striking's extra die per charge has nowhere
+   to go, and a conferral priced in charges buys no SRD entry until it does.
+7. **The populations the sweep does not cover.** Subclass ids, and language
+   and alignment names — the last of which needs a construct allowance, since
+   `CREATURE_TYPES` names `'Giant'` as a mechanic.
+8. **SRD Fly is transcribed without `self: true`**, the same defect Jump had:
+   "You touch a willing creature" includes you, and the caster is not
+   currently a legal target of it.
