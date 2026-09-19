@@ -376,13 +376,35 @@ describe('an item may narrow the spell it casts to whoever is holding it', () =>
    */
   it('costs nothing when it refuses', () => {
     const worn = wearing(STEP_WAND);
-    const out = resolveSpell(
+    expect(chargesLeft(fold('seed', worn), CONTENT, WIELDER, STEP_WAND)).toBe(3);
+
+    // Three is a number this pool can move off, which the accepted casting
+    // shows before the refused one is asked to leave it alone: a test that
+    // only ever read the state *before* a refusal would pass against an
+    // implementation that spent the charge.
+    const paid = unwrap(
+      resolveSpell(
+        fold('seed', worn),
+        WIELDER,
+        { spellId: 'water-walk', targets: [WIELDER], item: STEP_WAND },
+        supply('paid'),
+      ),
+      'the wand casting on its holder',
+    );
+    expect(chargesLeft(fold('seed', [...worn, ...paid.events]), CONTENT, WIELDER, STEP_WAND)).toBe(
+      2,
+    );
+
+    const refused = resolveSpell(
       fold('seed', worn),
       WIELDER,
       { spellId: 'water-walk', targets: [ALLY], item: STEP_WAND },
       supply('costly'),
     );
-    expect(isErr(out) && out.code).toBe('targets_only_yourself');
+    expect(isErr(refused) && refused.code).toBe('targets_only_yourself');
+    // A refusal is a value with no events behind it, so there is nothing to
+    // fold — and the pool is where the accepted casting proved it need not be.
+    expect(refused.ok).toBe(false);
     expect(chargesLeft(fold('seed', worn), CONTENT, WIELDER, STEP_WAND)).toBe(3);
   });
 });
