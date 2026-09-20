@@ -288,7 +288,10 @@ describe('a character is created and advanced on every species', () => {
       // which is how the Goliath's 35 feet is a real answer and not a number
       // sitting on a sheet nobody reads.
       expect(speedOf(stateOf(choices), WHO)).toBe(SRD_CONTENT.speciesById(speciesId)?.speed);
-      expect(plan.warnings).toEqual([]);
+      // Nothing redundant. A martial character who has not picked which weapons
+      // they have mastery with warns about that, which is a fact about the
+      // choices rather than about the origin this is asserting.
+      expect(plan.warnings.filter((w) => w.code !== 'unclaimed_masteries')).toEqual([]);
 
       // And it levels: advancement emits the difference rather than rebuilding
       // the character, so a species that creation accepts must survive it.
@@ -320,7 +323,10 @@ describe('a character is created and advanced on every background', () => {
       // class's, and option A is the one these choices take.
       const purse = background?.startingEquipment.find((pack) => pack.option === 'A');
       expect(plan.goldPieces).toBeGreaterThanOrEqual(purse?.goldPieces ?? 0);
-      expect(plan.warnings).toEqual([]);
+      // Nothing redundant. A martial character who has not picked which weapons
+      // they have mastery with warns about that, which is a fact about the
+      // choices rather than about the origin this is asserting.
+      expect(plan.warnings.filter((w) => w.code !== 'unclaimed_masteries')).toEqual([]);
 
       const advanced = advanceCharacter(stateOf(choices), SRD_CONTENT, WHO, {});
       expect(advanced.ok, `${name} at level 2`).toBe(true);

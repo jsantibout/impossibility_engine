@@ -290,6 +290,18 @@ export function sizeOf(state: PositionState, who: CharacterId): CreatureSize | n
   return state.sizes[who] ?? null;
 }
 
+/**
+ * Whether a size is no larger than a named one — SRD's "Large or smaller".
+ *
+ * Off {@link SIZE_ORDER} rather than off a list of the sizes above the line,
+ * so a seventh size is ranked by the one place sizes are ranked and cannot be
+ * silently admitted by a literal nobody updated. The sentence appears on
+ * Push's mastery property and on a good deal of SRD besides.
+ */
+export function sizeAtMost(size: CreatureSize, limit: CreatureSize): boolean {
+  return sizeRank(size) <= sizeRank(limit);
+}
+
 export interface PassageContext {
   /** Allies may always be passed through, and cost nothing to pass through. */
   readonly allied?: boolean;

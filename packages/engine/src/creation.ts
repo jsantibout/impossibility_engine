@@ -818,6 +818,38 @@ function weaponsAsked(
   return column[Math.max(0, Math.min(level, column.length) - 1)] ?? 0;
 }
 
+/**
+ * Weapons a character could have mastery with and has not named.
+ *
+ * **A warning rather than a problem**, and the two halves of that are both the
+ * SRD's. Naming fewer is legal — "Whenever you finish a Long Rest, you can
+ * practice weapon drills and change one of those weapon choices", so which
+ * weapons you have mastery with is a standing decision rather than a
+ * proficiency fixed when the sheet was written, and "not yet" is a state a
+ * character can be in. But a level 1 class feature quietly doing nothing is
+ * the one outcome this engine rules out, so the plan says so: the same channel
+ * a redundant proficiency is reported through, for the same reason — the table
+ * decides, and nobody is left guessing.
+ */
+function unclaimedMasteries(
+  choices: CharacterChoices,
+  features: readonly FeatureDefinition[],
+): CreationProblem[] {
+  const warnings: CreationProblem[] = [];
+  for (const feature of features) {
+    const asked = feature.choice;
+    if (asked?.kind !== 'weapon') continue;
+    const ceiling = weaponsAsked(asked, choices, feature);
+    const named = (choices.featureChoices[feature.id] ?? []).length;
+    if (named < ceiling) {
+      warnings.push(
+        problem('unclaimed_masteries', 'featureChoices', `${feature.name} unlocks the mastery properties of ${ceiling} kinds of weapon, and ${named} were named; the rest are the table's to pick, on this Long Rest or a later one`),
+      );
+    }
+  }
+  return warnings;
+}
+
 function checkFeatureChoices(
   content: Content,
   choices: CharacterChoices,
@@ -853,6 +885,9 @@ function checkFeatureChoices(
     // permit, and is refused.
     if (asked.kind === 'weapon') {
       const ceiling = weaponsAsked(asked, choices, feature);
+      // Under the ceiling is legal and reported as a **warning** instead — see
+      // {@link unclaimedMasteries}, which is where it is said, because a
+      // problem here would refuse the character.
       if ((made ?? []).length > ceiling) {
         problems.push(
           problem('too_many_masteries', 'featureChoices', `${feature.id} (${feature.name}) unlocks ${ceiling} kinds of weapon, and ${(made ?? []).length} were named`),
@@ -2142,7 +2177,8 @@ export function planCharacter(
 
   const features = grantedFeatures(content, choices, parts);
   const scores = finalScores(content, choices, features);
-  const { skills: proficient, tools, warnings } = gatherProficiencies(content, choices, parts);
+  const { skills: proficient, tools, warnings: gathered } = gatherProficiencies(content, choices, parts);
+  const warnings = [...gathered, ...unclaimedMasteries(choices, features)];
 
   const expertise = new Set(expertiseSkills(content, choices, parts));
   const skills: Partial<Record<Skill, 'proficient' | 'expertise'>> = {};

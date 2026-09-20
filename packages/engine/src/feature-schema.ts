@@ -513,6 +513,48 @@ export function checkFeatureDefinition(
     });
   }
 
+  // A Weapon Mastery choice is sized by a printed number or by a column of the
+  // class table, and exactly one of the two. Neither is a ceiling of zero
+  // wearing a feature's name — a character who could never unlock anything —
+  // and both is a count sized twice, which is the rule `usesRolled` keeps
+  // beside `uses` on a charge pool.
+  if (feature.choice?.kind === 'weapon') {
+    const asked = feature.choice;
+    const shapes = [
+      asked.choose === undefined ? null : 'choose',
+      asked.chooseByLevel === undefined ? null : 'chooseByLevel',
+    ].filter((shape): shape is string => shape !== null);
+
+    if (shapes.length !== 1) {
+      found.push({
+        field: 'choice',
+        code: shapes.length === 0 ? 'unsized_weapon_choice' : 'ambiguous_weapon_choice',
+        reason:
+          shapes.length === 0
+            ? 'a weapon choice says how many kinds it unlocks through `choose` or through `chooseByLevel`, and this says neither'
+            : 'a weapon choice is sized by a number or by a column of the class table, not by both',
+      });
+    }
+
+    if (asked.chooseByLevel !== undefined && asked.chooseByLevel.length !== context.levels) {
+      found.push({
+        field: 'choice.chooseByLevel',
+        code: 'not_a_table_column',
+        reason: `a column of this source's table has ${context.levels} entries, not ${asked.chooseByLevel.length}`,
+      });
+    }
+
+    const counts = asked.chooseByLevel ?? (asked.choose === undefined ? [] : [asked.choose]);
+    const bad = counts.findIndex((count) => !Number.isInteger(count) || count < 0);
+    if (bad !== -1) {
+      found.push({
+        field: 'choice',
+        code: 'bad_weapon_choice',
+        reason: `a feature unlocks a whole number of kinds of weapon, not ${String(counts[bad])}`,
+      });
+    }
+  }
+
   // A conferred Reaction has no pool of its own — the giver's use was spent
   // when they gave it away — so a refund on failure is an ending nothing
   // keeps: what a use of it spends is the grant, and the grant is gone. The

@@ -72,6 +72,7 @@ import { landDamage } from './damage.js';
 import {
   CLEAVE_REACH,
   masteryAfterHit,
+  masteryArgumentProblem,
   type MasteryHit,
   type MasteryOutcome,
 } from './mastery.js';
@@ -327,6 +328,9 @@ export function resolveAttack(
     // SRD Cleave: "a **second** creature within 5 feet of the first that is
     // also within your reach ... only once per turn." The first creature is
     // named by the caller, so everything about the opening is checkable here.
+    const asked = masteryArgumentProblem(property, command.mastery?.feet);
+    if (!asked.ok) return asked;
+
     const cleaving = command.mastery?.cleaving;
     if (cleaving !== undefined) {
       const opening = cleaveOpening(state, id, command.target, cleaving, property);
@@ -374,9 +378,27 @@ export function resolveAttack(
     // SRD: an attack with a weapon is the Attack action. Outside combat there is
     // no economy to spend, exactly as `resolveCast` finds.
     const events: GameEvent[] = [];
+    // Gathered from here on, because the first thing that cannot be checked is
+    // the once-per-turn clause on a swing outside combat.
+    const unverified: string[] = [];
     // SRD Cleave's swing is a rider on a hit rather than an attack the Attack
     // action holds, so it costs what an Opportunity Attack costs here: nothing.
     const free = command.free === true || cleaving !== undefined;
+
+    // SRD Cleave: "You can make this extra **attack** only once per turn." What
+    // is allowed once is the swing, not its landing — so the allowance is spent
+    // here, beside the action economy, and a Cleave that misses has still been
+    // made. Outside combat there is no turn to count it against, which is the
+    // same answer Slow, Sap and Vex give to the same absence.
+    if (cleaving !== undefined) {
+      if (state.combat === null) {
+        unverified.push(
+          "Cleave's extra attack is once per turn, and there are no turns outside combat to count it against",
+        );
+      } else {
+        events.push({ type: 'feature-used', id, feature: CLEAVE, turn: state.combat.turnsTaken });
+      }
+    }
     if (
       !free &&
       command.bonusAction === true &&
@@ -414,7 +436,6 @@ export function resolveAttack(
 
     // Absent, not false: see `TargetContext.withinFiveFeet`.
     const withinFiveFeet = reach.value.apart === null ? undefined : reach.value.apart <= 5;
-    const unverified: string[] = [];
     if (reach.value.apart === null) {
       unverified.push(
         `nobody has said where ${id} and ${command.target} are standing, so any rule that reads the distance between them — Prone, an automatic critical, an enemy within 5 feet — went unapplied rather than checked`,
@@ -548,14 +569,6 @@ export function resolveAttack(
       }
 
       return ok({ events, attack: attack.value, unverified, duplicate: false });
-    }
-
-    // SRD Cleave: "You can make this extra attack only once per turn." The
-    // swing is what is allowed once rather than the damage it deals, so the
-    // allowance is spent on the hit — which is also what makes a *held* Cleave
-    // count against it.
-    if (cleaving !== undefined && state.combat !== null) {
-      events.push({ type: 'feature-used', id, feature: CLEAVE, turn: state.combat.turnsTaken });
     }
 
     // SRD Divine Smite is taken "immediately after hitting a target", which is

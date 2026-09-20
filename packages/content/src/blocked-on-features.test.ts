@@ -364,9 +364,13 @@ describe('what a shape finishes is the column a tranche is planned from', () => 
     // A shape nothing claims is removed rather than kept as a private
     // language, which is the rule the spell map wrote and this one inherited.
     expect(Object.keys(FEATURE_SHAPES)).not.toContain('a-weapon-mastery-property');
-    expect(allFeatureShapeConsumers().map((row) => row.shape)).not.toContain(
-      'a-weapon-mastery-property',
-    );
+    const ranked = allFeatureShapeConsumers();
+    expect(ranked.map((row) => row.shape)).not.toContain('a-weapon-mastery-property');
+
+    // The leader a tranche is sized from, pinned rather than left derived: it
+    // is the number the next batch is planned against, and a ranking nobody
+    // asserts is one nobody notices going wrong.
+    expect(ranked[0]?.shape).toBe('a-casting-paid-for-out-of-a-feature-pool');
 
     // And the two shapes the remaining clauses belong to are still claimed, by
     // features that have nothing to do with a weapon's mastery property.

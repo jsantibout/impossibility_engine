@@ -25,7 +25,7 @@ import type { WeaponMastery } from '@ie/srd';
 import { modifierFor, proficiencyBonus } from '../character.js';
 import { applyConditionTo, schedule } from './conditions.js';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
-import { bearingBetween, distanceBetween, sizeOf } from '../positioning.js';
+import { bearingBetween, moveCreature, sizeAtMost, sizeOf } from '../positioning.js';
 import { rollSavingThrow } from '../checks.js';
 import { endOfNextTurn, startOfNextTurn, type Duration } from '../time.js';
 import { recordD20Test, savingSupport } from './rolls.js';
@@ -46,13 +46,8 @@ export const PUSH_FEET = 10;
 export const SLOW_FEET = 10;
 export const CLEAVE_REACH = 5;
 
-/**
- * SRD Push: "if it is **Large or smaller**". The sizes larger than that.
- *
- * Read off the same order `positioning.ts` ranks sizes by, so a seventh size
- * would not need a second list.
- */
-const IMMOVABLE: readonly string[] = ['huge', 'gargantuan'];
+/** SRD Push: "if it is **Large or smaller**". */
+const PUSHABLE_UP_TO = 'large';
 
 /**
  * How the log names what a mastery property hung on somebody.
@@ -70,6 +65,27 @@ const IMMOVABLE: readonly string[] = ['huge', 'gargantuan'];
  */
 export const masterySource = (property: WeaponMastery, about?: CharacterId): string =>
   about === undefined ? `weapon-mastery:${property}` : `weapon-mastery:${property}@${about}`;
+
+/**
+ * Whether what the attacker asked for is a distance Push can move somebody.
+ *
+ * Asked by the command **before the attack roll**, for the reason every other
+ * caller-supplied argument is: a refusal that arrives after the damage has
+ * landed is a refusal with a footprint.
+ */
+export function masteryArgumentProblem(
+  property: WeaponMastery | null,
+  feet: number | undefined,
+): Result<null> {
+  if (feet === undefined) return ok(null);
+  if (property !== 'push') {
+    return err('bad_amount', `only Push moves a creature a number of feet, not ${property ?? 'a weapon with no mastery property'}`);
+  }
+  if (!Number.isInteger(feet) || feet < 0 || feet > PUSH_FEET) {
+    return err('bad_amount', `Push moves a creature up to ${PUSH_FEET} feet, not ${feet}`);
+  }
+  return ok(null);
+}
 
 export interface MasteryOutcome {
   readonly events: readonly GameEvent[];
@@ -284,10 +300,12 @@ function push(state: GameState, hit: MasteryHit): Result<MasteryOutcome> {
   // so asking the map first would answer "Medium" for a Gargantuan creature
   // nobody re-stated when they placed it.
   const size = state.creatures[hit.target]?.size ?? sizeOf(scene, hit.target);
-  if (size !== null && IMMOVABLE.includes(size)) {
+  if (size !== null && !sizeAtMost(size, PUSHABLE_UP_TO)) {
     return ok({
       events: [],
-      unverified: [`${hit.target} is ${size}, and Push moves a creature that is Large or smaller`],
+      unverified: [
+        `${hit.target} is ${size}, and Push moves a creature that is Large or smaller`,
+      ],
     });
   }
   if (state.creatures[hit.target]?.size == null) {
@@ -296,29 +314,37 @@ function push(state: GameState, hit: MasteryHit): Result<MasteryOutcome> {
     );
   }
 
-  const apart = distanceBetween(scene, hit.attacker, hit.target);
-  if (!apart.ok) return ok({ events: [], unverified: [...unverified, apart.reason] });
+  // Straight away from the attacker, and **anchored on the creature being
+  // moved**: a placement measured from the attacker adds a box-to-box distance
+  // to an anchor-to-anchor projection, which is the same number only while both
+  // of them are Medium. From the target, the projection is the push itself.
   const bearing = bearingBetween(scene, hit.attacker, hit.target);
   if (!bearing.ok) return ok({ events: [], unverified: [...unverified, bearing.reason] });
 
-  const feet = hit.feet ?? PUSH_FEET;
-  if (!Number.isInteger(feet) || feet < 0 || feet > PUSH_FEET) {
-    return err('bad_amount', `Push moves a creature up to ${PUSH_FEET} feet, not ${feet}`);
+  const placement = {
+    from: { creature: hit.target },
+    feet: hit.feet ?? PUSH_FEET,
+    bearing: bearing.value,
+  } as const;
+
+  // **Asked before it is written.** `creature-moved` is applied by the fold
+  // through `must`, so an event the scene would refuse — a shove into a wall —
+  // is a log that cannot be folded rather than a refusal. A push that has
+  // nowhere to go simply does not happen, and says so.
+  const moved = moveCreature(scene, hit.target, placement, { forced: true });
+  if (!moved.ok) {
+    return ok({
+      events: [],
+      unverified: [...unverified, `${hit.target} could not be pushed: ${moved.reason}`],
+    });
   }
-  if (feet === 0) return ok({ events: [], unverified });
 
   return ok({
     events: [
       {
         type: 'creature-moved',
         id: hit.target,
-        // Straight away from the attacker: the bearing they are already on,
-        // measured from the attacker so the line is the SRD's own.
-        placement: {
-          from: { creature: hit.attacker },
-          feet: apart.value + feet,
-          bearing: bearing.value,
-        },
+        placement,
         // Nobody spent their Speed on this and nobody provoked anything.
         forced: true,
       },

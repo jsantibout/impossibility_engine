@@ -7,6 +7,7 @@ import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { resolveAttack, resolveAttackDamage } from './commands.js';
 import { checkCharacter, createCharacter, planCharacter, type CharacterChoices } from './creation.js';
+import { extendContent, parseClassDefinition } from './content.js';
 import { bearingBetween, distanceBetween } from './positioning.js';
 import { speedOf } from './standing.js';
 import { hasCondition } from './conditions.js';
@@ -376,10 +377,16 @@ describe('Topple', () => {
     );
     expect(save).toBeDefined();
     if (save?.type !== 'roll-recorded') throw new Error('no save was recorded');
-    // 8 + the Strength modifier used for the swing + the Proficiency Bonus.
-    const failed = save.outcome === 'knocked down';
+
+    // 8 + the Strength modifier the swing used (+4, off an 18) + the
+    // Proficiency Bonus of a level 5 character (+3) = 15. Asserted through the
+    // outcome, which is the only place the DC is visible from here — and it is
+    // the whole rule: a save that came to 15 stands up and one that came to 14
+    // does not.
+    expect(save.outcome === 'stayed up').toBe(save.total >= 15);
+
     const prone = hasCondition(out.state.creatures[GOBLIN]!.conditions, 'prone');
-    expect(prone).toBe(failed);
+    expect(prone).toBe(save.outcome === 'knocked down');
   });
 });
 
@@ -402,6 +409,50 @@ describe('Push', () => {
     // "up to 10 feet" — the attacker may push less.
     const gentle = swing(log, { target: GOBLIN, weapon: 'warhammer', mastery: { feet: 5 } }, seed);
     expect(unwrap(distanceBetween(gentle.state.scene!, BRAM, GOBLIN), 'after')).toBe(apart + 5);
+
+    // And not more, nor a distance on a property that moves nobody — both
+    // refused before the attack roll rather than after the damage.
+    const heaved = resolveAttack(
+      fold('seed', log),
+      BRAM,
+      { target: GOBLIN, weapon: 'warhammer', mastery: { feet: 15 } },
+      supply(),
+    );
+    expect(isErr(heaved) ? heaved.code : 'ok').toBe('bad_amount');
+    const confused = resolveAttack(
+      fold('seed', log),
+      BRAM,
+      { target: GOBLIN, weapon: 'club', mastery: { feet: 5 } },
+      supply(),
+    );
+    expect(isErr(confused) ? confused.code : 'ok').toBe('bad_amount');
+  });
+
+  /**
+   * A shove into a wall is a shove that does not happen.
+   *
+   * `creature-moved` is applied by the fold through `must`, so an event the
+   * scene would refuse is a log nobody can fold — the failure this repository
+   * names as the worst kind, a refusal thrown rather than returned. The push is
+   * asked of the scene before it is written down.
+   */
+  it('does not write a move the scene would refuse', () => {
+    const boxed: readonly GameEvent[] = [
+      added(BRAM, 'party', { weaponMasteries: MASTERED }),
+      added(GOBLIN, 'goblins', feeble, 30),
+      { type: 'items-gained', id: BRAM, items: [{ id: 'warhammer', quantity: 1 }], source: 'kit' },
+      { type: 'scene-set', extent: { width: 10, depth: 10, height: 10 } },
+      { type: 'landmark-added', name: 'the cell', at: { x: 0, y: 0, z: 0 } },
+      { type: 'creature-placed', id: BRAM, placement: { from: { landmark: 'the cell' }, feet: 0 } },
+      at(GOBLIN, BRAM, 5, 90),
+    ];
+    const request = { target: GOBLIN, weapon: 'warhammer', mastery: {} } as const;
+    const out = swing(boxed, request, seedThat('hit', boxed, request));
+
+    expect(out.events.some((e) => e.type === 'creature-moved')).toBe(false);
+    expect(out.unverified.join(' ')).toContain('could not be pushed');
+    // And the log still folds, which is the whole point.
+    expect(out.state.creatures[GOBLIN]).toBeDefined();
   });
 
   /**
@@ -484,14 +535,51 @@ describe('Cleave', () => {
     const after = swing(opened.log, cleave, seed);
     expect(after.attack!.hit).toBe(true);
 
-    // The weapon's die and nothing else: a 1d12 that never reaches 13.
+    // The weapon's die and nothing else. Measured against the same seed swung
+    // *without* the Cleave, which throws the identical die and adds the
+    // Strength modifier to it: the difference is four, every time.
     const dealt = 30 - after.state.creatures[SECOND]!.vitals.hp;
-    expect(dealt).toBeGreaterThanOrEqual(1);
-    expect(dealt).toBeLessThanOrEqual(12);
+    const ordinary = swing(opened.log, { target: SECOND, weapon: 'greataxe', free: true }, seed);
+    expect(ordinary.attack!.hit).toBe(true);
+    expect(30 - ordinary.state.creatures[SECOND]!.vitals.hp).toBe(dealt + 4);
 
     // Once per turn, and the turn is the one the log is on.
     const twice = resolveAttack(after.state, BRAM, cleave, supply(seed));
     expect(isErr(twice) ? twice.code : 'ok').toBe('already_cleaved');
+  });
+
+  /**
+   * "Only once per turn", where there are no turns.
+   *
+   * The same answer Slow, Sap and Vex give to the same absence: the swing
+   * happened, and what could not be counted is reported rather than passed off
+   * as counted.
+   */
+  it('says it cannot count its allowance outside combat', () => {
+    const log = table();
+    const first = { target: GOBLIN, weapon: 'greataxe' } as const;
+    const opened = swing(log, first, seedThat('hit', log, first));
+    const cleave = { target: SECOND, weapon: 'greataxe', mastery: { cleaving: GOBLIN } } as const;
+    const out = swing(opened.log, cleave, seedThat('hit', opened.log, cleave));
+    expect(out.unverified.join(' ')).toContain('no turns outside combat');
+  });
+
+  /**
+   * And in combat the allowance is spent by **making** the attack: SRD says
+   * "you can make this extra attack only once per turn", not "only once it
+   * lands", so a Cleave that misses has still been made.
+   */
+  it('spends its allowance on a swing that misses', () => {
+    const log = fighting();
+    const first = { target: GOBLIN, weapon: 'greataxe' } as const;
+    const opened = swing(log, first, seedThat('hit', log, first));
+
+    const cleave = { target: SECOND, weapon: 'greataxe', mastery: { cleaving: GOBLIN } } as const;
+    const missed = swing(opened.log, cleave, seedThat('miss', opened.log, cleave));
+    expect(missed.attack!.hit).toBe(false);
+
+    const again = resolveAttack(missed.state, BRAM, cleave, supply());
+    expect(isErr(again) ? again.code : 'ok').toBe('already_cleaved');
   });
 
   it('refuses the creature it already hit', () => {
@@ -519,6 +607,133 @@ describe('Cleave', () => {
       supply(),
     );
     expect(isErr(out) ? out.code : 'ok').toBe('out_of_reach');
+  });
+});
+
+/**
+ * The vocabulary rather than the five classes: a homebrew class that unlocks a
+ * weapon's mastery property and lets its holder swap one, created and swung
+ * through the public API with no engine change.
+ *
+ * Both new members at once, because they are one feature's two halves — the
+ * choice that says which weapons and the grant that says what having them is
+ * worth — and a `chooseByLevel` column read at the class's own level.
+ */
+describe('a homebrew class that unlocks a mastery property', () => {
+  const DUELLIST = JSON.stringify({
+    id: 'duellist',
+    name: 'Duellist',
+    primaryAbility: 'dex',
+    hitDie: 8,
+    saveProficiencies: ['dex', 'int'],
+    skillChoices: { choose: 2, from: ['acrobatics', 'athletics', 'insight', 'performance'] },
+    weaponProficiencies: ['simple', 'martial'],
+    armorTraining: { light: true, medium: false, heavy: false, shields: false },
+    // No subclass at all, so the fixture is about the two new members and
+    // nothing else.
+    subclassLevel: 20,
+    table: Array.from({ length: 20 }, (_, i) => ({
+      level: i + 1,
+      proficiencyBonus: 2 + Math.floor(i / 4),
+    })),
+    startingEquipment: [
+      { option: 'A', items: [{ id: 'warhammer', quantity: 1 }], goldPieces: 10 },
+    ],
+    multiclass: {
+      weapons: ['martial'],
+      armorTraining: { light: true, medium: false, heavy: false, shields: false },
+      tools: [],
+    },
+    features: [
+      {
+        id: 'duellist:practised-forms',
+        name: 'Practised Forms',
+        level: 1,
+        automation: 'engine',
+        note: 'One kind of weapon at level 1 and two from level 5, whose mastery property this Duellist may use — and, because a duellist improvises, may trade for Topple on any given swing.',
+        grants: { kind: 'weapon-mastery', substitutes: ['topple'] },
+        choice: {
+          kind: 'weapon',
+          chooseByLevel: Array.from({ length: 20 }, (_, i) => (i + 1 >= 5 ? 2 : 1)),
+        },
+      },
+    ],
+  });
+
+  const duellist = (level: number, masteries: readonly string[]): CharacterChoices => ({
+    ...common,
+    name: 'Vane',
+    classId: 'duellist',
+    level,
+    abilities: {
+      method: 'standard-array',
+      assignment: { str: 15, dex: 14, con: 13, int: 12, wis: 10, cha: 8 },
+    },
+    abilityIncreases: { str: 2, con: 1 },
+    classSkills: ['acrobatics', 'athletics'],
+    featureChoices: {
+      'human:skillful': ['perception'],
+      'duellist:practised-forms': [...masteries],
+    },
+    feats: common.feats,
+  });
+
+  const parsed = unwrap(parseClassDefinition(JSON.parse(DUELLIST)), 'parse');
+  const content = unwrap(extendContent(SRD_CONTENT, { classes: [parsed] }), 'extend');
+  const VANE = id('vane');
+
+  it('reads its column, lands on the sheet and runs on the swing', () => {
+    // One at level 1, two at 5 — the column, read at this class's own level.
+    expect(checkCharacter(content, duellist(1, ['warhammer'])).map((p) => p.code)).toEqual([]);
+    expect(
+      checkCharacter(content, duellist(1, ['warhammer', 'club'])).map((p) => p.code),
+    ).toContain('too_many_masteries');
+    expect(
+      checkCharacter(content, duellist(5, ['warhammer', 'club'])).map((p) => p.code),
+    ).toEqual([]);
+
+    const planned = unwrap(planCharacter(content, duellist(1, ['warhammer'])), 'plan');
+    expect(planned.sheet.weaponMasteries).toEqual(['warhammer']);
+    expect(planned.sheet.masterySubstitutions).toEqual(['topple']);
+
+    const log: GameEvent[] = [
+      ...(unwrap(createCharacter(content, duellist(1, ['warhammer']), VANE), 'create') as GameEvent[]),
+      added(GOBLIN, 'goblins', feeble, 30),
+      { type: 'scene-set', extent: { width: 2000, depth: 2000, height: 40 } },
+      { type: 'landmark-added', name: 'the yard', at: { x: 500, y: 500, z: 0 } },
+      { type: 'creature-placed', id: VANE, placement: { from: { landmark: 'the yard' }, feet: 0 } },
+      at(GOBLIN, VANE, 5, 90),
+    ];
+
+    // The weapon's own property: a Warhammer pushes.
+    const pushing = { target: GOBLIN, weapon: 'warhammer', mastery: {} } as const;
+    let seed = '';
+    for (let n = 0; n < 60 && seed === ''; n += 1) {
+      const probe = unwrap(
+        resolveAttack(fold('seed', log), VANE, pushing, supply(`duel-${n}`)),
+        'probe',
+      );
+      if (probe.attack!.hit) seed = `duel-${n}`;
+    }
+    const shoved = unwrap(resolveAttack(fold('seed', log), VANE, pushing, supply(seed)), 'push');
+    expect(shoved.events.some((e) => e.type === 'creature-moved')).toBe(true);
+
+    // And the one its own feature offers instead.
+    const tripping = unwrap(
+      resolveAttack(
+        fold('seed', log),
+        VANE,
+        { target: GOBLIN, weapon: 'warhammer', mastery: { property: 'topple' } },
+        supply(seed),
+      ),
+      'topple',
+    );
+    expect(
+      tripping.events.some(
+        (e) => e.type === 'roll-recorded' && e.label.toLowerCase().includes('topple'),
+      ),
+    ).toBe(true);
+    expect(tripping.events.some((e) => e.type === 'creature-moved')).toBe(false);
   });
 });
 

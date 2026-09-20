@@ -480,7 +480,8 @@ describe('a homebrew species declares a sense and the engine never hears its nam
 
   it('creates a character who carries the sense, and sees by it', () => {
     const plan = unwrap(planCharacter(content, choices()), 'plan');
-    expect(plan.warnings).toEqual([]);
+    // Nothing redundant; an unpicked weapon mastery is not this file's subject.
+    expect(plan.warnings.filter((w) => w.code !== 'unclaimed_masteries')).toEqual([]);
 
     const events = unwrap(createCharacter(content, choices(), SEER), 'creation') as GameEvent[];
     const state = fold('seed', [
