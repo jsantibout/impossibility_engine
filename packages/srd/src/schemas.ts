@@ -148,6 +148,26 @@ export type MonsterDamage = z.infer<typeof MonsterDamageSchema>;
  * both travel with the numbers and the command that rolls the attack reports
  * them — each at the moment it would have mattered.
  */
+/**
+ * What has to happen before an attack that is not available every round is
+ * available again.
+ *
+ * The book prints it **inside the action's name** — "Whirlwind (Recharge 4–6)",
+ * "Rock (Recharge 6)", "(Recharge after a Short or Long Rest)" — and a name is
+ * exactly what nothing downstream may branch on. So it is read here, once, and
+ * whatever has to tell a Bite from a breath weapon reads a field.
+ *
+ * `low` is the lowest face of the d6 that brings it back: 4 for "4–6", 6 for
+ * "6". Nothing rolls that die yet, and this does not claim anybody does — what
+ * it states is the fact that the line is *not* the creature's every-round
+ * attack, which is the whole of what a reader needs to leave it out of one.
+ */
+export const MonsterRechargeSchema = z.union([
+  z.object({ kind: z.literal('die'), low: z.number().int().min(1).max(6) }),
+  z.object({ kind: z.literal('rest') }),
+]);
+export type MonsterRecharge = z.infer<typeof MonsterRechargeSchema>;
+
 export const MonsterAttackSchema = z.object({
   kind: z.enum(['melee', 'ranged', 'melee-or-ranged']),
   /** The printed bonus to the attack roll, used whole. */
@@ -171,8 +191,45 @@ export const MonsterAttackSchema = z.object({
   qualification: z.string().min(1).nullable(),
   /** Everything the line says after the damage, verbatim. Null where it says nothing. */
   rider: z.string().min(1).nullable(),
+  /**
+   * Present exactly where the line's name prints a recharge — see
+   * {@link MonsterRechargeSchema}.
+   *
+   * On the attack rather than on the line because it is a fact about *this
+   * attack's* availability, and the readers that have to leave a breath weapon
+   * out of a choice hold an attack rather than the section it came from.
+   */
+  recharge: MonsterRechargeSchema.optional(),
 });
 export type MonsterAttack = z.infer<typeof MonsterAttackSchema>;
+
+/**
+ * The sequence a Multiattack prints, where the sentence states one.
+ *
+ * SRD Air Elemental: "The elemental makes two Thunderous Slam attacks." A
+ * stat block's Multiattack is not a number of attacks — it is a *named
+ * sequence*, and a count carried without its names would let a Ghoul whose
+ * book prints two Bites make two Claws instead.
+ *
+ * Absent for the sentences that say something else: an alternative ("or it
+ * makes two Hurl Flame attacks"), a free choice from a menu ("in any
+ * combination"), a non-attack use ("and uses Consume Memories") or a count
+ * that reads off the creature ("as many Bite attacks as it has heads"). Each
+ * of those is a mechanism of its own, and half of one read into this shape
+ * would be a rule nobody printed.
+ */
+export const MonsterMultiattackSchema = z.object({
+  entries: z
+    .array(
+      z.object({
+        count: z.number().int().min(1),
+        /** The printed name of the action this clause names — `Thunderous Slam`. */
+        attack: z.string().min(1),
+      }),
+    )
+    .min(1),
+});
+export type MonsterMultiattack = z.infer<typeof MonsterMultiattackSchema>;
 
 /**
  * A trait whose sentence the parser recognised as a mechanic the engine has.
@@ -208,6 +265,8 @@ export const FeatureSchema = z.object({
   attack: MonsterAttackSchema.optional(),
   /** The mechanic this trait's sentence states, where the parser knows it. */
   trait: MonsterTraitSchema.optional(),
+  /** The sequence this line's sentence states, where it states one. */
+  multiattack: MonsterMultiattackSchema.optional(),
 });
 export type Feature = z.infer<typeof FeatureSchema>;
 

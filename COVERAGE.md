@@ -950,7 +950,7 @@ stopped having to be handed:
 
 | Parsed | Carried | Attacking | Defence entries | of which qualified | of which unread | Printed lines | of which read |
 |---|---|---|---|---|---|---|---|
-| 330 | 330 | 328 | 723 | 2 | 2 | 1329 | 440 |
+| 330 | 330 | 328 | 723 | 2 | 2 | 1329 | 521 |
 
 **A stat block used to arrive as a body rather than as an actor.**
 `adaptMonster` has always carried across everything the block states as a
@@ -1000,10 +1000,10 @@ fact the book wrote for a person.
 | Line | Printed | Read |
 |---|---|---|
 | Traits | 337 | 18 |
-| Actions | 811 | 422 |
+| Actions | 811 | 500 |
 | Bonus actions | 75 | 0 |
 | Reactions | 24 | 0 |
-| Legendary actions | 82 | 0 |
+| Legendary actions | 82 | 3 |
 
 **What the rest would need, ranked by the blocks it would free.** Each
 row is a predicate over a line rather than a reading of it — a line named
@@ -1015,9 +1015,9 @@ and a bite whose hit buys a save.
 
 | Shape | Blocks | Lines |
 |---|---|---|
-| How many attacks the Attack action holds | 177 | 177 |
 | A save a line forces | 127 | 187 |
 | An effect a hit buys | 127 | 143 |
+| How many attacks the Attack action holds | 99 | 99 |
 | A recharge | 87 | 87 |
 | A use the block limits per day | 54 | 60 |
 | A creature that casts | 48 | 48 |

@@ -41,7 +41,12 @@ import { type Content } from '../content.js';
 import { canUseFeatureThisTurn, spendAttack, spendBonusAction } from '../combat.js';
 import { applyEvent, type CreatureState, type GameEvent, type GameState } from '../events.js';
 import { modifierFor, type CharacterSheet, type StatedAttack } from '../character.js';
-import { hasPrintedTrait, printedAttackOf } from '../monster.js';
+import {
+  hasPrintedTrait,
+  multiattackAllows,
+  multiattackOf,
+  printedAttackOf,
+} from '../monster.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import {
   canBeTargeted,
@@ -117,6 +122,52 @@ const inPlay = (style: StrikeStyle): StrikeStyleInPlay => ({
  * any catalogue names it.
  */
 const CLEAVE = 'weapon-mastery:cleave';
+
+/**
+ * Where a swing inside the Attack action is counted, when the creature's block
+ * states a sequence.
+ *
+ * **The combat ledger, which is what it is for.** `feature-used` keys by a
+ * string and a turn, and what is spent here is neither a class feature nor a
+ * weapon property but a *slot* the stat block printed — the second of the two
+ * Bites — so it is written in the same namespace Cleave's once-per-turn
+ * allowance is, for the reason that one is: the ledger is the engine's
+ * per-turn record, and a second one beside it would be a second answer to the
+ * same question.
+ *
+ * A slot rather than a count because the ledger stores a turn against a key
+ * and not a number against one: `Bite#1` and `Bite#2` are two things spent
+ * once each, which is exactly what "two Bite attacks" grants. The prefix is a
+ * constant, and the name in the key came out of the creature's own block —
+ * nothing in this file names an attack.
+ */
+const SEQUENCE = 'multiattack:';
+
+const sequenceSlot = (name: string, ordinal: number): string =>
+  `${SEQUENCE}${name}#${ordinal}`;
+
+/**
+ * The Attack action's swings so far this turn, counted by the name each was
+ * made with.
+ *
+ * Read back off the ledger rather than stored a second time, so there is one
+ * record of what happened and a replay cannot disagree with it.
+ */
+function attacksMadeThisTurn(
+  combat: NonNullable<GameState['combat']>,
+  id: CharacterId,
+): Readonly<Record<string, number>> {
+  const made: Record<string, number> = {};
+  const spent = combat.budgets[id]?.featureUsedOnTurn ?? {};
+
+  for (const [key, turn] of Object.entries(spent)) {
+    if (turn !== combat.turnsTaken || !key.startsWith(SEQUENCE)) continue;
+    const name = key.slice(SEQUENCE.length, key.lastIndexOf('#'));
+    made[name] = (made[name] ?? 0) + 1;
+  }
+
+  return made;
+}
 
 /**
  * Everything wrong with a swing that names an attack its creature prints, or
@@ -565,6 +616,41 @@ export function resolveAttack(
     // action holds, so it costs what an Opportunity Attack costs here: nothing.
     const free = command.free === true || cleaving !== undefined;
 
+    // — the sequence this creature's block prints ——————————————————————————
+    //
+    // Checked here, with the Attack action still unspent, and marked below
+    // once it is: a swing the sequence does not hold is refused with nothing
+    // paid for it, which is the rule every other argument on this command
+    // follows.
+    const sequence = multiattackOf(sheet);
+    const budget = state.combat?.budgets[id] ?? null;
+    let slot: string | null = null;
+    if (
+      sequence !== null &&
+      !free &&
+      command.bonusAction !== true &&
+      state.combat !== null &&
+      budget !== null
+    ) {
+      const made = attacksMadeThisTurn(state.combat, id);
+      const next = { ...made, [attackName]: (made[attackName] ?? 0) + 1 };
+      // **The first swing of the Attack action is unconstrained**, because a
+      // stat block prints its attacks as actions of their own: a Ghoul taking
+      // its Claw action makes one Claw, and the sequence is about what may
+      // follow. Everything after it is measured against the whole turn's
+      // swings — so a Claw and a Bite is refused as surely as two Claws are,
+      // and for the same reason: neither pair is what the block printed.
+      if (budget.attacksRemaining !== null && !multiattackAllows(sequence, next)) {
+        return err(
+          'not_in_multiattack',
+          `${id}'s block prints ${sequence.entries
+            .map((entry) => `${entry.count} × ${entry.attack}`)
+            .join(' and ')} in one action, and a ${attackName} is not what is left of it`,
+        );
+      }
+      slot = sequenceSlot(attackName, next[attackName]!);
+    }
+
     // SRD Cleave: "You can make this extra **attack** only once per turn." What
     // is allowed once is the swing, not its landing — so the allowance is spent
     // here, beside the action economy, and a Cleave that misses has still been
@@ -609,6 +695,13 @@ export function resolveAttack(
       );
       if (!spent.ok) return spent;
       events.push({ type: 'attack-made', id });
+    }
+
+    // The slot this swing filled, written down where the economy was spent.
+    // Only in combat, because a turn is what it is counted against — the
+    // answer Cleave, Slow, Sap and Vex all give to the same absence.
+    if (slot !== null && state.combat !== null) {
+      events.push({ type: 'feature-used', id, feature: slot, turn: state.combat.turnsTaken });
     }
 
     // — the roll ———————————————————————————————————————————————————————————

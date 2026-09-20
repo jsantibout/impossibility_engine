@@ -1,7 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { parseAttackLine, parseMonsters, parseTraitShape } from './monsters.js';
+import {
+  parseAttackLine,
+  parseMonsters,
+  parseMultiattack,
+  parseTraitShape,
+} from './monsters.js';
 
 /**
  * The two shapes this parser now reads out of a stat block's prose.
@@ -263,5 +268,156 @@ describe('the bestiary, read through the parser', () => {
     const multiattack = find('ghoul').actions.find((a) => a.name === 'Multiattack');
     expect(multiattack?.attack).toBeUndefined();
     expect(multiattack?.text).toContain('two Bite attacks');
+  });
+});
+
+/**
+ * The third shape read out of a stat block's prose: a Multiattack's **named
+ * sequence**.
+ *
+ * "The elemental makes two Thunderous Slam attacks" is a count *and* a name,
+ * and the count on its own is not the rule — a Ghoul allowed two attacks is a
+ * Ghoul allowed two Claws, which the book does not print. So what is read is
+ * the sequence, and a sentence that is not one is left as prose exactly as
+ * every unread line is.
+ *
+ * **One grammar, and nothing guessed.** A block that offers alternatives ("or
+ * it makes two Hurl Flame attacks"), a free choice ("using Scimitar and Pistol
+ * in any combination"), a use that is not an attack ("and uses Consume
+ * Memories") or a count nobody can resolve ("as many Bite attacks as it has
+ * heads") is a different mechanism, and each comes back null rather than as
+ * the half of itself this grammar happens to match.
+ */
+describe('parseMultiattack', () => {
+  it('reads a count and the name it attaches to', () => {
+    expect(parseMultiattack('The elemental makes two Thunderous Slam attacks.')).toEqual({
+      entries: [{ count: 2, attack: 'Thunderous Slam' }],
+    });
+    expect(parseMultiattack(action('ghoul', 'Multiattack').text)).toEqual({
+      entries: [{ count: 2, attack: 'Bite' }],
+    });
+  });
+
+  it('reads a sequence of two differently named attacks, in printed order', () => {
+    expect(parseMultiattack(action('bone-devil', 'Multiattack').text)).toEqual({
+      entries: [
+        { count: 2, attack: 'Claw' },
+        { count: 1, attack: 'Infernal Sting' },
+      ],
+    });
+  });
+
+  it('refuses every sentence that is not a named sequence', () => {
+    for (const text of [
+      // An alternative the engine would have to choose between.
+      'The devil makes one Claws attack and one Tail attack, or it makes two Hurl Flame attacks.',
+      // A free choice from a menu, which is a count and not a sequence.
+      'The assassin makes three attacks, using Shortsword or Light Crossbow in any combination.',
+      // A use that is not an attack at all.
+      'The aboleth makes two Tentacle attacks and uses either Consume Memories or Dominate Mind if available.',
+      // A second sentence, saying something this grammar has not read.
+      'The dragon makes three Rend attacks. It can replace one attack with a use of Spellcasting.',
+      // A count nobody can resolve.
+      'The hydra makes as many Bite attacks as it has heads.',
+      // Plural where the book prints one, and the other way round.
+      'The devil makes one Beard attacks.',
+      'The ghoul makes two Bite attack.',
+    ]) {
+      expect(parseMultiattack(text), text).toBeNull();
+    }
+  });
+
+  /**
+   * The parse is carried on the line, beside `attack` and `trait`, and only
+   * where the sentence was read whole — so a reader can tell a sequence the
+   * engine holds from prose a DM still applies.
+   */
+  it('carries the sequence on the line that prints it, and on no other', () => {
+    const ghoul = find('ghoul').actions;
+    expect(ghoul.find((a) => a.name === 'Multiattack')?.multiattack).toEqual({
+      entries: [{ count: 2, attack: 'Bite' }],
+    });
+    expect(ghoul.find((a) => a.name === 'Bite')?.multiattack).toBeUndefined();
+    expect(
+      find('aboleth').actions.find((a) => a.name === 'Multiattack')?.multiattack,
+    ).toBeUndefined();
+  });
+
+  /**
+   * Every sequence names lines the same block prints, which is what makes the
+   * grammar honest rather than merely confident: a name read out of one
+   * sentence has to be an action somebody can actually take.
+   */
+  it('names an action the block prints, in every block it read', () => {
+    let read = 0;
+    for (const monster of bestiary) {
+      // Every section, because the grammar reads a sentence and not a heading:
+      // three legendary actions print one too — "The aboleth makes one Tentacle
+      // attack" — and a name read there has to be a line as well.
+      for (const line of [
+        ...monster.traits,
+        ...monster.actions,
+        ...monster.bonusActions,
+        ...monster.reactions,
+        ...monster.legendaryActions,
+      ]) {
+        if (line.multiattack === undefined) continue;
+        read += 1;
+        const printed = monster.actions.map((a) => a.name.toLowerCase());
+        for (const entry of line.multiattack.entries) {
+          expect(printed, `${monster.id}: ${entry.attack}`).toContain(entry.attack.toLowerCase());
+        }
+      }
+    }
+    expect(read).toBeGreaterThan(60);
+  });
+
+  /**
+   * And a sentence that says something *besides* a sequence is not one.
+   *
+   * The dragons' Pounce — "The dragon moves up to half its Speed, and it makes
+   * one Rend attack" — is the whole reason the subject of the sentence is a
+   * few plain words rather than anything at all: a looser opening reads this
+   * as a lone Rend and drops the move without saying so.
+   */
+  it('refuses a sentence that does something before it attacks', () => {
+    expect(
+      parseMultiattack('The dragon moves up to half its Speed, and it makes one Rend attack.'),
+    ).toBeNull();
+    const pounce = bestiary
+      .find((m) => m.id === 'adult-black-dragon')
+      ?.legendaryActions.find((a) => a.name === 'Pounce');
+    expect(pounce?.text).toContain('moves up to half its Speed');
+    expect(pounce?.multiattack).toBeUndefined();
+  });
+});
+
+/**
+ * A recharge is printed in the action's **name** — "Whirlwind (Recharge 4–6)"
+ * — and the engine may not branch on a name. So it is read here into a field,
+ * once, and whatever filters on it downstream reads structure.
+ */
+describe('a recharge on a printed attack', () => {
+  it('reads the die the book prints, off the name', () => {
+    expect(action('ape', 'Rock (Recharge 6)').attack?.recharge).toEqual({ kind: 'die', low: 6 });
+    expect(action('minotaur-of-baphomet', 'Gore (Recharge 5–6)').attack?.recharge).toEqual({
+      kind: 'die',
+      low: 5,
+    });
+  });
+
+  it('leaves an attack that recharges on nothing without the field', () => {
+    expect(action('wolf', 'Bite').attack?.recharge).toBeUndefined();
+  });
+
+  it('reads every recharging attack line in the book', () => {
+    for (const monster of bestiary) {
+      for (const line of monster.actions) {
+        if (line.attack === undefined) continue;
+        expect(line.attack.recharge !== undefined, `${monster.id}: ${line.name}`).toBe(
+          /\(Recharge/i.test(line.name),
+        );
+      }
+    }
   });
 });

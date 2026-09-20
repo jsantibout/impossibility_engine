@@ -75,6 +75,7 @@ import {
   spendReactionCost,
 } from './damage.js';
 import { completeIfSettled, pendingCastingsOf } from './holds.js';
+import { reactionSwing } from './movement.js';
 import { checkBonuses, mergedModes, recordD20Test, savingSupport } from './rolls.js';
 
 export interface DamageReactionCommand extends CommandIdentity {
@@ -751,6 +752,14 @@ export interface DamageResponseCommand extends CommandIdentity {
   readonly feature: string;
   /** The weapon, by catalogue id, or null for an Unarmed Strike. */
   readonly weapon?: string | null;
+  /**
+   * An attack the reactor's own stat block prints, by its printed name.
+   *
+   * `OpportunityCommand.action`'s twin, because the two windows ask the same
+   * question: SRD Retaliation is "one melee attack" and so is an Opportunity
+   * Attack. Naming neither leaves the choice to {@link reactionSwing}.
+   */
+  readonly action?: string;
 }
 
 /**
@@ -836,7 +845,14 @@ export function takeDamageResponse(
     const swing = resolveAttack(
       after,
       reactor,
-      { target: hurt.by, weapon: command.weapon ?? null, free: true },
+      {
+        target: hurt.by,
+        // The same three answers an Opportunity Attack takes, for the same
+        // Reaction: a creature that prints its own attacks swings one of them
+        // rather than an Unarmed Strike nobody printed.
+        ...reactionSwing(sheetAsItStands(after, reactor) ?? creature.sheet, command),
+        free: true,
+      },
       supply,
     );
     if (!swing.ok) return swing;
