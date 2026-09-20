@@ -17,7 +17,14 @@ import {
   type GameEvent,
   type Rng,
 } from '@ie/engine';
-import { printedFieldsOf, printedUnitsOf } from '../scripts/missing-shapes.js';
+import {
+  BLOCKED_ON,
+  TRACKED_ADJUDICATED,
+  clausesIn,
+  mechanicalMarkersIn,
+  printedFieldsOf,
+  printedUnitsOf,
+} from '../scripts/missing-shapes.js';
 
 /**
  * Text only the DM can decide, handed over rather than adjudicated.
@@ -41,6 +48,36 @@ import { printedFieldsOf, printedUnitsOf } from '../scripts/missing-shapes.js';
  * the casting under a mark of their own, and everything the casting really owns
  * — the slot, the rite on the clock, the duration, the ongoing record — happens
  * around them exactly as it does for any other spell.
+ *
+ * ### The sweep the ruling implied, and what it actually found
+ *
+ * The ruling named three spells and the catalogue was never read for the rest.
+ * Augury's omen — "The GM chooses the omen from the Omens table" — sat in
+ * `unmodelled` saying in its own words that it was the GM's, which is a debt
+ * nobody may ever pay filed on the list of debts somebody might. It was not
+ * alone.
+ *
+ * The sweep was run against two objective anchors rather than by taste. The
+ * **Range** half is closed and provably so: exactly three SRD spells print a
+ * Range that is not Self, Touch or a number of feet — Dream's `Special`,
+ * Mirage Arcane's `Sight` and Sending's `Unlimited` — and Sending is not a
+ * handover, because it is blocked on a second plane, a 5-per-cent chance and an
+ * effect that suppresses other magic. The **prose** half was anchored on the
+ * book naming the GM: twenty-one SRD spells do, nineteen of them are
+ * definitions, and each was read line by line against the question the ruling
+ * asks — could the engine execute this if somebody built the shape, or is it a
+ * fact only a person at the table can supply?
+ *
+ * Eight came back handovers and are re-filed here. Two rules keep the answer
+ * checkable rather than a matter of opinion, and both are asserted below: a
+ * handed-over sentence trips **no mechanical marker**, and it is **not a
+ * sentence the tracked map already files as a debt**. Where a line was
+ * genuinely both — Teleportation Circle's sigil sequences, whose 365 days of
+ * daily casting is a count nothing keeps; Awaken's statistics, which are a stat
+ * block as well as the GM's choice; Plane Shift's arrival, which is a second
+ * place to put a creature; Prismatic Wall's light, which refuses lower-level
+ * magic; Control Weather's stage tables, which wait on a delay nothing
+ * schedules — the line stayed a debt and this comment is the record of why.
  */
 
 const HANDING_OVER: readonly string[] = SPELL_DEFINITIONS.filter(
@@ -50,6 +87,24 @@ const HANDING_OVER: readonly string[] = SPELL_DEFINITIONS.filter(
 /** The two whose **Range** is the handover, which is the half with no number. */
 const DM_RANGED: readonly string[] = SPELL_DEFINITIONS.filter((d) => d.range.kind === 'dm').map(
   (d) => d.id,
+);
+
+/**
+ * A casting of a minute or more, which is the only kind that reaches the log.
+ *
+ * The three the ruling named were all long, so the driver below assumed it.
+ * The sweep found two that are not — Divination is an Action or a Ritual and
+ * Gate is an Action — and an atomic casting writes `spell-cast`, which carries
+ * no text at all. Their handover reaches the caller and not the log, which is
+ * the limit `unmodelled` has always had and `SpellDefinition.dmDecides`
+ * records; splitting the population here is how that stays a stated fact
+ * rather than a test nobody could write.
+ */
+const LONG: readonly string[] = HANDING_OVER.filter(
+  (id) => SRD_CONTENT.spell(id)!.castingTime === 'long',
+);
+const ATOMIC: readonly string[] = HANDING_OVER.filter(
+  (id) => SRD_CONTENT.spell(id)!.castingTime !== 'long',
 );
 
 const id = (s: string) => asCharacterId(s);
@@ -81,7 +136,10 @@ const added = (who: CharacterId): GameEvent => ({
 const SETUP: readonly GameEvent[] = [
   added(CLERIC),
   added(SLEEPER),
-  ...[5, 7].map(
+  // Every level the handed-over spells are cast at, because the sweep widened
+  // the population from three level-5-and-7 rites to eleven spells between
+  // level 2 and level 9.
+  ...[2, 4, 5, 6, 7, 8, 9].map(
     (level): GameEvent => ({
       type: 'resource-pool-declared',
       id: CLERIC,
@@ -120,13 +178,30 @@ const supply = () => ({
   content: SRD_CONTENT,
 });
 
+/** An Action casting, which lands in one breath and writes no pending record. */
+const atomic = (spellId: string, log: readonly GameEvent[] = SETUP) => {
+  const definition = SRD_CONTENT.spell(spellId)!;
+  const targets = definition.targets.count === 0 ? [] : [SLEEPER];
+  const cast = unwrap(
+    resolveSpell(
+      fold('seed', log),
+      CLERIC,
+      { spellId, targets, slotLevel: definition.level },
+      supply(),
+    ),
+    `cast ${spellId}`,
+  );
+  return { cast, log: [...log, ...cast.events], unverified: [...cast.unverified] };
+};
+
 /**
- * One of the three, cast the whole way: declared, held on the clock for the
+ * One of the long ones, cast the whole way: declared, held on the clock for the
  * rite the book prints, and settled.
  *
- * All three take a minute or more, so none of them lands in one breath — and
- * driving the whole casting is the only way to say that the handover survives
- * the round trip through the log rather than being a string a command returned.
+ * Nine of the eleven take a minute or more, so none of those lands in one
+ * breath — and driving the whole casting is the only way to say that the
+ * handover survives the round trip through the log rather than being a string a
+ * command returned.
  */
 const driven = (spellId: string, log: readonly GameEvent[] = SETUP) => {
   const definition = SRD_CONTENT.spell(spellId)!;
@@ -163,9 +238,34 @@ const driven = (spellId: string, log: readonly GameEvent[] = SETUP) => {
 };
 
 describe('the catalogue hands over exactly the text it means to', () => {
-  it('is the three spells the ruling names, and no others yet', () => {
-    expect([...HANDING_OVER].sort()).toEqual(['commune', 'dream', 'mirage-arcane']);
+  it('is the three the ruling named and the eight the sweep found', () => {
+    expect([...HANDING_OVER].sort()).toEqual([
+      'augury',
+      'commune',
+      'commune-with-nature',
+      'contact-other-plane',
+      'control-weather',
+      'divination',
+      'dream',
+      'gate',
+      'legend-lore',
+      'mirage-arcane',
+      'planar-ally',
+    ]);
+    // And the Range half did not grow, because it was already complete: three
+    // SRD spells print a Range that is not Self, Touch or a number of feet, and
+    // the third is Sending — whose `Unlimited` the `dm` arm would carry and
+    // whose blockers are three mechanisms it would not. It stays undefined and
+    // stays in the map, which is the counter-example that keeps `range: 'dm'`
+    // from becoming the arm every awkward Range goes into.
     expect([...DM_RANGED].sort()).toEqual(['dream', 'mirage-arcane']);
+    expect(SRD_CONTENT.spell('sending')).toBeNull();
+    expect(clausesIn(BLOCKED_ON['sending'] ?? []).map((entry) => entry.why)).toEqual([
+      'table',
+      'a-second-place-to-put-a-creature',
+      'a-random-outcome-that-is-not-a-d20',
+      'an-effect-that-suppresses-other-magic',
+    ]);
   });
 
   /**
@@ -201,10 +301,134 @@ describe('the catalogue hands over exactly the text it means to', () => {
     const gaps = new Set(definition.unmodelled ?? []);
     expect((definition.dmDecides ?? []).filter((printed) => gaps.has(printed))).toEqual([]);
   });
+
+  /**
+   * **The first of the two rules that make the sweep checkable.**
+   *
+   * The judgement the ruling asks for — could the engine execute this if
+   * somebody built the shape, or is it a fact only a person at the table can
+   * supply? — is a reading, and a reading nobody can check is how a handover
+   * becomes the bin an awkward mechanic goes into. So it is anchored to the
+   * marker list the tracked bucket has always been held to: dice, a saving
+   * throw, an ability check, an Armour Class, Hit Points, a defence, a
+   * condition, a roll mode, a Speed, a percentage, a cost in feet, a teleport,
+   * extra damage. A sentence naming one of those is a claim about mechanics,
+   * and mechanics are not handed over. Every sentence of every handover is
+   * clean of all thirteen.
+   */
+  it.each(HANDING_OVER.map((s) => [s] as const))('names no mechanic in %s’s handover', (spellId) => {
+    for (const printed of SRD_CONTENT.spell(spellId)!.dmDecides ?? []) {
+      expect(mechanicalMarkersIn(printed), `${spellId}: "${printed}"`).toEqual([]);
+    }
+  });
+
+  /**
+   * **The second: nothing handed over is a sentence already filed as a debt.**
+   *
+   * `TRACKED_ADJUDICATED` anchors each entry to a distinctive phrase of the
+   * spell's own printed text, so a handover that contained one of those phrases
+   * would be the same sentence counted as work somebody may do and disowned in
+   * the same breath — the failure the two-lists-apart rule above forbids
+   * *within* a definition, arriving from the map instead.
+   *
+   * This is the rule that kept Control Weather's stage tables a debt. "When you
+   * change the weather conditions, find a current condition on the following
+   * tables and change its stage by one, up or down" is the DM's *and* waits on
+   * the `1d4 × 10 minutes` nothing schedules, and the tracked map says so; the
+   * sentences around it, which are only the weather, are handed over.
+   *
+   * **And it found one breach on the day it was written, which is recorded
+   * rather than exempted** — the discipline `origin-and-feature-sweep.test.ts`
+   * already keeps. Mirage Arcane's opening sentence is a handover with a debt
+   * inside it: what the terrain looks, sounds, smells and feels like is the
+   * DM's, and "in an area up to 1 mile square" is a size chosen at the casting
+   * that a `SpellArea` cannot record. It went out with the ruling's own three,
+   * before there was a rule for it to break. The record is one entry long and
+   * the guard bites on everything else, so a second one is an argument somebody
+   * has to have rather than a line that slips in.
+   */
+  const BOTH: readonly (readonly [string, string])[] = [
+    ['mirage-arcane', 'in an area up to 1 mile square'],
+  ];
+
+  it.each(HANDING_OVER.map((s) => [s] as const))(
+    'hands over nothing %s files as a debt',
+    (spellId) => {
+      const recorded = BOTH.filter(([id]) => id === spellId).map(([, anchor]) => anchor);
+      const anchors = (TRACKED_ADJUDICATED[spellId] ?? [])
+        .map((entry) => entry.clause)
+        .filter((anchor) => !recorded.includes(anchor));
+      for (const printed of SRD_CONTENT.spell(spellId)!.dmDecides ?? []) {
+        expect(
+          anchors.filter((anchor) => printed.includes(anchor)),
+          `${spellId}: "${printed}"`,
+        ).toEqual([]);
+      }
+    },
+  );
+
+  /** And the record is a record: every entry in it is a real overlap. */
+  it.each(BOTH)('records %s’s clause that is both', (spellId, anchor) => {
+    expect((TRACKED_ADJUDICATED[spellId] ?? []).map((entry) => entry.clause)).toContain(anchor);
+    expect(
+      (SRD_CONTENT.spell(spellId)!.dmDecides ?? []).filter((printed) => printed.includes(anchor)),
+    ).toHaveLength(1);
+  });
 });
 
-describe('each of the three is cast, and hands its own text to the table', () => {
-  it.each(HANDING_OVER.map((s) => [s] as const))(
+/**
+ * Re-filing moves a line between two lists and must move nothing else.
+ *
+ * The eight the sweep found were all **tracked** definitions with debts of
+ * their own, and a re-filing that quietly dropped one would shrink the blocker
+ * map by deleting a gap rather than by building it. So what each spell claimed
+ * before is pinned here, by shape, beside the count of sentences it now hands
+ * over: every one of them is still out of `BLOCKED_ON`, still claims exactly
+ * the shapes it claimed, and still says what it owes.
+ */
+describe('the sweep re-filed lines and retired no debt', () => {
+  const REFILED: readonly (readonly [string, readonly string[], number])[] = [
+    ['augury', ['a-random-outcome-that-is-not-a-d20'], 3],
+    ['commune-with-nature', [], 7],
+    [
+      'contact-other-plane',
+      ['a-dc-the-caster-does-not-set', 'a-dc-the-caster-does-not-set', 'a-deadline-anchored-to-a-rest'],
+      4,
+    ],
+    [
+      'control-weather',
+      ['a-random-outcome-that-is-not-a-d20', 'a-random-outcome-that-is-not-a-d20'],
+      4,
+    ],
+    ['divination', ['a-random-outcome-that-is-not-a-d20'], 4],
+    ['gate', [], 1],
+    ['legend-lore', [], 6],
+    ['planar-ally', [], 16],
+  ];
+
+  it.each(REFILED)('keeps %s’s filing whole', (spellId, shapes, handed) => {
+    expect(BLOCKED_ON[spellId], spellId).toBeUndefined();
+    expect((TRACKED_ADJUDICATED[spellId] ?? []).map((entry) => entry.why), spellId).toEqual(shapes);
+    expect((SRD_CONTENT.spell(spellId)!.dmDecides ?? []).length, spellId).toBe(handed);
+  });
+
+  /**
+   * And the debt Augury's line was always mistaken for is still a debt: the
+   * omen is gone from `unmodelled` and the percentage is not, which is the
+   * whole distinction the brief was written about, on the spell it was written
+   * from.
+   */
+  it('leaves Augury the percentage and hands over the omen', () => {
+    const augury = SRD_CONTENT.spell('augury')!;
+    expect(augury.unmodelled ?? []).toHaveLength(1);
+    expect(augury.unmodelled![0]).toContain('25 percent');
+    expect(augury.dmDecides ?? []).toContain('The GM chooses the omen from the Omens table.');
+    expect((augury.unmodelled ?? []).filter((gap) => gap.includes('omen'))).toEqual([]);
+  });
+});
+
+describe('each of the eleven is cast, and hands its own text to the table', () => {
+  it.each(LONG.map((s) => [s] as const))(
     'carries every printed sentence of %s out of the casting',
     (spellId) => {
       const definition = SRD_CONTENT.spell(spellId)!;
@@ -221,22 +445,60 @@ describe('each of the three is cast, and hands its own text to the table', () =>
     },
   );
 
-  /** The slot goes, the clock runs, and the spell is still standing after it. */
-  it.each(HANDING_OVER.map((s) => [s] as const))('adjudicates what it owns for %s', (spellId) => {
+  /** The same of the two that land in one breath, which report once. */
+  it.each(ATOMIC.map((s) => [s] as const))(
+    'carries every printed sentence of %s out of an Action casting',
+    (spellId) => {
+      const definition = SRD_CONTENT.spell(spellId)!;
+      const out = atomic(spellId);
+      expect(dmDecisionsIn(out.unverified)).toEqual([...(definition.dmDecides ?? [])]);
+      for (const gap of definition.unmodelled ?? []) {
+        expect(out.unverified).toContain(`${definition.name}: ${gap}`);
+      }
+    },
+  );
+
+  /**
+   * The slot goes, the clock runs, and a spell with a duration is still
+   * standing after it.
+   *
+   * The three the ruling named all had one; five of the eight the sweep found
+   * are Instantaneous, and an Instantaneous rite leaves nothing behind. So the
+   * ongoing record is asserted of the definitions that print a Duration and its
+   * **absence** is asserted of the ones that do not — which is the half a
+   * widened population would otherwise have quietly stopped checking.
+   */
+  it.each(LONG.map((s) => [s] as const))('adjudicates what it owns for %s', (spellId) => {
     const definition = SRD_CONTENT.spell(spellId)!;
     const out = driven(spellId);
     const after = fold('seed', out.log);
     expect(remaining(after.creatures.cleric!.resources, spellSlotKey(definition.level))).toBe(1);
-    expect(Object.keys(after.ongoing)).toEqual([out.castingId]);
+    expect(Object.keys(after.ongoing)).toEqual(
+      definition.durationSeconds === undefined ? [] : [out.castingId],
+    );
     expect(out.settled.outcomes).toEqual([]);
+  });
+
+  it.each(ATOMIC.map((s) => [s] as const))('spends a slot for %s', (spellId) => {
+    const definition = SRD_CONTENT.spell(spellId)!;
+    const out = atomic(spellId);
+    const after = fold('seed', out.log);
+    expect(remaining(after.creatures.cleric!.resources, spellSlotKey(definition.level))).toBe(1);
+    expect(out.cast.outcomes).toEqual([]);
   });
 
   /**
    * And the text is in the **log**: the declaration pins what the command read
    * from the catalogue, so the fold below is handed no content at all and
    * still knows what the table was asked.
+   *
+   * Long castings only, and that is the stated limit rather than an oversight.
+   * `PendingCasting.unverified` is written onto `spell-declared` and
+   * `spell-cast` carries no text at all, so Divination's and Gate's handovers
+   * reach their caller and not their log — which is what `dmDecides` says of
+   * itself, and closing it is a field on an event rather than a line here.
    */
-  it.each(HANDING_OVER.map((s) => [s] as const))(
+  it.each(LONG.map((s) => [s] as const))(
     'folds %s’s handover back with no catalogue open',
     (spellId) => {
       const definition = SRD_CONTENT.spell(spellId)!;
@@ -245,6 +507,11 @@ describe('each of the three is cast, and hands its own text to the table', () =>
       expect(dmDecisionsIn(pending!.unverified)).toEqual([...(definition.dmDecides ?? [])]);
     },
   );
+
+  it.each(ATOMIC.map((s) => [s] as const))('writes no pending record for %s', (spellId) => {
+    const out = atomic(spellId);
+    expect(Object.keys(fold('seed', out.log).pendingCastings)).toEqual([]);
+  });
 
   /**
    * SRD Dream's Range is `Special` and its target is "a creature you know on

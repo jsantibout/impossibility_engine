@@ -192,13 +192,23 @@ describe('the twelve are definitions, and every one of them is a long casting', 
    * spell. Asserted here as well as swept in `spell-tracking.test.ts` because
    * a definition of one of these that quietly grew an effect would be claiming
    * to resolve a ward, a sensor or a repaired wineskin.
+   *
+   * **And it must account for itself in one of two lists, not one.** The rule
+   * was `unmodelled`, written when that was the only place a tracked spell
+   * could say what it leaves to the table. There is a second place now, and
+   * Legend Lore is the definition that made the difference visible: every
+   * sentence it has is the GM's — the book says so twice — so it hands all six
+   * over and owes nothing, and a guard reading only the first list would have
+   * called an honest spell silent. What the guard is for is that a tracked
+   * definition says *something* about what it does not do, and both lists say
+   * it; which of them it lands in is the claim being made.
    */
   it.each(TWELVE)('tracks %s rather than executing it', (spellId) => {
     const definition = defined(spellId);
     expect(definition.effects).toEqual([]);
     expect(definition.areaTrigger).toBeUndefined();
     expect(definition.activation).toBeUndefined();
-    expect(definition.unmodelled ?? []).not.toEqual([]);
+    expect([...(definition.unmodelled ?? []), ...(definition.dmDecides ?? [])]).not.toEqual([]);
   });
 
   /** And the Ritual tag is on exactly the six the book tags. */

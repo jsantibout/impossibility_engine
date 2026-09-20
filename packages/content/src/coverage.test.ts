@@ -91,6 +91,14 @@ describe('every executable spell is a spell the SRD actually has', () => {
  * The obligation that makes that honest rather than a stub is that it must say
  * so, and `unverified` carries `unmodelled` to the narrating layer on every
  * casting.
+ *
+ * **Two lists satisfy the obligation, and they make different claims.** A gap
+ * is a debt somebody may pay; a handover is a question nobody here will ever
+ * answer, and `unverified` carries both under marks that tell them apart. The
+ * rule below reads them together because what it guards is that a tracked
+ * definition says *something* — a spell whose every sentence is the GM's is
+ * the most honest kind there is, and Legend Lore is one: the book says the GM
+ * twice in six sentences, all six are handed over, and nothing is owed.
  */
 describe('a spell the engine tracks says what it does not do', () => {
   // A spell whose casting resolves nothing is **tracked** only if nothing
@@ -108,9 +116,20 @@ describe('a spell the engine tracks says what it does not do', () => {
   it.each(tracked.map((d) => [d.id, d] as const))(
     'leaves %s nothing unexplained',
     (_id, definition) => {
-      expect(definition.unmodelled ?? []).not.toEqual([]);
+      expect([...(definition.unmodelled ?? []), ...(definition.dmDecides ?? [])]).not.toEqual([]);
     },
   );
+
+  /**
+   * And the second list is not a way out of the first: exactly one tracked
+   * definition accounts for itself with a handover alone, and it is named here
+   * so that a second one is a line somebody has to add rather than a silence.
+   */
+  it('names the one tracked spell whose whole text is the DM’s', () => {
+    expect(tracked.filter((d) => (d.unmodelled ?? []).length === 0).map((d) => d.id)).toEqual([
+      'legend-lore',
+    ]);
+  });
 
   /** And an executed spell is still allowed to have nothing to declare. */
   it('does not demand a note from a spell that does everything it says', () => {

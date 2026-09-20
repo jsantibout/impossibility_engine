@@ -5763,8 +5763,22 @@ export const COMMUNE_WITH_NATURE: SpellDefinition = {
   targets: { count: 0 },
   effects: [],
   // "Duration: Instantaneous" — no deadline, and nothing left standing.
+  //
+  // **What the spirits say is handed over and the radius is not**, which is the
+  // line the sweep drew twice over on this spell. The facts are descriptions of
+  // a world the engine does not hold and never will; the 3 miles, the 300 feet
+  // and "where nature has been replaced by construction" wait on a fact only
+  // the table can declare, which is a shape with a name and other claimants.
+  dmDecides: [
+    'You commune with nature spirits and gain knowledge of the surrounding area.',
+    "Choose three of the following facts; you learn those facts as they pertain to the spell's area:",
+    '• Locations of settlements',
+    '• Locations of portals to other planes of existence',
+    "• Location of one Challenge Rating 10+ creature (GM's choice) that is a Celestial, an Elemental, a Fey, a Fiend, or an Undead",
+    '• The most prevalent kind of plant, mineral, or Beast (you choose which to learn)',
+    '• Locations of bodies of water',
+  ],
   unmodelled: [
-    'what the spirits say is the DM’s: the three facts chosen from "Locations of settlements", portals, a Challenge Rating 10+ Celestial, Elemental, Fey, Fiend or Undead, the most prevalent plant, mineral or Beast, and bodies of water are all descriptions of a world the engine does not hold',
     'the 3 miles outdoors, the 300 feet underground, and the spell not functioning "where nature has been replaced by construction" are the DM’s: the engine holds one scene with an extent and no terrain at all',
   ],
 };
@@ -6054,9 +6068,19 @@ export const LEGEND_LORE: SpellDefinition = {
   targets: { count: 0 },
   effects: [],
   // "Duration: Instantaneous."
-  unmodelled: [
-    'the lore is the DM’s, and the SRD says so: "a brief summary of the significant lore about that famous thing, **as described by the GM**", and whether it is "couched in figurative language or poetry, **as determined by the GM**"',
-    'whether the thing named is actually famous — and the "sad musical notes played on a trombone" when it is not — is the DM’s',
+  //
+  // **The whole of what this spell says is handed over, and nothing is left in
+  // `unmodelled`** — the only definition in the catalogue where that is true,
+  // and it is true because the book says the GM twice in six sentences and says
+  // nothing mechanical at all. The ten minutes, the slot and the clock are the
+  // engine's and it runs them; the lore is not a debt and never becomes one.
+  dmDecides: [
+    'Name or describe a famous person, place, or object.',
+    'The spell brings to your mind a brief summary of the significant lore about that famous thing, as described by the GM.',
+    'The lore might consist of important details, amusing revelations, or even secret lore that has never been widely known.',
+    'The more information you already know about the thing, the more precise and detailed the information you receive is.',
+    'That information is accurate but might be couched in figurative language or poetry, as determined by the GM.',
+    "If the famous thing you chose isn't actually famous, you hear sad musical notes played on a trombone, and the spell fails.",
   ],
 };
 
@@ -6656,11 +6680,17 @@ export const GATE: SpellDefinition = {
   targets: { count: 0 },
   effects: [],
   durationSeconds: 60,
+  // One sentence of this spell asks nothing of any engine: whether a deity
+  // objects. It is handed over. Everything else Gate does is a second place to
+  // put a creature, which is a shape with a name and many claimants, and stays
+  // below as the debt it is.
+  dmDecides: [
+    'Deities and other planar rulers can prevent portals created by this spell from opening in their presence or anywhere within their domains.',
+  ],
   unmodelled: [
     'the portal has no far end: "a precise location on a different plane of existence" is a second place to put a creature, and there is one scene — so the diameter the caster chooses, the direction it is oriented in and the destination visible through it are all geometry of a thing with nowhere to be',
     'nobody travels through it: "Travel through the portal is possible only by moving through its front" and "Anything that does so is instantly transported to the other plane" move a creature off the scene entirely, which no command does',
     'the creature the caster names is not brought through: "the portal opens next to the named creature and transports it" fetches somebody from a plane the model has no room for, and what it does next — "It might leave, attack you, or help you" — the book gives to the GM in the same breath',
-    '"Deities and other planar rulers can prevent portals created by this spell from opening in their presence" is the DM’s',
   ],
 };
 
@@ -9323,6 +9353,13 @@ export const ALTER_SELF: SpellDefinition = {
  * percentage: a cumulative 25 per cent per casting since the last Long Rest is
  * two things the engine cannot do — throw a die that is not a d20, and count
  * castings back to a rest.
+ *
+ * **And the two are filed apart now, which is Commune's ruling arriving on the
+ * spell it was written from.** The omen sat in `unmodelled` saying in its own
+ * words that it was the GM's — a debt nobody may ever pay, on the list of
+ * debts somebody might, inflating a blocker map with an entry blocked on
+ * nothing. There is no engine that chooses an omen. It is handed over instead,
+ * in the book's own words, and the percentage stays where it was.
  */
 export const AUGURY: SpellDefinition = {
   id: 'augury',
@@ -9336,8 +9373,12 @@ export const AUGURY: SpellDefinition = {
   range: { kind: 'self' },
   targets: { count: 0 },
   effects: [],
+  dmDecides: [
+    'You receive an omen from an otherworldly entity about the results of a course of action that you plan to take within the next 30 minutes.',
+    'The GM chooses the omen from the Omens table.',
+    "The spell doesn't account for circumstances, such as other spells, that might change the results.",
+  ],
   unmodelled: [
-    'the omen is the GM’s, in the book’s own words: "The GM chooses the omen from the Omens table" — Weal, Woe, both or neither',
     'the "cumulative 25 percent chance for each casting after the first" is not rolled: no effect asks for a die that is not a d20, and nothing counts this caster’s castings back to their last Long Rest',
   ],
 };
@@ -9636,7 +9677,13 @@ export const WIND_WALL: SpellDefinition = {
  * > no answer."
  *
  * The answer is the GM's in the book's own words. Augury's percentage, on a
- * bigger slot.
+ * bigger slot — and Augury's filing too: the reply is handed to the table and
+ * the percentage stays a debt.
+ *
+ * **The first handover on an Action casting**, which is where the limit shows.
+ * `spell-cast` carries no text, so this one reaches the caller that cast it and
+ * not the log; the nine long rites pin theirs into `spell-declared`. That is
+ * the limit `unmodelled` has always had and this inherits.
  */
 export const DIVINATION: SpellDefinition = {
   id: 'divination',
@@ -9649,8 +9696,13 @@ export const DIVINATION: SpellDefinition = {
   range: { kind: 'self' },
   targets: { count: 0 },
   effects: [],
+  dmDecides: [
+    "This spell puts you in contact with a god or a god's servants.",
+    'You ask one question about a specific goal, event, or activity to occur within 7 days.',
+    'The GM offers a truthful reply, which might be a short phrase or cryptic rhyme.',
+    "The spell doesn't account for circumstances that might change the answer, such as the casting of other spells.",
+  ],
   unmodelled: [
-    'the reply is the GM’s, in the book’s own words: "The GM offers a truthful reply, which might be a short phrase or cryptic rhyme"',
     'the "cumulative 25 percent chance for each casting after the first" is not rolled: no effect asks the generator for a die that is not a d20, and nothing counts this caster’s castings back to their last Long Rest',
   ],
 };
@@ -10077,11 +10129,22 @@ export const CONTACT_OTHER_PLANE: SpellDefinition = {
   targets: { count: 0 },
   effects: [],
   durationSeconds: 60,
+  // The questions and the answers are the entity's, which is to say the GM's,
+  // and the book says so in as many words. The save that decides whether you
+  // get to ask is a debt with three clauses and stays one; the sentence that
+  // states it — "On a successful save, you can ask the entity up to five
+  // questions" — is left where it is rather than handed over, because it is
+  // conditioned on a roll the engine does not yet make.
+  dmDecides: [
+    'You mentally contact a demigod, the spirit of a long-dead sage, or some other knowledgeable entity from another plane.',
+    'You must ask your questions before the spell ends.',
+    'The GM answers each question with one word, such as "yes," "no," "maybe," "never," "irrelevant," or "unclear" (if the entity doesn\'t know the answer to the question).',
+    'If a one-word answer would be misleading, the GM might instead offer a short phrase as an answer.',
+  ],
   unmodelled: [
     'the DC 15 Intelligence saving throw is not rolled: a save a spell forces is always measured against the casting’s own spell save DC, and a printed number has nowhere to be stated — an ability check may name one and a saving throw may not',
     'so the 6d6 Psychic damage on a failure is not dealt, and the Incapacitated condition is not applied: it lasts "until you finish a Long Rest", which is neither a span of seconds nor a moment in the turn order',
     'and Greater Restoration ending it is a spell ending another spell’s effect, which the dispel path reaches only for an ongoing casting — this one is Instantaneous in everything but the minute it gives you to ask in',
-    'the five questions and the one-word answers are the GM’s',
   ],
 };
 
@@ -10603,9 +10666,31 @@ export const PLANAR_ALLY: SpellDefinition = {
   range: { kind: 'ranged', feet: 60 },
   targets: { count: 0 },
   effects: [],
+  // "From first word to last" was the old note's phrase for the bargain, and it
+  // was exactly right, which is why it is the book's own words here rather than
+  // a summary of them: sixteen sentences about what a Celestial will do for a
+  // living sacrifice are not a mechanism anybody is going to build. The
+  // summoning above them is, and stays a debt.
+  dmDecides: [
+    'When the creature appears, it is under no compulsion to behave a particular way.',
+    "You can ask it to perform a service in exchange for payment, but it isn't obliged to do so.",
+    'The requested task could range from simple (fly us across the chasm, or help us fight a battle) to complex (spy on our enemies, or protect us during our foray into the dungeon).',
+    'You must be able to communicate with the creature to bargain for its services.',
+    'Payment can take a variety of forms.',
+    'A Celestial might require a sizable donation of gold or magic items to an allied temple, while a Fiend might demand a living sacrifice or a gift of treasure.',
+    'Some creatures might exchange their service for a quest undertaken by you.',
+    'A task that can be measured in minutes requires a payment worth 100 GP per minute.',
+    'A task measured in hours requires 1,000 GP per hour.',
+    'And a task measured in days (up to 10 days) requires 10,000 GP per day.',
+    'The GM can adjust these payments based on the circumstances under which you cast the spell.',
+    "If the task is aligned with the creature's ethos, the payment might be halved or even waived.",
+    'Nonhazardous tasks typically require only half the suggested payment, while especially dangerous tasks might require a greater gift.',
+    'Creatures rarely accept tasks that seem suicidal.',
+    'After the creature completes the task, or when the agreed-upon duration of service expires, the creature returns to its home plane after reporting back to you if possible.',
+    "If you are unable to agree on a price for the creature's service, the creature immediately returns to its home plane.",
+  ],
   unmodelled: [
     'nobody is sent: a Celestial, an Elemental or a Fiend appearing in an unoccupied space within range is a stat block added to the scene mid-fight, which no casting does',
-    'the bargaining, the payment, the task and how long it takes are the DM’s from first word to last',
   ],
 };
 
@@ -10709,9 +10794,22 @@ export const CONTROL_WEATHER: SpellDefinition = {
   targets: { count: 0 },
   effects: [],
   durationSeconds: 28_800,
+  // **The weather is handed over; the sentence that indexes the stage tables is
+  // not.** "When you change the weather conditions, find a current condition on
+  // the following tables and change its stage by one, up or down" is the DM's
+  // *and* waits on the `1d4 × 10 minutes` nothing schedules, which is the one
+  // clause of this spell that is genuinely both — so it stays a debt, where the
+  // tracked map already names its shape, and the sentences around it, which are
+  // only the weather, go to the table.
+  dmDecides: [
+    'When you cast the spell, you change the current weather conditions, which are determined by the GM.',
+    'You can change precipitation, temperature, and wind.',
+    'When the spell ends, the weather gradually returns to normal.',
+    'When changing the wind, you can change its direction.',
+  ],
   unmodelled: [
     'the "1d4 × 10 minutes" before the new conditions take effect is not rolled and nothing waits for it: no effect asks the generator for a die outside the D20 pipeline, and there is nothing for the result to schedule',
-    'the three stage tables — precipitation, temperature and wind — are the DM’s, and so is the direction of the wind and everything the weather then does',
+    'the stage tables are indexed by a sentence that waits on that delay — "find a current condition on the following tables and change its stage by one" — so the table that is the DM’s is reached through a schedule the engine does not keep',
     'being outdoors is a fact the engine does not hold, so the spell does not end when the caster walks inside',
   ],
 };
