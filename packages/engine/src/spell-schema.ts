@@ -13,7 +13,12 @@ import {
 import { counterpartProblem, oneShotProblem, rollSelectorProblems } from './roll-modifiers.js';
 import { parseNotation } from './dice.js';
 import { LONG_CASTING_SECONDS } from './spells.js';
-import { conditionRiderOf, CREATURE_TYPES, modifierRidersOf } from './spell-definitions.js';
+import {
+  conditionRiderOf,
+  CREATURE_TYPES,
+  DM_DECIDES,
+  modifierRidersOf,
+} from './spell-definitions.js';
 import type {
   ConditionRider,
   DiceScaling,
@@ -2515,12 +2520,32 @@ export function checkSpellDefinition(
     });
   }
 
+  /**
+   * The mark is `handedOver`'s to write, and nobody else's.
+   *
+   * `unverified` is one list carrying two claims, and the whole of what tells
+   * them apart is {@link DM_DECIDES}. A note that contains the mark would read
+   * as a handover to every reader of that list — and a handed-over sentence
+   * that contains it would carry it twice, so `dmDecisionsIn` would give the
+   * table back a line with the mark still in it. Both are refused here, where
+   * a definition arrives, rather than left to whoever writes the next one.
+   */
+  const forges = (text: unknown): boolean =>
+    typeof text === 'string' && text.includes(DM_DECIDES);
+
   notes.forEach((note, i) => {
     if (typeof note !== 'string' || note.trim().length === 0) {
       found.push({
         field: `unmodelled[${i}]`,
         code: 'empty_note',
         reason: 'an empty note declares nothing',
+      });
+    }
+    if (forges(note)) {
+      found.push({
+        field: `unmodelled[${i}]`,
+        code: 'forged_dm_mark',
+        reason: `"${DM_DECIDES}" is the mark a handed-over sentence carries; a gap the engine has not built is not one, and writing the mark here would file a debt as a decision nobody may take`,
       });
     }
   });
@@ -2531,6 +2556,13 @@ export function checkSpellDefinition(
         field: `dmDecides[${i}]`,
         code: 'empty_note',
         reason: 'an empty sentence hands nothing over',
+      });
+    }
+    if (forges(printed)) {
+      found.push({
+        field: `dmDecides[${i}]`,
+        code: 'forged_dm_mark',
+        reason: `the mark is written once, by the casting; a sentence that carries "${DM_DECIDES}" of its own reaches the table with it still in the text`,
       });
     }
   });

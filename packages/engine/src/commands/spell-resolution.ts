@@ -613,8 +613,6 @@ export function castOrRelease(
     );
     if (!altered.ok) return altered;
     const castLevel = altered.value.castLevel;
-    // What this definition knowingly leaves out, reported on every casting so
-    // the narrating layer can hand the rest to the DM rather than lose it.
     // What this definition knowingly leaves out, and — under a mark of its own
     // — the printed text the book leaves to whoever is running the table. The
     // two travel together because they are one question for the narrating

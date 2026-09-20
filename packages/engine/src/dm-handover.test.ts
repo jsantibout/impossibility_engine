@@ -1,3 +1,6 @@
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
@@ -10,7 +13,12 @@ import {
   type SpellDefinition,
 } from './spell-definitions.js';
 import { loadContent, type Content } from './content.js';
-import { advanceTime, resolveDeclaredCast, resolveSpell } from './commands.js';
+import {
+  advanceTime,
+  eligibleTargets,
+  resolveDeclaredCast,
+  resolveSpell,
+} from './commands.js';
 import { createRng, type Rng } from './dice.js';
 import { fold, type GameEvent } from './events.js';
 import { declaredCasting } from './spellcasting.js';
@@ -167,8 +175,17 @@ describe('a definition declares what only the DM can decide', () => {
     expect(dmDecisionsIn(lines)).toEqual(['Range: Special']);
   });
 
+  /**
+   * Null, and the same null `self` answers: **no distance is stated**, which
+   * is what a casting reads before it looks at a target. Asserted beside the
+   * three that do answer, because "not a number" is the claim rather than the
+   * particular absence.
+   */
   it('measures no distance for a Range the book left to the DM', () => {
     expect(ranged({ kind: 'dm' })).toBeNull();
+    expect(ranged({ kind: 'self' })).toBeNull();
+    expect(ranged({ kind: 'touch' })).toBe(5);
+    expect(ranged({ kind: 'ranged', feet: 60 })).toBe(60);
   });
 
   /**
@@ -181,6 +198,52 @@ describe('a definition declares what only the DM can decide', () => {
     expect(checkSpellDefinition(naked as unknown as SpellDefinition).map((p) => p.code)).toContain(
       'silent_dm_range',
     );
+  });
+
+  /**
+   * The mark means one thing, so only one thing may write it.
+   *
+   * `unverified` is a single list of strings carrying two different claims,
+   * and {@link DM_DECIDES} is the whole of what tells them apart — so a note
+   * that forged it would read as a handover to every reader of that list, and
+   * a handed-over sentence carrying its own copy would reach the table with
+   * the mark still in the text `dmDecisionsIn` gave back.
+   */
+  it('refuses a definition that forges the mark in either list', () => {
+    const asGap = {
+      ...(JSON.parse(FAR_WHISPER) as object),
+      unmodelled: [`the wind ${DM_DECIDES} is not modelled`],
+    };
+    expect(checkSpellDefinition(asGap as unknown as SpellDefinition).map((p) => p.code)).toContain(
+      'forged_dm_mark',
+    );
+    const twice = {
+      ...(JSON.parse(FAR_WHISPER) as object),
+      dmDecides: [`${DM_DECIDES} Range: Special`],
+    };
+    expect(checkSpellDefinition(twice as unknown as SpellDefinition).map((p) => p.code)).toContain(
+      'forged_dm_mark',
+    );
+  });
+
+  /**
+   * And the mark is **spelled out once in the whole engine**.
+   *
+   * A guard over the source, because the claim is about the package rather
+   * than about any one call. `spell-definitions.ts` declares the constant and
+   * composes it; everything else that needs it — the validator that refuses a
+   * forgery, the resolver that writes the line — names the constant. A second
+   * literal would be a second thing to change, and the file that forgot would
+   * go on writing a mark the reader no longer looks for.
+   */
+  it('spells the mark out in exactly one engine file', () => {
+    const root = fileURLToPath(new URL('.', import.meta.url));
+    const named = readdirSync(root, { recursive: true, encoding: 'utf8' })
+      .filter((name) => name.endsWith('.ts') && !name.endsWith('.test.ts'))
+      .filter((name) => readFileSync(join(root, name), 'utf8').includes(DM_DECIDES));
+    expect([...named].sort().map((name) => name.replaceAll('\\', '/'))).toEqual([
+      'spell-definitions.ts',
+    ]);
   });
 
   it('refuses a handover that is not a list of printed sentences', () => {
@@ -258,6 +321,29 @@ describe('a casting hands the text over and adjudicates the rest', () => {
     );
     expect(isErr(near)).toBe(true);
     if (isErr(near)) expect(near.code).toBe('out_of_range');
+  });
+
+  /**
+   * **And the shortlist a model is shown says the same thing.**
+   *
+   * `eligibleTargets` bounds its list by the spell's Range, and its fallback
+   * for a Range that is not a number in feet was **five** — so a Range the
+   * engine has just declared is the DM's would have been narrowed to a
+   * distance the engine invented, and the shortlist would have excluded a
+   * target `resolveSpell` goes on to accept. The two have to answer one
+   * question the same way; this is that, driven from both ends.
+   */
+  it('offers the shortlist a target no printed Range would reach', () => {
+    const state = fold('seed', table(homebrew));
+    const far = eligibleTargets(state, homebrew, CASTER, 'far-whisper', 3);
+    expect(far.eligible).toContain(TARGET);
+    expect(far.excluded).toEqual([]);
+
+    // The same table, the same five hundred feet, and a Range in feet: the
+    // exclusion is the Range rather than the fixture.
+    const near = eligibleTargets(state, homebrew, CASTER, 'near-whisper', 3);
+    expect(near.eligible).not.toContain(TARGET);
+    expect(near.excluded.map((out) => out.target)).toContain(TARGET);
   });
 
   /**

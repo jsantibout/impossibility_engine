@@ -2056,6 +2056,18 @@ export interface SpellDefinition {
    * A definition whose `range` is `{ kind: 'dm' }` must carry one, because a
    * Range the format cannot state is precisely the text the ruling is about
    * and a silent one would be the engine quietly not checking a distance.
+   *
+   * **Where it reaches, and the one place it does not.** Every casting reports
+   * it in `unverified`, so the layer narrating the spell always has it. A
+   * casting of a minute or more *also* pins it into the log, because
+   * `PendingCasting.unverified` is written onto `spell-declared` — which is
+   * what CLAUDE.md's rule 5 asks for, and is how the three SRD spells that
+   * write this field fold back with no catalogue open. An **atomic** casting
+   * has no such event: `spell-cast` carries no text at all, so a homebrew
+   * Action spell's handover reaches its caller and not its log. That is the
+   * limit `unmodelled` has always had and this inherits; closing it is a field
+   * on `spell-cast`, which is a change to the event union rather than to this
+   * file.
    */
   readonly dmDecides?: readonly string[];
   /**
