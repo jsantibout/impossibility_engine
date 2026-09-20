@@ -11,6 +11,7 @@ import {
   type Result,
   type Skill,
 } from '@ie/shared';
+import type { CreatureSize } from '@ie/srd';
 import { proficientWithCategories } from './attack.js';
 import {
   ABILITY_SCORE_MAXIMUM,
@@ -173,6 +174,20 @@ export interface CharacterChoices {
   readonly classId: string;
   readonly level: number;
   readonly speciesId: string;
+  /**
+   * Which of the sizes the species prints this character is.
+   *
+   * SRD prints a size on every species and lets two of them print more than
+   * one: "Medium (about 4-7 feet tall) or Small (about 2-4 feet tall), chosen
+   * when you select this species." So it is a choice like any other where the
+   * species offers one, and where the species offers a single size it is not
+   * asked and this is left out.
+   *
+   * **Matched by the printed word**, the way a language and an alignment are,
+   * and case does not matter: the species writes "Medium" and the engine
+   * spells the category `medium`, and neither is asked to shout at the other.
+   */
+  readonly size?: string | undefined;
   readonly backgroundId: string;
   readonly abilities: AbilityChoice;
   /** SRD: one ability by 2 and another by 1, or all three by 1. */
@@ -283,6 +298,15 @@ export interface CharacterPlan {
   readonly magicItems: readonly string[];
   /** The species' creature type, which some spells demand. */
   readonly creatureType: string;
+  /**
+   * How much space this character takes up, derived from their species.
+   *
+   * Pinned into `creature-added` beside the creature type, for the reason a
+   * monster's printed size is pinned there: it is a fact the book prints, the
+   * fold opens no catalogue, and before this the only way a size reached the
+   * engine was a caller *stating* one when the character was placed on a map.
+   */
+  readonly size: CreatureSize;
   /**
    * Choices that were legal but wasteful — a proficiency picked twice, say.
    *
@@ -1938,6 +1962,113 @@ function checkLanguages(content: Content, choices: CharacterChoices): CreationPr
 }
 
 /**
+ * Every size category there is, as a record so that a seventh one cannot be
+ * added to the union without this file being told.
+ *
+ * The union is `@ie/srd`'s, imported as a type; the engine takes no value out
+ * of that package, so the names are written once more here and the compiler
+ * holds the two lists to each other.
+ */
+const SIZE_CATEGORIES: Readonly<Record<CreatureSize, true>> = {
+  tiny: true,
+  small: true,
+  medium: true,
+  large: true,
+  huge: true,
+  gargantuan: true,
+};
+
+/** The size category a printed word names, or null where it names none. */
+function sizeNamed(word: string): CreatureSize | null {
+  const lowered = word.trim().toLowerCase();
+  return (Object.keys(SIZE_CATEGORIES) as CreatureSize[]).find((size) => size === lowered) ?? null;
+}
+
+/** What a species' printed sizes and a character's answer come to. */
+interface SizeDecision {
+  /** Null only where the problems beside it say why there is no answer. */
+  readonly size: CreatureSize | null;
+  readonly problems: readonly CreationProblem[];
+  readonly warnings: readonly CreationProblem[];
+}
+
+/**
+ * Which of its species' sizes a character is.
+ *
+ * **The species is read as a union, never by name.** Where it prints one size
+ * that is the answer and nobody is asked; where it prints more than one the
+ * choice is the player's, and an answer that is not one of the sizes offered
+ * is refused - a wrong answer rather than a missing fact.
+ *
+ * **An unanswered choice is a warning and the first printed size is pinned**,
+ * which is the one judgement here. A character always has a size, so "not yet"
+ * is not a state the book allows, and the obvious reading is to refuse. But
+ * every character written against this engine so far omits it, and this
+ * repository has made that mistake once already: requiring the Weapon Mastery
+ * choice broke a corpus that spanned worktrees, and the resolution was to warn
+ * through the plan rather than refuse. The first printed size is also what
+ * every one of those characters has always been placed at, so nothing that
+ * folded before folds differently. Promoting this to a refusal is a migration
+ * of the character corpus, and wants deciding as one.
+ */
+function sizeFor(species: SpeciesDefinition, choices: CharacterChoices): SizeDecision {
+  const printed: CreatureSize[] = [];
+  for (const word of species.sizes) {
+    const size = sizeNamed(word);
+    if (size === null) {
+      return {
+        size: null,
+        problems: [
+          problem(
+            'unknown_size',
+            'speciesId',
+            `${species.id} prints a size of "${word}", which is no size category; have ${Object.keys(SIZE_CATEGORIES).join(', ')}`,
+          ),
+        ],
+        warnings: [],
+      };
+    }
+    printed.push(size);
+  }
+
+  const first = printed[0];
+  if (first === undefined) {
+    return {
+      size: null,
+      problems: [problem('unknown_size', 'speciesId', `${species.id} prints no size`)],
+      warnings: [],
+    };
+  }
+
+  const offered = species.sizes.join(' or ');
+  const stated = choices.size;
+  if (stated !== undefined && stated.trim() !== '') {
+    const chosen = sizeNamed(stated);
+    if (chosen === null || !printed.includes(chosen)) {
+      return {
+        size: null,
+        problems: [problem('bad_size', 'size', `a ${species.name} is ${offered}, not ${stated}`)],
+        warnings: [],
+      };
+    }
+    return { size: chosen, problems: [], warnings: [] };
+  }
+
+  if (printed.length === 1) return { size: first, problems: [], warnings: [] };
+  return {
+    size: first,
+    problems: [],
+    warnings: [
+      problem(
+        'size_not_chosen',
+        'size',
+        `a ${species.name} is ${offered}, and nobody chose; ${species.sizes[0]} is pinned`,
+      ),
+    ],
+  };
+}
+
+/**
  * SRD "Starting at Higher Levels": the GM decides what a character above level
  * 1 starts with beyond the standard package.
  *
@@ -2159,6 +2290,7 @@ export function checkCharacter(
     ...checkAbilities(content, choices, parts.background, features),
     ...checkSkills(choices, parts.definition),
     ...checkLanguages(content, choices),
+    ...sizeFor(parts.species, choices).problems,
     ...checkDmGrants(choices),
     ...checkMulticlass(content, choices, features),
   ];
@@ -2224,10 +2356,18 @@ export function planCharacter(
   if (parts === null) return err('unknown_class', 'the character has no class');
   const { definition, species } = parts;
 
+  const sized = sizeFor(species, choices);
+  if (sized.size === null) {
+    // `checkCharacter` above returns the same problems, so this is the species
+    // declaring a size nothing can be made of rather than a choice at fault.
+    const bad = sized.problems[0];
+    return err(bad?.code ?? 'unknown_size', bad?.reason ?? `${species.id} prints no size`);
+  }
+
   const features = grantedFeatures(content, choices, parts);
   const scores = finalScores(content, choices, features);
   const { skills: proficient, tools, warnings: gathered } = gatherProficiencies(content, choices, parts);
-  const warnings = [...gathered, ...unclaimedMasteries(choices, features)];
+  const warnings = [...gathered, ...unclaimedMasteries(choices, features), ...sized.warnings];
 
   const expertise = new Set(expertiseSkills(content, choices, parts));
   const skills: Partial<Record<Skill, 'proficient' | 'expertise'>> = {};
@@ -3004,6 +3144,7 @@ export function planCharacter(
     toolProficiencies: tools,
     magicItems: choices.dmGrants?.magicItems ?? [],
     creatureType: species.creatureType,
+    size: sized.size,
     features,
     spellcasting,
     initiativeBonuses,
@@ -3644,6 +3785,10 @@ export function createCharacter(
       sheet: plan.value.sheet,
       maxHp: plan.value.hitPointMaximum,
       creatureType: plan.value.creatureType,
+      // What the species prints, pinned like a monster's: the fold opens no
+      // catalogue, and until this was here the only way a character's size
+      // reached the engine was somebody stating one at the edge of a map.
+      size: plan.value.size,
     },
     {
       type: 'character-created',
