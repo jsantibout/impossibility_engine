@@ -176,6 +176,7 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'compulsion',
   'cone-of-cold',
   'conjure-fey',
+  'conjure-woodland-beings',
   'counterspell',
   'cure-wounds',
   'dimension-door',
