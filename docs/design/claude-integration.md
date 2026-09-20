@@ -65,6 +65,53 @@ a list stops guarding the day somebody adds to it and does not think to come
 here. Four doors were found shut by accident before it existed, and six more
 the day it did.
 
+**The pools that were left shut are opening one room at a time.** A pool a
+caller can spend for no effect is worse than one it cannot spend — so Channel
+Divinity stayed shut while nothing executed what a use bought, and opened the
+week a feature's pool use became the third host of an effect list. Cleric's is
+a door now (`use_pool_option`, with the menu on `sheet`); Paladin's, which
+prints no options the engine executes, is not. Bardic Inspiration and Action
+Surge are still shut for the original reason.
+
+**A window a caller can see and cannot answer is worse than one it is never
+shown.** `options` has reported every open Reaction since `reactionOpportunities`
+landed, and three of the six windows had no door on either surface.
+`attack.hold` opens the held hit SRD *Shield* needs and `settle_attack` closes
+it; `take_damage_reaction` / `decline_damage_reaction` / `settle_damage` answer
+a damage roll that has not landed; `take_test_reaction` /
+`decline_test_reaction` push a D20 Test, whose settlement stays on the DM's
+door beside the check that opened it, because only a DC opens one. **Every
+window that holds something has a door that closes it**, because a window
+nothing closes wedges the fight it was opened in.
+
+**A hold needs its release, and one field is never enough.** `cast_spell.hold`
+makes a casting a process so Counterspell has something to interrupt, `answers`
+names which of a caster's open castings, and `resolve_declared_cast` is what
+finishes one nobody stopped — a declaration with no settlement is a slot nobody
+spends, held open for the rest of the campaign.
+
+**Time out of combat is narration and is therefore a door.** In a fight the
+clock is derived; outside one, how long the party walked is the same kind of
+fact as how wide the room is, and the engine has always taken it as declared.
+`advance_time` states it in rounds, minutes and hours. It is what makes
+`begin_rest` / `end_rest` mean anything, and a Short Rest is what makes a
+Warlock and a Fighter work across two fights rather than one. What a rest gives
+back is never stated: the benefit is read off the clock and off the
+interruptions the engine recorded for itself, and the only choice is which of
+your own Hit Dice to spend. **What nothing refuses today is advancing the clock
+*during* a fight**, where the clock is derived — the engine is permissive there
+and this surface inherits it, which is a rule the engine owes rather than one a
+layer holding no rules may invent.
+
+**`award_items` is the DM's, `use_item` is the model's**, for the reason
+`create_character` already refuses a model a non-empty `dmGrants`: handing out
+what a party found is the DM's, and what a character does with what it holds is
+the character's.
+
+**A guard over a hand-picked party guards that party.** The sweep that proves
+every spendable feature names a tool now builds one character of every class in
+the book, and derives both sides of the claim.
+
 **A monster is a door now, and it arrives able to fight.** `add_creature`
 takes a stat block's id and nothing else about it, which is `addCreature`'s own
 argument one layer up: an entry point that accepts a stat block is the door a
