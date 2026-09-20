@@ -665,11 +665,18 @@ export function resolveAttack(
       );
     }
 
-    // **A weapon attack always names an ability.** `AttackResult.ability` is
-    // null only for a spell attack whose bonus an item printed, and no spell
-    // attack comes through here — so this asks the same question of the same
-    // options rather than widening `attack-landed` to carry a null it could
-    // never hold.
+    // **What this attack would have been made with, for the readers that need
+    // an ability rather than a roll.** `rollAttack` answers honestly and gives
+    // a printed line none, because a stat block names none; this asks
+    // `attackAbility` the same question and takes the answer it gives a
+    // weaponless swing.
+    //
+    // The difference is confined and worth stating rather than leaving to be
+    // rediscovered. Two readers use it: `attack-landed`, which a printed line
+    // never reaches because holding one is refused outright, and Graze, which
+    // needs a weapon and has none here. What a printed attack's own damage is
+    // rolled from is `statedAttack`, where no ability appears at all — so
+    // nothing downstream is handed a Strength the book did not print.
     const ability = attackAbility(sheet, swing);
 
     const namedFlat = attackBonuses.filter((bonus) => (bonus.flat ?? 0) !== 0);
@@ -807,7 +814,13 @@ export function resolveAttack(
     // Resistance; *extra* damage of another type does not.
     const fromFeatures = standingAttackDamage(state, id, {
       ability,
-      melee: rangeOf(weapon, command.thrown === true) === null,
+      // **The same question `isRangedAttack` answers, asked once.** A printed
+      // line says which of the two it is and has no weapon behind it, so
+      // asking the weapon made a Goblin's Shortbow melee — and a `meleeOnly`
+      // grant would have added its damage to a shot across the moor. Nothing
+      // in the bestiary holds such a grant today, which is exactly why the two
+      // answers must not be left free to disagree.
+      melee: stated === undefined ? rangeOf(weapon, command.thrown === true) === null : !stated.ranged,
       weapon,
       // SRD Vicious Weapon: "*this magic weapon* deals an extra 2d6 damage" —
       // the item in hand, not the row it is a magical version of, so the other

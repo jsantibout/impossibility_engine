@@ -202,9 +202,11 @@ const ATTACK_HEAD =
   /^_(Melee|Ranged|Melee or Ranged) Attack Roll:_\s*([+−–-]?\d+)(?:\s+to hit)?\s*(?:\(([^)]*)\))?\s*,\s*([\s\S]*)$/;
 
 /**
- * `reach 5 ft.` — and `reach 5 feet`, which four lines print instead. Both
- * spellings are the book's; requiring the abbreviation left the Djinni, the
- * Eagle and the Giant Rat swinging at nothing.
+ * `reach 5 ft.` — and `reach 5 feet`, which the Djinni's Storm Blade, the
+ * Eagle's Talons and the Giant Rat's Bite print instead, as the Djinni's Storm
+ * Bolt does with its range. Both spellings are the book's; requiring the
+ * abbreviation left those lines unread and their creatures swinging at
+ * nothing.
  */
 const REACH = /reach\s+(\d+)\s*(?:ft|feet)/i;
 const RANGE = /range\s+(\d+)(?:\/(\d+))?\s*(?:ft|feet)/i;

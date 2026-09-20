@@ -506,6 +506,34 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
     expect(bestiary.qualified + bestiary.unread).toBeLessThan(bestiary.defences);
   });
 
+  /**
+   * The ranked account of what is still unread, which is a table rather than a
+   * paragraph for the reason every other count here is one: a sentence saying
+   * "Multiattack is the biggest pile" goes stale silently, and a row does not.
+   *
+   * Each shape must find something and must not find everything — a predicate
+   * matching every block is a predicate that has stopped discriminating — and
+   * the rows must be ranked, because the brief the table answers asked for a
+   * ranking and an unsorted list quietly stops being one.
+   */
+  it('ranks what the unread lines would need, and the report carries the ranking', () => {
+    const report = readFileSync(
+      fileURLToPath(new URL('../../../COVERAGE.md', import.meta.url)),
+      'utf8',
+    );
+
+    expect(bestiary.shapes.length).toBeGreaterThan(3);
+    for (const shape of bestiary.shapes) {
+      expect(shape.blocks, shape.shape).toBeGreaterThan(0);
+      expect(shape.blocks, shape.shape).toBeLessThan(bestiary.carried);
+      expect(shape.lines, shape.shape).toBeGreaterThanOrEqual(shape.blocks);
+      expect(report).toContain(`| ${shape.shape} | ${shape.blocks} | ${shape.lines} |`);
+    }
+
+    const blocks = bestiary.shapes.map((shape) => shape.blocks);
+    expect(blocks).toEqual([...blocks].sort((a, b) => b - a));
+  });
+
   /** Generated, like every other row: the committed report holds this one. */
   it('is the row the committed report carries', () => {
     const report = readFileSync(

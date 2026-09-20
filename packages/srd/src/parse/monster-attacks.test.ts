@@ -199,8 +199,10 @@ describe('the bestiary, read through the parser', () => {
   /**
    * The check that says the numbers were read rather than invented: the SRD
    * prints the average beside the dice, so a die count or a modifier read
-   * wrongly disagrees with the book's own arithmetic. All 691 expressions in
-   * the bestiary agree, so one that does not is a parser bug.
+   * wrongly disagrees with the book's own arithmetic. Every component of every
+   * attack this parser structured agrees with it, so one that does not is a
+   * misread line rather than a rounding argument — and the loop below walks
+   * all of them rather than a sample.
    */
   it('reads dice that come to the average the book prints beside them', () => {
     for (const { monster, name, attack } of attacks) {

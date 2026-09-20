@@ -647,12 +647,14 @@ export interface AttackResult {
    * The ability this attack was actually made with, or null where it was made
    * with none.
    *
-   * There is exactly one of the second: a spell attack whose bonus the item
-   * printed, in the hands of a wielder with no spellcasting ability. SRD's
-   * Attack Roll Abilities table gives a spell attack "Varies (the ability used
-   * is determined by the spellcaster's spellcasting feature)" and that wielder
-   * has no such feature — the book answers them with the item's number and
-   * names no ability at all.
+   * There are two of the second, and both are an attack whose bonus somebody
+   * printed. A spell attack from an item, in the hands of a wielder with no
+   * spellcasting ability: SRD's Attack Roll Abilities table gives a spell
+   * attack "Varies (the ability used is determined by the spellcaster's
+   * spellcasting feature)" and that wielder has no such feature — the book
+   * answers them with the item's number and names no ability at all. And a
+   * stat block's printed line, which states "+4" and says nothing whatever
+   * about where the +4 came from.
    *
    * It said `str` until this was nullable, because that is where
    * {@link attackAbility} lands when nothing else claims the roll, and that

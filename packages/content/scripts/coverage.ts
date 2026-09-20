@@ -534,6 +534,35 @@ function renderBestiary(coverage: BestiaryCoverage): readonly string[] {
 
   for (const row of coverage.rows) lines.push(`| ${row.kind} | ${row.printed} | ${row.read} |`);
 
+  lines.push(
+    '',
+    '**What the rest would need, ranked by the blocks it would free.** Each',
+    'row is a predicate over a line rather than a reading of it — a line named',
+    'Multiattack, a name carrying a recharge, an unread line that prints a',
+    'saving throw, a read line that came with a rider — so a reader can check',
+    'every one against the catalogue. The piles **overlap** and the column sums',
+    'to nothing: one dragon prints a Multiattack, a breath weapon on a recharge',
+    'and a bite whose hit buys a save.',
+    '',
+    '| Shape | Blocks | Lines |',
+    '|---|---|---|',
+  );
+  for (const row of coverage.shapes) {
+    lines.push(`| ${row.shape} | ${row.blocks} | ${row.lines} |`);
+  }
+
+  lines.push(
+    '',
+    '**A printed line reaches the Attack action and nothing else.** An',
+    'opportunity attack and a readied strike both name a weapon and have',
+    'nowhere to name a line, so a creature whose attack is its own body takes',
+    'one as an Unarmed Strike — rolled at Strength plus its Proficiency Bonus,',
+    'for the flat damage a fist deals. Those are fabricated numbers rather than',
+    'a refusal, which makes it the most consequential thing still open here. It',
+    'is open because the field a caller names a line with belongs on two more',
+    'commands and on the tool surface above them.',
+  );
+
   return lines;
 }
 

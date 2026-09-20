@@ -758,6 +758,28 @@ export interface BestiaryCoverage {
     /** Of those, the ones carrying structure the engine reads. */
     readonly read: number;
   }[];
+  /**
+   * What the lines the engine does not read would need, ranked by how many
+   * blocks each would free.
+   *
+   * **Every row is a mechanical predicate over a line, stated in the report**,
+   * not somebody's reading of the English: a line *named* Multiattack, a name
+   * carrying "(Recharge", an unread line whose text prints a saving throw, a
+   * read line that came with a rider. That is the difference between this and
+   * an opinion in a derived column's clothes — a reader can check every row
+   * against the catalogue, and a shape that stopped matching shrinks here
+   * rather than going quiet.
+   *
+   * The piles **overlap**: one block prints a Multiattack and a breath weapon
+   * and a bite whose hit buys a save, so the column does not sum to anything.
+   */
+  readonly shapes: readonly {
+    readonly shape: string;
+    /** Blocks printing at least one line of this shape. */
+    readonly blocks: number;
+    /** Lines of this shape, across every block. */
+    readonly lines: number;
+  }[];
 }
 
 /**
@@ -813,6 +835,51 @@ export function auditBestiary(): BestiaryCoverage {
     ),
   }));
 
+  // Every line of every block, which is what the shapes below are counted
+  // over: what a line costs is the section's, and what it *needs* is not.
+  const linesOf = (monster: (typeof SRD_CONTENT.monsters)[number]) => [
+    ...monster.traits,
+    ...monster.actions,
+    ...monster.bonusActions,
+    ...monster.reactions,
+    ...monster.legendaryActions,
+  ];
+
+  const SHAPES: readonly [string, (line: { name: string; text: string; attack?: unknown; trait?: unknown }) => boolean][] = [
+    ['How many attacks the Attack action holds', (line) => line.name === 'Multiattack'],
+    [
+      'A save a line forces',
+      (line) => line.attack === undefined && /Saving Throw:_/.test(line.text),
+    ],
+    [
+      'An effect a hit buys',
+      (line) => line.attack !== undefined && (line.attack as { rider: string | null }).rider !== null,
+    ],
+    ['A recharge', (line) => /\(Recharge/.test(line.name)],
+    ['A use the block limits per day', (line) => /\(\d+\/Day/.test(line.name)],
+    ['A creature that casts', (line) => /^Spellcasting/.test(line.name)],
+  ];
+
+  const shapes = SHAPES.map(([shape, matches]) => {
+    let blocks = 0;
+    let lines = 0;
+    for (const monster of SRD_CONTENT.monsters) {
+      const hits = linesOf(monster).filter(matches).length;
+      if (hits > 0) blocks += 1;
+      lines += hits;
+    }
+    return { shape, blocks, lines };
+  });
+
+  // The legendary economy is a property of the block rather than of any one
+  // line, so it is counted as the block it belongs to.
+  shapes.push({
+    shape: 'A legendary action’s own economy',
+    blocks: SRD_CONTENT.monsters.filter((monster) => monster.legendaryActions.length > 0).length,
+    lines: SRD_CONTENT.monsters.reduce((sum, monster) => sum + monster.legendaryActions.length, 0),
+  });
+  shapes.sort((a, b) => b.blocks - a.blocks || a.shape.localeCompare(b.shape));
+
   let defences = 0;
   let qualified = 0;
   let unread = 0;
@@ -838,6 +905,7 @@ export function auditBestiary(): BestiaryCoverage {
     read: rows.reduce((sum, row) => sum + row.read, 0),
     acting,
     rows,
+    shapes,
   };
 }
 
