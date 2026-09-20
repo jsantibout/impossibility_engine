@@ -16,6 +16,7 @@ import {
   ok,
   type Result,
   type RollMode,
+  type Skill,
 } from '@ie/shared';
 import { type DamageComponent, rollAttackDamage } from '../attack.js';
 import { parseNotation } from '../dice.js';
@@ -34,6 +35,7 @@ import {
   electableCastingDamage,
   rollModesFor,
   standingBonuses,
+  standingCheckBonuses,
   standingSaveBonuses,
 } from '../standing.js';
 import { type Supply } from './casting.js';
@@ -448,16 +450,28 @@ export function savingSupport(
  * Initiative is one of the four: SRD makes it an ability check, which is why
  * "a magic item's bonus applies" to it and why `rollInitiativeFor` asks here.
  *
- * No narrowing is offered. An ability check is not made *with* an object the
- * way an attack is — the SRD's tool bonuses are worded as the character's, not
- * the tool's — and `checkContent` refuses the pairing outright.
+ * No narrowing is offered *by an item*. An ability check is not made *with* an
+ * object the way an attack is — the SRD's tool bonuses are worded as the
+ * character's, not the tool's — and `checkContent` refuses the pairing
+ * outright.
+ *
+ * **The skill is a narrowing of the other kind**, and it is the feature's: SRD
+ * Divine Order and Primal Order bonus two named skills each, so a gatherer that
+ * could not be told which check this is would hand a Cleric their Arcana bonus
+ * on a Stealth check. A caller that has no skill — Initiative, an effect's bare
+ * ability check — asks for none and gets only the bonuses that name no skill
+ * either, which is the conservative direction.
  */
 export function checkBonuses(
   state: GameState,
   who: CharacterId,
   supplied: readonly Bonus[] | undefined,
+  skill?: Skill,
 ): readonly Bonus[] {
-  const standing = standingBonuses(state, who, 'ability-check');
+  const standing = [
+    ...standingBonuses(state, who, 'ability-check'),
+    ...(skill === undefined ? [] : standingCheckBonuses(state, who, skill)),
+  ];
   if (standing.length === 0) return supplied ?? [];
 
   const merged = new Map<string, Bonus>();

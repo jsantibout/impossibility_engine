@@ -104,6 +104,7 @@ import {
   takeOpportunityAttack,
   takeReady,
   takeTestReaction,
+  tradeResource,
   unequipItem,
   useHealingTouch,
   useItem,
@@ -680,6 +681,56 @@ const recovering = (): readonly GameEvent[] => [
     pool: { key: 'test:points', label: 'points', max: 6, recovers: 'long-rest' },
   },
   { type: 'resource-spent', id: C, key: 'test:points', amount: 6 },
+];
+
+/**
+ * A creature who can pay for one pool's uses with another's, built by hand for
+ * `recovering`'s reason — the guard is about the mechanism rather than about
+ * the Druid.
+ *
+ * The pool it fills is spent, because a trade gives back what was spent: a
+ * retry that was not caught would hand back two uses and charge for one.
+ */
+const trading = (): readonly GameEvent[] => [
+  ...SETUP,
+  {
+    type: 'creature-added',
+    id: C,
+    name: C,
+    sheet: sheet({
+      trades: [
+        {
+          feature: 'test:trade',
+          name: 'An Exchange Of Sorts',
+          trade: 'points-for-vigour',
+          action: 'none',
+          spends: { key: 'test:points', uses: 1 },
+          gains: { key: 'test:vigour', uses: 1 },
+          limit: 'once-per-long-rest',
+          pool: 'test:trade',
+        },
+      ],
+    }),
+    maxHp: 20,
+    diesAtZero: true,
+    side: 'foes',
+  },
+  {
+    type: 'resource-pool-declared',
+    id: C,
+    pool: { key: 'test:trade', label: 'the feature', max: 1, recovers: 'long-rest' },
+  },
+  {
+    type: 'resource-pool-declared',
+    id: C,
+    pool: { key: 'test:points', label: 'points', max: 6, recovers: 'long-rest' },
+  },
+  {
+    type: 'resource-pool-declared',
+    id: C,
+    pool: { key: 'test:vigour', label: 'vigour', max: 2, recovers: 'long-rest' },
+  },
+  { type: 'resource-spent', id: C, key: 'test:vigour', amount: 2 },
 ];
 
 /**
@@ -1383,6 +1434,15 @@ const GUARDED: readonly Guarded[] = [
     name: 'useRecovery',
     log: recovering(),
     run: (s, commandId) => useRecovery(s, C, { feature: 'test:recovery', commandId }, supply()),
+  },
+  {
+    // The trade spends one pool and refills another in one batch, so an
+    // uncaught retry costs one use twice and hands two back — the same
+    // asymmetry `conferReaction` above is swept for.
+    name: 'tradeResource',
+    log: trading(),
+    run: (s, commandId) =>
+      tradeResource(s, C, { feature: 'test:trade', trade: 'points-for-vigour', commandId }),
   },
   { name: 'endFeature', log: stanced(), run: (s, commandId) => endFeature(s, A, { feature: 'test:stance', commandId }) },
   {
@@ -2201,6 +2261,10 @@ const SPENDERS: readonly Spender[] = [
   { name: 'conferReaction', run: (s) => conferReaction(s, B, { feature: 'test:inspire', target: A }) },
   { name: 'useSelfHeal', run: (s) => useSelfHeal(s, B, { feature: 'test:self-heal' }, supply()) },
   { name: 'useRecovery', run: (s) => useRecovery(s, B, { feature: 'test:recovery' }, supply()) },
+  {
+    name: 'tradeResource',
+    run: (s) => tradeResource(s, B, { feature: 'test:trade', trade: 'points-for-vigour' }),
+  },
   {
     name: 'extendFeature',
     run: (s) => extendFeature(s, B, { feature: 'test:stance', by: 'bonus-action' }),

@@ -137,6 +137,16 @@ export interface EffectContext {
    */
   readonly source: string;
   readonly castLevel: number;
+  /**
+   * The level of the **slot that paid** for this casting, where one did.
+   *
+   * Beside {@link castLevel} and not the same question: a wand's Fireball, a
+   * Ritual and a free casting a feature bought all have a cast level and spent
+   * no slot, and SRD Disciple of Life asks about the slot. Read off the
+   * `spell-cast` event the casting emitted rather than derived a second time,
+   * so the two cannot disagree about what was expended.
+   */
+  readonly slotLevel?: number;
   /** Null for a later use, which rolls with {@link EffectContext.numbers}. */
   readonly route: CastingRoute | null;
   /**

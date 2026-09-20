@@ -31,6 +31,7 @@ import type {
   StandingEffect,
   StandingGrant,
   StrikeStyle,
+  TradeFeature,
 } from './standing.js';
 import type { SpellEffect } from './spell-definitions.js';
 import type {
@@ -2700,6 +2701,40 @@ export function planCharacter(
     });
   }
 
+  // A feature that pays for one resource with another. The keys are resolved
+  // here for the reason a recovery's are: a spell slot's key carries a level,
+  // and `spellSlotKey` is the engine's derivation rather than something a
+  // class file may spell out. A slot the caller chooses the level of resolves
+  // to null and is settled at the moment of the trade, which is the only thing
+  // about a trade creation cannot know.
+  const trades: TradeFeature[] = [];
+  for (const feature of features) {
+    const grant = feature.grants;
+    if (grant?.kind !== 'trade') continue;
+    for (const one of grant.trades) {
+      trades.push({
+        feature: feature.id,
+        name: one.name ?? feature.name,
+        trade: one.id,
+        action: one.action,
+        spends:
+          one.spends.kind === 'pool'
+            ? { key: one.spends.key, uses: one.spends.uses }
+            : {
+                key: one.spends.level === undefined ? null : spellSlotKey(one.spends.level),
+                uses: 1,
+              },
+        gains:
+          one.gains.kind === 'pool'
+            ? { key: one.gains.key, uses: one.gains.uses }
+            : { key: spellSlotKey(one.gains.level ?? 1), uses: 1 },
+        limit: one.limit,
+        ...(one.pool === undefined ? {} : { pool: one.pool }),
+        ...(one.onlyIfEmpty === undefined ? {} : { onlyIfEmpty: one.onlyIfEmpty }),
+      });
+    }
+  }
+
   // SRD: the features "don't stack", so the most generous grant wins.
   const attacksPerAction = features.reduce(
     (most, feature) =>
@@ -2802,6 +2837,7 @@ export function planCharacter(
     ...(reactions.length === 0 ? {} : { reactions }),
     ...(conferredReactions.length === 0 ? {} : { conferredReactions }),
     ...(recoveries.length === 0 ? {} : { recoveries }),
+    ...(trades.length === 0 ? {} : { trades }),
     ...(selfHeals.length === 0 ? {} : { selfHeals }),
     ...(healingTouch.length === 0 ? {} : { healingTouch }),
     ...(poolOptions.length === 0 ? {} : { poolOptions }),
@@ -3434,6 +3470,24 @@ function poolsFor(
       max: 1,
       recovers: 'long-rest',
     });
+  }
+
+  // And a trade with the same clause on it, read the same way: SRD Wild
+  // Resurgence's "you can't do so again until you finish a Long Rest" is a
+  // pool of one, exactly as the recovery above it is. A trade limited once a
+  // turn declares nothing — the turn's own ledger answers for that.
+  for (const feature of features) {
+    const grant = feature.grants;
+    if (grant?.kind !== 'trade') continue;
+    for (const one of grant.trades) {
+      if (one.pool === undefined) continue;
+      pools.push({
+        key: one.pool,
+        label: one.poolLabel ?? one.name ?? feature.name,
+        max: 1,
+        recovers: 'long-rest',
+      });
+    }
   }
 
   return pools;

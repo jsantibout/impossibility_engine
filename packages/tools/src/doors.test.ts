@@ -680,6 +680,12 @@ const ANSWERS: Readonly<Record<string, Answer>> = {
     fields: ['create_character.choices.feats.the-slot.spellcastingAbility'],
   },
 
+  // — a trade the caster pays for, where only they can say with what ———————
+  slot_level_required: {
+    unanswerable:
+      'not a field **yet**: `tradeResource` is the engine command SRD Wild Resurgence needs — "you can give yourself one use by expending a spell slot", with the level left to the caster — and no tool on either surface opens onto it, so there is nothing here to name. The day one does, this becomes `trade_resource.slotLevel` and the entry moves up with the rest.',
+  },
+
   // — and two that are not a caller's to answer at all —————————————————————
   missing_field: {
     unanswerable:

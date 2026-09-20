@@ -319,6 +319,10 @@ export function resolveDeclaredCast(
 
     return charged(resolveEffects(state, pending.caster, caster, definition, {
       castLevel: pending.level,
+      // The slot the declaration named and this settlement expends. SRD Prayer
+      // of Healing takes ten minutes and restores Hit Points, so a feature
+      // that reads the slot has to reach a casting settled rather than made.
+      ...(pending.slot === null ? {} : { slotLevel: pending.slot.level }),
       route: chosen.value,
       ...(pending.numbers === undefined ? {} : { numbers: pending.numbers }),
       ...(pending.ability === undefined ? {} : { ability: pending.ability }),
@@ -1621,9 +1625,19 @@ function resolveOnTargets(
     return ok({ events, castingId, outcomes: [], unverified });
   }
 
+  // **What the casting actually spent, read off the event that spent it.**
+  // SRD Disciple of Life asks whether a *slot* paid, which `castLevel` cannot
+  // answer — a wand's Fireball and a Ritual both have one — and `castSpell`
+  // has already decided the question once, three lines of conditions deep.
+  // Asking it a second way here is how two readings of one rule come to
+  // disagree.
+  const paid = cast.value.find((event) => event.type === 'spell-cast');
+  const slotLevel = paid !== undefined && paid.type === 'spell-cast' ? paid.slot?.level : undefined;
+
   const resolved = charged(
     resolveEffects(state, casterId, caster, definition, {
       castLevel,
+      ...(slotLevel === undefined ? {} : { slotLevel }),
       numbers,
       route,
       targets,
@@ -1801,6 +1815,8 @@ export function resolveEffects(
   definition: SpellDefinition,
   context: {
     readonly castLevel: number;
+    /** The slot that paid for it, where one did — see {@link EffectRun.slotLevel}. */
+    readonly slotLevel?: number;
     /** Null for a later use, which rolls with {@link context.numbers}. */
     readonly route: CastingRoute | null;
     /**
@@ -1914,6 +1930,7 @@ export function resolveEffects(
     unverified,
     supply,
     events,
+    ...(context.slotLevel === undefined ? {} : { slotLevel: context.slotLevel }),
     ...(context.numbers === undefined ? {} : { numbers: context.numbers }),
     ...(context.label === undefined ? {} : { label: context.label }),
     ...(context.from === undefined ? {} : { from: context.from }),
@@ -1998,6 +2015,16 @@ export interface EffectRun {
   /** The list to resolve. Never derived here: the caller knows which list it means. */
   readonly effects: readonly SpellEffect[];
   readonly castLevel: number;
+  /**
+   * The level of the slot that paid for this casting — see
+   * {@link EffectContext.slotLevel}.
+   *
+   * Supplied by the two runs that *are* a casting being paid for, and omitted
+   * by every other: a conferral, an activation of a casting already running
+   * and an area settling later each restore what the definition prints, which
+   * is the rule {@link alters} keeps for the damage half.
+   */
+  readonly slotLevel?: number;
   /** Null for a later use, and for an item, which rolls with {@link numbers}. */
   readonly route: CastingRoute | null;
   readonly ability: Ability | null;
@@ -2221,6 +2248,7 @@ export function runEffects(
     level,
     source,
     castLevel,
+    ...(run.slotLevel === undefined ? {} : { slotLevel: run.slotLevel }),
     route,
     ability: run.ability,
     numbers,

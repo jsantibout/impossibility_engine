@@ -6,6 +6,7 @@ import {
   type ConditionName,
   type Result,
   type RollMode,
+  type Skill,
 } from '@ie/shared';
 import type { Bonus, ModeSource, StandingBonusApplies } from './bonuses.js';
 import type { TurnAnchor } from './time.js';
@@ -277,6 +278,31 @@ export type StandingGrant =
    * sheet rather than the beneficiary's.
    */
   | { readonly kind: 'save-bonus'; readonly fromAbility: Ability; readonly minimum: number }
+  /**
+   * SRD Divine Order (Thaumaturge) and SRD Primal Order (Magician): "you have
+   * a bonus to the Intelligence (Arcana) and Intelligence (Religion) checks
+   * you make. The bonus equals your Wisdom modifier (minimum of +1)."
+   *
+   * `save-bonus` above is the same derivation aimed at the other family, and
+   * this is a member beside it rather than a field on it because a Paladin's
+   * aura and a Cleric's study are two sentences that have never been written
+   * as one: widening that member would rename a grant two catalogue files
+   * already write, and `flat-bonus` below is "Flat, and only flat".
+   *
+   * **Narrowed by skill, and by nothing else.** Both writers name two skills;
+   * neither says anything about the ability the check is made with, and
+   * `SKILL_ABILITY` already answers that question for anybody who asks it. A
+   * bonus to *every* ability check is `flat-bonus`'s shape, which is what the
+   * SRD prints on a Stone of Good Luck — as a number rather than a modifier.
+   */
+  | {
+      readonly kind: 'check-bonus';
+      readonly fromAbility: Ability;
+      /** SRD's "(minimum of +1)", read as a floor under the modifier. */
+      readonly minimum: number;
+      /** The skills the feature's own sentence names. Never empty. */
+      readonly skills: readonly Skill[];
+    }
   /**
    * A flat number added to something, with the item or feature's name on it.
    *
@@ -594,7 +620,77 @@ export type StandingGrant =
       readonly optional?: true;
       /** What electing it costs — see {@link CastingDamageCost}. */
       readonly costs?: CastingDamageCost;
+    }
+  /**
+   * A feature of the caster that reaches into what a casting **restores**.
+   *
+   * The member above's argument on the other half of a casting's arithmetic,
+   * and it is a second member rather than a fifth arm of that one because the
+   * two are read at different moments by different resolvers: damage is asked
+   * for once, before the dice, and folded into a notation; healing is asked
+   * for per creature healed, after them, because the SRD's sentence is about
+   * the creature rather than about the roll — "**that creature** regains
+   * additional Hit Points".
+   *
+   * SRD Disciple of Life is the writer: "When a spell you cast with a spell
+   * slot restores Hit Points to a creature, that creature regains additional
+   * Hit Points ... equal to 2 plus the spell slot's level." Three more SRD
+   * sentences want this same reader and each needs an arm this does not have
+   * — Blessed Healer's echo back onto the caster, Supreme Healing's maximised
+   * dice, and Preserve Life's cap at half a creature's maximum — so they are
+   * named here rather than guessed at, exactly as `CastingDamageAlteration`
+   * names the writers of its single-writer arms.
+   *
+   * **It reaches the casting and no later moment of it**, which is the rule
+   * the member above already keeps: SRD says "on the turn you cast the spell",
+   * so an area healing somebody a minute later and a later use of an ongoing
+   * casting restore what the definition prints. The one casting it does not
+   * reach that arguably should is a **readied** spell released later: the slot
+   * went at the Ready, and the record a release settles from carries the
+   * casting's id and nothing else for this to read.
+   */
+  | {
+      readonly kind: 'casting-healing';
+      /** Which castings it reaches; absent fields ask nothing. */
+      readonly when: CastingHealingWhen;
+      /** What it does to what they restore. */
+      readonly alters: CastingHealingAlteration;
     };
+
+/**
+ * Which castings a `casting-healing` grant reaches.
+ *
+ * {@link CastingDamageWhen}'s reading, with one field, because one narrowing
+ * has a writer: SRD Disciple of Life's "a spell you cast **with a spell
+ * slot**", which is what tells a Cure Wounds from a potion's conferral, a
+ * wand's casting and a free casting a feature paid for. A second field here
+ * would be a narrowing nothing narrows.
+ */
+export interface CastingHealingWhen {
+  /**
+   * That a spell slot paid for the casting.
+   *
+   * Absent asks nothing, which is the reading every narrowing in this file
+   * takes; `true` is the SRD's own clause.
+   */
+  readonly withSlot?: true;
+}
+
+/**
+ * What a feature does to the hit points a casting was going to restore.
+ *
+ * One arm, and it is Disciple of Life's: a flat number, optionally plus the
+ * level of the slot that paid. The three other SRD sentences this reader would
+ * serve are named on the grant above and none of them is written here, because
+ * a member of a closed vocabulary exists when a feature writes it.
+ */
+export type CastingHealingAlteration = {
+  readonly kind: 'flat';
+  /** SRD Disciple of Life's "2", before the slot level is added to it. */
+  readonly flat: number;
+  /** SRD's "plus the spell slot's level". */
+  readonly plusSlotLevel?: true;
+};
 
 /**
  * What must hold for a standing effect to apply at all.
@@ -1114,6 +1210,40 @@ export interface RecoveryFeature {
 }
 
 /**
+ * One direction of a feature's trade, with its keys resolved.
+ *
+ * {@link RecoveryFeature}'s neighbour and the same shape of thing: what a
+ * feature does to a pool that is not its own, resolved at creation because a
+ * slot's key carries a level. What differs is which way the uses go — a
+ * recovery gives them back for nothing, and this one pays.
+ *
+ * The grant's own vocabulary is `ResourceTradeGrant` in `progression.ts`; this
+ * is that with the two ends turned into pool keys, because a command spends
+ * and restores by key and nothing below it knows what a spell slot is.
+ */
+export interface TradeFeature {
+  readonly feature: string;
+  readonly name: string;
+  /** The trade's own id, which is what a command names. */
+  readonly trade: string;
+  readonly action: 'none' | 'action' | 'bonus-action';
+  /**
+   * The pool spent, or **null** where the caller names a slot level.
+   *
+   * SRD's "expend a spell slot" leaves the level to the caster, and a key
+   * cannot be resolved until they say — which is the one thing about a trade
+   * that cannot be settled at creation.
+   */
+  readonly spends: { readonly key: string | null; readonly uses: number };
+  readonly gains: { readonly key: string; readonly uses: number };
+  readonly limit: 'once-per-turn' | 'once-per-long-rest';
+  /** The pool of one this feature's daily limit lives in. */
+  readonly pool?: string;
+  /** SRD: "if you have no uses of Wild Shape left". */
+  readonly onlyIfEmpty?: string;
+}
+
+/**
  * The most this feature can give back, before what is actually expended is
  * taken into account.
  *
@@ -1413,6 +1543,52 @@ export function standingSaveBonuses(
     const current = best.get(effect.feature);
     if (current === undefined || (current.flat ?? 0) < flat) {
       best.set(effect.feature, { source: `${effect.name} (${from})`, flat });
+    }
+  }
+
+  return [...best.values()];
+}
+
+/**
+ * The ability-sized bonuses this creature's standing effects add to a check of
+ * one skill.
+ *
+ * {@link standingSaveBonuses}' twin on the other family, and it takes every
+ * one of that function's readings because they are the same sentence: the
+ * modifier is the **holder's**, read off their sheet as it stands rather than
+ * off the sheet of whoever is rolling; the floor is the feature's own "(minimum
+ * of +1)"; and the best is kept per feature, because "when two or more game
+ * features have the same name, only the effects of one of them — the most
+ * potent — apply".
+ *
+ * The skill is the whole of the narrowing. A feature that named none would be
+ * a bonus to every ability check, which is `flat-bonus`'s shape and is refused
+ * here by `checkContent` rather than read as "all of them".
+ */
+export function standingCheckBonuses(
+  state: GameState,
+  who: CharacterId,
+  skill: Skill,
+): readonly Bonus[] {
+  const best = new Map<string, Bonus>();
+
+  for (const { from, effect } of standingFor(state, who)) {
+    if (effect.grant.kind !== 'check-bonus') continue;
+    if (!effect.grant.skills.includes(skill)) continue;
+
+    const holder = state.creatures[from];
+    if (holder === undefined) continue;
+
+    const flat = Math.max(
+      effect.grant.minimum,
+      abilityModifier(abilityScoresOf(state, from)[effect.grant.fromAbility]),
+    );
+    const current = best.get(effect.feature);
+    if (current === undefined || (current.flat ?? 0) < flat) {
+      // Named for the feature alone, unlike the aura beside it: both SRD
+      // writers reach their own holder, so there is no second creature for a
+      // reader of the log to tell the bonus apart by.
+      best.set(effect.feature, { source: effect.name, flat });
     }
   }
 
@@ -2420,6 +2596,52 @@ export function castingDamageFeatures(
       alters: grant.alters,
       ...(grant.costs === undefined ? {} : { costs: grant.costs }),
     });
+  }
+  return found;
+}
+
+/** The casting a `casting-healing` grant is being asked about. */
+export interface CastingHealingQuery {
+  /**
+   * The level of the slot that paid for this casting, or **null** where none
+   * did.
+   *
+   * Null rather than zero, because a cantrip and an item's casting are two
+   * different things a level of `0` would spell alike, and the clause this
+   * answers is about whether a slot went at all.
+   */
+  readonly slotLevel: number | null;
+}
+
+/**
+ * What the caster's features add to the hit points this casting restores.
+ *
+ * {@link castingDamageFeatures}' twin, and the shape of its answer is a list
+ * of named bonuses rather than a single number because two features adding to
+ * one casting both land and the log names each — the reading every other
+ * gatherer in this file takes.
+ *
+ * Asked of the **caster** and derived on every read, so a feature suppressed
+ * by its own requirement adds nothing. Nothing here is per-target: the same
+ * answer reaches every creature the casting heals, which is what SRD's "to a
+ * creature ... that creature regains" says when a spell heals several.
+ */
+export function castingHealingBonus(
+  state: GameState,
+  who: CharacterId,
+  query: CastingHealingQuery,
+): readonly Bonus[] {
+  const found: Bonus[] = [];
+  for (const { effect } of standingFor(state, who)) {
+    const grant = effect.grant;
+    if (grant.kind !== 'casting-healing') continue;
+    if (grant.when.withSlot === true && query.slotLevel === null) continue;
+
+    const flat =
+      grant.alters.flat +
+      (grant.alters.plusSlotLevel === true ? (query.slotLevel ?? 0) : 0);
+    if (flat === 0) continue;
+    found.push({ source: effect.name, flat });
   }
   return found;
 }

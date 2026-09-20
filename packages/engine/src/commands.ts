@@ -79,7 +79,8 @@ export {
   transferItem,
 } from './commands/declarations.js';
 export type { AwardedItem } from './commands/declarations.js';
-export { declareResourcePool, restoreResourcesOn } from './commands/pools.js';
+export { declareResourcePool, restoreResourcesOn, tradeResource } from './commands/pools.js';
+export type { TradeResourceCommand } from './commands/pools.js';
 export {
   attuneItem,
   attunedItems,

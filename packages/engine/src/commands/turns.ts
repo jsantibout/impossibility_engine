@@ -534,7 +534,7 @@ export function resolveEffectCheck(
       ...(command.senses === undefined ? {} : { conditionContext: command.senses }),
       // A worn item's "+1 bonus to ability checks", read rather than
       // remembered — the rule the modes above already follow.
-      bonuses: checkBonuses(state, who, command.bonuses),
+      bonuses: checkBonuses(state, who, command.bonuses, check.skill),
     });
     if (!rolled.ok) return rolled;
 

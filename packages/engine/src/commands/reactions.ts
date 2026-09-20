@@ -491,7 +491,7 @@ export function resolveTest(
             // of them share; what the two branches must not disagree about is
             // the *identity rule*, and they do not — both merge by source and
             // let the caller's copy win.
-            bonuses: checkBonuses(state, who, saidBonuses),
+            bonuses: checkBonuses(state, who, saidBonuses, command.skill),
           });
     if (!rolled.ok) return rolled;
 

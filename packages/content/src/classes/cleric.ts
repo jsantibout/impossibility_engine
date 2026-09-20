@@ -145,8 +145,21 @@ export const CLERIC: ClassDefinition = {
       name: 'Divine Order',
       level: 1,
       automation: 'manual',
-      note: 'Protector grants Martial weapon proficiency and Heavy armor training; Thaumaturge grants an extra cantrip and a Wisdom-modifier bonus to Arcana and Religion checks. Neither is applied: the choice is recorded and a DM applies it.',
+      note: 'Half of one option is applied. SRD Thaumaturge: "you have a bonus to the Intelligence (Arcana) and Intelligence (Religion) checks you make. The bonus equals your Wisdom modifier (minimum of +1)." That is a standing check bonus gated on the option chosen, so it reaches the two named skills and a Cleric who took the other option has nothing. The rest is the DM’s: Protector grants Martial weapon proficiency and Heavy armor training, which no grant confers, and Thaumaturge grants an extra cantrip, which a spells grant could say and no gate could hang it on — only a standing grant carries `onlyIfChoice`.',
       choice: { kind: 'option', choose: 1, from: ['Protector', 'Thaumaturge'] },
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        onlyIfChoice: 'Thaumaturge',
+        effects: [
+          {
+            kind: 'check-bonus',
+            fromAbility: 'wis',
+            minimum: 1,
+            skills: ['arcana', 'religion'],
+          },
+        ],
+      },
     },
     {
       id: 'cleric:channel-divinity',
@@ -357,8 +370,19 @@ export const LIFE_DOMAIN: SubclassDefinition = {
       id: 'life-domain:disciple-of-life',
       name: 'Disciple of Life',
       level: 3,
-      automation: 'manual',
-      note: 'The extra "2 plus the slot level" hit points on a healing spell are not added; healing effects do not yet read the caster’s features.',
+      automation: 'engine',
+      note: 'Applied. SRD: "Whenever a spell you cast with a spell slot restores Hit Points to a creature, that creature regains additional Hit Points on the turn you cast the spell. The additional Hit Points equal 2 plus the spell slot’s level." A `casting-healing` grant is the whole of it: the addend is worked out at the casting, off the slot the casting actually expended, so a Cure Wounds from a potion, from a wand or from a feature’s free casting adds nothing — which is the clause the sentence turns on. The two words it does not read are "on the turn": an area that heals somebody a minute later and a later use of an ongoing casting restore what the definition prints, which is the line `casting-damage` already draws for the damage half.',
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        effects: [
+          {
+            kind: 'casting-healing',
+            when: { withSlot: true },
+            alters: { kind: 'flat', flat: 2, plusSlotLevel: true },
+          },
+        ],
+      },
     },
     {
       id: 'life-domain:domain-spells',

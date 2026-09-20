@@ -11,6 +11,7 @@
 import { type CharacterId, ok, type Result } from '@ie/shared';
 import { applyEvent, type CreatureState, type GameState } from '../events.js';
 import { scaledDiceFor, scaledFlatFor } from '../spell-definitions.js';
+import { castingHealingBonus } from '../standing.js';
 import { grantTemporaryHpTo, healCreature } from './creatures.js';
 import { rollSpellDice } from './rolls.js';
 import { type EffectContext, type EffectOfKind } from './spell-effect-context.js';
@@ -70,9 +71,18 @@ export function resolveHealEffect(
   // *chosen route's* ability, so a feat's version heals by its own.
   const bonus = effect.addSpellcastingModifier ? numbers.spellcastingModifier : 0;
   const addend = scaledFlatFor(effect.healing, level, castLevel);
+  // And what the **caster's own features** add to what this casting restores,
+  // derived on every read the way every standing benefit is — SRD Disciple of
+  // Life's "2 plus the spell slot's level". Nothing is added where no slot
+  // paid: `ctx.slotLevel` is the slot the casting expended, and a conferral,
+  // an activation and an area settling later have none.
+  const fromFeatures = castingHealingBonus(current, casterId, {
+    slotLevel: ctx.slotLevel ?? null,
+  });
+  const extra = fromFeatures.reduce((sum, one) => sum + (one.flat ?? 0), 0);
   const amount = Math.max(
     0,
-    rolled.value.reduce((sum, c) => sum + c.total, 0) + bonus + addend,
+    rolled.value.reduce((sum, c) => sum + c.total, 0) + bonus + addend + extra,
   );
 
   events.push({
@@ -81,7 +91,10 @@ export function resolveHealEffect(
     label: `${name} healing`,
     natural: 0,
     total: amount,
-    contributions: [{ source: 'spellcasting modifier', amount: bonus }],
+    contributions: [
+      { source: 'spellcasting modifier', amount: bonus },
+      ...fromFeatures.map((one) => ({ source: one.source, amount: one.flat ?? 0 })),
+    ],
     outcome: 'healed',
   });
 

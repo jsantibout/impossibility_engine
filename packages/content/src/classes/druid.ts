@@ -126,8 +126,21 @@ export const DRUID: ClassDefinition = {
       name: 'Primal Order',
       level: 1,
       automation: 'manual',
-      note: 'Magician grants a cantrip and a Wisdom bonus to Arcana and Nature checks; Warden grants Martial weapon proficiency and Medium armour training. Neither is applied: the choice is recorded and a DM applies it.',
+      note: 'Half of one option is applied. SRD Magician: "you have a bonus to the Intelligence (Arcana) and Intelligence (Nature) checks you make. The bonus equals your Wisdom modifier (minimum of +1)." That is a standing check bonus gated on the option chosen, so it reaches the two named skills and a Druid who took the other option has nothing. The rest is the DM’s: Warden grants Martial weapon proficiency and Medium armour training, which no grant confers, and Magician grants a cantrip as well, which a spells grant could say and no gate could hang it on — only a standing grant carries `onlyIfChoice`.',
       choice: { kind: 'option', choose: 1, from: ['Magician', 'Warden'] },
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        onlyIfChoice: 'Magician',
+        effects: [
+          {
+            kind: 'check-bonus',
+            fromAbility: 'wis',
+            minimum: 1,
+            skills: ['arcana', 'nature'],
+          },
+        ],
+      },
     },
     {
       id: 'druid:wild-shape',
@@ -173,8 +186,37 @@ export const DRUID: ClassDefinition = {
       id: 'druid:wild-resurgence',
       name: 'Wild Resurgence',
       level: 5,
-      automation: 'manual',
-      note: 'Trading a Wild Shape use for a level 1 slot, and the reverse, is not modelled: it would mint a slot the class table never printed.',
+      automation: 'engine',
+      note: 'Both directions are executed, as a `trade` grant with two trades — which is what the feature is: "Once on each of your turns, if you have no uses of Wild Shape left, you can give yourself one use by expending a spell slot (no action required). In addition, you can expend one use of Wild Shape (no action required) to give yourself a level 1 spell slot, but you can\'t do so again until you finish a Long Rest." Each clause carries its own limit and its own condition, which is why a trade carries them rather than the feature. The caster names which slot they burn, because the SRD leaves the level to them. **What a trade gives back is what was spent**: a Druid holding every level 1 slot they have is refused rather than handed one the class table never printed, which is the sentence this engine has nowhere to put and the one thing here a DM may still have to rule on.',
+      grants: {
+        kind: 'trade',
+        trades: [
+          {
+            // SRD: "if you have no uses of Wild Shape left, you can give
+            // yourself one use by expending a spell slot (no action required)."
+            id: 'slot-for-wild-shape',
+            name: 'Wild Resurgence (a slot for a use)',
+            action: 'none',
+            spends: { kind: 'spell-slot' },
+            gains: { kind: 'pool', key: 'wild-shape', uses: 1 },
+            limit: 'once-per-turn',
+            onlyIfEmpty: 'wild-shape',
+          },
+          {
+            // SRD: "you can expend one use of Wild Shape (no action required)
+            // to give yourself a level 1 spell slot, but you can't do so again
+            // until you finish a Long Rest."
+            id: 'wild-shape-for-slot',
+            name: 'Wild Resurgence (a use for a slot)',
+            action: 'none',
+            spends: { kind: 'pool', key: 'wild-shape', uses: 1 },
+            gains: { kind: 'spell-slot', level: 1 },
+            limit: 'once-per-long-rest',
+            pool: 'druid:wild-resurgence',
+            poolLabel: 'Wild Resurgence',
+          },
+        ],
+      },
     },
     {
       id: 'druid:elemental-fury',

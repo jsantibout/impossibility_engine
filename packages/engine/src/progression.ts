@@ -1336,6 +1336,33 @@ export type FeatureGrant =
        */
       readonly perCasting: number;
       readonly options: readonly CastingOptionGrant[];
+   * One resource spent to buy another.
+   *
+   * The member beside it gives a pool's uses **back**; this one pays for them
+   * out of something else, which is the half the SRD writes constantly and the
+   * engine had no word for: "you can give yourself one use by expending a
+   * spell slot", "you can expend one use of Wild Shape to give yourself a
+   * level 1 spell slot", "you can expend a spell slot to regain one expended
+   * use of Bardic Inspiration".
+   *
+   * **A list, because a feature carries one grant and the SRD prints two
+   * directions in one feature.** Wild Resurgence is two sentences with two
+   * different limits and two different conditions — `PoolOptionGrant` and
+   * `ReactionGrantEffect.does` are lists for exactly this reason.
+   *
+   * **What it is not is a new kind of pool.** Both ends are pools the engine
+   * already has, named by key, and the arithmetic is `spend` and `restore` in
+   * `resources.ts`. So a trade can never mint a use above a pool's maximum:
+   * "give yourself a level 1 spell slot" gives back one the caster has spent,
+   * and a caster holding all of theirs is refused rather than handed a slot
+   * their class table never printed. That refusal is the conservative reading
+   * of a sentence this engine has nowhere to put, and it is stated rather than
+   * hidden — `tradeResource` names it `nothing_to_regain`.
+   */
+  | {
+      readonly kind: 'trade';
+      /** At least one, each with an id the command names. */
+      readonly trades: readonly ResourceTradeGrant[];
     }
   | {
       readonly kind: 'unarmored-defense';
@@ -1401,6 +1428,62 @@ export type FeatureGrant =
       /** What it widens to. One member, because the SRD writes one sentence. */
       readonly damageTypes: 'any';
     };
+
+/**
+ * One end of a trade: what is spent, or what is bought.
+ *
+ * Two members, because the SRD's trades are between a feature's pool and a
+ * spell slot in both directions and nothing else. A spell slot is not "a pool
+ * called `spell-slot:1`" here for the reason `pactSlotKey` exists: the key
+ * carries a level, and a grant that wrote the key out would be content
+ * spelling a derivation the engine owns.
+ */
+export type TradedResource =
+  /** A named pool — the feature's own, or another feature's. */
+  | { readonly kind: 'pool'; readonly key: string; readonly uses: number }
+  /**
+   * A spell slot.
+   *
+   * The level is **required where one is bought** and optional where one is
+   * spent: SRD gives "a level 1 spell slot" and takes "a spell slot", so the
+   * caller says which they are burning and the engine never picks between
+   * candidates the caller could have named.
+   */
+  | { readonly kind: 'spell-slot'; readonly level?: number };
+
+/**
+ * One direction of a trade, with the clause that limits it.
+ *
+ * Every field is one of the SRD's own words on Wild Resurgence, which is the
+ * feature this was written from: "Once on each of your turns" ({@link limit}),
+ * "if you have no uses of Wild Shape left" ({@link onlyIfEmpty}), "(no action
+ * required)" ({@link action}), and "you can't do so again until you finish a
+ * Long Rest", which is a pool of one — the same reading `recovery` takes of
+ * the same sentence, so it is the same mechanism rather than a second kind of
+ * limit beside the pools.
+ */
+export interface ResourceTradeGrant {
+  /** Named, because a feature offers more than one and a command says which. */
+  readonly id: string;
+  /** What the log calls it. The feature's own name where this is absent. */
+  readonly name?: string;
+  /** SRD's "(no action required)" is `none`. */
+  readonly action: 'none' | 'action' | 'bonus-action';
+  readonly spends: TradedResource;
+  readonly gains: TradedResource;
+  readonly limit: 'once-per-turn' | 'once-per-long-rest';
+  /** The key of the pool of one holding a once-per-Long-Rest limit. */
+  readonly pool?: string;
+  readonly poolLabel?: string;
+  /**
+   * SRD Wild Resurgence: "**if you have no uses of Wild Shape left**".
+   *
+   * The key of a pool that must be empty for the trade to be legal. A clause
+   * about the holder's own resources rather than about the world, which is why
+   * it is here and not a `StandingRequirement`.
+   */
+  readonly onlyIfEmpty?: string;
+}
 
 /**
  * How the SRD sizes a pool, in the three ways it does.

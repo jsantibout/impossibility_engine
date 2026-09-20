@@ -203,6 +203,7 @@ export const READABLE_GRANT_KINDS: ReadonlySet<string> = new Set([
   'spells',
   'standing',
   'strike-style',
+  'trade',
   'unarmored-defense',
   'weapon-mastery',
   'widens-reaction',
@@ -260,6 +261,7 @@ export const READABLE_FEATURE_FIELDS: ReadonlySet<string> = new Set([
 export const ITEM_EFFECT_KINDS: ReadonlySet<string> = new Set([
   'roll-mode',
   'save-bonus',
+  'check-bonus',
   'flat-bonus',
   'condition-immunity',
   'damage-resistance',
@@ -273,6 +275,10 @@ export const ITEM_EFFECT_KINDS: ReadonlySet<string> = new Set([
   // transcribed and ignored. No SRD item prints the sentence today; the list's
   // rule is what a reader reaches, not what the book happens to have written.
   'casting-damage',
+  // And the healing half of the same sentence, admitted for the same reason
+  // and read by the same gatherer: `castingHealingBonus` walks `standingFor`,
+  // which a worn item's grants are already part of.
+  'casting-healing',
 ]);
 
 /**
@@ -391,6 +397,100 @@ function senseProblems(
       code: 'sense_of_no_range',
       reason: 'a sense with a range of 0 feet reaches nobody, so nothing would ever read it',
       field: `${at}.feet`,
+    });
+  }
+  return found;
+}
+
+/**
+ * Everything wrong with a `check-bonus` grant, wherever one is written.
+ *
+ * {@link senseProblems}' argument on the newest member of the same union: it
+ * arrives through an item's door and a feature's, so the rule is kept once.
+ * Two things can be written here that nothing downstream could recover from —
+ * a bonus over **no** skills, which looks like a bonus to every ability check
+ * and is one `standingCheckBonuses` would give on none, and a skill this
+ * engine does not have, which is a benefit that could never hold.
+ */
+function checkBonusProblems(
+  effect: Record<string, unknown>,
+  at: string,
+): readonly { readonly code: string; readonly reason: string; readonly field: string }[] {
+  const found: { code: string; reason: string; field: string }[] = [];
+  const ability = effect['fromAbility'];
+  if (!isString(ability) || !(ABILITIES as readonly string[]).includes(ability)) {
+    found.push({
+      code: 'bad_check_bonus',
+      reason: `"${String(ability)}" is not one of the six abilities`,
+      field: `${at}.fromAbility`,
+    });
+  }
+  const minimum = effect['minimum'];
+  if (!Number.isInteger(minimum) || (minimum as number) < 0) {
+    found.push({
+      code: 'bad_check_bonus',
+      reason: `SRD's "(minimum of +1)" is a floor of a whole number of points, not ${JSON.stringify(minimum)}`,
+      field: `${at}.minimum`,
+    });
+  }
+  const skills = effect['skills'];
+  if (!Array.isArray(skills) || skills.length === 0) {
+    found.push({
+      code: 'bonus_over_no_skills',
+      reason:
+        'a bonus sized by an ability modifier names the skills it reaches; one that names none would be a bonus to every ability check, which is the sentence a flat bonus writes',
+      field: `${at}.skills`,
+    });
+  } else {
+    for (const skill of skills) {
+      if (!isString(skill) || !SKILL_NAMES.has(skill)) {
+        found.push({
+          code: 'unknown_skill',
+          reason: `"${String(skill)}" is not a skill this engine knows, so the bonus would never reach a check`,
+          field: `${at}.skills`,
+        });
+      }
+    }
+  }
+  return found;
+}
+
+/**
+ * Everything wrong with a `casting-healing` grant, wherever one is written.
+ *
+ * {@link checkBonusProblems}' neighbour, and the same two doors. One thing can
+ * be written here that nothing downstream could recover from: an addition of
+ * **nothing at all** — a flat of zero with no slot level to add to it — which
+ * is a feature claiming to be executed whose sentence adds no hit point. That
+ * is `bonus_of_nothing`'s failure, on the member next door.
+ */
+function castingHealingProblems(
+  effect: Record<string, unknown>,
+  at: string,
+): readonly { readonly code: string; readonly reason: string; readonly field: string }[] {
+  const found: { code: string; reason: string; field: string }[] = [];
+  const alters = effect['alters'];
+  if (alters === null || typeof alters !== 'object') {
+    found.push({
+      code: 'bad_casting_healing',
+      reason: 'a feature that reaches a casting’s healing says what it does to it',
+      field: `${at}.alters`,
+    });
+    return found;
+  }
+  const { flat, plusSlotLevel } = alters as { flat?: unknown; plusSlotLevel?: unknown };
+  if (!Number.isInteger(flat)) {
+    found.push({
+      code: 'bad_casting_healing',
+      reason: `hit points added to a casting are a whole number, not ${JSON.stringify(flat)}`,
+      field: `${at}.alters.flat`,
+    });
+  } else if (flat === 0 && plusSlotLevel !== true) {
+    found.push({
+      code: 'healing_of_nothing',
+      reason:
+        'a feature that adds no hit points and reads no slot level restores nothing, so nothing would ever read it',
+      field: `${at}.alters.flat`,
     });
   }
   return found;
@@ -2040,6 +2140,21 @@ function itemGrantProblems(
         }
         return;
       }
+      if (effect.kind === 'check-bonus') {
+        for (const problem of checkBonusProblems(effect as unknown as Record<string, unknown>, on)) {
+          say(problem.code, problem.reason, problem.field);
+        }
+        return;
+      }
+      if (effect.kind === 'casting-healing') {
+        for (const problem of castingHealingProblems(
+          effect as unknown as Record<string, unknown>,
+          on,
+        )) {
+          say(problem.code, problem.reason, problem.field);
+        }
+        return;
+      }
       if (effect.kind === 'flat-bonus') {
         const applies = Array.isArray(effect.applies) ? effect.applies : null;
         if (applies === null) {
@@ -2429,6 +2544,27 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
               problems.push({ field: problem.field, code: problem.code, reason: problem.reason });
             }
           }
+          // And the ability-sized bonus to named checks, by the same rule at
+          // the same two doors: the SRD writes it on two class features, and
+          // nothing stops an item's line from writing it too.
+          if (effect.kind === 'check-bonus') {
+            for (const problem of checkBonusProblems(
+              effect as unknown as Record<string, unknown>,
+              `${where}.grants.effects[${position}]`,
+            )) {
+              problems.push({ field: problem.field, code: problem.code, reason: problem.reason });
+            }
+          }
+          // And what a feature adds to a casting's healing, by the same rule at
+          // the same two doors.
+          if (effect.kind === 'casting-healing') {
+            for (const problem of castingHealingProblems(
+              effect as unknown as Record<string, unknown>,
+              `${where}.grants.effects[${position}]`,
+            )) {
+              problems.push({ field: problem.field, code: problem.code, reason: problem.reason });
+            }
+          }
           // And a set score, by the same rule at the same two doors.
           if (effect.kind === 'ability-score-set') {
             for (const problem of abilitySetProblems(
@@ -2437,6 +2573,105 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
             )) {
               problems.push({ field: problem.field, code: problem.code, reason: problem.reason });
             }
+          }
+        });
+      }
+      // A trade, and the four things a catalogue can write here that nothing
+      // downstream could recover from: two trades a command could not tell
+      // apart, a slot bought at no level (`spellSlotKey` throws on one, which
+      // is a refusal arriving as a crash), a trade of no uses, and a limit
+      // with nowhere to be counted — "you can't do so again until you finish a
+      // Long Rest" with no pool of one behind it is no limit at all.
+      if (feature.grants?.kind === 'trade') {
+        const trades = feature.grants.trades ?? [];
+        if (trades.length === 0) {
+          problems.push({
+            field: `${where}.grants.trades`,
+            code: 'empty_trade',
+            reason: `${feature.id} trades nothing for anything, so nothing would ever read it`,
+          });
+        }
+        const seen = new Set<string>();
+        trades.forEach((trade, position) => {
+          const at = `${where}.grants.trades[${position}]`;
+          if (typeof trade?.id !== 'string' || trade.id.trim() === '') {
+            problems.push({
+              field: `${at}.id`,
+              code: 'bad_trade_id',
+              reason: 'a trade is named, because a command says which of a feature’s trades it means',
+            });
+          } else if (seen.has(trade.id)) {
+            problems.push({
+              field: `${at}.id`,
+              code: 'duplicate_trade',
+              reason: `${feature.id} offers two trades called ${trade.id}, and a command naming one would find either`,
+            });
+          } else {
+            seen.add(trade.id);
+          }
+
+          for (const [side, end] of [
+            ['spends', trade?.spends],
+            ['gains', trade?.gains],
+          ] as const) {
+            if (end?.kind === 'pool') {
+              if (typeof end.key !== 'string' || end.key.trim() === '') {
+                problems.push({
+                  field: `${at}.${side}.key`,
+                  code: 'bad_trade_pool',
+                  reason: 'a pool is found by its key, and a blank one names nothing',
+                });
+              }
+              if (!Number.isInteger(end.uses) || end.uses < 1) {
+                problems.push({
+                  field: `${at}.${side}.uses`,
+                  code: 'bad_trade_amount',
+                  reason: `a trade moves a whole number of uses of at least one, not ${JSON.stringify(end.uses)}`,
+                });
+              }
+            } else if (end?.kind === 'spell-slot') {
+              // The level is the caster's where a slot is *spent* and the
+              // grant's where one is bought: "give yourself **a level 1** spell
+              // slot" names it, and nothing else could.
+              if (side === 'gains' && end.level === undefined) {
+                problems.push({
+                  field: `${at}.gains.level`,
+                  code: 'slot_without_a_level',
+                  reason:
+                    'a slot given back is of a level the feature names; the caster chooses only which they spend',
+                });
+              }
+              if (end.level !== undefined && (!Number.isInteger(end.level) || end.level < 1 || end.level > 9)) {
+                problems.push({
+                  field: `${at}.${side}.level`,
+                  code: 'bad_slot_level',
+                  reason: `spell slots run from level 1 to 9, not ${JSON.stringify(end.level)}`,
+                });
+              }
+            } else {
+              problems.push({
+                field: `${at}.${side}`,
+                code: 'bad_trade_resource',
+                reason: `"${String((end as { kind?: unknown })?.kind)}" is not something this engine trades: a pool, or a spell slot`,
+              });
+            }
+          }
+
+          if (trade?.limit === 'once-per-long-rest' && trade.pool === undefined) {
+            problems.push({
+              field: `${at}.pool`,
+              code: 'limit_without_a_pool',
+              reason:
+                'a once-a-day limit is a pool of one, the reading a recovery grant already takes; without one nothing counts the use',
+            });
+          }
+          if (trade?.limit === 'once-per-turn' && trade.pool !== undefined) {
+            problems.push({
+              field: `${at}.pool`,
+              code: 'pool_without_a_limit',
+              reason:
+                'a once-a-turn trade is counted by the turn’s own ledger, so a pool declared beside it is one nothing ever spends',
+            });
           }
         });
       }

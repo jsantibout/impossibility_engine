@@ -8,6 +8,7 @@ import type {
   SelfHealFeature,
   StandingEffect,
   StrikeStyle,
+  TradeFeature,
 } from './standing.js';
 import type { ConferrableReaction, ReactionFeature } from './reactions.js';
 import type { Armor, WeaponMastery } from '@ie/srd';
@@ -144,6 +145,14 @@ export interface CharacterSheet {
    * carries a slot level that moves as the Warlock levels.
    */
   readonly recoveries?: readonly RecoveryFeature[];
+  /**
+   * Features that spend one resource to buy another — Wild Resurgence.
+   *
+   * Resolved at creation beside `recoveries`, and for the same reason: what a
+   * trade gives and takes is a pool key, and a spell slot's key carries a
+   * level the grant cannot write.
+   */
+  readonly trades?: readonly TradeFeature[];
   /**
    * Features whose use is spent to heal their own holder — Second Wind,
    * Wholeness of Body.

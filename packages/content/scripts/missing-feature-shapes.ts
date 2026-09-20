@@ -109,7 +109,7 @@ export const FEATURE_SHAPES = {
   'a-dc-a-feature-derives-from-its-own-abilities':
     'a saving throw DC a feature computes for itself. A feature\'s option rolls against its holder\'s spell save DC, and `PoolOption` in packages/engine/src/standing.ts says whose: "The **granting class\'s** ability, resolved at creation, because a multiclassed holder has more than one and the feature belongs to exactly one of them." A species trait belongs to no class and casts nothing — the same declaration goes on, "Null where the granting class casts nothing at all" — so SRD Breath Weapon\'s "DC 8 plus your Constitution modifier and Proficiency Bonus" is a formula the vocabulary cannot name, and what it would fall back to is an item\'s.',
   'a-bonus-an-ability-modifier-sizes':
-    'a number added to a roll that is read off the holder\'s own sheet. Exactly one grant does it and only for one family: `save-bonus` in packages/engine/src/standing.ts is Aura of Protection, "the *holder\'s* modifier, read off their sheet rather than the beneficiary\'s". `flat-bonus` beside it is "Flat, and only flat", so a Charisma bonus to attack rolls and a Wisdom bonus to two named checks have no shape.',
+    'a number added to a roll that is read off the holder\'s own sheet. Two grants do it and each answers for one family: `save-bonus` in packages/engine/src/standing.ts is Aura of Protection, "the *holder\'s* modifier, read off their sheet rather than the beneficiary\'s", and `check-bonus` beside it is the two Orders\' bonus over the skills a feature names. `flat-bonus` beside them is "Flat, and only flat", so what is still unsaid is the third family: a Charisma bonus to **attack rolls**, which nothing derives a number for.',
   'a-feature-that-carries-a-second-grant':
     'one feature that must do two mechanical things at once. `FeatureDefinition.grants` is a single `FeatureGrant`, and `docs/design/characters-and-equipment.md` already names a victim — "Disciplined Survivor\'s reroll needs a feature to carry two grants". A species trait that grants a Speed to one lineage and a sense to another, and a class feature that is both a prepared spell and a pool of free castings, are the same absence.',
   'a-grant-gated-on-one-option-of-a-choice':
@@ -449,9 +449,9 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'a spells grant is expressible and gating it on the option chosen is not: only a standing grant carries `onlyIfChoice`.',
     },
     {
-      clause: 'a Wisdom-modifier bonus to Arcana and Religion checks',
-      why: 'a-bonus-an-ability-modifier-sizes',
-      note: 'a number read off the holder’s own sheet, which only a save bonus does.',
+      clause: 'That is a standing check bonus gated on the option chosen',
+      why: 'expressible',
+      note: 'the half that is applied: `check-bonus` sizes a bonus by a modifier on the holder’s own sheet, over the skills the feature names.',
     },
   ],
   'cleric:sear-undead': [
@@ -478,13 +478,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'The Wish effect is not modelled',
       why: 'a-spell-an-item-casts-that-nothing-executes',
       note: 'the catalogue defines no Wish, so the feature waits on a spell rather than on a feature mechanic.',
-    },
-  ],
-  'life-domain:disciple-of-life': [
-    {
-      clause: 'healing effects do not yet read the caster’s features',
-      why: 'healing-modified-by-an-effect',
-      note: 'the spell map’s own id: nothing stands beside `healCreature` to add to what it restores.',
     },
   ],
   'life-domain:preserve-life': [
@@ -534,9 +527,9 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'as Thaumaturge: the spells grant exists and the gate does not.',
     },
     {
-      clause: 'a Wisdom bonus to Arcana and Nature checks',
-      why: 'a-bonus-an-ability-modifier-sizes',
-      note: 'the same ability-sized bonus Thaumaturge wants.',
+      clause: 'That is a standing check bonus gated on the option chosen',
+      why: 'expressible',
+      note: 'the half that is applied, off the same `check-bonus` Thaumaturge’s reads — two writers, which is what made it a member.',
     },
   ],
   'druid:wild-companion': [
@@ -549,13 +542,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'Spending a Wild Shape use to cast Find Familiar',
       why: 'a-casting-paid-for-out-of-a-feature-pool',
       note: 'and the catalogue defines no Find Familiar either, so the casting would have nothing to run.',
-    },
-  ],
-  'druid:wild-resurgence': [
-    {
-      clause: 'Trading a Wild Shape use for a level 1 slot, and the reverse',
-      why: 'a-resource-traded-for-another',
-      note: 'the trade in both directions, and the note already says what makes it dangerous to fake.',
     },
   ],
   'druid:beast-spells': [
