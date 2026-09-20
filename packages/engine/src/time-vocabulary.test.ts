@@ -161,15 +161,26 @@ describe('the turn vocabulary is named once', () => {
    * exemption with it rather than leaving a hole behind.
    */
   /**
-   * And the anchors as **data** say the same two words the constructors do.
+   * And the anchors as **data** are every anchor the union declares.
    *
    * `TurnAnchor` is erased, so `TURN_ANCHORS` — which the content validator
    * reads, because a class file arriving as JSON was never shown to the
-   * compiler — is a list nothing could hold to the type it claims to be.
-   * `satisfies` holds each entry to the type; this holds the type to the
-   * entries, through the same two constructors {@link PAIRS} is read off.
+   * compiler — is a list nothing in the type system holds to the union it
+   * claims to be: `satisfies` checks each entry *against* the type and says
+   * nothing about a member left out. So the union is read out of the source
+   * the way this file reads everything else, and the two are held equal in
+   * both directions — a third anchor added to `Duration` fails here, and a
+   * renamed one fails against the constructors below it.
    */
-  it('keeps the anchors as data equal to the anchors as constructors', () => {
+  it('keeps the anchors as data equal to the anchor members of Duration', () => {
+    const declared = [
+      ...source(VOCABULARY).matchAll(
+        /\{ readonly kind: '([a-z-]+)'; readonly of: CharacterId \}/g,
+      ),
+    ].map((match) => match[1] ?? '');
+    // Not vacuous: the union really does declare some, and this found them.
+    expect(declared.length).toBeGreaterThan(1);
+    expect([...TURN_ANCHORS].sort()).toEqual([...declared].sort());
     expect([...TURN_ANCHORS].sort()).toEqual([...(PAIRS[1] ?? [])].sort());
   });
 

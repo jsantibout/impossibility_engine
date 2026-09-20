@@ -310,6 +310,14 @@ describe('Frenzy rides on the stance Reckless Attack puts the Barbarian in', () 
       target: GOBLIN,
       weapon: 'greatsword',
       twoHanded: true,
+      // **Advantage from the fiction, so the two runs throw the same dice.**
+      // The stance grants Advantage and an advantaged attack draws two d20s
+      // where a normal one draws one, so a comparison between a stanced swing
+      // and an unstanced one is a comparison of two different streams — the
+      // greatsword's own dice land a draw apart and the difference between the
+      // totals is not the feature. Both roll with Advantage here, so what is
+      // left between them is Frenzy and nothing else.
+      modes: [{ source: 'the fiction', mode: 'advantage' }],
     });
     const stanceOnly = swing(reckless(fighting(table())), {
       target: GOBLIN,
@@ -322,11 +330,13 @@ describe('Frenzy rides on the stance Reckless Attack puts the Barbarian in', () 
     expect(spent(stanceOnly)).toBe(false);
 
     // **And the dice reach the damage**, which the mark alone does not say.
-    // The same seed throws the same greatsword and the same Rage Damage in
-    // both, so what is left between them is the two d6s — and what is asserted
-    // is the *sentence*, "a number of d6s equal to your Rage Damage bonus",
-    // rather than a number the engine rolled: two dice cannot come to less
-    // than 2 or more than 12.
+    // Both swings are advantaged, so the generator is at the same place when
+    // the greatsword is thrown and what is left between the totals is the two
+    // d6s. What is asserted is the *sentence* — "a number of d6s equal to your
+    // Rage Damage bonus" — rather than a number the engine rolled: two dice
+    // cannot come to less than 2 or more than 12.
+    expect(both.attack!.roll.mode).toBe('advantage');
+    expect(rageOnly.attack!.roll.mode).toBe('advantage');
     expect(both.damage! - rageOnly.damage!).toBeGreaterThanOrEqual(2);
     expect(both.damage! - rageOnly.damage!).toBeLessThanOrEqual(12);
   });
@@ -351,7 +361,10 @@ describe('Frenzy rides on the stance Reckless Attack puts the Barbarian in', () 
       frenzied.events.some((e) => e.type === 'feature-used' && e.feature === 'berserker:frenzy'),
     ).toBe(false);
     // Both have to land, or this is two undefineds agreeing — and the damage is
-    // the same number, which is the half the mark cannot say.
+    // the same number, which is the half the mark cannot say. The two streams
+    // align here by construction rather than by arrangement: the stance grants
+    // nothing on a Dexterity attack, as the test above asserts, so both swings
+    // throw one d20 and the rapier's die follows it in both.
     expect(frenzied.attack!.hit).toBe(true);
     expect(calm.attack!.hit).toBe(true);
     expect(frenzied.damage).toBe(calm.damage);

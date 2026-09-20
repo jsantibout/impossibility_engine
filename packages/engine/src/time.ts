@@ -164,11 +164,12 @@ export type TurnAnchor = Extract<Duration, { readonly of: CharacterId }>['kind']
  * {@link TURN_MOMENTS}' reason on the neighbouring vocabulary: a class file
  * arrives as JSON through `loadContent` and the compiler was never asked, so
  * the validator needs the members as values. `satisfies` holds every entry to
- * the type, and `time-vocabulary.test.ts` holds the type to the entries — it
- * already reads the pair off the two constructors that build them, which is
- * the nearest thing to an erased type that survives to be asked, so a third
- * anchor added to `Duration` fails there rather than becoming a span a
- * definition may not write.
+ * the type and says nothing about a member left out, so the other direction is
+ * `time-vocabulary.test.ts`'s: it reads the anchored members out of
+ * {@link Duration}'s own declaration and holds this list equal to them, and
+ * against the two constructors beside it. A third anchor added to the union
+ * and not to this line fails there rather than becoming a span a definition
+ * may not write.
  */
 export const TURN_ANCHORS = [
   'start-of-next-turn',
