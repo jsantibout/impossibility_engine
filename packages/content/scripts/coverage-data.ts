@@ -66,7 +66,13 @@
 
 import { readFileSync } from 'node:fs';
 import { SPELL_DEFINITIONS, SRD_CONTENT, SRD_MAGIC_ITEMS } from '@ie/content';
-import { adaptMonster, type FeatureDefinition, type SpellDefinition } from '@ie/engine';
+import {
+  adaptMonster,
+  type ClassDefinition,
+  type FeatureDefinition,
+  type SpellDefinition,
+  type SubclassDefinition,
+} from '@ie/engine';
 import { asCharacterId } from '@ie/shared';
 import { ADJUDICATED } from './missing-shapes.js';
 import {
@@ -428,6 +434,181 @@ export function auditOrigins(): OriginCoverage {
     executed: rows.reduce((sum, r) => sum + r.executed, 0),
     rows,
   };
+}
+
+/** The levels a character has, which is what the class tables are twenty of. */
+export const MAX_LEVEL = 20;
+
+/** One class, followed through one of its subclasses: what a character is. */
+export interface LevelPath {
+  readonly classId: string;
+  /** `Cleric (Life Domain)`, or the class alone where it has no subclass. */
+  readonly name: string;
+  readonly casting: string;
+  readonly levels: readonly PathLevel[];
+}
+
+export interface PathLevel {
+  readonly level: number;
+  /** Features this path has been granted by this level, class and subclass. */
+  readonly features: number;
+  /** Of those, the ones the engine applies rather than records. */
+  readonly executed: number;
+  /** The highest spell level the class table gives a slot of here. */
+  readonly highestSpellLevel: number;
+  /** Spells the book prints on this class's list that the path can reach. */
+  readonly reachable: number;
+  /** Of those, the ones the engine casts and hands the effect to the DM. */
+  readonly tracked: number;
+  /** Of those, the ones whose effects the engine resolves. */
+  readonly executedSpells: number;
+}
+
+/** The same six counts, added across every path a character could be on. */
+export interface LevelRow {
+  readonly level: number;
+  readonly features: number;
+  readonly executed: number;
+  readonly reachable: number;
+  readonly tracked: number;
+  readonly executedSpells: number;
+}
+
+export interface PlayableCoverage {
+  readonly rows: readonly LevelRow[];
+  readonly paths: readonly LevelPath[];
+}
+
+/** What the derivation needs, so that a test can hand it something else. */
+export interface PlayableInput {
+  readonly classes: readonly ClassDefinition[];
+  readonly subclasses: readonly SubclassDefinition[];
+  readonly spells: readonly ParsedSpell[];
+  readonly executed: ReadonlySet<string>;
+  readonly tracked: ReadonlySet<string>;
+}
+
+/**
+ * What a character of level N holds, and how much of it the engine runs.
+ *
+ * **Every other number in this file counts a population over the whole book.**
+ * That is the right answer to "how much of the SRD is built" and the wrong one
+ * to "can a level 5 party play", which is the question that actually gets
+ * asked — and which has been answered by hand, in prose, twice. A hand answer
+ * in a document is the thing rule 8 exists to forbid, so it is derived here
+ * and printed as rows.
+ *
+ * Three things this report already knows are respected rather than restated:
+ *
+ * - **Parsed is not implemented**, so a level's spells are three counts and
+ *   never one. *Reachable* is what the book prints on the class's list that
+ *   the level can cast at all; *tracked* and *executed* are the two claims the
+ *   sections above keep apart, read from the same two sets they are read from
+ *   there. A row that added them would be the report's oldest mistake, one
+ *   level down.
+ * - **A feature arrives at a level.** `FeatureDefinition.level` is what the
+ *   class table prints, so "what does a level 5 Barbarian have" is a filter
+ *   and not an opinion, and `isExecutedFeature` — the predicate the class and
+ *   origin tables already use — is what says how much of it runs.
+ * - **A character is a class *and* a subclass**, so the unit here is a path
+ *   rather than a class: a level 5 Cleric has the Life Domain's third-level
+ *   features and not some average of the domains. One path per subclass, and a
+ *   class with no subclass is one path of its own, which is a rule about
+ *   shapes rather than a count of the twelve the SRD happens to print.
+ *
+ * **What it cannot see is whether a session can reach any of it**, which is
+ * where the truth currently is: the engine executes things no tool can ask
+ * for — a Cleric could turn undead a week before anything could be told to.
+ * That axis is `@ie/tools`' to answer, and `@ie/tools` depends on
+ * `@ie/content`, so a script in this package importing it would be a
+ * dependency cycle and an inversion of the direction the packages are built
+ * in. The alternative — a hand map from a grant kind to a tool name — is
+ * exactly the prose classifier this file records the deletion of. So the
+ * report measures the two axes it can and says plainly, in the section it
+ * prints, which third one it is missing and where the measurement would have
+ * to live.
+ *
+ * Taking its inputs rather than reading the catalogue is what lets the guard
+ * drive it in both directions, the way `inconsistencies` is driven: a
+ * catalogue where nothing is executed must report nothing executed, whatever
+ * the book has printed.
+ */
+export function playableLevels(input: PlayableInput): PlayableCoverage {
+  const paths: LevelPath[] = [];
+
+  for (const definition of input.classes) {
+    const mine = input.subclasses.filter((one) => one.classId === definition.id);
+    // A spell is on a class's list when the book's own index says so, which is
+    // the `classes` run `@ie/srd` parses off the spell's entry.
+    const list = input.spells.filter((one) => one.classes.includes(definition.id));
+
+    for (const subclass of mine.length === 0 ? [null] : mine) {
+      const features = [...definition.features, ...(subclass?.features ?? [])];
+      const levels: PathLevel[] = [];
+
+      for (let level = 1; level <= MAX_LEVEL; level += 1) {
+        const row = definition.table[level - 1];
+        const slots = row?.spellSlots ?? [];
+        // The highest slot the table gives, which is the last column with a
+        // number in it rather than the width of the run: a Warlock's row reads
+        // `[0, 0, 2]` at the fifth level and casts at the third.
+        const highestSpellLevel = slots.reduce(
+          (highest, count, index) => (count > 0 ? index + 1 : highest),
+          0,
+        );
+        const cantrips = (row?.cantripsKnown ?? 0) > 0;
+        const reachable = list.filter((one) =>
+          one.level === 0 ? cantrips : one.level <= highestSpellLevel,
+        );
+        const held = features.filter((one) => one.level <= level);
+
+        levels.push({
+          level,
+          features: held.length,
+          executed: held.filter(isExecutedFeature).length,
+          highestSpellLevel,
+          reachable: reachable.length,
+          tracked: reachable.filter((one) => input.tracked.has(one.id)).length,
+          executedSpells: reachable.filter((one) => input.executed.has(one.id)).length,
+        });
+      }
+
+      paths.push({
+        classId: definition.id,
+        name: subclass === null ? definition.name : `${definition.name} (${subclass.name})`,
+        casting: definition.spellcasting?.style ?? 'none',
+        levels,
+      });
+    }
+  }
+
+  const rows = Array.from({ length: MAX_LEVEL }, (_unused, index) => {
+    const at = paths.map((path) => path.levels[index]!);
+    const total = (read: (one: PathLevel) => number) => at.reduce((sum, one) => sum + read(one), 0);
+    return {
+      level: index + 1,
+      features: total((one) => one.features),
+      executed: total((one) => one.executed),
+      reachable: total((one) => one.reachable),
+      tracked: total((one) => one.tracked),
+      executedSpells: total((one) => one.executedSpells),
+    };
+  });
+
+  return { rows, paths };
+}
+
+/** The same question, of the catalogue and the book as they stand. */
+export function auditPlayableLevels(): PlayableCoverage {
+  return playableLevels({
+    classes: SRD_CONTENT.classes,
+    subclasses: SRD_CONTENT.subclasses,
+    spells: JSON.parse(
+      readFileSync('packages/srd/src/generated/spells.json', 'utf8'),
+    ) as ParsedSpell[],
+    executed: EXECUTED_SPELL_IDS,
+    tracked: TRACKED_IDS,
+  });
 }
 
 export interface MagicItemCoverage {

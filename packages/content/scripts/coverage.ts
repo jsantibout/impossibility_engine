@@ -49,6 +49,7 @@ import {
   auditClasses,
   auditMagicItems,
   auditOrigins,
+  auditPlayableLevels,
   auditSpells,
   coverageInconsistencies,
   PARTIAL_SPELLS,
@@ -58,6 +59,7 @@ import {
   type ClassCoverage,
   type MagicItemCoverage,
   type OriginCoverage,
+  type PlayableCoverage,
   type SpellCoverage,
 } from './coverage-data.js';
 
@@ -510,6 +512,122 @@ function renderBestiary(coverage: BestiaryCoverage): readonly string[] {
   return lines;
 }
 
+/**
+ * What a character of a level holds, and how much of it runs.
+ *
+ * **The question every other section answers sideways.** They count a
+ * population over the whole book, which says how much of the SRD is built and
+ * not whether a party can sit down and play. A level 5 Barbarian holds the
+ * features printed at levels one to five; a level 5 Cleric can reach the
+ * spells on the Cleric list up to the third, because the table gives them a
+ * third-level slot and no fourth. Both are in the catalogue, both were
+ * answered by hand twice, and a hand answer in a document is the thing rule 8
+ * forbids.
+ *
+ * The three states the sections above keep apart are kept apart here, because
+ * a row that added *tracked* to *executed* would be the report's oldest
+ * mistake one level down. The unit is a **path** — a class followed through
+ * one of its subclasses — because that is what a character is.
+ *
+ * `playableLevels` is the derivation and says what it cannot see; the sentence
+ * below is where a reader meets it.
+ */
+function renderPlayableLevels(coverage: PlayableCoverage): readonly string[] {
+  const levels = coverage.rows.map((row) => row.level);
+  const lines = [
+    '',
+    '## What a character of a level can play',
+    '',
+    'Every table above counts a population over the whole book. This one asks',
+    'the question a party asks — *can we play this level yet* — of the same',
+    'catalogue and the same two predicates, and it adds nothing to them.',
+    '',
+    '| | Means |',
+    '|---|---|',
+    '| **Path** | a class followed through one of its subclasses, which is what a character is: a Cleric of the Life Domain has the Life Domain’s features and not an average of the domains |',
+    '| **Held** | features the path has been granted by this level, class and subclass together, read off each feature’s own printed level |',
+    '| **Executed** | of those, the ones `isExecutedFeature` says the engine applies rather than records — the column the Classes table uses |',
+    '| **In reach** | spells the book prints on this class’s list that a character of this level can cast at all: a cantrip where the table grants cantrips, and a spell whose level the table has a slot of |',
+    '| **Tracked**, **Executed** | of those in reach, the two claims the Spells table keeps apart, read from the same two sets |',
+    '',
+    '**In reach is a denominator, not an achievement.** It is what the book',
+    'offers a character of this level, and the engine either resolves it, casts',
+    'it and hands the effect to the DM, or has never heard of it. The three are',
+    'never added.',
+    '',
+    '| Level | Held | Executed | In reach | Tracked | Executed |',
+    '|---|---|---|---|---|---|',
+  ];
+
+  for (const row of coverage.rows) {
+    lines.push(
+      `| ${row.level} | ${row.features} | ${row.executed} | ${row.reachable} | ${row.tracked} | ${row.executedSpells} |`,
+    );
+  }
+
+  lines.push(
+    '',
+    'The totals are every path added together, so a spell on two class lists is',
+    'counted once for each path that can reach it — the row is the book at that',
+    'level, not a party. A party is the rows below.',
+    '',
+    '**What this cannot see is whether a session can reach any of it**, and',
+    'that is where the truth currently is: the engine executes things no tool',
+    'can ask for. A Cleric could turn undead for a week before anything could',
+    'be told to. The tool surface holds that answer and `@ie/tools` depends on',
+    '`@ie/content`, so the script that writes this report cannot import it',
+    'without inverting the direction the packages are built in; a hand-written',
+    'map from a grant kind to a tool name would be an opinion in a column that',
+    'claims to be derived, which is the classifier this report already deleted',
+    'once. So two axes are measured and the third is named. Measuring it means',
+    'a derivation that lives above both packages, and that is a decision about',
+    'where this script lives rather than a row somebody can add.',
+    '',
+    '### Features, by path',
+    '',
+    'Each cell is *executed / held*: what the engine applies, over what the',
+    'class and its subclass have granted by that level. **Manual is not',
+    'failure** here any more than it is in the Classes table — several features',
+    'are judgement the engine should never take from a DM — but a party',
+    'planning a level can see which of its sentences the engine will apply and',
+    'which the table will.',
+    '',
+    `| Path | ${levels.join(' | ')} |`,
+    `|---|${levels.map(() => '---').join('|')}|`,
+  );
+
+  for (const path of coverage.paths) {
+    const cells = path.levels.map((one) => `${one.executed}/${one.features}`);
+    lines.push(`| ${path.name} | ${cells.join(' | ')} |`);
+  }
+
+  lines.push(
+    '',
+    '### Spells in reach, by path',
+    '',
+    'Each cell is *executed / tracked / in reach*, and the first two are never',
+    'added: a tracked spell is cast for real and its effect narrated, which is',
+    'the right answer for Disguise Self and would be a lie about Fireball. A',
+    'class that never casts has no row here; a class whose table starts its',
+    'slots later starts its row later, because the reach is read off the table',
+    'the book prints rather than from a rule about casters written into the',
+    'script.',
+    '',
+    `| Path | ${levels.join(' | ')} |`,
+    `|---|${levels.map(() => '---').join('|')}|`,
+  );
+
+  for (const path of coverage.paths) {
+    if (path.levels.every((one) => one.reachable === 0)) continue;
+    const cells = path.levels.map(
+      (one) => `${one.executedSpells}/${one.tracked}/${one.reachable}`,
+    );
+    lines.push(`| ${path.name} | ${cells.join(' | ')} |`);
+  }
+
+  return lines;
+}
+
 function renderBlockers(): readonly string[] {
   const rows = allShapeConsumers();
   const lines = [
@@ -658,6 +776,7 @@ function render(coverage: SpellCoverage): string {
   lines.push(...renderOrigins(auditOrigins()));
   lines.push(...renderMagicItems(auditMagicItems()));
   lines.push(...renderBestiary(auditBestiary()));
+  lines.push(...renderPlayableLevels(auditPlayableLevels()));
 
   return `${lines.join('\n')}\n`;
 }
