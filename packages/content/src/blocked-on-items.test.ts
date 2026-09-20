@@ -454,13 +454,33 @@ describe('the two shapes the re-derivation was sent to check', () => {
    * sixty feet its ray travels and the die that crumbles it.
    */
   it('names the distance that was really in the way', () => {
+    // Pinned by name rather than by size, which is what the two assertions
+    // above already do and what a *finishes* column is planned from: a soft
+    // floor would let three of these be dropped in silence.
     const range = itemConsumersOf('a-range-an-item-names');
-    expect(range.blocks.length).toBeGreaterThan(5);
-    expect(range.finishes).toEqual(['necklace-of-fireballs']);
+    expect(range.blocks).toEqual([
+      'gem-of-brightness',
+      'iron-bands',
+      'necklace-of-fireballs',
+      'ring-of-elemental-command',
+      'ring-of-the-ram',
+      'rope-of-entanglement',
+      'talisman-of-pure-good',
+      'talisman-of-ultimate-evil',
+      'wand-of-paralysis',
+    ]);
 
-    expect(itemBlockersOf('wand-of-paralysis')).toEqual([
+    // **The entry a range field would finish, and the reason it is only
+    // one.** The Necklace of Fireballs wants a second field as well — "increase
+    // the damage of the _Fireball_ by 1d6 for each bead after the first" is a
+    // benefit that grows with the count spent — so it is blocked and not
+    // finished. The wand is finished because its own last sentence is the
+    // crumble clause seven transcribed items already carry in `unmodelled`.
+    expect(range.finishes).toEqual(['wand-of-paralysis']);
+    expect(itemBlockersOf('wand-of-paralysis')).toEqual(['a-range-an-item-names']);
+    expect(itemBlockersOf('necklace-of-fireballs')).toEqual([
+      'a-charge-spent-on-something-other-than-a-casting',
       'a-range-an-item-names',
-      'a-rider-on-the-face-the-die-showed',
     ]);
   });
 

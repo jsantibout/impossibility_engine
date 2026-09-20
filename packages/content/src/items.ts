@@ -116,10 +116,13 @@ const CLASS_ITEMS: readonly CatalogueItem[] = [
  * its own — "your Strength is 20 unless your Strength is already equal to or
  * greater than that score" — so the score has stopped being what blocks it,
  * and what keeps it out is the other four clauses: an area, a save whose
- * outcome is a fall into a fissure, a rider on a later weapon attack, and
- * damage dealt to structures. The re-derivation of the item map took the
- * fifth away: the Prone its Cone imposes is a condition a saving throw hands
- * over, which an item has been able to write for two batches. The Belt of Giant
+ * outcome is a fall into a fissure, a Concentration its tremor breaks, and
+ * damage dealt to structures. The re-derivation of the item map took two
+ * away: the Prone its Cone imposes is a condition a saving throw hands over,
+ * and the extra Thunder it deals "to any creature it hits" is
+ * `attack-damage` narrowed to the weapon — the clause a Frost Brand already
+ * carries — so neither the condition nor a rider is what stands in its way.
+ * The Belt of Giant
  * Strength prints none: "your Strength changes to a score granted by the
  * belt ... see the table below", and the table is a row per belt. So the
  * score is still its blocker as well as the versions, and it will stay one
@@ -2264,23 +2267,24 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
     { id: 'dust-of-disappearance', name: 'Dust of Disappearance', kind: 'wondrous' },
     {
       /**
-       * SRD Dust of Disappearance: "Wondrous Item, Uncommon. Found in a small
-       * container, this powder resembles fine sand. There is enough of it for
-       * one use. When you take a Utilize action to throw the dust into the
-       * air, you and each creature and object within a 10-foot Emanation
-       * originating from you have the Invisible condition for 2d4 minutes.
-       * The duration is the same for all subjects, and the dust is consumed
-       * when its magic takes effect. Immediately after an affected creature
-       * makes an attack roll, deals damage, or casts a spell, the Invisible
-       * condition ends for that creature."
+       * SRD Dust of Disappearance: "Wondrous Item, Uncommon. This powder
+       * resembles fine sand. There is enough of it for one use. When you take
+       * a Utilize action to throw the dust into the air, you and each
+       * creature and object within a 10-foot Emanation originating from you
+       * have the Invisible condition for 2d4 minutes. The duration is the
+       * same for all subjects, and the dust is consumed when its magic takes
+       * effect. Immediately after an affected creature makes an attack roll,
+       * deals damage, or casts a spell, the Invisible condition ends for that
+       * creature."
        *
        * **The Potion of Invisibility's grant with a die where its hour is.**
        * The same condition, filed under `item:<id>` with no casting anywhere
-       * near it; the same three end causes, which are the three
-       * `EFFECT_END_CAUSES` names; and a span the item rolls rather than
-       * prints, which `useItem` throws once at the use and pins as a
-       * deadline, so a replay reads the minutes out of the log instead of
-       * throwing a second, different pair of d4s.
+       * near it; the same three end causes, which are three of the four
+       * `EFFECT_END_CAUSES` names — `target-dons-armor` is the fourth and is
+       * SRD Mage Armor's, so no dust prints it; and a span the item rolls
+       * rather than prints, which `useItem` throws once at the use and pins
+       * as a deadline, so a replay reads the minutes out of the log instead
+       * of throwing a second, different pair of d4s.
        *
        * **Rule 2, and the clause it leaves out gives the thrower nothing
        * less than the page does.** A conferral lands on its user or on one

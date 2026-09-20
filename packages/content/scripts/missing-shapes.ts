@@ -4894,11 +4894,11 @@ export const ITEM_SHAPES = {
   'a-charge-spent-on-something-other-than-a-casting':
     'a charge the item’s line spends on something that is not a spell — **half built, and the half that is missing is what the charge buys**. A conferral may now be priced, and may offer a range to choose within: packages/engine/src/content.ts reads the cost the way a casting’s is read, "and a pool on the same item for the charges to come out of", and refuses one with nothing behind it, "confers for charges and declares no charge pool for them to come out of" — so a staff is spent where a potion is used up, out of the item’s own pool and through the one spender. What is **not** built is a benefit that grows with the count spent, which is the rest of SRD Staff of Striking’s sentence: "For each charge you expend, the target takes an extra 1d6 Force damage". Nothing in the effect vocabulary scales dice by a charge count — an `attack-rider` carries a bare notation, and packages/engine/src/content.ts refuses every scaling field a conferral could reach for, "reads a slot level or a caster level, and an item’s printed line is the same whoever uses it" — so a priced conferral today pays a chosen price for a fixed benefit, and the staff waits on a field this vocabulary has not invented. The other residue is a charge spent on something no grant kind executes at all — a Reaction, a trigger, a rider on a later weapon attack — which the same file’s enumeration of what an item’s readers run already names: "only a standing grant, a charge pool, a spell it casts and the effects it confers are read from one". **And the entries have been read against that split rather than left where the price put them.** Every one that named this shape only because a charge bought a conferral has been re-pointed to whatever the conferral itself cannot say — a Truesight, a Fly Speed, an Emanation, a range — and SRD Periapt of Health, whose charge buys nothing but the Potion of Healing’s own dice, came off it into the catalogue. A charge that buys a **casting** was never this shape at all, except where the price itself is unsayable: Staff of Healing’s "1 charge per spell level (maximum 4 for a level 4 spell)" is a cost that reads the slot, and `ItemCastsGrant.charges` is one number.',
   'a-condition-an-item-imposes':
-    'a condition an item puts on a creature, **and what is left is every way of imposing one that is neither handing it over nor rolling the item’s own saving throw for it**. Both of those are built. packages/engine/src/content.ts admits the kind — "Nor is a condition any more." — and the save that imposes one, "Nor is `save`, which was the last of that weld.", refusing with it only the repeat whose success would end a casting. **And the residue this description named for two batches was already untrue when it was written**: a conferral *can* state a span it rolls for. `durationRolled` sits beside `durationSeconds` on the grant, `useItem` throws it once at the use and pins the deadline it decided, and SRD Dust of Disappearance — "for 2d4 minutes" — is transcribed on it and driven in packages/content/src/item-re-derivation.test.ts. What actually stands in the way is three things, and each entry below says which of them it has: a condition **welded to the same saving throw that deals the damage** ("or take 1d4 Bludgeoning damage and have the Prone condition"), which is `save-damage`’s `conditions` rider and refused by name — packages/engine/src/content.ts, "rider is welded to the casting that hung it"; a condition whose **escape is a check**, or whose span is not a number of seconds — a `ConditionRider`’s `check` and `lasts` are refused for the same reason, and `durationSeconds` is seconds, so SRD Mace of Disruption’s "until the end of your next turn" and SRD Dragon Orb’s "for as long as you remain attuned to it" have nowhere to go; and a condition **ended by something done to its holder** — SRD Rod of Rulership’s "If harmed by you or your allies" — which is the one end cause that names a dealer, and the one `EFFECT_END_CAUSES` leaves out because a conferral has no caster. A condition the holder switches off by decision is `a-benefit-an-item-switches-on-and-off` seen from the condition’s end, one a printed sentence suspends is `a-benefit-an-item-suspends-on-a-trigger`, and one that lands further away than an arm is `a-range-an-item-names`.',
+    'a condition an item puts on a creature, **and what is left is every way of imposing one that is neither handing it over nor rolling the item’s own saving throw for it**. Both of those are built. packages/engine/src/content.ts admits the kind — "Nor is a condition any more." — and the save that imposes one, "Nor is `save`, which was the last of that weld.", refusing with it only the repeat whose success would end a casting. **And the residue this description named for two batches was already untrue when it was written**: a conferral *can* state a span it rolls for. `durationRolled` sits beside `durationSeconds` on the grant, `useItem` throws it once at the use and pins the deadline it decided, and SRD Dust of Disappearance — "for 2d4 minutes" — is transcribed on it and driven in packages/content/src/item-re-derivation.test.ts. What actually stands in the way is three things, and each entry below says which of them it has: a condition **welded to the same saving throw that deals the damage** ("or take 1d4 Bludgeoning damage and have the Prone condition"), which is `save-damage`’s `conditions` rider and refused by name — packages/engine/src/content.ts, "rider is welded to the casting that hung it"; a condition whose **escape is a check**, or whose span is not a number of seconds — a `ConditionRider`’s `check` and `lasts` are refused for the same reason, and `durationSeconds` is seconds, so SRD Mace of Disruption’s "until the end of your next turn" and SRD Dragon Orb’s "for as long as you remain attuned to it" have nowhere to go; and a condition **ended by something done to its holder** — SRD Rod of Rulership’s "If harmed by you or your allies" — which is the one end cause that names a dealer, and the one `EFFECT_END_CAUSES` leaves out because a conferral has no caster. A condition the holder switches off by decision is `a-benefit-an-item-switches-on-and-off` seen from the condition’s end, one a printed sentence suspends is `a-benefit-an-item-suspends-on-a-trigger`, and one that lands further away than an arm is `a-range-an-item-names`. **One thing the reading found that no shape holds, written down so the next reader does not rediscover it**, the way the Helm of Telepathy’s entry records the two economies an item cannot declare: the rider refusal above is **one rule spelled twice, and the copies already disagree**. A feature’s conferral exempts the `save` kind from it — packages/engine/src/content.ts, where `itemConfersProblems`’ sibling reads "kind === \'save\' || CONDITIONS_IS_THE_KINDS_OWN.has(kind)" — and an item’s reads only the set. It is harmless today, and only by accident: the `save` kind spells its own field `condition` in the singular, so no well-formed effect reaches the difference. Whoever owns that file next can close it in one sitting by sharing the predicate, and until then this is the record that it is a difference rather than a decision.',
   'a-damage-roll-an-item-makes':
     'damage an item deals without a casting — and the question the last description left open has an answer now: **no, the first residue does not need an id of its own.** Damage that simply lands, with neither an attack roll nor a saving throw to decide it, is one gap wherever it is written, and the spell vocabulary already names it `damage-with-neither-an-attack-roll-nor-a-save`. So Potion of Poison’s 4d6, a talisman that burns whoever touches it, a staff’s explosion on its own wielder and a manual that scorches whoever cannot read it are filed under that id below, and this shape has stopped claiming them. What is left under this name is the **other** residue, which is an item that rolls an **attack of its own**: packages/engine/src/content.ts refuses the kind by name — "`attack` is refused by name, and so is `attack-damage`, which rides on an attack this is not" — and a conferral has no attacker, no printed modifier and no target past arm’s length to point one at. SRD Ring of the Ram writes the whole shape in one sentence, "The ring produces a spectral ram’s head and makes its attack roll with a +7 bonus", and Iron Bands of Binding writes the same roll with no damage on the end of it — which makes the id a slightly narrower thing than its name says, and it is kept rather than renamed so the two entries under it stay findable by it. The save-gated half is built and stays built: a conferral prints its own DC and `save-damage` resolves against it, which is why a horn that blasts and a javelin that forks into lightning left this shape and never came back.',
   'a-range-an-item-names':
-    'a distance the item’s own line prints between its user and whatever its use lands on. **A conferral reaches its user, or one creature within five feet.** SRD’s sentence about administering a potion is the whole of that reach — "administer it to another creature within 5 feet of yourself" — and `useItem` asks it through `reachedBy(state, id, target, item.name)` at that function’s own default of five; the grant has no field for a range, and `UseItemCommand` has one target and no second. So a wand whose ray streaks 60 feet, a rod that commands obedience at 120, a gem’s beam and a rope that darts 20 feet each have a condition, a saving throw, a DC and a span the vocabulary can write down, and nowhere at all to write down how far any of it goes. **This is the blocker the re-derivation found underneath the two it was sent to check.** Entry after entry named `a-condition-an-item-imposes` for a condition that had been sayable for two batches, and what was actually in the way was the thirty feet between the pipes and the creature that hears them. Distinct from `an-area-an-item-creates`, which is the **template**; this is a single named target the user can see, further off than an arm. **The same field is missing from the other end**, and SRD Necklace of Fireballs is the entry that shows it: "detach a bead and throw it up to 60 feet away" *narrows* Fireball’s printed Range of 150, and a `casts` grant has no more room for a distance than a conferral does — so an item may neither reach further than five feet under its own power nor reach less far than the spell it casts. The first entry transcribed under this reach writes the same thing down as a note, in packages/content/src/items.ts: "a conferral reaches its user or one creature within 5 feet and has no field for an area".',
+    'a distance the item’s own line prints between its user and whatever its use lands on. **A conferral reaches its user, or one creature within five feet.** SRD’s sentence about administering a potion is the whole of that reach — "administer it to another creature within 5 feet of yourself" — and `useItem` asks it through `reachedBy(state, id, target, item.name)` at that function’s own default of five; the grant has no field for a range, and `UseItemCommand` has one target and no second. So a wand whose ray streaks 60 feet, a rope that darts 20 and a talisman that opens a fissure at 120 each have a condition, a saving throw, a DC and a span the vocabulary can write down, and nowhere at all to write down how far any of it goes. **This is the blocker the re-derivation found underneath the two it was sent to check.** Entry after entry named `a-condition-an-item-imposes` for a condition that had been sayable for two batches, and what was actually in the way was the thirty feet between the pipes and the creature that hears them. **Sized here, so that a brief need not re-derive it.** Every entry below that names this shape points at exactly *one* creature the user can see, at a distance its own line prints: a rope at 20 feet; a gem’s beam, a wand’s ray, a ring’s spectral head, an iron sphere and a compelled Elemental at 60; either talisman at 120. **Whether more than one creature is caught is a second gap, and it is already filed apart** — an item whose line catches several at once names `an-area-an-item-creates`, which the 2024 rules’ Emanation covers — so one field carrying one distance closes this shape whole and leaves no half of it behind. What such a field would *finish* is derived into the report rather than asserted here, and it is the column to read before the blocking one: an entry this shape is the only blocker for is a record somebody writes the day the field lands. **The same field is missing from the other end**, and SRD Necklace of Fireballs is the entry that shows it: "detach a bead and throw it up to 60 feet away" *narrows* Fireball’s printed Range of 150, and a `casts` grant has no more room for a distance than a conferral does — so an item may neither reach further than five feet under its own power nor reach less far than the spell it casts, and both halves want one answer. The first entry transcribed under this reach writes the same thing down as a note, in packages/content/src/items.ts: "a conferral reaches its user or one creature within 5 feet and has no field for an area".',
   'a-speed-an-item-grants':
     'a Speed a worn item gives its wearer. `ITEM_EFFECT_KINDS` omits `speed` on purpose and packages/engine/src/content.ts records the omission as a gap rather than as a decision — "An item granting a Swim Speed is a real SRD item and a real gap; refusing it by name is how the gap stays visible instead of becoming a transcribed item whose benefit silently never applies." Boots, gloves, rings, horseshoes and slippers all print one.',
   'a-reaction-an-item-grants':
@@ -5525,20 +5525,33 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'a-selector-for-every-d20-test',
   ],
   'necklace-of-adaptation': ['a-save-keyed-to-a-condition'],
-  // **Placed, by the shape the re-derivation had to name anyway.** The last
-  // reading left this unread because "the blocker it named is gone without
-  // another to take its place", and the one it wanted is the same missing
-  // field seen from the other end: "you can take a Magic action to detach a
-  // bead and **throw it up to 60 feet away**" is a distance the item's own
-  // line prints, and no grant an item carries has anywhere to put one.
-  // Fireball's own Range is 150 feet and `resolveTargets` enforces it, so a
-  // record written today would hand out a necklace with two and a half times
-  // the reach the book gives it — the unsayable clause *limiting* the
-  // benefit, which is rule 3 in packages/content/src/items.ts. Everything
-  // else about it is writable: 1d6 + 3 beads is `chargesRolled`, Fireball
-  // executes, and "as a level 3 _Fireball_ (save DC 15)" is a `casts` grant
-  // priced at one bead.
-  'necklace-of-fireballs': ['a-range-an-item-names'],
+  // **Placed, by the shape the re-derivation had to name anyway** — and then
+  // read to the end of the paragraph, which is where the second blocker was.
+  // The last reading left this unread because "the blocker it named is gone
+  // without another to take its place", and the one it wanted is the missing
+  // range field seen from the other end: "you can take a Magic action to
+  // detach a bead and **throw it up to 60 feet away**" is a distance the
+  // item's own line prints, and no grant an item carries has anywhere to put
+  // one. Fireball's own Range is 150 feet and `resolveTargets` enforces it,
+  // so a record written today would hand out a necklace with two and a half
+  // times the reach the book gives it — the unsayable clause *limiting* the
+  // benefit, which is rule 3 in packages/content/src/items.ts.
+  //
+  // The **second** paragraph is the Ring of the Ram's residue wearing beads:
+  // "increase the damage of the _Fireball_ by 1d6 for each bead after the
+  // first (maximum 12d6)" is a benefit that grows with the count spent, and
+  // nothing in the effect vocabulary scales dice by one. Recording it here
+  // rather than leaving the entry on the range alone, because the *finishes*
+  // column is what a tranche is planned from and an entry that needs two
+  // fields must not sit in it.
+  //
+  // What is writable: 1d6 + 3 beads is `chargesRolled`, Fireball executes,
+  // and "the bead detonates as a level 3 _Fireball_ (save DC 15)" is a
+  // `casts` grant priced at one bead.
+  'necklace-of-fireballs': [
+    'a-charge-spent-on-something-other-than-a-casting',
+    'a-range-an-item-names',
+  ],
   // The instance shape stays, and it is not the count: the 1d4 + 2 beads are
   // rolled at the copy's birth, but **which type** each bead is is the GM's
   // and each keeps a dawn of its own, so this copy carries a list rather than
@@ -5947,15 +5960,23 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   // 20 unless your Strength is already equal to or greater than that score"
   // is an `ability-score-set` behind `while-attuned`, which the Gauntlets of
   // Ogre Power now write. Five clauses keep the entry out.
-  // Re-derived again, and two more clauses stopped being blockers: the Prone
-  // its Cone imposes is a condition a save hands over, and the extra Thunder
-  // it deals to objects is damage to a thing with statistics rather than
-  // damage an item rolls an attack for. Four clauses keep the entry out.
+  // Re-derived again, and three more clauses stopped being blockers. The
+  // Prone its Cone imposes is a condition a save hands over. The extra
+  // Thunder it deals to objects is damage to a thing with statistics rather
+  // than damage an item rolls an attack for. And **the rider was never
+  // needed**: "The weapon deals an extra 1d8 Thunder damage to any creature
+  // it hits" is an `attack-damage` effect narrowed by `onlyWithItem`, which
+  // packages/content/src/items.ts already writes on a Frost Brand — a
+  // *rider on a later weapon attack* is the shape for a die a **separate**
+  // sentence hangs on a later hit, and this die belongs to the object
+  // unconditionally. What is left is the Cone, the fissure a failed save
+  // drops a creature into, the Concentration the tremor breaks, and the 50
+  // Bludgeoning its earthquake deals to structures.
   'thunderous-greatclub': [
-    'a-rider-on-a-later-weapon-attack',
     'a-save-an-item-forces',
     'an-area-an-item-creates',
     'an-object-with-statistics-of-its-own',
+    'an-outcome-that-breaks-concentration',
   ],
   // The three tomes print the three manuals' sentence again; read them there.
   'tome-of-clear-thought': ['an-ability-score-a-spell-changes'],
@@ -5987,15 +6008,25 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   // buys something — a Fire Opal's beams, a staff regaining charges on a 20,
   // a sword's extra damage — and on the wands whose spell or condition
   // blocks them anyway.
-  // **The clearest case the re-derivation turned up.** Every clause of this
-  // wand but one is built: seven charges regaining 1d6 + 1 at dawn is a
-  // pool, a charge spent on a conferral is a price, and "must succeed on a DC
-  // 15 Constitution saving throw or have the Paralyzed condition for 1
-  // minute. At the end of each of the target's turns, it repeats the save,
-  // ending the effect on itself on a success" is the `save` kind in the
-  // book's own words. What is in the way is "a creature you can see within 60
-  // feet of yourself", and the wand's own crumbling on a 1.
-  'wand-of-paralysis': ['a-range-an-item-names', 'a-rider-on-the-face-the-die-showed'],
+  // **The clearest case the re-derivation turned up, and the entry the range
+  // shape finishes.** Every other clause of this wand is built: seven charges
+  // regaining 1d6 + 1 at dawn is a pool, a charge spent on a conferral is a
+  // price, and "must succeed on a DC 15 Constitution saving throw or have the
+  // Paralyzed condition for 1 minute. At the end of each of the target's
+  // turns, it repeats the save, ending the effect on itself on a success" is
+  // the `save` kind in the book's own words.
+  //
+  // **The die face came off by the rule stated above rather than by
+  // judgement.** This wand's last sentence is the crumble clause *verbatim* as
+  // the Wand of Fireballs, the Wand of Web, the Wand of Fear, the Wand of
+  // Binding, the Wand of Polymorph and the Wand of Lightning Bolts print it,
+  // and every one of those is transcribed carrying it in `unmodelled`: a
+  // record without it is a wand that lasts longer than the book's, not one
+  // that does more. It was listed here only because the condition blocked the
+  // entry anyway, and the condition no longer does. So what stands between
+  // this wand and a record is one field: "a creature you can see within 60
+  // feet of yourself".
+  'wand-of-paralysis': ['a-range-an-item-names'],
   'wand-of-the-war-mage-1-2-or-3': [
     'a-bonus-to-spell-attack-rolls',
     'a-fact-only-the-table-can-declare',

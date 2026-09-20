@@ -180,8 +180,32 @@ describe('Dust of Disappearance: a condition whose span the dust rolls', () => {
     expect(fold('seed', thrown).creatures[USER]!.inventory).toEqual([]);
   });
 
-  it('folds identically from the same seed', () => {
-    expect(fold('seed', thrown)).toEqual(fold('seed', [...thrown]));
+  /**
+   * The die is the whole reason this needs saying: a conferral that threw its
+   * span at the *fold* rather than at the command would give a different hour
+   * to every replay. So the use is **driven a second time** from the same seed
+   * against the same state, and the two logs are compared — which is a claim
+   * about the command, where folding one array twice would have been a claim
+   * about `toEqual`.
+   */
+  it('emits the same log when the same use is driven again from the same seed', () => {
+    const again = run([...TABLE, carrying(DUST)], (s) =>
+      useItem(s, USER, { item: DUST }, supply('dust')),
+    );
+    expect(again).toEqual(thrown);
+    expect(fold('seed', again)).toEqual(fold('seed', thrown));
+
+    // And a different seed really can move it, so the agreement above is the
+    // seed's doing rather than a span that was never random.
+    const spans = new Set(
+      ['dust', 'ash', 'chalk', 'grit', 'powder', 'sand'].map((seed) => {
+        const log = run([...TABLE, carrying(DUST)], (s) =>
+          useItem(s, USER, { item: DUST }, supply(seed)),
+        );
+        return (Object.values(fold('seed', log).timers)[0]?.deadline as { at: number }).at;
+      }),
+    );
+    expect(spans.size).toBeGreaterThan(1);
   });
 });
 
