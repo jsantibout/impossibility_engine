@@ -3759,6 +3759,16 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
       note: 'The condition and the zeroed Speed are both ordinary effects. What no definition can say is that they land on the messenger while everything else lands on the creature the spell targets, because one effect list reaches every target.',
     },
     {
+      clause: 'The messenger can emerge from the trance at any time, ending the spell',
+      why: 'a-casting-dismissed-early',
+      note: 'The general dismissal is built and ends a casting of the **caster’s own** by id. This one is ended by the messenger, who may be "a willing creature you touch" and so need not be the caster at all — which is the exception Animal Shapes and Gaseous Form already print, arriving on a third spell. The sentence trips no marker, so no guard could have asked for it.',
+    },
+    {
+      clause: 'can either end the trance (and the spell) or wait for the target to sleep',
+      why: 'a-casting-dismissed-early',
+      note: 'The same ending offered at a second moment, and the messenger is again the one who takes it. Written as its own clause rather than folded into the one above, because the book writes two sentences and an entry that answered one of them would leave the other unread.',
+    },
+    {
       clause: 'the target makes a Wisdom saving throw',
       why: 'expressible',
       note: 'A Wisdom save against the casting’s pinned DC, which is the plainest thing the definition format does and is what every charm in the catalogue already writes.',

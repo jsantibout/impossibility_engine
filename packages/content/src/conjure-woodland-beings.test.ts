@@ -38,6 +38,13 @@ import { ADJUDICATED, BLOCKED_ON, consumersOf } from '../scripts/missing-shapes.
  * The rest of the spell is arithmetic the engine does, so it is written and the
  * one sentence is debt — which is exactly what Spirit Guardians already does
  * with its halved Speed, in the same shape, one clause along.
+ *
+ * **`COVERAGE.md` will call this spell untested until somebody else adds a
+ * line.** The report reads `VERIFIED_SPELLS`, a hand-kept list in
+ * `packages/content/scripts/coverage-data.ts`, which IE-060 did not own — so
+ * the report understates itself by one spell and this is where that is written
+ * down rather than left to be noticed. The fix is a single insertion of
+ * `'conjure-woodland-beings'` into that list by whoever owns the file.
  */
 
 const id = (s: string) => asCharacterId(s);
@@ -241,6 +248,20 @@ describe('Conjure Woodland Beings is driven', () => {
     const { state } = conjure('driven');
     expect(state.creatures[BOAR]!.vitals.hp).toBeLessThan(MAX_HP);
     expect(state.creatures[DISTANT]!.vitals.hp).toBe(MAX_HP);
+  });
+
+  /**
+   * **The fact the whole re-filing rests on**, asserted where it is made rather
+   * than argued for in prose: an Emanation excludes the creature it originates
+   * from, so the druid is not a target of their own spirits. That is half of
+   * why the Disengage cannot be written — the other half being that an area
+   * picks the targets and one effect list reaches all of them — and a change
+   * that ever admitted the origin creature would make this line fail rather
+   * than making the adjudication quietly wrong.
+   */
+  it('never catches the caster the Emanation originates from', () => {
+    const { state } = conjure('driven');
+    expect(state.creatures[DRUID]!.vitals.hp).toBe(MAX_HP);
   });
 
   /**
