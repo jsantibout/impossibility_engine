@@ -397,8 +397,10 @@ export interface ReactionOffer {
    *
    * On the offer as well as on the feature because two of them can be alike in
    * every other field — the same feature, given to the same ally, by two
-   * different creatures — and a caller who cannot tell an offer from an offer
-   * cannot say which one they are taking.
+   * different creatures — and an offer a caller cannot tell from another offer
+   * is one they cannot report either. Only `takeTestReaction` takes a `from`
+   * to say *which* one is being spent today; the other two windows' commands
+   * take the first, which is the order the fold keeps.
    */
   readonly granted?: GrantedMark;
 }
@@ -801,8 +803,9 @@ export interface ReactionOpportunity {
    * Who gave this Reaction to its reactor, where somebody did.
    *
    * The same field an offer carries and for the same reason: two dice from two
-   * Bards are alike in every other field, and this is what a caller names to
-   * say which one they are spending.
+   * Bards are alike in every other field, and an opportunity that did not say
+   * whose it was could not be narrated. It is not an argument to anything —
+   * `TestReactionCommand.from` is where a caller names one.
    */
   readonly granted?: GrantedMark;
 }

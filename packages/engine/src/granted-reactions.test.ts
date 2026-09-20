@@ -386,6 +386,36 @@ describe('the die in the ally’s hand', () => {
     expect(after.offers).toEqual([]);
   });
 
+  /**
+   * "Naming nobody takes the first in the order the offers were listed in",
+   * which is a rule rather than a fixture: the fold sorts granted Reactions by
+   * source and `byFeature` breaks a tie on the same key, so the ally holding
+   * two dice spends a settled one and the other stands.
+   */
+  it('spends the first of two when the holder names no giver', () => {
+    const g = new Game([
+      ...party(),
+      ...made(SRD_CONTENT, bard('Sel'), SEL),
+      at(SEL, ILVA, 10, 180),
+      sees(NYX, SEL),
+    ]);
+    g.push(unwrap(conferReaction(g.state, ILVA, { feature: INSPIRATION, target: NYX }), 'one').events);
+    g.push(unwrap(conferReaction(g.state, SEL, { feature: INSPIRATION, target: NYX }), 'two').events);
+
+    g.push(
+      unwrap(
+        resolveTest(g.state, NYX, { kind: 'ability-check', ability: 'str', dc: 30 }, supply()),
+        'check',
+      ).events,
+    );
+    g.push(
+      unwrap(takeTestReaction(g.state, NYX, { feature: INSPIRATION }, supply('die')), 'use').events,
+    );
+
+    // ILVA's source sorts before SEL's, so ILVA's die is the one spent.
+    expect(g.held(NYX).map((h) => h.from)).toEqual([SEL]);
+  });
+
   it('is spent by the holder from whichever Bard gave it, and the other stands', () => {
     const g = new Game([
       ...party(),
@@ -489,6 +519,25 @@ describe('a homebrew pool that confers a Reaction', () => {
   });
 
   const ORLA = id('orla');
+
+  /**
+   * The one promise this shape could make and not keep.
+   *
+   * SRD Peerless Skill spends a *pool* use and gets it back on a failure; a
+   * conferred Reaction spends the grant, and a grant that came back would be a
+   * die given away twice. So the flag is refused where it cannot be honoured,
+   * rather than accepted and ignored — the guard `oneShotProblem` already puts
+   * on a modifier that promises an ending nothing keeps.
+   */
+  it('refuses a refund it could not pay', () => {
+    const greedy = JSON.parse(WARDEN) as {
+      features: { grants: { confersReaction: { does: { refundedOnFailure?: boolean }[] } } }[];
+    };
+    greedy.features[0]!.grants.confersReaction.does[0]!.refundedOnFailure = true;
+
+    const parsed = parseClassDefinition(greedy);
+    expect(isErr(parsed) ? parsed.reason : 'ok').toContain('refund');
+  });
 
   it('is parsed, created and used with nothing in the engine naming it', () => {
     const parsed = unwrap(parseClassDefinition(JSON.parse(WARDEN)), 'parse');

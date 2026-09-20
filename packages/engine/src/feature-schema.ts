@@ -513,6 +513,24 @@ export function checkFeatureDefinition(
     });
   }
 
+  // A conferred Reaction has no pool of its own — the giver's use was spent
+  // when they gave it away — so a refund on failure is an ending nothing
+  // keeps: what a use of it spends is the grant, and the grant is gone. The
+  // same guard `oneShotProblem` puts on a modifier promising an ending, at the
+  // one door that could promise this one.
+  if (grant?.kind === 'pool' && grant.confersReaction !== undefined) {
+    grant.confersReaction.does.forEach((effect, index) => {
+      if (effect.kind === 'intervene' && effect.refundedOnFailure === true) {
+        found.push({
+          field: `grants.confersReaction.does[${index}].refundedOnFailure`,
+          code: 'refund_without_a_pool',
+          reason:
+            'a conferred Reaction costs its holder no pool use, so there is nothing to refund on a failure; what a use of it spends is the grant itself',
+        });
+      }
+    });
+  }
+
   // Rule 6. The three ways the SRD sizes a pool, which are the three branches
   // `poolSizeOf` implements — plus its fourth, which names no shape at all and
   // is a pool of one ("Once you use this feature, you can't do so again until
