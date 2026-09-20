@@ -74,12 +74,14 @@
  * than a pool it cannot spend, because the use would be gone.
  *
  * **And `spendFor` is not a command, so it is not a door either.** It is the
- * helper the five feature commands and the item activations call to pay for
- * themselves (`commands/command.ts`), and it is reached here exactly as they
- * reach it: through the tools above, each of which spends what its own
- * feature costs. A tool over it would let a caller burn an Action or a Bonus
- * Action for nothing at all, which is the Channel Divinity argument again with
- * the action economy in place of a pool.
+ * helper in `commands/command.ts` that the four feature commands costing an
+ * action call to pay for themselves — an activation, its extension, a
+ * self-heal and a healing touch — along with an item's activation. A recovery
+ * calls it not at all, because a recovery costs no action. It is reached here
+ * exactly as they reach it: through the tools above, each of which spends what
+ * its own feature costs. A tool over it would let a caller burn an Action or a
+ * Bonus Action for nothing at all, which is the Channel Divinity argument
+ * again with the action economy in place of a pool.
  *
  * A spell's *own* teleport is here, since `cast_spell.teleportTo` is the
  * field Misty Step's refusal names; a `teleport` tool moving a creature for
@@ -1455,7 +1457,7 @@ const SHEET = tool({
 const ACTIVATE_FEATURE = tool({
   name: 'activate_feature',
   description:
-    'Switch on a feature the character can enter — Rage is the one the SRD writes this way. The engine charges whatever it costs: the Bonus Action if there is a fight running, a use out of the feature’s pool, and the deadline it runs to. What it does while it runs is applied by itself for as long as it runs. Use `sheet` to see which features can be switched on and what is left of their pool.',
+    'Switch on a feature the character can enter — Rage is the one the SRD writes this way. The engine charges whatever the feature’s own record says it costs: the Action or Bonus Action it names, where a fight is running and there is an economy to spend from, a use out of its pool, and the deadline it runs to. What it does while it runs is applied by itself for as long as it runs. Use `sheet` to see which features can be switched on, what each one costs and what is left of its pool.',
   mutates: true,
   input: z.object({
     who: creatureId,
@@ -1475,7 +1477,7 @@ const ACTIVATE_FEATURE = tool({
 const EXTEND_FEATURE = tool({
   name: 'extend_feature',
   description:
-    'Keep a running feature going for another round. SRD Rage offers three ways to do it and only one of them costs anything, so say which happened: `attack` if the character attacked an enemy, `forced-save` if it made one save, `bonus-action` to spend the Bonus Action on it. The engine replaces the deadline with a fresh one. It does **not** enforce the longest the feature may be maintained — `sheet` reports that as `capSeconds` and nothing stops an extension past it, so a table that wants the bound kept keeps it.',
+    'Keep a running feature going for another round. SRD Rage offers three ways to do it and only one of them costs anything, so say which happened: `attack` if the character attacked an enemy, `forced-save` if it made one save, `bonus-action` to spend the Bonus Action on it. In a fight the engine replaces the feature’s deadline with a fresh one; outside a fight there are no turns, so there is no deadline to replace and the feature simply runs until something ends it. It does **not** enforce the longest the feature may be maintained — `sheet` reports that as `capSeconds` and nothing stops an extension past it, so a table that wants the bound kept keeps it.',
   mutates: true,
   input: z.object({
     who: creatureId,
