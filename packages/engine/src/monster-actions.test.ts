@@ -902,17 +902,33 @@ describe('a monster’s Opportunity Attack takes its printed line', () => {
       ),
     );
 
-  const answered = (table: Table, who: CharacterId, command: { readonly action?: string } = {}) =>
-    unwrap(takeOpportunityAttack(table.state, who, command, supply('swing')), 'the swing');
+  const answered = (
+    table: Table,
+    who: CharacterId,
+    command: { readonly action?: string } = {},
+    seed = 'swing',
+  ) => unwrap(takeOpportunityAttack(table.state, who, command, supply(seed)), 'the swing');
 
   it('reaches for the Bite the block prints, at the numbers it prints', () => {
     const table = cornered('wolf', WOLF);
     walksAway(table);
-    const struck = answered(table, WOLF);
+    // A seed the Bite lands on: an Opportunity Attack takes no forced bonus,
+    // so which way it goes is a fact about the dice.
+    const struck = answered(table, WOLF, {}, 'd');
 
+    // The block's +4, not a Strength modifier and a Proficiency Bonus.
     expect(struck.attack?.roll.modifier).toBe(4);
     const rolled = struck.events.find((e) => e.type === 'roll-recorded');
     expect(rolled?.type === 'roll-recorded' ? rolled.label : null).toBe('Bite attack');
+
+    // And the damage is the Bite's own 1d6 + 2, landed under the name the
+    // block prints — where a fist would have dealt a flat 1 plus Strength
+    // under no name at all.
+    expect(struck.attack?.hit).toBe(true);
+    const taken = struck.events.find((e) => e.type === 'damage-taken');
+    expect(taken?.type === 'damage-taken' ? taken.source : null).toBe('Bite');
+    expect(struck.damage).toBeGreaterThanOrEqual(3);
+    expect(struck.damage).toBeLessThanOrEqual(8);
   });
 
   /**
