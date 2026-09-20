@@ -363,8 +363,10 @@ to homebrew.
   sits in the test wizard's spellbook uncast. Counterspell needs more than a
   field: `hold` and `answers` are unoffered and a held casting also wants a
   `resolve_declared_cast` door.
-- **No rest, no item used, nothing readied, nothing summoned** from above the
-  engine. Each is a command the engine has and the surface does not call.
+- **Nothing summoned** from above the engine — the one command on this list the
+  surface still does not call. Rest, item use, ready/release, weapon mastery and
+  a conferred Reaction all have doors; this sentence claimed otherwise for four
+  of them until a track was briefed from it and found them already open.
 - **A feature cannot be elected on a casting.** `usingFeatures` reaches no
   tool, so no session can spend Overchannel or add Elemental Affinity's
   Charisma. Unlike the other shut doors this one needs a companion: a model
@@ -406,8 +408,8 @@ admits, so the columns below can be read.
    except removing the last combatant, so a session that rolls Initiative once
    could never rest again. Ship the two together. Note `combat-ended` is
    `invariants.test.ts`'s control for "an event no command stamps".
-4. **Multiattack**, the largest single shape in the bestiary at 177 blocks, and
-   a decision rather than a task: `attacksPerAction` already gives the economy,
+4. **Multiattack**, the largest single shape in the bestiary at 177 blocks, now
+   decided as composition (see the rulings below): `attacksPerAction` already gives the economy,
    and what is missing is the **composition** — "two Bite attacks" — which
    needs per-name counting within a turn that no state holds. A count-only
    version would let a Ghoul make two Claws where the book gives two Bites.
@@ -418,10 +420,9 @@ admits, so the columns below can be read.
    commands and then on the surface above them.
 6. **Doors for what this batch built**: `onHit` and `action` reach no tool, so
    a model cannot elect a Stunning Strike or a monster's printed attack.
-7. **Preserve Life**, which needs a decision: a spendable hit-point pool with a
-   reach and a cap hung off a trade is either a second grant on one feature or
-   a subclass adding an option to another feature's pool. Both shapes it names
-   now exist and it still does not fit.
+7. **Preserve Life**, now decided (see the rulings below): a subclass feature
+   adding an option to the base feature's Channel Divinity pool. The menu shape
+   exists on the Cleric; the door from a subclass onto it does not.
 8. **An unlimited trade.** `limit` is required and closed; Font of Inspiration,
    Sorcery Incarnate and Holy Nimbus all print one.
 9. **The long tail, now filed against what it actually waits on**: the item
@@ -429,20 +430,59 @@ admits, so the columns below can be read.
    remaining Metamagic options, `an-effect-list-a-hit-buys` for the Rogue's
    Cunning Strike, and the bestiary's ranked prose table.
 
+### Decisions the owner has ruled (2026-09-20)
+
+Each is a ruling, not a task; the brief that acts on it cites this section.
+
+- **Hide is the engine's verb.** It has more inputs than most: the creature
+  needs cover or obscurement and no line of sight to a watcher, and then a
+  DC 15 Dexterity (Stealth) check. Who can see the hider is DM input, the
+  check and the Invisible condition it buys are the engine's. Cunning
+  Action's third verb waits on that spender, not on a ruling.
+- **A character's size is a creation choice**, taken like any other where the
+  species prints more than one and pinned into the creation event.
+- **Multiattack needs composition.** A monster's stat block is not a
+  character's sheet: "two Bite attacks" is a named sequence, and a count-only
+  Multiattack that lets a Ghoul make two Claws is a fabrication, not a step.
+- **A monster's opportunity attack is its best printed melee attack.**
+  Not a refusal and not a fabricated Unarmed Strike: the highest-damage
+  printed attack that does not recharge, chosen by the summed printed average
+  of its damage, ties going to the first printed. A caller may still name a
+  different one; this is what the engine reaches for when nobody does.
+- **"Permanent" is a real duration**, and a grant with no ending must carry
+  its source so the sheet can say it came from a Wish.
+- **Some text is the DM's alone.** Commune, Dream's Range `Special`, Mirage
+  Arcane's `Sight`: the casting hands the printed text to whoever is
+  running the table, human or model, marked explicitly as a thing only the
+  DM can decide. Not a format arm to invent, a handover to make visible.
+- **Channel Divinity is a shell with one shared pool**, and each option is a
+  form the shell takes. A level 3 Life Cleric has three forms (Divine Spark,
+  Turn Undead, Preserve Life) drawing on one pool, two uses at level 6 spent in
+  any combination. So Preserve Life is **a subclass adding an option to the
+  base feature's pool**, which is the second of the two shapes named below;
+  the pool-with-options shape the Cleric already declares is the right one,
+  and what is missing is a subclass feature's door onto another feature's
+  menu.
+- **The defender answers first.** A rider that Stuns on the same swing must
+  not close the `damage-rolled` window the target was just offered.
+- **A fight ends** when no hostile combatant remains or the hostiles
+  surrender. A flight is a prompt, not an end: the players are offered the
+  choice to let the enemy go before combat closes, because many tables want to
+  finish them. `endCombat` ships with the clock refusal held on
+  `held/clock-in-combat`.
+
 ### Decisions genuinely open
 
-A printed Range the format cannot state (Dream's `Special`, Mirage Arcane's
-`Sight`). A grant with no ending (Wish's permanent Resistance). A size for a
-character, where two SRD species print two. Where a reachability measurement
-lives, since `@ie/tools` depends on `@ie/content` and the report cannot import
-the surface without inverting the build. Whether the Hide verb is the table's.
+Where a reachability measurement lives, since `@ie/tools` depends on
+`@ie/content` and the report cannot import the surface without inverting the
+build.
 
-### Interactions nobody has ruled on
+### Interactions ruled on but not yet built
 
 - **A rider fires after `landDamage`**, so a target Stunned by the same swing
   can no longer answer a `damage-rolled` window it was just offered. No
   deadlock — `settleDamage` records a pass — but the Reaction is silently
-  denied, where the book puts the defender's response first.
+  denied. Ruled above: the defender answers first.
 - **`rider_deals_damage` keys on the effect kind**, so a `turn-payout` carrying
   dice would slip past it. Harmless while nothing is rolled at the hit.
 
