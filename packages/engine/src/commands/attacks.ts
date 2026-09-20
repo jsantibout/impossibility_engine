@@ -679,6 +679,10 @@ export function resolveAttack(
       property,
       ability,
       ...(command.mastery?.feet === undefined ? {} : { feet: command.mastery.feet }),
+      // SRD Slow and Vex both say "and deal damage to it". Damage a Reaction is
+      // still holding has been rolled and not applied, and it is damage: what
+      // would make the sentence false is a blow that dealt none at all —
+      // Resistance to nothing, an Immunity, a reduction that ate the total.
       dealtDamage: (hurt.value.amount ?? 0) > 0 || hurt.value.offers.length > 0,
     });
     if (!rider.ok) return rider;
@@ -1004,6 +1008,10 @@ export function resolveAttackDamage(
       property: pending.mastery?.property ?? null,
       ability: pending.ability,
       ...(pending.mastery?.feet === undefined ? {} : { feet: pending.mastery.feet }),
+      // SRD Slow and Vex both say "and deal damage to it". Damage a Reaction is
+      // still holding has been rolled and not applied, and it is damage: what
+      // would make the sentence false is a blow that dealt none at all —
+      // Resistance to nothing, an Immunity, a reduction that ate the total.
       dealtDamage: (hurt.value.amount ?? 0) > 0 || hurt.value.offers.length > 0,
     });
     if (!rider.ok) return rider;
