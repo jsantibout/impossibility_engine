@@ -46,6 +46,17 @@ const action = (id: string, name: string) => {
   return found!;
 };
 
+/**
+ * The five blocks whose Multiattack names a line printed under a *qualified*
+ * heading — "Handaxe (Humanoid or Hybrid Form Only)" — so the name does not
+ * bind and the engine drops the sequence whole.
+ *
+ * Recorded rather than argued about, and recorded rather than matched through:
+ * a prefix match would hand a Werebear in bear form a Handaxe, which is a rule
+ * nobody printed. A sixth should be noticed instead of absorbed.
+ */
+const QUALIFIED_HEADINGS = ['werebear', 'wereboar', 'wererat', 'weretiger', 'werewolf'];
+
 describe('parseAttackLine', () => {
   it('reads the Wolf’s Bite: the bonus, the reach, the die and the modifier', () => {
     expect(parseAttackLine(action('wolf', 'Bite').text)).toEqual({
@@ -281,12 +292,12 @@ describe('the bestiary, read through the parser', () => {
  * the sequence, and a sentence that is not one is left as prose exactly as
  * every unread line is.
  *
- * **One grammar, and nothing guessed.** A block that offers alternatives ("or
- * it makes two Hurl Flame attacks"), a free choice ("using Scimitar and Pistol
- * in any combination"), a use that is not an attack ("and uses Consume
- * Memories") or a count nobody can resolve ("as many Bite attacks as it has
- * heads") is a different mechanism, and each comes back null rather than as
- * the half of itself this grammar happens to match.
+ * **One grammar, and nothing guessed.** A sentence stating something this
+ * grammar has not read — a count nobody can resolve ("as many Bite attacks as
+ * it has heads"), a branch gated on a Bonus Action nobody reads — comes back
+ * null rather than as the half of itself the grammar happens to match. The
+ * shapes read *beside* the named sequence, each a wording of the book rather
+ * than a mechanism invented here, are in the describe below this one.
  */
 describe('parseMultiattack', () => {
   it('reads a count and the name it attaches to', () => {
@@ -309,19 +320,15 @@ describe('parseMultiattack', () => {
 
   it('refuses every sentence that is not a named sequence', () => {
     for (const text of [
-      // An alternative the engine would have to choose between.
-      'The devil makes one Claws attack and one Tail attack, or it makes two Hurl Flame attacks.',
-      // A free choice from a menu, which is a count and not a sequence.
-      'The assassin makes three attacks, using Shortsword or Light Crossbow in any combination.',
-      // A use that is not an attack at all.
-      'The aboleth makes two Tentacle attacks and uses either Consume Memories or Dominate Mind if available.',
-      // A second sentence, saying something this grammar has not read.
-      'The dragon makes three Rend attacks. It can replace one attack with a use of Spellcasting.',
       // A count nobody can resolve.
       'The hydra makes as many Bite attacks as it has heads.',
       // Plural where the book prints one, and the other way round.
       'The devil makes one Beard attacks.',
       'The ghoul makes two Bite attack.',
+      // A condition on a branch that the engine cannot evaluate.
+      'The golem makes two Slam attacks, or it makes three Slam attacks if it used Hasten this turn.',
+      // A use in the middle of the sequence rather than trailing it.
+      'The roper makes two Tentacle attacks, uses Reel, and makes two Bite attacks.',
     ]) {
       expect(parseMultiattack(text), text).toBeNull();
     }
@@ -339,7 +346,7 @@ describe('parseMultiattack', () => {
     });
     expect(ghoul.find((a) => a.name === 'Bite')?.multiattack).toBeUndefined();
     expect(
-      find('aboleth').actions.find((a) => a.name === 'Multiattack')?.multiattack,
+      find('hydra').actions.find((a) => a.name === 'Multiattack')?.multiattack,
     ).toBeUndefined();
   });
 
@@ -377,10 +384,21 @@ describe('parseMultiattack', () => {
    * Every sequence names lines the same block prints, which is what makes the
    * grammar honest rather than merely confident: a name read out of one
    * sentence has to be an action somebody can actually take.
+   *
+   * **Five blocks are recorded rather than argued about.** The lycanthropes
+   * print their lines under *qualified* headings — "Handaxe (Humanoid or
+   * Hybrid Form Only)" — and their Multiattack names the bare word. Matching
+   * through the qualification would hand a Werebear in bear form a Handaxe,
+   * which is a rule nobody printed; so the name does not bind, the engine
+   * drops the whole sequence exactly as it drops any sequence with a loose end,
+   * and these five stay where they were at one attack per action. The record is
+   * here so that a sixth is noticed instead of absorbed. See
+   * {@link QUALIFIED_HEADINGS}.
    */
   it('names an action the block prints, in every block it read', () => {
     let read = 0;
     for (const monster of bestiary) {
+      if (QUALIFIED_HEADINGS.includes(monster.id)) continue;
       // Every section, because the grammar reads a sentence and not a heading:
       // three legendary actions print one too — "The aboleth makes one Tentacle
       // attack" — and a name read there has to be a line as well.
@@ -391,11 +409,16 @@ describe('parseMultiattack', () => {
         ...monster.reactions,
         ...monster.legendaryActions,
       ]) {
-        if (line.multiattack === undefined) continue;
+        const parsed = line.multiattack;
+        if (parsed === undefined) continue;
         read += 1;
         const printed = monster.actions.map((a) => a.name.toLowerCase());
-        for (const entry of line.multiattack.entries) {
-          expect(printed, `${monster.id}: ${entry.attack}`).toContain(entry.attack.toLowerCase());
+        for (const branch of parsed.alternatives ?? [parsed.entries ?? []]) {
+          for (const entry of branch) {
+            for (const name of entry.attacks ?? [entry.attack!]) {
+              expect(printed, `${monster.id}: ${name}`).toContain(name.toLowerCase());
+            }
+          }
         }
       }
     }
@@ -449,5 +472,248 @@ describe('a recharge on a printed attack', () => {
         );
       }
     }
+  });
+});
+
+/**
+ * The rest of what a Multiattack sentence says.
+ *
+ * The grammar above read the honest half — a named sequence and nothing else —
+ * and left ninety-nine lines as prose. Four shapes account for all but three of
+ * them, and each is a wording the book uses rather than a mechanism the engine
+ * invented:
+ *
+ * - **A hand-over.** "It can replace one attack with a use of Spellcasting"
+ *   names something the engine cannot execute. The book is consistent about
+ *   which it means: "a *Tail attack*" is a printed line, "a *use of* X" is a
+ *   save or a prose action. So the second is carried whole as text and reported
+ *   to whoever is driving, and the sequence beside it is read exactly as it
+ *   always was. Nothing is enforced, because nothing needed to be: making fewer
+ *   swings than the sequence prints has always been legal.
+ * - **The Oxford comma.** "one Bite attack, two Devilish Claw attacks, and one
+ *   Fiery Mace attack" is a pure named sequence that the ` and ` split alone
+ *   could not see.
+ * - **A menu.** One entry, several printed names, one shared count. "in any
+ *   combination", "two Javelin or Morningstar attacks" and "one X or Y attack"
+ *   are three wordings of the same thing, and nothing here chooses between the
+ *   names.
+ * - **An alternation.** "or it makes two Hurl Flame attacks" and "It can
+ *   replace one attack with a Tail attack" are one mechanism in two wordings:
+ *   two whole sequences, of which the creature is doing one.
+ */
+describe('parseMultiattack reads the rest of the sentence', () => {
+  it('carries a second sentence naming a use as text, beside the sequence it read', () => {
+    expect(parseMultiattack(action('adult-black-dragon', 'Multiattack').text)).toEqual({
+      entries: [{ count: 3, attack: 'Rend' }],
+      handOver:
+        'It can replace one attack with a use of Spellcasting to cast Acid Arrow (level 3 version).',
+    });
+  });
+
+  it('carries a trailing clause naming a use the same way', () => {
+    expect(parseMultiattack(action('aboleth', 'Multiattack').text)).toEqual({
+      entries: [{ count: 2, attack: 'Tentacle' }],
+      handOver: 'and uses either Consume Memories or Dominate Mind if available',
+    });
+    // "and can use", "and it uses" and "or uses" are the same clause in the
+    // book's other wordings.
+    expect(parseMultiattack(action('erinyes', 'Multiattack').text)).toEqual({
+      entries: [{ count: 3, attack: 'Withering Sword' }],
+      handOver: 'and can use Entangling Rope',
+    });
+    expect(parseMultiattack(action('planetar', 'Multiattack').text)).toEqual({
+      entries: [{ count: 3, attack: 'Radiant Sword' }],
+      handOver: 'or uses Holy Burst twice',
+    });
+  });
+
+  it('reads the Oxford comma the ` and ` split alone could not', () => {
+    expect(parseMultiattack(action('pit-fiend', 'Multiattack').text)).toEqual({
+      entries: [
+        { count: 1, attack: 'Bite' },
+        { count: 2, attack: 'Devilish Claw' },
+        { count: 1, attack: 'Fiery Mace' },
+      ],
+    });
+    expect(parseMultiattack(action('chimera', 'Multiattack').text)).toEqual({
+      entries: [
+        { count: 1, attack: 'Ram' },
+        { count: 1, attack: 'Bite' },
+        { count: 1, attack: 'Claw' },
+      ],
+      handOver: 'It can replace the Claw attack with a use of Fire Breath if available.',
+    });
+  });
+
+  it('reads a menu: one count, several names, and no choice made here', () => {
+    expect(parseMultiattack(action('assassin', 'Multiattack').text)).toEqual({
+      entries: [{ count: 3, attacks: ['Shortsword', 'Light Crossbow'] }],
+    });
+    // The book writes "and" where it plainly means "or" — the Bandit Captain
+    // and the Scout — and "in any combination" is what settles it either way.
+    expect(parseMultiattack(action('bandit-captain', 'Multiattack').text)).toEqual({
+      entries: [{ count: 2, attacks: ['Scimitar', 'Pistol'] }],
+    });
+    expect(parseMultiattack(action('merrow', 'Multiattack').text)).toEqual({
+      entries: [{ count: 2, attacks: ['Bite', 'Claw', 'Harpoon'] }],
+    });
+    // The same mechanism written inline, without the tail.
+    expect(parseMultiattack(action('bugbear-stalker', 'Multiattack').text)).toEqual({
+      entries: [{ count: 2, attacks: ['Javelin', 'Morningstar'] }],
+    });
+    expect(parseMultiattack(action('mummy-lord', 'Multiattack').text)).toEqual({
+      entries: [{ count: 1, attacks: ['Rotting Fist', 'Channel Negative Energy'] }],
+      handOver: 'and it uses Dreadful Glare',
+    });
+    // A named swing and a menu in one sentence, which is why the count stays on
+    // the entry rather than on the record.
+    expect(parseMultiattack(action('tarrasque', 'Multiattack').text)).toEqual({
+      entries: [
+        { count: 1, attack: 'Bite' },
+        { count: 3, attacks: ['Claw', 'Tail'] },
+      ],
+    });
+  });
+
+  it('reads an alternation as two whole sequences', () => {
+    expect(parseMultiattack(action('barbed-devil', 'Multiattack').text)).toEqual({
+      alternatives: [
+        [
+          { count: 1, attack: 'Claws' },
+          { count: 1, attack: 'Tail' },
+        ],
+        [{ count: 2, attack: 'Hurl Flame' }],
+      ],
+    });
+    expect(parseMultiattack(action('medusa', 'Multiattack').text)).toEqual({
+      alternatives: [
+        [
+          { count: 2, attack: 'Claw' },
+          { count: 1, attack: 'Snake Hair' },
+        ],
+        [{ count: 3, attack: 'Poison Ray' }],
+      ],
+    });
+  });
+
+  it('reads a replacement naming a printed line as the same alternation', () => {
+    expect(parseMultiattack(action('dragon-turtle', 'Multiattack').text)).toEqual({
+      alternatives: [
+        [{ count: 3, attack: 'Bite' }],
+        [
+          { count: 2, attack: 'Bite' },
+          { count: 1, attack: 'Tail' },
+        ],
+      ],
+    });
+    // And a menu is a sequence like any other, so it alternates like one.
+    expect(parseMultiattack(action('werebear', 'Multiattack').text)).toEqual({
+      alternatives: [
+        [{ count: 2, attacks: ['Handaxe', 'Rend'] }],
+        [
+          { count: 1, attacks: ['Handaxe', 'Rend'] },
+          { count: 1, attack: 'Bite' },
+        ],
+      ],
+    });
+  });
+
+  /**
+   * Three lines the book prints that this still leaves as prose, each for a
+   * reason worth writing down rather than a gap in the grammar.
+   */
+  it('still refuses the three sentences nothing here can read', () => {
+    // The third Slam is gated on a Bonus Action the engine does not read.
+    expect(parseMultiattack(action('clay-golem', 'Multiattack').text)).toBeNull();
+    // "uses Reel" sits in the middle of the sequence rather than trailing it,
+    // and Reel is an action line with no damage on it.
+    expect(parseMultiattack(action('roper', 'Multiattack').text)).toBeNull();
+    // A count that reads off a fact nobody has declared.
+    expect(parseMultiattack(action('hydra', 'Multiattack').text)).toBeNull();
+  });
+
+  /**
+   * The counts, because a grammar that quietly stopped reading something would
+   * report no problems at all.
+   */
+  it('reads every Multiattack in the book but three', () => {
+    let read = 0;
+    const prose: string[] = [];
+    for (const monster of bestiary) {
+      for (const line of monster.actions) {
+        if (line.name !== 'Multiattack') continue;
+        if (line.multiattack === undefined) prose.push(monster.id);
+        else read += 1;
+      }
+    }
+    expect(prose.sort()).toEqual(['clay-golem', 'hydra', 'roper']);
+    expect(read).toBe(174);
+  });
+
+  /**
+   * **The assignment is trivial, and that is a fact about the book rather than
+   * an assumption.** A turn's swings are legal when they can be assigned to
+   * entries without exceeding a count, and that is only a straightforward
+   * question while no name appears in two entries of one sequence — otherwise a
+   * Claw could have come out of either and the engine would have to search.
+   */
+  it('names each attack in at most one entry of any one sequence', () => {
+    for (const monster of bestiary) {
+      for (const line of monster.actions) {
+        const parsed = line.multiattack;
+        if (parsed === undefined) continue;
+        for (const branch of parsed.alternatives ?? [parsed.entries ?? []]) {
+          const seen = new Set<string>();
+          for (const entry of branch) {
+            for (const name of entry.attacks ?? [entry.attack!]) {
+              expect(seen.has(name.toLowerCase()), `${monster.id}: ${name}`).toBe(false);
+              seen.add(name.toLowerCase());
+            }
+          }
+        }
+      }
+    }
+  });
+
+  /**
+   * And the five recorded in {@link QUALIFIED_HEADINGS} are the whole of what
+   * does not bind: every other name in every branch is a line the same block
+   * prints.
+   */
+  it('leaves exactly the five qualified headings unbound', () => {
+    const unbound = new Set<string>();
+    for (const monster of bestiary) {
+      for (const line of monster.actions) {
+        const parsed = line.multiattack;
+        if (parsed === undefined) continue;
+        const printed = monster.actions.map((a) => a.name.toLowerCase());
+        for (const branch of parsed.alternatives ?? [parsed.entries ?? []]) {
+          for (const entry of branch) {
+            for (const name of entry.attacks ?? [entry.attack!]) {
+              if (!printed.includes(name.toLowerCase())) unbound.add(monster.id);
+            }
+          }
+        }
+      }
+    }
+    expect([...unbound].sort()).toEqual(QUALIFIED_HEADINGS);
+  });
+
+  /**
+   * Both branches of every alternation the book prints total the same, which is
+   * what lets the Attack action still hold one number.
+   */
+  it('gives both branches of every alternation the same total', () => {
+    let alternations = 0;
+    for (const monster of bestiary) {
+      for (const line of monster.actions) {
+        const branches = line.multiattack?.alternatives;
+        if (branches === undefined) continue;
+        alternations += 1;
+        const totals = branches.map((b) => b.reduce((sum, e) => sum + e.count, 0));
+        expect(new Set(totals).size, monster.id).toBe(1);
+      }
+    }
+    expect(alternations).toBe(10);
   });
 });

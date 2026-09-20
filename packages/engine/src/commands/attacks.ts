@@ -43,6 +43,7 @@ import { applyEvent, type CreatureState, type GameEvent, type GameState } from '
 import { modifierFor, type CharacterSheet, type StatedAttack } from '../character.js';
 import {
   hasPrintedTrait,
+  describeMultiattack,
   multiattackAllows,
   multiattackOf,
   printedAttackOf,
@@ -652,9 +653,21 @@ export function resolveAttack(
       if (budget.attacksRemaining !== null && !multiattackAllows(sequence, next)) {
         return err(
           'not_in_multiattack',
-          `${id}'s block prints ${sequence.entries
-            .map((entry) => `${entry.count} × ${entry.attack}`)
-            .join(' and ')} in one action, and a ${attackName} is not what is left of it`,
+          `${id}'s block prints ${describeMultiattack(sequence)} in one action, and a ${attackName} is not what is left of it`,
+        );
+      }
+      // **What the line says that the engine cannot execute.** The Mummy's
+      // "and uses Dreadful Glare", the dragons' "It can replace one attack
+      // with a use of Spellcasting" — a permission whose subject is a save or
+      // a prose action, with nothing here to spend, because making fewer
+      // swings than a sequence prints was always legal. So it is reported
+      // rather than enforced, in the channel a hit's printed rider already
+      // uses, at the swing that opens the action: dropping it silently makes
+      // the creature weaker than the book, and repeating it at every swing is
+      // noise.
+      if (sequence.handOver !== undefined && Object.keys(made).length === 0) {
+        unverified.push(
+          `${id}'s block prints "${sequence.handOver}" beside the sequence — the engine does not apply that; a DM does`,
         );
       }
       slot = sequenceSlot(attackName, next[attackName]!);

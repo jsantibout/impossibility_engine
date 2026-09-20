@@ -204,6 +204,36 @@ export const MonsterAttackSchema = z.object({
 export type MonsterAttack = z.infer<typeof MonsterAttackSchema>;
 
 /**
+ * One clause of a Multiattack sentence: a count, and the printed name or names
+ * it attaches to.
+ *
+ * **Two fields because the book writes two things.** "two Thunderous Slam
+ * attacks" names one line; "two attacks, using Scimitar and Pistol in any
+ * combination" names a *menu* — several printed lines sharing one count, from
+ * which the creature picks swing by swing. A menu written as two entries of
+ * one each would be a rule nobody printed (a Bandit Captain owing exactly one
+ * Scimitar), and a menu collapsed to a bare count would be the fabrication the
+ * named sequence exists to prevent.
+ *
+ * Exactly one of the two is present. `attack` stays because it is what the
+ * book writes in the ordinary case and what every sequence pinned before the
+ * menu existed carries — an old value is still a value this reads.
+ */
+export const MonsterMultiattackEntrySchema = z
+  .object({
+    count: z.number().int().min(1),
+    /** The printed name of the action this clause names — `Thunderous Slam`. */
+    attack: z.string().min(1).optional(),
+    /** The printed names this clause offers a choice of — `[Scimitar, Pistol]`. */
+    attacks: z.array(z.string().min(1)).min(1).optional(),
+  })
+  .refine(
+    (entry) => (entry.attack === undefined) !== (entry.attacks === undefined),
+    'a Multiattack entry names one attack or a menu of them, never both and never neither',
+  );
+export type MonsterMultiattackEntry = z.infer<typeof MonsterMultiattackEntrySchema>;
+
+/**
  * The sequence a Multiattack prints, where the sentence states one.
  *
  * SRD Air Elemental: "The elemental makes two Thunderous Slam attacks." A
@@ -211,24 +241,42 @@ export type MonsterAttack = z.infer<typeof MonsterAttackSchema>;
  * sequence*, and a count carried without its names would let a Ghoul whose
  * book prints two Bites make two Claws instead.
  *
- * Absent for the sentences that say something else: an alternative ("or it
- * makes two Hurl Flame attacks"), a free choice from a menu ("in any
- * combination"), a non-attack use ("and uses Consume Memories") or a count
- * that reads off the creature ("as many Bite attacks as it has heads"). Each
- * of those is a mechanism of its own, and half of one read into this shape
- * would be a rule nobody printed.
+ * **Three fields, added one at a time as a wording of the book was read, and
+ * every one of them optional** — so a sequence pinned onto a creature before
+ * any of them existed is still a sequence this reads.
+ *
+ * - `entries` is the one sequence, where the sentence prints one.
+ * - `alternatives` is two whole sequences of which the creature is doing one.
+ *   SRD Barbed Devil: "one Claws attack and one Tail attack, **or** it makes
+ *   two Hurl Flame attacks", and the Dragon Turtle's "It can replace one
+ *   attack with a Tail attack" is the same mechanism in the book's other
+ *   wording. Nothing chooses: the branch is settled by the swings already
+ *   made, because after one Hurl Flame the other branch admits no assignment.
+ * - `handOver` is the part of the line the engine cannot execute, carried
+ *   verbatim. "It can replace one attack with a use of Spellcasting" is a
+ *   permission whose subject is a save or a prose action, and the book is
+ *   consistent about the difference: "a *Tail attack*" is a printed line, "a
+ *   *use of* X" is not. There is nothing to enforce — making fewer swings than
+ *   a sequence prints has always been legal — so this is reported rather than
+ *   spent, and a DM applies it.
+ *
+ * Absent for the sentences that still say something else: a branch gated on a
+ * Bonus Action the engine does not read (the Clay Golem's Hasten), a use in
+ * the middle of the sequence rather than trailing it (the Roper's Reel) and a
+ * count that reads off a fact nobody has declared (the Hydra's heads). Each of
+ * those is a mechanism of its own, and half of one read into this shape would
+ * be a rule nobody printed.
  */
-export const MonsterMultiattackSchema = z.object({
-  entries: z
-    .array(
-      z.object({
-        count: z.number().int().min(1),
-        /** The printed name of the action this clause names — `Thunderous Slam`. */
-        attack: z.string().min(1),
-      }),
-    )
-    .min(1),
-});
+export const MonsterMultiattackSchema = z
+  .object({
+    entries: z.array(MonsterMultiattackEntrySchema).min(1).optional(),
+    alternatives: z.array(z.array(MonsterMultiattackEntrySchema).min(1)).min(2).optional(),
+    handOver: z.string().min(1).optional(),
+  })
+  .refine(
+    (m) => (m.entries === undefined) !== (m.alternatives === undefined),
+    'a Multiattack states one sequence or a choice of them, never both and never neither',
+  );
 export type MonsterMultiattack = z.infer<typeof MonsterMultiattackSchema>;
 
 /**

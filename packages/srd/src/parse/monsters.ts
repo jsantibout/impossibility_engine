@@ -8,6 +8,7 @@ import {
   type MonsterAttack,
   type MonsterDamage,
   type MonsterMultiattack,
+  type MonsterMultiattackEntry,
   type MonsterRecharge,
   type MonsterTrait,
   type ParseOutput,
@@ -424,29 +425,128 @@ const COUNT_WORDS: Readonly<Record<string, number>> = {
 const MAKES = /^The (?:[A-Za-z'’-]+ ){1,3}makes /;
 
 /**
- * "two Thunderous Slam attacks" — a count, a printed name, and the noun.
+ * "two Thunderous Slam attacks" — a count, a printed name or a menu of them,
+ * and the noun.
  *
- * Every word of the name is capitalised, because that is how the book prints
- * an action's heading and because a lower-cased word inside one is the tell
- * that the clause is not a name at all: the Bugbear Stalker's "two Javelin
- * **or** Morningstar attacks" is a menu, and reading it as a name called
- * "Javelin or Morningstar" would invent an attack nothing prints.
+ * Every word of a name is capitalised, because that is how the book prints an
+ * action's heading and because a lower-cased word inside one is the tell that
+ * the clause is not a single name: the Bugbear Stalker's "two Javelin **or**
+ * Morningstar attacks" is a menu, and reading it as a name called "Javelin or
+ * Morningstar" would invent an attack nothing prints. So ` or ` is the one
+ * lower-cased word the clause admits, and what it separates are names.
  */
 const NAME = "[A-Z][A-Za-z'’-]*";
-const CLAUSE = new RegExp(
-  `^(one|two|three|four|five|six) (${NAME}(?: ${NAME})*) (attack|attacks)$`,
-);
+const NAMES = `${NAME}(?: ${NAME})*`;
+const COUNT = '(one|two|three|four|five|six)';
+const CLAUSE = new RegExp(`^${COUNT} (${NAMES}(?: or ${NAMES})*) (attack|attacks)$`);
 
 /**
- * The named sequence a Multiattack states, or null where it states something
- * else.
+ * "three attacks" and the Tarrasque's "three other attacks" — a count whose
+ * names the sentence states once, in the tail below, rather than in the clause.
+ */
+const BARE = new RegExp(`^${COUNT} (?:other )?(attack|attacks)$`);
+
+/**
+ * ", using Scimitar and Pistol in any combination" — the book's other way of
+ * printing a menu, and it always ends the sentence.
  *
- * **Whole or nothing.** The sentence has to be accounted for end to end —
- * subject, clauses, connectives, full stop — or this reads none of it. That is
- * what keeps the honest half honest: "The barbed devil makes one Claws attack
- * and one Tail attack, **or** it makes two Hurl Flame attacks" contains a
- * sequence this grammar could match and is not one, because a reader that took
- * the first branch would have deleted the second from the book.
+ * The names inside are separated by "or", by "and" (the Bandit Captain and the
+ * Scout write it that way and plainly mean "or" — "in any combination" is what
+ * settles it) or by commas with an Oxford "or" before the last.
+ */
+const MENU_TAIL = /, using (.+) in any combination$/;
+const MENU_SEPARATOR = /,\s+or\s+|,\s+and\s+|\s+or\s+|\s+and\s+|,\s+/;
+
+/**
+ * ", and it uses Dreadful Glare" — a trailing clause naming a *use*, which is
+ * not a swing this grammar may grant.
+ *
+ * The connective is required, and that is the whole of what keeps the Roper's
+ * "makes two Tentacle attacks, **uses Reel**, and makes two Bite attacks" out:
+ * its use sits in the middle of the sequence rather than trailing it, so the
+ * sentence is prose and stays prose.
+ */
+const TRAILING_USE = /,? (?:and|or) (?:it )?(?:can )?uses? [^.]*$/;
+
+/** "It can replace one attack with a Tail attack." — a swap for a printed line. */
+const REPLACEMENT = new RegExp(`^It can replace ${COUNT} attacks? with an? (${NAMES}) attack\\.$`);
+
+/** Whether a second sentence names a *use*, which is the thing handed over. */
+const NAMES_A_USE = /\buses?\b/;
+
+/** The clauses of one sequence, or null where the text is not one. */
+function parseSequence(text: string): MonsterMultiattackEntry[] | null {
+  let menu: string[] | null = null;
+  let body = text;
+
+  const tail = MENU_TAIL.exec(body);
+  if (tail !== null) {
+    menu = tail[1]!.split(MENU_SEPARATOR).map((name) => name.trim());
+    if (menu.some((name) => !new RegExp(`^${NAMES}$`).test(name))) return null;
+    body = body.slice(0, tail.index);
+  }
+
+  const entries: MonsterMultiattackEntry[] = [];
+  let spentMenu = false;
+  // The Oxford comma is a connective like any other, and so is a bare one: the
+  // Pit Fiend's "one Bite attack, two Devilish Claw attacks, and one Fiery Mace
+  // attack" is a pure named sequence that ` and ` alone could not see.
+  for (const raw of body.split(/,\s+and\s+|\s+and\s+|,\s+/)) {
+    const part = raw.trim();
+    const clause = CLAUSE.exec(part);
+    const bare = clause === null ? BARE.exec(part) : null;
+    if (clause === null && bare === null) return null;
+
+    const count = COUNT_WORDS[(clause ?? bare)![1]!]!;
+    // The book agrees with itself about the plural, and a sentence that does
+    // not is one this grammar has misread rather than one it may round off.
+    if ((count === 1) !== ((clause ?? bare)![clause === null ? 2 : 3] === 'attack')) return null;
+
+    if (bare !== null) {
+      if (menu === null) return null;
+      spentMenu = true;
+      entries.push({ count, attacks: menu });
+      continue;
+    }
+    const names = clause![2]!.split(' or ').map((name) => name.trim());
+    entries.push(names.length === 1 ? { count, attack: names[0]! } : { count, attacks: names });
+  }
+
+  // A tail nobody spent is a menu this read and then dropped, which is the one
+  // outcome worse than reading nothing.
+  if (menu !== null && !spentMenu) return null;
+  return entries.length === 0 ? null : entries;
+}
+
+/**
+ * The same sequence with one swing traded for another printed line — the Dragon
+ * Turtle's "It can replace one attack with a Tail attack", written out.
+ *
+ * One entry in the base or nothing: with two, the sentence does not say which
+ * of them the replaced swing came out of, and picking one would be the engine
+ * choosing. No block in the book prints that, so none is read.
+ */
+function withOneReplaced(
+  entries: readonly MonsterMultiattackEntry[],
+  count: number,
+  attack: string,
+): MonsterMultiattackEntry[] | null {
+  if (entries.length !== 1) return null;
+  const only = entries[0]!;
+  if (only.count <= count) return null;
+  return [{ ...only, count: only.count - count }, { count, attack }];
+}
+
+/**
+ * What a Multiattack line states, or null where it states something this
+ * grammar still cannot read.
+ *
+ * **Whole or nothing.** The line has to be accounted for end to end — subject,
+ * clauses, connectives, a second sentence, full stop — or this reads none of
+ * it. That is what keeps it honest: a sentence containing a sequence this
+ * grammar could match is not thereby one, because a reader that took the first
+ * branch of the Barbed Devil's line would have deleted the second from the
+ * book.
  *
  * What it does *not* check is that the names are lines the same block prints:
  * this reads one sentence and knows nothing about the block around it. The
@@ -457,27 +557,53 @@ export function parseMultiattack(text: string): MonsterMultiattack | null {
   const clean = text.replace(/[_*]/g, '').trim();
   if (!clean.endsWith('.')) return null;
 
-  const sentence = clean.slice(0, -1);
-  // A second sentence says something this grammar has not read — the dragons'
-  // "It can replace one attack with a use of Spellcasting" — so the line is
-  // prose rather than a sequence with a clause quietly dropped.
-  if (sentence.includes('.')) return null;
+  const sentences = clean.slice(0, -1).split('. ');
+  // Two is every shape the book prints; a third would be something nobody has
+  // read, and reading two of it is how a clause goes quietly missing.
+  if (sentences.length > 2) return null;
+  const second = sentences.length === 2 ? `${sentences[1]!}.` : null;
 
-  const subject = MAKES.exec(sentence);
-  if (subject === null) return null;
-
-  const entries: { count: number; attack: string }[] = [];
-  for (const part of sentence.slice(subject[0].length).split(' and ')) {
-    const clause = CLAUSE.exec(part.trim());
-    if (clause === null) return null;
-    const count = COUNT_WORDS[clause[1]!]!;
-    // The book agrees with itself about the plural, and a sentence that does
-    // not is one this grammar has misread rather than one it may round off.
-    if ((count === 1) !== (clause[3] === 'attack')) return null;
-    entries.push({ count, attack: clause[2]!.trim() });
+  let handOver: string | null = null;
+  let stated = sentences[0]!;
+  const trailing = TRAILING_USE.exec(stated);
+  if (trailing !== null) {
+    handOver = trailing[0].replace(/^,/, '').trim();
+    stated = stated.slice(0, trailing.index).replace(/,$/, '');
   }
 
-  return entries.length === 0 ? null : { entries };
+  const subject = MAKES.exec(stated);
+  if (subject === null) return null;
+
+  const branchTexts = stated.slice(subject[0].length).split(', or it makes ');
+  if (branchTexts.length > 2) return null;
+  const branches: MonsterMultiattackEntry[][] = [];
+  for (const branchText of branchTexts) {
+    const entries = parseSequence(branchText);
+    if (entries === null) return null;
+    branches.push(entries);
+  }
+
+  if (second !== null) {
+    // Nothing in the book prints both wordings of the alternation at once, and
+    // a second sentence read onto a branch nobody could identify is a guess.
+    if (branches.length > 1) return null;
+    const replacement = REPLACEMENT.exec(second);
+    if (replacement !== null) {
+      const swapped = withOneReplaced(
+        branches[0]!,
+        COUNT_WORDS[replacement[1]!]!,
+        replacement[2]!.trim(),
+      );
+      if (swapped === null) return null;
+      branches.push(swapped);
+    } else if (NAMES_A_USE.test(second)) {
+      handOver = handOver === null ? second : `${handOver} ${second}`;
+    } else return null;
+  }
+
+  const shape =
+    branches.length === 1 ? { entries: branches[0]! } : { alternatives: branches };
+  return { ...shape, ...(handOver === null ? {} : { handOver }) };
 }
 
 /**

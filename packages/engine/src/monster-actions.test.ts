@@ -1,4 +1,5 @@
 import { SRD_CONTENT } from '@ie/content';
+import type { MonsterMultiattack } from '@ie/srd';
 import { describe, expect, it } from 'vitest';
 import {
   asCharacterId,
@@ -23,7 +24,12 @@ import {
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
 import { fold, type GameEvent, type GameState } from './events.js';
-import { adaptMonster, bestPrintedMeleeAttack, printedAttackOf } from './monster.js';
+import {
+  adaptMonster,
+  bestPrintedMeleeAttack,
+  multiattackAllows,
+  printedAttackOf,
+} from './monster.js';
 import { createRollIssuer } from './rolls.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
 
@@ -53,6 +59,8 @@ const GOBLIN = id('goblin');
 const OGRE = id('ogre');
 const MUMMY = id('mummy');
 const ANKHEG = id('ankheg');
+const MERROW = id('merrow');
+const DEVIL = id('barbed-devil');
 
 const supply = (seed = 'fangs') => ({
   issuer: createRollIssuer('r'),
@@ -766,16 +774,29 @@ describe('a Multiattack is a named sequence', () => {
 
   /**
    * And a block whose Multiattack says something else states none of it. The
-   * Aboleth's line names a use that is not an attack, so the engine holds one
+   * Hydra's count reads off a fact nobody has declared, so the engine holds one
    * attack per action for it, exactly as it did before any of this.
    */
   it('states nothing for a block whose sentence nobody could read', () => {
-    const aboleth = adaptMonster(statBlock('aboleth'), id('aboleth'));
-    expect(aboleth.sheet.stated?.multiattack).toBeUndefined();
-    expect(aboleth.sheet.attacksPerAction).toBeUndefined();
+    const hydra = adaptMonster(statBlock('hydra'), id('hydra'));
+    expect(hydra.sheet.stated?.multiattack).toBeUndefined();
+    expect(hydra.sheet.attacksPerAction).toBeUndefined();
 
     const wolf = adaptMonster(statBlock('wolf'), WOLF);
     expect(wolf.sheet.stated?.multiattack).toBeUndefined();
+  });
+
+  /**
+   * And a sequence with one loose end is still dropped whole. The Werebear's
+   * line names "Handaxe"; the block prints it under "Handaxe (Humanoid or
+   * Hybrid Form Only)", and matching through the qualification would hand a
+   * bear a hand axe. A creature owed two swings of which one can never be
+   * rolled is worse off than one whose Multiattack stayed prose.
+   */
+  it('drops a sequence naming a line the block prints only under a qualification', () => {
+    const werebear = adaptMonster(statBlock('werebear'), id('werebear'));
+    expect(werebear.sheet.stated?.multiattack).toBeUndefined();
+    expect(werebear.sheet.attacksPerAction).toBeUndefined();
   });
 
   it('lets a Ghoul make the two Bites its block prints', () => {
@@ -908,6 +929,153 @@ describe('a Multiattack is a named sequence', () => {
     expect(
       table.events.filter((e) => e.type === 'roll-recorded' && e.label === 'Bite attack'),
     ).toHaveLength(2);
+  });
+
+  /**
+   * **A menu is one entry with several names and one shared count.** SRD Merrow:
+   * "two attacks, using Bite, Claw, or Harpoon in any combination." The Attack
+   * action still holds two swings, the names are still the block's, and what
+   * changes is only that either name may fill either slot.
+   *
+   * The engine never picks. The caller elects swing by swing through the name
+   * it asks for, and what is checked is whether the turn's swings so far can be
+   * assigned to entries without running past a count.
+   */
+  it('lets a menu be spent in any combination the block allows', () => {
+    const merrow = adaptMonster(statBlock('merrow'), id('merrow'));
+    expect(merrow.sheet.stated?.multiattack).toEqual({
+      entries: [{ count: 2, attacks: ['Bite', 'Claw', 'Harpoon'] }],
+    });
+    expect(merrow.sheet.attacksPerAction).toBe(2);
+
+    const table = inTheWoods('merrow', MERROW);
+    const swing = swinging(table, MERROW);
+    swing('Bite', 'one');
+    swing('Claw', 'two');
+    expect(
+      table.events.filter((e) => e.type === 'roll-recorded' && e.label === 'Bite attack'),
+    ).toHaveLength(1);
+    expect(
+      table.events.filter((e) => e.type === 'roll-recorded' && e.label === 'Claw attack'),
+    ).toHaveLength(1);
+    // And the count is shared, so the third is refused whichever name it wears.
+    expect(refused(table, MERROW, 'Harpoon')).toBe('not_in_multiattack');
+    expect(refused(table, MERROW, 'Bite')).toBe('not_in_multiattack');
+  });
+
+  /**
+   * And the shared count is a count, not three: two Bites is the same two
+   * swings as a Bite and a Claw.
+   */
+  it('refuses a third swing of one name from a shared count', () => {
+    const table = inTheWoods('merrow', MERROW);
+    const swing = swinging(table, MERROW);
+    swing('Bite', 'one');
+    swing('Bite', 'two');
+    expect(refused(table, MERROW, 'Claw')).toBe('not_in_multiattack');
+  });
+
+  /**
+   * **An alternation is two whole sequences, and nothing chooses between them.**
+   * SRD Barbed Devil: "one Claws attack and one Tail attack, or it makes two
+   * Hurl Flame attacks." The branch is settled by the swings already made — a
+   * Claws closes the Hurl Flame branch, because that branch admits no Claws at
+   * all — so the engine reads the turn rather than asking anybody to elect.
+   */
+  it('closes the other branch of an alternation with the first swing', () => {
+    const devil = adaptMonster(statBlock('barbed-devil'), DEVIL);
+    expect(devil.sheet.stated?.multiattack).toEqual({
+      alternatives: [
+        [
+          { count: 1, attack: 'Claws' },
+          { count: 1, attack: 'Tail' },
+        ],
+        [{ count: 2, attack: 'Hurl Flame' }],
+      ],
+    });
+    // Both branches total the same, so the Attack action still holds one number.
+    expect(devil.sheet.attacksPerAction).toBe(2);
+
+    const table = inTheWoods('barbed-devil', DEVIL);
+    swinging(table, DEVIL)('Claws', 'one');
+    expect(refused(table, DEVIL, 'Hurl Flame')).toBe('not_in_multiattack');
+    // The branch it did take is still open.
+    swinging(table, DEVIL)('Tail', 'two');
+    expect(
+      table.events.filter((e) => e.type === 'roll-recorded' && e.label === 'Tail attack'),
+    ).toHaveLength(1);
+  });
+
+  it('lets the other branch be taken whole, when it is the one begun', () => {
+    const table = inTheWoods('barbed-devil', DEVIL);
+    const hurl = swinging(table, DEVIL);
+    hurl('Hurl Flame', 'one');
+    hurl('Hurl Flame', 'two');
+    expect(
+      table.events.filter((e) => e.type === 'roll-recorded' && e.label === 'Hurl Flame attack'),
+    ).toHaveLength(2);
+    expect(refused(table, DEVIL, 'Claws')).toBe('not_in_multiattack');
+  });
+
+  /**
+   * **What the line says that the engine cannot execute is handed over, not
+   * enforced.** SRD Mummy: "makes two Rotting Fist attacks **and uses Dreadful
+   * Glare**." A use is a save or a prose action, and there is nothing here to
+   * spend — making fewer swings than a sequence prints has always been legal.
+   *
+   * So it is reported through the channel a hit's printed rider already uses,
+   * once, at the swing that opens the action: a permission silently dropped is
+   * a creature made weaker than the book, and a permission repeated at every
+   * swing is noise.
+   */
+  it('reports what the line hands over, at the swing that opens the action', () => {
+    const mummy = adaptMonster(statBlock('mummy'), MUMMY);
+    expect(mummy.sheet.stated?.multiattack).toEqual({
+      entries: [{ count: 2, attack: 'Rotting Fist' }],
+      handOver: 'and uses Dreadful Glare',
+    });
+
+    const table = inTheWoods('mummy', MUMMY);
+    const first = unwrap(
+      resolveAttack(
+        table.state,
+        MUMMY,
+        { target: BREN, weapon: null, action: 'Rotting Fist', commandId: 'one' },
+        supply('linen'),
+      ),
+      'the first fist',
+    );
+    expect(first.unverified.join(' ')).toContain('and uses Dreadful Glare');
+
+    // And once: the second swing of the same action says nothing about it.
+    const fist = swinging(table, MUMMY, supply('linen'));
+    fist('Rotting Fist', 'one');
+    const second = unwrap(
+      resolveAttack(
+        table.state,
+        MUMMY,
+        { target: BREN, weapon: null, action: 'Rotting Fist', commandId: 'two' },
+        supply('linen'),
+      ),
+      'the second fist',
+    );
+    expect(second.unverified.join(' ')).not.toContain('Dreadful Glare');
+  });
+
+  /**
+   * **A sequence pinned before any of this still reads.** `creature-added` pins
+   * what the command found in content, so a Ghoul that entered a game this
+   * morning carries `{ entries: [{ count, attack }] }` and always will. Every
+   * field the shape has grown since is optional, and the readers take the old
+   * value as the one-name, one-sequence case it is.
+   */
+  it('reads a sequence pinned in the shape that predates the menu', () => {
+    const pinned: MonsterMultiattack = { entries: [{ count: 2, attack: 'Bite' }] };
+    expect(multiattackAllows(pinned, { Bite: 2 })).toBe(true);
+    expect(multiattackAllows(pinned, { Bite: 3 })).toBe(false);
+    expect(multiattackAllows(pinned, { Bite: 1, Claw: 1 })).toBe(false);
+    // Which is exactly what the Ghoul's own block still pins.
+    expect(adaptMonster(statBlock('ghoul'), GHOUL).sheet.stated?.multiattack).toEqual(pinned);
   });
 });
 
