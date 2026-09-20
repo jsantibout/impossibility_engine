@@ -418,14 +418,42 @@ of six.
 2. **Steady Aim, which is its own shape** — an activated feature that hangs a
    *stored* one-shot at the moment it pays for it, generalising what
    `commands/mastery.ts` does bespoke for Sap and Vex.
-3. **The other four Multiattack mechanisms, and the Hydra.** 78 of the 177
-   printed lines state a named sequence and are built. The remaining 99 are
-   alternation ("or it makes two Hurl Flame attacks"), a free choice from a
-   menu ("using Scimitar and Pistol in any combination"), an attack sequence
-   plus a non-attack use, a replace clause ("can replace one attack with a use
-   of Spellcasting"), and "as many Bite attacks as it has heads". **Each needs a
-   ruling before it can be briefed**; the shape row reads 99 rather than going
-   quiet so the five stay visible.
+3. **The rest of Multiattack, now ruled and briefable.** 78 of the 177 printed
+   lines are built. The architect re-derived the other 99 on 2026-09-20 and
+   found the five mechanisms are **two**: the book says "a *X attack*" when it
+   means a printed attack line (8 of 8 replace-clauses, 2 of 2 alternations)
+   and "a *use of X*" when it means a save or prose action (37 of 37, 18 of
+   18). So everything composing printed attacks is one structure in three
+   wordings, and everything else is a hand-over. Ranked by lines cleared:
+
+   - **R1, the hand-over field — 37 lines.** Parse the first sentence as the
+     sequence, carry the second whole as stated text, report it through
+     `unverified` at the first swing, the channel a hit's rider already uses.
+     Nothing to enforce: making fewer swings than the sequence is already
+     legal. 20 of the 37 name Spellcasting, and a dragon cast through the
+     engine loses its Rends because a casting spends the action — fixing that
+     is a casting that spends an attack, its own brief.
+   - **R2, the menu — 41 lines.** One entry, several printed names, one shared
+     count: `{ count: 2, attacks: ['Scimitar', 'Pistol'] }`. The caller elects
+     swing by swing through `AttackCommand.action`, which already exists. The
+     engine never picks.
+   - **R4, alternation — 10 lines.** `alternatives: [entries, entries]`, and
+     the check becomes "the multiset so far fits *some* alternative". Nothing
+     chooses: the branch is fixed by the swings already made. Both branches
+     total the same in all ten, so `attacksPerAction` stays one number.
+   - **R3, sequence plus a use — 18 lines.** R1's field, landing with it.
+
+   All four ride the shipped per-name multiset and the `feature-used` ledger:
+   **no new event, no `TurnBudget` field, no fold change.** The shape change
+   must be additive so a Ghoul pinned today still reads.
+
+   Three lines the first categorisation missed: the **pit-fiend** is a pure
+   named sequence the parser drops because it splits on ` and ` and an Oxford
+   comma leaves a clause it refuses — a parser gap in `@ie/srd`, zero engine
+   change, and the chimera shares it; the **clay golem**'s third Slam is gated
+   on a Bonus Action the engine does not read, so withhold and report rather
+   than build a field for one monster; the **planetar** is R4 with a hand-over
+   branch.
 4. **The held path of "the defender answers first".** The ordinary path is
    fixed. The *held* path (`hold: true`, SRD Divine Smite's window) still fires
    the rider at the hit, before the target answers `hit-by-attack` — so a
@@ -497,6 +525,14 @@ Multiattack is built for the one mechanism of five the ruling covers.
   menu.
 - **The defender answers first.** A rider that Stuns on the same swing must
   not close the `damage-rolled` window the target was just offered.
+- **The Hydra's count is nobody's to derive** (architect, 2026-09-20). Reading
+  "five heads" off a trait would print a number for a turn the book did not:
+  heads die at 25 damage in a turn and regrow at the end of it, none of which
+  is state. It bites once per action. **Open, and the owner's:** may a DM
+  *state* the count turn by turn — a fact only the table tracks, for an attack
+  the block names — or does it wait for a second creature that needs one? An
+  engine-derived count was refused as fabrication; a DM-declared count is a
+  fact handed over, and no tool sets even `free: true` today.
 - **A fight ends** when no hostile combatant remains or the hostiles
   surrender. A flight is a prompt, not an end: the players are offered the
   choice to let the enemy go before combat closes, because many tables want to
