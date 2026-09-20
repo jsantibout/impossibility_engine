@@ -222,6 +222,25 @@ to homebrew.
   and the DC is derived from the sheet at the moment of use. A pool may carry
   a **menu**, because the SRD prints one feature whose uses buy different
   things. Turn Undead and Divine Spark run.
+- **A fight a model can actually run.** The surface answers every window it
+  shows: a held hit for Shield, a damage roll not yet landed, a D20 Test
+  pushed from the model's door and settled at the DM's. A casting is a process
+  Counterspell can interrupt, and one nobody stops is finished rather than
+  held open for the rest of the campaign. A Cleric can be told to turn undead.
+  Time out of a fight is narration and therefore a door, which is what makes a
+  rest mean anything. Potions, readied actions, awarded loot.
+- **A die in somebody else's hand** — the Bard's pool is spent on the Bard and
+  the ally holds a sourced grant with a deadline, consumed when the roll it
+  was given for fails. It is a Reaction conferred rather than a resource
+  handed over, which is the fourth answer to what a pool use buys.
+- **Weapon mastery, seven of the eight** — the record of which weapons, and
+  Graze, Cleave, Push, Slow, Topple, Sap and Vex. The last two needed no
+  mechanism at all; what they were waiting on was the record.
+- **A report that answers "can we play this level yet"** — features by the
+  level they arrive and spells by the slot that casts them, per *path*, since
+  a Cleric of the Life Domain has the Life Domain's features and not an
+  average of the domains. In reach, tracked and executed are three counts that
+  are never added, and a test fails when the committed report is stale.
 - **Replay** — a scripted four-round fight and two frozen logs fold
   byte-identically.
 
@@ -296,12 +315,16 @@ to homebrew.
   sourced grant with a deadline, consumed on use: a granted `intervene`
   reaction, which is a tenth grant family and the one genuinely new thing
   among the three.
-- **A Cleric cannot spend Channel Divinity from the surface.** The engine
-  executes it and `holdings.ts` enumerates no kind for a pool option, so a
-  Cleric is told it holds the feature and can find no door. The sweep that
-  should have caught this did not: its party is a Barbarian, a Paladin, a
-  Fighter, a Warlock and an Evoker, and a guard whose fixture has no Cleric in
-  it cannot miss a Cleric's door.
+- **The Bard's die and a weapon's mastery have no tool.** `holdings.ts` is a
+  fourth reader of `sheet.reactions` and will not report a Reaction somebody
+  was given; `AttackCommand.mastery` reaches no door at all. Both landed in
+  the engine the same hours the surface was being built by somebody else, which
+  is the cost of running two tracks over one boundary and is cheaper than the
+  queue would have been.
+- **A weapon mastery is a ceiling rather than a quota.** Naming none records
+  none, because making the choice required broke 49 fixture files across
+  worktrees nobody owned at once; `planCharacter` warns rather than refuses.
+  Making it required is a corpus migration and is owed.
 - **A character has no size.** `createCharacter` pins none and
   `SpeciesDefinition.sizes` is populated and read nowhere, so a character's
   size category has no engine-side answer and `place_creature` is its only
@@ -327,107 +350,96 @@ to homebrew.
 
 ## Next
 
-**A wizard and a goblin fight each other through the tool surface, and a
-Cleric turns undead.** What is left between here and a party playing at level
-5 is three doors and one room, and none of them is large.
+**A party can be built, placed against monsters, and played through a fight
+and a rest.** `COVERAGE.md`'s level section is where the numbers live now, and
+no sentence here repeats one. What is left divides cleanly: doors for two
+things that landed in the engine this batch, one corpus migration, and then
+content tranches the maps can finally size — because both maps were re-derived
+against what is actually built, and between them they moved forty-odd entries
+off shapes that had stopped being missing.
 
-Ranked by what each finishes.
+1. **The doors this batch's own engine work left behind.** `holdings.ts` will
+   not report a Reaction somebody was given, and `AttackCommand.mastery`
+   reaches no tool at all, so the Bard's die and seven weapon properties are
+   engine-only. Also doorless and named by the builder that found them:
+   `continueCasting` (a long casting begun in combat fails at the first turn
+   boundary), `takeDamageResponse` (the feature half of a window whose spell
+   half works), `stabiliseCreature`, and the whole inventory verb set —
+   `equipItem`, `unequipItem`, `attuneItem`, `endAttunement`, `purchaseItem`,
+   `transferItem`, `loseItems`.
+2. **Two rules the engine owes, both found from above it.** Nothing refuses
+   advancing the clock *during* a fight, where the clock is derived — a model
+   can expire every deadline mid-combat, and the refusal belongs in the engine
+   rather than in a layer that holds no rules. And `endRest` takes no
+   `CommandIdentity`, so it is the one call on the surface that cannot be
+   idempotent under the transport's id: a retry of a settlement that landed is
+   answered `not_resting` rather than as a duplicate.
+3. **Make a weapon mastery required, and migrate the corpus.** The ceiling was
+   a constraint of parallel tracks, not a reading of the book.
+4. **An action rule in the catalogue.** `ActionRule` says three of the four
+   things it was named for and **no definition in the book writes one**.
+   Befuddlement, Stinking Cloud, Shocking Grasp, Fear, Wind Walk, Magic Jar
+   and Slow are each one `action-rule` away — a content tranche, not an engine
+   one. Slow additionally needs a saving-throw narrowing its penalty currently
+   has no reader for, and Shocking Grasp appears in `golden-log-2.json`, so
+   the frozen fold wants checking before it is written.
+5. **A casting ended by a trigger** — the only shape left in the spell book
+   that finishes anything in the read column. It blocks fifteen and is the
+   sole blocker of Modify Memory: damage from **anybody**, where the two built
+   scopes are the caster and the caster's allies, and being targeted by
+   another spell at all. It bites into Maze and Phantasmal Force too.
+6. **A range an item names**, which is two fields rather than one: a *reach*
+   beside a conferral, for the rope at 20 feet and the wand's ray at 60 and
+   either talisman at 120; and a *range* on a casting for the Necklace of
+   Fireballs, thrown at a point, narrowing Fireball's printed 150. A brief
+   sizing only the first leaves the necklace exactly where it is.
+7. **A reachability axis for the report.** The level section cannot see
+   whether a session can *reach* what the engine executes, because
+   `@ie/tools` depends on `@ie/content` and the script cannot import the
+   surface without inverting the build. A generator living above both — `tools/`
+   already is — is the shape; where `coverage.ts` lives is the decision.
+8. **Ten item entries, three spell shapes, and the rest of the long tail**,
+   each now filed against what it actually waits for. The heaviest blocker in
+   the item book is `a-version-of-an-item-the-book-leaves-to-the-gm`, which no
+   engine work can reach, and that is the finding rather than a problem.
 
-1. **The doors the last two batches left behind.** A Cleric can turn undead
-   and cannot be told to: `holdings.ts` enumerates no kind for a pool option.
-   A caster cannot cast Shield or Counterspell: `cast_spell` has no trigger
-   field, `takeDamageReaction` / `takeTestReaction` have no door, and a held
-   casting also wants `hold`, `answers` and a `resolve_declared_cast`. And no
-   `test-rolled` reaction has a door on either surface, which the Bard will
-   need before its own brief is worth writing. One builder owning
-   `packages/tools` for a batch closes all of it.
-2. **A granted reaction, which is the Bard.** The architect's reading: the
-   Bard's pool is spent on the Bard at conferral and the ally holds a sourced
-   grant with a deadline, consumed on use — a tenth family on `CreatureState`,
-   one `*-granted` event, and the three readers of `offersForTest` reading
-   granted reactions as well as the sheet's. It is *not* the `oneShot`
-   modifier that landed this week: that is a mode applied before a roll with
-   no choice, and the Bard's die is a number added after a test is seen to
-   fail. Sequence it with entry 1 or include the `test-rolled` door in it.
-3. **A rest, an item used, an action readied.** The last commands the engine
-   has and the surface does not call. A Short Rest is what makes a Warlock and
-   a Fighter work across two fights rather than one.
-4. **A size for a character.** Creation pins none and the species records are
-   read by nothing, so `place_creature` carries the only answer. Two SRD
-   species print two sizes, so this is a creation choice and a pinned field,
-   not a defaulted line.
-5. **A report that answers "what can be played at level N".** Features by the
-   level they arrive, spells by the slot that casts them, and which of either
-   a session can reach through a tool. Answered by hand twice now.
-6. **An effect list a hit buys** (5 blocked, 1 finished) — Stunning Strike,
-   Open Hand Technique, Cunning Strike. The save and the condition are
-   expressible since Channel Divinity landed; the **trigger** is not.
-7. **A condition an item imposes** — 28 blocked, 5 finished.
-8. **Weapon mastery's buildable half**; **falling damage**; **an instance for
-   an item with no charges**. Each as previously described.
+### Decisions genuinely open
 
-**Deliberately not yet: Action Surge.** It is the "granting an extra one"
-clause of `an-action-a-spell-compels-or-forbids`, whose second writer (Haste)
-is already filed under that id. It finishes one feature, a Fighter fights
-without it, and it is the entry that most tempts a general extra-slot
-mechanism. Brief it with Haste in hand, or as one deliberately narrow field.
-The trap when somebody does: `spendAttack` returns `no_attacks_left` before it
-ever reaches `spendAction`, so a second Attack action is refused even after the
-budget grows.
+- **A printed Range the format cannot state.** Dream's `Special` and Mirage
+  Arcane's `Sight`. Filed `table` under protest and pinned by name; two
+  consumers, no shape id, and naming one is architecture.
+- **A grant with no ending.** Wish's "This Resistance is permanent." No shape
+  names a grant that outlives every deadline the engine has, which is the
+  whole of why Wish is the one spell still unread.
+- **A size for a character.** Creation pins none and the species records are
+  read by nothing. Two SRD species print two sizes, so this is a creation
+  choice and a pinned field. Push already reports "took them for Medium"
+  rather than assuming quietly.
+- **`check_without_duration` does not count `untilDispelled`**, so Programmed
+  Illusion cannot be written though nothing in the shape vocabulary blocks it.
+  A one-line rule widening, reported rather than taken.
 
-### Guards that did not guard
+### Guards, and what they now catch
 
-- **A sweep's fixture is its blind spot.** `holdings.test.ts` checks that every
-  spendable kind has a tool, over a party of a Barbarian, a Paladin, a
-  Fighter, a Warlock and an Evoker. A Cleric's missing door is invisible to
-  it. A guard over a hand-picked cast is a guard over that cast.
-- `spell-schema.test.ts`'s format sweep probes by field **name** across the
-  whole `SpellEffect` union, so it can neither see a new per-arm member nor be
-  given an exemption for one — which is why `save-damage` was the only
-  damage-carrying kind missing `addSpellcastingModifier` and nobody noticed.
-- `riderDuration`'s tail is a ternary, so a new `RiderDuration` member would
-  compile and silently become a caster start-of-turn deadline.
-- `content.ts` validates a feature's `roll-mode` grant through the selector
-  alone, so `oneShot` is unchecked there.
-- A `SOLE`-style `it.each([])` registers zero tests and passes for ever.
-- `casting-damage` is legal on an item and no SRD item prints the sentence.
-- `fold-import-boundary.test.ts` lints text in process and its first case can
-  exceed the 5s default timeout under load. Seen by five agents.
+`vitest.setup.ts` refuses an empty `each` table anywhere in the suite. The
+format sweep reads a union arm by arm **and** reads all three hosts of an
+effect list, which unmasked four members and found that `save-damage`'s
+modifier is written by a feature and by no spell. A test fails when
+`COVERAGE.md` is stale, which is the discipline that slipped last batch. The
+spendable-kind sweep builds one character of every class in the book rather
+than five hand-picked ones.
 
-### Small and owed
-
-- `finesseAbility` now carries the choice a strike style offers as well as a
-  Finesse weapon's — one field, correctly, but the name says otherwise.
-  Renaming touches `state.ts` and the tool surface.
-- `electableCastingDamage` is not on the engine's barrel, so the surface
-  filters standing effects instead; an item-granted election would go
-  unlisted.
-- `capSeconds` is enforced by nothing.
-- Two sub-editorial quotation slips in `missing-feature-shapes.ts` that
-  predate this session: a capitalised fragment on
-  `a-pool-the-proficiency-bonus-sizes`, and a dropped "made" in a Guiding Bolt
-  quote inherited from `blocked-on-features.test.ts`.
+Still open: `riderDuration`'s ternary tail would swallow a new member;
+`content.ts` leaves `oneShot` unchecked on a feature's `roll-mode`;
+`doors.test.ts`'s field probe cannot see inside a discriminated union, which
+is why `take_ready`'s new fields are unlisted; `casting-damage` is legal on an
+item no SRD item prints; `fold-import-boundary.test.ts` lints in process and
+its first case can time out under load.
 
 ### A trap in the worktrees, not in the code
 
 A builder worktree starts with an empty `node_modules`, so `tsc -b` for
-`packages/content` and `tools/` resolves `@ie/engine` through the **main
-checkout's** symlinks and typechecks the worktree's content against the main
-checkout's `dist`. Silent while the two agree. Junction all six
-(`engine, content, shared, srd, tools, llm-probe`) when the worktree is made,
-beside copying `packages/srd/src/generated/`.
-
-### A discipline the coordinator broke, written down
-
-Each builder commits its own regenerated `COVERAGE.md`; the coordinator drops
-those and regenerates once over the merged set. That leaves `main` failing
-`git diff --exit-code COVERAGE.md` in between, and it stayed red for eleven
-commits before a builder found it. Regenerate after the last merge of a batch
-and before anything else.
-
-### Decisions waiting on the owner
-
-The character size question in entry 4 is a design choice rather than a
-defect: two SRD species print two sizes, so somebody has to decide whether
-size is chosen at creation, derived with a stated tiebreak, or stays the
-table's declaration.
+`packages/content` and `tools/` resolves `@ie/engine` through the main
+checkout's symlinks and typechecks against its `dist` — silent while the two
+agree. Junction all six when the worktree is made, beside copying
+`packages/srd/src/generated/`.
