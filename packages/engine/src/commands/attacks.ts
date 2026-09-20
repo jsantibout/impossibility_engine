@@ -1043,7 +1043,16 @@ export function resolveAttack(
       rolled.value.components,
       attackName,
       supply,
-      { by: id, fromAttack: true, ...(attack.value.critical ? { critical: true } : {}) },
+      {
+        by: id,
+        fromAttack: true,
+        ...(attack.value.critical ? { critical: true } : {}),
+        // **The defender answers first.** Where this opens a window, the rider
+        // rides on the hold and resolves with the damage; where it opens none,
+        // the field is ignored and the rider fires below exactly as it always
+        // has. See {@link PendingDamage.rider}.
+        ...(rider.value === null ? {} : { rider: { attacker: id, option: rider.value } }),
+      },
     );
     if (!hurt.ok) return hurt;
 
@@ -1072,8 +1081,12 @@ export function resolveAttack(
     // feature's condition resolved first would settle a Topple that the SRD
     // has the target roll for. Nothing in the book puts the two in an order,
     // and this one adds nothing to either.
+    //
+    // **And not at all where somebody was offered a Reaction to this damage**,
+    // which is the one ordering the book does fix: the rider went onto the
+    // hold above and `settleDamage` resolves it once the defender has spoken.
     const riderEvents: GameEvent[] = [];
-    if (rider.value !== null) {
+    if (rider.value !== null && hurt.value.offers.length === 0) {
       const bought = applyHitRider(
         [...landed, ...mastered.value.events].reduce(applyEvent, state),
         supply,

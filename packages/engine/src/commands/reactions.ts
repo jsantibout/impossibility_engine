@@ -74,6 +74,7 @@ import {
   reactionContributions,
   spendReactionCost,
 } from './damage.js';
+import { applyHitRider } from './hit-riders.js';
 import { completeIfSettled, pendingCastingsOf } from './holds.js';
 import { reactionSwing } from './movement.js';
 import { checkBonuses, mergedModes, recordD20Test, savingSupport } from './rolls.js';
@@ -255,6 +256,14 @@ export interface SettledDamage {
   /** What the target actually took, after the reactions and their defences. */
   readonly amount: number;
   readonly concentration: ConcentrationConsequence;
+  /**
+   * Facts a rider this settlement resolved could not check.
+   *
+   * Empty for every settlement that had no rider to resolve, which is nearly
+   * all of them — and reported here rather than at the swing because here is
+   * where the rider happened. See {@link PendingDamage.rider}.
+   */
+  readonly unverified: readonly string[];
   readonly duplicate: boolean;
 }
 
@@ -279,7 +288,13 @@ export function settleDamage(
   command: CommandIdentity = {},
 ): Result<SettledDamage> {
   return once(state, 'settle-damage', command, () => {
-    return { events: [], amount: 0, concentration: { kind: 'none' }, duplicate: true };
+    return {
+      events: [],
+      amount: 0,
+      concentration: { kind: 'none' },
+      unverified: [],
+      duplicate: true,
+    };
   }, (stamp) => {
     const pending = state.pendingDamage;
     if (pending === null) return err('no_pending_damage', 'no damage roll is waiting to be dealt');
@@ -323,14 +338,36 @@ export function settleDamage(
 
     const all = [...events, ...dealt.value.events];
 
+    // **What the blow still owed, now that the defender has answered.** The
+    // rider was held here rather than resolved at the swing precisely so that
+    // a Stunning Strike could not close the window it had just opened — and it
+    // resolves on the world the damage has already changed, which is where a
+    // rider has always resolved.
+    const unverified: string[] = [];
+    const riderEvents: GameEvent[] = [];
+    if (pending.rider !== undefined) {
+      const bought = applyHitRider(
+        all.reduce(applyEvent, state),
+        supply,
+        { attacker: pending.rider.attacker, target: pending.target },
+        pending.rider.option,
+      );
+      if (!bought.ok) return bought;
+      riderEvents.push(...bought.value.events);
+      unverified.push(...bought.value.unverified);
+    }
+
+    const settled = [...all, ...riderEvents];
+
     return ok({
       // A move that was waiting on an Opportunity Attack whose damage was held
       // can go through now. Nothing else completes it: the command that answered
       // the Reaction left the damage open, and a mover must not arrive before
       // the blow aimed at them leaving has landed.
-      events: [...all, ...completeIfSettled(state, all)],
+      events: [...settled, ...completeIfSettled(state, settled)],
       amount: applied.total,
       concentration: dealt.value.concentration,
+      unverified,
       duplicate: false,
     });
   });

@@ -25,6 +25,7 @@ import {
   type GameEvent,
   type GameState,
   type PendingDamage,
+  type PendingHitRider,
 } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import {
@@ -122,6 +123,14 @@ export function landDamage(
     readonly critical?: boolean;
     readonly by?: CharacterId;
     readonly fromAttack?: boolean;
+    /**
+     * A rider this blow bought, for the window to hold until the defender has
+     * answered — see {@link PendingDamage.rider}.
+     *
+     * Ignored where no window opens, which is where the caller applies it in
+     * the same breath as it always has: there is nobody to answer first.
+     */
+    readonly rider?: PendingHitRider;
   },
 ): Result<{
   readonly events: readonly GameEvent[];
@@ -158,6 +167,7 @@ export function landDamage(
     fromAttack: options.fromAttack === true,
     reductions: [],
     offers: possible.offers,
+    ...(options.rider === undefined ? {} : { rider: options.rider }),
   };
 
   return ok({
