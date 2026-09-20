@@ -2633,11 +2633,11 @@ const ATTEMPT_EFFECT_CHECK = tool({
  * the die is rolled by the engine and what Constitution adds to it is read off
  * the sheet as it stands.
  *
- * **`endRest` takes no command id**, which is the one place this surface
- * cannot give a call the idempotency every other one has: a retry of a
- * settlement that landed is answered `not_resting` rather than as a duplicate.
- * That is an engine signature and a finding rather than something to paper
- * over here.
+ * **A settled rest is idempotent under its command id**, like every other
+ * call here. It was not, and the reason was an engine signature rather than
+ * anything this layer could paper over: `endRest` took no identity, so a
+ * retry of a settlement that landed was answered `not_resting` instead of as
+ * a duplicate. The signature changed; this passes the id.
  */
 const ADVANCE_TIME = tool({
   name: 'advance_time',
@@ -2713,6 +2713,7 @@ const END_REST = tool({
         context.campaign.state(),
         who(args.who),
         {
+          ...identity(context),
           ...(args.hitDice === undefined ? {} : { hitDice: args.hitDice }),
           ...(args.interruptedBy === undefined ? {} : { interrupted: args.interruptedBy }),
         },
@@ -2723,6 +2724,7 @@ const END_REST = tool({
         benefit: value.benefit,
         hitDiceSpent: value.hitDice.map((die) => die.key),
         hitPointsRegained: value.hitPointsRegained,
+        duplicate: value.duplicate,
       }),
     ),
 });
