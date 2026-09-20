@@ -425,6 +425,16 @@ describe('a casting hands the text over and adjudicates the rest', () => {
     );
     expect(dmDecisionsIn(settled.unverified)).toContain('Range: Special');
 
+    // **And the settling event does not repeat it.** The declaration is where
+    // this casting wrote down what it read from the catalogue, so the
+    // `spell-cast` that ends the rite carries no text at all: one sentence in
+    // two events of one log is the second place to get it wrong. Pinned here
+    // rather than only claimed in a docstring, because nothing else would
+    // notice a later hand adding the second copy.
+    const record = settled.events.find((event) => event.type === 'spell-cast');
+    expect(record?.type).toBe('spell-cast');
+    expect(record !== undefined && 'dmDecides' in record).toBe(false);
+
     const after = fold('seed', [...ticked, ...settled.events]);
     expect(remaining(after.creatures[CASTER]!.resources, spellSlotKey(3))).toBe(3);
   });
