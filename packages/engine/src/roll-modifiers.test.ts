@@ -303,10 +303,12 @@ describe('a selector that describes a roll nobody makes is refused', () => {
   const problems = (selector: RollSelector) =>
     rollSelectorProblems(selector, (skill) => SKILL_ABILITY[skill]).map((p) => p.code);
 
+  /**
+   * The two families with no ability to name. An attack roll *is* made with
+   * one and the SRD narrows by it — see `attack-by-ability.test.ts`, which is
+   * where that sentence and the feature that writes it are held.
+   */
   it('refuses an ability on a roll that is not made with one', () => {
-    expect(problems({ roll: 'attack', relation: 'roller', ability: 'str' })).toContain(
-      'ability_on_ability_less_roll',
-    );
     expect(problems({ roll: 'death-save', relation: 'roller', ability: 'con' })).toContain(
       'ability_on_ability_less_roll',
     );
@@ -371,7 +373,22 @@ describe('the definition validator carries those rules to an author', () => {
     ).toContain('bad_roll_family');
   });
 
-  it('refuses an ability-specific modifier on an attack roll', () => {
+  /**
+   * And it carries the *allowance* too: a spell narrowing its mode to the
+   * ability an attack was made with is a definition the validator accepts,
+   * which is the half of this rule an author is likeliest to doubt.
+   */
+  it('refuses an ability-specific modifier on a death saving throw', () => {
+    expect(
+      codes({
+        kind: 'roll-mode',
+        modifier: {
+          mode: 'advantage',
+          selector: { roll: 'death-save', relation: 'roller', ability: 'con' },
+        },
+      }),
+    ).toContain('ability_on_ability_less_roll');
+
     expect(
       codes({
         kind: 'roll-mode',
@@ -380,7 +397,7 @@ describe('the definition validator carries those rules to an author', () => {
           selector: { roll: 'attack', relation: 'roller', ability: 'str' },
         },
       }),
-    ).toContain('ability_on_ability_less_roll');
+    ).not.toContain('ability_on_ability_less_roll');
   });
 
   it('refuses "against the holder" on a saving throw', () => {

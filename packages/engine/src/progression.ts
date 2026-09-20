@@ -645,13 +645,18 @@ export type FeatureGrant =
       /** SRD Rage: "You regain one expended use when you finish a Short Rest." */
       readonly regainsOnShortRest?: number;
       /**
-       * Narrower than the `ActivatedFeature` this becomes, and deliberately:
-       * Rage's moment is the only one a written feature has needed, and the
-       * other anchor belongs to Dodge, which is an action rather than a grant.
-       * Expressed against {@link TurnAnchor} rather than as a bare literal, so
-       * widening it to the pair is a word here and not a second vocabulary.
+       * Either moment, which is what the `ActivatedFeature` this becomes has
+       * always held.
+       *
+       * It was narrowed to Rage's for as long as Rage was the only written
+       * feature with one, and the narrowing said what would widen it: "widening
+       * it to the pair is a word here and not a second vocabulary". SRD
+       * Reckless Attack is the word — "Advantage on attack rolls using
+       * Strength **until the start of your next turn**, but attack rolls
+       * against you have Advantage during that time" — and the two anchors are
+       * a full round apart, so nothing derives one from the other.
        */
-      readonly lasts: Extract<TurnAnchor, 'end-of-next-turn'>;
+      readonly lasts: TurnAnchor;
       readonly capSeconds?: number;
       readonly endsOn?: readonly ActivationEnd[];
       readonly forbidsCasting?: boolean;

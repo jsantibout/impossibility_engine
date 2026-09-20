@@ -88,7 +88,11 @@ export function resolveAttackEffect(
   // standing effects at all, so a Dodging target was easier to hit with
   // a Fire Bolt than with a dagger — the same gatherer the weapon attack
   // uses removes the fork rather than copying its version of it.
-  const defending = defendingModes(current, casterId, target);
+  // The ability the casting rolls with, which is the spell attack's own: SRD
+  // narrows a mode by "attack rolls using Strength" and a Fire Bolt is not one,
+  // so the answer is the caster's spellcasting ability and `null` where an item
+  // printed the bonus instead of a caster deriving it.
+  const defending = defendingModes(current, casterId, target, ability);
   unverified.push(...defending.unverified);
 
   // **A ranged spell attack is a ranged attack.** SRD "Ranged Attacks": "You
@@ -157,6 +161,7 @@ export function resolveAttackEffect(
     family: 'attack',
     roller: casterId,
     against: target,
+    ...(ability === null ? {} : { ability }),
   })) {
     const consumed: GameEvent = {
       type: 'roll-modifier-consumed',

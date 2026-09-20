@@ -599,11 +599,44 @@ export function resolveAttack(
     const nearby = enemyWithinFiveFeet(state, id);
     unverified.push(...nearby.unverified);
 
+    // **What this swing is made with, settled before anything reads it.** SRD
+    // Reckless Attack grants Advantage on "attack rolls using Strength", so
+    // the ability is a fact the gatherers below need and not only one the log
+    // records afterwards. `attackAbility` asks nothing of the modes, so asking
+    // it before them is the same answer the damage and the log get — and one
+    // answer is the point: a second call that disagreed would be a rider
+    // applying to a swing the Advantage did not.
+    //
+    // **A weapon attack always names an ability.** `AttackResult.ability` is
+    // null only for a spell attack whose bonus an item printed, and no spell
+    // attack comes through here.
+    //
+    // **And a printed attack gets the weaponless answer**, which is what makes
+    // asking early safe rather than only convenient: `attackAbility` reads the
+    // weapon, the style and the attacker's own choice, and reads `statedAttack`
+    // not at all — so a stat block's line, which names no ability, comes out
+    // the same here as it would after the roll. The difference is confined and
+    // worth stating rather than leaving to be rediscovered: two readers use
+    // this — `attack-landed`, which a printed line never reaches because
+    // holding one is refused outright, and Graze, which needs a weapon and has
+    // none there — and what a printed attack's own damage is rolled from is
+    // `statedAttack`, where no ability appears at all. Nothing downstream is
+    // handed a Strength the book did not print.
+    const ability = attackAbility(sheet, {
+      weapon,
+      ...(style === null ? {} : { strikeStyle: inPlay(style) }),
+      // Not read by `attackAbility`, and required by its options type: the
+      // Armour Class belongs to the roll rather than to the question of which
+      // modifier is added to it.
+      targetAc: 0,
+      ...(command.finesseAbility === undefined ? {} : { finesseAbility: command.finesseAbility }),
+    });
+
     // SRD Dodge, Blur, and anything else standing that reaches this roll —
     // whether it sits on the attacker or on the creature being attacked. One
     // gatherer, shared with the spell attack, which is what stops the two
     // paths drifting apart again.
-    const defending = defendingModes(state, id, command.target);
+    const defending = defendingModes(state, id, command.target, ability);
     unverified.push(...defending.unverified);
 
     // SRD Pack Tactics, off the attacker's own stat block: "Advantage on an
@@ -665,20 +698,6 @@ export function resolveAttack(
       );
     }
 
-    // **What this attack would have been made with, for the readers that need
-    // an ability rather than a roll.** `rollAttack` answers honestly and gives
-    // a printed line none, because a stat block names none; this asks
-    // `attackAbility` the same question and takes the answer it gives a
-    // weaponless swing.
-    //
-    // The difference is confined and worth stating rather than leaving to be
-    // rediscovered. Two readers use it: `attack-landed`, which a printed line
-    // never reaches because holding one is refused outright, and Graze, which
-    // needs a weapon and has none here. What a printed attack's own damage is
-    // rolled from is `statedAttack`, where no ability appears at all — so
-    // nothing downstream is handed a Strength the book did not print.
-    const ability = attackAbility(sheet, swing);
-
     const namedFlat = attackBonuses.filter((bonus) => (bonus.flat ?? 0) !== 0);
 
     events.push({
@@ -710,6 +729,7 @@ export function resolveAttack(
       family: 'attack',
       roller: id,
       against: command.target,
+      ability,
     })) {
       events.push({ type: 'roll-modifier-consumed', id: spent.holder, source: spent.source });
     }

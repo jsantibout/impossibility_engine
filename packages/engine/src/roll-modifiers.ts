@@ -99,10 +99,10 @@ export type RollRelation = 'roller' | 'against-holder';
  *
  * `ability` and `skill` are filters and both narrow rather than widen: absent
  * means the whole family. They are constrained to where they mean something —
- * an SRD attack roll is not a "Strength attack roll" in the language Advantage
- * is granted in, and a saving throw uses no skill — and the validator says so
- * rather than letting a definition express a rule the engine would then
- * quietly ignore.
+ * a saving throw uses no skill, Initiative is granted by name rather than as a
+ * Dexterity check, and a death save "isn't tied to an ability score" at all —
+ * and the validator says so rather than letting a definition express a rule
+ * the engine would then quietly ignore.
  *
  * The narrowing that matters most is the one that costs nothing to get wrong:
  * **an ability check and a saving throw of the same ability are different
@@ -116,11 +116,32 @@ export interface RollSelector {
   readonly roll: RollFamily;
   readonly relation: RollRelation;
   /**
-   * The ability the roll uses. Only for `ability-check` and `saving-throw`.
+   * The ability the roll uses. Not for `initiative` or `death-save`.
    *
    * A skill check uses an ability too, so a selector naming a skill may name
    * its ability as well — but they have to agree, or the selector describes a
    * roll nobody can make.
+   *
+   * **An attack roll is made with one, and the SRD narrows by it.** Reckless
+   * Attack: "Doing so gives you Advantage on attack rolls **using Strength**";
+   * Frenzy is written about the same swing. This field used to be refused on
+   * the family on the strength of a reading — that an SRD attack roll is not a
+   * "Strength attack roll" in the language Advantage is granted in — and the
+   * Barbarian's own feature is that sentence, so a mode that could not say it
+   * bought Advantage on every swing its holder made, the Dexterity rapier in
+   * the other hand included.
+   *
+   * What it matches is the ability the attack was **made** with rather than
+   * the one its weapon suggests, and that is a fact the attack path already
+   * settles for itself before anything is thrown: `attackAbility` resolves
+   * Finesse's "your choice of your Strength or Dexterity modifier" and a
+   * strike style's offer, and {@link RollQuery.ability} carries the answer. So
+   * a Rapier swung with Strength is a Strength attack roll and the same Rapier
+   * swung with Dexterity is not, which is how the book reads Finesse.
+   *
+   * The two families still refused are the two with no ability to name:
+   * Initiative is granted by that name rather than as a Dexterity check, and a
+   * death save "isn't tied to an ability score".
    */
   readonly ability?: Ability;
   /**
@@ -282,6 +303,20 @@ export interface RollQuery {
    * somehow reached state.
    */
   readonly against?: CharacterId | null;
+  /**
+   * The ability this roll is made with, where the roll has one.
+   *
+   * A check's and a save's, and — since Reckless Attack — an attack's: the one
+   * `attackAbility` settled from the weapon, the attacker's own choice where a
+   * rule offers two, and whatever a strike style offered. It is the *answer*
+   * rather than the question, which is what lets "attack rolls using Strength"
+   * pick out a Finesse weapon swung with Strength and pass over the same
+   * weapon swung with Dexterity.
+   *
+   * Absent on an attack nobody worked one out for, and an ability-keyed
+   * selector misses it rather than guessing — the reading `against` already
+   * takes of a roll with no recorded target.
+   */
   readonly ability?: Ability;
   readonly skill?: Skill;
 }
@@ -327,6 +362,21 @@ export function selectorMatches(
   return true;
 }
 
+/**
+ * The two families a selector may not name an ability on.
+ *
+ * The same two {@link RollFamily} keeps apart from the families they resemble,
+ * and for the same sentences: Initiative is granted by that name rather than
+ * as a Dexterity check, and a death save "isn't tied to an ability score".
+ * Written as the exceptions rather than as a list of the families that *do*
+ * take one, so a sixth family arrives taking an ability unless somebody says
+ * otherwise — which is the way round the SRD writes them.
+ */
+const ABILITY_LESS_ROLLS: ReadonlySet<RollFamily> = new Set<RollFamily>([
+  'initiative',
+  'death-save',
+]);
+
 /** One thing wrong with a selector, in the shape the definition validator uses. */
 export interface RollSelectorProblem {
   readonly code: string;
@@ -353,15 +403,12 @@ export function rollSelectorProblems(
 ): readonly RollSelectorProblem[] {
   const found: RollSelectorProblem[] = [];
 
-  // An attack roll uses an ability, but the SRD never grants Advantage on
-  // "Strength attack rolls" — the phrase it uses for that is "Strength-based
-  // D20 Tests", a different selector this vocabulary deliberately does not
-  // have. Initiative names no ability either, and a death save has none at all.
-  if (
-    selector.ability !== undefined &&
-    selector.roll !== 'ability-check' &&
-    selector.roll !== 'saving-throw'
-  ) {
+  // Initiative is granted by name rather than as a Dexterity check — Feral
+  // Instinct does not help a Barbarian pick a lock — and a death save "isn't
+  // tied to an ability score", so on both of these an ability-keyed selector
+  // would either miss every roll or catch every one. An attack roll *is* made
+  // with an ability and the SRD narrows by it: see {@link RollSelector.ability}.
+  if (selector.ability !== undefined && ABILITY_LESS_ROLLS.has(selector.roll)) {
     found.push({
       code: 'ability_on_ability_less_roll',
       reason: `a ${selector.roll} roll is not made with an ability in the sense Advantage is granted on one`,

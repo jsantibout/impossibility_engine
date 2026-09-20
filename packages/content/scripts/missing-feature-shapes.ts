@@ -120,8 +120,6 @@ export const FEATURE_SHAPES = {
     'a choice the book lets you take again after a rest. `docs/design/characters-and-equipment.md` names it and its first consumer — "**A grant that can be re-chosen on a rest.** Circle of the Land\'s spells" — and files every rule about swapping a prepared spell on a rest beside it. A `FeatureChoice` is answered once, at creation, and frozen into the sheet.',
   'an-attack-the-class-redefines':
     'a class that changes what an attack **is**. Two of the four ways it does so are built: a `strike-style` grant redefines the die and the ability of a class\'s Unarmed Strike and of the weapons that class names, and the Bonus Action strike it hands out is paid for out of the Bonus Action the economy already holds. What is left is the other two, and they are the ones that touch the action economy or the damage itself — a damage **type** the holder chooses on each hit, and an attack traded for something else: two more Unarmed Strikes bought with a Focus Point, the swing the Light property gives that nothing pays for, a breath weapon put in an Attack action\'s place. `docs/design/characters-and-equipment.md` files the neighbouring half of the same gap — "**Extra attacks inside the Attack action.** The economy counts one Attack action, not the attacks in it".',
-  'an-attack-roll-selected-by-the-ability-it-uses':
-    'an attack-roll modifier narrowed to the ability the swing was made with. `RollSelector` in packages/engine/src/roll-modifiers.ts allows an ability on a check and a save and refuses one on an attack, and says why: they "are filters and both narrow rather than widen: absent means the whole family". SRD Reckless Attack buys Advantage "on attack rolls using Strength" and would otherwise buy it on every attack the Barbarian makes.',
   'a-move-a-feature-hands-its-holder':
     'a move a feature gives away, outside the turn\'s allowance and outside anybody\'s command. `docs/design/space-and-areas.md` records the neighbouring half — "forced movement passes `forced: true`" — and that is a move somebody makes to somebody else. Half your Speed as part of a Bonus Action, a Withdraw that provokes nothing, a Step of the Wind that carries an ally: each is movement no grant kind can offer.',
   'a-speed-a-feature-reduces':
@@ -227,18 +225,6 @@ export type FeatureEntry = readonly FeatureClause[];
  */
 export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   // — Barbarian —
-  'barbarian:reckless-attack': [
-    {
-      clause: 'a `RollSelector` allows an ability only on an ability check and a saving throw',
-      why: 'an-attack-roll-selected-by-the-ability-it-uses',
-      note: 'the whole of what is left: the stance itself is an activated feature with no cost and a start-of-next-turn deadline.',
-    },
-    {
-      clause: 'is `against-holder` and is expressible today',
-      why: 'expressible',
-      note: 'the half a standing roll-mode already says, and the reason this feature is one shape away rather than two.',
-    },
-  ],
   'barbarian:instinctive-pounce': [
     {
       clause: 'no feature hands its holder a move that costs nothing out of the turn’s allowance',
@@ -248,9 +234,9 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
   'barbarian:brutal-strike': [
     {
-      clause: 'it needs Reckless Attack before anything else',
-      why: 'an-attack-roll-selected-by-the-ability-it-uses',
-      note: 'inherited: the feature it is written on top of cannot be built, so this one cannot be either.',
+      clause: 'Reckless Attack is a stance a requirement can read now',
+      why: 'expressible',
+      note: 'recorded because the note used to claim the opposite: the feature this one is written on top of is built, so what is left is the three clauses below.',
     },
     {
       clause: 'Forgoing a mode you were granted is a price no feature can pay',
@@ -326,18 +312,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'the check machinery substitutes nothing',
       why: 'a-roll-result-an-effect-replaces',
       note: 'the D20 Test half of the substitution the damage dice already have.',
-    },
-  ],
-  'berserker:frenzy': [
-    {
-      clause: 'a standing effect may require a named feature to be active',
-      why: 'expressible',
-      note: 'recorded because the note used to claim otherwise: Mindless Rage reads the Barbarian’s Rage through exactly this.',
-    },
-    {
-      clause: 'no selector can narrow an attack roll to the ability it was made with',
-      why: 'an-attack-roll-selected-by-the-ability-it-uses',
-      note: 'inherited from Reckless Attack, which this feature is written in terms of.',
     },
   ],
   'berserker:mindless-rage': [

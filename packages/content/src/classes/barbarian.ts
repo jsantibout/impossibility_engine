@@ -149,8 +149,34 @@ export const BARBARIAN: ClassDefinition = {
       id: 'barbarian:reckless-attack',
       name: 'Reckless Attack',
       level: 2,
-      automation: 'manual',
-      note: 'Not applied, and the stance is no longer the reason: an activated feature runs to the start of the holder’s next turn, grants standing effects while it runs, and may cost no action and no use at all. What no grant can say is the narrowing. SRD: "Doing so gives you Advantage on attack rolls using Strength" — a `RollSelector` allows an ability only on an ability check and a saving throw, because an SRD attack roll is not a Strength attack roll in the language Advantage is granted in, so the mode would reach every swing the Barbarian makes. The other half, "attack rolls against you have Advantage", is `against-holder` and is expressible today.',
+      automation: 'engine',
+      note: 'SRD: "When you make your first attack roll on your turn, you can decide to attack recklessly. Doing so gives you Advantage on attack rolls using Strength until the start of your next turn, but attack rolls against you have Advantage during that time." Executed as a stance costing nothing — no action and no use — running to the start of the Barbarian’s next turn, which is the moment both halves of the sentence name. Both halves are standing modes while it runs: the Advantage is narrowed to the ability the swing was actually made with, so the Finesse weapon in the other hand buys it with Strength and not with Dexterity, and the price is `against-holder`, which is every attack roll made against the Barbarian. What the engine does not enforce is "when you make your first attack roll on your turn", which is a moment nothing in the turn records: a Barbarian who declares it after swinging twice is taking the stance a beat late and the engine has nothing to measure that against.',
+      grants: {
+        kind: 'activated',
+        // SRD charges nothing for it: no action, and no pool to spend.
+        action: 'none',
+        pool: null,
+        lasts: 'start-of-next-turn',
+        whileActive: [
+          {
+            kind: 'roll-mode',
+            modifier: {
+              mode: 'advantage',
+              // "attack rolls using Strength" — the ability the swing was made
+              // with, which is what narrows this to half the Barbarian's kit.
+              selector: { roll: 'attack', relation: 'roller', ability: 'str' },
+            },
+          },
+          {
+            kind: 'roll-mode',
+            modifier: {
+              mode: 'advantage',
+              // "but attack rolls against you have Advantage during that time."
+              selector: { roll: 'attack', relation: 'against-holder' },
+            },
+          },
+        ],
+      },
     },
     {
       id: 'barbarian:subclass',
@@ -234,7 +260,7 @@ export const BARBARIAN: ClassDefinition = {
       name: 'Brutal Strike',
       level: 9,
       automation: 'manual',
-      note: 'Not applied, and it needs Reckless Attack before anything else. Forgoing a mode you were granted is a price no feature can pay; Forceful Blow pushes the target fifteen feet and then moves the Barbarian half their Speed toward it, and no feature reaches either; and Hamstring Blow reduces a Speed, which the Speed grant deliberately leaves to the condition layer.',
+      note: 'Not applied. It is written on top of Reckless Attack, and Reckless Attack is a stance a requirement can read now, so that is no longer what blocks it. Forgoing a mode you were granted is a price no feature can pay; Forceful Blow pushes the target fifteen feet and then moves the Barbarian half their Speed toward it, and no feature reaches either; and Hamstring Blow reduces a Speed, which the Speed grant deliberately leaves to the condition layer.',
     },
     {
       id: 'barbarian:relentless-rage',
@@ -332,8 +358,31 @@ export const PATH_OF_THE_BERSERKER: SubclassDefinition = {
       id: 'berserker:frenzy',
       name: 'Frenzy',
       level: 3,
-      automation: 'manual',
-      note: 'Not applied, and being inside a Rage is no longer the reason: a standing effect may require a named feature to be active, which is how Mindless Rage reads the Barbarian’s own Rage. What blocks this one is Reckless Attack. SRD: "If you use Reckless Attack while your Rage is active, you deal extra damage to the first target you hit on your turn with a Strength-based attack" — Reckless Attack is manual because no selector can narrow an attack roll to the ability it was made with, so there is no stance here for a requirement to read.',
+      automation: 'engine',
+      note: 'SRD: "If you use Reckless Attack while your Rage is active, you deal extra damage to the first target you hit on your turn with a Strength-based attack. To determine the extra damage, roll a number of d6s equal to your Rage Damage bonus, and add them together. The damage has the same type as the weapon or Unarmed Strike used for the attack." Executed as extra damage on a qualifying hit: both conditions are features this Barbarian has switched on, the narrowing to a Strength-based attack is the ability the swing was made with, the dice are the Rage Damage column read at the Barbarian’s own level, and the type is absent because a bonus is of the weapon’s own type — which is what "the same type as the weapon or Unarmed Strike" says. One clause is looser than the book: "the first target you hit on your turn" is counted as once per turn, and a turn is anybody’s turn, so an Opportunity Attack made while the stance is still running deals the dice a second time.',
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        requires: [
+          { kind: 'feature-active', feature: 'barbarian:rage' },
+          { kind: 'feature-active', feature: 'barbarian:reckless-attack' },
+        ],
+        effects: [
+          {
+            kind: 'attack-damage',
+            // "a number of d6s equal to your Rage Damage bonus": the die is
+            // printed and the count is the class table's, read below.
+            dice: '1d6',
+            usingAbility: 'str',
+            // "the **first** target you hit on your turn".
+            oncePerTurn: true,
+          },
+        ],
+        // The Rage Damage column, read at the Barbarian's own level exactly as
+        // Rage reads it for its flat bonus — a subclass feature counting the
+        // class's own table rather than retyping it.
+        diceCountByLevel: RAGE_DAMAGE,
+      },
     },
     {
       id: 'berserker:mindless-rage',

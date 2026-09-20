@@ -512,10 +512,27 @@ export function defendingModes(
   state: GameState,
   attacker: CharacterId,
   target: CharacterId,
+  /**
+   * The ability this swing is being made with, where the caller has settled
+   * one.
+   *
+   * SRD Reckless Attack grants Advantage on "attack rolls using Strength", so
+   * a gatherer that could not say which ability the swing used handed the
+   * benefit to every swing its holder made. It is the *settled* answer —
+   * `attackAbility`, past Finesse's choice and a style's offer — and a caller
+   * with none says so rather than guessing, which an ability-keyed selector
+   * reads as a miss.
+   */
+  ability?: Ability | null,
 ): { readonly modes: readonly ModeSource[]; readonly unverified: readonly string[] } {
   return rollModesFor(
     state,
-    { family: 'attack', roller: attacker, against: target },
+    {
+      family: 'attack',
+      roller: attacker,
+      against: target,
+      ...(ability === undefined || ability === null ? {} : { ability }),
+    },
     { seenByHolder: canSee(state, target, attacker) },
   );
 }
