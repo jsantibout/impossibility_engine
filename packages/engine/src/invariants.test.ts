@@ -280,12 +280,15 @@ const SETUP: readonly GameEvent[] = [
 ];
 
 /**
- * The same world with no fight in it.
+ * The same world with no fight in it, which is the only world `advanceTime`
+ * may be sent to.
  *
- * `SETUP` opens with Initiative rolled, and the rest below is measured in
- * hours: a Short Rest taken between two swings is not a thing the table means.
- * Derived by taking the fight out rather than by writing a second setup, so
- * the two cannot drift apart.
+ * The clock inside a fight is the turn order's — `withCombat` charges six
+ * seconds a round — so a declared advance is refused `in_combat`, and a sweep
+ * that ran it against `SETUP` would be reading that refusal rather than the
+ * identity it is about. Derived by taking the fight out rather than by writing
+ * a second setup, and checked below in both directions so it cannot drift into
+ * being a different fixture.
  */
 const OUT_OF_COMBAT: readonly GameEvent[] = SETUP.filter(
   (event) => event.type !== 'combat-started',
@@ -1767,8 +1770,11 @@ const GUARDED: readonly Guarded[] = [
     run: (s, commandId) => joinCombat(s, { id: C, initiative: 15, speed: 30 }, { commandId }),
   },
   {
+    // The one entry that cannot use `SETUP`: a declared advance is refused
+    // inside a fight, so the identity is swept in the world the command is
+    // for. See {@link OUT_OF_COMBAT}.
     name: 'advanceTime',
-    log: SETUP,
+    log: OUT_OF_COMBAT,
     run: (s, commandId) => advanceTime(s, 600, 'searching the vault', { commandId }),
   },
   {
@@ -2812,7 +2818,7 @@ const DECLARED_NOT_ACTED: Readonly<Record<string, string>> = {
   beginCombat:
     'not an action in the turn economy: it is the moment the economy starts existing, so there is no budget yet for it to spend',
   advanceTime:
-    'not an action in the turn economy: outside combat there are no turns, and how long the party spent searching the vault is narration',
+    'not an action in the turn economy: outside combat there are no turns, and how long the party spent searching the vault is narration. Inside one it is refused — the clock there is the turn order’s — and that refusal is about who owns the clock rather than about anybody’s budget, which is what REFUSED_BY_THE_CLOCK below makes a test rather than a sentence',
   declareDawn:
     'not an action in the turn economy: the sun coming up is a fact the DM declares, it happens to the world rather than to anybody in it, and no SRD rule spends a turn’s budget on a sunrise — it costs the fighter mid-swing exactly nothing',
   declareSpellcasting:
@@ -3002,12 +3008,57 @@ describe('the DM-declared commands declare facts rather than taking actions', ()
     expect(fold('s', owedAndWatching()).owedAreaEffects.length).toBeGreaterThan(0);
   });
 
+  /**
+   * The one command here that this fixture refuses, and the code it refuses
+   * with — because the fixture is a **fight** and the clock inside one is the
+   * turn order's, not because anybody owes anything.
+   *
+   * Written down rather than skipped, and then checked three ways below: the
+   * code is the one named, the same refusal comes back from a fight owing
+   * nothing at all, and the command succeeds against the same world with the
+   * fight taken out. Together those say the refusal tracks the fight and not
+   * the debt, which is the claim this whole sweep is about. A second entry
+   * here would have to earn the same three.
+   */
+  const REFUSED_BY_THE_CLOCK: Readonly<Record<string, string>> = {
+    advanceTime: 'in_combat',
+  };
+
+  it('names only commands this sweep actually runs', () => {
+    const names = new Set(declaring.map((entry) => entry.name));
+    expect(Object.keys(REFUSED_BY_THE_CLOCK).filter((name) => !names.has(name))).toEqual([]);
+  });
+
   for (const entry of declaring) {
     it(`${entry.name}: allowed while an area effect is owed`, () => {
       const out = entry.run(fold('s', owedAndWatching()));
-      expect(isErr(out) ? `${out.code}: ${out.reason}` : 'ok').toBe('ok');
+      const refusal = REFUSED_BY_THE_CLOCK[entry.name];
+      if (refusal === undefined) {
+        expect(isErr(out) ? `${out.code}: ${out.reason}` : 'ok').toBe('ok');
+        return;
+      }
+
+      expect(isErr(out) ? out.code : 'ok').toBe(refusal);
+      // A fight with nothing owed answers the same, so the debt is not what
+      // refused it …
+      expect(fold('s', SETUP).owedAreaEffects).toEqual([]);
+      const quiet = entry.run(fold('s', SETUP));
+      expect(isErr(quiet) ? quiet.code : 'ok').toBe(refusal);
+      // … and the same world with no fight in it does not refuse at all.
+      const peace = entry.run(fold('s', OUT_OF_COMBAT));
+      expect(isErr(peace) ? `${peace.code}: ${peace.reason}` : 'ok').toBe('ok');
     });
   }
+
+  /**
+   * And the peacetime fixture is `SETUP` with one event taken out, rather than
+   * a second setup that could drift away from it.
+   */
+  it('takes nothing but the fight out of the peacetime fixture', () => {
+    expect(fold('s', SETUP).combat).not.toBeNull();
+    expect(fold('s', OUT_OF_COMBAT).combat).toBeNull();
+    expect(SETUP.length - OUT_OF_COMBAT.length).toBe(1);
+  });
 });
 
 /**

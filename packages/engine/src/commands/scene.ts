@@ -39,6 +39,16 @@
  * that does check, because `spellcasting-declared`'s own reducer case reads
  * the creature and throws.
  *
+ * **`advanceTime`'s `in_combat` is the one refusal here that is not the
+ * reducer's**, and it is written down rather than left to be discovered. The
+ * reducer cannot be taught this one: `golden-log-2.json` advances the clock
+ * five times inside a fight nothing ever ended, so a fold that threw would be
+ * a migration of a frozen log rather than a rule. Nor is it the same claim —
+ * "the clock in a fight belongs to the turn order" is about which *author* may
+ * write the event, and the reducer's business is whether an event can be
+ * applied at all. So the rule sits at the only door that has an author, which
+ * is a command, and a log that already holds one folds exactly as it did.
+ *
  * **3. A missing fact is homework, not a verdict, and it says which fact.**
  * `needs-context` with a request — a `scene` when there is no room to be in,
  * and a `position` when the *anchor* a placement is measured from is not
@@ -344,6 +354,29 @@ export function beginCombat(
  * narration, so it arrives as an event. Whole seconds forwards, which is the
  * reducer's own rule: every duration the game names is a whole number of them,
  * so a fraction is not a shorter span but a log that cannot mean anything.
+ *
+ * **And the first sentence is a refusal now, not a remark.** It had been
+ * written here since the command landed and nothing enforced it, so a session
+ * holding this could say "eight hours pass" on the goblin's turn: every span
+ * hung on the clock expires at once, the turn order does not move, and
+ * `withCombat` then charges the fight's own six seconds *on top* of an hour
+ * the fold never counted. A rest measured against that clock is a rest nobody
+ * took. The gap was found from above the engine, by a caller that could not
+ * fix it in a layer that holds no rules.
+ *
+ * **Outright, rather than only what would cross a deadline.** The narrower
+ * rule was the other candidate and it is not a rule about the clock: it would
+ * pass eight declared hours in a fight where nothing happened to be hanging —
+ * which is a Long Rest taken between two swings — and refuse the same
+ * sentence in the fight next door for a reason about the room rather than
+ * about time. A fight's seconds are the turn order's, all of them, or they are
+ * not.
+ *
+ * What a caller who genuinely wants the clock to move inside a fight has is
+ * the turn order: `resolveTurn` charges six seconds a round, which is what a
+ * round costs. What nobody has is a command that ends a fight — `combat-ended`
+ * is written only when the last combatant is removed — so the reason names the
+ * order rather than pointing at a door that is not there.
  */
 export function advanceTime(
   state: GameState,
@@ -356,6 +389,13 @@ export function advanceTime(
       return err(
         'not_whole_seconds',
         `time runs forwards in whole seconds, and ${seconds} is not one of them`,
+      );
+    }
+
+    if (state.combat !== null) {
+      return err(
+        'in_combat',
+        `a fight is running, and inside one the clock is the turn order's: a round is six seconds and the fold charges them as the order wraps, so ${seconds} declared here would be counted twice over and would expire this fight's own deadlines without a turn being taken`,
       );
     }
 
