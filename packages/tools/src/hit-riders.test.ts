@@ -19,14 +19,23 @@
  * **And the report beside it.** SRD writes every one of these as "you can", so
  * a rider is elected or it does not happen — and a caller that has not been
  * told it holds one cannot elect it. `sheet` reports the feature, the menu and
- * `spentBy: 'attack'`, which is the half-a-door rule `SPENT_BY` exists for.
+ * `spentBy: 'attack'`, which is the half-a-door rule `SPENT_BY` exists for. It
+ * reports the *clause* too, and that is the one addition worth arguing for: the
+ * feature id, the option id and what is left of the pool make three of the four
+ * refusals foreseeable, and "with a Monk weapon or an Unarmed Strike" is the
+ * fourth. A caller shown the option and not the sentence swings a longsword.
  *
  * This file imports no engine.
  */
 
 import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
-import { createCampaign, createSurface, type ToolOutcome } from '@ie/tools';
+import {
+  createCampaign,
+  createDmSurface,
+  createSurface,
+  type ToolOutcome,
+} from '@ie/tools';
 
 /**
  * A Monk at the level Stunning Strike arrives, holding the spear its own
@@ -73,12 +82,17 @@ const monk = (name: string): Record<string, unknown> => ({
 function table(seed: string) {
   const campaign = createCampaign({ content: SRD_CONTENT, seed });
   const surface = createSurface(campaign);
+  const dm = createDmSurface(campaign);
   let calls = 0;
 
   const call = (tool: string, input: unknown = {}): ToolOutcome =>
     surface.call({ tool, input, commandId: `toolu_${(calls += 1)}` });
 
-  return { campaign, surface, call };
+  /** The DM's door, over the same campaign, for the one thing a model may not do. */
+  const rule = (tool: string, input: unknown = {}): ToolOutcome =>
+    dm.call({ tool, input, commandId: `dm_${(calls += 1)}` });
+
+  return { campaign, surface, call, rule };
 }
 
 const expectOk = (outcome: ToolOutcome) => {
@@ -232,7 +246,56 @@ describe('a caller can see the rider it is asked to elect', () => {
       kind: 'hit-rider',
       spentBy: 'attack',
       pool: 'focus-points',
-      onHit: [{ option: 'stun', name: 'Stunning Strike' }],
+      onHit: [{ option: 'stun', name: 'Stunning Strike', oncePerTurn: true }],
     });
+  });
+
+  /**
+   * And the clause, which is the one refusal of the four a caller could not
+   * otherwise see coming.
+   *
+   * The feature id, the option id and what is left of the pool are all on the
+   * line already, so `no_such_feature`, `no_such_option` and `exhausted` are
+   * each foreseeable from the report. `weapon_not_covered` was not: SRD
+   * Stunning Strike rides on "a Monk weapon or an Unarmed Strike", and a caller
+   * shown the option and not the sentence elects it with a longsword.
+   */
+  it('says which weapons the feature’s own sentence covers, and that a fist counts', () => {
+    const t = table('sheet');
+    expectOk(t.call('create_character', { id: 'suri', choices: monk('Suri') }));
+    const held = expectOk(t.call('sheet', { who: 'suri' })).resolution as Record<string, unknown>;
+    const features = held['features'] as readonly Record<string, unknown>[];
+    const found = features.find((one) => one['feature'] === 'monk:stunning-strike')!;
+    const onHit = found['onHit'] as readonly Record<string, unknown>[];
+
+    expect(onHit[0]!['unarmedStrike']).toBe(true);
+    expect(onHit[0]!['weapons']).toEqual([
+      { category: 'simple', kind: 'melee' },
+      { category: 'martial', kind: 'melee', properties: ['light'] },
+    ]);
+  });
+
+  /**
+   * The refusal the clause foresees, arriving as the report said it would — and
+   * costing nothing, because the engine asks before it rolls.
+   */
+  it('refuses a swing the sentence does not cover, naming what it wanted', () => {
+    const t = fight('stun-0');
+    const before = focusLeft(t, 'suri');
+    // Through the DM's door, because handing out what a party found is the
+    // DM's call — and a Monk's own package holds nothing this clause excludes.
+    expectOk(
+      t.rule('award_items', {
+        who: 'suri',
+        items: [{ id: 'greataxe' }],
+        because: 'taken off the dead orc',
+      }),
+    );
+
+    const refused = expectRefused(
+      t.call('attack', { attacker: 'suri', target: 'grish', weapon: 'greataxe', onHit: STUN }),
+    );
+    expect(refused.code).toBe('weapon_not_covered');
+    expect(focusLeft(t, 'suri')).toBe(before);
   });
 });

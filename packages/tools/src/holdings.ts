@@ -25,7 +25,7 @@
  */
 
 import type { CharacterId } from '@ie/shared';
-import type { FeatureReactionWindow, GameState } from '@ie/engine';
+import type { FeatureReactionWindow, GameState, WeaponSelector } from '@ie/engine';
 import {
   armorClassOf,
   attunedItems,
@@ -134,9 +134,22 @@ export interface HeldPoolOption {
  * {@link HeldPoolOption} without the price in the action economy, and the
  * absence is the difference between the two: a pool option is a purchase
  * somebody makes *with* an Action or a Bonus Action, and a rider is a purchase
- * made with a hit. So it carries the allowance the SRD prints on it instead —
- * "Once per turn" — which is the only bound a caller can plan around and the
- * one refusal of the four it can see coming.
+ * made with a hit.
+ *
+ * **What it carries instead is the qualification**, which is the one thing
+ * about a rider a caller cannot work out from anything else it is shown. The
+ * engine refuses a swing the feature's own sentence does not cover —
+ * `weapon_not_covered`, before the attack is rolled — and SRD Stunning
+ * Strike's sentence is "with a Monk weapon or an Unarmed Strike": two clauses,
+ * because an Unarmed Strike is in no set of weapons. A caller handed the
+ * option id and not the clause would elect it with a longsword and be refused
+ * by a rule it was never told.
+ *
+ * **It is still the record and not a verdict.** Which weapon is in hand is not
+ * a fact about the character, so nothing here says whether *this* swing
+ * qualifies: that is the command's answer, asked at the moment of the swing.
+ * The selectors are the sheet's own, passed through rather than rephrased,
+ * because a second phrasing of a rule is a second thing to keep in step.
  */
 export interface HeldHitOption {
   /** The id `attack.onHit.option` takes — SRD's `stun`. */
@@ -145,6 +158,10 @@ export interface HeldHitOption {
   readonly name: string;
   /** SRD: "Once per turn when you hit a creature". */
   readonly oncePerTurn: boolean;
+  /** The weapons the sentence covers. Absent where it asks for none. */
+  readonly weapons?: readonly WeaponSelector[];
+  /** Whether an Unarmed Strike counts, which no set of weapons can say. */
+  readonly unarmedStrike?: boolean;
 }
 
 export interface HeldFeature {
@@ -558,10 +575,22 @@ export function holdingsOf(state: GameState, id: CharacterId): Holdings | null {
    *
    * The action is `null` rather than `'none'`: a rider costs no action because
    * it is not bought with one, which is a recovery's answer to the same field.
+   *
+   * **A feature is listed once and the first claim on its id wins**, which is
+   * this list's rule and not this loop's. A feature granting both a pool menu
+   * and a rider would therefore be reported as the pool and lose its `onHit`;
+   * nothing in the catalogue does, and the day one does the fix is a line that
+   * merges the two rather than a second entry under one id.
    */
   const riders = new Map<string, HeldHitOption[]>();
   for (const one of sheet.hitOptions ?? []) {
-    const entry = { option: one.option, name: one.name, oncePerTurn: one.oncePerTurn === true };
+    const entry = {
+      option: one.option,
+      name: one.name,
+      oncePerTurn: one.oncePerTurn === true,
+      ...(one.weapons === undefined ? {} : { weapons: one.weapons }),
+      ...(one.unarmedStrike === undefined ? {} : { unarmedStrike: one.unarmedStrike }),
+    };
     const found = riders.get(one.feature);
     if (found === undefined) riders.set(one.feature, [entry]);
     else found.push(entry);
