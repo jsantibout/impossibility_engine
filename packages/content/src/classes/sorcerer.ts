@@ -169,7 +169,17 @@ export const SORCERER: ClassDefinition = {
       name: 'Innate Sorcery',
       level: 1,
       automation: 'manual',
-      note: 'The +1 to spell save DC and Advantage on spell attacks for one minute are not applied, and the twice-per-long-rest limit is not tracked.',
+      note: 'Half of it is applied, which is why this is not marked as executed. SRD: "You can use this feature twice, and you regain all expended uses when you finish a Long Rest" — two uses declared as a pool, counted and recovered, which is what Sorcery Incarnate at level 7 buys back with Sorcery Points. The rest is not: the +1 to spell save DC and Advantage on spell attacks are two benefits no standing effect states, they run for one minute, which is a printed span rather than a turn boundary, and switching the feature on at all is an activation this feature has no second grant to carry beside the pool.',
+      grants: {
+        kind: 'pool',
+        key: 'innate-sorcery',
+        label: 'Innate Sorcery',
+        // "You can use this feature twice" — a flat two at every level, which
+        // is the sizing that names no shape: the Sorcerer table prints no
+        // column for it, because the number never moves.
+        minimum: 2,
+        recovers: 'long-rest',
+      },
     },
     {
       id: 'sorcerer:font-of-magic',
@@ -243,7 +253,23 @@ export const SORCERER: ClassDefinition = {
       name: 'Sorcery Incarnate',
       level: 7,
       automation: 'manual',
-      note: 'Using two Metamagic options on one spell, and spending Sorcery Points to use Innate Sorcery again, are not modelled.',
+      note: 'Half of it is applied, which is why this is not marked as executed. SRD: "If you use your Innate Sorcery feature when you have no uses of it left, you can expend 2 Sorcery Points to use it" — two points spent on the pool Innate Sorcery declares, with no action and no limit, and legal only while that pool is empty, which is the clause the sentence turns on. A trade gives back what was spent, so a Sorcerer who has spent no use is refused rather than handed a third. Using two Metamagic options on one spell is the other sentence and is not applied: a later feature lifting an earlier one’s printed limit is a shape no grant says.',
+      grants: {
+        kind: 'trade',
+        trades: [
+          {
+            id: 'points-for-innate-sorcery',
+            name: 'Sorcery Incarnate',
+            // The sentence charges nothing in the action economy.
+            action: 'none',
+            spends: { kind: 'pool', key: 'sorcery-points', uses: 2 },
+            gains: { kind: 'pool', key: 'innate-sorcery', uses: 1 },
+            limit: 'unlimited',
+            // "when you have no uses of it left".
+            onlyIfEmpty: 'innate-sorcery',
+          },
+        ],
+      },
     },
     {
       id: 'sorcerer:ability-score-improvement-2',

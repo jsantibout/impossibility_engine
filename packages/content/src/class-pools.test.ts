@@ -303,7 +303,12 @@ describe('a feature that claims a pool declares one', () => {
       // And `reaction`, which either declares a pool of its own — Indomitable,
       // Dark One's Own Luck — or spends one another feature declared, as
       // Cutting Words spends Bardic Inspiration.
-      (grant?.kind === 'reaction' && grant.pool !== undefined);
+      (grant?.kind === 'reaction' && grant.pool !== undefined) ||
+      // And `trade`, which declares a pool of one for either of the two
+      // sentences that need one and have no second grant to say it with: Wild
+      // Resurgence's own daily limit, and the single use of Holy Nimbus that
+      // an unlimited trade exists to buy back.
+      (grant?.kind === 'trade' && grant.trades.some((one) => one.pool !== undefined));
     expect(declares).toBe(true);
   });
 
@@ -340,6 +345,10 @@ describe('a feature that claims a pool declares one', () => {
       'channel-divinity',
       'channel-divinity',
       'focus-points',
+      // SRD Innate Sorcery: "You can use this feature twice." The benefits it
+      // switches on are the table's, and the uses are counted here because
+      // Sorcery Incarnate buys one back and a trade fills a pool or nothing.
+      'innate-sorcery',
       'lay-on-hands',
       'second-wind',
       'sorcery-points',

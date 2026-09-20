@@ -983,6 +983,28 @@ export interface PoolOption {
   readonly durationSeconds?: number;
   readonly endsEarly?: readonly EffectEndCause[];
   readonly damageTypeStated?: readonly string[];
+  /**
+   * The hit points one use mints and divides — SRD Preserve Life.
+   *
+   * `HitPointDivision` with the class table read out of it, exactly as the
+   * dice above are: "five times your Cleric level" is fifteen at Cleric 3, and
+   * the command sees a number rather than a multiplier and a level to find.
+   */
+  readonly distributes?: HitPointBudget;
+}
+
+/**
+ * A budget of hit points a use of a pool option mints, resolved at creation.
+ *
+ * The cap and the excluded types come across as they were written, because
+ * neither reads a class table: what the cap is measured against is the
+ * *target's* maximum at the moment of use, and a creature type is a fact about
+ * whoever is on the other end.
+ */
+export interface HitPointBudget {
+  readonly hitPoints: number;
+  readonly cap: 'half-maximum';
+  readonly excludesTypes?: readonly string[];
 }
 
 /**
@@ -1282,8 +1304,12 @@ export interface TradeFeature {
    */
   readonly spends: { readonly key: string | null; readonly uses: number };
   readonly gains: { readonly key: string; readonly uses: number };
-  readonly limit: 'once-per-turn' | 'once-per-long-rest';
-  /** The pool of one this feature's daily limit lives in. */
+  readonly limit: 'once-per-turn' | 'once-per-long-rest' | 'unlimited';
+  /**
+   * The pool of one the trade declares — the daily limit it lives in where
+   * {@link limit} is `once-per-long-rest`, and the feature's own single use
+   * that an `unlimited` trade buys back. See `ResourceTradeGrant.pool`.
+   */
   readonly pool?: string;
   /** SRD: "if you have no uses of Wild Shape left". */
   readonly onlyIfEmpty?: string;

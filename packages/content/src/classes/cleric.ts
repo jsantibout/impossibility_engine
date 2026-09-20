@@ -399,8 +399,39 @@ export const LIFE_DOMAIN: SubclassDefinition = {
       id: 'life-domain:preserve-life',
       name: 'Preserve Life',
       level: 3,
-      automation: 'manual',
-      note: 'Dividing five times your Cleric level in hit points among Bloodied creatures, capped at half their maximum, is not modelled.',
+      automation: 'engine',
+      note: 'Executed, and executed as a third form of Channel Divinity rather than as a feature with a resource of its own: SRD prints "you can use your Channel Divinity to heal", so the use comes out of the pool the class feature sized and a level 6 Cleric spends their three in any combination across Turn Undead, Divine Spark and this. What one use mints is "a number of Hit Points equal to five times your Cleric level", divided among the creatures the caller names — the division is the Cleric’s decision and the engine makes none of it, exactly as the slot a trade burns is the caster’s. Three clauses bound it and all three are checked before a hit point is paid: "within 30 feet of yourself", "no more than half its Hit Point maximum", and "You can’t use this feature on an Undead or a Construct". "Choose Bloodied creatures" needs no check of its own, because it is the same line the cap draws: a creature above half its maximum has no room under the cap at all. What stays the table’s is the choosing itself — which Bloodied creature the Cleric walks to is fiction, and the command is told the answer.',
+      grants: {
+        kind: 'pool-options',
+        // The menu is Channel Divinity's and this is a door onto it. A pool of
+        // this feature's own would be two pools where the book prints one.
+        feature: 'cleric:channel-divinity',
+        options: [
+          {
+            id: 'preserve-life',
+            name: 'Preserve Life',
+            // SRD: "As a Magic action".
+            action: 'action',
+            // "Choose Bloodied creatures within 30 feet of yourself (which can
+            // include you)": a reach measured to each creature a share names,
+            // and the Cleric is one of the creatures it may name.
+            reach: 30,
+            // The division is the whole of what the use does, so there is no
+            // effect list to run.
+            effects: [],
+            distributes: {
+              // "restore a number of Hit Points equal to five times your
+              // Cleric level".
+              hitPoints: { perClassLevel: 5 },
+              // "This feature can restore a creature to no more than half its
+              // Hit Point maximum."
+              cap: 'half-maximum',
+              // "You can't use this feature on an Undead or a Construct."
+              excludesTypes: ['Undead', 'Construct'],
+            },
+          },
+        ],
+      },
     },
     {
       id: 'life-domain:blessed-healer',

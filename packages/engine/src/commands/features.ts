@@ -37,11 +37,12 @@ import { type CommandIdentity, once } from '../idempotency.js';
 import { conferredSource, featureSource } from '../progression.js';
 import { remaining } from '../resources.js';
 import { type RollIssuer, rollRecorded } from '../rolls.js';
-import { statedDamageType, type SpellEffect } from '../spell-definitions.js';
+import { isCreatureType, statedDamageType, type SpellEffect } from '../spell-definitions.js';
 import {
   type ActivatedFeature,
   canSee,
   type HealAmount,
+  type HitPointBudget,
   type PoolOption,
   recoveryCap,
   selfHealAddend,
@@ -753,6 +754,25 @@ export interface UsePoolOptionCommand extends CommandIdentity {
   readonly target?: CharacterId;
   /** Which of the damage types the option prints, where it prints a choice. */
   readonly damageType?: string;
+  /**
+   * How the hit points a distributing option mints are divided — SRD Preserve
+   * Life's "Choose Bloodied creatures within 30 feet of yourself (which can
+   * include you), and divide those Hit Points among them."
+   *
+   * **The division is the caller's, exactly as the slot a trade burns is.**
+   * The engine works out the budget, measures the reach and holds every share
+   * to the cap; which creature gets how much is a decision the SRD gives the
+   * Cleric and nothing here could make for them. It is not a number the caller
+   * produced about a *roll* — no die is thrown by this option at all — and the
+   * total is refused rather than trusted.
+   */
+  readonly among?: readonly HitPointShare[];
+}
+
+/** One creature's share of a distributing option's hit points. */
+export interface HitPointShare {
+  readonly target: CharacterId;
+  readonly hitPoints: number;
 }
 
 /** What a use of a pool option did. */
@@ -820,6 +840,20 @@ export function usePoolOption(
       return err(
         'no_such_option',
         `${command.feature} buys ${offered.map((one) => one.option).join(', ')}, not ${command.option}`,
+      );
+    }
+
+    // A form that mints hit points and divides them is the one purchase on a
+    // menu that resolves no effects at all, so it settles here and takes the
+    // rest of this command's discipline with it: everything checked, then the
+    // action, then the use, then what it bought.
+    if (option.distributes !== undefined) {
+      return divideHitPoints(state, id, option, option.distributes, command, stamp);
+    }
+    if (command.among !== undefined) {
+      return err(
+        'nothing_to_divide',
+        `${option.name} mints no hit points, so there is nothing for shares to divide`,
       );
     }
 
@@ -943,6 +977,146 @@ export function usePoolOption(
 
     return ok({ events, outcomes: resolved.value.outcomes, unverified });
   });
+}
+
+/**
+ * Spend one use to mint a budget of hit points and divide it — SRD Preserve
+ * Life.
+ *
+ * The one purchase on a menu that runs no effect at all, and the reason is the
+ * sentence: "divide those Hit Points among them" hands the *amounts* to the
+ * Cleric, where every effect in the vocabulary carries its own amount and
+ * reaches each target alike. So what arrives is a list of shares and what this
+ * does is check every one of them before a single hit point is paid — the
+ * whole-drawing-validated-first discipline `useHealingTouch` keeps for the
+ * same reason, one feature along.
+ *
+ * Four refusals and each is the SRD's own clause:
+ *
+ * - **the budget** — "a number of Hit Points equal to five times your Cleric
+ *   level", which the shares may not add up past;
+ * - **the reach** — "within 30 feet of yourself", measured to each creature a
+ *   share names;
+ * - **the cap** — "can restore a creature to no more than half its Hit Point
+ *   maximum", which is also the whole of "Choose **Bloodied** creatures": a
+ *   creature above half its maximum has no room under the cap at all, so the
+ *   sentence is enforced without a second reading of it;
+ * - **the types** — "You can't use this feature on an Undead or a Construct",
+ *   refused rather than filtered, because the caller named this creature
+ *   rather than standing it in an area.
+ */
+function divideHitPoints(
+  state: GameState,
+  id: CharacterId,
+  option: PoolOption,
+  divided: HitPointBudget,
+  command: UsePoolOptionCommand,
+  stamp: CommandStamp | null,
+): Result<PoolOptionUse> {
+  if (command.target !== undefined) {
+    return err(
+      'division_required',
+      `${option.name} divides its hit points among the creatures the shares name; it is not aimed at one`,
+    );
+  }
+  if (command.damageType !== undefined) {
+    return err(
+      'damage_type_fixed',
+      `${option.name} restores hit points and deals none, so a damage type is not something it offers`,
+    );
+  }
+
+  const shares = command.among ?? [];
+  if (shares.length === 0) {
+    return err(
+      'division_required',
+      `${option.name} restores ${divided.hitPoints} hit points divided among creatures, and no share was named`,
+    );
+  }
+
+  // The arithmetic first, because none of it needs the world: a share of no
+  // hit points buys nothing, a creature named twice would be capped twice
+  // against the wrong total, and a division that overspends the budget is
+  // refused before anybody is measured.
+  const named = new Set<CharacterId>();
+  let total = 0;
+  for (const share of shares) {
+    if (named.has(share.target)) {
+      return err(
+        'duplicate_share',
+        `${share.target} is given two shares of ${option.name}, and one creature takes one`,
+      );
+    }
+    named.add(share.target);
+    if (!Number.isInteger(share.hitPoints) || share.hitPoints < 1) {
+      return err(
+        'bad_share',
+        `a share is a whole number of hit points of at least one, got ${String(share.hitPoints)}`,
+      );
+    }
+    total += share.hitPoints;
+  }
+  if (total > divided.hitPoints) {
+    return err(
+      'too_much_divided',
+      `${option.name} restores ${divided.hitPoints} hit points and ${total} were divided out`,
+    );
+  }
+
+  // And then the world, share by share.
+  for (const share of shares) {
+    const who = creatureOf(state, share.target);
+    if (who === null) return unknownCreature(share.target);
+
+    for (const type of divided.excludesTypes ?? []) {
+      if (!isCreatureType(who.creatureType, type)) continue;
+      return err(
+        'cannot_be_restored',
+        `${option.name} cannot be used on ${type === 'Undead' ? 'an' : 'a'} ${type}, and ${share.target} is one`,
+      );
+    }
+
+    const beyond = reachedBy(state, id, share.target, option.name, option.reach ?? 0);
+    if (beyond !== null) return beyond;
+
+    // "no more than half its Hit Point maximum", which is a ceiling on where
+    // the creature ends up rather than on the size of the share.
+    const ceiling = Math.floor(who.vitals.hpMax / 2);
+    if (who.vitals.hp + share.hitPoints > ceiling) {
+      return err(
+        'past_the_cap',
+        `${option.name} restores a creature to no more than half its maximum, and ${share.hitPoints} would carry ${share.target} from ${who.vitals.hp} past ${ceiling}`,
+      );
+    }
+  }
+
+  // — from here it costs something ——————————————————————————————————————
+  const events: GameEvent[] = [];
+
+  // The action economy only exists in combat, as everywhere else here.
+  if (state.combat !== null) {
+    const spent = spendFor(state, id, option.action);
+    if (!spent.ok) return spent;
+    events.push(spent.value);
+  }
+
+  events.push({
+    type: 'resource-spent',
+    id,
+    key: option.pool,
+    amount: 1,
+    ...(stamp === null ? {} : { command: stamp }),
+  });
+
+  const outcomes: SpellTargetOutcome[] = [];
+  for (const share of shares) {
+    const healed = healCreature(state, share.target, share.hitPoints);
+    if (!healed.ok) return healed;
+    events.push(...healed.value);
+    outcomes.push({ target: share.target, healed: share.hitPoints, affected: true });
+  }
+
+  return ok({ events, outcomes, unverified: [] });
 }
 
 /**

@@ -67,6 +67,7 @@ import {
   type ClassLevelRow,
   type FeatureChoice,
   type FeatureDefinition,
+  type PoolOptionGrant,
   type FeatureGrant,
   type HealGrant,
   type SpellcastingStyle,
@@ -2463,25 +2464,49 @@ export function planCharacter(
   // is resolved here because it belongs to the *granting class*: "your spell
   // save DC" on a Cleric feature is the Cleric's, whatever else its holder
   // multiclassed into.
+  //
+  // **A menu is the host feature's, wherever its entries were written down.**
+  // A subclass's `pool-options` grant is a door onto a menu the class feature
+  // prints — SRD Preserve Life joining Channel Divinity's — so its forms are
+  // compiled under the host's id, at the host's class level and on the host's
+  // spellcasting ability, and the command that spends a use names Channel
+  // Divinity exactly as it does for Turn Undead. A grant whose host this
+  // character does not hold contributes nothing: `checkContent` refuses that
+  // arrangement in the catalogue, where the level it arrives at is knowable.
   const poolOptions: PoolOption[] = [];
+  const menus: {
+    readonly host: FeatureDefinition;
+    readonly pool: string;
+    readonly options: readonly PoolOptionGrant[];
+  }[] = [];
   for (const feature of features) {
     const grant = feature.grants;
-    if (grant?.kind !== 'pool' || grant.options === undefined) continue;
+    if (grant?.kind === 'pool' && grant.options !== undefined) {
+      menus.push({ host: feature, pool: grant.key, options: grant.options });
+      continue;
+    }
+    if (grant?.kind !== 'pool-options') continue;
+    const host = features.find((one) => one.id === grant.feature);
+    const hosted = host?.grants;
+    if (host === undefined || hosted?.kind !== 'pool') continue;
+    menus.push({ host, pool: hosted.key, options: grant.options });
+  }
 
-    const ability = castingAbilityFor(feature.id);
+  for (const { host, pool, options } of menus) {
+    const ability = castingAbilityFor(host.id);
     const count =
-      grant.options.some((option) => option.diceCountByLevel !== undefined)
-        ? classLevelFor(choices, feature.id)
+      options.some((option) => option.diceCountByLevel !== undefined)
+        ? classLevelFor(choices, host.id)
         : 0;
 
-    for (const option of grant.options) {
+    for (const option of options) {
       poolOptions.push({
-        feature: feature.id,
-        featureName: feature.name,
+        feature: host.id,
+        featureName: host.name,
         option: option.id,
         name: option.name,
         action: option.action,
-        pool: grant.key,
+        pool,
         effects:
           option.diceCountByLevel === undefined
             ? option.effects
@@ -2502,6 +2527,28 @@ export function planCharacter(
         ...(option.damageTypeStated === undefined
           ? {}
           : { damageTypeStated: option.damageTypeStated }),
+        // The budget, sized here for the reason the dice above are: SRD
+        // Preserve Life's "five times your Cleric level" is a multiple of the
+        // *host's* class level, and `poolSizeOf` is the one reader of every
+        // sizing the SRD writes — asked of hit points rather than of uses,
+        // which is the reading Lay On Hands' pool already has.
+        ...(option.distributes === undefined
+          ? {}
+          : {
+              distributes: {
+                hitPoints: poolSizeOf(
+                  content,
+                  choices,
+                  features,
+                  host.id,
+                  option.distributes.hitPoints,
+                ),
+                cap: option.distributes.cap,
+                ...(option.distributes.excludesTypes === undefined
+                  ? {}
+                  : { excludesTypes: option.distributes.excludesTypes }),
+              },
+            }),
       });
     }
   }
@@ -3515,6 +3562,12 @@ function poolsFor(
   // Resurgence's "you can't do so again until you finish a Long Rest" is a
   // pool of one, exactly as the recovery above it is. A trade limited once a
   // turn declares nothing — the turn's own ledger answers for that.
+  //
+  // **The unlimited arm declares one too, and it is the other sentence.** SRD
+  // Holy Nimbus's "you can't use it again until you finish a Long Rest" is the
+  // *feature's* own use rather than a limit on the trade, and the trade is
+  // what buys it back — so the declaration is identical here and only
+  // `tradeResource` tells the two apart, off the limit.
   for (const feature of features) {
     const grant = feature.grants;
     if (grant?.kind !== 'trade') continue;

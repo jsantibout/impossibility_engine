@@ -509,7 +509,7 @@ engine could take it today — is recorded as such rather than omitted.
 
 | Classes | Subclasses | Features | Executed by the engine |
 |---|---|---|---|
-| 12 / 12 | 12 / 12 | 269 | 176 |
+| 12 / 12 | 12 / 12 | 269 | 177 |
 
 A feature declares its own automation, so this column is read rather than
 guessed. **Manual is not failure**: several features are judgement the
@@ -521,7 +521,7 @@ believe it has twelve working classes when it has twelve validated ones.
 |---|---|---|---|
 | Barbarian | none | 27 | 18 |
 | Bard | known | 20 | 13 |
-| Cleric | prepared-from-list | 19 | 12 |
+| Cleric | prepared-from-list | 19 | 13 |
 | Druid | prepared-from-list | 17 | 11 |
 | Fighter | none | 26 | 20 |
 | Monk | none | 29 | 19 |
@@ -555,7 +555,7 @@ be the second spelling of one derivation.
 
 | Shape | Blocks | Finishes |
 |---|---|---|
-| `a-feature-that-rewrites-another-features-rule` | 10 | 4 |
+| `a-feature-that-rewrites-another-features-rule` | 10 | 6 |
 | `a-roll-result-an-effect-replaces` | 5 | 4 |
 | `a-casting-paid-for-out-of-a-feature-pool` | 8 | 3 |
 | `a-save-keyed-to-a-condition` | 4 | 3 |
@@ -567,11 +567,11 @@ be the second spelling of one derivation.
 | `an-action-the-engine-has-no-spender-for` | 4 | 2 |
 | `movement-modes` | 4 | 2 |
 | `a-one-shot-roll-modifier` | 3 | 2 |
-| `healing-modified-by-an-effect` | 3 | 2 |
 | `a-hit-point-maximum-a-spell-moves` | 2 | 2 |
 | `a-pool-refilled-to-a-floor` | 2 | 2 |
 | `a-spell-list-that-is-not-your-class-list` | 2 | 2 |
 | `an-effect-that-intercepts-dropping-to-0` | 2 | 2 |
+| `healing-modified-by-an-effect` | 2 | 2 |
 | `heroic-inspiration` | 2 | 2 |
 | `a-grant-gated-on-one-option-of-a-choice` | 4 | 1 |
 | `a-rule-the-engine-fixes-for-everybody` | 4 | 1 |
@@ -594,7 +594,7 @@ be the second spelling of one derivation.
 | `an-effect-that-waits-for-a-later-trigger` | 1 | 1 |
 | `an-option-whose-span-is-a-turn-boundary` | 1 | 1 |
 | `falling` | 1 | 1 |
-| `a-resource-traded-for-another` | 11 | 0 |
+| `a-resource-traded-for-another` | 7 | 0 |
 | `a-benefit-that-runs-for-a-printed-span` | 6 | 0 |
 | `a-pool-the-proficiency-bonus-sizes` | 6 | 0 |
 | `temporary-hit-points-a-feature-grants` | 4 | 0 |
@@ -1055,24 +1055,24 @@ never added.
 |---|---|---|---|---|---|
 | 1 | 32 | 24 | 211 | 121 | 85 |
 | 2 | 53 | 38 | 211 | 121 | 85 |
-| 3 | 91 | 66 | 345 | 207 | 127 |
-| 4 | 104 | 78 | 345 | 207 | 127 |
-| 5 | 120 | 89 | 481 | 291 | 173 |
-| 6 | 132 | 96 | 481 | 291 | 173 |
-| 7 | 144 | 102 | 562 | 334 | 211 |
-| 8 | 156 | 114 | 562 | 334 | 211 |
-| 9 | 165 | 118 | 668 | 411 | 235 |
-| 10 | 176 | 122 | 668 | 411 | 235 |
-| 11 | 183 | 124 | 727 | 447 | 256 |
-| 12 | 195 | 136 | 727 | 447 | 256 |
-| 13 | 200 | 137 | 784 | 490 | 267 |
-| 14 | 211 | 143 | 784 | 490 | 267 |
-| 15 | 218 | 146 | 821 | 511 | 282 |
-| 16 | 230 | 158 | 821 | 511 | 282 |
-| 17 | 235 | 158 | 859 | 546 | 283 |
-| 18 | 245 | 160 | 859 | 546 | 283 |
-| 19 | 257 | 172 | 859 | 546 | 283 |
-| 20 | 269 | 176 | 859 | 546 | 283 |
+| 3 | 91 | 67 | 345 | 207 | 127 |
+| 4 | 104 | 79 | 345 | 207 | 127 |
+| 5 | 120 | 90 | 481 | 291 | 173 |
+| 6 | 132 | 97 | 481 | 291 | 173 |
+| 7 | 144 | 103 | 562 | 334 | 211 |
+| 8 | 156 | 115 | 562 | 334 | 211 |
+| 9 | 165 | 119 | 668 | 411 | 235 |
+| 10 | 176 | 123 | 668 | 411 | 235 |
+| 11 | 183 | 125 | 727 | 447 | 256 |
+| 12 | 195 | 137 | 727 | 447 | 256 |
+| 13 | 200 | 138 | 784 | 490 | 267 |
+| 14 | 211 | 144 | 784 | 490 | 267 |
+| 15 | 218 | 147 | 821 | 511 | 282 |
+| 16 | 230 | 159 | 821 | 511 | 282 |
+| 17 | 235 | 159 | 859 | 546 | 283 |
+| 18 | 245 | 161 | 859 | 546 | 283 |
+| 19 | 257 | 173 | 859 | 546 | 283 |
+| 20 | 269 | 177 | 859 | 546 | 283 |
 
 The totals are every path added together, so a spell on two class lists is
 counted once for each path that can reach it — the row is the book at that
@@ -1103,7 +1103,7 @@ which the table will.
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | Barbarian (Path of the Berserker) | 3/3 | 5/5 | 8/8 | 9/9 | 11/11 | 11/12 | 12/14 | 13/15 | 13/16 | 14/17 | 14/18 | 15/19 | 15/20 | 15/21 | 15/22 | 16/23 | 16/24 | 16/25 | 17/26 | 18/27 |
 | Bard (College of Lore) | 2/2 | 3/4 | 6/7 | 7/8 | 7/9 | 7/10 | 7/11 | 8/12 | 9/13 | 9/14 | 9/14 | 10/15 | 10/15 | 11/16 | 11/16 | 12/17 | 12/17 | 12/18 | 13/19 | 13/20 |
-| Cleric (Life Domain) | 1/2 | 2/3 | 5/7 | 6/8 | 6/9 | 6/10 | 7/11 | 8/12 | 8/12 | 8/13 | 8/13 | 9/14 | 9/14 | 10/15 | 10/15 | 11/16 | 11/17 | 11/17 | 12/18 | 12/19 |
+| Cleric (Life Domain) | 1/2 | 2/3 | 6/7 | 7/8 | 7/9 | 7/10 | 8/11 | 9/12 | 9/12 | 9/13 | 9/13 | 10/14 | 10/14 | 11/15 | 11/15 | 12/16 | 12/17 | 12/17 | 13/18 | 13/19 |
 | Druid (Circle of the Land) | 1/3 | 2/5 | 3/7 | 4/8 | 5/9 | 5/9 | 6/10 | 7/11 | 7/11 | 7/11 | 7/11 | 8/12 | 8/12 | 8/12 | 9/13 | 10/14 | 10/14 | 10/15 | 11/16 | 11/17 |
 | Fighter (Champion) | 2/3 | 4/5 | 7/8 | 8/9 | 9/11 | 10/12 | 10/13 | 11/14 | 13/16 | 13/17 | 14/18 | 15/19 | 15/20 | 16/21 | 17/22 | 18/23 | 18/23 | 18/24 | 19/25 | 20/26 |
 | Monk (Warrior of the Open Hand) | 2/2 | 5/5 | 7/8 | 8/10 | 10/12 | 11/14 | 12/15 | 13/16 | 13/17 | 13/19 | 13/20 | 14/21 | 15/22 | 16/23 | 16/24 | 17/25 | 17/26 | 17/27 | 18/28 | 19/29 |

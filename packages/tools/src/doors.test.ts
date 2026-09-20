@@ -686,6 +686,12 @@ const ANSWERS: Readonly<Record<string, Answer>> = {
       'not a field **yet**: `tradeResource` is the engine command SRD Wild Resurgence needs — "you can give yourself one use by expending a spell slot", with the level left to the caster — and no tool on either surface opens onto it, so there is nothing here to name. The day one does, this becomes `trade_resource.slotLevel` and the entry moves up with the rest.',
   },
 
+  // — a use that mints hit points for the holder to divide ————————————————
+  division_required: {
+    unanswerable:
+      'not a field **yet**, and unlike `slot_level_required` the tool it belongs to is already here: `use_pool_option` carries `damageType` and not the shares SRD Preserve Life asks for — "divide those Hit Points among them", which is a list of creatures and amounts the Cleric chooses. The engine command takes `among` and refuses without it; the day the tool grows the field this becomes `use_pool_option.among` and moves up with the rest.',
+  },
+
   // — and two that are not a caller's to answer at all —————————————————————
   missing_field: {
     unanswerable:

@@ -200,6 +200,7 @@ export const READABLE_GRANT_KINDS: ReadonlySet<string> = new Set([
   'lifts-conditions',
   'on-hit',
   'pool',
+  'pool-options',
   'reaction',
   'recovery',
   'save-proficiency',
@@ -1247,11 +1248,28 @@ function featureOptionProblems(
     }
   }
 
+  // **A budget of hit points the caller divides, and it is the one purchase
+  // that resolves no effect at all.** SRD Preserve Life hands the *amounts* to
+  // the Cleric, where an effect carries its own and reaches each target alike,
+  // so the two are alternatives rather than halves: an option that wrote both
+  // would run a list over creatures a share had already paid for.
+  const divides = (option as unknown as { readonly distributes?: unknown }).distributes;
+  if (divides !== undefined) {
+    if (host === 'hit') {
+      say(
+        'action_field_on_a_hit_rider',
+        `"distributes" belongs to an option somebody spends an action on; ${featureId} is bought by an attack that has already chosen its target`,
+        `${at}.distributes`,
+      );
+    }
+    found.push(...hitPointDivisionProblems(featureId, option, divides, at, levels));
+  }
+
   if (!Array.isArray(option.effects)) {
     say('bad_option_effects', 'an option confers a list of effects', `${at}.effects`);
     return found;
   }
-  if (option.effects.length === 0) {
+  if (option.effects.length === 0 && divides === undefined) {
     say('empty_feature_option', 'an option that confers an empty list buys nothing', `${at}.effects`);
   }
 
@@ -1581,6 +1599,119 @@ function featureOptionsProblems(
     }
     found.push(...featureOptionProblems(featureId, option, on, levels, host));
   });
+  return found;
+}
+
+/**
+ * The budget a distributing option mints, judged as a pool's size is.
+ *
+ * `poolSizeOf` is the one reader of every sizing the SRD writes and it is the
+ * reader here too, so the rules are the pool's rules asked of hit points: one
+ * shape, a column as long as this source's table, whole numbers. What is added
+ * is the two clauses only a division has — the ceiling it restores to and the
+ * creature types it refuses — and the fields it may not print beside, each of
+ * which would describe something the division does not do.
+ */
+function hitPointDivisionProblems(
+  featureId: string,
+  option: PoolOptionGrant,
+  divides: unknown,
+  at: string,
+  levels: number,
+): readonly ContentProblem[] {
+  const found: ContentProblem[] = [];
+  const say = (code: string, reason: string, field: string): void => {
+    found.push({ field, code, reason });
+  };
+
+  if (typeof divides !== 'object' || divides === null) {
+    say(
+      'bad_hit_point_division',
+      'a division names how many hit points one use mints, and what the cap is',
+      `${at}.distributes`,
+    );
+    return found;
+  }
+  const record = divides as Record<string, unknown>;
+
+  // An area catches whoever is in it and a filter leaves the rest alone; a
+  // division names its creatures and refuses the ones it cannot touch, which
+  // is what `excludesTypes` is for. Damage is the other one: nothing here
+  // deals any, so a choice of type would reach no die.
+  for (const field of ['area', 'mustBeType', 'damageTypeStated', 'diceCountByLevel'] as const) {
+    if (option[field] === undefined) continue;
+    say(
+      'division_does_not_take',
+      `"${field}" belongs to an option that resolves effects; ${featureId} divides hit points among the creatures its caller names`,
+      `${at}.${field}`,
+    );
+  }
+
+  if (record['cap'] !== 'half-maximum') {
+    say(
+      'bad_division_cap',
+      `a division restores a creature to no more than half its Hit Point maximum, and "${String(record['cap'])}" is not a ceiling this engine measures`,
+      `${at}.distributes.cap`,
+    );
+  }
+
+  const sizing = record['hitPoints'];
+  if (typeof sizing !== 'object' || sizing === null) {
+    say(
+      'bad_division_sizing',
+      'a division says how many hit points one use mints, sized the way a pool is',
+      `${at}.distributes.hitPoints`,
+    );
+  } else {
+    const sized = sizing as Record<string, unknown>;
+    const shapes = ['usesByLevel', 'fromAbilityModifier', 'perClassLevel'].filter(
+      (shape) => sized[shape] !== undefined,
+    );
+    if (shapes.length > 1) {
+      say(
+        'ambiguous_division_sizing',
+        `${shapes.join(' and ')} both size this budget, and poolSizeOf reads exactly one`,
+        `${at}.distributes.hitPoints`,
+      );
+    }
+    const column = sized['usesByLevel'];
+    if (column !== undefined && (!Array.isArray(column) || column.length !== levels)) {
+      say(
+        'bad_division_sizing',
+        `a column of this source's table has ${levels} entries, not ${Array.isArray(column) ? column.length : String(column)}`,
+        `${at}.distributes.hitPoints.usesByLevel`,
+      );
+    }
+    for (const field of ['perClassLevel', 'minimum'] as const) {
+      const value = sized[field];
+      if (value === undefined) continue;
+      if (!Number.isInteger(value) || (value as number) < 0) {
+        say(
+          'bad_division_sizing',
+          `${field} is a whole number of hit points, not ${String(value)}`,
+          `${at}.distributes.hitPoints.${field}`,
+        );
+      }
+    }
+    const ability = sized['fromAbilityModifier'];
+    if (ability !== undefined && !(ABILITIES as readonly string[]).includes(String(ability))) {
+      say(
+        'bad_division_sizing',
+        `"${String(ability)}" is not an ability score`,
+        `${at}.distributes.hitPoints.fromAbilityModifier`,
+      );
+    }
+  }
+
+  const types = record['excludesTypes'];
+  if (types !== undefined && (!Array.isArray(types) || types.length === 0)) {
+    say(
+      'bad_division_exclusion',
+      'what a division refuses is a non-empty list of creature types, and an option that refuses nobody omits the field',
+      `${at}.distributes.excludesTypes`,
+    );
+  }
+
   return found;
 }
 
@@ -2852,6 +2983,34 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
                 'a once-a-turn trade is counted by the turn’s own ledger, so a pool declared beside it is one nothing ever spends',
             });
           }
+          // And the third arm, whose pool is the other sentence: an unlimited
+          // trade declares a pool of one only when that pool is what it fills
+          // — SRD Holy Nimbus's own single use, which the feature has no
+          // second grant to declare. One declared anywhere else is a pool
+          // nothing ever spends, which is `pool_without_a_limit`'s failure
+          // wearing the new member's name.
+          if (
+            trade?.limit === 'unlimited' &&
+            trade.pool !== undefined &&
+            !(trade.gains?.kind === 'pool' && trade.gains.key === trade.pool)
+          ) {
+            problems.push({
+              field: `${at}.pool`,
+              code: 'pool_without_a_limit',
+              reason: `${feature.id} prints no limit, so the pool of one it declares is the use it buys back; "${trade.pool}" is not what this trade fills, and nothing would ever spend it`,
+            });
+          }
+          if (
+            trade?.limit !== 'once-per-turn' &&
+            trade?.limit !== 'once-per-long-rest' &&
+            trade?.limit !== 'unlimited'
+          ) {
+            problems.push({
+              field: `${at}.limit`,
+              code: 'bad_trade_limit',
+              reason: `a trade is limited once a turn, once a Long Rest, or not at all, and "${String((trade as { limit?: unknown } | undefined)?.limit)}" is none of the three`,
+            });
+          }
         });
       }
       // The item's own sizing, on a class feature. `poolSizeOf` reads a column,
@@ -2879,6 +3038,70 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
             source.levels,
           ),
         );
+      }
+      // A form another feature's menu takes — SRD Preserve Life joining
+      // Channel Divinity's. The options themselves are judged by the rules the
+      // host's own menu is judged by, because they *are* that menu's; what is
+      // checked here is the half a definition cannot check for itself, and it
+      // is `free_casting_pool_arrives_later`'s rule one grant along. A form
+      // that names a menu nobody in scope prints, one that arrives before the
+      // menu does, or one whose id the host already uses is a line on a class
+      // table that looks executed and reaches nobody.
+      if (feature.grants?.kind === 'pool-options') {
+        const grant = feature.grants;
+        if (!isString(grant.feature) || grant.feature.trim() === '') {
+          problems.push({
+            field: `${where}.grants.feature`,
+            code: 'option_menu_unnamed',
+            reason: `${feature.id} adds a form to a menu and names none; the menu belongs to the feature that declares the pool`,
+          });
+        }
+        if (!Array.isArray(grant.options) || grant.options.length === 0) {
+          problems.push({
+            field: `${where}.grants.options`,
+            code: 'empty_option_menu',
+            reason: `${feature.id} adds nothing to the menu it names`,
+          });
+        } else {
+          problems.push(
+            ...featureOptionsProblems(
+              feature.id,
+              grant.options,
+              `${where}.grants.options`,
+              source.levels,
+            ),
+          );
+        }
+
+        const hosts = (source.inScope ?? source.features).filter(
+          (one) => one.id === grant.feature && one.grants?.kind === 'pool',
+        );
+        const host = hosts[0];
+        if (host === undefined) {
+          problems.push({
+            field: `${where}.grants.feature`,
+            code: 'unknown_option_menu',
+            reason: `${feature.id} adds a form to "${String(grant.feature)}", and no feature of ${source.where} declares a pool by that name — a menu is a pool grant's, and a subclass may join its own class's`,
+          });
+        } else if (host.level > feature.level) {
+          problems.push({
+            field: `${where}.grants.feature`,
+            code: 'option_menu_arrives_later',
+            reason: `${feature.id} arrives at level ${feature.level} and joins a menu ${host.id} does not print until ${host.level}, so every use in between would find no such option`,
+          });
+        } else {
+          const taken = new Set(
+            (host.grants?.kind === 'pool' ? (host.grants.options ?? []) : []).map((one) => one.id),
+          );
+          for (const option of Array.isArray(grant.options) ? grant.options : []) {
+            if (!taken.has(option?.id)) continue;
+            problems.push({
+              field: `${where}.grants.options`,
+              code: 'duplicate_feature_option',
+              reason: `${host.id} already offers "${option.id}", and a caller naming it could reach only the first`,
+            });
+          }
+        }
       }
       // What a **hit** buys, judged by the same rules one trigger along: the
       // effects are the conferral's, the fields an action owns are refused,
