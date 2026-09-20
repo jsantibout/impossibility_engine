@@ -46,6 +46,17 @@ const action = (id: string, name: string) => {
   return found!;
 };
 
+/**
+ * The five blocks whose Multiattack names a line printed under a *qualified*
+ * heading — "Handaxe (Humanoid or Hybrid Form Only)" — so the name does not
+ * bind and the engine drops the sequence whole.
+ *
+ * Recorded rather than argued about, and recorded rather than matched through:
+ * a prefix match would hand a Werebear in bear form a Handaxe, which is a rule
+ * nobody printed. A sixth should be noticed instead of absorbed.
+ */
+const QUALIFIED_HEADINGS = ['werebear', 'wereboar', 'wererat', 'weretiger', 'werewolf'];
+
 describe('parseAttackLine', () => {
   it('reads the Wolf’s Bite: the bonus, the reach, the die and the modifier', () => {
     expect(parseAttackLine(action('wolf', 'Bite').text)).toEqual({
@@ -281,24 +292,13 @@ describe('the bestiary, read through the parser', () => {
  * the sequence, and a sentence that is not one is left as prose exactly as
  * every unread line is.
  *
- * **One grammar, and nothing guessed.** A block that offers alternatives ("or
- * it makes two Hurl Flame attacks"), a free choice ("using Scimitar and Pistol
- * in any combination"), a use that is not an attack ("and uses Consume
- * Memories") or a count nobody can resolve ("as many Bite attacks as it has
- * heads") is a different mechanism, and each comes back null rather than as
- * the half of itself this grammar happens to match.
+ * **One grammar, and nothing guessed.** A sentence stating something this
+ * grammar has not read — a count nobody can resolve ("as many Bite attacks as
+ * it has heads"), a branch gated on a Bonus Action nobody reads — comes back
+ * null rather than as the half of itself the grammar happens to match. The
+ * shapes read *beside* the named sequence, each a wording of the book rather
+ * than a mechanism invented here, are in the describe below this one.
  */
-/**
- * The five blocks whose Multiattack names a line printed under a *qualified*
- * heading — "Handaxe (Humanoid or Hybrid Form Only)" — so the name does not
- * bind and the engine drops the sequence whole.
- *
- * Recorded rather than argued about, and recorded rather than matched through:
- * a prefix match would hand a Werebear in bear form a Handaxe, which is a rule
- * nobody printed. A sixth should be noticed instead of absorbed.
- */
-const QUALIFIED_HEADINGS = ['werebear', 'wereboar', 'wererat', 'weretiger', 'werewolf'];
-
 describe('parseMultiattack', () => {
   it('reads a count and the name it attaches to', () => {
     expect(parseMultiattack('The elemental makes two Thunderous Slam attacks.')).toEqual({
@@ -676,12 +676,9 @@ describe('parseMultiattack reads the rest of the sentence', () => {
   });
 
   /**
-   * Both branches of every alternation the book prints total the same, which is
-   * what lets the Attack action still hold one number.
-   */
-  /**
-   * And the five recorded above are the whole of what does not bind: every
-   * other name in every branch is a line the same block prints.
+   * And the five recorded in {@link QUALIFIED_HEADINGS} are the whole of what
+   * does not bind: every other name in every branch is a line the same block
+   * prints.
    */
   it('leaves exactly the five qualified headings unbound', () => {
     const unbound = new Set<string>();
@@ -702,6 +699,10 @@ describe('parseMultiattack reads the rest of the sentence', () => {
     expect([...unbound].sort()).toEqual(QUALIFIED_HEADINGS);
   });
 
+  /**
+   * Both branches of every alternation the book prints total the same, which is
+   * what lets the Attack action still hold one number.
+   */
   it('gives both branches of every alternation the same total', () => {
     let alternations = 0;
     for (const monster of bestiary) {
