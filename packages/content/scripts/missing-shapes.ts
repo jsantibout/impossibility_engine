@@ -4890,13 +4890,15 @@ export const ITEM_SHAPES = {
   'a-spell-an-item-casts-that-nothing-executes':
     'the item’s line says it casts a named spell and the catalogue has **no definition of that spell at all**. `checkContent` refuses the pairing in as many words — packages/engine/src/content.ts, "which this content has no executable definition of" — so an item that casts Scrying, Levitate or Gate cannot be written until the spell is, and the blocker is the spell’s own. It is the largest single blocker in the book’s magic items and it is not item work at all, which is the finding: a tranche aimed at wands buys nothing until the spells under them exist. **The word that decides an entry is *definition*, not *executable*, and this description said otherwise for a batch.** The predicate `checkContent` hands an item is `spells.some(s => s.id === id)` — packages/engine/src/content.ts, the call site of `itemGrantProblems` — and `castFromItem` reads `content.spell(id)`, so a **tracked** definition answers both. That is SRD’s own sentence about what a casting from an item is: "The spell uses its normal casting time, range, and duration, and the user of the item must concentrate if the spell requires Concentration", every word of which a tracked definition already carries. A Wand of Magic Detection and a Ring of Animal Influence came off this shape without a line of spell work, and `item-casts-a-tracked-spell.test.ts` drives both directions so the distinction cannot be lost again. What *should* name this shape is an entry whose spell nothing defines — and, for a **potion**, a spell whose definition resolves nothing, because a `confers` grant carries the definition’s `SpellEffect[]` and "an item that confers an empty list confers nothing". **Sixty definitions later, every entry here has been read against the catalogue again**, entry by entry and spell by spell rather than against this line: thirteen named the shape with every spell they print already defined and have been re-pointed or transcribed, which is why this is no longer the heaviest blocker in the book. The two the last reading wrote down as wrong are both settled — `chime-of-opening` is transcribed, because a use count that never comes back is `recovers: \'special\'` on a pool keyed to the copy; and `amulet-of-the-planes` is **unread**, because what gates its defined Plane Shift is "make a DC 15 Intelligence (Arcana) check" and a check gating a casting still has no id, which is a shape this vocabulary will not invent in a note.',
   'a-save-an-item-forces':
-    'a saving throw an item makes somebody roll — **half built, and the half that is missing is not the DC**. The roll and the number are there: packages/engine/src/content.ts admits the first, "A saving throw is not on that list any more.", and says where the second comes from, "`saveDc` on the grant is a number the item printed and `save-damage` resolves against it through the resolver a casting uses". So a save whose failure is **damage** is writable today, which is why Dust of Dryness’s 10d6 and Javelin of Lightning’s 4d6 no longer name this shape. A save whose failure imposes a **condition** is writable too, and was the last of the weld to go: the same file admits the kind — "Nor is `save`, which was the last of that weld." — and says what a conferral’s repeat ends, "so a condition a flask’s saving throw imposes repeats its save at the boundary like a spell’s, and a success ends it on the timer the conferral’s own hour filed". What is not built is every *other* thing a failed save can do, which the rule in docs/design/content.md still leaves out — an item is "refused an effect kind a conferral cannot resolve", and there is no kind for most of them. What still names this shape is therefore a save whose outcome is neither damage nor a condition: a wielder who goes berserk, a creature trapped in a flask or a mirror, an Undead simply destroyed. Which entries below still name it for a condition rather than for one of those is a re-derivation this map owes and has not been given.',
+    'a saving throw an item makes somebody roll — **half built, and the half that is missing is not the DC**. The roll and the number are there: packages/engine/src/content.ts admits the first, "A saving throw is not on that list any more.", and says where the second comes from, "`saveDc` on the grant is a number the item printed and `save-damage` resolves against it through the resolver a casting uses". So a save whose failure is **damage** is writable today, which is why Dust of Dryness’s 10d6 and Javelin of Lightning’s 4d6 no longer name this shape. A save whose failure imposes a **condition** is writable too, and was the last of the weld to go: the same file admits the kind — "Nor is `save`, which was the last of that weld." — and says what a conferral’s repeat ends, "so a condition a flask’s saving throw imposes repeats its save at the boundary like a spell’s, and a success ends it on the timer the conferral’s own hour filed". What is not built is every *other* thing a failed save can do, which the rule in docs/design/content.md still leaves out — an item is "refused an effect kind a conferral cannot resolve", and there is no kind for most of them. What still names this shape is therefore a save whose outcome is neither damage nor a condition: a wielder who goes berserk, a creature trapped in a flask or a mirror, an Undead simply destroyed. **That re-derivation has been given.** Every entry that named this shape for a condition a save imposes, or for damage a save halves, has been re-pointed — a bag of beans to its area and its table, a greatclub to its Cone — and what is left under it is the outcome the rule in docs/design/content.md has no kind for.',
   'a-charge-spent-on-something-other-than-a-casting':
-    'a charge the item’s line spends on something that is not a spell — **half built, and the half that is missing is what the charge buys**. A conferral may now be priced, and may offer a range to choose within: packages/engine/src/content.ts reads the cost the way a casting’s is read, "and a pool on the same item for the charges to come out of", and refuses one with nothing behind it, "confers for charges and declares no charge pool for them to come out of" — so a staff is spent where a potion is used up, out of the item’s own pool and through the one spender. What is **not** built is a benefit that grows with the count spent, which is the rest of SRD Staff of Striking’s sentence: "For each charge you expend, the target takes an extra 1d6 Force damage". Nothing in the effect vocabulary scales dice by a charge count — an `attack-rider` carries a bare notation, and packages/engine/src/content.ts refuses every scaling field a conferral could reach for, "reads a slot level or a caster level, and an item’s printed line is the same whoever uses it" — so a priced conferral today pays a chosen price for a fixed benefit, and the staff waits on a field this vocabulary has not invented. The other residue is a charge spent on something no grant kind executes at all — a Reaction, a trigger, a rider on a later weapon attack — which the same file’s enumeration of what an item’s readers run already names: "only a standing grant, a charge pool, a spell it casts and the effects it confers are read from one".',
+    'a charge the item’s line spends on something that is not a spell — **half built, and the half that is missing is what the charge buys**. A conferral may now be priced, and may offer a range to choose within: packages/engine/src/content.ts reads the cost the way a casting’s is read, "and a pool on the same item for the charges to come out of", and refuses one with nothing behind it, "confers for charges and declares no charge pool for them to come out of" — so a staff is spent where a potion is used up, out of the item’s own pool and through the one spender. What is **not** built is a benefit that grows with the count spent, which is the rest of SRD Staff of Striking’s sentence: "For each charge you expend, the target takes an extra 1d6 Force damage". Nothing in the effect vocabulary scales dice by a charge count — an `attack-rider` carries a bare notation, and packages/engine/src/content.ts refuses every scaling field a conferral could reach for, "reads a slot level or a caster level, and an item’s printed line is the same whoever uses it" — so a priced conferral today pays a chosen price for a fixed benefit, and the staff waits on a field this vocabulary has not invented. The other residue is a charge spent on something no grant kind executes at all — a Reaction, a trigger, a rider on a later weapon attack — which the same file’s enumeration of what an item’s readers run already names: "only a standing grant, a charge pool, a spell it casts and the effects it confers are read from one". **And the entries have been read against that split rather than left where the price put them.** Every one that named this shape only because a charge bought a conferral has been re-pointed to whatever the conferral itself cannot say — a Truesight, a Fly Speed, an Emanation, a range — and SRD Periapt of Health, whose charge buys nothing but the Potion of Healing’s own dice, came off it into the catalogue. A charge that buys a **casting** was never this shape at all, except where the price itself is unsayable: Staff of Healing’s "1 charge per spell level (maximum 4 for a level 4 spell)" is a cost that reads the slot, and `ItemCastsGrant.charges` is one number.',
   'a-condition-an-item-imposes':
-    'a condition an item puts on a creature, **and what is left is every way of imposing one that is not simply handing it over**. A conferral may now hang a condition outright: packages/engine/src/content.ts admits the kind — "Nor is a condition any more." — and says why that admits no casting with it, "The rider fields that would need a casting are refused one by one below", so Potion of Invisibility is transcribed and no longer names this shape. A condition a **saving throw** imposes is built too, and was the last of that weld: the same file admits the kind — "Nor is `save`, which was the last of that weld." — and refuses with it only the repeat whose success would end a casting, "a repeat save that ends the casting on a success needs one". What is **not** built is a condition whose duration the item **rolls** for, which no conferral can state; which entries below still name this shape for a save rather than for that is a re-derivation this map owes and has not been given. A condition the holder switches off by decision is `a-benefit-an-item-switches-on-and-off` seen from the condition’s end, and one a printed sentence suspends is `a-benefit-an-item-suspends-on-a-trigger`.',
+    'a condition an item puts on a creature, **and what is left is every way of imposing one that is neither handing it over nor rolling the item’s own saving throw for it**. Both of those are built. packages/engine/src/content.ts admits the kind — "Nor is a condition any more." — and the save that imposes one, "Nor is `save`, which was the last of that weld.", refusing with it only the repeat whose success would end a casting. **And the residue this description named for two batches was already untrue when it was written**: a conferral *can* state a span it rolls for. `durationRolled` sits beside `durationSeconds` on the grant, `useItem` throws it once at the use and pins the deadline it decided, and SRD Dust of Disappearance — "for 2d4 minutes" — is transcribed on it and driven in packages/content/src/item-re-derivation.test.ts. What actually stands in the way is three things, and each entry below says which of them it has: a condition **welded to the same saving throw that deals the damage** ("or take 1d4 Bludgeoning damage and have the Prone condition"), which is `save-damage`’s `conditions` rider and refused by name — packages/engine/src/content.ts, "rider is welded to the casting that hung it"; a condition whose **escape is a check**, or whose span is not a number of seconds — a `ConditionRider`’s `check` and `lasts` are refused for the same reason, and `durationSeconds` is seconds, so SRD Mace of Disruption’s "until the end of your next turn" and SRD Dragon Orb’s "for as long as you remain attuned to it" have nowhere to go; and a condition **ended by something done to its holder** — SRD Rod of Rulership’s "If harmed by you or your allies" — which is the one end cause that names a dealer, and the one `EFFECT_END_CAUSES` leaves out because a conferral has no caster. A condition the holder switches off by decision is `a-benefit-an-item-switches-on-and-off` seen from the condition’s end, one a printed sentence suspends is `a-benefit-an-item-suspends-on-a-trigger`, and one that lands further away than an arm is `a-range-an-item-names`.',
   'a-damage-roll-an-item-makes':
-    'damage an item deals without a casting, and **what is left of it is damage no saving throw decides**. A conferral may now carry one damaging kind: packages/engine/src/content.ts admits the saving throw — "A saving throw is not on that list any more." — so a horn that blasts and a javelin that forks into lightning have somewhere to write their dice, and every entry whose damage a save decides has come off this shape. Two residues do not move, and the same file refuses the kind each would need: "`attack` is refused by name, and so is `attack-damage`, which rides on an attack this is not". So damage that simply lands has nowhere to go — a talisman that burns whoever touches it, a staff’s explosion on its own wielder, Potion of Poison’s 4d6, which arrives whether the save is made or not — and neither does damage an item rolls its **own** attack for, which is Ring of the Ram’s spectral head and its printed +7. **The first residue is the gap the spell vocabulary calls `damage-with-neither-an-attack-roll-nor-a-save`**, which Magic Missile is blocked on; whether an item still needs an id of its own for it, now that the save-gated half is built, is a question this map owes an answer to and a re-derivation may not settle by itself.',
+    'damage an item deals without a casting — and the question the last description left open has an answer now: **no, the first residue does not need an id of its own.** Damage that simply lands, with neither an attack roll nor a saving throw to decide it, is one gap wherever it is written, and the spell vocabulary already names it `damage-with-neither-an-attack-roll-nor-a-save`. So Potion of Poison’s 4d6, a talisman that burns whoever touches it, a staff’s explosion on its own wielder and a manual that scorches whoever cannot read it are filed under that id below, and this shape has stopped claiming them. What is left under this name is the **other** residue, which is an item that rolls an **attack of its own**: packages/engine/src/content.ts refuses the kind by name — "`attack` is refused by name, and so is `attack-damage`, which rides on an attack this is not" — and a conferral has no attacker, no printed modifier and no target past arm’s length to point one at. SRD Ring of the Ram writes the whole shape in one sentence, "The ring produces a spectral ram’s head and makes its attack roll with a +7 bonus", and Iron Bands of Binding writes the same roll with no damage on the end of it — which makes the id a slightly narrower thing than its name says, and it is kept rather than renamed so the two entries under it stay findable by it. The save-gated half is built and stays built: a conferral prints its own DC and `save-damage` resolves against it, which is why a horn that blasts and a javelin that forks into lightning left this shape and never came back.',
+  'a-range-an-item-names':
+    'a distance the item’s own line prints between its user and whatever its use lands on. **A conferral reaches its user, or one creature within five feet.** SRD’s sentence about administering a potion is the whole of that reach — "administer it to another creature within 5 feet of yourself" — and `useItem` asks it through `reachedBy(state, id, target, item.name)` at that function’s own default of five; the grant has no field for a range, and `UseItemCommand` has one target and no second. So a wand whose ray streaks 60 feet, a rod that commands obedience at 120, a gem’s beam and a rope that darts 20 feet each have a condition, a saving throw, a DC and a span the vocabulary can write down, and nowhere at all to write down how far any of it goes. **This is the blocker the re-derivation found underneath the two it was sent to check.** Entry after entry named `a-condition-an-item-imposes` for a condition that had been sayable for two batches, and what was actually in the way was the thirty feet between the pipes and the creature that hears them. Distinct from `an-area-an-item-creates`, which is the **template**; this is a single named target the user can see, further off than an arm. **The same field is missing from the other end**, and SRD Necklace of Fireballs is the entry that shows it: "detach a bead and throw it up to 60 feet away" *narrows* Fireball’s printed Range of 150, and a `casts` grant has no more room for a distance than a conferral does — so an item may neither reach further than five feet under its own power nor reach less far than the spell it casts. The first entry transcribed under this reach writes the same thing down as a note, in packages/content/src/items.ts: "a conferral reaches its user or one creature within 5 feet and has no field for an area".',
   'a-speed-an-item-grants':
     'a Speed a worn item gives its wearer. `ITEM_EFFECT_KINDS` omits `speed` on purpose and packages/engine/src/content.ts records the omission as a gap rather than as a decision — "An item granting a Swim Speed is a real SRD item and a real gap; refusing it by name is how the gap stays visible instead of becoming a transcribed item whose benefit silently never applies." Boots, gloves, rings, horseshoes and slippers all print one.',
   'a-reaction-an-item-grants':
@@ -4918,7 +4920,7 @@ export const ITEM_SHAPES = {
   'an-object-with-statistics-of-its-own':
     'a thing with an Armour Class, Hit Points and a position that is not a creature. docs/archive/design/casting.md settled the spell side by refusing exactly this — a casting may hold a point, and "No entity, no object record, no second identity, nothing in the scene’s `positions` table" — while filing "A thing with statistics" under the summons seam, which is still open. A tower, a boat, an animated rope and a sword that hovers and attacks are all on the far side of it.',
   'an-area-an-item-creates':
-    'a Cone, a Sphere or an Emanation an item puts on the battlefield. docs/archive/design/space-and-areas.md ties an area to the casting that made it — "So a casting’s area sits at a point *or* on a creature, and which it is was decided at the casting by the definition" — and an item that confers effects has no casting, no definition and no area field, so a horn that blasts a 30-foot Cone reaches its targets by hand or not at all.',
+    'a Cone, a Sphere or an Emanation an item puts on the battlefield. docs/archive/design/space-and-areas.md ties an area to the casting that made it — "So a casting’s area sits at a point *or* on a creature, and which it is was decided at the casting by the definition" — and an item that confers effects has no casting, no definition and no area field, so a horn that blasts a 30-foot Cone reaches its targets by hand or not at all. **And the clause SRD Mace of Terror writes, "each creature of your choice within 30 feet of you", is one of these** — which the re-derivation had to settle to file the pipes, the mace and the rod. The 2024 rules write that sentence as an Emanation; a conferral lands on one creature however far it reaches; so an item that catches several at once wants this shape and not `a-range-an-item-names` alone.',
   'what-ends-attunement-besides-a-command':
     'an attunement that ends, or refuses to end, for a reason no command gives. docs/design/characters-and-equipment.md names it as the second thing a brief still owes — "what ends attunement besides a command — death, losing the item, another creature attuning to it" — and the book’s cursed items are the other half of that missing rule: armour that cannot be doffed until a Remove Curse lands is an attunement its holder may not release.',
   'a-concentration-with-no-casting-behind-it':
@@ -5118,9 +5120,13 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   // a time: a count the book rolls at the copy's birth, which is
   // `chargesRolled` and a pool keyed to the instance. The identity is not what
   // stands in the way of this bag any more; the explosion is.
+  // Re-derived. The explosion is a `save-damage` with half on a success and
+  // the toadstool's Poisoned is a condition a save imposes, and both of those
+  // are built — what keeps the bag out is the 10-foot Sphere it goes off in,
+  // and the 1d100 table of effects the GM rolls or chooses from underneath it.
+  // The condition the shape would still be right about is on the toadstool,
+  // welded to the same save as the 5d6, and it is inside that table.
   'bag-of-beans': [
-    'a-save-an-item-forces',
-    'a-condition-an-item-imposes',
     'an-area-an-item-creates',
     'a-version-of-an-item-the-book-leaves-to-the-gm',
   ],
@@ -5187,18 +5193,33 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   'censer-of-controlling-air-elementals': ['a-stat-block-created-mid-fight'],
   'cloak-of-arachnida': ['movement-modes', 'a-speed-an-item-grants'],
   'cloak-of-displacement': ['a-benefit-an-item-suspends-on-a-trigger'],
-  'cloak-of-invisibility': [
-    'a-condition-an-item-imposes',
-    'a-benefit-an-item-suspends-on-a-trigger',
-  ],
+  // Re-pointed, and the condition was never the blocker: three charges
+  // regaining 1d3 at dawn is a pool, a Magic action that spends one is a
+  // priced conferral, and "the Invisible condition for 1 hour" is the Potion
+  // of Invisibility's own grant. What has no reader is the sentence that ends
+  // it — "if you pull the hood down (no action required) or cease wearing the
+  // cloak" — which is a decision and a doffing, and `EFFECT_END_CAUSES` holds
+  // neither. Granting the hour without them would be a cloak nobody can take
+  // off, which is rule 3 in packages/content/src/items.ts.
+  'cloak-of-invisibility': ['a-benefit-an-item-switches-on-and-off'],
   // Polymorph is defined and tracked, and "on yourself" is `targetsSelfOnly`,
   // so the casting the cloak prints is writable and the per-dawn limit is a
   // pool of one. What is left is the Stealth Advantage and the Fly Speed.
   'cloak-of-the-bat': ['a-bonus-narrowed-to-a-skill', 'movement-modes'],
   'cloak-of-the-manta-ray': ['a-speed-an-item-grants', 'movement-modes'],
-  'dagger-of-venom': ['a-condition-an-item-imposes', 'a-benefit-an-item-switches-on-and-off'],
+  // Re-pointed. "DC 15 Constitution saving throw or take 2d10 Poison damage
+  // and have the Poisoned condition for 1 minute" is a save the vocabulary
+  // can write; what it hangs off is a hit with this weapon, and the coating
+  // is a Bonus Action that arms it and a minute that disarms it.
+  'dagger-of-venom': ['a-rider-on-a-later-weapon-attack', 'a-benefit-an-item-switches-on-and-off'],
   'dancing-sword': ['an-object-with-statistics-of-its-own'],
-  'decanter-of-endless-water': ['a-condition-an-item-imposes'],
+  // The shape keeps this one, and for the reason the rewritten description
+  // gives: "must succeed on a DC 13 Strength saving throw or take 1d4
+  // Bludgeoning damage and have the Prone condition" is one save with two
+  // consequences, which is `save-damage`'s `conditions` rider — refused on a
+  // conferral because a rider is welded to the casting that hung it. The
+  // geyser's Line is the other half.
+  'decanter-of-endless-water': ['a-condition-an-item-imposes', 'an-area-an-item-creates'],
   // The instance shape stays, and the count is the smaller half of it: "A
   // deck found as treasure is usually missing 1d20 − 1 cards" is a rolled
   // number, but "that card can't be used again" makes the state *which*
@@ -5213,11 +5234,21 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'what-ends-attunement-besides-a-command',
     'a-rider-on-a-later-weapon-attack',
   ],
-  'dimensional-shackles': ['a-condition-an-item-imposes', 'a-fact-only-the-table-can-declare'],
+  // Re-pointed: the shackles impose no condition at all. What they do is
+  // forbid "any method of extradimensional movement, including teleportation
+  // or travel to a different plane of existence", which is a rule about what
+  // a creature may do on its turn, and the DC 30 check once every 30 days is
+  // the table's clock.
+  'dimensional-shackles': [
+    'a-fact-only-the-table-can-declare',
+    'an-action-a-spell-compels-or-forbids',
+  ],
   // Every spell on the orb's table is defined — Cure Wounds and Suggestion
   // execute, Daylight, Death Ward, Detect Magic and Scrying are tracked — so
   // the five castings and their 1d4 + 3 dawn are writable. The Charmed
-  // condition its own save imposes, and the orb's AC and Hit Points, are not.
+  // condition its own save imposes keeps the condition shape, and the
+  // re-derivation says which of the three residues it has: its span is "for
+  // as long as you remain attuned to it", which is not a number of seconds.
   'dragon-orb': [
     'a-condition-an-item-imposes',
     'a-version-of-an-item-the-book-leaves-to-the-gm',
@@ -5226,17 +5257,6 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   'dragon-scale-mail': [
     'a-version-of-an-item-the-book-leaves-to-the-gm',
     'a-mode-on-the-save-a-spell-forces',
-  ],
-  // Re-pointed. "There is enough of it for one use" is the consumable
-  // `useItem` already spends, and carries no state at all; what this packet
-  // really asks for is the **duration** it throws — "the Invisible condition
-  // for 2d4 minutes" — which is a conferral's `durationSeconds`, a whole
-  // number, against dice nothing asks the generator for. The same field
-  // Potion of Diminution's 1d4 hours is re-pointed to.
-  'dust-of-disappearance': [
-    'a-condition-an-item-imposes',
-    'a-benefit-an-item-suspends-on-a-trigger',
-    'a-random-outcome-that-is-not-a-d20',
   ],
   'dust-of-dryness': [
     {
@@ -5262,7 +5282,10 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   ],
   // "There is enough of it for one use" is the consumable a bottle already is;
   // the sneezing and the Emanation are what is left.
-  'dust-of-sneezing-and-choking': ['a-condition-an-item-imposes', 'an-area-an-item-creates'],
+  'dust-of-sneezing-and-choking': [
+    'an-area-an-item-creates',
+    'an-automatic-success-by-creature-type',
+  ],
   'dwarven-thrower': ['a-rider-on-a-later-weapon-attack'],
   'efficient-quiver': ['a-container-with-a-space-of-its-own'],
   // The instance shape stays, and what it holds is not a count: "The first
@@ -5298,6 +5321,11 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   // contain. Its Restrained condition rides on a ranged attack made with the
   // weapon — "Whenever you use this weapon to make a ranged attack" — which
   // is where the blocker really sits.
+  // The condition shape is kept, for the second of the three residues rather
+  // than the first: "a creature Restrained by an arrow can make a DC 20
+  // Strength (Athletics) check to try to break the restraint" is a
+  // `ConditionRider`'s `check`, which a conferral is refused because the
+  // escape releases the casting the instance names.
   'energy-bow': ['a-condition-an-item-imposes', 'a-rider-on-a-later-weapon-attack'],
   'eversmoking-bottle': ['an-area-an-item-creates', 'a-benefit-an-item-switches-on-and-off'],
   'eyes-of-minute-seeing': ['senses-beyond-declared-sight', 'a-bonus-narrowed-to-a-skill'],
@@ -5322,15 +5350,22 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   // the gem becomes a nonmagical jewel": a count spent down to nothing, keyed
   // to the copy, which `countedUses` writes and `recovers: 'special'` leaves
   // where it lands.
+  // Re-derived, and only one of its three blockers survived. The Blinded
+  // condition its DC 15 save imposes, the minute it lasts and the repeat that
+  // ends it are all built, and a charge spent on a conferral is built too —
+  // what is left is "at one creature you can see within 60 feet of yourself"
+  // for the second command word, the 30-foot Cone for the third, and a light
+  // that lasts "until you take a Bonus Action to repeat the command word".
   'gem-of-brightness': [
-    'a-condition-an-item-imposes',
+    'a-benefit-an-item-switches-on-and-off',
+    'a-range-an-item-names',
     'an-area-an-item-creates',
-    'a-charge-spent-on-something-other-than-a-casting',
   ],
-  'gem-of-seeing': [
-    'senses-beyond-declared-sight',
-    'a-charge-spent-on-something-other-than-a-casting',
-  ],
+  // Re-pointed: a charge buying ten minutes of something is a priced
+  // conferral, which is built. What a conferral may not carry is the
+  // something — `CONFERRED_EFFECT_KINDS` has no `sense` member, so the
+  // Truesight is the whole of what keeps the gem out.
+  'gem-of-seeing': ['senses-beyond-declared-sight'],
   'gloves-of-missile-snaring': ['a-reaction-an-item-grants'],
   'gloves-of-swimming-and-climbing': [
     'a-speed-an-item-grants',
@@ -5358,7 +5393,6 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   'helm-of-brilliance': [
     'an-area-an-item-creates',
     'a-rider-on-a-later-weapon-attack',
-    'a-damage-roll-an-item-makes',
     'a-spell-an-item-casts-that-nothing-executes',
     'a-rider-on-the-face-the-die-showed',
     'an-item-instance-with-a-state-of-its-own',
@@ -5375,11 +5409,17 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   // Re-pointed. Nothing about the horn is per copy: "Each use of the horn's
   // magic has a 20 percent chance of causing the horn to explode" is a die
   // thrown at every use, and the shape for one is the spell map's own.
+  // Re-derived a second time. The Cone stays and the percentage stays; the
+  // condition stays for the first residue — "a creature takes 5d8 Thunder
+  // damage **and** has the Deafened condition", one save with two
+  // consequences, which is `save-damage`'s refused `conditions` rider — and
+  // the explosion's 10d6 on the user comes off the item damage shape onto the
+  // spell vocabulary's, because it lands with nothing rolled to decide it.
   'horn-of-blasting': [
     'an-area-an-item-creates',
-    'a-damage-roll-an-item-makes',
     'a-condition-an-item-imposes',
     'a-random-outcome-that-is-not-a-d20',
+    'damage-with-neither-an-attack-roll-nor-a-save',
   ],
   'horn-of-valhalla': [
     'a-stat-block-created-mid-fight',
@@ -5402,7 +5442,11 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   // "Once the bands are used, they can't be used again until the next dawn"
   // is a pool of one on this copy, which is what keying a pool to the
   // instance bought. The Restrained condition is what is left.
-  'iron-bands': ['a-condition-an-item-imposes'],
+  'iron-bands': [
+    'a-condition-an-item-imposes',
+    'a-damage-roll-an-item-makes',
+    'a-range-an-item-names',
+  ],
   // The instance shape stays: "The flask can hold only one creature at a
   // time" and "A newly discovered _Iron Flask_ might already contain a
   // creature chosen by the GM" are a **creature** kept on this copy, which
@@ -5417,21 +5461,28 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'senses-beyond-declared-sight',
     'a-benefit-an-item-switches-on-and-off',
   ],
+  // Re-pointed off the charge shape: the blade's charge buys a **casting**
+  // — "you can expend 1 charge and cast _Wish_ from it" — which is the
+  // `casts` grant's own price, and 1d3 of them at the copy's birth is
+  // `usesRolled`. Wish is undefined and the reroll replaces a result.
   'luck-blade': [
     'a-roll-result-an-effect-replaces',
     'a-spell-an-item-casts-that-nothing-executes',
-    'a-charge-spent-on-something-other-than-a-casting',
   ],
+  // All three kept, and the condition for the second residue: "the creature
+  // has the Frightened condition **until the end of your next turn**" is a
+  // span measured in turns, and a conferral's `durationSeconds` is seconds.
   'mace-of-disruption': [
     'a-rider-on-a-later-weapon-attack',
     'a-save-an-item-forces',
     'a-condition-an-item-imposes',
   ],
-  'mace-of-terror': [
-    'a-condition-an-item-imposes',
-    'a-charge-spent-on-something-other-than-a-casting',
-    'an-action-a-spell-compels-or-forbids',
-  ],
+  // Re-derived, and two of its three went. A charge spent on a conferral is
+  // built, and so is a save that imposes Frightened for a minute with a
+  // repeat at the end of each turn. What is left is "each creature of your
+  // choice within 30 feet of you", which catches more than one, and what the
+  // Frightened creature must then do with its turns.
+  'mace-of-terror': ['an-action-a-spell-compels-or-forbids', 'an-area-an-item-creates'],
   'mantle-of-spell-resistance': [
     {
       clause: 'Advantage on saving throws against spells',
@@ -5449,8 +5500,8 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   'manual-of-gainful-exercise': ['an-ability-score-a-spell-changes'],
   'manual-of-golems': [
     'a-stat-block-created-mid-fight',
-    'a-damage-roll-an-item-makes',
     'a-version-of-an-item-the-book-leaves-to-the-gm',
+    'damage-with-neither-an-attack-roll-nor-a-save',
   ],
   'manual-of-quickness-of-action': ['an-ability-score-a-spell-changes'],
   // "This fine wooden box contains 1d4 pots of pigment", one spent per
@@ -5472,10 +5523,20 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'a-selector-for-every-d20-test',
   ],
   'necklace-of-adaptation': ['a-save-keyed-to-a-condition'],
-  'necklace-of-fireballs': {
-    unread:
-      're-read, and the blocker it named is gone without another to take its place — which is the more surprising because this necklace is the example `CatalogueItem.chargesRolled`’s own docstring is written around. "This necklace has 1d6 + 3 beads" is a count rolled at the copy’s birth and pinned, and Fireball executes, so "the bead detonates as a level 3 _Fireball_ (save DC 15)" is a `casts` grant priced at one bead. What has no id is the clause before it: "you can take a Magic action to detach a bead and **throw it up to 60 feet away**" — Fireball’s own Range is 150 feet, `resolveTargets` enforces that Range, and a `casts` grant has no field that narrows one. The clause *limits* the benefit, so rule 3 in packages/content/src/items.ts leaves the record out rather than handing out a necklace with two and a half times the reach the book gives it. Every other item in the catalogue that casts prints no range of its own, which is why this is the first entry to want the field.',
-  },
+  // **Placed, by the shape the re-derivation had to name anyway.** The last
+  // reading left this unread because "the blocker it named is gone without
+  // another to take its place", and the one it wanted is the same missing
+  // field seen from the other end: "you can take a Magic action to detach a
+  // bead and **throw it up to 60 feet away**" is a distance the item's own
+  // line prints, and no grant an item carries has anywhere to put one.
+  // Fireball's own Range is 150 feet and `resolveTargets` enforces it, so a
+  // record written today would hand out a necklace with two and a half times
+  // the reach the book gives it — the unsayable clause *limiting* the
+  // benefit, which is rule 3 in packages/content/src/items.ts. Everything
+  // else about it is writable: 1d6 + 3 beads is `chargesRolled`, Fireball
+  // executes, and "as a level 3 _Fireball_ (save DC 15)" is a `casts` grant
+  // priced at one bead.
+  'necklace-of-fireballs': ['a-range-an-item-names'],
   // The instance shape stays, and it is not the count: the 1d4 + 2 beads are
   // rolled at the copy's birth, but **which type** each bead is is the GM's
   // and each keeps a dawn of its own, so this copy carries a list rather than
@@ -5506,16 +5567,28 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'an-area-an-item-creates',
   ],
   'pearl-of-power': ['a-casting-an-item-stores-or-gives-back'],
-  'periapt-of-health': [
-    'a-charge-spent-on-something-other-than-a-casting',
-    'a-save-keyed-to-a-condition',
-  ],
   'periapt-of-wound-closure': [
     'a-roll-result-an-effect-replaces',
     'healing-modified-by-an-effect',
   ],
-  'philter-of-love': ['a-condition-an-item-imposes'],
-  'pipes-of-haunting': ['a-condition-an-item-imposes'],
+  // Re-pointed, and the condition was never it: "have the Charmed condition
+  // for 1 hour" is a conferral's own grant, hour and all. What the engine
+  // cannot see is when it starts and who it is about — "The next time you
+  // see a creature within 10 minutes after drinking this philter, you are
+  // charmed **by that creature**" — which is a sighting the table declares
+  // and a charmer no `ConditionRider` names.
+  'philter-of-love': ['a-fact-only-the-table-can-declare'],
+  // Re-pointed. Three charges regaining 1d3 at dawn is a pool, a charge
+  // spent on a conferral is a price, and Frightened for a minute with a
+  // repeat at the end of each turn is the save kind. What is left is "each
+  // creature of your choice within 30 feet of you", which is more than one
+  // creature, and the memory the tune leaves behind — "a creature that
+  // succeeds on its save is immune to the effect of these pipes for 24
+  // hours", an immunity narrowed to the thing that caused it.
+  'pipes-of-haunting': [
+    'a-condition-immunity-narrowed-to-its-source',
+    'an-area-an-item-creates',
+  ],
   'pipes-of-the-sewers': [
     'a-stat-block-created-mid-fight',
     'a-save-an-item-forces',
@@ -5569,7 +5642,16 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
       note: 'read, and it keeps the shape for the potion reason: Detect Thoughts is defined and **tracked**, so there is no `SpellEffect[]` for a conferral to carry and an empty list confers nothing. The printed DC cannot rescue it either — a conferral may print one only where something rolls against it, and what this spell rolls against a DC is the save of a probe taken as a Magic action on a later turn, which no conferral has a turn to take.',
     },
   ],
-  'potion-of-poison': ['a-damage-roll-an-item-makes', 'a-condition-an-item-imposes'],
+  // **Re-pointed, and it is the entry that answered the damage shape's own
+  // question.** The middle clause is built — "must succeed on a DC 13
+  // Constitution saving throw or have the Poisoned condition for 1 hour" is
+  // a `save` effect against the bottle's printed DC, with its hour on the
+  // conferral — so the condition shape has nothing to do here. What is left
+  // is the 4d6, which arrives whether the save is made or not: a hit with no
+  // roll to decide it, which is the spell vocabulary's own id and not a
+  // second gap because an item printed it. packages/content/src/items.ts
+  // says the same about this potion in the POTIONS docstring.
+  'potion-of-poison': ['damage-with-neither-an-attack-roll-nor-a-save'],
   'potion-of-resistance': ['a-version-of-an-item-the-book-leaves-to-the-gm'],
   'potion-of-vitality': ['an-exhaustion-level-a-spell-changes', 'healing-modified-by-an-effect'],
   'potion-of-water-breathing': [
@@ -5583,14 +5665,22 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'a-stat-block-created-mid-fight',
     'a-concentration-with-no-casting-behind-it',
   ],
+  // Re-pointed off the condition shape. Its Charmed is imposed by the ring's
+  // own DC 18 save, which is built; what the same sentence then says is not
+  // — "you determine what it does with its move and action on its next
+  // turn" — and the sixty feet it reaches is the other half.
   'ring-of-elemental-command': [
     'a-version-of-an-item-the-book-leaves-to-the-gm',
     'a-language-or-a-proficiency-an-item-grants',
+    'a-range-an-item-names',
     'a-spell-an-item-casts-that-nothing-executes',
-    'a-condition-an-item-imposes',
+    'an-action-a-spell-compels-or-forbids',
     'movement-modes',
     'a-speed-an-item-grants',
   ],
+  // The charge shape is kept, and for the residue the rewritten description
+  // names rather than for the price: what this charge buys is a Reaction
+  // taken on a failed save, which is not a conferral at all.
   'ring-of-evasion': [
     'a-reaction-an-item-grants',
     'a-charge-spent-on-something-other-than-a-casting',
@@ -5606,10 +5696,12 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'difficult-terrain-an-area-creates',
     'a-condition-immunity-narrowed-to-its-source',
   ],
-  'ring-of-invisibility': [
-    'a-condition-an-item-imposes',
-    'a-benefit-an-item-switches-on-and-off',
-  ],
+  // Re-pointed: the Invisible condition is handed over outright, which is
+  // the Potion of Invisibility's own grant. What the ring prints instead of a
+  // duration is "until the ring is removed or until you take a Bonus Action
+  // to become visible again" — no span at all, and a conferral that hangs a
+  // condition must say how long it lasts or hang nothing.
+  'ring-of-invisibility': ['a-benefit-an-item-switches-on-and-off'],
   'ring-of-mind-shielding': [
     'a-fact-only-the-table-can-declare',
     'an-object-with-statistics-of-its-own',
@@ -5626,9 +5718,16 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   'ring-of-spell-storing': ['a-casting-an-item-stores-or-gives-back'],
   'ring-of-spell-turning': ['a-mode-on-the-save-a-spell-forces', 'a-reaction-an-item-grants'],
   'ring-of-swimming': ['a-speed-an-item-grants', 'movement-modes'],
+  // **The one entry the damage shape is still about**, and it keeps both:
+  // "The ring produces a spectral ram's head and makes its attack roll with a
+  // +7 bonus" is an attack an item rolls itself, and "for each charge you
+  // spend, the target takes 2d10 Force damage" is a benefit that grows with
+  // the count spent, which is the charge shape's own surviving residue. The
+  // sixty feet is the third.
   'ring-of-the-ram': [
-    'a-damage-roll-an-item-makes',
     'a-charge-spent-on-something-other-than-a-casting',
+    'a-damage-roll-an-item-makes',
+    'a-range-an-item-names',
   ],
   // "you can expend 1 of its 3 charges ... The ring becomes nonmagical when
   // you use the last charge" is a pool of three keyed to the copy, spent to
@@ -5640,14 +5739,18 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'a-benefit-an-item-switches-on-and-off',
     'an-exhaustion-level-a-spell-changes',
   ],
-  'robe-of-eyes': [
-    'a-fact-only-the-table-can-declare',
-    'senses-beyond-declared-sight',
-    'a-condition-an-item-imposes',
-  ],
+  // Re-pointed off the condition shape: Blinded for a minute with a repeat
+  // Constitution save at the end of each turn is the save kind, whole. What
+  // no rule can see is the trigger — "A _Light_ spell cast on the robe or a
+  // _Daylight_ spell cast within 5 feet of the robe" targets the garment.
+  'robe-of-eyes': ['a-fact-only-the-table-can-declare', 'senses-beyond-declared-sight'],
+  // The condition shape is kept for the second residue and the charge shape
+  // goes: a charge spent on a conferral is built, and what is not is the span
+  // — "the Stunned condition **until the effect ends**", where the effect
+  // itself runs "until the end of your next turn". Neither is a number of
+  // seconds. The Bright Light that decides who is caught is the other half.
   'robe-of-scintillating-colors': [
     'a-condition-an-item-imposes',
-    'a-charge-spent-on-something-other-than-a-casting',
     'an-area-an-item-creates',
   ],
   'robe-of-the-archmagi': ['a-bonus-to-spell-attack-rolls', 'a-mode-on-the-save-a-spell-forces'],
@@ -5666,16 +5769,37 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   // dawn — is now `atWill`. What is left is the aura it plants and the
   // Advantage on Initiative it hands whoever is near it.
   'rod-of-alertness': ['an-area-an-item-creates', 'senses-beyond-declared-sight'],
+  // Re-pointed off the condition shape. Both conditions the rod imposes are
+  // built — Paralyzed for a minute on a hit, Frightened for a minute on a
+  // Magic action, each with a repeat that ends on its own target. What is
+  // left is the six buttons, the two properties that ride a melee hit, the
+  // Drain Life whose failure feeds the wielder, and the thirty feet
+  // _Terrify_ reaches round the holder.
   'rod-of-lordly-might': [
     'a-benefit-an-item-switches-on-and-off',
-    'a-condition-an-item-imposes',
-    'a-save-an-item-forces',
     'a-rider-on-a-later-weapon-attack',
+    'a-save-an-item-forces',
+    'an-area-an-item-creates',
   ],
-  'rod-of-rulership': ['a-condition-an-item-imposes'],
+  // The condition shape is kept, and this is the entry the **third** residue
+  // was written for: "If harmed by you or your allies ... a target ceases to
+  // be Charmed in this way" names the creature that dealt the harm, and
+  // `EFFECT_END_CAUSES` holds the four causes that are a fact about the
+  // creature the timer sits on and not that one — it needs a caster, and a
+  // conferral has none. The 120 feet and the several targets are the rest.
+  'rod-of-rulership': ['a-condition-an-item-imposes', 'an-area-an-item-creates'],
   'rod-of-security': ['a-fact-only-the-table-can-declare', 'healing-modified-by-an-effect'],
   'rope-of-climbing': ['an-object-with-statistics-of-its-own', 'a-bonus-narrowed-to-a-skill'],
-  'rope-of-entanglement': ['an-object-with-statistics-of-its-own', 'a-condition-an-item-imposes'],
+  // The condition shape is kept for the second residue: the Restrained it
+  // imposes has no span at all — it ends when the holder lets go — and the
+  // way out is "a DC 15 Strength (Athletics) or Dexterity (Acrobatics)
+  // check", which is a `ConditionRider`'s refused `check`. Twenty feet is the
+  // third thing, and the rope's own AC 20 and 20 Hit Points the fourth.
+  'rope-of-entanglement': [
+    'a-condition-an-item-imposes',
+    'a-range-an-item-names',
+    'an-object-with-statistics-of-its-own',
+  ],
   'scarab-of-protection': [
     'a-reaction-an-item-grants',
     'a-mode-on-the-save-a-spell-forces',
@@ -5701,11 +5825,18 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'an-item-instance-with-a-state-of-its-own',
   ],
   'spellguard-shield': ['a-mode-on-the-save-a-spell-forces'],
-  'sphere-of-annihilation': ['an-object-with-statistics-of-its-own', 'a-damage-roll-an-item-makes'],
+  'sphere-of-annihilation': [
+    'an-object-with-statistics-of-its-own',
+    'damage-with-neither-an-attack-roll-nor-a-save',
+  ],
   // Charm Person executes and Command and Comprehend Languages are tracked,
   // so all three of the staff's castings are writable. The Reaction that
   // reflects an Enchantment and the failed save it turns into a success are
   // what is left.
+  // The charge shape is kept, and for the surviving residue rather than the
+  // price: the staff's second charge buys a Reaction — "you can take a
+  // Reaction to expend 1 charge from the staff and turn the spell back on its
+  // caster" — which is not a conferral and not a casting either.
   'staff-of-charming': [
     'a-reaction-an-item-grants',
     'a-charge-spent-on-something-other-than-a-casting',
@@ -5715,6 +5846,10 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'a-spell-an-item-casts-that-nothing-executes',
     'a-rider-on-the-face-the-die-showed',
   ],
+  // The charge shape is kept, for the one way a **casting's** price can be
+  // unsayable: "1 charge per spell level (maximum 4 for a level 4 spell)" is
+  // a cost that reads the slot, and `ItemCastsGrant.charges` is one number.
+  // Cure Wounds, Lesser Restoration and Mass Cure Wounds are all defined.
   'staff-of-healing': [
     'a-charge-spent-on-something-other-than-a-casting',
     'a-rider-on-the-face-the-die-showed',
@@ -5724,9 +5859,12 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'a-bonus-to-spell-attack-rolls',
     'a-rider-on-the-face-the-die-showed',
     'an-area-an-item-creates',
-    'a-damage-roll-an-item-makes',
+    'damage-with-neither-an-attack-roll-nor-a-save',
   ],
   'staff-of-striking': ['a-charge-spent-on-something-other-than-a-casting'],
+  // The charge shape is kept: an Emanation of insects that obscures an area
+  // for ten minutes is a charge spent on something no grant kind executes at
+  // all, which is the residue the shape's description names.
   'staff-of-swarming-insects': [
     'a-spell-an-item-casts-that-nothing-executes',
     'an-area-an-item-creates',
@@ -5738,7 +5876,7 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'a-bonus-to-spell-attack-rolls',
     'a-casting-an-item-stores-or-gives-back',
     'an-area-an-item-creates',
-    'a-damage-roll-an-item-makes',
+    'damage-with-neither-an-attack-roll-nor-a-save',
   ],
   'staff-of-the-python': [
     'a-stat-block-created-mid-fight',
@@ -5750,6 +5888,11 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'an-object-with-statistics-of-its-own',
     'a-rider-on-the-face-the-die-showed',
   ],
+  // The condition shape is kept, and this staff has two of the three
+  // residues at once: _Thunder_ hangs its Stunned "until the end of your next
+  // turn", which is not a number of seconds, and _Thunderclap_ writes "a
+  // creature takes 2d6 Thunder damage **and** has the Deafened condition for
+  // 1 minute" — one save with two consequences, which is the refused rider.
   'staff-of-thunder-and-lightning': [
     'a-rider-on-a-later-weapon-attack',
     'a-condition-an-item-imposes',
@@ -5776,43 +5919,54 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   // keyed to the instance holds. Its twin below reads the same.
   'talisman-of-pure-good': [
     'a-bonus-to-spell-attack-rolls',
-    'a-damage-roll-an-item-makes',
-    'a-save-an-item-forces',
-    'a-charge-spent-on-something-other-than-a-casting',
     'a-filter-on-the-attackers-creature-type',
+    'a-range-an-item-names',
+    'a-save-an-item-forces',
+    'damage-with-neither-an-attack-roll-nor-a-save',
   ],
   'talisman-of-the-sphere': [
     'a-fact-only-the-table-can-declare',
     'an-object-with-statistics-of-its-own',
   ],
+  // Both talismans re-point the same way: the 8d6 a Fiend or an Undead takes
+  // for touching one lands with nothing rolled to decide it, and the charge
+  // buys a conferral, which is built. What is left is the +2 to spell attack
+  // rolls, the creature-type filter, the 120 feet, and a failed save whose
+  // outcome is destruction rather than damage or a condition.
   'talisman-of-ultimate-evil': [
     'a-bonus-to-spell-attack-rolls',
-    'a-damage-roll-an-item-makes',
-    'a-save-an-item-forces',
-    'a-charge-spent-on-something-other-than-a-casting',
     'a-filter-on-the-attackers-creature-type',
+    'a-range-an-item-names',
+    'a-save-an-item-forces',
+    'damage-with-neither-an-attack-roll-nor-a-save',
   ],
   // Re-read against the grant that landed, and its first clause is no longer
   // a blocker: "While you are attuned to this magic weapon, your Strength is
   // 20 unless your Strength is already equal to or greater than that score"
   // is an `ability-score-set` behind `while-attuned`, which the Gauntlets of
   // Ogre Power now write. Five clauses keep the entry out.
+  // Re-derived again, and two more clauses stopped being blockers: the Prone
+  // its Cone imposes is a condition a save hands over, and the extra Thunder
+  // it deals to objects is damage to a thing with statistics rather than
+  // damage an item rolls an attack for. Four clauses keep the entry out.
   'thunderous-greatclub': [
-    'an-area-an-item-creates',
-    'a-save-an-item-forces',
-    'a-condition-an-item-imposes',
     'a-rider-on-a-later-weapon-attack',
-    'a-damage-roll-an-item-makes',
+    'a-save-an-item-forces',
+    'an-area-an-item-creates',
+    'an-object-with-statistics-of-its-own',
   ],
   // The three tomes print the three manuals' sentence again; read them there.
   'tome-of-clear-thought': ['an-ability-score-a-spell-changes'],
   'tome-of-leadership-and-influence': ['an-ability-score-a-spell-changes'],
   'tome-of-understanding': ['an-ability-score-a-spell-changes'],
   'trident-of-fish-command': ['a-target-rule-the-format-cannot-state'],
+  // Re-pointed off the charge shape: a charge buying a minute of something
+  // is a priced conferral, which is built. Knowing "the direction of the
+  // nearest creature Hostile to you within 60 feet" is a sense, and
+  // `CONFERRED_EFFECT_KINDS` has no member for one.
   'wand-of-enemy-detection': [
     'senses-beyond-declared-sight',
     'a-rider-on-the-face-the-die-showed',
-    'a-charge-spent-on-something-other-than-a-casting',
   ],
   'wand-of-magic-missiles': [
     'a-spell-an-item-casts-that-nothing-executes',
@@ -5831,16 +5985,27 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   // buys something — a Fire Opal's beams, a staff regaining charges on a 20,
   // a sword's extra damage — and on the wands whose spell or condition
   // blocks them anyway.
-  'wand-of-paralysis': ['a-condition-an-item-imposes', 'a-rider-on-the-face-the-die-showed'],
+  // **The clearest case the re-derivation turned up.** Every clause of this
+  // wand but one is built: seven charges regaining 1d6 + 1 at dawn is a
+  // pool, a charge spent on a conferral is a price, and "must succeed on a DC
+  // 15 Constitution saving throw or have the Paralyzed condition for 1
+  // minute. At the end of each of the target's turns, it repeats the save,
+  // ending the effect on itself on a success" is the `save` kind in the
+  // book's own words. What is in the way is "a creature you can see within 60
+  // feet of yourself", and the wand's own crumbling on a 1.
+  'wand-of-paralysis': ['a-range-an-item-names', 'a-rider-on-the-face-the-die-showed'],
   'wand-of-the-war-mage-1-2-or-3': [
     'a-bonus-to-spell-attack-rolls',
     'a-fact-only-the-table-can-declare',
   ],
+  // Re-pointed off the condition shape: what this wand does is rolled on a
+  // 1d100 table of its own, so the conditions on that table arrive through
+  // the roll and never through a conferral.
   'wand-of-wonder': [
+    'a-random-outcome-that-is-not-a-d20',
+    'a-rider-on-the-face-the-die-showed',
     'a-spell-an-item-casts-that-nothing-executes',
     'a-version-of-an-item-the-book-leaves-to-the-gm',
-    'a-condition-an-item-imposes',
-    'a-rider-on-the-face-the-die-showed',
   ],
   'well-of-many-worlds': {
     unread:
@@ -5853,11 +6018,12 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   // tally — a pool with no size, which is what let the sixth use roll at a
   // hundred instead of being refused — and the die is a `1d100` the engine
   // throws before the spell is cast at all.
-  'winged-boots': [
-    'a-speed-an-item-grants',
-    'movement-modes',
-    'a-charge-spent-on-something-other-than-a-casting',
-  ],
+  // Re-pointed off the charge shape: "expend 1 charge, gaining a Fly Speed of
+  // 30 feet for 1 hour" is a priced conferral with a printed span, and
+  // `CONFERRED_EFFECT_KINDS` even admits `speed`. What it does not admit is a
+  // *mode*: `SpeedChange` adds, halves or zeroes the one Speed the engine
+  // holds, so a Fly Speed has nowhere to land.
+  'winged-boots': ['a-speed-an-item-grants', 'movement-modes'],
   'wings-of-flying': [
     'a-speed-an-item-grants',
     'movement-modes',

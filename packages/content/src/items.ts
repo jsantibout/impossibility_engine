@@ -115,8 +115,11 @@ const CLASS_ITEMS: readonly CatalogueItem[] = [
  * and the difference is where the number is. The Thunderous Greatclub prints
  * its own — "your Strength is 20 unless your Strength is already equal to or
  * greater than that score" — so the score has stopped being what blocks it,
- * and what keeps it out is the other five clauses: an area, a save, a
- * condition, a rider and a damage roll an item makes. The Belt of Giant
+ * and what keeps it out is the other four clauses: an area, a save whose
+ * outcome is a fall into a fissure, a rider on a later weapon attack, and
+ * damage dealt to structures. The re-derivation of the item map took the
+ * fifth away: the Prone its Cone imposes is a condition a saving throw hands
+ * over, which an item has been able to write for two batches. The Belt of Giant
  * Strength prints none: "your Strength changes to a score granted by the
  * belt ... see the table below", and the table is a row per belt. So the
  * score is still its blocker as well as the versions, and it will stay one
@@ -2242,6 +2245,108 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
       ],
     },
   ),
+
+  // ── two conferrals that are not potions ──────────────────────────────────
+  //
+  // SRD writes the `confers` grant's sentence about Potions — "Many items,
+  // such as Potions, bypass the casting of a spell" — and *such as* is the
+  // word these two turn on. A conferral is an effect list with no casting
+  // behind it, and nothing about it is a bottle: one of these is thrown into
+  // the air and the other is worn round a neck and spent a charge at a time.
+  //
+  // Both were on the blocked map until its item shapes were re-derived, and
+  // both were blocked on a claim that had stopped being true — the first on
+  // "a condition whose duration the item rolls for, which no conferral can
+  // state", the second on a charge buying something other than a casting.
+  // `durationRolled` and `ItemConfersGrant.charges` are the two fields that
+  // answer them, and neither was written for these entries.
+  wornItem(
+    { id: 'dust-of-disappearance', name: 'Dust of Disappearance', kind: 'wondrous' },
+    {
+      /**
+       * SRD Dust of Disappearance: "Wondrous Item, Uncommon. Found in a small
+       * container, this powder resembles fine sand. There is enough of it for
+       * one use. When you take a Utilize action to throw the dust into the
+       * air, you and each creature and object within a 10-foot Emanation
+       * originating from you have the Invisible condition for 2d4 minutes.
+       * The duration is the same for all subjects, and the dust is consumed
+       * when its magic takes effect. Immediately after an affected creature
+       * makes an attack roll, deals damage, or casts a spell, the Invisible
+       * condition ends for that creature."
+       *
+       * **The Potion of Invisibility's grant with a die where its hour is.**
+       * The same condition, filed under `item:<id>` with no casting anywhere
+       * near it; the same three end causes, which are the three
+       * `EFFECT_END_CAUSES` names; and a span the item rolls rather than
+       * prints, which `useItem` throws once at the use and pins as a
+       * deadline, so a replay reads the minutes out of the log instead of
+       * throwing a second, different pair of d4s.
+       *
+       * **Rule 2, and the clause it leaves out gives the thrower nothing
+       * less than the page does.** A conferral lands on its user or on one
+       * creature within five feet — SRD's own sentence about administering a
+       * potion is the whole of `useItem`'s reach — so the companions the
+       * Emanation catches are the table's. That is a narrower dust rather
+       * than a better one, which is what separates rule 2 from rule 3.
+       */
+      grants: [
+        {
+          kind: 'confers',
+          action: 'action',
+          durationRolled: { dice: '2d4', secondsEach: 60 },
+          endsEarly: ['target-attacks', 'target-deals-damage', 'target-casts'],
+          effects: [{ kind: 'condition', condition: { name: 'invisible' } }],
+        },
+      ],
+      unmodelled: [
+        '"you and each creature and object within a 10-foot Emanation originating from you": a conferral reaches its user or one creature within 5 feet and has no field for an area, so only the thrower is made Invisible and the companions the dust catches are the table\'s — as is every object it touches, which is not a creature at all',
+        '"The duration is the same for all subjects" follows from the above rather than being honoured: there is one subject, so the sentence has nothing to keep in step',
+        '"makes an attack roll": the engine reads `target-attacks` off `attack-made`, which is the Attack action rather than every attack roll — a free swing that misses leaves the dust running, and one that lands deals damage and ends it. The same residue SRD Potion of Invisibility records, in the same words',
+      ],
+    },
+  ),
+  wornItem(
+    { id: 'periapt-of-health', name: 'Periapt of Health', kind: 'wondrous' },
+    {
+      /**
+       * SRD Periapt of Health: "Wondrous Item, Uncommon (Requires
+       * Attunement). While wearing this pendant, you can take a Magic action
+       * to regain 2d4 + 2 Hit Points. Once used, this property can't be used
+       * again until the next dawn. In addition, you have Advantage on saving
+       * throws to avoid or end the Poisoned condition while you wear this
+       * pendant."
+       *
+       * **A conferral priced in a charge, which is the half of
+       * `a-charge-spent-on-something-other-than-a-casting` that is built.**
+       * What the charge buys here is not a casting: it is the Potion of
+       * Healing's own effect list, on an item that is worn rather than drunk.
+       * So the record is the two halves the SRD prints — a per-day pool of
+       * one, which is `charges` with every number set to it, and a conferral
+       * that costs one of them — and `useItem` spends the charge out of the
+       * pendant's own pool instead of taking the pendant off the neck.
+       *
+       * **The dice are the item's and the caster is nobody**, exactly as they
+       * are in the bottle: `addSpellcastingModifier: false`, because a
+       * conferral has no spellcasting ability modifier to add and
+       * `checkContent` refuses an item that says otherwise.
+       */
+      attunement: {},
+      grants: [
+        charges('periapt-of-health', 'Periapt of Health', 1),
+        {
+          kind: 'confers',
+          action: 'action',
+          charges: 1,
+          effects: [
+            { kind: 'heal', healing: { dice: '2d4', flat: 2 }, addSpellcastingModifier: false },
+          ],
+        },
+      ],
+      unmodelled: [
+        '"you have Advantage on saving throws to avoid or end the Poisoned condition while you wear this pendant": a `roll-mode` reaches a saving throw by its ability and not by what the save is *against*, so a mode narrowed to one named condition has no selector — the shape the blocked map calls `a-save-keyed-to-a-condition`, and the Periapt of Proof against Poison is blocked on its neighbour',
+      ],
+    },
+  ),
 ];
 
 /**
@@ -2254,31 +2359,33 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
  * That is the `confers` grant in one paragraph: an action, an effect list, and
  * no casting anywhere in it.
  *
- * Three of them, by the three rules above {@link NAMED_ITEMS}. Most of the
- * rest of the book's potions say "you gain the effect of the X spell (no
- * Concentration required)", which a conferral cannot express: it carries an
- * effect list and not a spell id, so the whole of such a potion's text is
- * beyond the vocabulary and rule 1 leaves it out. The others set an ability
- * score, or roll a save to impose a condition.
+ * Whichever of them the three rules above {@link NAMED_ITEMS} admit — the
+ * count is `COVERAGE.md`'s and not this docstring's. Most of the rest of the
+ * book's potions say "you gain the effect of the X spell (no Concentration
+ * required)", which a conferral cannot express: it carries an effect list and
+ * not a spell id, so where that spell is *tracked* rather than executed the
+ * list would be empty, and rule 1 leaves the potion out. The others set an
+ * ability score, or deal damage nothing rolls for.
  *
- * **A condition handed over outright is now sayable**, which is what the
- * Potion of Invisibility is: no casting, no roll, a condition filed under
+ * **A condition handed over outright is sayable**, which is what the Potion
+ * of Invisibility is: no casting, no roll, a condition filed under
  * `item:<id>` and a timer that holds the hour and the sentence that cuts it
- * short. What is still not sayable is a condition a *save* imposes.
+ * short. **And so is a condition a *save* imposes**, which this docstring
+ * denied for two batches and which `CONFERRED_EFFECT_KINDS` has admitted
+ * since the weld was cut — a `PendingSave` names the *source* now rather than
+ * a casting id, so a repeat at the end of each turn ends the condition on its
+ * own target and nothing has to have been cast.
  *
- * **Potion of Poison is the one worth naming, because it looks admissible and
- * is not.** SRD: "If you drink this potion, you take 4d6 Poison damage and
- * must succeed on a DC 13 Constitution saving throw or have the Poisoned
- * condition for 1 hour." A conferral may now print a DC and roll a save
- * against it, so the middle clause is sayable; the other two are not. The
- * `save` kind carries a `repeats`, and a repeat save is a `PendingSave` that
- * names a casting id — so a condition a save imposes still waits, even though
- * one handed over outright no longer does. And the 4d6 is **not** on the
- * save — it lands whether the save is made or not — which is a hit with no
- * roll to make it, the shape Magic Missile is blocked on and the one
- * `save-damage` cannot be bent into without inventing a rule the book does
- * not print. What would be left is a saving throw that decides nothing, on a
- * potion that does nothing, so rule 1 leaves it out.
+ * **Potion of Poison is the one worth naming, because the clause that keeps
+ * it out is not the one this file used to say.** SRD: "If you drink this
+ * potion, you take 4d6 Poison damage and must succeed on a DC 13 Constitution
+ * saving throw or have the Poisoned condition for 1 hour." The middle clause
+ * is a `save` effect against the bottle's own printed DC, hour and all. The
+ * 4d6 is **not** on the save — it lands whether the save is made or not —
+ * which is a hit with no roll to make it, the shape Magic Missile is blocked
+ * on and the one `save-damage` cannot be bent into without inventing a rule
+ * the book does not print. A record carrying the save without the damage
+ * would be a strictly gentler poison, which is rule 3, so the flask waits.
  */
 const POTIONS: readonly CatalogueItem[] = [
   {

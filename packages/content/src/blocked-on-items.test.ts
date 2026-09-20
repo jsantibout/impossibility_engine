@@ -346,9 +346,19 @@ describe('what a shape finishes is two numbers here too', () => {
    * replaced; one that kept claiming the identity was, after it shipped, would
    * be the same mistake one landing later.
    */
-  it('has spent the two largest blockers it found, and names the one that is heaviest now', () => {
+  it('has spent the three largest blockers it found, and names the one that is heaviest now', () => {
     const ranked = [...allItemShapeConsumers()].sort((a, b) => b.blocks.length - a.blocks.length);
-    expect(ranked[0]?.shape).toBe('a-condition-an-item-imposes');
+    // **The third finding, and the only one that cost nothing to act on.**
+    // The id that replaced the identity at the top was `a-condition-an-item-
+    // imposes`, and it was never built: it was *re-read*, entry by entry,
+    // against what `content.ts` had come to admit. Eighteen of its
+    // twenty-eight entries named it for a condition the vocabulary could
+    // already write down, and the blocker underneath them turned out to be a
+    // distance. So what sits at the top now is a shape no engine work can
+    // reach — the version of an item the book leaves to the GM — which is
+    // itself the finding: the heaviest thing between this catalogue and the
+    // book is not a missing mechanism.
+    expect(ranked[0]?.shape).toBe('a-version-of-an-item-the-book-leaves-to-the-gm');
 
     // **The spell shape was read entry by entry after the definitions
     // landed**, not trusted: thirteen entries named it with every spell they
@@ -377,6 +387,93 @@ describe('what a shape finishes is two numbers here too', () => {
     // And the ranking is still worth reading: the top row really does finish
     // entries, which is the column a tranche is planned from.
     expect(ranked[0]?.finishes.length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * **What the re-derivation of the two heaviest item shapes actually found**,
+ * pinned by name so the next reading has something to disagree with.
+ *
+ * The table said `a-condition-an-item-imposes` blocked twenty-eight entries
+ * and finished none of them, and a tranche sized off that row would have
+ * built a mechanism that was already there: a conferral has hung a condition
+ * outright since the Potion of Invisibility, a saving throw has imposed one
+ * since the weld was cut, and a span the item **rolls** has been a field since
+ * the Potion of Diminution. What the shape's own description called its
+ * residue — "a condition whose duration the item rolls for, which no conferral
+ * can state" — was untrue when it was written.
+ *
+ * So the entries were read one at a time against the SRD paragraph and against
+ * what `checkContent` admits, and three quarters of them named a shape they
+ * had no business naming. Every assertion below is one claim of that reading,
+ * written out rather than counted: a count cannot be wrong in a way anybody
+ * notices, and the next reader's job is to find the entry this one got wrong.
+ */
+describe('the two shapes the re-derivation was sent to check', () => {
+  /**
+   * What is left of the condition shape, and each of these has one of the
+   * three residues its description now names — a rider welded to the same
+   * save as the damage, an escape check or a span that is not seconds, or an
+   * end cause that names whoever did the harm.
+   */
+  it('leaves the condition shape ten entries, each for a reason it still has', () => {
+    expect(itemConsumersOf('a-condition-an-item-imposes').blocks).toEqual([
+      'decanter-of-endless-water',
+      'dragon-orb',
+      'energy-bow',
+      'horn-of-blasting',
+      'iron-bands',
+      'mace-of-disruption',
+      'robe-of-scintillating-colors',
+      'rod-of-rulership',
+      'rope-of-entanglement',
+      'staff-of-thunder-and-lightning',
+    ]);
+  });
+
+  /**
+   * And the damage shape answered the question it was carrying: the residue
+   * it shared with the spell vocabulary is the spell vocabulary's, and what
+   * is its own is an attack roll an item makes for itself.
+   */
+  it('leaves the damage shape the two entries that roll an item’s own attack', () => {
+    expect(itemConsumersOf('a-damage-roll-an-item-makes').blocks).toEqual([
+      'iron-bands',
+      'ring-of-the-ram',
+    ]);
+    // Potion of Poison is where the question was decided: its save-gated half
+    // is writable and its 4d6 is not, so the whole entry is the spell id.
+    expect(itemBlockersOf('potion-of-poison')).toEqual([
+      'damage-with-neither-an-attack-roll-nor-a-save',
+    ]);
+  });
+
+  /**
+   * The blocker the reading found underneath them, and the entry that shows
+   * it cleanest: every clause of a Wand of Paralysis is writable but the
+   * sixty feet its ray travels and the die that crumbles it.
+   */
+  it('names the distance that was really in the way', () => {
+    const range = itemConsumersOf('a-range-an-item-names');
+    expect(range.blocks.length).toBeGreaterThan(5);
+    expect(range.finishes).toEqual(['necklace-of-fireballs']);
+
+    expect(itemBlockersOf('wand-of-paralysis')).toEqual([
+      'a-range-an-item-names',
+      'a-rider-on-the-face-the-die-showed',
+    ]);
+  });
+
+  /**
+   * And two entries left the map altogether, which is the three-part move a
+   * transcription makes: the line goes, the record arrives, and the shape it
+   * named is claimed by somebody else or retired.
+   */
+  it('has transcribed the two entries the reading freed', () => {
+    for (const id of ['dust-of-disappearance', 'periapt-of-health']) {
+      expect(TRANSCRIBED.has(id), id).toBe(true);
+      expect(ITEM_BLOCKED_ON[id], id).toBeUndefined();
+    }
   });
 });
 
