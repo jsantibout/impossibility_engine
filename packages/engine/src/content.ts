@@ -34,9 +34,14 @@ import type { StandingRequirement } from './standing.js';
 import { SENSE_NAMES } from './positioning.js';
 import { dawnRollProblem, type Recovery } from './resources.js';
 import { EFFECT_END_CAUSES } from './timers.js';
-import { rollSelectorProblems } from './roll-modifiers.js';
+import { oneShotProblem, rollSelectorProblems } from './roll-modifiers.js';
 import type { SpellDefinition } from './spell-definitions.js';
-import { checkEffectValue, checkSpellDefinition, parseSpellDefinition } from './spell-schema.js';
+import {
+  checkEffectValue,
+  checkSpellDefinition,
+  parseSpellDefinition,
+  ROLL_FAMILIES,
+} from './spell-schema.js';
 
 /**
  * Content: what exists in a campaign's world, as opposed to how the world works.
@@ -2089,6 +2094,36 @@ function itemGrantProblems(
         }
         for (const problem of rollSelectorProblems(selector, (skill) => SKILL_ABILITY[skill])) {
           say(problem.code, problem.reason, `${on}.modifier.selector`);
+        }
+        // **Which roll it is, before anything is asked about that roll.**
+        // `rollSelectorProblems` judges combinations — an ability on a roll
+        // that has none, a counterpart on a roll that records none — and takes
+        // the family as given, because its other caller has already refused an
+        // unknown one. This door had not, so `{ roll: 'Attack' }` loaded clean
+        // and picked out nothing for ever: a whole grant that never matched a
+        // roll, which is the silent failure this validator exists to convert
+        // into a refusal at authoring.
+        if (!ROLL_FAMILIES.has(selector.roll)) {
+          say(
+            'bad_roll_family',
+            `"${String(selector.roll)}" is not a kind of roll; a mode reaches ${[...ROLL_FAMILIES].join(', ')}`,
+            `${on}.modifier.selector.roll`,
+          );
+          return;
+        }
+        // **And how it ends, which the selector says nothing about.** A grant
+        // flagged `oneShot` is spent by the roll it changes, and only the two
+        // attack rollers spend one — so on any other family the flag compiles,
+        // the ring lands, and the grant then runs to its deadline like any
+        // durable one. `spell-schema.ts` has refused that since the flag
+        // existed and this door validated the modifier through its selector
+        // alone, so the same sentence could be written on an item and quietly
+        // mean something else. Asked below the family check for the reason it
+        // is asked below one there: a family that is not a family draws that
+        // problem and not a second one about its ending.
+        if (modifier.oneShot === true) {
+          const wrong = oneShotProblem(selector.roll);
+          if (wrong !== null) say(wrong.code, wrong.reason, `${on}.modifier.oneShot`);
         }
       }
     });

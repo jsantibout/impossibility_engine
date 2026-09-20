@@ -127,8 +127,15 @@ const CASTING_TIMES: ReadonlySet<string> = new Set([
 ]);
 const ABILITY_NAMES_SET: ReadonlySet<Ability> = new Set(ABILITIES);
 const SKILL_NAMES: ReadonlySet<Skill> = new Set(SKILLS);
-/** Every kind of roll a granted mode can pick out — see `RollFamily`. */
-const ROLL_FAMILIES: ReadonlySet<string> = new Set([
+/**
+ * Every kind of roll a granted mode can pick out — see `RollFamily`.
+ *
+ * Exported for the item door: `content.ts` asks the same question of an item's
+ * standing `roll-mode` grant, and a second copy of this list there would be a
+ * second place for the vocabulary to go stale. It reads the *untyped* name the
+ * way this file does, which is why the set is strings rather than the union.
+ */
+export const ROLL_FAMILIES: ReadonlySet<string> = new Set([
   'attack',
   'ability-check',
   'saving-throw',

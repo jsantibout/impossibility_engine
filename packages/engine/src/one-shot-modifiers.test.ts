@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { SRD_CONTENT } from '@ie/content';
 import { describe, expect, it } from 'vitest';
 import {
@@ -16,7 +18,9 @@ import { applyEvent, fold, type GameEvent, type GameState } from './events.js';
 import { spellSlotKey } from './resources.js';
 import { declaredCasting } from './spellcasting.js';
 import { rollModifierKey, selectorMatches, type RollSelector } from './roll-modifiers.js';
-import { checkSpellDefinition } from './spell-schema.js';
+import { checkSpellDefinition, ROLL_FAMILIES } from './spell-schema.js';
+import { checkContent } from './content.js';
+import type { CatalogueItem } from './catalogue.js';
 import { resolveAttack, resolveSpell, resolveTurn } from './commands.js';
 import type { SpellDefinition } from './spell-definitions.js';
 
@@ -617,6 +621,165 @@ describe('a one-shot modifier off an attack roll is refused at authoring', () =>
       );
     },
   );
+});
+
+/**
+ * The same rule at the other door, which was not keeping it.
+ *
+ * A `roll-mode` grant is written in two places — a spell definition's rider,
+ * checked by `spell-schema.ts`, and a standing grant on an **item**, checked by
+ * `content.ts` — and only the first asked about `oneShot`. The second
+ * validated the modifier through its selector alone, so a ring could promise
+ * "your next saving throw" and quietly hand over a grant that runs to its
+ * deadline instead: the durable grant wearing the field's name, at the door
+ * the spell side had a refusal for.
+ *
+ * One rule, two doors, and `oneShotProblem` is the one sentence both say.
+ */
+describe('an item may not promise a one-shot nothing spends either', () => {
+  const ring = (roll: string, oneShot: boolean): CatalogueItem =>
+    ({
+      id: 'ring-of-the-jinx',
+      name: 'Ring of the Jinx',
+      kind: 'wondrous',
+      weightLb: null,
+      costCp: null,
+      armor: null,
+      weapon: null,
+      contents: [],
+      grants: [
+        {
+          kind: 'standing',
+          reach: 'self',
+          effects: [
+            {
+              kind: 'roll-mode',
+              modifier: {
+                mode: 'advantage',
+                selector: { roll, relation: 'roller' },
+                ...(oneShot ? { oneShot: true } : {}),
+              },
+            },
+          ],
+          requires: [{ kind: 'while-worn' }],
+        },
+      ],
+    }) as unknown as CatalogueItem;
+
+  it('accepts one on an attack roll, which is the roll that spends it', () => {
+    expect(checkContent({ items: [ring('attack', true)] })).toEqual([]);
+  });
+
+  it.each(['saving-throw', 'ability-check', 'initiative', 'death-save'])(
+    'refuses one on a %s',
+    (roll) => {
+      expect(checkContent({ items: [ring(roll, true)] }).map((p) => p.code)).toContain(
+        'one_shot_off_an_attack',
+      );
+    },
+  );
+
+  /**
+   * **And the family is judged before the ending is.**
+   *
+   * The gate above asks `oneShotProblem` only of a family the rollers know,
+   * for the reason the spell side does: a family that is not a family should
+   * draw its own problem rather than a second one about how its grant ends.
+   * The spell side gets that for free — `checkSpellDefinition` refuses an
+   * unknown family a few lines earlier — and this door had no such refusal at
+   * all, so `{ roll: 'wibble', oneShot: true }` loaded clean and skipped the
+   * guard entirely: the one input a validator exists to catch, waved through
+   * by the check that was meant to catch it.
+   */
+  it.each(['wibble', 'Attack', 'attack-roll', ''])('refuses "%s" as a roll family', (roll) => {
+    expect(checkContent({ items: [ring(roll, true)] }).map((p) => p.code)).toContain(
+      'bad_roll_family',
+    );
+  });
+
+  it('says nothing about a one-shot on a family it has already refused', () => {
+    const codes = checkContent({ items: [ring('wibble', true)] }).map((p) => p.code);
+    expect(codes).not.toContain('one_shot_off_an_attack');
+  });
+
+  it('accepts every family the rollers know', () => {
+    for (const roll of ['attack', 'ability-check', 'saving-throw', 'initiative', 'death-save']) {
+      expect(checkContent({ items: [ring(roll, false)] }), roll).toEqual([]);
+    }
+  });
+
+  /**
+   * And the list this door now asks is the vocabulary the rollers hold.
+   *
+   * `ROLL_FAMILIES` is `RollFamily` written out as data — the same shape
+   * `ITEM_EFFECT_KINDS` takes over `standing.ts`'s union — and exporting it for
+   * this door made a hand-maintained copy load-bearing in a second place. So
+   * the two are held equal in both directions rather than trusted: a member
+   * added to the union without this line changing would be a family the spell
+   * validator refused and the item validator had never heard of.
+   */
+  it('holds the set equal to the union it is a copy of', () => {
+    const source = readFileSync(
+      fileURLToPath(new URL('./roll-modifiers.ts', import.meta.url)),
+      'utf8',
+    );
+    const declared = /export type RollFamily =([\s\S]*?);\n/.exec(source);
+    expect(declared).not.toBeNull();
+    const members = [...declared![1]!.matchAll(/'([a-z-]+)'/g)].map((match) => match[1]!);
+    expect(members.length).toBeGreaterThan(1);
+    expect([...members].sort()).toEqual([...ROLL_FAMILIES].sort());
+  });
+
+  /** And the refusal is the flag's, not the family's: without it, the same item loads. */
+  it.each(['saving-throw', 'ability-check', 'initiative', 'death-save'])(
+    'leaves a durable mode on a %s alone',
+    (roll) => {
+      expect(checkContent({ items: [ring(roll, false)] })).toEqual([]);
+    },
+  );
+
+  /** The two doors say the same sentence, because they ask the same function. */
+  it('refuses it in the same words the spell side does', () => {
+    const fromAnItem = checkContent({ items: [ring('saving-throw', true)] }).find(
+      (problem) => problem.code === 'one_shot_off_an_attack',
+    );
+    const fromASpell = checkSpellDefinition(
+      {
+        id: 'homebrew-jinx',
+        name: 'Homebrew Jinx',
+        level: 1,
+        school: 'enchantment',
+        castingTime: 'action',
+        concentration: true,
+        durationSeconds: 60,
+        range: { kind: 'ranged', feet: 30 },
+        targets: { count: 1 },
+        effects: [
+          {
+            kind: 'save-damage',
+            ability: 'wis',
+            damage: { dice: '1d6' },
+            damageType: 'psychic',
+            onSuccess: 'none',
+            modifiers: [
+              {
+                kind: 'mode',
+                modifier: {
+                  mode: 'disadvantage',
+                  selector: { roll: 'saving-throw', relation: 'roller' },
+                  oneShot: true,
+                },
+              },
+            ],
+          },
+        ],
+      } as unknown as SpellDefinition,
+    ).find((problem) => problem.code === 'one_shot_off_an_attack');
+
+    expect(fromAnItem?.reason).toBe(fromASpell?.reason);
+    // And it says which field, in the shape an author can act on.
+    expect(fromAnItem?.field).toContain('oneShot');
+  });
 });
 
 /**

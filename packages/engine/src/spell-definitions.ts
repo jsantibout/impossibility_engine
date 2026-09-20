@@ -2355,15 +2355,34 @@ export function damageTypesDealt(effects: readonly SpellEffect[]): readonly stri
  * Pinned onto {@link GrantedActionRule.until} at the cast, for the reason
  * every other number on a casting is pinned — the fold opens no catalogue,
  * and `combat.ts` sits beneath `GameState` and can reach neither.
+ *
+ * **A `switch` over a `never`, and it used to be a ternary.** The tail read
+ * `lasts === 'end-of-casters-next-turn' ? … : "the start of the caster's next
+ * turn"`, so a fifth member of {@link RiderDuration} would have compiled and
+ * been *described* as the start of the caster's next turn — the wrong moment
+ * printed in the sentence a refusal shows a player. `riderDuration` below had
+ * the identical tail, so the two would have gone on agreeing about it.
+ * `rider-duration-readers.test.ts` is the other half: the compiler refuses a
+ * member nobody answered, and the sweep refuses a reader that answers one by
+ * falling through to it.
  */
 export function riderDurationPhrase(lasts: RiderDuration | undefined): string {
   if (lasts === undefined) return 'the spell ends';
   if (typeof lasts === 'object') return `${lasts.seconds} seconds have passed`;
-  if (lasts === 'end-of-current-turn') return 'the end of the current turn';
-  if (lasts === 'end-of-targets-next-turn') return "the end of the target's next turn";
-  return lasts === 'end-of-casters-next-turn'
-    ? "the end of the caster's next turn"
-    : "the start of the caster's next turn";
+  switch (lasts) {
+    case 'end-of-current-turn':
+      return 'the end of the current turn';
+    case 'end-of-targets-next-turn':
+      return "the end of the target's next turn";
+    case 'end-of-casters-next-turn':
+      return "the end of the caster's next turn";
+    case 'start-of-casters-next-turn':
+      return "the start of the caster's next turn";
+    default: {
+      const unhandled: never = lasts;
+      throw new Error(`no phrase for the deadline ${String(unhandled)}`);
+    }
+  }
 }
 
 /**
@@ -2386,6 +2405,12 @@ export function riderDurationPhrase(lasts: RiderDuration | undefined): string {
  * than falling back to the caster — a fallback there would be a *wrong
  * deadline* rather than a refusal, and a closed vocabulary exists to make that
  * impossible.
+ *
+ * Which is the argument for the `switch` over a `never` as well: the tail was
+ * a ternary that answered `start-of-casters-next-turn` to anything it had not
+ * been taught, so the one shape this docstring calls impossible — a wrong
+ * deadline instead of a refusal — was a member away. See
+ * {@link riderDurationPhrase}.
  */
 export function riderDuration(
   lasts: RiderDuration | undefined,
@@ -2394,18 +2419,28 @@ export function riderDuration(
 ): Duration | undefined {
   if (lasts === undefined) return undefined;
   if (typeof lasts === 'object') return forSeconds(lasts.seconds);
-  if (lasts === 'end-of-current-turn') return endOfCurrentTurn;
-  if (lasts === 'end-of-targets-next-turn') {
-    if (targetId === undefined) {
+  switch (lasts) {
+    case 'end-of-current-turn':
+      return endOfCurrentTurn;
+    case 'end-of-targets-next-turn': {
+      if (targetId === undefined) {
+        throw new Error(
+          'a deadline anchored on the target needs the target; ask it per target, as the pre-flight and the rider resolvers do',
+        );
+      }
+      return endOfNextTurn(targetId);
+    }
+    case 'end-of-casters-next-turn':
+      return endOfNextTurn(casterId);
+    case 'start-of-casters-next-turn':
+      return startOfNextTurn(casterId);
+    default: {
+      const unhandled: never = lasts;
       throw new Error(
-        'a deadline anchored on the target needs the target; ask it per target, as the pre-flight and the rider resolvers do',
+        `no deadline for ${String(unhandled)}; the vocabulary and its reader disagree`,
       );
     }
-    return endOfNextTurn(targetId);
   }
-  return lasts === 'end-of-casters-next-turn'
-    ? endOfNextTurn(casterId)
-    : startOfNextTurn(casterId);
 }
 
 /**
@@ -2417,9 +2452,30 @@ export function riderDuration(
  * once; a target's is a different moment per target and is asked per target,
  * which is the rule {@link delayedDuration} already obeys and the reason it is
  * asked where the targets exist.
+ *
+ * **The three `false` arms are written out**, for the reason the two functions
+ * above are: an equality test answers `false` to a member it has never heard
+ * of, and `false` here means "ask this deadline once, for the caster" — so a
+ * new target-anchored member would be asked in the wrong place and pinned to
+ * the wrong creature, silently. A span is the one member that is genuinely not
+ * a name, and it anchors on nobody.
  */
 export function anchoredOnTarget(lasts: RiderDuration): boolean {
-  return lasts === 'end-of-targets-next-turn';
+  if (typeof lasts === 'object') return false;
+  switch (lasts) {
+    case 'end-of-targets-next-turn':
+      return true;
+    case 'end-of-current-turn':
+    case 'end-of-casters-next-turn':
+    case 'start-of-casters-next-turn':
+      return false;
+    default: {
+      const unhandled: never = lasts;
+      throw new Error(
+        `no anchor rule for ${String(unhandled)}; the vocabulary and its reader disagree`,
+      );
+    }
+  }
 }
 
 /**
