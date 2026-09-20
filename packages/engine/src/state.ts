@@ -219,9 +219,10 @@ export interface CreatureState {
    * reads this when a caller states no size, so nobody above the engine has to
    * supply a fact the book prints.
    *
-   * Null when nobody has said, which is a real state: a creature made from
-   * character choices has a species' size and no event pins one yet, and every
-   * log written before the field existed says the same. `placeCreature` then
+   * Null when nobody has said, which is a real state: every log written before
+   * the field existed says the same, as does any creature added by something
+   * that states no size. A character made through `createCharacter` pins one
+   * from its species, so creation is no longer among them. `placeCreature` then
    * defaults to Medium exactly as it always has.
    */
   readonly size: CreatureSize | null;
