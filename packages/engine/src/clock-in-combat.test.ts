@@ -23,7 +23,7 @@ import { asCharacterId, isErr, expect as unwrap, type Result } from '@ie/shared'
 import type { CharacterSheet } from './character.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { forSeconds, HOUR, minutes, ROUND } from './time.js';
-import { advanceTime, applyConditionTo } from './commands.js';
+import { advanceTime, applyConditionTo, declareCreatureSide, endCombat } from './commands.js';
 
 const id = (s: string) => asCharacterId(s);
 const WIZARD = id('wizard');
@@ -147,10 +147,25 @@ describe('advancing the clock is a declaration, and a fight does not take one', 
     expect(fold('seed', forged).elapsed).toBe(HOUR);
   });
 
-  /** And the refusal is about the fight, not about the creatures in it. */
+  /**
+   * And the refusal is about the fight, not about the creatures in it — so the
+   * hour is there the moment the fight is over.
+   *
+   * **Through `endCombat` rather than a forged event**, because that is the
+   * half of this decision that makes the other half a rule instead of a wedge:
+   * a session that rolled Initiative once could not close a fight at all until
+   * the command landed, and a refusal with no door out is a session that can
+   * never rest. The two shipped in one review.
+   */
   it('lets the clock be declared again once the fight is over', () => {
-    const after: readonly GameEvent[] = [...fight(), { type: 'combat-ended' }];
-    const later = run(after, (s) => advanceTime(s, HOUR, 'the party binds its wounds'));
+    const sided = run(
+      run(fight(), (s) => declareCreatureSide(s, WIZARD, 'the party')),
+      (s) => declareCreatureSide(s, GOBLIN, 'the goblins'),
+    );
+    const over = run(sided, (s) =>
+      endCombat(s, { kind: 'flight', side: 'the goblins', letThemGo: true }),
+    );
+    const later = run(over, (s) => advanceTime(s, HOUR, 'the party binds its wounds'));
     expect(fold('seed', later).elapsed).toBe(HOUR);
   });
 });

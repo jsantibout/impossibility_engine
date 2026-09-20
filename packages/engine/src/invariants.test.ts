@@ -37,6 +37,7 @@ import {
   declareSpellcasting,
   dismissStrandedSummons,
   dismountRider,
+  endCombat,
   joinCombat,
   loseItems,
   mountCreature,
@@ -1716,6 +1717,15 @@ const GUARDED: readonly Guarded[] = [
       ),
   },
   {
+    // The other end of the same fight. `SETUP` puts A on `party` and B on
+    // `foes`, so the surrender is a side somebody standing is actually on —
+    // and a retry that got past the guard would write a second `combat-ended`
+    // into a log where the fight is already over.
+    name: 'endCombat',
+    log: SETUP,
+    run: (s, commandId) => endCombat(s, { kind: 'surrender', side: 'foes' }, { commandId }),
+  },
+  {
     // The dangerous retry of the two: a second run rolls Initiative again,
     // which moves the generator for a fight that already started. The order
     // would look well-formed and every number after it would be off by two
@@ -2817,6 +2827,8 @@ const DECLARED_NOT_ACTED: Readonly<Record<string, string>> = {
     'not an action in the turn economy: cover is declared for the same reason sight is, and a creature does not spend anything to be behind a bar',
   beginCombat:
     'not an action in the turn economy: it is the moment the economy starts existing, so there is no budget yet for it to spend',
+  endCombat:
+    'not an action in the turn economy: a fight being over is a fact about the room rather than a thing anybody does in it — SRD prices no action for the moment the last enemy falls, the moment they throw down their weapons or the moment the party lets them run, and the budget it closes is the very thing it would have had to spend from',
   advanceTime:
     'not an action in the turn economy: outside combat there are no turns, and how long the party spent searching the vault is narration. Inside one it is refused — the clock there is the turn order’s — and that refusal is about who owns the clock rather than about anybody’s budget, which is what REFUSED_BY_THE_CLOCK below makes a test rather than a sentence',
   declareDawn:
@@ -2919,6 +2931,11 @@ describe('the DM-declared commands declare facts rather than taking actions', ()
           { id: B, initiative: 3, speed: 30 },
         ]),
     },
+    // A surrender, because it is the ending this fixture can state without
+    // hurting anybody: `SETUP` has A on `party` and B on `foes`, both on their
+    // feet. An owed area effect is not a reason a fight cannot be over — the
+    // debt outlives the fight and `settleAreaEffects` still pays it.
+    { name: 'endCombat', run: (s) => endCombat(s, { kind: 'surrender', side: 'foes' }) },
     { name: 'advanceTime', run: (s) => advanceTime(s, 600, 'the storm passes') },
     { name: 'declareDawn', run: (s) => declareDawn(s, supply()) },
     {
@@ -4536,14 +4553,30 @@ describe('every event a command stamps declares that it carries one', () => {
   });
 
   /**
-   * And the reader would notice one that did not. `combat-ended` is the
-   * control: no command stamps it and it declares none, so a reader that
-   * answered "yes" to everything would say it did.
+   * And the reader would notice one that did not. `hit-point-maximum-raised`
+   * is the control: no command stamps it and it declares none, so a reader
+   * that answered "yes" to everything would say it did.
+   *
+   * **It was `combat-ended` until `endCombat` landed**, and the swap is the
+   * point rather than an inconvenience: the old control held only because
+   * nothing in the engine could end a fight, which is the defect that command
+   * closed. This one is a command-layer fact of a different kind and cannot
+   * go the same way by accident — `advanceCharacter` in `creation.ts` writes
+   * it, and `creation.ts` predates the command layer, takes no
+   * `CommandIdentity` and is not published through the `commands.ts` barrel.
+   * It is one of the four `OUTSIDE_THE_COMMAND_LAYER` names above, so a task
+   * that does bring it inside has to say so there first.
    */
   it('would see a type that is missing it', () => {
-    expect(EVENT_MEMBERS.has('combat-ended')).toBe(true);
-    expect(stamped.has('combat-ended')).toBe(false);
-    expect(EVENT_MEMBERS.get('combat-ended')!).not.toMatch(/readonly command\?: CommandStamp/);
+    expect(EVENT_MEMBERS.has('hit-point-maximum-raised')).toBe(true);
+    expect(stamped.has('hit-point-maximum-raised')).toBe(false);
+    expect(EVENT_MEMBERS.get('hit-point-maximum-raised')!).not.toMatch(
+      /readonly command\?: CommandStamp/,
+    );
+    // The event the control used to be does declare one now, which is the
+    // other half of the same claim: `endCombat` stamps it.
+    expect(stamped.has('combat-ended')).toBe(true);
+    expect(EVENT_MEMBERS.get('combat-ended')!).toMatch(/readonly command\?: CommandStamp/);
   });
 });
 

@@ -669,6 +669,14 @@ export function removeCreatureEverywhere(
       events.push({ type: 'creature-unplaced', id });
     }
     // A combat of one cannot lose its last combatant, so the fight ends instead.
+    //
+    // **And this one stays unstamped and pins no `ending`**, which is what the
+    // field being optional is for. A fight closing because the order ran out
+    // is not any of the three endings a table elects — nobody was defeated,
+    // nobody yielded and nobody ran, the last body was simply carried off —
+    // and `endCombat` in `commands/scene.ts` is the door for the ones that
+    // are. The stamp rides on `creature-removed` below, the one event this
+    // command always emits.
     if (state.combat?.order.some((c) => c.id === id) === true) {
       events.push(
         state.combat.order.length === 1
