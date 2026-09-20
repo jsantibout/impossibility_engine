@@ -471,6 +471,23 @@ Each is a ruling, not a task; the brief that acts on it cites this section.
   finish them. `endCombat` ships with the clock refusal held on
   `held/clock-in-combat`.
 
+### Queued by the owner for the next batch
+
+- **The `unknown_spellcasting` mis-tag.** `commands/inventory.ts:592-604` raises it
+  as `kind: 'creature'` with `satisfyWith: declareSpellcasting`, so
+  `doorsFor('creature')` answers `create_character` / `add_creature` — an
+  orchestrator told to create a creature that already exists. Found by the
+  architect on 2026-09-20 while ruling on the `side` kind, and queued by the
+  owner the same day.
+
+  It is not a retag. A `spellcasting` kind would have **no door**, because
+  `declareSpellcasting` is withheld on both surfaces (`doors.test.ts:426`), and
+  the architect's own rule says a fact no command can declare is a gap in the
+  doors rather than a kind — while the same rule says a command-level
+  `needs-context` always carries a request. The brief has to resolve that
+  tension: open the door, or record the gap and say what the refusal carries
+  meanwhile.
+
 ### Decisions genuinely open
 
 Where a reachability measurement lives, since `@ie/tools` depends on
