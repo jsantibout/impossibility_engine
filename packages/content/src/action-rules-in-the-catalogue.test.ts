@@ -18,6 +18,7 @@ import {
   settleAreaEffects,
   takeDash,
   takeDodge,
+  takeOpportunityAttack,
 } from '@ie/engine';
 
 /**
@@ -141,14 +142,26 @@ const PLACED: readonly GameEvent[] = [
   },
   { type: 'scene-set', extent: { width: 200, depth: 200, height: 40 } },
   { type: 'landmark-added', name: 'the door', at: { x: 50, y: 50, z: 0 } },
-  { type: 'landmark-added', name: 'the pillar', at: { x: 50, y: 60, z: 0 } },
+  // Within the caster's reach, so a foe walking away from it offers the one
+  // Reaction this engine hands out without anybody arming it first.
+  { type: 'landmark-added', name: 'the pillar', at: { x: 50, y: 55, z: 0 } },
   { type: 'landmark-added', name: 'the well', at: WELL },
   { type: 'landmark-added', name: 'the alcove', at: { x: 50, y: 40, z: 0 } },
+  // Thirty feet from the well, which is a Speed, and thirty from the Sphere's
+  // centre, which is outside a radius of twenty.
+  { type: 'landmark-added', name: 'the arch', at: { x: 50, y: 80, z: 0 } },
   { type: 'creature-placed', id: WIZARD, placement: { from: { landmark: 'the door' }, feet: 0 } },
   { type: 'creature-placed', id: FOE, placement: { from: { landmark: 'the pillar' }, feet: 0 } },
   { type: 'creature-placed', id: OGRE, placement: { from: { landmark: 'the well' }, feet: 0 } },
   { type: 'creature-placed', id: ALLY, placement: { from: { landmark: 'the alcove' }, feet: 0 } },
+  // Sides, because an Opportunity Attack is withheld until somebody has said
+  // who is fighting whom — and the Reaction Magic Jar takes away is that one.
+  { type: 'creature-side-declared', id: WIZARD, side: 'the party' },
+  { type: 'creature-side-declared', id: ALLY, side: 'the party' },
+  { type: 'creature-side-declared', id: FOE, side: 'the enemy' },
+  { type: 'creature-side-declared', id: OGRE, side: 'the enemy' },
   { type: 'sight-declared', from: WIZARD, to: FOE, seen: true },
+  { type: 'sight-declared', from: FOE, to: WIZARD, seen: true },
   { type: 'sight-declared', from: WIZARD, to: OGRE, seen: true },
   { type: 'sight-declared', from: WIZARD, to: ALLY, seen: true },
 ];
@@ -167,10 +180,23 @@ const FIGHTING: readonly GameEvent[] = [
   },
 ];
 
-const supply = (seed = 'cast') => ({
+/**
+ * The generator, and a flat the fixture puts on every roll the operation makes.
+ *
+ * Left at zero the frail creatures below fail by construction — a Wisdom or a
+ * Constitution of 1 cannot reach any of these DCs. Handed `+40` it is the
+ * other half of the same discipline: **every** save the casting rolls
+ * succeeds, which is how a rider that rides a failure is told apart from a
+ * rule that lands on everybody the area caught. `area-triggers.test.ts` drives
+ * its own saves the same way.
+ */
+const supply = (seed = 'cast', flat = 0) => ({
   issuer: createRollIssuer('r'),
   rng: createRng(seed) as Rng,
   content: SRD_CONTENT,
+  // Omitted at zero, so the ordinary logs carry exactly what they carried
+  // before a made save had to be arranged.
+  ...(flat === 0 ? {} : { bonuses: [{ source: 'the fixture', flat }] }),
 });
 
 const must = <T,>(result: Result<T>): T => unwrap(result, 'action rules');
@@ -195,6 +221,7 @@ const castFrom = (
   log: readonly GameEvent[],
   spellId: string,
   request: Record<string, unknown> = {},
+  flat = 0,
 ): readonly GameEvent[] => {
   const definition = defined(spellId);
   const first = must(
@@ -202,7 +229,7 @@ const castFrom = (
       state(log),
       WIZARD,
       { spellId, targets: [], slotLevel: definition.level, ...request },
-      supply(spellId),
+      supply(spellId, flat),
     ),
   ).events;
   if (definition.castingTime !== 'long') return first;
@@ -219,18 +246,28 @@ const castFrom = (
 const whoseTurn = (world: GameState): CharacterId | undefined =>
   world.combat?.order[world.combat.turnIndex]?.id;
 
-/** Advance to whoever is next, settling whatever the boundary owes. */
-const nextTurn = (log: readonly GameEvent[]): readonly GameEvent[] => [
+/**
+ * Advance to whoever is next, settling whatever the boundary owes.
+ *
+ * The boundary is where an area's debt is raised **and paid** — `resolveTurn`
+ * refuses to carry the order past one — so the flat that decides those saves
+ * has to travel with the advance rather than with the cast.
+ */
+const nextTurn = (log: readonly GameEvent[], flat = 0): readonly GameEvent[] => [
   ...log,
-  ...must(resolveTurn(state(log), supply('turn'))).events,
+  ...must(resolveTurn(state(log), supply('turn', flat))).events,
 ];
 
 /** Wind the order round to the named creature's turn. */
-const turnOf = (log: readonly GameEvent[], who: CharacterId): readonly GameEvent[] => {
+const turnOf = (
+  log: readonly GameEvent[],
+  who: CharacterId,
+  flat = 0,
+): readonly GameEvent[] => {
   let current = log;
   for (let i = 0; i < 8; i += 1) {
     if (whoseTurn(state(current)) === who) return current;
-    current = nextTurn(current);
+    current = nextTurn(current, flat);
   }
   throw new Error(`the order never reached ${who}`);
 };
@@ -244,9 +281,9 @@ const turnOf = (log: readonly GameEvent[], who: CharacterId): readonly GameEvent
  * to call for. The same two steps `area-triggers.test.ts` drives every area
  * through.
  */
-const settleAreas = (log: readonly GameEvent[]): readonly GameEvent[] => [
+const settleAreas = (log: readonly GameEvent[], flat = 0): readonly GameEvent[] => [
   ...log,
-  ...must(settleAreaEffects(state(log), supply('settle'))).events,
+  ...must(settleAreaEffects(state(log), supply('settle', flat))).events,
 ];
 
 const rulesOn = (world: GameState, who: CharacterId) => world.creatures[who]?.actionRules ?? [];
@@ -365,6 +402,56 @@ describe('Stinking Cloud forbids the action and the Bonus Action it printed', ()
     expect(isErr(moved)).toBe(false);
   });
 
+  /**
+   * **The deadline is the clause, so the deadline is driven.**
+   *
+   * "Until the end of the current turn" is the whole of what the gas does to a
+   * creature, and a rider that borrowed the casting's minute instead would
+   * pass every assertion above while gagging somebody for the rest of the
+   * fight. So the ogre walks out of the cloud on the turn it is gagged — which
+   * the sentence leaves it free to do — and on its next turn, with no fresh
+   * debt to raise, its Action is its own again.
+   */
+  it('lifts the gag when the turn it was taken for ends', () => {
+    const walked = poisoned();
+    const out = must(
+      resolveMove(
+        state(walked),
+        OGRE,
+        { placement: { from: { landmark: 'the arch' }, feet: 0 } },
+        supply('walk'),
+      ),
+    );
+    // Its **next** turn, which is a different turn: `turnOf` would hand back
+    // the one it is standing in, and that is the turn the gag was taken for.
+    const later = turnOf(nextTurn([...walked, ...out.events]), OGRE);
+    const world = state(later);
+
+    expect(hasCondition(world.creatures[OGRE]!.conditions, 'poisoned')).toBe(false);
+    expect(rulesOn(world, OGRE)).toEqual([]);
+    expect(must(takeDodge(world, OGRE, {})).some((e) => e.type === 'action-spent')).toBe(true);
+  });
+
+  /**
+   * And it is the **failure** that gags, rather than the gas catching
+   * everybody standing in it.
+   *
+   * The same cloud, the same creature, the same boundary, with the fixture's
+   * flat making the Constitution save. A standalone rule in the trigger's
+   * effect list would land here exactly as it does above, and nothing else in
+   * this file could tell the two apart — which is the distinction Slow's
+   * blocker rests on from the other side.
+   */
+  it('gags nobody who makes the save', () => {
+    const cast = castFrom(PLACED, 'stinking-cloud', { at: WELL });
+    const log = turnOf([...PLACED, ...cast, ...FIGHTING.slice(PLACED.length)], OGRE, 40);
+    const world = state(settleAreas(log, 40));
+
+    expect(hasCondition(world.creatures[OGRE]!.conditions, 'poisoned')).toBe(false);
+    expect(rulesOn(world, OGRE)).toEqual([]);
+    expect(must(takeDodge(world, OGRE, {})).some((e) => e.type === 'action-spent')).toBe(true);
+  });
+
   it('replays prefix by prefix', () => {
     replaysPrefixByPrefix(poisoned());
   });
@@ -422,6 +509,19 @@ describe('Fear narrows a Frightened creature’s Action to the Dash', () => {
   it('leaves a creature outside the Cone alone', () => {
     const world = state(frightened());
     expect(rulesOn(world, ALLY)).toEqual([]);
+  });
+
+  /**
+   * And so is one the cone caught and that made its save, which is the
+   * narrower claim: the narrowing rides the **failure** rather than the area.
+   */
+  it('narrows nothing for a creature that makes the save', () => {
+    const cast = castFrom(FIGHTING, 'fear', { towards: NORTH }, 40);
+    const world = state(turnOf([...FIGHTING, ...cast], FOE));
+
+    expect(hasCondition(world.creatures[FOE]!.conditions, 'frightened')).toBe(false);
+    expect(rulesOn(world, FOE)).toEqual([]);
+    expect(must(takeDodge(world, FOE, {})).some((e) => e.type === 'action-spent')).toBe(true);
   });
 
   it('replays prefix by prefix', () => {
@@ -541,6 +641,30 @@ describe('Magic Jar leaves a catatonic body two rules rather than one', () => {
       ),
     );
     expect(said).toContain('Magic Jar forbids it');
+  });
+
+  /**
+   * **The other slot the first sentence names**, and it is a different slot
+   * from the movement beside it: a rule that forbade only the moving would
+   * pass every assertion above. The Opportunity Attack is the one Reaction
+   * this engine offers without anybody having Readied one, and
+   * `takeOpportunityAttack` is where the spend is named, so that is where a
+   * catatonic body is refused it.
+   */
+  it('refuses the Reaction the same sentence took away', () => {
+    const log = turnOf([...catatonic(), ...FIGHTING.slice(PLACED.length)], FOE);
+    const leaving = must(
+      resolveMove(
+        state(log),
+        FOE,
+        { placement: { from: { landmark: 'the arch' }, feet: 0 } },
+        supply('leave'),
+      ),
+    );
+    const offered = [...log, ...leaving.events];
+    const said = refusal(takeOpportunityAttack(state(offered), WIZARD, {}, supply('swing')));
+    expect(said).toContain('Magic Jar forbids it');
+    expect(said).toContain('a Reaction');
   });
 
   it('refuses every action it can name', () => {
