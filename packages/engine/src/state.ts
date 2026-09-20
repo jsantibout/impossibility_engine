@@ -651,6 +651,29 @@ export interface PendingAttack {
    * existed still folds; `resolveAttack` always records it.
    */
   readonly mode?: RollMode;
+  /**
+   * What the hit bought, waiting for the damage to land.
+   *
+   * **The defender answers first**, which is the rule {@link PendingDamage}
+   * already states — and a held swing is where it bites hardest: the window a
+   * hold is open for is `hit-by-attack`, SRD Shield's own, and a target Stunned
+   * by the attacker's rider can take no Reaction at all. So a held swing pins
+   * what it bought here and `resolveAttackDamage` settles it, after the damage,
+   * exactly where an ordinary swing settles its own.
+   *
+   * **Unconditional, where the ordinary pin is conditional.** A damage roll
+   * pins its rider only when somebody was offered something; a hold is a window
+   * standing open by construction, so there is no case to fire early in.
+   *
+   * The option is pinned whole rather than looked up again, for the reason
+   * everything else on this record is: what it said was read at the swing, and
+   * the settlement must not re-read a sheet that has moved. The attacker is not
+   * pinned beside it because this record already names one.
+   *
+   * Absent for every swing that bought nothing, which is nearly all of them,
+   * and for every log written before riders existed.
+   */
+  readonly rider?: HitOption;
 }
 
 /**

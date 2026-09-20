@@ -993,27 +993,17 @@ export function resolveAttack(
           total: attack.value.total,
           natural: attack.value.roll.natural,
           mode: attack.value.roll.mode,
+          // **The defender answers first**, and a hold is the window they
+          // answer in: SRD Shield is cast "when you are hit by an attack roll"
+          // and turns this very hit into a miss, so a rider resolved here would
+          // Stun the creature out of the Reaction it had just been offered.
+          // What the hit bought rides on the hold and `resolveAttackDamage`
+          // settles it, which is also where the SRD's own order puts it — the
+          // save is rolled after the blow rather than before damage nobody has
+          // rolled. See {@link PendingAttack.rider}.
+          ...(rider.value === null ? {} : { rider: rider.value }),
         },
       });
-
-      // **The hit is what buys a rider, and a held attack has hit.** Splitting
-      // the blow is the caller's to do — SRD's "immediately after hitting a
-      // target" window is why the two halves exist — and "when you hit a
-      // creature" does not wait for the damage. So the rider fires here rather
-      // than being lost between the commands, and the one difference from an
-      // ordinary swing is the order: the save is rolled before damage nobody
-      // has rolled yet.
-      if (rider.value !== null) {
-        const bought = applyHitRider(
-          events.reduce(applyEvent, state),
-          supply,
-          { attacker: id, target: command.target },
-          rider.value,
-        );
-        if (!bought.ok) return bought;
-        events.push(...bought.value.events);
-        unverified.push(...bought.value.unverified);
-      }
 
       return ok({ events, attack: attack.value, unverified, duplicate: false });
     }
@@ -1465,7 +1455,18 @@ export function resolveAttackDamage(
       rolled.value.components,
       weapon?.name ?? 'Unarmed Strike',
       supply,
-      { by: pending.attacker, fromAttack: true, ...(pending.critical ? { critical: true } : {}) },
+      {
+        by: pending.attacker,
+        fromAttack: true,
+        ...(pending.critical ? { critical: true } : {}),
+        // What the hit bought, carried from the hold onto the damage roll
+        // where one opens a window — so a held swing whose damage somebody may
+        // answer settles through `settleDamage` exactly as an ordinary one
+        // does, and nothing there knows which half of a swing sent it.
+        ...(pending.rider === undefined
+          ? {}
+          : { rider: { attacker: pending.attacker, option: pending.rider } }),
+      },
     );
     if (!hurt.ok) return hurt;
 
@@ -1487,15 +1488,36 @@ export function resolveAttackDamage(
     });
     if (!rider.ok) return rider;
 
+    // **What the hold still owed, now that the blow has landed.** The same two
+    // rules the ordinary path follows: after the weapon's mastery property,
+    // because a Stunned creature fails a Strength or Dexterity save
+    // automatically and a Topple must be rolled for; and **not at all** where
+    // somebody was offered a Reaction to this damage, because the rider went
+    // onto that hold above and `settleDamage` resolves it once the defender
+    // has spoken.
+    const bought: GameEvent[] = [];
+    const unverified: string[] = [];
+    if (pending.rider !== undefined && hurt.value.offers.length === 0) {
+      const paid = applyHitRider(
+        [...landed, ...rider.value.events].reduce(applyEvent, state),
+        supply,
+        { attacker: pending.attacker, target: pending.target },
+        pending.rider,
+      );
+      if (!paid.ok) return paid;
+      bought.push(...paid.value.events);
+      unverified.push(...paid.value.unverified);
+    }
+
     return ok({
-      events: [...landed, ...rider.value.events],
+      events: [...landed, ...rider.value.events, ...bought],
       attack: null,
       ...(hurt.value.amount === undefined ? {} : { damage: hurt.value.amount }),
       ...(hurt.value.concentration === undefined
         ? {}
         : { concentration: hurt.value.concentration }),
       ...(hurt.value.offers.length === 0 ? {} : { reactions: hurt.value.offers }),
-      unverified: [...hurt.value.unverified, ...rider.value.unverified],
+      unverified: [...hurt.value.unverified, ...rider.value.unverified, ...unverified],
       duplicate: false,
     });
   });

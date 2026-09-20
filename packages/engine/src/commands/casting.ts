@@ -311,6 +311,15 @@ export function answeredCasting(
  * closing means — `settleHoldsInvolving` already uses it for an attack whose
  * damage is never rolled. No damage events go with it, and the Shield sitting
  * in the log immediately before says why.
+ *
+ * **And a rider pinned on that hold is dropped, unspent.** "When you hit a
+ * creature" is what buys one, and Shield has just made it false: the swing is a
+ * miss, so what it bought is not owed. Nothing is refunded because nothing was
+ * charged — `applyHitRider` is what spends the pool and marks the once-per-turn
+ * allowance, and a held swing does not reach it until `resolveAttackDamage`
+ * settles the blow. So the pin goes with the hold the reducer clears, and the
+ * log shows a Focus Point that was never spent rather than one handed back.
+ * See {@link PendingAttack.rider}.
  */
 export function deflectTriggeringAttack(
   before: GameState,

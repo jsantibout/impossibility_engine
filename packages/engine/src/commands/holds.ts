@@ -72,6 +72,17 @@ export function settleHoldsInvolving(state: GameState, id: CharacterId): readonl
   }
 
   // A held hit needs both parties: one to roll the damage and one to take it.
+  //
+  // **And a rider pinned on it goes with it, unspent.** What a hit buys is
+  // owed by the *damage*, and this closes the hold with the damage unrolled:
+  // where the target left there is nobody to Stun, and where the attacker did
+  // there is nobody to spend the Focus Point. Resolving it on the way out
+  // would apply a condition from a blow the log says never landed, and
+  // charging for it would charge a creature that has left the game. Nothing is
+  // refunded because nothing was charged — the cost is `applyHitRider`'s, at a
+  // settlement this departure means will not happen. It is the answer
+  // `pendingDamage.rider` already gets three lines below, where a target
+  // leaving closes that window with the damage undealt.
   const attack = state.pendingAttack;
   if (attack !== null && (attack.attacker === id || attack.target === id)) {
     events.push({ type: 'attack-damage-dealt', attacker: attack.attacker });
