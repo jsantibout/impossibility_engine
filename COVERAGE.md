@@ -555,9 +555,9 @@ be the second spelling of one derivation.
 | Shape | Blocks | Finishes |
 |---|---|---|
 | `a-casting-paid-for-out-of-a-feature-pool` | 10 | 4 |
+| `a-feature-that-rewrites-another-features-rule` | 10 | 4 |
 | `an-action-a-spell-compels-or-forbids` | 10 | 4 |
 | `a-roll-result-an-effect-replaces` | 5 | 4 |
-| `a-feature-that-rewrites-another-features-rule` | 10 | 3 |
 | `an-option-re-chosen-on-a-rest` | 9 | 3 |
 | `a-save-keyed-to-a-condition` | 4 | 3 |
 | `healing-modified-by-an-effect` | 4 | 3 |
@@ -575,7 +575,8 @@ be the second spelling of one derivation.
 | `a-resource-traded-for-another` | 12 | 1 |
 | `a-one-shot-roll-modifier` | 9 | 1 |
 | `an-attack-the-class-redefines` | 9 | 1 |
-| `a-condition-a-feature-imposes` | 6 | 1 |
+| `a-pool-the-proficiency-bonus-sizes` | 7 | 1 |
+| `an-effect-list-a-hit-buys` | 5 | 1 |
 | `a-grant-gated-on-one-option-of-a-choice` | 4 | 1 |
 | `a-rule-the-engine-fixes-for-everybody` | 4 | 1 |
 | `a-spell-an-item-casts-that-nothing-executes` | 4 | 1 |
@@ -594,9 +595,7 @@ be the second spelling of one derivation.
 | `a-turn-a-spell-inserts-into-the-order` | 1 | 1 |
 | `an-effect-that-waits-for-a-later-trigger` | 1 | 1 |
 | `falling` | 1 | 1 |
-| `a-saving-throw-a-feature-forces` | 7 | 0 |
 | `a-benefit-that-runs-for-a-printed-span` | 6 | 0 |
-| `a-pool-the-proficiency-bonus-sizes` | 6 | 0 |
 | `a-weapon-mastery-property` | 6 | 0 |
 | `temporary-hit-points-a-feature-grants` | 4 | 0 |
 | `a-feature-that-carries-a-second-grant` | 3 | 0 |
@@ -607,8 +606,11 @@ be the second spelling of one derivation.
 | `a-world-fact-nothing-can-represent` | 2 | 0 |
 | `damage-with-neither-an-attack-roll-nor-a-save` | 2 | 0 |
 | `a-bonus-to-spell-attack-rolls` | 1 | 0 |
+| `a-dc-a-feature-derives-from-its-own-abilities` | 1 | 0 |
 | `a-random-outcome-that-is-not-a-d20` | 1 | 0 |
 | `a-second-place-to-put-a-creature` | 1 | 0 |
+| `a-target-list-an-ability-modifier-sizes` | 1 | 0 |
+| `an-effect-that-ends-when-its-target-is-hurt` | 1 | 0 |
 | `an-exhaustion-level-a-spell-changes` | 1 | 0 |
 | `an-outcome-of-a-spells-own-damage` | 1 | 0 |
 | `forced-movement-a-spell-causes` | 1 | 0 |
