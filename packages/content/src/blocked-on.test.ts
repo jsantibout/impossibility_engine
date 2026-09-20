@@ -2711,8 +2711,9 @@ describe('the shape that was built three tranches before its entries were re-rea
    *
    * Regenerate is the one the map called a `finishes` and was never blocked at
    * all; the four the magic items came for are tracked definitions on the same
-   * mechanism; and the three that were left carry the casting time as an
-   * `expressible` clause rather than as a blocker.
+   * mechanism; Dream and Mirage Arcane have since become two more; and the one
+   * that is left carries the casting time as an `expressible` clause rather
+   * than as a blocker.
    */
   it('keeps every long casting it used to stand in front of', () => {
     expect(BLOCKED_ON['regenerate']).toBeUndefined();
@@ -2721,42 +2722,65 @@ describe('the shape that was built three tranches before its entries were re-rea
       'turn-payout',
     ]);
     expect(SRD_CONTENT.spell('regenerate')?.castingTime).toBe('long');
-    for (const id of ['scrying', 'tiny-hut', 'private-sanctum', 'resurrection', 'hallow']) {
+    for (const id of [
+      'scrying',
+      'tiny-hut',
+      'private-sanctum',
+      'resurrection',
+      'hallow',
+      'dream',
+      'mirage-arcane',
+    ]) {
       expect(BLOCKED_ON[id], id).toBeUndefined();
       expect(SRD_CONTENT.spell(id)?.castingTime, id).toBe('long');
     }
-    for (const [id, clause] of [
-      ['find-familiar', 'Casting Time: 1 hour or Ritual'],
-      ['dream', 'Casting Time: 1 minute'],
-      ['mirage-arcane', 'Casting Time: 10 minutes'],
-    ] as const) {
-      expect(
-        clausesIn(BLOCKED_ON[id] ?? []).find((entry) => entry.clause === clause)?.why,
-        id,
-      ).toBe('expressible');
-    }
+    expect(
+      clausesIn(BLOCKED_ON['find-familiar'] ?? []).find(
+        (entry) => entry.clause === 'Casting Time: 1 hour or Ritual',
+      )?.why,
+    ).toBe('expressible');
   });
 
   /**
-   * **What actually holds Dream and Mirage Arcane back, said out loud.**
+   * **The protest, and the ruling that answered it.**
    *
    * `SpellRange` is Self, Touch or a number of feet. SRD prints "Special" for
-   * one and "Sight" for the other, and a definition would have to invent a
-   * distance the book declined to state. No shape id names that, so both
-   * clauses are filed as the table's **under protest** — the form Confusion's
-   * slot-scaled Sphere already used — and pinned here so the protest cannot go
-   * quiet. Naming the shape is an architecture decision and this reading did
-   * not take it.
+   * one of these and "Sight" for the other, and for three tranches both were
+   * filed as the table's **under protest** — the form Confusion's slot-scaled
+   * Sphere used — on the stated grounds that no shape id named the gap and
+   * that naming one would be an architecture decision the reading had not
+   * taken.
+   *
+   * The decision was taken and it went the other way: there was never a shape
+   * to name. "Some text is the DM's alone ... the casting hands the printed
+   * text to whoever is running the table, marked explicitly as a thing only the
+   * DM can decide. **Not a format arm to invent, a handover to make visible.**"
+   * So `range: { kind: 'dm' }` says the book asked a question, `dmDecides`
+   * carries the printed words, and the engine measures nothing — which is what
+   * the protest was asking for and is not a `Sight` range with sight in it.
+   *
+   * Pinned here, where the protest was, so the answer is as findable as the
+   * complaint: the entries are gone, the definitions exist, and the vocabulary
+   * grew by nothing.
    */
-  it('names the Range neither spell can state, under protest', () => {
+  it('has answered the Range neither spell could state', () => {
     for (const [id, field] of [
       ['dream', 'Range: Special'],
       ['mirage-arcane', 'Range: Sight'],
     ] as const) {
-      const clause = clausesIn(BLOCKED_ON[id] ?? []).find((entry) => entry.clause === field);
-      expect(clause?.why, id).toBe('table');
-      expect(clause?.note, id).toContain('under protest');
+      expect(BLOCKED_ON[id], id).toBeUndefined();
+      const definition = SRD_CONTENT.spell(id);
+      expect(definition?.range.kind, id).toBe('dm');
+      expect(definition?.dmDecides ?? [], id).toContain(field);
+      // The phrase is still the book's, so the handover quotes rather than
+      // paraphrases — the rule the clause it replaces was held to.
       expect(unanchoredPhrases(id, [field]), id).toEqual([]);
+      // And no shape was invented for either of them: what each still names in
+      // the tracked map is a gap that was already there for other spells.
+      for (const entry of TRACKED_ADJUDICATED[id] ?? []) {
+        if (entry.why === 'table' || entry.why === 'engine') continue;
+        expect(Object.keys(MISSING_SHAPES), `${id}/${entry.clause}`).toContain(entry.why);
+      }
     }
   });
 

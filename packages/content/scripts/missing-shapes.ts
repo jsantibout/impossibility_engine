@@ -3540,6 +3540,71 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'the same standing spatial effect as Resistance above it, on the other end of `applyDefenses`, and blocked on the same missing derivation rather than on the defence.',
     },
   ],
+  // **Two spells whose blocker was never a shape.** Both entries said so in
+  // the undefined map, in as many words and under protest: "No shape id names
+  // it, and inventing one is an architecture decision rather than a reading."
+  // The owner's reading is that there is nothing to invent — a Range printed
+  // `Special` or `Sight` is the book asking a question about the world, and
+  // such text is the DM's. The definitions say so with `dmDecides`, and what
+  // stays here is what stayed blocked: the ordinary shapes underneath.
+  dream: [
+    {
+      marker: 'speed',
+      clause: 'the messenger is Incapacitated and has a Speed of 0',
+      why: 'a-spells-effects-applied-to-different-targets',
+      note: 'the condition and the zeroed Speed are both ordinary effects. What no definition can say is that they land on the messenger while everything else lands on the creature the spell targets, because one effect list reaches every target.',
+    },
+    {
+      marker: null,
+      clause: 'The messenger can emerge from the trance at any time, ending the spell',
+      why: 'a-casting-dismissed-early',
+      note: 'the general dismissal is built and ends a casting of the caster’s own by id. This one is ended by the messenger, who may be "a willing creature you touch" and so need not be the caster at all — the exception Animal Shapes and Gaseous Form already print, arriving on a third spell. The sentence trips no marker, so no guard could have asked for it.',
+    },
+    {
+      marker: null,
+      clause: 'can either end the trance (and the spell) or wait for the target to sleep',
+      why: 'a-casting-dismissed-early',
+      note: 'the same ending offered at a second moment, and the messenger is again the one who takes it. Written as its own clause rather than folded into the one above, because the book writes two sentences and an entry that answered one of them would leave the other unread.',
+    },
+    {
+      marker: 'saving-throw',
+      clause: 'the messenger can deliver a message of no more than ten words',
+      why: 'a-choice-made-at-the-casting',
+      note: 'the whole terrifying branch hangs on "You can make the messenger terrifying to the target", which is a choice taken when the spell is cast and a casting has nowhere to record one. The Wisdom save itself is the plainest thing the format does; what it is gated by is not.',
+    },
+    {
+      marker: 'dice',
+      clause: 'the target gains no benefit from its rest',
+      why: 'a-rest-an-effect-gives-or-denies',
+      note: 'a rest is a span the engine measures and its payout is `endRest`’s; nothing stands beside that to take the benefits away from a rest the sleeper actually completed.',
+    },
+    {
+      marker: 'dice',
+      clause: 'it takes 3d6 Psychic damage when it wakes up',
+      why: 'a-deadline-anchored-to-a-rest',
+      note: 'the dice and the type are ordinary and the moment is not: the damage is owed when the rest finishes, and a deadline is a span of seconds or a moment in the turn order, neither of which a waking is.',
+    },
+  ],
+  'mirage-arcane': [
+    {
+      marker: null,
+      clause: 'in an area up to 1 mile square',
+      why: 'a-choice-made-at-the-casting',
+      note: 'the area’s size is chosen when the spell is cast, up to a printed maximum. A `SpellArea` is one fixed size belonging to the definition, and a per-casting choice has nowhere to be recorded — so the mile is never drawn at all.',
+    },
+    {
+      marker: null,
+      clause: 'into Difficult Terrain (or vice versa) or otherwise impede movement through the area',
+      why: 'difficult-terrain-an-area-creates',
+      note: 'Difficult Terrain is declared by the foot on the move that crosses it, so an area that creates it — or that takes it away, which this spell also does — is invisible to the ruler: a move records where it started and where it ended and nothing in between.',
+    },
+    {
+      marker: null,
+      clause: 'Creatures with Truesight can see through the illusion',
+      why: 'senses-beyond-declared-sight',
+      note: 'sight is a pairwise declaration between two creatures and there is nothing else, so a sense that excuses its holder from an illusion has no state to sit in and nothing to be read off.',
+    },
+  ],
 };
 
 // — the undefined population —————————————————————————————————————————————————
@@ -3746,53 +3811,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
       note: 'The trigger is two areas of light overlapping, and the engine holds no light to overlap. `spell-honesty.test.ts` already pins Sunburst’s mirror-image clause as the table’s on exactly these grounds, so this is the same line drawn from the other side.',
     },
   ],
-  // **The casting time was never the blocker.** `a-long-casting-time` has said
-  // "the mechanism is whole" for three tranches, and Hallow and Regenerate are
-  // both written on it; a minute is transcription. What holds this spell back
-  // is a printed Range the format has no kind for, and three mechanics beside
-  // it that the bare list recorded only one of.
-  dream: [
-    {
-      clause: 'Casting Time: 1 minute',
-      why: 'expressible',
-      note: 'A casting of a minute or more is declared, runs on the clock, demands the Magic action each turn in combat and settles — the mechanism Hallow’s twenty-four hours and Regenerate’s minute are both written on.',
-    },
-    {
-      clause: 'Range: Special',
-      why: 'table',
-      note: 'Filed here **under protest**, exactly as Confusion’s slot-scaled Sphere is: `SpellRange` is Self, Touch or a number of feet, and Special is none of the three, so a definition would have to invent a distance the book declined to print. No shape id names the gap and inventing one is an architecture decision, so it is declared rather than adjudicated.',
-    },
-    {
-      clause: 'the messenger is Incapacitated and has a Speed of 0',
-      why: 'a-spells-effects-applied-to-different-targets',
-      note: 'The condition and the zeroed Speed are both ordinary effects. What no definition can say is that they land on the messenger while everything else lands on the creature the spell targets, because one effect list reaches every target.',
-    },
-    {
-      clause: 'The messenger can emerge from the trance at any time, ending the spell',
-      why: 'a-casting-dismissed-early',
-      note: 'The general dismissal is built and ends a casting of the **caster’s own** by id. This one is ended by the messenger, who may be "a willing creature you touch" and so need not be the caster at all — which is the exception Animal Shapes and Gaseous Form already print, arriving on a third spell. The sentence trips no marker, so no guard could have asked for it.',
-    },
-    {
-      clause: 'can either end the trance (and the spell) or wait for the target to sleep',
-      why: 'a-casting-dismissed-early',
-      note: 'The same ending offered at a second moment, and the messenger is again the one who takes it. Written as its own clause rather than folded into the one above, because the book writes two sentences and an entry that answered one of them would leave the other unread.',
-    },
-    {
-      clause: 'the target makes a Wisdom saving throw',
-      why: 'expressible',
-      note: 'A Wisdom save against the casting’s pinned DC, which is the plainest thing the definition format does and is what every charm in the catalogue already writes.',
-    },
-    {
-      clause: 'the target gains no benefit from its rest',
-      why: 'a-rest-an-effect-gives-or-denies',
-      note: 'A rest is a span the engine measures and its payout is `endRest`’s; nothing stands beside that to take the benefits away from a rest the sleeper actually completed.',
-    },
-    {
-      clause: 'it takes 3d6 Psychic damage when it wakes up',
-      why: 'a-deadline-anchored-to-a-rest',
-      note: 'The dice and the type are ordinary and the moment is not: the damage is owed when the rest finishes, and a deadline is a span of seconds or a moment in the turn order, neither of which a waking is.',
-    },
-  ],
   entangle: [
     {
       clause: 'Grasping plants sprout from the ground in a 20-foot square within range',
@@ -3965,38 +3983,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
       clause: 'the target reappears in the space it left',
       why: 'a-second-place-to-put-a-creature',
       note: 'The return, and the space it left has to have been remembered for the whole duration while the creature was nowhere. Placement into the nearest unoccupied space is ordinary; coming back from nowhere is not.',
-    },
-  ],
-  // The second entry `a-long-casting-time` was wrong about, and the second
-  // spell whose real blocker is a printed Range with no kind. Reading it also
-  // found two mechanics the bare list had never recorded: the area's size is
-  // the caster's to choose, and Truesight is a sense declared sight has no room
-  // for.
-  'mirage-arcane': [
-    {
-      clause: 'Casting Time: 10 minutes',
-      why: 'expressible',
-      note: 'Ten minutes is a long casting the engine runs: declared, held on the clock, concentrating on itself until it settles. Hallow is written on the same mechanism at twenty-four hours.',
-    },
-    {
-      clause: 'Range: Sight',
-      why: 'table',
-      note: 'Filed here **under protest**, on the same grounds Dream’s Special is: `SpellRange` is Self, Touch or a number of feet, and a range bounded by what the caster can see is none of the three. No shape id names it, and inventing one is an architecture decision rather than a reading.',
-    },
-    {
-      clause: 'terrain in an area up to 1 mile square',
-      why: 'a-choice-made-at-the-casting',
-      note: 'The area’s size is chosen when the spell is cast, up to a printed maximum. A `SpellArea` is one fixed size belonging to the definition, and a per-casting choice has nowhere to be recorded.',
-    },
-    {
-      clause: 'into Difficult Terrain (or vice versa) or otherwise impede movement through the area',
-      why: 'difficult-terrain-an-area-creates',
-      note: 'Difficult Terrain is declared by the foot on the move that crosses it, so an area that creates it — or that takes it away, which this spell also does — is invisible to the ruler.',
-    },
-    {
-      clause: 'Creatures with Truesight can see through the illusion',
-      why: 'senses-beyond-declared-sight',
-      note: 'Sight is a pairwise declaration between two creatures and there is nothing else, so a sense that excuses its holder from an illusion has no state to sit in and nothing to be read off.',
     },
   ],
   // SRD ends the **invisibility** here and not the casting — "The double lasts
