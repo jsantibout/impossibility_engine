@@ -1721,8 +1721,13 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
       // style written "while worn" would look the clause up against a feature
       // id, hold never, and say nothing about it — which is precisely the
       // silence this refusal exists to break.
+      //
+      // Asked of the **field** rather than of a list of kinds that carry it,
+      // so a third member joining them is covered by the day it compiles. A
+      // list would be exhaustive only as long as somebody kept it so, and this
+      // refusal exists because the last thing nobody kept was believed.
       const gated: readonly StandingRequirement[] =
-        feature.grants?.kind === 'standing' || feature.grants?.kind === 'strike-style'
+        feature.grants !== undefined && 'requires' in feature.grants
           ? (feature.grants.requires ?? [])
           : [];
       gated.forEach((requirement, position) => {
