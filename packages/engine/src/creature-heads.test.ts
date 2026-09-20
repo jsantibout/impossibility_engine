@@ -35,6 +35,7 @@ const id = (s: string) => asCharacterId(s);
 const BREN = id('bren');
 const HYDRA = id('hydra');
 const WOLF = id('wolf');
+const WINTER_WOLF = id('winter-wolf');
 
 const supply = (seed = 'heads') => ({
   issuer: createRollIssuer('r'),
@@ -129,10 +130,10 @@ const inTheSwamp = (monster: string, who: CharacterId): Table => {
 };
 
 /** One Bite at Bren, with the roll forced to land so the count is what is tested. */
-const bite = (state: GameState) =>
+const bite = (state: GameState, who: CharacterId = HYDRA) =>
   resolveAttack(
     state,
-    HYDRA,
+    who,
     {
       target: BREN,
       weapon: null,
@@ -268,22 +269,41 @@ describe('a head count is declared, and the swings follow it', () => {
    */
   it('assumes nothing for a block whose every action line was read', () => {
     const table = inTheSwamp('wolf', WOLF);
-    const swung = unwrap(
-      resolveAttack(
-        table.state,
-        WOLF,
-        {
-          target: BREN,
-          weapon: null,
-          action: 'Bite',
-          attackBonuses: [{ source: 'forced', flat: 40 }],
-        },
-        supply(),
-      ),
-      'the bite',
-    );
+    const swung = unwrap(bite(table.state, WOLF), 'the bite');
 
     expect(swung.attack?.hit).toBe(true);
     expect(swung.unverified.some((line) => /declareCreatureHeads/.test(line))).toBe(false);
+  });
+
+  /**
+   * **And the clause claims only what the engine knows.** A Winter Wolf's Cold
+   * Breath is prose the parser read nothing out of, and it is not a sentence
+   * that sizes an Attack action — but nothing on the sheet can tell it from
+   * one that does, because a heading the parser failed on and a heading it
+   * never had arrive identically. So the clause names the line, says the
+   * action held one swing, and offers the remedy for the case where such a
+   * line counts the swings: it does not tell a DM that their wolf has heads.
+   */
+  it('names the line it could not read without claiming to know what it said', () => {
+    const table = inTheSwamp('winter-wolf', WINTER_WOLF);
+    const swung = unwrap(bite(table.state, WINTER_WOLF), 'the bite');
+
+    const said = swung.unverified.find((line) => /read nothing out of/.test(line));
+    expect(said).toContain('Cold Breath');
+    expect(said).not.toMatch(/\bhas heads\b/);
+  });
+
+  /**
+   * And the derivation is wider than the clause on purpose: a declaration is a
+   * thing the table *said*, so a count that silently did nothing where nothing
+   * had been reported would be the worse answer of the two. The Wolf nobody
+   * warned about still takes the three bites it was given.
+   */
+  it('sizes the action off a count nobody was prompted for', () => {
+    const table = inTheSwamp('wolf', WOLF);
+    table.do('three heads', (s) => declareCreatureHeads(s, WOLF, 3));
+
+    for (const nth of [1, 2, 3]) table.did(`bite ${nth}`, (s) => bite(s, WOLF));
+    expect(isErr(bite(table.state, WOLF))).toBe(true);
   });
 });

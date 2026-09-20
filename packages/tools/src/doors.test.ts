@@ -406,7 +406,7 @@ describe('every kind a tool declares it establishes has fields to carry it', () 
  * window, a slot and a minute on the clock — was uncastable from the only
  * surface that exists to cast spells.
  *
- * **A recorded exclusion is an answer and a shut door is not.** Four of these
+ * **A recorded exclusion is an answer and a shut door is not.** Five of these
  * are deliberately on neither surface, each for a reason the surface's own
  * rule already gives, and the reason is written here rather than left to be
  * re-derived by whoever next wonders. The test checks the exclusions too: a

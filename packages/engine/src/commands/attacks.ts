@@ -637,18 +637,27 @@ export function resolveAttack(
         `${id}'s block prints its attacks as a sequence, and there are no turns here to count one against — nothing held this swing to it`,
       );
     }
-    // **The line the parser could not read, and the count nobody declared.**
-    // SRD Hydra: "The hydra makes as many Bite attacks as it has heads." The
-    // engine holds the action to one swing — which is what it always held —
-    // and *says so*, because a fact a command can proceed past conservatively
-    // owes an `unverified` clause and never a `needs-context`: a fight must
-    // not stop to ask how many heads something has.
+    // **The lines the parser read nothing out of, where nothing else sizes the
+    // action.** SRD Hydra: "The hydra makes as many Bite attacks as it has
+    // heads" — a sentence that sizes the Attack action and that the engine
+    // could not execute. The action is held to one swing, which is what it
+    // always held, and the clause *says so*: a fact a command can proceed past
+    // conservatively owes an `unverified` clause and never a `needs-context`,
+    // because a fight must not stop to ask how many heads something has.
     //
-    // Only where the block left something unread. A Wolf whose every line the
-    // parser got structure out of is assuming nothing, and a clause on every
-    // block without a sequence would be noise about a fact that is not
-    // missing. Once at the swing that takes the action, like the handover
-    // beside a sequence, rather than at every swing inside it.
+    // **It names the lines and claims no more than that.** Which of them, if
+    // any, was the one that sized the action is a thing the engine cannot
+    // know: a parsed sequence and an unparsed heading arrive at the sheet the
+    // same way, so an unread breath weapon and an unread Multiattack are one
+    // fact here. So the clause reports what went unread and offers the remedy
+    // conditionally — a Winter Wolf's reader learns its Cold Breath is prose,
+    // which is true, and is not told the wolf has heads.
+    //
+    // A block the parser read whole says nothing at all, and neither does one
+    // whose sequence the engine can execute: a clause on every block without a
+    // sequence would be noise about a fact that is not missing. Once at the
+    // swing that takes the action, like the handover beside a sequence, rather
+    // than at every swing inside it.
     if (
       sequence === null &&
       !free &&
@@ -659,7 +668,7 @@ export function resolveAttack(
       budget.attacksRemaining === null
     ) {
       unverified.push(
-        `${id}'s block prints ${unreadActionsOf(sheet).join(', ')}, which the engine did not read — nothing states how many swings its Attack action holds, so it held one; where the line counts them off how many heads it has, a declareCreatureHeads command states the count`,
+        `${id}'s block prints ${unreadActionsOf(sheet).join(', ')}, which the engine read nothing out of, and nothing states how many swings its Attack action holds — it held one. Where one of those lines counts the swings off a number the table keeps, a declareCreatureHeads command states that number.`,
       );
     }
     if (

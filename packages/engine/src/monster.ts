@@ -339,6 +339,15 @@ export const unreadActionsOf = (sheet: CharacterSheet): readonly string[] =>
  * a character is a fact about fiction and not a licence to swing five times:
  * what a character's Attack action holds is on their sheet, put there by the
  * features they have.
+ *
+ * **And for any such creature, not only the ones a swing warned about.** The
+ * `unverified` clause the attack path reports is narrower than this — it needs
+ * a line the parser left unread to have something to name — and the two sets
+ * are deliberately not one. A declaration is a thing the table said, and a
+ * declared count that silently did nothing because the engine had no clause to
+ * offer would be worse than a count nobody was prompted for: the prompt is a
+ * courtesy, the declaration is the fact. So a block with no sequence takes the
+ * count it was given, whether or not anything was reported about it.
  */
 export const attacksInAction = (
   sheet: CharacterSheet,

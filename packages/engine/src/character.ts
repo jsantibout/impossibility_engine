@@ -161,9 +161,17 @@ export interface StatedValues {
    * prints no Multiattack and a block whose Multiattack the parser could not
    * read both reach the sheet with no sequence on them, and only the second is
    * a creature whose Attack action the engine has *assumed* the size of — SRD
-   * Hydra's "as many Bite attacks as it has heads" is the sentence. So a swing
-   * reports the assumption where there is one and stays quiet where there is
-   * not, which is the difference between an `unverified` channel and noise.
+   * Hydra's "as many Bite attacks as it has heads" is the sentence.
+   *
+   * **It does not tell the two apart, and a reader must not think it does.**
+   * Which line went unread is all this holds; whether that line was the one
+   * that sized the action is exactly what the parser could not say. So a swing
+   * whose block left *anything* unread reports what it was — a Winter Wolf's
+   * Cold Breath as readily as a Hydra's Multiattack — and claims only that
+   * something went unread. That is narrower than every stat block without a
+   * sequence, which would be noise about a fact that is not missing, and wider
+   * than the three blocks the sentence is really about, which is the honest
+   * width of what the engine knows.
    *
    * Absent for every character and for every block the parser read whole.
    */
