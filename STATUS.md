@@ -241,6 +241,30 @@ to homebrew.
   a Cleric of the Life Domain has the Life Domain's features and not an
   average of the domains. In reach, tracked and executed are three counts that
   are never added, and a test fails when the committed report is stale.
+- **A monster attacks with the line its own block prints.** 2024 stat blocks
+  are written to a template rather than in English, so the attack line holds
+  every number the engine needs: a Wolf bites at its own printed bonus with no
+  weapon in its mouth, and a Ghoul's +4 stands where a derivation would have
+  given +3. Pack Tactics is read off the *sentence* and never the trait's name,
+  so the engine still branches on a mechanic. What the line says after the
+  damage, and any condition on the roll, are kept verbatim and reported.
+- **Features a level 5 character actually has.** Reckless Attack and Frenzy,
+  because an attack roll may now be narrowed to the ability it was made with.
+  Stunning Strike, because a hit may buy an effect list — a grant of its own,
+  since the Monk spends another feature's pool and Open Hand spends nothing.
+  Divine Order and Primal Order, because a bonus may be sized by the holder's
+  own modifier. Disciple of Life, because a casting's healing has a reader.
+  Wild Resurgence, because one resource may be traded for another — and never
+  minted above a maximum. Find Steed and Hunter's Mark, cast out of the
+  feature's own pool with no slot spent. **Metamagic**: Distant, Extended,
+  Quickened and Twinned, priced in Sorcery Points.
+- **Four spells that write a vocabulary nothing wrote.** Stinking Cloud, Fear,
+  Wind Walk and Magic Jar. Fear is written as legality rather than compulsion —
+  a Frightened creature's Dash is a narrowing, and nobody is made to run.
+- **Doors for nearly all of it** — a mastery property asked for, a die handed
+  to an ally, a rite kept at across a turn boundary, Retaliation, a dying
+  creature stabilised, and the whole inventory: buy it, wear it, attune to it,
+  hand it over. A settled rest is idempotent under its command id end to end.
 - **Replay** — a scripted four-round fight and two frozen logs fold
   byte-identically.
 
@@ -350,96 +374,104 @@ to homebrew.
 
 ## Next
 
-**A party can be built, placed against monsters, and played through a fight
-and a rest.** `COVERAGE.md`'s level section is where the numbers live now, and
-no sentence here repeats one. What is left divides cleanly: doors for two
-things that landed in the engine this batch, one corpus migration, and then
-content tranches the maps can finally size — because both maps were re-derived
-against what is actually built, and between them they moved forty-odd entries
-off shapes that had stopped being missing.
+**A level 5 party can be built, armed, placed against monsters that fight with
+their own printed lines, and played through a fight and a rest.** The numbers
+are in `COVERAGE.md`'s level section and no sentence here repeats one.
 
-1. **The doors this batch's own engine work left behind.** `holdings.ts` will
-   not report a Reaction somebody was given, and `AttackCommand.mastery`
-   reaches no tool at all, so the Bard's die and seven weapon properties are
-   engine-only. Also doorless and named by the builder that found them:
-   `continueCasting` (a long casting begun in combat fails at the first turn
-   boundary), `takeDamageResponse` (the feature half of a window whose spell
-   half works), `stabiliseCreature`, and the whole inventory verb set —
-   `equipItem`, `unequipItem`, `attuneItem`, `endAttunement`, `purchaseItem`,
-   `transferItem`, `loseItems`.
-2. **Two rules the engine owes, both found from above it.** Nothing refuses
-   advancing the clock *during* a fight, where the clock is derived — a model
-   can expire every deadline mid-combat, and the refusal belongs in the engine
-   rather than in a layer that holds no rules. And `endRest` takes no
-   `CommandIdentity`, so it is the one call on the surface that cannot be
-   idempotent under the transport's id: a retry of a settlement that landed is
-   answered `not_resting` rather than as a duplicate.
-3. **Make a weapon mastery required, and migrate the corpus.** The ceiling was
-   a constraint of parallel tracks, not a reading of the book.
-4. **An action rule in the catalogue.** `ActionRule` says three of the four
-   things it was named for and **no definition in the book writes one**.
-   Befuddlement, Stinking Cloud, Shocking Grasp, Fear, Wind Walk, Magic Jar
-   and Slow are each one `action-rule` away — a content tranche, not an engine
-   one. Slow additionally needs a saving-throw narrowing its penalty currently
-   has no reader for, and Shocking Grasp appears in `golden-log-2.json`, so
-   the frozen fold wants checking before it is written.
-5. **A casting ended by a trigger** — the only shape left in the spell book
-   that finishes anything in the read column. It blocks fifteen and is the
-   sole blocker of Modify Memory: damage from **anybody**, where the two built
-   scopes are the caster and the caster's allies, and being targeted by
-   another spell at all. It bites into Maze and Phantasmal Force too.
-6. **A range an item names**, which is two fields rather than one: a *reach*
-   beside a conferral, for the rope at 20 feet and the wand's ray at 60 and
-   either talisman at 120; and a *range* on a casting for the Necklace of
-   Fireballs, thrown at a point, narrowing Fireball's printed 150. A brief
-   sizing only the first leaves the necklace exactly where it is.
-7. **A reachability axis for the report.** The level section cannot see
-   whether a session can *reach* what the engine executes, because
-   `@ie/tools` depends on `@ie/content` and the script cannot import the
-   surface without inverting the build. A generator living above both — `tools/`
-   already is — is the shape; where `coverage.ts` lives is the decision.
-8. **Ten item entries, three spell shapes, and the rest of the long tail**,
-   each now filed against what it actually waits for. The heaviest blocker in
-   the item book is `a-version-of-an-item-the-book-leaves-to-the-gm`, which no
-   engine work can reach, and that is the finding rather than a problem.
+What this batch changed about *planning* matters as much as what it built:
+three shapes that ranked near the top of their maps turned out to be several
+shapes wearing one id, and one turned out to be built already with an empty
+catalogue. Both maps have now been re-derived against what the engine actually
+admits, so the columns below can be read.
+
+1. **A feature that holds an action rule.** `ActionRule` is reachable from a
+   casting and from nothing else — the surviving instance of the sentence the
+   effect-list origin answered a batch ago. An architect's decision is in hand:
+   a derived `StandingGrant` member plus `actionRulesOn(state, id)` merged with
+   the stored rules at every `Spend`, **not** a grant stored at creation, which
+   would put a permanent unconditional row into every Rogue's state and would
+   silently miss the Rogue already frozen in `golden-log-2.json`. 18 reads
+   across 9 command files. **Honest cost: the door alone finishes none of the
+   ten features.** With a `from` on `takeDash` it reaches two of Cunning
+   Action's three verbs and Adrenaline Rush's Dash, and Cunning Action stays
+   `manual`, because Hide has no spender anywhere in the repository.
+2. **Steady Aim, which is its own shape** — an activated feature that hangs a
+   *stored* one-shot at the moment it pays for it, generalising what
+   `commands/mastery.ts` does bespoke for Sap and Vex. A `oneShot` written on a
+   derived standing grant is never spent, because `consumedRollModifiers`
+   reads stored state.
+3. **The clock refusal, with `endCombat` beside it.** The refusal is written,
+   reviewed and **held on the branch `held/clock-in-combat`** rather than
+   merged, because nothing ends a fight: `combat-ended` has no command producer
+   except removing the last combatant, so a session that rolls Initiative once
+   could never rest again. Ship the two together. Note `combat-ended` is
+   `invariants.test.ts`'s control for "an event no command stamps".
+4. **Multiattack**, the largest single shape in the bestiary at 177 blocks, and
+   a decision rather than a task: `attacksPerAction` already gives the economy,
+   and what is missing is the **composition** — "two Bite attacks" — which
+   needs per-name counting within a turn that no state holds. A count-only
+   version would let a Ghoul make two Claws where the book gives two Bites.
+5. **An opportunity attack a monster makes with its own line.**
+   `takeOpportunityAttack` and the reaction path build their swing with a
+   weapon only, so a Wolf's is an Unarmed Strike at Strength plus proficiency —
+   **a fabricated number rather than a refusal.** The field belongs on two more
+   commands and then on the surface above them.
+6. **Doors for what this batch built**: `onHit` and `action` reach no tool, so
+   a model cannot elect a Stunning Strike or a monster's printed attack.
+7. **Preserve Life**, which needs a decision: a spendable hit-point pool with a
+   reach and a cap hung off a trade is either a second grant on one feature or
+   a subclass adding an option to another feature's pool. Both shapes it names
+   now exist and it still does not fit.
+8. **An unlimited trade.** `limit` is required and closed; Font of Inspiration,
+   Sorcery Incarnate and Holy Nimbus all print one.
+9. **The long tail, now filed against what it actually waits on**: the item
+   range shape (two fields, not one), a casting ended by a trigger, the
+   remaining Metamagic options, `an-effect-list-a-hit-buys` for the Rogue's
+   Cunning Strike, and the bestiary's ranked prose table.
 
 ### Decisions genuinely open
 
-- **A printed Range the format cannot state.** Dream's `Special` and Mirage
-  Arcane's `Sight`. Filed `table` under protest and pinned by name; two
-  consumers, no shape id, and naming one is architecture.
-- **A grant with no ending.** Wish's "This Resistance is permanent." No shape
-  names a grant that outlives every deadline the engine has, which is the
-  whole of why Wish is the one spell still unread.
-- **A size for a character.** Creation pins none and the species records are
-  read by nothing. Two SRD species print two sizes, so this is a creation
-  choice and a pinned field. Push already reports "took them for Medium"
-  rather than assuming quietly.
-- **`check_without_duration` does not count `untilDispelled`**, so Programmed
-  Illusion cannot be written though nothing in the shape vocabulary blocks it.
-  A one-line rule widening, reported rather than taken.
+A printed Range the format cannot state (Dream's `Special`, Mirage Arcane's
+`Sight`). A grant with no ending (Wish's permanent Resistance). A size for a
+character, where two SRD species print two. Where a reachability measurement
+lives, since `@ie/tools` depends on `@ie/content` and the report cannot import
+the surface without inverting the build. Whether the Hide verb is the table's.
+
+### Interactions nobody has ruled on
+
+- **A rider fires after `landDamage`**, so a target Stunned by the same swing
+  can no longer answer a `damage-rolled` window it was just offered. No
+  deadlock — `settleDamage` records a pass — but the Reaction is silently
+  denied, where the book puts the defender's response first.
+- **`rider_deals_damage` keys on the effect kind**, so a `turn-payout` carrying
+  dice would slip past it. Harmless while nothing is rolled at the hit.
 
 ### Guards, and what they now catch
 
-`vitest.setup.ts` refuses an empty `each` table anywhere in the suite. The
-format sweep reads a union arm by arm **and** reads all three hosts of an
-effect list, which unmasked four members and found that `save-damage`'s
-modifier is written by a feature and by no spell. A test fails when
-`COVERAGE.md` is stale, which is the discipline that slipped last batch. The
-spendable-kind sweep builds one character of every class in the book rather
-than five hand-picked ones.
+An empty `each` table is refused suite-wide. The format sweep reads a union arm
+by arm and all three hosts of an effect list. A test fails when `COVERAGE.md`
+is stale. The spendable-kind sweep builds one character of **every class in the
+book** rather than five hand-picked ones. `RiderDuration`'s readers are
+exhaustive switches, so a new member is three type errors rather than a silent
+caster-anchored deadline. `oneShot` is checked at the item door by the same
+function the spell side uses. `doors.test.ts`'s probe can see inside a
+discriminated union.
 
-Still open: `riderDuration`'s ternary tail would swallow a new member;
-`content.ts` leaves `oneShot` unchecked on a feature's `roll-mode`;
-`doors.test.ts`'s field probe cannot see inside a discriminated union, which
-is why `take_ready`'s new fields are unlisted; `casting-damage` is legal on an
-item no SRD item prints; `fold-import-boundary.test.ts` lints in process and
-its first case can time out under load.
+### Traps in the worktrees, not in the code
 
-### A trap in the worktrees, not in the code
+An empty `node_modules` makes `tsc -b` resolve `@ie/engine` through the main
+checkout's `dist` — silent while the two agree. `npm install` links them
+correctly; `ln -s` under Git Bash makes **copies**, which go stale and break
+`npm run coverage`. Real junctions need `fs.symlinkSync(target, link,
+'junction')`. Do not rewrite engine sources with a script that normalises line
+endings: three source-parsing tests fail on CRLF and say nothing about why.
 
-A builder worktree starts with an empty `node_modules`, so `tsc -b` for
-`packages/content` and `tools/` resolves `@ie/engine` through the main
-checkout's symlinks and typechecks against its `dist` — silent while the two
-agree. Junction all six when the worktree is made, beside copying
-`packages/srd/src/generated/`.
+### How a batch is sized, corrected
+
+`docs/dev/WORKFLOW.md` says a batch is "four to six hours of parallel work".
+That is wrong and it mis-sized this one by a factor of eight: a track runs
+about half an hour whatever is queued in it, because it is bounded by tool
+budget rather than by brief count. **Batch size is a partition problem** — more
+tracks, not longer queues — and the partition is file ownership. Give each
+track a distinct anchor when several must add a member to one union, and check
+the anchor is in the union you think it is.
