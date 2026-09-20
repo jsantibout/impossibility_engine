@@ -575,7 +575,6 @@ be the second spelling of one derivation.
 | `a-resource-traded-for-another` | 12 | 1 |
 | `a-one-shot-roll-modifier` | 9 | 1 |
 | `an-attack-the-class-redefines` | 9 | 1 |
-| `a-pool-the-proficiency-bonus-sizes` | 7 | 1 |
 | `an-effect-list-a-hit-buys` | 5 | 1 |
 | `a-grant-gated-on-one-option-of-a-choice` | 4 | 1 |
 | `a-rule-the-engine-fixes-for-everybody` | 4 | 1 |
@@ -594,8 +593,10 @@ be the second spelling of one derivation.
 | `a-roll-mode-a-feature-takes-away` | 1 | 1 |
 | `a-turn-a-spell-inserts-into-the-order` | 1 | 1 |
 | `an-effect-that-waits-for-a-later-trigger` | 1 | 1 |
+| `an-option-whose-span-is-a-turn-boundary` | 1 | 1 |
 | `falling` | 1 | 1 |
 | `a-benefit-that-runs-for-a-printed-span` | 6 | 0 |
+| `a-pool-the-proficiency-bonus-sizes` | 6 | 0 |
 | `a-weapon-mastery-property` | 6 | 0 |
 | `temporary-hit-points-a-feature-grants` | 4 | 0 |
 | `a-feature-that-carries-a-second-grant` | 3 | 0 |
