@@ -67,6 +67,13 @@ proficiencies** are two declarations because the book prints two sentences
 that differ — a Monk is proficient with a Light Crossbow and it is not a Monk
 weapon — so the set lives on the feature rather than on the proficiency list.
 
+**A pool may carry a menu.** `heals` and `touchHeals` already say what one use
+buys; `options` is the third answer, and it is an effect list. It is a list
+rather than a grant of its own because `FeatureDefinition.grants` is singular
+and the SRD prints one feature whose uses buy different things. Dice scale on
+the class table through `diceCountByLevel`, because every `DiceScaling` field
+reads a slot or a caster level and a pool use spends neither.
+
 ## Equipment
 
 Items are content (`CatalogueItem`: id, kind, price in copper, weight, the

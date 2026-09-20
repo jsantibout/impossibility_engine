@@ -98,3 +98,10 @@ triggers on components, an item's spell requires none, and a
 `SpellDefinition` holds no components at all** — so today's reaction window
 would open on a wand. Whether the window reads components or the item route
 refuses it is a rules decision nobody has taken.
+
+A feature's pool use is the third host of an effect list. It confers without
+casting exactly as a potion does — no casting id, no ongoing record, filed
+under `feature:<id>` — and differs from an item in one thing: the numbers are
+the holder's. An item prints its DC and a feature says "your spell save DC",
+so the ability is the granting class's, resolved at creation, and the DC is
+derived from the sheet at the moment of use.
