@@ -105,6 +105,7 @@ import type {
   GameEvent,
   GameState,
   InitiativeEntrant,
+  MasteryUse,
   Placement,
   Point,
 } from '@ie/engine';
@@ -182,6 +183,7 @@ import {
   conditionSchema,
   creatureId,
   damageTypeSchema,
+  masterySchema,
   placementSchema,
   pointSchema,
   routeSchema,
@@ -416,6 +418,25 @@ const placementOf = (
   ...(input.bearing === undefined ? {} : { bearing: input.bearing }),
   ...(input.elevation === undefined ? {} : { elevation: input.elevation }),
   ...(input.size === undefined ? {} : { size: input.size }),
+});
+
+/**
+ * A caller's mastery, in the engine's vocabulary.
+ *
+ * Three optional fields dropped when absent, for {@link choicesOf}'s reason:
+ * `exactOptionalPropertyTypes` makes "absent" and "present and undefined"
+ * different types and the engine's vocabulary asks for the first.
+ *
+ * **No cast anywhere in it**, which is the point of writing it out: the enum
+ * in {@link masterySchema} is the same eight strings as the engine's
+ * `WeaponMastery`, so the assignment is checked. A schema that drifted from
+ * the rules' vocabulary would fail here rather than be waved through, which is
+ * exactly what {@link sizeSchema}'s note promises of a spelled-out list.
+ */
+const masteryOf = (input: z.infer<typeof masterySchema>): MasteryUse => ({
+  ...(input.property === undefined ? {} : { property: input.property }),
+  ...(input.feet === undefined ? {} : { feet: input.feet }),
+  ...(input.cleaving === undefined ? {} : { cleaving: who(input.cleaving) }),
 });
 
 export const senses = (input: {
@@ -1282,6 +1303,11 @@ const ATTACK = tool({
       .describe(
         'Roll the attack and stop on the hit, leaving the damage to `settle_attack`. Ask for it when the target may want the moment the rules give them — SRD Shield is "a Reaction you take when you are hit by an attack roll", and that instant exists only in an attack that has not rolled its damage yet. It costs nothing and decides nothing; a miss is over either way.',
       ),
+    mastery: masterySchema
+      .optional()
+      .describe(
+        'Use the mastery property of the weapon in hand — Cleave, Graze, Push, Slow and Topple are written "you can", so silence declines them. An empty object uses whatever the weapon prints. A property this character has not unlocked is refused rather than quietly skipped.',
+      ),
   }),
   run: (context, args) =>
     settle(
@@ -1296,6 +1322,7 @@ const ATTACK = tool({
           ...(args.twoHanded === true ? { twoHanded: true } : {}),
           ...(args.finesseAbility === undefined ? {} : { finesseAbility: args.finesseAbility }),
           ...(args.hold === true ? { hold: true } : {}),
+          ...(args.mastery === undefined ? {} : { mastery: masteryOf(args.mastery) }),
           ...identity(context),
         },
         context.campaign.supply(),

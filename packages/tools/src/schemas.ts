@@ -146,6 +146,49 @@ export const sensesFields = {
 };
 
 /**
+ * Using the mastery property of the weapon in hand — the decision SRD writes
+ * as "you can".
+ *
+ * Present at all means use it; what is inside says which property, how far and
+ * whose neighbour the extra swing is against. **Every one of the eight is
+ * listed and none is filtered here**, for the reason {@link sizeSchema} is
+ * spelled out rather than imported and for one more: which properties a
+ * character may put in place of a weapon's own is a *rule* — SRD Tactical
+ * Master offers Push, Sap and Slow, and a feature has to have granted it — so
+ * a schema that published a shorter list would be answering a rules question
+ * a level too early, and answering it the same way for a character who holds
+ * the feature and one who does not. The engine refuses what nothing unlocked,
+ * by name, before a die is thrown.
+ *
+ * **`feet` is a choice out of a bound the rules print, not a distance the
+ * caller measured** — SRD Push's "up to 10 feet", which is `slotLevel`'s kind
+ * of decision. The ceiling is deliberately not repeated here: `PUSH_FEET`
+ * lives in the engine beside the property that spends it, and a Zod maximum
+ * would be a second copy of a rule, phrased differently, that could drift.
+ * What this checks is that the value is a whole number of feet at all; the
+ * engine answers `bad_amount` naming its own number, and this field is what
+ * that refusal is answerable through.
+ */
+export const masterySchema = z.object({
+  property: z
+    .enum(['cleave', 'graze', 'nick', 'push', 'sap', 'slow', 'topple', 'vex'])
+    .optional()
+    .describe(
+      'Use this property in place of the weapon’s own — SRD Tactical Master. Refused unless a feature granted the substitution. Omit to use whatever the weapon prints.',
+    ),
+  feet: z
+    .int()
+    .nonnegative()
+    .optional()
+    .describe('How far a Push shoves the target. Omit to shove the whole distance the property gives.'),
+  cleaving: creatureId
+    .optional()
+    .describe(
+      'The creature already hit this turn, whose neighbour this swing is against — SRD Cleave’s extra attack. Naming it is what makes this attack the extra one.',
+    ),
+});
+
+/**
  * How long a ruled condition lasts, said as a moment and never as a number.
  *
  * SRD writes the ends of things as moments in the turn order — "until the
