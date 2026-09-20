@@ -5235,13 +5235,15 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'a-rider-on-a-later-weapon-attack',
   ],
   // Re-pointed: the shackles impose no condition at all. What they do is
-  // forbid "any method of extradimensional movement, including teleportation
-  // or travel to a different plane of existence", which is a rule about what
-  // a creature may do on its turn, and the DC 30 check once every 30 days is
-  // the table's clock.
+  // refuse a creature "any method of extradimensional movement, including
+  // teleportation or travel to a different plane of existence", which is the
+  // half of the suppression shape read from the target's side rather than an
+  // area's — the same reading that shape already records for SRD Freedom of
+  // Movement. Not the action rule: `ActionRule` narrows the six named actions
+  // and their slots, and a plane is not one of them.
   'dimensional-shackles': [
     'a-fact-only-the-table-can-declare',
-    'an-action-a-spell-compels-or-forbids',
+    'an-effect-that-suppresses-other-magic',
   ],
   // Every spell on the orb's table is defined — Cure Wounds and Suggestion
   // execute, Daylight, Death Ward, Detect Magic and Scrying are tracked — so
