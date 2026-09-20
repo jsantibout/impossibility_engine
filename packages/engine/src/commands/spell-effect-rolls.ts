@@ -483,7 +483,7 @@ export function resolveSaveDamageEffect(
     ...(effect.plus ?? []),
   ];
   const rolledParts: DamageComponent[] = [];
-  for (const part of parts) {
+  for (const [index, part] of parts.entries()) {
     const dice = alteredCastingDice(
       alters,
       scaledDiceFor(part.damage, level, numbers.casterLevel, castLevel),
@@ -504,10 +504,14 @@ export function resolveSaveDamageEffect(
         // flat number, plus the one damage roll a modifier rides. A spell that
         // prints two types — Ice Knife's Piercing and Cold — takes the modifier
         // on the first of them and the rest of the list gets nothing, which is
-        // what "one damage roll" says.
+        // what "one damage roll" says. SRD Divine Spark's "plus your Wisdom
+        // modifier" is read the same way and on the same component.
         scaledFlatFor(part.damage, level, castLevel) +
           dice.value.flat +
-          takeCastingAddend(alters),
+          takeCastingAddend(alters) +
+          (index === 0 && effect.addSpellcastingModifier === true
+            ? numbers.spellcastingModifier
+            : 0),
       ),
     );
   }
@@ -595,12 +599,13 @@ export function resolveSaveDamageEffect(
  *   {@link applyRiders}, which is where the other riders a failure may carry
  *   live — further conditions, a granted penalty, a delayed hit — every one of
  *   them welded to a casting id.
- * - An **item** files it under `item:<id>`, hands over the one condition the
- *   kind requires, and carries the repeat save with it. `checkContent` refuses
- *   a conferral every field that would need a casting — the extra riders, the
- *   rider's lifetime, its escape check, its `outlivesCasting`, and a repeat
- *   whose success would end a casting — so the item arm has nothing to
- *   translate and never reaches for one.
+ * - An **item or a feature** files it under `item:<id>` or `feature:<id>`,
+ *   hands over the conditions the failure imposes, and carries the repeat save
+ *   with the first of them. `checkContent` refuses both hosts every field that
+ *   would need a casting — the granted penalty, the delayed hit, a rider's
+ *   lifetime, its escape check, its `outlivesCasting`, and a repeat whose
+ *   success would end a casting — so neither arm has anything to translate and
+ *   neither reaches for one.
  */
 export function resolveSaveEffect(
   ctx: EffectContext,
@@ -674,48 +679,64 @@ export function resolveSaveEffect(
     return ok(current);
   }
 
-  // **The item arm, which hangs one condition and asks for no casting.**
-  // `conditionRiderOf` types the flat fields as a non-empty list, so the first
-  // element is the condition the kind requires rather than a guess; the rest
-  // of that list is `save.conditions`, which `checkContent` refuses on a
-  // conferral. The repeat rides with it and names the item's source through
-  // the instance it is filed under, so the boundary raises it and a success
-  // ends it on the timer the conferral's own lifetime files.
-  if (ctx.origin.kind === 'item') {
-    const [rider] = conditionRiderOf(effect);
-    const conferred = conditionLanding(
-      applyConditionTo(
-        current,
-        target,
-        rider.name,
-        ctx.source,
-        [],
-        undefined,
-        repeatSaveFrom(rider.repeats, {
-          of: target,
-          ability: effect.ability,
-          dc: saveDc,
-          name,
-        }),
-      ),
-    );
-    if (!conferred.ok) return conferred;
+  // **The arm with no casting behind it, which hangs conditions and asks for
+  // none.** `conditionRiderOf` types the flat fields as a non-empty list, so
+  // the first element is the condition the kind requires rather than a guess,
+  // and the rest of the list is `save.conditions`.
+  //
+  // **Every rider, not just the first.** An item's list is one long —
+  // `checkContent` refuses `conditions` on a conferral — but SRD Turn Undead
+  // is "the Frightened **and** Incapacitated conditions" off one Wisdom save,
+  // so a feature's is two, and a second `save` effect would roll a second
+  // saving throw a creature could fail one of. Each instance is filed under
+  // the same source, which is what the paying command's timer loop then reads
+  // back off the outcome.
+  //
+  // **The repeat rides on the first rider only.** `conditionRiderOf` folds the
+  // host's flat `repeats` there because it belongs to the saving throw rather
+  // than to any one condition — a copy on each would raise one debt per
+  // condition at every turn boundary — and it names the source through the
+  // instance it is filed under, so the boundary raises it and a success ends it
+  // on the timer the conferral's own lifetime files.
+  if (ctx.origin.kind !== 'casting') {
+    const conferred: ConditionName[] = [];
+    for (const rider of conditionRiderOf(effect)) {
+      const landed = conditionLanding(
+        applyConditionTo(
+          current,
+          target,
+          rider.name,
+          ctx.source,
+          [],
+          undefined,
+          repeatSaveFrom(rider.repeats, {
+            of: target,
+            ability: effect.ability,
+            dc: saveDc,
+            name,
+          }),
+        ),
+      );
+      if (!landed.ok) return landed;
+      // A target immune to the condition is **unaffected** and not an error —
+      // the flask was still drunk and the save was still rolled, which is the
+      // reading `conditionLanding` holds for every origin.
+      if (!landed.value.landed) continue;
+      events.push(...landed.value.events);
+      current = landed.value.events.reduce(applyEvent, current);
+      conferred.push(rider.name);
+    }
 
-    // A target immune to the condition is **unaffected** and not an error —
-    // the flask was still drunk and the save was still rolled, which is the
-    // reading `conditionLanding` holds for both origins.
-    if (!conferred.value.landed) {
+    if (conferred.length === 0) {
       outcomes.push({ target, save: save.value, affected: false });
       return ok(current);
     }
 
-    events.push(...conferred.value.events);
-    current = conferred.value.events.reduce(applyEvent, current);
     held.add(target);
     outcomes.push({
       target,
       save: save.value,
-      conditions: [rider.name],
+      conditions: conferred,
       affected: true,
     });
     return ok(current);

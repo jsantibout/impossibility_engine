@@ -76,6 +76,19 @@ export const DIVINE_STRIKE_DICE: readonly number[] = [
   0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2,
 ];
 
+/**
+ * SRD Divine Spark: how many dice one use rolls, by Cleric level.
+ *
+ * "Roll 1d8 ... This feature's die changes when you reach certain Cleric
+ * levels: 2d8 at level 7, 3d8 at level 13, and 4d8 at level 18." Written in
+ * the feature rather than printed as a column, exactly as Divine Strike's
+ * dice are, so it is transcribed here beside them. One below level 7, which is
+ * also what a Cleric who does not have Channel Divinity yet contributes.
+ */
+export const DIVINE_SPARK_DICE: readonly number[] = [
+  1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 4, 4, 4,
+];
+
 /** Cleric Features table, Channel Divinity column. None at level 1. */
 export const CLERIC_CHANNEL_DIVINITY: readonly number[] = [
   0, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4,
@@ -140,7 +153,7 @@ export const CLERIC: ClassDefinition = {
       name: 'Channel Divinity',
       level: 2,
       automation: 'engine',
-      note: 'Declared as a pool sized by the Channel Divinity column, refilling on a Long Rest. A Short Rest gives back one use, which is applied without emptying the pool. What each use buys — Turn Undead, Divine Spark — is not executed.',
+      note: 'Declared as a pool sized by the Channel Divinity column, refilling on a Long Rest. A Short Rest gives back one use, which is applied without emptying the pool. What each use buys is executed: Turn Undead rolls the Wisdom save against the Cleric’s own spell save DC and leaves the Undead that fail Frightened and Incapacitated for the minute, and Divine Spark restores hit points or deals the damage the caller names, with the die read off the Cleric table. Three clauses stay the table’s. Turn Undead’s "This effect ends early on a creature if it takes any damage" has no cause the engine can see — EFFECT_END_CAUSES is keyed on what the creature the timer sits on does, and damage dealt by anybody is not among them — so a turned Undead that is hit keeps the conditions until the minute is up. Its "it tries to move as far from you as it can" is the table’s in the way every compulsion is, since nothing moves a creature on its own turn. And Divine Spark is printed "at another creature", which is not refused: the reach is checked and who is on the other end of it is not. Divine Spark is one printed option offered here as two, because the book’s “either ... or” is a choice made at the moment of use and naming which half is that choice.',
       grants: {
         kind: 'pool',
         key: 'channel-divinity',
@@ -149,6 +162,73 @@ export const CLERIC: ClassDefinition = {
         recovers: 'long-rest',
         // SRD: "You regain one expended use when you finish a Short Rest."
         regainsOnShortRest: 1,
+        // SRD: "you can use it in the following ways", and the ways are a
+        // menu one feature offers rather than several features — which is why
+        // they hang off the pool that prices them rather than standing beside
+        // it as grants of their own.
+        options: [
+          {
+            id: 'turn-undead',
+            name: 'Turn Undead',
+            // SRD: "As a Magic action, you present your holy symbol and
+            // censure Undead."
+            action: 'action',
+            // "Each Undead within 30 feet of you", which is an emanation and a
+            // filter: the living standing in the same thirty feet are left
+            // alone rather than making the use illegal.
+            area: { kind: 'emanation', distance: 30, origin: 'self' },
+            mustBeType: 'Undead',
+            // "must make a Wisdom saving throw. On a failed save, the creature
+            // has the Frightened and Incapacitated conditions for 1 minute."
+            // One save and two conditions, so it is one effect: a second would
+            // roll a second save the creature could fail only half of.
+            effects: [
+              {
+                kind: 'save',
+                ability: 'wis',
+                condition: 'frightened',
+                conditions: [{ name: 'incapacitated' }],
+              },
+            ],
+            durationSeconds: 60,
+          },
+          {
+            id: 'divine-spark-restore',
+            name: 'Divine Spark (restore)',
+            action: 'action',
+            // SRD: "you point your holy symbol at another creature you can see
+            // within 30 feet of yourself".
+            reach: 30,
+            // "Roll 1d8 and either restore Hit Points to the creature equal to
+            // that roll + your Wisdom modifier".
+            effects: [
+              { kind: 'heal', healing: { dice: '1d8' }, addSpellcastingModifier: true },
+            ],
+            diceCountByLevel: DIVINE_SPARK_DICE,
+          },
+          {
+            id: 'divine-spark-harm',
+            name: 'Divine Spark (harm)',
+            action: 'action',
+            reach: 30,
+            // "or force the creature to make a Constitution saving throw. On a
+            // failed save, the creature takes Necrotic or Radiant damage (your
+            // choice) equal to the roll + your Wisdom modifier. On a
+            // successful save, the creature takes half as much damage."
+            effects: [
+              {
+                kind: 'save-damage',
+                ability: 'con',
+                damage: { dice: '1d8' },
+                damageType: 'radiant',
+                addSpellcastingModifier: true,
+                onSuccess: 'half',
+              },
+            ],
+            damageTypeStated: ['necrotic', 'radiant'],
+            diceCountByLevel: DIVINE_SPARK_DICE,
+          },
+        ],
       },
     },
     {
@@ -173,7 +253,7 @@ export const CLERIC: ClassDefinition = {
       name: 'Sear Undead',
       level: 5,
       automation: 'manual',
-      note: 'Turn Undead dealing Radiant damage is not modelled; Turn Undead itself is a Channel Divinity option the engine does not execute.',
+      note: 'Turn Undead dealing Radiant damage is not modelled: a later feature adding an effect to an earlier one’s use has no shape. Turn Undead itself is executed — it is a Channel Divinity option now — so what is left here is the Radiant half alone.',
     },
     {
       id: 'cleric:blessed-strikes',

@@ -2,6 +2,7 @@ import { SKILL_ABILITY, type Ability, type RollMode, type Skill } from '@ie/shar
 import type {
   ActivatedFeature,
   HealingTouch,
+  PoolOption,
   RecoveryFeature,
   SelfHealFeature,
   StandingEffect,
@@ -158,6 +159,16 @@ export interface CharacterSheet {
    * what several of them say.
    */
   readonly healingTouch?: readonly HealingTouch[];
+  /**
+   * What a use of a feature's pool buys, where what it buys is an effect list
+   * — SRD Channel Divinity's menu.
+   *
+   * Resolved at creation beside `healingTouch`, and for the same reason both
+   * of its neighbours are: the dice are a column of a class table read at that
+   * class's own level, and the spellcasting ability the DC comes from belongs
+   * to the class that granted the feature rather than to the character.
+   */
+  readonly poolOptions?: readonly PoolOption[];
   /**
    * Reactions this character's features offer, and what each one costs.
    *

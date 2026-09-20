@@ -13,7 +13,7 @@ import type { EffectEndCause } from './timers.js';
 import type { D20TestKind } from './checks.js';
 import type { ReactionReach } from './reactions.js';
 import type { Recovery } from './resources.js';
-import type { SpellEffect } from './spell-definitions.js';
+import type { SpellArea, SpellEffect } from './spell-definitions.js';
 import type { ActivationEnd, StandingGrant, StandingRequirement } from './standing.js';
 
 /**
@@ -235,6 +235,104 @@ export interface HealGrant {
   readonly plus: 'class-level' | Ability;
   /** SRD Wholeness of Body: "(minimum of 1 Hit Point regained)". */
   readonly minimum?: number;
+}
+
+/**
+ * How the log names a feature, wherever a feature is what something came from.
+ *
+ * `itemSource`'s twin, written once for the same reason: a feature's effect
+ * list files everything it hangs under this, so `releaseGrants`,
+ * `removeBonusFrom` and `endTimedCondition` can take it off again by name.
+ *
+ * **Deliberately not a casting source.** `castingSource` writes
+ * `Hold Person#cast:3` and `castingIdOf` reads the id back out; this writes
+ * `feature:cleric-ish-id`, which `castingIdOf` answers null for — so
+ * `releaseCasting`, `ongoingSpellsOn`, `spellOn` and the Dispel resolver pass
+ * over what a feature hung by construction rather than by being told about it.
+ */
+export const featureSource = (featureId: string): string => `feature:${featureId}`;
+
+/**
+ * One thing a use of a pool buys, where what it buys is an effect list.
+ *
+ * SRD Channel Divinity is the shape this is built to: one feature, one pool,
+ * and a named menu the holder picks from at the moment of use — "Turn Undead",
+ * "Divine Spark". Each option prints its own action, its own reach or area and
+ * its own effects, and every one of them costs the same single use.
+ *
+ * **The effects are the engine's existing vocabulary and nothing else.** Turn
+ * Undead is a Wisdom `save` with two conditions on one failure, an emanation,
+ * a creature-type filter and a minute on the clock — four things the engine
+ * already did for a spell. An option that needs a new effect kind is engine
+ * work exactly as a spell that needs one is.
+ */
+export interface PoolOptionGrant {
+  /** The option's own id, named by the caller who spends the use. */
+  readonly id: string;
+  /** What the log calls it — SRD's "Turn Undead". */
+  readonly name: string;
+  /** What using it costs in the action economy; outside combat, nothing. */
+  readonly action: 'action' | 'bonus-action';
+  readonly effects: readonly SpellEffect[];
+  /**
+   * The area it fills, for an option that catches whoever is standing in one.
+   *
+   * SRD Turn Undead: "Each Undead within 30 feet of you". Beside
+   * {@link reach} and never with it — an option catches an area or is aimed at
+   * a creature, and one that said both would take a target list it then
+   * ignored.
+   */
+  readonly area?: SpellArea;
+  /**
+   * How far it reaches, for an option aimed at one creature.
+   *
+   * SRD Divine Spark: "you point your holy symbol at another creature you can
+   * see within 30 feet of yourself". Absent means the holder themselves, which
+   * is the only target an option with neither field can have.
+   */
+  readonly reach?: number;
+  /**
+   * The one creature type an **area** option touches — SRD's "Each Undead".
+   *
+   * A filter and not a refusal: the living thug standing in the same thirty
+   * feet is left alone rather than making the use illegal, which is the
+   * reading `areaTargets` already takes for "each Humanoid in the area".
+   */
+  readonly mustBeType?: string;
+  /**
+   * How long what it hangs lasts, in seconds — SRD Turn Undead's "1 minute".
+   *
+   * Required exactly when one of the effects hangs something on somebody and
+   * refused when none does, which is the rule an item's conferral already
+   * keeps: there is no casting for `releaseCasting` to end, so a grant with no
+   * deadline would run for ever, and a deadline with nothing to end would file
+   * a timer that takes nothing away.
+   */
+  readonly durationSeconds?: number;
+  /** What ends a conferred condition before its span is up. */
+  readonly endsEarly?: readonly EffectEndCause[];
+  /**
+   * How many dice the option's amounts roll, by class level.
+   *
+   * SRD Divine Spark: "This feature's die changes when you reach certain
+   * Cleric levels: 2d8 at level 7, 3d8 at level 13, and 4d8 at level 18." A
+   * column of the class table exactly as Sneak Attack's dice are, so the die
+   * size stays on the effect and only the count is read at that class's own
+   * level — `diceCountByLevel` on a standing grant, asked of a second host.
+   *
+   * **A class table rather than a `DiceScaling` field**, because every one of
+   * those reads a slot level or a caster level and a feature has neither.
+   */
+  readonly diceCountByLevel?: readonly number[];
+  /**
+   * Damage types the option prints and the **caller** chooses between.
+   *
+   * SRD Divine Spark: "the creature takes Necrotic or Radiant damage (your
+   * choice)". `SpellDefinition.damageTypeStated` word for word, on a host that
+   * is not a definition — a list printed here, one value named at the use and
+   * refused if it is not on the list.
+   */
+  readonly damageTypeStated?: readonly string[];
 }
 
 /**
@@ -656,6 +754,34 @@ export type FeatureGrant =
         readonly lifts: readonly ConditionName[];
         readonly costPerCondition: number;
       };
+      /**
+       * What one use buys, where what it buys is an **effect list** — and the
+       * several different things the SRD lets one pool buy.
+       *
+       * The twin of the `heals` field above, one kind of purchase along, and
+       * the feature's answer to an item's `confers`. `runEffects` had a
+       * casting origin and an item origin and no feature origin, so an effect
+       * list was reachable from a spell and from a bottle and from nothing a
+       * class prints — which is why "a feature forces a saving throw" and "a
+       * feature imposes a condition" were two symptoms of one absence rather
+       * than two gaps.
+       *
+       * **A list on the pool rather than a grant of its own**, because
+       * `FeatureDefinition.grants` is a single grant and the SRD prints one
+       * feature whose uses buy different things: a Channel Divinity is one
+       * feature with two options, and two grants cannot say that while the
+       * field is singular. It is the shape `reaction.does` already has, for
+       * the same reason.
+       *
+       * **Nothing here is a spell.** There is no casting id, no slot, no
+       * Concentration and no ongoing record — what an option hangs is filed
+       * under {@link featureSource}, which `castingIdOf` answers null for, so
+       * `releaseCasting`, `ongoingSpellsOn` and the Dispel resolver pass over
+       * it by construction rather than by having been told to. What ends it is
+       * the timer the command files, whose deadline is {@link
+       * PoolOptionGrant.durationSeconds}.
+       */
+      readonly options?: readonly PoolOptionGrant[];
     }
   /**
    * What a charge buys: the item casts a named spell, and it is a casting.

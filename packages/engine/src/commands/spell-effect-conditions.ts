@@ -33,11 +33,12 @@ import { conditionLanding, imposeCondition, riderOptions } from './spell-effect-
  *   sentences — a lifetime, an escape check, a repeat save, a mark that the
  *   casting does not keep it — to `riderOptions`, every one of which needs a
  *   casting id somewhere downstream.
- * - An **item** files it under `item:<id>`, which `castingIdOf` answers null
- *   for, and passes **none** of those four: `checkContent` refuses all four on
- *   a conferred condition, so a conferral has nothing to translate. What holds
- *   it is the timer `useItem` files afterwards, whose deadline is the item's
- *   printed hour and whose `endsEarly` is the item's printed sentence.
+ * - An **item or a feature** files it under `item:<id>` or `feature:<id>`,
+ *   which `castingIdOf` answers null for, and passes **none** of those four:
+ *   `checkContent` refuses all four on a conferred condition, so a conferral
+ *   has nothing to translate. What holds it is the timer the paying command
+ *   files afterwards, whose deadline is the printed span and whose `endsEarly`
+ *   is the printed sentence.
  *
  * Nothing else moves. `SpellEffectOptions`, `riderOptions` and
  * `applySpellEffect` are untouched and still require a casting, because the
@@ -58,10 +59,12 @@ export function resolveConditionEffect(
   // as a non-empty list, which is why the first element is not a guess.
   const [rider] = conditionRiderOf(effect);
   const landed =
-    ctx.origin.kind === 'item'
+    ctx.origin.kind !== 'casting'
       ? // No duration, no repeat save, no escape check and no casting: the
-        // conferral's own deadline is filed by `useItem`, and the other three
-        // are fields `checkContent` refuses an item for printing.
+        // conferral's own deadline is filed by whichever command paid for it —
+        // `useItem` for a bottle, `usePoolOption` for a feature's pool use —
+        // and the other three are fields `checkContent` refuses both hosts for
+        // printing.
         conditionLanding(applyConditionTo(current, target, rider.name, ctx.source))
       : imposeCondition(
           current,

@@ -106,6 +106,7 @@ import {
   unequipItem,
   useHealingTouch,
   useItem,
+  usePoolOption,
   useRecovery,
   useSelfHeal,
 } from './commands.js';
@@ -174,6 +175,23 @@ const sheet = (over: Partial<CharacterSheet> = {}): CharacterSheet => ({
       pool: 'test:vigour',
       dice: '1d10',
       plus: { kind: 'level', level: 5, label: 'some level' },
+    },
+  ],
+  // What a use of a pool buys, where what it buys is an effect list. One
+  // option, aimed at a creature in reach, so the two sweeps below have a
+  // well-formed call to make — the heal is the least interesting effect there
+  // is, which is the point: the entries are about the identity and the guard.
+  poolOptions: [
+    {
+      feature: 'test:channelling',
+      featureName: 'A Channelling',
+      option: 'mend',
+      name: 'A Mending Word',
+      action: 'action',
+      pool: 'test:vigour',
+      ability: 'int',
+      reach: 30,
+      effects: [{ kind: 'heal', healing: { dice: '1d4' }, addSpellcastingModifier: false }],
     },
   ],
   ...over,
@@ -1721,6 +1739,22 @@ const GUARDED: readonly Guarded[] = [
     log: POTIONED,
     run: (s, commandId) => useItem(s, A, { item: 'potion-of-healing', commandId }, supply()),
   },
+  /**
+   * A feature's pool use, which is the item's shape with the bottle taken out:
+   * the use goes and the effects resolve in one batch, so an unguarded retry
+   * is a second use of a pool that has one less in it.
+   */
+  {
+    name: 'usePoolOption',
+    log: vigorous(),
+    run: (s, commandId) =>
+      usePoolOption(
+        s,
+        A,
+        { feature: 'test:channelling', option: 'mend', target: A, commandId },
+        supply(),
+      ),
+  },
 ];
 
 describe('a retried command changes nothing the first one did not', () => {
@@ -2122,6 +2156,16 @@ const SPENDERS: readonly Spender[] = [
    * after the duplicate check and before the item is looked up at all.
    */
   { name: 'useItem', run: (s) => useItem(s, B, { item: 'potion-of-healing' }, supply()) },
+  /**
+   * A feature's pool use. SRD spends an Action or a Bonus Action on one, and a
+   * creature owing a mandatory area effect may not spend either. The arguments
+   * need only be well-formed: `mayAct` is asked immediately after the
+   * duplicate check and before the feature is looked up at all.
+   */
+  {
+    name: 'usePoolOption',
+    run: (s) => usePoolOption(s, B, { feature: 'test:channelling', option: 'mend' }, supply()),
+  },
 ];
 
 /**

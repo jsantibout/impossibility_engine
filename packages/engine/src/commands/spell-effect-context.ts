@@ -23,23 +23,30 @@ import { type CastingAlterations } from './rolls.js';
 import { type SpellTargetOutcome } from './targeting.js';
 
 /**
- * What is resolving this effect list: a casting, or an item that confers
- * without casting one.
+ * What is resolving this effect list: a casting, an item that confers without
+ * casting one, or a feature spending a use of its own pool.
  *
- * SRD "Magic Items" prints the fork in one sentence — "Many items, such as
- * Potions, **bypass the casting of a spell** and confer the spell's effects
- * with its usual duration" — and this is that sentence as a type. The two arms
- * carry what only that origin has: a casting has an identity and a definition,
- * and an item has neither.
+ * SRD "Magic Items" prints the first fork in one sentence — "Many items, such
+ * as Potions, **bypass the casting of a spell** and confer the spell's effects
+ * with its usual duration" — and this is that sentence as a type. Each arm
+ * carries what only that origin has: a casting has an identity and a
+ * definition, an item has a catalogue entry, and a feature has neither and is
+ * named by the id the class printed it under.
  *
- * **The casting is absent rather than faked.** An item arm that carried a
- * made-up `cast:N` would put a casting in the log that nothing cast, would
- * make `ongoing` answerable for a potion, and would offer Dispel Magic a
- * casting to end. `castingIdOf` matches `cast:N` and nothing else, so
- * `releaseCasting`, `releaseOnTarget`, `ongoingSpellsOn`, `spellOn` and the
- * Dispel resolver all pass over an item's effects by construction — which is
- * a guarantee about the string rather than a list of places that were
+ * **The casting is absent rather than faked**, in both of the arms that have
+ * none. An arm that carried a made-up `cast:N` would put a casting in the log
+ * that nothing cast, would make `ongoing` answerable for a potion, and would
+ * offer Dispel Magic a casting to end. `castingIdOf` matches `cast:N` and
+ * nothing else, so `releaseCasting`, `releaseOnTarget`, `ongoingSpellsOn`,
+ * `spellOn` and the Dispel resolver all pass over both by construction — which
+ * is a guarantee about the string rather than a list of places that were
  * remembered.
+ *
+ * **The feature arm differs from the item arm in exactly one thing, and it is
+ * the numbers.** An item's DC is printed on the item and is the same in an
+ * archmage's hand; a feature's is "your spell save DC", derived from the sheet
+ * of whoever holds the feature. So the third arm exists rather than an item
+ * arm with a feature id in it: the fork is what the numbers are read off.
  */
 export type EffectOrigin =
   | {
@@ -47,7 +54,14 @@ export type EffectOrigin =
       readonly castingId: string;
       readonly definition: SpellDefinition;
     }
-  | { readonly kind: 'item'; readonly item: CatalogueItem };
+  | { readonly kind: 'item'; readonly item: CatalogueItem }
+  | {
+      readonly kind: 'feature';
+      /** The feature's own id, which `featureSource` turns into the source. */
+      readonly feature: string;
+      /** What the log calls what happened — SRD's "Turn Undead". */
+      readonly name: string;
+    };
 
 /** The casting arm of {@link EffectOrigin}, named once. */
 export type CastingOrigin = Extract<EffectOrigin, { kind: 'casting' }>;

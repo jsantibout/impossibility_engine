@@ -32,6 +32,8 @@ import {
 } from './positioning.js';
 import type { CreatureState, GameState } from './events.js';
 import { spellOfSource } from './spells.js';
+import type { SpellArea, SpellEffect } from './spell-definitions.js';
+import type { EffectEndCause } from './timers.js';
 import type { Recovery } from './resources.js';
 import { weaponInSet, type DamageDefenses, type DefenseKind, type WeaponSelector } from './attack.js';
 import type { Weapon } from '@ie/srd';
@@ -839,6 +841,50 @@ export interface SelfHealFeature extends HealAmount {
   readonly action: 'action' | 'bonus-action';
   /** The pool a use comes out of. */
   readonly pool: string;
+}
+
+/**
+ * One thing a use of a feature's pool buys, compiled onto the sheet.
+ *
+ * `PoolOptionGrant` with the class table read out of it — the dice resolved at
+ * the holder's own class level the way a self-heal's are, and the spellcasting
+ * ability the class's block names, so the command reads the sheet and never a
+ * class table. SRD Channel Divinity's menu is the shape: one pool, several
+ * named purchases, one use apiece.
+ */
+export interface PoolOption {
+  /** The feature the pool belongs to — `usePoolOption` is asked for both. */
+  readonly feature: string;
+  /** What the feature is called: SRD's "Channel Divinity". */
+  readonly featureName: string;
+  readonly option: string;
+  /** What this option is called: SRD's "Turn Undead". */
+  readonly name: string;
+  readonly action: 'action' | 'bonus-action';
+  readonly pool: string;
+  /** The effects, with any class-table dice already resolved. */
+  readonly effects: readonly SpellEffect[];
+  /**
+   * The spellcasting ability the DC and any modifier are read from.
+   *
+   * SRD Turn Undead rolls against "your spell save DC", which is a derivation
+   * of the holder's sheet rather than a number the feature prints — the whole
+   * difference between a feature's DC and an item's. The **granting class's**
+   * ability, resolved at creation, because a multiclassed holder has more than
+   * one and the feature belongs to exactly one of them.
+   *
+   * Null where the granting class casts nothing at all, which is the one case
+   * the SRD never prints: the DC then falls to `8 + Proficiency Bonus`, the
+   * rule `numbersForItem` already writes for a wielder with no ability of
+   * their own.
+   */
+  readonly ability: Ability | null;
+  readonly area?: SpellArea;
+  readonly reach?: number;
+  readonly mustBeType?: string;
+  readonly durationSeconds?: number;
+  readonly endsEarly?: readonly EffectEndCause[];
+  readonly damageTypeStated?: readonly string[];
 }
 
 /**

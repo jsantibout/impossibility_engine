@@ -14,24 +14,44 @@ import {
   ok,
   type Result,
 } from '@ie/shared';
-import { isIncapacitated } from '../conditions.js';
+import { CONFERRED_LEVEL } from '../catalogue.js';
+import {
+  modifierFor,
+  proficiencyBonus,
+  spellAttackModifierWith,
+  spellSaveDcWith,
+} from '../character.js';
+import { conditionInstanceId, isIncapacitated } from '../conditions.js';
 import { type Rng } from '../dice.js';
 import { turnAnchored } from '../time.js';
-import { type CommandStamp, type GameEvent, type GameState, wearsHeavyArmor } from '../events.js';
+import { type EffectTarget, timerKey } from '../timers.js';
+import {
+  type CommandStamp,
+  type GameEvent,
+  type GameState,
+  grantSourcesOf,
+  wearsHeavyArmor,
+} from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
+import { featureSource } from '../progression.js';
 import { remaining } from '../resources.js';
 import { type RollIssuer, rollRecorded } from '../rolls.js';
+import { statedDamageType, type SpellEffect } from '../spell-definitions.js';
 import {
   type ActivatedFeature,
   type HealAmount,
+  type PoolOption,
   recoveryCap,
   selfHealAddend,
   sheetAsItStands,
 } from '../standing.js';
+import { type Supply } from './casting.js';
 import { creatureOf, reachedBy, spendFor, unknownCreature } from './command.js';
 import { endConditionsOn, schedule } from './conditions.js';
 import { healCreature } from './creatures.js';
 import { mayAct } from './holds.js';
+import { runEffects } from './spell-resolution.js';
+import { areaTargets, type SpellTargetOutcome } from './targeting.js';
 
 export interface ActivateFeatureCommand extends CommandIdentity {
   readonly feature: string;
@@ -594,5 +614,289 @@ export function featureTimer(
   );
   if (!timer.ok) return timer;
   return ok(timer.value);
+}
+
+export interface UsePoolOptionCommand extends CommandIdentity {
+  /** The feature whose pool is being spent — SRD's Channel Divinity. */
+  readonly feature: string;
+  /** Which of the things a use buys — SRD's "Turn Undead". */
+  readonly option: string;
+  /**
+   * Who it is aimed at, for an option that names a creature rather than
+   * filling an area. Absent is the holder themselves, which is the only target
+   * an option with no reach at all can have.
+   */
+  readonly target?: CharacterId;
+  /** Which of the damage types the option prints, where it prints a choice. */
+  readonly damageType?: string;
+}
+
+/** What a use of a pool option did. */
+export interface PoolOptionUse {
+  readonly events: readonly GameEvent[];
+  /** What it did, target by target — a `SpellResolution`'s half that applies. */
+  readonly outcomes: readonly SpellTargetOutcome[];
+  /** What the use could not check. */
+  readonly unverified: readonly string[];
+}
+
+const NOTHING_USED: PoolOptionUse = { events: [], outcomes: [], unverified: [] };
+
+/**
+ * Spend a use of a feature's pool on one of the things that use buys.
+ *
+ * SRD Channel Divinity is the shape: one pool, a menu, and each option a
+ * different effect list at the same price. Turn Undead makes every Undead in
+ * thirty feet roll a Wisdom save and leaves those that fail Frightened and
+ * Incapacitated for a minute; Divine Spark heals a creature or hurts it. The
+ * pool was declared, sized and recovered correctly from the day pools landed,
+ * and what a use *bought* was executed by nothing.
+ *
+ * **The third origin, and the only thing it changes is where the numbers come
+ * from.** `runEffects` is the same loop a casting and a potion go through — a
+ * feature with a resolver of its own would be a second place for every rules
+ * fix to be missed — and what a feature supplies that an item cannot is a save
+ * DC derived from the holder's own sheet. An item prints "(save DC 15)" and a
+ * feature says "your spell save DC", which is the whole of the fork.
+ *
+ * **There is no casting.** What this hangs is filed under `feature:<id>`,
+ * which `castingIdOf` answers null for, so `releaseCasting`, `ongoingSpellsOn`
+ * and the Dispel resolver pass over it by construction. What ends it is the
+ * timer filed below, whose deadline is the option's own printed span.
+ *
+ * **Every refusal is reached before anything is spent.** The creature, the
+ * feature, the option, the damage type the option asks the caller to name, the
+ * targets, the reach and the pool are all settled before the action goes and
+ * before the first die — so a Turn Undead with an empty pool costs its Cleric
+ * nothing at all.
+ */
+export function usePoolOption(
+  state: GameState,
+  id: CharacterId,
+  command: UsePoolOptionCommand,
+  supply: Supply,
+): Result<PoolOptionUse> {
+  return once(state, `pool-option:${id}`, command, () => NOTHING_USED, (stamp) => {
+    // A mandatory effect this creature has been caught by, or a turn whose
+    // start has not arrived. **After the duplicate check, never before it.**
+    const owedHere = mayAct(state, id);
+    if (owedHere !== null) return owedHere;
+
+    const creature = creatureOf(state, id);
+    if (creature === null) return unknownCreature(id);
+
+    const offered = (creature.sheet.poolOptions ?? []).filter(
+      (one) => one.feature === command.feature,
+    );
+    if (offered.length === 0) {
+      return err('no_such_feature', `${id} has no feature called ${command.feature}`);
+    }
+    const option = offered.find((one) => one.option === command.option);
+    if (option === undefined) {
+      return err(
+        'no_such_option',
+        `${command.feature} buys ${offered.map((one) => one.option).join(', ')}, not ${command.option}`,
+      );
+    }
+
+    // **Stated or refused, never defaulted**, which is the rule a spell that
+    // prints two damage types already keeps: picking Radiant because most
+    // Clerics are good would be the engine answering a question the SRD asked
+    // about the caster.
+    const typed = statedTypeFor(option, command.damageType);
+    if (!typed.ok) return typed;
+
+    const found = targetsOf(state, id, option, command.target);
+    if (!found.ok) return found;
+    const targets = found.value;
+
+    if (remaining(creature.resources, option.pool) < 1) {
+      return err('exhausted', `${id} has no uses of ${option.featureName} left`);
+    }
+
+    // — from here it costs something ——————————————————————————————————————
+    const events: GameEvent[] = [];
+
+    // The action economy only exists in combat; outside it there is nothing to
+    // spend, exactly as every other feature here finds.
+    if (state.combat !== null) {
+      const spent = spendFor(state, id, option.action);
+      if (!spent.ok) return spent;
+      events.push(spent.value);
+    }
+
+    events.push({
+      type: 'resource-spent',
+      id,
+      key: option.pool,
+      amount: 1,
+      ...(stamp === null ? {} : { command: stamp }),
+    });
+
+    // **The numbers are the holder's, derived at the moment of use.** SRD
+    // writes "your spell save DC" on the feature and the feature prints no
+    // number at all, so this is the sheet as it stands — an item that sets a
+    // score is exactly what that reading is for. The ability is the granting
+    // class's, resolved at creation; `8 + Proficiency Bonus` where the class
+    // casts nothing at all, which is the rule an item already falls back to
+    // for a wielder with no ability of their own.
+    const sheet = sheetAsItStands(state, id) ?? creature.sheet;
+    const ability = option.ability;
+    const unverified: string[] = [];
+    const resolved = runEffects(state, id, creature, {
+      origin: { kind: 'feature', feature: option.feature, name: option.name },
+      effects: typed.value,
+      route: null,
+      ability,
+      castLevel: CONFERRED_LEVEL,
+      numbers: {
+        attackModifier:
+          ability === null ? proficiencyBonus(sheet) : spellAttackModifierWith(sheet, ability),
+        saveDc: ability === null ? 8 + proficiencyBonus(sheet) : spellSaveDcWith(sheet, ability),
+        spellcastingModifier: ability === null ? 0 : modifierFor(sheet, ability),
+        casterLevel: sheet.level,
+      },
+      targets,
+      unverified,
+      supply,
+      events,
+    });
+    if (!resolved.ok) return resolved;
+
+    // **A deadline on what this actually hung, and on nothing else.** SRD Turn
+    // Undead: the conditions last "for 1 minute". There is no casting for
+    // `releaseCasting` to end, so the timer is the only door — the reading
+    // `useItem` already takes for a potion, asked of a feature's own span.
+    //
+    // Filed per condition instance, because that is what identifies one and
+    // what a second use has to replace rather than duplicate: `timerKey` is
+    // `condition|<who>|<instance>`, so turning the same wight twice moves the
+    // deadline instead of filing a second one.
+    if (option.durationSeconds !== undefined) {
+      const source = featureSource(option.feature);
+      const world = resolved.value.state;
+      for (const outcome of resolved.value.outcomes) {
+        for (const condition of outcome.conditions ?? []) {
+          const on: EffectTarget = {
+            kind: 'condition',
+            on: outcome.target,
+            instance: conditionInstanceId(condition, source),
+          };
+          const timer = schedule(
+            world,
+            on,
+            { kind: 'seconds', seconds: option.durationSeconds },
+            // The repeat the resolution already filed, kept: the span is the
+            // option's and not the effect's, so re-stating the deadline
+            // without the repeat would drop the sentence the resolver had just
+            // written down.
+            world.timers[timerKey(on)]?.repeatSave,
+            undefined,
+            option.endsEarly,
+          );
+          if (!timer.ok) return timer;
+          events.push(timer.value);
+        }
+      }
+
+      // **And a `grants` deadline only where a grant is actually held.**
+      // `grantSourcesOf` is the one enumerator of the sourced families and is
+      // the honest question here: a condition-only option would otherwise file
+      // a timer that takes nothing away, keyed where a later grant from the
+      // same feature would have landed.
+      for (const on of [...resolved.value.held].sort()) {
+        const holder = world.creatures[on];
+        if (holder === undefined || !grantSourcesOf(holder).includes(source)) continue;
+        const timer = schedule(
+          world,
+          { kind: 'grants', on, source },
+          { kind: 'seconds', seconds: option.durationSeconds },
+        );
+        if (!timer.ok) return timer;
+        events.push(timer.value);
+      }
+    }
+
+    return ok({ events, outcomes: resolved.value.outcomes, unverified });
+  });
+}
+
+/**
+ * The option's effects with the damage type the caller named, or the refusal.
+ *
+ * `SpellDefinition.damageTypeStated` asked of a feature's option — a list the
+ * option prints, one value named at the use, refused if it is not on the list,
+ * and refused the other way when the option prints no list and the caller
+ * named one anyway. The substitution itself is `statedDamageType`, which is
+ * the spell path's own and not a second copy of it.
+ */
+function statedTypeFor(
+  option: PoolOption,
+  named: string | undefined,
+): Result<readonly SpellEffect[]> {
+  const types = option.damageTypeStated;
+  if (types === undefined) {
+    if (named !== undefined) {
+      return err(
+        'damage_type_fixed',
+        `${option.name} prints no choice of damage type; naming one is not something it offers`,
+      );
+    }
+    return ok(option.effects);
+  }
+  if (named === undefined) {
+    return err(
+      'damage_type_required',
+      `${option.name} prints ${types.join(' or ')} and the engine will not choose between them; name which`,
+    );
+  }
+  if (!types.includes(named)) {
+    return err('unknown_damage_type', `${option.name} prints ${types.join(' or ')}, not ${named}`);
+  }
+  return ok(statedDamageType(option.effects, named));
+}
+
+/**
+ * Whom this option reaches: whoever is standing in its area, or the one
+ * creature the caller named.
+ *
+ * The two halves a casting already has, asked of an option. An area catches
+ * whoever is in it and filters by creature type without refusing anybody; a
+ * named target is checked as itself, at the reach the option prints.
+ * `areaTargets` does the first through the geometry a spell's area goes
+ * through, which is why it takes the area and the name rather than a
+ * definition there is none of.
+ */
+function targetsOf(
+  state: GameState,
+  id: CharacterId,
+  option: PoolOption,
+  named: CharacterId | undefined,
+): Result<readonly CharacterId[]> {
+  if (option.area !== undefined) {
+    if (named !== undefined) {
+      return err(
+        'area_picks_its_own_targets',
+        `${option.name} fills an area and catches whoever is in it; it does not take a target`,
+      );
+    }
+    return areaTargets(
+      state,
+      id,
+      {
+        name: option.name,
+        ...(option.mustBeType === undefined ? {} : { mustBeType: option.mustBeType }),
+      },
+      option.area,
+      { targets: [] },
+      null,
+    );
+  }
+
+  const target = named ?? id;
+  if (creatureOf(state, target) === null) return unknownCreature(target);
+  const beyond = reachedBy(state, id, target, option.name, option.reach ?? 0);
+  if (beyond !== null) return beyond;
+  return ok([target]);
 }
 

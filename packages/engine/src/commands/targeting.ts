@@ -495,9 +495,51 @@ export interface HeldCasting {
  * with it, and the ongoing record stores it for every later trigger.
  */
 export const anchoringFor = (
-  definition: SpellDefinition,
+  source: { readonly anchoring?: PointAnchoring },
   request: { readonly anchoring?: PointAnchoring },
-): PointAnchoring => request.anchoring ?? definition.anchoring ?? 'space';
+): PointAnchoring => request.anchoring ?? source.anchoring ?? 'space';
+
+/**
+ * What an area needs to know about whatever put it there.
+ *
+ * `areaTargets` and `placeArea` took a whole {@link SpellDefinition} and read
+ * three fields off it: what to call the thing in a refusal, which convention
+ * its footprint is anchored under, and the one creature type it touches. A
+ * feature's Channel Divinity option fills an emanation with no definition
+ * anywhere — there is no spell, no casting and nothing in the spell index —
+ * so the parameter is the three answers rather than the object that happened
+ * to be the only thing that had them.
+ */
+export interface AreaSource {
+  /** What a refusal calls it: a spell's name, or a feature option's. */
+  readonly name: string;
+  readonly anchoring?: PointAnchoring;
+  /** SRD's "each Humanoid in the area" — a filter, never a refusal. */
+  readonly mustBeType?: string;
+}
+
+/** A definition's own answers to {@link AreaSource}, in one place. */
+export const areaSourceOf = (definition: SpellDefinition): AreaSource => ({
+  name: definition.name,
+  ...(definition.anchoring === undefined ? {} : { anchoring: definition.anchoring }),
+  ...(definition.targets.mustBeType === undefined
+    ? {}
+    : { mustBeType: definition.targets.mustBeType }),
+});
+
+/**
+ * What an area reads off the request that placed it.
+ *
+ * The three fields `placeArea` actually uses, named so that a caller with no
+ * `CastSpellRequest` — a feature spending a pool use — can ask the same
+ * question without inventing one.
+ */
+export interface AreaRequest {
+  readonly targets: readonly CharacterId[];
+  readonly at?: Point;
+  readonly towards?: Point;
+  readonly anchoring?: PointAnchoring;
+}
 
 /**
  * Where a spell's area sits and what shape it is.
@@ -645,14 +687,14 @@ export function declaredFacts(
 function placeArea(
   state: GameState,
   casterId: CharacterId,
-  definition: SpellDefinition,
+  source: AreaSource,
   area: SpellArea,
-  request: CastSpellRequest,
+  request: AreaRequest,
   reach: number | null,
   placed: Point,
 ): Result<{ readonly origin: AreaOrigin; readonly shape: AreaShape }> {
   if (state.scene === null) {
-    return err('no_scene', `${definition.name} needs a scene for its area to sit in`);
+    return err('no_scene', `${source.name} needs a scene for its area to sit in`);
   }
 
   // Where it starts. `self` means the caster and refuses to be moved; `point`
@@ -670,13 +712,13 @@ function placeArea(
   // gives no rule for areas on a grid — and the caster keeps the last word,
   // because `CastSpellRequest.anchoring` exists precisely so a caster who
   // wants the other convention can ask for it.
-  const anchoring: PointAnchoring = anchoringFor(definition, request);
+  const anchoring: PointAnchoring = anchoringFor(source, request);
   let origin: AreaOrigin;
   if (area.origin === 'self') {
     if (request.at !== undefined) {
       return err(
         'area_starts_at_caster',
-        `${definition.name} originates from you; it cannot be placed elsewhere`,
+        `${source.name} originates from you; it cannot be placed elsewhere`,
       );
     }
     // The effective one, not the request’s: a definition that declared an
@@ -686,13 +728,13 @@ function placeArea(
     if (anchoring !== 'space') {
       return err(
         'area_starts_at_caster',
-        `${definition.name} originates from you; its area is anchored by your own space`,
+        `${source.name} originates from you; its area is anchored by your own space`,
       );
     }
     origin = { creature: casterId };
   } else {
     if (request.at === undefined) {
-      return err('no_origin', `${definition.name} needs a point to centre its area on`);
+      return err('no_origin', `${source.name} needs a point to centre its area on`);
     }
     if (reach !== null) {
       const away = distanceToPoint(state.scene, casterId, request.at);
@@ -700,7 +742,7 @@ function placeArea(
       if (away.value > reach) {
         return err(
           'out_of_range',
-          `${definition.name} reaches ${reach} feet; that point is ${away.value} away`,
+          `${source.name} reaches ${reach} feet; that point is ${away.value} away`,
         );
       }
     }
@@ -712,7 +754,7 @@ function placeArea(
   if (DIRECTIONAL_AREAS.has(area.kind) && towards === undefined) {
     return err(
       'no_direction',
-      `${definition.name} forms a ${area.kind} and needs a direction to point it in`,
+      `${source.name} forms a ${area.kind} and needs a direction to point it in`,
     );
   }
   if (!DIRECTIONAL_AREAS.has(area.kind) && towards !== undefined) {
@@ -839,27 +881,27 @@ export function placeOrigin(
 export function areaTargets(
   state: GameState,
   casterId: CharacterId,
-  definition: SpellDefinition,
+  source: AreaSource,
   area: SpellArea,
-  request: CastSpellRequest,
+  request: AreaRequest,
   reach: number | null,
 ): Result<readonly CharacterId[]> {
   if (request.targets.length > 0) {
     return err(
       'area_picks_its_own_targets',
-      `${definition.name} fills an area and catches whoever is in it; it does not take a target list`,
+      `${source.name} fills an area and catches whoever is in it; it does not take a target list`,
     );
   }
   if (state.scene === null) {
     return needsContext(
       'no_scene',
-      `${definition.name} fills an area and there is no scene for it to fill`,
+      `${source.name} fills an area and there is no scene for it to fill`,
       [
         {
           kind: 'scene',
           subject: casterId,
           need: 'a scene, so that an area has somewhere to be',
-          because: `${definition.name} fills an area`,
+          because: `${source.name} fills an area`,
           satisfyWith: 'a setScene command',
         },
       ],
@@ -870,20 +912,20 @@ export function areaTargets(
   if (placed === null) {
     return needsContext(
       'unplaced',
-      `nobody has said where ${casterId} is standing, and ${definition.name} starts its area there`,
+      `nobody has said where ${casterId} is standing, and ${source.name} starts its area there`,
       [
         {
           kind: 'position',
           subject: casterId,
           need: `where ${casterId} is standing`,
-          because: `${definition.name} starts its area at the caster`,
+          because: `${source.name} starts its area at the caster`,
           satisfyWith: `a placeCreatureInScene command for ${casterId}`,
         },
       ],
     );
   }
 
-  const placement = placeArea(state, casterId, definition, area, request, reach, placed);
+  const placement = placeArea(state, casterId, source, area, request, reach, placed);
   if (!placement.ok) return placement;
 
   const caught = creaturesInArea(state.scene, placement.value.origin, placement.value.shape);
@@ -893,7 +935,7 @@ export function areaTargets(
   // Humanoid in the area" leaves the ogre standing there unbothered; it does
   // not make the casting illegal, which is the difference between an area and
   // a target a caller named.
-  const wanted = definition.targets.mustBeType;
+  const wanted = source.mustBeType;
   const eligible = caught.value.filter((who: CharacterId) => {
     const creature = state.creatures[who];
     if (creature === undefined) return false;
@@ -1014,7 +1056,7 @@ export function namedTargets(
         ],
       );
     }
-    const placement = placeArea(state, casterId, definition, bound, request, reach, placed);
+    const placement = placeArea(state, casterId, areaSourceOf(definition), bound, request, reach, placed);
     if (!placement.ok) return placement;
     const caught = creaturesInArea(state.scene, placement.value.origin, placement.value.shape);
     if (!caught.ok) return caught;

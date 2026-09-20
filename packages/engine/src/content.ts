@@ -25,6 +25,7 @@ import {
   type ClassDefinition,
   type FeatureDefinition,
   type FeatureGrant,
+  type PoolOptionGrant,
   type SubclassDefinition,
 } from './progression.js';
 import { parseNotation } from './dice.js';
@@ -465,6 +466,19 @@ function itemPoolProblems(
         `${at}.${field}`,
       );
     }
+  }
+  // And the third thing a use of a *feature's* pool buys, refused for the
+  // sharper half of the same reason: what pays for an option is a pool use
+  // `usePoolOption` spends, and what its numbers come from is a sheet. An
+  // item's charges are spent by `expendCharges`, and what a charge buys is the
+  // item's own `casts` or `confers` grant — the mirror of
+  // `item_sizing_on_a_feature`, in the other direction.
+  if (grant.options !== undefined) {
+    say(
+      'feature_options_on_an_item',
+      `a menu of options is what a feature's pool use buys, priced in uses and rolled against its holder's sheet, and ${item.id} is not a feature; what a charge buys is the item's own "casts" or "confers" grant`,
+      `${at}.options`,
+    );
   }
 
   if (!isString(grant.key) || grant.key.trim() === '') {
@@ -961,6 +975,370 @@ function rolledSpanProblems(span: unknown, field: string): readonly ContentProbl
     );
   }
   return [];
+}
+
+/**
+ * What one of a feature's pool options has to say, and what it may not.
+ *
+ * The conferral's rules asked of the other host, and every difference between
+ * the two lists is one fact: **a feature has a caster and an item does not.**
+ * So "your spellcasting ability modifier" is admitted here and refused on a
+ * bottle, a save's DC is the holder's sheet rather than a number the grant
+ * prints, and the plural sentence SRD Turn Undead writes — "the Frightened
+ * **and** Incapacitated conditions" off one save — is admitted because the
+ * resolver files each instance under `feature:<id>` and the timer this
+ * option's own span files ends them all.
+ *
+ * Everything that would need the **casting** is refused exactly as it is on an
+ * item, because a feature has one no more than a potion does: a rider's
+ * lifetime, its escape check, its `outlivesCasting`, a repeat whose success
+ * would end a casting, a granted modifier, a delayed hit, and every
+ * `DiceScaling` field that reads a slot level or a caster level.
+ *
+ * **The effects themselves are judged by `checkEffectValue`**, the spell
+ * validator's own two passes, so a feature's list is held to the rules a
+ * spell's list is held to rather than to a third vocabulary kept in step by
+ * hand.
+ */
+function featureOptionProblems(
+  featureId: string,
+  option: PoolOptionGrant,
+  at: string,
+  levels: number,
+): readonly ContentProblem[] {
+  const found: ContentProblem[] = [];
+  const say = (code: string, reason: string, field: string): void => {
+    found.push({ field, code, reason });
+  };
+
+  if (!isString(option.id) || option.id.trim() === '') {
+    say(
+      'bad_option_id',
+      'an option is named by the caller who spends the use, and a blank id names nothing',
+      `${at}.id`,
+    );
+  }
+  if (!isString(option.name) || option.name.trim() === '') {
+    say(
+      'bad_option_name',
+      'an option is what the log calls what happened, and a blank name says nothing',
+      `${at}.name`,
+    );
+  }
+  if (option.action !== 'action' && option.action !== 'bonus-action') {
+    say(
+      'bad_option_action',
+      `SRD prints what a use costs — "As a Magic action" — and "${String(option.action)}" is neither an Action nor a Bonus Action`,
+      `${at}.action`,
+    );
+  }
+
+  // **An area or a reach, never both.** SRD writes one or the other on every
+  // option in the book — "Each Undead within 30 feet of you" against "you
+  // point your holy symbol at another creature" — and an option that said
+  // both would take a target it then ignored.
+  if (option.area !== undefined && option.reach !== undefined) {
+    say(
+      'feature_option_reaches_twice',
+      `${featureId} fills an area and reaches a target it names; an option does one or the other`,
+      `${at}.area`,
+    );
+  }
+  if (
+    option.reach !== undefined &&
+    (!Number.isInteger(option.reach) || option.reach < 0)
+  ) {
+    say(
+      'bad_option_reach',
+      `a reach is a whole number of feet, got ${String(option.reach)}`,
+      `${at}.reach`,
+    );
+  }
+  // The filter is an *area's*: a named target is checked as itself, and
+  // "each Undead" is the sentence an area prints.
+  if (option.mustBeType !== undefined && option.area === undefined) {
+    say(
+      'feature_option_type_without_area',
+      `"each ${String(option.mustBeType)}" is what an area filters by, and ${featureId} fills none`,
+      `${at}.mustBeType`,
+    );
+  }
+
+  // A column of the class table, judged as every other column is: as long as
+  // the table and a whole number of dice at every row.
+  if (option.diceCountByLevel !== undefined) {
+    if (!Array.isArray(option.diceCountByLevel) || option.diceCountByLevel.length !== levels) {
+      say(
+        'bad_option_dice_column',
+        `a column of this source's table has ${levels} entries, not ${Array.isArray(option.diceCountByLevel) ? option.diceCountByLevel.length : String(option.diceCountByLevel)}`,
+        `${at}.diceCountByLevel`,
+      );
+    } else {
+      const bad = option.diceCountByLevel.findIndex(
+        (count: unknown) => !Number.isInteger(count) || (count as number) < 1,
+      );
+      if (bad >= 0) {
+        say(
+          'bad_option_dice_column',
+          `a class table prints a whole number of dice of at least one, not ${String(option.diceCountByLevel[bad])}`,
+          `${at}.diceCountByLevel[${bad}]`,
+        );
+      }
+    }
+  }
+
+  if (!Array.isArray(option.effects)) {
+    say('bad_option_effects', 'an option confers a list of effects', `${at}.effects`);
+    return found;
+  }
+  if (option.effects.length === 0) {
+    say('empty_feature_option', 'an option that confers an empty list buys nothing', `${at}.effects`);
+  }
+
+  let hangs = false;
+  let outlasts = false;
+  let conditions = 0;
+  let types = false;
+  option.effects.forEach((effect: unknown, index: number) => {
+    const on = `${at}.effects[${index}]`;
+    const problems = checkEffectValue(effect, CONFERRED_LEVEL, on);
+    found.push(...problems);
+    if (problems.length > 0) return;
+
+    const record = effect as unknown as Record<string, unknown>;
+    const kind = String(record['kind']);
+    if (!CONFERRED_EFFECT_KINDS.has(kind)) {
+      say(
+        'feature_effect_not_read',
+        `"${kind}" needs the casting a feature has none of — an id to weld a condition to, an attack modifier nobody rolled, or a destination stated at the cast — so ${featureId} may not confer one`,
+        `${on}.kind`,
+      );
+      return;
+    }
+    if (CONFERRED_GRANT_KINDS.has(kind)) {
+      hangs = true;
+      outlasts = true;
+    }
+    // Temporary Hit Points outlast the moment without demanding a span, which
+    // is the owner's ruling of 2026-09-18 read here as it is read for an item.
+    if (kind === 'temp-hp') outlasts = true;
+    if (record['damageType'] !== undefined || record['damageTypes'] !== undefined) types = true;
+
+    if (kind === 'condition') {
+      hangs = true;
+      outlasts = true;
+      conditions += 1;
+      found.push(...castingOwnedFields(featureId, record['condition'], `${on}.condition`));
+    }
+
+    // **`save` writes its first rider flat and the rest in a list**, and both
+    // layouts are asked the same question. The list itself is admitted, which
+    // is the one rule a conferral does not share: a bottle hangs one condition
+    // and a feature hangs the two SRD Turn Undead prints.
+    if (kind === 'save') {
+      hangs = true;
+      outlasts = true;
+      conditions += 1;
+      for (const field of CONFERRED_CONDITION_FIELDS) {
+        if (record[field] === undefined) continue;
+        say(
+          'feature_condition_needs_a_casting',
+          `"${field}" is owned by the casting that imposed the condition — a lifetime, an escape check, a mark that the casting does not keep it — and ${featureId} casts nothing; an option's lifetime is durationSeconds and what ends it early is endsEarly`,
+          `${on}.${field}`,
+        );
+      }
+      const further = record['conditions'];
+      if (Array.isArray(further)) {
+        further.forEach((rider, position) => {
+          found.push(
+            ...castingOwnedFields(featureId, rider, `${on}.conditions[${position}]`),
+          );
+        });
+      }
+      const repeats = record['repeats'];
+      if (
+        typeof repeats === 'object' &&
+        repeats !== null &&
+        (repeats as Record<string, unknown>)['onSuccess'] === 'end-casting'
+      ) {
+        say(
+          'feature_repeat_needs_a_casting',
+          `a repeat save that ends the casting on a success needs one, and ${featureId} casts nothing; what a success can end here is the condition on its target`,
+          `${on}.repeats.onSuccess`,
+        );
+      }
+    }
+
+    // The riders a *failure* carries, which are welded to a casting wherever
+    // they are hung. `conditions` is left out on a `save`, where it is the
+    // kind's own plural list and is resolved under the feature's source; it is
+    // refused everywhere else, and so are the other two at every host.
+    for (const rider of RIDER_FIELDS) {
+      if (rider === 'conditions' && (kind === 'save' || CONDITIONS_IS_THE_KINDS_OWN.has(kind))) {
+        continue;
+      }
+      if (record[rider] !== undefined) {
+        say(
+          'feature_rider_needs_a_casting',
+          `a "${rider}" rider is welded to the casting that hung it — a condition instance, a granted modifier's source, a scheduled hit's link — and ${featureId} casts nothing`,
+          `${on}.${rider}`,
+        );
+      }
+    }
+
+    // **The scaling fields, and only the ones that read a casting.** A feature's
+    // dice scale on its own class table — `diceCountByLevel` above — because
+    // every field here reads a slot level or a caster level and a pool use has
+    // neither.
+    for (const [where, scaling] of scalingsOf(record, on)) {
+      for (const scaled of SCALES_WITH_A_CASTING) {
+        if (scaling[scaled] !== undefined) {
+          say(
+            'feature_scales_with_a_casting',
+            `${scaled} reads a slot level or a caster level, and a feature's use spends neither; a feature's dice scale on its class table through diceCountByLevel`,
+            `${where}.${scaled}`,
+          );
+        }
+      }
+    }
+  });
+
+  // **Required exactly when something hangs, and refused when nothing could
+  // outlast the moment** — the rule an item's conferral already keeps, for the
+  // same reason: there is no casting for `releaseCasting` to end, so a grant
+  // with no deadline would run for ever, and a deadline with nothing to end
+  // would file a timer that takes nothing away.
+  if (option.durationSeconds === undefined) {
+    if (hangs) {
+      say(
+        'feature_option_without_lifetime',
+        `${featureId} hangs something no casting ends, so its line has to say how long that lasts`,
+        `${at}.durationSeconds`,
+      );
+    }
+  } else if (!Number.isInteger(option.durationSeconds) || option.durationSeconds <= 0) {
+    say(
+      'bad_option_duration',
+      `an option lasts a whole number of seconds, got ${String(option.durationSeconds)}`,
+      `${at}.durationSeconds`,
+    );
+  } else if (!hangs && !outlasts) {
+    say(
+      'feature_option_lifetime_ends_nothing',
+      `${featureId} confers nothing that outlasts the moment it is used, so a duration would end nothing`,
+      `${at}.durationSeconds`,
+    );
+  }
+
+  if (option.endsEarly !== undefined) {
+    if (!Array.isArray(option.endsEarly) || option.endsEarly.length === 0) {
+      say(
+        'bad_option_end_trigger',
+        'what ends a conferred condition early is a non-empty list of causes, and an option that prints no such sentence omits the field',
+        `${at}.endsEarly`,
+      );
+    } else {
+      option.endsEarly.forEach((cause: unknown, index: number) => {
+        if ((EFFECT_END_CAUSES as readonly string[]).includes(String(cause))) return;
+        say(
+          'unknown_option_end_trigger',
+          `"${String(cause)}" is not something the engine can see happen to the creature a timer sits on`,
+          `${at}.endsEarly[${index}]`,
+        );
+      });
+      if (conditions === 0) {
+        say(
+          'feature_option_end_trigger_ends_nothing',
+          `${featureId} confers no condition, and what a trigger ends early is the condition's own timer — so this sentence could never fire`,
+          `${at}.endsEarly`,
+        );
+      }
+    }
+  }
+
+  // **A choice the caller is offered, and something for it to reach.** SRD
+  // Divine Spark prints "Necrotic or Radiant damage (your choice)"; a list
+  // over effects that name no damage type at all is a question whose answer
+  // nothing reads — `statedDamageType` would substitute into nothing.
+  if (option.damageTypeStated !== undefined) {
+    if (!Array.isArray(option.damageTypeStated) || option.damageTypeStated.length < 2) {
+      say(
+        'bad_option_type_choice',
+        'a choice of damage type is at least two of them; an option that prints one writes it on the effect',
+        `${at}.damageTypeStated`,
+      );
+    } else if (!types) {
+      say(
+        'feature_option_type_choice_reaches_nothing',
+        `${featureId} offers a choice of damage type and confers nothing that deals damage, so the answer would reach no die`,
+        `${at}.damageTypeStated`,
+      );
+    }
+  }
+
+  return found;
+}
+
+/**
+ * The three fields a {@link ConditionRider} carries that only a casting can
+ * answer for, refused wherever a feature writes one.
+ *
+ * `CONFERRED_CONDITION_FIELDS` asked of a rider object rather than of a flat
+ * record — one rule, two layouts, exactly as the conferral's own validator
+ * reads the list twice.
+ */
+function castingOwnedFields(
+  featureId: string,
+  rider: unknown,
+  at: string,
+): readonly ContentProblem[] {
+  if (typeof rider !== 'object' || rider === null) return [];
+  const found: ContentProblem[] = [];
+  for (const field of CONFERRED_CONDITION_FIELDS) {
+    if ((rider as Record<string, unknown>)[field] === undefined) continue;
+    found.push({
+      field: `${at}.${field}`,
+      code: 'feature_condition_needs_a_casting',
+      reason: `"${field}" is owned by the casting that imposed the condition — a lifetime, an escape check, a mark that the casting does not keep it — and ${featureId} casts nothing; an option's lifetime is durationSeconds and what ends it early is endsEarly`,
+    });
+  }
+  return found;
+}
+
+/**
+ * Every option a feature's pool offers, judged together.
+ *
+ * Two options of one feature sharing an id is the one rule that is about the
+ * list rather than about a member of it: `usePoolOption` finds an option by
+ * name on the sheet, and a second of the same name is one the caller could
+ * never reach.
+ */
+function featureOptionsProblems(
+  featureId: string,
+  options: readonly PoolOptionGrant[],
+  at: string,
+  levels: number,
+): readonly ContentProblem[] {
+  if (!Array.isArray(options)) {
+    return [{ field: at, code: 'bad_feature_options', reason: 'a pool offers a list of options' }];
+  }
+  const found: ContentProblem[] = [];
+  const seen = new Set<string>();
+  options.forEach((option, index) => {
+    const on = `${at}[${index}]`;
+    if (isString(option?.id)) {
+      if (seen.has(option.id)) {
+        found.push({
+          field: `${on}.id`,
+          code: 'duplicate_feature_option',
+          reason: `${featureId} offers "${option.id}" twice, and a caller naming it could reach only the first`,
+        });
+      }
+      seen.add(option.id);
+    }
+    found.push(...featureOptionProblems(featureId, option, on, levels));
+  });
+  return found;
 }
 
 /**
@@ -1819,6 +2197,20 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
       // And the item's other sizing, refused for the sharper half of the same
       // reason: no class table has ever rolled, and only the doors that hand
       // an item copy over can roll one.
+      // What a use of the pool buys, where what it buys is an effect list.
+      // Judged by the conferral's own rules with the one difference a feature
+      // makes — it has a caster — and against this source's own table, whose
+      // length is what a class-table column has to match.
+      if (feature.grants?.kind === 'pool' && feature.grants.options !== undefined) {
+        problems.push(
+          ...featureOptionsProblems(
+            feature.id,
+            feature.grants.options,
+            `${where}.grants.options`,
+            source.levels,
+          ),
+        );
+      }
       if (feature.grants?.kind === 'pool' && feature.grants.usesRolled !== undefined) {
         problems.push({
           field: `${where}.grants.usesRolled`,

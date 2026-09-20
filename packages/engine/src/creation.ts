@@ -23,12 +23,14 @@ import type {
   ActivatedFeature,
   HealAmount,
   HealingTouch,
+  PoolOption,
   RecoveryFeature,
   SelfHealFeature,
   StandingEffect,
   StandingGrant,
   StrikeStyle,
 } from './standing.js';
+import type { SpellEffect } from './spell-definitions.js';
 import type {
   ReactionAddend,
   ReactionAmount,
@@ -2182,6 +2184,29 @@ export function planCharacter(
   // Arts die" is 1d6 at Monk 1 and 1d10 at Monk 11 — and the addend stays
   // symbolic because the other one is an ability modifier, which is a number
   // on the sheet at the moment the die is thrown.
+  /**
+   * The spellcasting ability a feature's own numbers are read with.
+   *
+   * SRD Turn Undead rolls against "your spell save DC", which on a Cleric
+   * feature is the **Cleric's** — so it is the granting class's ability and
+   * not the character's, which a multiclassed holder may have two of. A
+   * subclass feature is its class's, found through the class that took it.
+   *
+   * Null where the granting class casts nothing at all, which no SRD class
+   * that prints such a feature is; the command then falls back to the rule
+   * `numbersForItem` already writes for a wielder with no ability.
+   */
+  const castingAbilityFor = (featureId: string): Ability | null => {
+    const owner = featureId.split(':')[0] ?? '';
+    const own = content.classById(owner);
+    if (own !== null) return own.spellcasting?.ability ?? null;
+    for (const entry of classLevelsOf(choices)) {
+      if (entry.subclassId !== owner) continue;
+      return content.classById(entry.classId)?.spellcasting?.ability ?? null;
+    }
+    return null;
+  };
+
   const healFor = (featureId: string, heals: HealGrant): HealAmount | null => {
     const level = classLevelFor(choices, featureId);
     const dice =
@@ -2236,6 +2261,55 @@ export function planCharacter(
       pool: grant.key,
       ...heal,
     });
+  }
+
+  // What a use of a pool buys, where what it buys is an effect list. The dice
+  // are resolved here for the same reason a self-heal's are — SRD Divine
+  // Spark's die is a column of the Cleric table — and the spellcasting ability
+  // is resolved here because it belongs to the *granting class*: "your spell
+  // save DC" on a Cleric feature is the Cleric's, whatever else its holder
+  // multiclassed into.
+  const poolOptions: PoolOption[] = [];
+  for (const feature of features) {
+    const grant = feature.grants;
+    if (grant?.kind !== 'pool' || grant.options === undefined) continue;
+
+    const ability = castingAbilityFor(feature.id);
+    const count =
+      grant.options.some((option) => option.diceCountByLevel !== undefined)
+        ? classLevelFor(choices, feature.id)
+        : 0;
+
+    for (const option of grant.options) {
+      poolOptions.push({
+        feature: feature.id,
+        featureName: feature.name,
+        option: option.id,
+        name: option.name,
+        action: option.action,
+        pool: grant.key,
+        effects:
+          option.diceCountByLevel === undefined
+            ? option.effects
+            : withDiceCount(
+                option.effects,
+                option.diceCountByLevel[
+                  Math.max(0, Math.min(count, option.diceCountByLevel.length) - 1)
+                ] ?? 1,
+              ),
+        ability,
+        ...(option.area === undefined ? {} : { area: option.area }),
+        ...(option.reach === undefined ? {} : { reach: option.reach }),
+        ...(option.mustBeType === undefined ? {} : { mustBeType: option.mustBeType }),
+        ...(option.durationSeconds === undefined
+          ? {}
+          : { durationSeconds: option.durationSeconds }),
+        ...(option.endsEarly === undefined ? {} : { endsEarly: option.endsEarly }),
+        ...(option.damageTypeStated === undefined
+          ? {}
+          : { damageTypeStated: option.damageTypeStated }),
+      });
+    }
   }
 
   // A Reaction a feature takes at one of the engine's named windows. The die
@@ -2445,6 +2519,7 @@ export function planCharacter(
     ...(recoveries.length === 0 ? {} : { recoveries }),
     ...(selfHeals.length === 0 ? {} : { selfHeals }),
     ...(healingTouch.length === 0 ? {} : { healingTouch }),
+    ...(poolOptions.length === 0 ? {} : { poolOptions }),
     // The *first* casting class's ability, and null for a character who casts
     // nothing. Falling back to the primary ability gave a Fighter a spell save
     // DC off Strength. A multiclassed caster has more than one, and every
@@ -2756,6 +2831,60 @@ function reactionEffectOf(
 function classLevelFor(choices: CharacterChoices, featureId: string): number {
   const classId = featureId.split(':')[0] ?? '';
   return classLevelsOf(choices).find((entry) => entry.classId === classId)?.level ?? choices.level;
+}
+
+/**
+ * One amount's dice, with the count read off a class table.
+ *
+ * SRD Divine Spark: "Roll 1d8 ... This feature's die changes when you reach
+ * certain Cleric levels: 2d8 at level 7". The die *size* is the feature's and
+ * the *count* is the table's, which is the split `diceCountByLevel` already
+ * makes for Sneak Attack — asked here of an effect's amount rather than of a
+ * standing grant's notation.
+ *
+ * An amount that rolls nothing is left alone: a flat number has no count for a
+ * table to move, and inventing one would turn a printed 10 into dice.
+ */
+const withDiceCountIn = <T extends { readonly dice?: string }>(amount: T, count: number): T =>
+  amount.dice === undefined
+    ? amount
+    : { ...amount, dice: `${count}d${amount.dice.split('d')[1] ?? '6'}` };
+
+/**
+ * A feature option's effects with every amount's dice count resolved.
+ *
+ * The amounts an effect can write, named once: a heal's healing, a pool of
+ * Temporary Hit Points, damage under a saving throw and the further types
+ * beneath it. Every one of them scales together here, because the class table
+ * prints one column and the SRD's sentence is about "this feature's die".
+ */
+function withDiceCount(
+  effects: readonly SpellEffect[],
+  count: number,
+): readonly SpellEffect[] {
+  return effects.map((effect) => {
+    switch (effect.kind) {
+      case 'heal':
+        return { ...effect, healing: withDiceCountIn(effect.healing, count) };
+      case 'temp-hp':
+        return { ...effect, amount: withDiceCountIn(effect.amount, count) };
+      case 'save-damage':
+        return {
+          ...effect,
+          damage: withDiceCountIn(effect.damage, count),
+          ...(effect.plus === undefined
+            ? {}
+            : {
+                plus: effect.plus.map((part) => ({
+                  ...part,
+                  damage: withDiceCountIn(part.damage, count),
+                })),
+              }),
+        };
+      default:
+        return effect;
+    }
+  });
 }
 
 function usesOf(

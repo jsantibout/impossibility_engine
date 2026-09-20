@@ -164,6 +164,7 @@ export {
   endFeature,
   extendFeature,
   useHealingTouch,
+  usePoolOption,
   useRecovery,
   useSelfHeal,
 } from './commands/features.js';
@@ -172,11 +173,15 @@ export type {
   EndFeatureCommand,
   ExtendFeatureCommand,
   HealingTouchCommand,
+  PoolOptionUse,
+  UsePoolOptionCommand,
   UseRecoveryCommand,
   UseSelfHealCommand,
 } from './commands/features.js';
-export { anchoringFor, eligibleTargets } from './commands/targeting.js';
+export { anchoringFor, areaSourceOf, eligibleTargets } from './commands/targeting.js';
 export type {
+  AreaRequest,
+  AreaSource,
   CastSpellRequest,
   EligibleTargets,
   SpellResolution,

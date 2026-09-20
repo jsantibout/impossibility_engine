@@ -698,6 +698,18 @@ export type SpellEffect =
       readonly damageType: string;
       readonly onSuccess: 'half' | 'none';
       /**
+       * SRD Divine Spark: "the creature takes Necrotic or Radiant damage
+       * (your choice) equal to the roll **plus your Wisdom modifier**."
+       *
+       * The field `damage`, `heal` and `temp-hp` already carry, on the fourth
+       * kind of effect that adds it — and it is the *chosen source's* ability,
+       * which for a feature is the ability the granting class casts with.
+       *
+       * On the first damage component and no other, exactly as the same field
+       * on an attack's damage is: SRD adds a modifier to "one damage roll".
+       */
+      readonly addSpellcastingModifier?: boolean;
+      /**
        * What a named creature type changes about this save: see
        * {@link TypedSaveOutcome}.
        *

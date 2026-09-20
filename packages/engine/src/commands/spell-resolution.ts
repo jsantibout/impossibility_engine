@@ -43,6 +43,7 @@ import {
   itemFailureCount,
   itemSource,
 } from '../catalogue.js';
+import { featureSource } from '../progression.js';
 import { spendAction, spendBonusAction, spendReaction } from '../combat.js';
 import { rollRecorded } from '../rolls.js';
 import { type CommandIdentity, commandOutcome, once } from '../idempotency.js';
@@ -160,6 +161,7 @@ import { resolveTeleportEffect } from './spell-effect-teleport.js';
 import {
   anchoringFor,
   areaTargets,
+  areaSourceOf,
   castingIdentity,
   type CastSpellRequest,
   declaredFacts,
@@ -634,7 +636,14 @@ export function castOrRelease(
     } | null = null;
 
     if (definition.area !== undefined) {
-      const resolved = areaTargets(state, casterId, definition, definition.area, request, reach);
+      const resolved = areaTargets(
+        state,
+        casterId,
+        areaSourceOf(definition),
+        definition.area,
+        request,
+        reach,
+      );
       if (!resolved.ok) return resolved;
       targets = resolved.value;
       if (definition.areaTrigger !== undefined && request.at !== undefined) {
@@ -2018,12 +2027,24 @@ export function runEffects(
   run: EffectRun,
 ): Result<EffectRunOutcome> {
   const { origin, effects, castLevel, route, targets, unverified, supply, events } = run;
-  const name = origin.kind === 'casting' ? origin.definition.name : origin.item.name;
+  const name =
+    origin.kind === 'casting'
+      ? origin.definition.name
+      : origin.kind === 'item'
+        ? origin.item.name
+        : origin.name;
+  // **Not a spell, so not a spell's level.** An item's printed line is the
+  // same whoever uses it and a feature's dice are resolved off its class table
+  // before they ever reach here, so neither has a slot or a caster level for a
+  // `DiceScaling` to read — and `checkContent` refuses both of them every
+  // field that would have read one.
   const level = origin.kind === 'casting' ? origin.definition.level : CONFERRED_LEVEL;
   const source =
     origin.kind === 'casting'
       ? castingSource(origin.definition.name, origin.castingId)
-      : itemSource(origin.item.id);
+      : origin.kind === 'item'
+        ? itemSource(origin.item.id)
+        : featureSource(origin.feature);
   const label = run.label ?? name;
 
   /**
@@ -2089,7 +2110,7 @@ export function runEffects(
     if (origin.kind !== 'casting') {
       throw new Error(
         `${name} confers its effects without casting a spell, and an effect that needs the casting reached it; ` +
-          'checkContent refuses that effect kind on an item, so the validator and the resolver disagree',
+          'checkContent refuses that effect kind on an item and on a feature, so the validator and the resolver disagree',
       );
     }
     return origin;

@@ -88,10 +88,12 @@ import {
 export const FEATURE_SHAPES = {
   'a-weapon-mastery-property':
     'the record of **which** weapons a character has mastery with, and the five of the eight properties that need nothing else. Cleave, Graze, Nick, Push, Sap, Slow, Topple and Vex are parsed onto the weapons that print them — the closed eight is `WEAPON_MASTERIES` in packages/srd/src/schemas.ts — and executed by nothing. Five classes print Weapon Mastery, and the sixth entry is the Fighter\'s own Tactical Master, which swaps one property for another: a sixth **feature** on a class already counted, not a sixth class. `FeatureGrant` in packages/engine/src/progression.ts is the list of what a feature may do — "Deliberately few. A feature whose effect does not fit one of these is `automation: \'manual\'` with a note saying what a DM still has to do" — and a mastery is on it at neither end. **The record wants two members, because no existing one fits.** A `FeatureChoice` for N weapons, narrowed to what the holder is proficient with and, for the Barbarian alone, to Melee — where N is a column of the class table for the Barbarian and the Fighter and a flat two for the other three, and every choice member the vocabulary has takes a fixed `choose`. And a `FeatureGrant` that lands the answer on the sheet beside `criticalOn`, carrying Tactical Master\'s substitution list as its other shape. **Five of the eight then run on events that already exist**, worked out against the engine rather than guessed: Graze deals the ability modifier on a miss through the damage an attack already lands; Cleave is a second attack roll whose damage drops the modifier, spent once a turn through the `feature-used` event; Push is `creature-moved` carrying `forced: true`; Slow is a `speed-modifier-granted` of minus ten feet under one shared source, ended by a `grants` deadline, which is the rider SRD Ray of Frost already files; Topple is a Constitution save down the ordinary saving-throw path with Prone applied on a failure. **Two wrinkles, written down so the next builder does not rediscover them.** Nothing in the engine derives a bearing from two positions, so SRD Push\'s "straight away from yourself" has no helper and the away-vector is the builder\'s to compute; and a creature\'s size lives only on the map, where an undeclared one silently becomes Medium and there is no counterpart to `isHeightDeclared`, so SRD\'s "Large or smaller" is answerable and the answer may be a default nobody stated. Sap, Vex, Nick and the Long Rest re-choice are **not** this shape — they are three others — which is why this one blocks six features and finishes none of them.',
-  'a-saving-throw-a-feature-forces':
-    'a feature that makes **somebody else** roll. A casting forces a save through its definition and an item through a `save` conferral; packages/engine/src/content.ts enumerates what an item\'s readers run — "only a standing grant, a charge pool, a spell it casts and the effects it confers are read from one" — and a class feature reaches none of those, so a Breath Weapon, a Stunning Strike and a Channel Divinity that Frightens have a printed DC and nothing to roll it against.',
-  'a-condition-a-feature-imposes':
-    'a condition a feature puts **on** a creature. The condition layer is whole and a feature may only refuse one: `StandingGrant` in packages/engine/src/standing.ts carries `condition-immunity`, which is "Suppression, not prevention and not removal", and carries no member that applies a condition at all. So a Monk who Stuns, a Ranger who turns Invisible and a Rogue who Dazes have the condition they want and no route to it.',
+  'an-effect-list-a-hit-buys':
+    'a feature whose effects are bought by an **attack that has already landed**, rather than by an action its holder takes. The two entries this replaces — a saving throw a feature forces, and a condition a feature imposes — were symptoms of one cause, and the cause is built: a feature\'s pool use confers an effect list through `PoolOptionGrant` in packages/engine/src/progression.ts, whose own declaration reads "SRD Channel Divinity is the shape this is built to: one feature, one pool, and a named menu the holder picks from at the moment of use". Every option on such a menu is a purchase somebody makes; nothing hangs one on a hit an attack roll has already settled, which is the sentence the SRD writes on a Stunning Strike, a Cunning Strike, an Open Hand Technique and two species traits. The save and the condition are expressible now; what has no shape is the *trigger*.',
+  'an-effect-that-ends-when-its-target-is-hurt':
+    'an effect the SRD ends early "if the creature takes any damage". What an option may print as an early end is held to what a timer can see happen to the creature it sits on, and packages/engine/src/content.ts refuses anything else by name — a cause is "not something the engine can see happen to the creature a timer sits on" — while every cause that list does hold is keyed on what that creature itself does. Damage dealt to it by somebody else is not among them, so Turn Undead\'s and Abjure Foes\'s escape clause is transcribed and inert: the conditions stand until the minute is up.',
+  'a-target-list-an-ability-modifier-sizes':
+    'a feature aimed at **a chosen number of creatures**, where the number is a modifier on the holder\'s sheet. An option reaches one named creature or fills an area, and packages/engine/src/content.ts holds it to exactly that — "an option does one or the other" — because those are the two sentences the SRD prints on the features this vocabulary was built from. "A number of creatures that you can see within 60 feet of yourself equal to your Charisma modifier" is a third: a subset of an area, chosen at the moment of use and counted off a sheet.',
   'a-condition-a-feature-ends':
     'a condition a feature takes **off**. One grant removes conditions and it is welded to a healing pool — `lifts-conditions` in packages/engine/src/progression.ts is Restoring Touch, and the file says what it is: "It widens a feature it does not own, which is the shape Improved Critical already has — a second feature restating the first rather than a second mechanism." A feature that ends a condition on its own holder, with no pool and no touch, has nothing to restate.',
   'a-pool-the-proficiency-bonus-sizes':
@@ -104,6 +106,8 @@ export const FEATURE_SHAPES = {
     'a spell a feature lets you cast without a slot. The route exists for an **item** and is refused to a feature by name: packages/engine/src/progression.ts says of the `casts` grant "An item-only member. Nothing executes it from a class feature and `checkContent` refuses it there", because the charges it spends are an item\'s pool looked up by the granting item\'s id. Every SRD sentence of the shape "cast it without expending a spell slot" wants exactly that grant with a feature\'s pool behind it.',
   'a-benefit-that-runs-for-a-printed-span':
     'a feature switched on for a minute or ten, rather than to a turn boundary it has to keep extending. `ActivatedFeature` in packages/engine/src/standing.ts is SRD Rage down to the field — "a Bonus Action, a pool sized by the class table, a deadline that can be pushed, a cap it cannot be pushed past, and two ways out that nobody commands" — and a Rage that is not extended ends at the boundary. A feature the book simply gives a duration has no deadline of its own to file.',
+  'a-dc-a-feature-derives-from-its-own-abilities':
+    'a saving throw DC a feature computes for itself. A feature\'s option rolls against its holder\'s spell save DC, and `PoolOption` in packages/engine/src/standing.ts says whose: "The **granting class\'s** ability, resolved at creation, because a multiclassed holder has more than one and the feature belongs to exactly one of them." A species trait belongs to no class and casts nothing — the same declaration goes on, "Null where the granting class casts nothing at all" — so SRD Breath Weapon\'s "DC 8 plus your Constitution modifier and Proficiency Bonus" is a formula the vocabulary cannot name, and what it would fall back to is an item\'s.',
   'a-bonus-an-ability-modifier-sizes':
     'a number added to a roll that is read off the holder\'s own sheet. Exactly one grant does it and only for one family: `save-bonus` in packages/engine/src/standing.ts is Aura of Protection, "the *holder\'s* modifier, read off their sheet rather than the beneficiary\'s". `flat-bonus` beside it is "Flat, and only flat", so a Charisma bonus to attack rolls and a Wisdom bonus to two named checks have no shape.',
   'a-feature-that-carries-a-second-grant':
@@ -470,11 +474,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
   'cleric:sear-undead': [
     {
-      clause: 'Turn Undead itself is a Channel Divinity option the engine does not execute',
-      why: 'a-saving-throw-a-feature-forces',
-      note: 'Turn Undead makes every Undead nearby roll, which is the shape underneath this one.',
-    },
-    {
       clause: 'Turn Undead dealing Radiant damage',
       why: 'a-feature-that-rewrites-another-features-rule',
       note: 'a later feature adding an effect to an earlier one’s use.',
@@ -710,13 +709,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   'monk:stunning-strike': [
     {
       clause: 'Spending a Focus Point to force a Constitution save',
-      why: 'a-saving-throw-a-feature-forces',
-      note: 'a feature that makes somebody else roll, which no grant kind does.',
-    },
-    {
-      clause: 'the Stunned condition exists and applying it is the caller’s',
-      why: 'a-condition-a-feature-imposes',
-      note: 'the failure branch, and a standing grant may only refuse a condition.',
+      why: 'an-effect-list-a-hit-buys',
+      note: 'the save and the condition are both expressible on a pool option now; what is not is that this one is bought by a hit rather than by an action.',
     },
   ],
   'monk:empowered-strikes': [
@@ -789,8 +783,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
     },
     {
       clause: 'Addle, Push and Topple on a Flurry of Blows hit',
-      why: 'a-saving-throw-a-feature-forces',
-      note: 'Push and Topple each ask for a Strength saving throw, and Addle forbids a Reaction outright.',
+      why: 'an-effect-list-a-hit-buys',
+      note: 'the clause names which hit buys them, and that is the half with no shape: Push and Topple are ordinary Strength saves once something hangs them on a landed strike.',
     },
   ],
   'open-hand:fleet-step': [
@@ -877,13 +871,13 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   'paladin:abjure-foes': [
     {
       clause: 'succeed on a Wisdom saving throw',
-      why: 'a-saving-throw-a-feature-forces',
-      note: 'a Channel Divinity that makes several creatures roll at once.',
+      why: 'a-target-list-an-ability-modifier-sizes',
+      note: 'a Channel Divinity option rolls this save now; whom it rolls against is a number of creatures equal to the Paladin\'s Charisma modifier, which is neither one named target nor a whole area.',
     },
     {
       clause: 'a failure hangs the Frightened condition on them for a minute',
-      why: 'a-condition-a-feature-imposes',
-      note: 'and hangs it with a duration, which the condition layer takes from a casting and from nothing else.',
+      why: 'an-effect-that-ends-when-its-target-is-hurt',
+      note: 'the minute is a timer an option files; the SRD\'s "or until it takes any damage" beside it is the half no end cause can say.',
     },
     {
       clause: 'which is the action economy answering to somebody other than the engine',
@@ -1009,8 +1003,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   'ranger:natures-veil': [
     {
       clause: 'the condition exists and nothing spends a Ranger’s uses to impose it',
-      why: 'a-condition-a-feature-imposes',
-      note: 'the pool is sizeable and the action is spendable; the Invisible condition is the half with no route.',
+      why: 'a-pool-the-proficiency-bonus-sizes',
+      note: 'imposing it is a pool option now, and the uses are the half left: the SRD prices this at a number of times equal to the Proficiency Bonus, which is the fourth sizing.',
     },
   ],
   'ranger:precise-hunter': [
@@ -1128,13 +1122,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
     },
     {
       clause: 'a saving throw the feature forces',
-      why: 'a-saving-throw-a-feature-forces',
-      note: 'Poison and Trip each ask for one.',
-    },
-    {
-      clause: 'a condition it imposes',
-      why: 'a-condition-a-feature-imposes',
-      note: 'Poisoned and Prone on a failure.',
+      why: 'an-effect-list-a-hit-buys',
+      note: 'Poison and Trip each ask for one, and each is bought by the hit the Sneak Attack rode rather than by an action.',
     },
     {
       clause: 'a move it hands its holder',
@@ -1179,13 +1168,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
     },
     {
       clause: 'each forces a Constitution or Dexterity saving throw',
-      why: 'a-saving-throw-a-feature-forces',
-      note: 'all three options ask for one, and none of them has anything to roll it against.',
-    },
-    {
-      clause: 'hang the Unconscious and Blinded conditions on the target',
-      why: 'a-condition-a-feature-imposes',
-      note: 'two of the three, each with a duration and a repeat.',
+      why: 'an-effect-list-a-hit-buys',
+      note: 'all three ask for one against the Rogue\'s own DC, which a pool option rolls; what buys them is the hit the Sneak Attack rode.',
     },
     {
       clause: 'Daze forbids all but one of its actions on its next turn',
@@ -1488,8 +1472,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
     },
     {
       clause: 'the Dexterity save against DC 8 plus Constitution modifier and Proficiency Bonus',
-      why: 'a-saving-throw-a-feature-forces',
-      note: 'a feature that makes everybody caught roll.',
+      why: 'a-dc-a-feature-derives-from-its-own-abilities',
+      note: 'an area option rolls this save now; the number it would roll against is a species trait\'s own formula, and a species casts nothing for a spell save DC to be read from.',
     },
     {
       clause: '"a number of times equal to your Proficiency Bonus" is none of the three',
@@ -1606,8 +1590,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
     },
     {
       clause: 'the Prone condition given on a hit',
-      why: 'a-condition-a-feature-imposes',
-      note: 'a condition a feature hangs, which the standing vocabulary may only refuse.',
+      why: 'an-effect-list-a-hit-buys',
+      note: 'the clause names the trigger, which is the half with no shape: hanging Prone is what a pool option already does.',
     },
     {
       clause: 'a Reaction grant has no way to say it belongs to one option of six',
