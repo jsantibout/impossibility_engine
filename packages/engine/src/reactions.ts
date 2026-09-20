@@ -242,6 +242,84 @@ export type ReactionEffect =
    */
   | { readonly kind: 'melee-attack'; readonly withinFeet: number };
 
+/**
+ * Who gave a Reaction away, and under what source it will end.
+ *
+ * Both halves are read: the source is what `releaseGrants` matches when the
+ * hour passes or the use spends it, and the giver is what a narrating layer
+ * needs in order to say whose die this was without opening a catalogue.
+ */
+export interface GrantedMark {
+  readonly source: string;
+  readonly from: CharacterId;
+}
+
+/**
+ * A Reaction hung on a creature by somebody else — the tenth sourced family.
+ *
+ * The shape the nine before it keep: a `source` at the top, which is the whole
+ * of what an ending matches on, and the payload beneath it. The payload here
+ * is a whole {@link ReactionFeature} with its numbers already resolved, pinned
+ * at the moment of conferral — so an ally still holding a Bard's die when the
+ * Bard levels up holds the die they were given.
+ */
+export interface GrantedReaction {
+  readonly source: string;
+  /** Whose feature it was. Not the holder. */
+  readonly from: CharacterId;
+  readonly reaction: ReactionFeature;
+}
+
+/**
+ * What a feature confers, once creation has read its class table.
+ *
+ * `ConferredReactionGrant` resolved: the die is a die, the range and the hour
+ * are numbers, and what is left is the command's whole input. It sits on the
+ * sheet beside `reactions` because it is the same kind of fact — what this
+ * character can do, read off the class table once — and is the twin of
+ * `healingTouch`, which is `touchHeals` resolved the same way.
+ */
+export interface ConferrableReaction {
+  readonly feature: string;
+  readonly name: string;
+  readonly action: 'action' | 'bonus-action';
+  readonly range: number;
+  readonly pool: string;
+  readonly durationSeconds: number;
+  readonly requiresSightOrHearing?: true;
+  readonly excludesSelf?: true;
+  /** What the recipient ends up holding, minus the source and the giver. */
+  readonly confers: readonly ReactionFeature[];
+}
+
+/**
+ * Every Reaction a creature may take right now: their sheet's, and everything
+ * anybody has hung on them.
+ *
+ * **One reader, because there were three.** `featuresFor`, `reactionFeatureOf`
+ * and `reactionOpportunities` each reached into `sheet.reactions` by hand, and
+ * a granted Reaction visible to two of the three would be an offer that could
+ * not be taken, or one taken that was never offered.
+ *
+ * Granted ones come last and in the order the fold keeps them — sorted by
+ * source — so two readers of the same state agree about the order and the log
+ * compares byte for byte.
+ */
+export function reactionsOf(creature: {
+  readonly sheet: { readonly reactions?: readonly ReactionFeature[] };
+  readonly grantedReactions: readonly GrantedReaction[];
+}): readonly ReactionFeature[] {
+  const own = creature.sheet.reactions ?? [];
+  if (creature.grantedReactions.length === 0) return own;
+  return [
+    ...own,
+    ...creature.grantedReactions.map((held) => ({
+      ...held.reaction,
+      granted: { source: held.source, from: held.from },
+    })),
+  ];
+}
+
 /** How far a reaction reaches from the creature taking it. */
 export type ReactionReach =
   | { readonly kind: 'self' }
@@ -267,6 +345,18 @@ export type ReactionReach =
 export interface ReactionFeature {
   readonly feature: string;
   readonly name: string;
+  /**
+   * Present exactly when this Reaction was **given** to its holder rather than
+   * compiled onto their sheet.
+   *
+   * A sheet's Reactions are what the character *is*, re-read from the class
+   * table on every look; a granted one is a thing somebody did to them, with a
+   * source that ends it and a giver who is not the holder. Everything else
+   * about the two is identical, which is why this is a mark on the shape
+   * rather than a second shape: `canAfford`, `reaches`, `offerOf` and the
+   * arithmetic all read it without knowing which kind they have.
+   */
+  readonly granted?: GrantedMark;
   readonly window: FeatureReactionWindow;
   /** Whether the SRD spends a Reaction on it. Often it does not — see above. */
   readonly costsReaction: boolean;
@@ -302,6 +392,15 @@ export interface ReactionOffer {
   readonly costsReaction: boolean;
   /** The pool a use would come from, or null. */
   readonly pool: string | null;
+  /**
+   * Present exactly when somebody gave this Reaction to its holder.
+   *
+   * On the offer as well as on the feature because two of them can be alike in
+   * every other field — the same feature, given to the same ally, by two
+   * different creatures — and a caller who cannot tell an offer from an offer
+   * cannot say which one they are taking.
+   */
+  readonly granted?: GrantedMark;
 }
 
 /** What the engine could not check when it worked out who may answer. */
@@ -430,14 +529,28 @@ function seen(
   return true;
 }
 
-/** Every reaction feature a creature has for one window. */
+/** Every reaction feature a creature has for one window, granted ones included. */
 function featuresFor(
   state: GameState,
   who: CharacterId,
   window: FeatureReactionWindow,
 ): readonly ReactionFeature[] {
-  return (state.creatures[who]?.sheet.reactions ?? []).filter((r) => r.window === window);
+  const creature = state.creatures[who];
+  if (creature === undefined) return [];
+  return reactionsOf(creature).filter((r) => r.window === window);
 }
+
+/**
+ * The order two features are offered in, which a fold compares byte for byte.
+ *
+ * The feature id first, as it always was, and the source second — because two
+ * creatures may have given the same ally the same feature, and an order that
+ * left those two to the sort's own stability would be an order that depended
+ * on the order the grants arrived in.
+ */
+const byFeature = (a: ReactionFeature, b: ReactionFeature): number =>
+  a.feature.localeCompare(b.feature) ||
+  (a.granted?.source ?? '').localeCompare(b.granted?.source ?? '');
 
 /** What the `damage-rolled` window is being asked about. */
 export interface DamageContext {
@@ -469,9 +582,7 @@ export function offersForDamage(state: GameState, context: DamageContext): React
 
   for (const key of Object.keys(state.creatures).sort()) {
     const reactor = key as CharacterId;
-    for (const feature of [...featuresFor(state, reactor, 'damage-rolled')].sort((a, b) =>
-      a.feature.localeCompare(b.feature),
-    )) {
+    for (const feature of [...featuresFor(state, reactor, 'damage-rolled')].sort(byFeature)) {
       if (feature.does.kind !== 'reduce-damage') continue;
 
       // SRD Uncanny Dodge and Deflect Attacks both begin "When an attack roll
@@ -521,9 +632,7 @@ export function offersForTest(state: GameState, context: TestContext): ReactionO
 
   for (const key of Object.keys(state.creatures).sort()) {
     const reactor = key as CharacterId;
-    for (const feature of [...featuresFor(state, reactor, 'test-rolled')].sort((a, b) =>
-      a.feature.localeCompare(b.feature),
-    )) {
+    for (const feature of [...featuresFor(state, reactor, 'test-rolled')].sort(byFeature)) {
       const does = feature.does;
       if (does.kind !== 'intervene' && does.kind !== 'reroll') continue;
 
@@ -557,25 +666,38 @@ function offerOf(reactor: CharacterId, feature: ReactionFeature): ReactionOffer 
     name: feature.name,
     costsReaction: feature.costsReaction,
     pool: feature.pool,
+    ...(feature.granted === undefined ? {} : { granted: feature.granted }),
   };
 }
 
 /**
  * The feature a reactor named, if they have it and it answers this window.
  *
- * Read off the sheet rather than off the offer, so a feature whose die or cap
- * has moved since the window opened is the current one.
+ * Read off the creature rather than off the offer, so a feature whose die or
+ * cap has moved since the window opened is the current one.
+ *
+ * `from` narrows it to what one named creature gave, which is the only thing
+ * that tells two granted Reactions of the same feature apart; naming nobody
+ * takes the first in the order the offers were listed in.
  */
 export function reactionFeatureOf(
   state: GameState,
   reactor: CharacterId,
   featureId: string,
   window: FeatureReactionWindow,
+  from?: CharacterId,
 ): ReactionFeature | null {
+  const creature = state.creatures[reactor];
+  if (creature === undefined) return null;
   return (
-    (state.creatures[reactor]?.sheet.reactions ?? []).find(
-      (r) => r.feature === featureId && r.window === window,
-    ) ?? null
+    [...reactionsOf(creature)]
+      .sort(byFeature)
+      .find(
+        (r) =>
+          r.feature === featureId &&
+          r.window === window &&
+          (from === undefined || r.granted?.from === from),
+      ) ?? null
   );
 }
 
@@ -675,4 +797,12 @@ export interface ReactionOpportunity {
    * open would produce two opportunities nothing could tell apart.
    */
   readonly casting?: string;
+  /**
+   * Who gave this Reaction to its reactor, where somebody did.
+   *
+   * The same field an offer carries and for the same reason: two dice from two
+   * Bards are alike in every other field, and this is what a caller names to
+   * say which one they are spending.
+   */
+  readonly granted?: GrantedMark;
 }

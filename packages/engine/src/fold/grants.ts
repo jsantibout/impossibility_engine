@@ -1,5 +1,5 @@
 /**
- * The nine families of granted modifier, and the one rule they share.
+ * The ten families of granted modifier, and the one rule they share.
  *
  * A bonus, an Armour Class, a roll modifier, a damage defence, a Speed, an
  * attack rider, a condition Immunity, a payout at a turn boundary and a rule
@@ -31,8 +31,10 @@ export const GRANTS_EVENTS = [
   'condition-immunity-granted',
   'turn-payout-granted',
   'action-rule-granted',
+  'reaction-granted',
   'bonus-removed',
   'roll-modifier-consumed',
+  'reaction-grant-consumed',
 ] as const;
 
 /** The narrowed union this seam reduces, `Extract`ed from the list above. */
@@ -220,6 +222,21 @@ export function applyGrants({ state, next }: Applying, event: GrantsEvent): Game
       return withCreature(next, event.id, { actionRules }, creature);
     }
 
+    case 'reaction-granted': {
+      const creature = creatureOf(state, event, event.id);
+      // Re-granting from the same source replaces rather than stacking, the
+      // rule every grant in the family follows. **The source alone is the
+      // identity**, and the source carries the giver — so one Bard inspiring
+      // the same ally twice has inspired them once, and two Bards doing it
+      // have given them two dice. That is the whole of what the giver's name
+      // in `conferredSource` buys.
+      const grantedReactions = [
+        ...creature.grantedReactions.filter((held) => held.source !== event.reaction.source),
+        event.reaction,
+      ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
+      return withCreature(next, event.id, { grantedReactions }, creature);
+    }
+
     case 'bonus-removed': {
       const creature = creatureOf(state, event, event.id);
       return withCreature(
@@ -243,6 +260,15 @@ export function applyGrants({ state, next }: Applying, event: GrantsEvent): Game
       // source is what a grant is linked by, and no SRD sentence spends half
       // of one; `releaseGrants` says why the identity that decides whether a
       // re-grant replaces is not the identity that decides an ending.
+      return withCreature(next, event.id, releaseGrants(creature, event.source), creature);
+    }
+
+    case 'reaction-grant-consumed': {
+      const creature = creatureOf(state, event, event.id);
+      // The same line, one family along: SRD Bardic Inspiration's die "is
+      // expended when it's used", which is an ending a deadline cannot see and
+      // the giver has no part in. `releaseGrants` again, so a conferral that
+      // hung two things loses both, exactly as it would at the hour.
       return withCreature(next, event.id, releaseGrants(creature, event.source), creature);
     }
   }

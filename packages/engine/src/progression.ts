@@ -253,6 +253,19 @@ export interface HealGrant {
 export const featureSource = (featureId: string): string => `feature:${featureId}`;
 
 /**
+ * How the log names a feature **somebody else's holder** is carrying.
+ *
+ * {@link featureSource} with the giver in it, because the source is the
+ * identity a re-grant replaces on: two Bards inspiring the same ally are two
+ * grants and one Bard inspiring them twice is one, which is the rule every
+ * sourced family already keeps and the only question the giver's name settles.
+ * It ends the same way as any other — `releaseGrants` matches the whole string
+ * — and `castingIdOf` answers null for it, as it does for the bare form.
+ */
+export const conferredSource = (featureId: string, from: string): string =>
+  `${featureSource(featureId)}@${from}`;
+
+/**
  * One thing a use of a pool buys, where what it buys is an effect list.
  *
  * SRD Channel Divinity is the shape this is built to: one feature, one pool,
@@ -784,6 +797,24 @@ export type FeatureGrant =
        * PoolOptionGrant.durationSeconds}.
        */
       readonly options?: readonly PoolOptionGrant[];
+      /**
+       * What one use buys, where what it buys is a **Reaction somebody else
+       * holds** — SRD Bardic Inspiration.
+       *
+       * The fourth answer to "what does a use of this pool buy", beside
+       * {@link heals}, `touchHeals` and {@link options}, and it hangs here for
+       * the reason they do: `FeatureDefinition.grants` is singular, and the
+       * feature that declares the pool **is** the feature that gives the die
+       * away. A grant kind of its own could not be written on the SRD's one
+       * feature at all.
+       *
+       * **Nothing is handed over.** The use is spent on the holder at the
+       * moment of conferral, and what the recipient then has is a sourced
+       * grant with a deadline — the tenth family — consumed by the first use
+       * of it. So the pool is counted in exactly one place and a recipient
+       * needs no pool of their own.
+       */
+      readonly confersReaction?: ConferredReactionGrant;
     }
   /**
    * What a charge buys: the item casts a named spell, and it is a casting.
@@ -1231,6 +1262,47 @@ export type ReactionGrantEffect =
     }
   | { readonly kind: 'reroll'; readonly bonus?: 'class-level' }
   | { readonly kind: 'melee-attack'; readonly withinFeet: number };
+
+/**
+ * A Reaction a use of a pool puts in somebody **else's** hands.
+ *
+ * Two halves, and they are two different lifetimes. The first four fields are
+ * the conferral — what it costs the giver, how far it reaches, how long the
+ * recipient keeps it, and what the giver's sentence says about being noticed.
+ * The rest is the Reaction itself, written exactly as the `reaction` grant
+ * writes one, because it *is* one: creation resolves the class-table die at
+ * the giver's own level and the recipient holds the number, not the column.
+ *
+ * What it does **not** carry is a pool. A conferred Reaction costs its holder
+ * nothing, because the cost was paid by whoever gave it; it is the grant
+ * itself that the use spends.
+ */
+export interface ConferredReactionGrant {
+  /** SRD Bardic Inspiration: "As a Bonus Action, you can inspire another …". */
+  readonly action: 'action' | 'bonus-action';
+  /** SRD: "another creature within 60 feet of yourself". */
+  readonly range: number;
+  /** SRD: "Once within the next hour" — the deadline the grant hangs on. */
+  readonly durationSeconds: number;
+  /**
+   * SRD: "who can **see or hear** you".
+   *
+   * Sight is declared between two creatures and hearing is modelled nowhere,
+   * so this asks for the offer to be reported rather than refused when the
+   * half the engine can check is not satisfied. A sentence that says nothing
+   * about being noticed leaves it absent, exactly as `requiresSight` does.
+   */
+  readonly requiresSightOrHearing?: true;
+  /** SRD: "**another** creature" — a giver who is their own recipient is not. */
+  readonly excludesSelf?: true;
+  /** Whether the *recipient* spends a Reaction on it. Bardic Inspiration does not. */
+  readonly costsReaction: boolean;
+  /** How far the recipient's own use of it reaches. */
+  readonly reach: ReactionReach;
+  /** Whether the recipient must see whoever they are answering. */
+  readonly requiresSight?: true;
+  readonly does: readonly ReactionGrantEffect[];
+}
 
 export interface ReactionGrantAmount {
   readonly dice?: string;

@@ -510,6 +510,17 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // cast through the public API.
   'fall-declared',
   'item-transferred',
+  // A Reaction one creature put in another's hands, and the use that spends
+  // it. Neither log was written when a creature could hold anything of
+  // somebody else's — no creature had a `grantedReactions` list and the Bard's
+  // own feature could only be spent on the Bard — and both fixtures fold to
+  // exactly the states they always folded to with an empty one.
+  // `granted-reactions.test.ts` folds both and drives them end to end: the
+  // conferral, the die pinned at the giver's level, the replace-not-stack rule
+  // two Bards make visible, the failed test it turns, the use that expends it
+  // and the hour that ends one nobody used.
+  'reaction-grant-consumed',
+  'reaction-granted',
   // A grant a roll used up. No frozen log carries a one-shot modifier — the
   // mechanic postdates both of them by a long way — so neither could carry the
   // event that spends one. `one-shot-modifiers.test.ts` folds it and drives it

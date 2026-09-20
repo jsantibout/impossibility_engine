@@ -33,7 +33,7 @@ import type { CharacterRecord } from './creation.js';
 import type { DamageDefenses, DamageReduction, GrantedDefense } from './attack.js';
 import type { GrantedConditionImmunity } from './conditions.js';
 import type { D20TestResult } from './checks.js';
-import type { ReactionWindow } from './reactions.js';
+import type { GrantedReaction, ReactionWindow } from './reactions.js';
 import type { ActiveBonus, ModeSource } from './bonuses.js';
 import { type SpellcastingState } from './spellcasting.js';
 import type { RestBenefit, RestKind } from './rest.js';
@@ -426,6 +426,52 @@ export type GameEvent =
       readonly type: 'action-rule-granted';
       readonly id: CharacterId;
       readonly rule: GrantedActionRule;
+    }
+
+  /**
+   * A Reaction one creature has put in another's hands — the tenth sourced
+   * grant.
+   *
+   * SRD Bardic Inspiration: "That creature gains one of your Bardic
+   * Inspiration dice ... Once within the next hour when the creature fails a
+   * D20 Test, the creature can roll the die and add the number rolled."
+   *
+   * **`id` is the recipient**, and `reaction.from` is whoever gave it — the
+   * `attack-rider-granted` asymmetry the other way round. The whole Reaction
+   * is pinned here, die size included, because it was read off the giver's
+   * class table at the moment of conferral: an ally still holding it when the
+   * giver levels up holds the die they were given, and the fold opens no
+   * catalogue to find out which.
+   *
+   * Ended by the source it carries, exactly as the other nine grants are: the
+   * hour is a `grants` deadline, and `reaction-grant-consumed` below is the
+   * other door, for the ending a *use* is.
+   */
+  | {
+      readonly type: 'reaction-granted';
+      readonly id: CharacterId;
+      readonly reaction: GrantedReaction;
+    }
+
+  /**
+   * A granted Reaction has been used up by the creature holding it.
+   *
+   * SRD Bardic Inspiration: "A Bardic Inspiration die is expended **when it's
+   * used**." `roll-modifier-consumed`'s twin, one family along and for the
+   * same reason that one exists: every other ending is the thing that made a
+   * grant ending, or a deadline arriving, and neither of those is somebody
+   * spending what they were given.
+   *
+   * **The body is `releaseGrants`**, which is the `grants` deadline's body and
+   * `roll-modifier-consumed`'s: everything that source granted this creature
+   * ends, which is one question however many families answer it. The two
+   * endings are the same ending arriving two ways, and a spent grant simply
+   * leaves its timer standing over nothing.
+   */
+  | {
+      readonly type: 'reaction-grant-consumed';
+      readonly id: CharacterId;
+      readonly source: string;
     }
 
   /**

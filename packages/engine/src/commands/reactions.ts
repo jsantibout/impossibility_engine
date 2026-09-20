@@ -48,6 +48,7 @@ import {
   offersForTest,
   reactionAddends,
   reactionFeatureOf,
+  reactionsOf,
   type ReactionOffer,
   type ReactionOpportunity,
   type SpellReactionWindow,
@@ -530,6 +531,16 @@ export function resolveTest(
 
 export interface TestReactionCommand extends CommandIdentity {
   readonly feature: string;
+  /**
+   * Whose granted Reaction is being spent, where the reactor holds more than
+   * one of the same name.
+   *
+   * Two Bards may have inspired the same ally, and the two dice differ in
+   * nothing a caller can see except who gave them. Naming nobody takes the
+   * first in the order the offers were listed in, which is the order the fold
+   * keeps them in — so a caller who does not care still gets a settled answer.
+   */
+  readonly from?: CharacterId;
 }
 
 export interface TestReactionResolution {
@@ -569,11 +580,21 @@ export function takeTestReaction(
     if (pending === null) {
       return err('no_pending_test', `no D20 Test is waiting for ${reactor} to answer`);
     }
-    if (!pending.offers.some((o) => o.reactor === reactor && o.feature === command.feature)) {
+    const offered = (o: ReactionOffer): boolean =>
+      o.reactor === reactor &&
+      o.feature === command.feature &&
+      (command.from === undefined || o.granted?.from === command.from);
+    if (!pending.offers.some(offered)) {
       return err('not_offered', `${reactor} was not offered ${command.feature} against this roll`);
     }
 
-    const feature = reactionFeatureOf(state, reactor, command.feature, 'test-rolled');
+    const feature = reactionFeatureOf(
+      state,
+      reactor,
+      command.feature,
+      'test-rolled',
+      command.from,
+    );
     if (feature === null || (feature.does.kind !== 'intervene' && feature.does.kind !== 'reroll')) {
       return err('no_such_feature', `${reactor} has no D20 Test Reaction called ${command.feature}`);
     }
@@ -995,7 +1016,10 @@ export function reactionOpportunities(state: GameState, content: Content): reado
     const hurt = damageWindowOpen(state, who);
     if (hurt === null || !canReact(who)) continue;
 
-    for (const feature of state.creatures[who]?.sheet.reactions ?? []) {
+    // Granted Reactions included, which is what `reactionsOf` is for: a
+    // window a creature can answer with something somebody gave them is one
+    // this query has to report, or the offer and the command disagree.
+    for (const feature of reactionsOf(state.creatures[who]!)) {
       if (feature.window !== 'damaged-by-creature') continue;
       if (feature.pool !== null && remaining(state.creatures[who]!.resources, feature.pool) < 1) {
         continue;
@@ -1009,6 +1033,7 @@ export function reactionOpportunities(state: GameState, content: Content): reado
         costsReaction: feature.costsReaction,
         pool: feature.pool,
         against: hurt.by,
+        ...(feature.granted === undefined ? {} : { granted: feature.granted }),
       });
     }
 

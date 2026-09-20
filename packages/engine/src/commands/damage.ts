@@ -173,6 +173,10 @@ export function landDamage(
  * The Reaction is only spent **in combat** — outside it there is no economy,
  * the same reading `resolveCast`, `activateFeature` and `useSelfHeal` take.
  * The pool is spent either way, because a pool is not part of the economy.
+ *
+ * And a Reaction somebody **gave** this creature is spent by being used, which
+ * is a third cost rather than a variant of the second: the pool it came out of
+ * belongs to the giver and was charged when they gave it away.
  */
 export function spendReactionCost(
   state: GameState,
@@ -201,6 +205,18 @@ export function spendReactionCost(
       return err('exhausted', `${reactor} has no uses of ${feature.name} left`);
     }
     events.push({ type: 'resource-spent', id: reactor, key: feature.pool, amount: 1 });
+  }
+
+  // SRD Bardic Inspiration: "A Bardic Inspiration die is expended **when it's
+  // used**." A Reaction somebody gave this creature costs no pool of theirs —
+  // the giver paid — so what a use spends is the grant itself, and this is the
+  // one place every window's command already asks what a Reaction costs.
+  if (feature.granted !== undefined) {
+    events.push({
+      type: 'reaction-grant-consumed',
+      id: reactor,
+      source: feature.granted.source,
+    });
   }
 
   return ok(events);

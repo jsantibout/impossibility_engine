@@ -161,6 +161,7 @@ export type {
 } from './commands/reactions.js';
 export {
   activateFeature,
+  conferReaction,
   endFeature,
   extendFeature,
   useHealingTouch,
@@ -170,6 +171,8 @@ export {
 } from './commands/features.js';
 export type {
   ActivateFeatureCommand,
+  ConferReactionCommand,
+  Conferral,
   EndFeatureCommand,
   ExtendFeatureCommand,
   HealingTouchCommand,

@@ -88,7 +88,7 @@ export const BARD: ClassDefinition = {
       name: 'Bardic Inspiration',
       level: 1,
       automation: 'engine',
-      note: 'Declared as a pool of Charisma-modifier uses, minimum one, refilling on a Long Rest — SRD: "a number of times equal to your Charisma modifier (minimum of once)". Cutting Words and Peerless Skill spend those uses now, in the `test-rolled` and `damage-rolled` windows. What is still missing is **conferring** a die: SRD gives the die to another creature, who holds it for an hour and spends it on their own failed D20 Test with no Reaction and no help from the Bard, and nothing models a resource one creature hands to another.',
+      note: 'Declared as a pool of Charisma-modifier uses, minimum one, refilling on a Long Rest — SRD: "a number of times equal to your Charisma modifier (minimum of once)". Cutting Words and Peerless Skill spend those uses in the `test-rolled` and `damage-rolled` windows, and the feature\'s own sentence spends one here: "As a Bonus Action, you can inspire another creature within 60 feet of yourself who can see or hear you. That creature gains one of your Bardic Inspiration dice ... Once within the next hour when the creature fails a D20 Test, the creature can roll the die and add the number rolled to the d20." Nothing is handed over — the use is spent on the Bard at the moment of conferral and the ally holds a Reaction with a deadline, expended when it is used. Two limits of the engine, stated rather than hidden: "any D20 Test" reaches the ability checks and saving throws the table asks for as their own command, because a spell-forced save settles in one breath and an attack roll opens no window at all; and "see or hear" is checked as far as sight, which is declared, while hearing is modelled nowhere — so an ally the log says cannot see the Bard is still offered the die, with the unchecked half reported.',
       grants: {
         kind: 'pool',
         key: 'bardic-inspiration',
@@ -96,6 +96,30 @@ export const BARD: ClassDefinition = {
         fromAbilityModifier: 'cha',
         minimum: 1,
         recovers: 'long-rest',
+        confersReaction: {
+          // SRD: "As a Bonus Action ... another creature within 60 feet".
+          action: 'bonus-action',
+          range: 60,
+          // "Once within the next hour."
+          durationSeconds: 3600,
+          requiresSightOrHearing: true,
+          excludesSelf: true,
+          // The ally spends no Reaction: the die is a permission with a cost
+          // already paid.
+          costsReaction: false,
+          reach: { kind: 'self' },
+          does: [
+            {
+              kind: 'intervene',
+              amount: { diceByLevel: BARDIC_DIE },
+              // "add the number rolled to the d20, potentially turning the
+              // failure into a success."
+              direction: 'bonus',
+              tests: ['ability-check', 'saving-throw'],
+              outcome: 'failure',
+            },
+          ],
+        },
       },
     },
     {

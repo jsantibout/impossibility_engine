@@ -23,7 +23,7 @@ import { type ResourceState } from './resources.js';
 import type { CharacterRecord } from './creation.js';
 import type { DamageComponent, DamageDefenses, DamageReduction, GrantedDefense } from './attack.js';
 import type { D20TestResult } from './checks.js';
-import type { ReactionOffer } from './reactions.js';
+import type { GrantedReaction, ReactionOffer } from './reactions.js';
 import type { ActiveBonus } from './bonuses.js';
 import { type SpellcastingState } from './spellcasting.js';
 import type { RestState } from './rest.js';
@@ -469,6 +469,19 @@ export interface CreatureState {
    * by its `source` exactly as the other eight are.
    */
   readonly actionRules: readonly GrantedActionRule[];
+  /**
+   * Reactions somebody else has put in this creature's hands — the tenth
+   * member of the family the nine above form.
+   *
+   * SRD Bardic Inspiration: a die the Bard spends a use on and the *ally*
+   * holds, for an hour, until they use it. What a creature may do is otherwise
+   * read off their sheet and re-derived from the class table on every look;
+   * this is the other lifetime, and it is the one every grant here already has
+   * — stored, unconditional, ended by a source match. Linked by its `source`
+   * exactly as the other nine are, so the deadline, a dispel and the use that
+   * spends it all end it through the door that already existed.
+   */
+  readonly grantedReactions: readonly GrantedReaction[];
   /**
    * Bonuses this creature's own features add to Initiative.
    *

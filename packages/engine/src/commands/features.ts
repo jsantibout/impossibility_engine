@@ -26,6 +26,7 @@ import { type Rng } from '../dice.js';
 import { turnAnchored } from '../time.js';
 import { type EffectTarget, timerKey } from '../timers.js';
 import {
+  applyEvent,
   type CommandStamp,
   type GameEvent,
   type GameState,
@@ -33,12 +34,13 @@ import {
   wearsHeavyArmor,
 } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
-import { featureSource } from '../progression.js';
+import { conferredSource, featureSource } from '../progression.js';
 import { remaining } from '../resources.js';
 import { type RollIssuer, rollRecorded } from '../rolls.js';
 import { statedDamageType, type SpellEffect } from '../spell-definitions.js';
 import {
   type ActivatedFeature,
+  canSee,
   type HealAmount,
   type PoolOption,
   recoveryCap,
@@ -248,6 +250,128 @@ export function useHealingTouch(
     events.push(...endConditionsOn(command.target, lift));
 
     return ok(events);
+  });
+}
+
+export interface ConferReactionCommand extends CommandIdentity {
+  readonly feature: string;
+  readonly target: CharacterId;
+}
+
+export interface Conferral {
+  readonly events: readonly GameEvent[];
+  /** What the engine could not check — the half of a sense it does not model. */
+  readonly unverified: readonly string[];
+}
+
+const NOTHING_CONFERRED: Conferral = { events: [], unverified: [] };
+
+/**
+ * Spend a use of a pool to put a Reaction in somebody else's hands.
+ *
+ * SRD Bardic Inspiration: "As a Bonus Action, you can inspire another creature
+ * within 60 feet of yourself who can see or hear you. That creature gains one
+ * of your Bardic Inspiration dice ... Once within the next hour when the
+ * creature fails a D20 Test, the creature can roll the die and add the number
+ * rolled to the d20."
+ *
+ * **Nothing is handed over.** The use is spent here, on the giver, and what
+ * the recipient gains is a sourced grant with a deadline — which is why this
+ * command rolls nothing and takes no `Supply`: the die belongs to the moment
+ * the recipient uses it, and what is pinned now is which die it is.
+ *
+ * **"Can see or hear you" is reported, never refused.** Sight is declared
+ * between two creatures and hearing is modelled nowhere, so a recipient the
+ * log says cannot see the giver may still be able to hear them. Withholding
+ * the conferral would be the engine deciding a fact nobody stated; the offer
+ * is made and the line comes back in `unverified`, which is the rule
+ * `offersForDamage` and `offersForTest` already keep.
+ */
+export function conferReaction(
+  state: GameState,
+  id: CharacterId,
+  command: ConferReactionCommand,
+): Result<Conferral> {
+  return once(state, `confer-reaction:${id}`, command, () => NOTHING_CONFERRED, (stamp) => {
+    // After the duplicate check, never before it.
+    const owedHere = mayAct(state, id);
+    if (owedHere !== null) return owedHere;
+
+    const giver = creatureOf(state, id);
+    if (giver === null) return unknownCreature(id);
+
+    const definition = (giver.sheet.conferredReactions ?? []).find(
+      (c) => c.feature === command.feature,
+    );
+    if (definition === undefined) {
+      return err('no_such_feature', `${id} has no feature called ${command.feature}`);
+    }
+
+    const holder = creatureOf(state, command.target);
+    if (holder === null) return unknownCreature(command.target);
+
+    if (definition.excludesSelf === true && command.target === id) {
+      return err(
+        'not_another_creature',
+        `${definition.name} is given to another creature, and ${id} is not another creature`,
+      );
+    }
+
+    const left = remaining(giver.resources, definition.pool);
+    if (left < 1) return err('exhausted', `${definition.name} has no uses left`);
+
+    const beyond = reachedBy(state, id, command.target, definition.name, definition.range);
+    if (beyond !== null) return beyond;
+
+    // The recipient is the one who has to notice, so the looker is the
+    // recipient — the same rule `ReactionFeature.requiresSight` states about
+    // who must see whom.
+    const unverified: string[] = [];
+    if (definition.requiresSightOrHearing === true && canSee(state, command.target, id) !== true) {
+      unverified.push(
+        `nobody has said whether ${command.target} can hear ${id}, and ${definition.name} needs them to see or hear; the conferral was made rather than withheld`,
+      );
+    }
+
+    const events: GameEvent[] = [];
+
+    // The action economy only exists in combat; outside it there is nothing to
+    // spend, exactly as every other feature here finds.
+    if (state.combat !== null) {
+      const spent = spendFor(state, id, definition.action);
+      if (!spent.ok) return spent;
+      events.push(spent.value);
+    }
+
+    events.push({
+      type: 'resource-spent',
+      id,
+      key: definition.pool,
+      amount: 1,
+      ...(stamp === null ? {} : { command: stamp }),
+    });
+
+    const source = conferredSource(definition.feature, id);
+    for (const reaction of definition.confers) {
+      events.push({
+        type: 'reaction-granted',
+        id: command.target,
+        reaction: { source, from: id, reaction },
+      });
+    }
+
+    // The hour, filed the way every other grant's deadline is. It is filed
+    // once however many Reactions the conferral hung, because `releaseGrants`
+    // takes the whole source off at once.
+    const timer = schedule(
+      events.reduce(applyEvent, state),
+      { kind: 'grants', on: command.target, source },
+      { kind: 'seconds', seconds: definition.durationSeconds },
+    );
+    if (!timer.ok) return timer;
+    events.push(timer.value);
+
+    return ok({ events, unverified });
   });
 }
 

@@ -27,6 +27,7 @@ import {
   awardItems,
   beginCombat,
   castSpell,
+  conferReaction,
   continueCasting,
   declareCoverBetween,
   declareCreatureDead,
@@ -175,6 +176,37 @@ const sheet = (over: Partial<CharacterSheet> = {}): CharacterSheet => ({
       pool: 'test:vigour',
       dice: '1d10',
       plus: { kind: 'level', level: 5, label: 'some level' },
+    },
+  ],
+  // What a use of a pool buys, where what it buys is a Reaction somebody else
+  // ends up holding. One conferral, reaching thirty feet, so the two sweeps
+  // below have a well-formed call to make.
+  conferredReactions: [
+    {
+      feature: 'test:inspire',
+      name: 'A Word Of Encouragement',
+      action: 'bonus-action',
+      range: 30,
+      pool: 'test:vigour',
+      durationSeconds: 600,
+      excludesSelf: true,
+      confers: [
+        {
+          feature: 'test:inspire',
+          name: 'A Word Of Encouragement',
+          window: 'test-rolled',
+          costsReaction: false,
+          pool: null,
+          reach: { kind: 'self' },
+          does: {
+            kind: 'intervene',
+            amount: { dice: '1d6' },
+            direction: 'bonus',
+            tests: ['ability-check', 'saving-throw'],
+            outcome: 'failure',
+          },
+        },
+      ],
     },
   ],
   // What a use of a pool buys, where what it buys is an effect list. One
@@ -1277,6 +1309,15 @@ const GUARDED: readonly Guarded[] = [
       useHealingTouch(s, A, { feature: 'test:healing-touch', target: B, lift: ['poisoned'], commandId }),
   },
   {
+    // The conferral spends a pool use on the giver and hangs a grant on
+    // somebody else, so a retry that was not caught would cost the giver twice
+    // and leave the recipient holding one die — the asymmetry that makes this
+    // worth sweeping rather than assuming.
+    name: 'conferReaction',
+    log: vigorous(),
+    run: (s, commandId) => conferReaction(s, A, { feature: 'test:inspire', target: B, commandId }),
+  },
+  {
     name: 'useSelfHeal',
     log: vigorous(),
     run: (s, commandId) => useSelfHeal(s, A, { feature: 'test:self-heal', commandId }, supply()),
@@ -2100,6 +2141,7 @@ const SPENDERS: readonly Spender[] = [
     name: 'useHealingTouch',
     run: (s) => useHealingTouch(s, B, { feature: 'test:healing-touch', target: A, lift: ['poisoned'] }),
   },
+  { name: 'conferReaction', run: (s) => conferReaction(s, B, { feature: 'test:inspire', target: A }) },
   { name: 'useSelfHeal', run: (s) => useSelfHeal(s, B, { feature: 'test:self-heal' }, supply()) },
   { name: 'useRecovery', run: (s) => useRecovery(s, B, { feature: 'test:recovery' }, supply()) },
   {

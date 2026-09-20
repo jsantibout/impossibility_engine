@@ -8,7 +8,7 @@ import type {
   StandingEffect,
   StrikeStyle,
 } from './standing.js';
-import type { ReactionFeature } from './reactions.js';
+import type { ConferrableReaction, ReactionFeature } from './reactions.js';
 import type { Armor } from '@ie/srd';
 
 /**
@@ -179,6 +179,17 @@ export interface CharacterSheet {
    * not a thing to do on every swing.
    */
   readonly reactions?: readonly ReactionFeature[];
+  /**
+   * Reactions this character can hand to **somebody else** — SRD Bardic
+   * Inspiration's die.
+   *
+   * Resolved at creation beside `reactions`, and for exactly the same reason:
+   * the die is a column of the class table, read at that class's own level.
+   * What makes it a second field rather than a flag on the first is who ends
+   * up holding it — a Reaction on this list is never taken by this character,
+   * and one on the list above is never given away.
+   */
+  readonly conferredReactions?: readonly ConferrableReaction[];
   /**
    * How many attacks this character's Attack action holds. One, unless a
    * feature says otherwise.

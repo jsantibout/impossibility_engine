@@ -32,6 +32,7 @@ import type {
 } from './standing.js';
 import type { SpellEffect } from './spell-definitions.js';
 import type {
+  ConferrableReaction,
   ReactionAddend,
   ReactionAmount,
   ReactionEffect,
@@ -2366,6 +2367,59 @@ export function planCharacter(
     }
   }
 
+  // What a use of a pool buys, where what it buys is a Reaction somebody
+  // **else** will hold. The same resolution as the loop above, at the same
+  // level, and for the same reason — the die belongs to the giver's class
+  // table — with the range, the hour and the sense clause coming through
+  // untouched.
+  const conferredReactions: ConferrableReaction[] = [];
+  for (const feature of features) {
+    const grant = feature.grants;
+    if (grant?.kind !== 'pool' || grant.confersReaction === undefined) continue;
+
+    const declaration = grant.confersReaction;
+    const level = classLevelFor(choices, feature.id);
+    const confers: ReactionFeature[] = [];
+    for (const declared of declaration.does) {
+      const resolved = reactionEffectOf(declared, level, definition.name);
+      if (resolved === null) continue;
+      confers.push({
+        feature: feature.id,
+        name: feature.name,
+        window:
+          resolved.kind === 'reduce-damage'
+            ? 'damage-rolled'
+            : resolved.kind === 'melee-attack'
+              ? 'damaged-by-creature'
+              : 'test-rolled',
+        costsReaction: declaration.costsReaction,
+        // A conferred Reaction costs its holder no pool: the use was spent by
+        // whoever gave it away, and what a use of it spends is the grant.
+        pool: null,
+        reach: declaration.reach,
+        ...(declaration.requiresSight === undefined
+          ? {}
+          : { requiresSight: declaration.requiresSight }),
+        does: resolved,
+      });
+    }
+    if (confers.length === 0) continue;
+
+    conferredReactions.push({
+      feature: feature.id,
+      name: feature.name,
+      action: declaration.action,
+      range: declaration.range,
+      pool: grant.key,
+      durationSeconds: declaration.durationSeconds,
+      ...(declaration.requiresSightOrHearing === undefined
+        ? {}
+        : { requiresSightOrHearing: declaration.requiresSightOrHearing }),
+      ...(declaration.excludesSelf === undefined ? {} : { excludesSelf: declaration.excludesSelf }),
+      confers,
+    });
+  }
+
   // A feature that gives some *other* pool's uses back. The key it refills is
   // resolved here rather than named by the feature, because Pact Magic's key
   // carries a slot level that moves as the Warlock levels — the same reason
@@ -2516,6 +2570,7 @@ export function planCharacter(
     ...(strikeStyles.length === 0 ? {} : { strikeStyles }),
     ...(activated.length === 0 ? {} : { activated }),
     ...(reactions.length === 0 ? {} : { reactions }),
+    ...(conferredReactions.length === 0 ? {} : { conferredReactions }),
     ...(recoveries.length === 0 ? {} : { recoveries }),
     ...(selfHeals.length === 0 ? {} : { selfHeals }),
     ...(healingTouch.length === 0 ? {} : { healingTouch }),

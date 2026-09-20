@@ -106,6 +106,7 @@ export function applyRoster({ state, next }: Applying, event: RosterEvent): Game
             grantedConditionImmunities: [],
             payouts: [],
             actionRules: [],
+            grantedReactions: [],
             initiativeBonuses: [],
             inventory: [],
             equipped: [],
