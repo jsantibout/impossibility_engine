@@ -26,6 +26,10 @@ export default defineConfig({
     },
   },
   test: {
+    // The suite's own guard, run before every test file: a parameterised
+    // table that is empty registers no tests and goes green for ever. See
+    // `vitest.setup.ts`, and `each-table-guard.test.ts` for what it catches.
+    setupFiles: ['./vitest.setup.ts'],
     include: [
       'packages/*/src/**/*.test.ts',
       'packages/*/scripts/**/*.test.ts',
