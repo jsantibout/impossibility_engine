@@ -14,7 +14,7 @@
  * is erased and the cycle is a cycle in nothing that runs.
  */
 import type { Ability, CharacterId, ConditionName, RollMode } from '@ie/shared';
-import type { Armor, CreatureSize } from '@ie/srd';
+import type { Armor, CreatureSize, WeaponMastery } from '@ie/srd';
 import type { CharacterSheet, GrantedArmorClass } from './character.js';
 import { type ActiveRollModifier } from './roll-modifiers.js';
 import type { RngState } from './dice.js';
@@ -591,6 +591,21 @@ export interface PendingAttack {
   readonly target: CharacterId;
   /** Catalogue id, or null for an Unarmed Strike. */
   readonly weapon: string | null;
+  /**
+   * The mastery property this swing is using, and what the attacker said about
+   * it — absent where they are using none.
+   *
+   * **Pinned rather than re-derived**, because it is not a fact about the
+   * weapon alone: a substitution the attacker chose for *this attack* is
+   * Tactical Master's whole sentence, and a hold that re-read the weapon would
+   * settle its damage under a property the swing was not made with. Absent
+   * from every log written before mastery ran, which is why it is optional.
+   */
+  readonly mastery?: {
+    readonly property: WeaponMastery;
+    /** SRD Push: "up to 10 feet", where the attacker asked for less. */
+    readonly feet?: number;
+  };
   readonly twoHanded: boolean;
   readonly thrown: boolean;
   readonly finesseAbility?: 'str' | 'dex';

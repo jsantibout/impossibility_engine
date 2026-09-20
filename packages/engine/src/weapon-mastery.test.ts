@@ -5,7 +5,7 @@ import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
-import { resolveAttack } from './commands.js';
+import { resolveAttack, resolveAttackDamage } from './commands.js';
 import { checkCharacter, createCharacter, planCharacter, type CharacterChoices } from './creation.js';
 import { bearingBetween, distanceBetween } from './positioning.js';
 import { speedOf } from './standing.js';
@@ -519,6 +519,43 @@ describe('Cleave', () => {
       supply(),
     );
     expect(isErr(out) ? out.code : 'ok').toBe('out_of_reach');
+  });
+});
+
+/**
+ * The half of the attack path a rider is easiest to forget.
+ *
+ * `resolveAttack` can hold its hit so a Divine Smite can land between the roll
+ * and the damage, and `resolveAttackDamage` settles it a command later. A
+ * mastery wired into the first and not the second would be a rule a Smite
+ * silently switched off, so the property is pinned into the hold and both
+ * halves run the same rider off it.
+ */
+describe('a held hit', () => {
+  it('still topples, off the property the hold pinned', () => {
+    const log = fighting();
+    const request = { target: GOBLIN, weapon: 'quarterstaff', mastery: {}, hold: true } as const;
+    const seed = seedThat('hit', log, request);
+
+    const held = swing(log, request, seed);
+    expect(held.attack!.hit).toBe(true);
+    expect(held.state.pendingAttack?.mastery?.property).toBe('topple');
+    // Nothing has happened to the goblin yet: the damage is not rolled.
+    expect(hurt(held.state)).toBe(0);
+
+    const settled = unwrap(
+      resolveAttackDamage(held.state, BRAM, {}, supply(seed)),
+      'damage',
+    );
+    const after = fold('seed', [...held.log, ...settled.events]);
+    const save = settled.events.find(
+      (e) => e.type === 'roll-recorded' && e.label.toLowerCase().includes('topple'),
+    );
+    expect(save).toBeDefined();
+    if (save?.type !== 'roll-recorded') throw new Error('no save was recorded');
+    expect(hasCondition(after.creatures[GOBLIN]!.conditions, 'prone')).toBe(
+      save.outcome === 'knocked down',
+    );
   });
 });
 

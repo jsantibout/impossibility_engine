@@ -550,6 +550,14 @@ export function resolveAttack(
       return ok({ events, attack: attack.value, unverified, duplicate: false });
     }
 
+    // SRD Cleave: "You can make this extra attack only once per turn." The
+    // swing is what is allowed once rather than the damage it deals, so the
+    // allowance is spent on the hit — which is also what makes a *held* Cleave
+    // count against it.
+    if (cleaving !== undefined && state.combat !== null) {
+      events.push({ type: 'feature-used', id, feature: CLEAVE, turn: state.combat.turnsTaken });
+    }
+
     // SRD Divine Smite is taken "immediately after hitting a target", which is
     // exactly here: the hit is known, the damage is not rolled. The roll that
     // got us here is already in the log, so the debt survives a reload.
@@ -572,6 +580,14 @@ export function resolveAttack(
             : { finesseAbility: command.finesseAbility }),
           critical: attack.value.critical,
           ability,
+          ...(property === null
+            ? {}
+            : {
+                mastery: {
+                  property,
+                  ...(command.mastery?.feet === undefined ? {} : { feet: command.mastery.feet }),
+                },
+              }),
           targetAc: attack.value.targetAc,
           total: attack.value.total,
           natural: attack.value.roll.natural,
@@ -657,20 +673,14 @@ export function resolveAttack(
     if (!hurt.ok) return hurt;
 
     const landed = [...events, ...hurt.value.events];
-    const rider = masteryRider(
-      landed.reduce(applyEvent, state),
-      supply,
-      {
-        attacker: id,
-        target: command.target,
-        property,
-        ability,
-        ...(command.mastery?.feet === undefined ? {} : { feet: command.mastery.feet }),
-        dealtDamage: (hurt.value.amount ?? 0) > 0 || hurt.value.offers.length > 0,
-      },
-      cleaving !== undefined,
-      state.combat?.turnsTaken ?? 0,
-    );
+    const rider = masteryRider(landed.reduce(applyEvent, state), supply, {
+      attacker: id,
+      target: command.target,
+      property,
+      ability,
+      ...(command.mastery?.feet === undefined ? {} : { feet: command.mastery.feet }),
+      dealtDamage: (hurt.value.amount ?? 0) > 0 || hurt.value.offers.length > 0,
+    });
     if (!rider.ok) return rider;
 
     return ok({
@@ -739,24 +749,10 @@ function masteryRider(
   world: GameState,
   supply: Supply,
   hit: Omit<MasteryHit, 'property'> & { readonly property: WeaponMastery | null },
-  cleaved: boolean,
-  turn: number,
 ): Result<MasteryOutcome> {
-  const events: GameEvent[] = [];
-  // SRD Cleave: "You can make this extra attack only once per turn" — the same
-  // event a once-per-turn damage feature is spent through.
-  if (cleaved && world.combat !== null) {
-    events.push({ type: 'feature-used', id: hit.attacker, feature: CLEAVE, turn });
-  }
-
   const property = hit.property;
-  if (property === null) return ok({ events, unverified: [] });
-  const rider = masteryAfterHit(events.reduce(applyEvent, world), supply, { ...hit, property });
-  if (!rider.ok) return rider;
-  return ok({
-    events: [...events, ...rider.value.events],
-    unverified: rider.value.unverified,
-  });
+  if (property === null) return ok({ events: [], unverified: [] });
+  return masteryAfterHit(world, supply, { ...hit, property });
 }
 
 /**
@@ -998,15 +994,29 @@ export function resolveAttackDamage(
     );
     if (!hurt.ok) return hurt;
 
+    // The same riders the swung attack runs, off the property the hold pinned:
+    // a mastery wired into one half of the path would be a rule a Divine Smite
+    // silently switched off.
+    const landed = [...events, ...hurt.value.events];
+    const rider = masteryRider(landed.reduce(applyEvent, state), supply, {
+      attacker: pending.attacker,
+      target: pending.target,
+      property: pending.mastery?.property ?? null,
+      ability: pending.ability,
+      ...(pending.mastery?.feet === undefined ? {} : { feet: pending.mastery.feet }),
+      dealtDamage: (hurt.value.amount ?? 0) > 0 || hurt.value.offers.length > 0,
+    });
+    if (!rider.ok) return rider;
+
     return ok({
-      events: [...events, ...hurt.value.events],
+      events: [...landed, ...rider.value.events],
       attack: null,
       ...(hurt.value.amount === undefined ? {} : { damage: hurt.value.amount }),
       ...(hurt.value.concentration === undefined
         ? {}
         : { concentration: hurt.value.concentration }),
       ...(hurt.value.offers.length === 0 ? {} : { reactions: hurt.value.offers }),
-      unverified: [...hurt.value.unverified],
+      unverified: [...hurt.value.unverified, ...rider.value.unverified],
       duplicate: false,
     });
   });
