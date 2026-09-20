@@ -64,14 +64,19 @@
  * that cannot see its own Rages cannot spend one, and one that has not been
  * told it holds Empowered Evocation cannot elect it.
  *
- * **Two pools the engine holds have no door and are not given one.** Channel
- * Divinity and Bardic Inspiration are declared, sized off their class tables
- * and refilled on the right rest, and nothing spends them: what a use *buys*
- * — Turn Undead, Divine Spark, an inspiration die somebody else adds to a
- * roll — is not executed by the engine, so a tool here would be a door onto a
- * room that does not exist. The same holds for Action Surge, whose extra
- * action nothing grants. A pool a caller could spend for no effect is worse
- * than a pool it cannot spend, because the use would be gone.
+ * **One pool the engine holds has no door, and the rule that shut three is
+ * why.** "A pool a caller could spend for no effect is worse than a pool it
+ * cannot spend, because the use would be gone" — so Channel Divinity, Bardic
+ * Inspiration and Action Surge were all left shut while nothing executed what
+ * a use bought. Two of the three have stopped being that: a pool use is the
+ * third host of an effect list, so `use_pool_option` spends a Cleric's, and a
+ * conferred Reaction is a real Reaction with an hour on it and a door that
+ * takes it, so `confer_reaction` spends a Bard's. **Action Surge is still
+ * shut**, and by the original sentence: nothing grants the extra action, so
+ * the use would be gone and nothing would have happened. Paladin's Channel
+ * Divinity is shut for the same reason — it prints no option the engine
+ * executes, so `sheet` reports no feature line for it and there is nothing
+ * here to call.
  *
  * **And `spendFor` is not a command, so it is not a door either.** It is the
  * helper in `commands/command.ts` that the four feature commands costing an
@@ -1352,7 +1357,7 @@ const ATTACK = tool({
     mastery: masterySchema
       .optional()
       .describe(
-        'Use the mastery property of the weapon in hand — Cleave, Graze, Push, Slow and Topple are written "you can", so silence declines them. An empty object uses whatever the weapon prints. A property this character has not unlocked is refused rather than quietly skipped.',
+        'Use the mastery property of the weapon in hand — Cleave, Graze, Push, Slow and Topple are written "you can", so silence declines them. An empty object uses whatever the weapon prints. A property this character has not unlocked is refused rather than quietly skipped. Nick is the one exception in the other direction: it is accepted and does nothing, because the extra attack it redirects is not paid for by anything the engine has.',
       ),
   }),
   run: (context, args) =>
@@ -2184,18 +2189,29 @@ const CONFER_REACTION = tool({
  * Dodge, Dash or Disengage — and which slot pays for the third of them.
  *
  * **`from` is here because the engine already takes it and nothing could say
- * it.** SRD Conjure Woodland Beings is the one sentence in the book that moves
- * a named action to a cheaper slot — "you can take the Disengage action as a
- * Bonus Action for the spell's duration" — `takeDisengage` has taken the slot
- * since that spell landed, and `STATABLE_PRICES` records which action may come
- * out of which. With two fields on this tool the whole allowance was
- * unreachable: the spell could be cast, the effect applied, and the only call
- * that could invoke it spent an Action every time.
+ * it.** `takeDisengage` has taken a slot since SRD Conjure Woodland Beings
+ * gave the engine a sentence to model — "you can take the Disengage action as
+ * a Bonus Action for the spell's duration" — and `STATABLE_PRICES` records
+ * which named action may come out of which. With two fields on this tool the
+ * allowance was unreachable from any caller at all: whatever granted it, the
+ * only call that could invoke it spent an Action every time.
+ *
+ * **What grants one today is homebrew, and that is the catalogue's business
+ * rather than this tool's.** Conjure Woodland Beings' own entry records the
+ * allowance as adjudicated — the spell's other half is a creature the engine
+ * does not summon — so no SRD content hands this rule out yet. The engine
+ * executes it, `spell-schema.ts` validates it, and a definition that grants
+ * `{ kind: 'allows', action: 'disengage', from: 'bonus-action' }` works
+ * through this field with no engine change, which is what `disengage.test.ts`
+ * drives.
  *
  * It states no price. The caller names which slot it is asking to pay from and
  * the engine rules on whether this creature may — a slot nothing granted is
- * refused `action_not_allowed` rather than quietly charged at the ordinary
- * price, which is the substitution `DisengageOptions` promises never to make.
+ * refused rather than quietly charged at the ordinary price, which is the
+ * substitution `DisengageOptions` promises never to make. Two different
+ * refusals, and both are the engine's: `action_not_allowed` for a price the
+ * engine *can* charge and nothing has granted, `no_such_price` for one no
+ * command charges at all.
  *
  * **It is refused for a Dodge or a Dash, in the schema**, on
  * {@link placementSchema}'s rule rather than as a rules judgement: neither
@@ -2208,7 +2224,7 @@ const CONFER_REACTION = tool({
 const TAKE_ACTION = tool({
   name: 'take_action',
   description:
-    'Take Dodge, Dash or Disengage. Each costs what the book charges unless something a creature holds says otherwise — and where something does, `from` is how it is invoked. A slot nothing granted is refused rather than charged at the usual price.',
+    'Take Dodge, Dash or Disengage. Each costs what the book charges unless something running on the creature says otherwise — and where something does, `from` is how it is invoked. A slot nothing has granted this creature is refused rather than charged at the usual price.',
   mutates: true,
   input: z
     .object({
@@ -2218,7 +2234,7 @@ const TAKE_ACTION = tool({
         .enum(['action', 'bonus-action', 'reaction'])
         .optional()
         .describe(
-          'Which slot to pay a Disengage out of, where an effect has made a cheaper one available — SRD Conjure Woodland Beings’ "as a Bonus Action". Omit for what the book charges, which is an Action. A slot nothing has granted this creature is refused. Only a Disengage takes one.',
+          'Which slot to pay a Disengage out of, where an effect running on the creature has made a cheaper one available — the shape SRD Conjure Woodland Beings writes, "as a Bonus Action". Omit for what the book charges, which is an Action. A slot nothing has granted this creature is refused, and so is one no command charges at all. Only a Disengage takes one.',
         ),
     })
     .refine((value) => value.from === undefined || value.kind === 'disengage', {

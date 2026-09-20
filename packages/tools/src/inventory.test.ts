@@ -102,6 +102,12 @@ interface Line {
   readonly instance?: string;
 }
 
+/** What is in a pair of hands: a kind, and the copy where copies differ. */
+interface Worn {
+  readonly id: string;
+  readonly instance?: string;
+}
+
 const sheetOf = (t: ReturnType<typeof table>, who: string) =>
   expectOk(t.call('sheet', { who })).resolution;
 
@@ -114,8 +120,11 @@ const carrying = (t: ReturnType<typeof table>, who: string): readonly Line[] =>
 const owns = (t: ReturnType<typeof table>, who: string, item: string): number =>
   carrying(t, who).find((line) => line.id === item)?.quantity ?? 0;
 
-const equipped = (t: ReturnType<typeof table>, who: string): readonly string[] =>
-  sheetOf(t, who)['equipped'] as readonly string[];
+const equipped = (t: ReturnType<typeof table>, who: string): readonly Worn[] =>
+  sheetOf(t, who)['equipped'] as readonly Worn[];
+
+const wearing = (t: ReturnType<typeof table>, who: string): readonly string[] =>
+  equipped(t, who).map((worn) => worn.id);
 
 const attuned = (t: ReturnType<typeof table>, who: string): readonly string[] =>
   sheetOf(t, who)['attuned'] as readonly string[];
@@ -203,7 +212,7 @@ describe('owning something is not wearing it', () => {
     expect(equipped(t, 'bram')).toEqual([]);
 
     expectOk(t.call('equip_item', { who: 'bram', item: 'chain-mail' }));
-    expect(equipped(t, 'bram')).toContain('chain-mail');
+    expect(wearing(t, 'bram')).toContain('chain-mail');
     const worn = armorClass(t, 'bram');
     expect(worn).toBeGreaterThan(bare);
 
@@ -213,6 +222,34 @@ describe('owning something is not wearing it', () => {
     expect(armorClass(t, 'bram')).toBe(bare);
     // Still owned: taking armour off is not selling it.
     expect(owns(t, 'bram', 'chain-mail')).toBe(1);
+  });
+
+  /**
+   * And **which** copy is in hand, where the engine tells the copies apart.
+   * A wand's charges are its own, so a caller shown a kind and not a copy
+   * cannot say which wand it is holding — the argument `carrying` already
+   * makes about a pack, one hand further in.
+   */
+  it('says which copy is in hand, where the copies are told apart', () => {
+    const t = party();
+    expectOk(
+      t.rule('award_items', {
+        who: 'bram',
+        items: [{ id: 'wand-of-secrets', quantity: 2 }],
+        because: 'two wands in the same chest',
+      }),
+    );
+    const copies = carrying(t, 'bram').filter((line) => line.id === 'wand-of-secrets');
+    expect(copies).toHaveLength(2);
+    expect(copies[0]!.instance).toBeDefined();
+    expect(copies[0]!.instance).not.toBe(copies[1]!.instance);
+
+    expectOk(t.call('equip_item', { who: 'bram', item: copies[1]!.instance! }));
+    expect(equipped(t, 'bram')).toHaveLength(1);
+    expect(equipped(t, 'bram')[0]).toMatchObject({
+      id: 'wand-of-secrets',
+      instance: copies[1]!.instance,
+    });
   });
 
   it('refuses to wear what is not owned', () => {

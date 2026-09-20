@@ -243,6 +243,12 @@ export interface HeldItem {
   readonly instance?: string;
 }
 
+/** One thing worn or wielded, and which copy of it where that is told apart. */
+export interface HeldEquipped {
+  readonly id: string;
+  readonly instance?: string;
+}
+
 export interface HeldBudget {
   readonly action: boolean;
   readonly bonusAction: boolean;
@@ -278,9 +284,25 @@ export interface Holdings {
    */
   readonly coins: number;
   readonly carrying: readonly HeldItem[];
-  /** Worn or wielded right now, by catalogue id. */
-  readonly equipped: readonly string[];
-  /** Attuned to, by catalogue id. SRD allows three at a time. */
+  /**
+   * Worn or wielded right now — and **which copy**, where the engine tells the
+   * copies apart.
+   *
+   * The same argument `HeldItem` makes about a pack, one hand further in: a
+   * caller holding two labelled wands and shown only a kind cannot say which
+   * one is in its hand, and `unequip_item`, `attune_item` and `use_item` all
+   * take a copy's id. `quantity` is absent because a pair of hands holds one
+   * of a kind: `equipItem` refuses the second.
+   */
+  readonly equipped: readonly HeldEquipped[];
+  /**
+   * Attuned to, by catalogue id.
+   *
+   * By **kind** and not by copy, which is the engine's own answer rather than
+   * a simplification here: attunement is a yes or no per kind of item, so
+   * `attuneItem` reads a copy's id as the kind it is a copy of. SRD allows
+   * three at a time.
+   */
   readonly attuned: readonly string[];
   /**
    * What this character can cast and by which route.
@@ -591,7 +613,10 @@ export function holdingsOf(state: GameState, id: CharacterId): Holdings | null {
       quantity: line.quantity,
       ...(line.instance === undefined ? {} : { instance: line.instance }),
     })),
-    equipped: creature.equipped.map((worn) => worn.id),
+    equipped: creature.equipped.map((worn) => ({
+      id: worn.id,
+      ...(worn.instance === undefined ? {} : { instance: worn.instance }),
+    })),
     attuned: [...attunedItems(state, creature.id)],
     spellcasting: {
       classes: creature.spellcasting.classes.map((entry) => ({

@@ -2,13 +2,21 @@
  * A Disengage paid for out of a Bonus Action — the allowance the engine takes
  * and nothing could ask for.
  *
- * SRD Conjure Woodland Beings: "you can take the Disengage action **as a Bonus
- * Action** for the spell's duration." `takeDisengage` has taken a `from` since
- * that spell landed and `STATABLE_PRICES` says which slots a named action may
- * come out of, but `take_action` had two fields — who, and which of the three
- * — so the whole allowance was unreachable from a model-driven session: the
- * spell could be cast, the standing effect applied, and the only call that
- * could invoke it charged an Action every time.
+ * `takeDisengage` has taken a `from` since SRD Conjure Woodland Beings gave
+ * the engine a sentence to model — "you can take the Disengage action **as a
+ * Bonus Action** for the spell's duration" — and `STATABLE_PRICES` says which
+ * slots a named action may come out of. `take_action` had two fields, who and
+ * which of the three, so the allowance was unreachable from any caller:
+ * whatever granted it, the only call that could invoke it charged an Action.
+ *
+ * **What grants one is content, and the SRD's own entry does not.** Conjure
+ * Woodland Beings is recorded as adjudicated in `@ie/content` — its other half
+ * is a creature the engine does not summon — so nothing in the book hands this
+ * rule out today, and a file that claimed otherwise would be describing a
+ * spell that does not do it. So the granting half here is **homebrew**, built
+ * through `extendContent` with no engine change at all, which is the claim
+ * worth making anyway: a definition granting `{ kind: 'allows', action:
+ * 'disengage', from: 'bonus-action' }` reaches this field and works.
  *
  * **The caller names a slot and the engine rules on it.** A `from` nothing
  * granted is refused `action_not_allowed` rather than quietly charging the
@@ -22,12 +30,60 @@
  * fourth outcome exists to prevent. The Dash half is an engine gap and is
  * reported as one rather than papered over here.
  *
- * This file imports no engine.
+ * It imports the engine once, for `extendContent`. That is not a rule reached
+ * past the door: it is the door content comes through, and the point of the
+ * test is that content is all this took.
  */
 
 import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
+// The one engine import in this file, and it is the homebrew door rather than
+// a rule: `extendContent` is how a catalogue is added to, which is the point
+// being made — the allowance needs content and not an engine change.
+import { extendContent, type Content, type SpellEntry, type SpellDefinition } from '@ie/engine';
 import { createCampaign, createSurface, type ToolOutcome } from '@ie/tools';
+
+/**
+ * A homebrew spell that hands out the allowance, and its entry on a list.
+ *
+ * The shape `action-rules.test.ts` already drives one layer down, cast here
+ * through the door instead: Range Self, a minute of Concentration, one effect,
+ * and the rule the engine has always executed.
+ */
+const NIMBLE_STEP: SpellDefinition = {
+  id: 'nimble-step',
+  name: 'Nimble Step',
+  level: 1,
+  school: 'conjuration',
+  castingTime: 'action',
+  concentration: true,
+  durationSeconds: 600,
+  range: { kind: 'self' },
+  targets: { count: 1, self: true },
+  effects: [
+    { kind: 'action-rule', rule: { kind: 'allows', action: 'disengage', from: 'bonus-action' } },
+  ],
+};
+
+const NIMBLE_STEP_ENTRY: SpellEntry = {
+  id: 'nimble-step',
+  name: 'Nimble Step',
+  level: 1,
+  school: 'conjuration',
+  classes: ['wizard'],
+  castingTime: 'Action',
+  ritual: false,
+  concentration: true,
+};
+
+const withHomebrew = (): Content => {
+  const built = extendContent(SRD_CONTENT, {
+    spells: [NIMBLE_STEP],
+    spellEntries: [NIMBLE_STEP_ENTRY],
+  });
+  if (!built.ok) throw new Error(`the homebrew did not load: ${built.reason}`);
+  return built.value;
+};
 
 const fighter = (name: string): Record<string, unknown> => ({
   name,
@@ -55,8 +111,51 @@ const fighter = (name: string): Record<string, unknown> => ({
   dmGrants: { items: [], goldPieces: 0, magicItems: [], note: 'standard package only' },
 });
 
-function table(seed: string) {
-  const campaign = createCampaign({ content: SRD_CONTENT, seed });
+/** A wizard who has the homebrew spell written down and prepared. */
+const wizard = (name: string): Record<string, unknown> => ({
+  name,
+  classId: 'wizard',
+  level: 1,
+  speciesId: 'human',
+  backgroundId: 'sage',
+  abilities: {
+    method: 'standard-array',
+    assignment: { str: 8, dex: 14, con: 13, int: 15, wis: 12, cha: 10 },
+  },
+  abilityIncreases: { int: 2, con: 1 },
+  classSkills: ['investigation', 'insight'],
+  languages: ['Draconic', 'Elvish'],
+  alignment: 'Neutral',
+  cantrips: ['fire-bolt', 'light', 'prestidigitation'],
+  spellbook: [
+    'nimble-step',
+    'magic-missile',
+    'shield',
+    'detect-magic',
+    'mage-armor',
+    'sleep',
+  ].map((spellId) => ({ spellId, acquiredAt: 1, origin: 'level' as const })),
+  preparedSpells: ['nimble-step', 'magic-missile', 'shield', 'mage-armor'],
+  classEquipment: 'A',
+  backgroundEquipment: 'A',
+  equipped: [],
+  hitPoints: { method: 'fixed' },
+  featureChoices: { 'wizard:scholar': ['arcana'], 'human:skillful': ['perception'] },
+  feats: {
+    'sage:magic-initiate-wizard': {
+      featId: 'magic-initiate',
+      spellList: 'wizard',
+      spellcastingAbility: 'int',
+      cantrips: ['mage-hand', 'ray-of-frost'],
+      levelOneSpell: 'find-familiar',
+    },
+    'human:versatile': { featId: 'alert' },
+  },
+  dmGrants: { items: [], goldPieces: 0, magicItems: [], note: 'standard package only' },
+});
+
+function table(seed: string, content = SRD_CONTENT) {
+  const campaign = createCampaign({ content, seed });
   const surface = createSurface(campaign);
   let calls = 0;
   const call = (tool: string, input: unknown = {}): ToolOutcome =>
@@ -125,6 +224,63 @@ describe('a Disengage costs what the book charges unless something says otherwis
     expect(out.code).toBe('action_not_allowed');
     expect(budget(t, first).action).toBe(true);
     expect(budget(t, first).bonusAction).toBe(true);
+  });
+
+  /**
+   * And the accepting path, which nothing in the SRD catalogue can reach: a
+   * homebrew spell grants the allowance, the caller invokes it, and the
+   * Disengage comes out of the Bonus Action with the Action still in hand.
+   * **No engine change anywhere in it** — the rule, the grant and the price
+   * were all already there, and the field is what let somebody ask.
+   */
+  it('takes the cheaper slot when something running on the creature grants it', () => {
+    const t = table('nimble', withHomebrew());
+    expectOk(t.call('create_character', { id: 'vashti', choices: wizard('Vashti') }));
+    expectOk(t.call('create_character', { id: 'orin', choices: fighter('Orin') }));
+    expectOk(t.call('set_scene', { width: 60, depth: 40, height: 20 }));
+    expectOk(t.call('add_landmark', { name: 'the bar', at: { x: 10, y: 10 } }));
+    expectOk(t.call('place_creature', { who: 'vashti', fromLandmark: 'the bar', feet: 0 }));
+    expectOk(t.call('place_creature', { who: 'orin', fromCreature: 'vashti', feet: 5, bearing: 0 }));
+    expectOk(
+      t.call('roll_initiative', { combatants: [{ who: 'vashti' }, { who: 'orin' }] }),
+    );
+    // Whoever went first, get to the wizard's turn.
+    for (let step = 0; step < 2 && t.surface.observe().turnOf !== 'vashti'; step += 1) {
+      expectOk(t.call('end_turn'));
+    }
+    expect(t.surface.observe().turnOf).toBe('vashti');
+
+    expectOk(
+      t.call('cast_spell', {
+        caster: 'vashti',
+        spellId: 'nimble-step',
+        targets: ['vashti'],
+        slotLevel: 1,
+      }),
+    );
+    // The casting spent the Action; the Disengage comes out of the other slot.
+    expect(budget(t, 'vashti').action).toBe(false);
+    const stepped = expectOk(
+      t.call('take_action', { who: 'vashti', kind: 'disengage', from: 'bonus-action' }),
+    );
+    expect(stepped.resolution['paidFrom']).toBe('bonus-action');
+    expect(budget(t, 'vashti').bonusAction).toBe(false);
+  });
+
+  /**
+   * And a slot no command charges at all is the engine's other refusal, which
+   * is a different sentence: `action_not_allowed` says nothing granted you
+   * this price, and this says nothing charges it.
+   */
+  it('refuses a slot no command would charge, whatever granted what', () => {
+    const t = brawl();
+    const first = t.surface.observe().turnOf!;
+    const out = expectRefused(
+      t.call('take_action', { who: first, kind: 'disengage', from: 'reaction' }),
+    );
+    expect(out.code).toBe('no_such_price');
+    expect(budget(t, first).action).toBe(true);
+    expect(budget(t, first).reaction).toBe(true);
   });
 
   it('is a field of the call, proved at its own path', () => {

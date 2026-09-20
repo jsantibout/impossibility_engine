@@ -160,6 +160,15 @@ export const sensesFields = {
  * the feature and one who does not. The engine refuses what nothing unlocked,
  * by name, before a die is thrown.
  *
+ * **One of the eight runs nothing, and the description says so.** The engine
+ * executes seven — Cleave, Graze, Push, Sap, Slow, Topple, Vex — and Nick
+ * "redirects the extra attack the Light property gives, and nothing pays for
+ * one" (`commands/mastery.ts`), so a swing that asks for it is answered `ok`
+ * and no property happens. Listing it and saying nothing would be the quiet
+ * skip this field exists to prevent; listing it is still right, because the
+ * day the extra attack is paid for the door is already open and a schema that
+ * had edited the book would have to be found first.
+ *
  * **`feet` is a choice out of a bound the rules print, not a distance the
  * caller measured** — SRD Push's "up to 10 feet", which is `slotLevel`'s kind
  * of decision. The ceiling is deliberately not repeated here: `PUSH_FEET`
@@ -174,7 +183,7 @@ export const masterySchema = z.object({
     .enum(['cleave', 'graze', 'nick', 'push', 'sap', 'slow', 'topple', 'vex'])
     .optional()
     .describe(
-      'Use this property in place of the weapon’s own — SRD Tactical Master. Refused unless a feature granted the substitution. Omit to use whatever the weapon prints.',
+      'Use this property in place of the weapon’s own — SRD Tactical Master. Refused unless a feature granted the substitution. Omit to use whatever the weapon prints. Nick is accepted and carries out nothing: the extra attack it redirects is not paid for by anything the engine has.',
     ),
   feet: z
     .int()
