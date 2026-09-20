@@ -1348,32 +1348,74 @@ describe('what a shape finishes is two numbers', () => {
   });
 
   /**
-   * And neither column is vacuous, which is what makes printing both worth
-   * anything: one shape's finishes have been read, and most have not.
+   * **The second column is empty, and that is the end this pair was for.**
+   *
+   * It read "one shape's finishes have been read, and most have not" while
+   * that was true and the whole population was grandfathered. IE-060 read the
+   * nine paragraphs that were left, so every `finishes` the map still carries
+   * is one somebody read — which is the state the split existed to reach, not
+   * a guard that stopped checking. Asserting it the old way would now mean
+   * leaving a paragraph unread on purpose to keep a number above zero.
+   *
+   * So the claim is the one that is still falsifiable: the first column says
+   * something, and the second is empty **because the population was read**
+   * rather than because nothing is blocked. The entry that is still
+   * grandfathered is named in {@link BLOCKED_ON} and finishes nobody, which is
+   * asserted below rather than assumed.
    */
-  it('has some of each, so the report says something', () => {
+  it('has read every finish it reports, and says so', () => {
     const rows = allShapeConsumers();
     expect(rows.filter((row) => row.unblocksRead.length > 0).length).toBeGreaterThan(0);
-    expect(rows.filter((row) => row.unblocksUnread.length > 0).length).toBeGreaterThan(0);
+    expect(rows.filter((row) => row.unblocksUnread.length > 0)).toEqual([]);
   });
 
   /**
-   * A grandfathered spell is counted, and counted in the column that says so.
+   * And the column is empty for the right reason, which is the only way an
+   * empty column is worth anything.
    *
-   * Barkskin used to stand here and was the whole of what an Armour Class
-   * floor finishes; the spell catalogue batch wrote it tracked, so the shape
-   * now finishes nobody from either column and holds its claimant in the
-   * tracked population instead. The example moved to a spell that is still
-   * undefined, which is what the first column of this table is about — and
-   * the shape it belongs to has to be one no entry has read a clause for.
+   * One entry in the map is still grandfathered — Wish, whose Resistance the
+   * book calls permanent and for which no shape id names a grant that outlives
+   * every deadline the engine has. It is not in the second column because it
+   * prints six blockers rather than because somebody read it, and the two are
+   * told apart here: it is unread, it is in the map, and it finishes nothing.
+   *
+   * Barkskin stays as the other half of the same point: a shape whose last
+   * claimant left the undefined population finishes nobody from **either**
+   * column and holds its claim in the tracked one.
    */
-  it('still counts a spell nobody has read', () => {
+  it('names the one entry nobody has read, and shows it finishes nothing', () => {
+    const unread = Object.keys(BLOCKED_ON).filter((id) => !isSentenceComplete(id));
+    expect(unread).toEqual(['wish']);
+    expect(blockersOf('wish').length).toBeGreaterThan(1);
     expect(consumersOf('a-reduction-an-effect-applies-to-damage').unblocksUnread).toEqual([]);
     expect(consumersOf('an-armor-class-a-spell-floors').unblocks).toEqual([]);
     expect(consumersOf('an-armor-class-a-spell-floors').tracked).toEqual(['barkskin']);
-    const unread = allShapeConsumers().filter((row) => row.unblocksUnread.length > 0);
-    expect(unread.length).toBeGreaterThan(0);
-    for (const row of unread) expect(row.unblocksRead).not.toEqual(row.unblocksUnread);
+  });
+
+  /**
+   * **The claim SRD 5.2.1 does not print**, corrected at its source.
+   *
+   * Wish's entry named `an-exhaustion-level-a-spell-changes`, and nothing in
+   * the paragraph the parser holds mentions Exhaustion: 5.2.1 rewrote what the
+   * stress of a Wish costs as a Strength score of 3 for 2d4 days. The claim was
+   * inherited from an edition this repository does not implement, which is a
+   * different failure from the omissions this map keeps finding — a wrong
+   * entry rather than a missing one, and the first of those.
+   *
+   * The shape stays, because the spell that actually prints the sentence now
+   * claims it: Greater Restoration's "1 Exhaustion level" is a line no
+   * mechanical marker can see, so it is carried by a marker-less entry — the
+   * form that exists for exactly this.
+   */
+  it('files the Exhaustion level on the spell that prints one', () => {
+    expect(blockersOf('wish')).not.toContain('an-exhaustion-level-a-spell-changes');
+    for (const sentence of sentencesOf('wish')) expect(sentence).not.toContain('Exhaustion');
+    expect(consumersOf('an-exhaustion-level-a-spell-changes').blocks).toEqual([
+      'greater-restoration',
+    ]);
+    expect(consumersOf('an-exhaustion-level-a-spell-changes').unseen).toEqual([
+      'greater-restoration',
+    ]);
   });
 
   /** And the markers the coverage guard reads are the honesty guard's, not a second list. */
@@ -2474,6 +2516,7 @@ describe('a shape that gets built is content work, not a merge', () => {
     // Gaseous Form's occupancy override made the same move first.
     expect(BLOCKED_ON['greater-restoration']).toBeUndefined();
     expect(TRACKED_ADJUDICATED['greater-restoration']?.map((entry) => entry.why)).toEqual([
+      'an-exhaustion-level-a-spell-changes',
       'a-choice-made-at-the-casting',
       'a-hit-point-maximum-a-spell-moves',
     ]);
@@ -2482,8 +2525,16 @@ describe('a shape that gets built is content work, not a merge', () => {
         note.includes('Exhaustion is a level the engine counts'),
       ),
     ).toHaveLength(1);
-    // And the shape keeps one claimant, which is what keeps it in the map.
-    expect(consumersOf('an-exhaustion-level-a-spell-changes').blocks).toEqual(['wish']);
+    // **And the shape is claimed by this spell rather than by Wish.** The
+    // Exhaustion level had been in the definition's own `unmodelled` and
+    // nowhere else, because the line trips no mechanical marker and every
+    // entry here had to carry one; `marker: null` is the form that ended that,
+    // and it was written the moment somebody looked. Wish's claim on the same
+    // shape was an edition older than this book — see the Exhaustion test
+    // above — so the two corrections are one.
+    expect(consumersOf('an-exhaustion-level-a-spell-changes').blocks).toEqual([
+      'greater-restoration',
+    ]);
   });
 
   // Calm Emotions *suppresses* a condition it did not cause and restores it
@@ -2602,69 +2653,90 @@ describe('a shape that gets built is content work, not a merge', () => {
   });
 });
 
-describe('a shape may finish nothing and still block every long casting there is', () => {
+describe('the shape that was built three tranches before its entries were re-read', () => {
   /**
-   * **IE-034 built the largest blocker in the book and IE-036 spent it**, and
-   * what is left is the state this file had not seen before: a shape with a
-   * long list of claimants and an `unblocks` of **zero**.
+   * **`a-long-casting-time` is retired, and it should have been retired twice
+   * before.**
    *
-   * The twelve `a-long-casting-time` was the only blocker for were read
-   * paragraph by paragraph and written as tracked definitions, so they leave
-   * the map entirely — and every remaining claimant names it *and something
-   * else*, which is what makes the second column empty rather than the shape
-   * retired. `blocks` is the number a reader wants and `unblocks` is the
-   * number a tranche is planned from, and this is the clearest case in the map
-   * of the two saying different things.
+   * IE-034 built the clock half — a casting of a minute or more is declared,
+   * runs on the clock and settles — and IE-041 built the obligation, and the
+   * shape's own description has said "the mechanism is whole" ever since.
+   * Three entries went on naming it anyway, and the map went on printing a
+   * column of claimants for a gap that did not exist. Every one of the three
+   * was wrong in the same way and none of them was found by a guard: the
+   * shape was claimed, so "no shape sits unclaimed" was satisfied; the
+   * claimants were grandfathered, so no clause had to say what the blocker
+   * was. Reading the three paragraphs is what found it, which is the argument
+   * this whole instrument makes, arriving on the instrument itself.
    *
-   * Not retired, because the guard that retires a shape asks whether anything
-   * claims it and forty-two spells do. What is genuinely gone is the *content*
-   * half of the shape: nothing else can be finished by building the in-combat
-   * per-turn obligation alone.
+   * | | |
+   * |---|---|
+   * | Find Familiar | the hour and the Ritual, re-filed `expressible` — it keeps four other blockers |
+   * | Dream | a minute, re-filed `expressible` — what holds it back is a printed Range of Special |
+   * | Mirage Arcane | ten minutes, re-filed `expressible` — the same, with a Range of Sight |
+   *
+   * So the shape is gone from {@link MISSING_SHAPES}, the way
+   * `outcome-scoped-child-effects`, `condition-removal`, `teleportation` and
+   * `a-payout-at-a-turn-boundary` went before it. Its retirement is the fifth
+   * and the first that was **overdue** rather than earned by a build.
    */
-  it('has finished every spell it was the only blocker for', () => {
-    const casting = consumersOf('a-long-casting-time');
-    // **One, and it arrived from another shape being built.** Regenerate named
-    // this and the payout at a turn boundary; the payout was built, so "the
-    // target regains 1 Hit Point at the start of each of its turns" stopped
-    // being a blocker and the minute it takes to cast became the only one
-    // left. That is the arithmetic a build does to the map, and it moves a
-    // count in a column a tranche is planned from — which is why it is
-    // asserted rather than loosened.
-    // **Collected, and it is the finding rather than the definition.** The
-    // shape's own description has said "the mechanism is whole" for two
-    // tranches — IE-034 built the clock and IE-041 the per-turn obligation —
-    // so Regenerate was never blocked on anything at all: it was a spell
-    // nobody had written, standing in a column a tranche is planned from. It
-    // is executed now, dice and payout alike, and the column is honestly zero.
-    expect(casting.unblocks).toEqual([]);
+  it('has retired the shape the clock and the obligation finished', () => {
+    expect(Object.keys(MISSING_SHAPES)).not.toContain('a-long-casting-time');
+    expect(claimedShapes().has('a-long-casting-time')).toBe(false);
+  });
+
+  /**
+   * And the spells it used to block are still long castings the engine runs,
+   * which is the half a retirement must not lose.
+   *
+   * Regenerate is the one the map called a `finishes` and was never blocked at
+   * all; the four the magic items came for are tracked definitions on the same
+   * mechanism; and the three that were left carry the casting time as an
+   * `expressible` clause rather than as a blocker.
+   */
+  it('keeps every long casting it used to stand in front of', () => {
     expect(BLOCKED_ON['regenerate']).toBeUndefined();
     expect(SRD_CONTENT.spell('regenerate')?.effects.map((effect) => effect.kind)).toEqual([
       'heal',
       'turn-payout',
     ]);
     expect(SRD_CONTENT.spell('regenerate')?.castingTime).toBe('long');
-    // A floor below the population rather than on it: four more of the
-    // claimants left when the magic items came for Scrying, Tiny Hut, Private
-    // Sanctum and Resurrection, each written as a tracked definition on the
-    // mechanism IE-034 built. **Moved from 30 to 10 by the second catalogue
-    // pass, which wrote twenty-four more of them** — the floor follows the
-    // population down and the count belongs to `COVERAGE.md`.
-    // **Moved from 10 to 3 by the third catalogue pass**, which wrote ten
-    // more of them — Antipathy/Sympathy, Astral Projection, Glyph of Warding,
-    // Imprisonment, Magic Circle, Magic Jar, Simulacrum, Symbol, Tsunami and
-    // Wind Walk. The floor follows the population down and the count belongs
-    // to `COVERAGE.md`; what is left is four spells, and Dream and Mirage
-    // Arcane are held back by a printed Range the oracle has no kind for
-    // rather than by any mechanic, so this floor is near the end of being
-    // worth keeping at all.
-    // **Moved from 3 to 2 by Hallow**, which is the fourth and the longest
-    // casting in the book: twenty-four hours, written as a tracked definition
-    // on the same mechanism. The floor follows the population down.
-    expect(casting.blocks.length).toBeGreaterThan(2);
-    expect(claimedShapes().has('a-long-casting-time')).toBe(true);
-    for (const id of ['scrying', 'tiny-hut', 'private-sanctum', 'resurrection']) {
+    for (const id of ['scrying', 'tiny-hut', 'private-sanctum', 'resurrection', 'hallow']) {
       expect(BLOCKED_ON[id], id).toBeUndefined();
       expect(SRD_CONTENT.spell(id)?.castingTime, id).toBe('long');
+    }
+    for (const [id, clause] of [
+      ['find-familiar', 'Casting Time: 1 hour or Ritual'],
+      ['dream', 'Casting Time: 1 minute'],
+      ['mirage-arcane', 'Casting Time: 10 minutes'],
+    ] as const) {
+      expect(
+        clausesIn(BLOCKED_ON[id] ?? []).find((entry) => entry.clause === clause)?.why,
+        id,
+      ).toBe('expressible');
+    }
+  });
+
+  /**
+   * **What actually holds Dream and Mirage Arcane back, said out loud.**
+   *
+   * `SpellRange` is Self, Touch or a number of feet. SRD prints "Special" for
+   * one and "Sight" for the other, and a definition would have to invent a
+   * distance the book declined to state. No shape id names that, so both
+   * clauses are filed as the table's **under protest** — the form Confusion's
+   * slot-scaled Sphere already used — and pinned here so the protest cannot go
+   * quiet. Naming the shape is an architecture decision and this reading did
+   * not take it.
+   */
+  it('names the Range neither spell can state, under protest', () => {
+    for (const [id, field] of [
+      ['dream', 'Range: Special'],
+      ['mirage-arcane', 'Range: Sight'],
+    ] as const) {
+      const clause = clausesIn(BLOCKED_ON[id] ?? []).find((entry) => entry.clause === field);
+      expect(clause?.why, id).toBe('table');
+      expect(clause?.note, id).toContain('under protest');
+      expect(unanchoredPhrases(id, [field]), id).toEqual([]);
     }
   });
 

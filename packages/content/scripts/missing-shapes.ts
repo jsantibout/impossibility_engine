@@ -166,7 +166,7 @@ export const MISSING_SHAPES = {
   'a-damage-penalty-a-spell-grants':
     '`docs/design/rolls-and-damage.md`: "`BonusApplies` covers attacks, saves and ability checks — all rolls — and now `ac`". Damage is not a member, and a spell that makes a creature subtract from **its own** damage rolls has nowhere to say so; `damageBonuses` is the feature-side twin that exists.',
   'an-action-a-spell-compels-or-forbids':
-    'the action economy is the engine’s and `mayAct` guards every spender, and the only lever a spell has on it is a condition the engine names. Forbidding one action, compelling another, granting an extra one, or spending somebody else’s Reaction is a rider nothing expresses — which Befuddlement already says in its own words in `spell-definitions.ts`: "which is not a condition the engine names".',
+    '**Most of this shape is built and its catalogue is empty**, which is a different state from the one the description used to claim and the reason it is rewritten rather than edited. `ActionRule` in `combat.ts` is the ninth sourced grant, reached by the `action-rule` effect kind and by the `action` rider kind, and it says three of the four things this id was named for: a slot or a named action **taken away** (`forbids`, derived from Stinking Cloud, Slow and Befuddlement), one slot **narrowed** to a named few and failing closed (`permits-only`, derived from Wind Walk, Fear and Magic Jar), and a named action **paid for out of a cheaper slot** (`allows`, derived from Conjure Woodland Beings). Not one definition in the catalogue writes one, so every entry this vocabulary reaches is a spell nobody has written rather than a mechanic nobody has built — and re-reading those belongs with the tranche briefed from them, exactly as `a-long-casting-time`’s remaining entries did before that shape was spent. What is genuinely left is the fourth thing and two smaller ones: **spending somebody else’s budget**, which `combat.ts` refuses to be stretched to because it has to decide who is playing the creature — Dissonant Whispers, Compulsion and the three Dominates; an **extra action** granted rather than an existing one governed, which no member creates (Haste); and a rule that **couples two slots**, or counts the attacks inside one, which neither polarity can state (Slow). `docs/design/characters-and-equipment.md` names the second of those from the feature side: "Extra attacks inside the Attack action. The economy counts one Attack action, not the attacks in it".',
   'a-turn-a-spell-inserts-into-the-order':
     '`docs/design/time-and-turns.md`: "**In combat the clock is derived.** A round ends when the Initiative order wraps, and six seconds have passed; nobody decides that." A spell that hands its caster several turns in a row has no way to say so without a decision somebody makes, which is the one thing the derived clock refuses.',
   'a-choice-made-at-the-casting':
@@ -191,8 +191,6 @@ export const MISSING_SHAPES = {
     '`docs/design/time-and-turns.md`: "`duration.ts` has two types" — "A span of time" and "A moment in the turn order". A rest is neither, and the SRD anchors effects to one constantly. The clock records `lastShortRestAt` and a rest is a span the engine measures, so the fact is there and no deadline can name it.',
   'an-effect-that-fires-when-the-casting-ends':
     '`docs/design/time-and-turns.md`: "**Expiry is derived, like Concentration breaking** ... The log records the effect being scheduled, not expiring." Nothing hangs a consequence on the moment a casting runs out, so a spell that punishes its target when it lapses, or rewards a caster who held Concentration to the end, has no hook.',
-  'a-long-casting-time':
-    '`docs/design/casting.md`: "In combat the obligation is a state machine on the caster’s own turns, and it is built." **The mechanism is whole.** IE-034 built the clock half — a casting of a minute or more is declared, runs on the clock and settles, and a Ritual is cast the same way — and IE-041 built the obligation: `continueCasting` spends the Magic action SRD asks for on each of the caster’s turns, and a turn that ends without it fails the rite derived, through `releaseCasting`, with the slot never spent. **IE-036 then read the twelve paragraphs this was the only blocker for and wrote all twelve as tracked definitions**, so what it now blocks is only the spells that name it *and something else*; not one of them is blocked on this shape alone, which is why the second number below is zero rather than the shape being retired. **The count in this sentence was wrong for two tranches** — it said forty-two while the table beside it derived a smaller number every run, which is what a count in prose does. Those remaining entries are **not** re-filed: each is blocked by a shape this map already names, and re-reading them belongs with whichever task is briefed from the shape they are waiting on.',
   'senses-beyond-declared-sight':
     'sight is a pairwise declaration and there is nothing else — `docs/design/rolls-and-damage.md` names the missing piece as "A sight clause read from the **attacker’s** side | Faerie Fire". Blindsight and Truesight are the attacker’s senses, so a spell that excuses them cannot be written.',
   'what-a-creature-is-holding':
@@ -1775,7 +1773,20 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'the dice are ordinary and wait on the trigger above them; the same sentence, and the other mechanic in it.',
     },
   ],
+  // **The spell that actually prints an Exhaustion level, claiming the shape
+  // that names one.** The reading was in the definition's own `unmodelled`
+  // because the line trips no mechanical marker and no entry could be written
+  // without one; `marker: null` is the form that ended that, and the shape was
+  // meanwhile claimed by Wish, whose SRD 5.2.1 paragraph prints no Exhaustion
+  // at all. One sentence in the book, one entry, and the claim is on the spell
+  // that makes it.
   'greater-restoration': [
+    {
+      marker: null,
+      clause: '- 1 Exhaustion level',
+      why: 'an-exhaustion-level-a-spell-changes',
+      note: 'Exhaustion is a level rather than a condition that is on or off, and `end-condition` takes a list of condition names — so it removes the condition whole and cannot take one level off. `setExhaustionLevel` is a command a DM sends and no spell effect reaches it.',
+    },
     {
       marker: 'condition',
       clause: '- The Charmed or Petrified condition',
@@ -3719,14 +3730,111 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
       note: '`DiceScaling` by slot, which is one of the two axes the format keeps deliberately apart and the one a levelled spell reads.',
     },
   ],
-  darkness: [],
-  dream: ['a-long-casting-time', 'a-rest-an-effect-gives-or-denies'],
-  entangle: ['an-area-that-filters-its-catch', 'difficult-terrain-an-area-creates'],
+  // **Blocked on nothing, and now read.** The entry was empty, which said the
+  // right thing and recorded no reading; these five clauses say the same thing
+  // and show the paragraph was gone through. Every mechanical word in it is
+  // light, and light is the one subject `CLAUSE_MARKERS` leaves alone by name.
+  darkness: [
+    {
+      clause: 'magical Darkness spreads from a point within range and fills a 15-foot-radius Sphere',
+      why: 'expressible',
+      note: 'A Sphere of a fixed radius at a point chosen within the spell’s range is `SpellArea` verbatim, checked against `range` like any other point. What the Sphere then does is light, which is nobody’s arithmetic here.',
+    },
+    {
+      clause: 'Darkvision can’t see through it',
+      why: 'table',
+      note: 'Sight is a pairwise declaration and obscurement is not modelled at all, so who can see whom through the Darkness is the DM’s to declare exactly as cover already is.',
+    },
+    {
+      clause: 'causing the Darkness to fill a 15-foot Emanation originating from that object',
+      why: 'table',
+      note: 'An Emanation whose origin is an object rather than a creature, which `SpellArea` cannot state — and it carries no effect for the engine to resolve anywhere, so where the dark sits is narration rather than debt.',
+    },
+    {
+      clause: 'Covering that object with something opaque',
+      why: 'table',
+      note: 'Putting a bowl over the object is a thing that happens in the world and changes no authoritative state the engine holds, which is the same reading Gaseous Form’s dropped gear already has.',
+    },
+    {
+      clause: 'that other spell is dispelled',
+      why: 'table',
+      note: 'The trigger is two areas of light overlapping, and the engine holds no light to overlap. `spell-honesty.test.ts` already pins Sunburst’s mirror-image clause as the table’s on exactly these grounds, so this is the same line drawn from the other side.',
+    },
+  ],
+  // **The casting time was never the blocker.** `a-long-casting-time` has said
+  // "the mechanism is whole" for three tranches, and Hallow and Regenerate are
+  // both written on it; a minute is transcription. What holds this spell back
+  // is a printed Range the format has no kind for, and three mechanics beside
+  // it that the bare list recorded only one of.
+  dream: [
+    {
+      clause: 'Casting Time: 1 minute',
+      why: 'expressible',
+      note: 'A casting of a minute or more is declared, runs on the clock, demands the Magic action each turn in combat and settles — the mechanism Hallow’s twenty-four hours and Regenerate’s minute are both written on.',
+    },
+    {
+      clause: 'Range: Special',
+      why: 'table',
+      note: 'Filed here **under protest**, exactly as Confusion’s slot-scaled Sphere is: `SpellRange` is Self, Touch or a number of feet, and Special is none of the three, so a definition would have to invent a distance the book declined to print. No shape id names the gap and inventing one is an architecture decision, so it is declared rather than adjudicated.',
+    },
+    {
+      clause: 'the messenger is Incapacitated and has a Speed of 0',
+      why: 'a-spells-effects-applied-to-different-targets',
+      note: 'The condition and the zeroed Speed are both ordinary effects. What no definition can say is that they land on the messenger while everything else lands on the creature the spell targets, because one effect list reaches every target.',
+    },
+    {
+      clause: 'the target makes a Wisdom saving throw',
+      why: 'expressible',
+      note: 'A Wisdom save against the casting’s pinned DC, which is the plainest thing the definition format does and is what every charm in the catalogue already writes.',
+    },
+    {
+      clause: 'the target gains no benefit from its rest',
+      why: 'a-rest-an-effect-gives-or-denies',
+      note: 'A rest is a span the engine measures and its payout is `endRest`’s; nothing stands beside that to take the benefits away from a rest the sleeper actually completed.',
+    },
+    {
+      clause: 'it takes 3d6 Psychic damage when it wakes up',
+      why: 'a-deadline-anchored-to-a-rest',
+      note: 'The dice and the type are ordinary and the moment is not: the damage is owed when the rest finishes, and a deadline is a span of seconds or a moment in the turn order, neither of which a waking is.',
+    },
+  ],
+  entangle: [
+    {
+      clause: 'Grasping plants sprout from the ground in a 20-foot square within range',
+      why: 'expressible',
+      note: 'A Cube of a fixed size at a point chosen within the spell’s range, which is what every Cube in the catalogue already writes and what `ranged` already checks before a target is looked at.',
+    },
+    {
+      clause: 'these plants turn the ground in the area into Difficult Terrain',
+      why: 'difficult-terrain-an-area-creates',
+      note: 'Difficult Terrain is charged by the foot on the move that crosses it and declared by the caller, so an area that creates it is invisible to the ruler — the move records where it started and where it ended and nothing in between.',
+    },
+    {
+      clause: 'Each creature (other than you) in the area when you cast the spell',
+      why: 'an-area-that-filters-its-catch',
+      note: 'The area excludes its own caster automatically. `designatesUnaffected` is the one filter an area has and it is an explicit list of ids the caster names at the casting, which is a different sentence: a choice the caster makes rather than a rule the spell states.',
+    },
+    {
+      clause: 'must succeed on a Strength saving throw or have the Restrained condition until the spell ends',
+      why: 'expressible',
+      note: 'A Strength save whose failure branch applies a named condition ended by the casting, which is Hold Person’s shape with a different ability and a different condition.',
+    },
+    {
+      clause: 'A Restrained creature can take an action to make a Strength (Athletics) check against your spell save DC',
+      why: 'expressible',
+      note: '`ConditionRider.check` is a check the affected creature may attempt against the casting’s pinned DC, and Black Tentacles already writes this clause word for word with the same ability and the same skill.',
+    },
+    {
+      clause: 'it frees itself from the grasping plants and is no longer Restrained by them',
+      why: 'expressible',
+      note: 'The success branch releases the condition on the creature that made the check and leaves the casting running for everybody else, which is what `end-on-target` means.',
+    },
+  ],
   'find-familiar': [
     {
       clause: 'Casting Time: 1 hour or Ritual',
-      why: 'a-long-casting-time',
-      note: 'An hour, or the Ritual that IE-034 made a long casting of the same kind. The field is where the blocker is printed, because no sentence of the paragraph mentions it.',
+      why: 'expressible',
+      note: 'An hour, or the Ritual that IE-034 made a long casting of the same kind — and both are the mechanism IE-034 and IE-041 finished, which Hallow, Regenerate and forty other definitions are written on. The field is still where the clause sits, because no sentence of the paragraph mentions it; what changed is that it stopped being a blocker.',
     },
     {
       clause: 'another Beast that has a Challenge Rating of 0',
@@ -3800,8 +3908,26 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
   // must not have two answers, and the number it moves is a leverage count a
   // tranche gets planned from.
   'magic-missile': [
-    'a-spells-effects-applied-to-different-targets',
-    'damage-with-neither-an-attack-roll-nor-a-save',
+    {
+      clause: 'Each dart strikes a creature of your choice that you can see within range',
+      why: 'expressible',
+      note: 'A target list the caller names, held to the spell’s range and to declared sight, which is what every targeted spell in the catalogue already writes and what `resolveSpell` validates before anything is spent.',
+    },
+    {
+      clause: 'A dart deals 1d4 + 1 Force damage to its target',
+      why: 'damage-with-neither-an-attack-roll-nor-a-save',
+      note: 'Typed damage with a flat bonus and no roll to decide whether it lands. Every damage effect the format has hangs off an attack roll or a saving throw, so there is no kind that simply deals it.',
+    },
+    {
+      clause: 'you can direct them to hit one creature or several',
+      why: 'a-spells-effects-applied-to-different-targets',
+      note: 'A pool of three identical hits divided among the targets however the caster likes. One effect list reaches every target the same number of times, so a definition cannot say that two darts went to one creature and one to another.',
+    },
+    {
+      clause: 'The spell creates one more dart for each spell slot level above 1',
+      why: 'a-spells-effects-applied-to-different-targets',
+      note: 'The slot buys a dart rather than a target, and the two are not the same number: `TargetRule.extraPerSlotLevelAbove` grows how many creatures may be named, and this grows how many hits there are to hand out among them.',
+    },
   ],
   // **The second blocker the design document had already written down.**
   // `SpellCheck.onSuccess` says outright that there is deliberately no
@@ -3846,7 +3972,38 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
       note: 'The return, and the space it left has to have been remembered for the whole duration while the creature was nowhere. Placement into the nearest unoccupied space is ordinary; coming back from nowhere is not.',
     },
   ],
-  'mirage-arcane': ['a-long-casting-time', 'difficult-terrain-an-area-creates'],
+  // The second entry `a-long-casting-time` was wrong about, and the second
+  // spell whose real blocker is a printed Range with no kind. Reading it also
+  // found two mechanics the bare list had never recorded: the area's size is
+  // the caster's to choose, and Truesight is a sense declared sight has no room
+  // for.
+  'mirage-arcane': [
+    {
+      clause: 'Casting Time: 10 minutes',
+      why: 'expressible',
+      note: 'Ten minutes is a long casting the engine runs: declared, held on the clock, concentrating on itself until it settles. Hallow is written on the same mechanism at twenty-four hours.',
+    },
+    {
+      clause: 'Range: Sight',
+      why: 'table',
+      note: 'Filed here **under protest**, on the same grounds Dream’s Special is: `SpellRange` is Self, Touch or a number of feet, and a range bounded by what the caster can see is none of the three. No shape id names it, and inventing one is an architecture decision rather than a reading.',
+    },
+    {
+      clause: 'terrain in an area up to 1 mile square',
+      why: 'a-choice-made-at-the-casting',
+      note: 'The area’s size is chosen when the spell is cast, up to a printed maximum. A `SpellArea` is one fixed size belonging to the definition, and a per-casting choice has nowhere to be recorded.',
+    },
+    {
+      clause: 'into Difficult Terrain (or vice versa) or otherwise impede movement through the area',
+      why: 'difficult-terrain-an-area-creates',
+      note: 'Difficult Terrain is declared by the foot on the move that crosses it, so an area that creates it — or that takes it away, which this spell also does — is invisible to the ruler.',
+    },
+    {
+      clause: 'Creatures with Truesight can see through the illusion',
+      why: 'senses-beyond-declared-sight',
+      note: 'Sight is a pairwise declaration between two creatures and there is nothing else, so a sense that excuses its holder from an illusion has no state to sit in and nothing to be read off.',
+    },
+  ],
   // SRD ends the **invisibility** here and not the casting — "The double lasts
   // for the duration, but the invisibility ends immediately after you make an
   // attack roll, deal damage, or cast a spell" — so IE-032's three causes name
@@ -3865,12 +4022,122 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
   // **The bare list had missed the field.** A minute is a long casting and this
   // entry never said so, which is the kind of omission only reading the printed
   // entry rather than the paragraph finds.
-  'modify-memory': ['a-casting-ended-by-a-trigger'],
-  'phantasmal-force': [
-    'an-area-trigger-measured-from-a-point',
-    'an-area-trigger-on-the-casters-turn',
+  // **The one unread `finishes` in the map, read.** The bare list named one
+  // shape and the paragraph really does print exactly one mechanical blocker:
+  // the save, the Advantage the fought fact buys, and both conditions are
+  // written elsewhere in this catalogue already, and what is left is the
+  // sentence that ends the casting on damage from anybody at all.
+  'modify-memory': [
+    {
+      clause: 'One creature that you can see within range makes a Wisdom saving throw',
+      why: 'expressible',
+      note: 'One named target held to the spell’s range and to declared sight, rolling a Wisdom save against the casting’s pinned DC. Charm Person writes the same first sentence.',
+    },
+    {
+      clause: 'If you are fighting the creature, it has Advantage on the save',
+      why: 'expressible',
+      note: '`SpellEffect`’s `advantageIfFought` is this sentence transcribed: the definition prints the question and `CastSpellRequest.fought` answers it, reaching the roll as a named mode rather than as a number. Charm Person, Charm Monster and the three Dominates already write it.',
+    },
+    {
+      clause: 'the target has the Charmed condition for the duration',
+      why: 'expressible',
+      note: 'A named condition on the failure branch, ended by the casting through the source every grant ends through. This is the commonest shape in the catalogue.',
+    },
+    {
+      clause: 'the target also has the Incapacitated condition and is unaware of its surroundings',
+      why: 'expressible',
+      note: 'A second condition from the same failure, which an effect list applies beside the first; being unaware of its surroundings is narration the engine never arrives at.',
+    },
+    {
+      clause: 'If it takes any damage or is targeted by another spell, this spell ends',
+      why: 'a-casting-ended-by-a-trigger',
+      note: 'Two causes and neither is one of the five transcribed: damage from **anybody**, where the two built scopes are the caster and the caster’s allies, and being targeted by another spell at all, which no consequence event records.',
+    },
+    {
+      clause: 'You can alter the target’s memories of an event that took place up to 7 days ago',
+      why: 'table',
+      note: 'The slot buys how far back the altered memory may reach, which is a fact about fiction: no state the engine holds changes when the answer is seven days rather than thirty.',
+    },
   ],
-  'programmed-illusion': [],
+  // The bare list had two shapes and the paragraph prints three. The check that
+  // sees through the phantasm ends the casting, which is Maze's sentence in
+  // different words and is filed to the same shape it is.
+  'phantasmal-force': [
+    {
+      clause: 'craft an illusion in the mind of a creature you can see within range',
+      why: 'table',
+      note: 'What the illusion is, and that only one creature perceives it, is narration; the range and the sight are checked before anything is spent and are the only mechanical words in the sentence.',
+    },
+    {
+      clause: 'The target makes an Intelligence saving throw',
+      why: 'expressible',
+      note: 'An Intelligence save against the casting’s pinned DC, with the whole of the spell on the failure branch — the plainest thing the definition format does.',
+    },
+    {
+      clause: 'no larger than a 10-foot Cube and that is perceivable only to the target',
+      why: 'table',
+      note: 'The Cube bounds a thing nobody but the target perceives and carries no effect of its own; what the size is later used for is the damage clause below, which is filed where its own blocker is.',
+    },
+    {
+      clause: 'The target can take a Study action to examine the phantasm with an Intelligence (Investigation) check',
+      why: 'expressible',
+      note: '`SpellCheck` carries an ability, a skill and the casting’s own DC, and a casting with no victim is anybody’s to see through — which here is the one creature the phantasm is on.',
+    },
+    {
+      clause: 'the target realizes that the phantasm is an illusion, and the spell ends',
+      why: 'a-casting-ended-by-a-trigger',
+      note: '`SpellCheck.onSuccess` is `none` or `end-on-target` and says in its own words that `end-casting` is deliberately absent. Ending the effect on the only target is not ending the casting, and the caster would still be concentrating — Maze prints the identical sentence and is filed the same way.',
+    },
+    {
+      clause: 'An affected target can even take damage from the illusion',
+      why: 'table',
+      note: 'Whether the phantasm is a dangerous creature or a hazard at all is the DM’s to decide, and this sentence decides nothing else; the damage it introduces is the clause below.',
+    },
+    {
+      clause: 'On each of your turns, such a phantasm can deal 2d8 Psychic damage to the target',
+      why: 'an-area-trigger-on-the-casters-turn',
+      note: 'The two boundaries an `AreaTrigger` knows are the caught creature’s, and the queue that raises area debt is keyed to the creature whose turn it is. A payout owed at the **caster’s** boundary is a third moment nothing schedules.',
+    },
+    {
+      clause: 'if it is in the phantasm’s area or within 5 feet of the phantasm',
+      why: 'an-area-trigger-measured-from-a-point',
+      note: 'A reach measured from the casting’s own origin rather than from a template. `CastingOrigin.reach` answers that for an attack the caster makes and for nothing that fires on its own.',
+    },
+    {
+      clause: 'The target perceives the damage as a type appropriate to the illusion',
+      why: 'table',
+      note: 'The damage type is whatever the fiction says it is, which is the DM’s sentence; the engine would need a type to roll against a defence and the book declines to print one.',
+    },
+  ],
+  // **Blocked on nothing, and now read.** Every trigger it has is fiction and
+  // the one mechanical clause is a check the vocabulary states exactly. What
+  // stops the definition being written is neither: `check_without_duration`
+  // reads `durationSeconds` and `durationUntil` and not `untilDispelled`, so
+  // the validator refuses a check on a casting that runs until dispelled. That
+  // is a rule to widen rather than a shape to build, so it is reported instead
+  // of being filed as a blocker.
+  'programmed-illusion': [
+    {
+      clause: 'an illusion of an object, a creature, or some other visible phenomenon within range that activates when a specific trigger occurs',
+      why: 'table',
+      note: 'The range is checked before anything is spent and the trigger is a fiction the DM raises, which is the line declared cover and declared sight already draw for every fact the engine cannot see.',
+    },
+    {
+      clause: 'it must be based on visual or audible phenomena that occur within 30 feet of the area',
+      why: 'table',
+      note: 'The thirty feet bounds a trigger nothing in the engine can observe, so the distance gates narration rather than arithmetic and the ruler is never asked.',
+    },
+    {
+      clause: 'can determine that it is an illusion with a successful Intelligence (Investigation) check against your spell save DC',
+      why: 'expressible',
+      note: '`SpellCheck` carries the ability, the skill and the printed DC, and a casting with no victim is anybody’s to see through — which is this sentence exactly. Nothing about it is missing from the vocabulary.',
+    },
+    {
+      clause: 'the creature can see through the image',
+      why: 'table',
+      note: 'What a creature that has seen through the illusion then perceives is narration: no state the engine holds differs, because the image was never a thing it held.',
+    },
+  ],
   sending: [
     {
       clause: 'a creature you have met or a creature described to you by someone who has met it',
@@ -3920,13 +4187,13 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     },
     {
       clause: "it can't take Reactions",
-      why: 'an-action-a-spell-compels-or-forbids',
-      note: 'One category of action forbidden while the rest stay. `mayAct` guards the Reaction and a spell reaches it only through a condition the engine names, and no condition forbids exactly this.',
+      why: 'expressible',
+      note: 'One slot taken away with everything the sentence does not name left alone, which is `ActionRule`’s `forbids` exactly — and Slow is one of the three SRD sentences that member was derived from. It reaches the state as the ninth sourced grant and ends through the doors every grant ends through.',
     },
     {
       clause: 'it can take either an action or a Bonus Action, not both',
       why: 'an-action-a-spell-compels-or-forbids',
-      note: 'A rule that spends one of the turn\'s two slots when the other is used, and a cap of one attack inside the Attack action. The economy counts what a turn holds and nothing lets an effect change the counting.',
+      note: 'The residue, and it is the one sentence on this spell the built vocabulary does not reach: a rule that spends one of the turn’s two slots when the other is used, and a cap of one attack inside the Attack action. `forbids` takes a slot away outright, `permits-only` narrows one to named actions, and neither can couple two slots to each other or count the attacks inside an action.',
     },
     {
       clause: 'there is a 25 percent chance the spell fails',
@@ -3939,6 +4206,18 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
       note: '`RepeatSave` at `end-of-turn` with `onSuccess: "end-on-target"`, which Hold Person already writes and the scenario test already exercises.',
     },
   ],
+  // **One shape came off this list because the book does not print it.** SRD
+  // 5.2.1 rewrote what the stress of a Wish costs: a Strength score of 3 for
+  // 2d4 days, where the previous edition gave an Exhaustion level. Nothing in
+  // this paragraph mentions Exhaustion, so the claim was inherited from a book
+  // this repository does not implement — and `an-exhaustion-level-a-spell-changes`
+  // is claimed instead by Greater Restoration, which prints it.
+  //
+  // The entry is still grandfathered, and deliberately: one of its sentences is
+  // a Resistance the book calls **permanent**, and a grant that outlives every
+  // deadline the engine has has no shape id here. Naming one is a decision
+  // rather than a reading, so the paragraph stays unread and the reason is
+  // written down instead of being filed as something it is not.
   wish: [
     'a-casting-that-casts-another-spell',
     'a-deadline-anchored-to-a-rest',
@@ -3946,7 +4225,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     'a-random-outcome-that-is-not-a-d20',
     'a-roll-result-an-effect-replaces',
     'an-ability-score-a-spell-changes',
-    'an-exhaustion-level-a-spell-changes',
   ],
 };
 

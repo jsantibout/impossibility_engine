@@ -89,6 +89,19 @@ const SINCE: readonly (readonly [string, ShapeId, string])[] = [
     'the spell fails if the radius includes an area already under the effect of',
   ],
   ['hallow', 'a-choice-made-at-the-casting', 'Choose any of these creature types'],
+  // **The sixth, and it is a correction rather than a spell being written.**
+  // Greater Restoration's Exhaustion level had been in the definition's own
+  // `unmodelled` and nowhere else, on the stated grounds that the line trips no
+  // marker for a guard to demand one against — written before this form
+  // existed, and never revisited once it did. Meanwhile the shape was claimed
+  // by Wish, whose SRD 5.2.1 paragraph prints no Exhaustion at all. So the form
+  // is what moves the claim onto the one spell in the book that makes it, and
+  // the shape survives a wrong entry being deleted.
+  [
+    'greater-restoration',
+    'an-exhaustion-level-a-spell-changes',
+    '- 1 Exhaustion level',
+  ],
 ];
 
 describe('a blocker no mechanical marker can see survives the spell being written', () => {
@@ -149,6 +162,11 @@ describe('a blocker no mechanical marker can see survives the spell being writte
         'a-condition-a-spell-suppresses',
         'a-range-that-scales-with-caster-level',
         'an-automatic-success-by-creature-type',
+        // The sixth, and the one that arrived by a different road: the spell
+        // was already written and the reading was in its `unmodelled`, so what
+        // the form saved here was a shape from being retired on the strength
+        // of a claim from the wrong edition of the book.
+        'an-exhaustion-level-a-spell-changes',
       ],
     );
     // Every one of the three the form landed with is still in it, so the list
@@ -333,6 +351,13 @@ describe('the readings this pass added are held to the same two rules', () => {
    * with the span the book prints — so the blocker is spent rather than
    * dropped; what is asserted here is that it could not have been carried even
    * if it had not been.
+   *
+   * **The shape it used to name is retired**, because reading the last three
+   * paragraphs that claimed it found every one of them expressible — so the
+   * synthetic names a shape that is still real instead. What it is testing is
+   * the *anchor*, not the shape: a printed field is in no sentence of the
+   * prose, and an entry pointed at one says nothing either rule can read
+   * whatever it claims.
    */
   it('refuses Hallow’s casting time as an adjudication of any kind', () => {
     for (const marker of [null, 'condition'] as const) {
@@ -340,7 +365,7 @@ describe('the readings this pass added are held to the same two rules', () => {
         {
           marker,
           clause: 'Casting Time: 24 hours',
-          why: 'a-long-casting-time',
+          why: 'a-choice-made-at-the-casting',
           note: 'a synthetic entry, built to be caught: the field the undefined population may anchor to and this one may not.',
         },
       ]);
