@@ -65,6 +65,24 @@ a list stops guarding the day somebody adds to it and does not think to come
 here. Four doors were found shut by accident before it existed, and six more
 the day it did.
 
+**What a character holds is a third read, beside `look` and `options`.** The
+three answer different questions: `look` is the table — everybody in the room,
+where they stand, what the engine is owed; `options` is the instant — a debt in
+a creature's way, a Reaction window open to it, a check an effect offers;
+`sheet` is the character — its slots by level with Pact Magic kept as the
+separate resource it is, its pools and what refills them, what it can cast and
+by which route, and its features. It exists because a model could not see its
+own spell slots, and because a model cannot elect a feature it has not been
+told it holds. It states no verdict: whether a feature may be used right now is
+the command's answer, and asking twice is how two answers drift. The one thing
+it adds beyond the record is `spentBy`, the name of the tool that spends each
+feature — the same closing of a loop `Establish.tools` makes, because a feature
+a caller is told it holds and can find no door for is half a door. The doors
+themselves are one tool per engine command, and the two pools the engine holds
+with nothing behind them — Channel Divinity, Bardic Inspiration — are
+deliberately left shut, because a pool a caller can spend for no effect is
+worse than one it cannot spend.
+
 Out of scope until decided: persisting the log (a `Content` holds closures, so
 what is stored is the `ContentInput`), and multiple scenes. Two things a later
 batch owes: an engine command that rolls Initiative *and* begins combat, so
