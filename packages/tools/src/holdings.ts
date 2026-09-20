@@ -48,6 +48,8 @@ export const SPENT_BY = {
   'self-heal': 'heal_with_feature',
   'healing-touch': 'draw_on_healing_pool',
   recovery: 'regain_uses',
+  /** A pool with a menu: SRD Channel Divinity's Turn Undead, Divine Spark. */
+  'pool-option': 'use_pool_option',
   /** Elected on a casting rather than spent on its own — `usingFeatures`. */
   'casting-election': 'cast_spell',
 } as const;
@@ -83,6 +85,15 @@ export interface HeldPool {
   readonly regainsOnShortRest: number | null;
 }
 
+/** One item off a pool's menu, named by the call that spends a use on it. */
+export interface HeldPoolOption {
+  /** The id `use_pool_option.option` takes — SRD's `turn-undead`. */
+  readonly option: string;
+  /** What the log calls it: SRD's "Turn Undead". */
+  readonly name: string;
+  readonly action: 'action' | 'bonus-action';
+}
+
 export interface HeldFeature {
   readonly feature: string;
   readonly name: string;
@@ -111,6 +122,17 @@ export interface HeldFeature {
    * and `endsOn` really ends the feature.
    */
   readonly capSeconds?: number;
+  /**
+   * What a use of this feature's pool buys, for a pool with a menu.
+   *
+   * SRD Channel Divinity is one feature, one pool and several named purchases
+   * at one use apiece, and `use_pool_option` is asked for the feature *and*
+   * the option — so a caller shown the feature and not the menu has been told
+   * half of what it needs to type the call. Each carries its own price in the
+   * action economy, because the SRD writes one per option rather than one per
+   * feature.
+   */
+  readonly options?: readonly HeldPoolOption[];
   /** A healing touch's conditions, and what each one costs out of the pool. */
   readonly lifts?: readonly string[];
   readonly costPerCondition?: number;
@@ -326,6 +348,47 @@ export function holdingsOf(state: GameState, id: CharacterId): Holdings | null {
       active: false,
       restores: one.restores,
       moment: one.moment,
+    });
+  }
+
+  /**
+   * A pool with a menu, reported once per **feature** and not once per option.
+   *
+   * SRD Channel Divinity is one feature whose uses buy any of three things, so
+   * three lines would report three pools of two uses where there is one pool of
+   * two. The options ride on the single line instead, which is also the shape
+   * the call takes: `use_pool_option` is asked for a feature and an option.
+   *
+   * **This is the gap `spentBy` exists to prevent, and it was open.** A Cleric
+   * was told it held Channel Divinity — the pool is on `pools` — and no feature
+   * line named a tool for it, because this file enumerated every other host of
+   * an effect list and not this one. The engine has executed Turn Undead and
+   * Divine Spark since the week a pool use became the third host.
+   */
+  const menus = new Map<string, HeldPoolOption[]>();
+  for (const one of sheet.poolOptions ?? []) {
+    const found = menus.get(one.feature);
+    const entry = { option: one.option, name: one.name, action: one.action };
+    if (found === undefined) menus.set(one.feature, [entry]);
+    else found.push(entry);
+  }
+  for (const one of sheet.poolOptions ?? []) {
+    const options = menus.get(one.feature) ?? [];
+    add({
+      feature: one.feature,
+      name: one.featureName,
+      kind: 'pool-option',
+      spentBy: SPENT_BY['pool-option'],
+      // The price is the option's rather than the feature's — the SRD prints a
+      // casting time per entry on the menu — so the feature reports one only
+      // where every option agrees on it, and the options carry their own.
+      action: options.every((entry) => entry.action === options[0]!.action)
+        ? options[0]!.action
+        : null,
+      pool: one.pool,
+      left: leftIn(state, who, one.pool),
+      active: false,
+      options,
     });
   }
 

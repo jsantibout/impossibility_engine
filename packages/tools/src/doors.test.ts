@@ -580,7 +580,10 @@ const ANSWERS: Readonly<Record<string, Answer>> = {
   },
 
   // — a casting states four facts, and each is refused until it does ———————
-  damage_type_required: { fields: ['cast_spell.damageType'] },
+  // Two callers now: a casting that prints a choice of types, and a feature's
+  // pool option that does — SRD Divine Spark's "Necrotic or Radiant damage
+  // (your choice)". One code, and each door carries the field that answers it.
+  damage_type_required: { fields: ['cast_spell.damageType', 'use_pool_option.damageType'] },
   fought_fact_required: { fields: ['cast_spell.fought'] },
   destination_required: { fields: ['activate_spell.to', 'cast_spell.teleportTo'] },
 

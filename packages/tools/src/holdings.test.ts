@@ -30,6 +30,7 @@ import {
   createCampaign,
   createDmSurface,
   createSurface,
+  SPENT_BY,
   TOOL_NAMES,
   type ToolOutcome,
 } from '@ie/tools';
@@ -132,13 +133,40 @@ const autoChoices = (
   return out;
 };
 
-const improvementSlots = (classId: string, level: number): readonly string[] =>
-  (SRD_CONTENT.classById(classId)?.features ?? [])
-    .filter(
-      (feature) =>
-        feature.id.startsWith(`${classId}:ability-score-improvement`) && feature.level <= level,
-    )
-    .map((feature) => feature.id);
+/**
+ * A legal feat for every slot the plan asks about, whatever asks.
+ *
+ * It read the class's Ability Score Improvements and two hand-named Fighting
+ * Style slots, which is a rule about the classes somebody happened to build —
+ * and `champion:additional-fighting-style` is a slot on a *subclass* that
+ * neither half saw. So the slots are taken from the same feature list every
+ * other choice is taken from, and answered by the one thing the category says:
+ * a Fighting Style where the slot asks for one, and the Ability Score
+ * Improvement everywhere else. Each Fighting Style slot gets a different style,
+ * because the same feat twice is refused.
+ */
+const FIGHTING_STYLES: readonly string[] = SRD_CONTENT.feats
+  .filter((feat) => feat.category === 'fighting-style')
+  .map((feat) => feat.id);
+
+const featSlots = (
+  classId: string,
+  level: number,
+): Record<string, Record<string, unknown>> => {
+  const out: Record<string, Record<string, unknown>> = {};
+  let styles = 0;
+  for (const feature of featuresUpTo(classId, level)) {
+    if (feature.choice?.kind !== 'feat') continue;
+    // The two the origin asks for, which every character here answers the same
+    // way: a Sage's Magic Initiate and a Human's free feat.
+    if (feature.id === 'sage:magic-initiate-wizard' || feature.id === 'human:versatile') continue;
+    out[feature.id] =
+      feature.choice.category === 'fighting-style'
+        ? { featId: FIGHTING_STYLES[styles++ % FIGHTING_STYLES.length]! }
+        : { featId: 'ability-score-improvement', abilities: ['cha', 'cha'] };
+  }
+  return out;
+};
 
 const skillsFor = (classId: string): readonly string[] => {
   const choices = SRD_CONTENT.classById(classId)!.skillChoices;
@@ -185,15 +213,7 @@ const character = (
         levelOneSpell: 'find-familiar',
       },
       'human:versatile': { featId: 'alert' },
-      ...(classId === 'fighter' || classId === 'paladin'
-        ? { [`${classId}:fighting-style`]: { featId: 'defense' } }
-        : {}),
-      ...Object.fromEntries(
-        improvementSlots(classId, level).map((slot) => [
-          slot,
-          { featId: 'ability-score-improvement', abilities: ['cha', 'cha'] },
-        ]),
-      ),
+      ...featSlots(classId, level),
     },
     dmGrants: { items: [], goldPieces: 0, magicItems: [], note: 'standard' },
     ...over,
@@ -211,6 +231,18 @@ const evoker = () =>
     abilityIncreases: { int: 2, con: 1 },
   });
 
+/**
+ * Every class the catalogue publishes, and the level the sweep builds them at.
+ *
+ * Ten, because that is where the last of the spendable kinds arrives: SRD
+ * Empowered Evocation is a Wizard 10 feature and the only elective one a
+ * catalogue party reaches below fourteen. Everything else the sweep cares
+ * about — Channel Divinity at 2, Second Wind at 1, Lay On Hands at 1, Magical
+ * Cunning at 2 — is long since granted by then.
+ */
+const EVERY_CLASS: readonly string[] = SRD_CONTENT.classes.map((one) => one.id);
+const SWEPT_LEVEL = 10;
+
 // — a table, and a caller that numbers its own ids as a transport would ————
 
 function table(seed = 'holdings') {
@@ -227,6 +259,15 @@ function table(seed = 'holdings') {
     dm.call({ tool, input, commandId: `dm_${(calls += 1)}` });
 
   return { campaign, surface, call, rule };
+}
+
+/** One character of every class in the book, each named for its class. */
+function wholeCatalogue(seed = 'catalogue') {
+  const t = table(seed);
+  for (const classId of EVERY_CLASS) {
+    expectOk(t.call('create_character', { id: classId, choices: character(classId, SWEPT_LEVEL) }));
+  }
+  return t;
 }
 
 const expectOk = (outcome: ToolOutcome) => {
@@ -388,33 +429,46 @@ describe('a character can be asked what it holds', () => {
 
   /**
    * The same closing of a loop `Establish.tools` makes: a feature a caller is
-   * told it holds and can find no door for is half a door. The party below is
-   * chosen so that every kind of spendable feature is represented — an
-   * activation, a self-heal, a healing touch, a recovery and an election —
-   * and the sweep asserts that too, so a fifth kind added with no tool fails
-   * here rather than in a session.
+   * told it holds and can find no door for is half a door.
+   *
+   * **The party is the catalogue and not a cast.** It was five hand-picked
+   * characters — a Barbarian, a Paladin, a Fighter, a Warlock and an Evoker —
+   * and a Cleric's Channel Divinity was therefore invisible to it for the whole
+   * of the week the engine could execute Turn Undead and nothing could ask it
+   * to. A guard over a hand-chosen party guards that party; a guard over the
+   * book guards whatever the book grows. So every class the content publishes
+   * is created, at the level {@link SWEPT_LEVEL} says, and both sides of the
+   * claim are derived: the kinds observed come off the sheets, and the kinds
+   * expected come off `SPENT_BY`, which is the surface's own record of what
+   * spends what. A sixth kind with no tool fails here; so does a kind that
+   * exists in the record and nothing in the catalogue grants.
    */
   it('names, for every feature it can spend, a tool this surface really has', () => {
-    const t = table();
-    expectOk(t.call('create_character', { id: 'grum', choices: character('barbarian', 3) }));
-    expectOk(t.call('create_character', { id: 'ser', choices: character('paladin', 3) }));
-    expectOk(t.call('create_character', { id: 'bram', choices: character('fighter', 3) }));
-    expectOk(t.call('create_character', { id: 'nim', choices: character('warlock', 3, ['hex']) }));
-    expectOk(t.call('create_character', { id: 'vashti', choices: evoker() }));
+    const t = wholeCatalogue();
 
-    const spendable = ['grum', 'ser', 'bram', 'nim', 'vashti'].flatMap((who) =>
-      sheetOf(t, who).features.filter((one) => one.spentBy !== null),
+    const spendable = EVERY_CLASS.flatMap((classId) =>
+      sheetOf(t, classId).features.filter((one) => one.spentBy !== null),
     );
-    // Non-vacuous, and exhaustive over the kinds: a party holding none of one
-    // of them would make the sweep silent about it.
-    expect([...new Set(spendable.map((one) => one.kind))].sort()).toEqual([
-      'activated',
-      'casting-election',
-      'healing-touch',
-      'recovery',
-      'self-heal',
-    ]);
+    // Non-vacuous, and exhaustive over the kinds the surface claims to spend:
+    // a party holding none of one of them would make the sweep silent about it.
+    expect([...new Set(spendable.map((one) => one.kind))].sort()).toEqual(
+      Object.keys(SPENT_BY).sort(),
+    );
     for (const one of spendable) expect(TOOL_NAMES).toContain(one.spentBy);
+  });
+
+  /**
+   * And the sweep is aimed at something: the class that was invisible to the
+   * old one holds a feature, of the kind that was missing, with a door.
+   */
+  it('and the Cleric the old party had no room for is in it', () => {
+    const t = wholeCatalogue();
+    expect(sheetOf(t, 'cleric').feature('cleric:channel-divinity')).toMatchObject({
+      name: 'Channel Divinity',
+      kind: 'pool-option',
+      spentBy: 'use_pool_option',
+      pool: 'channel-divinity',
+    });
   });
 
   it('reports the features a casting may elect, which is the field that elects them', () => {
@@ -731,6 +785,154 @@ describe('a Warlock can regain what a feature gives back', () => {
     const outcome = expectRefused(t.call('regain_uses', { who: 'nim', feature: 'warlock:magical-cunning' }));
     expect(outcome.code).toBe('nothing_to_regain');
     expect(sheetOf(t, 'nim').pool('warlock:magical-cunning')!.left).toBe(1);
+  });
+});
+
+/**
+ * SRD Channel Divinity, which is a pool with a menu: one use, several named
+ * purchases, and an effect list behind each of them.
+ *
+ * The pool has been declared, sized and refilled correctly since pools landed,
+ * and what a use *bought* was executed by nothing until this week. The engine
+ * executes it now, which is what makes a door here honest rather than a room
+ * with nothing in it: `sheet` reports the options and `use_pool_option` spends
+ * one.
+ */
+describe('a Cleric can be told to turn undead', () => {
+  const chapel = (seed: string) => {
+    const t = table(seed);
+    expectOk(t.call('create_character', { id: 'ilsa', choices: character('cleric', 5) }));
+    expectOk(t.call('add_creature', { id: 'bones', monsterId: 'skeleton' }));
+    expectOk(t.call('set_scene', { width: 60, depth: 40, height: 20 }));
+    expectOk(t.call('add_landmark', { name: 'the altar', at: { x: 10, y: 10 } }));
+    expectOk(t.call('place_creature', { who: 'ilsa', fromLandmark: 'the altar', feet: 0 }));
+    expectOk(t.call('place_creature', { who: 'bones', fromCreature: 'ilsa', feet: 15, bearing: 0 }));
+    return t;
+  };
+
+  /**
+   * The report first, because a caller that has not been told the menu cannot
+   * name an item off it: the feature carries its options and the tool that
+   * spends them.
+   */
+  it('reports the menu a use buys, and the tool that spends one', () => {
+    const t = chapel('turn-undead');
+    const held = sheetOf(t, 'ilsa');
+
+    expect(held.pool('channel-divinity')).toMatchObject({ label: 'Channel Divinity', left: 2 });
+    expect(held.feature('cleric:channel-divinity')).toMatchObject({
+      kind: 'pool-option',
+      spentBy: 'use_pool_option',
+      action: 'action',
+      pool: 'channel-divinity',
+      left: 2,
+    });
+    const options = (
+      held.feature('cleric:channel-divinity') as unknown as {
+        readonly options: readonly { readonly option: string; readonly name: string }[];
+      }
+    ).options;
+    expect(options.map((one) => one.option)).toEqual([
+      'turn-undead',
+      'divine-spark-restore',
+      'divine-spark-harm',
+    ]);
+  });
+
+  /**
+   * SRD: "Each Undead of your choice within 30 feet of you ... must make a
+   * Wisdom saving throw. If the creature fails its save, it has the Frightened
+   * and Incapacitated conditions for 1 minute."
+   *
+   * The DC is the Cleric's own and the save is the skeleton's; the call names
+   * neither. What is asserted is the save happening against the creature the
+   * emanation caught, and the use coming out of the pool.
+   */
+  it('censures the Undead in the emanation, and spends one use of the pool', () => {
+    const t = chapel('turn-undead');
+
+    const outcome = expectOk(
+      t.call('use_pool_option', {
+        who: 'ilsa',
+        feature: 'cleric:channel-divinity',
+        option: 'turn-undead',
+      }),
+    );
+
+    expect(outcome.resolution['used']).toBe('turn-undead');
+    const outcomes = outcome.resolution['outcomes'] as readonly { readonly target: string }[];
+    expect(outcomes.map((one) => one.target)).toEqual(['bones']);
+    // The engine rolled the skeleton's save; the caller sent no number and
+    // reads none back but the one the log carries.
+    expect(outcome.events.some((event) => event.type === 'roll-recorded')).toBe(true);
+    expect(sheetOf(t, 'ilsa').pool('channel-divinity')!.left).toBe(1);
+  });
+
+  /**
+   * SRD Divine Spark deals "Necrotic or Radiant damage (your choice)", and the
+   * engine refuses to choose. The refusal names the field that answers it, and
+   * the answer is the same call with that field filled in — which is
+   * `damageType` doing on a feature exactly what it does on a casting.
+   */
+  it('refuses the choice it will not make for the caller, and spends nothing', () => {
+    const t = chapel('divine-spark');
+    const before = {
+      pool: sheetOf(t, 'ilsa').pool('channel-divinity')!.left,
+      rolls: t.campaign.state().rollsIssued,
+    };
+
+    const refusal = expectRefused(
+      t.call('use_pool_option', {
+        who: 'ilsa',
+        feature: 'cleric:channel-divinity',
+        option: 'divine-spark-harm',
+        target: 'bones',
+      }),
+    );
+    expect(refusal.code).toBe('damage_type_required');
+    expect(sheetOf(t, 'ilsa').pool('channel-divinity')!.left).toBe(before.pool);
+    expect(t.campaign.state().rollsIssued).toBe(before.rolls);
+
+    // And the same call again, with the field the refusal named, goes through.
+    const answered = expectOk(
+      t.call('use_pool_option', {
+        who: 'ilsa',
+        feature: 'cleric:channel-divinity',
+        option: 'divine-spark-harm',
+        target: 'bones',
+        damageType: 'radiant',
+      }),
+    );
+    expect(answered.events.some((event) => event.type === 'damage-taken')).toBe(true);
+    expect(sheetOf(t, 'ilsa').pool('channel-divinity')!.left).toBe(before.pool - 1);
+  });
+
+  it('refuses an option the feature does not offer, naming the ones it does', () => {
+    const t = chapel('no-such-option');
+    const refusal = expectRefused(
+      t.call('use_pool_option', {
+        who: 'ilsa',
+        feature: 'cleric:channel-divinity',
+        option: 'smite-the-heretic',
+      }),
+    );
+    expect(refusal.code).toBe('no_such_option');
+    expect(refusal.reason).toContain('turn-undead');
+    expect(sheetOf(t, 'ilsa').pool('channel-divinity')!.left).toBe(2);
+  });
+
+  /**
+   * And a Paladin's Channel Divinity is still shut, which is the honest half
+   * of this door: the pool is declared and what a use buys is executed by
+   * nothing, so the feature offers no option and reports no tool to spend it.
+   */
+  it('leaves shut the pool whose options nothing executes', () => {
+    const t = table('paladin-cd');
+    expectOk(t.call('create_character', { id: 'ser', choices: character('paladin', 5) }));
+    const held = sheetOf(t, 'ser');
+
+    expect(held.pool('channel-divinity')).toMatchObject({ label: 'Channel Divinity' });
+    expect(held.feature('paladin:channel-divinity')).toBeUndefined();
   });
 });
 

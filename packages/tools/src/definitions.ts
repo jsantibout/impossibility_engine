@@ -152,6 +152,7 @@ import {
   takeDodge,
   takeOpportunityAttack,
   useHealingTouch,
+  usePoolOption,
   useRecovery,
   useSelfHeal,
 } from '@ie/engine';
@@ -1854,6 +1855,76 @@ const REGAIN_USES = tool({
     ),
 });
 
+/**
+ * Spend a use of a pool on one of the things that use buys.
+ *
+ * SRD Channel Divinity: one pool, a named menu, and every item on it at the
+ * same price of one use. **The note above says two pools were left shut
+ * because nothing executed what a use bought, and for this one that has
+ * stopped being true**: a feature's pool use is the third host of an effect
+ * list, so Turn Undead rolls its Wisdom saves against the Cleric's own spell
+ * save DC and Divine Spark heals or harms with the die the Cleric table
+ * gives. A door onto a room that now exists.
+ *
+ * **Paladin's Channel Divinity is still shut, and by the same rule.** It
+ * declares the pool and prints no options the engine executes, so `sheet`
+ * reports no feature line for it and there is nothing here to call — which is
+ * the argument working rather than an omission.
+ *
+ * Neither field is a number. `target` is who the option is aimed at, checked
+ * against the reach the option prints; `damageType` is which of the types the
+ * option prints this use deals, refused unless the option prints a choice and
+ * refused when it prints one and the call names none. That is `cast_spell`'s
+ * own rule, asked of a feature — and `damage_type_required` is answerable
+ * here as well as there.
+ */
+const USE_POOL_OPTION = tool({
+  name: 'use_pool_option',
+  description:
+    'Spend one use of a feature whose pool buys a menu of things — SRD Channel Divinity is the one the book writes this way, with Turn Undead and Divine Spark on it. Name the feature and which item off its menu; `sheet` lists both, what each costs in the action economy and what is left of the pool. The engine charges the action, spends the use, works out who the option reaches, derives the save DC and the dice from the character’s own sheet and rolls them.',
+  mutates: true,
+  input: z.object({
+    who: creatureId,
+    feature: z
+      .string()
+      .min(1)
+      .describe('The feature id, from `sheet`, e.g. cleric:channel-divinity.'),
+    option: z
+      .string()
+      .min(1)
+      .describe('Which of the things a use buys, from that feature’s `options`, e.g. turn-undead.'),
+    target: creatureId
+      .optional()
+      .describe(
+        'Who it is aimed at, for an option that names one creature. Left out for an option that fills an area and catches whoever is in it, and left out for one aimed at the user themselves.',
+      ),
+    damageType: damageTypeSchema
+      .optional()
+      .describe(
+        'Which of the damage types the option prints this use deals — SRD Divine Spark’s "Necrotic or Radiant damage (your choice)". Leaving it out for an option that prints a choice is refused, and naming one for an option that prints a single type is refused too.',
+      ),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      usePoolOption(
+        context.campaign.state(),
+        who(args.who),
+        {
+          feature: args.feature,
+          option: args.option,
+          ...(args.target === undefined ? {} : { target: who(args.target) }),
+          ...(args.damageType === undefined ? {} : { damageType: args.damageType }),
+          ...identity(context),
+        },
+        context.campaign.supply(),
+      ),
+      (value) => value.events,
+      (value) => ({ feature: args.feature, used: args.option, outcomes: value.outcomes }),
+      (value) => value.unverified,
+    ),
+});
+
 const TAKE_ACTION = tool({
   name: 'take_action',
   description: 'Take Dodge, Dash or Disengage.',
@@ -2031,6 +2102,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   SHEET,
   TAKE_ACTION,
   TAKE_OPPORTUNITY_ATTACK,
+  USE_POOL_OPTION,
 ].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 
 export const TOOL_NAMES: readonly string[] = TOOLS.map((definition) => definition.name);
