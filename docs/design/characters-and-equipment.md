@@ -83,9 +83,17 @@ into their contents.
 creature: printed numbers are carried as *stated* rather than derived, the
 creature type reaches state, unconditional defences and condition immunities
 apply, and qualified ones ("except from its vampire master") are withheld and
-reported. `addCreature(state, id, monster)` takes the stat block itself,
-because there is no monster registry to look one up in — a stat block is
-data handed to the engine, like everything else.
+reported. `addCreature(state, content, id, monsterId)` takes the stat block's
+**id** and reads the block out of content, mirroring `equipItem`. A monster is
+content like an item: `SRD_CONTENT` carries the printed bestiary and homebrew
+enters through `loadContent`/`extendContent`. The id rather than the value
+because an entry point that accepts a stat block is a door a model-authored
+Armour Class walks through and nothing guards it — `boundary.test.ts` proves
+the external-roll functions unreachable by name, and a value parameter is on
+nobody's list. `unknown_monster` was withheld while there was nothing to look
+one up in; it is a rule now. What the command reads is pinned whole into
+`creature-added` — the sheet, the printed numbers, both halves of the defence
+run and the size — so the fold still opens nothing.
 
 ## Magic items
 

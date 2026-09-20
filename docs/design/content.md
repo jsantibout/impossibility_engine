@@ -9,8 +9,8 @@ Read before changing `content.ts`, the definition vocabulary at the top of
 The engine owns **mechanics**: the closed vocabularies a spell effect, a
 feature grant or an item can be written in, and the rules that execute them.
 It owns **no catalogue**. Every spell, class, subclass, feature, species,
-background, feat, item, language and alignment is content, supplied by the
-caller as one immutable, validated `Content` value.
+background, feat, item, monster, language and alignment is content, supplied
+by the caller as one immutable, validated `Content` value.
 
 | | Where |
 |---|---|

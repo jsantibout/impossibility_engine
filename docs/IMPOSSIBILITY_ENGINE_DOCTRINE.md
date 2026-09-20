@@ -119,8 +119,8 @@ paying for.
     future NPC cognition systems, human players, and other controllers should
     ultimately interact with reality through controlled Engine operations.
 13. **The Engine holds no catalogue.** Spells, classes, features, species,
-    backgrounds, feats and items are content, supplied to the Engine as a
-    validated value. The SRD's catalogue and a table's homebrew enter through
+    backgrounds, feats, items and monsters are content, supplied to the Engine
+    as a validated value. The SRD's catalogue and a table's homebrew enter through
     the same door and the same checks; content that uses mechanics the Engine
     already has never requires changing the Engine; and what a command reads
     from content is pinned into the events it emits, so replay never depends
