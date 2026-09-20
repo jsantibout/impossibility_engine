@@ -160,6 +160,7 @@ import {
   settleDamage,
   speedOf,
   takeDamageReaction,
+  takeDamageResponse,
   takeDash,
   takeDisengage,
   takeDodge,
@@ -2301,6 +2302,77 @@ const DECLINE_DAMAGE_REACTION = tool({
     ),
 });
 
+/**
+ * Swing back at whatever just hurt you — the third window's feature half.
+ *
+ * SRD Retaliation: "When you take damage from a creature that is within 5 feet
+ * of you, you can take a Reaction to make one melee attack against that
+ * creature, using a weapon or an Unarmed Strike."
+ *
+ * **Two halves, and only the spell one had a door.** *Hellish Rebuke* is cast
+ * into this moment through `cast_spell` and always could be; the feature half
+ * is `takeDamageResponse`, which landed with the third timing family and
+ * reached no tool — so `options` reported the offer and nothing could answer
+ * it, which is the failure the note names: "a window a caller can see and
+ * cannot answer is worse than one it is never shown."
+ *
+ * **There is no `decline` beside it, and that is not an omission.** This
+ * window holds nothing open: the damage is applied, the hit points have moved,
+ * and nothing the reactor does can change any of it. An offer nobody takes
+ * wedges nothing, so there is nothing for a declining call to close — which is
+ * exactly why the other two windows have one and this one does not.
+ *
+ * The only field beside the feature is which weapon, and it names a thing
+ * rather than a number: who is swung at is forced by the trigger, and the
+ * reach, the roll and the damage are the ordinary attack's.
+ */
+const TAKE_DAMAGE_RESPONSE = tool({
+  name: 'take_damage_response',
+  description:
+    'Answer damage that has already landed by swinging back — SRD Retaliation. `options` lists it when something within reach has just hurt this creature. You name the feature and, if you like, the weapon; who it is aimed at is forced by whoever did the hurting, and the engine spends the Reaction and rolls the attack. Nothing is being held open here: the damage is done either way, so an offer nobody takes needs no call to close it.',
+  mutates: true,
+  input: z.object({
+    who: creatureId.describe('Who is swinging back.'),
+    feature: z
+      .string()
+      .min(1)
+      .describe('The feature id, from `options`, e.g. berserker:retaliation.'),
+    weapon: z
+      .string()
+      .min(1)
+      .optional()
+      .describe('Catalogue id of the weapon swung. Omit for an Unarmed Strike.'),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      takeDamageResponse(
+        context.campaign.state(),
+        who(args.who),
+        {
+          feature: args.feature,
+          ...(args.weapon === undefined ? {} : { weapon: args.weapon }),
+          ...identity(context),
+        },
+        context.campaign.supply(),
+      ),
+      (value) => value.events,
+      (value) => ({
+        took: args.feature,
+        // Who the trigger forced the swing onto, so a caller narrating it does
+        // not have to work out who hit them from the log.
+        against:
+          value.events.find((event) => event.type === 'reaction-taken')?.against ?? null,
+        hit: value.attack?.hit ?? null,
+        natural: value.attack?.roll.natural ?? null,
+        total: value.attack?.total ?? null,
+        ...(value.damage === undefined ? {} : { damageDealt: value.damage }),
+        duplicate: value.duplicate,
+      }),
+      (value) => value.unverified,
+    ),
+});
+
 const SETTLE_DAMAGE = tool({
   name: 'settle_damage',
   description:
@@ -2835,6 +2907,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   SHEET,
   TAKE_ACTION,
   TAKE_DAMAGE_REACTION,
+  TAKE_DAMAGE_RESPONSE,
   TAKE_OPPORTUNITY_ATTACK,
   TAKE_READY,
   TAKE_TEST_REACTION,

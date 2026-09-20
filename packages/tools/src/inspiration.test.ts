@@ -150,6 +150,7 @@ interface GrantedLine {
   readonly name: string;
   readonly from: string;
   readonly window: string;
+  readonly takenBy: string;
   readonly costsReaction: boolean;
 }
 
@@ -264,6 +265,9 @@ describe('the creature who was given a die can see it and spend it', () => {
       name: 'Bardic Inspiration',
       from: 'lyra',
       window: 'test-rolled',
+      // The door that takes it, for the reason `spentBy` names one: a die a
+      // caller is told it holds and can find no call for is half a door.
+      takenBy: 'take_test_reaction',
       // SRD spends no Reaction on it: the cost was paid by whoever gave it.
       costsReaction: false,
     });

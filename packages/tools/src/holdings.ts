@@ -25,7 +25,7 @@
  */
 
 import type { CharacterId } from '@ie/shared';
-import type { GameState } from '@ie/engine';
+import type { FeatureReactionWindow, GameState } from '@ie/engine';
 import {
   armorClassOf,
   movementLeftFor,
@@ -57,6 +57,26 @@ export const SPENT_BY = {
 } as const;
 
 export type SpendableKind = keyof typeof SPENT_BY;
+
+/**
+ * The tool that answers each window a Reaction can sit in.
+ *
+ * `SPENT_BY`'s counterpart for a Reaction, and keyed by the **window** rather
+ * than by the kind of thing, because that is what decides the door: a feature
+ * that answers a damage roll and one that answers a D20 Test are the same kind
+ * of thing and are taken through different calls.
+ *
+ * A `Record` over the engine's own union, so the day a fourth window is opened
+ * this is a compile error rather than a granted Reaction with no door — which
+ * is the shape `outcome.ts` uses for the same reason one layer down. All three
+ * of today's are answerable, which was not true until `take_damage_response`
+ * arrived: the third window's feature half reached no tool at all.
+ */
+export const TAKEN_BY: Readonly<Record<FeatureReactionWindow, string>> = {
+  'damage-rolled': 'take_damage_reaction',
+  'damaged-by-creature': 'take_damage_response',
+  'test-rolled': 'take_test_reaction',
+};
 
 /**
  * What kind of thing a feature is, from the caller's point of view.
@@ -171,7 +191,9 @@ export interface HeldGrantedReaction {
   /** Whose feature it was. Not the holder. */
   readonly from: string;
   /** The moment it answers: a damage roll, a D20 Test, damage already taken. */
-  readonly window: string;
+  readonly window: FeatureReactionWindow;
+  /** The tool that takes it when that moment comes. */
+  readonly takenBy: string;
   /** Whether taking it spends the holder's Reaction. Often it does not. */
   readonly costsReaction: boolean;
 }
@@ -563,6 +585,7 @@ export function holdingsOf(state: GameState, id: CharacterId): Holdings | null {
       name: held.reaction.name,
       from: String(held.from),
       window: held.reaction.window,
+      takenBy: TAKEN_BY[held.reaction.window],
       costsReaction: held.reaction.costsReaction,
     })),
   };
