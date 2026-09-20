@@ -198,6 +198,44 @@ export const masterySchema = z.object({
 });
 
 /**
+ * What a blow buys, where the feature that sells it is bought by a hit.
+ *
+ * SRD Stunning Strike: "Once per turn when you hit a creature with a Monk
+ * weapon or an Unarmed Strike, **you can** expend 1 Focus Point to attempt a
+ * stunning strike." {@link masterySchema}'s sentence about a decision written
+ * "you can", one trigger along — so the field is present or the rider does not
+ * happen, and a swing that names nothing buys nothing.
+ *
+ * **Two ids and nothing else.** The save DC, the ability it is read from, the
+ * pool the price comes out of, the condition, the deadline and whether the
+ * once-a-turn allowance is spent are every one of them the engine's, derived
+ * at the moment of the hit from the holder's own sheet — which is why this is
+ * the whole of the field. A caller cannot name a feature it does not hold, an
+ * option it does not offer or a weapon the sentence does not cover: the engine
+ * refuses all three by name **before** the attack is rolled, so a refusal here
+ * costs neither the action nor the point.
+ *
+ * **Neither id is enumerated here**, for {@link masterySchema}'s reason and
+ * more sharply: which features a character holds is content, and a schema that
+ * listed today's would be the engine holding a catalogue one layer up. `sheet`
+ * is where a caller reads its own, and `spentBy` on each line names this tool.
+ */
+export const hitRiderSchema = z.object({
+  feature: z
+    .string()
+    .min(1)
+    .describe(
+      'The feature this hit is buying, by its id — SRD’s Stunning Strike is `monk:stunning-strike`. Read it off `sheet`, where every feature of this kind names `attack` as the tool that spends it.',
+    ),
+  option: z
+    .string()
+    .min(1)
+    .describe(
+      'Which of the things that feature offers, by its id. A feature that prints one still names it; a refusal lists the ones there are.',
+    ),
+});
+
+/**
  * How long a ruled condition lasts, said as a moment and never as a number.
  *
  * SRD writes the ends of things as moments in the turn order — "until the
@@ -332,6 +370,36 @@ export const characterChoicesSchema = z.object({
   classId: z.string().min(1),
   level: z.int().min(1).max(20),
   speciesId: z.string().min(1),
+  /**
+   * Which of the sizes its species prints this character is.
+   *
+   * SRD prints a size on every species and lets some of them print more than
+   * one, which is the whole of why this is a choice: where a species offers a
+   * single size there is nothing to answer, and where it offers several the
+   * pick is the player's and the engine will not make it for them. Silence is
+   * a legal answer — creation pins the first printed size and says so — so the
+   * field is optional, and stating one is the only way a character ends up as
+   * the other size its species offers.
+   *
+   * **A string and not {@link sizeSchema}**, which is the same judgement
+   * `featChoice.abilities` makes a few lines above: the engine matches this
+   * against the word the *species* prints, case-insensitively, exactly as a
+   * language and an alignment are matched by name — so `bad_size` can name the
+   * word the caller wrote back to them. An enum here would be a second,
+   * narrower vocabulary that answered a caller writing the printed word with a
+   * complaint about a key, and it would be this file adjudicating a choice
+   * against a species it has not read. {@link sizeSchema} is this file's own
+   * spelled-out list, and it is right where a caller is placing a creature
+   * nothing has pinned a size for; this is a word off a species entry, and the
+   * species decides which words there are.
+   */
+  size: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      'Which of the sizes this species prints, as the species prints it — matched without regard to case, the way a language or an alignment is matched by name. Most species print one size and there is nothing to say; where one prints several, the choice is the player’s. Omit it and creation pins the first size the species prints.',
+    ),
   backgroundId: z.string().min(1),
   abilities: abilityChoice,
   abilityIncreases: z.partialRecord(abilitySchema, z.int()),

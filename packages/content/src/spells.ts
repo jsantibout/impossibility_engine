@@ -10011,6 +10011,15 @@ export const ANIMATE_OBJECTS: SpellDefinition = {
  *
  * The three questions are the GM's; the percentage is Augury's, on the rite
  * that runs a minute and leaves a minute to ask in.
+ *
+ * **And the two are filed apart now, which is the owner's ruling arriving on
+ * the spell it names.** "Some text is the DM's alone ... marked explicitly as a
+ * thing only the DM can decide." A deity's answer is not a clause the engine
+ * has not got round to: there is no engine that produces one, and a line in
+ * `unmodelled` said the opposite by sitting on a list of work somebody may do.
+ * It is handed over instead, in the book's own words. The percentage stays
+ * where it was, because a die that is not a d20 and a count of castings back to
+ * a Long Rest really are shapes somebody may build.
  */
 export const COMMUNE: SpellDefinition = {
   id: 'commune',
@@ -10025,8 +10034,13 @@ export const COMMUNE: SpellDefinition = {
   targets: { count: 0 },
   effects: [],
   durationSeconds: 60,
+  dmDecides: [
+    'You contact a deity or a divine proxy and ask up to three questions that can be answered with yes or no.',
+    'You receive a correct answer for each question.',
+    "Divine beings aren't necessarily omniscient, so you might receive \"unclear\" as an answer if a question pertains to information that lies beyond the deity's knowledge.",
+    "In a case where a one-word answer could be misleading or contrary to the deity's interests, the GM might offer a short phrase as an answer instead.",
+  ],
   unmodelled: [
-    'the three yes-or-no questions and their answers are the GM’s, and so is the "unclear" a deity gives for what it does not know',
     'the "cumulative 25 percent chance for each casting after the first" is not rolled: no effect asks the generator for a die that is not a d20, and nothing counts castings back to a Long Rest',
   ],
 };
@@ -12647,6 +12661,125 @@ export const HALLOW: SpellDefinition = {
   ],
 };
 
+/**
+ * Three spells whose blocker was never a shape: text only the DM can decide.
+ *
+ * The owner's ruling: "**Some text is the DM's alone.** Commune, Dream's Range
+ * `Special`, Mirage Arcane's `Sight`: the casting hands the printed text to
+ * whoever is running the table, human or model, marked explicitly as a thing
+ * only the DM can decide. Not a format arm to invent, a handover to make
+ * visible."
+ *
+ * All three sat in `missing-shapes.ts` under `table` **and under protest** —
+ * the entries said so in as many words: "No shape id names it, and inventing
+ * one is an architecture decision rather than a reading." The reading is that
+ * there is nothing to invent. A question asked of a god, a Range printed
+ * `Special` and a Range printed `Sight` are not mechanisms the engine is
+ * missing; they are questions it has no business answering. `dmDecides`
+ * carries the book's words out of the casting under a mark of their own, and
+ * `range: { kind: 'dm' }` is the Range half of the same sentence.
+ *
+ * What is left in `unmodelled` for each of them is the ordinary kind of debt:
+ * a die that is not a d20, effects that land on two different creatures, a
+ * choice made at the casting with nowhere to be recorded. Those are shapes,
+ * they are still counted, and they still block what they blocked.
+ */
+
+/**
+ * SRD Dream:
+ *
+ * > _Level 5 Illusion (Bard, Warlock, Wizard)._
+ * > **Casting Time:** 1 minute. **Range:** Special. **Duration:** 8 hours.
+ * > "You target a creature you know on the same plane of existence. You or a
+ * > willing creature you touch enters a trance state to act as a dream
+ * > messenger ... the messenger appears in the target's dreams and can converse
+ * > with the target as long as it remains asleep."
+ *
+ * The first of the two spells whose **Range** is the handover. `Special` is not
+ * a distance the book declined to print for want of space; it is the book
+ * saying that where this spell reaches depends on facts about the world — who
+ * the caster knows, and which plane they are both on — that the engine does not
+ * hold and should not invent. So the Range is the DM's and the printed word
+ * goes out with the casting.
+ *
+ * Everything mechanical about the spell is still a debt rather than a
+ * handover, and every one of them is a shape `missing-shapes.ts` already
+ * names: two creatures with different effects on them, a casting dismissed by
+ * somebody who is not its caster, a rest whose benefit is taken away, and
+ * damage owed at a moment that is neither a span nor a place in the turn order.
+ */
+export const DREAM: SpellDefinition = {
+  id: 'dream',
+  name: 'Dream',
+  level: 5,
+  school: 'illusion',
+  castingTime: 'long',
+  castingSeconds: 60,
+  concentration: false,
+  range: { kind: 'dm' },
+  targets: { count: 1 },
+  durationSeconds: 28_800,
+  effects: [],
+  dmDecides: [
+    'Range: Special',
+    'You target a creature you know on the same plane of existence.',
+    "If the target is asleep, the messenger appears in the target's dreams and can converse with the target as long as it remains asleep, through the spell's duration.",
+    "The messenger can also shape the dream's environment, creating landscapes, objects, and other images.",
+    'The target recalls the dream perfectly upon waking.',
+  ],
+  unmodelled: [
+    'the messenger is not put into the trance: "You or a willing creature you touch" is a second creature with its own effects on it, and one effect list reaches every target — so nobody gains the Incapacitated condition and nobody’s Speed becomes 0',
+    'the messenger cannot emerge from the trance to end the spell, and cannot end it on finding the target awake: a casting is dismissed by its own caster, and the messenger need not be the caster at all',
+    'making the messenger terrifying is a choice taken at the casting with nowhere to be recorded, so the ten words are not delivered and the Wisdom saving throw they gate is never rolled',
+    'and neither branch of that save could land if it were: nothing takes the benefit away from a rest the sleeper actually finished, and 3d6 Psychic damage owed when it wakes hangs on a moment that is neither a span of seconds nor a place in the turn order',
+  ],
+};
+
+/**
+ * SRD Mirage Arcane:
+ *
+ * > _Level 7 Illusion (Bard, Druid, Wizard)._
+ * > **Casting Time:** 10 minutes. **Range:** Sight. **Duration:** 10 days.
+ * > "You make terrain in an area up to 1 mile square look, sound, smell, and
+ * > even feel like some other sort of terrain ... Creatures with Truesight can
+ * > see through the illusion to the terrain's true form."
+ *
+ * The second Range that is a question rather than a distance, and the plainer
+ * of the two: `Sight` is bounded by what the caster can see, and declared sight
+ * in this engine is a pairwise fact between two creatures rather than a horizon.
+ * Rather than invent a horizon, the printed word goes to the table.
+ *
+ * The ten minutes are a rite the clock runs, the ten days are a deadline, and
+ * the illusion itself is the DM's — which is what an illusion always is here.
+ * What stays a debt is the mile the caster chooses, the Difficult Terrain an
+ * area creates, and the sense that sees through it.
+ */
+export const MIRAGE_ARCANE: SpellDefinition = {
+  id: 'mirage-arcane',
+  name: 'Mirage Arcane',
+  level: 7,
+  school: 'illusion',
+  castingTime: 'long',
+  castingSeconds: 600,
+  concentration: false,
+  range: { kind: 'dm' },
+  targets: { count: 0 },
+  durationSeconds: 864_000,
+  effects: [],
+  dmDecides: [
+    'Range: Sight',
+    'You make terrain in an area up to 1 mile square look, sound, smell, and even feel like some other sort of terrain.',
+    'Similarly, you can alter the appearance of structures or add them where none are present.',
+    "The spell doesn't disguise, conceal, or add creatures.",
+    "Any piece of the illusory terrain (such as a rock or stick) that is removed from the spell's area disappears immediately.",
+  ],
+  unmodelled: [
+    'the mile is not drawn: the area’s size is chosen when the spell is cast, up to a printed maximum, and a `SpellArea` is one fixed size belonging to the definition with nowhere to record a choice',
+    'so the illusion turns no clear ground into Difficult Terrain and takes none away: Difficult Terrain is declared by the foot on the move that crosses it, and an area that creates it is invisible to the ruler',
+    'and Truesight does not see through it: sight here is a pairwise declaration between two creatures, so a sense that excuses its holder from an illusion has no state to sit in and nothing to be read off',
+  ],
+};
+
 export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   ACID_ARROW,
   ACID_SPLASH,
@@ -12745,6 +12878,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   DOMINATE_MONSTER,
   DOMINATE_PERSON,
   DRAGONS_BREATH,
+  DREAM,
   DRUIDCRAFT,
   EARTHQUAKE,
   ELDRITCH_BLAST,
@@ -12857,6 +12991,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   MIND_BLANK,
   MIND_SPIKE,
   MINOR_ILLUSION,
+  MIRAGE_ARCANE,
   MIRROR_IMAGE,
   MISLEAD,
   MISTY_STEP,

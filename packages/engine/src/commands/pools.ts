@@ -90,7 +90,10 @@ export interface TradeResourceCommand extends CommandIdentity {
  * - **The limit.** Once a turn is the combat ledger's `feature-used`, keyed to
  *   this trade rather than to the feature, because one feature offers two and
  *   the SRD limits them differently. Once a Long Rest is a pool of one, which
- *   is what `recovery` already makes of the same sentence.
+ *   is what `recovery` already makes of the same sentence. And a trade the
+ *   book limits not at all — Font of Inspiration, Sorcery Incarnate, Holy
+ *   Nimbus — says so, and neither of the two checks below fires: what bounds
+ *   it is what it spends and the refusal above.
  *
  * Everything is checked before anything is spent, so a refused trade costs
  * neither end of itself.
@@ -132,7 +135,18 @@ export function tradeResource(
     }
 
     // "You can't do so again until you finish a Long Rest": a pool of one.
-    if (trade.pool !== undefined && remaining(creature.resources, trade.pool) < 1) {
+    //
+    // **Read off the limit and never off the presence of the pool**, because a
+    // trade declares a pool of one for two different sentences: the daily
+    // limit here, and the feature's own single use that an unlimited trade
+    // exists to buy back. Asking `pool !== undefined` would refuse Holy Nimbus
+    // at exactly the moment it is meant to fire — its use spent — and then
+    // spend the use it had just restored.
+    if (
+      trade.limit === 'once-per-long-rest' &&
+      trade.pool !== undefined &&
+      remaining(creature.resources, trade.pool) < 1
+    ) {
       return err('exhausted', `${id} has no uses of ${trade.name} left`);
     }
 
@@ -188,7 +202,8 @@ export function tradeResource(
 
     events.push({ type: 'resource-spent', id, key: spending, amount: trade.spends.uses });
 
-    if (trade.pool !== undefined) {
+    // The daily limit, spent — and only where the limit is what the pool is.
+    if (trade.limit === 'once-per-long-rest' && trade.pool !== undefined) {
       events.push({ type: 'resource-spent', id, key: trade.pool, amount: 1 });
     }
 

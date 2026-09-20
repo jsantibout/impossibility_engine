@@ -27,7 +27,7 @@ import type { GrantedReaction, ReactionOffer } from './reactions.js';
 import type { ActiveBonus } from './bonuses.js';
 import { type SpellcastingState } from './spellcasting.js';
 import type { RestState } from './rest.js';
-import type { StandingEffect } from './standing.js';
+import type { HitOption, StandingEffect } from './standing.js';
 import { type Deadline } from './time.js';
 import {
   type GrantedPayout,
@@ -219,9 +219,10 @@ export interface CreatureState {
    * reads this when a caller states no size, so nobody above the engine has to
    * supply a fact the book prints.
    *
-   * Null when nobody has said, which is a real state: a creature made from
-   * character choices has a species' size and no event pins one yet, and every
-   * log written before the field existed says the same. `placeCreature` then
+   * Null when nobody has said, which is a real state: every log written before
+   * the field existed says the same, as does any creature added by something
+   * that states no size. A character made through `createCharacter` pins one
+   * from its species, so creation is no longer among them. `placeCreature` then
    * defaults to Medium exactly as it always has.
    */
   readonly size: CreatureSize | null;
@@ -996,6 +997,32 @@ export interface PendingDamage {
   readonly reductions: readonly DamageReduction[];
   /** Who was offered a Reaction and has not yet answered. */
   readonly offers: readonly ReactionOffer[];
+  /**
+   * What the blow still owes, held until the defender has answered.
+   *
+   * **The defender answers first.** A feature's rider fires "when you hit a
+   * creature" and so does the Reaction this window is offering — SRD Uncanny
+   * Dodge is "when an attack roll hits you" — and a rider resolved first can
+   * take the answer away: a target Stunned by a Stunning Strike may no longer
+   * take the Reaction the same blow had just offered it. So a hit that opens a
+   * window puts the rider *here*, and the settlement resolves it once the
+   * damage has landed.
+   *
+   * Pinned whole rather than looked up again, for the reason everything else
+   * on this record is: what the option said was read at the swing, and the
+   * settlement must not re-read a sheet that has moved in between.
+   *
+   * Absent for every other damage roll, which is nearly all of them: a rider
+   * on a swing nobody can answer resolves in the same command it always did.
+   */
+  readonly rider?: PendingHitRider;
+}
+
+/** A rider a held damage roll owes, and whose it is. */
+export interface PendingHitRider {
+  readonly attacker: CharacterId;
+  /** The option the swing bought, exactly as the sheet stated it. */
+  readonly option: HitOption;
 }
 
 /**

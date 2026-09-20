@@ -239,7 +239,12 @@ const AUDIT: readonly {
   {
     tool: 'take_opportunity_attack',
     request: 'OpportunityCommand',
-    fates: { weapon: expose('weapon') },
+    fates: {
+      weapon: expose('weapon'),
+      action: because(
+        'which line of its own stat block a provoked monster swings — the same decision `AttackCommand.action` is, and withheld for the same reason: the door is `packages/tools` and the field waits on it. What changed with it is that the *default* is no longer a fabrication: naming nothing now reaches for the creature\'s best printed melee attack rather than an Unarmed Strike at a Strength the book never printed, so a caller that cannot send this still gets the Wolf\'s Bite',
+      ),
+    },
   },
 ];
 

@@ -14,12 +14,16 @@ import {
   declareCreatureSide,
   placeCreatureInScene,
   resolveAttack,
+  resolveMove,
+  resolveTurn,
   setScene,
   addSceneLandmark,
+  takeOpportunityAttack,
 } from './commands.js';
+import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
 import { fold, type GameEvent, type GameState } from './events.js';
-import { adaptMonster, printedAttackOf } from './monster.js';
+import { adaptMonster, bestPrintedMeleeAttack, printedAttackOf } from './monster.js';
 import { createRollIssuer } from './rolls.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
 
@@ -99,6 +103,11 @@ class Table {
 
   get state(): GameState {
     return fold('fangs', this.log);
+  }
+
+  /** Everything that happened, for a claim about the record rather than the state. */
+  get events(): readonly GameEvent[] {
+    return this.log;
   }
 
   do(step: string, produce: (state: GameState) => Result<readonly GameEvent[]>): GameState {
@@ -699,5 +708,379 @@ describe('Pack Tactics is where the creatures are standing', () => {
       'the bite',
     );
     expect(bite.attack?.mode).toBe('normal');
+  });
+});
+
+/**
+ * A stat block's Multiattack is a **named sequence**, and a count carried
+ * without its names is a fabrication.
+ *
+ * "The ghoul makes two Bite attacks" says two things, and the engine used to
+ * hold neither: the Attack action held one attack, so the Ghoul could not bite
+ * twice at all — and a count on its own would have let it make two Claws
+ * instead, which is not a step towards the book but a rule nobody printed.
+ *
+ * So the sentence is read in `@ie/srd`, the sequence is stated on the sheet
+ * beside the printed numbers, and the swings are counted against it per name
+ * within the turn. The engine names nothing: what it spends is the structure
+ * the block stated.
+ */
+describe('a Multiattack is a named sequence', () => {
+  /** Fold a swing into the table, with one supply so the dice run on. */
+  const swinging = (table: Table, who: CharacterId, dice = supply('teeth')) =>
+    (action: string, commandId?: string) =>
+      table.did(`${who} swings ${action}`, (s) =>
+        resolveAttack(
+          s,
+          who,
+          { target: BREN, weapon: null, action, ...(commandId === undefined ? {} : { commandId }) },
+          dice,
+        ),
+      );
+
+  const refused = (table: Table, who: CharacterId, action: string): string => {
+    const out = resolveAttack(
+      table.state,
+      who,
+      { target: BREN, weapon: null, action },
+      supply('teeth'),
+    );
+    return isErr(out) ? out.code : 'ok';
+  };
+
+  it('states the sequence the block prints, and the economy it adds up to', () => {
+    const ghoul = adaptMonster(statBlock('ghoul'), GHOUL);
+    expect(ghoul.sheet.stated?.multiattack).toEqual({ entries: [{ count: 2, attack: 'Bite' }] });
+    expect(ghoul.sheet.attacksPerAction).toBe(2);
+
+    // Two names, in printed order, and the action holds their sum.
+    const ettin = adaptMonster(statBlock('ettin'), id('ettin'));
+    expect(ettin.sheet.stated?.multiattack).toEqual({
+      entries: [
+        { count: 1, attack: 'Battleaxe' },
+        { count: 1, attack: 'Morningstar' },
+      ],
+    });
+    expect(ettin.sheet.attacksPerAction).toBe(2);
+  });
+
+  /**
+   * And a block whose Multiattack says something else states none of it. The
+   * Aboleth's line names a use that is not an attack, so the engine holds one
+   * attack per action for it, exactly as it did before any of this.
+   */
+  it('states nothing for a block whose sentence nobody could read', () => {
+    const aboleth = adaptMonster(statBlock('aboleth'), id('aboleth'));
+    expect(aboleth.sheet.stated?.multiattack).toBeUndefined();
+    expect(aboleth.sheet.attacksPerAction).toBeUndefined();
+
+    const wolf = adaptMonster(statBlock('wolf'), WOLF);
+    expect(wolf.sheet.stated?.multiattack).toBeUndefined();
+  });
+
+  it('lets a Ghoul make the two Bites its block prints', () => {
+    const table = inTheWoods('ghoul', GHOUL);
+    const bite = swinging(table, GHOUL);
+    bite('Bite', 'one');
+    bite('Bite', 'two');
+
+    const bites = table.events.filter(
+      (e) => e.type === 'roll-recorded' && e.label === 'Bite attack',
+    );
+    expect(bites).toHaveLength(2);
+    // One Attack action, two swings inside it.
+    expect(table.state.combat?.budgets[GHOUL]?.action).toBe(false);
+    expect(table.state.combat?.budgets[GHOUL]?.attacksRemaining).toBe(0);
+  });
+
+  /** The fabrication the ruling names: a Ghoul's two attacks are not two Claws. */
+  it('refuses the second Claw a count-only Multiattack would have allowed', () => {
+    const table = inTheWoods('ghoul', GHOUL);
+    // The first is the Ghoul taking its Claw action, which the book prints and
+    // this does not touch.
+    swinging(table, GHOUL)('Claw', 'one');
+    expect(refused(table, GHOUL, 'Claw')).toBe('not_in_multiattack');
+  });
+
+  /**
+   * And the pair is refused as well as the repeat: a Claw and a Bite is two
+   * attacks, and the Ghoul's line prints two Bites.
+   */
+  it('refuses a Bite after a Claw', () => {
+    const table = inTheWoods('ghoul', GHOUL);
+    swinging(table, GHOUL)('Claw', 'one');
+    expect(refused(table, GHOUL, 'Bite')).toBe('not_in_multiattack');
+  });
+
+  it('refuses a third Bite', () => {
+    const table = inTheWoods('ghoul', GHOUL);
+    const bite = swinging(table, GHOUL);
+    bite('Bite', 'one');
+    bite('Bite', 'two');
+    expect(refused(table, GHOUL, 'Bite')).toBe('not_in_multiattack');
+  });
+
+  /**
+   * A retry is not a second Bite. The command id is what tells them apart, and
+   * a sequence spent by a duplicate would be a creature disarmed by a dropped
+   * connection.
+   */
+  it('counts a repeated command id once', () => {
+    const table = inTheWoods('ghoul', GHOUL);
+    const bite = swinging(table, GHOUL);
+    bite('Bite', 'one');
+    bite('Bite', 'one');
+    expect(
+      table.events.filter((e) => e.type === 'roll-recorded' && e.label === 'Bite attack'),
+    ).toHaveLength(1);
+    // The second Bite the block prints is still there to be made.
+    bite('Bite', 'two');
+    expect(
+      table.events.filter((e) => e.type === 'roll-recorded' && e.label === 'Bite attack'),
+    ).toHaveLength(2);
+  });
+
+  /**
+   * Outside combat there is no turn to count a sequence against, so nothing
+   * holds a swing to it — and that is said out loud, which is the answer
+   * Cleave's once-per-turn allowance already gives to the same absence. A rule
+   * that checked and a rule that could not look identical from outside.
+   */
+  it('reports that nothing held the swing to it, where there are no turns', () => {
+    const table = new Table();
+    table.do('the fighter arrives', () => createCharacter(SRD_CONTENT, walkOn('Bren'), BREN));
+    table.did('the ghoul arrives', (s) => addCreature(s, SRD_CONTENT, GHOUL, 'ghoul'));
+
+    const claw = (commandId: string) =>
+      table.did('the ghoul claws', (s) =>
+        resolveAttack(
+          s,
+          GHOUL,
+          { target: BREN, weapon: null, action: 'Claw', commandId },
+          supply('teeth'),
+        ),
+      );
+
+    const first = unwrap(
+      resolveAttack(
+        table.state,
+        GHOUL,
+        { target: BREN, weapon: null, action: 'Claw', commandId: 'one' },
+        supply('teeth'),
+      ),
+      'the claw',
+    );
+    expect(first.unverified.join(' ')).toContain('no turns here to count one against');
+
+    // And the swing it could not hold to the sequence happens anyway, twice.
+    claw('one');
+    claw('two');
+    expect(
+      table.events.filter((e) => e.type === 'roll-recorded' && e.label === 'Claw attack'),
+    ).toHaveLength(2);
+  });
+
+  /** A creature stating no sequence is where it always was: one swing. */
+  it('leaves a creature with no stated sequence exactly as it was', () => {
+    const table = inTheWoods('wolf', WOLF);
+    swinging(table, WOLF)('Bite', 'one');
+    expect(refused(table, WOLF, 'Bite')).toBe('no_attacks_left');
+  });
+
+  /**
+   * The sequence counts the Attack action's swings and nothing else. An
+   * Opportunity Attack is paid for with a Reaction, which is why it is `free`
+   * here — and a Ghoul that bit somebody walking past still has its two.
+   */
+  it('counts nothing against a swing the Attack action did not pay for', () => {
+    const table = inTheWoods('ghoul', GHOUL);
+    table.did('a free swing', (s) =>
+      resolveAttack(
+        s,
+        GHOUL,
+        { target: BREN, weapon: null, action: 'Claw', free: true, commandId: 'free' },
+        supply('teeth'),
+      ),
+    );
+    const bite = swinging(table, GHOUL);
+    bite('Bite', 'one');
+    bite('Bite', 'two');
+    expect(
+      table.events.filter((e) => e.type === 'roll-recorded' && e.label === 'Bite attack'),
+    ).toHaveLength(2);
+  });
+});
+
+/**
+ * What a monster swings when somebody walks out of its reach.
+ *
+ * SRD: "take a Reaction to make one melee attack with a weapon or an Unarmed
+ * Strike against the provoking creature." A Wolf has no weapon, so the swing
+ * came out as an Unarmed Strike at Strength plus proficiency — a number the
+ * engine invented, against a block that prints a Bite.
+ *
+ * So the default is **the creature's best printed melee attack**: the highest
+ * summed printed average, among the lines that are melee and do not recharge,
+ * ties to the first printed. Every part of that is read off the block. A
+ * caller who wants another names it.
+ */
+describe('a monster’s Opportunity Attack takes its printed line', () => {
+  /** The monster beside Bren, and Bren's turn to walk away. */
+  const cornered = (monster: string, who: CharacterId): Table => {
+    const table = inTheWoods(monster, who);
+    table.did('the monster waits', (s) => resolveTurn(s, supply('turn')));
+    return table;
+  };
+
+  const walksAway = (table: Table): GameState =>
+    table.did('Bren steps back', (s) =>
+      resolveMove(
+        s,
+        BREN,
+        { placement: { from: { landmark: 'the stump' }, feet: 15, bearing: 270 } },
+        supply('walk'),
+      ),
+    );
+
+  const answered = (
+    table: Table,
+    who: CharacterId,
+    command: { readonly action?: string } = {},
+    seed = 'swing',
+  ) => unwrap(takeOpportunityAttack(table.state, who, command, supply(seed)), 'the swing');
+
+  it('reaches for the Bite the block prints, at the numbers it prints', () => {
+    const table = cornered('wolf', WOLF);
+    walksAway(table);
+    // A seed the Bite lands on: an Opportunity Attack takes no forced bonus,
+    // so which way it goes is a fact about the dice.
+    const struck = answered(table, WOLF, {}, 'd');
+
+    // The block's +4, not a Strength modifier and a Proficiency Bonus.
+    expect(struck.attack?.roll.modifier).toBe(4);
+    const rolled = struck.events.find((e) => e.type === 'roll-recorded');
+    expect(rolled?.type === 'roll-recorded' ? rolled.label : null).toBe('Bite attack');
+
+    // And the damage is the Bite's own 1d6 + 2, landed under the name the
+    // block prints — where a fist would have dealt a flat 1 plus Strength
+    // under no name at all.
+    expect(struck.attack?.hit).toBe(true);
+    const taken = struck.events.find((e) => e.type === 'damage-taken');
+    expect(taken?.type === 'damage-taken' ? taken.source : null).toBe('Bite');
+    expect(struck.damage).toBeGreaterThanOrEqual(3);
+    expect(struck.damage).toBeLessThanOrEqual(8);
+  });
+
+  /**
+   * SRD's Opportunity Attack is **one melee attack**, so a ranged line does not
+   * win it however hard it hits. A Barbed Devil's Hurl Flame averages more than
+   * its Tail and reaches across the room; the Tail is what swings at somebody
+   * stepping away from it.
+   */
+  it('never reaches for a ranged line, however much harder it hits', () => {
+    const devil = adaptMonster(statBlock('barbed-devil'), id('devil'));
+    const printed = (name: string) =>
+      (printedAttackOf(devil.sheet, name)?.damage ?? []).reduce((sum, d) => sum + d.average, 0);
+    expect(printed('Hurl Flame')).toBeGreaterThan(printed('Tail'));
+
+    const table = cornered('barbed-devil', id('devil'));
+    walksAway(table);
+    const struck = answered(table, id('devil'));
+    const rolled = struck.events.find((e) => e.type === 'roll-recorded');
+    expect(rolled?.type === 'roll-recorded' ? rolled.label : null).toBe('Tail attack');
+  });
+
+  /** Two lines that hit for the same: the one the book printed first. */
+  it('breaks a tie towards the first line printed', () => {
+    const ettin = adaptMonster(statBlock('ettin'), id('ettin'));
+    const printed = (name: string) =>
+      (printedAttackOf(ettin.sheet, name)?.damage ?? []).reduce((sum, d) => sum + d.average, 0);
+    expect(printed('Battleaxe')).toBe(printed('Morningstar'));
+
+    const table = cornered('ettin', id('ettin'));
+    walksAway(table);
+    const struck = answered(table, id('ettin'));
+    const rolled = struck.events.find((e) => e.type === 'roll-recorded');
+    expect(rolled?.type === 'roll-recorded' ? rolled.label : null).toBe('Battleaxe attack');
+  });
+
+  /**
+   * A line that is not available every round is not what a creature reaches
+   * for when it is provoked.
+   *
+   * **Stated over a block that prints one**, because the SRD prints no melee
+   * attack on a recharge that outranks its creature's ordinary swing — the
+   * Minotaur's Gore recharges and its Abyssal Glaive hits harder anyway — and
+   * a rule checked only against a population that cannot exercise it is a rule
+   * nobody has checked.
+   */
+  it('passes over a printed attack that recharges', () => {
+    const sheet: CharacterSheet = {
+      ...adaptMonster(statBlock('wolf'), WOLF).sheet,
+      stated: {
+        attacks: [
+          {
+            name: 'Gouge',
+            kind: 'melee',
+            modifier: 5,
+            reach: 5,
+            range: null,
+            damage: [{ dice: '2d6', flat: 3, type: 'slashing', average: 10 }],
+            qualification: null,
+            rider: null,
+            recharge: { kind: 'die', low: 5 },
+          },
+          {
+            name: 'Nip',
+            kind: 'melee',
+            modifier: 5,
+            reach: 5,
+            range: null,
+            damage: [{ dice: '1d4', flat: 1, type: 'piercing', average: 3 }],
+            qualification: null,
+            rider: null,
+          },
+        ],
+      },
+    };
+
+    expect(bestPrintedMeleeAttack(sheet)?.name).toBe('Nip');
+  });
+
+  /** And a caller who wants the other line says so. */
+  it('takes the attack a caller names instead', () => {
+    const table = cornered('barbed-devil', id('devil'));
+    walksAway(table);
+    const struck = answered(table, id('devil'), { action: 'Claws' });
+    const rolled = struck.events.find((e) => e.type === 'roll-recorded');
+    expect(rolled?.type === 'roll-recorded' ? rolled.label : null).toBe('Claws attack');
+  });
+
+  /**
+   * A swing whose numbers come from two places is refused here exactly as it
+   * is refused at the Attack action: the default fills in what nobody said and
+   * decides nothing anybody did say.
+   */
+  it('refuses a Reaction that names both a weapon and a printed line', () => {
+    const table = cornered('ogre', OGRE);
+    walksAway(table);
+    const both = takeOpportunityAttack(
+      table.state,
+      OGRE,
+      { weapon: 'greatclub', action: 'Javelin' },
+      supply('swing'),
+    );
+    expect(isErr(both) ? both.code : 'ok').toBe('two_attacks');
+  });
+
+  /**
+   * A character prints no lines at all, so nothing about them changes: there is
+   * no default to reach for, and the swing is the Unarmed Strike it always was.
+   */
+  it('leaves a creature with no printed attack where it was', () => {
+    const table = cornered('wolf', WOLF);
+    const bren = table.state.creatures[BREN];
+    expect(bren?.sheet.stated?.attacks).toBeUndefined();
+    expect(bestPrintedMeleeAttack(bren!.sheet)).toBeNull();
   });
 });

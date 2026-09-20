@@ -387,6 +387,64 @@ export interface PoolOptionGrant {
    * refused if it is not on the list.
    */
   readonly damageTypeStated?: readonly string[];
+  /**
+   * What one use mints, where what it buys is **hit points divided among
+   * several creatures** rather than an effect list.
+   *
+   * SRD Preserve Life: "evoke healing energy that can restore a number of Hit
+   * Points equal to five times your Cleric level. Choose Bloodied creatures
+   * within 30 feet of yourself (which can include you), and divide those Hit
+   * Points among them."
+   *
+   * **Beside {@link effects} and never with it.** Every other option on a menu
+   * runs the resolver over the creatures the option's reach or area found; this
+   * one runs no effect at all — the amounts are a division the *caller* makes
+   * out of a budget the engine works out, which no effect list can state,
+   * because an effect carries its own amount and reaches every target alike.
+   * `reach` is the field it shares, and it is read the same way: the thirty
+   * feet is measured to each creature the share names.
+   *
+   * It is a field on an option rather than a grant of its own for the reason
+   * `options` is a field on a pool: SRD prints one feature whose uses buy
+   * different things, and this is one of the things a Channel Divinity use
+   * buys.
+   */
+  readonly distributes?: HitPointDivision;
+}
+
+/**
+ * A budget of hit points one use mints, and the two sentences that bound it.
+ *
+ * The budget is sized the way a pool is, which is the same arithmetic asked of
+ * a different quantity: `poolSizeOf`'s four branches, of which SRD Preserve
+ * Life uses "five times your Cleric level" and homebrew may use any of the
+ * rest. Counting a feature's hit points with the same reader that counts its
+ * uses is the reading `HealingTouch` already takes of Lay On Hands — a pool
+ * measured in hit points, "which the pool system carries without caring".
+ */
+export interface HitPointDivision {
+  /** How many hit points one use mints. */
+  readonly hitPoints: PoolSizing;
+  /**
+   * SRD Preserve Life: "This feature can restore a creature to no more than
+   * half its Hit Point maximum."
+   *
+   * One member, because the SRD prints one such ceiling and a cap the book
+   * does not print is a rule invented here. It is also the whole of "Choose
+   * **Bloodied** creatures": a creature above half its maximum has no room
+   * under the cap at all, so the sentence needs no second check.
+   */
+  readonly cap: 'half-maximum';
+  /**
+   * SRD Preserve Life: "You can't use this feature on an Undead or a
+   * Construct."
+   *
+   * Creature types a share may not name — a **refusal** rather than the filter
+   * `mustBeType` is, because the caller named this creature rather than
+   * standing it in an area, and an area is the only thing that quietly leaves
+   * somebody out.
+   */
+  readonly excludesTypes?: readonly string[];
 }
 
 /**
@@ -1019,6 +1077,47 @@ export type FeatureGrant =
       readonly confersReaction?: ConferredReactionGrant;
     }
   /**
+   * A form **another feature's** menu takes — a subclass adding an option to a
+   * pool it does not declare.
+   *
+   * The owner's ruling on Channel Divinity: it "is a shell with one shared
+   * pool, and each option is a form the shell takes". A level 3 Life Cleric
+   * has three of them — Divine Spark, Turn Undead and Preserve Life — spent in
+   * any combination out of the uses the *class* feature sized. So the shape
+   * the Cleric already declares is the right one and what was missing is the
+   * door: `options` hangs off the pool grant that prices it, and a subclass
+   * feature has no pool grant and must not grow one.
+   *
+   * **A grant of its own rather than a second pool**, and the failure it
+   * avoids is the one the whole vocabulary is built around: a Preserve Life
+   * with uses of its own would be two pools where the book prints one, so a
+   * Cleric who turned undead twice would still have a Preserve Life in hand.
+   * It is `casting-options`' argument with the host changed — that grant
+   * spends a pool another feature declared, and this one joins a menu another
+   * feature prints.
+   *
+   * What the options themselves are is unchanged: the same
+   * {@link PoolOptionGrant} the host's own menu is written in, compiled onto
+   * the sheet under the **host's** id, at the host's class level and on the
+   * host's spellcasting ability — because a Channel Divinity option's DC is
+   * "the spell save DC from this class's Spellcasting feature" wherever the
+   * option was written down.
+   */
+  | {
+      readonly kind: 'pool-options';
+      /**
+       * The feature whose menu these join — SRD's Channel Divinity.
+       *
+       * Checked by `checkContent` against the features in scope, which for a
+       * subclass is its own and its parent class's: a form that names a menu
+       * nobody prints, or one that arrives later than the form does, is a line
+       * on a class table that looks executed and is inert.
+       */
+      readonly feature: string;
+      /** At least one, each with an id the caller who spends the use names. */
+      readonly options: readonly PoolOptionGrant[];
+    }
+  /**
    * An effect list bought by **a hit that has already landed**, rather than by
    * an action its holder takes.
    *
@@ -1606,20 +1705,46 @@ export interface ResourceTradeGrant {
   readonly spends: TradedResource;
   readonly gains: TradedResource;
   /**
-   * The clause that limits it — and **there is no member for a trade the SRD
-   * does not limit at all**.
+   * The clause that limits it, **including the one that says there is none**.
    *
-   * Required and closed, because both of Wild Resurgence's sentences print one
-   * and writing an unlimited trade as a limited one would be a rule invented
-   * here. Features the shape map still lists want the absent member:
-   * Font of Inspiration is "a spell slot bought into a pool, with no action and
-   * no limit", Sorcery Incarnate is "one pool spent to refill another", and
-   * Holy Nimbus's is "a slot spent on a feature's own pool". Widening this to
-   * optional is a decision about a vocabulary rather than a transcription, so
-   * it is named here and left.
+   * The pair was Wild Resurgence's two sentences and nothing else, and its own
+   * declaration named the three features waiting on a third member: Font of
+   * Inspiration is "a spell slot bought into a pool, with no action and no
+   * limit", Sorcery Incarnate is "one pool spent to refill another", and Holy
+   * Nimbus's is "a slot spent on a feature's own pool". None of the three
+   * prints a limit of any kind, and the reason to say so with a member rather
+   * than by leaving the field out is the failure a widening like this one
+   * causes: an **absent** limit is a value every reader has to remember to
+   * treat as "no limit", and one reader forgetting turns Font of Inspiration
+   * into a once-a-turn feature that nothing would catch. There is no absence
+   * here to misread — a trade states which of the three it is, and `tsc`
+   * refuses one that states none.
+   *
+   * What still bounds an unlimited trade is what it spends: the Bard runs out
+   * of slots, the Sorcerer out of points, and a trade that would give back
+   * more than was spent is `nothing_to_regain` whatever its limit says.
    */
-  readonly limit: 'once-per-turn' | 'once-per-long-rest';
-  /** The key of the pool of one holding a once-per-Long-Rest limit. */
+  readonly limit: 'once-per-turn' | 'once-per-long-rest' | 'unlimited';
+  /**
+   * A pool of one this trade **declares**, because a feature carries one grant
+   * and neither of the two sentences that need it has another to declare it
+   * with.
+   *
+   * It is read two ways, and {@link limit} says which:
+   *
+   * - `once-per-long-rest` — the pool *is* the limit. SRD Wild Resurgence:
+   *   "you can't do so again until you finish a Long Rest", which is a pool of
+   *   one, the same reading `recovery` takes of the same sentence. The trade
+   *   spends it.
+   * - `unlimited` — the pool is what the trade **fills**, and then it must be
+   *   the one {@link gains} names. SRD Holy Nimbus: "Once you use this feature,
+   *   you can't use it again until you finish a Long Rest, unless you expend a
+   *   level 5 spell slot to restore your use of it." The feature's own single
+   *   use is a pool of one; the trade buys it back and spends nothing of it.
+   *
+   * A once-a-turn trade declares none: the turn's own ledger counts that one,
+   * so a pool beside it would be one nothing ever spends.
+   */
   readonly pool?: string;
   readonly poolLabel?: string;
   /**

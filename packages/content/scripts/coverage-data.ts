@@ -829,8 +829,12 @@ export function auditBestiary(): BestiaryCoverage {
     read: SRD_CONTENT.monsters.reduce(
       (sum, monster) =>
         sum +
-        monster[field].filter((line) => line.attack !== undefined || line.trait !== undefined)
-          .length,
+        monster[field].filter(
+          (line) =>
+            line.attack !== undefined ||
+            line.trait !== undefined ||
+            line.multiattack !== undefined,
+        ).length,
       0,
     ),
   }));
@@ -845,8 +849,26 @@ export function auditBestiary(): BestiaryCoverage {
     ...monster.legendaryActions,
   ];
 
-  const SHAPES: readonly [string, (line: { name: string; text: string; attack?: unknown; trait?: unknown }) => boolean][] = [
-    ['How many attacks the Attack action holds', (line) => line.name === 'Multiattack'],
+  const SHAPES: readonly [
+    string,
+    (line: {
+      name: string;
+      text: string;
+      attack?: unknown;
+      trait?: unknown;
+      multiattack?: unknown;
+    }) => boolean,
+  ][] = [
+    // Still the predicate it was, with the half that is now read taken out of
+    // it: a Multiattack whose sentence states a named sequence is structure
+    // the engine spends, so what is left here is the sentences that say
+    // something else — an alternative, a free choice from a menu, a use that
+    // is not an attack. The row shrinks rather than going quiet, which is what
+    // this table was built to do.
+    [
+      'How many attacks the Attack action holds',
+      (line) => line.name === 'Multiattack' && line.multiattack === undefined,
+    ],
     [
       'A save a line forces',
       (line) => line.attack === undefined && /Saving Throw:_/.test(line.text),

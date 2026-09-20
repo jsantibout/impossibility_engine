@@ -1281,6 +1281,17 @@ export function eligibleTargets(
   // the sum: Spiritual Weapon's force goes 60 feet out and strikes 5 further.
   // Both numbers are printed; adding them is the shortlist's job, and reading
   // the spell's Range alone would leave a legal target off it.
+  //
+  // **And a Range the DM decides bounds nobody.** `{ kind: 'dm' }` says the
+  // book printed a question rather than a distance, so there is no number to
+  // compare against — and the fallback above would have answered *five feet*,
+  // which is the engine inventing the one number it has just said is not its
+  // to invent. Worse here than anywhere: this list is what a model is shown,
+  // so a shortlist that quietly narrowed to five feet would have `resolveSpell`
+  // accepting a target the shortlist had already excluded. Everything else the
+  // shortlist checks — Total Cover, sight, creature type, the dead — still
+  // applies, because none of those is the Range.
+  const bounded = definition.range.kind !== 'dm';
   const reach =
     (definition.range.kind === 'ranged' ? definition.range.feet : 5) +
     (definition.origin?.reach ?? 0);
@@ -1320,12 +1331,14 @@ export function eligibleTargets(
           kind: 'position',
           subject: target.id,
           need: `where ${target.name} is standing`,
-          because: `${definition.name} reaches ${reach} feet`,
+          because: bounded
+            ? `${definition.name} reaches ${reach} feet`
+            : `${definition.name} reaches as far as the DM says, and Total Cover is still measured`,
           satisfyWith: `a placeCreatureInScene command for ${target.id}`,
         });
         continue;
       }
-      if (apart.value > reach) {
+      if (bounded && apart.value > reach) {
         excluded.push({
           target: target.id,
           reason: `${target.name} is ${apart.value} feet away, outside the range of ${reach}`,

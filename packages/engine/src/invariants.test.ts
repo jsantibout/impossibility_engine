@@ -2361,6 +2361,8 @@ const UNGUARDED_ON_PURPOSE: Readonly<Record<string, string>> = {
   takeDamageResponse: 'a Reaction, and it closes a window somebody else opened',
   resolveAttackDamage:
     'the settlement of an attack already made — a guard here would strand the held roll',
+  settleDamage:
+    'the settlement of a damage window the engine is already holding open; refusing it would strand the roll, the Concentration save that roll may call for, and the rider the blow is holding until the defender has answered. It spends a pool only on somebody else’s behalf: the rider it resolves was asked for, checked and paid for by the swing that opened this window, and the point comes out of the attacker rather than out of whoever is settling',
   resolveDeclaredCast:
     'the settlement of a casting the engine is already holding open; refusing it would deadlock the window',
   castSpell:
@@ -2729,8 +2731,11 @@ const ENDS_A_CASTING_UNGUARDED: Readonly<Record<string, string>> = {
     'the same outcome with the dice still to throw, and exempt for the same reason: the falling brazier is not anybody’s action, nobody in the fight spends a thing on it, and the Concentration it can end is ended by the save `resolveDamage` beneath it rolls — a guard would refuse the ceiling coming down because somebody owed a saving throw',
   settleAreaEffects:
     'the settlement itself, and a guard that refused its own settlement would be a deadlock wearing a rule’s clothes — this is the command that discharges the debt every other one is waiting on',
-  settleDamage:
-    'the settlement of a damage window the engine is already holding open; refusing it would strand the roll, and with it the Concentration save that roll may call for',
+  // `settleDamage` was here until it began resolving the rider a blow holds
+  // for the defender's answer. Spending that rider's pool makes it a spender,
+  // so the closure above finds it now and its exemption lives there — the two
+  // lists are disjoint by construction and a name on both is an exemption
+  // gone stale.
 };
 
 describe('every command that ends a casting asks whether it may, or says why not', () => {

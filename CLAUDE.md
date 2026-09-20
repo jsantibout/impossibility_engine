@@ -97,10 +97,15 @@ npm run srd:ingest && npm run srd:index   # fresh clone only: generated SRD data
 npm test                                  # Vitest, all packages
 npm run typecheck                         # tsc -b, then the tests
 npm run lint
-npm run coverage                          # regenerates COVERAGE.md; commit the result
+npm run coverage                          # regenerates COVERAGE.md; read the delta
 ```
 
-Before pushing: all five green and `git diff --exit-code COVERAGE.md` empty.
+Before pushing: all five green. **`COVERAGE.md` is the coordinator's to commit,
+once, after a batch merges** — a builder runs `npm run coverage` to read the
+number its brief names, reports it, and then `git checkout -- COVERAGE.md`. Six
+branches regenerating one 1,100-line file means six diffs a reviewer must read,
+six conflicts on the way in, and seven computations of an answer that is only
+true once, at the end.
 CI runs the same on Node 22 and 24.
 
 The load-bearing tests, so you know what a change can break:

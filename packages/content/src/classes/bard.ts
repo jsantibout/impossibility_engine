@@ -167,7 +167,24 @@ export const BARD: ClassDefinition = {
       name: 'Font of Inspiration',
       level: 5,
       automation: 'manual',
-      note: 'Regaining Bardic Inspiration on a Short Rest, and spending a slot to regain a use, are not wired to the rest commands.',
+      note: 'Half of it is applied, which is why this is not marked as executed. SRD: "you can expend a spell slot (no action required) to regain one expended use of Bardic Inspiration" — a slot the caster names spent on the pool Bardic Inspiration declared, with no action and no limit at all, so a Bard with slots left may do it as often as they like on one turn. A trade gives back what was spent: a Bard holding every die they have is refused rather than handed one the table never printed. Regaining Bardic Inspiration on a Short Rest is the other sentence and is not applied — "You now regain all your expended uses ... when you finish a Short Rest" is a later feature rewriting an earlier pool’s recovery, and a pool’s recovery is fixed when the sheet is built.',
+      grants: {
+        kind: 'trade',
+        trades: [
+          {
+            id: 'slot-for-inspiration',
+            name: 'Font of Inspiration',
+            // SRD: "(no action required)".
+            action: 'none',
+            // "a spell slot" — which one is the Bard's to choose, so the level
+            // is left off and the command asks for it.
+            spends: { kind: 'spell-slot' },
+            gains: { kind: 'pool', key: 'bardic-inspiration', uses: 1 },
+            // The sentence prints no limit of any kind.
+            limit: 'unlimited',
+          },
+        ],
+      },
     },
     {
       id: 'bard:countercharm',

@@ -13,7 +13,12 @@ import {
 import { counterpartProblem, oneShotProblem, rollSelectorProblems } from './roll-modifiers.js';
 import { parseNotation } from './dice.js';
 import { LONG_CASTING_SECONDS } from './spells.js';
-import { conditionRiderOf, CREATURE_TYPES, modifierRidersOf } from './spell-definitions.js';
+import {
+  conditionRiderOf,
+  CREATURE_TYPES,
+  DM_DECIDES,
+  modifierRidersOf,
+} from './spell-definitions.js';
 import type {
   ConditionRider,
   DiceScaling,
@@ -1985,6 +1990,23 @@ export function checkSpellDefinition(
     });
   }
 
+  /**
+   * A Range the DM decides is a Range the engine measures nothing against, so
+   * the printed words have to reach the table or nobody ever learns there was
+   * a question. The two halves of the handover are checked against each other
+   * here and nowhere else: `dmDecides` may stand alone — a spell with an
+   * ordinary Range may still print a sentence only the DM can answer — and
+   * `range: { kind: 'dm' }` may not.
+   */
+  if (definition.range.kind === 'dm' && (definition.dmDecides ?? []).length === 0) {
+    found.push({
+      field: 'dmDecides',
+      code: 'silent_dm_range',
+      reason:
+        'a Range the DM decides has to say what the book printed, or the casting silently measures nothing and never says why',
+    });
+  }
+
   // — targeting ————————————————————————————————————————————————————————————
 
   if (definition.targets.unlimited === true && definition.targets.count !== 0) {
@@ -2464,11 +2486,32 @@ export function checkSpellDefinition(
         ? definition.unmodelled
         : [];
 
+  /**
+   * The handover, read by the same rule and for the same reason.
+   *
+   * A second list rather than a second spelling of the first: an `unmodelled`
+   * line is a debt somebody may one day pay, and this is the book asking a
+   * question nobody here will ever answer. Both are what a definition declares
+   * it is leaving to the table, which is why either satisfies the rule below.
+   */
+  const handovers =
+    definition.dmDecides === undefined
+      ? []
+      : readsAsList(
+            definition.dmDecides,
+            'dmDecides',
+            'the printed text a definition hands to the DM is a list of sentences',
+            found,
+          )
+        ? definition.dmDecides
+        : [];
+
   if (
     definition.effects.length === 0 &&
     definition.activation === undefined &&
     definition.areaTrigger === undefined &&
-    notes.length === 0
+    notes.length === 0 &&
+    handovers.length === 0
   ) {
     found.push({
       field: 'unmodelled',
@@ -2477,12 +2520,49 @@ export function checkSpellDefinition(
     });
   }
 
+  /**
+   * The mark is `handedOver`'s to write, and nobody else's.
+   *
+   * `unverified` is one list carrying two claims, and the whole of what tells
+   * them apart is {@link DM_DECIDES}. A note that contains the mark would read
+   * as a handover to every reader of that list — and a handed-over sentence
+   * that contains it would carry it twice, so `dmDecisionsIn` would give the
+   * table back a line with the mark still in it. Both are refused here, where
+   * a definition arrives, rather than left to whoever writes the next one.
+   */
+  const forges = (text: unknown): boolean =>
+    typeof text === 'string' && text.includes(DM_DECIDES);
+
   notes.forEach((note, i) => {
     if (typeof note !== 'string' || note.trim().length === 0) {
       found.push({
         field: `unmodelled[${i}]`,
         code: 'empty_note',
         reason: 'an empty note declares nothing',
+      });
+    }
+    if (forges(note)) {
+      found.push({
+        field: `unmodelled[${i}]`,
+        code: 'forged_dm_mark',
+        reason: `"${DM_DECIDES}" is the mark a handed-over sentence carries; a gap the engine has not built is not one, and writing the mark here would file a debt as a decision nobody may take`,
+      });
+    }
+  });
+
+  handovers.forEach((printed, i) => {
+    if (typeof printed !== 'string' || printed.trim().length === 0) {
+      found.push({
+        field: `dmDecides[${i}]`,
+        code: 'empty_note',
+        reason: 'an empty sentence hands nothing over',
+      });
+    }
+    if (forges(printed)) {
+      found.push({
+        field: `dmDecides[${i}]`,
+        code: 'forged_dm_mark',
+        reason: `the mark is written once, by the casting; a sentence that carries "${DM_DECIDES}" of its own reaches the table with it still in the text`,
       });
     }
   });

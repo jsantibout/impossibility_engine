@@ -832,10 +832,15 @@ describe('a Cleric can be told to turn undead', () => {
         readonly options: readonly { readonly option: string; readonly name: string }[];
       }
     ).options;
+    // Four, because the Life Domain's Preserve Life is a **form of Channel
+    // Divinity** rather than a feature with a pool of its own — a subclass
+    // adding an option to the base feature's menu, which is what the holder
+    // sees here.
     expect(options.map((one) => one.option)).toEqual([
       'turn-undead',
       'divine-spark-restore',
       'divine-spark-harm',
+      'preserve-life',
     ]);
   });
 

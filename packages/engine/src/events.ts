@@ -128,6 +128,7 @@ export type {
   PendingAttack,
   PendingCasting,
   PendingDamage,
+  PendingHitRider,
   PendingMove,
   PendingTest,
   ReadiedAction,

@@ -11,6 +11,11 @@ import {
   type Result,
   type Skill,
 } from '@ie/shared';
+// The subpath, never the barrel, for the reason `content.ts` gives: the
+// barrel re-exports the parsed book. `schemas.ts` imports zod and nothing
+// else, so the six size categories are the book's own list rather than a
+// fourth copy of it.
+import { CREATURE_SIZES, type CreatureSize } from '@ie/srd/schemas';
 import { proficientWithCategories } from './attack.js';
 import {
   ABILITY_SCORE_MAXIMUM,
@@ -67,6 +72,7 @@ import {
   type ClassLevelRow,
   type FeatureChoice,
   type FeatureDefinition,
+  type PoolOptionGrant,
   type FeatureGrant,
   type HealGrant,
   type SpellcastingStyle,
@@ -173,6 +179,20 @@ export interface CharacterChoices {
   readonly classId: string;
   readonly level: number;
   readonly speciesId: string;
+  /**
+   * Which of the sizes the species prints this character is.
+   *
+   * SRD prints a size on every species and lets two of them print more than
+   * one: "Medium (about 4-7 feet tall) or Small (about 2-4 feet tall), chosen
+   * when you select this species." So it is a choice like any other where the
+   * species offers one, and where the species offers a single size it is not
+   * asked and this is left out.
+   *
+   * **Matched by the printed word**, the way a language and an alignment are,
+   * and case does not matter: the species writes "Medium" and the engine
+   * spells the category `medium`, and neither is asked to shout at the other.
+   */
+  readonly size?: string | undefined;
   readonly backgroundId: string;
   readonly abilities: AbilityChoice;
   /** SRD: one ability by 2 and another by 1, or all three by 1. */
@@ -283,6 +303,15 @@ export interface CharacterPlan {
   readonly magicItems: readonly string[];
   /** The species' creature type, which some spells demand. */
   readonly creatureType: string;
+  /**
+   * How much space this character takes up, derived from their species.
+   *
+   * Pinned into `creature-added` beside the creature type, for the reason a
+   * monster's printed size is pinned there: it is a fact the book prints, the
+   * fold opens no catalogue, and before this the only way a size reached the
+   * engine was a caller *stating* one when the character was placed on a map.
+   */
+  readonly size: CreatureSize;
   /**
    * Choices that were legal but wasteful — a proficiency picked twice, say.
    *
@@ -1938,6 +1967,102 @@ function checkLanguages(content: Content, choices: CharacterChoices): CreationPr
 }
 
 /**
+ * The size category a printed word names, or null where it names none.
+ *
+ * Read off the one list of size categories there is, so a seventh cannot be
+ * admitted by a literal nobody updated - which is the rule `positioning.ts`
+ * states about ranking them and the same rule about spelling them.
+ */
+function sizeNamed(word: string): CreatureSize | null {
+  const lowered = word.trim().toLowerCase();
+  return CREATURE_SIZES.find((size) => size === lowered) ?? null;
+}
+
+/** What a species' printed sizes and a character's answer come to. */
+interface SizeDecision {
+  /** Null only where the problems beside it say why there is no answer. */
+  readonly size: CreatureSize | null;
+  readonly problems: readonly CreationProblem[];
+  readonly warnings: readonly CreationProblem[];
+}
+
+/**
+ * Which of its species' sizes a character is.
+ *
+ * **The species is read as a union, never by name.** Where it prints one size
+ * that is the answer and nobody is asked; where it prints more than one the
+ * choice is the player's, and an answer that is not one of the sizes offered
+ * is refused - a wrong answer rather than a missing fact.
+ *
+ * **An unanswered choice is a warning and the first printed size is pinned**,
+ * which is the one judgement here. A character always has a size, so "not yet"
+ * is not a state the book allows, and the obvious reading is to refuse. But
+ * every character written against this engine so far omits it, and this
+ * repository has made that mistake once already: requiring the Weapon Mastery
+ * choice broke a corpus that spanned worktrees, and the resolution was to warn
+ * through the plan rather than refuse. The first printed size is also what
+ * every one of those characters has always been placed at, so nothing that
+ * folded before folds differently. Promoting this to a refusal is a migration
+ * of the character corpus, and wants deciding as one.
+ */
+function sizeFor(species: SpeciesDefinition, choices: CharacterChoices): SizeDecision {
+  const printed: CreatureSize[] = [];
+  for (const word of species.sizes) {
+    const size = sizeNamed(word);
+    if (size === null) {
+      return {
+        size: null,
+        problems: [
+          problem(
+            'unknown_size',
+            'speciesId',
+            `${species.id} prints a size of "${word}", which is no size category; have ${CREATURE_SIZES.join(', ')}`,
+          ),
+        ],
+        warnings: [],
+      };
+    }
+    printed.push(size);
+  }
+
+  const first = printed[0];
+  if (first === undefined) {
+    return {
+      size: null,
+      problems: [problem('unknown_size', 'speciesId', `${species.id} prints no size`)],
+      warnings: [],
+    };
+  }
+
+  const offered = species.sizes.join(' or ');
+  const stated = choices.size;
+  if (stated !== undefined && stated.trim() !== '') {
+    const chosen = sizeNamed(stated);
+    if (chosen === null || !printed.includes(chosen)) {
+      return {
+        size: null,
+        problems: [problem('bad_size', 'size', `a ${species.name} is ${offered}, not ${stated}`)],
+        warnings: [],
+      };
+    }
+    return { size: chosen, problems: [], warnings: [] };
+  }
+
+  if (printed.length === 1) return { size: first, problems: [], warnings: [] };
+  return {
+    size: first,
+    problems: [],
+    warnings: [
+      problem(
+        'size_not_chosen',
+        'size',
+        `a ${species.name} is ${offered}, and nobody chose; ${species.sizes[0]} is pinned`,
+      ),
+    ],
+  };
+}
+
+/**
  * SRD "Starting at Higher Levels": the GM decides what a character above level
  * 1 starts with beyond the standard package.
  *
@@ -2159,6 +2284,7 @@ export function checkCharacter(
     ...checkAbilities(content, choices, parts.background, features),
     ...checkSkills(choices, parts.definition),
     ...checkLanguages(content, choices),
+    ...sizeFor(parts.species, choices).problems,
     ...checkDmGrants(choices),
     ...checkMulticlass(content, choices, features),
   ];
@@ -2224,10 +2350,20 @@ export function planCharacter(
   if (parts === null) return err('unknown_class', 'the character has no class');
   const { definition, species } = parts;
 
+  const sized = sizeFor(species, choices);
+  if (sized.size === null) {
+    // Unreachable: `checkCharacter` above collects these same problems and
+    // this function has already returned on the first of them. It stands
+    // because the size is pinned into an event below, and a null must not
+    // reach one.
+    const bad = sized.problems[0];
+    return err(bad?.code ?? 'unknown_size', bad?.reason ?? `${species.id} prints no size`);
+  }
+
   const features = grantedFeatures(content, choices, parts);
   const scores = finalScores(content, choices, features);
   const { skills: proficient, tools, warnings: gathered } = gatherProficiencies(content, choices, parts);
-  const warnings = [...gathered, ...unclaimedMasteries(choices, features)];
+  const warnings = [...gathered, ...unclaimedMasteries(choices, features), ...sized.warnings];
 
   const expertise = new Set(expertiseSkills(content, choices, parts));
   const skills: Partial<Record<Skill, 'proficient' | 'expertise'>> = {};
@@ -2463,25 +2599,49 @@ export function planCharacter(
   // is resolved here because it belongs to the *granting class*: "your spell
   // save DC" on a Cleric feature is the Cleric's, whatever else its holder
   // multiclassed into.
+  //
+  // **A menu is the host feature's, wherever its entries were written down.**
+  // A subclass's `pool-options` grant is a door onto a menu the class feature
+  // prints — SRD Preserve Life joining Channel Divinity's — so its forms are
+  // compiled under the host's id, at the host's class level and on the host's
+  // spellcasting ability, and the command that spends a use names Channel
+  // Divinity exactly as it does for Turn Undead. A grant whose host this
+  // character does not hold contributes nothing: `checkContent` refuses that
+  // arrangement in the catalogue, where the level it arrives at is knowable.
   const poolOptions: PoolOption[] = [];
+  const menus: {
+    readonly host: FeatureDefinition;
+    readonly pool: string;
+    readonly options: readonly PoolOptionGrant[];
+  }[] = [];
   for (const feature of features) {
     const grant = feature.grants;
-    if (grant?.kind !== 'pool' || grant.options === undefined) continue;
+    if (grant?.kind === 'pool' && grant.options !== undefined) {
+      menus.push({ host: feature, pool: grant.key, options: grant.options });
+      continue;
+    }
+    if (grant?.kind !== 'pool-options') continue;
+    const host = features.find((one) => one.id === grant.feature);
+    const hosted = host?.grants;
+    if (host === undefined || hosted?.kind !== 'pool') continue;
+    menus.push({ host, pool: hosted.key, options: grant.options });
+  }
 
-    const ability = castingAbilityFor(feature.id);
+  for (const { host, pool, options } of menus) {
+    const ability = castingAbilityFor(host.id);
     const count =
-      grant.options.some((option) => option.diceCountByLevel !== undefined)
-        ? classLevelFor(choices, feature.id)
+      options.some((option) => option.diceCountByLevel !== undefined)
+        ? classLevelFor(choices, host.id)
         : 0;
 
-    for (const option of grant.options) {
+    for (const option of options) {
       poolOptions.push({
-        feature: feature.id,
-        featureName: feature.name,
+        feature: host.id,
+        featureName: host.name,
         option: option.id,
         name: option.name,
         action: option.action,
-        pool: grant.key,
+        pool,
         effects:
           option.diceCountByLevel === undefined
             ? option.effects
@@ -2502,6 +2662,28 @@ export function planCharacter(
         ...(option.damageTypeStated === undefined
           ? {}
           : { damageTypeStated: option.damageTypeStated }),
+        // The budget, sized here for the reason the dice above are: SRD
+        // Preserve Life's "five times your Cleric level" is a multiple of the
+        // *host's* class level, and `poolSizeOf` is the one reader of every
+        // sizing the SRD writes — asked of hit points rather than of uses,
+        // which is the reading Lay On Hands' pool already has.
+        ...(option.distributes === undefined
+          ? {}
+          : {
+              distributes: {
+                hitPoints: poolSizeOf(
+                  content,
+                  choices,
+                  features,
+                  host.id,
+                  option.distributes.hitPoints,
+                ),
+                cap: option.distributes.cap,
+                ...(option.distributes.excludesTypes === undefined
+                  ? {}
+                  : { excludesTypes: option.distributes.excludesTypes }),
+              },
+            }),
       });
     }
   }
@@ -3004,6 +3186,7 @@ export function planCharacter(
     toolProficiencies: tools,
     magicItems: choices.dmGrants?.magicItems ?? [],
     creatureType: species.creatureType,
+    size: sized.size,
     features,
     spellcasting,
     initiativeBonuses,
@@ -3515,6 +3698,12 @@ function poolsFor(
   // Resurgence's "you can't do so again until you finish a Long Rest" is a
   // pool of one, exactly as the recovery above it is. A trade limited once a
   // turn declares nothing — the turn's own ledger answers for that.
+  //
+  // **The unlimited arm declares one too, and it is the other sentence.** SRD
+  // Holy Nimbus's "you can't use it again until you finish a Long Rest" is the
+  // *feature's* own use rather than a limit on the trade, and the trade is
+  // what buys it back — so the declaration is identical here and only
+  // `tradeResource` tells the two apart, off the limit.
   for (const feature of features) {
     const grant = feature.grants;
     if (grant?.kind !== 'trade') continue;
@@ -3644,6 +3833,10 @@ export function createCharacter(
       sheet: plan.value.sheet,
       maxHp: plan.value.hitPointMaximum,
       creatureType: plan.value.creatureType,
+      // What the species prints, pinned like a monster's: the fold opens no
+      // catalogue, and until this was here the only way a character's size
+      // reached the engine was somebody stating one at the edge of a map.
+      size: plan.value.size,
     },
     {
       type: 'character-created',

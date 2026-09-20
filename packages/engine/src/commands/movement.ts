@@ -12,7 +12,9 @@ import { spendMovement, spendReaction } from '../combat.js';
 import { isIncapacitated } from '../conditions.js';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
-import { canSee, speedOf } from '../standing.js';
+import { canSee, sheetAsItStands, speedOf } from '../standing.js';
+import type { CharacterSheet } from '../character.js';
+import { bestPrintedMeleeAttack } from '../monster.js';
 import {
   checkRoute,
   costOfRoute,
@@ -584,6 +586,49 @@ function provokedBy(
 export interface OpportunityCommand extends CommandIdentity {
   /** The weapon, by catalogue id, or null for an Unarmed Strike. */
   readonly weapon?: string | null;
+  /**
+   * An attack the reactor's own stat block prints, by its printed name.
+   *
+   * The same field `AttackCommand.action` is, offered here for the same
+   * reason: a Wolf's swing is a Bite, and the only way a caller could ask for
+   * one used to be to go round this command. Exclusive with `weapon`, which
+   * `resolveAttack` refuses below rather than resolving in some order nobody
+   * can see.
+   *
+   * Naming neither is the ordinary case and is where the default lives — see
+   * {@link takeOpportunityAttack}.
+   */
+  readonly action?: string;
+}
+
+/**
+ * What a creature swings when it is provoked and nobody said with what.
+ *
+ * Three answers in the order a caller expects: what they named, what they are
+ * holding, and — where the creature's block prints attacks of its own — its
+ * best printed melee line. See {@link bestPrintedMeleeAttack} for what "best"
+ * means and why each part of it is the book's rather than the engine's.
+ *
+ * Shared with the `damaged-by-creature` window, which asks the same question
+ * about the same kind of Reaction: SRD Retaliation is "one melee attack", word
+ * for word what an Opportunity Attack is.
+ */
+export function reactionSwing(
+  sheet: CharacterSheet,
+  command: { readonly weapon?: string | null; readonly action?: string },
+): { readonly weapon: string | null; readonly action?: string } {
+  // Both named goes through as both named, so `resolveAttack` refuses it in
+  // the one place that refusal lives. Choosing one here would make a swing
+  // with two answers legal at this door and illegal at the other.
+  if (command.action !== undefined) {
+    return { weapon: command.weapon ?? null, action: command.action };
+  }
+  // Explicitly null is a caller asking for an Unarmed Strike, and is answered
+  // rather than second-guessed; undefined is nobody having said.
+  if (command.weapon !== undefined) return { weapon: command.weapon };
+
+  const printed = bestPrintedMeleeAttack(sheet);
+  return printed === null ? { weapon: null } : { weapon: null, action: printed.name };
 }
 
 /**
@@ -632,12 +677,19 @@ export function takeOpportunityAttack(
     // it makes — cover, conditions, proficiency, the target's defences — applies
     // here too rather than being reimplemented for this one case.
     const after = events.reduce(applyEvent, state);
+    const swinger = creatureOf(after, reactor);
+    if (swinger === null) return unknownCreature(reactor);
     const swing = resolveAttack(
       after,
       reactor,
       {
         target: waiting.mover,
-        weapon: command.weapon ?? null,
+        // What the reactor swings with: what the caller named, or — for a
+        // creature whose block prints its own attacks — the best of those. A
+        // Wolf's Opportunity Attack was an Unarmed Strike at a Strength
+        // modifier its block never printed, which is a number the engine
+        // invented against a line that was there to be read.
+        ...reactionSwing(sheetAsItStands(after, reactor) ?? swinger.sheet, command),
         // The Reaction above is what this costs; it is not the Attack action.
         free: true,
         // No id: this command owns the guard, and the same id fingerprinted

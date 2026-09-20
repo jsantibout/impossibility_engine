@@ -279,11 +279,13 @@ function hung(
  * SRD Push: "you can push the creature up to 10 feet straight away from
  * yourself if it is Large or smaller."
  *
- * **The size may be a default nobody stated.** A creature's size lives on the
- * map, where an undeclared one is quietly Medium, and a character's is pinned
- * by nothing at all — so a creature the log has never sized is pushed, and the
- * assumption is reported rather than hidden. A creature somebody *has* said is
- * Huge stands where it is, with no refusal: the rest of the attack happened.
+ * **The size may be a default nobody stated.** A creature carries its own size
+ * when something pinned one — a monster's stat block, or a character's creation
+ * choice — and that beats the map. Failing both, the map answers, where an
+ * undeclared size is quietly Medium: so a creature the log has never sized is
+ * pushed, and the assumption is reported rather than hidden. A creature
+ * somebody *has* said is Huge stands where it is, with no refusal: the rest
+ * of the attack happened.
  */
 function push(state: GameState, hit: MasteryHit): Result<MasteryOutcome> {
   const scene = state.scene;
