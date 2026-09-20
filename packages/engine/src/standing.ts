@@ -913,14 +913,17 @@ export interface PoolOption {
  * Action, a target count that moves with the slot — so a shared `when` would
  * be four fields of which three are always absent.
  *
- * Three SRD Metamagic options are deliberately **not** here, and each is
- * somebody else's shape rather than a fifth arm:
+ * SRD publishes **ten** Metamagic options and four of them are these arms. The
+ * other six are deliberately not here, and none of them is a fifth arm waiting
+ * to be written — each wants a mechanism that lives somewhere else entirely:
  *
  * | SRD | Why not |
  * |---|---|
  * | Careful Spell | it changes who the casting catches, not what it costs: creatures that automatically succeed on a save the resolver is about to roll |
  * | Heightened Spell | a roll mode hung on one target's saves for one casting — a modifier, which `roll-modifiers.ts` owns |
  * | Subtle Spell | a `SpellDefinition` holds no components at all, so there is nothing for it to remove |
+ * | Transmuted Spell | the damage type a casting deals, which is `CastingDamageAlteration` above rather than anything a casting *costs* — and that union has no arm that substitutes one |
+ * | Empowered Spell, Seeking Spell | a damage die and a d20 thrown again. `rerollDice` in `dice.ts` does it and no casting passes it, which is a gap in what an effect may ask the dice for |
  */
 export type CastingCostAlteration =
   /**

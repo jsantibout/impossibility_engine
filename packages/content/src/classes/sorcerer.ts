@@ -80,7 +80,7 @@ export const METAMAGIC_OPTIONS: readonly string[] = [
  * | Careful | creatures that automatically succeed on a save this casting is about to roll |
  * | Heightened | Disadvantage on one target's saves against this casting |
  * | Subtle | components, which a `SpellDefinition` does not carry at all |
- * | Transmuted | a damage type the caster chooses, on a spell that printed one |
+ * | Transmuted | a damage type the caster restates, which is what a casting deals rather than what it costs |
  */
 const METAMAGIC_EXECUTED = [
   {
@@ -190,7 +190,7 @@ export const SORCERER: ClassDefinition = {
       name: 'Metamagic',
       level: 2,
       automation: 'manual',
-      note: 'Two options are chosen and recorded, and more at levels 10 and 17. Four of the ten are executed — Distant, Extended, Quickened and Twinned each rewrite one number the casting works out before it spends anything, and the Sorcery Points go inside that casting’s own batch. The other six are not: Empowered Spell and Seeking Spell are `rerollDice` in the dice layer, which a caller opts into per roll; Careful Spell needs creatures that automatically succeed on a save the casting is about to roll; Heightened Spell needs Disadvantage hung on one target’s saves against this casting; Subtle Spell has nothing to remove, because a spell definition carries no components; and Transmuted Spell needs a damage type chosen on a spell that printed none. The "only one option on a spell" limit is enforced; the clause that stops a level 1+ spell later in the turn a Quickened one was cast on is not, and the engine’s own one-slot-per-turn rule stands in its place.',
+      note: 'Two options are chosen and recorded, and more at levels 10 and 17. Four of the ten are executed — Distant, Extended, Quickened and Twinned each rewrite one number the casting works out before it spends anything, and the Sorcery Points go inside that casting’s own batch. The other six are not: Empowered Spell and Seeking Spell are `rerollDice` in the dice layer, which a caller opts into per roll; Careful Spell needs creatures that automatically succeed on a save the casting is about to roll; Heightened Spell needs Disadvantage hung on one target’s saves against this casting; Subtle Spell has nothing to remove, because a spell definition carries no components; and Transmuted Spell needs the caster to restate a damage type the spell printed. The "only one option on a spell" limit is enforced; the clause that stops a level 1+ spell later in the turn a Quickened one was cast on is not, and the engine’s own one-slot-per-turn rule stands in its place.',
       choice: { kind: 'option', choose: 2, from: METAMAGIC_OPTIONS },
       grants: {
         kind: 'casting-options',

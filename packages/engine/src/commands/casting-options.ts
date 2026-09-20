@@ -34,6 +34,14 @@ import type { CastingTime } from '../spells.js';
 /** The order the arms are applied in — see {@link alteredCasting}. */
 const ORDER: readonly string[] = ['effective-level', 'range', 'duration', 'casting-time'];
 
+/** What a refusal calls each of the four, so the reason reads as English. */
+const SPELLING: Readonly<Record<string, string>> = {
+  range: 'range',
+  duration: 'duration',
+  'casting-time': 'casting time',
+  'effective-level': 'level',
+};
+
 /** What an elected option costs, in the pool its feature named. */
 export interface CastingOptionCost {
   readonly key: string;
@@ -72,8 +80,10 @@ export interface AlteredCasting {
  * use only one Metamagic option on a spell when you cast it."
  *
  * **An option named twice is two options**, because the price would be paid
- * twice and the alteration applied twice; a caller who meant it once said it
- * once.
+ * twice; a caller who meant it once said it once. What stops it from being
+ * charged twice for one effect is not here but in {@link alteredCasting},
+ * which refuses two options that rewrite the same number — the rule that
+ * catches a second *different* option of the same kind too.
  */
 export function electedCastingOptions(
   sheet: CharacterSheet,
@@ -142,6 +152,30 @@ export function alteredCasting(
   let reachFeet = ranged(definition.range);
   let extended: number | undefined;
   const costs = new Map<string, number>();
+
+  // **Each of the four numbers is rewritten once or not at all.** Two options
+  // that both answer "how far does this casting reach" are two answers to one
+  // question, and there is no arithmetic the book prints for composing them —
+  // a range doubled twice is not quadrupled anywhere in the SRD, and a casting
+  // time is not changed from a value it no longer has. Applying one and
+  // charging for both is the price-paid-for-nothing this module exists to
+  // refuse, so the casting is refused instead. A feature whose `perCasting` is
+  // one cannot reach this; one that allows two can, by buying two ranges.
+  //
+  // **By position and not by identity**, because an option named twice is the
+  // same record twice: a reference comparison would call it one option and
+  // charge for two.
+  for (const [at, option] of options.entries()) {
+    const twin = options.findIndex(
+      (other, index) => index !== at && other.alters.kind === option.alters.kind,
+    );
+    if (twin >= 0) {
+      return err(
+        'two_options_alter_one_thing',
+        `${option.name} and ${options[twin]!.name} both rewrite what this casting's ${SPELLING[option.alters.kind] ?? option.alters.kind} is, and a casting has one of each`,
+      );
+    }
+  }
 
   const ordered = [...options].sort(
     (a, b) => ORDER.indexOf(a.alters.kind) - ORDER.indexOf(b.alters.kind),

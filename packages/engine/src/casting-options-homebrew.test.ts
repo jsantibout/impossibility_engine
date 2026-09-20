@@ -374,6 +374,22 @@ describe('a homebrew class writes the whole menu with no engine change', () => {
     const refused = attempt(table(), charm(['long-hold', 'deep-draw', 'slow-rite']));
     expect(isErr(refused) && refused.code).toBe('too_many_casting_options');
   });
+
+  /**
+   * **Each of the four numbers is rewritten once or not at all.**
+   *
+   * A feature whose limit is two lets a casting buy a range *and* a duration,
+   * which the test above is about — and two options that both answer "how far
+   * does this reach" are two different answers to one question. Charging for
+   * both and applying one is the exact failure this module's own rule forbids:
+   * a price paid for nothing.
+   */
+  it('refuses two options that rewrite the same number', () => {
+    const log = table();
+    const refused = attempt(log, charm(['far-reach', 'far-reach']));
+    expect(isErr(refused) && refused.code).toBe('two_options_alter_one_thing');
+    expect(points(fold('seed', log))).toBe(20);
+  });
 });
 
 // — what the validator refuses ————————————————————————————————————————

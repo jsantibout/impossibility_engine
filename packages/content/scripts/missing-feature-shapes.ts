@@ -1143,7 +1143,12 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
     {
       clause: 'Subtle Spell has nothing to remove, because a spell definition carries no components',
       why: 'a-feature-that-changes-what-a-casting-costs',
-      note: 'the one part of this shape the built member does not reach: the shape names "its components" and a SpellDefinition has none to name.',
+      note: 'one of the two parts of this shape the built member does not reach: the shape names "its components" and a SpellDefinition has none to name.',
+    },
+    {
+      clause: 'Transmuted Spell needs the caster to restate a damage type the spell printed',
+      why: 'a-feature-that-changes-what-a-casting-costs',
+      note: 'the other: the shape’s own line is that "nothing stands between the caster’s sheet and that pinning", and the type a casting pins is one of the things nothing stands between — the built member rewrites the range, the duration, the action and the level, and `damageTypeStated` is a licence the definition prints rather than one a feature may hand out.',
     },
   ],
   'sorcerer:sorcery-incarnate': [
