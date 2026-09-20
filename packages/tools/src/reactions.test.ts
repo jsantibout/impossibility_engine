@@ -93,6 +93,54 @@ const wizard = (name: string): Record<string, unknown> => ({
 });
 
 /**
+ * A wizard of the level where *Counterspell* is castable — it wants a level 3
+ * slot, which a level 3 wizard has not got.
+ */
+const BOOK_FIVE = [
+  ...BOOK,
+  'counterspell',
+  'ray-of-sickness',
+  'fireball',
+  'fly',
+];
+
+const duelist = (name: string): Record<string, unknown> => ({
+  ...wizard(name),
+  level: 5,
+  cantrips: ['fire-bolt', 'light', 'prestidigitation', 'mage-hand'],
+  spellbook: BOOK_FIVE.map((spellId, index) => ({
+    spellId,
+    acquiredAt: index < 6 ? 1 : Math.ceil((index - 5) / 2) + 1,
+    origin: 'level' as const,
+  })),
+  preparedSpells: [
+    'ray-of-sickness',
+    'shield',
+    'mage-armor',
+    'hold-person',
+    'counterspell',
+    'fireball',
+    'misty-step',
+    'burning-hands',
+    'scorching-ray',
+  ],
+  feats: {
+    'sage:magic-initiate-wizard': {
+      featId: 'magic-initiate',
+      spellList: 'wizard',
+      spellcastingAbility: 'int',
+      cantrips: ['ray-of-frost', 'shocking-grasp'],
+      levelOneSpell: 'find-familiar',
+    },
+    'human:versatile': { featId: 'alert' },
+    'wizard:ability-score-improvement': {
+      featId: 'ability-score-improvement',
+      abilities: ['int', 'int'],
+    },
+  },
+});
+
+/**
  * A dwarf of a martial class, with no choice this file is not about.
  *
  * Dwarf and Criminal between them ask for nothing: the species grants four
@@ -491,5 +539,203 @@ describe('a Fighter can push a check that has already come back', () => {
     );
     expect(refusal.code).toBe('no_pending_test');
     expect(poolLeft(t, 'bram', 'second-wind')).toBe(2);
+  });
+});
+
+// — the casting that is in progress ————————————————————————————————————————
+
+/**
+ * SRD Counterspell answers "a creature **in the process of** casting a spell",
+ * and an atomic casting is never in the process of anything.
+ *
+ * `CastSpellRequest.hold` is the field that makes a casting a process; the
+ * window it opens is answered by `cast_spell.answers`, and the casting nobody
+ * interrupted is finished by `resolve_declared_cast`. **One field would not
+ * have been enough**: a declaration with no settlement is a slot nobody spends
+ * and a spell nobody casts, held open for the rest of the campaign.
+ */
+describe('a wizard can counter a spell that is being cast', () => {
+  const duel = (seed: string) => {
+    const t = table(seed);
+    expectOk(t.call('create_character', { id: 'kessa', choices: duelist('Kessa') }));
+    expectOk(t.call('create_character', { id: 'vex', choices: duelist('Vex') }));
+    expectOk(t.call('declare_side', { who: 'kessa', side: 'party' }));
+    expectOk(t.call('declare_side', { who: 'vex', side: 'rivals' }));
+    room(t, 'kessa', 'vex');
+    expectOk(t.call('roll_initiative', { combatants: [{ who: 'kessa' }, { who: 'vex' }] }));
+    turnOf(t, 'kessa');
+    return t;
+  };
+
+  /** What is left of a creature's slots at one level, off `sheet`. */
+  const slotsLeft = (t: ReturnType<typeof table>, who: string, level: number): number => {
+    const slots = expectOk(t.call('sheet', { who })).resolution['spellSlots'] as readonly {
+      readonly level: number;
+      readonly left: number;
+    }[];
+    return slots.find((one) => one.level === level)!.left;
+  };
+
+  const declare = (t: ReturnType<typeof table>) =>
+    expectOk(
+      t.call('cast_spell', {
+        caster: 'kessa',
+        spellId: 'ray-of-sickness',
+        targets: ['vex'],
+        slotLevel: 1,
+        hold: true,
+      }),
+    );
+
+  it('declares a casting, offers the window, and the counter stops the spell', () => {
+    const t = duel('countered');
+    const declared = declare(t);
+    const castingId = declared.resolution['castingId'] as string;
+
+    // Nothing has happened yet: no damage, and — SRD Counterspell spares the
+    // slot — nothing spent for it either.
+    expect(declared.events.some((event) => event.type === 'damage-taken')).toBe(false);
+    expect(slotsLeft(t, 'kessa', 1)).toBe(4);
+    expect(t.surface.observe().owed.pendingCastings).toContain(castingId);
+
+    // The offer names the casting to answer, which is what `answers` takes.
+    const chances = offered(t, 'vex');
+    expect(chances.find((one) => one.id === 'counterspell')).toMatchObject({
+      window: 'casting-a-spell',
+      casting: castingId,
+    });
+
+    const whole = hpOf(t, 'vex');
+    expectOk(
+      t.call('cast_spell', {
+        caster: 'vex',
+        spellId: 'counterspell',
+        targets: ['kessa'],
+        slotLevel: 3,
+        answers: castingId,
+      }),
+    );
+
+    // The Ray of Sickness never landed and there is no casting left to settle.
+    expect(hpOf(t, 'vex')).toBe(whole);
+    expect(t.surface.observe().owed.pendingCastings).toEqual([]);
+    expect(slotsLeft(t, 'kessa', 1)).toBe(4);
+    expect(slotsLeft(t, 'vex', 3)).toBe(1);
+  });
+
+  /**
+   * And the casting nobody interrupted: `resolve_declared_cast` is the other
+   * half of the field, and the spell then does everything it would have done.
+   */
+  it('finishes a declared casting nobody answered, and the slot goes then', () => {
+    const t = duel('uncountered');
+    const castingId = declare(t).resolution['castingId'] as string;
+
+    const settled = expectOk(t.call('resolve_declared_cast', { castingId }));
+    expect(settled.resolution['castingId']).toBe(castingId);
+    // The spell was aimed at the target the declaration named, and the engine
+    // threw the attack roll the spell asks for — whether that ray hits is the
+    // die's business and not this file's.
+    const outcomes = settled.resolution['outcomes'] as readonly { readonly target: string }[];
+    expect(outcomes.map((one) => one.target)).toEqual(['vex']);
+    expect(settled.events.some((event) => event.type === 'roll-recorded')).toBe(true);
+    // And the slot goes now rather than at the declaration, which is the whole
+    // of what a countered casting is spared.
+    expect(slotsLeft(t, 'kessa', 1)).toBe(3);
+    expect(t.surface.observe().owed.pendingCastings).toEqual([]);
+  });
+
+  /**
+   * And the field that names *which* casting, which is the half a single open
+   * casting cannot prove: the engine resolves an unambiguous reference by
+   * itself, so `answers` only does work when there are two to choose between.
+   *
+   * SRD's own case, and the engine's: "a wizard mid-rite may cast Shield when
+   * attacked", so one creature may have several castings open. There is no
+   * action economy outside a fight, which is why two declarations are possible
+   * here and would not be inside one.
+   */
+  it('names which of two open castings the counter answers', () => {
+    const t = table('one-of-two');
+    expectOk(t.call('create_character', { id: 'kessa', choices: duelist('Kessa') }));
+    expectOk(t.call('create_character', { id: 'vex', choices: duelist('Vex') }));
+    room(t, 'kessa', 'vex');
+
+    const first = expectOk(
+      t.call('cast_spell', {
+        caster: 'kessa',
+        spellId: 'fire-bolt',
+        targets: ['vex'],
+        hold: true,
+      }),
+    ).resolution['castingId'] as string;
+    const second = expectOk(
+      t.call('cast_spell', {
+        caster: 'kessa',
+        spellId: 'scorching-ray',
+        targets: ['vex'],
+        slotLevel: 2,
+        hold: true,
+      }),
+    ).resolution['castingId'] as string;
+    expect(second).not.toBe(first);
+
+    // Two open, so the engine refuses to choose and says so by naming them.
+    const refusal = expectRefused(
+      t.call('cast_spell', {
+        caster: 'vex',
+        spellId: 'counterspell',
+        targets: ['kessa'],
+        slotLevel: 3,
+      }),
+    );
+    expect(refusal.code).toBe('ambiguous_casting');
+    expect(refusal.reason).toContain(first);
+    expect(slotsLeft(t, 'vex', 3)).toBe(2);
+
+    // The same call with the field the refusal asked for, and exactly the
+    // casting it named is the one that is gone.
+    expectOk(
+      t.call('cast_spell', {
+        caster: 'vex',
+        spellId: 'counterspell',
+        targets: ['kessa'],
+        slotLevel: 3,
+        answers: second,
+      }),
+    );
+    expect(t.surface.observe().owed.pendingCastings).toEqual([first]);
+  });
+
+  /** A refusal a caller can act on: that casting is not open. */
+  it('refuses to finish a casting nobody declared, and spends nothing', () => {
+    const t = duel('no-such-casting');
+    const before = { log: t.campaign.log().length, rolls: t.campaign.state().rollsIssued };
+
+    const refusal = expectRefused(t.call('resolve_declared_cast', { castingId: 'casting-99' }));
+    expect(refusal.code).toBe('no_casting_pending');
+    expect(t.campaign.log()).toHaveLength(before.log);
+    expect(t.campaign.state().rollsIssued).toBe(before.rolls);
+  });
+
+  /**
+   * And the trigger rule from the other side: a Counterspell with nothing in
+   * the air is refused and keeps its slot, which is what makes `options` worth
+   * reading rather than guessing at.
+   */
+  it('refuses a counter when nothing is being cast, and keeps the slot', () => {
+    const t = duel('nothing-to-counter');
+    expect(offered(t, 'vex').map((one) => one.id)).not.toContain('counterspell');
+
+    const refusal = expectRefused(
+      t.call('cast_spell', {
+        caster: 'vex',
+        spellId: 'counterspell',
+        targets: ['kessa'],
+        slotLevel: 3,
+      }),
+    );
+    expect(refusal.code).toBe('no_trigger');
+    expect(slotsLeft(t, 'vex', 3)).toBe(2);
   });
 });

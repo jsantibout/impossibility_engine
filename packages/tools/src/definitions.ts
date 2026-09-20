@@ -142,6 +142,7 @@ import {
   recordInitiativeRolls,
   resolveAttack,
   resolveAttackDamage,
+  resolveDeclaredCast,
   resolveEffectCheck,
   resolveMove,
   resolveSpell,
@@ -1398,6 +1399,19 @@ const CAST_SPELL = tool({
       .describe(
         'Features of the caster’s that this casting uses — the ones the SRD writes as “you can”, which do nothing unless the casting names them. `sheet` lists them; a feature the caster has not got is refused, and one they have that does not reach this spell is not, because casting outside a feature’s narrowing is legal. This carries no number: the engine reads the feature off the sheet and does the arithmetic itself.',
       ),
+    hold: z
+      .boolean()
+      .optional()
+      .describe(
+        'Declare the casting and stop, leaving it open for somebody to interrupt. SRD Counterspell answers "a creature in the process of casting a spell", and a casting that resolves in one call is never in the process of anything. The action goes and any Concentration is dropped, exactly as they would be whatever happens next; the slot is not spent until the casting is finished, because a countered spell keeps it. Finish it with `resolve_declared_cast`, whose id this call reports as `castingId`. A casting that takes a minute or more is declared this way whether or not you ask.',
+      ),
+    answers: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        'Which declared casting this Reaction interrupts, by the `castingId` `options` reports beside the offer. Only for a spell whose trigger is a casting — Counterspell — and refused for any other. Leave it out when the creature you named has exactly one casting open; where they have several, leaving it out is refused naming them, and the answer is the same call with the id in.',
+      ),
   }),
   run: (context, args) => {
     const state = context.campaign.state();
@@ -1421,6 +1435,8 @@ const CAST_SPELL = tool({
       ...(args.payment === undefined ? {} : { payment: args.payment }),
       ...(args.source === undefined ? {} : { source: args.source }),
       ...(args.usingFeatures === undefined ? {} : { usingFeatures: args.usingFeatures }),
+      ...(args.hold === true ? { hold: true } : {}),
+      ...(args.answers === undefined ? {} : { answers: args.answers }),
       ...identity(context),
     };
     return settle(
@@ -1431,6 +1447,48 @@ const CAST_SPELL = tool({
       (value) => value.unverified,
     );
   },
+});
+
+/**
+ * Finish a casting that was declared and left open.
+ *
+ * **The other half of `cast_spell.hold`, and it has to be a tool of its own.**
+ * A declaration is a spell nobody has cast and a slot nobody has spent, held
+ * open until something finishes it: without this door a caller that asked for
+ * the window could never close it, and every command that refuses on a pending
+ * casting would refuse for the rest of the session. One field was not enough.
+ *
+ * **It restates nothing.** Who the casting was aimed at, what level it was made
+ * at and which route supplied it were settled and written down at the
+ * declaration, so the whole of the call is which casting — a settlement that
+ * took a fresh request could declare a Fireball at the goblins and settle it at
+ * the party. The id is the one `cast_spell` reported and `look` lists under
+ * `owed.pendingCastings`.
+ */
+const RESOLVE_DECLARED_CAST = tool({
+  name: 'resolve_declared_cast',
+  description:
+    'Let a casting that was declared take effect: the slot goes now, and the spell does what it does. Name only the casting — everything else was decided when it was declared. Use it for a casting you held open for a Counterspell nobody cast, and for a spell whose casting time is a minute or more once the time has passed. A casting that was countered is gone and there is nothing left to resolve.',
+  mutates: true,
+  input: z.object({
+    castingId: z
+      .string()
+      .min(1)
+      .describe('From the cast_spell that declared it, or from `look`’s `owed.pendingCastings`.'),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      resolveDeclaredCast(
+        context.campaign.state(),
+        args.castingId,
+        context.campaign.supply(),
+        identity(context),
+      ),
+      (value) => value.events,
+      (value) => ({ castingId: value.castingId, outcomes: value.outcomes }),
+      (value) => value.unverified,
+    ),
 });
 
 /**
@@ -2289,6 +2347,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   OPTIONS,
   PLACE_CREATURE,
   REGAIN_USES,
+  RESOLVE_DECLARED_CAST,
   ROLL_INITIATIVE,
   SET_SCENE,
   SETTLE_AREA_EFFECTS,
