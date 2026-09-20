@@ -194,8 +194,20 @@ export const PALADIN: ClassDefinition = {
       id: 'paladin:faithful-steed',
       name: 'Faithful Steed',
       level: 5,
-      automation: 'manual',
-      note: 'Find Steed always prepared, and the free casting per Long Rest, are not modelled; summons are a shape the engine does not have.',
+      grants: {
+        kind: 'spells',
+        fixed: ['find-steed'],
+        freeCasting: {
+          spell: 'find-steed',
+          pool: 'faithful-steed',
+          poolLabel: 'Faithful Steed',
+          // "once ... until you finish a Long Rest" is a pool of one, which is
+          // what a sizing naming nothing but its floor comes to.
+          declares: { minimum: 1, recovers: 'long-rest' },
+        },
+      },
+      automation: 'engine',
+      note: 'SRD: "You always have the _Find Steed_ spell prepared. You can also cast the spell once without expending a spell slot, and you regain the ability to do so when you finish a Long Rest." Both sentences are executed: the spell is prepared without anybody choosing it, and the free casting is a pool of one that a Long Rest refills, spent by a casting naming this feature as its source and costing no slot. What the casting does not do is put a steed in the scene — that is _Find Steed_’s own debt, recorded in the spell’s `unmodelled`, because the SRD prints the Otherworldly Steed stat block inside the spell and a casting adds no creature to a scene.',
     },
     {
       id: 'paladin:aura-of-protection',

@@ -773,23 +773,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'and casting it as a Bonus Action after a hit, which changes what the casting costs and when.',
     },
   ],
-  'paladin:faithful-steed': [
-    {
-      clause: 'Find Steed always prepared',
-      why: 'a-spell-an-item-casts-that-nothing-executes',
-      note: 'the catalogue defines no Find Steed, so a fixed grant naming it would be refused.',
-    },
-    {
-      clause: 'the free casting per Long Rest',
-      why: 'a-casting-paid-for-out-of-a-feature-pool',
-      note: 'Paladin’s Smite’s blocker on a second feature of the same class.',
-    },
-    {
-      clause: 'summons are a shape the engine does not have',
-      why: 'a-stat-block-created-mid-fight',
-      note: 'and the steed itself, once the spell exists.',
-    },
-  ],
   'paladin:abjure-foes': [
     {
       clause: 'succeed on a Wisdom saving throw',
@@ -855,18 +838,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
 
   // — Ranger —
-  'ranger:favored-enemy': [
-    {
-      clause: 'the rider really does fire at the marked creature',
-      why: 'expressible',
-      note: 'the fixed spells grant, and the executed spell underneath it.',
-    },
-    {
-      clause: 'needs a pool a casting can be paid out of',
-      why: 'a-casting-paid-for-out-of-a-feature-pool',
-      note: 'Paladin’s Smite’s blocker on a second half-caster, which is what makes it a shape.',
-    },
-  ],
   'ranger:fighting-style': [
     {
       clause: 'each is a modifier the caller passes to a roll',

@@ -388,35 +388,46 @@ describe("a Ranger's Feral Senses reach past a declaration", () => {
 });
 
 /**
- * SRD Favored Enemy, whose two sentences the engine answers one of.
+ * SRD Favored Enemy, whose two sentences the engine now answers both of.
  *
  * > "You always have the _Hunter's Mark_ spell prepared. You can cast it twice
  * > without expending a spell slot, and you regain all expended uses of this
  * > ability when you finish a Long Rest."
  *
- * **It was marked executed on the strength of a note claiming a pool nobody
- * declared** — the failure `class-pools.test.ts` was written for, wearing the
- * one disguise that guard cannot see through, because the guard reads a
- * feature's own note and this note said the pool was there. `freeCastPoolKey`
- * names a pool for a **feat's** granted spell and for nothing a class feature
- * grants, so a Ranger has Hunter's Mark prepared and nothing to cast it out
- * of but a slot. Both halves are asserted, because the first is what the
- * feature really does and the second is why it is honest for it to be manual.
+ * **It was once marked executed on the strength of a note claiming a pool
+ * nobody declared** — the failure `class-pools.test.ts` was written for,
+ * wearing the one disguise that guard cannot see through, because the guard
+ * reads a feature's own note and this note said the pool was there. The pool
+ * is declared by the grant now, sized by the Favored Enemy column, and the
+ * casting that spends it is the casting every other route takes;
+ * `feature-free-casting.test.ts` drives it end to end. What is asserted here
+ * is the half this file owns: the class table reaching the character.
  */
-describe("a Ranger's Favored Enemy prepares the spell and buys no casting", () => {
+describe("a Ranger's Favored Enemy prepares the spell and pays for the castings", () => {
   it('has Hunter’s Mark prepared without anybody choosing it', () => {
     const prepared = classCasting(plan(ranger()).spellcasting, 'ranger')?.prepared ?? [];
     expect(prepared).toContain('hunters-mark');
     expect(ranger().preparedSpells).not.toContain('hunters-mark');
   });
 
-  it('declares no pool for the free castings the SRD prints', () => {
+  it('declares the pool the SRD prints, at the column’s size', () => {
     const pools = built(ranger(), 'sorrel').creatures.sorrel?.resources.pools ?? {};
-    expect(Object.keys(pools).filter((key) => key.includes('favored-enemy'))).toEqual([]);
-    expect(Object.keys(pools).filter((key) => key.includes('hunters-mark'))).toEqual([]);
+    // A level 3 Ranger: two, which is FAVORED_ENEMY_USES read at its own level.
+    expect(pools['favored-enemy']?.max).toBe(FAVORED_ENEMY_USES[2]);
+    expect(pools['favored-enemy']?.recovers).toBe('long-rest');
     // And the feature says so rather than claiming otherwise.
     const feature = RANGER.features.find((one) => one.id === 'ranger:favored-enemy');
-    expect(feature?.automation).toBe('manual');
-    expect(feature?.grants).toEqual({ kind: 'spells', fixed: ['hunters-mark'] });
+    expect(feature?.automation).toBe('engine');
+    expect(feature?.grants).toEqual({
+      kind: 'spells',
+      fixed: ['hunters-mark'],
+      freeCasting: {
+        spell: 'hunters-mark',
+        pool: 'favored-enemy',
+        poolLabel: 'Favored Enemy',
+        declares: { usesByLevel: FAVORED_ENEMY_USES, recovers: 'long-rest' },
+      },
+    });
   });
 });
+

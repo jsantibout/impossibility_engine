@@ -284,15 +284,18 @@ describe('a feature that claims a pool declares one', () => {
       // one place: `activated` declares one for a feature you switch on, and
       // `pool` for a feature that *is* a resource.
       //
-      // **`spells` was a fourth arm and it was wrong.** It stood for "a
-      // granted spell's free daily casting, which `freeCastPoolKey` names",
-      // and that is true of a **feat** — the loop that calls it reads
-      // `choices.feats` and nothing else — so a class feature's `spells`
-      // grant declares no pool whatever. The arm had one user, Favored Enemy,
-      // whose note claimed a pool it did not have; the note is corrected and
-      // the arm goes with it, because an allow-list entry nothing needs is
-      // the hole this guard exists to be.
+      // **`spells` was a fourth arm, was removed, and is back with something
+      // behind it.** It once stood for "a granted spell's free daily casting,
+      // which `freeCastPoolKey` names", which is true of a **feat** — the
+      // loop that calls it reads `choices.feats` and nothing else — so a
+      // class feature's `spells` grant declared no pool whatever, and the arm
+      // was a hole with one user: Favored Enemy, whose note claimed a pool it
+      // did not have. The grant now carries `freeCasting`, which `poolsFor`
+      // reads beside the other three, so the arm names that field rather than
+      // the kind: a `spells` grant with no free casting on it still declares
+      // nothing and is still caught here.
       grant?.kind === 'pool' ||
+      (grant?.kind === 'spells' && grant.freeCasting !== undefined) ||
       (grant?.kind === 'activated' && grant.pool !== null) ||
       // And `recovery`, whose pool holds the one use the feature's own
       // sentence allows it before a Long Rest.

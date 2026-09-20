@@ -370,7 +370,16 @@ describe('what a shape finishes is the column a tranche is planned from', () => 
     // The leader a tranche is sized from, pinned rather than left derived: it
     // is the number the next batch is planned against, and a ranking nobody
     // asserts is one nobody notices going wrong.
-    expect(ranked[0]?.shape).toBe('a-casting-paid-for-out-of-a-feature-pool');
+    //
+    // **It moved when the casting-from-a-feature-pool shape was built.** That
+    // shape led with ten blocked, and the `spells` grant's `freeCasting` took
+    // Favored Enemy and Faithful Steed off the list — so the leader is now the
+    // shape behind it, and the mechanism's remaining consumers are features in
+    // other class files whose own notes have still to be converted.
+    expect(ranked[0]?.shape).toBe('a-feature-that-rewrites-another-features-rule');
+    expect(featureConsumersOf('a-casting-paid-for-out-of-a-feature-pool').blocks).not.toContain(
+      'ranger:favored-enemy',
+    );
 
     // And the two shapes the remaining clauses belong to are still claimed, by
     // features that have nothing to do with a weapon's mastery property.

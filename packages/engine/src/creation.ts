@@ -1160,12 +1160,58 @@ function castingClassesOf(content: Content, choices: CharacterChoices): readonly
  * half must not inherit them.
  */
 function classFeatureSpells(content: Content, choices: CharacterChoices, caster: CasterChoices): readonly string[] {
+  return choicesGranting(choices, castingFeaturesOf(content, caster), 'spells');
+}
+
+/** This class's features and its subclass's, at that class's own level. */
+function castingFeaturesOf(
+  content: Content,
+  caster: CasterChoices,
+): readonly FeatureDefinition[] {
   const subclass = caster.subclassId === undefined ? null : content.subclassById(caster.subclassId);
-  const features = [
+  return [
     ...cumulativeFeatures(caster.definition, caster.level),
     ...(subclass === null ? [] : cumulativeFeatures(subclass, caster.level)),
   ];
-  return choicesGranting(choices, features, 'spells');
+}
+
+/**
+ * The castings a class's own features pay for out of a pool.
+ *
+ * SRD Favored Enemy: "You always have the _Hunter's Mark_ spell prepared. You
+ * can cast it twice without expending a spell slot." The first sentence is
+ * `classFeatureSpells` above; this is the second, and it comes out as a
+ * {@link GrantedSpell} — the shape a feat's Magic Initiate has produced since
+ * it landed, whose `freeCastPool` `choosePayment` already spends.
+ *
+ * **Per class, for `classFeatureSpells`'s own reason.** The ability is the
+ * granting class's, because that is what "your spell save DC" means on a
+ * feature the Ranger prints and the Sorcerer half of the same creature does
+ * not.
+ *
+ * **`slotCasting` is false, always.** The feature's route is the free one:
+ * where the spell is also prepared, the class's own route casts it with a
+ * slot, and a granted route that allowed both would make the engine choose
+ * between a resource a player is saving and one they are not.
+ */
+function classFeatureFreeCastings(
+  content: Content,
+  caster: CasterChoices,
+  ability: Ability,
+): readonly GrantedSpell[] {
+  const granted: GrantedSpell[] = [];
+  for (const feature of castingFeaturesOf(content, caster)) {
+    const grant = feature.grants;
+    if (grant?.kind !== 'spells' || grant.freeCasting === undefined) continue;
+    granted.push({
+      spellId: grant.freeCasting.spell,
+      source: feature.id,
+      ability,
+      freeCastPool: grant.freeCasting.pool,
+      slotCasting: false,
+    });
+  }
+  return granted;
 }
 
 /**
@@ -2785,6 +2831,11 @@ export function planCharacter(
     const fromFeatures = classFeatureSpells(content, choices, caster);
     const style = caster.definition.spellcasting?.style ?? 'spellbook';
 
+    // And the castings this class's features pay for themselves, on the
+    // granting class's own ability. A feat's are above; these are the same
+    // shape from the other of the two things that grant a spell.
+    granted.push(...classFeatureFreeCastings(content, caster, ability));
+
     if (style === 'spellbook') {
       // SRD Evocation Savant: the free spells join the book, marked as the
       // feature's, and the count rule does not measure them.
@@ -3240,9 +3291,25 @@ function poolsFor(
     ...slotPools(plan),
   ];
 
+  // The pools a **feature's** free castings come out of, named by the feature
+  // rather than by the grant it produced.
+  //
+  // A feat's pool below is one casting per grant and nothing else could size
+  // it; a feature's is the class table's — and a feature may spend a pool it
+  // did not declare at all, as Cutting Words spends Bardic Inspiration. So
+  // both are excluded from the loop below and the one that declares each is
+  // the one that sizes it: the feature's own grant, further down.
+  const featurePools = new Set(
+    features.flatMap((feature) =>
+      feature.grants?.kind === 'spells' && feature.grants.freeCasting !== undefined
+        ? [feature.grants.freeCasting.pool]
+        : [],
+    ),
+  );
+
   // A feat's free casting is a pool too, one per grant that has one.
   for (const grant of plan.spellcasting.granted) {
-    if (grant.freeCastPool === null) continue;
+    if (grant.freeCastPool === null || featurePools.has(grant.freeCastPool)) continue;
     pools.push({
       key: grant.freeCastPool,
       label: `free casting of ${grant.spellId}`,
@@ -3302,6 +3369,24 @@ function poolsFor(
       // Own Luck is a Charisma modifier with a floor.
       max: poolSizeOf(content, choices, features, feature.id, grant.declares),
       recovers: grant.declares.recovers,
+    });
+  }
+
+  // A feature that pays for a casting out of a pool, where the feature is the
+  // one that declares it. Favored Enemy's uses are a column of the Ranger
+  // table and Faithful Steed's is the pool of one that "once ... until you
+  // finish a Long Rest" always means; Wild Companion spends a use of Wild
+  // Shape, declares nothing, and is skipped here for Cutting Words's reason.
+  for (const feature of features) {
+    const grant = feature.grants;
+    if (grant?.kind !== 'spells') continue;
+    const free = grant.freeCasting;
+    if (free?.declares === undefined) continue;
+    pools.push({
+      key: free.pool,
+      label: free.poolLabel ?? `free casting of ${free.spell}`,
+      max: poolSizeOf(content, choices, features, feature.id, free.declares),
+      recovers: free.declares.recovers,
     });
   }
 

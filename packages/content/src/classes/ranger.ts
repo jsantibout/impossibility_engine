@@ -110,9 +110,21 @@ export const RANGER: ClassDefinition = {
       id: 'ranger:favored-enemy',
       name: 'Favored Enemy',
       level: 1,
-      automation: 'manual',
-      note: 'Half of it is applied, which is why this is no longer marked as executed. SRD: "You always have the _Hunter’s Mark_ spell prepared" — a fixed spells grant, and the spell is executed, so the rider really does fire at the marked creature. The rest is not: "You can cast it twice without expending a spell slot, and you regain all expended uses of this ability when you finish a Long Rest" needs a pool a casting can be paid out of, and a feature carries one grant. It was marked executed on the strength of a note that said the free castings had somewhere to come out of, and nothing ever declared one — `freeCastPoolKey` names a free-cast pool for a **feat**’s granted spell and for nothing a class feature grants.',
-      grants: { kind: 'spells', fixed: ['hunters-mark'] },
+      automation: 'engine',
+      note: 'SRD: "You always have the _Hunter’s Mark_ spell prepared. You can cast it twice without expending a spell slot, and you regain all expended uses of this ability when you finish a Long Rest," and the count "increases when you reach certain Ranger levels, as shown in the Favored Enemy column". Both sentences are executed now. The spell is prepared without anybody choosing it, and the spell itself is executed, so the rider really does fire at the marked creature; the free castings are a pool the Favored Enemy column sizes at the Ranger’s own level, spent by a casting that names this feature as its source and refilled whole by a Long Rest. This was once marked executed on the strength of a note that said the free castings had somewhere to come out of, and nothing declared one — the pool is declared here, by the grant, rather than claimed by the note.',
+      grants: {
+        kind: 'spells',
+        fixed: ['hunters-mark'],
+        // The second sentence of the same paragraph, on the grant that carries
+        // the first: the feature that has the spell prepared is the feature
+        // that pays for casting it without a slot.
+        freeCasting: {
+          spell: 'hunters-mark',
+          pool: 'favored-enemy',
+          poolLabel: 'Favored Enemy',
+          declares: { usesByLevel: FAVORED_ENEMY_USES, recovers: 'long-rest' },
+        },
+      },
     },
     {
       id: 'ranger:weapon-mastery',

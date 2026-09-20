@@ -125,8 +125,9 @@ const isCount = (value: unknown): boolean =>
 /**
  * The sizing a grant declares, wherever it declares one.
  *
- * Three grant kinds carry one and `poolsFor` reads all three, so a rule that
- * looked only at `pool` would leave Rage's column and Indomitable's unchecked.
+ * Four grant kinds carry one and `poolsFor` reads all four, so a rule that
+ * looked only at `pool` would leave Rage's column and Indomitable's unchecked
+ * — and Favored Enemy's, whose free castings are a column of the same table.
  */
 const poolSizingOf = (
   grant: FeatureDefinition['grants'],
@@ -136,6 +137,9 @@ const poolSizingOf = (
   if (grant.kind === 'activated' && grant.pool !== null) return { at: 'grants', sizing: grant };
   if (grant.kind === 'reaction' && grant.declares !== undefined) {
     return { at: 'grants.declares', sizing: grant.declares };
+  }
+  if (grant.kind === 'spells' && grant.freeCasting?.declares !== undefined) {
+    return { at: 'grants.freeCasting.declares', sizing: grant.freeCasting.declares };
   }
   return null;
 };
@@ -511,6 +515,40 @@ export function checkFeatureDefinition(
       }
       seen.add(id);
     });
+  }
+
+  // Rule 5b. A casting the feature pays for out of a pool, judged by the two
+  // things creation reads off it: a spell there is a definition to cast, and a
+  // pool to take the casting out of.
+  //
+  // The spell for rule 5's own reason — the feature's answer is never checked
+  // against a character's choices, so a typo in one would go unseen for ever —
+  // and the pool because a free casting with nowhere to come from is a feature
+  // that refuses every casting it offers, at the table rather than here. The
+  // *sizing* is rule 6 below, which reads this grant with the other three.
+  if (grant?.kind === 'spells' && grant.freeCasting !== undefined) {
+    const free = grant.freeCasting;
+    if (typeof free.spell !== 'string' || free.spell.trim() === '') {
+      found.push({
+        field: 'grants.freeCasting.spell',
+        code: 'unknown_free_casting',
+        reason: 'a feature that pays for a casting names the spell it pays for',
+      });
+    } else if (!context.spellExists(free.spell)) {
+      found.push({
+        field: 'grants.freeCasting.spell',
+        code: 'unknown_free_casting',
+        reason: `this content has no executable definition of "${free.spell}", so the casting this feature pays for could never run`,
+      });
+    }
+    if (typeof free.pool !== 'string' || free.pool.trim() === '') {
+      found.push({
+        field: 'grants.freeCasting.pool',
+        code: 'free_casting_without_a_pool',
+        reason:
+          'a casting without a slot is paid for out of a pool, named here — its own through "declares", or one another feature of the same class declares',
+      });
+    }
   }
 
   // A Weapon Mastery choice is sized by a printed number or by a column of the

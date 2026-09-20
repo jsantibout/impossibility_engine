@@ -442,7 +442,65 @@ export type FeatureGrant =
    * modelling it as a choice with one legal answer would demand the player
    * type it back.
    */
-  | { readonly kind: 'spells'; readonly fixed?: readonly string[] }
+  | {
+      readonly kind: 'spells';
+      readonly fixed?: readonly string[];
+      /**
+       * Castings of one of those spells the **feature** pays for, out of a
+       * pool instead of a spell slot.
+       *
+       * SRD writes the sentence on class feature after class feature and
+       * always in the same breath as the grant above it: "You always have the
+       * _Hunter's Mark_ spell prepared. You can cast it twice without
+       * expending a spell slot, and you regain all expended uses of this
+       * ability when you finish a Long Rest." Faithful Steed's is the same
+       * sentence with a pool of one behind it, and Wild Companion's is the
+       * same sentence spending a pool another feature declared.
+       *
+       * **A field on the `spells` grant rather than a kind of its own**, for
+       * the reason `options` hangs off `pool`: `FeatureDefinition.grants` is
+       * singular, and the feature that grants the spell *is* the feature that
+       * pays for casting it. Two grants cannot say one sentence, and a
+       * feature that had to choose between "always prepared" and "twice
+       * without a slot" would print half of what the book prints.
+       *
+       * **Nothing here is new machinery.** What it produces is a
+       * {@link GrantedSpell} with a `freeCastPool`, which is what a feat's
+       * Magic Initiate has produced since it landed: `choosePayment` spends
+       * the pool, `resolveSpell` writes `slotless: 'special-ability'`, and
+       * the casting is the casting every other route takes — an id, a record,
+       * the Concentration the definition asks for. The feature supplies the
+       * two things the sheet cannot: which pool, and how many.
+       *
+       * **The numbers are the granting class's**, resolved at creation, which
+       * is the same reading `PoolOption.ability` takes: a multiclassed holder
+       * has more than one spellcasting ability and the feature belongs to
+       * exactly one of them.
+       */
+      readonly freeCasting?: {
+        /**
+         * The spell cast without a slot, resolved through `Content.spell`.
+         *
+         * Usually one of {@link fixed} and not required to be: SRD Wild
+         * Companion spends a Wild Shape use to cast a spell the Druid has no
+         * other claim on, so the free casting is the *only* route to it.
+         */
+        readonly spell: string;
+        /** The pool a casting comes out of — this feature's, or another's. */
+        readonly pool: string;
+        readonly poolLabel?: string;
+        /**
+         * Set when *this* feature is the one that declares the pool.
+         *
+         * The reading `reaction.declares` already takes, and for the same
+         * fork: Favored Enemy's uses are a column of its own class table and
+         * Faithful Steed's is the pool of one that "once ... until you finish
+         * a Long Rest" always means, while Wild Companion names a pool Wild
+         * Shape declared and sizes nothing.
+         */
+        readonly declares?: PoolSizing & { readonly recovers: Recovery };
+      };
+    }
   /**
    * SRD Unarmored Defense and Draconic Resilience: an alternative base Armour
    * Class while unarmoured.
