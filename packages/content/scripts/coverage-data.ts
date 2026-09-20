@@ -444,7 +444,6 @@ export interface LevelPath {
   readonly classId: string;
   /** `Cleric (Life Domain)`, or the class alone where it has no subclass. */
   readonly name: string;
-  readonly casting: string;
   readonly levels: readonly PathLevel[];
 }
 
@@ -576,7 +575,12 @@ export function playableLevels(input: PlayableInput): PlayableCoverage {
       paths.push({
         classId: definition.id,
         name: subclass === null ? definition.name : `${definition.name} (${subclass.name})`,
-        casting: definition.spellcasting?.style ?? 'none',
+        // **No casting style here**, though it is one property access away.
+        // The Classes table already prints it, and the only thing this
+        // measurement would use it for — which paths get a row in the spells
+        // table — is answered by whether the path reaches a spell at any
+        // level. A second rule for one question is the second place to get it
+        // wrong, and a field nothing reads is where that starts.
         levels,
       });
     }

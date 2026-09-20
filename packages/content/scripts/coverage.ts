@@ -613,6 +613,13 @@ function renderPlayableLevels(coverage: PlayableCoverage): readonly string[] {
     'the book prints rather than from a rule about casters written into the',
     'script.',
     '',
+    '**The reach is the class’s list, on a row named for a path**, and that is',
+    'the one place this section’s unit and its numbers differ: a spell is in',
+    'reach because the book’s index puts it on the class’s list, so a spell a',
+    'subclass grants that is not on that list is not counted here. Said rather',
+    'than smoothed over, because the alternative is a column that quietly means',
+    'something other than its heading.',
+    '',
     `| Path | ${levels.join(' | ')} |`,
     `|---|${levels.map(() => '---').join('|')}|`,
   );

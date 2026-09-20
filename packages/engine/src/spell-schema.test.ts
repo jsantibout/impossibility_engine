@@ -1778,11 +1778,18 @@ const FORMAT_EXEMPTIONS: Readonly<Record<string, string>> = {
     'the standalone half of the ninth sourced grant, whose catalogue users belong to two other builders this batch — IE briefs may not write a spell definition from here. SRD Conjure Woodland Beings ("you can take the Disengage action as a Bonus Action for the spell\'s duration") is the one undefined spell blocked on this shape and nothing else, and Wind Walk, Antimagic Field and Magic Jar each write it beside a blocker of their own. The reader is live — `resolveActionRuleEffect` is dispatched from `resolveOneEffect`, and `action-rules.test.ts` drives it end to end through `loadContent` and `resolveSpell` on homebrew — so what is absent is a definition, not a use. The day Conjure Woodland Beings gets one, this fails rather than going on excusing a member that now has a writer.',
   'SpellCheck.dc?':
     'SRD Maze prints "a DC 20 Intelligence (Investigation) check", which is exactly this field, and Maze has no definition because it is blocked on a demiplane the engine does not model. The reader is live on every executed check — `effectCheckFrom` writes `check.dc ?? saveDc` — so what is absent is a definition, not a use. The pin below is the one Sunburst\'s dispel clause already takes: the day Maze gets a definition it must write the number the book prints, and this fails rather than going on excusing a field that now has a user.',
-  // The three below became sayable on the day the arms were read apart. Each
-  // was written by *something* under the old probe — a payout's `at` by Web's
-  // area trigger, its `dice` and its `damageType` by every damaging spell's
-  // scaling — so each was recorded as a limit of the instrument in the shared
-  // probe list and none could be claimed or refuted. They are claims now.
+  // The three below became sayable on the day the arms were read apart, and
+  // they were hidden three different ways — which is worth writing down,
+  // because only one of them was on any record. Under the old probe a
+  // payout's `dice` collided with `DiceScaling.dice`, and the shared-probe
+  // list said so and said it could not be seen. A payout's `at` collided with
+  // `AreaTrigger.at`, which Web writes, and that row is still in the list —
+  // but its comment names a repeat save's `at` as the member it masks, so
+  // this one was hidden behind a record of something else. And a payout's
+  // `damageType` collided with nothing at all: `damageType` is a **required**
+  // field on the attack and save-damage arms, so every damaging spell wrote
+  // the probe and no second member ever appeared in the list to be recorded.
+  // It was simply counted as written. They are claims now.
   "SpellEffect[turn-payout].at='end-of-turn'":
     "The catalogue writes two payouts and the book prints both at the start of a turn: Heroism's Temporary Hit Points and Regenerate's one Hit Point a turn. The reader is live and moment-blind — `resolveTurnPayoutEffect` copies `at` into `turn-payout-granted` and the turn-hook machinery hangs a boundary either way, which is the same pair of words every area trigger and every repeated save uses. So what is absent is a spell that pays out when a turn *ends*, not the machinery for one, and the day a definition writes one this fails rather than going on excusing a member that now has a writer.",
   'SpellEffect[turn-payout].dice?':
@@ -2069,9 +2076,12 @@ describe('every member of the definition format has a user or a written exemptio
    * probe, one can be reported as written because the other is. The list is
    * pinned so that a new collision is a reviewed change, and the one that
    * actually masks something is named. **Reading the arms apart emptied most
-   * of it** — seven collisions were a flat field on one arm colliding with the
-   * same word somewhere else, and three of those were masking members that are
-   * now exempted claims instead.
+   * of it**: every row that was a flat field on one arm colliding with the
+   * same word elsewhere has gone, because those fields are probed under their
+   * arms now. One of them — a payout's `dice`, the row that said in its own
+   * comment that it was masking something — is an exemption below; one turned
+   * out to have a writer after all, since Regenerate prints the payout's
+   * `flat`; the rest were written on both sides and simply resolved.
    */
   it('names every place two members share a probe', () => {
     const byProbe = new Map<string, string[]>();

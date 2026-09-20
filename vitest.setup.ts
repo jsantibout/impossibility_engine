@@ -26,6 +26,11 @@
  * A table that is *meant* to be empty and still registers tests has no honest
  * form, which is why there is no exemption list: the ways out are to fill the
  * table, to delete the block, or to say `skip` and mean it.
+ *
+ * **`it.for` has the same failure mode and is not guarded**, because nothing
+ * in this repository writes one. It is named here rather than wrapped, so that
+ * the first `for` table arrives as a decision rather than as a hole somebody
+ * finds later — the guard is over the pattern the suite actually uses.
  */
 
 import { describe, it, test } from 'vitest';
