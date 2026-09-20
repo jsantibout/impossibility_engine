@@ -248,6 +248,10 @@ const choicesFor = (speciesId: string, backgroundId: string): CharacterChoices =
   classId: 'fighter',
   level: 1,
   speciesId,
+  // Where a species prints more than one size the choice is the player's, and
+  // this takes the first the book prints - read off the species' own list, so
+  // no species is named here and one that grows a second size needs no edit.
+  size: SRD_CONTENT.speciesById(speciesId)?.sizes[0],
   backgroundId,
   abilities: {
     method: 'standard-array',
@@ -284,6 +288,12 @@ describe('a character is created and advanced on every species', () => {
       const plan = unwrap(planCharacter(SRD_CONTENT, choices), `${name} plan`);
 
       expect(plan.creatureType).toBe(printed(name, 'Creature Type'));
+      // And the size the book prints reaches the creature, which is the fact
+      // creation used to derive from a species and not pin: before this, the
+      // only way a character's size reached the engine was somebody stating
+      // one when they were placed on a map.
+      const firstPrinted = printed(name, 'Size').match(/\b(?:Tiny|Small|Medium|Large)\b/)?.[0];
+      expect(stateOf(choices).creatures[WHO]?.size).toBe(firstPrinted?.toLowerCase());
       // The Speed the rules are measured against, not the field it came from —
       // which is how the Goliath's 35 feet is a real answer and not a number
       // sitting on a sheet nobody reads.
