@@ -79,9 +79,9 @@ export const DIVINE_STRIKE_DICE: readonly number[] = [
 /**
  * SRD Divine Spark: how many dice one use rolls, by Cleric level.
  *
- * "Roll 1d8 ... This feature's die changes when you reach certain Cleric
- * levels: 2d8 at level 7, 3d8 at level 13, and 4d8 at level 18." Written in
- * the feature rather than printed as a column, exactly as Divine Strike's
+ * "Roll 1d8 and add your Wisdom modifier ... You roll an additional d8 when
+ * you reach Cleric levels 7 (2d8), 13 (3d8), and 18 (4d8)." Written in the
+ * feature rather than printed as a column, exactly as Divine Strike's
  * dice are, so it is transcribed here beside them. One below level 7, which is
  * also what a Cleric who does not have Channel Divinity yet contributes.
  */
@@ -153,7 +153,7 @@ export const CLERIC: ClassDefinition = {
       name: 'Channel Divinity',
       level: 2,
       automation: 'engine',
-      note: 'Declared as a pool sized by the Channel Divinity column, refilling on a Long Rest. A Short Rest gives back one use, which is applied without emptying the pool. What each use buys is executed: Turn Undead rolls the Wisdom save against the Cleric’s own spell save DC and leaves the Undead that fail Frightened and Incapacitated for the minute, and Divine Spark restores hit points or deals the damage the caller names, with the die read off the Cleric table. Three clauses stay the table’s. Turn Undead’s "This effect ends early on a creature if it takes any damage" has no cause the engine can see — EFFECT_END_CAUSES is keyed on what the creature the timer sits on does, and damage dealt by anybody is not among them — so a turned Undead that is hit keeps the conditions until the minute is up. Its "it tries to move as far from you as it can" is the table’s in the way every compulsion is, since nothing moves a creature on its own turn. And Divine Spark is printed "at another creature", which is not refused: the reach is checked and who is on the other end of it is not. Divine Spark is one printed option offered here as two, because the book’s “either ... or” is a choice made at the moment of use and naming which half is that choice.',
+      note: 'Declared as a pool sized by the Channel Divinity column, refilling on a Long Rest. A Short Rest gives back one use, which is applied without emptying the pool. What each use buys is executed: Turn Undead rolls the Wisdom save against the DC the class’s Spellcasting feature gives and leaves the Undead that fail Frightened and Incapacitated for the minute, and Divine Spark restores hit points or deals the damage the caller names, with the die read off the Cleric table. Divine Spark is one printed option offered here as two, because the book’s “either ... or” is a choice made at the moment of use and naming which half is that choice. Five clauses stay the table’s. Turn Undead catches "Each Undead of your choice within 30 feet of you" and the emanation catches every Undead in it, because an option fills an area or names one creature and a chosen subset of an area is neither. All three of its early ends are inert: "This effect ends early on the creature if it takes any damage, if you have the Incapacitated condition, or if you die" — the end causes an option may print are facts about the creature the timer sits on, so damage dealt to it is unsayable and the two that are facts about the Cleric have no casting for the fold’s derived pass to read. Its "it tries to move as far from you as it can" is the table’s in the way every compulsion is, since nothing moves a creature on its own turn. And Divine Spark is printed "at another creature", which is not refused: the reach is checked and who is on the other end of it is not.',
       grants: {
         kind: 'pool',
         key: 'channel-divinity',
@@ -170,18 +170,20 @@ export const CLERIC: ClassDefinition = {
           {
             id: 'turn-undead',
             name: 'Turn Undead',
-            // SRD: "As a Magic action, you present your holy symbol and
-            // censure Undead."
+            // SRD: "As a Magic action, you present your Holy Symbol and
+            // censure Undead creatures."
             action: 'action',
-            // "Each Undead within 30 feet of you", which is an emanation and a
-            // filter: the living standing in the same thirty feet are left
-            // alone rather than making the use illegal.
+            // "Each Undead of your choice within 30 feet of you", which is an
+            // emanation and a filter: the living standing in the same thirty
+            // feet are left alone rather than making the use illegal. "Of your
+            // choice" is the half that is not modelled — see the note above.
             area: { kind: 'emanation', distance: 30, origin: 'self' },
             mustBeType: 'Undead',
-            // "must make a Wisdom saving throw. On a failed save, the creature
-            // has the Frightened and Incapacitated conditions for 1 minute."
-            // One save and two conditions, so it is one effect: a second would
-            // roll a second save the creature could fail only half of.
+            // "must make a Wisdom saving throw. If the creature fails its save,
+            // it has the Frightened and Incapacitated conditions for 1
+            // minute." One save and two conditions, so it is one effect: a
+            // second would roll a second save the creature could fail only
+            // half of.
             effects: [
               {
                 kind: 'save',
@@ -196,11 +198,11 @@ export const CLERIC: ClassDefinition = {
             id: 'divine-spark-restore',
             name: 'Divine Spark (restore)',
             action: 'action',
-            // SRD: "you point your holy symbol at another creature you can see
+            // SRD: "you point your Holy Symbol at another creature you can see
             // within 30 feet of yourself".
             reach: 30,
-            // "Roll 1d8 and either restore Hit Points to the creature equal to
-            // that roll + your Wisdom modifier".
+            // "Roll 1d8 and add your Wisdom modifier. You either restore Hit
+            // Points to the creature equal to that total".
             effects: [
               { kind: 'heal', healing: { dice: '1d8' }, addSpellcastingModifier: true },
             ],
@@ -213,8 +215,8 @@ export const CLERIC: ClassDefinition = {
             reach: 30,
             // "or force the creature to make a Constitution saving throw. On a
             // failed save, the creature takes Necrotic or Radiant damage (your
-            // choice) equal to the roll + your Wisdom modifier. On a
-            // successful save, the creature takes half as much damage."
+            // choice) equal to that total. On a successful save, the creature
+            // takes half as much damage (round down)."
             effects: [
               {
                 kind: 'save-damage',

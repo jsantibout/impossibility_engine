@@ -1034,8 +1034,8 @@ function featureOptionProblems(
   }
 
   // **An area or a reach, never both.** SRD writes one or the other on every
-  // option in the book — "Each Undead within 30 feet of you" against "you
-  // point your holy symbol at another creature" — and an option that said
+  // option in the book — "Each Undead of your choice within 30 feet of you"
+  // against "you point your Holy Symbol at another creature" — and one that said
   // both would take a target it then ignored.
   if (option.area !== undefined && option.reach !== undefined) {
     say(
@@ -1147,6 +1147,13 @@ function featureOptionProblems(
           `${on}.${field}`,
         );
       }
+      // **And the repeat, at both doors a rider opens.** The host writes one
+      // flat, and a feature is the first conferring host whose *further*
+      // conditions may carry one of their own — `conditionRiderOf` hands each
+      // to `repeatSaveFrom`, so a second door exists and is asked here. Being
+      // caught again at the moment of use by `applyConditionTo` is not the
+      // same thing: `content.md` says end-casting is refused at every door
+      // that could write one, and this is now such a door.
       const further = record['conditions'];
       if (Array.isArray(further)) {
         further.forEach((rider, position) => {
@@ -1155,18 +1162,7 @@ function featureOptionProblems(
           );
         });
       }
-      const repeats = record['repeats'];
-      if (
-        typeof repeats === 'object' &&
-        repeats !== null &&
-        (repeats as Record<string, unknown>)['onSuccess'] === 'end-casting'
-      ) {
-        say(
-          'feature_repeat_needs_a_casting',
-          `a repeat save that ends the casting on a success needs one, and ${featureId} casts nothing; what a success can end here is the condition on its target`,
-          `${on}.repeats.onSuccess`,
-        );
-      }
+      found.push(...endsACasting(featureId, record, on));
     }
 
     // The riders a *failure* carries, which are welded to a casting wherever
@@ -1302,7 +1298,40 @@ function castingOwnedFields(
       reason: `"${field}" is owned by the casting that imposed the condition — a lifetime, an escape check, a mark that the casting does not keep it — and ${featureId} casts nothing; an option's lifetime is durationSeconds and what ends it early is endsEarly`,
     });
   }
+  found.push(...endsACasting(featureId, rider as Record<string, unknown>, at));
   return found;
+}
+
+/**
+ * A repeat save whose success would end the casting, wherever it is written.
+ *
+ * SRD writes "the target repeats the save" on a host and the engine lets the
+ * success end either the condition on its target or the spell; the second
+ * needs a spell. Asked of the flat host and of every further rider, because
+ * both reach `repeatSaveFrom` and a rule enforced at one of two doors is a
+ * rule with a hole in it.
+ */
+function endsACasting(
+  featureId: string,
+  record: unknown,
+  at: string,
+): readonly ContentProblem[] {
+  if (typeof record !== 'object' || record === null) return [];
+  const repeats = (record as Record<string, unknown>)['repeats'];
+  if (
+    typeof repeats !== 'object' ||
+    repeats === null ||
+    (repeats as Record<string, unknown>)['onSuccess'] !== 'end-casting'
+  ) {
+    return [];
+  }
+  return [
+    {
+      field: `${at}.repeats.onSuccess`,
+      code: 'feature_repeat_needs_a_casting',
+      reason: `a repeat save that ends the casting on a success needs one, and ${featureId} casts nothing; what a success can end here is the condition on its target`,
+    },
+  ];
 }
 
 /**
@@ -2194,9 +2223,6 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
           reason: `a flat number of uses is how an item's line sizes its charges, and poolSizeOf sizes a feature's pool from its class table, so ${feature.id} would be sized by a number nothing reads`,
         });
       }
-      // And the item's other sizing, refused for the sharper half of the same
-      // reason: no class table has ever rolled, and only the doors that hand
-      // an item copy over can roll one.
       // What a use of the pool buys, where what it buys is an effect list.
       // Judged by the conferral's own rules with the one difference a feature
       // makes — it has a caster — and against this source's own table, whose
@@ -2211,6 +2237,9 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
           ),
         );
       }
+      // And the item's other sizing, refused for the sharper half of the same
+      // reason: no class table has ever rolled, and only the doors that hand
+      // an item copy over can roll one.
       if (feature.grants?.kind === 'pool' && feature.grants.usesRolled !== undefined) {
         problems.push({
           field: `${where}.grants.usesRolled`,
@@ -2232,13 +2261,14 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
       // And the other half of the same SRD sentence, refused for the same
       // reason: a conferral is used up and the thing used up is the *item*,
       // so `useItem` looks it up by catalogue id and takes one off the
-      // inventory. A feature that resolves an effect list declares it with an
-      // `activated` grant, which is executed.
+      // inventory. A feature confers an effect list too, and what pays for it
+      // is a use of its own pool — so the message names the grant that does
+      // it rather than sending an author to a shape that cannot.
       if (feature.grants?.kind === 'confers') {
         problems.push({
           field: `${where}.grants`,
           code: 'item_conferral_on_a_feature',
-          reason: `"confers" is an item conferring an effect without casting a spell, and the item is used up doing it; ${feature.id} is not an item, so nothing would be spent and nothing would execute it`,
+          reason: `"confers" is an item conferring an effect without casting a spell, and the item is used up doing it; ${feature.id} is not an item, so nothing would be spent — a feature confers an effect list through the "options" its own "pool" grant carries`,
         });
       }
       // A feature executed by another names one on the same source that

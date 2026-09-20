@@ -867,9 +867,11 @@ export interface PoolOption {
   /**
    * The spellcasting ability the DC and any modifier are read from.
    *
-   * SRD Turn Undead rolls against "your spell save DC", which is a derivation
-   * of the holder's sheet rather than a number the feature prints — the whole
-   * difference between a feature's DC and an item's. The **granting class's**
+   * SRD Channel Divinity: "If a Channel Divinity effect requires a saving
+   * throw, the DC equals the spell save DC from this class's Spellcasting
+   * feature" — a derivation of the holder's sheet rather than a number the
+   * feature prints, which is the whole difference between a feature's DC and
+   * an item's. The **granting class's**
    * ability, resolved at creation, because a multiclassed holder has more than
    * one and the feature belongs to exactly one of them.
    *

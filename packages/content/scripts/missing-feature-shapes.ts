@@ -104,6 +104,8 @@ export const FEATURE_SHAPES = {
     'one resource spent to buy another. Every pool the engine has is spent on what its own feature does; nothing converts. The SRD writes the trade constantly — a spell slot for a Bardic Inspiration, a Wild Shape use for a level 1 slot and back, a Rage use to restore a Channel Divinity, Sneak Attack dice forgone to buy an effect — and `FeatureGrant` in packages/engine/src/progression.ts has no member whose cost is another feature\'s resource.',
   'a-casting-paid-for-out-of-a-feature-pool':
     'a spell a feature lets you cast without a slot. The route exists for an **item** and is refused to a feature by name: packages/engine/src/progression.ts says of the `casts` grant "An item-only member. Nothing executes it from a class feature and `checkContent` refuses it there", because the charges it spends are an item\'s pool looked up by the granting item\'s id. Every SRD sentence of the shape "cast it without expending a spell slot" wants exactly that grant with a feature\'s pool behind it.',
+  'an-option-whose-span-is-a-turn-boundary':
+    'a feature\'s conferred effect that runs to a **moment in the Initiative order** rather than for a printed span. What an option hangs is ended by a deadline it files itself, and `PoolOptionGrant` in packages/engine/src/progression.ts admits exactly one kind of it — "How long what it hangs lasts, in seconds" — because Channel Divinity\'s minute is what it was built from. An `activated` grant one member along carries a `TurnAnchor` instead and a `standing` grant needs none, so the vocabulary holds both spellings of a lifetime and this host holds one: SRD Nature\'s Veil gives the Invisible condition "until the end of your next turn", and there is no field to write that in. It is the mirror of the entry below rather than the same gap — that one is a switched-on feature wanting a span, and this is a conferred effect wanting a boundary.',
   'a-benefit-that-runs-for-a-printed-span':
     'a feature switched on for a minute or ten, rather than to a turn boundary it has to keep extending. `ActivatedFeature` in packages/engine/src/standing.ts is SRD Rage down to the field — "a Bonus Action, a pool sized by the class table, a deadline that can be pushed, a cap it cannot be pushed past, and two ways out that nobody commands" — and a Rage that is not extended ends at the boundary. A feature the book simply gives a duration has no deadline of its own to file.',
   'a-dc-a-feature-derives-from-its-own-abilities':
@@ -1003,8 +1005,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   'ranger:natures-veil': [
     {
       clause: 'the condition exists and nothing spends a Ranger’s uses to impose it',
-      why: 'a-pool-the-proficiency-bonus-sizes',
-      note: 'imposing it is a pool option now, and the uses are the half left: the SRD prices this at a number of times equal to the Proficiency Bonus, which is the fourth sizing.',
+      why: 'an-option-whose-span-is-a-turn-boundary',
+      note: 'imposing it is a pool option now and the uses are an ability modifier with a floor, which the pool grant already sizes; what is left is "until the end of your next turn", which an option cannot say.',
     },
   ],
   'ranger:precise-hunter': [

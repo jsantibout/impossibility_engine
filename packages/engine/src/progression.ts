@@ -277,7 +277,8 @@ export interface PoolOptionGrant {
   /**
    * The area it fills, for an option that catches whoever is standing in one.
    *
-   * SRD Turn Undead: "Each Undead within 30 feet of you". Beside
+   * SRD Turn Undead: "Each Undead of your choice within 30 feet of you".
+   * Beside
    * {@link reach} and never with it — an option catches an area or is aimed at
    * a creature, and one that said both would take a target list it then
    * ignored.
@@ -286,13 +287,14 @@ export interface PoolOptionGrant {
   /**
    * How far it reaches, for an option aimed at one creature.
    *
-   * SRD Divine Spark: "you point your holy symbol at another creature you can
+   * SRD Divine Spark: "you point your Holy Symbol at another creature you can
    * see within 30 feet of yourself". Absent means the holder themselves, which
    * is the only target an option with neither field can have.
    */
   readonly reach?: number;
   /**
-   * The one creature type an **area** option touches — SRD's "Each Undead".
+   * The one creature type an **area** option touches — SRD's "Each Undead of
+   * your choice".
    *
    * A filter and not a refusal: the living thug standing in the same thirty
    * feet is left alone rather than making the use illegal, which is the
@@ -314,9 +316,9 @@ export interface PoolOptionGrant {
   /**
    * How many dice the option's amounts roll, by class level.
    *
-   * SRD Divine Spark: "This feature's die changes when you reach certain
-   * Cleric levels: 2d8 at level 7, 3d8 at level 13, and 4d8 at level 18." A
-   * column of the class table exactly as Sneak Attack's dice are, so the die
+   * SRD Divine Spark: "You roll an additional d8 when you reach Cleric levels
+   * 7 (2d8), 13 (3d8), and 18 (4d8)." A column of the class table exactly as
+   * Sneak Attack's dice are, so the die
    * size stays on the effect and only the count is read at that class's own
    * level — `diceCountByLevel` on a standing grant, asked of a second host.
    *

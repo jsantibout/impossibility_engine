@@ -213,9 +213,10 @@ describe('Turn Undead', () => {
   });
 
   /**
-   * SRD: "Each Undead within 30 feet of you that can see or hear you must make
-   * a Wisdom saving throw" — against the Cleric's own spell save DC, which is
-   * derived from the sheet rather than printed on the feature.
+   * SRD: "Each Undead of your choice within 30 feet of you must make a Wisdom
+   * saving throw", and Channel Divinity says what against: "the DC equals the
+   * spell save DC from this class's Spellcasting feature". Derived from the
+   * sheet, never printed on the feature.
    */
   it('rolls the save against the Cleric’s own spell save DC', () => {
     const start = table();
@@ -240,7 +241,7 @@ describe('Turn Undead', () => {
     expect(rolled[0]?.label).toBe('Wisdom save vs Turn Undead');
   });
 
-  /** SRD: "the creature has the Frightened and Incapacitated conditions." */
+  /** SRD: "it has the Frightened and Incapacitated conditions for 1 minute." */
   it('lands both conditions on an Undead that fails', () => {
     const log = turned(table(), DOOMED);
     expect(conditionsOf(log, WIGHT).slice().sort()).toEqual(['frightened', 'incapacitated']);
@@ -281,9 +282,9 @@ describe('Turn Undead', () => {
 
 describe('Divine Spark', () => {
   /**
-   * SRD: "Roll 1d8 ... This feature's die changes when you reach certain
-   * Cleric levels: 2d8 at level 7". A column of the class table, read at that
-   * class's own level, exactly as Sneak Attack's dice are.
+   * SRD: "You roll an additional d8 when you reach Cleric levels 7 (2d8), 13
+   * (3d8), and 18 (4d8)." A column of the class table, read at that class's
+   * own level, exactly as Sneak Attack's dice are.
    */
   it('scales its dice on the Cleric’s own class level', () => {
     const at2 = optionOf(2, 'divine-spark-restore').effects[0]!;
@@ -331,8 +332,16 @@ describe('Divine Spark', () => {
     };
 
     const radiant = dealt('radiant');
-    expect(radiant).toBeGreaterThan(0);
     expect(dealt('necrotic')).toBe(Math.floor(radiant / 2));
+
+    // **And the Wisdom modifier is in the number.** SRD: "Roll 1d8 and add
+    // your Wisdom modifier ... the creature takes ... damage ... equal to that
+    // total." The seed fixes the die, so the sum is pinned and the die it
+    // implies is on the face of a d8: a Cleric with Wisdom 16 adds 3, and
+    // dropping the addend would leave the bare roll.
+    expect(radiant).toBe(4);
+    expect(radiant - 3).toBeGreaterThanOrEqual(1);
+    expect(radiant - 3).toBeLessThanOrEqual(8);
   });
 
   /** SRD: "On a successful save, the creature takes half as much damage." */
@@ -384,24 +393,53 @@ describe('the pool behind the options', () => {
     return log;
   };
 
+  /**
+   * **The refusal is a value, and it is asserted on the value.** Folding the
+   * same log twice and finding it unchanged proves nothing: a refusal appends
+   * no events, so that comparison holds however much the command spent before
+   * deciding. What has to be true is that the `Result` itself carries nothing
+   * — no die issued, no `resource-spent`, no Action gone — which is the whole
+   * of "a refused use costs its Cleric nothing".
+   */
   it('is refused when it is empty, and the refusal costs nothing at all', () => {
     const spent = useAll();
     expect(left(spent, ANSEL, 'channel-divinity')).toBe(0);
 
     const before = fold('seed', spent);
+    const issued = before.rollsIssued;
     const refused = usePoolOption(
       before,
       ANSEL,
-      { feature: CHANNEL, option: 'divine-spark-restore', target: ANSEL, commandId: 'third' },
+      { feature: CHANNEL, option: 'divine-spark-restore', target: THUG, commandId: 'third' },
       supply(before),
     );
     expect(isErr(refused)).toBe(true);
-    if (isErr(refused)) expect(refused.code).toBe('exhausted');
+    if (!isErr(refused)) return;
+    expect(refused.code).toBe('exhausted');
+    // A refusal is a value and carries no events at all, so there is nothing
+    // to spend: the generator has not moved and the pool is where it was.
+    expect('value' in refused).toBe(false);
+    expect(before.rollsIssued).toBe(issued);
+    expect(left(spent, ANSEL, 'channel-divinity')).toBe(0);
+  });
 
-    // Nothing else moved: no die was thrown, no hit point given back.
-    const after = fold('seed', spent);
-    expect(after.rollsIssued).toBe(before.rollsIssued);
-    expect(after.creatures[ANSEL]!.vitals.hp).toBe(before.creatures[ANSEL]!.vitals.hp);
+  /**
+   * And the same, one refusal earlier: an option nobody can reach costs the
+   * use it would have spent. `mayAct`, the feature, the option, the damage
+   * type, the targets and the reach are all asked before the pool is touched.
+   */
+  it('costs no use when the target is out of reach', () => {
+    const start = table();
+    const state = fold('seed', start);
+    const refused = usePoolOption(
+      state,
+      ANSEL,
+      { feature: CHANNEL, option: 'divine-spark-restore', target: ALLY },
+      supply(state),
+    );
+    expect(isErr(refused)).toBe(true);
+    if (isErr(refused)) expect(refused.code).toBe('out_of_reach');
+    expect(left(start, ANSEL, 'channel-divinity')).toBe(2);
   });
 
   it('refuses an option the feature does not offer', () => {
@@ -503,6 +541,31 @@ const WARDEN: unknown = {
             // What it hangs needs a span, because no casting ends it — the
             // rule an item's conferral keeps, asked of the other host.
             durationSeconds: 60,
+            // And what cuts the span short, which no SRD feature prints and
+            // the vocabulary carries because an item's does. A member no
+            // content writes is a guess; this is the content that writes it.
+            endsEarly: ['target-attacks'],
+          },
+          {
+            id: 'bolt',
+            name: 'Warden’s Bolt',
+            action: 'action',
+            reach: 30,
+            // Two damage types under one saving throw, both flat, so the whole
+            // outcome is arithmetic and no die is involved at all: the
+            // spellcasting modifier rides the **first** component and nothing
+            // else, which is SRD's "one damage roll" read on a feature.
+            effects: [
+              {
+                kind: 'save-damage',
+                ability: 'dex',
+                damage: { flat: 4 },
+                damageType: 'fire',
+                addSpellcastingModifier: true,
+                onSuccess: 'none',
+                plus: [{ damage: { flat: 4 }, damageType: 'cold' }],
+              },
+            ],
           },
         ],
       },
@@ -588,5 +651,39 @@ describe('a homebrew feature conferring a save', () => {
 
     expect(conditionsOf(rebuked, THUG)).toEqual(['prone']);
     expect(left(rebuked, id('bryn'), 'rebuke')).toBe(2);
+
+    // The span the option printed, on the instance the option filed, with the
+    // sentence that cuts it short — all three read back off the timer.
+    const key = timerKey({
+      kind: 'condition',
+      on: THUG,
+      instance: conditionInstanceId('prone', featureSource('warden:rebuke')),
+    });
+    expect(fold('seed', rebuked).timers[key]).toMatchObject({
+      deadline: { kind: 'elapsed', at: 60 },
+      endsEarly: ['target-attacks'],
+    });
+  });
+
+  /**
+   * SRD adds a spellcasting modifier to "one damage roll", and a feature reads
+   * that sentence the way a casting does: the first component takes it and the
+   * rest of the list gets nothing. Both components are flat, so the total is
+   * arithmetic — 4 + 3 + 4 — and a modifier that rode both would read 14.
+   */
+  it('adds the holder’s modifier to one damage component and no other', () => {
+    const made = createCharacter(content(), warden, id('bryn'));
+    if (!made.ok) throw new Error(`${made.code} — ${made.reason}`);
+    const log: readonly GameEvent[] = [...made.value, plain(THUG, 'Humanoid')];
+
+    const struck = run(log, (s) =>
+      usePoolOption(
+        s,
+        id('bryn'),
+        { feature: 'warden:rebuke', option: 'bolt', target: THUG },
+        supply(s, DOOMED, content()),
+      ),
+    );
+    expect(hp(log, THUG) - hp(struck, THUG)).toBe(11);
   });
 });

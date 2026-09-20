@@ -698,8 +698,9 @@ export type SpellEffect =
       readonly damageType: string;
       readonly onSuccess: 'half' | 'none';
       /**
-       * SRD Divine Spark: "the creature takes Necrotic or Radiant damage
-       * (your choice) equal to the roll **plus your Wisdom modifier**."
+       * SRD Divine Spark: "Roll 1d8 and add your Wisdom modifier ... the
+       * creature takes Necrotic or Radiant damage (your choice) equal to that
+       * total."
        *
        * The field `damage`, `heal` and `temp-hp` already carry, on the fourth
        * kind of effect that adds it — and it is the *chosen source's* ability,
