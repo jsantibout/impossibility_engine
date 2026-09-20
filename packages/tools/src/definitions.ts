@@ -159,6 +159,7 @@ import {
   settleAreaEffects,
   settleDamage,
   speedOf,
+  stabiliseCreature,
   takeDamageReaction,
   takeDamageResponse,
   takeDash,
@@ -840,6 +841,42 @@ function bringIn(
     ],
   });
 }
+
+/**
+ * Stop a dying creature from dying.
+ *
+ * SRD gives two routes to it and the engine records the end of both: "You can
+ * take the Help action to try to stabilize a creature with 0 Hit Points, which
+ * requires a successful DC 10 Wisdom (Medicine) check", and a Healer's Kit,
+ * which does it with no check at all. `stabiliseCreature` has been in the
+ * engine since death saves were and reached no tool on either surface, so a
+ * party could kneel over somebody and do nothing the engine would record.
+ *
+ * **It states no number and decides no check.** The DC 10 Medicine check is a
+ * Difficulty Class, which is the DM's and goes through `ability_check`; what
+ * arrives here is the outcome, which is a fact about the creature on the
+ * floor. That is the line `apply_condition` already draws — a ruling somebody
+ * made, recorded — and the two refusals are the book's: a creature with hit
+ * points has nothing to be stabilised from, and a corpse is Raise Dead's
+ * business.
+ *
+ * On the model's surface, and therefore on both, because the DM's is a
+ * superset of it. Putting it on the DM's alone would have left a model-driven
+ * session exactly where it was.
+ */
+const STABILISE_CREATURE = tool({
+  name: 'stabilise_creature',
+  description:
+    'Record that a creature at 0 Hit Points has been stabilised, so it stops making death saving throws. SRD stabilises with a successful DC 10 Wisdom (Medicine) check or a use of a Healer’s Kit — the check is the DM’s, and this is what says it worked. A creature that still has hit points has nothing to be stabilised from, and a dead one is past it.',
+  mutates: true,
+  input: z.object({ who: creatureId.describe('Who is on the floor.') }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      stabiliseCreature(context.campaign.state(), who(args.who), identity(context)),
+      { stabilised: args.who },
+    ),
+});
 
 const DECLARE_SIDE = tool({
   name: 'declare_side',
@@ -2905,6 +2942,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   SETTLE_ATTACK,
   SETTLE_DAMAGE,
   SHEET,
+  STABILISE_CREATURE,
   TAKE_ACTION,
   TAKE_DAMAGE_REACTION,
   TAKE_DAMAGE_RESPONSE,

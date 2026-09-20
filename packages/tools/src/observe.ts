@@ -46,6 +46,16 @@ export interface ObservedCreature {
   readonly hpMax: number;
   readonly temporaryHp: number;
   readonly dead: boolean;
+  /**
+   * At 0 hit points and no longer dying — SRD's Stable.
+   *
+   * Beside `dead` because it is the other end of the same sentence, and
+   * reported at all because `stabilise_creature` is what changes it: a caller
+   * that cannot see whether somebody on the floor is still bleeding cannot
+   * tell whether the kneeling was worth anything, and every other creature at
+   * 0 hit points looks exactly the same from here.
+   */
+  readonly stable: boolean;
   readonly armorClass: number;
   readonly speed: number;
   readonly creatureType: string | null;
@@ -112,6 +122,7 @@ export function observe(state: GameState): Observation {
       hpMax: c.vitals.hpMax,
       temporaryHp: c.vitals.temporaryHp,
       dead: c.vitals.dead,
+      stable: c.vitals.stable,
       armorClass: armorClassOf(state, c.id),
       speed: speedOf(state, c.id),
       creatureType: c.creatureType ?? null,
