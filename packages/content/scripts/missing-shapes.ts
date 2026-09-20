@@ -110,7 +110,7 @@ export const MISSING_SHAPES = {
   'a-fact-only-the-table-can-declare':
     'a fact the engine does not hold and cannot derive, which a rule then reads — how well you know a creature, whether you are outdoors in a storm, whether you are fighting it. Declared cover, declared sight and declared allegiance are the discipline CLAUDE.md already draws for this; the audit (§4) is where these clauses were found filed as a selector problem when what they want is the fact. **IE-030 built the fought fact and this is what it left**: `CastSpellRequest.fought` carries it and the five spells that read it as Advantage are finished, while SRD Enthrall reads the same fact as "Any creature you or your companions are fighting automatically succeeds on this save" — an outcome `checks.ts` has no `autoSucceed` for, beside `autoFail`, and which no definition could write until it does.',
   'a-bonus-narrowed-to-a-skill':
-    'a bonus or penalty that reaches one **skill** rather than the whole family, and reaches Passive Perception. `docs/design/rolls-and-damage.md` names the axis and its whole membership — "covers attacks, saves and ability checks — all rolls" and now an Armour Class — and a skill is not a member, so SRD Enthrall’s "a −10 penalty to Wisdom (Perception) checks and Passive Perception" would land on every ability check the target ever makes. `passivePerception` reads the sheet and no stored bonus at all, so the second half has no reader whatever. The narrower residue of the fought fact IE-030 built, and the reason Enthrall is not finished by it.',
+    '**The id is narrower than what it holds, and it is kept because an id is a key two branches append to.** What is missing is a selector on a stored bonus at all: `ActiveBonus` carries a `BonusApplies` list and nothing else, so every narrowing the book prints inside one of those members has nowhere to go. SRD prints two — a **skill** (Enthrall) and **one ability’s saving throws** (Slow, whose −2 would otherwise land on every save the target ever makes, including the one the spell itself calls for). One axis, one absent reader, two sentences. The original description follows, and it is the skill half: a bonus or penalty that reaches one skill rather than the whole family, and reaches Passive Perception. `docs/design/rolls-and-damage.md` names the axis and its whole membership — "covers attacks, saves and ability checks — all rolls" and now an Armour Class — and a skill is not a member, so SRD Enthrall’s "a −10 penalty to Wisdom (Perception) checks and Passive Perception" would land on every ability check the target ever makes. `passivePerception` reads the sheet and no stored bonus at all, so the second half has no reader whatever. The narrower residue of the fought fact IE-030 built, and the reason Enthrall is not finished by it.',
   'an-automatic-success-by-creature-type':
     'IE-019 built `TypedSaveOutcome`, and spell-definitions.ts says exactly how far: "Two consumers, and they are the two shapes the SRD prints — Blight’s automatic failure and Shatter’s Disadvantage." The book prints a third, and one spell writes it: an automatic **success**. A two-member union missing its third member is a narrower gap than the family it came out of, and is what is left of it on this axis.',
   'a-filter-on-the-attackers-creature-type':
@@ -4157,9 +4157,14 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
       note: 'Halving is presence rather than count — the reading Resistance and Advantage already take — so a halved Speed is a `speed-modifier` effect ended by the casting.',
     },
     {
-      clause: 'it takes a −2 penalty to AC and Dexterity saving throws',
+      clause: 'a −2 penalty to AC',
       why: 'expressible',
-      note: '`BonusApplies` covers an Armour Class and saving throws, and a negative bonus is the same field; two effects in one clause rather than one effect with two homes.',
+      note: '`BonusApplies` covers an Armour Class and a negative bonus is the same field with the sign turned round, which is Bane’s shape and Shield of Faith’s in one clause.',
+    },
+    {
+      clause: 'Dexterity saving throws',
+      why: 'a-bonus-narrowed-to-a-skill',
+      note: 'The half of the same sentence that has no reader. `ActiveBonus` carries a `BonusApplies` list and nothing narrower, so a penalty aimed at one ability’s saves would land on every saving throw the target ever makes — including the one this spell itself calls for. The entry had said the whole clause was expressible, which is the narrower reading nobody had checked.',
     },
     {
       clause: "it can't take Reactions",

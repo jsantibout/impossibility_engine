@@ -5,6 +5,7 @@ import {
   BLOCKED_ON,
   MISSING_SHAPES,
   TRACKED_ADJUDICATED,
+  blockersOf,
   claimedShapes,
   consumersOf,
   mechanicalMarkersIn,
@@ -157,7 +158,14 @@ describe('a blocker no mechanical marker can see survives the spell being writte
     const retired = Object.keys(MISSING_SHAPES).filter((shape) => !narrowed.has(shape));
     expect(retired.sort()).toEqual(
       [
-        'a-bonus-narrowed-to-a-skill',
+        // **`a-bonus-narrowed-to-a-skill` came off this list by gaining a
+        // second claimant**, which is the honest way an entry leaves it: SRD
+        // Slow's −2 to Dexterity saving throws is the same missing selector on
+        // the same stored bonus, read off a paragraph in the undefined
+        // population, and it is a sentence a marker can see. So Enthrall's
+        // reading is no longer the only thing holding the shape up — the gap
+        // is more claimed than it was, not less, and the counterfactual says
+        // so rather than the list staying the size it was written at.
         'a-cap-on-how-many-castings-run-at-once',
         'a-condition-a-spell-suppresses',
         'a-range-that-scales-with-caster-level',
@@ -169,9 +177,16 @@ describe('a blocker no mechanical marker can see survives the spell being writte
         'an-exhaustion-level-a-spell-changes',
       ],
     );
-    // Every one of the three the form landed with is still in it, so the list
-    // grew rather than drifted.
-    for (const [, shape] of LANDED) expect(retired, shape).toContain(shape);
+    // Two of the three the form landed with are still in it, so the list grew
+    // rather than drifted. The third — Enthrall's narrowed bonus — left by
+    // gaining a second claimant, which is the one way out of this list that
+    // makes the gap *more* claimed rather than less: it is asserted below
+    // rather than dropped silently.
+    for (const [, shape] of LANDED) {
+      if (shape === 'a-bonus-narrowed-to-a-skill') continue;
+      expect(retired, shape).toContain(shape);
+    }
+    expect(blockersOf('slow')).toContain('a-bonus-narrowed-to-a-skill');
     expect(retired).not.toContain('a-choice-made-at-the-casting');
   });
 
