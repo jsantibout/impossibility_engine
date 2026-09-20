@@ -42,11 +42,13 @@ import { canUseFeatureThisTurn, spendAttack, spendBonusAction } from '../combat.
 import { applyEvent, type CreatureState, type GameEvent, type GameState } from '../events.js';
 import { modifierFor, type CharacterSheet, type StatedAttack } from '../character.js';
 import {
+  attacksInAction,
   hasPrintedTrait,
   describeMultiattack,
   multiattackAllows,
   multiattackOf,
   printedAttackOf,
+  unreadActionsOf,
 } from '../monster.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import {
@@ -635,6 +637,31 @@ export function resolveAttack(
         `${id}'s block prints its attacks as a sequence, and there are no turns here to count one against — nothing held this swing to it`,
       );
     }
+    // **The line the parser could not read, and the count nobody declared.**
+    // SRD Hydra: "The hydra makes as many Bite attacks as it has heads." The
+    // engine holds the action to one swing — which is what it always held —
+    // and *says so*, because a fact a command can proceed past conservatively
+    // owes an `unverified` clause and never a `needs-context`: a fight must
+    // not stop to ask how many heads something has.
+    //
+    // Only where the block left something unread. A Wolf whose every line the
+    // parser got structure out of is assuming nothing, and a clause on every
+    // block without a sequence would be noise about a fact that is not
+    // missing. Once at the swing that takes the action, like the handover
+    // beside a sequence, rather than at every swing inside it.
+    if (
+      sequence === null &&
+      !free &&
+      command.bonusAction !== true &&
+      attacker.heads === null &&
+      unreadActionsOf(sheet).length > 0 &&
+      budget !== null &&
+      budget.attacksRemaining === null
+    ) {
+      unverified.push(
+        `${id}'s block prints ${unreadActionsOf(sheet).join(', ')}, which the engine did not read — nothing states how many swings its Attack action holds, so it held one; where the line counts them off how many heads it has, a declareCreatureHeads command states the count`,
+      );
+    }
     if (
       sequence !== null &&
       !free &&
@@ -711,7 +738,11 @@ export function resolveAttack(
       const spent = spendAttack(
         state.combat,
         id,
-        sheet.attacksPerAction ?? 1,
+        // SRD Hydra: "as many Bite attacks as it has heads" — the size of the
+        // action follows a declared head count where the block states no
+        // sequence the engine can execute, and is the sheet's number
+        // otherwise. The fold spends the same answer.
+        attacksInAction(sheet, attacker.heads),
         attacker.conditions,
         { rules: attacker.actionRules },
       );

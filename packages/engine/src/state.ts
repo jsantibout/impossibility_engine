@@ -240,6 +240,23 @@ export interface CreatureState {
    */
   readonly side: string | null;
   /**
+   * How many heads this creature has, or null if nobody has said.
+   *
+   * SRD Hydra: "The hydra makes as many Bite attacks as it has heads", and
+   * "Whenever the hydra takes 25 damage or more on a single turn, one of its
+   * heads dies… the hydra grows two heads for each of its heads that died."
+   * The count decides the size of an Attack action and nothing else reads it;
+   * the engine derives the swings from the number rather than inventing one.
+   *
+   * **Beside `side` rather than inside a bag of declared facts.** A bag would
+   * be a framework built for one instance: the three `*-declared` facts the
+   * engine holds are a type (durable, contradiction refused), a side (fiction,
+   * re-declarable) and this, and each is read by a different rule. Null is a
+   * real state and the conservative one — an Attack action holds one swing,
+   * which is what it held before anybody could say otherwise.
+   */
+  readonly heads: number | null;
+  /**
    * The casting that is the reason this creature is standing here, or null.
    *
    * **Not a second lifetime.** A summons has exactly one — the casting's —

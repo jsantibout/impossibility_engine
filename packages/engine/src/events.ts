@@ -1407,6 +1407,30 @@ export type GameEvent =
       readonly command?: CommandStamp;
     }
   /**
+   * How many heads a creature has.
+   *
+   * SRD Hydra's Multiattack: "The hydra makes as many Bite attacks as it has
+   * heads." The count is a number the *table* holds — the block's Multiple
+   * Heads trait has heads dying and growing back between turns — and a number
+   * the engine invented would be the engine writing the stat block. So it is
+   * declared, and the Attack action's size is derived from the declaration.
+   *
+   * **Its own event, and not "a number the table states about a creature".**
+   * A kind with a provider is a table until something arrives that does not
+   * fit it; one instance is not a framework. The day a second creature counts
+   * something the same way, the general shape can be written with two
+   * examples in front of it rather than one.
+   *
+   * Re-declarable, like a side and unlike a type: heads are written to change,
+   * so the reducer overwrites rather than throwing.
+   */
+  | {
+      readonly type: 'creature-heads-declared';
+      readonly id: CharacterId;
+      readonly heads: number;
+      readonly command?: CommandStamp;
+    }
+  /**
    * An attack hit, and its damage is being held for a moment.
    *
    * SRD Divine Smite is taken "immediately after hitting a target", so there

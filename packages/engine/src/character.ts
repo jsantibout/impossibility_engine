@@ -149,6 +149,25 @@ export interface StatedValues {
    * a sequence names an attack that exists.
    */
   readonly multiattack?: MonsterMultiattack;
+  /**
+   * The **names** of the Actions lines the parser read nothing out of.
+   *
+   * Not the prose: a block's sentences are kilobytes and the stat block's id
+   * is deliberately not stored either, so what is pinned is the shortest thing
+   * that makes a report legible — "Multiattack", "Change Shape". The engine
+   * branches on none of them; it quotes them.
+   *
+   * It exists because an absence otherwise looks like an answer. A block that
+   * prints no Multiattack and a block whose Multiattack the parser could not
+   * read both reach the sheet with no sequence on them, and only the second is
+   * a creature whose Attack action the engine has *assumed* the size of — SRD
+   * Hydra's "as many Bite attacks as it has heads" is the sentence. So a swing
+   * reports the assumption where there is one and stays quiet where there is
+   * not, which is the difference between an `unverified` channel and noise.
+   *
+   * Absent for every character and for every block the parser read whole.
+   */
+  readonly unreadActions?: readonly string[];
 }
 
 export interface CharacterSheet {

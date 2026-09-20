@@ -71,6 +71,7 @@ export { declareCreatureType, declareDifficultTerrain, declareFalling } from './
 export {
   awardItems,
   declareCreatureDead,
+  declareCreatureHeads,
   declareCreatureSide,
   loseItems,
   removeBonusFrom,

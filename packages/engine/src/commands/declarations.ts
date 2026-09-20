@@ -108,6 +108,48 @@ export function declareCreatureSide(
 }
 
 /**
+ * Say how many heads a creature has.
+ *
+ * SRD Hydra's Multiattack: "The hydra makes as many Bite attacks as it has
+ * heads." The parser leaves that line as prose — it is a count that reads off
+ * a fact nobody has declared — and the engine will not invent the number. So
+ * the table states it, and the Attack action's size is then **derived** from a
+ * declared fact instead of being made up: `attacksInAction` is the one reader.
+ *
+ * **Modelled on `declareCreatureSide`, and re-declarable for its reason.** The
+ * same block's Multiple Heads trait has a head dying to 25 damage and two
+ * growing back at the end of the turn, so a later declaration is the next
+ * thing that happened rather than a contradiction of the first — the opposite
+ * of `declareCreatureType`, where a second answer would rewrite a fact Hold
+ * Person may already have been cast on.
+ *
+ * **A count below one is refused**, and so is a fraction. Nothing in the book
+ * has half a head, and a creature with none has stopped being a creature: SRD
+ * "The hydra dies if all its heads are dead" is a death, which is
+ * `declareCreatureDead`'s sentence and not this one's.
+ */
+export function declareCreatureHeads(
+  state: GameState,
+  id: CharacterId,
+  heads: number,
+  command: CommandIdentity = {},
+): Result<GameEvent[]> {
+  return once(state, `declare-heads:${id}`, { ...command, heads }, () => [], (stamp) => {
+    if (creatureOf(state, id) === null) return unknownCreature(id);
+    if (!Number.isInteger(heads) || heads < 1) {
+      return err(
+        'impossible_head_count',
+        `${heads} is not a number of heads; a creature has a whole number of them and at least one — a creature whose last head is gone is dead, which declareCreatureDead says`,
+      );
+    }
+
+    return ok([
+      { type: 'creature-heads-declared', id, heads, ...(stamp === null ? {} : { command: stamp }) },
+    ]);
+  });
+}
+
+/**
  * Swap two combatants' places in the Initiative order.
  *
  * SRD Alert: "Immediately after you roll Initiative, you can swap your

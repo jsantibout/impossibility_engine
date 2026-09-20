@@ -37,6 +37,7 @@ export const ROSTER_EVENTS = [
   'character-created',
   'character-advanced',
   'creature-side-declared',
+  'creature-heads-declared',
   'spellcasting-declared',
   'creature-type-declared',
 ] as const;
@@ -86,6 +87,10 @@ export function applyRoster({ state, next }: Applying, event: RosterEvent): Game
             // unchanged and neither was regenerated.
             size: event.size ?? null,
             side: event.side ?? null,
+            // Nobody has said, which is what every log written before this
+            // field existed says — so both frozen fixtures fold unchanged and
+            // an Attack action holds the one swing it always held.
+            heads: null,
             // Nobody's, until a `creature-summoned` says otherwise. Which is
             // what every log written before summoning existed says, so both
             // frozen fixtures fold unchanged.
@@ -220,6 +225,20 @@ export function applyRoster({ state, next }: Applying, event: RosterEvent): Game
     case 'creature-side-declared': {
       const creature = creatureOf(state, event, event.id);
       return withCreature(next, event.id, { side: event.side }, creature);
+    }
+
+    case 'creature-heads-declared': {
+      const creature = creatureOf(state, event, event.id);
+      // Overwritten rather than refused, for the reason a side is: SRD's Hydra
+      // loses a head to 25 damage and grows two back at the end of its turn,
+      // so a second declaration is the next thing that happened rather than a
+      // contradiction of the first. What the reducer will not accept is a
+      // count no creature could have — the command refuses it too, so one in
+      // the log means the command was bypassed.
+      if (!Number.isInteger(event.heads) || event.heads < 1) {
+        throw new CorruptLogError(event, `${event.heads} is not a number of heads`);
+      }
+      return withCreature(next, event.id, { heads: event.heads }, creature);
     }
 
     case 'spellcasting-declared': {

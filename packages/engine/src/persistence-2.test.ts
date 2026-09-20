@@ -488,6 +488,14 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   'casting-continued',
   'combatant-joined',
   'condition-immunity-granted',
+  // How many heads a creature has. Neither log was written when anybody could
+  // say — an Attack action held whatever the sheet said and nothing else —
+  // and both fixtures fold to exactly the states they always folded to with
+  // the field `null` on every creature. `creature-heads.test.ts` folds it and
+  // drives it end to end: the assumption reported while nobody has said, the
+  // swings a declared count holds, the re-declaration that replaces it, and
+  // the count the fold gives back with no content open.
+  'creature-heads-declared',
   // A summons: the fixtures predate it, and appending a type here is the
   // acknowledgement this list exists to collect.
   'creature-summoned',
