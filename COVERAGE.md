@@ -508,7 +508,7 @@ engine could take it today — is recorded as such rather than omitted.
 
 | Classes | Subclasses | Features | Executed by the engine |
 |---|---|---|---|
-| 12 / 12 | 12 / 12 | 269 | 162 |
+| 12 / 12 | 12 / 12 | 269 | 163 |
 
 A feature declares its own automation, so this column is read rather than
 guessed. **Manual is not failure**: several features are judgement the
@@ -523,7 +523,7 @@ believe it has twelve working classes when it has twelve validated ones.
 | Cleric | prepared-from-list | 19 | 11 |
 | Druid | prepared-from-list | 17 | 10 |
 | Fighter | none | 26 | 18 |
-| Monk | none | 29 | 17 |
+| Monk | none | 29 | 18 |
 | Paladin | prepared-from-list | 25 | 17 |
 | Ranger | known | 25 | 14 |
 | Rogue | none | 28 | 13 |
@@ -561,7 +561,6 @@ be the second spelling of one derivation.
 | `an-option-re-chosen-on-a-rest` | 9 | 3 |
 | `a-save-keyed-to-a-condition` | 4 | 3 |
 | `healing-modified-by-an-effect` | 4 | 3 |
-| `an-attack-the-class-redefines` | 10 | 2 |
 | `a-feature-that-changes-what-a-casting-costs` | 7 | 2 |
 | `a-move-a-feature-hands-its-holder` | 6 | 2 |
 | `a-spell-a-source-that-does-not-cast-grants` | 4 | 2 |
@@ -575,6 +574,7 @@ be the second spelling of one derivation.
 | `heroic-inspiration` | 2 | 2 |
 | `a-resource-traded-for-another` | 12 | 1 |
 | `a-one-shot-roll-modifier` | 9 | 1 |
+| `an-attack-the-class-redefines` | 9 | 1 |
 | `a-condition-a-feature-imposes` | 6 | 1 |
 | `a-grant-gated-on-one-option-of-a-choice` | 4 | 1 |
 | `a-rule-the-engine-fixes-for-everybody` | 4 | 1 |
@@ -921,3 +921,51 @@ the next tranche makes false.
 
 An entry can need more than one shape, so the column does not sum to the
 blocked pile.
+
+## Bestiary
+
+Five states, and the last one is a count of what the engine does *not*
+read:
+
+| | Means |
+|---|---|
+| **Parsed** | `@ie/srd` has the stat block: size, type, Armour Class, Initiative, hit points, speeds, abilities with their saves, skills, the defence runs, senses, languages, CR and XP |
+| **Carried** | `SRD_CONTENT` holds that block and `checkContent` validated it, so `addCreature` puts the creature into a game by its id and every number in the event is the block’s |
+| **Qualified** | a printed defence the engine recognises and cannot evaluate — _Piercing (from weapons wielded by creatures under a Bless spell)_ — recorded and handed to the DM rather than enforced or dropped |
+| **Unread** | a defence entry in neither the damage nor the condition vocabulary, kept verbatim for the same reason |
+| **Printed lines** | the traits, actions, bonus actions, reactions and legendary actions the blocks print: a name and the book’s sentence each |
+
+| Parsed | Carried | Defence entries | of which qualified | of which unread | Printed lines |
+|---|---|---|---|---|---|
+| 330 | 330 | 723 | 2 | 2 | 1329 |
+
+**A stat block arrives as a body, not as an actor.** `adaptMonster`
+carries across everything the block states as a number — the printed
+Armour Class, the stated saves and skills, the average hit points, the
+speeds, the size and the creature type a spell like Hold Person reads — so
+an SRD monster can be placed, attacked, damaged, made to roll a save,
+targeted and killed, and the engine supplies every one of those numbers
+itself. What the creature *does* on its turn is not carried at all.
+
+**Printed lines is not a denominator**, and the difference between this
+and the tables above is the whole reason it is counted. A tracked spell
+has a definition that says what it leaves to the table; an untranscribed
+item is an entry somebody has read and classified. A printed line is
+neither: it is the SRD’s English, held as `{ name, text }`, with no attack
+bonus, damage die, save DC or recharge read out of it by anybody. So the
+column says how much prose the catalogue holds, and no fraction of it is
+claimed — a *tracked* or *executed* column here would be a predicate over
+English, which is an opinion in a derived column’s clothes.
+
+**A monster’s spellcasting is in that prose too**, which is why
+`declareSpellcasting` states it and nothing infers it: reading a caster’s
+ability and list out of a trait’s sentence would be the engine deciding a
+fact the book wrote for a person.
+
+| Line | Printed |
+|---|---|
+| Traits | 337 |
+| Actions | 811 |
+| Bonus actions | 75 |
+| Reactions | 24 |
+| Legendary actions | 82 |
