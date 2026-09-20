@@ -425,7 +425,157 @@ describe('a casting hands the text over and adjudicates the rest', () => {
     );
     expect(dmDecisionsIn(settled.unverified)).toContain('Range: Special');
 
+    // **And the settling event does not repeat it.** The declaration is where
+    // this casting wrote down what it read from the catalogue, so the
+    // `spell-cast` that ends the rite carries no text at all: one sentence in
+    // two events of one log is the second place to get it wrong. Pinned here
+    // rather than only claimed in a docstring, because nothing else would
+    // notice a later hand adding the second copy.
+    const record = settled.events.find((event) => event.type === 'spell-cast');
+    expect(record?.type).toBe('spell-cast');
+    expect(record !== undefined && 'dmDecides' in record).toBe(false);
+
     const after = fold('seed', [...ticked, ...settled.events]);
     expect(remaining(after.creatures[CASTER]!.resources, spellSlotKey(3))).toBe(3);
+  });
+});
+
+/**
+ * **And an atomic casting writes it down too.**
+ *
+ * A rite of a minute pins its handover onto `spell-declared`, because a
+ * declaration is where a casting writes down what it read from the catalogue.
+ * An Action casting has no declaration: its handover reached the caller's
+ * `unverified` and nothing else, so a log replayed a year later — with this
+ * year's book, or with no book at all — had lost the one sentence the table
+ * still had to answer. CLAUDE.md's rule 5 holds for every casting or for none.
+ *
+ * So `spell-cast` carries the printed text, the book's own words and nothing
+ * paraphrased, exactly as the definition stated them. None of the three SRD
+ * spells that hand text over is an Action, which is why the spell under test
+ * is homebrew loaded through `loadContent` — and that is the second claim
+ * here: the shape needs no engine change to be used, only the one that put the
+ * field on the event.
+ */
+describe('an atomic casting pins its handover into the log', () => {
+  const whisper = (log: readonly GameEvent[], spellId = 'far-whisper') =>
+    unwrap(
+      resolveSpell(
+        fold('seed', log),
+        CASTER,
+        { spellId, targets: [TARGET], slotLevel: 3 },
+        supply(homebrew),
+      ),
+      spellId,
+    );
+
+  /** The event that records the casting, out of whatever a command emitted. */
+  const recordIn = (events: readonly GameEvent[]) => {
+    const cast = events.find((event) => event.type === 'spell-cast');
+    if (cast?.type !== 'spell-cast') throw new Error('the casting wrote no spell-cast');
+    return cast;
+  };
+
+  it('carries the printed text on the event, word for word', () => {
+    const log = table(homebrew);
+    const cast = whisper(log);
+
+    expect(cast.events.some((event) => event.type === 'spell-declared')).toBe(false);
+    expect(recordIn(cast.events).dmDecides).toEqual([
+      'Range: Special',
+      'The listener hears whatever the winds have carried to them, and the GM decides what that is.',
+    ]);
+    // The same words the caller was handed, so the log and the report cannot
+    // drift: one of them is not a paraphrase of the other.
+    expect(recordIn(cast.events).dmDecides).toEqual(dmDecisionsIn(cast.unverified));
+  });
+
+  /**
+   * And a reader of the log gets them back with no catalogue open at all —
+   * which is the whole of rule 5, asked of the path that did not keep it.
+   */
+  it('folds back with no content, and reads as the table would be shown it', () => {
+    const log = table(homebrew);
+    const cast = whisper(log);
+    const replayed = [...log, ...cast.events];
+
+    // The fold takes no content, so this *is* the replay a year later.
+    const after = fold('seed', replayed);
+    expect(after.creatures[CASTER]!.concentration?.castingId).toBe(cast.castingId);
+
+    const record = recordIn(replayed);
+    expect(record.dmDecides?.map((printed) => handedOver(record.spell, printed))).toEqual([
+      `Far Whisper: ${DM_DECIDES} Range: Special`,
+      `Far Whisper: ${DM_DECIDES} The listener hears whatever the winds have carried to them, and the GM decides what that is.`,
+    ]);
+  });
+
+  /**
+   * A casting that hands nothing over writes nothing, so every log this engine
+   * has ever written folds to exactly the state it always did.
+   *
+   * The spell it is driven with carries an `unmodelled` line instead, which is
+   * the second half of the claim: a **debt** is not pinned. One of those is a
+   * clause somebody will build, after which the line goes — a log that had
+   * frozen it would report a gap the engine had long since closed — and the
+   * other is a question nobody will ever answer for the table.
+   */
+  it('writes no field for a spell with nothing to hand over', () => {
+    const plain = unwrap(
+      loadContent({
+        spells: [
+          {
+            ...(JSON.parse(FAR_WHISPER) as object),
+            id: 'quiet-whisper',
+            range: { kind: 'ranged', feet: 600 },
+            dmDecides: [],
+            unmodelled: ['The winds carry nothing this engine has a shape for.'],
+          },
+        ],
+      }),
+      'load',
+    );
+    const log = table(plain);
+    const cast = unwrap(
+      resolveSpell(
+        fold('seed', log),
+        CASTER,
+        { spellId: 'quiet-whisper', targets: [TARGET], slotLevel: 3 },
+        { issuer: createRollIssuer('r'), rng: createRng('whisper') as Rng, content: plain },
+      ),
+      'quiet whisper',
+    );
+    expect(cast.unverified).toHaveLength(1);
+    expect('dmDecides' in recordIn(cast.events)).toBe(false);
+  });
+
+  /** And a retry of the casting is the casting: one event, one handover. */
+  it('pins it once under a repeated command id', () => {
+    const log = table(homebrew);
+    const first = unwrap(
+      resolveSpell(
+        fold('seed', log),
+        CASTER,
+        { spellId: 'far-whisper', targets: [TARGET], slotLevel: 3, commandId: 'whisper' },
+        supply(homebrew),
+      ),
+      'the whisper',
+    );
+    const after = [...log, ...first.events];
+    const again = unwrap(
+      resolveSpell(
+        fold('seed', after),
+        CASTER,
+        { spellId: 'far-whisper', targets: [TARGET], slotLevel: 3, commandId: 'whisper' },
+        supply(homebrew),
+      ),
+      'again',
+    );
+
+    expect(again.events).toEqual([]);
+    expect(
+      [...after, ...again.events].filter((event) => event.type === 'spell-cast'),
+    ).toHaveLength(1);
+    expect(remaining(fold('seed', after).creatures[CASTER]!.resources, spellSlotKey(3))).toBe(3);
   });
 });

@@ -2057,17 +2057,29 @@ export interface SpellDefinition {
    * Range the format cannot state is precisely the text the ruling is about
    * and a silent one would be the engine quietly not checking a distance.
    *
-   * **Where it reaches, and the one place it does not.** Every casting reports
-   * it in `unverified`, so the layer narrating the spell always has it. A
-   * casting of a minute or more *also* pins it into the log, because
-   * `PendingCasting.unverified` is written onto `spell-declared` — which is
-   * what CLAUDE.md's rule 5 asks for, and is how the three SRD spells that
-   * write this field fold back with no catalogue open. An **atomic** casting
-   * has no such event: `spell-cast` carries no text at all, so a homebrew
-   * Action spell's handover reaches its caller and not its log. That is the
-   * limit `unmodelled` has always had and this inherits; closing it is a field
-   * on `spell-cast`, which is a change to the event union rather than to this
-   * file.
+   * **Where it reaches, and which event carries it.** Every casting reports it
+   * in `unverified`, so the layer narrating the spell always has it, and a
+   * casting also pins it into the log — CLAUDE.md's rule 5, and how a handover
+   * folds back with no catalogue open. Which event holds it is the one thing
+   * that differs, and it is always exactly one of two: a casting of a minute
+   * or more, or one held open for a Counterspell, writes it onto
+   * `spell-declared`, where `PendingCasting.unverified` carries it under its
+   * mark beside everything else that declaration read; an **atomic** casting
+   * has no declaration, so `spell-cast.dmDecides` carries the printed text
+   * itself. Never both.
+   *
+   * `unmodelled` beside it is pinned by neither, and that is the difference
+   * between the two fields again: a debt is a fact about the engine that ran
+   * the casting rather than about the casting, and a log that had frozen one
+   * would go on reporting a gap this engine had since closed.
+   *
+   * **Two castings still hand it only to their caller**, and both are one line
+   * away from the rest: a spell cast at a Ready (`readySpell`, whose
+   * `spell-cast` is written a turn before the spell takes effect) and a spell
+   * cast on a hit (`castOnHit`). No SRD spell that prints a handover can reach
+   * either — a Ready takes a spell cast with an action and all three take a
+   * minute or more, and a spell cast on a hit must print `attack-damage` —
+   * so nothing in the catalogue loses text today. A homebrew definition could.
    */
   readonly dmDecides?: readonly string[];
   /**
