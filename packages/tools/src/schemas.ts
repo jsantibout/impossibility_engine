@@ -198,6 +198,44 @@ export const masterySchema = z.object({
 });
 
 /**
+ * What a blow buys, where the feature that sells it is bought by a hit.
+ *
+ * SRD Stunning Strike: "Once per turn when you hit a creature with a Monk
+ * weapon or an Unarmed Strike, **you can** expend 1 Focus Point to attempt a
+ * stunning strike." {@link masterySchema}'s sentence about a decision written
+ * "you can", one trigger along — so the field is present or the rider does not
+ * happen, and a swing that names nothing buys nothing.
+ *
+ * **Two ids and nothing else.** The save DC, the ability it is read from, the
+ * pool the price comes out of, the condition, the deadline and whether the
+ * once-a-turn allowance is spent are every one of them the engine's, derived
+ * at the moment of the hit from the holder's own sheet — which is why this is
+ * the whole of the field. A caller cannot name a feature it does not hold, an
+ * option it does not offer or a weapon the sentence does not cover: the engine
+ * refuses all three by name **before** the attack is rolled, so a refusal here
+ * costs neither the action nor the point.
+ *
+ * **Neither id is enumerated here**, for {@link masterySchema}'s reason and
+ * more sharply: which features a character holds is content, and a schema that
+ * listed today's would be the engine holding a catalogue one layer up. `sheet`
+ * is where a caller reads its own, and `spentBy` on each line names this tool.
+ */
+export const hitRiderSchema = z.object({
+  feature: z
+    .string()
+    .min(1)
+    .describe(
+      'The feature this hit is buying, by its id — SRD’s Stunning Strike is `monk:stunning-strike`. Read it off `sheet`, where every feature of this kind names `attack` as the tool that spends it.',
+    ),
+  option: z
+    .string()
+    .min(1)
+    .describe(
+      'Which of the things that feature offers, by its id. A feature that prints one still names it; a refusal lists the ones there are.',
+    ),
+});
+
+/**
  * How long a ruled condition lasts, said as a moment and never as a number.
  *
  * SRD writes the ends of things as moments in the turn order — "until the

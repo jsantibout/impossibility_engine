@@ -55,6 +55,15 @@ export const SPENT_BY = {
   'pool-option': 'use_pool_option',
   /** A use spent to put a Reaction in somebody else's hands: Bardic Inspiration. */
   conferral: 'confer_reaction',
+  /**
+   * Bought by a blow rather than spent on its own: SRD Stunning Strike.
+   *
+   * The tool is `attack`, and that is the point of listing it. A rider costs
+   * no action of its own — it rides on a swing somebody was making anyway —
+   * so a caller looking for a door called `use_stunning_strike` would find
+   * none and conclude the feature was shut. It is `attack.onHit`.
+   */
+  'hit-rider': 'attack',
   /** Elected on a casting rather than spent on its own — `usingFeatures`. */
   'casting-election': 'cast_spell',
 } as const;
@@ -119,6 +128,25 @@ export interface HeldPoolOption {
   readonly action: 'action' | 'bonus-action';
 }
 
+/**
+ * One thing a landed blow can buy, named by the swing that buys it.
+ *
+ * {@link HeldPoolOption} without the price in the action economy, and the
+ * absence is the difference between the two: a pool option is a purchase
+ * somebody makes *with* an Action or a Bonus Action, and a rider is a purchase
+ * made with a hit. So it carries the allowance the SRD prints on it instead —
+ * "Once per turn" — which is the only bound a caller can plan around and the
+ * one refusal of the four it can see coming.
+ */
+export interface HeldHitOption {
+  /** The id `attack.onHit.option` takes — SRD's `stun`. */
+  readonly option: string;
+  /** What the log calls it: SRD's "Stunning Strike". */
+  readonly name: string;
+  /** SRD: "Once per turn when you hit a creature". */
+  readonly oncePerTurn: boolean;
+}
+
 export interface HeldFeature {
   readonly feature: string;
   readonly name: string;
@@ -158,6 +186,15 @@ export interface HeldFeature {
    * feature.
    */
   readonly options?: readonly HeldPoolOption[];
+  /**
+   * What a landed blow buys, for a feature a swing elects.
+   *
+   * `options` one trigger along, and kept apart from it because the call is a
+   * different one: these are elected through `attack.onHit` and never through
+   * `use_pool_option`, and a caller dispatching on `spentBy` would otherwise
+   * be handed a menu for the wrong door.
+   */
+  readonly onHit?: readonly HeldHitOption[];
   /** A healing touch's conditions, and what each one costs out of the pool. */
   readonly lifts?: readonly string[];
   readonly costPerCondition?: number;
@@ -504,6 +541,43 @@ export function holdingsOf(state: GameState, id: CharacterId): Holdings | null {
       left: leftIn(state, who, one.pool),
       active: false,
       options,
+    });
+  }
+
+  /**
+   * A feature a *hit* buys, reported once per feature with its menu — the same
+   * shape a pool with a menu takes, one trigger along.
+   *
+   * **The door is `attack`, which is why this line has to exist.** Every other
+   * spendable feature on this list is spent by a tool named after it; a rider
+   * is elected on a swing through `attack.onHit`, so a caller reading the list
+   * for something to call would find no door for Stunning Strike and conclude
+   * the engine had none — and the engine has executed it since a hit became a
+   * host of an effect list. SRD writes all of them "you can", so a swing that
+   * names nothing buys nothing and the election is the caller's.
+   *
+   * The action is `null` rather than `'none'`: a rider costs no action because
+   * it is not bought with one, which is a recovery's answer to the same field.
+   */
+  const riders = new Map<string, HeldHitOption[]>();
+  for (const one of sheet.hitOptions ?? []) {
+    const entry = { option: one.option, name: one.name, oncePerTurn: one.oncePerTurn === true };
+    const found = riders.get(one.feature);
+    if (found === undefined) riders.set(one.feature, [entry]);
+    else found.push(entry);
+  }
+  for (const [feature, onHit] of riders) {
+    const first = (sheet.hitOptions ?? []).find((one) => one.feature === feature)!;
+    add({
+      feature,
+      name: first.featureName,
+      kind: 'hit-rider',
+      spentBy: SPENT_BY['hit-rider'],
+      action: null,
+      pool: first.pool,
+      left: leftIn(state, who, first.pool),
+      active: false,
+      onHit,
     });
   }
 

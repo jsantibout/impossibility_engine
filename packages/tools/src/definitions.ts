@@ -198,6 +198,7 @@ import {
   conditionSchema,
   creatureId,
   damageTypeSchema,
+  hitRiderSchema,
   masterySchema,
   placementSchema,
   pointSchema,
@@ -1359,6 +1360,11 @@ const ATTACK = tool({
       .describe(
         'Use the mastery property of the weapon in hand — Cleave, Graze, Push, Slow and Topple are written "you can", so silence declines them. An empty object uses whatever the weapon prints. A property this character has not unlocked is refused rather than quietly skipped. Nick is the one exception in the other direction: it is accepted and does nothing, because the extra attack it redirects is not paid for by anything the engine has.',
       ),
+    onHit: hitRiderSchema
+      .optional()
+      .describe(
+        'Buy a feature of the attacker’s with this blow — SRD Stunning Strike is "once per turn when you hit a creature ... you can expend 1 Focus Point". Written "you can", so silence declines it and a swing that names none buys nothing. Name the feature and the option; the price, the save, the DC and how long what it leaves behind lasts are all the engine’s. A feature the attacker has not got, an option it does not offer, a weapon its sentence does not cover and a pool with nothing left are each refused before the attack is rolled, so nothing is spent. `sheet` lists what this character can elect.',
+      ),
   }),
   run: (context, args) =>
     settle(
@@ -1374,6 +1380,7 @@ const ATTACK = tool({
           ...(args.finesseAbility === undefined ? {} : { finesseAbility: args.finesseAbility }),
           ...(args.hold === true ? { hold: true } : {}),
           ...(args.mastery === undefined ? {} : { mastery: masteryOf(args.mastery) }),
+          ...(args.onHit === undefined ? {} : { onHit: args.onHit }),
           ...identity(context),
         },
         context.campaign.supply(),
