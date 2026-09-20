@@ -27,7 +27,7 @@ import type { GrantedReaction, ReactionOffer } from './reactions.js';
 import type { ActiveBonus } from './bonuses.js';
 import { type SpellcastingState } from './spellcasting.js';
 import type { RestState } from './rest.js';
-import type { StandingEffect } from './standing.js';
+import type { HitOption, StandingEffect } from './standing.js';
 import { type Deadline } from './time.js';
 import {
   type GrantedPayout,
@@ -996,6 +996,32 @@ export interface PendingDamage {
   readonly reductions: readonly DamageReduction[];
   /** Who was offered a Reaction and has not yet answered. */
   readonly offers: readonly ReactionOffer[];
+  /**
+   * What the blow still owes, held until the defender has answered.
+   *
+   * **The defender answers first.** A feature's rider fires "when you hit a
+   * creature" and so does the Reaction this window is offering — SRD Uncanny
+   * Dodge is "when an attack roll hits you" — and a rider resolved first can
+   * take the answer away: a target Stunned by a Stunning Strike may no longer
+   * take the Reaction the same blow had just offered it. So a hit that opens a
+   * window puts the rider *here*, and the settlement resolves it once the
+   * damage has landed.
+   *
+   * Pinned whole rather than looked up again, for the reason everything else
+   * on this record is: what the option said was read at the swing, and the
+   * settlement must not re-read a sheet that has moved in between.
+   *
+   * Absent for every other damage roll, which is nearly all of them: a rider
+   * on a swing nobody can answer resolves in the same command it always did.
+   */
+  readonly rider?: PendingHitRider;
+}
+
+/** A rider a held damage roll owes, and whose it is. */
+export interface PendingHitRider {
+  readonly attacker: CharacterId;
+  /** The option the swing bought, exactly as the sheet stated it. */
+  readonly option: HitOption;
 }
 
 /**

@@ -5,8 +5,8 @@ import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
-import { resolveAttack, resolveTurn } from './commands.js';
-import { createCharacter, type CharacterChoices } from './creation.js';
+import { resolveAttack, resolveTurn, settleDamage, takeDamageReaction } from './commands.js';
+import { createCharacter, planCharacter, type CharacterChoices } from './creation.js';
 import { extendContent, parseClassDefinition } from './content.js';
 import { remaining } from './resources.js';
 import { spellSaveDcWith } from './character.js';
@@ -509,5 +509,186 @@ describe('a homebrew feature buys an effect list with a hit and no engine change
       { issuer: createRollIssuer('r'), rng: createRng(FAILS) as Rng, content },
     );
     expect(isErr(out) && out.code).toBe('weapon_not_covered');
+  });
+});
+
+/**
+ * **The defender answers first.**
+ *
+ * A rider fires "when you hit a creature", and so does the Reaction the
+ * defender was just offered — SRD Uncanny Dodge is "when an attack roll hits
+ * you". Both are the same instant, and the engine used to resolve the
+ * attacker's half of it first: a target Stunned by the rider could no longer
+ * answer the `damage-rolled` window the same blow had opened for it. Nothing
+ * deadlocked, because settling records a pass; the Reaction was simply denied,
+ * silently, where the book puts the defender's response first.
+ *
+ * So a hit that opens a window **holds the rider with the damage**. What the
+ * blow still owes is pinned on the hold, the defender answers, and the rider
+ * resolves when the damage does — on the world the damage has already changed,
+ * which is where it always resolved.
+ */
+describe('a rider waits for the window the same blow opened', () => {
+  const rogue = (): CharacterChoices => ({
+    name: 'Nyx',
+    classId: 'rogue',
+    level: 5,
+    speciesId: 'human',
+    backgroundId: 'sage',
+    abilities: {
+      method: 'standard-array',
+      assignment: { str: 8, dex: 15, con: 13, int: 14, wis: 12, cha: 10 },
+    },
+    abilityIncreases: { con: 2, int: 1 },
+    classSkills: ['stealth', 'sleight-of-hand', 'acrobatics', 'investigation'],
+    subclassId: 'thief',
+    languages: ['Dwarvish', 'Orc'],
+    alignment: 'Neutral',
+    cantrips: [],
+    spellbook: [],
+    preparedSpells: [],
+    classEquipment: 'A',
+    backgroundEquipment: 'A',
+    equipped: [],
+    hitPoints: { method: 'fixed' },
+    featureChoices: {
+      'human:skillful': ['perception'],
+      'rogue:expertise': ['stealth', 'sleight-of-hand'],
+    },
+    feats: {
+      'sage:magic-initiate-wizard': {
+        featId: 'magic-initiate',
+        spellList: 'wizard',
+        spellcastingAbility: 'int',
+        cantrips: ['mage-hand', 'light'],
+        levelOneSpell: 'find-familiar',
+      },
+      'human:versatile': { featId: 'alert' },
+      'rogue:ability-score-improvement': { featId: 'savage-attacker' },
+    },
+    dmGrants: { items: [], goldPieces: 0, magicItems: [], note: 'standard' },
+  });
+
+  const DODGE = 'rogue:uncanny-dodge';
+
+  /** The Monk's table, with somebody who can answer a damage roll to hit. */
+  const facing = (): readonly GameEvent[] => {
+    const sheet = unwrap(planCharacter(SRD_CONTENT, rogue()), 'the rogue').sheet;
+    return table().map((event) =>
+      event.type === 'creature-added' && event.id === THUG ? { ...event, sheet } : event,
+    );
+  };
+
+  const stun = (log: readonly GameEvent[]) =>
+    swing(log, { target: THUG, weapon: null, onHit: { feature: STUNNING, option: 'stun' } }, FAILS);
+
+  /**
+   * A seed the Rogue's Constitution save fails on — **at the settlement**,
+   * which is where the rider now rolls it.
+   *
+   * The Rogue is not proficient in Constitution and has a 15, so the save is
+   * the die plus two against the Monk's DC 13: this one throws a 10 and comes
+   * up one short. That the seed belongs to `settleDamage` rather than to the
+   * swing is itself the claim — the die had not been thrown when the attack
+   * command returned.
+   */
+  const SETTLE_FAILS = 'b';
+
+  it('offers the window, and stuns nobody yet', () => {
+    const out = stun(facing());
+
+    expect(out.attack?.hit).toBe(true);
+    expect(out.reactions?.map((offer) => offer.feature)).toEqual([DODGE]);
+    expect(out.state.pendingDamage).not.toBeNull();
+    // Neither half of the blow has happened: no damage, and no rider.
+    expect(out.damage).toBeUndefined();
+    expect(stunned(out.state)).toBe(false);
+    expect(remaining(out.state.creatures.shan!.resources, FOCUS)).toBe(5);
+  });
+
+
+  /** The Reaction the rider used to close, taken. */
+  it('lets the target answer, and then stuns it', () => {
+    const out = stun(facing());
+    const dodged = unwrap(
+      takeDamageReaction(out.state, THUG, { feature: DODGE }, supply('dodge')),
+      'the dodge',
+    );
+    const answered = [...out.log, ...dodged.events];
+
+    expect(fold('seed', answered).pendingDamage?.reductions).toHaveLength(1);
+
+    const settled = unwrap(settleDamage(fold('seed', answered), supply(SETTLE_FAILS)), 'settle');
+    const after = fold('seed', [...answered, ...settled.events]);
+
+    // SRD Uncanny Dodge: "halve the attack's damage against you."
+    expect(settled.amount).toBeGreaterThan(0);
+    // And the rider the blow was holding, resolved once the defender had
+    // spoken: the save rolled, the condition applied, the point spent.
+    expect(stunned(after)).toBe(true);
+    expect(remaining(after.creatures.shan!.resources, FOCUS)).toBe(4);
+  });
+
+  /** And nobody answering changes nothing about the rider. */
+  it('resolves the rider when the window closes unanswered', () => {
+    const out = stun(facing());
+    const settled = unwrap(settleDamage(out.state, supply(SETTLE_FAILS)), 'settle');
+    const after = fold('seed', [...out.log, ...settled.events]);
+
+    expect(stunned(after)).toBe(true);
+    expect(remaining(after.creatures.shan!.resources, FOCUS)).toBe(4);
+  });
+
+  /**
+   * A settlement is the one door out of a held damage roll, so it may not
+   * refuse: a rider that will not resolve is reported and the damage still
+   * lands, because a refusal here would wedge the fight for ever and every
+   * retry would wedge it again.
+   *
+   * Nothing in the SRD reaches it — a Stunning Strike whose every refusal was
+   * checked at the swing resolves — so what is asserted is the settlement's
+   * half of the contract: it comes back `ok`, with a channel for what did not
+   * happen, on the world it has changed.
+   */
+  it('settles rather than refusing, and has somewhere to say what did not happen', () => {
+    const out = stun(facing());
+    const settled = settleDamage(out.state, supply(SETTLE_FAILS));
+    expect(isErr(settled)).toBe(false);
+    if (isErr(settled)) return;
+    expect(settled.value.unverified).toEqual([]);
+    expect(fold('seed', [...out.log, ...settled.value.events]).pendingDamage).toBeNull();
+  });
+
+  /**
+   * A retry of the settlement is the settlement, not a second rider: the save
+   * is rolled once and the point is spent once, whatever a dropped connection
+   * does.
+   */
+  it('resolves the rider once under a repeated command id', () => {
+    const out = stun(facing());
+    const settled = unwrap(
+      settleDamage(out.state, supply(SETTLE_FAILS), { commandId: 'close' }),
+      'settle',
+    );
+    const after = [...out.log, ...settled.events];
+    const again = unwrap(
+      settleDamage(fold('seed', after), supply(SETTLE_FAILS), { commandId: 'close' }),
+      'again',
+    );
+
+    expect(again.duplicate).toBe(true);
+    expect(again.events).toEqual([]);
+    expect(remaining(fold('seed', after).creatures.shan!.resources, FOCUS)).toBe(4);
+  });
+
+  /**
+   * And a swing that opens no window is untouched: the rider fires in the same
+   * command it always did, because there is nobody to hear it first.
+   */
+  it('fires in the same breath when nobody was offered anything', () => {
+    const out = stun(table());
+    expect(out.reactions).toBeUndefined();
+    expect(stunned(out.state)).toBe(true);
+    expect(remaining(out.state.creatures.shan!.resources, FOCUS)).toBe(4);
   });
 });

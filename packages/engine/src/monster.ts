@@ -8,7 +8,7 @@ import {
   type DamageType,
   type Skill,
 } from '@ie/shared';
-import type { CreatureSize, Monster, MonsterTrait } from '@ie/srd';
+import type { CreatureSize, Monster, MonsterMultiattack, MonsterTrait } from '@ie/srd';
 import type { DamageDefenses } from './attack.js';
 import type { CharacterSheet, StatedAttack, StatedValues } from './character.js';
 import { vitals, type Vitals } from './vitals.js';
@@ -215,6 +215,118 @@ const printedTraits = (monster: Monster): readonly MonsterTrait[] =>
   monster.traits.flatMap((line) => (line.trait === undefined ? [] : [line.trait]));
 
 /**
+ * The sequence the block's Multiattack states, **bound to the lines it names**.
+ *
+ * The parser reads one sentence and knows nothing about the block around it,
+ * so a name it read is a name and not yet an attack. Here the two meet: every
+ * entry has to name an attack this creature can actually make, and a sequence
+ * with one loose end is dropped whole rather than carried with a hole in it —
+ * a creature owed three attacks of which one can never be rolled is worse off
+ * than one whose Multiattack stayed prose.
+ *
+ * The bound name is the **printed** one, so what the sheet states and what a
+ * caller names an attack by are the same string.
+ */
+function printedMultiattack(
+  monster: Monster,
+  attacks: readonly StatedAttack[],
+): MonsterMultiattack | undefined {
+  // An Action, and one that is not itself an attack: a line that states both a
+  // sequence and a swing of its own is two mechanisms under one heading, and
+  // the engine has no reading of it that is not a guess. The rule is
+  // mechanical rather than a heading nobody here may name — content that
+  // arrived from somewhere other than the SRD parser meets the same one.
+  const line = monster.actions.find(
+    (action) => action.multiattack !== undefined && action.attack === undefined,
+  );
+  if (line?.multiattack === undefined) return undefined;
+
+  const entries: MonsterMultiattack['entries'][number][] = [];
+  for (const entry of line.multiattack.entries) {
+    const wanted = entry.attack.toLowerCase();
+    const printed = attacks.find((attack) => attack.name.toLowerCase() === wanted);
+    if (printed === undefined) return undefined;
+    entries.push({ count: entry.count, attack: printed.name });
+  }
+  return { entries };
+}
+
+/** How many swings a stated sequence adds up to. */
+const sequenceTotal = (sequence: MonsterMultiattack): number =>
+  sequence.entries.reduce((sum, entry) => sum + entry.count, 0);
+
+/** The sequence this creature's block states, or null where it states none. */
+export const multiattackOf = (sheet: CharacterSheet): MonsterMultiattack | null =>
+  sheet.stated?.multiattack ?? null;
+
+/**
+ * How many of one printed attack a stated sequence holds.
+ *
+ * Summed across entries rather than found in one, because a sentence may name
+ * the same line twice and the engine has no business deciding that it did not
+ * mean it.
+ */
+export function multiattackAllowance(sequence: MonsterMultiattack, name: string): number {
+  const wanted = name.trim().toLowerCase();
+  return sequence.entries
+    .filter((entry) => entry.attack.toLowerCase() === wanted)
+    .reduce((sum, entry) => sum + entry.count, 0);
+}
+
+/**
+ * Whether a turn's swings, counted by name, are swings the sequence prints.
+ *
+ * The whole multiset rather than the latest swing, which is what makes this
+ * the *composition* and not a per-name tally: a Ghoul that has clawed once has
+ * not thereby earned a Bite, because "one Claw and one Bite" is not what its
+ * block prints either.
+ */
+export const multiattackAllows = (
+  sequence: MonsterMultiattack,
+  made: Readonly<Record<string, number>>,
+): boolean =>
+  Object.entries(made).every(([name, count]) => count <= multiattackAllowance(sequence, name));
+
+/**
+ * The attack a creature reaches for when it is provoked and nobody names one.
+ *
+ * SRD: "take a Reaction to make **one melee attack** with a weapon or an
+ * Unarmed Strike." A monster carries neither, and the two answers the engine
+ * used to have were both wrong: refuse the Reaction the book grants, or swing
+ * an Unarmed Strike at a Strength modifier the block never printed.
+ *
+ * So it is the best of what the block *does* print, by three stated rules:
+ *
+ * - **Melee**, because that is the attack the sentence names. A line that is
+ *   only ranged never wins this, however hard it hits.
+ * - **Not on a recharge**, because a line the creature may not have available
+ *   is not the one it reaches for by default.
+ * - **The highest summed printed average**, the book's own arithmetic, so
+ *   nothing is rolled and nothing is re-derived from notation. Ties go to the
+ *   first line printed, which is a rule rather than an accident of sorting.
+ *
+ * Null for every character and for a block that prints no melee line, which is
+ * where the caller's weapon or an Unarmed Strike takes over as before.
+ */
+export function bestPrintedMeleeAttack(sheet: CharacterSheet): StatedAttack | null {
+  let best: StatedAttack | null = null;
+  let most = -1;
+
+  for (const attack of sheet.stated?.attacks ?? []) {
+    if (attack.kind === 'ranged') continue;
+    if (attack.recharge !== undefined) continue;
+    const average = attack.damage.reduce((sum, part) => sum + part.average, 0);
+    // Strictly greater, so the first line printed keeps a tie.
+    if (average > most) {
+      most = average;
+      best = attack;
+    }
+  }
+
+  return best;
+}
+
+/**
  * Find an attack a creature's stat block prints, by the name it prints it
  * under.
  *
@@ -248,6 +360,7 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
 
   const attacks = printedAttacks(monster);
   const traits = printedTraits(monster);
+  const multiattack = printedMultiattack(monster, attacks);
 
   const stated: StatedValues = {
     armorClass: monster.ac,
@@ -261,7 +374,14 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
     // field saying so — the reading every optional field on the sheet takes.
     ...(attacks.length === 0 ? {} : { attacks }),
     ...(traits.length === 0 ? {} : { traits }),
+    ...(multiattack === undefined ? {} : { multiattack }),
   };
+
+  // **The count follows the composition.** A block that states a sequence
+  // states how many swings its Attack action holds, and the two must be one
+  // number rather than two that could disagree; a block that states none is
+  // left where it was, at the one attack the action has always held.
+  const attacksPerAction = multiattack === undefined ? 1 : sequenceTotal(multiattack);
 
   const sheet: CharacterSheet = {
     // A monster has no level. Every derivation that would have used one is
@@ -285,6 +405,10 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
     armorTraining: { light: true, medium: true, heavy: true, shields: true },
     baseSpeed: monster.speed.walk,
     spellcastingAbility: null,
+    // Omitted at one, which is the sheet's own reading of the field: "one,
+    // unless a feature says otherwise", and an explicit 1 on every stat block
+    // would be a number where there was an absence.
+    ...(attacksPerAction > 1 ? { attacksPerAction } : {}),
     stated,
   };
 

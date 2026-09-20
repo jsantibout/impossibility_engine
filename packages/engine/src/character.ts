@@ -12,7 +12,13 @@ import type {
   TradeFeature,
 } from './standing.js';
 import type { ConferrableReaction, ReactionFeature } from './reactions.js';
-import type { Armor, MonsterAttack, MonsterTrait, WeaponMastery } from '@ie/srd';
+import type {
+  Armor,
+  MonsterAttack,
+  MonsterMultiattack,
+  MonsterTrait,
+  WeaponMastery,
+} from '@ie/srd';
 
 /**
  * Derived character statistics.
@@ -121,6 +127,28 @@ export interface StatedValues {
    * stay prose in the catalogue, where a DM reads them.
    */
   readonly traits?: readonly MonsterTrait[];
+  /**
+   * The **named sequence** the block's Multiattack prints, where it prints one
+   * this engine can execute.
+   *
+   * A stat block is not a character's sheet. `attacksPerAction` says how many
+   * swings the Attack action holds, which is the whole of what a class feature
+   * gives — and it is *not* the whole of what a Multiattack says: "the ghoul
+   * makes two Bite attacks" names the attacks as well as counting them, and a
+   * creature allowed two of anything is a creature the book did not print.
+   *
+   * So the count and the composition are two fields, both stated: the count is
+   * `attacksPerAction` above, derived from this one's total, and this is what
+   * each of those swings is allowed to be. Absent for every character and for
+   * every block whose sentence says something else — an alternative, a free
+   * choice from a menu, a use that is not an attack — and absent is what the
+   * engine had before any of this: one attack, named by the caller.
+   *
+   * Every name here is a line the same block prints, bound by the adapter
+   * before it reaches the sheet, so nothing downstream has to wonder whether
+   * a sequence names an attack that exists.
+   */
+  readonly multiattack?: MonsterMultiattack;
 }
 
 export interface CharacterSheet {

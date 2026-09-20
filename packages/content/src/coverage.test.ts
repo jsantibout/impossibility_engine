@@ -447,7 +447,7 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
       }
     }
 
-    expect([...keys].sort()).toEqual(['attack', 'name', 'text', 'trait']);
+    expect([...keys].sort()).toEqual(['attack', 'multiattack', 'name', 'text', 'trait']);
   });
 
   /**
@@ -460,7 +460,10 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
       (sum, m) =>
         sum +
         [...m.traits, ...m.actions, ...m.bonusActions, ...m.reactions, ...m.legendaryActions].filter(
-          (line) => line.attack !== undefined || line.trait !== undefined,
+          (line) =>
+            line.attack !== undefined ||
+            line.trait !== undefined ||
+            line.multiattack !== undefined,
         ).length,
       0,
     );

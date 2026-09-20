@@ -10,6 +10,7 @@
     "PendingMove",
     "PendingCasting",
     "PendingDamage",
+    "PendingHitRider",
     "PendingTest",
     "ReadiedResponse",
     "ReadiedAction",

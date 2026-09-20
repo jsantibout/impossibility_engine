@@ -7,6 +7,8 @@ import {
   type Monster,
   type MonsterAttack,
   type MonsterDamage,
+  type MonsterMultiattack,
+  type MonsterRecharge,
   type MonsterTrait,
   type ParseOutput,
   type ParseProblem,
@@ -401,6 +403,102 @@ export function parseTraitShape(text: string): MonsterTrait | null {
   return null;
 }
 
+/** The counts a Multiattack sentence is written with; the book uses no digits. */
+const COUNT_WORDS: Readonly<Record<string, number>> = {
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+};
+
+/**
+ * "The elemental makes " — the subject, which names nothing the engine reads.
+ *
+ * A few plain words and no punctuation, because a looser opening reads
+ * sentences that are not this one: the dragons' "The dragon moves up to half
+ * its Speed, **and it makes** one Rend attack" would match on a subject that
+ * may contain anything, and the move would be silently dropped.
+ */
+const MAKES = /^The (?:[A-Za-z'’-]+ ){1,3}makes /;
+
+/**
+ * "two Thunderous Slam attacks" — a count, a printed name, and the noun.
+ *
+ * Every word of the name is capitalised, because that is how the book prints
+ * an action's heading and because a lower-cased word inside one is the tell
+ * that the clause is not a name at all: the Bugbear Stalker's "two Javelin
+ * **or** Morningstar attacks" is a menu, and reading it as a name called
+ * "Javelin or Morningstar" would invent an attack nothing prints.
+ */
+const NAME = "[A-Z][A-Za-z'’-]*";
+const CLAUSE = new RegExp(
+  `^(one|two|three|four|five|six) (${NAME}(?: ${NAME})*) (attack|attacks)$`,
+);
+
+/**
+ * The named sequence a Multiattack states, or null where it states something
+ * else.
+ *
+ * **Whole or nothing.** The sentence has to be accounted for end to end —
+ * subject, clauses, connectives, full stop — or this reads none of it. That is
+ * what keeps the honest half honest: "The barbed devil makes one Claws attack
+ * and one Tail attack, **or** it makes two Hurl Flame attacks" contains a
+ * sequence this grammar could match and is not one, because a reader that took
+ * the first branch would have deleted the second from the book.
+ *
+ * What it does *not* check is that the names are lines the same block prints:
+ * this reads one sentence and knows nothing about the block around it. The
+ * bestiary is swept for that, and the engine binds each name to a printed
+ * attack before it will spend one.
+ */
+export function parseMultiattack(text: string): MonsterMultiattack | null {
+  const clean = text.replace(/[_*]/g, '').trim();
+  if (!clean.endsWith('.')) return null;
+
+  const sentence = clean.slice(0, -1);
+  // A second sentence says something this grammar has not read — the dragons'
+  // "It can replace one attack with a use of Spellcasting" — so the line is
+  // prose rather than a sequence with a clause quietly dropped.
+  if (sentence.includes('.')) return null;
+
+  const subject = MAKES.exec(sentence);
+  if (subject === null) return null;
+
+  const entries: { count: number; attack: string }[] = [];
+  for (const part of sentence.slice(subject[0].length).split(' and ')) {
+    const clause = CLAUSE.exec(part.trim());
+    if (clause === null) return null;
+    const count = COUNT_WORDS[clause[1]!]!;
+    // The book agrees with itself about the plural, and a sentence that does
+    // not is one this grammar has misread rather than one it may round off.
+    if ((count === 1) !== (clause[3] === 'attack')) return null;
+    entries.push({ count, attack: clause[2]!.trim() });
+  }
+
+  return entries.length === 0 ? null : { entries };
+}
+
+/**
+ * The recharge printed in a line's **name**, or null where it prints none.
+ *
+ * The name is the only place the book states it, which is precisely why it is
+ * read here: nothing downstream may tell a breath weapon from a bite by
+ * reading a string.
+ */
+export function parseRecharge(name: string): MonsterRecharge | null {
+  const printed = /\(Recharge([^)]*)\)/i.exec(name);
+  if (printed === null) return null;
+
+  const die = /^\s*(\d)(?:\s*[–—-]\s*6)?\s*$/.exec(printed[1]!);
+  if (die !== null) return { kind: 'die', low: Number(die[1]) };
+  // "Recharge after a Short or Long Rest": still not an every-round attack,
+  // and the rest it waits on is the clock's rather than a die's.
+  if (/rest/i.test(printed[1]!)) return { kind: 'rest' };
+  return null;
+}
+
 function parseFeatures(lines: readonly string[]): Feature[] {
   const features: Feature[] = [];
   let current: { name: string; text: string[] } | null = null;
@@ -408,18 +506,35 @@ function parseFeatures(lines: readonly string[]): Feature[] {
   const flush = () => {
     if (current === null) return;
     const text = current.text.join('\n').trim();
-    // The name and the sentence are what a line is; the two optional fields
-    // are what this parser could read out of the sentence, present only when
-    // it read something. Both detectors run over every section, because what a
+    // The name and the sentence are what a line is; the optional fields are
+    // what this parser could read out of the sentence, present only when it
+    // read something. Every detector runs over every section, because what a
     // line *says* is not a property of the heading it is printed under.
     if (text !== '') {
       const attack = parseAttackLine(text);
       const trait = parseTraitShape(text);
+      // **The one detector the heading is part of.** A sequence is the
+      // composition of *the Attack action*, and the only line that says so is
+      // the one the book prints it under: three legendary actions write the
+      // same sentence — "The aboleth makes one Tentacle attack" — about a
+      // different economy entirely, and reading one of those as the creature's
+      // Multiattack would hand it a cage the book never printed. The
+      // qualified headings ("Multiattack (Vampire Form Only)") are left alone
+      // for the same reason every qualified thing here is: the engine cannot
+      // evaluate the qualification.
+      const multiattack = current.name === 'Multiattack' ? parseMultiattack(text) : null;
+      // The one thing read out of the *name* rather than the sentence, and it
+      // rides on the attack because that is what has to be told apart from a
+      // creature's every-round swing.
+      const recharge = parseRecharge(current.name);
       features.push({
         name: current.name,
         text,
-        ...(attack === null ? {} : { attack }),
+        ...(attack === null
+          ? {}
+          : { attack: recharge === null ? attack : { ...attack, recharge } }),
         ...(trait === null ? {} : { trait }),
+        ...(multiattack === null ? {} : { multiattack }),
       });
     }
     current = null;
