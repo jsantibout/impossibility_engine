@@ -1471,6 +1471,18 @@ export interface ResourceTradeGrant {
   readonly action: 'none' | 'action' | 'bonus-action';
   readonly spends: TradedResource;
   readonly gains: TradedResource;
+  /**
+   * The clause that limits it — and **there is no member for a trade the SRD
+   * does not limit at all**.
+   *
+   * Required and closed, because both of Wild Resurgence's sentences print one
+   * and writing an unlimited trade as a limited one would be a rule invented
+   * here. Three features the shape map still lists want the absent member:
+   * Font of Inspiration is "a spell slot bought into a pool, with no action and
+   * no limit", and Innate Sorcery and Arcane Apotheosis spend points on a pool
+   * as often as the points last. Widening this to optional is a decision about
+   * a vocabulary rather than a transcription, so it is named here and left.
+   */
   readonly limit: 'once-per-turn' | 'once-per-long-rest';
   /** The key of the pool of one holding a once-per-Long-Rest limit. */
   readonly pool?: string;
