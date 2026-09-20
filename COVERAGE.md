@@ -1065,6 +1065,13 @@ slots later starts its row later, because the reach is read off the table
 the book prints rather than from a rule about casters written into the
 script.
 
+**The reach is the class’s list, on a row named for a path**, and that is
+the one place this section’s unit and its numbers differ: a spell is in
+reach because the book’s index puts it on the class’s list, so a spell a
+subclass grants that is not on that list is not counted here. Said rather
+than smoothed over, because the alternative is a column that quietly means
+something other than its heading.
+
 | Path | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | Bard (College of Lore) | 13/20/33 | 13/20/33 | 19/36/56 | 19/36/56 | 24/46/73 | 24/46/73 | 29/51/83 | 29/51/83 | 32/63/100 | 32/63/100 | 33/69/108 | 33/69/108 | 35/77/119 | 35/77/119 | 38/80/125 | 38/80/125 | 38/85/130 | 38/85/130 | 38/85/130 | 38/85/130 |
