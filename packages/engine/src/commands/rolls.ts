@@ -604,9 +604,16 @@ export function enemyWithinFiveFeet(
  * same three facts decide both — a declared side, a measured distance, a
  * creature able to act — and two spellings of that walk in two modules is
  * exactly how the ranged-attack rule and the spell-attack rule came to
- * disagree. Two differences, and both are the sentence's: it measures from the
- * *target* rather than from the roller, and it wants allies rather than
- * enemies.
+ * disagree. Where it differs it differs because the sentences do:
+ *
+ * - it measures from the **target** rather than from the roller;
+ * - it wants allies rather than enemies;
+ * - it asks nothing about sight, because Pack Tactics does not — the ranged
+ *   rule's "who can see you" has no counterpart in "at least one of its
+ *   allies is within 5 feet";
+ * - and it falls silent once it has found an ally, because the withholding it
+ *   reports is a rule that went **unapplied**, and a rule that has already
+ *   fired went nowhere unapplied.
  *
  * "Ally" is the declared side, the same fact an aura reads. A creature nobody
  * has put on a side is nobody's ally, so it grants nothing and says so — an
