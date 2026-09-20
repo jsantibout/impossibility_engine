@@ -70,8 +70,12 @@ caller can spend for no effect is worse than one it cannot spend — so Channel
 Divinity stayed shut while nothing executed what a use bought, and opened the
 week a feature's pool use became the third host of an effect list. Cleric's is
 a door now (`use_pool_option`, with the menu on `sheet`); Paladin's, which
-prints no options the engine executes, is not. Bardic Inspiration and Action
-Surge are still shut for the original reason.
+prints no options the engine executes, is not. **Bardic Inspiration opened
+the same way** — not as a pool a caller spends for nothing, but once the die
+had somewhere to go: the Bard's pool is spent on the Bard and the ally holds a
+sourced grant consumed when a test it was given for fails, so `confer_reaction`
+hands over a thing that exists. Action Surge is still shut for the original
+reason, and stays shut until what a use buys is built.
 
 **A window a caller can see and cannot answer is worse than one it is never
 shown.** `options` has reported every open Reaction since `reactionOpportunities`
@@ -142,14 +146,16 @@ separate resource it is, its pools and what refills them, what it can cast and
 by which route, and its features. It exists because a model could not see its
 own spell slots, and because a model cannot elect a feature it has not been
 told it holds. It states no verdict: whether a feature may be used right now is
-the command's answer, and asking twice is how two answers drift. The one thing
-it adds beyond the record is `spentBy`, the name of the tool that spends each
-feature — the same closing of a loop `Establish.tools` makes, because a feature
-a caller is told it holds and can find no door for is half a door. The doors
-themselves are one tool per engine command, and the two pools the engine holds
-with nothing behind them — Channel Divinity, Bardic Inspiration — are
-deliberately left shut, because a pool a caller can spend for no effect is
-worse than one it cannot spend.
+the command's answer, and asking twice is how two answers drift. What it adds
+beyond the record it adds for one reason — that a fact a caller is told and can
+find no door for is half a door: `spentBy` names the tool that spends each
+feature, `takenBy` the one that answers a Reaction somebody was given, and
+`grantedReactions`, `coins`, `carrying`, `equipped` and `attuned` say what a
+character is holding at all, as `look` now says whether a dying creature is
+stable. The doors themselves are one tool per engine command. **A pool the
+engine holds with nothing behind it still gets none** — that rule closed
+Channel Divinity and the Bard's die only when what a use bought was built, and
+Action Surge is what it still refuses.
 
 Out of scope until decided: persisting the log (a `Content` holds closures, so
 what is stored is the `ContentInput`), and multiple scenes. Two things a later
