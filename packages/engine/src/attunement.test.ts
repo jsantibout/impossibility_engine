@@ -284,10 +284,18 @@ describe('the rules attunement is bounded by, each refused as a value', () => {
     const out = attuneItem(fold('seed', log), TEST_CONTENT, STRANGER, 'test-trinket-arcane');
     expect(isNeedsContext(out)).toBe(true);
     expect(isErr(out) ? out.code : 'ok').toBe('unknown_spellcasting');
-    const requests = isErr(out) ? (out.requests ?? []) : [];
-    expect(requests.map((request) => request.satisfyWith).join()).toContain(
-      'declareSpellcasting',
-    );
+    // The command that would settle it is named in the **prose**, and the
+    // refusal carries no `ContextRequest` at all. That is the one place in the
+    // engine where a command-level `needs-context` does not: a request's
+    // `kind` is the name of a declared-not-derived fact that has a door, and
+    // no kind names "what this creature casts" — `declareSpellcasting` writes
+    // a spell list and a save DC ability, which no tool surface offers. It
+    // used to be tagged `creature`, which answered the question with the
+    // commands that *create* a creature. The argument is beside the refusal in
+    // `commands/inventory.ts`; the gap is recorded in `doors.test.ts`.
+    expect(isErr(out) ? (out.requests ?? []) : []).toEqual([]);
+    expect(isErr(out) ? out.reason : '').toContain('declareSpellcasting');
+    expect(isErr(out) ? out.reason : '').toContain(STRANGER);
   });
 
   /** SRD: attuning "requires a Short Rest focused on only that item". */

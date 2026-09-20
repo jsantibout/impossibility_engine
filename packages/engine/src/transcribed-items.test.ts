@@ -642,10 +642,18 @@ describe('an attunement prerequisite, asked of whoever picks the item up', () =>
     const stranger = run(SETUP, (s) => beginRest(s, HERO, 'short'));
     const asked = attuneItem(fold('seed', stranger), SRD_CONTENT, HERO, 'wand-of-fireballs');
     expect(isNeedsContext(asked)).toBe(true);
-    // And it names the command that would settle it: an ask nobody can answer
-    // is a refusal wearing a question's clothes.
-    expect(contextRequestsOf(asked)[0]?.subject).toBe(HERO);
-    expect(contextRequestsOf(asked)[0]?.satisfyWith).toMatch(/declareSpellcasting/);
+    // And it names the command that would settle it **in its prose**: an ask
+    // nobody can answer is a refusal wearing a question's clothes.
+    //
+    // It carries no `ContextRequest`, and that is the answer rather than an
+    // omission — a request's `kind` is the name of a declared-not-derived fact
+    // with a door, and there is no kind for "what this creature casts". The
+    // tag it used to carry was `creature`, which sent a caller to the tools
+    // that *create* one. `commands/inventory.ts` argues it where the refusal
+    // is written and `packages/tools/src/doors.test.ts` records the gap.
+    expect(contextRequestsOf(asked)).toEqual([]);
+    expect(isErr(asked) ? asked.reason : '').toContain(HERO);
+    expect(isErr(asked) ? asked.reason : '').toMatch(/declareSpellcasting/);
 
     const mage = attuned(made(wizardChoices()), 'wand-of-fireballs', MAGE);
     const held = run(mage, (s) => equipItem(s, SRD_CONTENT, MAGE, 'wand-of-fireballs'));

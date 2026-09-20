@@ -941,6 +941,209 @@ describe('a Cleric can be told to turn undead', () => {
   });
 });
 
+/**
+ * SRD Preserve Life, and the one field on this menu that is a list of numbers.
+ *
+ * "You present your Holy Symbol and evoke healing energy that can restore a
+ * number of Hit Points equal to five times your Cleric level. Choose Bloodied
+ * creatures within 30 feet of yourself (which can include you), and divide
+ * those Hit Points among them."
+ *
+ * **The division is the caller's and nothing here could make it for them.**
+ * That is why `among` is on this surface at all, and it is not the rule about
+ * numbers bending: no die is thrown by this option, so there is no roll for a
+ * caller to have produced. The *budget* is the engine's — five times the
+ * Cleric level, read off the sheet — and every share is measured against it,
+ * against thirty feet, against half each creature's maximum and against the
+ * types the option refuses. A share is **validated and never trusted**: the
+ * shape is Zod's and every question about whether it is legal is the engine's.
+ *
+ * `doors.test.ts` recorded this as a refusal the surface could not answer for
+ * as long as the field was missing — the engine said `division_required` and
+ * named the shares, and `use_pool_option` had nowhere to put them. The record
+ * moves up with the rest now.
+ *
+ * The wound is a **DM's** chandelier, as everywhere else in this file: a
+ * Bloodied creature is one the fiction hurt, and `improvised_damage` takes an
+ * amount somebody adjudicated rather than a number anything rolled — so the
+ * hit points that come back are measured against a number nothing threw.
+ */
+describe('a Cleric divides the hit points Preserve Life mints', () => {
+  /** A Life Domain Cleric, two hurt allies, and thirty feet to work in. */
+  const infirmary = (seed: string) => {
+    const t = table(seed);
+    expectOk(t.call('create_character', { id: 'ilsa', choices: character('cleric', 5) }));
+    expectOk(t.call('create_character', { id: 'bram', choices: character('fighter', 5) }));
+    expectOk(t.call('create_character', { id: 'orin', choices: character('rogue', 5) }));
+    expectOk(t.call('set_scene', { width: 60, depth: 40, height: 20 }));
+    expectOk(t.call('add_landmark', { name: 'the altar', at: { x: 10, y: 10 } }));
+    expectOk(t.call('place_creature', { who: 'ilsa', fromLandmark: 'the altar', feet: 0 }));
+    expectOk(t.call('place_creature', { who: 'bram', fromCreature: 'ilsa', feet: 10, bearing: 0 }));
+    expectOk(t.call('place_creature', { who: 'orin', fromCreature: 'ilsa', feet: 10, bearing: 90 }));
+    return t;
+  };
+
+  /** Hurt somebody down to a stated number of hit points, through the DM's door. */
+  const woundTo = (t: ReturnType<typeof table>, who: string, hp: number) => {
+    const outcome = t.rule('improvised_damage', {
+      target: who,
+      amount: hpOf(t, who) - hp,
+      ruling: 'the ceiling came down',
+    });
+    if (outcome.status !== 'ok') throw new Error(`could not wound ${who}: ${outcome.status}`);
+    expect(hpOf(t, who)).toBe(hp);
+  };
+
+  /** Five times the Cleric's level, which is the engine's number and not ours. */
+  const BUDGET = 25;
+
+  it('refuses a division that spends more than the use mints, and spends nothing', () => {
+    const t = infirmary('too-much');
+    woundTo(t, 'bram', 1);
+    woundTo(t, 'orin', 1);
+    const before = sheetOf(t, 'ilsa').pool('channel-divinity')!.left;
+
+    const refusal = expectRefused(
+      t.call('use_pool_option', {
+        who: 'ilsa',
+        feature: 'cleric:channel-divinity',
+        option: 'preserve-life',
+        among: [
+          { target: 'bram', hitPoints: BUDGET },
+          { target: 'orin', hitPoints: 1 },
+        ],
+      }),
+    );
+    expect(refusal.code).toBe('too_much_divided');
+    expect(refusal.reason).toContain(String(BUDGET + 1));
+    // Refused before anything moved: the pool is untouched and so is everyone.
+    expect(sheetOf(t, 'ilsa').pool('channel-divinity')!.left).toBe(before);
+    expect(hpOf(t, 'bram')).toBe(1);
+    expect(hpOf(t, 'orin')).toBe(1);
+  });
+
+  it('accepts one that does not, and pays each creature its own share', () => {
+    const t = infirmary('divided');
+    woundTo(t, 'bram', 1);
+    woundTo(t, 'orin', 1);
+    const before = sheetOf(t, 'ilsa').pool('channel-divinity')!.left;
+
+    const used = expectOk(
+      t.call('use_pool_option', {
+        who: 'ilsa',
+        feature: 'cleric:channel-divinity',
+        option: 'preserve-life',
+        among: [
+          { target: 'bram', hitPoints: 9 },
+          { target: 'orin', hitPoints: 4 },
+        ],
+      }),
+    );
+
+    expect(used.resolution['used']).toBe('preserve-life');
+    // Each share landed on the creature it named, and the two differ — which
+    // is the whole of what a division is and what one amount could not be.
+    expect(hpOf(t, 'bram')).toBe(10);
+    expect(hpOf(t, 'orin')).toBe(5);
+    expect(sheetOf(t, 'ilsa').pool('channel-divinity')!.left).toBe(before - 1);
+    // No die was thrown for any of it: this is the one purchase on the menu
+    // that runs no effect at all.
+    expect(used.events.some((event) => event.type === 'roll-recorded')).toBe(false);
+  });
+
+  /**
+   * And the refusal that named the field, answered by the same call with the
+   * field filled in — `route_required`'s shape, one feature along.
+   */
+  it('refuses the use that names no share, and takes the same call again with one', () => {
+    const t = infirmary('no-share');
+    woundTo(t, 'bram', 1);
+
+    const refusal = expectRefused(
+      t.call('use_pool_option', {
+        who: 'ilsa',
+        feature: 'cleric:channel-divinity',
+        option: 'preserve-life',
+      }),
+    );
+    expect(refusal.code).toBe('division_required');
+    expect(sheetOf(t, 'ilsa').pool('channel-divinity')!.left).toBe(2);
+
+    // And the other spelling of "no shares" is the same answer. A bound in the
+    // schema would have made an empty list `invalid` and a missing field
+    // `division_required`, which is two answers to one mistake — and only one
+    // of them tells the caller what the option wants.
+    const empty = expectRefused(
+      t.call('use_pool_option', {
+        who: 'ilsa',
+        feature: 'cleric:channel-divinity',
+        option: 'preserve-life',
+        among: [],
+      }),
+    );
+    expect(empty.code).toBe('division_required');
+
+    const answered = expectOk(
+      t.call('use_pool_option', {
+        who: 'ilsa',
+        feature: 'cleric:channel-divinity',
+        option: 'preserve-life',
+        among: [{ target: 'bram', hitPoints: 6 }],
+      }),
+    );
+    expect(answered.status).toBe('ok');
+    expect(hpOf(t, 'bram')).toBe(7);
+  });
+
+  /**
+   * A share the engine will not pay is the engine's to refuse and not the
+   * schema's: "restore a creature to no more than half its Hit Point maximum"
+   * is a rule, and a caller that reads `invalid` goes looking for a typo
+   * rather than for a smaller number.
+   */
+  it('leaves every question about whether a share is legal to the engine', () => {
+    const t = infirmary('the-cap');
+    woundTo(t, 'bram', 1);
+
+    const past = expectRefused(
+      t.call('use_pool_option', {
+        who: 'ilsa',
+        feature: 'cleric:channel-divinity',
+        option: 'preserve-life',
+        among: [{ target: 'bram', hitPoints: BUDGET }],
+      }),
+    );
+    expect(past.code).toBe('past_the_cap');
+
+    // A share of nothing buys nothing, and that is a refusal with a reason
+    // rather than a schema complaining about a bound.
+    const nothing = expectRefused(
+      t.call('use_pool_option', {
+        who: 'ilsa',
+        feature: 'cleric:channel-divinity',
+        option: 'preserve-life',
+        among: [{ target: 'bram', hitPoints: 0 }],
+      }),
+    );
+    expect(nothing.code).toBe('bad_share');
+
+    // And one creature takes one share.
+    const twice = expectRefused(
+      t.call('use_pool_option', {
+        who: 'ilsa',
+        feature: 'cleric:channel-divinity',
+        option: 'preserve-life',
+        among: [
+          { target: 'bram', hitPoints: 3 },
+          { target: 'bram', hitPoints: 3 },
+        ],
+      }),
+    );
+    expect(twice.code).toBe('duplicate_share');
+    expect(sheetOf(t, 'ilsa').pool('channel-divinity')!.left).toBe(2);
+  });
+});
+
 describe('a casting can elect a feature its caster holds', () => {
   const study = (seed: string) => {
     const t = table(seed);

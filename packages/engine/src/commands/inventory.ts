@@ -588,19 +588,32 @@ function prerequisiteProblem(creature: CreatureState, item: CatalogueItem): Resu
       // A character's spellcasting is derived from the class table at
       // creation, so an empty one is an answer. A creature with no character
       // record has simply never been asked.
+      //
+      // **It asks, and it carries no `ContextRequest`**, which is deliberate
+      // and is the one refusal in the engine shaped this way.
+      //
+      // A request's `kind` is the name of the declared-not-derived fact that
+      // is missing, and there is no kind for "what this creature casts".
+      // Adding one would be a kind with no door: the only command that settles
+      // the fact is `declareSpellcasting`, which writes a spell list and the
+      // ability a save DC comes from — authorship of a stat block, withheld
+      // from the model's surface and the DM's alike. A kind whose door is shut
+      // on the surface that has to answer for it is the "DOOR NOT CREATED"
+      // failure wearing a nicer shape.
+      //
+      // What was here instead was worse than nothing: the request was tagged
+      // `creature`, so the layer above answered it with the tools that *create*
+      // a creature — and an orchestrator was told to add a creature already
+      // standing in front of it. A question with no door says so; a question
+      // pointed at the wrong door looks like progress and is a loop.
+      //
+      // So the prose carries what the structure cannot, which is what `reason`
+      // is for on a thin record, and `doors.test.ts` holds the gap as a record
+      // rather than as an argument to be had again.
       if (creature.character === null) {
         return needsContext(
           'unknown_spellcasting',
-          `${item.name} requires attunement by a spellcaster, and nothing says whether ${creature.id} casts anything`,
-          [
-            {
-              kind: 'creature',
-              subject: creature.id,
-              need: `what ${creature.id} can cast, if anything`,
-              because: 'the item is attunable only by a spellcaster',
-              satisfyWith: `a declareSpellcasting command for ${creature.id}`,
-            },
-          ],
+          `${item.name} requires attunement by a spellcaster, and nothing says whether ${creature.id} casts anything; a declareSpellcasting command for ${creature.id} would settle it, and no tool surface offers one — this is a fact the table states directly or not at all`,
         );
       }
       return err(
