@@ -1133,6 +1133,52 @@ export interface CastingOption {
 }
 
 /**
+ * One thing a hit buys, compiled onto the sheet.
+ *
+ * {@link PoolOption}'s twin one trigger along, and the fields it does not have
+ * are the ones an action owns: no action to spend, no reach and no area,
+ * because the creature a rider reaches is the one the attack just hit. What it
+ * has instead is the qualification — SRD Stunning Strike's "with a Monk weapon
+ * or an Unarmed Strike" — read at the swing rather than at creation, because
+ * which weapon is in hand is not a fact about the character.
+ *
+ * The pool is nullable here and it is not on a pool option: SRD charges
+ * Stunning Strike a Focus Point out of a *different feature's* pool and
+ * charges Open Hand Technique nothing at all.
+ */
+export interface HitOption {
+  /** The feature the rider belongs to — the swing names it and the option. */
+  readonly feature: string;
+  /** What the feature is called: SRD's "Stunning Strike". */
+  readonly featureName: string;
+  readonly option: string;
+  /** What this option is called, for the log. */
+  readonly name: string;
+  /** The pool a use comes out of, or null where the book charges nothing. */
+  readonly pool: string | null;
+  /** What one rider costs out of that pool. */
+  readonly costs: number;
+  /** SRD: "Once per turn when you hit a creature". */
+  readonly oncePerTurn?: boolean;
+  readonly weapons?: readonly WeaponSelector[];
+  readonly unarmedStrike?: boolean;
+  readonly effects: readonly SpellEffect[];
+  /**
+   * The ability the DC is read from — {@link PoolOption.ability} exactly, with
+   * one more way of being answered.
+   *
+   * The feature's own where it prints one (SRD Monk's Focus: "8 plus your
+   * Wisdom modifier and Proficiency Bonus"), the granting class's spellcasting
+   * ability where it does not, and null where neither exists — which falls to
+   * `8 + Proficiency Bonus`, the rule an item already falls back to.
+   */
+  readonly ability: Ability | null;
+  readonly lasts?: TurnAnchor;
+  readonly durationSeconds?: number;
+  readonly endsEarly?: readonly EffectEndCause[];
+}
+
+/**
  * What the feature adds to the die, and what to call it in the log.
  *
  * Derived rather than stored for the ability case, so the number is the one on

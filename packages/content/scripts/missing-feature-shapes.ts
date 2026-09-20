@@ -86,8 +86,6 @@ import {
  * claims is removed.
  */
 export const FEATURE_SHAPES = {
-  'an-effect-list-a-hit-buys':
-    'a feature whose effects are bought by an **attack that has already landed**, rather than by an action its holder takes. The two entries this replaces — a saving throw a feature forces, and a condition a feature imposes — were symptoms of one cause, and the cause is built: a feature\'s pool use confers an effect list through `PoolOptionGrant` in packages/engine/src/progression.ts, whose own declaration reads "SRD Channel Divinity is the shape this is built to: one feature, one pool, and a named menu the holder picks from at the moment of use". Every option on such a menu is a purchase somebody makes; nothing hangs one on a hit an attack roll has already settled, which is the sentence the SRD writes on a Stunning Strike, a Cunning Strike, an Open Hand Technique and two species traits. The save and the condition are expressible now; what has no shape is the *trigger*.',
   'an-effect-that-ends-when-its-target-is-hurt':
     'an effect the SRD ends early "if it takes any damage". What an option may print as an early end is held to what a timer can see happen to the creature it sits on, and packages/engine/src/content.ts refuses anything else by name — a cause is "not something the engine can see happen to the creature a timer sits on" — while every cause that list does hold is keyed on what that creature itself does. Damage dealt to it by somebody else is not among them, so Turn Undead\'s and Abjure Foes\'s escape clause is transcribed and inert: the conditions stand until the minute is up.',
   'a-target-list-an-ability-modifier-sizes':
@@ -612,13 +610,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'the spell map’s own id, which Feather Fall waits on.',
     },
   ],
-  'monk:stunning-strike': [
-    {
-      clause: 'Spending a Focus Point to force a Constitution save',
-      why: 'an-effect-list-a-hit-buys',
-      note: 'the save and the condition are both expressible on a pool option now; what is not is that this one is bought by a hit rather than by an action.',
-    },
-  ],
   'monk:empowered-strikes': [
     {
       clause: 'carries no damage type for a second feature to change',
@@ -683,14 +674,24 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
   'open-hand:technique': [
     {
-      clause: 'because Flurry of Blows is not',
+      clause: 'Flurry of Blows is not modelled',
       why: 'an-attack-the-class-redefines',
-      note: 'the attack the three effects ride on.',
+      note: 'the attack the three effects ride on, and the whole of what is left of the trigger: a hit buys an effect list now, and nothing can tell a Flurry’s hit from any other punch.',
     },
     {
-      clause: 'Addle, Push and Topple on a Flurry of Blows hit',
-      why: 'an-effect-list-a-hit-buys',
-      note: 'the clause names which hit buys them, and that is the half with no shape: Push and Topple are ordinary Strength saves once something hangs them on a landed strike.',
+      clause: 'Topple is a Dexterity save with Prone on a failure and would be data',
+      why: 'expressible',
+      note: 'one of the three effects, and the one the rider host would execute today.',
+    },
+    {
+      clause: 'Push moves the target fifteen feet',
+      why: 'forced-movement-a-spell-causes',
+      note: 'the same `moveCreature` with `forced: true` that no spell effect reaches either.',
+    },
+    {
+      clause: 'Addle stops its Opportunity Attacks',
+      why: 'an-action-a-spell-compels-or-forbids',
+      note: 'an action forbidden to somebody else, which is the action economy answering to a feature.',
     },
   ],
   'open-hand:fleet-step': [
@@ -941,7 +942,7 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
     },
     {
       clause: 'a saving throw the feature forces',
-      why: 'an-effect-list-a-hit-buys',
+      why: 'expressible',
       note: 'Poison and Trip each ask for one, and each is bought by the hit the Sneak Attack rode rather than by an action.',
     },
     {
@@ -987,7 +988,7 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
     },
     {
       clause: 'each forces a Constitution or Dexterity saving throw',
-      why: 'an-effect-list-a-hit-buys',
+      why: 'expressible',
       note: 'all three ask for one against the Rogue\'s own DC, which a pool option rolls; what buys them is the hit the Sneak Attack rode.',
     },
     {
@@ -1424,7 +1425,7 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
     },
     {
       clause: 'the Prone condition given on a hit',
-      why: 'an-effect-list-a-hit-buys',
+      why: 'expressible',
       note: 'the clause names the trigger, which is the half with no shape: hanging Prone is what a pool option already does.',
     },
     {

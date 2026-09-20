@@ -11,6 +11,7 @@ import {
   checkFeatureDefinition,
   duplicateFeatureIds,
   parseFeatureDefinition,
+  weaponSelectorProblems,
   type FeatureContext,
 } from './feature-schema.js';
 import type {
@@ -34,6 +35,7 @@ import type { StandingRequirement } from './standing.js';
 import { SENSE_NAMES } from './positioning.js';
 import { dawnRollProblem, type Recovery } from './resources.js';
 import { EFFECT_END_CAUSES } from './timers.js';
+import { TURN_ANCHORS } from './time.js';
 import { oneShotProblem, rollSelectorProblems } from './roll-modifiers.js';
 import type { SpellDefinition } from './spell-definitions.js';
 import {
@@ -196,6 +198,7 @@ export const READABLE_GRANT_KINDS: ReadonlySet<string> = new Set([
   'extra-attack',
   'initiative-proficiency',
   'lifts-conditions',
+  'on-hit',
   'pool',
   'reaction',
   'recovery',
@@ -1136,6 +1139,17 @@ function featureOptionProblems(
   option: PoolOptionGrant,
   at: string,
   levels: number,
+  /**
+   * Which host prints this option — the pool's menu, or a hit's.
+   *
+   * The two differ in what an option *may say* and agree in every rule about
+   * what its effects are, which is why they share this function rather than
+   * having one each: a second copy of the conferral rules is a second place
+   * for a rules fix to be missed, and the fields that differ are the ones an
+   * action owns. A hit names no action, fills no area, reaches nothing it did
+   * not already hit, and its span may be a moment in the turn order.
+   */
+  host: 'pool' | 'hit' = 'pool',
 ): readonly ContentProblem[] {
   const found: ContentProblem[] = [];
   const say = (code: string, reason: string, field: string): void => {
@@ -1156,7 +1170,7 @@ function featureOptionProblems(
       `${at}.name`,
     );
   }
-  if (option.action !== 'action' && option.action !== 'bonus-action') {
+  if (host === 'pool' && option.action !== 'action' && option.action !== 'bonus-action') {
     say(
       'bad_option_action',
       `SRD prints what a use costs — "As a Magic action" — and "${String(option.action)}" is neither an Action nor a Bonus Action`,
@@ -1164,11 +1178,25 @@ function featureOptionProblems(
     );
   }
 
+  // The fields an action owns, refused where the trigger is a hit: the swing
+  // has already paid for itself, chosen its creature and measured its reach,
+  // so an option that named any of them would describe a rule nothing reads.
+  if (host === 'hit') {
+    for (const field of ['action', 'area', 'reach', 'mustBeType', 'diceCountByLevel', 'damageTypeStated'] as const) {
+      if ((option as unknown as Record<string, unknown>)[field] === undefined) continue;
+      say(
+        'action_field_on_a_hit_rider',
+        `"${field}" belongs to an option somebody spends an action on; ${featureId} is bought by an attack that has already chosen its target and paid for itself`,
+        `${at}.${field}`,
+      );
+    }
+  }
+
   // **An area or a reach, never both.** SRD writes one or the other on every
   // option in the book — "Each Undead of your choice within 30 feet of you"
   // against "you point your Holy Symbol at another creature" — and one that said
   // both would take a target it then ignored.
-  if (option.area !== undefined && option.reach !== undefined) {
+  if (host === 'pool' && option.area !== undefined && option.reach !== undefined) {
     say(
       'feature_option_reaches_twice',
       `${featureId} fills an area and reaches a target it names; an option does one or the other`,
@@ -1176,6 +1204,7 @@ function featureOptionProblems(
     );
   }
   if (
+    host === 'pool' &&
     option.reach !== undefined &&
     (!Number.isInteger(option.reach) || option.reach < 0)
   ) {
@@ -1187,7 +1216,7 @@ function featureOptionProblems(
   }
   // The filter is an *area's*: a named target is checked as itself, and
   // "each Undead" is the sentence an area prints.
-  if (option.mustBeType !== undefined && option.area === undefined) {
+  if (host === 'pool' && option.mustBeType !== undefined && option.area === undefined) {
     say(
       'feature_option_type_without_area',
       `"each ${String(option.mustBeType)}" is what an area filters by, and ${featureId} fills none`,
@@ -1197,7 +1226,7 @@ function featureOptionProblems(
 
   // A column of the class table, judged as every other column is: as long as
   // the table and a whole number of dice at every row.
-  if (option.diceCountByLevel !== undefined) {
+  if (host === 'pool' && option.diceCountByLevel !== undefined) {
     if (!Array.isArray(option.diceCountByLevel) || option.diceCountByLevel.length !== levels) {
       say(
         'bad_option_dice_column',
@@ -1254,6 +1283,24 @@ function featureOptionProblems(
     // is the owner's ruling of 2026-09-18 read here as it is read for an item.
     if (kind === 'temp-hp') outlasts = true;
     if (record['damageType'] !== undefined || record['damageTypes'] !== undefined) types = true;
+
+    // **A rider deals no damage, and the attack it rides on is why.** The
+    // engine holds one damage roll at a time — `damage-rolled` is refused by
+    // the fold while another is waiting — and a blow whose target has a
+    // Reaction to it is already holding one when a rider fires. A second would
+    // be a log that cannot be folded rather than a refusal, which is the one
+    // outcome worth refusing at authoring for. Every SRD sentence of this
+    // shape imposes a condition or forces a save and not one of them deals
+    // damage, so what this refuses is a homebrew the engine would break on and
+    // never a rule the book prints; it lifts the day the attack path folds a
+    // rider's damage into the blow's own.
+    if (host === 'hit' && (kind === 'save-damage' || record['damage'] !== undefined)) {
+      say(
+        'rider_deals_damage',
+        `${featureId} is bought by a hit and deals damage of its own, and an attack holds one damage roll at a time; a rider imposes conditions and forces saves`,
+        `${on}.kind`,
+      );
+    }
 
     if (kind === 'condition') {
       hangs = true;
@@ -1335,7 +1382,35 @@ function featureOptionProblems(
   // same reason: there is no casting for `releaseCasting` to end, so a grant
   // with no deadline would run for ever, and a deadline with nothing to end
   // would file a timer that takes nothing away.
-  if (option.durationSeconds === undefined) {
+  //
+  // A hit's rider has the second spelling as well: SRD Stunning Strike ends
+  // "until the start of your next turn", which is a moment in the order rather
+  // than a number of seconds. Exactly one of the two, because two deadlines
+  // for one effect is a choice nothing could make.
+  const anchored = (option as unknown as { readonly lasts?: unknown }).lasts;
+  if (host === 'hit' && anchored !== undefined) {
+    if (!(TURN_ANCHORS as readonly string[]).includes(String(anchored))) {
+      say(
+        'bad_option_anchor',
+        `an option that ends at a turn boundary ends at ${TURN_ANCHORS.join(' or ')}, not "${String(anchored)}"`,
+        `${at}.lasts`,
+      );
+    }
+    if (option.durationSeconds !== undefined) {
+      say(
+        'feature_option_lasts_twice',
+        `${featureId} prints a span in seconds and a moment in the turn order, and one effect ends once`,
+        `${at}.lasts`,
+      );
+    }
+    if (!hangs && !outlasts) {
+      say(
+        'feature_option_lifetime_ends_nothing',
+        `${featureId} confers nothing that outlasts the moment it is used, so a duration would end nothing`,
+        `${at}.lasts`,
+      );
+    }
+  } else if (option.durationSeconds === undefined) {
     if (hangs) {
       say(
         'feature_option_without_lifetime',
@@ -1387,7 +1462,7 @@ function featureOptionProblems(
   // Divine Spark prints "Necrotic or Radiant damage (your choice)"; a list
   // over effects that name no damage type at all is a question whose answer
   // nothing reads — `statedDamageType` would substitute into nothing.
-  if (option.damageTypeStated !== undefined) {
+  if (host === 'pool' && option.damageTypeStated !== undefined) {
     if (!Array.isArray(option.damageTypeStated) || option.damageTypeStated.length < 2) {
       say(
         'bad_option_type_choice',
@@ -1478,9 +1553,17 @@ function featureOptionsProblems(
   options: readonly PoolOptionGrant[],
   at: string,
   levels: number,
+  /** Which host prints the menu — see {@link featureOptionProblems}. */
+  host: 'pool' | 'hit' = 'pool',
 ): readonly ContentProblem[] {
   if (!Array.isArray(options)) {
-    return [{ field: at, code: 'bad_feature_options', reason: 'a pool offers a list of options' }];
+    return [
+      {
+        field: at,
+        code: 'bad_feature_options',
+        reason: `a ${host === 'pool' ? 'pool' : 'rider'} offers a list of options`,
+      },
+    ];
   }
   const found: ContentProblem[] = [];
   const seen = new Set<string>();
@@ -1496,7 +1579,7 @@ function featureOptionsProblems(
       }
       seen.add(option.id);
     }
-    found.push(...featureOptionProblems(featureId, option, on, levels));
+    found.push(...featureOptionProblems(featureId, option, on, levels, host));
   });
   return found;
 }
@@ -1639,6 +1722,102 @@ function castingAlterationProblems(
     default:
       return bad(`${featureId} offers "${option.id}", which alters nothing the engine reads`);
   }
+}
+
+/**
+ * What a rider bought by a hit has to say, and what it may not.
+ *
+ * {@link featureOptionsProblems} judges the menu; this judges the trigger. The
+ * three things that can be wrong about one are the three the SRD sentence
+ * prints: what it spends, how often, and which swings it rides on.
+ *
+ * **The pool is another feature's and that is the point** — SRD Stunning
+ * Strike spends Monk's Focus — so it is checked as a name rather than as a
+ * declaration, and whether that pool exists is a question the sheet answers at
+ * the swing: a rider naming a pool its holder has none of finds none left and
+ * is refused `exhausted`, which is the same answer a spent pool gives.
+ */
+function hitRiderProblems(
+  featureId: string,
+  grant: Extract<FeatureGrant, { kind: 'on-hit' }>,
+  at: string,
+  levels: number,
+): readonly ContentProblem[] {
+  const found: ContentProblem[] = [];
+  const say = (code: string, reason: string, field: string): void => {
+    found.push({ field, code, reason });
+  };
+
+  if (grant.pool !== undefined && (!isString(grant.pool) || grant.pool.trim() === '')) {
+    say(
+      'bad_rider_pool',
+      'the pool a rider spends is named by the feature that declared it, and a blank name names nothing',
+      `${at}.pool`,
+    );
+  }
+  if (grant.costs !== undefined) {
+    if (!Number.isInteger(grant.costs) || grant.costs < 1) {
+      say(
+        'bad_rider_cost',
+        `a rider costs a whole number of uses of at least one, got ${String(grant.costs)}`,
+        `${at}.costs`,
+      );
+    }
+    // SRD prints a price on a pool and never on nothing: a cost with nothing
+    // to take it from is a number the swing would silently not spend.
+    if (grant.pool === undefined) {
+      say(
+        'rider_cost_without_a_pool',
+        `${featureId} prices a rider and names no pool to take it from; a feature the book charges nothing for omits both`,
+        `${at}.costs`,
+      );
+    }
+  }
+
+  // "with a Monk weapon **or an Unarmed Strike**": two clauses, because an
+  // Unarmed Strike is in no set of weapons. A rider that names an empty set
+  // rides on nothing at all, which is a rule that could never fire.
+  if (grant.weapons !== undefined) {
+    if (!Array.isArray(grant.weapons) || grant.weapons.length === 0) {
+      say(
+        'bad_rider_weapons',
+        'the weapons a rider rides on are a non-empty list of selectors; a rider that asks nothing of the swing omits the field',
+        `${at}.weapons`,
+      );
+    } else {
+      grant.weapons.forEach((selector, index) => {
+        found.push(...weaponSelectorProblems(selector, `${at}.weapons[${index}]`));
+      });
+    }
+  }
+
+  if (grant.saveAbility !== undefined && !(ABILITIES as readonly string[]).includes(grant.saveAbility)) {
+    say(
+      'bad_rider_save_ability',
+      `a save DC is derived from one of the six abilities, not "${String(grant.saveAbility)}"`,
+      `${at}.saveAbility`,
+    );
+  }
+
+  if (!Array.isArray(grant.options) || grant.options.length === 0) {
+    say(
+      'rider_without_options',
+      `${featureId} is bought by a hit and buys nothing; a rider prints at least one named effect`,
+      `${at}.options`,
+    );
+    return found;
+  }
+
+  found.push(
+    ...featureOptionsProblems(
+      featureId,
+      grant.options as unknown as readonly PoolOptionGrant[],
+      `${at}.options`,
+      levels,
+      'hit',
+    ),
+  );
+  return found;
 }
 
 /**
@@ -2699,6 +2878,15 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
             `${where}.grants.options`,
             source.levels,
           ),
+        );
+      }
+      // What a **hit** buys, judged by the same rules one trigger along: the
+      // effects are the conferral's, the fields an action owns are refused,
+      // and what is checked here is the trigger's own — the pool it spends,
+      // what one costs, and the weapons the swing has to have been made with.
+      if (feature.grants?.kind === 'on-hit') {
+        problems.push(
+          ...hitRiderProblems(feature.id, feature.grants, `${where}.grants`, source.levels),
         );
       }
       // And the item's other sizing, refused for the sharper half of the same

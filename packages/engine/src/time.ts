@@ -158,6 +158,35 @@ export type TurnMoment = (typeof TURN_MOMENTS)[number];
  */
 export type TurnAnchor = Extract<Duration, { readonly of: CharacterId }>['kind'];
 
+/**
+ * {@link TurnAnchor} as data, for the untyped content checked against it.
+ *
+ * {@link TURN_MOMENTS}' reason on the neighbouring vocabulary: a class file
+ * arrives as JSON through `loadContent` and the compiler was never asked, so
+ * the validator needs the members as values. `satisfies` holds every entry to
+ * the type, and {@link everyTurnAnchorListed} holds the type to the entries —
+ * a third anchor added to `Duration` and not to this line fails to compile
+ * rather than becoming a span a definition may not write.
+ */
+export const TURN_ANCHORS = [
+  'start-of-next-turn',
+  'end-of-next-turn',
+] as const satisfies readonly TurnAnchor[];
+
+/**
+ * The other direction, which `satisfies` cannot say: nothing in
+ * {@link TurnAnchor} is missing from {@link TURN_ANCHORS}.
+ *
+ * A function rather than a bare constant so it is an export the linter has a
+ * use for, and it answers the question it is named for at runtime too.
+ */
+export const everyTurnAnchorListed = (): Exclude<
+  TurnAnchor,
+  (typeof TURN_ANCHORS)[number]
+> extends never
+  ? true
+  : never => true as Exclude<TurnAnchor, (typeof TURN_ANCHORS)[number]> extends never ? true : never;
+
 export const forSeconds = (seconds: number): Duration => ({ kind: 'seconds', seconds });
 export const startOfNextTurn = (of: CharacterId): Duration => ({ kind: 'start-of-next-turn', of });
 export const endOfNextTurn = (of: CharacterId): Duration => ({ kind: 'end-of-next-turn', of });

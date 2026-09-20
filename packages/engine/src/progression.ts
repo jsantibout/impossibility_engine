@@ -424,6 +424,51 @@ export interface CastingOptionGrant {
 }
 
 /**
+ * One thing a hit buys, where what it buys is an effect list.
+ *
+ * {@link PoolOptionGrant} with everything an *action* owns taken off it: there
+ * is no action to spend, no reach to measure and no area to fill, because the
+ * creature this reaches is the one the attack just hit. What is left is the
+ * list, what to call it, and how long what it hangs lasts.
+ *
+ * **A list rather than a single effect list on the grant**, for the reason a
+ * pool's menu is one: SRD Open Hand Technique prints three named effects under
+ * one sentence and Cunning Strike prints three more, and the holder picks at
+ * the moment of the hit. A feature with one option prints one.
+ */
+export interface HitOptionGrant {
+  /** The option's own id, named by the caller whose swing buys it. */
+  readonly id: string;
+  /** What the log calls it — SRD's "Stunning Strike", "Topple". */
+  readonly name: string;
+  readonly effects: readonly SpellEffect[];
+  /**
+   * How long what it hangs lasts, as a moment in the turn order.
+   *
+   * SRD Stunning Strike: "the target has the Stunned condition **until the
+   * start of your next turn**", anchored on the holder of the feature, which
+   * is who "your" is. Beside {@link durationSeconds} and never with it: two
+   * deadlines for one effect is a choice nothing could make.
+   *
+   * Outside combat there is no turn boundary to end at, and the rider is
+   * refused rather than applied with no deadline — the difference between a
+   * condition the engine cannot time and one that would never lift.
+   */
+  readonly lasts?: TurnAnchor;
+  /**
+   * How long what it hangs lasts, in seconds — SRD Cunning Strike's Poison,
+   * "the target has the Poisoned condition for 1 minute".
+   *
+   * The same field a pool option carries and read the same way: required
+   * exactly when one of the effects hangs something on somebody and refused
+   * when none does, because there is no casting for `releaseCasting` to end.
+   */
+  readonly durationSeconds?: number;
+  /** What ends a conferred condition before its span is up. */
+  readonly endsEarly?: readonly EffectEndCause[];
+}
+
+/**
  * The mechanical shapes a feature's choice can take.
  *
  * Deliberately few. A feature whose effect does not fit one of these is
@@ -972,6 +1017,88 @@ export type FeatureGrant =
        * needs no pool of their own.
        */
       readonly confersReaction?: ConferredReactionGrant;
+    }
+  /**
+   * An effect list bought by **a hit that has already landed**, rather than by
+   * an action its holder takes.
+   *
+   * SRD Stunning Strike is the shape this is built to: "Once per turn when you
+   * hit a creature with a Monk weapon or an Unarmed Strike, you can expend 1
+   * Focus Point to attempt a stunning strike. The target must make a
+   * Constitution saving throw." A Cunning Strike, an Open Hand Technique and a
+   * Goliath's Hill's Tumble write the same sentence about the same moment.
+   *
+   * **The trigger is the whole of what is new.** What an option buys is
+   * {@link PoolOptionGrant}'s effect list over again — the same `runEffects`
+   * loop, the same feature origin, the same `featureSource` on whatever it
+   * hangs — because a rider with a resolver of its own would be a second place
+   * for every rules fix to be missed. What a pool option cannot say is *when*:
+   * every option on a Channel Divinity's menu is a purchase somebody makes
+   * with an action, and this one is bought by an attack roll that has already
+   * been settled.
+   *
+   * **A grant of its own rather than a field on the pool grant**, and SRD is
+   * why: Stunning Strike spends Monk's Focus, which is a *different feature's*
+   * pool, and Open Hand Technique spends nothing at all. A pool grant declares
+   * the pool it is — its key, its sizing, its recovery — so a feature that
+   * spends somebody else's would have to redeclare all three and would resize
+   * the pool it borrowed.
+   *
+   * **What it is not is a Reaction.** A Reaction is a window somebody answers
+   * and costs the answerer their Reaction; this is the attacker's own hit, and
+   * the SRD charges the action economy nothing for it.
+   */
+  | {
+      readonly kind: 'on-hit';
+      /**
+       * The pool a use is spent from — SRD Stunning Strike's "expend 1 Focus
+       * Point", which is Monk's Focus rather than a pool of this feature's own.
+       *
+       * Absent where the book charges nothing, which is Open Hand Technique and
+       * the Goliath's boons: "you can impose one of the following effects" with
+       * no price at all. A cost with no pool to take it from is refused.
+       */
+      readonly pool?: string;
+      /** How many uses one rider costs. Absent is one, which is what SRD prints. */
+      readonly costs?: number;
+      /**
+       * SRD Stunning Strike: "**Once per turn** when you hit a creature".
+       *
+       * The allowance `attack-damage` already counts and counted the same way:
+       * a `feature-used` mark under this feature's id and the turn it was spent
+       * on. Outside combat there are no turns and nothing restricts it.
+       */
+      readonly oncePerTurn?: boolean;
+      /**
+       * The weapons the hit has to have been made with — SRD's "with a Monk
+       * weapon".
+       *
+       * Absent asks nothing, which is the Goliath's "when you hit a creature
+       * with an attack roll". An Unarmed Strike is in no set of weapons because
+       * it is not a weapon, so a rule that covers both says so in two clauses
+       * exactly as SRD Martial Arts does — see {@link unarmedStrike}.
+       */
+      readonly weapons?: readonly WeaponSelector[];
+      /** SRD Stunning Strike: "or an Unarmed Strike", the second clause. */
+      readonly unarmedStrike?: boolean;
+      /**
+       * The ability the save DC is derived from, where the feature prints one.
+       *
+       * SRD Monk's Focus: "Some features that use Focus Points require your
+       * target to make a saving throw. The save DC equals 8 plus your Wisdom
+       * modifier and Proficiency Bonus." A Monk casts nothing, so the spell
+       * save DC a pool option falls back to is a number the class does not
+       * have — and what it would fall back to instead is an item's `8 +
+       * Proficiency Bonus`, which is the Monk's own DC short by a Wisdom
+       * modifier.
+       *
+       * Absent means the granting class's spellcasting ability, which is what
+       * SRD Channel Divinity says ("the DC equals the spell save DC from this
+       * class's Spellcasting feature") and what a pool option already reads.
+       */
+      readonly saveAbility?: Ability;
+      /** What a rider buys, by name. One of them is named at the hit. */
+      readonly options: readonly HitOptionGrant[];
     }
   /**
    * What a charge buys: the item casts a named spell, and it is a casting.

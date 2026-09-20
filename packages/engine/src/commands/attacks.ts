@@ -80,6 +80,7 @@ import {
 } from './mastery.js';
 import { mayAct } from './holds.js';
 import { quantityOf } from './inventory.js';
+import { applyHitRider, hitRiderAsked, type HitRiderRequest } from './hit-riders.js';
 import { allyWithinFiveFeetOf, defendingModes, enemyWithinFiveFeet } from './rolls.js';
 import { consumedRollModifiers } from '../roll-modifiers.js';
 
@@ -316,6 +317,25 @@ export interface AttackCommand extends CommandIdentity {
    * written that way and are not asked for; see {@link MasteryUse}.
    */
   readonly mastery?: MasteryUse;
+  /**
+   * A feature's effect list bought by this hit, if it lands.
+   *
+   * SRD Stunning Strike: "Once per turn when you hit a creature with a Monk
+   * weapon or an Unarmed Strike, **you can** expend 1 Focus Point to attempt a
+   * stunning strike." Elected per swing, because every feature of the shape is
+   * written "you can" — a rider nobody asked for costs nothing and does
+   * nothing.
+   *
+   * Everything about it that can be settled without knowing whether the attack
+   * hit is settled before the roll — the feature, the option it names, the
+   * weapon in hand, the once-per-turn allowance and the pool — so a refusal
+   * arrives with nothing spent. What it costs is spent only on a hit.
+   *
+   * **One rider, not a list.** No SRD feature buys two on one blow, and a
+   * field that took several would be inventing the stacking rule they would
+   * need.
+   */
+  readonly onHit?: HitRiderRequest;
 }
 
 export interface AttackResolution {
@@ -505,6 +525,13 @@ export function resolveAttack(
     // rule the rest of the engine keeps.
     const legalTypes = checkFeatureDamageTypes(state, id, command.featureDamageTypes);
     if (!legalTypes.ok) return legalTypes;
+
+    // And the rider this swing says it is buying, for the same reason and in
+    // the same breath: a Stunning Strike asked for with an empty pool, with a
+    // Greatsword in hand or twice in one turn is refused here, with the action
+    // unspent and no die thrown. What it costs is spent on the hit, below.
+    const rider = hitRiderAsked(state, id, sheet, weapon, command.onHit);
+    if (!rider.ok) return rider;
 
     // — what the class says this attack is ————————————————————————————————
     //
@@ -822,6 +849,26 @@ export function resolveAttack(
           mode: attack.value.roll.mode,
         },
       });
+
+      // **The hit is what buys a rider, and a held attack has hit.** Splitting
+      // the blow is the caller's to do — SRD's "immediately after hitting a
+      // target" window is why the two halves exist — and "when you hit a
+      // creature" does not wait for the damage. So the rider fires here rather
+      // than being lost between the commands, and the one difference from an
+      // ordinary swing is the order: the save is rolled before damage nobody
+      // has rolled yet.
+      if (rider.value !== null) {
+        const bought = applyHitRider(
+          events.reduce(applyEvent, state),
+          supply,
+          { attacker: id, target: command.target },
+          rider.value,
+        );
+        if (!bought.ok) return bought;
+        events.push(...bought.value.events);
+        unverified.push(...bought.value.unverified);
+      }
+
       return ok({ events, attack: attack.value, unverified, duplicate: false });
     }
 
@@ -908,7 +955,7 @@ export function resolveAttack(
     if (!hurt.ok) return hurt;
 
     const landed = [...events, ...hurt.value.events];
-    const rider = masteryRider(landed.reduce(applyEvent, state), supply, {
+    const mastered = masteryRider(landed.reduce(applyEvent, state), supply, {
       attacker: id,
       target: command.target,
       property,
@@ -920,17 +967,40 @@ export function resolveAttack(
       // Resistance to nothing, an Immunity, a reduction that ate the total.
       dealtDamage: (hurt.value.amount ?? 0) > 0 || hurt.value.offers.length > 0,
     });
-    if (!rider.ok) return rider;
+    if (!mastered.ok) return mastered;
+
+    // **What the hit bought**, on the world the blow has already changed — the
+    // state the mastery property was handed, and for its reason: the save this
+    // rolls is rolled by a creature the damage may have moved.
+    //
+    // **After the weapon's property and not before it**, because the order is
+    // the engine's to fix and only one of the two orders changes an outcome: a
+    // Stunned creature fails a Strength or Dexterity save automatically, so a
+    // feature's condition resolved first would settle a Topple that the SRD
+    // has the target roll for. Nothing in the book puts the two in an order,
+    // and this one adds nothing to either.
+    const riderEvents: GameEvent[] = [];
+    if (rider.value !== null) {
+      const bought = applyHitRider(
+        [...landed, ...mastered.value.events].reduce(applyEvent, state),
+        supply,
+        { attacker: id, target: command.target },
+        rider.value,
+      );
+      if (!bought.ok) return bought;
+      riderEvents.push(...bought.value.events);
+      unverified.push(...bought.value.unverified);
+    }
 
     return ok({
-      events: [...landed, ...rider.value.events],
+      events: [...landed, ...mastered.value.events, ...riderEvents],
       attack: attack.value,
       ...(hurt.value.amount === undefined ? {} : { damage: hurt.value.amount }),
       ...(hurt.value.concentration === undefined
         ? {}
         : { concentration: hurt.value.concentration }),
       ...(hurt.value.offers.length === 0 ? {} : { reactions: hurt.value.offers }),
-      unverified: [...unverified, ...hurt.value.unverified, ...rider.value.unverified],
+      unverified: [...unverified, ...hurt.value.unverified, ...mastered.value.unverified],
       duplicate: false,
     });
   });

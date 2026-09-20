@@ -50,6 +50,21 @@ export const FOCUS_POINTS: readonly number[] = TABLE.map((row) => row[3] ?? 0);
 /** SRD Unarmored Movement: extra Speed in feet, by level. */
 export const UNARMORED_MOVEMENT: readonly number[] = TABLE.map((row) => row[4] ?? 0);
 
+/**
+ * SRD Martial Arts: "your Unarmed Strike and Monk weapons, which are the
+ * following: Simple Melee weapons; Martial Melee weapons that have the Light
+ * property."
+ *
+ * A constant because the book's phrase "a Monk weapon" is printed on two
+ * features — Martial Arts defines it and Stunning Strike rides on it — and two
+ * copies of one list is a second source for one fact, agreeing today and held
+ * in step by nothing.
+ */
+const MONK_WEAPONS = [
+  { category: 'simple', kind: 'melee' },
+  { category: 'martial', kind: 'melee', properties: ['light'] },
+] as const;
+
 export const MONK: ClassDefinition = {
   id: 'monk',
   name: 'Monk',
@@ -99,10 +114,7 @@ export const MONK: ClassDefinition = {
         // Simple Melee weapons; Martial Melee weapons that have the Light
         // property." The Unarmed Strike is every style's by construction, so
         // what is listed is the two bullets and nothing else.
-        weapons: [
-          { category: 'simple', kind: 'melee' },
-          { category: 'martial', kind: 'melee', properties: ['light'] },
-        ],
+        weapons: MONK_WEAPONS,
         // The table's own column, exactly as Monk's Focus reads `FOCUS_POINTS`
         // and Unarmoured Movement reads its feet. Retyping the twenty rows
         // would be a second source for one fact.
@@ -227,8 +239,32 @@ export const MONK: ClassDefinition = {
       id: 'monk:stunning-strike',
       name: 'Stunning Strike',
       level: 5,
-      automation: 'manual',
-      note: 'Spending a Focus Point to force a Constitution save or Stun is not wired: the Stunned condition exists and applying it is the caller’s.',
+      automation: 'engine',
+      note: 'SRD: "Once per turn when you hit a creature with a Monk weapon or an Unarmed Strike, you can expend 1 Focus Point to attempt a stunning strike. The target must make a Constitution saving throw. On a failed save, the target has the Stunned condition until the start of your next turn." Executed as a rider the swing elects: the weapons are Martial Arts’ own list and the Unarmed Strike beside it, the point comes out of Monk’s Focus, the allowance is once a turn, the DC is the one Monk’s Focus prints — "8 plus your Wisdom modifier and Proficiency Bonus", which is this class’s own rather than a spell save DC a Monk has none of — and the Stunned condition ends at the start of the Monk’s next turn. The second sentence is not applied: "On a successful save, the target’s Speed is halved until the start of your next turn, and the next attack roll made against the target before then has Advantage" is a Speed reduction, which the Speed grant leaves to the condition layer, and a one-shot mode a feature has no door to hang; a save that succeeds costs the point and does nothing else.',
+      grants: {
+        kind: 'on-hit',
+        // "expend 1 Focus Point" — Monk's Focus declares the pool and this
+        // spends it, which is why the cost names a pool it does not own.
+        pool: 'focus-points',
+        costs: 1,
+        oncePerTurn: true,
+        // "with a Monk weapon or an Unarmed Strike": two clauses, because an
+        // Unarmed Strike is not a weapon and is in no set of them.
+        weapons: MONK_WEAPONS,
+        unarmedStrike: true,
+        // SRD Monk's Focus: "Some features that use Focus Points require your
+        // target to make a saving throw. The save DC equals 8 plus your Wisdom
+        // modifier and Proficiency Bonus."
+        saveAbility: 'wis',
+        options: [
+          {
+            id: 'stun',
+            name: 'Stunning Strike',
+            effects: [{ kind: 'save', ability: 'con', condition: 'stunned' }],
+            lasts: 'start-of-next-turn',
+          },
+        ],
+      },
     },
     {
       id: 'monk:empowered-strikes',
@@ -365,7 +401,7 @@ export const WARRIOR_OF_THE_OPEN_HAND: SubclassDefinition = {
       name: 'Open Hand Technique',
       level: 3,
       automation: 'manual',
-      note: 'Addle, Push and Topple on a Flurry of Blows hit are not modelled, because Flurry of Blows is not.',
+      note: 'Not applied, and the trigger is no longer the reason: a feature’s effect list can be bought by a hit now, which is how Stunning Strike rides on one. What blocks this one is the hit it names — SRD says "whenever you hit a creature with an attack granted by your Flurry of Blows", and Flurry of Blows is not modelled, so nothing can tell a swing that came out of one from any other punch. Of the three effects, Topple is a Dexterity save with Prone on a failure and would be data; Push moves the target fifteen feet, which no feature reaches; and Addle stops its Opportunity Attacks until the start of its next turn, which is the action economy answering to somebody else.',
     },
     {
       id: 'open-hand:wholeness-of-body',

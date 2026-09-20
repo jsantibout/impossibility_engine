@@ -3,6 +3,7 @@ import type {
   ActivatedFeature,
   CastingOption,
   HealingTouch,
+  HitOption,
   PoolOption,
   RecoveryFeature,
   SelfHealFeature,
@@ -226,6 +227,16 @@ export interface CharacterSheet {
    * re-apply on every spell.
    */
   readonly castingOptions?: readonly CastingOption[];
+  /**
+   * What a **hit** buys, where what it buys is an effect list — SRD Stunning
+   * Strike.
+   *
+   * Resolved at creation beside `poolOptions` and for its reasons: the DC is
+   * the granting class's to derive, and the pool a rider spends belongs to a
+   * feature that may not be this one. The attack path reads the sheet and
+   * never a class table.
+   */
+  readonly hitOptions?: readonly HitOption[];
   /**
    * Reactions this character's features offer, and what each one costs.
    *

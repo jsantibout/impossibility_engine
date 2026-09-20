@@ -376,6 +376,12 @@ describe('what a shape finishes is the column a tranche is planned from', () => 
     // Favored Enemy and Faithful Steed off the list — so the leader is now the
     // shape behind it, and the mechanism's remaining consumers are features in
     // other class files whose own notes have still to be converted.
+    //
+    // The hit-bought effect list moved a row below it rather than the leader:
+    // Open Hand Technique's note was read again once the trigger existed, and
+    // the clause that had been filed under it — "Addle stops its Opportunity
+    // Attacks" — turned out to be an action forbidden to somebody else. What
+    // each column comes to is `COVERAGE.md`'s to say, as every other count is.
     expect(ranked[0]?.shape).toBe('a-feature-that-rewrites-another-features-rule');
     expect(featureConsumersOf('a-casting-paid-for-out-of-a-feature-pool').blocks).not.toContain(
       'ranger:favored-enemy',
@@ -448,7 +454,17 @@ describe('what a shape finishes is the column a tranche is planned from', () => 
     });
     expect(featureConsumersOf('an-action-a-spell-compels-or-forbids')).toEqual({
       shape: 'an-action-a-spell-compels-or-forbids',
-      blocks: ['open-hand:fleet-step', 'paladin:abjure-foes', 'rogue:devious-strikes'],
+      blocks: [
+        'open-hand:fleet-step',
+        // Open Hand Technique joined this row when the hit-bought effect list
+        // landed: the clause that had been filed under the missing trigger is
+        // Addle, and Addle forbids somebody else an Opportunity Attack. The
+        // feature is still blocked on the Flurry of Blows the three effects
+        // ride on, so this shape does not finish it.
+        'open-hand:technique',
+        'paladin:abjure-foes',
+        'rogue:devious-strikes',
+      ],
       finishes: ['open-hand:fleet-step'],
     });
   });

@@ -1,0 +1,309 @@
+/**
+ * What a feature does **because a blow landed**, where what it does is an
+ * effect list.
+ *
+ * SRD Stunning Strike: "Once per turn when you hit a creature with a Monk
+ * weapon or an Unarmed Strike, you can expend 1 Focus Point to attempt a
+ * stunning strike. The target must make a Constitution saving throw." A
+ * Cunning Strike, an Open Hand Technique and a Goliath's Hill's Tumble write
+ * the same sentence about the same moment, and before this the moment had
+ * nothing to fire at it: a feature's effect list was reachable from a pool use
+ * and from nothing else, so every option on one was a purchase somebody made
+ * with an action.
+ *
+ * **Nothing here resolves an effect.** `runEffects` does, the way it does for
+ * a casting, a potion and a pool use — with the feature origin `usePoolOption`
+ * already files under, so what a rider hangs is `feature:<id>` and
+ * `castingIdOf` answers null for it. What this module is, is the *trigger*:
+ * which swings qualify, what one costs, when it is asked for, and the deadline
+ * the SRD prints on what it leaves behind.
+ *
+ * **Asked for, never automatic.** SRD writes "you can" on every one of them,
+ * so the swing names the feature and the option; a swing that names none buys
+ * nothing. That is also what keeps this off the sixteen other paths that deal
+ * damage: it is a rider on an attack the attacker chose to spend something on.
+ */
+
+import { err, ok, type CharacterId, type ConditionName, type Result } from '@ie/shared';
+import type { Weapon } from '@ie/srd';
+import { weaponInSet } from '../attack.js';
+import { CONFERRED_LEVEL } from '../catalogue.js';
+import {
+  modifierFor,
+  proficiencyBonus,
+  spellAttackModifierWith,
+  spellSaveDcWith,
+  type CharacterSheet,
+} from '../character.js';
+import { canUseFeatureThisTurn } from '../combat.js';
+import { conditionInstanceId } from '../conditions.js';
+import { applyEvent, type GameEvent, type GameState, grantSourcesOf } from '../events.js';
+import { featureSource } from '../progression.js';
+import { remaining } from '../resources.js';
+import { sheetAsItStands, type HitOption } from '../standing.js';
+import { type EffectTarget, timerKey } from '../timers.js';
+import { turnAnchored, type Duration } from '../time.js';
+import { type Supply } from './casting.js';
+import { creatureOf } from './command.js';
+import { schedule } from './conditions.js';
+import { runEffects } from './spell-resolution.js';
+import { type SpellTargetOutcome } from './targeting.js';
+
+/** What a swing says it is buying: one option of one feature. */
+export interface HitRiderRequest {
+  /** The feature whose sentence this is — SRD's "Stunning Strike". */
+  readonly feature: string;
+  /** Which of the things it offers, for a feature that prints several. */
+  readonly option: string;
+}
+
+/** What a rider did, in the shape the attack path already hands back. */
+export interface HitRiderOutcome {
+  readonly events: readonly GameEvent[];
+  readonly unverified: readonly string[];
+}
+
+const NOTHING: HitRiderOutcome = { events: [], unverified: [] };
+
+/**
+ * The option this swing is buying, or the reason it cannot.
+ *
+ * **Asked before the attack is rolled**, which is the rule every other
+ * caller-supplied argument on a swing follows: a refusal that arrives after
+ * the blow has landed is a refusal with a footprint. Everything checkable
+ * without knowing whether the attack hit is checked here — the feature, the
+ * option, the weapon, the allowance and the pool — so a Monk who asks for a
+ * Stunning Strike with an empty pool keeps their action and their point.
+ *
+ * `null` where the swing asked for nothing, which is nearly every swing.
+ */
+export function hitRiderAsked(
+  state: GameState,
+  id: CharacterId,
+  sheet: CharacterSheet,
+  weapon: Weapon | null,
+  request: HitRiderRequest | undefined,
+): Result<HitOption | null> {
+  if (request === undefined) return ok(null);
+
+  const offered = (sheet.hitOptions ?? []).filter((one) => one.feature === request.feature);
+  if (offered.length === 0) {
+    return err('no_such_feature', `${id} has no feature called ${request.feature}`);
+  }
+  const option = offered.find((one) => one.option === request.option);
+  if (option === undefined) {
+    return err(
+      'no_such_option',
+      `${offered[0]!.featureName} buys ${offered.map((one) => one.option).join(', ')}, not ${request.option}`,
+    );
+  }
+
+  // SRD: "with a Monk weapon or an Unarmed Strike" — two clauses, because an
+  // Unarmed Strike is in no set of weapons: it is not a weapon. A feature that
+  // names neither asks nothing of the swing.
+  const asks = option.weapons !== undefined || option.unarmedStrike === true;
+  const covered =
+    weapon === null
+      ? option.unarmedStrike === true
+      : weaponInSet(weapon, option.weapons ?? []);
+  if (asks && !covered) {
+    return err(
+      'weapon_not_covered',
+      `${option.featureName} rides on ${describeWeapons(option)}, and ${id} is swinging ${weapon === null ? 'no weapon at all' : `a ${weapon.name}`}`,
+    );
+  }
+
+  // SRD: "Once per turn." Outside combat there are no turns to count it
+  // against, which is the answer Slow, Sap and Cleave already give to the same
+  // absence — the swing happens and nothing is restricted.
+  if (
+    option.oncePerTurn === true &&
+    state.combat !== null &&
+    !canUseFeatureThisTurn(state.combat, id, option.feature)
+  ) {
+    return err('already_used', `${id} has already used ${option.featureName} this turn`);
+  }
+
+  const creature = creatureOf(state, id);
+  if (creature !== null && option.pool !== null) {
+    if (remaining(creature.resources, option.pool) < option.costs) {
+      return err(
+        'exhausted',
+        `${option.featureName} costs ${option.costs} of ${id}'s ${option.pool} and they have ${remaining(creature.resources, option.pool)} left`,
+      );
+    }
+  }
+
+  // A deadline the clock cannot reach is a condition that would never lift, so
+  // it is refused here rather than hung on somebody for ever. SRD writes the
+  // span on the turn order — "until the start of your next turn" — and outside
+  // combat there is no such moment.
+  if (option.lasts !== undefined && state.combat === null) {
+    return err(
+      'no_turns',
+      `${option.featureName} lasts until a turn boundary, and there are no turns outside combat for it to end at`,
+    );
+  }
+
+  return ok(option);
+}
+
+/** How the refusal names the weapons a rider wants. */
+function describeWeapons(option: HitOption): string {
+  const weapons = (option.weapons ?? []).map((selector) =>
+    [selector.category, selector.kind, ...(selector.properties ?? [])].filter(Boolean).join(' '),
+  );
+  const unarmed = option.unarmedStrike === true ? ['an Unarmed Strike'] : [];
+  return [...weapons, ...unarmed].join(' or ');
+}
+
+/**
+ * Everything the rider does, once the blow has landed.
+ *
+ * The state handed in is the world **after** the damage, folded, for the
+ * reason a mastery property's rider takes it that way: the save this rolls is
+ * rolled by a creature the blow itself may have changed.
+ *
+ * The cost goes first and the effects follow, so a log read forwards never
+ * shows what a Focus Point bought before it shows the point being spent.
+ */
+export function applyHitRider(
+  state: GameState,
+  supply: Supply,
+  hit: { readonly attacker: CharacterId; readonly target: CharacterId },
+  option: HitOption,
+): Result<HitRiderOutcome> {
+  const attacker = creatureOf(state, hit.attacker);
+  if (attacker === null) return ok(NOTHING);
+
+  const events: GameEvent[] = [];
+
+  if (option.pool !== null) {
+    events.push({ type: 'resource-spent', id: hit.attacker, key: option.pool, amount: option.costs });
+  }
+  // The allowance, marked where the swing spent it. Outside combat there is no
+  // turn to count it against and nothing is written down.
+  if (option.oncePerTurn === true && state.combat !== null) {
+    events.push({
+      type: 'feature-used',
+      id: hit.attacker,
+      feature: option.feature,
+      turn: state.combat.turnsTaken,
+    });
+  }
+
+  // **The numbers are the holder's, derived at the moment of the hit** — the
+  // same derivation `usePoolOption` makes, with the same fallback for a class
+  // that casts nothing at all. The ability was settled at creation: the
+  // feature's own where it prints one, the granting class's otherwise.
+  const sheet = sheetAsItStands(state, hit.attacker) ?? attacker.sheet;
+  const ability = option.ability;
+  const unverified: string[] = [];
+  const world = events.reduce(applyEvent, state);
+  const resolved = runEffects(world, hit.attacker, attacker, {
+    origin: { kind: 'feature', feature: option.feature, name: option.name },
+    effects: option.effects,
+    route: null,
+    ability,
+    castLevel: CONFERRED_LEVEL,
+    numbers: {
+      attackModifier:
+        ability === null ? proficiencyBonus(sheet) : spellAttackModifierWith(sheet, ability),
+      saveDc: ability === null ? 8 + proficiencyBonus(sheet) : spellSaveDcWith(sheet, ability),
+      spellcastingModifier: ability === null ? 0 : modifierFor(sheet, ability),
+      casterLevel: sheet.level,
+    },
+    // The creature the attack hit, and nobody else: a rider has no area and no
+    // reach, because the blow is what chose its target.
+    targets: [hit.target],
+    unverified,
+    supply,
+    events,
+  });
+  if (!resolved.ok) return resolved;
+
+  const timed = fileDeadlines(resolved.value.state, resolved.value.outcomes, resolved.value.held, {
+    attacker: hit.attacker,
+    option,
+  });
+  if (!timed.ok) return timed;
+
+  return ok({ events: [...events, ...timed.value], unverified });
+}
+
+/**
+ * The deadline on what the rider actually hung, and on nothing else.
+ *
+ * `usePoolOption`'s own two loops, asked of a span that may be a moment in the
+ * turn order rather than a number of seconds: a condition is filed per
+ * instance, so the same rider landing twice moves the deadline instead of
+ * filing a second one, and a `grants` deadline is filed only where a grant is
+ * actually held.
+ */
+function fileDeadlines(
+  world: GameState,
+  outcomes: readonly SpellTargetOutcome[],
+  held: ReadonlySet<CharacterId>,
+  hit: { readonly attacker: CharacterId; readonly option: HitOption },
+): Result<readonly GameEvent[]> {
+  const span = spanOf(hit.option, hit.attacker);
+  if (span === null) return ok([]);
+
+  const events: GameEvent[] = [];
+  const source = featureSource(hit.option.feature);
+
+  for (const { target, condition } of outcomeConditions(outcomes)) {
+    const on: EffectTarget = {
+      kind: 'condition',
+      on: target,
+      instance: conditionInstanceId(condition, source),
+    };
+    const timer = schedule(
+      world,
+      on,
+      span,
+      // The repeat the resolution filed, kept: the span is the option's and not
+      // the effect's, so restating the deadline without it would drop a
+      // sentence the resolver had just written down.
+      world.timers[timerKey(on)]?.repeatSave,
+      undefined,
+      hit.option.endsEarly,
+    );
+    if (!timer.ok) return timer;
+    events.push(timer.value);
+  }
+
+  for (const on of [...held].sort()) {
+    const holder = world.creatures[on];
+    if (holder === undefined || !grantSourcesOf(holder).includes(source)) continue;
+    const timer = schedule(world, { kind: 'grants', on, source }, span);
+    if (!timer.ok) return timer;
+    events.push(timer.value);
+  }
+
+  return ok(events);
+}
+
+/** Every condition this run left on somebody, with whom it was left on. */
+function outcomeConditions(
+  outcomes: readonly SpellTargetOutcome[],
+): readonly { readonly target: CharacterId; readonly condition: ConditionName }[] {
+  return outcomes.flatMap((outcome) =>
+    (outcome.conditions ?? []).map((condition) => ({ target: outcome.target, condition })),
+  );
+}
+
+/**
+ * How long what this rider hung lasts, as the clock's own vocabulary.
+ *
+ * Exactly one of the two, which `checkContent` holds the definition to: a
+ * moment in the turn order anchored on the holder — "until the start of **your**
+ * next turn" — or a printed number of seconds.
+ */
+function spanOf(option: HitOption, holder: CharacterId): Duration | null {
+  if (option.lasts !== undefined) return turnAnchored(option.lasts, holder);
+  if (option.durationSeconds !== undefined) {
+    return { kind: 'seconds', seconds: option.durationSeconds };
+  }
+  return null;
+}

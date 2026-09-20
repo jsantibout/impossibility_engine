@@ -25,6 +25,7 @@ import type {
   HealAmount,
   HealingTouch,
   CastingOption,
+  HitOption,
   PoolOption,
   RecoveryFeature,
   SelfHealFeature,
@@ -2534,6 +2535,43 @@ export function planCharacter(
     }
   }
 
+  // What a **hit** buys, which is the same effect list one trigger along. The
+  // ability is resolved here for the pool option's reason and with one more
+  // answer: SRD Monk's Focus prints its own ("8 plus your Wisdom modifier and
+  // Proficiency Bonus") because a Monk casts nothing for a spell save DC to be
+  // read off.
+  const hitOptions: HitOption[] = [];
+  for (const feature of features) {
+    const grant = feature.grants;
+    if (grant?.kind !== 'on-hit') continue;
+
+    const ability = grant.saveAbility ?? castingAbilityFor(feature.id);
+
+    for (const option of grant.options) {
+      hitOptions.push({
+        feature: feature.id,
+        featureName: feature.name,
+        option: option.id,
+        name: option.name,
+        pool: grant.pool ?? null,
+        // SRD prints "expend 1 Focus Point" and prints no other number, so one
+        // is what an absent cost means — and a rider with no pool costs
+        // nothing whatever this says.
+        costs: grant.costs ?? 1,
+        ...(grant.oncePerTurn === undefined ? {} : { oncePerTurn: grant.oncePerTurn }),
+        ...(grant.weapons === undefined ? {} : { weapons: grant.weapons }),
+        ...(grant.unarmedStrike === undefined ? {} : { unarmedStrike: grant.unarmedStrike }),
+        effects: option.effects,
+        ability,
+        ...(option.lasts === undefined ? {} : { lasts: option.lasts }),
+        ...(option.durationSeconds === undefined
+          ? {}
+          : { durationSeconds: option.durationSeconds }),
+        ...(option.endsEarly === undefined ? {} : { endsEarly: option.endsEarly }),
+      });
+    }
+  }
+
   // A Reaction a feature takes at one of the engine's named windows. The die
   // is resolved here for the same reason a self-heal's is: two of the nine
   // read it off a class table — the Bardic Inspiration die is a d6 at Bard 1
@@ -2842,6 +2880,7 @@ export function planCharacter(
     ...(healingTouch.length === 0 ? {} : { healingTouch }),
     ...(poolOptions.length === 0 ? {} : { poolOptions }),
     ...(castingOptions.length === 0 ? {} : { castingOptions }),
+    ...(hitOptions.length === 0 ? {} : { hitOptions }),
     // The *first* casting class's ability, and null for a character who casts
     // nothing. Falling back to the primary ability gave a Fighter a spell save
     // DC off Strength. A multiclassed caster has more than one, and every

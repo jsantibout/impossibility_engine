@@ -1,6 +1,6 @@
 import { ABILITIES, err, ok, type Ability, type Result } from '@ie/shared';
 import { WEAPON_PROPERTIES } from '@ie/srd/schemas';
-import { WEAPON_CATEGORIES, WEAPON_KINDS } from './attack.js';
+import { WEAPON_CATEGORIES, WEAPON_KINDS, type WeaponSelector } from './attack.js';
 import { ABILITY_SCORE_MAXIMUM } from './character.js';
 import { parseNotation } from './dice.js';
 import {
@@ -873,30 +873,7 @@ export function checkFeatureDefinition(
     // compiler holds a class file written here; this holds one that arrived as
     // JSON.
     (grant.weapons ?? []).forEach((selector, index) => {
-      const at = `grants.weapons[${index}]`;
-      if (selector.category !== undefined && !WEAPON_CATEGORIES.includes(selector.category)) {
-        found.push({
-          field: `${at}.category`,
-          code: 'unknown_weapon_category',
-          reason: `the equipment tables print ${WEAPON_CATEGORIES.join(' and ')}, not "${String(selector.category)}"`,
-        });
-      }
-      if (selector.kind !== undefined && !WEAPON_KINDS.includes(selector.kind)) {
-        found.push({
-          field: `${at}.kind`,
-          code: 'unknown_weapon_kind',
-          reason: `a weapon is ${WEAPON_KINDS.join(' or ')}, not "${String(selector.kind)}"`,
-        });
-      }
-      for (const property of selector.properties ?? []) {
-        if (!WEAPON_PROPERTIES.includes(property)) {
-          found.push({
-            field: `${at}.properties`,
-            code: 'unknown_weapon_property',
-            reason: `"${String(property)}" is not one of the ${WEAPON_PROPERTIES.length} properties the SRD prints, so this selector would match no weapon at all`,
-          });
-        }
-      }
+      found.push(...weaponSelectorProblems(selector, `grants.weapons[${index}]`));
     });
 
     if (grant.whileWieldingOnly === true && (grant.weapons ?? []).length === 0) {
@@ -924,6 +901,52 @@ export function checkFeatureDefinition(
     });
   }
 
+  return found;
+}
+
+/**
+ * A weapon selector nobody could ever match.
+ *
+ * A category, a kind or a property outside the closed sets the equipment
+ * tables print names no weapon at all, so whatever reads the selector covers
+ * less than it says and nothing says so — the quiet failure this whole file
+ * exists to convert into a refusal at authoring. The compiler holds a class
+ * file written in TypeScript to the same three sets; this holds one that
+ * arrived as JSON.
+ *
+ * **Its own function because two grants read a selector**: a `strike-style`
+ * names the weapons a class redefines its strike for, and an `on-hit` rider
+ * names the ones it rides on — SRD Martial Arts and SRD Stunning Strike print
+ * the same list in two sentences. One rule, or two spellings of it drifting.
+ */
+export function weaponSelectorProblems(
+  selector: WeaponSelector,
+  at: string,
+): readonly FeatureDefinitionProblem[] {
+  const found: FeatureDefinitionProblem[] = [];
+  if (selector.category !== undefined && !WEAPON_CATEGORIES.includes(selector.category)) {
+    found.push({
+      field: `${at}.category`,
+      code: 'unknown_weapon_category',
+      reason: `the equipment tables print ${WEAPON_CATEGORIES.join(' and ')}, not "${String(selector.category)}"`,
+    });
+  }
+  if (selector.kind !== undefined && !WEAPON_KINDS.includes(selector.kind)) {
+    found.push({
+      field: `${at}.kind`,
+      code: 'unknown_weapon_kind',
+      reason: `a weapon is ${WEAPON_KINDS.join(' or ')}, not "${String(selector.kind)}"`,
+    });
+  }
+  for (const property of selector.properties ?? []) {
+    if (!WEAPON_PROPERTIES.includes(property)) {
+      found.push({
+        field: `${at}.properties`,
+        code: 'unknown_weapon_property',
+        reason: `"${String(property)}" is not one of the ${WEAPON_PROPERTIES.length} properties the SRD prints, so this selector would match no weapon at all`,
+      });
+    }
+  }
   return found;
 }
 
