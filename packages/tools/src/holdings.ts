@@ -50,6 +50,8 @@ export const SPENT_BY = {
   recovery: 'regain_uses',
   /** A pool with a menu: SRD Channel Divinity's Turn Undead, Divine Spark. */
   'pool-option': 'use_pool_option',
+  /** A use spent to put a Reaction in somebody else's hands: Bardic Inspiration. */
+  conferral: 'confer_reaction',
   /** Elected on a casting rather than spent on its own — `usingFeatures`. */
   'casting-election': 'cast_spell',
 } as const;
@@ -142,6 +144,36 @@ export interface HeldFeature {
   /** A Reaction's window, and whether the SRD spends a Reaction on it. */
   readonly window?: string;
   readonly costsReaction?: boolean;
+  /** A conferral's reach, and how long what it gives away lasts. */
+  readonly rangeFeet?: number;
+  readonly lastsSeconds?: number;
+}
+
+/**
+ * A Reaction somebody else put in this creature's hands.
+ *
+ * Reported **beside** the features rather than among them, and that is not
+ * tidiness. A granted Reaction carries the *giver's* feature id — the die an
+ * ally holds is `bard:bardic-inspiration`, because that is whose it was — so a
+ * list keyed by feature id would have two entries under one key the day a Bard
+ * is inspired by another Bard, and the first claim on an id wins. What a
+ * character *is* and what has been done to it are two questions, and this is
+ * the second.
+ *
+ * It exists because a caller that cannot see a die it was given cannot spend
+ * one. `options` reports the offer at the instant a window opens; this reports
+ * the holding, which is the hour in between.
+ */
+export interface HeldGrantedReaction {
+  /** The giver's feature id, which is also what `take_test_reaction` takes. */
+  readonly feature: string;
+  readonly name: string;
+  /** Whose feature it was. Not the holder. */
+  readonly from: string;
+  /** The moment it answers: a damage roll, a D20 Test, damage already taken. */
+  readonly window: string;
+  /** Whether taking it spends the holder's Reaction. Often it does not. */
+  readonly costsReaction: boolean;
 }
 
 /** One class's half of what a character can cast, on that class's terms. */
@@ -211,6 +243,8 @@ export interface Holdings {
   /** Every other limited-use pool, slots excluded: they are the two lists above. */
   readonly pools: readonly HeldPool[];
   readonly features: readonly HeldFeature[];
+  /** Reactions somebody else hung on this creature, and whose they were. */
+  readonly grantedReactions: readonly HeldGrantedReaction[];
 }
 
 /** One pool as a slot line, or null where the creature has no such pool. */
@@ -392,6 +426,33 @@ export function holdingsOf(state: GameState, id: CharacterId): Holdings | null {
     });
   }
 
+  /**
+   * A use spent on somebody else — the fourth reader of a Reaction on a sheet,
+   * and the one this file did not have.
+   *
+   * `conferredReactions` is its own field on the sheet for the reason the
+   * engine gives: a Reaction on it is never taken by this character and one on
+   * `reactions` is never given away. It is listed **before** them because a
+   * feature that is both — a pool whose uses buy a die *and* Reactions of the
+   * holder's own, which is Bardic Inspiration exactly — reads as the thing a
+   * caller can spend rather than as a Reaction it cannot ask for, which is the
+   * order the whole list is in.
+   */
+  for (const one of sheet.conferredReactions ?? []) {
+    add({
+      feature: one.feature,
+      name: one.name,
+      kind: 'conferral',
+      spentBy: SPENT_BY.conferral,
+      action: one.action,
+      pool: one.pool,
+      left: leftIn(state, who, one.pool),
+      active: false,
+      rangeFeet: one.range,
+      lastsSeconds: one.durationSeconds,
+    });
+  }
+
   for (const one of sheet.reactions ?? []) {
     add({
       feature: one.feature,
@@ -494,5 +555,15 @@ export function holdingsOf(state: GameState, id: CharacterId): Holdings | null {
     pactSlots,
     pools: [...pools].sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0)),
     features: [...features].sort((a, b) => (a.feature < b.feature ? -1 : a.feature > b.feature ? 1 : 0)),
+    // In the order the fold keeps them, which is sorted by source: two readers
+    // of the same state agree, and nothing here re-sorts what the engine has
+    // already ordered.
+    grantedReactions: creature.grantedReactions.map((held) => ({
+      feature: held.reaction.feature,
+      name: held.reaction.name,
+      from: String(held.from),
+      window: held.reaction.window,
+      costsReaction: held.reaction.costsReaction,
+    })),
   };
 }

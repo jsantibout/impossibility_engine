@@ -120,6 +120,7 @@ import {
   areaPointAt,
   availableChecks,
   awardItems,
+  conferReaction,
   beginRest,
   createCharacter,
   declareCoverBetween,
@@ -2032,6 +2033,58 @@ const USE_POOL_OPTION = tool({
     ),
 });
 
+/**
+ * Put a Reaction in somebody else's hands — and the second of the two pools
+ * that were deliberately left shut.
+ *
+ * The rule that shut them is the right one and it has stopped applying here,
+ * exactly as it stopped applying to Channel Divinity: "a pool a caller can
+ * spend for no effect is worse than one it cannot spend". What a use of
+ * Bardic Inspiration buys is executed — the recipient holds a real Reaction
+ * with an hour on it, and `take_test_reaction` spends it on a D20 Test that
+ * came back a failure — so the room this door opens onto exists, and the only
+ * thing missing was the door.
+ *
+ * **Nothing is handed over and no number is stated.** The use is spent on the
+ * giver; which die the recipient ends up holding is read off the giver's own
+ * class table, pinned at the moment of conferral. The whole of the call is
+ * whose feature it is and who is being inspired, and every question about
+ * whether they may be — another creature, within the range the feature
+ * prints, with a use left, on a turn that can afford the Bonus Action — is the
+ * engine's, asked before the use is spent.
+ *
+ * **"Who can see or hear you" comes back in `unverified`.** Sight is declared
+ * and hearing is modelled nowhere, so the conferral is made rather than
+ * withheld and the half nobody can check is reported, which is the rule every
+ * other offer on this surface already keeps.
+ */
+const CONFER_REACTION = tool({
+  name: 'confer_reaction',
+  description:
+    'Spend a use of a feature that gives somebody else a Reaction — SRD Bardic Inspiration is the one the book writes this way. Name the feature and who is being inspired; `sheet` lists the feature, what it costs in the action economy and what is left of its pool. The die, the range and how long it lasts are the feature’s own and read off the giver’s class table. The creature who receives it holds it until it is used or the hour runs out, and spends it through `take_test_reaction` when a d20 comes back a failure.',
+  mutates: true,
+  input: z.object({
+    who: creatureId.describe('Whose feature it is. The use is spent here.'),
+    feature: z
+      .string()
+      .min(1)
+      .describe('The feature id, from `sheet`, e.g. bard:bardic-inspiration.'),
+    target: creatureId.describe('Who is being given the Reaction.'),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      conferReaction(context.campaign.state(), who(args.who), {
+        feature: args.feature,
+        target: who(args.target),
+        ...identity(context),
+      }),
+      (value) => value.events,
+      () => ({ conferred: args.feature, to: args.target }),
+      (value) => value.unverified,
+    ),
+});
+
 const TAKE_ACTION = tool({
   name: 'take_action',
   description: 'Take Dodge, Dash or Disengage.',
@@ -2695,6 +2748,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   ATTEMPT_EFFECT_CHECK,
   BEGIN_REST,
   CAST_SPELL,
+  CONFER_REACTION,
   CREATE_CHARACTER,
   DECLARE_COVER,
   DECLARE_CREATURE_TYPE,
