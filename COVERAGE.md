@@ -28,7 +28,7 @@ than to the table.
 
 | Parsed | Tracked | Executed | of which partial | Verified |
 |---|---|---|---|---|
-| 339 | 215 (63.4%) | 110 (32.4%) | 53 | 84 (24.8%) |
+| 339 | 215 (63.4%) | 111 (32.7%) | 54 | 85 (25.1%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -62,6 +62,7 @@ a plain statement of what the table decides.
 - **Compulsion** (level 4) — verified, partial — a clause the engine owns is still unbuilt
 - **Cone of Cold** (level 5) — verified
 - **Conjure Fey** (level 6) — verified
+- **Conjure Woodland Beings** (level 4) — verified, partial — a clause the engine owns is still unbuilt
 - **Contagion** (level 5) — untested, partial — a clause the engine owns is still unbuilt
 - **Counterspell** (level 3) — verified
 - **Cure Wounds** (level 1) — verified
@@ -252,7 +253,7 @@ of, told apart from the ones a marker found.
 - **Globe of Invulnerability** (level 6) — 4 noted
 - **Glyph of Warding** (level 3) — 6 noted
 - **Goodberry** (level 1) — 3 noted
-- **Greater Restoration** (level 5) — 4 noted
+- **Greater Restoration** (level 5) — 4 noted, 1 read
 - **Guardian of Faith** (level 4) — 4 noted
 - **Guards and Wards** (level 6) — 3 noted
 - **Gust of Wind** (level 2) — 5 noted
@@ -415,17 +416,17 @@ of *Tracked* and is never added to it.
 
 | Shape | Blocks | Finishes (read) | Finishes (unread) | Executed | Tracked | of which unseen | Undefined |
 |---|---|---|---|---|---|---|---|
-| `an-action-a-spell-compels-or-forbids` | 20 | 1 | 0 | 12 | 6 | 0 | 2 |
-| `a-casting-ended-by-a-trigger` | 14 | 0 | 1 | 3 | 9 | 0 | 2 |
+| `a-casting-ended-by-a-trigger` | 15 | 1 | 0 | 3 | 9 | 0 | 3 |
+| `an-action-a-spell-compels-or-forbids` | 19 | 0 | 0 | 12 | 6 | 0 | 1 |
 | `a-random-outcome-that-is-not-a-d20` | 17 | 0 | 0 | 0 | 14 | 0 | 3 |
-| `a-choice-made-at-the-casting` | 15 | 0 | 0 | 4 | 11 | 1 | 0 |
+| `a-choice-made-at-the-casting` | 16 | 0 | 0 | 4 | 11 | 1 | 1 |
 | `a-stat-block-created-mid-fight` | 14 | 0 | 0 | 1 | 12 | 0 | 1 |
 | `a-second-place-to-put-a-creature` | 12 | 0 | 0 | 1 | 8 | 0 | 3 |
+| `a-spells-effects-applied-to-different-targets` | 10 | 0 | 0 | 3 | 5 | 0 | 2 |
 | `a-wall-or-several-templates-in-one-area` | 10 | 0 | 0 | 0 | 10 | 0 | 0 |
 | `an-effect-that-suppresses-other-magic` | 10 | 0 | 0 | 0 | 9 | 0 | 1 |
 | `difficult-terrain-an-area-creates` | 10 | 0 | 0 | 5 | 3 | 0 | 2 |
 | `a-repeat-save-raised-by-a-trigger` | 8 | 0 | 0 | 6 | 2 | 0 | 0 |
-| `a-spells-effects-applied-to-different-targets` | 8 | 0 | 0 | 2 | 5 | 0 | 1 |
 | `a-standing-effect-derived-from-where-a-creature-stands` | 8 | 0 | 0 | 1 | 7 | 0 | 0 |
 | `a-repeat-save-that-does-something-on-a-failure` | 7 | 0 | 0 | 3 | 4 | 0 | 0 |
 | `a-rider-on-a-later-weapon-attack` | 7 | 0 | 0 | 0 | 7 | 0 | 0 |
@@ -447,9 +448,11 @@ of *Tracked* and is never added to it.
 | `an-activation-that-resolves-an-area` | 4 | 0 | 0 | 1 | 3 | 0 | 0 |
 | `forced-movement-a-spell-causes` | 4 | 0 | 0 | 1 | 3 | 0 | 0 |
 | `healing-that-raises-the-dead` | 4 | 0 | 0 | 0 | 4 | 0 | 0 |
+| `senses-beyond-declared-sight` | 4 | 0 | 0 | 1 | 1 | 0 | 2 |
+| `a-casting-dismissed-early` | 3 | 0 | 0 | 1 | 1 | 0 | 1 |
 | `a-condition-immunity-narrowed-to-its-source` | 3 | 0 | 0 | 0 | 3 | 0 | 0 |
+| `a-deadline-anchored-to-a-rest` | 3 | 0 | 0 | 0 | 1 | 0 | 2 |
 | `a-filter-on-the-attackers-creature-type` | 3 | 0 | 0 | 0 | 3 | 0 | 0 |
-| `a-long-casting-time` | 3 | 0 | 0 | 0 | 0 | 0 | 3 |
 | `a-repeat-save-counted-to-a-tally` | 3 | 0 | 0 | 1 | 2 | 0 | 0 |
 | `a-selector-for-every-d20-test` | 3 | 0 | 0 | 0 | 3 | 0 | 0 |
 | `a-spell-that-answers-a-later-attack` | 3 | 0 | 0 | 1 | 2 | 0 | 0 |
@@ -460,13 +463,11 @@ of *Tracked* and is never added to it.
 | `an-area-trigger-measured-from-a-point` | 3 | 0 | 0 | 0 | 2 | 0 | 1 |
 | `an-effect-that-fires-when-the-casting-ends` | 3 | 0 | 0 | 1 | 2 | 0 | 0 |
 | `healing-modified-by-an-effect` | 3 | 0 | 0 | 2 | 1 | 0 | 0 |
-| `senses-beyond-declared-sight` | 3 | 0 | 0 | 1 | 1 | 0 | 1 |
 | `several-attack-rolls-from-one-casting` | 3 | 0 | 0 | 2 | 1 | 0 | 0 |
-| `a-casting-dismissed-early` | 2 | 0 | 0 | 1 | 1 | 0 | 0 |
+| `a-bonus-narrowed-to-a-skill` | 2 | 0 | 0 | 0 | 1 | 1 | 1 |
 | `a-condition-that-ends-when-its-holder-leaves-an-area` | 2 | 0 | 0 | 1 | 1 | 0 | 0 |
 | `a-damage-penalty-a-spell-grants` | 2 | 0 | 0 | 0 | 2 | 0 | 0 |
 | `a-dc-the-caster-does-not-set` | 2 | 0 | 0 | 0 | 2 | 0 | 0 |
-| `a-deadline-anchored-to-a-rest` | 2 | 0 | 0 | 0 | 1 | 0 | 1 |
 | `a-die-behaviour-a-spell-asks-for` | 2 | 0 | 0 | 2 | 0 | 0 | 0 |
 | `a-flat-amount-with-no-dice` | 2 | 0 | 0 | 0 | 1 | 0 | 1 |
 | `a-roll-result-an-effect-replaces` | 2 | 0 | 0 | 0 | 1 | 0 | 1 |
@@ -475,7 +476,6 @@ of *Tracked* and is never added to it.
 | `an-outcome-that-breaks-concentration` | 2 | 0 | 0 | 0 | 2 | 0 | 0 |
 | `falling` | 2 | 0 | 0 | 0 | 2 | 1 | 0 |
 | `targeting-rules-that-differ-within-one-casting` | 2 | 0 | 0 | 2 | 0 | 0 | 0 |
-| `a-bonus-narrowed-to-a-skill` | 1 | 0 | 0 | 0 | 1 | 1 | 0 |
 | `a-cap-on-how-many-castings-run-at-once` | 1 | 0 | 0 | 0 | 1 | 1 | 0 |
 | `a-casting-that-casts-another-spell` | 1 | 0 | 0 | 0 | 0 | 0 | 1 |
 | `a-condition-a-spell-suppresses` | 1 | 0 | 0 | 0 | 1 | 1 | 0 |
@@ -494,7 +494,7 @@ of *Tracked* and is never added to it.
 | `an-automatic-success-by-creature-type` | 1 | 0 | 0 | 0 | 1 | 1 | 0 |
 | `an-effect-that-intercepts-dropping-to-0` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `an-effect-that-stabilises-a-dying-creature` | 1 | 0 | 0 | 0 | 1 | 1 | 0 |
-| `an-exhaustion-level-a-spell-changes` | 1 | 0 | 0 | 0 | 0 | 0 | 1 |
+| `an-exhaustion-level-a-spell-changes` | 1 | 0 | 0 | 0 | 1 | 1 | 0 |
 | `an-outcome-of-a-spells-own-damage` | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `an-outcome-that-reads-the-targets-defences` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `jumping` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
@@ -698,7 +698,7 @@ is where a figure like that belongs.
 
 | Parsed | Transcribed | Instances | of which complete | of which partial |
 |---|---|---|---|---|
-| 258 | 77 | 234 | 180 | 54 |
+| 258 | 79 | 236 | 180 | 56 |
 
 An entry with **no** record is one whose whole text is beyond the grant
 vocabulary. `packages/content/src/items.ts` states the three rules that
@@ -723,7 +723,7 @@ inventing a column that nothing checks.
 | Staffs | 12 | 1 | 1 | 0 | 1 |
 | Wands | 13 | 8 | 8 | 1 | 7 |
 | Weapons | 33 | 15 | 128 | 115 | 13 |
-| Wondrous Items | 127 | 30 | 30 | 11 | 19 |
+| Wondrous Items | 127 | 32 | 32 | 11 | 21 |
 
 ### Entries transcribed
 
@@ -751,6 +751,7 @@ how many of those still carry a clause the engine does not say.
 - **Cubic Gate** (Wondrous Items) — 1 recorded, 1 partial
 - **Defender** (Weapons) — 1 recorded, 1 partial
 - **Dragon Slayer** (Weapons) — 1 recorded, 1 partial
+- **Dust of Disappearance** (Wondrous Items) — 1 recorded, 1 partial
 - **Dwarven Plate** (Armor) — 1 recorded, 1 partial
 - **Elven Chain** (Armor) — 1 recorded, 1 partial
 - **Eyes of Charming** (Wondrous Items) — 1 recorded, 1 partial
@@ -768,6 +769,7 @@ how many of those still carry a clause the engine does not say.
 - **Medallion of Thoughts** (Wondrous Items) — 1 recorded, complete
 - **Mithral Armor** (Armor) — 8 recorded, complete
 - **Nine Lives Stealer** (Weapons) — 1 recorded, 1 partial
+- **Periapt of Health** (Wondrous Items) — 1 recorded, 1 partial
 - **Periapt of Proof against Poison** (Wondrous Items) — 1 recorded, 1 partial
 - **Plate Armor of Etherealness** (Armor) — 1 recorded, 1 partial
 - **Potion of Diminution** (Potions) — 1 recorded, 1 partial
@@ -830,7 +832,7 @@ entry of "Magic Items A–Z" is in exactly one of them.
 
 | Parsed | Transcribed | Blocked | Ready | Fiction | Unread |
 |---|---|---|---|---|---|
-| 258 | 77 | 171 | 2 | 4 | 4 |
+| 258 | 79 | 170 | 2 | 4 | 3 |
 
 **Unread is the honest default**, not a backlog nobody got to. An entry
 whose blocker cannot be named from something this repository has already
@@ -876,50 +878,55 @@ the next tranche makes false.
 | Shape | Blocks | Finishes (read) | Finishes (unread) |
 |---|---|---|---|
 | `an-ability-score-a-spell-changes` | 11 | 0 | 6 |
-| `a-condition-an-item-imposes` | 28 | 0 | 5 |
 | `a-container-with-a-space-of-its-own` | 6 | 0 | 5 |
 | `a-spell-an-item-casts-that-nothing-executes` | 19 | 2 | 2 |
 | `a-stat-block-created-mid-fight` | 17 | 0 | 4 |
 | `a-version-of-an-item-the-book-leaves-to-the-gm` | 28 | 0 | 3 |
-| `an-object-with-statistics-of-its-own` | 17 | 0 | 3 |
+| `an-object-with-statistics-of-its-own` | 18 | 0 | 3 |
+| `a-benefit-an-item-switches-on-and-off` | 14 | 0 | 3 |
+| `a-fact-only-the-table-can-declare` | 12 | 0 | 3 |
 | `a-speed-an-item-grants` | 14 | 0 | 2 |
 | `an-item-instance-with-a-state-of-its-own` | 12 | 0 | 2 |
-| `a-fact-only-the-table-can-declare` | 11 | 0 | 2 |
 | `a-reaction-an-item-grants` | 8 | 0 | 2 |
 | `a-mode-on-the-save-a-spell-forces` | 6 | 1 | 1 |
 | `a-casting-an-item-stores-or-gives-back` | 4 | 0 | 2 |
 | `a-target-rule-the-format-cannot-state` | 2 | 1 | 1 |
-| `a-charge-spent-on-something-other-than-a-casting` | 18 | 0 | 1 |
-| `an-area-an-item-creates` | 17 | 0 | 1 |
-| `a-rider-on-the-face-the-die-showed` | 13 | 0 | 1 |
-| `a-benefit-an-item-switches-on-and-off` | 12 | 0 | 1 |
+| `an-area-an-item-creates` | 22 | 0 | 1 |
 | `a-rider-on-a-later-weapon-attack` | 12 | 0 | 1 |
+| `a-rider-on-the-face-the-die-showed` | 12 | 0 | 1 |
+| `a-charge-spent-on-something-other-than-a-casting` | 9 | 0 | 1 |
+| `a-range-an-item-names` | 9 | 0 | 1 |
+| `damage-with-neither-an-attack-roll-nor-a-save` | 8 | 0 | 1 |
+| `senses-beyond-declared-sight` | 8 | 0 | 1 |
 | `a-bonus-narrowed-to-a-skill` | 7 | 1 | 0 |
 | `a-language-or-a-proficiency-an-item-grants` | 5 | 0 | 1 |
 | `healing-modified-by-an-effect` | 5 | 0 | 1 |
-| `a-benefit-an-item-suspends-on-a-trigger` | 4 | 0 | 1 |
 | `what-ends-attunement-besides-a-command` | 4 | 0 | 1 |
-| `a-save-keyed-to-a-condition` | 3 | 0 | 1 |
+| `a-benefit-an-item-suspends-on-a-trigger` | 2 | 0 | 1 |
+| `a-save-keyed-to-a-condition` | 2 | 0 | 1 |
 | `a-casting-ended-by-a-trigger` | 1 | 0 | 1 |
 | `a-critical-hit-an-effect-downgrades` | 1 | 0 | 1 |
 | `a-reduction-an-effect-applies-to-damage` | 1 | 0 | 1 |
 | `movement-modes` | 13 | 0 | 0 |
-| `a-save-an-item-forces` | 12 | 0 | 0 |
-| `a-damage-roll-an-item-makes` | 11 | 0 | 0 |
-| `senses-beyond-declared-sight` | 8 | 0 | 0 |
+| `a-save-an-item-forces` | 11 | 0 | 0 |
+| `a-condition-an-item-imposes` | 10 | 0 | 0 |
 | `a-bonus-to-spell-attack-rolls` | 7 | 0 | 0 |
 | `an-exhaustion-level-a-spell-changes` | 4 | 0 | 0 |
 | `a-concentration-with-no-casting-behind-it` | 3 | 0 | 0 |
 | `a-random-outcome-that-is-not-a-d20` | 3 | 0 | 0 |
+| `a-condition-immunity-narrowed-to-its-source` | 2 | 0 | 0 |
+| `a-damage-roll-an-item-makes` | 2 | 0 | 0 |
 | `a-filter-on-the-attackers-creature-type` | 2 | 0 | 0 |
 | `a-roll-result-an-effect-replaces` | 2 | 0 | 0 |
 | `a-selector-for-every-d20-test` | 2 | 0 | 0 |
+| `an-action-a-spell-compels-or-forbids` | 2 | 0 | 0 |
 | `difficult-terrain-an-area-creates` | 2 | 0 | 0 |
-| `a-condition-immunity-narrowed-to-its-source` | 1 | 0 | 0 |
 | `a-deadline-anchored-to-a-rest` | 1 | 0 | 0 |
 | `a-hit-point-maximum-a-spell-moves` | 1 | 0 | 0 |
 | `a-speed-an-effect-multiplies` | 1 | 0 | 0 |
-| `an-action-a-spell-compels-or-forbids` | 1 | 0 | 0 |
+| `an-automatic-success-by-creature-type` | 1 | 0 | 0 |
+| `an-effect-that-suppresses-other-magic` | 1 | 0 | 0 |
+| `an-outcome-that-breaks-concentration` | 1 | 0 | 0 |
 | `what-a-creature-is-holding` | 1 | 0 | 0 |
 
 An entry can need more than one shape, so the column does not sum to the
@@ -1000,20 +1007,20 @@ never added.
 | 4 | 104 | 69 | 345 | 207 | 127 |
 | 5 | 120 | 77 | 481 | 291 | 173 |
 | 6 | 132 | 84 | 481 | 291 | 173 |
-| 7 | 144 | 90 | 562 | 334 | 210 |
-| 8 | 156 | 102 | 562 | 334 | 210 |
-| 9 | 165 | 105 | 668 | 411 | 234 |
-| 10 | 176 | 109 | 668 | 411 | 234 |
-| 11 | 183 | 111 | 727 | 449 | 253 |
-| 12 | 195 | 123 | 727 | 449 | 253 |
-| 13 | 200 | 124 | 784 | 492 | 263 |
-| 14 | 211 | 130 | 784 | 492 | 263 |
-| 15 | 218 | 133 | 821 | 513 | 278 |
-| 16 | 230 | 145 | 821 | 513 | 278 |
-| 17 | 235 | 145 | 859 | 548 | 279 |
-| 18 | 245 | 147 | 859 | 548 | 279 |
-| 19 | 257 | 159 | 859 | 548 | 279 |
-| 20 | 269 | 163 | 859 | 548 | 279 |
+| 7 | 144 | 90 | 562 | 334 | 211 |
+| 8 | 156 | 102 | 562 | 334 | 211 |
+| 9 | 165 | 105 | 668 | 411 | 235 |
+| 10 | 176 | 109 | 668 | 411 | 235 |
+| 11 | 183 | 111 | 727 | 449 | 254 |
+| 12 | 195 | 123 | 727 | 449 | 254 |
+| 13 | 200 | 124 | 784 | 492 | 265 |
+| 14 | 211 | 130 | 784 | 492 | 265 |
+| 15 | 218 | 133 | 821 | 513 | 280 |
+| 16 | 230 | 145 | 821 | 513 | 280 |
+| 17 | 235 | 145 | 859 | 548 | 281 |
+| 18 | 245 | 147 | 859 | 548 | 281 |
+| 19 | 257 | 159 | 859 | 548 | 281 |
+| 20 | 269 | 163 | 859 | 548 | 281 |
 
 The totals are every path added together, so a spell on two class lists is
 counted once for each path that can reach it — the row is the book at that
@@ -1076,9 +1083,9 @@ something other than its heading.
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | Bard (College of Lore) | 13/20/33 | 13/20/33 | 19/36/56 | 19/36/56 | 24/46/73 | 24/46/73 | 29/51/83 | 29/51/83 | 32/63/100 | 32/63/100 | 33/69/108 | 33/69/108 | 35/77/119 | 35/77/119 | 38/80/125 | 38/80/125 | 38/85/130 | 38/85/130 | 38/85/130 | 38/85/130 |
 | Cleric (Life Domain) | 9/13/22 | 9/13/22 | 15/24/39 | 15/24/39 | 20/37/58 | 20/37/58 | 21/45/67 | 21/45/67 | 25/54/80 | 25/54/80 | 28/62/91 | 28/62/91 | 29/69/99 | 29/69/99 | 30/73/104 | 30/73/104 | 30/78/109 | 30/78/109 | 30/78/109 | 30/78/109 |
-| Druid (Circle of the Land) | 10/18/29 | 10/18/29 | 15/34/50 | 15/34/50 | 17/45/63 | 17/45/63 | 23/56/81 | 23/56/81 | 27/67/96 | 27/67/96 | 30/74/106 | 30/74/106 | 31/78/112 | 31/78/112 | 34/83/120 | 34/83/120 | 34/87/124 | 34/87/124 | 34/87/124 | 34/87/124 |
+| Druid (Circle of the Land) | 10/18/29 | 10/18/29 | 15/34/50 | 15/34/50 | 17/45/63 | 17/45/63 | 24/56/81 | 24/56/81 | 28/67/96 | 28/67/96 | 31/74/106 | 31/74/106 | 32/78/112 | 32/78/112 | 35/83/120 | 35/83/120 | 35/87/124 | 35/87/124 | 35/87/124 | 35/87/124 |
 | Paladin (Oath of Devotion) | 7/6/13 | 7/6/13 | 7/6/13 | 7/6/13 | 11/13/24 | 11/13/24 | 11/13/24 | 11/13/24 | 12/18/30 | 12/18/30 | 12/18/30 | 12/18/30 | 13/21/34 | 13/21/34 | 13/21/34 | 13/21/34 | 13/25/38 | 13/25/38 | 13/25/38 | 13/25/38 |
-| Ranger (Hunter) | 4/8/13 | 4/8/13 | 4/8/13 | 4/8/13 | 6/21/28 | 6/21/28 | 6/21/28 | 6/21/28 | 8/31/40 | 8/31/40 | 8/31/40 | 8/31/40 | 10/33/45 | 10/33/45 | 10/33/45 | 10/33/45 | 10/36/48 | 10/36/48 | 10/36/48 | 10/36/48 |
+| Ranger (Hunter) | 4/8/13 | 4/8/13 | 4/8/13 | 4/8/13 | 6/21/28 | 6/21/28 | 6/21/28 | 6/21/28 | 8/31/40 | 8/31/40 | 8/31/40 | 8/31/40 | 11/33/45 | 11/33/45 | 11/33/45 | 11/33/45 | 11/36/48 | 11/36/48 | 11/36/48 | 11/36/48 |
 | Sorcerer (Draconic Sorcery) | 17/19/37 | 17/19/37 | 27/34/64 | 27/34/64 | 38/43/85 | 38/43/85 | 48/46/98 | 48/46/98 | 53/53/110 | 53/53/110 | 59/58/121 | 59/58/121 | 60/65/129 | 60/65/129 | 63/68/135 | 63/68/135 | 63/72/140 | 63/72/140 | 63/72/140 | 63/72/140 |
 | Warlock (Fiend Patron) | 7/12/19 | 7/12/19 | 12/16/29 | 12/16/29 | 18/21/40 | 18/21/40 | 22/22/45 | 22/22/45 | 23/27/52 | 23/27/52 | 23/27/52 | 23/27/52 | 23/27/52 | 23/27/52 | 23/27/52 | 23/27/52 | 23/27/52 | 23/27/52 | 23/27/52 | 23/27/52 |
 | Wizard (Evoker) | 18/25/45 | 18/25/45 | 28/49/81 | 28/49/81 | 39/65/110 | 39/65/110 | 50/80/136 | 50/80/136 | 54/98/160 | 54/98/160 | 60/110/179 | 60/110/179 | 62/122/194 | 62/122/194 | 67/128/206 | 67/128/206 | 68/138/218 | 68/138/218 | 68/138/218 | 68/138/218 |
