@@ -850,7 +850,15 @@ export function usePoolOption(
     // rest of this command's discipline with it: everything checked, then the
     // action, then the use, then what it bought.
     if (option.distributes !== undefined) {
-      return divideHitPoints(state, id, option, option.distributes, command, stamp);
+      return divideHitPoints(
+        state,
+        id,
+        option,
+        option.distributes,
+        remaining(creature.resources, option.pool),
+        command,
+        stamp,
+      );
     }
     if (command.among !== undefined) {
       return err(
@@ -1012,6 +1020,8 @@ function divideHitPoints(
   id: CharacterId,
   option: PoolOption,
   divided: HitPointBudget,
+  /** What is left of the pool, read by the caller that already holds it. */
+  poolLeft: number,
   command: UsePoolOptionCommand,
   stamp: CommandStamp | null,
 ): Result<PoolOptionUse> {
@@ -1083,7 +1093,7 @@ function divideHitPoints(
           kind: 'creature-type',
           subject: share.target,
           need: `what kind of creature ${share.target} is`,
-          because: `${option.name} may not be used on ${excluded.join(' or a ')}`,
+          because: `${option.name} may not be used on ${excluded.join(' or ')}`,
           satisfyWith: `declareCreatureType(${share.target}, …), or a creatureType when the creature is added`,
         });
       } else {
@@ -1123,9 +1133,7 @@ function divideHitPoints(
   // this one: a use that arrives with the pool empty must be a value, because
   // a `resource-spent` the fold cannot apply is a thrown `CorruptLogError`
   // rather than a refusal anybody can read.
-  const creature = creatureOf(state, id);
-  if (creature === null) return unknownCreature(id);
-  if (remaining(creature.resources, option.pool) < 1) {
+  if (poolLeft < 1) {
     return err('exhausted', `${id} has no uses of ${option.featureName} left`);
   }
 
