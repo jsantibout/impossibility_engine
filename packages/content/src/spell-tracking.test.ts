@@ -182,7 +182,13 @@ const cast = (
   // `spell-catalogue.test.ts` casts the executed bucket with.
   const aimsAtNobody =
     definition.targets.count === 0 && definition.targets.unlimited !== true;
-  const targets = aimsAtNobody ? [] : [at];
+  // **A spell whose printed Range is Self is aimed at the caster**, and there
+  // is nobody else it could be aimed at. It did not come up while every such
+  // definition in this bucket took no target at all; Magic Jar takes one now,
+  // because a definition that resolves something has to say whose body it is
+  // about.
+  const mine = definition.range.kind === 'self' && definition.targets.self === true;
+  const targets = aimsAtNobody ? [] : [mine ? WIZARD : at];
   return resolveSpell(
     fold('seed', log),
     WIZARD,
@@ -1200,10 +1206,40 @@ describe('every spell this batch added is cast for real', () => {
     expect([...new Set((ward?.[1] ?? []).map((entry) => entry.marker))]).toEqual(['condition']);
   });
 
+  /**
+   * **Two of these are executed now, and leaving by that door is not leaving.**
+   *
+   * A pass list is a record of what was written and when, so a spell that has
+   * since grown an effect may not simply be deleted from one — the list would
+   * then say the third pass never wrote Wind Walk, which is false. It is
+   * recorded here instead, which is the same move `SPLIT_BUNDLES` makes for a
+   * clause whose shape was built: the row stays and says where it went.
+   *
+   * Both went the same way. `ActionRule` was derived from four SRD sentences
+   * and no definition wrote one; these two write three of them — Wind Walk's
+   * "The only actions a target can take in this form", and Magic Jar's "You
+   * can't move or take Reactions" beside "The only action you can take". So
+   * the engine resolves something on each casting, which is the whole of what
+   * separates the two buckets, and everything else each spell prints is an
+   * executed definition's debt in `ADJUDICATED`.
+   */
+  const EXECUTED_SINCE: readonly string[] = ['magic-jar', 'wind-walk'];
+
+  it('records the departures rather than deleting the rows', () => {
+    expect(EXECUTED_SINCE).toEqual([...EXECUTED_SINCE].sort());
+    expect(EXECUTED_SINCE.length).toBeGreaterThan(0);
+    expect(EXECUTED_SINCE.filter((spellId) => !ADDED.includes(spellId))).toEqual([]);
+  });
+
   /** Tracked, so every sweep above is already about every one of them. */
   it.each(ADDED.map((s) => [s] as const))('tracks %s', (spellId) => {
     const definition = SRD_CONTENT.spell(spellId);
     expect(definition, `${spellId} has no definition`).not.toBeNull();
+    if (EXECUTED_SINCE.includes(spellId)) {
+      expect(definition?.effects, spellId).not.toEqual([]);
+      expect(TRACKED, spellId).not.toContain(spellId);
+      return;
+    }
     expect(definition?.effects, spellId).toEqual([]);
     expect(TRACKED, spellId).toContain(spellId);
   });

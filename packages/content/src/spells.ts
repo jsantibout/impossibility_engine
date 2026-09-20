@@ -2178,11 +2178,27 @@ export const FEAR: SpellDefinition = {
   range: { kind: 'self' },
   targets: { count: 0 },
   area: { kind: 'cone', length: 30, origin: 'self' },
-  effects: [{ kind: 'save', ability: 'wis', condition: 'frightened' }],
+  effects: [
+    {
+      kind: 'save',
+      ability: 'wis',
+      condition: 'frightened',
+      // "A Frightened creature takes the Dash action" — written as the
+      // legality it is, and never as an instruction that executes. The Action
+      // slot is narrowed to the Dash and fails closed, so the engine refuses
+      // everything else and makes nobody run; whether the creature actually
+      // Dashes, and where it goes, is the table's. See {@link ActionRule} in
+      // `combat.ts`, which derives `permits-only` from this sentence.
+      modifiers: [
+        { kind: 'action', rule: { kind: 'permits-only', slot: 'action', actions: ['dash'] } },
+      ],
+    },
+  ],
   durationSeconds: 60,
   unmodelled: [
     'a creature that fails drops whatever it is holding',
-    'a Frightened creature Dashes away from you each turn, and saves again when it ends its turn out of your line of sight',
+    'the Dash away from you by the safest route, and the "unless there is nowhere to move" it stops at, are the DM’s: the engine narrows the Action to the Dash and moves nobody',
+    'the Wisdom save a Frightened creature makes when it ends its turn out of your line of sight, which would end the spell on that creature',
   ],
 };
 
@@ -3553,12 +3569,25 @@ export const STINKING_CLOUD: SpellDefinition = {
         ability: 'con',
         condition: 'poisoned',
         lasts: 'end-of-current-turn',
+        // "While Poisoned in this way, the creature can't take an action or a
+        // Bonus Action." **A rider on the outcome the save already settled**,
+        // because it is the same failure: a second effect would roll a second
+        // Constitution save for one sentence. Its deadline is the Poisoned's
+        // own — the clause is about the turn the boundary fired at, and the
+        // casting's minute would go on gagging somebody for the rest of the
+        // fight.
+        modifiers: [
+          {
+            kind: 'action',
+            rule: { kind: 'forbids', slots: ['action', 'bonus-action'] },
+            lasts: 'end-of-current-turn',
+          },
+        ],
       },
     ],
   },
   durationSeconds: 60,
   unmodelled: [
-    'a creature Poisoned by the gas "can\'t take an action or a Bonus Action", which is an action the spell forbids rather than a condition the engine names',
     'the cloud is Heavily Obscured, and obscurement is not modelled',
     'a strong wind dispersing the cloud, which is a fact about the weather rather than a consequence the engine records',
   ],
@@ -11608,6 +11637,22 @@ export const EYEBITE: SpellDefinition = {
  * creature's soul somewhere other than its body. The minute and the open-ended
  * duration are real; the container, the possession and the statistics
  * overwritten by somebody else's are not.
+ *
+ * **What the engine can say is what the catatonic body may do**, and it is
+ * two rules out of one entry — "you can't move or take Reactions" beside "The
+ * only action you can take is to project your soul". This is the pair
+ * `actionRuleKey` was written for: keyed by the source alone the second would
+ * evict the first, and the paragraph would lose half of itself between the
+ * definition and the state.
+ *
+ * **The narrowed slot names nothing, and that is the sentence rather than a
+ * shorthand for `forbids`.** Projecting a soul is no action a spender can
+ * tell apart, so every action the engine *can* name is refused and the one
+ * the book permits is one it could never have offered. Leaving the Action
+ * slot open instead would let a body whose soul has left it take the Attack
+ * action, which is the confident wrong answer this whole file exists to
+ * refuse. `checkActionRule` admits the empty list for exactly this reason,
+ * and Confusion's "the target takes no action" is the other writer.
  */
 export const MAGIC_JAR: SpellDefinition = {
   id: 'magic-jar',
@@ -11618,11 +11663,17 @@ export const MAGIC_JAR: SpellDefinition = {
   castingSeconds: 60,
   concentration: false,
   range: { kind: 'self' },
-  targets: { count: 0 },
-  effects: [],
+  // "Range: Self", so the body the spell empties is the caster's own — and a
+  // caster may not name themselves unless the target rule says so.
+  targets: { count: 1, self: true },
+  effects: [
+    { kind: 'action-rule', rule: { kind: 'forbids', slots: ['movement', 'reaction'] } },
+    { kind: 'action-rule', rule: { kind: 'permits-only', slot: 'action', actions: [] } },
+  ],
   untilDispelled: true,
   unmodelled: [
     'the caster’s soul does not leave: a creature is in the scene or it is not, and a soul in a container while its body lies catatonic is a second place to put one',
+    'so the body is held still by the two rules the same sentence prints rather than by any account of where its soul went, and the one action the book leaves it — projecting the soul up to 100 feet — is no action a spender can tell apart',
     'so the Charisma save to possess a Humanoid is never raised, and the day a creature is safe from a second attempt after succeeding is never counted',
     'possession itself is unwritable twice over: the possessor controls the host, which is an action economy belonging to somebody else, and the host’s Hit Points, Hit Point Dice, Strength, Dexterity, Constitution, Speed and senses replace the possessor’s, which is one creature’s abilities written over another’s',
     'the creatures warded by Protection from Evil and Good or Magic Circle that cannot be possessed are a second casting refusing this one',
@@ -11679,8 +11730,22 @@ export const SUMMON_DRAGON: SpellDefinition = {
  *
  * The minute of casting, the eight hours and the ten creatures are real.
  * One sentence carries three different absences — a Fly Speed, a condition
- * immunity and a damage Resistance — and the sentence after it narrows a
- * creature's whole action list to two entries.
+ * immunity and a damage Resistance — and the sentence after it is the one the
+ * engine can say: **the action list is narrowed**, which is the standalone
+ * half of the ninth sourced grant and the sentence `ActionRule`'s
+ * `permits-only` was derived from.
+ *
+ * **It fails closed**, which is what makes it honest about the actions the
+ * engine cannot tell apart: a cloud may Dash or take the Magic action and is
+ * refused everything else. "To begin reverting to its normal form" is a
+ * narrowing *inside* the Magic action that no spender could tell from any
+ * other, and it stays the table's rather than being quietly dropped.
+ *
+ * **`self: true` arrives with the effect.** "You **and** up to ten willing
+ * creatures" includes the caster, and `namedTargets` refuses a caster who
+ * names themselves unless the target rule says so — which did not matter
+ * while the definition resolved nothing and is a wrong answer the moment it
+ * does. The same correction Longstrider, Mage Armor and Stoneskin took.
  */
 export const WIND_WALK: SpellDefinition = {
   id: 'wind-walk',
@@ -11691,13 +11756,22 @@ export const WIND_WALK: SpellDefinition = {
   castingSeconds: 60,
   concentration: false,
   range: { kind: 'ranged', feet: 30 },
-  targets: { count: 10 },
-  effects: [],
+  targets: { count: 10, self: true },
+  // No roll is asked for, so the rule stands on its own rather than riding an
+  // outcome — the shape `armor-class`, `damage-defense` and `speed` already
+  // take. The eight hours are the casting's own deadline, so the grant needs
+  // no `lasts`: `releaseCasting` lifts it when the spell ends.
+  effects: [
+    {
+      kind: 'action-rule',
+      rule: { kind: 'permits-only', slot: 'action', actions: ['dash', 'magic'] },
+    },
+  ],
   durationSeconds: 28_800,
   unmodelled: [
     'nobody turns to cloud: the Fly Speed of 300 feet is a movement mode rather than a number added to a Speed, and a creature has one Speed with no modes beside it',
     'the Immunity to the Prone condition and the Resistance to Bludgeoning, Piercing and Slashing in the same sentence are not conferred either',
-    'and the two actions a cloud may take — Dash, or the Magic action that begins reverting — are the whole of an action list, where the economy is guarded by the conditions the engine names and by nothing a spell says',
+    'the Magic action a cloud is left is any Magic action: "to begin reverting to its normal form" narrows it to one the engine cannot tell from another, so the narrowing the spell prints is enforced and the errand inside it is the DM’s',
     'so the minute of reverting and the Stunned condition through it are not applied, and neither is reverting back',
     'the descent of 60 feet per round for a minute when the spell ends in mid-air, and the fall after it, are the DM’s: nothing falls',
   ],

@@ -1774,8 +1774,6 @@ const FORMAT_TYPES = [
 const FORMAT_EXEMPTIONS: Readonly<Record<string, string>> = {
   'SpellDefinition.anchoring?':
     'SRD 5.2.1 mandates no footprint convention for an area of effect — its "Playing on a Grid" sidebar covers squares, Speed, entering a square, corners and ranges and says nothing about areas, and the intersection convention comes from a 2014 optional rule. Declaring one per spell would be the engine choosing a rule the book declined to give. The field exists so a deliberate geometry pass, or an author of content the SRD never printed, says it in data rather than in runtime logic, and `spatial-model.test.ts` drives both precedence branches through `anchoringFor`.',
-  "SpellEffect.kind='action-rule'":
-    'the standalone half of the ninth sourced grant, whose catalogue users belong to two other builders this batch — IE briefs may not write a spell definition from here. SRD Conjure Woodland Beings ("you can take the Disengage action as a Bonus Action for the spell\'s duration") is the one undefined spell blocked on this shape and nothing else, and Wind Walk, Antimagic Field and Magic Jar each write it beside a blocker of their own. The reader is live — `resolveActionRuleEffect` is dispatched from `resolveOneEffect`, and `action-rules.test.ts` drives it end to end through `loadContent` and `resolveSpell` on homebrew — so what is absent is a definition, not a use. The day Conjure Woodland Beings gets one, this fails rather than going on excusing a member that now has a writer.',
   'SpellCheck.dc?':
     'SRD Maze prints "a DC 20 Intelligence (Investigation) check", which is exactly this field, and Maze has no definition because it is blocked on a demiplane the engine does not model. The reader is live on every executed check — `effectCheckFrom` writes `check.dc ?? saveDc` — so what is absent is a definition, not a use. The pin below is the one Sunburst\'s dispel clause already takes: the day Maze gets a definition it must write the number the book prints, and this fails rather than going on excusing a field that now has a user.',
   // The three below became sayable on the day the arms were read apart, and
@@ -1799,6 +1797,19 @@ const FORMAT_EXEMPTIONS: Readonly<Record<string, string>> = {
   "SpellArea[cone].origin='point'":
     'Four cones are defined — Burning Hands, Color Spray, Cone of Cold and Fear — and SRD prints "Self (15-foot Cone)" or its like on every one, so every cone this catalogue writes is anchored on the caster. The arm offers a point because the geometry does not care which it is: `resolveArea` reads `origin === \'self\'` once for every area kind, and the cube arm beside it writes both values, so the branch is live and driven. What is absent is a spell or an item that forms a cone somewhere other than where its caster is standing, and the day one is written this fails rather than going on excusing a member that now has a writer.',
 };
+
+/**
+ * **`SpellEffect.kind='action-rule'` was here, and it fell the same way.**
+ *
+ * Its written reason ended "the day Conjure Woodland Beings gets one, this
+ * fails rather than going on excusing a member that now has a writer", and
+ * what happened is the catalogue pass it was waiting for: Wind Walk and Magic
+ * Jar write the standalone kind, and Stinking Cloud and Fear write the `action`
+ * rider beside it. So the exemption **fell** rather than being rewritten —
+ * the third handover discharged by deletion — and nothing replaces it: the
+ * sweep's "keeps no exemption for a member something now writes" arm is what
+ * removed it, and those four definitions are what keep it removed.
+ */
 
 /**
  * **`SpellDefinition.castingSeconds` was here, and the handover worked.**

@@ -747,13 +747,20 @@ describe('the condition-immunity family is read sentence by sentence', () => {
       ),
     ).toHaveLength(1);
     // Wind Walk's was the third, and that one *does* trip a marker, so it moved
-    // into the tracked map against the very sentence it was read from.
+    // into the tracked map against the very sentence it was read from — **and
+    // has since moved again**, into the executed map, because the spell stopped
+    // being tracked: its "The only actions a target can take in this form"
+    // sentence is written now, so the definition resolves something and every
+    // clause it does not finish is an executed spell's debt rather than a
+    // tracked one's. The reading is the same reading; only the map it is
+    // anchored in has changed, and the anchor is the definition's own clause
+    // rather than the book's sentence because that is how the executed map is
+    // keyed.
     expect(BLOCKED_ON['wind-walk']).toBeUndefined();
+    expect(TRACKED_ADJUDICATED['wind-walk']).toBeUndefined();
     expect(
-      (TRACKED_ADJUDICATED['wind-walk'] ?? []).find(
-        (entry) =>
-          entry.clause === 'Reverting takes 1 minute, during which the target has the Stunned condition',
-      )?.why,
+      (ADJUDICATED['wind-walk'] ?? []).find((entry) => entry.clause === 'the minute of reverting')
+        ?.why,
     ).toBe('an-activation-taken-by-somebody-other-than-the-caster');
     // Hallow's was the fourth, and it is **kept** rather than lost now that the
     // spell is defined — but it could only be kept because the entry may now
@@ -2270,14 +2277,14 @@ describe('a consumer count is a query', () => {
    */
   it('adds all three populations up', () => {
     const modes = consumersOf('movement-modes');
-    expect(modes.executed).toEqual(['gaseous-form']);
-    expect(modes.tracked).toEqual([
-      'alter-self',
-      'fly',
-      'freedom-of-movement',
-      'spider-climb',
-      'wind-walk',
-    ]);
+    // Wind Walk moved from the second column into the first when its action
+    // sentence was written: the Fly Speed, the hovering, the Prone Immunity and
+    // the three Resistances are the same reading in the same words, and what
+    // changed is that the definition now resolves something, so they are an
+    // executed spell's debt. A shape that spanned two populations still spans
+    // two, which is the property this test is about.
+    expect(modes.executed).toEqual(['gaseous-form', 'wind-walk']);
+    expect(modes.tracked).toEqual(['alter-self', 'fly', 'freedom-of-movement', 'spider-climb']);
     // A floor below the population rather than on it, lowered by the batch
     // that wrote Freedom of Movement — which moved a spell from the third
     // population into the second and so shrank this one by one.
