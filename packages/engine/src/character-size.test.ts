@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
 import { asCharacterId, isErr, expect as unwrap } from '@ie/shared';
+import { placeCreatureInScene } from './commands.js';
 import { extendContent } from './content.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import {
@@ -225,6 +226,53 @@ describe('the size a species declares is read as a union, never by name', () => 
       'create',
     );
     expect(fold('seed', events).creatures['ander']?.size).toBe('large');
+  });
+});
+
+describe('the size the species printed reaches the map', () => {
+  /**
+   * The point of the whole change, in one assertion.
+   *
+   * `placeCreatureInScene` has read a creature's pinned size since stat blocks
+   * started pinning one — "asking a caller for it again is asking a model to
+   * state a fact the book already answered" — and a character had none to
+   * read, so the only way a Small Halfling stood on a map as Small was a
+   * caller *saying* Small. Now the species says it.
+   */
+  it('without anybody saying, and a stated size still wins', () => {
+    const start = unwrap(
+      createCharacter(SRD_CONTENT, human({ size: 'Small' }), id('ander')),
+      'create',
+    );
+    const scene: GameEvent[] = [
+      ...start,
+      { type: 'scene-set', extent: { width: 500, depth: 500, height: 40 } },
+      { type: 'landmark-added', name: 'the gate', at: { x: 100, y: 100, z: 0 } },
+    ];
+    const state = fold('seed', scene);
+
+    const placed = fold('seed', [
+      ...scene,
+      ...unwrap(
+        placeCreatureInScene(state, id('ander'), { from: { landmark: 'the gate' }, feet: 0 }),
+        'place',
+      ),
+    ]);
+    expect(placed.scene?.sizes['ander']).toBe('small');
+
+    // A table that shrinks or enlarges somebody still outranks the book.
+    const enlarged = fold('seed', [
+      ...scene,
+      ...unwrap(
+        placeCreatureInScene(state, id('ander'), {
+          from: { landmark: 'the gate' },
+          feet: 0,
+          size: 'large',
+        }),
+        'place',
+      ),
+    ]);
+    expect(enlarged.scene?.sizes['ander']).toBe('large');
   });
 });
 

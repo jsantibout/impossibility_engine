@@ -11,7 +11,11 @@ import {
   type Result,
   type Skill,
 } from '@ie/shared';
-import type { CreatureSize } from '@ie/srd';
+// The subpath, never the barrel, for the reason `content.ts` gives: the
+// barrel re-exports the parsed book. `schemas.ts` imports zod and nothing
+// else, so the six size categories are the book's own list rather than a
+// fourth copy of it.
+import { CREATURE_SIZES, type CreatureSize } from '@ie/srd/schemas';
 import { proficientWithCategories } from './attack.js';
 import {
   ABILITY_SCORE_MAXIMUM,
@@ -1962,26 +1966,15 @@ function checkLanguages(content: Content, choices: CharacterChoices): CreationPr
 }
 
 /**
- * Every size category there is, as a record so that a seventh one cannot be
- * added to the union without this file being told.
+ * The size category a printed word names, or null where it names none.
  *
- * The union is `@ie/srd`'s, imported as a type; the engine takes no value out
- * of that package, so the names are written once more here and the compiler
- * holds the two lists to each other.
+ * Read off the one list of size categories there is, so a seventh cannot be
+ * admitted by a literal nobody updated - which is the rule `positioning.ts`
+ * states about ranking them and the same rule about spelling them.
  */
-const SIZE_CATEGORIES: Readonly<Record<CreatureSize, true>> = {
-  tiny: true,
-  small: true,
-  medium: true,
-  large: true,
-  huge: true,
-  gargantuan: true,
-};
-
-/** The size category a printed word names, or null where it names none. */
 function sizeNamed(word: string): CreatureSize | null {
   const lowered = word.trim().toLowerCase();
-  return (Object.keys(SIZE_CATEGORIES) as CreatureSize[]).find((size) => size === lowered) ?? null;
+  return CREATURE_SIZES.find((size) => size === lowered) ?? null;
 }
 
 /** What a species' printed sizes and a character's answer come to. */
@@ -2022,7 +2015,7 @@ function sizeFor(species: SpeciesDefinition, choices: CharacterChoices): SizeDec
           problem(
             'unknown_size',
             'speciesId',
-            `${species.id} prints a size of "${word}", which is no size category; have ${Object.keys(SIZE_CATEGORIES).join(', ')}`,
+            `${species.id} prints a size of "${word}", which is no size category; have ${CREATURE_SIZES.join(', ')}`,
           ),
         ],
         warnings: [],
@@ -2358,8 +2351,10 @@ export function planCharacter(
 
   const sized = sizeFor(species, choices);
   if (sized.size === null) {
-    // `checkCharacter` above returns the same problems, so this is the species
-    // declaring a size nothing can be made of rather than a choice at fault.
+    // Unreachable: `checkCharacter` above collects these same problems and
+    // this function has already returned on the first of them. It stands
+    // because the size is pinned into an event below, and a null must not
+    // reach one.
     const bad = sized.problems[0];
     return err(bad?.code ?? 'unknown_size', bad?.reason ?? `${species.id} prints no size`);
   }
