@@ -66,7 +66,8 @@
 
 import { readFileSync } from 'node:fs';
 import { SPELL_DEFINITIONS, SRD_CONTENT, SRD_MAGIC_ITEMS } from '@ie/content';
-import { type FeatureDefinition, type SpellDefinition } from '@ie/engine';
+import { adaptMonster, type FeatureDefinition, type SpellDefinition } from '@ie/engine';
+import { asCharacterId } from '@ie/shared';
 import { ADJUDICATED } from './missing-shapes.js';
 import {
   MAGIC_ITEM_CATEGORIES,
@@ -528,6 +529,90 @@ export function auditMagicItems(): MagicItemCoverage {
     partial,
     rows,
     entries: covered,
+  };
+}
+
+export interface BestiaryCoverage {
+  /** Stat blocks `@ie/srd` read out of the book. */
+  readonly parsed: number;
+  /** Blocks `SRD_CONTENT` holds, validated, reachable by id. */
+  readonly carried: number;
+  /** Entries in the printed vulnerability, resistance and immunity runs. */
+  readonly defences: number;
+  /** Of those, entries recognised and left to the DM because they are qualified. */
+  readonly qualified: number;
+  /** Of those, entries in neither vocabulary, kept verbatim and enforced by nobody. */
+  readonly unread: number;
+  /** Traits, actions, bonus actions, reactions and legendary actions, in total. */
+  readonly printed: number;
+  readonly rows: readonly {
+    readonly kind: string;
+    readonly printed: number;
+  }[];
+}
+
+/**
+ * The bestiary, counted for what it is rather than for what a reader would
+ * like it to be.
+ *
+ * **Every parsed block is carried, and that is the whole of what the two big
+ * columns claim.** There is no *tracked* and no *executed* here, because a
+ * stat block has nothing to declare them with: `traits`, `actions`,
+ * `bonusActions`, `reactions` and `legendaryActions` are `{ name, text }` —
+ * the book's sentence, kept verbatim. A spell says what it does in a
+ * vocabulary the engine executes and a feature declares its own automation, so
+ * both can be read by a predicate; a monster's Multiattack is English, and a
+ * predicate over English would be somebody's opinion wearing a derived
+ * column's clothes. So the report counts the prose instead. *Printed* is the
+ * size of what a stat block says and nothing here divides by it.
+ *
+ * **The defence columns are the adapter's answer, not a second reading of the
+ * same strings.** `adaptMonster` is what the engine actually runs a stat block
+ * through, and it sorts a printed defence run into three piles: the entries it
+ * enforces, the entries it recognises but cannot evaluate — "Piercing (from
+ * weapons wielded by creatures under a *Bless* spell)" — and the entries in
+ * neither vocabulary. The last two are the only places a block loses anything,
+ * and they are counted here by asking the adapter rather than by re-deriving
+ * its rule.
+ */
+export function auditBestiary(): BestiaryCoverage {
+  const parsed = JSON.parse(
+    readFileSync('packages/srd/src/generated/monsters.json', 'utf8'),
+  ) as readonly unknown[];
+
+  const kinds = [
+    ['Traits', 'traits'],
+    ['Actions', 'actions'],
+    ['Bonus actions', 'bonusActions'],
+    ['Reactions', 'reactions'],
+    ['Legendary actions', 'legendaryActions'],
+  ] as const;
+
+  const rows = kinds.map(([kind, field]) => ({
+    kind,
+    printed: SRD_CONTENT.monsters.reduce((sum, monster) => sum + monster[field].length, 0),
+  }));
+
+  let defences = 0;
+  let qualified = 0;
+  let unread = 0;
+  for (const monster of SRD_CONTENT.monsters) {
+    defences += monster.vulnerabilities.length + monster.resistances.length + monster.immunities.length;
+    // The id is inert: nothing below reads it, and the adapter is asked here
+    // only for how it sorted the defence run.
+    const adapted = adaptMonster(monster, asCharacterId(monster.id));
+    qualified += adapted.defenses.qualified.length;
+    unread += adapted.caveats.length;
+  }
+
+  return {
+    parsed: parsed.length,
+    carried: SRD_CONTENT.monsters.length,
+    defences,
+    qualified,
+    unread,
+    printed: rows.reduce((sum, row) => sum + row.printed, 0),
+    rows,
   };
 }
 

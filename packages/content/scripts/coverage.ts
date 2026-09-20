@@ -45,6 +45,7 @@ import {
 } from './missing-feature-shapes.js';
 import { magicItemEntries } from './magic-items.js';
 import {
+  auditBestiary,
   auditClasses,
   auditMagicItems,
   auditOrigins,
@@ -53,6 +54,7 @@ import {
   PARTIAL_SPELLS,
   TRACKED_IDS,
   VERIFIED_SPELLS,
+  type BestiaryCoverage,
   type ClassCoverage,
   type MagicItemCoverage,
   type OriginCoverage,
@@ -429,6 +431,85 @@ function renderItemBlockers(coverage: MagicItemCoverage): readonly string[] {
  * made was an unread sentence rather than a wrong entry. No figure is written
  * down here: the table below prints all three, which is the whole point.
  */
+/**
+ * The bestiary's one count row, written once and read by the guard.
+ *
+ * `coverage.test.ts` asserts the committed report carries exactly this line,
+ * which is only a check on the report being generated if both sides render it
+ * the same way — a second spelling in the test would agree with itself while
+ * the file said something else.
+ */
+export function bestiaryRow(coverage: BestiaryCoverage): string {
+  return (
+    `| ${coverage.parsed} | ${coverage.carried} | ${coverage.defences} | ` +
+    `${coverage.qualified} | ${coverage.unread} | ${coverage.printed} |`
+  );
+}
+
+/**
+ * The bestiary, which has two columns that cannot move and one that can only
+ * be honest about how much it is not.
+ *
+ * **There is no *executed* column and the absence is the finding.** A spell
+ * declares its effects and a feature declares its automation, so a predicate
+ * can read both; a stat block declares a name and a paragraph. Writing
+ * `executed: 0` would be a derived-looking column whose derivation is a
+ * constant, and writing nothing at all would leave the size of the gap in
+ * prose — which is where it was. So the report counts the prose: every trait
+ * and action the catalogue holds, by kind, none of which the engine reads.
+ */
+function renderBestiary(coverage: BestiaryCoverage): readonly string[] {
+  const lines = [
+    '',
+    '## Bestiary',
+    '',
+    'Five states, and the last one is a count of what the engine does *not*',
+    'read:',
+    '',
+    '| | Means |',
+    '|---|---|',
+    '| **Parsed** | `@ie/srd` has the stat block: size, type, Armour Class, Initiative, hit points, speeds, abilities with their saves, skills, the defence runs, senses, languages, CR and XP |',
+    '| **Carried** | `SRD_CONTENT` holds that block and `checkContent` validated it, so `addCreature` puts the creature into a game by its id and every number in the event is the block’s |',
+    '| **Qualified** | a printed defence the engine recognises and cannot evaluate — _Piercing (from weapons wielded by creatures under a Bless spell)_ — recorded and handed to the DM rather than enforced or dropped |',
+    '| **Unread** | a defence entry in neither the damage nor the condition vocabulary, kept verbatim for the same reason |',
+    '| **Printed lines** | the traits, actions, bonus actions, reactions and legendary actions the blocks print: a name and the book’s sentence each |',
+    '',
+    '| Parsed | Carried | Defence entries | of which qualified | of which unread | Printed lines |',
+    '|---|---|---|---|---|---|',
+    bestiaryRow(coverage),
+    '',
+    '**A stat block arrives as a body, not as an actor.** `adaptMonster`',
+    'carries across everything the block states as a number — the printed',
+    'Armour Class, the stated saves and skills, the average hit points, the',
+    'speeds, the size and the creature type a spell like Hold Person reads — so',
+    'an SRD monster can be placed, attacked, damaged, made to roll a save,',
+    'targeted and killed, and the engine supplies every one of those numbers',
+    'itself. What the creature *does* on its turn is not carried at all.',
+    '',
+    '**Printed lines is not a denominator**, and the difference between this',
+    'and the tables above is the whole reason it is counted. A tracked spell',
+    'has a definition that says what it leaves to the table; an untranscribed',
+    'item is an entry somebody has read and classified. A printed line is',
+    'neither: it is the SRD’s English, held as `{ name, text }`, with no attack',
+    'bonus, damage die, save DC or recharge read out of it by anybody. So the',
+    'column says how much prose the catalogue holds, and no fraction of it is',
+    'claimed — a *tracked* or *executed* column here would be a predicate over',
+    'English, which is an opinion in a derived column’s clothes.',
+    '',
+    '**A monster’s spellcasting is in that prose too**, which is why',
+    '`declareSpellcasting` states it and nothing infers it: reading a caster’s',
+    'ability and list out of a trait’s sentence would be the engine deciding a',
+    'fact the book wrote for a person.',
+    '',
+    '| Line | Printed |',
+    '|---|---|',
+  ];
+
+  for (const row of coverage.rows) lines.push(`| ${row.kind} | ${row.printed} |`);
+
+  return lines;
+}
+
 function renderBlockers(): readonly string[] {
   const rows = allShapeConsumers();
   const lines = [
@@ -576,6 +657,7 @@ function render(coverage: SpellCoverage): string {
   lines.push(...renderClasses(auditClasses()));
   lines.push(...renderOrigins(auditOrigins()));
   lines.push(...renderMagicItems(auditMagicItems()));
+  lines.push(...renderBestiary(auditBestiary()));
 
   return `${lines.join('\n')}\n`;
 }
@@ -630,6 +712,11 @@ if (isMainModule) {
   console.log(
     `magic items: ${items.transcribed}/${items.parsed} entries transcribed as ` +
       `${items.instances} records, ${items.partial} of them partial`,
+  );
+  const bestiary = auditBestiary();
+  console.log(
+    `bestiary: ${bestiary.carried}/${bestiary.parsed} stat blocks carried, ` +
+      `${bestiary.printed} printed lines the engine does not read`,
   );
   const piles = itemPiles(parsedItemIds(), transcribedItemIds());
   console.log(

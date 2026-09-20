@@ -6,6 +6,7 @@ import { SPELL_INDEX, spellById } from '@ie/srd';
 import {
   PARTIAL_SPELLS,
   VERIFIED_SPELLS,
+  auditBestiary,
   auditClasses,
   auditMagicItems,
   auditOrigins,
@@ -15,7 +16,7 @@ import {
   isExecutedFeature,
 } from '../scripts/coverage-data.js';
 import { entryFor, isCompleteItem, magicItemEntries } from '../scripts/magic-items.js';
-import { renderReport } from '../scripts/coverage.js';
+import { bestiaryRow, renderReport } from '../scripts/coverage.js';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
 
@@ -353,6 +354,122 @@ describe('the magic-item counts keep entries and instances apart', () => {
     expect(new Set(names).size).toBe(names.length);
     expect(names).toEqual([...names].sort());
     expect(names).toHaveLength(items.transcribed);
+  });
+});
+
+/**
+ * The bestiary, where the honest claim is the *smallest* one the numbers
+ * support.
+ *
+ * A stat block is one record and one record is one creature, so the trap the
+ * magic items set — entries against instances — is not this section's. Its
+ * trap is the opposite: every block is carried, every block adapts, and a row
+ * saying `330 | 330` reads as a finished bestiary when what the engine holds
+ * is the half of a stat block that is a number. What it does on its turn is
+ * the SRD's prose, and the report says how much of it there is rather than
+ * saying "some" in a sentence.
+ *
+ * So the tests here hold three things: the catalogue carries every block the
+ * parser produced, the printed-line count is every line of every block, and
+ * **a printed line is still prose** — the moment the parser structures one,
+ * the last test goes red and the row has to grow a column rather than keep
+ * claiming the same thing about a different population.
+ */
+describe('the bestiary row counts blocks, and the prose it cannot read', () => {
+  const bestiary = auditBestiary();
+
+  it('measures against every stat block the parser produced', () => {
+    const parsed = JSON.parse(
+      readFileSync('packages/srd/src/generated/monsters.json', 'utf8'),
+    ) as readonly { readonly id: string }[];
+
+    expect(bestiary.parsed).toBe(parsed.length);
+    expect(bestiary.parsed).toBeGreaterThan(0);
+  });
+
+  /**
+   * *Carried* is not *parsed* restated: `checkContent` validates every block
+   * on the way in, so a block the schema refused would be parsed and absent.
+   * The ids are compared rather than the two lengths, which would agree by
+   * accident if one block were swapped for another.
+   */
+  it('carries every parsed block into the catalogue, by id', () => {
+    const parsed = JSON.parse(
+      readFileSync('packages/srd/src/generated/monsters.json', 'utf8'),
+    ) as readonly { readonly id: string }[];
+
+    expect(bestiary.carried).toBe(SRD_CONTENT.monsters.length);
+    expect(SRD_CONTENT.monsters.map((m) => m.id).sort()).toEqual(
+      parsed.map((m) => m.id).sort(),
+    );
+  });
+
+  it('counts a printed line for every trait and action in the catalogue', () => {
+    const lines = SRD_CONTENT.monsters.reduce(
+      (sum, m) =>
+        sum +
+        m.traits.length +
+        m.actions.length +
+        m.bonusActions.length +
+        m.reactions.length +
+        m.legendaryActions.length,
+      0,
+    );
+
+    expect(bestiary.printed).toBe(lines);
+    expect(bestiary.rows.reduce((sum, row) => sum + row.printed, 0)).toBe(bestiary.printed);
+  });
+
+  /**
+   * The claim the row would be dishonest without. A printed line is a name and
+   * the book's sentence: no attack bonus, no damage die and no save DC is read
+   * out of one, which is why nothing counts them as executed and why the
+   * engine's own `addCreature` carries none of them into the game.
+   */
+  it('finds nothing in a printed line but a name and prose', () => {
+    const keys = new Set<string>();
+    for (const monster of SRD_CONTENT.monsters) {
+      for (const line of [
+        ...monster.traits,
+        ...monster.actions,
+        ...monster.bonusActions,
+        ...monster.reactions,
+        ...monster.legendaryActions,
+      ]) {
+        for (const key of Object.keys(line)) keys.add(key);
+      }
+    }
+
+    expect([...keys].sort()).toEqual(['name', 'text']);
+  });
+
+  /**
+   * The defence columns are the adapter's own answer, so neither is a second
+   * spelling of `classify`. Both are small and both must be non-zero, or the
+   * report would be printing a column that nothing can make move.
+   */
+  it('reads the defence entries the engine cannot enforce off the adapter', () => {
+    expect(bestiary.defences).toBe(
+      SRD_CONTENT.monsters.reduce(
+        (sum, m) => sum + m.vulnerabilities.length + m.resistances.length + m.immunities.length,
+        0,
+      ),
+    );
+    expect(bestiary.qualified).toBeGreaterThan(0);
+    expect(bestiary.unread).toBeGreaterThan(0);
+    expect(bestiary.qualified + bestiary.unread).toBeLessThan(bestiary.defences);
+  });
+
+  /** Generated, like every other row: the committed report holds this one. */
+  it('is the row the committed report carries', () => {
+    const report = readFileSync(
+      fileURLToPath(new URL('../../../COVERAGE.md', import.meta.url)),
+      'utf8',
+    );
+
+    expect(report).toContain('## Bestiary');
+    expect(report).toContain(bestiaryRow(bestiary));
+    for (const row of bestiary.rows) expect(report).toContain(`| ${row.kind} | ${row.printed} |`);
   });
 });
 
