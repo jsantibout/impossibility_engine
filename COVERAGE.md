@@ -508,7 +508,7 @@ engine could take it today — is recorded as such rather than omitted.
 
 | Classes | Subclasses | Features | Executed by the engine |
 |---|---|---|---|
-| 12 / 12 | 12 / 12 | 269 | 163 |
+| 12 / 12 | 12 / 12 | 269 | 169 |
 
 A feature declares its own automation, so this column is read rather than
 guessed. **Manual is not failure**: several features are judgement the
@@ -518,15 +518,15 @@ believe it has twelve working classes when it has twelve validated ones.
 
 | Class | Casting | Features | Executed |
 |---|---|---|---|
-| Barbarian | none | 27 | 15 |
+| Barbarian | none | 27 | 16 |
 | Bard | known | 20 | 13 |
 | Cleric | prepared-from-list | 19 | 11 |
 | Druid | prepared-from-list | 17 | 10 |
-| Fighter | none | 26 | 18 |
+| Fighter | none | 26 | 20 |
 | Monk | none | 29 | 18 |
-| Paladin | prepared-from-list | 25 | 17 |
-| Ranger | known | 25 | 14 |
-| Rogue | none | 28 | 13 |
+| Paladin | prepared-from-list | 25 | 18 |
+| Ranger | known | 25 | 15 |
+| Rogue | none | 28 | 14 |
 | Sorcerer | known | 18 | 11 |
 | Warlock | known | 17 | 10 |
 | Wizard | spellbook | 18 | 13 |
@@ -558,8 +558,8 @@ be the second spelling of one derivation.
 | `a-feature-that-rewrites-another-features-rule` | 10 | 4 |
 | `an-action-a-spell-compels-or-forbids` | 10 | 4 |
 | `a-roll-result-an-effect-replaces` | 5 | 4 |
-| `an-option-re-chosen-on-a-rest` | 9 | 3 |
 | `a-save-keyed-to-a-condition` | 4 | 3 |
+| `an-option-re-chosen-on-a-rest` | 4 | 3 |
 | `healing-modified-by-an-effect` | 4 | 3 |
 | `a-feature-that-changes-what-a-casting-costs` | 7 | 2 |
 | `a-move-a-feature-hands-its-holder` | 6 | 2 |
@@ -573,14 +573,14 @@ be the second spelling of one derivation.
 | `an-effect-that-intercepts-dropping-to-0` | 2 | 2 |
 | `heroic-inspiration` | 2 | 2 |
 | `a-resource-traded-for-another` | 12 | 1 |
-| `a-one-shot-roll-modifier` | 9 | 1 |
-| `an-attack-the-class-redefines` | 9 | 1 |
 | `an-effect-list-a-hit-buys` | 5 | 1 |
 | `a-grant-gated-on-one-option-of-a-choice` | 4 | 1 |
 | `a-rule-the-engine-fixes-for-everybody` | 4 | 1 |
 | `a-spell-an-item-casts-that-nothing-executes` | 4 | 1 |
+| `an-attack-the-class-redefines` | 4 | 1 |
 | `a-bonus-an-ability-modifier-sizes` | 3 | 1 |
 | `a-modifier-a-feature-puts-on-another-creature` | 3 | 1 |
+| `a-one-shot-roll-modifier` | 3 | 1 |
 | `a-stat-block-created-mid-fight` | 3 | 1 |
 | `a-condition-a-feature-ends` | 2 | 1 |
 | `a-creature-fact-an-effect-overrides` | 2 | 1 |
@@ -597,7 +597,6 @@ be the second spelling of one derivation.
 | `falling` | 1 | 1 |
 | `a-benefit-that-runs-for-a-printed-span` | 6 | 0 |
 | `a-pool-the-proficiency-bonus-sizes` | 6 | 0 |
-| `a-weapon-mastery-property` | 6 | 0 |
 | `temporary-hit-points-a-feature-grants` | 4 | 0 |
 | `a-feature-that-carries-a-second-grant` | 3 | 0 |
 | `a-language-or-a-proficiency-an-item-grants` | 2 | 0 |
@@ -1001,26 +1000,26 @@ never added.
 
 | Level | Held | Executed | In reach | Tracked | Executed |
 |---|---|---|---|---|---|
-| 1 | 32 | 18 | 211 | 121 | 85 |
-| 2 | 53 | 31 | 211 | 121 | 85 |
-| 3 | 91 | 57 | 345 | 207 | 127 |
-| 4 | 104 | 69 | 345 | 207 | 127 |
-| 5 | 120 | 77 | 481 | 291 | 173 |
-| 6 | 132 | 84 | 481 | 291 | 173 |
-| 7 | 144 | 90 | 562 | 334 | 211 |
-| 8 | 156 | 102 | 562 | 334 | 211 |
-| 9 | 165 | 105 | 668 | 411 | 235 |
-| 10 | 176 | 109 | 668 | 411 | 235 |
-| 11 | 183 | 111 | 727 | 449 | 254 |
-| 12 | 195 | 123 | 727 | 449 | 254 |
-| 13 | 200 | 124 | 784 | 492 | 265 |
-| 14 | 211 | 130 | 784 | 492 | 265 |
-| 15 | 218 | 133 | 821 | 513 | 280 |
-| 16 | 230 | 145 | 821 | 513 | 280 |
-| 17 | 235 | 145 | 859 | 548 | 281 |
-| 18 | 245 | 147 | 859 | 548 | 281 |
-| 19 | 257 | 159 | 859 | 548 | 281 |
-| 20 | 269 | 163 | 859 | 548 | 281 |
+| 1 | 32 | 23 | 211 | 121 | 85 |
+| 2 | 53 | 36 | 211 | 121 | 85 |
+| 3 | 91 | 62 | 345 | 207 | 127 |
+| 4 | 104 | 74 | 345 | 207 | 127 |
+| 5 | 120 | 82 | 481 | 291 | 173 |
+| 6 | 132 | 89 | 481 | 291 | 173 |
+| 7 | 144 | 95 | 562 | 334 | 211 |
+| 8 | 156 | 107 | 562 | 334 | 211 |
+| 9 | 165 | 111 | 668 | 411 | 235 |
+| 10 | 176 | 115 | 668 | 411 | 235 |
+| 11 | 183 | 117 | 727 | 449 | 254 |
+| 12 | 195 | 129 | 727 | 449 | 254 |
+| 13 | 200 | 130 | 784 | 492 | 265 |
+| 14 | 211 | 136 | 784 | 492 | 265 |
+| 15 | 218 | 139 | 821 | 513 | 280 |
+| 16 | 230 | 151 | 821 | 513 | 280 |
+| 17 | 235 | 151 | 859 | 548 | 281 |
+| 18 | 245 | 153 | 859 | 548 | 281 |
+| 19 | 257 | 165 | 859 | 548 | 281 |
+| 20 | 269 | 169 | 859 | 548 | 281 |
 
 The totals are every path added together, so a spell on two class lists is
 counted once for each path that can reach it — the row is the book at that
@@ -1049,15 +1048,15 @@ which the table will.
 
 | Path | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| Barbarian (Path of the Berserker) | 2/3 | 3/5 | 5/8 | 6/9 | 8/11 | 8/12 | 9/14 | 10/15 | 10/16 | 11/17 | 11/18 | 12/19 | 12/20 | 12/21 | 12/22 | 13/23 | 13/24 | 13/25 | 14/26 | 15/27 |
+| Barbarian (Path of the Berserker) | 3/3 | 4/5 | 6/8 | 7/9 | 9/11 | 9/12 | 10/14 | 11/15 | 11/16 | 12/17 | 12/18 | 13/19 | 13/20 | 13/21 | 13/22 | 14/23 | 14/24 | 14/25 | 15/26 | 16/27 |
 | Bard (College of Lore) | 2/2 | 3/4 | 6/7 | 7/8 | 7/9 | 7/10 | 7/11 | 8/12 | 9/13 | 9/14 | 9/14 | 10/15 | 10/15 | 11/16 | 11/16 | 12/17 | 12/17 | 12/18 | 13/19 | 13/20 |
 | Cleric (Life Domain) | 1/2 | 2/3 | 4/7 | 5/8 | 5/9 | 5/10 | 6/11 | 7/12 | 7/12 | 7/13 | 7/13 | 8/14 | 8/14 | 9/15 | 9/15 | 10/16 | 10/17 | 10/17 | 11/18 | 11/19 |
 | Druid (Circle of the Land) | 1/3 | 2/5 | 3/7 | 4/8 | 4/9 | 4/9 | 5/10 | 6/11 | 6/11 | 6/11 | 6/11 | 7/12 | 7/12 | 7/12 | 8/13 | 9/14 | 9/14 | 9/15 | 10/16 | 10/17 |
-| Fighter (Champion) | 1/3 | 3/5 | 6/8 | 7/9 | 8/11 | 9/12 | 9/13 | 10/14 | 11/16 | 11/17 | 12/18 | 13/19 | 13/20 | 14/21 | 15/22 | 16/23 | 16/23 | 16/24 | 17/25 | 18/26 |
+| Fighter (Champion) | 2/3 | 4/5 | 7/8 | 8/9 | 9/11 | 10/12 | 10/13 | 11/14 | 13/16 | 13/17 | 14/18 | 15/19 | 15/20 | 16/21 | 17/22 | 18/23 | 18/23 | 18/24 | 19/25 | 20/26 |
 | Monk (Warrior of the Open Hand) | 2/2 | 5/5 | 7/8 | 8/10 | 9/12 | 10/14 | 11/15 | 12/16 | 12/17 | 12/19 | 12/20 | 13/21 | 14/22 | 15/23 | 15/24 | 16/25 | 16/26 | 16/27 | 17/28 | 18/29 |
-| Paladin (Oath of Devotion) | 2/3 | 2/5 | 5/9 | 6/10 | 7/12 | 8/13 | 9/14 | 10/15 | 10/16 | 11/17 | 12/18 | 13/19 | 13/19 | 14/20 | 14/21 | 15/22 | 15/22 | 16/23 | 17/24 | 17/25 |
-| Ranger (Hunter) | 1/3 | 2/5 | 4/8 | 5/9 | 6/10 | 7/11 | 7/12 | 8/13 | 9/14 | 9/15 | 9/16 | 10/17 | 10/18 | 10/19 | 10/20 | 11/21 | 11/22 | 12/23 | 13/24 | 14/25 |
-| Rogue (Thief) | 2/4 | 2/5 | 3/9 | 4/10 | 5/12 | 6/13 | 7/15 | 8/16 | 8/17 | 9/18 | 9/19 | 10/20 | 10/21 | 10/22 | 11/23 | 12/24 | 12/25 | 12/26 | 13/27 | 13/28 |
+| Paladin (Oath of Devotion) | 3/3 | 3/5 | 6/9 | 7/10 | 8/12 | 9/13 | 10/14 | 11/15 | 11/16 | 12/17 | 13/18 | 14/19 | 14/19 | 15/20 | 15/21 | 16/22 | 16/22 | 17/23 | 18/24 | 18/25 |
+| Ranger (Hunter) | 2/3 | 3/5 | 5/8 | 6/9 | 7/10 | 8/11 | 8/12 | 9/13 | 10/14 | 10/15 | 10/16 | 11/17 | 11/18 | 11/19 | 11/20 | 12/21 | 12/22 | 13/23 | 14/24 | 15/25 |
+| Rogue (Thief) | 3/4 | 3/5 | 4/9 | 5/10 | 6/12 | 7/13 | 8/15 | 9/16 | 9/17 | 10/18 | 10/19 | 11/20 | 11/21 | 11/22 | 12/23 | 13/24 | 13/25 | 13/26 | 14/27 | 14/28 |
 | Sorcerer (Draconic Sorcery) | 1/2 | 2/4 | 4/7 | 5/8 | 6/9 | 7/10 | 7/11 | 8/12 | 8/12 | 8/12 | 8/12 | 9/13 | 9/13 | 9/14 | 9/14 | 10/15 | 10/15 | 10/16 | 11/17 | 11/18 |
 | Warlock (Fiend Patron) | 1/2 | 2/3 | 4/6 | 5/7 | 5/7 | 6/8 | 6/8 | 7/9 | 7/10 | 7/11 | 7/12 | 8/13 | 8/13 | 8/14 | 8/14 | 9/15 | 9/15 | 9/15 | 10/16 | 10/17 |
 | Wizard (Evoker) | 2/3 | 3/4 | 6/7 | 7/8 | 7/9 | 7/10 | 7/10 | 8/11 | 8/11 | 9/12 | 9/12 | 10/13 | 10/13 | 11/14 | 11/14 | 12/15 | 12/15 | 12/16 | 13/17 | 13/18 |
