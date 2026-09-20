@@ -1414,10 +1414,31 @@ const MOVE = tool({
     ),
 });
 
+/**
+ * Swing at somebody — and `action` is the third source of an attack's numbers.
+ *
+ * A swing's numbers come from a catalogue weapon, a spell, or **the line the
+ * creature's own stat block prints**, and until now only the first two reached
+ * this surface. A Wolf's `Bite` is not an item, so no `weapon` names one; the
+ * Wolf carries nothing at all, so the only swing a model could ask it for was
+ * an Unarmed Strike, which is not what the book printed. `add_creature` made
+ * the bestiary a door and left every monster in it punching.
+ *
+ * **It is a name and never a line**, which is `addCreature`'s own rule one
+ * layer up: an entry point that accepted an attack bonus would be the door a
+ * model-authored +12 walked through, and nothing would guard it. The `+4`, the
+ * reach and the `1d6 + 2` are read off the line pinned onto the creature when
+ * it entered the game, and a name the block does not print is `unknown_action`
+ * rather than a swing at a number nobody can see.
+ *
+ * Exclusive with `weapon`, and the engine refuses the pair rather than picking
+ * one: a swing whose numbers come from two places is a question with two
+ * answers.
+ */
 const ATTACK = tool({
   name: 'attack',
   description:
-    'Attack with a weapon. The engine derives everything: the target’s Armour Class, reach and range, advantage and disadvantage, proficiency, the damage dice, and the target’s defences. You name who swings at whom and with what.',
+    'Attack with a weapon, or with an attack the creature’s own stat block prints. The engine derives everything: the target’s Armour Class, reach and range, advantage and disadvantage, proficiency, the damage dice, and the target’s defences. You name who swings at whom and with what — a catalogue `weapon`, or an `action` by its printed name, never both.',
   mutates: true,
   input: z.object({
     attacker: creatureId,
@@ -1427,6 +1448,13 @@ const ATTACK = tool({
       .min(1)
       .optional()
       .describe('Catalogue id, e.g. quarterstaff, dagger. Omit for an Unarmed Strike.'),
+    action: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        'An attack this creature’s own stat block prints, by its printed name — a Wolf’s "Bite". Use it instead of `weapon`, never beside it: a Bite is not an item, so no catalogue id names one and an Unarmed Strike is not what the book printed. `look` reports what a creature is; the attack bonus, the reach and the damage dice are read off the line the engine pinned when the creature entered the game, and a name the block does not print is refused.',
+      ),
     thrown: z
       .boolean()
       .optional()
@@ -1462,6 +1490,7 @@ const ATTACK = tool({
         {
           target: who(args.target),
           weapon: args.weapon ?? null,
+          ...(args.action === undefined ? {} : { action: args.action }),
           ...(args.thrown === true ? { thrown: true } : {}),
           ...(args.twoHanded === true ? { twoHanded: true } : {}),
           ...(args.finesseAbility === undefined ? {} : { finesseAbility: args.finesseAbility }),
@@ -2173,12 +2202,30 @@ const REGAIN_USES = tool({
  * reports no feature line for it and there is nothing here to call — which is
  * the argument working rather than an omission.
  *
- * Neither field is a number. `target` is who the option is aimed at, checked
- * against the reach the option prints; `damageType` is which of the types the
- * option prints this use deals, refused unless the option prints a choice and
- * refused when it prints one and the call names none. That is `cast_spell`'s
- * own rule, asked of a feature — and `damage_type_required` is answerable
- * here as well as there.
+ * `target` is who the option is aimed at, checked against the reach the option
+ * prints; `damageType` is which of the types the option prints this use deals,
+ * refused unless the option prints a choice and refused when it prints one and
+ * the call names none. That is `cast_spell`'s own rule, asked of a feature —
+ * and `damage_type_required` is answerable here as well as there.
+ *
+ * **`among` is the one field on this surface that carries numbers, and it is
+ * not the rule bending.** SRD Preserve Life ends "divide those Hit Points
+ * among them", and a division is a decision the book hands the Cleric that
+ * nothing here could make for them — the same kind of thing `slotKind` and
+ * `payment` are, with an amount attached. Three things keep it inside the
+ * line. No die is thrown by this option at all, so there is no roll for a
+ * caller to have produced; the *budget* is five times the Cleric level, read
+ * off the sheet by the engine and stated in the refusal that asks for the
+ * shares; and every share is refused rather than trusted — against that
+ * budget, against the thirty feet the option prints, against half each
+ * creature's Hit Point maximum, and against the kinds of creature the option
+ * will not touch. A caller who sends twenty-six of twenty-five gets
+ * `too_much_divided` and spends nothing.
+ *
+ * The floor — a whole number of at least one — is left to the engine's
+ * `bad_share` rather than put in the schema, because it is a rule about what a
+ * share *is* and a caller reading `invalid` goes looking for a typo. What Zod
+ * asks is only that a share is an integer aimed at a creature.
  */
 const USE_POOL_OPTION = tool({
   name: 'use_pool_option',
@@ -2205,6 +2252,20 @@ const USE_POOL_OPTION = tool({
       .describe(
         'Which of the damage types the option prints this use deals — SRD Divine Spark’s "Necrotic or Radiant damage (your choice)". Leaving it out for an option that prints a choice is refused, and naming one for an option that prints a single type is refused too.',
       ),
+    among: z
+      .array(
+        z.strictObject({
+          target: creatureId.describe('Who this share goes to.'),
+          hitPoints: z
+            .int()
+            .describe('How much of the pot this creature gets. Yours to divide; the engine checks every one of them.'),
+        }),
+      )
+      .min(1)
+      .optional()
+      .describe(
+        'How to divide the hit points a distributing option mints — SRD Preserve Life’s "divide those Hit Points among them". How many there are to divide is the engine’s and is in the refusal that asks for this; which creature gets how much is yours, and the book gives that choice to nobody else. Every share is checked before a single hit point is paid: against the total minted, against the reach the option prints, against half each creature’s maximum, and against the kinds of creature the option will not touch. Left out for an option that is aimed at a creature rather than divided.',
+      ),
   }),
   run: (context, args) =>
     settle(
@@ -2217,6 +2278,14 @@ const USE_POOL_OPTION = tool({
           option: args.option,
           ...(args.target === undefined ? {} : { target: who(args.target) }),
           ...(args.damageType === undefined ? {} : { damageType: args.damageType }),
+          ...(args.among === undefined
+            ? {}
+            : {
+                among: args.among.map((share) => ({
+                  target: who(share.target),
+                  hitPoints: share.hitPoints,
+                })),
+              }),
           ...identity(context),
         },
         context.campaign.supply(),

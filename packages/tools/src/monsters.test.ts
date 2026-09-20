@@ -331,3 +331,107 @@ const WIZARD: Record<string, unknown> = {
   },
   dmGrants: { items: [], goldPieces: 0, magicItems: [], note: 'standard package only' },
 };
+
+/**
+ * And the fourth claim, which was a shut door until now: **a monster swings
+ * with a line its own block prints.**
+ *
+ * `AttackCommand.action` is the third source of an attack's numbers, beside a
+ * catalogue weapon and a spell, and it is the one a bestiary needs — a Wolf's
+ * `Bite` is not an item, so no `weapon` names it and an Unarmed Strike is not
+ * what the book printed. The field existed in the engine and reached no tool,
+ * so the only swing a model could ask a Wolf for was one the Wolf does not
+ * make.
+ *
+ * **It is a name and never a line**, for the reason `add_creature` takes a
+ * monster's id: an entry point that accepted an attack bonus would be the door
+ * a model-authored +12 walked through. The `+4` and the `1d6 + 2` are read off
+ * the block the engine pinned when the creature entered the game.
+ *
+ * Every assertion below is one a *stripped* field cannot produce. Zod drops a
+ * key no schema has heard of in silence, so "the call succeeded" proves nothing
+ * at all — `unknown_action` and `two_attacks` are refusals only the engine
+ * writes, and only when the field arrived.
+ */
+describe('a monster swings with a line its own block prints', () => {
+  /** A wolf and something to bite, five feet apart. */
+  const pack = (seed = 'the-bite-lands') => {
+    const t = table(seed);
+    room(t);
+    expectOk(t.call('add_creature', { id: 'fang', monsterId: 'wolf' }));
+    expectOk(t.call('add_creature', { id: 'grish', monsterId: 'goblin-warrior' }));
+    expectOk(t.call('place_creature', { who: 'fang', fromLandmark: 'the fire', feet: 0 }));
+    expectOk(t.call('place_creature', { who: 'grish', fromCreature: 'fang', feet: 5, bearing: 0 }));
+    return t;
+  };
+
+  it('elects the Bite, which no weapon on this creature could have answered', () => {
+    const t = pack();
+    // The Wolf's block prints no gear, so there is nothing for `weapon` to
+    // name: without `action` the only swing available is an Unarmed Strike.
+    expect(carrying(t, 'fang')).toEqual([]);
+
+    const swung = expectOk(t.call('attack', { attacker: 'fang', target: 'grish', action: 'Bite' }));
+    expect(swung.resolution['hit']).toBe(true);
+    // The numbers are the block's and not the caller's: nothing in the call
+    // said +4 or 1d6 + 2, and the die the engine threw is in the log.
+    expect(swung.events.some((event) => event.type === 'roll-recorded')).toBe(true);
+    // And the line that landed is the Bite rather than an Unarmed Strike,
+    // said by the engine rather than inferred: the Wolf's printed line ends
+    // "it has the Prone condition", which is a sentence the engine hands back
+    // as unverified rather than applying. An Unarmed Strike has no such line.
+    expect(swung.unverified.join(' ')).toContain('Bite');
+    expect(swung.unverified.join(' ')).toContain('Prone');
+  });
+
+  it('refuses a line the block does not print, which is the field arriving', () => {
+    const t = pack('no-such-line');
+    const refusal = t.call('attack', { attacker: 'fang', target: 'grish', action: 'Headbutt' });
+    expect(refusal.status).toBe('refused');
+    if (refusal.status !== 'refused') return;
+    expect(refusal.code).toBe('unknown_action');
+    expect(refusal.reason).toContain('Headbutt');
+    // A refusal that cost nothing, as every pre-flight refusal here does.
+    expect(t.campaign.state().rollsIssued).toBe(0);
+  });
+
+  it('refuses a swing whose numbers would come from two places', () => {
+    const t = pack('two-sources');
+    expectOk(t.call('add_creature', { id: 'snarl', monsterId: 'goblin-warrior' }));
+    expectOk(t.call('place_creature', { who: 'snarl', fromCreature: 'fang', feet: 5, bearing: 90 }));
+
+    const refusal = t.call('attack', {
+      attacker: 'snarl',
+      target: 'grish',
+      weapon: 'scimitar',
+      action: 'Scimitar',
+    });
+    expect(refusal.status).toBe('refused');
+    if (refusal.status !== 'refused') return;
+    expect(refusal.code).toBe('two_attacks');
+  });
+
+  /**
+   * And the other half of what a door owes: a fact merely missing comes back
+   * as homework rather than as a verdict, with the tool that would settle it
+   * named on *this* surface.
+   */
+  it('asks where the creature is standing rather than refusing the Bite', () => {
+    const t = table('unplaced');
+    room(t);
+    expectOk(t.call('add_creature', { id: 'fang', monsterId: 'wolf' }));
+    expectOk(t.call('add_creature', { id: 'grish', monsterId: 'goblin-warrior' }));
+    expectOk(t.call('place_creature', { who: 'fang', fromLandmark: 'the fire', feet: 0 }));
+
+    const asked = t.call('attack', { attacker: 'fang', target: 'grish', action: 'Bite' });
+    expect(asked.status).toBe('needs-context');
+    if (asked.status !== 'needs-context') return;
+    expect(asked.establish.map((one) => one.kind)).toContain('position');
+    expect(asked.establish[0]!.tools).toContain('place_creature');
+    // And the question is asked about the Bite by name, which is the field
+    // arriving: an Unarmed Strike would have asked the same question about a
+    // different reach.
+    expect(asked.establish[0]!.because).toContain('Bite');
+    expect(t.campaign.state().rollsIssued).toBe(0);
+  });
+});

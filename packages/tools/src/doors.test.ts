@@ -53,6 +53,7 @@ import {
   createSurface,
   TOOLS,
   TOOL_NAMES,
+  type ContextRequestKind,
   type InvalidOutcome,
 } from '@ie/tools';
 
@@ -429,7 +430,7 @@ const DECLARATIONS: Readonly<Record<string, { readonly tool: string } | { readon
   },
   declareSpellcasting: {
     withheld:
-      'the same: it writes an NPC’s spell list and the ability its save DC comes from, which is authorship of a stat block rather than a fact the table observed.',
+      'the same: it writes an NPC’s spell list and the ability its save DC comes from, which is authorship of a stat block rather than a fact the table observed. It is the one withholding a *refusal* waits on — see `UNDECLARABLE` below, where `unknown_spellcasting` is recorded as a question this surface cannot be given a door to.',
   },
   declareDawn: {
     withheld:
@@ -691,10 +692,15 @@ const ANSWERS: Readonly<Record<string, Answer>> = {
   },
 
   // — a use that mints hit points for the holder to divide ————————————————
-  division_required: {
-    unanswerable:
-      'not a field **yet**, and unlike `slot_level_required` the tool it belongs to is already here: `use_pool_option` carries `damageType` and not the shares SRD Preserve Life asks for — "divide those Hit Points among them", which is a list of creatures and amounts the Cleric chooses. The engine command takes `among` and refuses without it; the day the tool grows the field this becomes `use_pool_option.among` and moves up with the rest.',
-  },
+  // SRD Preserve Life's "divide those Hit Points among them", which is a list
+  // of creatures and amounts the Cleric chooses and nothing here could choose
+  // for them. It is the one field on this surface that carries numbers, and it
+  // is not the rule bending: no die is thrown by this option at all, the budget
+  // is five times the Cleric level read off the sheet, and every share is
+  // refused rather than trusted — against the budget, against thirty feet,
+  // against half each creature's maximum and against the types the option will
+  // not touch. `holdings.test.ts` drives both halves.
+  division_required: { fields: ['use_pool_option.among'] },
 
   // — and two that are not a caller's to answer at all —————————————————————
   missing_field: {
@@ -771,5 +777,192 @@ describe('every choice a creation refusal names can be sent through the door', (
     expect(
       shutDoors(creationFields().map((field) => `create_character.choices.${field}`)),
     ).toEqual([]);
+  });
+});
+
+// — guard five: a request's kind is the kind of the fact it asks for ————————
+
+/**
+ * Which `ContextRequest.kind` each of the engine's declarations settles, or
+ * `null` for a fact no kind names.
+ *
+ * **This is the guard the fifth gap needed, and it is the general form of it.**
+ * `attuneItem` raised a request tagged `creature` whose `satisfyWith` said
+ * `declareSpellcasting` — so `doorsFor('creature')` answered `create_character`
+ * and `add_creature`, and an orchestrator following the request was told to
+ * create a creature that was standing in front of it. Every other guard in
+ * this file passed: the kind had doors, the doors had fields, the declaration
+ * was recorded. What nothing asked was whether the kind and the command were
+ * the *same fact*, and they were not.
+ *
+ * The left-hand side is derived exactly as {@link DECLARATIONS}'s is — every
+ * `declare*` command the engine exports — so a new declaration has to say
+ * which kind it settles, or say `null` and mean it.
+ *
+ * **`null` is not a hole to be filled in later.** Four of these are facts the
+ * engine can be told and *no kind names*, and they are `null` because no
+ * command stops on them: `declareCoverBetween`, `declareDifficultTerrain` and
+ * `declareFalling` are declared before the command that would want them, and
+ * the three withheld ones are never asked for at all. The doctrine's rule is
+ * the reason — "a kind is added the first time a command must stop on a fact
+ * that already has a declaring command" — and adding one before that is how a
+ * kind ends up with no door.
+ */
+const KIND_SETTLED_BY: Readonly<Record<string, ContextRequestKind | null>> = {
+  declareCreatureSide: 'side',
+  declareCreatureType: 'creature-type',
+  declareSightBetween: 'visibility',
+  declareCoverBetween: null,
+  declareDifficultTerrain: null,
+  declareFalling: null,
+  declareCreatureDead: null,
+  declareResourcePool: null,
+  declareSpellcasting: null,
+  declareDawn: null,
+};
+
+/** Every request the engine raises, as the kind it is tagged and the prose. */
+function raisedRequests(): readonly { readonly file: string; readonly kind: string; readonly satisfyWith: string }[] {
+  const found: { file: string; kind: string; satisfyWith: string }[] = [];
+  for (const { file, text } of engineSources()) {
+    for (const match of text.matchAll(/satisfyWith\s*:\s*([^\n]*)/g)) {
+      const above = [...text.slice(0, match.index).matchAll(/kind\s*:\s*'([a-z-]+)'/g)];
+      const nearest = above[above.length - 1];
+      expect(nearest, `a request in ${file} with no kind above it`).toBeDefined();
+      found.push({ file, kind: nearest![1]!, satisfyWith: match[1]! });
+    }
+  }
+  return found;
+}
+
+describe('a request asks for the fact its kind names', () => {
+  it('records exactly the declarations the engine exports, kind by kind', () => {
+    expect(Object.keys(KIND_SETTLED_BY).sort()).toEqual(
+      [...engineDeclarations().commands.keys()].sort(),
+    );
+  });
+
+  it('names a kind the vocabulary really has, for every one it does name', () => {
+    const settled = Object.values(KIND_SETTLED_BY).filter((kind) => kind !== null);
+    expect(settled.length).toBeGreaterThan(0);
+    for (const kind of settled) expect(CONTEXT_REQUEST_KINDS).toContain(kind);
+  });
+
+  it('sweeps something: the engine raises requests naming a declaration', () => {
+    const naming = raisedRequests().filter((one) => /\bdeclare[A-Z]/.test(one.satisfyWith));
+    expect(naming.length).toBeGreaterThan(0);
+    expect(naming.map((one) => one.kind)).toContain('creature-type');
+  });
+
+  /**
+   * The claim. A request that names a declaration is asking for *that fact*,
+   * so its kind must be the kind that declaration settles — and a request that
+   * names a declaration settling **no** kind is asking a question this surface
+   * has no door for, which belongs in {@link UNDECLARABLE} rather than wearing
+   * somebody else's tag.
+   */
+  it('tags a request that names a declaration with the kind that declaration settles', () => {
+    const mistagged: string[] = [];
+    for (const request of raisedRequests()) {
+      const named = /\b(declare[A-Z]\w*)/.exec(request.satisfyWith);
+      if (named === null) continue;
+      const command = named[1]!;
+      if (!(command in KIND_SETTLED_BY)) continue;
+      const settles = KIND_SETTLED_BY[command]!;
+      if (settles === request.kind) continue;
+      mistagged.push(
+        `${request.file}: a request tagged '${request.kind}' is answered by ${command}, which settles ${
+          settles === null ? 'no kind at all' : `'${settles}'`
+        }`,
+      );
+    }
+    expect(mistagged).toEqual([]);
+  });
+
+  /** And the detector finds the breach it was written about, written out. */
+  it('and the detector catches the mis-tag it was written for', () => {
+    const offending = "kind: 'creature',\n satisfyWith: `a declareSpellcasting command for ${id}`,";
+    const above = [...offending.matchAll(/kind\s*:\s*'([a-z-]+)'/g)];
+    const named = /\b(declare[A-Z]\w*)/.exec(offending)!;
+    expect(above[above.length - 1]![1]).toBe('creature');
+    expect(KIND_SETTLED_BY[named[1]!]).toBeNull();
+    // Which is the comparison the guard above makes, and it fails.
+    expect(KIND_SETTLED_BY[named[1]!]).not.toBe('creature');
+  });
+});
+
+// — the gaps: a question this surface cannot be given a door to ————————————
+
+/**
+ * Every refusal that is **homework with no door**, and what it carries instead.
+ *
+ * The doctrine's rule ends with the case this table is: "…or for one no
+ * command can declare (that is a gap in the doors, and `doors.test.ts` is
+ * where it is recorded)". This is that record, widened by one word — the
+ * command exists, and it is the *door* that cannot, which lands in the same
+ * place for a caller.
+ *
+ * **A gap is recorded rather than tagged.** The temptation with
+ * `unknown_spellcasting` was to give it a `spellcasting` kind, and that is the
+ * move this file exists to refuse: a kind must have a door on *this* surface
+ * — `boundary.test.ts` iterates the whole union against the model's tools —
+ * and the only door onto this fact is `declareSpellcasting`, which writes an
+ * NPC's spell list and the ability its save DC comes from. A model may not
+ * author a stat block, so the kind would arrive shut on the one surface that
+ * has to answer for it. Tagging it `creature` instead is what was there, and
+ * it was worse than nothing: it sent an orchestrator to `create_character` for
+ * a creature already in the game.
+ *
+ * So the refusal keeps its `needs-context` kind — the fact really is merely
+ * missing, and a table running the engine directly can settle it — carries no
+ * `ContextRequest` at all, which `result.ts` allows in as many words
+ * ("optional even there ... the reason says so"), and says in its prose what
+ * would settle it. `inventory.test.ts` drives it through a `Campaign` and
+ * asserts each half.
+ */
+const UNDECLARABLE: Readonly<Record<string, { readonly command: string; readonly why: string }>> = {
+  unknown_spellcasting: {
+    command: 'declareSpellcasting',
+    why: 'a monster arrives through `add_creature` with an empty spellcasting state whatever its block prints, so "does this creature cast anything" is a question nobody has put — and the only command that answers it writes a spell list and a save DC ability, which is authorship of a stat block and is withheld from both surfaces. A kind here would be a kind with no door, which `boundary.test.ts` refuses by construction.',
+  },
+};
+
+describe('a question with no door is recorded as one, and carries its answer in prose', () => {
+  it('names a command the engine really exports and really withholds', () => {
+    const declarations = engineDeclarations().commands;
+    for (const [code, gap] of Object.entries(UNDECLARABLE)) {
+      expect([...declarations.keys()], code).toContain(gap.command);
+      const answer = DECLARATIONS[gap.command];
+      expect(answer, `${code}: ${gap.command} is a recorded declaration`).toBeDefined();
+      // A gap is only a gap while the door is shut. The day one opens, this
+      // entry has to be deleted deliberately rather than left to rot.
+      expect('withheld' in answer!, `${code}: ${gap.command} is withheld`).toBe(true);
+      expect(gap.why.length).toBeGreaterThan(40);
+    }
+  });
+
+  it('is a code the engine really writes, and it settles no kind', () => {
+    const raised = new Set(engineSources().flatMap(({ text }) => [
+      ...text.matchAll(/'(unknown_[a-z0-9_]+)'/g),
+    ].map((match) => match[1]!)));
+    for (const [code, gap] of Object.entries(UNDECLARABLE)) {
+      expect([...raised], code).toContain(code);
+      expect(KIND_SETTLED_BY[gap.command], code).toBeNull();
+    }
+  });
+
+  /**
+   * And the whole of the record is honest: the engine raises no request at all
+   * beside a gap's command, on either tag. This is what stops the entry above
+   * from being a sentence somebody wrote while the mis-tag went on shipping.
+   */
+  it('and no request anywhere names a command that settles no kind', () => {
+    const naming: string[] = [];
+    for (const request of raisedRequests()) {
+      const named = /\b(declare[A-Z]\w*)/.exec(request.satisfyWith);
+      if (named === null) continue;
+      if (KIND_SETTLED_BY[named[1]!] === null) naming.push(`${request.file}: ${named[1]!}`);
+    }
+    expect(naming).toEqual([]);
   });
 });

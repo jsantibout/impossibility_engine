@@ -316,6 +316,78 @@ describe('attunement is the sentence that switches a magic item on', () => {
     const out = expectRefused(t.call('end_attunement', { who: 'bram', item: 'bracers-of-defense' }));
     expect(out.code).toBe('not_attuned');
   });
+
+  /**
+   * SRD "Requires Attunement by a Spellcaster", asked of a creature nobody has
+   * said anything about — and the one refusal on this surface that is homework
+   * with no door to do it at.
+   *
+   * The engine is right to ask. A character's spellcasting is derived from the
+   * class table at creation, so an empty one is an answer; a *monster* arrives
+   * through `add_creature` with `noSpellcasting()` whatever its block prints,
+   * so an empty one there is a question nobody has put. `declareSpellcasting`
+   * is the command that would settle it, and `doors.test.ts` records it as
+   * withheld from **both** surfaces: it writes an NPC's spell list and the
+   * ability its save DC comes from, which is authorship of a stat block.
+   *
+   * **So what this asserts is that the question is asked honestly.** It used
+   * to arrive tagged `creature`, which made `doorsFor` answer `create_character`
+   * and `add_creature` — an orchestrator told to create a creature that is
+   * standing in front of it, and a loop it cannot get out of. A question with
+   * no door says so; a question pointed at the wrong door is worse than one
+   * with none, because the wrong door looks like progress.
+   */
+  it('asks whether a monster casts anything, and names no door it has not got', () => {
+    const t = party('spellcaster-wand');
+    expectOk(t.call('add_creature', { id: 'grish', monsterId: 'goblin-warrior' }));
+    expectOk(
+      t.rule('award_items', {
+        who: 'grish',
+        items: [{ id: 'wand-of-fireballs' }],
+        because: 'it was already holding it',
+      }),
+    );
+    expectOk(t.call('begin_rest', { who: 'grish', kind: 'short' }));
+
+    const asked = t.call('attune_item', { who: 'grish', item: 'wand-of-fireballs' });
+    expect(asked.status).toBe('needs-context');
+    if (asked.status !== 'needs-context') return;
+    expect(asked.code).toBe('unknown_spellcasting');
+    // It is homework rather than a verdict, and the prose says what would
+    // settle it and that nothing here can.
+    expect(asked.reason).toContain('grish');
+    expect(asked.reason).toContain('declareSpellcasting');
+
+    // And it sends nobody anywhere. A creature already in the game is not
+    // established by creating one, which is what the `creature` kind answers.
+    expect(asked.establish).toEqual([]);
+    const named = asked.establish.flatMap((one) => one.tools);
+    expect(named).not.toContain('create_character');
+    expect(named).not.toContain('add_creature');
+
+    // Nothing was spent asking, as a `needs-context` never is.
+    expect(attuned(t, 'grish')).toEqual([]);
+  });
+
+  /**
+   * And the distinction the mis-tag was blurring, kept: a creature whose
+   * spellcasting *is* established and is empty is a refusal, because nothing
+   * anybody declares changes the answer.
+   */
+  it('refuses the same wand to a character the class table says casts nothing', () => {
+    const t = party('no-caster');
+    expectOk(
+      t.rule('award_items', {
+        who: 'bram',
+        items: [{ id: 'wand-of-fireballs' }],
+        because: 'the barrow',
+      }),
+    );
+    expectOk(t.call('begin_rest', { who: 'bram', kind: 'short' }));
+
+    const out = expectRefused(t.call('attune_item', { who: 'bram', item: 'wand-of-fireballs' }));
+    expect(out.code).toBe('prerequisite_unmet');
+  });
 });
 
 // — handing over ——————————————————————————————————————————————————————————
