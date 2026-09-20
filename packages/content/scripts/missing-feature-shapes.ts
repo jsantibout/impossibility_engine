@@ -182,8 +182,8 @@ export type FeatureBlockerId = ShapeId | ItemShapeId | FeatureShapeId;
  * carry one — a Barbarian's Rage immunity, a Dwarf's Poison Resistance, a
  * Champion's Advantage on Death Saving Throws — because the engine does half
  * of what the book prints. Others carry none and have a half the vocabulary
- * could write today and nobody has: Reckless Attack's Advantage for the
- * attacker, Steady Aim's Speed of 0, the mark Precise Hunter reads. Both are
+ * could write today and nobody has: Open Hand Technique's Topple, Steady Aim's
+ * Speed of 0, the mark Precise Hunter reads. Both are
  * the same claim — *this sentence is not what is standing in the way* — and
  * recording both is what keeps a shape's *finishes* column counting what is
  * genuinely left rather than what somebody has not got round to.

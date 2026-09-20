@@ -9,6 +9,7 @@ import { resolveAttack, resolveTurn } from './commands.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
 import { extendContent, parseClassDefinition } from './content.js';
 import { remaining } from './resources.js';
+import { spellSaveDcWith } from './character.js';
 
 /**
  * An effect list bought by **a hit that has already landed**.
@@ -171,12 +172,13 @@ const stunned = (state: GameState): boolean => has(state, 'stunned');
  * A seed the Constitution save fails on, and one it makes.
  *
  * The die is the engine's and the DC is the feature's, so which way a save
- * goes is a fact about the seed: these two are chosen so that each branch of
- * the rule is exercised once, and nothing here asserts a number the engine
- * rolled.
+ * goes is a fact about the seed. These two are chosen to fall either side of
+ * the DC by one — a natural 12 and a natural 13 — so that the pair *pins* the
+ * number rather than agreeing with whatever the engine used: a DC of 12 or 14
+ * would fail the test below.
  */
-const FAILS = 'stun';
-const SAVES = 'g';
+const FAILS = 's9';
+const SAVES = 's51';
 
 describe('Stunning Strike is bought by the hit rather than by an action', () => {
   /**
@@ -202,21 +204,40 @@ describe('Stunning Strike is bought by the hit rather than by an action', () => 
   });
 
   /**
-   * The DC is the holder's own, derived rather than printed — and a static
-   * number: a level 5 Monk with Wisdom 15 saves against 8 + 3 + 2.
+   * The DC is the holder's own, derived rather than printed.
+   *
+   * SRD Monk's Focus: "Some features that use Focus Points require your target
+   * to make a saving throw. The save DC equals 8 plus your Wisdom modifier and
+   * Proficiency Bonus" — 8 + 2 + 3 for this Monk, which is the number asserted
+   * here and the ability the sheet says it is read from. A Monk casts nothing,
+   * so a rider that fell back to a spell save DC would be short by the Wisdom.
    */
   it('rolls against the Monk’s own save DC, and the target’s own modifier', () => {
-    const out = swing(table(), { target: THUG, weapon: null, onHit: { feature: STUNNING, option: 'stun' } }, FAILS);
-    const save = out.events.find((e) => e.type === 'roll-recorded' && e.who === THUG);
-    if (save?.type !== 'roll-recorded') throw new Error('expected the target to have rolled');
+    const sheet = fold('seed', table()).creatures.shan!.sheet;
+    expect(sheet.hitOptions?.[0]?.ability).toBe('wis');
+    expect(spellSaveDcWith(sheet, 'wis')).toBe(13);
+
+    // And the rider rolls against *that* number: two seeds, one either side of
+    // it, and the naturals are pinned so the pair says 13 rather than agreeing
+    // with whatever the engine used.
+    const failed = swing(table(), { target: THUG, weapon: null, onHit: { feature: STUNNING, option: 'stun' } }, FAILS);
+    const made = swing(table(), { target: THUG, weapon: null, onHit: { feature: STUNNING, option: 'stun' } }, SAVES);
+    const rolled = (out: { readonly events: readonly GameEvent[] }) => {
+      const save = out.events.find((e) => e.type === 'roll-recorded' && e.who === THUG);
+      if (save?.type !== 'roll-recorded') throw new Error('expected the target to have rolled');
+      return save;
+    };
+
     // The thug's Constitution is 10 and it is not proficient: nothing is added,
-    // so the die is the whole of the total.
-    expect(save.contributions.reduce((sum, one) => sum + one.amount, 0)).toBe(0);
-    expect(save.total).toBe(save.natural);
-    // SRD Monk's Focus: "The save DC equals 8 plus your Wisdom modifier and
-    // Proficiency Bonus" — 8 + 2 + 3 for this Monk, and the outcome is that
-    // number against the total rather than anything the rider decided.
-    expect(save.outcome).toBe(save.total >= 13 ? 'resisted' : 'affected');
+    // so the die is the whole of the total on both of them.
+    for (const save of [rolled(failed), rolled(made)]) {
+      expect(save.contributions.reduce((sum, one) => sum + one.amount, 0)).toBe(0);
+      expect(save.total).toBe(save.natural);
+    }
+    expect(rolled(failed).natural).toBe(12);
+    expect(rolled(failed).outcome).toBe('affected');
+    expect(rolled(made).natural).toBe(13);
+    expect(rolled(made).outcome).toBe('resisted');
   });
 
   /** SRD: "until the start of your next turn." */

@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import type { CharacterId } from '@ie/shared';
-import { TURN_MOMENTS, endOfNextTurn, startOfNextTurn } from './time.js';
+import { TURN_ANCHORS, TURN_MOMENTS, endOfNextTurn, startOfNextTurn } from './time.js';
 
 /**
  * The moments of a turn are named once, and every reader says the name.
@@ -160,6 +160,19 @@ describe('the turn vocabulary is named once', () => {
    * names declares both pairs, so a vocabulary that moved out of it takes the
    * exemption with it rather than leaving a hole behind.
    */
+  /**
+   * And the anchors as **data** say the same two words the constructors do.
+   *
+   * `TurnAnchor` is erased, so `TURN_ANCHORS` — which the content validator
+   * reads, because a class file arriving as JSON was never shown to the
+   * compiler — is a list nothing could hold to the type it claims to be.
+   * `satisfies` holds each entry to the type; this holds the type to the
+   * entries, through the same two constructors {@link PAIRS} is read off.
+   */
+  it('keeps the anchors as data equal to the anchors as constructors', () => {
+    expect([...TURN_ANCHORS].sort()).toEqual([...(PAIRS[1] ?? [])].sort());
+  });
+
   it('exempts the file that declares the vocabulary, and only for declaring it', () => {
     const declaring = source(VOCABULARY);
     expect(declaring).toContain('export const TURN_MOMENTS = [');

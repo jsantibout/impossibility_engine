@@ -559,7 +559,7 @@ describe('the features blocked by nothing', () => {
    * An `'expressible'` clause says *this sentence is not what is standing in
    * the way* — either because the engine already does that half, as it does
    * a Barbarian's Rage immunity, or because the vocabulary could write it and
-   * nobody has, as with the Advantage Reckless Attack hands its attackers. A
+   * nobody has, as with the Dexterity save Open Hand Technique's Topple is. A
    * feature carrying one is still blocked on whatever its other clauses name,
    * and is not finished business.
    */

@@ -320,18 +320,41 @@ describe('Frenzy rides on the stance Reckless Attack puts the Barbarian in', () 
     expect(spent(both)).toBe(true);
     expect(spent(rageOnly)).toBe(false);
     expect(spent(stanceOnly)).toBe(false);
+
+    // **And the dice reach the damage**, which the mark alone does not say.
+    // The same seed throws the same greatsword and the same Rage Damage in
+    // both, so what is left between them is the two d6s — and what is asserted
+    // is the *sentence*, "a number of d6s equal to your Rage Damage bonus",
+    // rather than a number the engine rolled: two dice cannot come to less
+    // than 2 or more than 12.
+    expect(both.damage! - rageOnly.damage!).toBeGreaterThanOrEqual(2);
+    expect(both.damage! - rageOnly.damage!).toBeLessThanOrEqual(12);
   });
 
   /** "with a Strength-based attack": the rapier in the other hand gets nothing. */
   it('deals nothing on an attack made with Dexterity', () => {
-    const out = swing(reckless(raging(fighting(table()))), {
+    // Forced to land, because a miss answers nothing about a rider.
+    const forced = [{ source: 'forced', flat: 40 }];
+    const frenzied = swing(reckless(raging(fighting(table()))), {
       target: GOBLIN,
       weapon: 'rapier',
       finesseAbility: 'dex',
+      attackBonuses: forced,
     });
-    expect(out.events.some((e) => e.type === 'feature-used' && e.feature === 'berserker:frenzy')).toBe(
-      false,
-    );
+    const calm = swing(raging(fighting(table())), {
+      target: GOBLIN,
+      weapon: 'rapier',
+      finesseAbility: 'dex',
+      attackBonuses: forced,
+    });
+    expect(
+      frenzied.events.some((e) => e.type === 'feature-used' && e.feature === 'berserker:frenzy'),
+    ).toBe(false);
+    // Both have to land, or this is two undefineds agreeing — and the damage is
+    // the same number, which is the half the mark cannot say.
+    expect(frenzied.attack!.hit).toBe(true);
+    expect(calm.attack!.hit).toBe(true);
+    expect(frenzied.damage).toBe(calm.damage);
   });
 
   /** "the **first** target you hit on your turn": once, and then not again. */
