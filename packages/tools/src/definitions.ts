@@ -121,6 +121,7 @@ import {
   availableChecks,
   awardItems,
   conferReaction,
+  continueCasting,
   beginRest,
   createCharacter,
   declareCoverBetween,
@@ -1526,6 +1527,56 @@ const RESOLVE_DECLARED_CAST = tool({
 });
 
 /**
+ * Keep at a rite that takes a minute — the half of "Longer Casting Times"
+ * somebody decides.
+ *
+ * SRD: "While you cast a spell with a casting time of 1 minute or more, you
+ * must take the Magic action on **each of your turns**, and you must maintain
+ * Concentration while you do so." The other half — a turn that ends without it
+ * — is derived at the boundary and writes no event, because nobody decides
+ * that a turn ended. This is the half that is a decision, and it had no door:
+ * a casting of a minute declared in a fight could not survive its own caster's
+ * next turn whatever the caller did, which made every long casting in the
+ * catalogue uncastable in combat from the surface that exists to cast spells.
+ *
+ * **It restates nothing and carries no number**, which is `resolve_declared_
+ * cast`'s rule and for its reason: the spell, the level and the targets were
+ * settled at the declaration, and what this call says is that the caster spent
+ * this turn on the rite. The slot is still untouched — SRD: "If your
+ * Concentration is broken, the spell fails, but you don't expend a spell slot"
+ * — and `resolve_declared_cast` is still what finishes it once the clock has
+ * run.
+ *
+ * **The turn it was declared on needs no call.** That turn's Magic action
+ * *was* the declaration, so asking for a second is refused `no_action` by the
+ * economy, which is the honest refusal because it is the economy that says so.
+ */
+const CONTINUE_CASTING = tool({
+  name: 'continue_casting',
+  description:
+    'Spend this turn’s Magic action keeping at a spell whose casting time is a minute or more. SRD requires it on each of the caster’s turns while the rite runs: a turn that ends without it fails the spell, and no slot is spent when it does. Name only whose casting it is and which one — everything else was settled when it was declared, and `look` lists the open ones under `owed.pendingCastings`. When the time has passed, `resolve_declared_cast` is what finishes it.',
+  mutates: true,
+  input: z.object({
+    caster: creatureId.describe('Whose rite it is. Nobody else may keep at it.'),
+    castingId: z
+      .string()
+      .min(1)
+      .describe('From the cast_spell that declared it, or from `look`’s `owed.pendingCastings`.'),
+  }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      continueCasting(
+        context.campaign.state(),
+        who(args.caster),
+        args.castingId,
+        identity(context),
+      ),
+      { castingId: args.castingId },
+    ),
+});
+
+/**
  * Acting through a spell that is still running — and the only door `via` has.
  *
  * **It is here because `route_required` is otherwise unanswerable.** The
@@ -2749,6 +2800,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   BEGIN_REST,
   CAST_SPELL,
   CONFER_REACTION,
+  CONTINUE_CASTING,
   CREATE_CHARACTER,
   DECLARE_COVER,
   DECLARE_CREATURE_TYPE,
