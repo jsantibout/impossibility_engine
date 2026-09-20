@@ -108,10 +108,95 @@ export const HitPointsSchema = z.object({
   formula: z.string().nullable(),
 });
 
-/** A named trait, action, bonus action, reaction, or legendary action. */
+/**
+ * One typed slice of an attack's damage, as a stat block prints it.
+ *
+ * `5 (1d6 + 2) Piercing damage` is all four fields: the average the book
+ * states, the dice, the modifier already folded into the parenthesis, and the
+ * type. The average is carried rather than recomputed because it is the
+ * book's own arithmetic and therefore the check on the other three — every
+ * expression in the SRD bestiary agrees with its dice, so one that does not
+ * is a misread line rather than a rounding argument.
+ */
+export const MonsterDamageSchema = z.object({
+  /** `1d6`, or null where the block prints a flat number and no dice. */
+  dice: z.string().regex(/^\d+d\d+$/).nullable(),
+  /** The modifier inside the parenthesis; 0 where there is none. */
+  flat: z.number().int(),
+  /** Lower-cased, in the engine's own vocabulary: `piercing`, `necrotic`. */
+  type: z.string().min(1),
+  /** The average the block prints outside the parenthesis. */
+  average: z.number().int().min(0),
+});
+export type MonsterDamage = z.infer<typeof MonsterDamageSchema>;
+
+/**
+ * The numbers a printed attack line states, read out of the book's template.
+ *
+ * A 2024 stat block does not describe its attacks in free English: it writes
+ * `_Melee Attack Roll:_ +4, reach 5 ft. _Hit:_ 5 (1d6 + 2) Piercing damage`,
+ * the same sentence in four hundred blocks. Everything before the rider is a
+ * number, and a number the engine must supply itself rather than ask a caller
+ * for — the same argument `adaptMonster` makes about a printed Armour Class.
+ *
+ * **What is deliberately not read is `rider`**: the clause after the damage,
+ * kept exactly as printed. "If the target is a Medium or smaller creature, it
+ * has the Prone condition" and "_Constitution Saving Throw:_ DC 10" are
+ * effects a hit buys, and structuring those is a vocabulary rather than a
+ * template. Dropping the sentence would quietly make the Wolf's bite a lesser
+ * attack than the book prints, so it travels with the numbers and the command
+ * that rolls the attack reports it.
+ */
+export const MonsterAttackSchema = z.object({
+  kind: z.enum(['melee', 'ranged', 'melee-or-ranged']),
+  /** The printed bonus to the attack roll, used whole. */
+  modifier: z.number().int(),
+  /** Feet of reach, for the melee half. Null for a purely ranged attack. */
+  reach: z.number().int().min(0).nullable(),
+  /** Normal and long range in feet. Null for a purely melee attack. */
+  range: z
+    .object({ normal: z.number().int().min(0), long: z.number().int().min(0) })
+    .nullable(),
+  damage: z.array(MonsterDamageSchema).min(1),
+  /** Everything the line says after the damage, verbatim. Null where it says nothing. */
+  rider: z.string().min(1).nullable(),
+});
+export type MonsterAttack = z.infer<typeof MonsterAttackSchema>;
+
+/**
+ * A trait whose sentence the parser recognised as a mechanic the engine has.
+ *
+ * One member today, and it is named for what it *does* rather than for the
+ * trait that prints it: the engine may not branch on a catalogue's names, and
+ * a second block printing the same rule under another name would then reach
+ * the same mechanic for free. The kinds grow one at a time, each one a
+ * sentence somebody read and matched — there is no interpreter here.
+ */
+export const MonsterTraitSchema = z.object({
+  /**
+   * SRD Pack Tactics: "has Advantage on an attack roll against a creature if
+   * at least one of its allies is within 5 feet of the creature and the ally
+   * doesn't have the Incapacitated condition."
+   */
+  kind: z.enum(['advantage-when-ally-is-within-5-feet-of-the-target']),
+});
+export type MonsterTrait = z.infer<typeof MonsterTraitSchema>;
+
+/**
+ * A named trait, action, bonus action, reaction, or legendary action.
+ *
+ * The name and the book's sentence are the whole of what this was, and they
+ * are still what a line *is*: `attack` and `trait` are what the parser could
+ * read out of that sentence, present only where it read something. A line
+ * carrying neither is prose, exactly as every line was.
+ */
 export const FeatureSchema = z.object({
   name: z.string().min(1),
   text: z.string().min(1),
+  /** The numbers of a printed attack line, where this line is one. */
+  attack: MonsterAttackSchema.optional(),
+  /** The mechanic this trait's sentence states, where the parser knows it. */
+  trait: MonsterTraitSchema.optional(),
 });
 export type Feature = z.infer<typeof FeatureSchema>;
 

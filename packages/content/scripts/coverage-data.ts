@@ -733,9 +733,30 @@ export interface BestiaryCoverage {
   readonly unread: number;
   /** Traits, actions, bonus actions, reactions and legendary actions, in total. */
   readonly printed: number;
+  /**
+   * Of those, lines the parser turned into something the engine executes.
+   *
+   * The column this table did not have and could not have: a printed line used
+   * to be a name and a sentence, so no fraction of it was claimed. Some lines
+   * now carry an `attack` or a `trait` the engine reads, and the honest report
+   * is the one that counts which rather than restating the whole pile as
+   * unread.
+   */
+  readonly read: number;
+  /**
+   * Blocks that can make an attack of their own.
+   *
+   * Not a restatement of `read`: a block is counted here when `adaptMonster`
+   * gives it at least one attack the engine can roll, which is the question a
+   * DM asks — can this creature fight with what its own block prints, or does
+   * somebody have to hand it a catalogue weapon first.
+   */
+  readonly acting: number;
   readonly rows: readonly {
     readonly kind: string;
     readonly printed: number;
+    /** Of those, the ones carrying structure the engine reads. */
+    readonly read: number;
   }[];
 }
 
@@ -779,18 +800,32 @@ export function auditBestiary(): BestiaryCoverage {
   const rows = kinds.map(([kind, field]) => ({
     kind,
     printed: SRD_CONTENT.monsters.reduce((sum, monster) => sum + monster[field].length, 0),
+    // A line is *read* when the parser got structure out of its sentence — an
+    // attack's numbers, a trait's mechanic. Counted off the catalogue's own
+    // lines rather than off a list of names, so a shape that stopped matching
+    // shows up as a smaller number rather than as nothing at all.
+    read: SRD_CONTENT.monsters.reduce(
+      (sum, monster) =>
+        sum +
+        monster[field].filter((line) => line.attack !== undefined || line.trait !== undefined)
+          .length,
+      0,
+    ),
   }));
 
   let defences = 0;
   let qualified = 0;
   let unread = 0;
+  let acting = 0;
   for (const monster of SRD_CONTENT.monsters) {
     defences += monster.vulnerabilities.length + monster.resistances.length + monster.immunities.length;
     // The id is inert: nothing below reads it, and the adapter is asked here
-    // only for how it sorted the defence run.
+    // only for how it sorted the defence run — and now for whether the block
+    // reached the game able to attack with what it prints.
     const adapted = adaptMonster(monster, asCharacterId(monster.id));
     qualified += adapted.defenses.qualified.length;
     unread += adapted.caveats.length;
+    if ((adapted.sheet.stated?.attacks ?? []).length > 0) acting += 1;
   }
 
   return {
@@ -800,6 +835,8 @@ export function auditBestiary(): BestiaryCoverage {
     qualified,
     unread,
     printed: rows.reduce((sum, row) => sum + row.printed, 0),
+    read: rows.reduce((sum, row) => sum + row.read, 0),
+    acting,
     rows,
   };
 }

@@ -3,6 +3,8 @@ import { SPELL_DEFINITIONS, SRD_CONTENT, SRD_MAGIC_ITEMS } from '@ie/content';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { SPELL_INDEX, spellById } from '@ie/srd';
+import { adaptMonster } from '@ie/engine';
+import { asCharacterId } from '@ie/shared';
 import {
   PARTIAL_SPELLS,
   VERIFIED_SPELLS,
@@ -371,9 +373,13 @@ describe('the magic-item counts keep entries and instances apart', () => {
  *
  * So the tests here hold three things: the catalogue carries every block the
  * parser produced, the printed-line count is every line of every block, and
- * **a printed line is still prose** — the moment the parser structures one,
- * the last test goes red and the row has to grow a column rather than keep
- * claiming the same thing about a different population.
+ * **a printed line is prose unless the parser read it**, in which case it is
+ * counted in a column of its own. That third test used to say a line held
+ * nothing but a name and a sentence, and it went red the day the parser
+ * structured the first attack line — exactly as it was written to. The row
+ * grew the column rather than going on claiming the same thing about a
+ * different population, and the test now holds the two fields a read line may
+ * carry, so a third one cannot arrive uncounted either.
  */
 describe('the bestiary row counts blocks, and the prose it cannot read', () => {
   const bestiary = auditBestiary();
@@ -421,12 +427,13 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
   });
 
   /**
-   * The claim the row would be dishonest without. A printed line is a name and
-   * the book's sentence: no attack bonus, no damage die and no save DC is read
-   * out of one, which is why nothing counts them as executed and why the
-   * engine's own `addCreature` carries none of them into the game.
+   * The claim the row would be dishonest without, in both directions. A
+   * printed line is a name and the book's sentence, **plus** at most the two
+   * fields a parser fills when it read that sentence — an attack's numbers or
+   * a trait's mechanic. A third field would be a population the row is not
+   * counting, so it fails here rather than quietly joining the *read* column.
    */
-  it('finds nothing in a printed line but a name and prose', () => {
+  it('finds nothing in a printed line but a name, prose, and what was read out of it', () => {
     const keys = new Set<string>();
     for (const monster of SRD_CONTENT.monsters) {
       for (const line of [
@@ -440,7 +447,46 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
       }
     }
 
-    expect([...keys].sort()).toEqual(['name', 'text']);
+    expect([...keys].sort()).toEqual(['attack', 'name', 'text', 'trait']);
+  });
+
+  /**
+   * *Read* is counted off the lines themselves, so it cannot drift from the
+   * population it is a fraction of — and it is a fraction: a report claiming
+   * more read lines than printed ones would be counting something else.
+   */
+  it('counts the read lines as a part of the printed ones', () => {
+    const read = SRD_CONTENT.monsters.reduce(
+      (sum, m) =>
+        sum +
+        [...m.traits, ...m.actions, ...m.bonusActions, ...m.reactions, ...m.legendaryActions].filter(
+          (line) => line.attack !== undefined || line.trait !== undefined,
+        ).length,
+      0,
+    );
+
+    expect(bestiary.read).toBe(read);
+    expect(bestiary.read).toBeGreaterThan(0);
+    expect(bestiary.read).toBeLessThan(bestiary.printed);
+    expect(bestiary.rows.reduce((sum, row) => sum + row.read, 0)).toBe(bestiary.read);
+  });
+
+  /**
+   * *Attacking* is the adapter's own answer rather than a second reading of
+   * the same lines: a block counts when `addCreature` would give the creature
+   * an attack the engine can roll. It is smaller than the carried pile — a
+   * Commoner prints no attack the parser read, and several blocks act only
+   * through prose — and that gap is the honest part of the column.
+   */
+  it('counts the blocks that can attack with what they print', () => {
+    const attacking = SRD_CONTENT.monsters.filter(
+      (monster) =>
+        (adaptMonster(monster, asCharacterId(monster.id)).sheet.stated?.attacks ?? []).length > 0,
+    ).length;
+
+    expect(bestiary.acting).toBe(attacking);
+    expect(bestiary.acting).toBeGreaterThan(0);
+    expect(bestiary.acting).toBeLessThan(bestiary.carried);
   });
 
   /**
@@ -469,7 +515,9 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
 
     expect(report).toContain('## Bestiary');
     expect(report).toContain(bestiaryRow(bestiary));
-    for (const row of bestiary.rows) expect(report).toContain(`| ${row.kind} | ${row.printed} |`);
+    for (const row of bestiary.rows) {
+      expect(report).toContain(`| ${row.kind} | ${row.printed} | ${row.read} |`);
+    }
   });
 });
 

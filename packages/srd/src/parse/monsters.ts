@@ -1,9 +1,13 @@
 import {
   CreatureSizeSchema,
+  MonsterAttackSchema,
   MonsterSchema,
   slugify,
   type Feature,
   type Monster,
+  type MonsterAttack,
+  type MonsterDamage,
+  type MonsterTrait,
   type ParseOutput,
   type ParseProblem,
 } from '../schemas.js';
@@ -159,6 +163,236 @@ function parseAbilities(block: string): Record<string, { score: number; modifier
   return out;
 }
 
+/**
+ * The thirteen damage types the book prints, which is also the whole of what
+ * the bestiary's attack lines use.
+ *
+ * Transcribed here rather than imported so `schemas.ts` stays the leaf the
+ * engine buys its shapes from. A word this list does not hold is not a damage
+ * type, and the line it appears in stays prose rather than becoming an attack
+ * that deals damage of a type nothing downstream knows.
+ */
+const DAMAGE_TYPES = [
+  'acid',
+  'bludgeoning',
+  'cold',
+  'fire',
+  'force',
+  'lightning',
+  'necrotic',
+  'piercing',
+  'poison',
+  'psychic',
+  'radiant',
+  'slashing',
+  'thunder',
+] as const;
+
+/**
+ * `_Melee Attack Roll:_ +4` and its two typographic variants.
+ *
+ * The bonus may be followed by "to hit" (one block) and by a parenthesised
+ * qualification the engine cannot evaluate — "(with Advantage if the target is
+ * Grappled by the ankheg)", nine blocks. The qualification is captured rather
+ * than skipped: dropping it would take Advantage away from an attack the book
+ * grants it to, silently, which is the class of failure this repository calls
+ * its worst.
+ */
+const ATTACK_HEAD =
+  /^_(Melee|Ranged|Melee or Ranged) Attack Roll:_\s*([+−–-]?\d+)(?:\s+to hit)?\s*(?:\(([^)]*)\))?\s*,\s*([\s\S]*)$/;
+
+/**
+ * `reach 5 ft.` — and `reach 5 feet`, which four lines print instead. Both
+ * spellings are the book's; requiring the abbreviation left the Djinni, the
+ * Eagle and the Giant Rat swinging at nothing.
+ */
+const REACH = /reach\s+(\d+)\s*(?:ft|feet)/i;
+const RANGE = /range\s+(\d+)(?:\/(\d+))?\s*(?:ft|feet)/i;
+
+/** `5 (1d6 + 2) Piercing damage`, and the flat `1 Bludgeoning damage`. */
+const ROLLED_DAMAGE = /^\s*(\d+)\s*\((\d+)d(\d+)(?:\s*([+−–-])\s*(\d+))?\)\s+([A-Za-z]+)\s+damage/;
+const FLAT_DAMAGE = /^\s*(\d+)\s+([A-Za-z]+)\s+damage/;
+
+/**
+ * A component that is only dealt sometimes — and therefore is not a component.
+ *
+ * SRD Goblin Warrior: "5 (1d6 + 2) Slashing damage, plus 2 (1d4) Slashing
+ * damage **if the attack roll had Advantage**." Read as a second component
+ * that goblin deals 1d4 extra on every hit it ever makes. The condition is
+ * attached to the damage it follows with no sentence between them, which is
+ * what this recognises: a full stop before the clause makes it a rider on the
+ * attack instead, and riders are kept as prose.
+ */
+const CONDITIONAL = /^\s+(?:if|unless|when|while)\b/i;
+
+/** `, plus` and ` plus` — the only continuation that adds damage. */
+const PLUS = /^\s*(?:,\s*)?plus\s+/;
+
+/**
+ * Two lines whose markup the source got wrong, corrected the way
+ * `overrides.ts` corrects three ability tables: by naming the exact string.
+ *
+ * `Melee or _Ranged Attack Roll:_` opens its italics one word late (the
+ * werebear and the wereboar). Left alone, two attacks stay prose for a
+ * misplaced underscore.
+ */
+const normaliseAttackMarkup = (text: string): string =>
+  text.replace(/^Melee or _Ranged Attack Roll:_/, '_Melee or Ranged Attack Roll:_');
+
+/**
+ * The numbers in a printed attack line, or null where there are none to read.
+ *
+ * **Null is the ordinary answer and the safe one.** Multiattack, a breath
+ * weapon, a trait's sentence and anything written in a shape this does not
+ * recognise all return it, and the line stays what every line used to be: a
+ * name and the book's English. Nothing here guesses at a number.
+ *
+ * What it reads is the template the 2024 stat blocks are written to — the kind
+ * of attack, the bonus, the reach or the range, and the damage components the
+ * `_Hit:_` clause chains with "plus". What it stops at is the first thing that
+ * is not one of those: an alternative damage ("or 18 (4d6 + 4) if the chimera
+ * had Advantage"), a condition the hit imposes, a save the hit buys. All of it
+ * comes back in `rider`, verbatim, for the command to report and a DM to
+ * apply.
+ */
+export function parseAttackLine(text: string): MonsterAttack | null {
+  const normalised = normaliseAttackMarkup(text.trim());
+  const [head, ...afterHit] = normalised.split(/_Hit:_/);
+  if (head === undefined || afterHit.length === 0) return null;
+
+  const opening = ATTACK_HEAD.exec(head.trim());
+  if (opening === null) return null;
+
+  const [, kindWord, bonusRaw, qualification, where] = opening;
+  const modifier = parseSignedNumber(bonusRaw!);
+  if (modifier === null) return null;
+
+  const kind =
+    kindWord === 'Melee' ? 'melee' : kindWord === 'Ranged' ? 'ranged' : 'melee-or-ranged';
+
+  const reachMatch = REACH.exec(where!);
+  const rangeMatch = RANGE.exec(where!);
+  const reach = reachMatch === null ? null : Number(reachMatch[1]);
+  // "range 120 ft." with no second number is a spell-like attack whose normal
+  // range is its long one — the Lich's Eldritch Burst and the Mage's Arcane
+  // Burst. Treating the absent half as zero would put every such attack beyond
+  // its own long range.
+  const range =
+    rangeMatch === null
+      ? null
+      : { normal: Number(rangeMatch[1]), long: Number(rangeMatch[2] ?? rangeMatch[1]) };
+
+  // A melee attack with no reach and a ranged one with no range are lines this
+  // did not understand, whatever else it matched.
+  if (kind !== 'ranged' && reach === null) return null;
+  if (kind !== 'melee' && range === null) return null;
+
+  const { damage, rest } = parseDamageChain(afterHit.join('_Hit:_'));
+  if (damage.length === 0) return null;
+
+  const rider = [qualification?.trim(), rest].filter((part) => part !== undefined && part !== '');
+
+  const attack = {
+    kind,
+    modifier,
+    reach,
+    range,
+    damage,
+    rider: rider.length === 0 ? null : rider.join('. '),
+  };
+
+  // Validated here rather than trusted: this is the one place in the parser
+  // that reads a rule out of a sentence, and a shape that does not satisfy its
+  // own schema must leave the line as prose rather than reach the catalogue.
+  const checked = MonsterAttackSchema.safeParse(attack);
+  return checked.success ? checked.data : null;
+}
+
+/**
+ * The damage the `_Hit:_` clause deals, and everything after it.
+ *
+ * The chain runs while the book says "plus" and the component it introduces
+ * carries no condition of its own. Everything from the first thing that is
+ * neither is `rest` — including a "plus" the chain refused, so nothing is lost
+ * on the way out.
+ */
+function parseDamageChain(hit: string): {
+  readonly damage: readonly MonsterDamage[];
+  readonly rest: string;
+} {
+  const damage: MonsterDamage[] = [];
+  let rest = hit;
+
+  for (;;) {
+    const before = rest;
+    const rolled = ROLLED_DAMAGE.exec(rest);
+    const flat = rolled === null ? FLAT_DAMAGE.exec(rest) : null;
+    const match = rolled ?? flat;
+    if (match === null) break;
+
+    const type = (rolled === null ? match[2]! : match[6]!).toLowerCase();
+    if (!DAMAGE_TYPES.some((known) => known === type)) break;
+
+    const after = rest.slice(match[0].length);
+    // A component the book only deals sometimes is not one. Roll back to where
+    // it started so the whole clause lands in the rider.
+    if (CONDITIONAL.test(after)) {
+      rest = before;
+      break;
+    }
+
+    if (rolled === null) {
+      damage.push({ dice: null, flat: Number(match[1]), type, average: Number(match[1]) });
+    } else {
+      const sign = match[4] === undefined ? 1 : match[4] === '+' ? 1 : -1;
+      damage.push({
+        dice: `${match[2]}d${match[3]}`,
+        flat: match[5] === undefined ? 0 : sign * Number(match[5]),
+        type,
+        average: Number(match[1]),
+      });
+    }
+
+    rest = after;
+    const plus = PLUS.exec(rest);
+    if (plus === null) break;
+    rest = rest.slice(plus[0].length);
+  }
+
+  return {
+    damage,
+    // The sentence the damage ended, and the markup around it, are the book's
+    // punctuation rather than anything a reader needs.
+    rest: rest.replace(/^[\s.,;—–-]+/, '').replace(/<br>/g, ' ').replace(/\s+/g, ' ').trim(),
+  };
+}
+
+/**
+ * SRD Pack Tactics, read off the sentence rather than off the trait's name.
+ *
+ * Eighteen blocks print it in two wordings that differ by one word ("an attack
+ * roll" against "attack rolls"), and both are matched here. Matching the
+ * *rule* rather than the heading is what keeps this honest in both directions:
+ * a block that printed the same sentence under another name would get the same
+ * mechanic, and one that printed a different rule under this name would not.
+ */
+const PACK_TACTICS =
+  /has Advantage on (?:an attack roll|attack rolls) against a creature if at least one of the .+?'s allies is within 5 feet of the creature and the ally doesn't have the Incapacitated condition/i;
+
+/**
+ * The mechanic a trait's sentence states, where the parser knows one.
+ *
+ * Null for all but a handful, and that is the honest answer: a stat block's
+ * traits are English, and what is read here is one sentence somebody matched
+ * by hand, not an interpreter.
+ */
+export function parseTraitShape(text: string): MonsterTrait | null {
+  if (PACK_TACTICS.test(text)) {
+    return { kind: 'advantage-when-ally-is-within-5-feet-of-the-target' };
+  }
+  return null;
+}
+
 function parseFeatures(lines: readonly string[]): Feature[] {
   const features: Feature[] = [];
   let current: { name: string; text: string[] } | null = null;
@@ -166,7 +400,20 @@ function parseFeatures(lines: readonly string[]): Feature[] {
   const flush = () => {
     if (current === null) return;
     const text = current.text.join('\n').trim();
-    if (text !== '') features.push({ name: current.name, text });
+    // The name and the sentence are what a line is; the two optional fields
+    // are what this parser could read out of the sentence, present only when
+    // it read something. Both detectors run over every section, because what a
+    // line *says* is not a property of the heading it is printed under.
+    if (text !== '') {
+      const attack = parseAttackLine(text);
+      const trait = parseTraitShape(text);
+      features.push({
+        name: current.name,
+        text,
+        ...(attack === null ? {} : { attack }),
+        ...(trait === null ? {} : { trait }),
+      });
+    }
     current = null;
   };
 

@@ -178,6 +178,9 @@ const AUDIT: readonly {
         'a Versatile weapon swung in two hands rolls a larger die. Nobody in either benchmark carries one — a Greatsword is two-handed outright and a Mace and a Scimitar are neither',
       ),
       finesseAbility: because('Strength or Dexterity on a Finesse weapon; no Finesse weapon is in play'),
+      action: because(
+        'which attack a monster’s own stat block prints it is making — a Wolf’s Bite rather than a weapon in its hands. A decision and not a number: the bonus, the reach and the dice are the block’s and the engine supplies every one of them, and what the caller says is only which line. It is the newest field on this command and the one with the strongest case for publishing, because without it every creature that fights with what its block prints has to be handed a catalogue weapon instead. What it waits on is the tool surface itself: the door is `packages/tools`, and a field published on a tool nobody has written is a field no caller can send',
+      ),
       modes: because(
         'Advantage and Disadvantage. The engine already derives every conditional source itself, and what is left is a DM granting it by fiat — a real DM power, and one that changes an outcome, so it wants deciding on its own evidence rather than as a parity tidy-up',
       ),

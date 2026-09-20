@@ -11,7 +11,7 @@ import type {
   TradeFeature,
 } from './standing.js';
 import type { ConferrableReaction, ReactionFeature } from './reactions.js';
-import type { Armor, WeaponMastery } from '@ie/srd';
+import type { Armor, MonsterAttack, MonsterTrait, WeaponMastery } from '@ie/srd';
 
 /**
  * Derived character statistics.
@@ -66,6 +66,17 @@ export interface ArmorTraining {
 }
 
 /**
+ * One attack a stat block prints, under the name it prints it: `Bite`.
+ *
+ * The line's own numbers — see `MonsterAttack` — plus the heading they were
+ * printed under, because that heading is how a caller names the attack and how
+ * a log reads afterwards.
+ */
+export interface StatedAttack extends MonsterAttack {
+  readonly name: string;
+}
+
+/**
  * Values a stat block states outright instead of deriving.
  *
  * A character's Armour Class follows from what they are wearing and their
@@ -73,6 +84,14 @@ export interface ArmorTraining {
  * throws, its skills and its proficiency bonus — a stat block can and does
  * carry numbers that no derivation would produce. Forcing a monster through
  * the character derivations would quietly change its numbers.
+ *
+ * **A block states what it *does* on the same terms it states what it is.**
+ * `+4, reach 5 ft., 5 (1d6 + 2) Piercing` is four printed numbers, and the
+ * Engine owing them to a caller rather than asking for them is the same rule
+ * that put the printed Armour Class here. So the two lists below are on this
+ * shelf beside the numbers rather than in the feature vocabulary a class is
+ * written in: nothing compiled them, nothing may end them, and a reader
+ * reaches them exactly where it reaches a monster's Armour Class.
  */
 export interface StatedValues {
   readonly armorClass?: number;
@@ -85,6 +104,22 @@ export interface StatedValues {
   readonly initiative?: number;
   readonly saves?: Partial<Record<Ability, number>>;
   readonly skills?: Partial<Record<Skill, number>>;
+  /**
+   * The attacks the block's Actions section prints, in printed order.
+   *
+   * Absent for every character and for a block whose attacks nobody could
+   * read, which are the same absence: this creature makes no attack the engine
+   * can roll on its own, and a caller who wants one names a weapon.
+   */
+  readonly attacks?: readonly StatedAttack[];
+  /**
+   * The mechanics the block's traits state, where the parser recognised one.
+   *
+   * A short list on purpose — a trait is English, and what is here is the
+   * handful of sentences somebody has matched. The rest of a creature's traits
+   * stay prose in the catalogue, where a DM reads them.
+   */
+  readonly traits?: readonly MonsterTrait[];
 }
 
 export interface CharacterSheet {

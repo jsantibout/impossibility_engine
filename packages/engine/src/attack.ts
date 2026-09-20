@@ -363,9 +363,54 @@ export interface StrikeStyleInPlay {
   readonly ability?: Ability;
 }
 
+/**
+ * An attack a stat block **states**, as it reaches one swing.
+ *
+ * The third way an attack's arithmetic can be settled, beside a weapon's and a
+ * spell's, and it is the simplest of the three: everything is printed. SRD
+ * Wolf: "_Melee Attack Roll:_ +4, reach 5 ft. _Hit:_ 5 (1d6 + 2) Piercing
+ * damage." The +4 is the whole bonus and the +2 is the whole modifier —
+ * neither is an ability's, neither is a Proficiency Bonus, and a pipeline that
+ * derived either would add it a second time.
+ *
+ * **`weapon: null` cannot say this**, for the reason {@link SpellAttack}
+ * records: that sentinel is an Unarmed Strike, which deals 1 plus Strength and
+ * rolls at Strength plus proficiency. A Wolf given it bites for 3 with a +4
+ * that happened to agree — the numbers of a creature nobody printed.
+ *
+ * Which of the two the swing is — melee or ranged — is settled by the command,
+ * because a block that prints both offers the attacker the choice and only the
+ * command can see the distance.
+ */
+export interface StatedAttackInPlay {
+  /** The printed name, for the log and for each damage component. */
+  readonly source: string;
+  /** The printed bonus to the attack roll, used whole. */
+  readonly modifier: number;
+  /** Whether this swing is the ranged half of the line. */
+  readonly ranged: boolean;
+  /** Every damage component the line prints, in printed order. */
+  readonly damage: readonly StatedDamage[];
+}
+
+/** One component of a stated attack's damage: `5 (1d6 + 2) Piercing`. */
+export interface StatedDamage {
+  readonly dice: string | null;
+  readonly flat: number;
+  readonly type: string;
+}
+
 export interface AttackOptions {
   /** The weapon used, or null for an Unarmed Strike. */
   readonly weapon: Weapon | null;
+  /**
+   * Set when the attack is one a stat block prints rather than a weapon's.
+   *
+   * Exclusive with {@link AttackOptions.spellAttack} and with a weapon: all
+   * three are answers to "where do this attack's numbers come from", and the
+   * command refuses a swing that names two.
+   */
+  readonly statedAttack?: StatedAttackInPlay;
   /**
    * A class feature that redefines this attack — the Monk's growing fist, and
    * whatever a homebrew class writes with the same grant.
@@ -453,6 +498,9 @@ const has = (weapon: Weapon | null, property: string): boolean =>
  */
 function isRangedAttack(options: AttackOptions): boolean {
   if (options.spellAttack !== undefined) return options.spellAttack.ranged;
+  // A printed line says which of the two it is in the same words a spell does
+  // — "_Ranged Attack Roll:_" — and has no weapon behind it to ask.
+  if (options.statedAttack !== undefined) return options.statedAttack.ranged;
   return options.weapon?.kind === 'ranged' || options.thrown === true;
 }
 
@@ -526,6 +574,11 @@ export function attackModifier(sheet: CharacterSheet, options: AttackOptions): n
   // item that printed a bonus has settled it for a wielder who has neither.
   if (options.spellAttack !== undefined) return options.spellAttack.modifier + situational;
 
+  // The same sentence about a stat block's line. "+4" is the bonus, whole; a
+  // Wolf's Strength modifier and a Proficiency Bonus are already inside it,
+  // and adding them again is adding them twice.
+  if (options.statedAttack !== undefined) return options.statedAttack.modifier + situational;
+
   const ability = attackAbility(sheet, options);
   const proficient = options.weapon === null || (options.proficient ?? true);
   return (
@@ -564,8 +617,13 @@ export function attackRollModes(sheet: CharacterSheet, options: AttackOptions): 
   // included. A spell attack whose bonus an item printed for a wielder with no
   // spellcasting ability involves no ability of theirs at all, so the rule has
   // nothing to read and gives no answer rather than reading the Strength the
-  // weaponless sentinel falls back to.
-  if (options.spellAttack === undefined || options.spellAttack.ability !== null) {
+  // weaponless sentinel falls back to. A stat block's printed line is the same
+  // absence: "+4" involves no ability of the Wolf's, and SRD gives a monster
+  // training with any armour in its own block besides.
+  if (
+    options.statedAttack === undefined &&
+    (options.spellAttack === undefined || options.spellAttack.ability !== null)
+  ) {
     modes.push(...characterRollModes(sheet, ability, null));
   }
 
@@ -633,8 +691,15 @@ export function rollAttack(
   // read off it, and its last line is the Unarmed Strike's `str` — which is a
   // real answer for a fist and a fabricated one for a spell attack whose bonus
   // an item printed. See {@link AttackResult.ability}.
+  // A stat block names no ability either: the line prints a bonus and nothing
+  // about where it came from, so the result says so rather than reporting the
+  // Strength the weaponless sentinel falls back to.
   const named =
-    options.spellAttack === undefined ? attackAbility(sheet, options) : options.spellAttack.ability;
+    options.statedAttack !== undefined
+      ? null
+      : options.spellAttack === undefined
+        ? attackAbility(sheet, options)
+        : options.spellAttack.ability;
   const mode = combineRollModes([...attackRollModes(sheet, options), ...(options.modes ?? [])]);
 
   // Flat bonuses ride on the d20's own modifier; dice bonuses are rolled after.
@@ -776,6 +841,58 @@ export function rollAttackDamage(
     options.withoutAbilityModifier === true ? Math.min(0, ownModifier) : ownModifier;
   const components: DamageComponent[] = [];
 
+  // **A stated attack's damage is printed whole**, so the weapon derivation
+  // below must not run beside it: `5 (1d6 + 2)` already holds whatever
+  // modifier the book put in it, and the Unarmed Strike's flat 1 belongs to
+  // nobody here. Every component the line prints is rolled in its own type,
+  // and the bonuses and extra damage the caller brought ride on top exactly as
+  // they do for a weapon — of the *first* component's type, which is the
+  // component a printed line leads with and the one the block calls the
+  // attack's own.
+  const stated = options.statedAttack;
+  if (stated !== undefined) {
+    for (const part of stated.damage) {
+      if (part.dice === null) {
+        components.push({
+          source: stated.source,
+          type: part.type,
+          roll: null,
+          flat: part.flat,
+          total: part.flat,
+        });
+        continue;
+      }
+      const notation = doubledOnCrit(part.dice, critical);
+      if (!notation.ok) return notation;
+      const outcome = rollRecorded(issuer, rng, notation.value, effects);
+      if (!outcome.ok) return outcome;
+      components.push({
+        source: stated.source,
+        type: part.type,
+        roll: outcome.value,
+        flat: part.flat,
+        total: outcome.value.total + part.flat,
+      });
+    }
+
+    const rest = rollAddedDamage(
+      issuer,
+      rng,
+      options,
+      critical,
+      effects,
+      components[0]?.type ?? stated.damage[0]!.type,
+    );
+    if (!rest.ok) return rest;
+    const all = [...components, ...rest.value];
+    return ok({
+      components: all,
+      critical,
+      reductions: [],
+      total: all.reduce((sum, c) => sum + Math.max(0, c.total), 0),
+    });
+  }
+
   // SRD Versatile: the parenthesised die applies when used with two hands.
   const normalDice =
     weapon === null
@@ -842,7 +959,38 @@ export function rollAttackDamage(
     });
   }
 
-  // Bonuses to the weapon's own damage type: a +1 weapon, Dueling, Rage.
+  const added = rollAddedDamage(issuer, rng, options, critical, effects, type);
+  if (!added.ok) return added;
+  const all = [...components, ...added.value];
+
+  const total = all.reduce((sum, c) => sum + Math.max(0, c.total), 0);
+
+  return ok({ components: all, critical, reductions: [], total });
+}
+
+/**
+ * Everything that rides along with an attack's own damage: the bonuses of its
+ * type, and the extra damage of other types.
+ *
+ * One function because there are two attacks that have their own damage — a
+ * weapon's and a stat block's printed line — and two copies of this walk is
+ * how the two would come to disagree about whether a Vicious Weapon's dice
+ * double on a critical.
+ *
+ * `ownType` is what a *bonus* is of: a bonus meets Resistance with the blade,
+ * so it takes the attack's own type rather than naming one.
+ */
+function rollAddedDamage(
+  issuer: RollIssuer,
+  rng: Rng,
+  options: AttackOptions,
+  critical: boolean,
+  effects: readonly DieEffect[],
+  ownType: string,
+): Result<readonly DamageComponent[]> {
+  const components: DamageComponent[] = [];
+
+  // Bonuses to the attack's own damage type: a +1 weapon, Dueling, Rage.
   for (const bonus of options.damageBonuses ?? []) {
     let roll: RecordedRoll | null = null;
     if (bonus.dice !== undefined) {
@@ -855,7 +1003,7 @@ export function rollAttackDamage(
     const flat = bonus.flat ?? 0;
     components.push({
       source: bonus.source,
-      type,
+      type: ownType,
       roll,
       flat,
       total: (roll?.total ?? 0) + flat,
@@ -882,9 +1030,7 @@ export function rollAttackDamage(
     });
   }
 
-  const total = components.reduce((sum, c) => sum + Math.max(0, c.total), 0);
-
-  return ok({ components, critical, reductions: [], total });
+  return ok(components);
 }
 
 /**

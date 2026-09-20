@@ -8,9 +8,9 @@ import {
   type DamageType,
   type Skill,
 } from '@ie/shared';
-import type { CreatureSize, Monster } from '@ie/srd';
+import type { CreatureSize, Monster, MonsterTrait } from '@ie/srd';
 import type { DamageDefenses } from './attack.js';
-import type { CharacterSheet, StatedValues } from './character.js';
+import type { CharacterSheet, StatedAttack, StatedValues } from './character.js';
 import { vitals, type Vitals } from './vitals.js';
 
 /**
@@ -190,6 +190,49 @@ function buildDefenses(monster: Monster): { defenses: MonsterDefenses; caveats: 
 
 const ABILITIES_IN_ORDER: readonly Ability[] = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
 
+/**
+ * The attacks the block's **Actions** section prints, and only that section.
+ *
+ * A heading in a stat block says what the thing under it costs. A Bonus Action
+ * attack carried across as an Attack action's would let a creature swing twice
+ * for one action, and a Reaction's would let it swing on somebody else's turn
+ * for free — both are wrong in the direction that matters, and neither is
+ * visible once the line has been flattened into a list. So one section is
+ * carried, the one whose cost the attack path already spends, and the rest are
+ * reported as prose a DM still applies.
+ *
+ * Legendary actions are outside this for the same reason and one more: they
+ * have an economy of their own that the engine does not yet hold.
+ */
+function printedAttacks(monster: Monster): readonly StatedAttack[] {
+  return monster.actions.flatMap((line) =>
+    line.attack === undefined ? [] : [{ name: line.name, ...line.attack }],
+  );
+}
+
+/** The trait shapes the parser read, in printed order. */
+const printedTraits = (monster: Monster): readonly MonsterTrait[] =>
+  monster.traits.flatMap((line) => (line.trait === undefined ? [] : [line.trait]));
+
+/**
+ * Find an attack a creature's stat block prints, by the name it prints it
+ * under.
+ *
+ * Case-insensitive, because the name is something a caller types and `Bite`
+ * and `bite` are the same attack. Null where the sheet states no such attack —
+ * which is every character, and every monster whose line nobody could read.
+ */
+export function printedAttackOf(sheet: CharacterSheet, name: string): StatedAttack | null {
+  const wanted = name.trim().toLowerCase();
+  return (
+    sheet.stated?.attacks?.find((attack) => attack.name.toLowerCase() === wanted) ?? null
+  );
+}
+
+/** Whether this creature's stat block states a trait of the given shape. */
+export const hasPrintedTrait = (sheet: CharacterSheet, kind: MonsterTrait['kind']): boolean =>
+  sheet.stated?.traits?.some((trait) => trait.kind === kind) === true;
+
 export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster {
   const { defenses, caveats } = buildDefenses(monster);
 
@@ -203,6 +246,9 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
     if (SKILL_SET.has(name)) skills[name as Skill] = bonus;
   }
 
+  const attacks = printedAttacks(monster);
+  const traits = printedTraits(monster);
+
   const stated: StatedValues = {
     armorClass: monster.ac,
     proficiencyBonus: monster.proficiencyBonus,
@@ -210,6 +256,11 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
     initiative: monster.initiative,
     saves,
     skills,
+    // Omitted rather than empty when the block prints none this parser could
+    // read, so a creature that does nothing the engine can roll carries no
+    // field saying so — the reading every optional field on the sheet takes.
+    ...(attacks.length === 0 ? {} : { attacks }),
+    ...(traits.length === 0 ? {} : { traits }),
   };
 
   const sheet: CharacterSheet = {

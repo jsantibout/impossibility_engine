@@ -33,13 +33,15 @@ import {
   rangeOf,
   rollAttack,
   rollAttackDamage,
+  type StatedAttackInPlay,
   type StrikeStyleInPlay,
 } from '../attack.js';
 import { type Bonus, bonusesFor, flatBonusTotal, type ModeSource } from '../bonuses.js';
 import { type Content } from '../content.js';
 import { canUseFeatureThisTurn, spendAttack, spendBonusAction } from '../combat.js';
 import { applyEvent, type CreatureState, type GameEvent, type GameState } from '../events.js';
-import { modifierFor, type CharacterSheet } from '../character.js';
+import { modifierFor, type CharacterSheet, type StatedAttack } from '../character.js';
+import { hasPrintedTrait, printedAttackOf } from '../monster.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import {
   canBeTargeted,
@@ -78,7 +80,7 @@ import {
 } from './mastery.js';
 import { mayAct } from './holds.js';
 import { quantityOf } from './inventory.js';
-import { defendingModes, enemyWithinFiveFeet } from './rolls.js';
+import { allyWithinFiveFeetOf, defendingModes, enemyWithinFiveFeet } from './rolls.js';
 import { consumedRollModifiers } from '../roll-modifiers.js';
 
 /**
@@ -115,10 +117,127 @@ const inPlay = (style: StrikeStyle): StrikeStyleInPlay => ({
  */
 const CLEAVE = 'weapon-mastery:cleave';
 
+/**
+ * Everything wrong with a swing that names an attack its creature prints, or
+ * null.
+ *
+ * All three refusals are answerable before anything is spent, which is where
+ * this is asked from — a swing refused after the Attack action is gone is a
+ * refusal with a footprint.
+ */
+function printedAttackProblem(sheet: CharacterSheet, command: AttackCommand): Err | null {
+  if (command.action === undefined) return null;
+
+  if (command.weapon !== null) {
+    return err(
+      'two_attacks',
+      `a swing is a weapon's or the creature's own, not both: ${command.action} and ${command.weapon} were both named`,
+    );
+  }
+
+  const printed = printedAttackOf(sheet, command.action);
+  if (printed === null) {
+    return err(
+      'unknown_action',
+      `no attack called ${command.action} is printed on this creature's stat block`,
+    );
+  }
+
+  // **SRD Divine Smite's window has nothing to hold here.** `attack-landed`
+  // pins what a held attack needs to roll its damage a command later, and what
+  // it pins is a weapon's catalogue id — there is nowhere in it for a printed
+  // line, and a hit whose damage could never be rolled is worse than a
+  // refusal. Nothing in the bestiary asks for the window.
+  if (command.hold === true) {
+    return err(
+      'cannot_hold',
+      `${printed.name} is an attack this creature's block prints, and its damage cannot be held for a second command`,
+    );
+  }
+
+  return null;
+}
+
+/**
+ * What a printed attack changes about the arithmetic, and which half of a line
+ * that prints two this swing is.
+ *
+ * SRD prints "Melee or Ranged Attack Roll: +6, reach 5 ft. or range 30/120
+ * ft." for a Javelin an Ogre may stab or throw, and the choice is the
+ * attacker's. `thrown` is the field that already means "thrown rather than
+ * swung" for a weapon, so it is the field that says so here rather than a
+ * second one meaning the same thing.
+ */
+function statedInPlay(
+  printed: StatedAttack | null,
+  thrown: boolean,
+): StatedAttackInPlay | undefined {
+  if (printed === null) return undefined;
+  return {
+    source: printed.name,
+    modifier: printed.modifier,
+    ranged: printed.kind === 'ranged' || (printed.kind === 'melee-or-ranged' && thrown),
+    damage: printed.damage.map((part) => ({
+      dice: part.dice,
+      flat: part.flat,
+      type: part.type,
+    })),
+  };
+}
+
+/**
+ * SRD Pack Tactics, decided from where the creatures are standing.
+ *
+ * The trait belongs to the **attacker** and the condition it reads is about
+ * the **target's** neighbours, which is why it cannot be a standing effect: a
+ * standing effect is hung on a creature and asks about that creature's own
+ * state, and nothing in that vocabulary can ask who is beside somebody else.
+ *
+ * Nothing is applied when nobody has said whose side a neighbour is on, and
+ * the withholding is reported rather than silent — the reading
+ * `enemyWithinFiveFeet` takes of the same absence, for the same reason: an
+ * unfired rule and a rule that checked and found nothing look identical from
+ * outside.
+ */
+function packTactics(
+  state: GameState,
+  sheet: CharacterSheet,
+  attacker: CharacterId,
+  target: CharacterId,
+): { readonly modes: readonly ModeSource[]; readonly unverified: readonly string[] } {
+  if (!hasPrintedTrait(sheet, 'advantage-when-ally-is-within-5-feet-of-the-target')) {
+    return { modes: [], unverified: [] };
+  }
+
+  const beside = allyWithinFiveFeetOf(state, attacker, target);
+  return {
+    modes: beside.near
+      ? [{ source: `an ally is within 5 feet of ${target}`, mode: 'advantage' }]
+      : [],
+    unverified: beside.unverified,
+  };
+}
+
 export interface AttackCommand extends CommandIdentity {
   readonly target: CharacterId;
   /** The weapon, by catalogue id, or null for an Unarmed Strike. */
   readonly weapon: string | null;
+  /**
+   * An attack this creature's own stat block prints, by its printed name —
+   * a Wolf's `Bite`.
+   *
+   * **The third source of an attack's numbers**, beside a catalogue weapon and
+   * a spell. It is a *name* rather than a line for the reason `addCreature`
+   * takes a monster's id rather than a stat block: an entry point that accepts
+   * an attack bonus is a door a model-authored +12 walks through, and nothing
+   * guards it. The line was pinned onto the creature when it entered the game,
+   * and the engine reads it from there.
+   *
+   * Exclusive with `weapon`: a swing whose numbers come from two places is a
+   * question with two answers, and it is refused rather than resolved in some
+   * order the caller cannot see.
+   */
+  readonly action?: string;
   /** Wielded in two hands, for a Versatile weapon. */
   readonly twoHanded?: boolean;
   /** Thrown rather than swung, for a Thrown weapon. */
@@ -302,6 +421,15 @@ export function resolveAttack(
     }
     if (attacker.vitals.dead) return err('dead', `${id} is dead and swings at nothing`);
 
+    // — the attack this creature's own block prints ————————————————————————
+    //
+    // Before the weapon, because a swing that names both is refused rather
+    // than resolved in whichever order this function happens to read them.
+    const printedProblem = printedAttackProblem(sheet, command);
+    if (printedProblem !== null) return printedProblem;
+    const printed =
+      command.action === undefined ? null : printedAttackOf(sheet, command.action);
+
     // — the weapon —————————————————————————————————————————————————————————
     let weapon: Weapon | null = null;
     if (command.weapon !== null) {
@@ -338,8 +466,33 @@ export function resolveAttack(
     }
 
     // — can it even reach ——————————————————————————————————————————————————
-    const reach = reachCheck(state, id, command.target, weapon, command.thrown === true);
+    //
+    // A printed line states its own reach and range, so the weapon's defaults
+    // are not what a Bite with ten feet of reach is measured against.
+    const stated = statedInPlay(printed, command.thrown === true);
+    const carry =
+      printed === null
+        ? {
+            label: weapon?.name ?? 'an Unarmed Strike',
+            reach: meleeReach(weapon),
+            range: rangeOf(weapon, command.thrown === true),
+          }
+        : {
+            label: printed.name,
+            // A line read as melee always states a reach, and one read as
+            // ranged is measured by its range below — so the fallback is a
+            // number nothing reaches rather than a default anybody swings at.
+            reach: printed.reach ?? 0,
+            range: stated?.ranged === true ? printed.range : null,
+          };
+    const reach = reachCheck(state, id, command.target, carry);
     if (!reach.ok) return reach;
+
+    // What this swing is called, wherever it came from: a weapon's name, a
+    // stat block's printed heading, or the Unarmed Strike the sentinel means.
+    // Read by the log and by every damage component, so a Bite is a Bite in
+    // the record rather than an unexplained fist.
+    const attackName = printed?.name ?? weapon?.name ?? 'Unarmed Strike';
 
     // SRD Total Cover: the target "can't be targeted directly".
     const cover = state.scene === null ? 'none' : coverBetween(state.scene, id, command.target);
@@ -453,6 +606,14 @@ export function resolveAttack(
     const defending = defendingModes(state, id, command.target);
     unverified.push(...defending.unverified);
 
+    // SRD Pack Tactics, off the attacker's own stat block: "Advantage on an
+    // attack roll against a creature if at least one of its allies is within 5
+    // feet of the creature and the ally doesn't have the Incapacitated
+    // condition." The trait is the creature's rather than the attack's, so it
+    // reaches a swung Scimitar exactly as it reaches a Bite.
+    const packing = packTactics(state, sheet, id, command.target);
+    unverified.push(...packing.unverified);
+
     // Everything flat that reaches this roll, gathered before it is thrown so
     // the log can name each piece. SRD Weapon, +1: "a bonus to attack rolls …
     // made with this magic weapon" — the weapon in hand is what narrows it, so
@@ -466,6 +627,7 @@ export function resolveAttack(
 
     const swing: AttackOptions = {
       weapon,
+      ...(stated === undefined ? {} : { statedAttack: stated }),
       ...(style === null ? {} : { strikeStyle: inPlay(style) }),
       targetAc: armorClassOf(state, command.target) + coverAcBonus(cover),
       proficient: proficientWith(sheet, weapon),
@@ -475,7 +637,7 @@ export function resolveAttack(
       ...(command.twoHanded === undefined ? {} : { twoHanded: command.twoHanded }),
       ...(command.thrown === undefined ? {} : { thrown: command.thrown }),
       ...(command.finesseAbility === undefined ? {} : { finesseAbility: command.finesseAbility }),
-      modes: [...defending.modes, ...(command.modes ?? [])],
+      modes: [...defending.modes, ...packing.modes, ...(command.modes ?? [])],
       beyondNormalRange: reach.value.beyondNormal,
       nearbyEnemy: nearby.near,
       attackBonuses,
@@ -503,7 +665,7 @@ export function resolveAttack(
     events.push({
       type: 'roll-recorded',
       who: id,
-      label: `${weapon?.name ?? 'Unarmed Strike'} attack`,
+      label: `${attackName} attack`,
       natural: attack.value.roll.natural,
       total: attack.value.total,
       // The modifier, less every flat bonus that can name itself, and then
@@ -569,6 +731,20 @@ export function resolveAttack(
       }
 
       return ok({ events, attack: attack.value, unverified, duplicate: false });
+    }
+
+    // **What the block says a hit does that the engine does not.** The Wolf's
+    // "If the target is a Medium or smaller creature, it has the Prone
+    // condition", the Ghoul's Constitution save at DC 10, and every other
+    // clause the parser deliberately left as prose. Reported the moment the
+    // hit is known, in the channel a caller already reads for rules that went
+    // unapplied — a printed rider silently dropped is a creature made weaker
+    // than the book, which is the failure the honest half of the shape exists
+    // to prevent.
+    if (printed?.rider != null) {
+      unverified.push(
+        `${attackName} hit ${command.target}, and its line reads "${printed.rider}" — the engine does not apply that; a DM does`,
+      );
     }
 
     // SRD Divine Smite is taken "immediately after hitting a target", which is
@@ -640,6 +816,7 @@ export function resolveAttack(
       sheet,
       {
         weapon,
+        ...(stated === undefined ? {} : { statedAttack: stated }),
         ...(style === null ? {} : { strikeStyle: inPlay(style) }),
         targetAc: attack.value.targetAc,
         ...(command.twoHanded === undefined ? {} : { twoHanded: command.twoHanded }),
@@ -679,7 +856,7 @@ export function resolveAttack(
       after,
       command.target,
       rolled.value.components,
-      weapon?.name ?? 'Unarmed Strike',
+      attackName,
       supply,
       { by: id, fromAttack: true, ...(attack.value.critical ? { critical: true } : {}) },
     );
@@ -811,8 +988,16 @@ function reachCheck(
   state: GameState,
   id: CharacterId,
   target: CharacterId,
-  weapon: Weapon | null,
-  thrown: boolean,
+  /**
+   * How far this attack carries, whoever decided it: a weapon's properties or
+   * a stat block's printed line. One record because the question is the same
+   * either way, and two copies of this walk would be two answers to it.
+   */
+  carry: {
+    readonly label: string;
+    readonly reach: number;
+    readonly range: { readonly normal: number; readonly long: number } | null;
+  },
 ): Result<{ readonly apart: number | null; readonly beyondNormal: boolean }> {
   // **No scene at all is not a gap in the record; it is a table not using
   // positioning.** An ambush in a corridor nobody drew, a brawl in a room with
@@ -833,32 +1018,31 @@ function reachCheck(
     const off = [id, target].filter((who) => positionOf(scene, who) === null);
     return needsContext(
       'unplaced',
-      `nobody has said where ${off.join(' or ')} ${off.length === 1 ? 'is' : 'are'} standing, and whether ${weapon?.name ?? 'an Unarmed Strike'} reaches depends on it`,
+      `nobody has said where ${off.join(' or ')} ${off.length === 1 ? 'is' : 'are'} standing, and whether ${carry.label} reaches depends on it`,
       off.map((who) => ({
         kind: 'position' as const,
         subject: who,
         need: `where ${who} is standing`,
-        because: `${weapon?.name ?? 'an Unarmed Strike'} has a reach to check`,
+        because: `${carry.label} has a reach to check`,
         satisfyWith: `a placeCreatureInScene command for ${who}`,
       })),
     );
   }
   const apart = measured.value;
 
-  const range = rangeOf(weapon, thrown);
+  const range = carry.range;
   if (range === null) {
-    const reach = meleeReach(weapon);
-    if (apart > reach) {
+    if (apart > carry.reach) {
       return err(
         'out_of_reach',
-        `${weapon?.name ?? 'an Unarmed Strike'} reaches ${reach} feet; ${target} is ${apart} away`,
+        `${carry.label} reaches ${carry.reach} feet; ${target} is ${apart} away`,
       );
     }
     return ok({ apart, beyondNormal: false });
   }
 
   if (apart > range.long) {
-    return err('out_of_range', `${weapon?.name ?? 'this attack'} carries ${range.long} feet; ${target} is ${apart} away`);
+    return err('out_of_range', `${carry.label} carries ${range.long} feet; ${target} is ${apart} away`);
   }
   return ok({ apart, beyondNormal: apart > range.normal });
 }

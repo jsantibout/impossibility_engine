@@ -443,30 +443,31 @@ function renderItemBlockers(coverage: MagicItemCoverage): readonly string[] {
  */
 export function bestiaryRow(coverage: BestiaryCoverage): string {
   return (
-    `| ${coverage.parsed} | ${coverage.carried} | ${coverage.defences} | ` +
-    `${coverage.qualified} | ${coverage.unread} | ${coverage.printed} |`
+    `| ${coverage.parsed} | ${coverage.carried} | ${coverage.acting} | ${coverage.defences} | ` +
+    `${coverage.qualified} | ${coverage.unread} | ${coverage.printed} | ${coverage.read} |`
   );
 }
 
 /**
- * The bestiary, which has two columns that cannot move and one that can only
- * be honest about how much it is not.
+ * The bestiary, which has two columns that cannot move and two that say how
+ * much of the prose has stopped being prose.
  *
- * **There is no *executed* column and the absence is the finding.** A spell
- * declares its effects and a feature declares its automation, so a predicate
- * can read both; a stat block declares a name and a paragraph. Writing
- * `executed: 0` would be a derived-looking column whose derivation is a
- * constant, and writing nothing at all would leave the size of the gap in
- * prose — which is where it was. So the report counts the prose: every trait
- * and action the catalogue holds, by kind, none of which the engine reads.
+ * **There is still no *executed* column, and the reason has narrowed.** A stat
+ * block declares a name and a paragraph, so a predicate over it would be an
+ * opinion in a derived column's clothes — and that was the whole of the story
+ * while every line was English. Some lines are not: the parser reads the
+ * template a 2024 attack line is written to, and the sentence that states Pack
+ * Tactics, and what it reads is structure the engine runs. So the report
+ * counts *read* lines beside printed ones, off the catalogue's own fields
+ * rather than off anybody's list, and leaves the rest counted as what it is.
  */
 function renderBestiary(coverage: BestiaryCoverage): readonly string[] {
   const lines = [
     '',
     '## Bestiary',
     '',
-    'Five states, and the last one is a count of what the engine does *not*',
-    'read:',
+    'Six states, and the last two say how much of the prose the engine has',
+    'stopped having to be handed:',
     '',
     '| | Means |',
     '|---|---|',
@@ -474,40 +475,61 @@ function renderBestiary(coverage: BestiaryCoverage): readonly string[] {
     '| **Carried** | `SRD_CONTENT` holds that block and `checkContent` validated it, so `addCreature` puts the creature into a game by its id and every number in the event is the block’s |',
     '| **Qualified** | a printed defence the engine recognises and cannot evaluate — _Piercing (from weapons wielded by creatures under a Bless spell)_ — recorded and handed to the DM rather than enforced or dropped |',
     '| **Unread** | a defence entry in neither the damage nor the condition vocabulary, kept verbatim for the same reason |',
+    '| **Attacking** | blocks whose own printed attack the engine can roll: a Wolf bites at the +4 and the 1d6 + 2 its line states, with no catalogue weapon in its mouth |',
     '| **Printed lines** | the traits, actions, bonus actions, reactions and legendary actions the blocks print: a name and the book’s sentence each |',
+    '| **Read** | of those, the lines the parser got structure out of — an attack’s numbers, a trait’s mechanic — which the engine executes rather than hands over |',
     '',
-    '| Parsed | Carried | Defence entries | of which qualified | of which unread | Printed lines |',
-    '|---|---|---|---|---|---|',
+    '| Parsed | Carried | Attacking | Defence entries | of which qualified | of which unread | Printed lines | of which read |',
+    '|---|---|---|---|---|---|---|---|',
     bestiaryRow(coverage),
     '',
-    '**A stat block arrives as a body, not as an actor.** `adaptMonster`',
-    'carries across everything the block states as a number — the printed',
-    'Armour Class, the stated saves and skills, the average hit points, the',
-    'speeds, the size and the creature type a spell like Hold Person reads — so',
-    'an SRD monster can be placed, attacked, damaged, made to roll a save,',
-    'targeted and killed, and the engine supplies every one of those numbers',
-    'itself. What the creature *does* on its turn is not carried at all.',
+    '**A stat block used to arrive as a body rather than as an actor.**',
+    '`adaptMonster` has always carried across everything the block states as a',
+    'number — the printed Armour Class, the stated saves and skills, the average',
+    'hit points, the speeds, the size and the creature type a spell like Hold',
+    'Person reads. What the creature *did* was prose, so a Goblin could swing a',
+    'Scimitar only because a Scimitar is a catalogue weapon somebody had put in',
+    'its hand, and a Wolf — whose Bite is nobody’s weapon — could not attack at',
+    'all. A printed line is now the third source of an attack’s numbers beside a',
+    'weapon’s and a spell’s: the caller names the line, the engine supplies the',
+    'bonus, the reach and the dice, and Pack Tactics’ Advantage is decided by',
+    'where the creatures are standing rather than by whoever is narrating.',
+    '',
+    '**Attacking is not the same claim as playable**, and the two blocks it',
+    'leaves out say why it is worth having: a Shrieker prints no action at all,',
+    'and a Seahorse’s only one is a dash that rolls nothing. Every block that',
+    'prints an attack can make it. What none of them can yet do is the rest of',
+    'the line: how many attacks the Attack action holds, what a hit buys, and',
+    'what a breath weapon recharges on.',
     '',
     '**Printed lines is not a denominator**, and the difference between this',
     'and the tables above is the whole reason it is counted. A tracked spell',
     'has a definition that says what it leaves to the table; an untranscribed',
     'item is an entry somebody has read and classified. A printed line is',
-    'neither: it is the SRD’s English, held as `{ name, text }`, with no attack',
-    'bonus, damage die, save DC or recharge read out of it by anybody. So the',
-    'column says how much prose the catalogue holds, and no fraction of it is',
-    'claimed — a *tracked* or *executed* column here would be a predicate over',
-    'English, which is an opinion in a derived column’s clothes.',
+    'neither: it is the SRD’s English. *Read* is the part of that English a',
+    'parser turned into numbers, counted off the catalogue’s own fields — a line',
+    'carries an `attack` or a `trait` or it does not. What is unread is not',
+    'therefore nearly done: Multiattack, a breath weapon’s recharge, an effect a',
+    'hit buys and a legendary action are each their own shape, and none of them',
+    'is claimed here.',
+    '',
+    '**What a read attack line does not carry, it reports.** The clause after',
+    'the damage — the Wolf’s Prone, the Ghoul’s Constitution save at the DC',
+    'its own line prints — is kept verbatim and handed back through the channel',
+    'a qualified defence uses, on the hit it belongs to. A rider silently',
+    'dropped would make the creature weaker than the book prints it, which is',
+    'the failure the split exists to prevent.',
     '',
     '**A monster’s spellcasting is in that prose too**, which is why',
     '`declareSpellcasting` states it and nothing infers it: reading a caster’s',
     'ability and list out of a trait’s sentence would be the engine deciding a',
     'fact the book wrote for a person.',
     '',
-    '| Line | Printed |',
-    '|---|---|',
+    '| Line | Printed | Read |',
+    '|---|---|---|',
   ];
 
-  for (const row of coverage.rows) lines.push(`| ${row.kind} | ${row.printed} |`);
+  for (const row of coverage.rows) lines.push(`| ${row.kind} | ${row.printed} | ${row.read} |`);
 
   return lines;
 }
@@ -842,7 +864,8 @@ if (isMainModule) {
   const bestiary = auditBestiary();
   console.log(
     `bestiary: ${bestiary.carried}/${bestiary.parsed} stat blocks carried, ` +
-      `${bestiary.printed} printed lines the engine does not read`,
+      `${bestiary.acting} able to attack with what they print, ` +
+      `${bestiary.read}/${bestiary.printed} printed lines read`,
   );
   const piles = itemPiles(parsedItemIds(), transcribedItemIds());
   console.log(

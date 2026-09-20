@@ -594,6 +594,71 @@ export function enemyWithinFiveFeet(
 }
 
 /**
+ * Whether an ally of the attacker is standing within 5 feet of their target,
+ * and able to act.
+ *
+ * SRD Pack Tactics: "…if at least one of the wolf's allies is within 5 feet of
+ * the creature and the ally doesn't have the Incapacitated condition."
+ *
+ * **The mirror of `enemyWithinFiveFeet`, and deliberately beside it.** The
+ * same three facts decide both — a declared side, a measured distance, a
+ * creature able to act — and two spellings of that walk in two modules is
+ * exactly how the ranged-attack rule and the spell-attack rule came to
+ * disagree. Two differences, and both are the sentence's: it measures from the
+ * *target* rather than from the roller, and it wants allies rather than
+ * enemies.
+ *
+ * "Ally" is the declared side, the same fact an aura reads. A creature nobody
+ * has put on a side is nobody's ally, so it grants nothing and says so — an
+ * undeclared side is a missing fact, and a rule that quietly resolved it
+ * either way would be deciding one.
+ *
+ * The attacker is not their own ally: SRD says "one of its allies", and a
+ * creature standing next to the thing it is biting is the ordinary case rather
+ * than a pack.
+ */
+export function allyWithinFiveFeetOf(
+  state: GameState,
+  attacker: CharacterId,
+  target: CharacterId,
+): { readonly near: boolean; readonly unverified: readonly string[] } {
+  const scene = state.scene;
+  if (scene === null) return { near: false, unverified: [] };
+
+  const mine = state.creatures[attacker]?.side ?? null;
+  let near = false;
+  const unsided: CharacterId[] = [];
+
+  for (const key of Object.keys(state.creatures).sort()) {
+    const other = state.creatures[key];
+    if (other === undefined || other.id === attacker || other.id === target) continue;
+    // "…and the ally doesn't have the Incapacitated condition." A dead one
+    // helps nobody either, and for the same reason.
+    if (isIncapacitated(other.conditions) || other.vitals.dead) continue;
+
+    const apart = distanceBetween(scene, target, other.id);
+    if (!apart.ok || apart.value > 5) continue;
+
+    if (mine !== null && other.side === mine) {
+      near = true;
+      continue;
+    }
+    if (mine !== null && other.side !== null) continue;
+    unsided.push(other.id);
+  }
+
+  return {
+    near,
+    unverified:
+      near || unsided.length === 0
+        ? []
+        : [
+            `nobody has said whose side ${unsided.join(', ')} ${unsided.length === 1 ? 'is' : 'are'} on, so the Advantage a creature takes while an ally of its own stands over its target was not applied`,
+          ],
+  };
+}
+
+/**
  * Turn a definition's check into the one the timer will carry.
  *
  * The DC is the caster's spell save DC unless the SRD prints a number, and the
