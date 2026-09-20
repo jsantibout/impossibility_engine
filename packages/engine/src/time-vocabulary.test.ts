@@ -173,10 +173,14 @@ describe('the turn vocabulary is named once', () => {
    * renamed one fails against the constructors below it.
    */
   it('keeps the anchors as data equal to the anchor members of Duration', () => {
+    // `Duration`'s own declaration and nothing else in the file: `Deadline`
+    // next door writes members of nearly this shape — `turn-start` and
+    // `turn-end` both name an `of` — and they are the *absolute* twins of these
+    // rather than more of them. A scan of the whole file would make each of
+    // them a phantom anchor the day one dropped its count.
+    const union = source(VOCABULARY).split('export type Duration =')[1]?.split('export type')[0] ?? '';
     const declared = [
-      ...source(VOCABULARY).matchAll(
-        /\{ readonly kind: '([a-z-]+)'; readonly of: CharacterId \}/g,
-      ),
+      ...union.matchAll(/\{ readonly kind: '([a-z-]+)'; readonly of: CharacterId \}/g),
     ].map((match) => match[1] ?? '');
     // Not vacuous: the union really does declare some, and this found them.
     expect(declared.length).toBeGreaterThan(1);

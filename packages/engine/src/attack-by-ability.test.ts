@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { RAGE_DAMAGE, SRD_CONTENT } from '@ie/content';
-import { asCharacterId, expect as unwrap, type CharacterId } from '@ie/shared';
+import { asCharacterId, expect as unwrap, SKILL_ABILITY, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
@@ -8,7 +8,6 @@ import { fold, type GameEvent, type GameState } from './events.js';
 import { activateFeature, resolveAttack, resolveTurn } from './commands.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
 import { extendContent, parseClassDefinition } from './content.js';
-import { SKILL_ABILITY } from './checks.js';
 import { rollSelectorProblems, selectorMatches, type RollSelector } from './roll-modifiers.js';
 
 /**
