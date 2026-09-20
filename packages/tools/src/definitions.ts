@@ -2180,11 +2180,51 @@ const CONFER_REACTION = tool({
     ),
 });
 
+/**
+ * Dodge, Dash or Disengage — and which slot pays for the third of them.
+ *
+ * **`from` is here because the engine already takes it and nothing could say
+ * it.** SRD Conjure Woodland Beings is the one sentence in the book that moves
+ * a named action to a cheaper slot — "you can take the Disengage action as a
+ * Bonus Action for the spell's duration" — `takeDisengage` has taken the slot
+ * since that spell landed, and `STATABLE_PRICES` records which action may come
+ * out of which. With two fields on this tool the whole allowance was
+ * unreachable: the spell could be cast, the effect applied, and the only call
+ * that could invoke it spent an Action every time.
+ *
+ * It states no price. The caller names which slot it is asking to pay from and
+ * the engine rules on whether this creature may — a slot nothing granted is
+ * refused `action_not_allowed` rather than quietly charged at the ordinary
+ * price, which is the substitution `DisengageOptions` promises never to make.
+ *
+ * **It is refused for a Dodge or a Dash, in the schema**, on
+ * {@link placementSchema}'s rule rather than as a rules judgement: neither
+ * command has such a parameter, so a slot sent with either would be a key Zod
+ * strips in silence and a caller acting on an answer it never got. That a Dash
+ * cannot be paid for out of a Bonus Action *at all* — `takeDash` has no `from`
+ * — is an engine gap and is reported as one rather than papered over with a
+ * field this surface would have nowhere to send.
+ */
 const TAKE_ACTION = tool({
   name: 'take_action',
-  description: 'Take Dodge, Dash or Disengage.',
+  description:
+    'Take Dodge, Dash or Disengage. Each costs what the book charges unless something a creature holds says otherwise — and where something does, `from` is how it is invoked. A slot nothing granted is refused rather than charged at the usual price.',
   mutates: true,
-  input: z.object({ who: creatureId, kind: z.enum(['dodge', 'dash', 'disengage']) }),
+  input: z
+    .object({
+      who: creatureId,
+      kind: z.enum(['dodge', 'dash', 'disengage']),
+      from: z
+        .enum(['action', 'bonus-action', 'reaction'])
+        .optional()
+        .describe(
+          'Which slot to pay a Disengage out of, where an effect has made a cheaper one available — SRD Conjure Woodland Beings’ "as a Bonus Action". Omit for what the book charges, which is an Action. A slot nothing has granted this creature is refused. Only a Disengage takes one.',
+        ),
+    })
+    .refine((value) => value.from === undefined || value.kind === 'disengage', {
+      error: 'only a Disengage can be paid for out of a named slot; a Dodge and a Dash cost an Action',
+      path: ['from'],
+    }),
   run: (context, args) => {
     const state = context.campaign.state();
     const id = who(args.who);
@@ -2193,8 +2233,16 @@ const TAKE_ACTION = tool({
         ? takeDodge(state, id, identity(context))
         : args.kind === 'dash'
           ? takeDash(state, id, identity(context))
-          : takeDisengage(state, id, identity(context));
-    return settleEvents(context, command, { took: args.kind });
+          : takeDisengage(
+              state,
+              id,
+              identity(context),
+              args.from === undefined ? {} : { from: args.from },
+            );
+    return settleEvents(context, command, {
+      took: args.kind,
+      ...(args.from === undefined ? {} : { paidFrom: args.from }),
+    });
   },
 });
 
