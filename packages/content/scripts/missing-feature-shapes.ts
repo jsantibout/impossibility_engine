@@ -1148,7 +1148,7 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
     {
       clause: 'Transmuted Spell needs the caster to restate a damage type the spell printed',
       why: 'a-feature-that-changes-what-a-casting-costs',
-      note: 'the other: the shape’s own line is that "nothing stands between the caster’s sheet and that pinning", and the type a casting pins is one of the things nothing stands between — the built member rewrites the range, the duration, the action and the level, and `damageTypeStated` is a licence the definition prints rather than one a feature may hand out.',
+      note: 'the other: the shape’s own line is that "nothing stands between the caster’s sheet and that pinning", and the type a casting pins is one of the things nothing stands between — the built member rewrites the range, the duration, the action and the level. A feature may print the choice over **its own option’s** effects, which `PoolOption.damageTypeStated` does and `statedTypeFor` reads; what none may do is hand the caster one over a spell whose definition printed none. The arm that would say it belongs to `CastingDamageAlteration`, beside the four that alter what a casting deals — this shape is where the clause is blocked, not where the member would go.',
     },
   ],
   'sorcerer:sorcery-incarnate': [
