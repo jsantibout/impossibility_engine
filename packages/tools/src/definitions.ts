@@ -73,6 +73,14 @@
  * action nothing grants. A pool a caller could spend for no effect is worse
  * than a pool it cannot spend, because the use would be gone.
  *
+ * **And `spendFor` is not a command, so it is not a door either.** It is the
+ * helper the five feature commands and the item activations call to pay for
+ * themselves (`commands/command.ts`), and it is reached here exactly as they
+ * reach it: through the tools above, each of which spends what its own
+ * feature costs. A tool over it would let a caller burn an Action or a Bonus
+ * Action for nothing at all, which is the Channel Divinity argument again with
+ * the action economy in place of a pool.
+ *
  * A spell's *own* teleport is here, since `cast_spell.teleportTo` is the
  * field Misty Step's refusal names; a `teleport` tool moving a creature for
  * reasons of its own is not, and is still a later batch's.
@@ -1432,6 +1440,17 @@ const SHEET = tool({
  * The engine cannot see the first two for itself, so the caller says which
  * happened and the log records it, exactly as `fought` records who is already
  * in melee with whom.
+ *
+ * **And the extension has no ceiling, which the description says out loud.**
+ * SRD Rage prints one — "You can maintain a Rage for up to 10 minutes" — and
+ * `ActivatedFeature.capSeconds` carries it onto the sheet at creation, where
+ * no engine command reads it: `extendFeature` replaces the timer and checks
+ * nothing else. A description claiming the cap was guarded would be this layer
+ * asserting a rule the engine does not have, which is worse than a comment
+ * that claims too much because a model would act on it. So the tool says the
+ * bound is the table's to keep and `sheet` reports the number to keep it by.
+ * That the engine could enforce it is a finding for whoever owns `timers.ts`,
+ * not a thing to paper over here.
  */
 const ACTIVATE_FEATURE = tool({
   name: 'activate_feature',
@@ -1456,7 +1475,7 @@ const ACTIVATE_FEATURE = tool({
 const EXTEND_FEATURE = tool({
   name: 'extend_feature',
   description:
-    'Keep a running feature going for another round. SRD Rage offers three ways to do it and only one of them costs anything, so say which happened: `attack` if the character attacked an enemy, `forced-save` if it made one save, `bonus-action` to spend the Bonus Action on it. The engine pushes the deadline out and refuses to push it past the cap the feature prints.',
+    'Keep a running feature going for another round. SRD Rage offers three ways to do it and only one of them costs anything, so say which happened: `attack` if the character attacked an enemy, `forced-save` if it made one save, `bonus-action` to spend the Bonus Action on it. The engine replaces the deadline with a fresh one. It does **not** enforce the longest the feature may be maintained — `sheet` reports that as `capSeconds` and nothing stops an extension past it, so a table that wants the bound kept keeps it.',
   mutates: true,
   input: z.object({
     who: creatureId,

@@ -100,6 +100,17 @@ export interface HeldFeature {
   readonly lasts?: string;
   readonly endsOn?: readonly string[];
   readonly forbidsCasting?: boolean;
+  /**
+   * The longest the feature's own sentence says it may be maintained, in
+   * seconds — SRD Rage's "up to 10 minutes".
+   *
+   * **Reported precisely because nothing enforces it.** It is pinned onto the
+   * sheet at creation and read by no engine command, so a table that wants the
+   * bound kept has to keep it, and a caller that is never shown it cannot. The
+   * other two bounds beside it *are* the engine's: `lasts` is a real deadline
+   * and `endsOn` really ends the feature.
+   */
+  readonly capSeconds?: number;
   /** A healing touch's conditions, and what each one costs out of the pool. */
   readonly lifts?: readonly string[];
   readonly costPerCondition?: number;
@@ -271,6 +282,7 @@ export function holdingsOf(state: GameState, id: CharacterId): Holdings | null {
       lasts: one.lasts,
       ...(one.endsOn === undefined ? {} : { endsOn: one.endsOn }),
       ...(one.forbidsCasting === undefined ? {} : { forbidsCasting: one.forbidsCasting }),
+      ...(one.capSeconds === undefined ? {} : { capSeconds: one.capSeconds }),
     });
   }
 
@@ -343,6 +355,26 @@ export function holdingsOf(state: GameState, id: CharacterId): Holdings | null {
    * casting elects it. That is the whole of what `cast_spell.usingFeatures`
    * carries, and a caller that has not been told which features are electable
    * cannot fill it in.
+   *
+   * **This is the one place in this file that answers a question the engine
+   * also answers, and the copy is not exact.** `electableCastingDamage` in
+   * `standing.ts` is the engine's own answer and is deliberately disclosed
+   * here rather than left to be discovered: it is not on `@ie/engine`'s
+   * barrel, so this layer cannot call it, and putting it there is an engine
+   * change that was out of scope for the task that wrote this. The copy reads
+   * the sheet's own declarations where the engine reads `standingFor`, and
+   * `standingFor` does two things more:
+   *
+   * - it folds in **an item's** grants, so an optional casting-damage grant on
+   *   a magic item is electable and would not be listed here;
+   * - it drops an effect whose `requires` are not met right now, so one with an
+   *   unmet requirement would be listed here and then refused `no_such_feature`
+   *   by the casting — a misleading refusal produced by this report.
+   *
+   * Neither is reachable in the SRD catalogue today: all three optional grants
+   * are self-reach class features with no `requires`. Both are reachable by
+   * *content alone*, with no engine change, which is what makes exporting
+   * `electableCastingDamage` and calling it the fix rather than a tidy-up.
    */
   for (const effect of sheet.standing ?? []) {
     const elective = effect.grant.kind === 'casting-damage' && effect.grant.optional === true;

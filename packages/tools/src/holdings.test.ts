@@ -370,6 +370,13 @@ describe('a character can be asked what it holds', () => {
       kind: 'activated',
       spentBy: 'activate_feature',
       pool: 'rage',
+      // Every bound the activation prints, including the one nothing enforces:
+      // SRD "You can maintain a Rage for up to 10 minutes" is a number on the
+      // sheet that no engine command reads, so a caller that wants it kept has
+      // to be told it, and `extend_feature` says as much.
+      lasts: 'end-of-next-turn',
+      endsOn: ['incapacitated', 'heavy-armor'],
+      capSeconds: 600,
     });
     expect(held.feature('barbarian:danger-sense')).toMatchObject({
       name: 'Danger Sense',
