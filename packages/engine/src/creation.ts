@@ -24,6 +24,7 @@ import type {
   ActivatedFeature,
   HealAmount,
   HealingTouch,
+  CastingOption,
   PoolOption,
   RecoveryFeature,
   SelfHealFeature,
@@ -2503,6 +2504,35 @@ export function planCharacter(
     }
   }
 
+  // What a *casting* may buy, where what it buys is a change to the casting
+  // itself. SRD Metamagic's menu, filtered here by the answer the player gave
+  // the feature's own `option` choice — "you gain two Metamagic options of
+  // your choice" — so the sheet carries the two they took and none of the
+  // eight they did not. A grant on a feature that asks nothing grants all of
+  // its options, which is the homebrew feature with one entry on its menu.
+  const castingOptions: CastingOption[] = [];
+  for (const feature of features) {
+    const grant = feature.grants;
+    if (grant?.kind !== 'casting-options') continue;
+
+    const asked = feature.choice?.kind === 'option';
+    const picked = choices.featureChoices[feature.id] ?? [];
+
+    for (const option of grant.options) {
+      if (asked && !picked.includes(option.name)) continue;
+      castingOptions.push({
+        feature: feature.id,
+        featureName: feature.name,
+        option: option.id,
+        name: option.name,
+        pool: grant.pool,
+        cost: option.cost,
+        perCasting: grant.perCasting,
+        alters: option.alters,
+      });
+    }
+  }
+
   // A Reaction a feature takes at one of the engine's named windows. The die
   // is resolved here for the same reason a self-heal's is: two of the nine
   // read it off a class table — the Bardic Inspiration die is a d6 at Bard 1
@@ -2775,6 +2805,7 @@ export function planCharacter(
     ...(selfHeals.length === 0 ? {} : { selfHeals }),
     ...(healingTouch.length === 0 ? {} : { healingTouch }),
     ...(poolOptions.length === 0 ? {} : { poolOptions }),
+    ...(castingOptions.length === 0 ? {} : { castingOptions }),
     // The *first* casting class's ability, and null for a character who casts
     // nothing. Falling back to the primary ability gave a Fighter a spell save
     // DC off Strength. A multiclassed caster has more than one, and every

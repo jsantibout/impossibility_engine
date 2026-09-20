@@ -66,6 +66,58 @@ export const METAMAGIC_OPTIONS: readonly string[] = [
   'Twinned Spell',
 ];
 
+/**
+ * The four Metamagic options the engine executes, priced as the SRD prices
+ * them.
+ *
+ * Each of them rewrites one number the casting command works out before it
+ * spends anything, which is what `casting-options` is for. The other six are
+ * transcribed on the menu above and are the DM's, for three different reasons:
+ *
+ * | SRD | What it wants |
+ * |---|---|
+ * | Empowered, Seeking | a damage die rerolled, a d20 rerolled: the dice layer's `rerollDice`, which nothing passes through a casting |
+ * | Careful | creatures that automatically succeed on a save this casting is about to roll |
+ * | Heightened | Disadvantage on one target's saves against this casting |
+ * | Subtle | components, which a `SpellDefinition` does not carry at all |
+ * | Transmuted | a damage type the caster chooses, on a spell that printed one |
+ */
+const METAMAGIC_EXECUTED = [
+  {
+    id: 'distant-spell',
+    name: 'Distant Spell',
+    cost: 1,
+    // SRD: "double the spell's range. Or when you cast a spell that has a
+    // range of Touch ... make the spell's range 30 feet."
+    alters: { kind: 'range', multiplier: 2, touchBecomesFeet: 30 },
+  },
+  {
+    id: 'extended-spell',
+    name: 'Extended Spell',
+    cost: 1,
+    // SRD: "a spell that has a duration of 1 minute or longer ... double its
+    // duration to a maximum duration of 24 hours."
+    alters: { kind: 'duration', multiplier: 2, minimumSeconds: 60, maximumSeconds: 86400 },
+  },
+  {
+    id: 'quickened-spell',
+    name: 'Quickened Spell',
+    cost: 2,
+    // SRD: "a spell that has a casting time of an action ... change the
+    // casting time to a Bonus Action for this casting."
+    alters: { kind: 'casting-time', from: 'action', to: 'bonus-action' },
+  },
+  {
+    id: 'twinned-spell',
+    name: 'Twinned Spell',
+    cost: 1,
+    // SRD: "a spell, such as Charm Person, that can be cast with a
+    // higher-level spell slot to target an additional creature ... increase
+    // the spell's effective level by 1."
+    alters: { kind: 'effective-level', by: 1, onlyIfTargetsScale: true },
+  },
+] as const;
+
 export const SORCERER: ClassDefinition = {
   id: 'sorcerer',
   name: 'Sorcerer',
@@ -138,8 +190,21 @@ export const SORCERER: ClassDefinition = {
       name: 'Metamagic',
       level: 2,
       automation: 'manual',
-      note: 'Two options are chosen and recorded, and more at levels 10 and 17. None is executed; Empowered Spell is `rerollDice` in the dice layer, which a caller opts into per roll.',
+      note: 'Two options are chosen and recorded, and more at levels 10 and 17. Four of the ten are executed — Distant, Extended, Quickened and Twinned each rewrite one number the casting works out before it spends anything, and the Sorcery Points go inside that casting’s own batch. The other six are not: Empowered Spell and Seeking Spell are `rerollDice` in the dice layer, which a caller opts into per roll; Careful Spell needs creatures that automatically succeed on a save the casting is about to roll; Heightened Spell needs Disadvantage hung on one target’s saves against this casting; Subtle Spell has nothing to remove, because a spell definition carries no components; and Transmuted Spell needs a damage type chosen on a spell that printed none. The "only one option on a spell" limit is enforced; the clause that stops a level 1+ spell later in the turn a Quickened one was cast on is not, and the engine’s own one-slot-per-turn rule stands in its place.',
       choice: { kind: 'option', choose: 2, from: METAMAGIC_OPTIONS },
+      grants: {
+        kind: 'casting-options',
+        // Font of Magic declares the pool at level 2 and this spends it: one
+        // feature carries one grant, so the declaration and the spending are
+        // two features, which is how the SRD prints them.
+        pool: 'sorcery-points',
+        // SRD: "You can use only one Metamagic option on a spell when you cast
+        // it unless otherwise noted in one of those options." Sorcery Incarnate
+        // lifts it to two and that is a later feature rewriting an earlier
+        // one's rule, which no grant says.
+        perCasting: 1,
+        options: METAMAGIC_EXECUTED,
+      },
     },
     {
       id: 'sorcerer:subclass',

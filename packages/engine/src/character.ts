@@ -1,6 +1,7 @@
 import { SKILL_ABILITY, type Ability, type RollMode, type Skill } from '@ie/shared';
 import type {
   ActivatedFeature,
+  CastingOption,
   HealingTouch,
   PoolOption,
   RecoveryFeature,
@@ -169,6 +170,18 @@ export interface CharacterSheet {
    * to the class that granted the feature rather than to the character.
    */
   readonly poolOptions?: readonly PoolOption[];
+  /**
+   * What a casting of this character's may buy, and what each purchase costs
+   * — SRD Metamagic's menu.
+   *
+   * Resolved at creation beside `poolOptions`, and for the nearer of that
+   * field's two reasons: the menu the book prints is not the menu this
+   * character has. SRD gives a Sorcerer "two Metamagic options of your choice"
+   * out of ten, so the answer is read once, here, and the casting command sees
+   * a sheet with two entries on it rather than a class table and a choice to
+   * re-apply on every spell.
+   */
+  readonly castingOptions?: readonly CastingOption[];
   /**
    * Reactions this character's features offer, and what each one costs.
    *

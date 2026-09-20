@@ -15,7 +15,12 @@ import type { D20TestKind } from './checks.js';
 import type { ReactionReach } from './reactions.js';
 import type { Recovery } from './resources.js';
 import type { SpellArea, SpellEffect } from './spell-definitions.js';
-import type { ActivationEnd, StandingGrant, StandingRequirement } from './standing.js';
+import type {
+  ActivationEnd,
+  CastingCostAlteration,
+  StandingGrant,
+  StandingRequirement,
+} from './standing.js';
 
 /**
  * Class progression: what a class gives you, and when.
@@ -382,6 +387,40 @@ export interface PoolOptionGrant {
    * refused if it is not on the list.
    */
   readonly damageTypeStated?: readonly string[];
+}
+
+/**
+ * One thing a casting may buy, where what it buys is a change to the casting
+ * itself.
+ *
+ * SRD Metamagic is the shape this is built to, and it is {@link
+ * PoolOptionGrant}'s sentence with the host changed: one feature, one pool,
+ * and a named menu the holder picks from — except that a Metamagic option is
+ * not *used* at a moment of its own. It is elected **on a casting**, which is
+ * the whole difference: the price is paid inside that casting's own batch,
+ * after every validation and before the first die, exactly where a feat's free
+ * casting and an item's charge already stand.
+ *
+ * **The menu the grant prints and the menu the holder has are different
+ * things.** SRD gives a Sorcerer "two Metamagic options of your choice", so
+ * the feature asks an `option` choice and creation keeps the options whose
+ * name the player answered with. A grant on a feature that asks nothing grants
+ * all of them, which is the homebrew case where the menu has one entry.
+ */
+export interface CastingOptionGrant {
+  /** The option's own id, named by the casting that elects it. */
+  readonly id: string;
+  /**
+   * What the log calls it — SRD's "Distant Spell".
+   *
+   * **The same string the feature's `option` choice offers**, because that
+   * answer is what creation filters the menu by; `checkContent` refuses an
+   * option this feature's own choice does not print.
+   */
+  readonly name: string;
+  /** What electing it costs, in the grant's pool. */
+  readonly cost: number;
+  readonly alters: CastingCostAlteration;
 }
 
 /**
@@ -1266,6 +1305,37 @@ export type FeatureGrant =
        * its own, which is why it is a field here and not a second feature.
        */
       readonly heals?: HealGrant;
+    }
+  /**
+   * A menu of things a casting may buy, priced in a pool — see
+   * {@link CastingOptionGrant}.
+   *
+   * SRD Metamagic, which is the only feature in the book that changes what a
+   * casting *costs* rather than what it does. The pool is another feature's:
+   * Font of Magic declares the Sorcery Points and Metamagic spends them, which
+   * is why the key is a field here rather than a pool this grant owns.
+   */
+  | {
+      readonly kind: 'casting-options';
+      /**
+       * The key of the pool every option is priced in.
+       *
+       * Declared by some other feature's `pool` grant. A feature that both
+       * declared the pool and spent it would be `FeatureGrant.grants` carrying
+       * two grants, which it does not.
+       */
+      readonly pool: string;
+      /**
+       * How many of this feature's options may ride on one casting.
+       *
+       * SRD Metamagic: "You can use only one Metamagic option on a spell when
+       * you cast it unless otherwise noted in one of those options." The
+       * *unless* is a later feature lifting an earlier feature's limit, which
+       * is a shape the vocabulary does not have — so this is the printed one
+       * and nothing raises it.
+       */
+      readonly perCasting: number;
+      readonly options: readonly CastingOptionGrant[];
     }
   | {
       readonly kind: 'unarmored-defense';

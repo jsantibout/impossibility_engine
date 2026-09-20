@@ -74,8 +74,6 @@ import {
   delaysDamage,
   onCaster,
   persists,
-  ranged,
-  durationSecondsAt,
   riderDuration,
   anchoredOnTarget,
   riderDurations,
@@ -113,6 +111,7 @@ import {
   numbersFor,
   routeLabel,
 } from './item-casting.js';
+import { alteredCasting, electedCastingOptions, type AlteredCasting } from './casting-options.js';
 import { unsettledRefusal } from './holds.js';
 import { teleportTo } from './teleport.js';
 import { payCastingDamageCost } from './damage.js';
@@ -586,8 +585,29 @@ export function castOrRelease(
     const slotLevel = request.slotLevel ?? definition.level;
     // The item's level where an item is casting it — SRD's "lowest possible
     // spell level", raised by the charges where the item's line says so.
-    const castLevel =
+    const paidLevel =
       route.kind === 'item' ? route.castLevel : Math.max(definition.level, slotLevel);
+
+    // — what the caster's own features do to what this casting costs —————
+    //
+    // Read here, with the definition and the route in hand and before a
+    // target, a slot, an action or a die: SRD writes every one of these as a
+    // condition on the spending, so a casting that cannot use the option it
+    // named is refused while refusing is still free. What comes back is the
+    // four numbers the lines below would otherwise have derived, and the price.
+    // **The sheet as creation left it, and not `sheetAsItStands`.** A menu of
+    // casting options is a class feature's and an item may not grant one —
+    // `checkContent` refuses every grant kind but four from an item — so the
+    // two readings are the same sheet and this is the cheaper of them.
+    const elected = electedCastingOptions(caster.sheet, casterId, request.usingOptions);
+    if (!elected.ok) return elected;
+    const altered = alteredCasting(
+      definition,
+      { castLevel: paidLevel, castingTime: casting.value.castingTime },
+      elected.value,
+    );
+    if (!altered.ok) return altered;
+    const castLevel = altered.value.castLevel;
     // What this definition knowingly leaves out, reported on every casting so
     // the narrating layer can hand the rest to the DM rather than lose it.
     const unverified: string[] = [
@@ -610,7 +630,7 @@ export function castOrRelease(
     // Two ways a spell finds its targets, and they do not mix. A named-target
     // spell is handed ids; an area spell is handed a place and works out for
     // itself who is standing in it.
-    const reach = ranged(definition.range);
+    const reach = altered.value.reachFeet;
     let targets: readonly CharacterId[];
 
     // — the point it keeps ——————————————————————————————————————————————————
@@ -799,7 +819,12 @@ export function castOrRelease(
       origin,
       area,
       stamp,
-      casting: casting.value,
+      // The casting time as the elected options leave it — SRD Quickened
+      // Spell — so the action economy, the event and the settlement all read
+      // one answer.
+      casting: { ...casting.value, castingTime: altered.value.castingTime },
+      paidLevel,
+      altered: altered.value,
       ...(answering !== null && answering.ok ? { answers: answering.value.castingId } : {}),
     });
   });
@@ -1214,6 +1239,13 @@ function resolveOnTargets(
     /** How long it takes and whether it is a Ritual — see `castingOf`. */
     readonly casting: CastingTiming;
     /**
+     * The level of the slot that paid for it, where that is not the level the
+     * casting counts as — SRD Twinned Spell.
+     */
+    readonly paidLevel: number;
+    /** What the caster's elected options did to this casting, and their price. */
+    readonly altered: AlteredCasting;
+    /**
      * The casting a Reaction spell answers, by id.
      *
      * Resolved by the wrapper, before anything was spent, through the same
@@ -1226,6 +1258,8 @@ function resolveOnTargets(
 ): Result<SpellResolution> {
   const { castLevel, route, targets, unverified, supply, held, origin, area, stamp, casting } =
     context;
+  const { paidLevel, altered } = context;
+
 
   // Normalised here, once, and read by both paths out of this file: the
   // ongoing record an atomic casting writes, and the declaration a held one
@@ -1396,6 +1430,23 @@ function resolveOnTargets(
     events.push({ type: 'resource-spent', id: casterId, key: freePool, amount: 1 });
   }
 
+  // **What the elected options cost stands exactly where the free casting
+  // stands**, and for the same reason an item's charge does: inside the
+  // casting's own batch, after every validation and before the first die. SRD
+  // Metamagic's "you must spend the number of Sorcery Points that it costs" is
+  // a price on the casting, so a casting that is refused costs nothing and one
+  // that happens costs all of it.
+  for (const cost of altered.costs) {
+    const left = remaining(caster.resources, cost.key);
+    if (left < cost.amount) {
+      return err(
+        'no_points',
+        `the options named on this casting of ${definition.name} cost ${cost.amount} of ${cost.key}, and ${casterId} has ${left}`,
+      );
+    }
+    events.push({ type: 'resource-spent', id: casterId, key: cost.key, amount: cost.amount });
+  }
+
   // **The charge stands exactly where the free casting stands**, and that is
   // the whole of why a casting from an item is not `expendCharges` followed by
   // a cast. Two commands are two ids, and the first would land while the
@@ -1457,6 +1508,10 @@ function resolveOnTargets(
       // slot decides it, so `castSpell` takes the spell's level as the cast
       // level — which for a Wand of Fireballs at three charges is level 5.
       level: route.kind === 'item' ? castLevel : definition.level,
+      // The level the casting counts as, where an option raised it above the
+      // slot that paid for it. Absent otherwise, so every casting nothing
+      // altered writes exactly the event it always wrote.
+      ...(castLevel === paidLevel ? {} : { effectiveLevel: castLevel }),
       concentration: definition.concentration,
       castingTime: casting.castingTime,
       ...(casting.castingSeconds === undefined
@@ -1478,7 +1533,10 @@ function resolveOnTargets(
                   definition.level === 0 ? ('cantrip' as const) : ('special-ability' as const),
               }
             : {
-                slotLevel: castLevel,
+                // **The slot that was paid for, not the level the casting
+                // counts as.** SRD Twinned Spell raises the second and leaves
+                // the first exactly where it was.
+                slotLevel: paidLevel,
                 ...(request.slotKind === undefined ? {} : { slotKind: request.slotKind }),
               }),
       route: routeLabel(route),
@@ -1494,9 +1552,11 @@ function resolveOnTargets(
       // about which band a slot reaches.
       ...(definition.durationSeconds !== undefined
         ? {
+            // The band this casting's level falls in, as the elected options
+            // leave it — SRD Extended Spell doubles what the band printed.
             duration: {
               kind: 'seconds' as const,
-              seconds: durationSecondsAt(definition, castLevel)!,
+              seconds: altered.durationSeconds!,
             },
           }
         : definition.durationUntil === undefined

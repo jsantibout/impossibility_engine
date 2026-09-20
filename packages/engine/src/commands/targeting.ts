@@ -439,6 +439,24 @@ export interface CastSpellRequest extends CommandIdentity {
    * their caster thought about it or not.
    */
   readonly usingFeatures?: readonly string[];
+  /**
+   * Which of the caster's own **casting options** this casting buys, by id.
+   *
+   * SRD Metamagic: "To use an option, you must spend the number of Sorcery
+   * Points that it costs." A purchase, which is what separates this from
+   * {@link CastSpellRequest.usingFeatures} beside it — that field elects a
+   * feature the caster already has and pays nothing, and this one elects a
+   * priced entry off the sheet's menu and is charged inside this casting's own
+   * batch.
+   *
+   * **It is not a number and never could be.** The caller names an option; the
+   * engine reads its price and its alteration off the sheet, decides whether
+   * the option reaches this spell at all, and does the arithmetic. An option
+   * the caster has not got is refused, and so — unlike an elected feature — is
+   * one that does not reach: the book writes each of them as a condition on
+   * the spending, so a casting that could not use it must not be charged.
+   */
+  readonly usingOptions?: readonly string[];
 }
 
 /**

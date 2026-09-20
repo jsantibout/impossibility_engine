@@ -350,6 +350,20 @@ export interface CastCommand extends CommandIdentity {
    * the low-level half's way of being told, exactly as `castingTime` is.
    */
   readonly castingSeconds?: number;
+  /**
+   * The level this casting **counts as**, where a feature raised it above the
+   * slot that paid for it.
+   *
+   * SRD Twinned Spell: "increase the spell's effective level by 1". The level
+   * and the slot stop being the same number, which they otherwise always are —
+   * so the slot below is still the one that is spent and this is what the
+   * casting is recorded at, which is what every later reader of the log takes
+   * for its level.
+   *
+   * Absent for every casting nothing has altered, which is what makes a log
+   * written before this fold to exactly the state it always did.
+   */
+  readonly effectiveLevel?: number;
   /** The level of slot to expend. Mutually exclusive with `slotless`. */
   readonly slotLevel?: number;
   /**
@@ -702,8 +716,21 @@ function castSpellWith(
     );
   }
 
-  // SRD: "the spell takes on the higher level for that casting."
-  const castLevel = slot === null ? command.level : slot.level;
+  // SRD: "the spell takes on the higher level for that casting." And a
+  // feature may raise it further without touching the slot — see
+  // `CastCommand.effectiveLevel` — which is the one case where the level the
+  // casting is recorded at is not the level of what paid for it.
+  const paidLevel = slot === null ? command.level : slot.level;
+  const castLevel = command.effectiveLevel ?? paidLevel;
+  if (
+    command.effectiveLevel !== undefined &&
+    (!Number.isInteger(castLevel) || castLevel < paidLevel || castLevel > 9)
+  ) {
+    return err(
+      'bad_effective_level',
+      `a casting counts as a whole level between the ${paidLevel} that paid for it and 9, got ${command.effectiveLevel}`,
+    );
+  }
   const concentration = command.concentration === true;
   const castingId = nextCastingId(state);
   const events: GameEvent[] = [];

@@ -31,7 +31,7 @@ import {
   type SenseName,
 } from './positioning.js';
 import type { CreatureState, GameState } from './events.js';
-import { spellOfSource } from './spells.js';
+import { spellOfSource, type CastingTime } from './spells.js';
 import type { SpellArea, SpellEffect } from './spell-definitions.js';
 import type { EffectEndCause } from './timers.js';
 import type { Recovery } from './resources.js';
@@ -887,6 +887,150 @@ export interface PoolOption {
   readonly durationSeconds?: number;
   readonly endsEarly?: readonly EffectEndCause[];
   readonly damageTypeStated?: readonly string[];
+}
+
+/**
+ * What one purchased option does to the casting that bought it.
+ *
+ * **Four arms, one per number the casting command works out before it spends
+ * anything**: how far the spell reaches, how long it runs, which part of the
+ * turn it takes, and what level it counts as. That is the whole of the
+ * boundary — each arm rewrites a value the cost-and-route half of a casting
+ * already holds in its hand, and not one of them brings machinery of its own
+ * or reaches an effect that has begun to resolve.
+ *
+ * The shape {@link CastingDamageAlteration} above already wears, asked of a
+ * different half of the same command: that one alters what a casting *deals*,
+ * this one alters what it *costs*. Its own declaration says why four arms of
+ * one field beat four grants — "All four are asked for at one moment, by one
+ * reader, and each is a single arithmetic operation on a notation already in
+ * hand" — and the argument carries over word for word.
+ *
+ * **Narrowings live on the arm rather than in a fifth `when` record**, which
+ * is where this parts company with `CastingDamageWhen`: each option's
+ * precondition is a fact about the very value it rewrites — a range that is a
+ * distance at all, a duration of at least a minute, a casting time that is an
+ * Action, a target count that moves with the slot — so a shared `when` would
+ * be four fields of which three are always absent.
+ *
+ * Three SRD Metamagic options are deliberately **not** here, and each is
+ * somebody else's shape rather than a fifth arm:
+ *
+ * | SRD | Why not |
+ * |---|---|
+ * | Careful Spell | it changes who the casting catches, not what it costs: creatures that automatically succeed on a save the resolver is about to roll |
+ * | Heightened Spell | a roll mode hung on one target's saves for one casting — a modifier, which `roll-modifiers.ts` owns |
+ * | Subtle Spell | a `SpellDefinition` holds no components at all, so there is nothing for it to remove |
+ */
+export type CastingCostAlteration =
+  /**
+   * SRD Distant Spell: "you can spend 1 Sorcery Point to double the spell's
+   * range. Or when you cast a spell that has a range of Touch ... make the
+   * spell's range 30 feet."
+   *
+   * Two sentences and one arm, because both of them answer "how far does this
+   * casting reach" and the second is the first's exception. A Range: Self
+   * spell has no distance to multiply and is refused — SRD's "a range of at
+   * least 5 feet" is that refusal — and doubling the five feet `ranged`
+   * reports for a Touch is why {@link touchBecomesFeet} is printed rather than
+   * inferred.
+   */
+  | {
+      readonly kind: 'range';
+      /** What the printed distance is multiplied by. */
+      readonly multiplier: number;
+      /**
+       * What a Touch range becomes outright, in feet.
+       *
+       * Absent means a Touch spell is refused rather than multiplied, because
+       * `ranged` reports a Touch as five feet and doubling that is arithmetic
+       * nobody printed.
+       */
+      readonly touchBecomesFeet?: number;
+    }
+  /**
+   * SRD Extended Spell: "you can spend 1 Sorcery Point to double its duration
+   * to a maximum duration of 24 hours."
+   *
+   * The **casting's** own span, which is what everything it hangs is ended by:
+   * the deadline filed against the casting id is what `spell-ended` releases,
+   * so doubling it doubles the Charm as well as the Charm Person. A rider with
+   * a span of its own — SRD Sunburst's minute of Blindness on an Instantaneous
+   * spell — is not the spell's Duration and is left alone.
+   */
+  | {
+      readonly kind: 'duration';
+      readonly multiplier: number;
+      /** SRD's "to a maximum duration of 24 hours", in seconds. */
+      readonly maximumSeconds?: number;
+      /** SRD's "a duration of 1 minute or longer", in seconds. */
+      readonly minimumSeconds?: number;
+    }
+  /**
+   * SRD Quickened Spell: "When you cast a spell that has a casting time of an
+   * action ... change the casting time to a Bonus Action for this casting."
+   *
+   * {@link from} is the narrowing and is required: an option that rewrote
+   * *any* casting time would turn a Reaction spell into a Bonus Action one,
+   * which no sentence in the book does.
+   */
+  | {
+      readonly kind: 'casting-time';
+      readonly from: CastingTime;
+      readonly to: CastingTime;
+    }
+  /**
+   * SRD Twinned Spell, whose 2024 text is one number: "you can spend 1 Sorcery
+   * Point to **increase the spell's effective level by 1**."
+   *
+   * The level the casting counts as, which is not the level of the slot that
+   * paid for it — the slot is untouched and the casting is pinned at the
+   * higher level, so the extra target, the extra die and the longer duration
+   * band all follow from arithmetic the engine already does.
+   */
+  | {
+      readonly kind: 'effective-level';
+      /** Whole levels, and the casting still cannot pass level 9. */
+      readonly by: number;
+      /**
+       * SRD: "a spell, such as _Charm Person_, that **can be cast with a
+       * higher-level spell slot to target an additional creature**."
+       *
+       * Read off `TargetRule.extraPerSlotLevelAbove`, which is that sentence
+       * already transcribed on every definition that prints it. A narrowing
+       * and not a rule: absent, the option reaches any casting, which is what
+       * a homebrew feature that simply upcast would want.
+       */
+      readonly onlyIfTargetsScale?: true;
+    };
+
+/**
+ * One thing a casting may buy, compiled onto the sheet.
+ *
+ * `CastingOptionGrant` with the player's own answer read out of it: SRD gives
+ * a Sorcerer "two Metamagic options of your choice" from a menu of ten, and
+ * what reaches the sheet is the two. The casting command therefore reads a
+ * sheet and never a class table, which is the rule every other compiled
+ * feature here keeps.
+ *
+ * `perCasting` is carried on each entry rather than looked up on the feature,
+ * for `PoolOption.pool`'s reason one line up: the reader has an elected option
+ * in its hand and the grant it came from is a catalogue lookup away.
+ */
+export interface CastingOption {
+  /** The feature the menu belongs to — SRD's "Metamagic". */
+  readonly feature: string;
+  readonly featureName: string;
+  /** The option's own id, which is what a casting elects it by. */
+  readonly option: string;
+  /** What this option is called: SRD's "Distant Spell". */
+  readonly name: string;
+  /** The pool the price comes out of. */
+  readonly pool: string;
+  readonly cost: number;
+  /** How many of this feature's options may ride on one casting. */
+  readonly perCasting: number;
+  readonly alters: CastingCostAlteration;
 }
 
 /**

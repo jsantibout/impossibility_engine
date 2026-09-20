@@ -25,6 +25,7 @@ import {
   type ClassDefinition,
   type FeatureDefinition,
   type FeatureGrant,
+  type CastingOptionGrant,
   type PoolOptionGrant,
   type SubclassDefinition,
 } from './progression.js';
@@ -184,6 +185,7 @@ const poolKeysOf = (feature: FeatureDefinition): readonly string[] => {
 export const READABLE_GRANT_KINDS: ReadonlySet<string> = new Set([
   'ability-score-increase',
   'activated',
+  'casting-options',
   'critical-range',
   'expertise',
   'extra-attack',
@@ -1395,6 +1397,146 @@ function featureOptionsProblems(
 }
 
 /**
+ * A menu of things a casting may buy, judged together — SRD Metamagic.
+ *
+ * The rules a feature cannot check one option at a time, and every one of them
+ * is about **reachability**: an option a caller cannot name, cannot name
+ * twice, or cannot ever have chosen is a line on a class table that looks
+ * executed and is not. That is the failure `feature-schema.ts` exists for,
+ * asked of the one grant whose menu is filtered by an answer given somewhere
+ * else.
+ *
+ * **The pool key is not cross-checked**, which is the reading `recovery`'s
+ * `restores.pool` already takes: a subclass feature may spend a pool the class
+ * declared, and this file sees one source at a time. A key nothing declares is
+ * a rules-legal refusal at the casting — the caster has none of it — rather
+ * than a catalogue that will not load.
+ */
+function castingOptionProblems(
+  feature: FeatureDefinition,
+  grant: Extract<FeatureGrant, { kind: 'casting-options' }>,
+  at: string,
+): readonly ContentProblem[] {
+  const found: ContentProblem[] = [];
+  const say = (code: string, reason: string, field: string): void => {
+    found.push({ field, code, reason });
+  };
+
+  if (!isString(grant.pool) || grant.pool.length === 0) {
+    say(
+      'casting_options_without_a_pool',
+      `${feature.id} prices its options in a pool and names none; the pool is another feature's, because one feature carries one grant`,
+      `${at}.pool`,
+    );
+  }
+
+  if (!Number.isInteger(grant.perCasting) || grant.perCasting < 1) {
+    say(
+      'bad_options_per_casting',
+      `${feature.id} lets a casting take ${String(grant.perCasting)} of its options, and a menu nobody can take from is a feature that does nothing`,
+      `${at}.perCasting`,
+    );
+  }
+
+  if (!Array.isArray(grant.options) || grant.options.length === 0) {
+    say('casting_options_empty', `${feature.id} offers a menu with nothing on it`, `${at}.options`);
+    return found;
+  }
+
+  // The menu the player is offered. A feature that asks nothing grants all of
+  // its options, and a feature that asks for something *other* than an option
+  // has no answer creation could filter the menu by.
+  const asks = feature.choice;
+  const offered =
+    asks === undefined ? null : asks.kind === 'option' ? new Set(asks.from) : new Set<string>();
+  if (asks !== undefined && asks.kind !== 'option') {
+    say(
+      'casting_options_not_chosen',
+      `${feature.id} offers a menu of casting options and asks the player for a ${asks.kind}, and creation filters the menu by the names an "option" choice answered with`,
+      `${at}.options`,
+    );
+  }
+
+  const seen = new Set<string>();
+  grant.options.forEach((option, index) => {
+    const on = `${at}.options[${index}]`;
+    if (!isString(option?.id) || option.id.length === 0) {
+      say('bad_casting_option', `${feature.id} offers an option with no id`, `${on}.id`);
+      return;
+    }
+    if (seen.has(option.id)) {
+      say(
+        'duplicate_casting_option',
+        `${feature.id} offers "${option.id}" twice, and a casting naming it could reach only the first`,
+        `${on}.id`,
+      );
+    }
+    seen.add(option.id);
+
+    if (!isString(option.name) || option.name.length === 0) {
+      say('bad_casting_option', `${feature.id} offers an option with no name`, `${on}.name`);
+    } else if (offered !== null && !offered.has(option.name)) {
+      say(
+        'casting_option_not_offered',
+        `${feature.id} prices "${option.name}" and does not offer it to the player, so nobody could ever have chosen it`,
+        `${on}.name`,
+      );
+    }
+
+    if (!Number.isInteger(option.cost) || option.cost < 0) {
+      say(
+        'bad_casting_option_cost',
+        `${feature.id} prices "${option.id}" at ${String(option.cost)}, and a price is a whole number of what the pool holds`,
+        `${on}.cost`,
+      );
+    }
+
+    found.push(...castingAlterationProblems(feature.id, option, `${on}.alters`));
+  });
+
+  return found;
+}
+
+/** The arithmetic one option's alteration has to make sense as. */
+function castingAlterationProblems(
+  featureId: string,
+  option: CastingOptionGrant,
+  at: string,
+): readonly ContentProblem[] {
+  const alters = option?.alters;
+  const bad = (reason: string): readonly ContentProblem[] => [
+    { field: at, code: 'bad_casting_alteration', reason },
+  ];
+  if (alters === null || typeof alters !== 'object' || !isString(alters.kind)) {
+    return bad(`${featureId} offers "${option?.id}" and does not say what it alters`);
+  }
+  switch (alters.kind) {
+    case 'range':
+      return typeof alters.multiplier === 'number' && alters.multiplier > 0
+        ? []
+        : bad(`${featureId} multiplies a range by ${String(alters.multiplier)}`);
+    case 'duration':
+      return typeof alters.multiplier === 'number' && alters.multiplier > 0
+        ? []
+        : bad(`${featureId} multiplies a duration by ${String(alters.multiplier)}`);
+    case 'casting-time':
+      return alters.from === alters.to
+        ? bad(
+            `${featureId} changes a casting time of ${alters.from} to ${alters.to}, which is what leaving the option off already does`,
+          )
+        : [];
+    case 'effective-level':
+      return Number.isInteger(alters.by) && alters.by > 0
+        ? []
+        : bad(
+            `${featureId} raises a casting's level by ${String(alters.by)}, and a level goes up by whole levels`,
+          );
+    default:
+      return bad(`${featureId} offers "${option.id}", which alters nothing the engine reads`);
+  }
+}
+
+/**
  * What an item's `confers` grant has to say, and what it may not.
  *
  * SRD "Magic Items" decides the shape: "Many items, such as Potions, bypass
@@ -2322,6 +2464,17 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
           code: 'item_conferral_on_a_feature',
           reason: `"confers" is an item conferring an effect without casting a spell, and the item is used up doing it; ${feature.id} is not an item, so nothing would be spent — a feature confers an effect list through the "options" its own "pool" grant carries`,
         });
+      }
+      // A menu of things a casting may buy — SRD Metamagic. The half a
+      // definition cannot check for itself: the options are filtered at
+      // creation by the answer the player gave *this feature's* own `option`
+      // choice, so an option the choice does not offer can never be taken and
+      // would sit on the class table unreachable. That is the failure this
+      // whole file exists to catch, and it looks perfectly well formed.
+      if (feature.grants?.kind === 'casting-options') {
+        problems.push(
+          ...castingOptionProblems(feature, feature.grants, `${where}.grants`),
+        );
       }
       // A feature executed by another names one on the same source that
       // actually declares something; otherwise the claim just moves.

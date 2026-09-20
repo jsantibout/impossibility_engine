@@ -1126,14 +1126,24 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
   'sorcerer:metamagic': [
     {
-      clause: 'Empowered Spell is `rerollDice` in the dice layer, which a caller opts into per roll',
+      clause: 'Empowered Spell and Seeking Spell are `rerollDice` in the dice layer',
       why: 'a-die-behaviour-a-spell-asks-for',
       note: 'the spell map’s own id: the behaviours are built and nothing passes them.',
     },
     {
-      clause: 'Two options are chosen and recorded',
+      clause: 'Careful Spell needs creatures that automatically succeed on a save the casting is about to roll',
+      why: 'a-feature-that-changes-who-a-casting-catches',
+      note: 'the shape’s own sentence — "sparing creatures from your own Evocation" — with the number counted off a Charisma modifier.',
+    },
+    {
+      clause: 'Heightened Spell needs Disadvantage hung on one target’s saves against this casting',
+      why: 'a-mode-on-the-save-a-spell-forces',
+      note: 'the spell map’s own id: "nothing records what a save was against", so a mode cannot be narrowed to the saves one casting forces.',
+    },
+    {
+      clause: 'Subtle Spell has nothing to remove, because a spell definition carries no components',
       why: 'a-feature-that-changes-what-a-casting-costs',
-      note: 'every other option changes the casting — its range, its targets, its components, its action — for Sorcery Points.',
+      note: 'the one part of this shape the built member does not reach: the shape names "its components" and a SpellDefinition has none to name.',
     },
   ],
   'sorcerer:sorcery-incarnate': [
