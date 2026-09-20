@@ -152,9 +152,16 @@ describe('the blocked-on map covers the undefined population', () => {
    * back, so the next pass cannot take the map far below thirteen without the
    * engine gaining a mechanic first. When it can, this guard stops being worth
    * keeping rather than being lowered again.
+   *
+   * **Moved from 13 to 6 by IE-060**, which wrote the last spell the map itself
+   * called executable and left thirteen entries — so a floor of thirteen sat
+   * *on* the population, which is the failure the paragraph above records
+   * happening once already. Every entry that is left is a decision rather than
+   * a transcription, so the honest slack is the whole of it: what this still
+   * catches is a wrong directory or a filter reading nothing, and nothing else.
    */
   it('covers a population worth deriving', () => {
-    expect(Object.keys(BLOCKED_ON).length).toBeGreaterThan(13);
+    expect(Object.keys(BLOCKED_ON).length).toBeGreaterThan(6);
   });
 
   it('names only shapes the vocabulary has', () => {
@@ -872,7 +879,10 @@ describe('the four highest-leverage families are read sentence by sentence', () 
     // the undefined population is written here; what left it is asserted
     // below, and the shapes all survive in the tracked population.
     ['a-stat-block-created-mid-fight', ['find-familiar'], []],
-    ['an-action-a-spell-compels-or-forbids', ['conjure-woodland-beings', 'slow'], []],
+    // Conjure Woodland Beings left this list by being **written**, and the
+    // reading that had kept it here was wrong about which gap it was: see the
+    // block below, and `conjure-woodland-beings.test.ts` for the definition.
+    ['an-action-a-spell-compels-or-forbids', ['slow'], []],
     ['a-second-place-to-put-a-creature', ['find-familiar', 'maze', 'sending'], []],
     ['a-wall-or-several-templates-in-one-area', [], []],
   ];
@@ -979,17 +989,20 @@ describe('the four highest-leverage families are read sentence by sentence', () 
     // shape: the Concentration and the ten minutes are real and the Dash is
     // the table's. A read count going to zero because somebody wrote the
     // spell is the opposite finding from one that was never anything else.
-    expect(consumersOf('an-action-a-spell-compels-or-forbids').unblocksRead).toEqual([
-      'conjure-woodland-beings',
+    // **Collected, and the collection came with a correction.** Conjure
+    // Woodland Beings was the last spell in the book whose effects the engine
+    // could execute today, and it is executed now — an Emanation, three
+    // triggers, a save and 5d8 Force, which is Spirit Guardians' shape. What
+    // had kept it here was its Disengage, filed under this shape; `ActionRule`
+    // built that sentence and the entry was never re-read. The gap that is
+    // real is a grant on the caster beside an area that catches everybody
+    // else, and it is filed as debt on the definition.
+    expect(consumersOf('an-action-a-spell-compels-or-forbids').unblocksRead).toEqual([]);
+    expect(BLOCKED_ON['conjure-woodland-beings']).toBeUndefined();
+    expect(ADJUDICATED['conjure-woodland-beings']?.map((entry) => entry.why)).toEqual([
+      'a-spells-effects-applied-to-different-targets',
+      'table',
     ]);
-    // And Conjure Woodland Beings is the last one, which is worth saying
-    // plainly: it is the only spell left in the book whose effects the engine
-    // could execute today, and the third catalogue pass left it deliberately
-    // rather than tracking it — an Emanation, a trigger, a save and 5d8 Force
-    // is Spirit Guardians' shape, and tracking it would have written a
-    // definition that resolves nothing where one that resolves the spell was
-    // available.
-    expect(consumersOf('an-action-a-spell-compels-or-forbids').unblocksRead).toHaveLength(1);
     expect(BLOCKED_ON['expeditious-retreat']).toBeUndefined();
     expect(SRD_CONTENT.spell('expeditious-retreat')).not.toBeNull();
     // Collected: Gate is defined, so the shape finishes nobody who is left.

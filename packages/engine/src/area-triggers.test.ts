@@ -897,6 +897,13 @@ describe('every trigger is a clause the SRD actually prints', () => {
    * (Spirit Guardians). The last is the same mechanic in the opposite word
    * order, which is exactly why the regex reads both.
    *
+   * **A fifth arrived and it is a third word order**: SRD Conjure Woodland
+   * Beings writes "whenever the **Emanation enters the space of a creature**
+   * you can see", which is Spirit Guardians' sentence with the possessive
+   * unrolled. One more alternative rather than a looser pattern, because what
+   * this asserts is that the book prints the clause and not that it prints
+   * some words near each other.
+   *
    * The four fixed areas here print nothing of the kind, and the way that
    * stays true is the spell's own prose rather than a comment.
    */
@@ -909,6 +916,9 @@ describe('every trigger is a clause the SRD actually prints', () => {
           prose,
         ) ||
         /\b(area|sphere|cloud|cylinder|emanation)\s+enters\s+a creature(’|')s\s+space/i.test(
+          prose,
+        ) ||
+        /\b(area|sphere|cloud|cylinder|emanation)\s+enters\s+the space of a creature\b/i.test(
           prose,
         );
       expect(definition.areaTrigger?.onAreaEntry === true).toBe(printed);

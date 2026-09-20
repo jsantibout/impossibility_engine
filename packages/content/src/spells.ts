@@ -11189,6 +11189,85 @@ export const CONJURE_ANIMALS: SpellDefinition = {
 };
 
 /**
+ * SRD Conjure Woodland Beings:
+ *
+ * > _Level 4 Conjuration (Druid, Ranger)._ **Casting Time:** Action.
+ * > **Range:** Self. **Duration:** Concentration, up to 10 minutes.
+ * > "You conjure nature spirits that flit around you in a 10-foot Emanation
+ * > for the duration. Whenever the Emanation enters the space of a creature
+ * > you can see and whenever a creature you can see enters the Emanation or
+ * > ends its turn there, you can force that creature to make a Wisdom saving
+ * > throw. The creature takes 5d8 Force damage on a failed save or half as
+ * > much damage on a successful one. A creature makes this save only once per
+ * > turn.
+ * >
+ * > In addition, you can take the Disengage action as a Bonus Action for the
+ * > spell's duration."
+ * > _Using a Higher-Level Spell Slot._ "The damage increases by 1d8 for each
+ * > spell slot level above 4."
+ *
+ * **Spirit Guardians' shape, one clause longer**, and it stood in the
+ * undefined population for two tranches while `blocked-on.test.ts` called it
+ * the only spell left in the book whose effects the engine could execute
+ * today. What kept it there was the Disengage, filed under a shape that turned
+ * out to be built: `ActionRule`'s `allows` was derived from **this sentence**
+ * and `STATABLE_PRICES` holds the one price in the book that moves.
+ *
+ * So the reading was wrong about which gap it was and right that there was
+ * one, and the real one is a target rule rather than an economy. A spell with
+ * an `area` has its targets picked by the area; an Emanation excludes the
+ * creature it originates from; `effects` reaches the creatures the area
+ * caught. There is therefore nowhere to put a grant that lands on the
+ * **caster** while everything else lands on everybody near them — which is
+ * `a-spells-effects-applied-to-different-targets`, one effect list applied to
+ * every target, and is what `unmodelled` says below.
+ *
+ * Three trigger clauses and a cap that spans them, exactly as Spirit Guardians
+ * prints them, and `effects: []` for the same reason: the spirits appear and
+ * the paragraph names three moments, none of which is the conjuring. "you
+ * **can** force that creature to make a Wisdom saving throw" costs the engine
+ * nothing either — declining is a command nobody sends.
+ */
+export const CONJURE_WOODLAND_BEINGS: SpellDefinition = {
+  id: 'conjure-woodland-beings',
+  name: 'Conjure Woodland Beings',
+  level: 4,
+  school: 'conjuration',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  area: { kind: 'emanation', distance: 10, origin: 'self' },
+  // The spirits appear and nothing happens yet: every save this spell calls
+  // for comes from one of the three trigger clauses below.
+  effects: [],
+  durationSeconds: 600,
+  areaTrigger: {
+    at: 'end-of-turn',
+    // "whenever a creature you can see enters the Emanation", with no "first
+    // time on a turn" — the cap that makes it behave like one is the separate
+    // sentence below, which spans all three clauses.
+    onEntry: 'every-entry',
+    onAreaEntry: true,
+    oncePerTurn: true,
+    label: 'Conjure Woodland Beings (the nature spirits)',
+    effects: [
+      {
+        kind: 'save-damage',
+        ability: 'wis',
+        damage: { dice: '5d8', perSlotLevelAbove: '1d8' },
+        damageType: 'force',
+        onSuccess: 'half',
+      },
+    ],
+  },
+  unmodelled: [
+    'the caster may not take the Disengage action as a Bonus Action: the allowance itself is an `action-rule` the engine has, and what it cannot be given is a home — a spell with an area has its targets picked by the area, an Emanation excludes the creature it originates from, and one effect list reaches every target, so a grant on the caster has nowhere to sit beside an Emanation that catches everybody else',
+    'which creature the caster declines to force a save on is the table’s: the book says "you can force", and declining is a command nobody sends rather than a rule the engine applies',
+  ],
+};
+
+/**
  * SRD Conjure Minor Elementals:
  *
  * > _Level 4 Conjuration (Druid, Wizard)._ **Casting Time:** Action.
@@ -12555,6 +12634,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   CONJURE_ELEMENTAL,
   CONJURE_FEY,
   CONJURE_MINOR_ELEMENTALS,
+  CONJURE_WOODLAND_BEINGS,
   CONTACT_OTHER_PLANE,
   CONTAGION,
   CONTINGENCY,

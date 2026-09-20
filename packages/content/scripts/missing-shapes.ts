@@ -606,6 +606,26 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'the Frightened condition itself is applied, by the rider on the attack, and what is left over is the second source: a condition carries the casting that imposed it, and the spirit is not a creature anything could be frightened of separately. Which of the two a later ruling reads is the table’s.',
     },
   ],
+  // **The last spell in the book whose effects the engine could execute, now
+  // executed** — and the entry it left behind is a re-filing rather than a
+  // transcription. `BLOCKED_ON` had its Disengage under
+  // `an-action-a-spell-compels-or-forbids`, and `ActionRule`'s `allows` was
+  // derived from this very sentence: the mechanism is built. What is actually
+  // missing is somewhere to put a grant that lands on the **caster** while an
+  // Emanation catches everybody else, which is one effect list applied to
+  // every target.
+  'conjure-woodland-beings': [
+    {
+      clause: 'take the Disengage action as a Bonus Action',
+      why: 'a-spells-effects-applied-to-different-targets',
+      note: 'The allowance itself is an `action-rule` the engine has and `STATABLE_PRICES` prices; what it has no home in is this spell. A definition with an `area` has its targets picked by the area, an Emanation excludes the creature it originates from, and `effects` reaches whoever the area caught — so a grant on the caster and an Emanation on everybody else cannot both be written, which is the shape named here rather than the economy the bare entry blamed.',
+    },
+    {
+      clause: 'declines to force a save on',
+      why: 'table',
+      note: 'SRD writes "you can force that creature to make a Wisdom saving throw" rather than "must", so whether the spirits strike a given creature at all is the caster’s word. The engine resolves every save the trigger raises and declining is a command nobody sends, which is the same reading Conjure Fey’s optional attack already has.',
+    },
+  ],
   contagion: [
     {
       clause: 'the ability chosen at the cast',
@@ -3686,50 +3706,6 @@ export type BlockedEntry = ShapeId | BlockedClause;
  *   than a declared placeholder.
  */
 export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
-  // **The one place in this reading where the vocabulary ran out.** The upcast
-  // line grows the Sphere with the slot, `SpellArea` is a fixed size, and the
-  // slot reaches damage dice and a target count and nothing else. No shape id
-  // names it; inventing one is an architecture decision, so the clause is filed
-  // as the table's under protest and reported. `blocked-on.test.ts` pins it by
-  // name so it cannot go quiet, and Fog Cloud prints the same sentence while
-  // this map records it as blocked on nothing at all.
-  'conjure-woodland-beings': [
-    {
-      clause: 'nature spirits that flit around you in a 10-foot Emanation',
-      why: 'expressible',
-      note: 'An Emanation of ten feet originating on the caster, which is what Spirit Guardians already writes — the area comes along because that is what an Emanation on `self` does, with no action spent and no field needed.',
-    },
-    {
-      clause: 'Whenever the Emanation enters the space of a creature',
-      why: 'expressible',
-      note: '`AreaTrigger.onAreaEntry` is exactly this clause: the area arrives and the creature has not moved. Spirit Guardians is one of the four spells the field was transcribed for.',
-    },
-    {
-      clause: 'enters the Emanation or ends its turn there, you can force that creature to make a Wisdom saving throw',
-      why: 'expressible',
-      note: '`AreaTrigger.onEntry` and `at: "end-of-turn"` are the book\'s two boundary clauses transcribed. The caster being *able* to force the save rather than obliged to costs the engine nothing: declining is a command nobody sends.',
-    },
-    {
-      clause: 'The creature takes 5d8 Force damage on a failed save',
-      why: 'expressible',
-      note: 'A typed save-damage effect with the ordinary half-on-a-success branch, which is the most common shape in the catalogue.',
-    },
-    {
-      clause: 'A creature makes this save only once per turn',
-      why: 'expressible',
-      note: '`AreaTrigger.oncePerTurn`, which caps the creature across every clause above rather than capping one of them — transcribed from Moonbeam, which prints the same sentence after naming three triggers.',
-    },
-    {
-      clause: "you can take the Disengage action as a Bonus Action for the spell's duration",
-      why: 'an-action-a-spell-compels-or-forbids',
-      note: 'A standing grant of an extra way to Disengage, for the duration. The action economy is the engine\'s and `mayAct` guards every spender; the only lever a spell has on it is a condition the engine names, and this is not one.',
-    },
-    {
-      clause: 'The damage increases by 1d8 for each spell slot level above 4',
-      why: 'expressible',
-      note: '`DiceScaling` by slot, which is one of the two axes the format keeps deliberately apart and the one a levelled spell reads.',
-    },
-  ],
   // **Blocked on nothing, and now read.** The entry was empty, which said the
   // right thing and recorded no reading; these five clauses say the same thing
   // and show the paragraph was gone through. Every mechanical word in it is

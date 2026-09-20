@@ -410,11 +410,23 @@ describe('Spirit Guardians is transcribed, not approximated', () => {
     expect(game.hp(ALLY)).toBe(MAX_HP);
   });
 
-  it('is the only carried area in the catalogue so far', () => {
+  /**
+   * **The second carried area, and it is the same sentence in a third word
+   * order.** SRD Conjure Woodland Beings prints "whenever the Emanation enters
+   * the space of a creature you can see", which is this clause with the
+   * possessive unrolled, and nothing about the mechanism differed — the
+   * definition is data and the machinery below is what runs it. Written out
+   * rather than counted, because a number in this assertion would say nothing
+   * about which spells they are.
+   */
+  it('names every carried area in the catalogue', () => {
     const carried = SPELL_DEFINITIONS.filter(
       (d) => d.areaTrigger?.onAreaEntry === true && d.area?.origin === 'self',
     );
-    expect(carried.map((d) => d.id)).toEqual(['spirit-guardians']);
+    expect(carried.map((d) => d.id).sort()).toEqual([
+      'conjure-woodland-beings',
+      'spirit-guardians',
+    ]);
   });
 });
 
