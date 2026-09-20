@@ -208,6 +208,16 @@ export function alteredCasting(
       if (definition.range.kind === 'self') {
         return refuse(`needs a spell with a range in feet, and ${definition.name} has a range of Self`);
       }
+      // SRD Distant Spell doubles a range; there is nothing to double when the
+      // book printed a question instead of a distance. Refused rather than
+      // applied for nothing, which is the price-paid-for-nothing rule the
+      // branch above already follows — and the engine may not invent a number
+      // for a Range whose whole point is that only the DM can answer it.
+      if (definition.range.kind === 'dm') {
+        return refuse(
+          `needs a spell with a range in feet, and ${definition.name}'s printed Range is the DM's to decide`,
+        );
+      }
       if (definition.range.kind === 'touch') {
         if (alters.touchBecomesFeet === undefined) {
           return refuse(`says nothing about a range of Touch, and ${definition.name} has one`);

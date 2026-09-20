@@ -820,6 +820,13 @@ function render(coverage: SpellCoverage): string {
     'are the entries the *Read* column below is a floor over rather than a proof',
     'of, told apart from the ones a marker found.',
     '',
+    'A sentence **handed to the DM** is counted apart from a noted one, because',
+    'the two are different claims. A note is a debt: the engine does not do this',
+    'part yet, and the blocker table below ranks what building it would finish.',
+    'A handover never will be — Commune asks a question of a god — so counting it',
+    'as a gap would put work on a list nobody may do. Both reach the table on',
+    'every casting; only one of them is waiting for anything.',
+    '',
   );
   for (const definition of named('tracked')) {
     const level = definition.level === 0 ? 'cantrip' : `level ${definition.level}`;
@@ -827,8 +834,10 @@ function render(coverage: SpellCoverage): string {
       (entry) => entry.marker === null,
     ).length;
     const read = unseen === 0 ? '' : `, ${unseen} read`;
+    const given = (definition.dmDecides ?? []).length;
+    const handed = given === 0 ? '' : `, ${given} handed to the DM`;
     lines.push(
-      `- **${definition.name}** (${level}) — ${(definition.unmodelled ?? []).length} noted${read}`,
+      `- **${definition.name}** (${level}) — ${(definition.unmodelled ?? []).length} noted${read}${handed}`,
     );
   }
 

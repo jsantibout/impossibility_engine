@@ -1126,12 +1126,34 @@ const ADDED_FOURTH: readonly string[] = ['enthrall', 'flesh-to-stone', 'spare-th
  */
 const ADDED_FIFTH: readonly string[] = ['calm-emotions', 'hallow'];
 
+/**
+ * The sixth pass is the two spells whose blocker was never a shape.
+ *
+ * Both sat in `BLOCKED_ON` **under protest**, and the protest was about a
+ * printed Range the format has no kind for — `Special` for one and `Sight` for
+ * the other. The entries said so in as many words: "No shape id names it, and
+ * inventing one is an architecture decision rather than a reading."
+ *
+ * The decision went the other way. "Some text is the DM's alone ... Not a
+ * format arm to invent, a handover to make visible": a Range that is a question
+ * about the world is answered by the table, so the definition says
+ * `range: { kind: 'dm' }`, `dmDecides` carries the book's own words out of
+ * every casting, and the engine measures nothing and says why. Everything each
+ * spell still owes is an ordinary shape and is filed in `ADJUDICATED` beside
+ * every other tracked spell's.
+ *
+ * `dm-handover.test.ts` is where the handover itself is driven; these two are
+ * here because a pass list is a record of what was written and when.
+ */
+const ADDED_SIXTH: readonly string[] = ['dream', 'mirage-arcane'];
+
 const ADDED: readonly string[] = [
   ...ADDED_FIRST,
   ...ADDED_SECOND,
   ...ADDED_THIRD,
   ...ADDED_FOURTH,
   ...ADDED_FIFTH,
+  ...ADDED_SIXTH,
 ].sort();
 
 describe('every spell this batch added is cast for real', () => {
@@ -1141,11 +1163,19 @@ describe('every spell this batch added is cast for real', () => {
     expect(ADDED_THIRD).toEqual([...ADDED_THIRD].sort());
     expect(ADDED_FOURTH).toEqual([...ADDED_FOURTH].sort());
     expect(ADDED_FIFTH).toEqual([...ADDED_FIFTH].sort());
+    expect(ADDED_SIXTH).toEqual([...ADDED_SIXTH].sort());
   });
 
-  /** And the five batches are five batches: nothing is claimed by two. */
-  it('keeps the five passes apart', () => {
-    const passes = [ADDED_FIRST, ADDED_SECOND, ADDED_THIRD, ADDED_FOURTH, ADDED_FIFTH];
+  /** And the six batches are six batches: nothing is claimed by two. */
+  it('keeps the six passes apart', () => {
+    const passes = [
+      ADDED_FIRST,
+      ADDED_SECOND,
+      ADDED_THIRD,
+      ADDED_FOURTH,
+      ADDED_FIFTH,
+      ADDED_SIXTH,
+    ];
     for (const [at, pass] of passes.entries()) {
       expect(pass.length, `pass ${at + 1}`).toBeGreaterThan(0);
       const others = passes.filter((_, other) => other !== at).flat();

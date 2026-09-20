@@ -320,10 +320,18 @@ describe('every definition agrees with the range the book prints', () => {
     expect(book, `${printed(id).range} did not parse`).not.toBeNull();
     if (book === null) return;
 
-    // `unbounded` is Sight and Unlimited; nothing in the catalogue has one, and
-    // the engine has no kind for it, so a definition claiming one of those
-    // ranges would be claiming a rule it cannot check.
-    expect(book.kind, id).not.toBe('unbounded');
+    // `unbounded` is `Sight`, `Unlimited` and `Special` — the three Ranges the
+    // book prints that are not distances at all. The engine still has no kind
+    // for any of them **and never will**, because each is a question about the
+    // world rather than a number: the owner's ruling is that such text is the
+    // DM's, so a definition answers one with `range: { kind: 'dm' }` and hands
+    // the printed word over. Two spells write it, and a definition that quietly
+    // invented a distance for one of them still fails here.
+    if (book.kind === 'unbounded') {
+      expect(definition.range.kind, id).toBe('dm');
+      expect(definition.dmDecides ?? [], id).toContain(`Range: ${printed(id).range}`);
+      return;
+    }
     expect(definition.range.kind, id).toBe(book.kind);
     if (book.kind === 'ranged' && definition.range.kind === 'ranged') {
       expect(definition.range.feet, id).toBe(book.feet);
@@ -394,6 +402,12 @@ describe('a deliberate disagreement is written down, and stays true', () => {
     if (field === 'range') {
       const book = srdRange(spell.range);
       if (book === null) return true;
+      // A printed Range with no number in it and a definition that says the DM
+      // decides it are the **same** answer, so this is agreement rather than a
+      // disagreement somebody has to excuse. The oracle keeps its own word for
+      // it because it is reading the book, and the definition keeps its own
+      // because it is telling a casting what to do.
+      if (book.kind === 'unbounded') return definition.range.kind !== 'dm';
       if (book.kind !== definition.range.kind) return true;
       return (
         book.kind === 'ranged' &&

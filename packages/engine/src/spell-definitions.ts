@@ -41,7 +41,73 @@ import type { SpellReactionWindow } from './reactions.js';
 export type SpellRange =
   | { readonly kind: 'self' }
   | { readonly kind: 'touch' }
-  | { readonly kind: 'ranged'; readonly feet: number };
+  | { readonly kind: 'ranged'; readonly feet: number }
+  /**
+   * The book printed something here that only the DM can answer.
+   *
+   * SRD prints three Ranges that are not a distance at all — `Special`,
+   * `Sight` and `Unlimited` — and every one of them is a question about the
+   * world rather than a number: how far the caster can see, whether the target
+   * is on the same plane, what "special" means for this spell. The owner's
+   * ruling is that **some text is the DM's alone**, and this is the Range half
+   * of it: one arm that says *ask the table*, rather than a `sight` kind that
+   * would need a sense the engine does not hold or a distance the book
+   * declined to print.
+   *
+   * It carries no payload, because the printed words are
+   * {@link SpellDefinition.dmDecides}' to carry and a second copy of them here
+   * would be the second place to get one sentence wrong. `checkSpellDefinition`
+   * refuses a definition that claims this Range and hands nothing over, so the
+   * two halves cannot come apart.
+   *
+   * {@link ranged} answers null for it, which is what `self` already answers:
+   * **no distance is measured**, and the casting refuses nothing on grounds of
+   * how far away its target is. That is the whole of the engine's opinion.
+   */
+  | { readonly kind: 'dm' };
+
+/**
+ * The mark every handed-over sentence carries out of a casting.
+ *
+ * `unverified` is one list and it now carries two different claims, so the
+ * difference has to be readable rather than inferred. An `unmodelled` line is
+ * a **debt**: the engine does not do this part *yet*, and one day a shape will
+ * be built and the line will go. A handover is not a debt and never will be —
+ * it is the book asking a question the engine has no business answering — so
+ * it goes out under a mark nothing else writes, and {@link dmDecisionsIn}
+ * reads it back.
+ *
+ * A string rather than a second field for the reason CLAUDE.md's rule 5 gives:
+ * what a command reads from content is pinned into the events it emits, and
+ * `unverified` is already the field a declaration writes into the log. Two
+ * lists would have meant a second field on a pending casting and a second
+ * member of the event union to carry it.
+ */
+export const DM_DECIDES = '[the DM decides]';
+
+/**
+ * One handed-over sentence, as the table will read it.
+ *
+ * The spell's name first, exactly as an `unmodelled` line is written, so a
+ * caster holding three castings can tell which spell is asking; then the mark;
+ * then the book's own words, **unaltered**. Nothing here paraphrases, and
+ * nothing here guesses a number for the sentence it is handing on.
+ */
+export const handedOver = (spellName: string, printed: string): string =>
+  `${spellName}: ${DM_DECIDES} ${printed}`;
+
+/**
+ * The printed sentences a casting handed to the table, out of what it reported.
+ *
+ * The other half of {@link handedOver}, so a narrating layer does not have to
+ * know the shape of the line: it gets the book's words back and nothing else.
+ * A line that carries no mark is somebody else's — an `unmodelled` gap, a
+ * range note an attack wrote — and is left alone.
+ */
+export const dmDecisionsIn = (unverified: readonly string[]): readonly string[] =>
+  unverified
+    .filter((line) => line.includes(DM_DECIDES))
+    .map((line) => line.slice(line.indexOf(DM_DECIDES) + DM_DECIDES.length).trim());
 
 /**
  * How a spell's dice grow.
@@ -1961,6 +2027,37 @@ export interface SpellDefinition {
    * nothing and said nothing would be worse than the refusal it replaced.
    */
   readonly unmodelled?: readonly string[];
+  /**
+   * Printed text this spell hands to whoever is running the table.
+   *
+   * The owner's ruling: "**Some text is the DM's alone.** Commune, Dream's
+   * Range `Special`, Mirage Arcane's `Sight`: the casting hands the printed
+   * text to whoever is running the table, human or model, marked explicitly as
+   * a thing only the DM can decide. Not a format arm to invent, a handover to
+   * make visible."
+   *
+   * **Not `unmodelled` under another name**, and the difference is the whole
+   * reason it is a second field. `unmodelled` is a debt: a clause the engine
+   * does not execute *yet*, whose shape somebody will build and whose line
+   * will then go — `missing-shapes.ts` counts them and ranks what to build
+   * next. A handover is not on that list and will never be: Commune asks a
+   * question of a god, and there is no engine that answers it. Filed as a gap
+   * it would inflate a backlog with work nobody may do; filed here it is
+   * visible as what it is.
+   *
+   * Each entry is the book's own words — a printed field like `Range: Sight`,
+   * or a sentence of the spell's prose — carried out of every casting through
+   * {@link handedOver} and readable again through {@link dmDecisionsIn}. The
+   * engine never paraphrases one, never guesses a number for one, and never
+   * lets one stand in for a rule it could have adjudicated: the slot, the
+   * action, the Concentration, the clock and the ongoing record all happen
+   * around it exactly as they would for any other casting.
+   *
+   * A definition whose `range` is `{ kind: 'dm' }` must carry one, because a
+   * Range the format cannot state is precisely the text the ruling is about
+   * and a silent one would be the engine quietly not checking a distance.
+   */
+  readonly dmDecides?: readonly string[];
   /**
    * What a Reaction spell is cast in answer to, checked before anything is
    * spent. A spell with no trigger is not a Reaction spell and is unaffected.

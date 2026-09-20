@@ -1985,6 +1985,23 @@ export function checkSpellDefinition(
     });
   }
 
+  /**
+   * A Range the DM decides is a Range the engine measures nothing against, so
+   * the printed words have to reach the table or nobody ever learns there was
+   * a question. The two halves of the handover are checked against each other
+   * here and nowhere else: `dmDecides` may stand alone — a spell with an
+   * ordinary Range may still print a sentence only the DM can answer — and
+   * `range: { kind: 'dm' }` may not.
+   */
+  if (definition.range.kind === 'dm' && (definition.dmDecides ?? []).length === 0) {
+    found.push({
+      field: 'dmDecides',
+      code: 'silent_dm_range',
+      reason:
+        'a Range the DM decides has to say what the book printed, or the casting silently measures nothing and never says why',
+    });
+  }
+
   // — targeting ————————————————————————————————————————————————————————————
 
   if (definition.targets.unlimited === true && definition.targets.count !== 0) {
@@ -2464,11 +2481,32 @@ export function checkSpellDefinition(
         ? definition.unmodelled
         : [];
 
+  /**
+   * The handover, read by the same rule and for the same reason.
+   *
+   * A second list rather than a second spelling of the first: an `unmodelled`
+   * line is a debt somebody may one day pay, and this is the book asking a
+   * question nobody here will ever answer. Both are what a definition declares
+   * it is leaving to the table, which is why either satisfies the rule below.
+   */
+  const handovers =
+    definition.dmDecides === undefined
+      ? []
+      : readsAsList(
+            definition.dmDecides,
+            'dmDecides',
+            'the printed text a definition hands to the DM is a list of sentences',
+            found,
+          )
+        ? definition.dmDecides
+        : [];
+
   if (
     definition.effects.length === 0 &&
     definition.activation === undefined &&
     definition.areaTrigger === undefined &&
-    notes.length === 0
+    notes.length === 0 &&
+    handovers.length === 0
   ) {
     found.push({
       field: 'unmodelled',
@@ -2483,6 +2521,16 @@ export function checkSpellDefinition(
         field: `unmodelled[${i}]`,
         code: 'empty_note',
         reason: 'an empty note declares nothing',
+      });
+    }
+  });
+
+  handovers.forEach((printed, i) => {
+    if (typeof printed !== 'string' || printed.trim().length === 0) {
+      found.push({
+        field: `dmDecides[${i}]`,
+        code: 'empty_note',
+        reason: 'an empty sentence hands nothing over',
       });
     }
   });
