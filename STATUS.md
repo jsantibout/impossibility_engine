@@ -525,6 +525,23 @@ Multiattack is built for the one mechanism of five the ruling covers.
   menu.
 - **The defender answers first.** A rider that Stuns on the same swing must
   not close the `damage-rolled` window the target was just offered.
+- **A use may name an attack** (owner, 2026-09-20). The architect's reading —
+  "a *use of X*" names a save or prose action, 55 of 55 — is a fact about the
+  SRD corpus and not a law, and `parseMultiattack` encodes it as one:
+  `TRAILING_USE` and `NAMES_A_USE` decide by wording, and the function takes
+  only the sentence, so it cannot see whether the named action is one the block
+  prints an attack for. Measured against all 330 blocks: `uses X` names
+  something with a parsed attack block **zero** times, and all 40 such clauses
+  are saves or prose — so no SRD behaviour is wrong today. A homebrew block
+  printing "makes one Claw attack and uses Bite", where Bite has an attack
+  block, is handed to the DM instead of being a swing. The engine knows the
+  answer at bind time: `printedMultiattack` binds every name already and never
+  asks this one. **Queued**: decide the hand-over by what the named action *is*,
+  not by how the sentence reads.
+
+  (The vampire spawn is not an example. Its `Bite` is a Constitution saving
+  throw, so handing it over is right; the earlier report that it was a printed
+  attack line was mistaken.)
 - **The Hydra's head count gets its own event** (owner, 2026-09-20), not a
   general "a number the table states about a creature". The doctrine's own
   paragraph says kinds with providers are a table and become a framework only
