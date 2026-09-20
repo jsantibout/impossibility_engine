@@ -1,4 +1,5 @@
-import { ABILITIES, err, ok, SKILL_ABILITY, type Result } from '@ie/shared';
+import { ABILITIES, err, ok, SKILL_ABILITY, SKILLS, type Result } from '@ie/shared';
+import { MonsterSchema, type Monster } from '@ie/srd';
 import { CONFERRED_LEVEL, itemChargePool, type CatalogueItem } from './catalogue.js';
 import { MAX_ABILITY_SCORE } from './character.js';
 import {
@@ -85,6 +86,17 @@ export interface ContentInput {
   readonly items?: readonly CatalogueItem[];
   readonly languages?: readonly LanguageDefinition[];
   readonly alignments?: readonly AlignmentDefinition[];
+  /**
+   * The bestiary: every stat block this world holds.
+   *
+   * A monster is content on exactly the terms an item is — a catalogue a
+   * command looks something up in and pins what it read — so it enters by the
+   * same door and there is no second registry to hold it. The vocabulary is
+   * `@ie/srd`'s `Monster`, which is what the parser produces and what
+   * `adaptMonster` reads; a `MonsterDefinition` of the engine's own would be a
+   * twin of it waiting for a second consumer there is none of.
+   */
+  readonly monsters?: readonly Monster[];
 }
 
 export interface Content {
@@ -98,6 +110,8 @@ export interface Content {
   readonly items: readonly CatalogueItem[];
   readonly languages: readonly LanguageDefinition[];
   readonly alignments: readonly AlignmentDefinition[];
+  /** See {@link ContentInput.monsters}. */
+  readonly monsters: readonly Monster[];
 
   /** The executable definition, or null: the engine can look a spell up but only executes the ones it has been given. */
   readonly spell: (id: string) => SpellDefinition | null;
@@ -109,6 +123,8 @@ export interface Content {
   readonly backgroundById: (id: string) => BackgroundDefinition | null;
   readonly featById: (id: string) => FeatDefinition | null;
   readonly item: (id: string) => CatalogueItem | null;
+  /** The stat block, or null: `addCreature` takes the id and this is how it comes by the block. */
+  readonly monsterById: (id: string) => Monster | null;
   /** By the name written on a character sheet, which is what a choice names. */
   readonly languageNamed: (name: string) => LanguageDefinition | null;
   readonly alignmentNamed: (name: string) => AlignmentDefinition | null;
@@ -1513,6 +1529,9 @@ function itemGrantProblems(
 
 const ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
+/** The engine's own skill vocabulary, which is the one a stat block is held to. */
+const SKILL_NAMES: ReadonlySet<string> = new Set<string>(SKILLS);
+
 const byId = <T extends { readonly id: string }>(rows: readonly T[]): ReadonlyMap<string, T> =>
   new Map(rows.map((row) => [row.id, row]));
 
@@ -1550,6 +1569,7 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
   const items = input.items ?? [];
   const languages = input.languages ?? [];
   const alignments = input.alignments ?? [];
+  const monsters = input.monsters ?? [];
 
   for (const [what, rows] of [
     ['spells', spells],
@@ -1562,6 +1582,7 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
     ['items', items],
     ['languages', languages],
     ['alignments', alignments],
+    ['monsters', monsters],
   ] as const) {
     for (const id of duplicates(rows.map((row) => row.id))) {
       problems.push({ field: `${what}[${id}]`, code: 'duplicate_id', reason: `${what} holds ${id} twice` });
@@ -1954,6 +1975,34 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
     );
   }
 
+  /**
+   * **What a stat block claims, held to what the adapter reads.**
+   *
+   * `MonsterSchema` already pins everything a monster's shape can be wrong
+   * about — ability scores 1–30, an Armour Class of at least 1, average hit
+   * points of at least 1, and a size drawn from the enum `positioning.ts`
+   * reads — so this asks the one question the schema cannot: does the engine
+   * have a vocabulary for what the block names? `adaptMonster` drops a skill
+   * key it does not recognise **silently**, which for a homebrew stat block is
+   * a printed line that quietly buys nothing. The same rule an item's
+   * conferral keeps, and the reason `feat_grant_not_read` exists.
+   *
+   * It asks nothing else. A **qualified** defence ("Charmed (except from its
+   * vampire master)") and an unrecognised one are both things the SRD itself
+   * prints; `addCreature` classifies them and reports them through
+   * `unverified`, so refusing them here would refuse the printed book.
+   */
+  for (const monster of monsters) {
+    for (const skill of Object.keys(monster.skills)) {
+      if (SKILL_NAMES.has(skill)) continue;
+      problems.push({
+        field: `monsters[${monster.id}].skills`,
+        code: 'unknown_skill',
+        reason: `${monster.id} is proficient in "${skill}", which is not a skill this engine knows, so the bonus would be dropped without a word`,
+      });
+    }
+  }
+
   return problems;
 }
 
@@ -1989,6 +2038,7 @@ export function createContent(input: ContentInput): Result<Content> {
   const items = input.items ?? [];
   const languages = input.languages ?? [];
   const alignments = input.alignments ?? [];
+  const monsters = input.monsters ?? [];
 
   const spellMap = byId(spells);
   const entryMap = byId(entries);
@@ -1998,6 +2048,7 @@ export function createContent(input: ContentInput): Result<Content> {
   const backgroundMap = byId(backgrounds);
   const featMap = byId(feats);
   const itemMap = byId(items);
+  const monsterMap = byId(monsters);
   const languageMap = new Map(languages.map((language) => [language.name, language]));
   const alignmentMap = new Map(alignments.map((alignment) => [alignment.name, alignment]));
 
@@ -2012,6 +2063,7 @@ export function createContent(input: ContentInput): Result<Content> {
     items,
     languages,
     alignments,
+    monsters,
     spell: (id) => spellMap.get(id) ?? null,
     spellEntry: (id) => entryMap.get(id) ?? null,
     classById: (id) => classMap.get(id) ?? null,
@@ -2020,6 +2072,7 @@ export function createContent(input: ContentInput): Result<Content> {
     backgroundById: (id) => backgroundMap.get(id) ?? null,
     featById: (id) => featMap.get(id) ?? null,
     item: (id) => itemMap.get(id) ?? null,
+    monsterById: (id) => monsterMap.get(id) ?? null,
     languageNamed: (name) => languageMap.get(name) ?? null,
     alignmentNamed: (name) => alignmentMap.get(name) ?? null,
     expandPack: (id) => {
@@ -2061,6 +2114,7 @@ export function extendContent(base: Content, extra: ContentInput): Result<Conten
     items: [...base.items, ...(extra.items ?? [])],
     languages: [...base.languages, ...(extra.languages ?? [])],
     alignments: [...base.alignments, ...(extra.alignments ?? [])],
+    monsters: [...base.monsters, ...(extra.monsters ?? [])],
   });
 }
 
@@ -2524,6 +2578,32 @@ function parseItem(value: unknown): Result<CatalogueItem> {
   return ok(item);
 }
 
+/**
+ * A stat block out of untyped input, through the schema the parser already has.
+ *
+ * **`MonsterSchema` rather than a hand-written twin.** Every other parser here
+ * narrows a shape the engine declared, so the engine's reader is the only one;
+ * a monster's shape is `@ie/srd`'s, and a second transcription of forty fields
+ * would drift from the parser that writes them — which is the failure this
+ * repository keeps refusing rather than the shape of the code it prefers. The
+ * schema also pins what the engine reads and would otherwise have to check:
+ * ability scores in range, an Armour Class of at least 1, hit points of at
+ * least 1, and a size drawn from the enum `positioning.ts` reads.
+ *
+ * Zod's issues are flattened into the same `path: message` prose the `Shaped`
+ * collector produces, so a malformed monster reads like a malformed item.
+ */
+function parseMonster(value: unknown): Result<Monster> {
+  const parsed = MonsterSchema.safeParse(value);
+  if (parsed.success) return ok(parsed.data);
+  const id = isShape(value) && isString(value['id']) ? value['id'] : '?';
+  const said = parsed.error.issues
+    .slice(0, 5)
+    .map((issue) => `${issue.path.join('.')}: ${issue.message}`)
+    .join('; ');
+  return err('bad_monster', `monsters[${id}]: ${said}`);
+}
+
 function parseAll<T>(
   value: unknown,
   what: string,
@@ -2566,6 +2646,7 @@ export function loadContent(value: unknown): Result<Content> {
     items: parseAll(value['items'], 'items', parseItem, problems),
     languages: parseAll(value['languages'], 'languages', parseLanguage, problems),
     alignments: parseAll(value['alignments'], 'alignments', parseAlignment, problems),
+    monsters: parseAll(value['monsters'], 'monsters', parseMonster, problems),
   };
   if (problems.length > 0) return err('bad_content', problems.slice(0, 5).join('; '));
   return createContent(input);

@@ -142,7 +142,7 @@ class Table {
 const withZombie = (): Table => {
   const table = new Table();
   table.do('the fighter arrives', () => createCharacter(SRD_CONTENT,walkOn('Bren'), BREN));
-  table.did('the zombie shambles in', (s) => addCreature(s, ZOMBIE, statBlock('zombie')));
+  table.did('the zombie shambles in', (s) => addCreature(s, SRD_CONTENT, ZOMBIE, 'zombie'));
   return table;
 };
 
@@ -158,7 +158,7 @@ const withZombie = (): Table => {
 const fightingA = (who: CharacterId, slug: string): Table => {
   const table = new Table();
   table.do('the fighter arrives', () => createCharacter(SRD_CONTENT,walkOn('Bren'), BREN));
-  table.did('the monster arrives', (s) => addCreature(s, who, statBlock(slug)));
+  table.did('the monster arrives', (s) => addCreature(s, SRD_CONTENT, who, slug));
   table.do('the crypt', (s) => setScene(s, { width: 60, depth: 40, height: 20 }));
   table.do('the slab', (s) => addSceneLandmark(s, 'the slab', { x: 20, y: 20, z: 0 }));
   table.do('Bren by the slab', (s) =>
@@ -201,14 +201,14 @@ describe('a monster enters through a command', () => {
    */
   it('refuses a creature already in the game', () => {
     const table = withZombie();
-    const again = addCreature(table.state, ZOMBIE, statBlock('zombie'));
+    const again = addCreature(table.state, SRD_CONTENT, ZOMBIE, 'zombie');
     expect(isErr(again) ? again.code : 'ok').toBe('already_present');
   });
 
   it('is a no-op under a command id it has already been sent with', () => {
     const table = withZombie();
     const first = unwrap(
-      addCreature(table.state, id('second'), statBlock('zombie'), { commandId: 'c1' }),
+      addCreature(table.state, SRD_CONTENT, id('second'), 'zombie', { commandId: 'c1' }),
       'first',
     );
     expect(first.events.length).toBeGreaterThan(0);
@@ -216,7 +216,7 @@ describe('a monster enters through a command', () => {
 
     const after = fold('monster', [...table.events, ...first.events]);
     const retry = unwrap(
-      addCreature(after, id('second'), statBlock('zombie'), { commandId: 'c1' }),
+      addCreature(after, SRD_CONTENT, id('second'), 'zombie', { commandId: 'c1' }),
       'retry',
     );
     expect(retry.events).toEqual([]);
@@ -232,11 +232,11 @@ describe('a monster enters through a command', () => {
   it('tells a retry its command landed rather than telling it the creature is there', () => {
     const table = withZombie();
     const sent = unwrap(
-      addCreature(table.state, id('third'), statBlock('zombie'), { commandId: 'c2' }),
+      addCreature(table.state, SRD_CONTENT, id('third'), 'zombie', { commandId: 'c2' }),
       'sent',
     );
     const after = fold('monster', [...table.events, ...sent.events]);
-    const retry = addCreature(after, id('third'), statBlock('zombie'), { commandId: 'c2' });
+    const retry = addCreature(after, SRD_CONTENT, id('third'), 'zombie', { commandId: 'c2' });
     expect(isErr(retry) ? retry.code : 'ok').toBe('ok');
   });
 });
@@ -491,7 +491,7 @@ describe('a qualified immunity is withheld and reported, never applied', () => {
     expect(conditionApplicability(adapted, 'charmed').kind).toBe('needs-adjudication');
 
     const table = new Table();
-    table.did('the familiar arrives', (s) => addCreature(s, FAMILIAR, statBlock('vampire-familiar')));
+    table.did('the familiar arrives', (s) => addCreature(s, SRD_CONTENT, FAMILIAR, 'vampire-familiar'));
     expect(conditionImmunitiesOf(table.state, FAMILIAR)).toEqual([]);
     const out = applyConditionTo(table.state, FAMILIAR, 'charmed', 'a honeyed word');
     expect(isErr(out) ? out.code : 'ok').toBe('ok');
@@ -499,7 +499,7 @@ describe('a qualified immunity is withheld and reported, never applied', () => {
 
   it('reports the qualification in unverified, verbatim', () => {
     const added = unwrap(
-      addCreature(fold('monster', []), FAMILIAR, statBlock('vampire-familiar')),
+      addCreature(fold('monster', []), SRD_CONTENT, FAMILIAR, 'vampire-familiar'),
       'familiar',
     );
     expect(added.unverified).toEqual([
@@ -509,7 +509,7 @@ describe('a qualified immunity is withheld and reported, never applied', () => {
 
   /** And a stat block with nothing qualified reports nothing. */
   it('says nothing about a stat block whose entries are all unconditional', () => {
-    const added = unwrap(addCreature(fold('monster', []), ZOMBIE, statBlock('zombie')), 'zombie');
+    const added = unwrap(addCreature(fold('monster', []), SRD_CONTENT, ZOMBIE, 'zombie'), 'zombie');
     expect(added.unverified).toEqual([]);
   });
 });
@@ -527,7 +527,7 @@ const encounter = (): Table => {
   const table = new Table();
 
   table.do('the fighter arrives', () => createCharacter(SRD_CONTENT,walkOn('Bren'), BREN));
-  table.did('the zombie shambles in', (s) => addCreature(s, ZOMBIE, statBlock('zombie')));
+  table.did('the zombie shambles in', (s) => addCreature(s, SRD_CONTENT, ZOMBIE, 'zombie'));
 
   table.do('the crypt', (s) => setScene(s, { width: 60, depth: 40, height: 20 }));
   table.do('the slab', (s) => addSceneLandmark(s, 'the slab', { x: 20, y: 20, z: 0 }));

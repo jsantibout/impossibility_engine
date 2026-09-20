@@ -13,7 +13,7 @@
  */
 import { expect } from '@ie/shared';
 import { createContent, type Content } from '@ie/engine';
-import { SPELL_INDEX } from '@ie/srd';
+import { MONSTERS, SPELL_INDEX } from '@ie/srd';
 import { BARBARIAN, BARBARIAN_SUBCLASSES } from './classes/barbarian.js';
 import { BARD, BARD_SUBCLASSES } from './classes/bard.js';
 import { CLERIC, CLERIC_SUBCLASSES } from './classes/cleric.js';
@@ -99,6 +99,7 @@ export const SRD_CONTENT_INPUT = {
   items: SRD_ITEMS,
   languages: LANGUAGES,
   alignments: ALIGNMENTS,
+  monsters: MONSTERS,
 } as const;
 
 /** The SRD 5.2.1 catalogue, validated. */

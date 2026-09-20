@@ -158,6 +158,16 @@ export function addSceneLandmark(
  * rule wanted the fact says what would settle it. Passing it through unadorned
  * leaves a `needs-context` with the "what" in a prose string, which is the one
  * thing a tool surface cannot branch on.
+ *
+ * **The size is the creature's own unless the caller states one.** A stat
+ * block prints how much space a creature takes up and `creature-added` pins
+ * it, so asking a caller for it again is asking a model to state a fact the
+ * book already answered — which is how a Large ogre ends up Medium because
+ * nobody said. The caller still wins when they do say, because a DM shrinking
+ * an ogre is a fact only the table has, and a creature nobody pinned a size
+ * for is Medium exactly as it always was. What the command settles on is
+ * **pinned into the event**, so the fold reads a size rather than defaulting
+ * to one of its own.
  */
 export function placeCreatureInScene(
   state: GameState,
@@ -165,11 +175,17 @@ export function placeCreatureInScene(
   placement: Placement,
   command: CommandIdentity = {},
 ): Result<GameEvent[]> {
+  // The caller's own input, unresolved: a retry that sent the same placement
+  // is the duplicate it is, whatever the creature's size turned out to be.
   return once(state, `place-creature:${id}`, { ...command, placement }, () => [], (stamp) => {
     const scene = sceneFor(state, id, `${id} to stand in`);
     if (!scene.ok) return scene;
 
-    const placed = placeCreature(scene.value, id, placement);
+    const pinned = creatureOf(state, id)?.size;
+    const resolved: Placement =
+      placement.size !== undefined || pinned == null ? placement : { ...placement, size: pinned };
+
+    const placed = placeCreature(scene.value, id, resolved);
     // The refusal stays `placeCreature`'s — this adds the request it could not
     // know to attach, and re-derives nothing about whether the anchor is there.
     if (!placed.ok) {
@@ -188,7 +204,12 @@ export function placeCreatureInScene(
     }
 
     return ok([
-      { type: 'creature-placed', id, placement, ...(stamp === null ? {} : { command: stamp }) },
+      {
+        type: 'creature-placed',
+        id,
+        placement: resolved,
+        ...(stamp === null ? {} : { command: stamp }),
+      },
     ]);
   });
 }

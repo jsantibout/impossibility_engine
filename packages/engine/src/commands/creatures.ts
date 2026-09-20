@@ -20,8 +20,8 @@
  */
 
 import { type CharacterId, err, ok, type Result } from '@ie/shared';
-import type { Monster } from '@ie/srd';
 import { hasCondition } from '../conditions.js';
+import type { Content } from '../content.js';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import { addCombatant } from '../combat.js';
@@ -64,11 +64,18 @@ export interface AddCreatureOutcome {
  * the creature type the parser has read since `Small Fey (Goblinoid)`, and the
  * two halves of the defence run a stat block prints in one line.
  *
- * **It takes the parsed `Monster` rather than an id**, because there is no
- * monster catalogue to look one up in: `@ie/srd` ships no monster index, and
- * `generated/monsters.json` is untracked and unconsumed. So there is nothing
- * for an "unknown stat block" refusal to refuse, and a guard nothing can reach
- * is not a rule.
+ * **It takes the stat block's id and reads the block out of `content`**, which
+ * is what `equipItem` does with an item and for a sharper reason. An engine
+ * entry point that accepts a whole stat block is a door a model-authored
+ * Armour Class can walk through, and nothing guards it: `boundary.test.ts`
+ * proves `recordExternalD20` and `recordExternalDamage` are unreachable *by
+ * name*, and a value parameter is on nobody's list. So the caller states which
+ * monster and the engine supplies every number.
+ *
+ * This is also what makes `unknown_monster` a rule rather than a comment. It
+ * used to be withheld on the grounds that there was no catalogue to look a
+ * block up in and a guard nothing can reach is not a rule; a monster is
+ * content now, and the refusal is reachable from the first line.
  *
  * **It does not declare what the creature casts**, and that is the parser
  * rather than a gap: a stat block prints its spellcasting as English prose in
@@ -79,32 +86,47 @@ export interface AddCreatureOutcome {
  * `declareCreatureSide` is the same answer for allegiance, which changes in
  * play and therefore cannot be a property of arriving.
  *
- * **It refuses exactly what the reducer would call corrupt, and nothing
- * more** — a creature already in the game — which is the rule the scene
- * commands settled. And the refusal is *below* the duplicate check, because
- * this command's own first run is what makes the world answer it: `once` is
- * why there is nowhere above to write one.
+ * **It refuses what the reducer would call corrupt** — a creature already in
+ * the game — which is the rule the scene commands settled, **and the one
+ * thing the reducer cannot see**: a stat block this world does not hold. That
+ * second refusal is not a duplicated check but the only one there is, because
+ * the event carries the adapted sheet and never the id, so there is no
+ * catalogue lookup left in the fold to disagree with. Both sit *below* the
+ * duplicate check, because this command's own first run is what makes the
+ * world answer `already_present`: `once` is why there is nowhere above to
+ * write one. The order between them is the roster first, on the same reading
+ * `summonCreature` states — the world as it stands before the book it is
+ * being asked to open.
  */
 export function addCreature(
   state: GameState,
+  content: Content,
   id: CharacterId,
-  monster: Monster,
+  monsterId: string,
   command: CommandIdentity = {},
 ): Result<AddCreatureOutcome> {
-  // The stat block's **id** rather than the whole of it: a fingerprint is
-  // stored in state for as long as the game lasts, and a parsed monster is
-  // kilobytes of JSON. The id is the stat block's identity — the parser
-  // assigns one per entry — and the kind already carries the creature being
-  // added, so the only thing this reading cannot tell apart is two different
-  // stat blocks filed under one id, which the bestiary cannot produce.
+  // The stat block's **id** and not the block: a fingerprint is stored in
+  // state for as long as the game lasts, and a parsed monster is kilobytes of
+  // JSON. The id is the stat block's identity — the parser assigns one per
+  // entry, and `checkContent` refuses a catalogue that files two under one —
+  // and the kind already carries the creature being added.
   return once(
     state,
     `add-creature:${id}`,
-    { ...command, monster: monster.id },
+    { ...command, monster: monsterId },
     () => ({ events: [], unverified: [], duplicate: true }),
     (stamp) => {
       if (creatureOf(state, id) !== null) {
         return err('already_present', `${id} is already in this game`);
+      }
+
+      // Asked of content, which is where a monster comes from. A world that
+      // does not hold this stat block cannot raise it, and that is a wrong
+      // fact rather than a missing one — nothing a caller could go and find
+      // out would make an absent catalogue entry present.
+      const monster = content.monsterById(monsterId);
+      if (monster === null) {
+        return err('unknown_monster', `${monsterId} is not a stat block this world holds`);
       }
 
       const adapted = adaptMonster(monster, id);
@@ -121,6 +143,10 @@ export function addCreature(
             diesAtZero: adapted.vitals.diesAtZero,
             creatureType: adapted.creatureType,
             defenses: byDamageType,
+            // Pinned so that placing this creature is not a second reading of
+            // a fact the book already answered, and so that nobody above the
+            // engine is asked to state one.
+            size: adapted.size,
             ...(conditionImmunities.length === 0 ? {} : { conditionImmunities }),
             ...(stamp === null ? {} : { command: stamp }),
           },
@@ -160,8 +186,8 @@ export function addCreature(
 export interface Summons {
   /** What to call the new creature. */
   readonly id: CharacterId;
-  /** The stat block, whole, exactly as {@link addCreature} takes one. */
-  readonly monster: Monster;
+  /** Which stat block, by its id in content — exactly as {@link addCreature} takes one. */
+  readonly monsterId: string;
   /** The summoner. */
   readonly by: CharacterId;
   /**
@@ -223,12 +249,15 @@ export interface Summons {
  * {@link dismissStrandedSummons} is what acts on it, and `resolveTurn`
  * refuses to advance the order until somebody has.
  *
- * **Nothing about the creature is read from content and nothing is derived.**
- * The sheet, the printed Armour Class, the average hit points, "a monster
- * dies the instant it drops to 0", the creature type, both halves of the
- * defence run and the size are the adapter's, pinned into the log at the
- * moment of arrival — so a log replayed next year raises this creature
- * without opening anything.
+ * **Everything about the creature is read from content once, and nothing is
+ * derived.** The sheet, the printed Armour Class, the average hit points, "a
+ * monster dies the instant it drops to 0", the creature type, both halves of
+ * the defence run and the size are the adapter's, read off the stat block the
+ * caller named and pinned into the log at the moment of arrival — so a log
+ * replayed next year raises this creature without opening anything. The
+ * reading is `addCreature`'s and this command does not repeat it: even the
+ * size the placement carries is read back off the arrival rather than adapted
+ * a second time.
  *
  * **Three things it deliberately does not do.** It does not roll Initiative,
  * for the reason `joinCombat` does not. It does not decide what the creature
@@ -239,24 +268,23 @@ export interface Summons {
  */
 export function summonCreature(
   state: GameState,
+  content: Content,
   summons: Summons,
   command: CommandIdentity = {},
 ): Result<AddCreatureOutcome> {
-  const { id, monster, by, castingId } = summons;
+  const { id, monsterId, by, castingId } = summons;
 
-  // **Every input that shapes the batch, and the stat block by its id.** The
-  // id alone is `addCreature`'s reading and the reason is the same — a parsed
-  // monster is kilobytes of JSON and a fingerprint lives in state for as long
-  // as the game does. Everything else goes in whole: a retry that moved the
-  // placement or changed the Initiative total is a *different* command, and
+  // **Everything the caller stated, whole.** A retry that moved the placement
+  // or changed the Initiative total is a *different* command, and
   // fingerprinting only the creature would answer it `duplicate` and drop it
-  // silently, which is exactly the outcome `identify` exists to refuse.
+  // silently, which is exactly the outcome `identify` exists to refuse. What
+  // used to need care here — a parsed stat block being kilobytes of JSON in a
+  // fingerprint that lives as long as the game — is gone: `monsterId` is the
+  // id, which is what the fingerprint always reduced it to.
   return once(
     state,
     `summon-creature:${id}`,
-    // The spread order is the whole of it: everything the caller stated, and
-    // then the stat block replaced by its id.
-    { ...command, ...summons, monster: monster.id },
+    { ...command, ...summons },
     () => ({ events: [], unverified: [], duplicate: true }),
     (stamp) => {
       const summoner = creatureOf(state, by);
@@ -285,7 +313,7 @@ export function summonCreature(
       // uncomputed. Unstamped on purpose: a summons is **one** command, and
       // the arrival minting an identity of its own would put two entries in
       // `appliedCommands` for one thing that happened.
-      const arrival = addCreature(state, id, monster);
+      const arrival = addCreature(state, content, id, monsterId);
       if (!arrival.ok) return arrival;
 
       // The one event this command always emits, so the stamp rides it rather
@@ -307,13 +335,20 @@ export function summonCreature(
       }
 
       if (summons.placement !== undefined) {
+        // The size is the stat block's, and it is **read back** off the
+        // arrival rather than adapted a second time — the same reading
+        // `speedOf` takes below, asked of the world the arrival leaves. A
+        // caller restating it is the one place the two could disagree about
+        // how many cubes a Conjured Hound holds, which is why `Summons`
+        // has nowhere to put one.
+        const pinned = arrival.value.events.reduce(applyEvent, state).creatures[id]?.size;
         events.push({
           type: 'creature-placed',
           id,
-          // The size is the stat block's. A caller restating it is a second
-          // reader of a fact the adapter already read, and the one place the
-          // two could disagree about how many cubes a Conjured Hound holds.
-          placement: { ...summons.placement, size: adaptMonster(monster, id).size },
+          placement: {
+            ...summons.placement,
+            ...(pinned == null ? {} : { size: pinned }),
+          },
         });
       }
 

@@ -12,7 +12,6 @@ import {
   type CharacterId,
   type Result,
 } from '@ie/shared';
-import { parseMonsters, type Monster } from '@ie/srd';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
@@ -1038,19 +1037,11 @@ const RITE = Object.keys(fold('s', RECITING).pendingCastings)[0]!;
 /**
  * A parsed stat block, for the one command that takes one.
  *
- * `addCreature` wraps `adaptMonster` and there is no monster catalogue to look
- * an id up in, so the `Monster` is the argument — which means this sweep has
- * to read the bestiary the way `monster.test.ts` does.
+ * `addCreature` takes the stat block's **id** and reads the block out of
+ * content, so the sweep names one the SRD catalogue holds and nothing here
+ * opens the bestiary.
  */
-const ZOMBIE: Monster = (() => {
-  const bestiary = parseMonsters(
-    readFileSync(fileURLToPath(new URL('../../srd/raw/monsters-A-Z.md', import.meta.url)), 'utf8'),
-    'monsters-A-Z.md',
-  ).items;
-  const found = bestiary.find((m) => m.id === 'zombie');
-  if (found === undefined) throw new Error('no zombie in the bestiary');
-  return found;
-})();
+const ZOMBIE = 'zombie';
 
 /**
  * A creature standing on a spell that has already ended.
@@ -1069,9 +1060,9 @@ const STRANDED: readonly GameEvent[] = (() => {
   log = [
     ...log,
     ...unwrap(
-      summonCreature(fold('s', log), {
+      summonCreature(fold('s', log), SRD_CONTENT, {
         id: id('a-summoned-thing'),
-        monster: ZOMBIE,
+        monsterId: ZOMBIE,
         by: A,
         castingId: cast.castingId!,
         initiative: 14,
@@ -1091,7 +1082,7 @@ const GUARDED: readonly Guarded[] = [
   {
     name: 'addCreature',
     log: SETUP,
-    run: (s, commandId) => addCreature(s, id('a-zombie'), ZOMBIE, { commandId }),
+    run: (s, commandId) => addCreature(s, SRD_CONTENT, id('a-zombie'), ZOMBIE, { commandId }),
   },
   {
     name: 'dismissStrandedSummons',
@@ -1108,7 +1099,12 @@ const GUARDED: readonly Guarded[] = [
     // asked for; the summons is bound to no casting, which is the Animate
     // Dead reading and keeps this entry about the identity and nothing else.
     run: (s, commandId) =>
-      summonCreature(s, { id: id('a-hound'), monster: ZOMBIE, by: A, initiative: 14 }, { commandId }),
+      summonCreature(
+        s,
+        SRD_CONTENT,
+        { id: id('a-hound'), monsterId: ZOMBIE, by: A, initiative: 14 },
+        { commandId },
+      ),
   },
   {
     name: 'continueCasting',
@@ -2733,10 +2729,15 @@ describe('the DM-declared commands declare facts rather than taking actions', ()
       run: (s) => awardItems(s, supply(), A, [{ id: 'rope' }], 'the barrow'),
     },
     { name: 'removeBonusFrom', run: (s) => removeBonusFrom(s, A, 'a quiet word') },
-    { name: 'addCreature', run: (s) => addCreature(s, id('a-latecomer'), ZOMBIE) },
+    { name: 'addCreature', run: (s) => addCreature(s, SRD_CONTENT, id('a-latecomer'), ZOMBIE) },
     {
       name: 'summonCreature',
-      run: (s) => summonCreature(s, { id: id('a-conjured-thing'), monster: ZOMBIE, by: A, initiative: 14 }),
+      run: (s) => summonCreature(s, SRD_CONTENT, {
+          id: id('a-conjured-thing'),
+          monsterId: ZOMBIE,
+          by: A,
+          initiative: 14,
+        }),
     },
     // Nothing is stranded in this fixture, so what it proves is the half the
     // list is about: a command that may be sent while a mandatory area effect

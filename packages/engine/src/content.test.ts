@@ -19,6 +19,7 @@ import {
 } from './content.js';
 import {
   activateFeature,
+  addCreature,
   attuneItem,
   awardItems,
   chargesLeft,
@@ -859,6 +860,111 @@ describe('a homebrew wand casting a homebrew spell needs no engine change', () =
  * `checkContent` with a `bad_item_effect` nobody meant, and nothing else in
  * the suite would say why.
  */
+/**
+ * A homebrew stat block, written as the JSON a DM's bestiary file would hold.
+ *
+ * `Monster` is `@ie/srd`'s shape — the one the SRD parser writes and
+ * `adaptMonster` reads — so a homebrew entry is the same forty fields a
+ * printed one is, and `loadContent` validates it with `MonsterSchema` rather
+ * than a transcription of it that would drift.
+ */
+const ASH_REVENANT = JSON.stringify({
+  id: 'ash-revenant',
+  name: 'Ash Revenant',
+  size: 'large',
+  alternateSizes: [],
+  type: 'Undead',
+  subtype: null,
+  swarmMemberSize: null,
+  alignment: 'Chaotic Evil',
+  ac: 15,
+  initiative: 1,
+  hp: { average: 45, formula: '6d10 + 12' },
+  speed: { walk: 30, burrow: null, climb: null, fly: null, swim: null, hover: false },
+  abilities: {
+    str: { score: 18, modifier: 4, save: 4 },
+    dex: { score: 12, modifier: 1, save: 1 },
+    con: { score: 15, modifier: 2, save: 2 },
+    int: { score: 6, modifier: -2, save: -2 },
+    wis: { score: 10, modifier: 0, save: 0 },
+    cha: { score: 8, modifier: -1, save: -1 },
+  },
+  skills: { perception: 2 },
+  vulnerabilities: ['radiant'],
+  resistances: ['necrotic'],
+  immunities: ['fire', 'poison', 'poisoned', 'Charmed (except by the one who burned it)'],
+  gear: [],
+  senses: ['Darkvision 60 ft.'],
+  passivePerception: 12,
+  languages: ['Common'],
+  cr: 3,
+  crLabel: '3',
+  xp: 700,
+  proficiencyBonus: 2,
+  traits: [],
+  actions: [{ name: 'Cinder Fist', text: 'Melee Attack Roll: +6, reach 5 ft. Hit: 9 (2d4 + 4).' }],
+  bonusActions: [],
+  reactions: [],
+  legendaryActions: [],
+});
+
+/**
+ * The claim the whole file is about, for the bestiary: a monster nobody wrote
+ * engine code for walks into a game through the same command the SRD's Zombie
+ * takes, and the log it leaves needs no catalogue to be read back.
+ */
+describe('a homebrew monster goes through the same door as the book', () => {
+  const content = unwrap(loadContent({ monsters: [JSON.parse(ASH_REVENANT)] }), 'load');
+  const REVENANT = id('revenant');
+
+  it('is parsed from JSON text and validated beside the printed bestiary', () => {
+    expect(content.monsterById('ash-revenant')?.name).toBe('Ash Revenant');
+    expect(SRD_CONTENT.monsterById('ash-revenant')).toBeNull();
+    // Beside the book rather than instead of it, on the same door homebrew
+    // spells, classes and items take.
+    const world = unwrap(
+      extendContent(SRD_CONTENT, { monsters: [JSON.parse(ASH_REVENANT) as never] }),
+      'extend',
+    );
+    expect(world.monsterById('ash-revenant')?.name).toBe('Ash Revenant');
+    expect(world.monsterById('zombie')?.name).toBe('Zombie');
+  });
+
+  it('is brought into a game by its id, with every number the engine reads pinned', () => {
+    const out = unwrap(
+      addCreature(fold('seed', []), content, REVENANT, 'ash-revenant'),
+      'the revenant arrives',
+    );
+    const event = out.events[0] as Extract<GameEvent, { type: 'creature-added' }>;
+    expect(event.maxHp).toBe(45);
+    expect(event.size).toBe('large');
+    expect(event.creatureType).toBe('Undead');
+    expect(event.sheet.stated?.armorClass).toBe(15);
+    expect(event.defenses).toMatchObject({
+      fire: { immune: true },
+      necrotic: { resistant: true },
+      radiant: { vulnerable: true },
+    });
+    expect(event.conditionImmunities).toEqual(['poisoned']);
+    // The qualified line is reported and not applied, which is what the SRD's
+    // own vampires need and what `checkContent` therefore may not refuse.
+    expect(out.unverified).toEqual([
+      'revenant: Charmed (except by the one who burned it) — the engine cannot evaluate "except by the one who burned it", so the immunity is not applied',
+    ]);
+
+    // And the log stands on its own: everything was pinned at arrival, so a
+    // fold with no catalogue at all raises the same creature.
+    const state = fold('seed', out.events);
+    expect(state.creatures[REVENANT]?.vitals.hpMax).toBe(45);
+    expect(state.creatures[REVENANT]?.size).toBe('large');
+  });
+
+  it('is refused by a world that was not given it, as a value naming what it does', () => {
+    const refused = addCreature(fold('seed', []), SRD_CONTENT, REVENANT, 'ash-revenant');
+    expect(isErr(refused) && refused.code).toBe('unknown_monster');
+  });
+});
+
 describe('what an item may grant is derived from the union, not recalled', () => {
   const here = fileURLToPath(new URL('.', import.meta.url));
   // Comments stripped first: this file's unions name their own members in
@@ -1099,6 +1205,9 @@ describe('the one door refuses what it cannot execute, with a path', () => {
     expect(codeOf({ feats: [{ id: 'x' }] })).toContain('bad_feat');
     expect(codeOf({ spellEntries: [{ id: 'x' }] })).toContain('bad_spell_entry');
     expect(codeOf({ items: [{ id: 'x' }] })).toContain('bad_item');
+    // The bestiary's parser is `MonsterSchema` rather than a hand-written
+    // twin, and its issues are flattened into the same `path: message` prose.
+    expect(codeOf({ monsters: [{ id: 'x' }] })).toContain('bad_monster');
     // Including the line an item prints in brackets after its rarity.
     expect(
       codeOf({ items: [{ ...JSON.parse(QUIET_HAND), attunement: 'by a Druid' }] }),
@@ -1130,8 +1239,13 @@ describe('the SRD catalogue is content like any other', () => {
     expect(reloaded.classes.map((c) => c.id)).toEqual(SRD_CONTENT.classes.map((c) => c.id));
     expect(reloaded.subclasses.length).toBe(SRD_CONTENT.subclasses.length);
     expect(reloaded.items.length).toBe(SRD_CONTENT.items.length);
+    expect(reloaded.monsters.length).toBe(SRD_CONTENT.monsters.length);
     expect(reloaded.spell('fireball')).toEqual(SRD_CONTENT.spell('fireball'));
     expect(reloaded.classById('wizard')).toEqual(SRD_CONTENT.classById('wizard'));
+    // The bestiary survives the round trip whole, prose and all: it goes out
+    // as JSON and comes back through `MonsterSchema`, which is the parser that
+    // wrote it.
+    expect(reloaded.monsterById('zombie')).toEqual(SRD_CONTENT.monsterById('zombie'));
   });
 
   it('passes the same checks homebrew does, and every printed spell has an entry', () => {

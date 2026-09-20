@@ -14,7 +14,7 @@
  * is erased and the cycle is a cycle in nothing that runs.
  */
 import type { Ability, CharacterId, ConditionName, RollMode } from '@ie/shared';
-import type { Armor } from '@ie/srd';
+import type { Armor, CreatureSize } from '@ie/srd';
 import type { CharacterSheet, GrantedArmorClass } from './character.js';
 import { type ActiveRollModifier } from './roll-modifiers.js';
 import type { RngState } from './dice.js';
@@ -210,6 +210,21 @@ export interface CreatureState {
    * exists to let it charm.
    */
   readonly conditionImmunities: readonly ConditionName[];
+  /**
+   * How much space this creature takes up, as its stat block prints it.
+   *
+   * **Not the scene's copy.** `scene.sizes` says how big whoever is standing
+   * on the map is, and it goes with the room; this is what the creature *is*,
+   * and it survives a scene change like the sheet does. `placeCreatureInScene`
+   * reads this when a caller states no size, so nobody above the engine has to
+   * supply a fact the book prints.
+   *
+   * Null when nobody has said, which is a real state: a creature made from
+   * character choices has a species' size and no event pins one yet, and every
+   * log written before the field existed says the same. `placeCreature` then
+   * defaults to Medium exactly as it always has.
+   */
+  readonly size: CreatureSize | null;
   /**
    * Which side of the fight this creature is on, or null if nobody has said.
    *

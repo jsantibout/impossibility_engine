@@ -9,6 +9,7 @@ import {
 } from '@ie/shared';
 import type { Monster } from '@ie/srd';
 import type { CharacterSheet } from './character.js';
+import { extendContent } from './content.js';
 import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
@@ -44,11 +45,12 @@ import {
  *
  * - **The sheet is pinned into the log.** `creature-added` has carried the
  *   whole sheet, the printed hit points, the creature type and both halves of
- *   the defence run since the adapter landed; the summons adds nothing to
- *   that and depends on all of it. The stat block below exists nowhere but
- *   this file — there is no monster catalogue in the engine and none in the
- *   content — so a fold that reproduced the creature could only have read the
- *   log.
+ *   the defence run since the adapter landed, and now the size too; the
+ *   summons adds nothing to that and depends on all of it. The stat block
+ *   below is nowhere in the printed book — it reaches the command through
+ *   `extendContent`, which is the door homebrew takes — and every fold in this
+ *   file is `fold(seed, events)` with no catalogue at all, so a fold that
+ *   reproduced the creature could only have read the log.
  * - **Whose it is, and how long it lasts, are facts that already had homes.**
  *   The side is the summoner's own; the lifetime is the casting's, which the
  *   ongoing record and the timers already run.
@@ -70,12 +72,13 @@ const FOE = id('foe');
 const HOUND = id('hound');
 
 /**
- * A stat block that exists in this file and nowhere else.
+ * A stat block the SRD never printed.
  *
- * Homebrew on purpose. `addCreature` takes the parsed `Monster` because there
- * is no registry to look one up in, and the whole claim about pinning is that
- * the fold never needs one — so the creature the log raises has to be one no
- * catalogue could have supplied.
+ * Homebrew on purpose, and it enters the way homebrew enters — through
+ * `extendContent`, beside the book, with no privileged path either way. The
+ * claim about pinning is that the **fold** never opens a catalogue, and this
+ * exercises it twice over: the creature the log raises comes from a world the
+ * fold is not given, so it could only have been read out of the events.
  */
 const CONJURED_HOUND: Monster = {
   id: 'conjured-hound',
@@ -116,6 +119,12 @@ const CONJURED_HOUND: Monster = {
   reactions: [],
   legendaryActions: [],
 };
+
+/** The book, plus the one stat block above. The same call a DM's bestiary takes. */
+const CONTENT = unwrap(
+  extendContent(SRD_CONTENT, { monsters: [CONJURED_HOUND] }),
+  'the hound beside the book',
+);
 
 const sheet = (over: Partial<CharacterSheet> = {}): CharacterSheet => ({
   level: 9,
@@ -217,9 +226,9 @@ describe('a casting brings a creature into a running fight', () => {
     const castingId = g.cast(WIZ, 'bless', [WIZ]);
 
     const out = unwrap(
-      summonCreature(g.state, {
+      summonCreature(g.state, CONTENT, {
         id: HOUND,
-        monster: CONJURED_HOUND,
+        monsterId: 'conjured-hound',
         by: WIZ,
         castingId,
         placement: { from: { creature: WIZ }, feet: 10, bearing: 90 },
@@ -246,7 +255,7 @@ describe('a casting brings a creature into a running fight', () => {
     const castingId = g.cast(WIZ, 'bless', [WIZ]);
     g.push(
       unwrap(
-        summonCreature(g.state, { id: HOUND, monster: CONJURED_HOUND, by: WIZ, castingId, initiative: 12 }),
+        summonCreature(g.state, CONTENT, { id: HOUND, monsterId: 'conjured-hound', by: WIZ, castingId, initiative: 12 }),
         'summoning',
       ).events,
     );
@@ -260,9 +269,9 @@ describe('a casting brings a creature into a running fight', () => {
     const castingId = g.cast(WIZ, 'bless', [WIZ]);
     g.push(
       unwrap(
-        summonCreature(g.state, {
+        summonCreature(g.state, CONTENT, {
           id: HOUND,
-          monster: CONJURED_HOUND,
+          monsterId: 'conjured-hound',
           by: WIZ,
           castingId,
           placement: { from: { creature: WIZ }, feet: 10, bearing: 90 },
@@ -282,9 +291,9 @@ describe('a casting brings a creature into a running fight', () => {
     const castingId = g.cast(WIZ, 'bless', [WIZ]);
     g.push(
       unwrap(
-        summonCreature(g.state, {
+        summonCreature(g.state, CONTENT, {
           id: HOUND,
-          monster: CONJURED_HOUND,
+          monsterId: 'conjured-hound',
           by: WIZ,
           castingId,
           placement: { from: { creature: WIZ }, feet: 10, bearing: 90 },
@@ -309,9 +318,9 @@ describe('the log alone raises the creature', () => {
     const castingId = g.cast(WIZ, 'bless', [WIZ]);
     g.push(
       unwrap(
-        summonCreature(g.state, {
+        summonCreature(g.state, CONTENT, {
           id: HOUND,
-          monster: CONJURED_HOUND,
+          monsterId: 'conjured-hound',
           by: WIZ,
           castingId,
           placement: { from: { creature: WIZ }, feet: 10, bearing: 90 },
@@ -330,7 +339,7 @@ describe('the log alone raises the creature', () => {
     const g = new Game().fight();
     const castingId = g.cast(WIZ, 'bless', [WIZ]);
     const out = unwrap(
-      summonCreature(g.state, { id: HOUND, monster: CONJURED_HOUND, by: WIZ, castingId, initiative: 12 }),
+      summonCreature(g.state, CONTENT, { id: HOUND, monsterId: 'conjured-hound', by: WIZ, castingId, initiative: 12 }),
       'summoning',
     );
     // The command stamp fingerprints the stat block's id, exactly as
@@ -358,9 +367,9 @@ describe('a summoned creature leaves with the casting that made it', () => {
     const castingId = g.cast(WIZ, 'bless', [WIZ]);
     g.push(
       unwrap(
-        summonCreature(g.state, {
+        summonCreature(g.state, CONTENT, {
           id: HOUND,
-          monster: CONJURED_HOUND,
+          monsterId: 'conjured-hound',
           by: WIZ,
           castingId,
           placement: { from: { creature: WIZ }, feet: 10, bearing: 90 },
@@ -423,7 +432,7 @@ describe('a summoned creature leaves with the casting that made it', () => {
     const castingId = g.cast(WIZ, 'bless', [WIZ]);
     g.push(
       unwrap(
-        summonCreature(g.state, { id: HOUND, monster: CONJURED_HOUND, by: WIZ, initiative: 12 }),
+        summonCreature(g.state, CONTENT, { id: HOUND, monsterId: 'conjured-hound', by: WIZ, initiative: 12 }),
         'summoning',
       ).events,
     );
@@ -441,9 +450,9 @@ describe('a summoned creature leaves with the casting that made it', () => {
     g.push([{ type: 'combat-started', combatants: [{ id: WIZ, initiative: 20, speed: 30 }] }]);
     g.push(
       unwrap(
-        summonCreature(g.state, {
+        summonCreature(g.state, CONTENT, {
           id: HOUND,
-          monster: CONJURED_HOUND,
+          monsterId: 'conjured-hound',
           by: WIZ,
           castingId,
           initiative: 12,
@@ -482,9 +491,9 @@ describe('a summoned creature leaves with the casting that made it', () => {
     const castingId = g.cast(WIZ, 'bless', [WIZ]);
     g.push(
       unwrap(
-        summonCreature(g.state, {
+        summonCreature(g.state, CONTENT, {
           id: HOUND,
-          monster: CONJURED_HOUND,
+          monsterId: 'conjured-hound',
           by: WIZ,
           castingId,
           placement: { from: { creature: WIZ }, feet: 5, bearing: 90 },
@@ -528,9 +537,9 @@ describe('a summoned creature leaves with the casting that made it', () => {
 describe('what a summoning refuses, and what it asks for', () => {
   it('refuses a casting that is not running', () => {
     const g = new Game().fight();
-    const refused = summonCreature(g.state, {
+    const refused = summonCreature(g.state, CONTENT, {
       id: HOUND,
-      monster: CONJURED_HOUND,
+      monsterId: 'conjured-hound',
       by: WIZ,
       castingId: 'no-such-casting',
       initiative: 12,
@@ -540,9 +549,9 @@ describe('what a summoning refuses, and what it asks for', () => {
 
   it('refuses a summoner the engine has never heard of', () => {
     const g = new Game().fight();
-    const refused = summonCreature(g.state, {
+    const refused = summonCreature(g.state, CONTENT, {
       id: HOUND,
-      monster: CONJURED_HOUND,
+      monsterId: 'conjured-hound',
       by: id('nobody'),
       initiative: 12,
     });
@@ -562,7 +571,7 @@ describe('what a summoning refuses, and what it asks for', () => {
     const g = new Game().fight();
     const castingId = g.cast(WIZ, 'bless', [WIZ]);
     const out = unwrap(
-      summonCreature(g.state, { id: HOUND, monster: CONJURED_HOUND, by: WIZ, castingId }),
+      summonCreature(g.state, CONTENT, { id: HOUND, monsterId: 'conjured-hound', by: WIZ, castingId }),
       'summoning with no total',
     );
     g.push(out.events);
@@ -582,9 +591,9 @@ describe('what a summoning refuses, and what it asks for', () => {
   it('refuses a casting that is not the summoner’s', () => {
     const g = new Game();
     const castingId = g.cast(WIZ, 'bless', [WIZ]);
-    const refused = summonCreature(g.state, {
+    const refused = summonCreature(g.state, CONTENT, {
       id: HOUND,
-      monster: CONJURED_HOUND,
+      monsterId: 'conjured-hound',
       by: FOE,
       castingId,
     });
@@ -599,11 +608,14 @@ describe('what a summoning refuses, and what it asks for', () => {
   it('refuses a recycled command id that moved the placement', () => {
     const g = new Game();
     const castingId = g.cast(WIZ, 'bless', [WIZ]);
-    const first = { id: HOUND, monster: CONJURED_HOUND, by: WIZ, castingId } as const;
-    g.push(unwrap(summonCreature(g.state, first, { commandId: 'the-hound' }), 'first').events);
+    const first = { id: HOUND, monsterId: 'conjured-hound', by: WIZ, castingId } as const;
+    g.push(
+      unwrap(summonCreature(g.state, CONTENT, first, { commandId: 'the-hound' }), 'first').events,
+    );
 
     const moved = summonCreature(
       g.state,
+      CONTENT,
       { ...first, placement: { from: { creature: WIZ }, feet: 10, bearing: 90 } },
       { commandId: 'the-hound' },
     );
@@ -614,7 +626,7 @@ describe('what a summoning refuses, and what it asks for', () => {
     const g = new Game();
     const castingId = g.cast(WIZ, 'bless', [WIZ]);
     const out = unwrap(
-      summonCreature(g.state, { id: HOUND, monster: CONJURED_HOUND, by: WIZ, castingId }),
+      summonCreature(g.state, CONTENT, { id: HOUND, monsterId: 'conjured-hound', by: WIZ, castingId }),
       'summoning out of combat',
     );
     g.push(out.events);
@@ -630,9 +642,9 @@ describe('what a summoning refuses, and what it asks for', () => {
    */
   it('answers the casting before it answers the creature', () => {
     const g = new Game();
-    const refused = summonCreature(g.state, {
+    const refused = summonCreature(g.state, CONTENT, {
       id: FOE,
-      monster: CONJURED_HOUND,
+      monsterId: 'conjured-hound',
       by: WIZ,
       castingId: 'no-such-casting',
     });
@@ -642,9 +654,9 @@ describe('what a summoning refuses, and what it asks for', () => {
   it('refuses a creature already in the game', () => {
     const g = new Game();
     const castingId = g.cast(WIZ, 'bless', [WIZ]);
-    const refused = summonCreature(g.state, {
+    const refused = summonCreature(g.state, CONTENT, {
       id: FOE,
-      monster: CONJURED_HOUND,
+      monsterId: 'conjured-hound',
       by: WIZ,
       castingId,
     });
@@ -657,7 +669,8 @@ describe('what a summoning refuses, and what it asks for', () => {
     const first = unwrap(
       summonCreature(
         g.state,
-        { id: HOUND, monster: CONJURED_HOUND, by: WIZ, castingId },
+        CONTENT,
+        { id: HOUND, monsterId: 'conjured-hound', by: WIZ, castingId },
         { commandId: 'the-hound' },
       ),
       'first',
@@ -666,7 +679,8 @@ describe('what a summoning refuses, and what it asks for', () => {
     const again = unwrap(
       summonCreature(
         g.state,
-        { id: HOUND, monster: CONJURED_HOUND, by: WIZ, castingId },
+        CONTENT,
+        { id: HOUND, monsterId: 'conjured-hound', by: WIZ, castingId },
         { commandId: 'the-hound' },
       ),
       'again',
@@ -684,7 +698,7 @@ describe('the reducer refuses a log that contradicts itself', () => {
     const first = g.cast(WIZ, 'bless', [WIZ], 'one');
     g.push(
       unwrap(
-        summonCreature(g.state, { id: HOUND, monster: CONJURED_HOUND, by: WIZ, castingId: first }),
+        summonCreature(g.state, CONTENT, { id: HOUND, monsterId: 'conjured-hound', by: WIZ, castingId: first }),
         'summoning',
       ).events,
     );
@@ -703,7 +717,7 @@ describe('the reducer refuses a log that contradicts itself', () => {
     const castingId = g.cast(WIZ, 'bless', [WIZ]);
     g.push(
       unwrap(
-        summonCreature(g.state, { id: HOUND, monster: CONJURED_HOUND, by: WIZ }),
+        summonCreature(g.state, CONTENT, { id: HOUND, monsterId: 'conjured-hound', by: WIZ }),
         'summoning, bound to nothing',
       ).events,
     );
@@ -729,7 +743,7 @@ describe('the reducer refuses a log that contradicts itself', () => {
     const castingId = g.cast(WIZ, 'bless', [WIZ]);
     g.push(
       unwrap(
-        summonCreature(g.state, { id: HOUND, monster: CONJURED_HOUND, by: WIZ, castingId }),
+        summonCreature(g.state, CONTENT, { id: HOUND, monsterId: 'conjured-hound', by: WIZ, castingId }),
         'summoning',
       ).events,
     );
@@ -757,9 +771,9 @@ describe('one departure can be the end of another', () => {
     const first = g.cast(WIZ, 'bless', [WIZ], 'one');
     g.push(
       unwrap(
-        summonCreature(g.state, {
+        summonCreature(g.state, CONTENT, {
           id: HOUND,
-          monster: CONJURED_HOUND,
+          monsterId: 'conjured-hound',
           by: WIZ,
           castingId: first,
           placement: { from: { creature: WIZ }, feet: 10, bearing: 90 },
@@ -786,9 +800,9 @@ describe('one departure can be the end of another', () => {
     const second = g.cast(HOUND, 'bless', [HOUND], 'two');
     g.push(
       unwrap(
-        summonCreature(g.state, {
+        summonCreature(g.state, CONTENT, {
           id: SPRITE,
-          monster: CONJURED_HOUND,
+          monsterId: 'conjured-hound',
           by: HOUND,
           castingId: second,
         }),
@@ -837,9 +851,9 @@ describe('a turn will not advance past a summons nobody took away', () => {
     const castingId = g.cast(WIZ, 'bless', [WIZ]);
     g.push(
       unwrap(
-        summonCreature(g.state, {
+        summonCreature(g.state, CONTENT, {
           id: HOUND,
-          monster: CONJURED_HOUND,
+          monsterId: 'conjured-hound',
           by: WIZ,
           castingId,
           placement: { from: { creature: WIZ }, feet: 10, bearing: 90 },

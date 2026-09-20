@@ -24,7 +24,7 @@
  * graph is the DAG `scripts/fold-graph.ts` reports.
  */
 import type { CharacterId, ConditionName } from '@ie/shared';
-import type { Armor } from '@ie/srd';
+import type { Armor, CreatureSize } from '@ie/srd';
 import type { CharacterSheet, GrantedArmorClass } from './character.js';
 import { type ActiveRollModifier } from './roll-modifiers.js';
 import type { RngState } from './dice.js';
@@ -176,6 +176,25 @@ export type GameEvent =
        * reported rather than written here.
        */
       readonly conditionImmunities?: readonly ConditionName[];
+      /**
+       * How much space this creature takes up, as its stat block prints it.
+       *
+       * Pinned here so that placing it is not a second reading of a fact the
+       * book already answered. Before this, `creature-placed` was the only
+       * carrier of a size and nothing supplied it but the caller — so a model
+       * driving the engine ended up **stating** whether an ogre was Large,
+       * which is a fact the SRD prints and therefore one the Engine owes the
+       * caller rather than asks of it. `placeCreatureInScene` reads it when a
+       * caller states none; a caller who states one still wins, because
+       * shrinking a hound is a fact only the table has.
+       *
+       * **Optional, and absent means Medium** — what `placeCreature` has
+       * always defaulted to and therefore exactly what every log written
+       * before this field says. The reading `conditionImmunities` takes above,
+       * and the reason both frozen fixtures fold unchanged and neither was
+       * regenerated.
+       */
+      readonly size?: CreatureSize;
       /** Which side of the fight this creature is on. See {@link CreatureState.side}. */
       readonly side?: string;
       readonly command?: CommandStamp;

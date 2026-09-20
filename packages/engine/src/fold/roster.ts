@@ -81,6 +81,10 @@ export function applyRoster({ state, next }: Applying, event: RosterEvent): Game
             // Absent means none, which is what every log written before this
             // field existed says — so both frozen fixtures fold unchanged.
             conditionImmunities: event.conditionImmunities ?? [],
+            // Absent means nobody pinned one, and `placeCreature` then defaults
+            // to Medium exactly as it always has — so both frozen fixtures fold
+            // unchanged and neither was regenerated.
+            size: event.size ?? null,
             side: event.side ?? null,
             // Nobody's, until a `creature-summoned` says otherwise. Which is
             // what every log written before summoning existed says, so both
