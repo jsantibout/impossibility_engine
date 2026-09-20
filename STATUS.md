@@ -22,16 +22,38 @@ to homebrew.
   fight, the clock, spans and turn-anchored deadlines, repeat saves and
   delayed damage raised by the boundary, payouts a casting makes at one —
   the boundary a fight opens on included — Short and Long Rests.
+- **A fight that ends.** `endCombat` closes one when no hostile combatant
+  remains or the hostiles surrender; a flight is a prompt rather than an end,
+  refused until the party elects to let them go. The event pins *why*, and the
+  clock refuses a declared span inside a running fight — the two shipped
+  together because either alone wedges a session that rolls Initiative once.
+  `undeclared_side` asks rather than guessing, carrying one request per unsided
+  creature.
+- **A monster that swings with its own printed lines.** Multiattack as a named
+  sequence — "two Bite attacks" — counted per name within the turn, so a Ghoul
+  cannot make two Claws; and an opportunity attack that reaches for the
+  highest-damage printed melee attack that does not recharge, instead of
+  fabricating an Unarmed Strike. A caller may still name a different one.
+- **The defender answers first.** A rider elected on a swing is pinned on the
+  pending damage and resolved after it lands, so a target Stunned by the same
+  hit still answers the window it was offered.
 - **Casting** — slots and Pact slots as pools, castings with identities,
   Concentration, interruptible declared castings, long castings and rituals,
   reaction spells, ongoing records that later activations act through.
 - **Spell execution** — the effect kinds and three rider kinds; the SRD
   spells the catalogue defines run end to end.
+- **Text only the DM can decide.** A spell may hand printed sentences to
+  whoever is running the table — Commune's question of a god, Dream's `Special`
+  Range, Mirage Arcane's `Sight` — marked as a handover rather than filed as a
+  debt somebody may one day pay. The casting still spends its slot and holds
+  its Concentration; only the unstatable part is handed over.
 - **Characters** — all twelve SRD classes with their SRD subclass, all nine
   species and all four backgrounds, creation and advancement validated
   against the book, multiclassing, feats recorded and a few executed,
   features executed where a reader exists and honestly marked `manual`
   where not.
+  A character carries a **size**, pinned at creation from the species and taken
+  as a choice where the species prints more than one.
 - **Content** — `createContent` / `loadContent` validate a catalogue from
   typed input or JSON; `SRD_CONTENT` is built through it; a homebrew spell or
   class using existing mechanics needs no engine change (`content.test.ts`).
@@ -339,21 +361,17 @@ to homebrew.
   sourced grant with a deadline, consumed on use: a granted `intervene`
   reaction, which is a tenth grant family and the one genuinely new thing
   among the three.
-- **The Bard's die and a weapon's mastery have no tool.** `holdings.ts` is a
-  fourth reader of `sheet.reactions` and will not report a Reaction somebody
-  was given; `AttackCommand.mastery` reaches no door at all. Both landed in
-  the engine the same hours the surface was being built by somebody else, which
-  is the cost of running two tracks over one boundary and is cheaper than the
-  queue would have been.
 - **A weapon mastery is a ceiling rather than a quota.** Naming none records
   none, because making the choice required broke 49 fixture files across
   worktrees nobody owned at once; `planCharacter` warns rather than refuses.
-  Making it required is a corpus migration and is owed.
-- **A character has no size.** `createCharacter` pins none and
-  `SpeciesDefinition.sizes` is populated and read nowhere, so a character's
-  size category has no engine-side answer and `place_creature` is its only
-  door. It is not a one-line fix: Human and Tiefling print two sizes, so
-  creation needs a size *choice* as well as the event needing the field.
+  Making it required is a corpus migration and is owed. It is now the only one:
+  the size choice was ruled to default rather than refuse.
+- **A character's size is a default when nobody chooses.** Creation pins one
+  from the species and, where the species prints more than one, records
+  `size_not_chosen` and takes the first printed rather than refusing. A stated
+  size a species does not print is still refused. Promoting the warning to a
+  refusal is the same corpus migration the weapon mastery is owed, and the
+  owner has ruled the default is the design.
 - **A Rage's ten minutes are nobody's to keep.** `capSeconds` is pinned at
   creation and read by no command; `extendFeature` replaces the timer and
   checks nothing else. The surface reports the number and says the bound is
@@ -377,62 +395,76 @@ to homebrew.
 ## Next
 
 **A level 5 party can be built, armed, placed against monsters that fight with
-their own printed lines, and played through a fight and a rest.** The numbers
-are in `COVERAGE.md`'s level section and no sentence here repeats one.
+their own printed lines, and played through a fight, a rest, and now an ending.**
+The numbers are in `COVERAGE.md` and no sentence here repeats one.
 
-What this batch changed about *planning* matters as much as what it built:
-three shapes that ranked near the top of their maps turned out to be several
-shapes wearing one id, and one turned out to be built already with an empty
-catalogue. Both maps have now been re-derived against what the engine actually
-admits, so the columns below can be read.
+The batch of six tracks that closed on 2026-09-20 taught the same lesson four
+times, and it is a lesson about briefs rather than about building: **four of
+six briefs named a number taken from a table nobody had checked.** Six doors
+were one, three spells were two, four features were one, and Multiattack's 177
+blocks were 78. In each case the builder checked, found the truth, and shrank
+or re-aimed its own brief. `WORKFLOW.md` rule 1 already says to check the claim
+against the code and the book before briefing it; it was applied to one track
+of six.
 
 1. **A feature that holds an action rule.** `ActionRule` is reachable from a
-   casting and from nothing else — the surviving instance of the sentence the
-   effect-list origin answered a batch ago. An architect's decision is in hand:
-   a derived `StandingGrant` member plus `actionRulesOn(state, id)` merged with
-   the stored rules at every `Spend`, **not** a grant stored at creation, which
-   would put a permanent unconditional row into every Rogue's state and would
-   silently miss the Rogue already frozen in `golden-log-2.json`. 18 reads
-   across 9 command files. **Honest cost: the door alone finishes none of the
-   ten features.** With a `from` on `takeDash` it reaches two of Cunning
-   Action's three verbs and Adrenaline Rush's Dash, and Cunning Action stays
-   `manual`, because Hide has no spender anywhere in the repository.
+   casting and from nothing else. The architect's decision is in hand: a
+   derived `StandingGrant` member plus `actionRulesOn(state, id)` merged with
+   the stored rules at every `Spend`, **not** a grant stored at creation. 18
+   reads across 9 command files. **Honest cost: the door alone finishes none of
+   the ten features** — but Hide is now ruled to be the engine's verb, so the
+   pair (the door, and the Hide spender) finishes Cunning Action, which the
+   door alone never could. Brief them together or neither.
 2. **Steady Aim, which is its own shape** — an activated feature that hangs a
    *stored* one-shot at the moment it pays for it, generalising what
-   `commands/mastery.ts` does bespoke for Sap and Vex. A `oneShot` written on a
-   derived standing grant is never spent, because `consumedRollModifiers`
-   reads stored state.
-3. **The clock refusal, with `endCombat` beside it.** The refusal is written,
-   reviewed and **held on the branch `held/clock-in-combat`** rather than
-   merged, because nothing ends a fight: `combat-ended` has no command producer
-   except removing the last combatant, so a session that rolls Initiative once
-   could never rest again. Ship the two together. Note `combat-ended` is
-   `invariants.test.ts`'s control for "an event no command stamps".
-4. **Multiattack**, the largest single shape in the bestiary at 177 blocks, now
-   decided as composition (see the rulings below): `attacksPerAction` already gives the economy,
-   and what is missing is the **composition** — "two Bite attacks" — which
-   needs per-name counting within a turn that no state holds. A count-only
-   version would let a Ghoul make two Claws where the book gives two Bites.
-5. **An opportunity attack a monster makes with its own line.**
-   `takeOpportunityAttack` and the reaction path build their swing with a
-   weapon only, so a Wolf's is an Unarmed Strike at Strength plus proficiency —
-   **a fabricated number rather than a refusal.** The field belongs on two more
-   commands and then on the surface above them.
-6. **Doors for what this batch built**: `onHit` and `action` reach no tool, so
-   a model cannot elect a Stunning Strike or a monster's printed attack.
-7. **Preserve Life**, now decided (see the rulings below): a subclass feature
-   adding an option to the base feature's Channel Divinity pool. The menu shape
-   exists on the Cleric; the door from a subclass onto it does not.
-8. **An unlimited trade.** `limit` is required and closed; Font of Inspiration,
-   Sorcery Incarnate and Holy Nimbus all print one.
-9. **The long tail, now filed against what it actually waits on**: the item
-   range shape (two fields, not one), a casting ended by a trigger, the
-   remaining Metamagic options, `an-effect-list-a-hit-buys` for the Rogue's
-   Cunning Strike, and the bestiary's ranked prose table.
+   `commands/mastery.ts` does bespoke for Sap and Vex.
+3. **The other four Multiattack mechanisms, and the Hydra.** 78 of the 177
+   printed lines state a named sequence and are built. The remaining 99 are
+   alternation ("or it makes two Hurl Flame attacks"), a free choice from a
+   menu ("using Scimitar and Pistol in any combination"), an attack sequence
+   plus a non-attack use, a replace clause ("can replace one attack with a use
+   of Spellcasting"), and "as many Bite attacks as it has heads". **Each needs a
+   ruling before it can be briefed**; the shape row reads 99 rather than going
+   quiet so the five stay visible.
+4. **The held path of "the defender answers first".** The ordinary path is
+   fixed. The *held* path (`hold: true`, SRD Divine Smite's window) still fires
+   the rider at the hit, before the target answers `hit-by-attack` — so a
+   Stunning Strike can still close a *Shield*. Pre-existing, and now the only
+   half of the ruling outstanding.
+5. **Doors the engine has and the surface still does not call**: the `action`
+   field for a monster's printed attack, `among` on `use_pool_option` (recorded
+   in `doors.test.ts` as a refusal the surface cannot answer), and summoning —
+   which must land with its sweep beside it or a model-driven fight can wedge.
+6. **An atomic casting's handover is not pinned to its log.** The three DM-text
+   spells are long castings, so their text rides `PendingCasting.unverified` on
+   `spell-declared` and rule 5 holds. An atomic casting's handover reaches its
+   caller and nothing else. Closing it is a field on `spell-cast`.
+7. **Augury's class of line.** "The omen is the GM's" is still filed
+   `unmodelled`, which is a debt the blocker table ranks and somebody may one
+   day pay. Under the ruling it is a handover, which nobody will ever pay.
+   Re-filing that class across the catalogue turns fake debt into honest
+   handovers and costs no engine change.
+8. **An unlimited trade is built; three features still are not.** Font of
+   Inspiration, Sorcery Incarnate and Holy Nimbus each spend through the new
+   arm and each keeps a clause blocked on a shape the engine lacks — a
+   Short-Rest recovery rewrite, the two-Metamagic limit rewrite, an aura with
+   no-roll damage and a save-side mode. Flipping them to `engine` would delete
+   four real gaps from the blocked-on map.
+9. **The long tail**: the item range shape (two fields, not one), a casting
+   ended by a trigger, the remaining Metamagic options,
+   `an-effect-list-a-hit-buys` for the Rogue's Cunning Strike, `holdings.ts`
+   listing a feature once under first-claim-wins (unreachable until a homebrew
+   feature grants both a pool option and a hit rider), and the bestiary's
+   ranked prose table.
+
 
 ### Decisions the owner has ruled (2026-09-20)
 
-Each is a ruling, not a task; the brief that acts on it cites this section.
+Each is a ruling, not a task; the brief that acts on it cites this section. Six
+of the nine were built the same day by the batch they unblocked — the ending of
+a fight, the size choice, the opportunity attack, the DM handover, Channel
+Divinity's shared menu, and the ordinary half of the defender's window.
+Multiattack is built for the one mechanism of five the ruling covers.
 
 - **Hide is the engine's verb.** It has more inputs than most: the creature
   needs cover or obscurement and no line of sight to a watcher, and then a
@@ -494,12 +526,14 @@ Where a reachability measurement lives, since `@ie/tools` depends on
 `@ie/content` and the report cannot import the surface without inverting the
 build.
 
-### Interactions ruled on but not yet built
+### Interactions ruled on and half built
 
-- **A rider fires after `landDamage`**, so a target Stunned by the same swing
-  can no longer answer a `damage-rolled` window it was just offered. No
-  deadlock — `settleDamage` records a pass — but the Reaction is silently
-  denied. Ruled above: the defender answers first.
+- **A rider fires after `landDamage`** — fixed on the ordinary path:
+  `PendingDamage.rider` pins the election and `settleDamage` resolves it after
+  the damage lands, so the defender answers first. The **held** path does not:
+  with `hold: true` the rider still fires at the hit, before the target answers
+  `hit-by-attack`, so a Stunning Strike can still close a *Shield*. That half
+  is item 4 above.
 - **`rider_deals_damage` keys on the effect kind**, so a `turn-payout` carrying
   dice would slip past it. Harmless while nothing is rolled at the hit.
 
