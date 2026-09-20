@@ -54,6 +54,19 @@ dice pooled by die type, a later class's proficiencies from its own
 rule the engine transcribes itself (`MULTICLASS_SPELL_SLOTS`), and the SRD
 content's tests hold every full caster's own table against it.
 
+**A class may redefine its own strike.** A `strike-style` grant names a set of
+weapons beside the holder's Unarmed Strike, a die read off the class table and
+rolled in place of their normal damage, an ability offered in place of the
+attack's own, and a Bonus Action strike. It is one grant because the SRD
+prints one gate over three clauses. The die is a default and the ability is a
+choice, and the asymmetry is the SRD's: the ability is read past the roll, so
+there is a reason to elect the worse score; nothing reads which die was
+thrown. What it is *not* is the extra attacks inside one Attack action, which
+remains the gap filed above it. A class's **Monk weapons** and its **weapon
+proficiencies** are two declarations because the book prints two sentences
+that differ — a Monk is proficient with a Light Crossbow and it is not a Monk
+weapon — so the set lives on the feature rather than on the proficiency list.
+
 ## Equipment
 
 Items are content (`CatalogueItem`: id, kind, price in copper, weight, the
