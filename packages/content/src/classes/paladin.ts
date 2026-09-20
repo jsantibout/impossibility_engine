@@ -361,7 +361,27 @@ export const OATH_OF_DEVOTION: SubclassDefinition = {
       name: 'Holy Nimbus',
       level: 20,
       automation: 'manual',
-      note: 'None of it is modelled. The bright light is fiction. The Radiant damage to enemies in the aura is damage a feature deals with no attack roll and no save. The Advantage on any saving throw a Fiend or an Undead forces is a mode selected by who is on the other end of the save, which no selector can name. And the ten minutes it runs for, and the level 5 slot that buys the use back, are each their own absence.',
+      note: 'One clause of it is applied, which is why this is not marked as executed. SRD: "Once you use this feature, you can’t use it again until you finish a Long Rest, unless you expend a level 5 spell slot to restore your use of it" — the single daily use is a pool of one the trade declares, and the trade buys it back for the slot the feature names, with no action and no limit on how often. The rest is not. The bright light is fiction. The Radiant damage to enemies in the aura is damage a feature deals with no attack roll and no save. The Advantage on any saving throw a Fiend or an Undead forces is a mode selected by who is on the other end of the save, which no selector can name. And the ten minutes it runs for is a printed span rather than a turn boundary.',
+      grants: {
+        kind: 'trade',
+        trades: [
+          {
+            id: 'slot-for-holy-nimbus',
+            name: 'Holy Nimbus',
+            action: 'none',
+            // "a **level 5** spell slot" — the feature names the level, so the
+            // Paladin is not asked which they are burning.
+            spends: { kind: 'spell-slot', level: 5 },
+            gains: { kind: 'pool', key: 'holy-nimbus', uses: 1 },
+            limit: 'unlimited',
+            // "Once you use this feature, you can’t use it again until you
+            // finish a Long Rest": the use itself, which this feature has no
+            // second grant to declare and this trade exists to restore.
+            pool: 'holy-nimbus',
+            poolLabel: 'Holy Nimbus',
+          },
+        ],
+      },
     },
   ],
 };

@@ -97,7 +97,7 @@ export const FEATURE_SHAPES = {
   'a-pool-refilled-to-a-floor':
     'a recovery that tops a pool up to a number rather than giving back a share of it. `Recovery`\'s `upTo` in packages/engine/src/progression.ts is half the class level, half the maximum, or all, and the SRD prints a fourth shape twice — "until you have two", "until you have 4 if you have 3 or fewer" — where what is regained depends on what is left rather than on the pool\'s size.',
   'a-resource-traded-for-another':
-    'one resource spent to buy another. The conversion between two **pools** is built: the `trade` grant in packages/engine/src/progression.ts is "One resource spent to buy another", a list because "a feature carries one grant and the SRD prints two directions in one feature", and Wild Resurgence spends a Wild Shape use for a level 1 slot and a slot for a use. What is still unsaid is everything either end of which is not a pool — Sneak Attack dice forgone to buy an effect, a mode given up for a harder hit, a Channel Divinity use minting hit points to divide — and the trades the grant\'s own closed vocabulary cannot yet write: "a trade can never mint a use above a pool\'s maximum", so a slot a class table never printed is refused rather than given, and a trade with no limit at all has no way to say so.',
+    'one resource spent to buy another. The conversion between two **pools** is built: the `trade` grant in packages/engine/src/progression.ts is "One resource spent to buy another", a list because "a feature carries one grant and the SRD prints two directions in one feature", and Wild Resurgence spends a Wild Shape use for a level 1 slot and a slot for a use. What is still unsaid is everything either end of which is not a pool — Sneak Attack dice forgone to buy an effect, a mode given up for a harder hit, a Channel Divinity use minting hit points to divide — and the trades the grant\'s own closed vocabulary cannot yet write: "a trade can never mint a use above a pool\'s maximum", so a slot a class table never printed is refused rather than given. The limit is no longer one of them: `ResourceTradeGrant.limit` carries an `unlimited` member, and Font of Inspiration, Sorcery Incarnate and Holy Nimbus each spend through it.',
   'a-casting-paid-for-out-of-a-feature-pool':
     'a spell a feature lets you cast without a slot. The route exists for an **item** and is refused to a feature by name: packages/engine/src/progression.ts says of the `casts` grant "An item-only member. Nothing executes it from a class feature and `checkContent` refuses it there", because the charges it spends are an item\'s pool looked up by the granting item\'s id. Every SRD sentence of the shape "cast it without expending a spell slot" wants exactly that grant with a feature\'s pool behind it.',
   'an-option-whose-span-is-a-turn-boundary':
@@ -351,11 +351,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       why: 'a-feature-that-rewrites-another-features-rule',
       note: 'a later feature changing an earlier pool’s recovery, which is fixed when the sheet is built.',
     },
-    {
-      clause: 'spending a slot to regain a use',
-      why: 'a-resource-traded-for-another',
-      note: 'a spell slot bought into a pool, with no action and no limit.',
-    },
   ],
   'bard:countercharm': [
     {
@@ -450,18 +445,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'The Wish effect is not modelled',
       why: 'a-spell-an-item-casts-that-nothing-executes',
       note: 'the catalogue defines no Wish, so the feature waits on a spell rather than on a feature mechanic.',
-    },
-  ],
-  'life-domain:preserve-life': [
-    {
-      clause: 'Dividing five times your Cleric level in hit points among Bloodied creatures',
-      why: 'a-resource-traded-for-another',
-      note: 'a Channel Divinity use spent to mint a pool of hit points, which no grant converts.',
-    },
-    {
-      clause: 'capped at half their maximum',
-      why: 'healing-modified-by-an-effect',
-      note: 'a cap on healing that is not the target’s maximum, which is the only cap `healCreature` knows.',
     },
   ],
   'life-domain:blessed-healer': [
@@ -791,11 +774,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       why: 'a-benefit-that-runs-for-a-printed-span',
       note: 'a printed span rather than an extended turn boundary.',
     },
-    {
-      clause: 'the level 5 slot that buys the use back',
-      why: 'a-resource-traded-for-another',
-      note: 'a slot spent on a feature’s own pool.',
-    },
   ],
 
   // — Ranger —
@@ -1070,7 +1048,7 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   // — Sorcerer —
   'sorcerer:innate-sorcery': [
     {
-      clause: 'The +1 to spell save DC and Advantage on spell attacks',
+      clause: 'the +1 to spell save DC and Advantage on spell attacks',
       why: 'a-bonus-to-spell-attack-rolls',
       note: 'the item map’s own id, whose description already names the save DC beside the attack roll.',
     },
@@ -1080,9 +1058,9 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'a printed span rather than an extended turn boundary.',
     },
     {
-      clause: 'the twice-per-long-rest limit is not tracked',
+      clause: 'an activation this feature has no second grant to carry beside the pool',
       why: 'a-feature-that-carries-a-second-grant',
-      note: 'the pool and the activation are each expressible and a feature carries one grant.',
+      note: 'the pool is declared now, and the activation is the half a feature has no second grant for.',
     },
   ],
   'sorcerer:metamagic': [
@@ -1117,11 +1095,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'Using two Metamagic options on one spell',
       why: 'a-feature-that-rewrites-another-features-rule',
       note: 'a later feature lifting an earlier one’s limit.',
-    },
-    {
-      clause: 'spending Sorcery Points to use Innate Sorcery again',
-      why: 'a-resource-traded-for-another',
-      note: 'one pool spent to refill another.',
     },
   ],
   'sorcerer:arcane-apotheosis': [
