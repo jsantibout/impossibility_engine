@@ -31,7 +31,13 @@ import {
   setScene,
   summonCreature,
 } from './commands.js';
-import { checkContent, extendContent, loadContent, type Content } from './content.js';
+import {
+  checkContent,
+  createContent,
+  extendContent,
+  loadContent,
+  type Content,
+} from './content.js';
 import { applyEvent, fold, type GameEvent, type GameState } from './events.js';
 import { adaptMonster } from './monster.js';
 
@@ -121,6 +127,26 @@ describe('the bestiary is content, and the SRD supplies its own', () => {
     expect(problems.map((p) => p.code)).toEqual(['unknown_skill']);
     expect(problems[0]?.field).toBe('monsters[conjured-hound].skills');
     expect(problems[0]?.reason).toContain('tail-wagging');
+  });
+
+  /**
+   * The other half of "one gate, both doors". `loadContent` narrows untyped
+   * input with `MonsterSchema` before it gets here, but `createContent` and
+   * `extendContent` are the door a typed caller takes, and a caller who lies
+   * to the compiler must get a refusal rather than a thrown `TypeError` off
+   * the first field something reads.
+   */
+  it('refuses a half-written stat block at the typed door too, as a value', () => {
+    const half = { id: 'gap', name: 'Gap' } as never;
+    const problems = checkContent({ monsters: [half] });
+    expect(problems.length).toBeGreaterThan(0);
+    expect(new Set(problems.map((p) => p.code))).toEqual(new Set(['bad_monster']));
+    expect(problems.map((p) => p.field)).toContain('monsters[gap].size');
+
+    const refused = createContent({ monsters: [half] });
+    expect(isErr(refused) && refused.code).toBe('invalid_content');
+    // And the same shape past `extendContent`, which is the door homebrew takes.
+    expect(isErr(extendContent(SRD_CONTENT, { monsters: [half] }))).toBe(true);
   });
 
   /**

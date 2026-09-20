@@ -1978,14 +1978,24 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
   /**
    * **What a stat block claims, held to what the adapter reads.**
    *
-   * `MonsterSchema` already pins everything a monster's shape can be wrong
-   * about — ability scores 1–30, an Armour Class of at least 1, average hit
-   * points of at least 1, and a size drawn from the enum `positioning.ts`
-   * reads — so this asks the one question the schema cannot: does the engine
-   * have a vocabulary for what the block names? `adaptMonster` drops a skill
-   * key it does not recognise **silently**, which for a homebrew stat block is
-   * a printed line that quietly buys nothing. The same rule an item's
-   * conferral keeps, and the reason `feat_grant_not_read` exists.
+   * Two questions, and the first is asked with `MonsterSchema` rather than a
+   * transcription of it. **Is the block a block at all** — ability scores in
+   * range, an Armour Class of at least 1, average hit points of at least 1, a
+   * size drawn from the enum `positioning.ts` reads, and the forty fields
+   * `adaptMonster` walks without looking. It is asked *here* rather than only
+   * in `parseMonster`, because `parseMonster` is the untyped door and
+   * `createContent` and `extendContent` are the other one: a caller who hands
+   * in a half-written stat block past the compiler would otherwise reach
+   * `Object.keys(undefined)` and get a **thrown** TypeError where the rule
+   * says a refusal is a value. So this is the one gate both doors pass
+   * through, which is what `content.test.ts` exists to prove of every other
+   * kind of content and now proves of this one.
+   *
+   * The second is the one the schema cannot ask: **does the engine have a
+   * vocabulary for what the block names?** `adaptMonster` drops a skill key it
+   * does not recognise **silently**, which for a homebrew stat block is a
+   * printed line that quietly buys nothing. The same rule an item's conferral
+   * keeps, and the reason `feat_grant_not_read` exists.
    *
    * It asks nothing else. A **qualified** defence ("Charmed (except from its
    * vampire master)") and an unrecognised one are both things the SRD itself
@@ -1993,7 +2003,18 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
    * `unverified`, so refusing them here would refuse the printed book.
    */
   for (const monster of monsters) {
-    for (const skill of Object.keys(monster.skills)) {
+    const shaped = MonsterSchema.safeParse(monster);
+    if (!shaped.success) {
+      for (const issue of shaped.error.issues.slice(0, 5)) {
+        problems.push({
+          field: `monsters[${(monster as { readonly id?: string }).id ?? '?'}].${issue.path.join('.')}`,
+          code: 'bad_monster',
+          reason: issue.message,
+        });
+      }
+      continue;
+    }
+    for (const skill of Object.keys(shaped.data.skills)) {
       if (SKILL_NAMES.has(skill)) continue;
       problems.push({
         field: `monsters[${monster.id}].skills`,
@@ -2585,10 +2606,13 @@ function parseItem(value: unknown): Result<CatalogueItem> {
  * narrows a shape the engine declared, so the engine's reader is the only one;
  * a monster's shape is `@ie/srd`'s, and a second transcription of forty fields
  * would drift from the parser that writes them — which is the failure this
- * repository keeps refusing rather than the shape of the code it prefers. The
- * schema also pins what the engine reads and would otherwise have to check:
- * ability scores in range, an Armour Class of at least 1, hit points of at
- * least 1, and a size drawn from the enum `positioning.ts` reads.
+ * repository keeps refusing rather than the shape of the code it prefers.
+ *
+ * What this adds over `checkContent`, which runs the same schema, is only the
+ * **narrowing**: `unknown` has to become a `Monster` before `ContentInput`
+ * will hold it. The judgement is `checkContent`'s and is asked of typed input
+ * too, so a half-written stat block gets the same answer whichever door it
+ * came through.
  *
  * Zod's issues are flattened into the same `path: message` prose the `Shaped`
  * collector produces, so a malformed monster reads like a malformed item.

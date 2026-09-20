@@ -921,11 +921,10 @@ describe('a homebrew monster goes through the same door as the book', () => {
     expect(content.monsterById('ash-revenant')?.name).toBe('Ash Revenant');
     expect(SRD_CONTENT.monsterById('ash-revenant')).toBeNull();
     // Beside the book rather than instead of it, on the same door homebrew
-    // spells, classes and items take.
-    const world = unwrap(
-      extendContent(SRD_CONTENT, { monsters: [JSON.parse(ASH_REVENANT) as never] }),
-      'extend',
-    );
+    // spells, classes and items take. What `extendContent` is handed is what
+    // the untyped door already validated, which is the route a DM's bestiary
+    // file actually takes — no cast, and no second transcription of the shape.
+    const world = unwrap(extendContent(SRD_CONTENT, { monsters: content.monsters }), 'extend');
     expect(world.monsterById('ash-revenant')?.name).toBe('Ash Revenant');
     expect(world.monsterById('zombie')?.name).toBe('Zombie');
   });
