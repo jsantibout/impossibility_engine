@@ -1069,6 +1069,20 @@ describe('a Cleric divides the hit points Preserve Life mints', () => {
     expect(refusal.code).toBe('division_required');
     expect(sheetOf(t, 'ilsa').pool('channel-divinity')!.left).toBe(2);
 
+    // And the other spelling of "no shares" is the same answer. A bound in the
+    // schema would have made an empty list `invalid` and a missing field
+    // `division_required`, which is two answers to one mistake — and only one
+    // of them tells the caller what the option wants.
+    const empty = expectRefused(
+      t.call('use_pool_option', {
+        who: 'ilsa',
+        feature: 'cleric:channel-divinity',
+        option: 'preserve-life',
+        among: [],
+      }),
+    );
+    expect(empty.code).toBe('division_required');
+
     const answered = expectOk(
       t.call('use_pool_option', {
         who: 'ilsa',

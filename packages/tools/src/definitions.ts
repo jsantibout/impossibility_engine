@@ -2222,10 +2222,14 @@ const REGAIN_USES = tool({
  * will not touch. A caller who sends twenty-six of twenty-five gets
  * `too_much_divided` and spends nothing.
  *
- * The floor — a whole number of at least one — is left to the engine's
- * `bad_share` rather than put in the schema, because it is a rule about what a
- * share *is* and a caller reading `invalid` goes looking for a typo. What Zod
- * asks is only that a share is an integer aimed at a creature.
+ * **Every question about whether a division is legal is left to the engine**,
+ * including the two a schema could easily have answered. The floor — a whole
+ * number of at least one — is `bad_share`, and an empty list is
+ * `division_required`, which is the same answer the field's *absence* gets. A
+ * bound in the schema would have made `among: []` and a missing `among` two
+ * different outcomes for one mistake, and turned a rule about what a share is
+ * into a caller reading `invalid` and going to look for a typo. What Zod asks
+ * is only that a share is an integer aimed at a creature.
  */
 const USE_POOL_OPTION = tool({
   name: 'use_pool_option',
@@ -2261,7 +2265,6 @@ const USE_POOL_OPTION = tool({
             .describe('How much of the pot this creature gets. Yours to divide; the engine checks every one of them.'),
         }),
       )
-      .min(1)
       .optional()
       .describe(
         'How to divide the hit points a distributing option mints — SRD Preserve Life’s "divide those Hit Points among them". How many there are to divide is the engine’s and is in the refusal that asks for this; which creature gets how much is yours, and the book gives that choice to nobody else. Every share is checked before a single hit point is paid: against the total minted, against the reach the option prints, against half each creature’s maximum, and against the kinds of creature the option will not touch. Left out for an option that is aimed at a creature rather than divided.',

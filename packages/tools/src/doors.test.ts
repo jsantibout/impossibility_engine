@@ -821,10 +821,12 @@ const KIND_SETTLED_BY: Readonly<Record<string, ContextRequestKind | null>> = {
   declareDawn: null,
 };
 
-/** Every request the engine raises, as the kind it is tagged and the prose. */
-function raisedRequests(): readonly { readonly file: string; readonly kind: string; readonly satisfyWith: string }[] {
+/** Every request raised in these sources, as the kind it is tagged and the prose. */
+function requestsIn(
+  sources: readonly { file: string; text: string }[],
+): readonly { readonly file: string; readonly kind: string; readonly satisfyWith: string }[] {
   const found: { file: string; kind: string; satisfyWith: string }[] = [];
-  for (const { file, text } of engineSources()) {
+  for (const { file, text } of sources) {
     for (const match of text.matchAll(/satisfyWith\s*:\s*([^\n]*)/g)) {
       const above = [...text.slice(0, match.index).matchAll(/kind\s*:\s*'([a-z-]+)'/g)];
       const nearest = above[above.length - 1];
@@ -833,6 +835,34 @@ function raisedRequests(): readonly { readonly file: string; readonly kind: stri
     }
   }
   return found;
+}
+
+const raisedRequests = (): ReturnType<typeof requestsIn> => requestsIn(engineSources());
+
+/**
+ * Every request in these sources whose tag is not the fact it asks for.
+ *
+ * The detector, hoisted so that the guard below and the test *of* the guard
+ * run the same code — a detector tested through a second copy of its own regex
+ * is a guard nobody tested, which is the mistake this file names twice
+ * already.
+ */
+function mistaggedIn(sources: readonly { file: string; text: string }[]): readonly string[] {
+  const mistagged: string[] = [];
+  for (const request of requestsIn(sources)) {
+    const named = /\b(declare[A-Z]\w*)/.exec(request.satisfyWith);
+    if (named === null) continue;
+    const command = named[1]!;
+    if (!(command in KIND_SETTLED_BY)) continue;
+    const settles = KIND_SETTLED_BY[command]!;
+    if (settles === request.kind) continue;
+    mistagged.push(
+      `${request.file}: a request tagged '${request.kind}' is answered by ${command}, which settles ${
+        settles === null ? 'no kind at all' : `'${settles}'`
+      }`,
+    );
+  }
+  return mistagged;
 }
 
 describe('a request asks for the fact its kind names', () => {
@@ -862,32 +892,34 @@ describe('a request asks for the fact its kind names', () => {
    * somebody else's tag.
    */
   it('tags a request that names a declaration with the kind that declaration settles', () => {
-    const mistagged: string[] = [];
-    for (const request of raisedRequests()) {
-      const named = /\b(declare[A-Z]\w*)/.exec(request.satisfyWith);
-      if (named === null) continue;
-      const command = named[1]!;
-      if (!(command in KIND_SETTLED_BY)) continue;
-      const settles = KIND_SETTLED_BY[command]!;
-      if (settles === request.kind) continue;
-      mistagged.push(
-        `${request.file}: a request tagged '${request.kind}' is answered by ${command}, which settles ${
-          settles === null ? 'no kind at all' : `'${settles}'`
-        }`,
-      );
-    }
-    expect(mistagged).toEqual([]);
+    expect(mistaggedIn(engineSources())).toEqual([]);
   });
 
-  /** And the detector finds the breach it was written about, written out. */
-  it('and the detector catches the mis-tag it was written for', () => {
-    const offending = "kind: 'creature',\n satisfyWith: `a declareSpellcasting command for ${id}`,";
-    const above = [...offending.matchAll(/kind\s*:\s*'([a-z-]+)'/g)];
-    const named = /\b(declare[A-Z]\w*)/.exec(offending)!;
-    expect(above[above.length - 1]![1]).toBe('creature');
-    expect(KIND_SETTLED_BY[named[1]!]).toBeNull();
-    // Which is the comparison the guard above makes, and it fails.
-    expect(KIND_SETTLED_BY[named[1]!]).not.toBe('creature');
+  /**
+   * And the detector finds the breaches it was written about, fed to the
+   * detector itself rather than to a second copy of its regex.
+   *
+   * The first fixture is the bug, transcribed from the source it was removed
+   * from: a request tagged `creature` answered by a command that settles no
+   * kind. The second is the other direction — a tag that is a real kind and
+   * the wrong one — because a guard that only caught `null` would pass a
+   * request tagged `side` and answered by `declareCreatureType`.
+   */
+  it('and the detector catches a mis-tag, in both of the shapes one takes', () => {
+    const caught = (text: string) => mistaggedIn([{ file: 'fixture.ts', text }]);
+
+    expect(
+      caught("kind: 'creature',\nsatisfyWith: `a declareSpellcasting command for ${id}`,"),
+    ).toHaveLength(1);
+    expect(
+      caught("kind: 'side',\nsatisfyWith: `declareCreatureType(${id}, …)`,"),
+    ).toHaveLength(1);
+    // And it does not cry wolf at a request that is tagged correctly, or at
+    // one whose prose names no declaration at all.
+    expect(caught("kind: 'creature-type',\nsatisfyWith: `declareCreatureType(${id}, …)`,")).toEqual(
+      [],
+    );
+    expect(caught("kind: 'position',\nsatisfyWith: `a placeCreatureInScene command`,")).toEqual([]);
   });
 });
 
