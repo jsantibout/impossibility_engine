@@ -344,14 +344,17 @@ export function settleDamage(
     // resolves on the world the damage has already changed, which is where a
     // rider has always resolved.
     //
-    // **And it cannot refuse.** This command is the only door out of a held
-    // damage roll, and every other command is refused while one stands: a
+    // **And the rider may not refuse this command.** This is the only door out
+    // of a held damage roll, and what the rider would refuse is somebody
+    // else's purchase, already checked and already paid for at the swing: a
     // refusal here would wedge the fight for ever, and every retry would wedge
     // it again. So a rider that will not resolve is *reported* — the
     // settlement happens, the damage lands, and whoever is narrating is told
-    // that what the hit bought did not. That is the same channel a rule the
-    // engine could not evaluate already comes back on, and the opposite
-    // failure from the one this exemption is written against.
+    // that what the hit bought did not.
+    //
+    // The refusal above it is a different thing and stays: `resolveDamage` is
+    // the damage itself, and a settlement that could not deal the damage has
+    // not settled anything to close the window over.
     const unverified: string[] = [];
     const riderEvents: GameEvent[] = [];
     if (pending.rider !== undefined) {

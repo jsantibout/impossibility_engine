@@ -840,6 +840,46 @@ describe('a Multiattack is a named sequence', () => {
     ).toHaveLength(2);
   });
 
+  /**
+   * Outside combat there is no turn to count a sequence against, so nothing
+   * holds a swing to it — and that is said out loud, which is the answer
+   * Cleave's once-per-turn allowance already gives to the same absence. A rule
+   * that checked and a rule that could not look identical from outside.
+   */
+  it('reports that nothing held the swing to it, where there are no turns', () => {
+    const table = new Table();
+    table.do('the fighter arrives', () => createCharacter(SRD_CONTENT, walkOn('Bren'), BREN));
+    table.did('the ghoul arrives', (s) => addCreature(s, SRD_CONTENT, GHOUL, 'ghoul'));
+
+    const claw = (commandId: string) =>
+      table.did('the ghoul claws', (s) =>
+        resolveAttack(
+          s,
+          GHOUL,
+          { target: BREN, weapon: null, action: 'Claw', commandId },
+          supply('teeth'),
+        ),
+      );
+
+    const first = unwrap(
+      resolveAttack(
+        table.state,
+        GHOUL,
+        { target: BREN, weapon: null, action: 'Claw', commandId: 'one' },
+        supply('teeth'),
+      ),
+      'the claw',
+    );
+    expect(first.unverified.join(' ')).toContain('no turns here to count one against');
+
+    // And the swing it could not hold to the sequence happens anyway, twice.
+    claw('one');
+    claw('two');
+    expect(
+      table.events.filter((e) => e.type === 'roll-recorded' && e.label === 'Claw attack'),
+    ).toHaveLength(2);
+  });
+
   /** A creature stating no sequence is where it always was: one swing. */
   it('leaves a creature with no stated sequence exactly as it was', () => {
     const table = inTheWoods('wolf', WOLF);
