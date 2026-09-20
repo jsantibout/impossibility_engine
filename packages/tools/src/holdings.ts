@@ -28,6 +28,9 @@ import type { CharacterId } from '@ie/shared';
 import type { FeatureReactionWindow, GameState } from '@ie/engine';
 import {
   armorClassOf,
+  attunedItems,
+  carrying,
+  coinsOf,
   movementLeftFor,
   pactSlotKey,
   speedOf,
@@ -226,6 +229,20 @@ export interface HeldGrantedSpell {
   readonly slotCasting: boolean;
 }
 
+/**
+ * One line of an inventory, as the engine keeps it.
+ *
+ * `instance` is present exactly where the engine has told this copy apart from
+ * the others — a wand whose charges are its own — and it is reported because
+ * every inventory call takes it: a caller holding two wands and shown one
+ * line cannot say which one the thief took.
+ */
+export interface HeldItem {
+  readonly id: string;
+  readonly quantity: number;
+  readonly instance?: string;
+}
+
 export interface HeldBudget {
   readonly action: boolean;
   readonly bonusAction: boolean;
@@ -245,6 +262,26 @@ export interface Holdings {
   readonly speed: number;
   readonly conditions: readonly string[];
   readonly concentratingOn: string | null;
+  /**
+   * What this character owns, wears, is attuned to, and can pay with.
+   *
+   * **Three separate facts, because the engine keeps them as three.** Owning
+   * is not wearing — Armour Class reads the equipped set, so chain mail in a
+   * backpack protects nobody — and wearing is not attunement, which is the
+   * sentence that switches a magic item's benefit on. A caller shown one list
+   * would be guessing at the other two, and each of the six inventory calls
+   * refuses by naming something on one of them: `not_owned`, `not_equipped`,
+   * `not_attuned`, `cannot_afford`.
+   *
+   * Coins are in **copper**, which is the unit the engine prices in; the
+   * catalogue's gold pieces are converted before anything is compared.
+   */
+  readonly coins: number;
+  readonly carrying: readonly HeldItem[];
+  /** Worn or wielded right now, by catalogue id. */
+  readonly equipped: readonly string[];
+  /** Attuned to, by catalogue id. SRD allows three at a time. */
+  readonly attuned: readonly string[];
   /**
    * What this character can cast and by which route.
    *
@@ -548,6 +585,14 @@ export function holdingsOf(state: GameState, id: CharacterId): Holdings | null {
     speed: speedOf(state, creature.id),
     conditions: creature.conditions.conditions,
     concentratingOn: creature.concentration?.spell ?? null,
+    coins: coinsOf(state, creature.id),
+    carrying: carrying(state, creature.id).map((line) => ({
+      id: line.id,
+      quantity: line.quantity,
+      ...(line.instance === undefined ? {} : { instance: line.instance }),
+    })),
+    equipped: creature.equipped.map((worn) => worn.id),
+    attuned: [...attunedItems(state, creature.id)],
     spellcasting: {
       classes: creature.spellcasting.classes.map((entry) => ({
         classId: entry.classId,

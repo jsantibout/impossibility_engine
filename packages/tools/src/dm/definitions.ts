@@ -68,6 +68,7 @@ import {
   applyConditionTo,
   awardItems,
   liftConditionFrom,
+  loseItems,
   resolveDamage,
   resolveTest,
   rollImprovisedDamage,
@@ -661,6 +662,72 @@ const AWARD_ITEMS = tool({
 });
 
 /**
+ * Take away what a thief took — `award_items`' other half.
+ *
+ * **Here for the reason `award_items` is here**, which is the same sentence
+ * read backwards: handing out what a party found is the DM's, so is a mimic
+ * swallowing the sword, a ration eaten and a purse cut. What a character
+ * *does* with what it holds — wears it, attunes to it, hands it to an ally —
+ * is the character's, and those are on the model's door beside `use_item`. A
+ * model that could delete a party's inventory by naming it would be writing
+ * the world rather than playing in it.
+ *
+ * **No price and no catalogue.** Nothing is sold and no coin moves, and the
+ * item does not have to be one the SRD lists — a DM may take away a thing the
+ * book never printed. Two refusals are the engine's and both are the rule
+ * rather than bookkeeping: more than is carried is refused rather than
+ * silently taking what there is, and something worn or wielded is refused
+ * because owning and wearing are two facts — confiscating worn armour would
+ * leave it worn and still adding its Armour Class. Taking it off is
+ * `unequip_item`, and it should look like a decision.
+ */
+const LOSE_ITEMS = tool({
+  name: 'lose_items',
+  description:
+    'Take something away from a creature: the thief in the night, the mimic that swallowed the sword, the rations eaten. No coin moves and the catalogue is not consulted, so a thing the book never printed can be taken too. Say where it went; the log records it. More than the creature has is refused, and so is something worn or wielded — take that off first.',
+  mutates: true,
+  input: z.strictObject({
+    who: creatureId.describe('Who is losing it.'),
+    items: z
+      .array(
+        z.strictObject({
+          id: z.string().min(1).describe('Catalogue id, or whatever the thing is called.'),
+          quantity: z.int().min(1).optional().describe('How many. One where it is left out.'),
+          instance: z
+            .string()
+            .min(1)
+            .optional()
+            .describe(
+              'Which copy, where `sheet` tells the copies apart — a wand with charges of its own. Naming none is fine where there is only one.',
+            ),
+        }),
+      )
+      .min(1)
+      .describe('What was lost. A loss has to name something.'),
+    because: z
+      .string()
+      .min(1)
+      .describe('Where it went, in one phrase: "the thief in the night".'),
+  }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      loseItems(
+        context.campaign.state(),
+        who(args.who),
+        args.items.map((line) => ({
+          id: line.id,
+          quantity: line.quantity ?? 1,
+          ...(line.instance === undefined ? {} : { instance: line.instance }),
+        })),
+        args.because,
+        identity(context),
+      ),
+      { lost: args.items.map((line) => line.id), from: args.who, because: args.because },
+    ),
+});
+
+/**
  * The tools a model may never reach, in the stable sorted order the prompt
  * cache depends on.
  */
@@ -669,6 +736,7 @@ export const DM_ONLY_TOOLS: readonly ToolDefinition[] = [
   AWARD_ITEMS,
   END_CONDITION,
   IMPROVISED_DAMAGE,
+  LOSE_ITEMS,
   ROLL_IMPROVISED_DAMAGE,
   RULE_CONDITION,
   SAVING_THROW,

@@ -118,6 +118,7 @@ import {
   applyConditionTo,
   applyEvent,
   areaPointAt,
+  attuneItem,
   availableChecks,
   awardItems,
   conferReaction,
@@ -134,16 +135,19 @@ import {
   declineOpportunity,
   declineTestReaction,
   eligibleTargets,
+  endAttunement,
   endConcentration,
   endFeature,
   endOngoingSpell,
   endRest,
+  equipItem,
   extendFeature,
   INITIATIVE_LABEL,
   joinCombat,
   mayAct,
   placeCreatureInScene,
   positionOf,
+  purchaseItem,
   reactionOpportunities,
   recordInitiativeRolls,
   releaseReady,
@@ -168,6 +172,8 @@ import {
   takeReady,
   takeOpportunityAttack,
   takeTestReaction,
+  transferItem,
+  unequipItem,
   useHealingTouch,
   useItem,
   usePoolOption,
@@ -2712,6 +2718,188 @@ const USE_ITEM = tool({
 });
 
 /**
+ * What a character does with what it holds: wear it, attune to it, buy it,
+ * hand it over.
+ *
+ * Six engine commands that reached no tool, and the cost was the same shape
+ * every time: `award_items` could put chain mail in a backpack and nothing
+ * could put it on, so **owning and wearing are two facts** and only one of
+ * them had a door. Armour Class reads the equipped set, so armour a party
+ * found protected nobody; a magic item could be carried and never attuned,
+ * which is the sentence that switches its benefit on; and coins were a number
+ * the engine tracked, priced things against and let nobody spend.
+ *
+ * **They are the model's and `lose_items` is the DM's**, which is
+ * `award_items`' line drawn once more rather than a new one: handing out what
+ * a party found — and taking away what a thief took — is the table
+ * adjudicating the world, and what a character does with what it holds is the
+ * character's. `use_item` has been on this side since it existed, and these
+ * are its neighbours.
+ *
+ * **No mechanical number passes through any of them.** A quantity is a count
+ * of things, as `award_items`' already is. A price is the SRD's, and one the
+ * book leaves as "Varies" is refused rather than guessed. Which copy, where
+ * copies are told apart, is a label the engine issued and this surface reports
+ * on `sheet`. Everything an item is worth — its Armour Class, its charges,
+ * what it confers, what attuning to it grants — is read out of the catalogue
+ * by the command and pinned into the event.
+ */
+const PURCHASE_ITEM = tool({
+  name: 'purchase_item',
+  description:
+    'Buy something at the price the book prints, out of this character’s own coin. You name the item and how many; the price, what is in a pack, and whether the purse covers it are the engine’s. A price the SRD leaves as "Varies" is refused rather than guessed. `sheet` reports the coins and what is already carried.',
+  mutates: true,
+  input: z.object({
+    who: creatureId.describe('Who is buying, and whose coin it comes out of.'),
+    item: z.string().min(1).describe('Catalogue id, e.g. shield, torch, healers-kit.'),
+    quantity: z.int().min(1).optional().describe('How many. One where it is left out.'),
+  }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      purchaseItem(
+        context.campaign.state(),
+        context.campaign.content,
+        who(args.who),
+        args.item,
+        args.quantity ?? 1,
+        context.commandId,
+      ),
+      { bought: args.item, quantity: args.quantity ?? 1 },
+    ),
+});
+
+const EQUIP_ITEM = tool({
+  name: 'equip_item',
+  description:
+    'Wear or wield something this character already owns. Chain mail in a backpack protects nobody: Armour Class is read off what is worn, and this is the only call that moves it. A second suit of body armour or a second shield is refused rather than silently replacing the first, because taking armour off is a decision. Something carried rather than worn — a rope, a sack of rations — is refused too.',
+  mutates: true,
+  input: z.object({
+    who: creatureId,
+    item: z
+      .string()
+      .min(1)
+      .describe('Catalogue id, or the id of one copy where `sheet` tells the copies apart.'),
+  }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      equipItem(
+        context.campaign.state(),
+        context.campaign.content,
+        who(args.who),
+        args.item,
+        context.commandId,
+      ),
+      { equipped: args.item, by: args.who },
+    ),
+});
+
+const UNEQUIP_ITEM = tool({
+  name: 'unequip_item',
+  description:
+    'Put something away. It stays owned — taking armour off is not selling it — and whatever it was adding stops being added.',
+  mutates: true,
+  input: z.object({ who: creatureId, item: z.string().min(1).describe('Catalogue id, or a copy’s id.') }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      unequipItem(
+        context.campaign.state(),
+        context.campaign.content,
+        who(args.who),
+        args.item,
+        context.commandId,
+      ),
+      { unequipped: args.item, by: args.who },
+    ),
+});
+
+const ATTUNE_ITEM = tool({
+  name: 'attune_item',
+  description:
+    'Attune to a magic item, which is what switches its benefit on. SRD: "Attuning to an item requires a creature to spend a Short Rest focused on only that item while being in physical contact with it" — so the character has to be resting, and a rest already interrupted is refused. An item that works for anybody holding it has nothing to attune, and nobody attunes to more than three at a time. Begin the rest with `begin_rest`.',
+  mutates: true,
+  input: z.object({ who: creatureId, item: z.string().min(1).describe('Catalogue id, or a copy’s id.') }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      attuneItem(
+        context.campaign.state(),
+        context.campaign.content,
+        who(args.who),
+        args.item,
+        context.commandId,
+      ),
+      { attuned: args.item, by: args.who },
+    ),
+});
+
+const END_ATTUNEMENT = tool({
+  name: 'end_attunement',
+  description:
+    'Give up an attunement, which SRD lists among the ways one ends. No rest is needed. The other two ways — dying, and no longer having the item — are the engine’s and happen without anybody saying so.',
+  mutates: true,
+  input: z.object({ who: creatureId, item: z.string().min(1).describe('Catalogue id, or a copy’s id.') }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      endAttunement(
+        context.campaign.state(),
+        context.campaign.content,
+        who(args.who),
+        args.item,
+        context.commandId,
+      ),
+      { ended: args.item, by: args.who },
+    ),
+});
+
+/**
+ * Hand something to somebody else — one event, because the world has one fact.
+ *
+ * A loss and a gain written back to back would be two, and the second would be
+ * wrong: a gain declares a pool full, so a wand handed over that way would
+ * arrive with three charges however spent it left. The engine moves the line
+ * and its charges whole, and this tool says who, what and why.
+ *
+ * Worn or wielded is refused, on the engine's own rule and for its reason:
+ * giving away what is in your hand would leave the armour still adding its
+ * Armour Class on somebody who no longer owns it. Taking it off first is
+ * `unequip_item`.
+ */
+const TRANSFER_ITEM = tool({
+  name: 'transfer_item',
+  description:
+    'Hand something from one character to another — a potion passed to whoever is getting hit, a rope handed across a gap. What moves is what the giver had, charges and all. Something worn or wielded is refused until it is taken off, and more than is carried is refused rather than conjured.',
+  mutates: true,
+  input: z.object({
+    from: creatureId.describe('Who is handing it over.'),
+    to: creatureId.describe('Who is taking it.'),
+    item: z.string().min(1).describe('Catalogue id, or a copy’s id where `sheet` tells them apart.'),
+    quantity: z.int().min(1).optional().describe('How many. One where it is left out.'),
+    because: z
+      .string()
+      .min(1)
+      .describe('Why it changed hands, in one phrase: "Orin is the one who gets hit".'),
+  }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      transferItem(
+        context.campaign.state(),
+        who(args.from),
+        who(args.to),
+        args.item,
+        args.quantity ?? 1,
+        args.because,
+        identity(context),
+      ),
+      { gave: args.item, from: args.from, to: args.to, quantity: args.quantity ?? 1 },
+    ),
+});
+
+/**
  * Wait for something, and then act — the two halves of SRD Ready.
  *
  * The action goes at the Ready and the Reaction goes when the trigger fires,
@@ -2906,6 +3094,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   APPLY_CONDITION,
   ATTACK,
   ATTEMPT_EFFECT_CHECK,
+  ATTUNE_ITEM,
   BEGIN_REST,
   CAST_SPELL,
   CONFER_REACTION,
@@ -2924,15 +3113,18 @@ export const TOOLS: readonly ToolDefinition[] = [
   ELIGIBLE_TARGETS,
   END_CONCENTRATION,
   END_FEATURE,
+  END_ATTUNEMENT,
   END_ONGOING_SPELL,
   END_REST,
   END_TURN,
+  EQUIP_ITEM,
   EXTEND_FEATURE,
   HEAL_WITH_FEATURE,
   LOOK,
   MOVE,
   OPTIONS,
   PLACE_CREATURE,
+  PURCHASE_ITEM,
   REGAIN_USES,
   RELEASE_READY,
   RESOLVE_DECLARED_CAST,
@@ -2949,6 +3141,8 @@ export const TOOLS: readonly ToolDefinition[] = [
   TAKE_OPPORTUNITY_ATTACK,
   TAKE_READY,
   TAKE_TEST_REACTION,
+  TRANSFER_ITEM,
+  UNEQUIP_ITEM,
   USE_ITEM,
   USE_POOL_OPTION,
 ].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
