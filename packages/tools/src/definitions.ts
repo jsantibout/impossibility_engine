@@ -2487,6 +2487,16 @@ const USE_ITEM = tool({
  * Ready and the effects do not, so the facts a casting states are stated
  * there — which is why `response` carries the same `damageType` and `fought` a
  * casting does, and refuses the same way without them.
+ *
+ * **A readied `action` has no second half here, and both descriptions say
+ * so.** The engine resolves a readied spell and a readied move and answers an
+ * `action` response with the hold closed and the Reaction spent, leaving the
+ * swing itself to `resolveAttack({ free: true })` — a flag no tool on this
+ * surface sets, and one a caller setting it would be asserting an attack costs
+ * nothing. So every attack tool here refuses on somebody else's turn, and a
+ * description promising the follow-up would be promising a door that is shut.
+ * That a readied attack needs a paid door of its own is a finding for whoever
+ * owns `commands/actions.ts`, not something to paper over in a schema.
  */
 const TAKE_READY = tool({
   name: 'take_ready',
@@ -2506,7 +2516,7 @@ const TAKE_READY = tool({
           .string()
           .min(1)
           .optional()
-          .describe('What the action will be, in one phrase. The action itself goes through its own tool once the Reaction is spent.'),
+          .describe('What the action will be, in one phrase, recorded on the hold. **Its content is not resolved by anything on this surface**: releasing it spends the Reaction and closes the hold, and the swing a readied attack describes is refused by every attack tool here, because those are a creature’s own turn’s. Ready a spell or a move for the two the engine carries out.'),
       }),
       z.object({ kind: z.literal('move') }),
       z.object({
@@ -2566,7 +2576,7 @@ const TAKE_READY = tool({
 const RELEASE_READY = tool({
   name: 'release_ready',
   description:
-    'Let a readied action go, because the thing it was waiting for happened — or ignore the trigger, which costs nothing and keeps the Reaction. The Reaction is spent here; a readied spell lands here, a readied move is made here, and a readied action leaves you free to take it through its own tool. Either way the hold is over: the trigger has been and gone.',
+    'Let a readied action go, because the thing it was waiting for happened — or ignore the trigger, which costs nothing and keeps the Reaction. The Reaction is spent here; a readied spell lands here and a readied move is made here. A readied **action** is the one with no second half: the hold closes and the Reaction goes, and its content is resolved by nothing on this surface, because every tool that takes an action is a creature’s own turn’s. Either way the hold is over: the trigger has been and gone.',
   mutates: true,
   input: z.object({
     who: creatureId,

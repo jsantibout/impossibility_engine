@@ -412,10 +412,12 @@ describe('a Rogue can halve the blow that has been rolled', () => {
    */
   it('answers the held damage, and the settlement deals what is left', () => {
     const t = alley('the-alley');
+    const whole = hpOf(t, 'nix');
     const swing = expectOk(t.call('attack', { attacker: 'brute', target: 'nix', weapon: 'greatclub' }));
     expect(swing.resolution['hit']).toBe(true);
-    const whole = hpOf(t, 'nix');
-    // Held for the Rogue, so no hit points have moved yet.
+    // Held for the Rogue, so the damage is rolled and nothing has landed: no
+    // hit points have moved, and the swing dealt none.
+    expect(swing.events.some((event) => event.type === 'damage-taken')).toBe(false);
     expect(hpOf(t, 'nix')).toBe(whole);
 
     const chances = offered(t, 'nix');

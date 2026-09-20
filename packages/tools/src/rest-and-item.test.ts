@@ -312,6 +312,36 @@ describe('a Fighter can ready an action and let it go', () => {
     expect(budget(t, 'bram').reaction).toBe(false);
   });
 
+  /**
+   * A readied **move** is one of the two the engine carries out for itself,
+   * and the only one whose destination this tool has to carry: SRD "you choose
+   * to move up to your Speed in response to it", measured from a landmark or a
+   * creature like every other destination on this surface.
+   */
+  it('makes the move it was holding, where the release says', () => {
+    const t = standoff('readied-move');
+    expectOk(
+      t.call('take_ready', {
+        who: 'bram',
+        trigger: 'the goblin breaks for the stairs',
+        response: { kind: 'move' },
+      }),
+    );
+
+    const released = expectOk(
+      t.call('release_ready', {
+        who: 'bram',
+        placement: { fromLandmark: 'the door', feet: 10, bearing: 0 },
+      }),
+    );
+    expect(released.resolution['took']).toBe(true);
+    expect(released.resolution['feetMoved']).toBe(10);
+    // The Reaction paid for it, so no Speed went with it: a turn budget
+    // belongs to a turn and this is somebody else's.
+    expect(budget(t, 'bram').reaction).toBe(false);
+    expect(budget(t, 'bram').movementFeet).toBe(creature(t, 'bram').speed);
+  });
+
   /** SRD: "or ignore the trigger." It costs nothing and keeps the Reaction. */
   it('lets the trigger pass, which costs nothing and keeps the Reaction', () => {
     const t = standoff('ignored');
