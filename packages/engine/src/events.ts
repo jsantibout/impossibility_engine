@@ -939,6 +939,34 @@ export type GameEvent =
        * and a later activation has to roll the numbers the casting rolled.
        */
       readonly route?: string;
+      /**
+       * The printed text this casting handed to whoever is running the table.
+       *
+       * The book's own words, exactly as `SpellDefinition.dmDecides` stated
+       * them: a Range of `Special`, a sentence that asks a question no engine
+       * answers. CLAUDE.md's rule 5 — what a command reads from content
+       * is pinned into the events it emits — and the one casting path that did
+       * not keep it. A rite of a minute writes its handover onto
+       * `spell-declared` with everything else it read; an **atomic** casting
+       * has no declaration, so until this field its handover reached the
+       * caller and nothing else, and a replay of the log lost the one sentence
+       * the table still had to answer.
+       *
+       * **Written by an atomic casting and by no other.** A casting that was
+       * declared already pinned it, and one sentence in two events of one log
+       * is the second place to get it wrong.
+       *
+       * **The handover and not the debt.** An `unmodelled` line travels beside
+       * it out of a casting and is deliberately *not* here: that one is a
+       * clause somebody will build, after which the line goes, and a log that
+       * had frozen it would keep reporting a gap this engine had closed. A
+       * handover is never paid off, which is what makes it a fact about the
+       * casting rather than about the engine that ran it.
+       *
+       * Absent where a spell hands nothing over, which is nearly every spell,
+       * so every log written before this folds to exactly the state it did.
+       */
+      readonly dmDecides?: readonly string[];
       /** The command that caused it, so a retry is recognised as one. */
       readonly command?: CommandStamp;
     }

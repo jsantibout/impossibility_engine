@@ -385,6 +385,23 @@ export interface CastCommand extends CommandIdentity {
    * "cast Hold Person" cannot say which one was rolled against.
    */
   readonly route?: string;
+  /**
+   * Printed text this spell hands to whoever is running the table.
+   *
+   * The definition's own `dmDecides`, carried down unaltered so the casting
+   * can pin it into the event it emits — CLAUDE.md's rule 5, asked of the one
+   * path that did not keep it. See the field of the same name on `spell-cast`.
+   *
+   * **A declaration ignores it.** A casting held open writes what it read from
+   * the catalogue onto `spell-declared`, where the handover already travels in
+   * `hold.unverified` under its mark, and a second copy would be the second
+   * place to get one sentence wrong.
+   *
+   * Absent where the caller has no definition in hand, which is what the
+   * low-level door is for: `castSpell` takes a spell's *name* and can no more
+   * invent a handover than it can invent a Range.
+   */
+  readonly dmDecides?: readonly string[];
   /** Why no slot is being expended. Mutually exclusive with `slotLevel`. */
   readonly slotless?: SlotlessReason;
   /**
@@ -905,6 +922,10 @@ function castSpellWith(
     castingTime,
     concentration,
     ...(command.route === undefined ? {} : { route: command.route }),
+    // What the book left to the table, written down here because there is no
+    // declaration to have written it down already. Elided when the spell hands
+    // nothing over, so every log that predates the field folds unchanged.
+    ...((command.dmDecides ?? []).length === 0 ? {} : { dmDecides: command.dmDecides }),
     ...(stamp === null ? {} : { command: stamp }),
   });
 

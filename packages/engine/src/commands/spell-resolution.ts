@@ -1550,6 +1550,13 @@ function resolveOnTargets(
                 ...(request.slotKind === undefined ? {} : { slotKind: request.slotKind }),
               }),
       route: routeLabel(route),
+      // The printed text the book leaves to whoever is running the table, on
+      // its way to the event that records the casting. Rule 5: a handover is
+      // something this command read from content, so an atomic casting pins it
+      // rather than handing it to its caller and forgetting it. The
+      // declaration below has its own copy, in `unverified` and under the
+      // mark, and `castSpell` writes only one of the two.
+      ...(definition.dmDecides === undefined ? {} : { dmDecides: definition.dmDecides }),
       ...(request.slotless === undefined ? {} : { slotless: request.slotless }),
       // A span of seconds, or a moment in the turn order. A definition carries
       // one or the other: Shield's "until the start of your next turn" is not
