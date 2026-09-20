@@ -176,6 +176,35 @@ to homebrew.
   read out of the engine's source rather than typed into a list, so a new one
   fails here until somebody opens the door or writes down why it stays shut.
   Four declarations are recorded as deliberately withheld, with reasons.
+- **A monster is content** — the bestiary is carried by `SRD_CONTENT` and a
+  homebrew stat block enters through the same door, so `addCreature` takes an
+  **id** and reads the block out of content the way `equipItem` does. The id
+  rather than the value because an entry point that accepts a stat block is
+  the door a model-authored Armour Class walks through, and nothing guarded
+  it. `creature-added` pins the size too, so a caller stops supplying a fact
+  the book prints.
+- **A class that redefines its own strike** — one grant carrying the weapons
+  it covers, a die read off the class table, an ability offered in place of
+  the attack's own, and a Bonus Action strike, because the SRD prints one gate
+  over three clauses. The Monk has Martial Arts. A class's own weapon list and
+  its weapon proficiencies are two declarations, because the book prints two
+  sentences that differ.
+- **A character that can be asked what it holds** — a third read beside `look`
+  and `options`: slots by level with Pact Magic kept separate, pools and what
+  refills them, what it can cast and by which route, its features, and for
+  each the name of the tool that spends it. It states no verdict about what
+  may be used right now, because that is the command's answer and asking twice
+  is how two answers drift.
+- **Features a session can spend** — Rage entered, extended and ended, Second
+  Wind, Lay on Hands, a pool refilled, and a casting that elects a feature of
+  the caster. Every one a door over a command that was already tested and
+  reachable by nothing.
+- **A guard that the engine buys no catalogue on import** — it parses every
+  non-test engine file and asserts no declaration naming `@ie/srd` survives
+  type-stripping, which is the only reading that catches `import { type X }`:
+  under `verbatimModuleSyntax` that emits a side-effect import which loads the
+  whole book and binds nothing, and reads like a type import to a person and
+  to a regex.
 - **Replay** — a scripted four-round fight and two frozen logs fold
   byte-identically.
 
@@ -240,17 +269,23 @@ to homebrew.
   labelled with an instance when it is gained, and a fan has no charges; the
   key already goes through `instancedPoolKey`, so the day that predicate
   widens the count follows the copy with no further change.
-- **No monster can be put on the board from the model's surface.** `@ie/srd`
-  parses the SRD bestiary and `addCreature` is reachable from no tool, so the
-  only creature a session can add is a character it builds. The fight driven
-  end to end through the surface is a wizard against a copy of itself, and it
-  is symmetric because it had to be.
-- **No class feature can be activated from the model's surface.** Rage, Second
-  Wind, Action Surge, Bardic Inspiration, Channel Divinity, Lay on Hands and
-  Wild Shape are all executed by the engine and reachable by nothing:
-  `activateFeature`, `useSelfHeal`, `useHealingTouch`, `useRecovery` and
-  `spendFor` are not imported there. A Rogue plays because Sneak Attack is a
-  standing grant; a Barbarian cannot rage.
+- **No monster can be put on the board from the model's surface**, though the
+  engine now takes one by id from content. The tool is a door away and until
+  it lands the fight driven end to end through the surface is still a wizard
+  against a copy of itself. That tool must also arm what it places: many stat
+  blocks print gear, `resolveAttack` refuses a weapon its wielder does not
+  own, and name-to-id resolution belongs above the engine.
+- **Three pools the engine holds with nothing behind them.** Channel Divinity,
+  Bardic Inspiration and Action Surge are counted and recovered, and what a
+  use *buys* is unexecuted — no command spends a bare pool for an effect. They
+  were deliberately given no tool: a pool a caller can spend for no effect is
+  worse than one it cannot spend, because the use is gone either way and one
+  of them lies about it. A Cleric cannot turn undead and a Bard cannot
+  inspire.
+- **A Rage's ten minutes are nobody's to keep.** `capSeconds` is pinned at
+  creation and read by no command; `extendFeature` replaces the timer and
+  checks nothing else. The surface reports the number and says the bound is
+  the table's.
 - **No reaction spell and no held casting.** `cast_spell` has no trigger
   field and `takeDamageReaction` / `takeTestReaction` are unimported, so Shield
   sits in the test wizard's spellbook uncast. Counterspell needs more than a
@@ -267,82 +302,74 @@ to homebrew.
 
 ## Next
 
-**The engine is ahead of its door, and that is now the whole of the gap.** A
-session driven by a model can run a fight — Initiative, movement over declared
-ground, attacks, spells with slots and Concentration and areas, conditions,
-opportunity attacks, turn boundaries — and the fight it can run is a wizard
-against a copy of itself, because no monster can be placed and no class
-feature can be spent. The rules under all of it are built and tested. Measured
-at level 5: most class features at those levels are engine-executed, and of
-the SRD spells at level 3 and below, well over half are cast for real with
-their text handed to the table while a large minority have their effects
-resolved outright. **Those counts are not in this file on purpose** — `npm run
-coverage` does not yet compute them, and a count in prose is a count that goes
-stale silently, which is what rule 8 is for. Making the report answer "what
-can be played at level N" is the brief that would let this paragraph be
-specific. Ten doors have been found shut; six of them on the day a guard first
-looked.
+**The doors are most of the way open, and what is left behind them is real
+work.** A session can now see what a character holds and spend it, the Monk
+can fight, and a monster is content the engine takes by id. Three things still
+stand between this and a party playing at level 5, and only the first is a
+door.
 
 Ranked by what each finishes.
 
-1. **A monster on the board.** One tool, plus the decision of where the stat
-   block comes from — `addCreature` takes a `Monster`, `@ie/srd` parses the
-   whole bestiary, and the surface can reach neither. Nothing else on this list changes
-   what a session can *be* as much: until it lands, every fight is
-   player-versus-player.
-2. **A feature a session can spend.** `activateFeature`, `useSelfHeal`,
-   `useHealingTouch`, `useRecovery`, `spendFor` — four or five tools over
-   commands that already exist and are already tested. It turns Barbarian,
-   Fighter, Cleric, Bard, Paladin, Druid and Monk from characters that can be
-   built into characters that can be played. Ship `usingFeatures` in the same
-   brief, with the roster of what a character holds that a model must be told
-   before it can elect anything.
+1. **A monster tool, and the fight that stops being symmetric.** The engine
+   half landed; this is the door, plus arming what it places — compose
+   `addCreature` with `awardItems` for the gear a block prints, resolving
+   names above the engine — plus pointing `place_creature` at the pinned size
+   instead of asking the caller for a fact the book prints, plus the
+   asymmetric `fight.test.ts` this repository has never had. `doors.test.ts`
+   will demand `unknown_monster` be answerable through a field, which is the
+   sweep working.
+2. **What a use of Channel Divinity, Bardic Inspiration or Action Surge
+   buys.** Three pools counted and recovered with nothing behind them, which
+   is why they were given no tool. This is engine work — an effect a pool
+   spends — and it is what makes a Cleric and a Bard playable rather than
+   merely buildable. Read the three content notes first: they say in so many
+   words what is not executed.
 3. **A reaction spell, and a held casting.** A trigger field on `cast_spell`
-   and doors onto `takeDamageReaction` / `takeTestReaction` gets Shield and
+   and doors onto `takeDamageReaction` / `takeTestReaction` get Shield and
    Absorb Elements. Counterspell needs `hold`, `answers` and a
    `resolve_declared_cast` door, and is the larger half.
-4. **A rest, an item used, an action readied.** Three more commands the engine
+4. **A rest, an item used, an action readied.** The last commands the engine
    has and the surface does not call. A Short Rest is what makes a Warlock and
    a Fighter work across two fights rather than one.
-5. **Monk's Martial Arts**, the only class whose level 1 is `manual`. Unarmed
-   strikes, the growing die and Flurry are outside the attack layer, which is
-   `an-attack-the-class-redefines` — and the Monk is the one class a batch
-   cannot fix by opening a door.
+5. **A report that answers "what can be played at level N".** `COVERAGE.md`
+   counts the whole book, which is the right number for how much of the SRD is
+   built and the wrong one for whether a level 5 party can play. Features by
+   the level they arrive, spells by the slot that casts them, and which of
+   either a session can reach through a tool. It has been answered by hand
+   twice; a hand answer in a document is what rule 8 forbids.
 6. **A condition an item imposes** — 28 blocked, 5 finished, the heaviest item
    shape left.
 7. **Weapon mastery's buildable half** — the record, Graze, Cleave, Push, Slow
-   and Topple, all routed through events that exist. Sap and Vex are unblocked
-   now; Nick waits on the Light property's extra attack and the re-choice on
-   `an-option-re-chosen-on-a-rest`.
+   and Topple, all routed through events that exist and written out in the
+   shape's description. Nick waits on the Light property's extra attack; the
+   re-choice waits on `an-option-re-chosen-on-a-rest`.
 8. **Falling damage**, which `monk:slow-fall` and Reverse Gravity's producer
-   both wait on. `falling` keeps two claimants until they are written.
+   both wait on.
 9. **An instance for an item with no charges**, which makes the Wind Fan
-   complete rather than partial: widen `issueItemCopies`'s predicate and the
-   `itemChargePool(item, instance)!` beneath it.
+   complete rather than partial.
 
-### A measurement the report does not make
+### Small and owed
 
-`COVERAGE.md` counts what is executed over the whole book, which is the right
-number for "how much of the SRD is built" and the wrong one for "can a level 5
-party play". Nothing computes per-level readiness: features by the level they
-arrive, spells by the level of the slot that casts them, and which of either a
-model-driven session can actually reach through a tool. Every time that
-question has been asked it has been answered by hand, and a hand answer in a
-document is exactly what rule 8 forbids.
-
-### Guards that would have caught something
-
+- **`finesseAbility` understates what it answers.** It now carries the choice
+  a strike style offers as well as a Finesse weapon's, which is the same
+  question and correctly one field — but the name says otherwise. Renaming
+  touches `state.ts` and the tool surface.
+- **`electableCastingDamage` is not on the engine's barrel**, so the surface
+  filters the sheet's own standing effects instead. An item-granted election
+  would go unlisted and one with unmet requirements would be listed and then
+  refused. Neither is reachable in the SRD catalogue; both are reachable by
+  content alone, which is what makes exporting it a fix rather than a tidy-up.
+- **`capSeconds` is enforced by nothing** (see above). Enforcing it is a
+  change in `timers.ts`.
 - `riderDuration`'s tail is a ternary, so a **new** `RiderDuration` member
   would compile and silently become a caster start-of-turn deadline.
 - `content.ts` validates a feature's `roll-mode` grant through the selector
   alone, so `oneShot` is unchecked there.
 - A `SOLE`-style `it.each([])` registers zero tests and passes for ever.
-- `casting-damage` is legal on an **item** — `standingFor` gathers item
-  effects — and no SRD item prints the sentence, so the path is untested
-  beyond the validator.
-- `fold-import-boundary.test.ts` constructs an `ESLint` and lints text in
-  process; its first case can exceed the 5s default timeout under load and
-  passes warm. Seen by four agents on untouched commits.
+- `casting-damage` is legal on an item and no SRD item prints the sentence, so
+  that path is untested beyond the validator.
+- `fold-import-boundary.test.ts` lints text in process and its first case can
+  exceed the 5s default timeout under load. Seen by five agents now.
 
 ### A trap in the worktrees, not in the code
 
@@ -354,10 +381,15 @@ own engine change can be hidden from its own typecheck. Junction all six
 (`engine, content, shared, srd, tools, llm-probe`) when the worktree is made,
 beside copying `packages/srd/src/generated/`.
 
+### A discipline the coordinator broke, written down
+
+Each builder commits its own regenerated `COVERAGE.md` and the coordinator
+drops those and regenerates once over the merged set. That is right, and it
+means `main` fails `git diff --exit-code COVERAGE.md` between the first merge
+and that regeneration. It stayed red for eleven commits this session and a
+builder found it, not me. Regenerate after the last merge of a batch and
+before anything else, or drop nothing until the end.
+
 ### Decisions waiting on the owner
 
 None.
-
-Separately, absorbed by none of the above: Augury, Divination, Commune and
-Secret Chest print a cumulative chance the tally now holds; what they need is
-the consequence a failed one has.
