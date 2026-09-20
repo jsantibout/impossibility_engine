@@ -241,6 +241,8 @@ export {
   declareDawn,
   declareSightBetween,
   declareSpellcasting,
+  endCombat,
   placeCreatureInScene,
   setScene,
 } from './commands/scene.js';
+export type { CombatEnding } from './commands/scene.js';

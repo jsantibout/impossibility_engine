@@ -94,10 +94,21 @@ export function applyCombat({ state, next }: Applying, event: CombatEvent): Game
     case 'combat-started':
       return { ...next, combat: must(event, startCombat(event.combatants)) };
 
-    case 'combat-ended':
+    case 'combat-ended': {
+      // A fight that was never running cannot end, and a log that says it did
+      // contradicts itself — so the reducer asks for the combat it is about to
+      // clear and throws if there is none. That is `endCombat`'s `not_in_combat`
+      // refusal read from this side: the command declines to write exactly what
+      // the reducer would call corrupt. Its *other* refusals are not the
+      // reducer's and cannot be — `removeCreatureEverywhere` writes a
+      // `combat-ended` without asking whose side anybody was on, and a fold
+      // that demanded it would refuse an event the engine itself emits.
+      //
       // The rites go on running; what goes is which *turn* last sustained one,
       // because turn numbers restart with the next fight.
+      combatOf(state, event);
       return forgetSustainedTurns({ ...next, combat: null });
+    }
 
     case 'turn-advanced': {
       const before = combatOf(state, event);

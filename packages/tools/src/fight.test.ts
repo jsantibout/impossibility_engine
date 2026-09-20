@@ -472,3 +472,155 @@ describe('a fight that is not symmetric', () => {
     expect(JSON.stringify(b.campaign.log())).toBe(JSON.stringify(a.campaign.log()));
   });
 });
+
+/**
+ * And the fight ends, which is the door this surface did not have.
+ *
+ * `roll_initiative` had no counterpart: the engine's only producer of
+ * `combat-ended` fires when a *removal* takes the last combatant out of the
+ * order, and nothing here removes a creature. So a session that rolled
+ * Initiative once stayed in a fight forever — and because the clock inside a
+ * fight is the turn order's and refuses a declared advance, `advance_time`,
+ * `begin_rest` and `end_rest` were all shut behind it. This walks the whole
+ * of that: a fight fought, closed through the tool, and an hour spent
+ * afterwards the party actually gets the benefit of.
+ */
+describe('a fight ends, and the clock starts again', () => {
+  it('will not move the clock while the fight is running, and will once it is over', () => {
+    const t = table('a-goblin-in-the-dark');
+    lairFight(t);
+
+    // The goblin is down and the fight is still formally on, which is exactly
+    // the wedge: an hour cannot pass until somebody says the fight is over.
+    const early = t.call('advance_time', { hours: 1, because: 'catching their breath' });
+    expect(early.status).toBe('refused');
+    if (early.status === 'refused') expect(early.code).toBe('in_combat');
+
+    const ended = expectOk(t.call('end_combat', { ending: { kind: 'defeated' } }));
+    expect(ended.resolution['ended']).toBe('defeated');
+    expect(ended.events.map((event) => event.type)).toEqual(['combat-ended']);
+    expect(t.surface.observe().initiativeOrder).toBeNull();
+
+    const before = t.surface.observe().elapsedSeconds;
+    expectOk(t.call('advance_time', { hours: 1, because: 'catching their breath' }));
+    expect(t.surface.observe().elapsedSeconds).toBe(before + 3600);
+  });
+
+  it('takes a Short Rest afterwards, which is what the door was shut on', () => {
+    const t = table('a-goblin-in-the-dark');
+    lairFight(t);
+    expectOk(t.call('end_combat', { ending: { kind: 'defeated' } }));
+
+    const wounded = t.surface.observe().creatures.find((c) => c.id === 'kessa')!;
+    expect(wounded.hp).toBeLessThan(wounded.hpMax);
+
+    expectOk(t.call('begin_rest', { who: 'kessa', kind: 'short' }));
+    expectOk(t.call('advance_time', { hours: 1, because: 'an hour by the fire' }));
+    // A wizard's Hit Die is a d6, and which of her own dice to spend is the
+    // choice the rules give her. What it restores is the engine's.
+    const rested = expectOk(t.call('end_rest', { who: 'kessa', hitDice: ['hit-die:d6'] }));
+    expect(rested.resolution['benefit']).toBe('short');
+    expect(rested.resolution['hitPointsRegained']).toBeGreaterThan(0);
+
+    const after = t.surface.observe().creatures.find((c) => c.id === 'kessa')!;
+    expect(after.hp).toBeGreaterThan(wounded.hp);
+  });
+
+  it('asks who is on whose side before it will call a fight over, and names the door', () => {
+    const t = table('a-goblin-in-the-dark');
+    expectOk(t.call('create_character', { id: 'kessa', choices: wizard('Kessa') }));
+    expectOk(t.call('add_creature', { id: 'grish', monsterId: 'goblin-warrior' }));
+    expectOk(t.call('declare_side', { who: 'kessa', side: 'party' }));
+    // Nobody has said whose side the goblin is on. That is not "neutral"; it
+    // is a fact the table has not stated, and a fight holding one cannot be
+    // known to be over.
+    expectOk(t.call('set_scene', { width: 60, depth: 40, height: 20 }));
+    expectOk(t.call('add_landmark', { name: 'the fire', at: { x: 20, y: 20 } }));
+    expectOk(t.call('place_creature', { who: 'kessa', fromLandmark: 'the fire', feet: 0 }));
+    expectOk(t.call('place_creature', { who: 'grish', fromCreature: 'kessa', feet: 20, bearing: 0 }));
+    expectOk(t.call('roll_initiative', { combatants: [{ who: 'kessa' }, { who: 'grish' }] }));
+
+    const asked = t.call('end_combat', { ending: { kind: 'defeated' } });
+    expect(asked.status).toBe('needs-context');
+    if (asked.status !== 'needs-context') return;
+    expect(asked.code).toBe('undeclared_side');
+    // One request per creature, in the field a caller branches on — and the
+    // tool that answers it, which is the half a session cannot work out for
+    // itself.
+    expect(asked.establish.map((entry) => [entry.kind, entry.subject])).toEqual([['side', 'grish']]);
+    expect(asked.establish[0]!.tools).toEqual(['declare_side']);
+
+    // And the door works: the fact declared, the same call again.
+    expectOk(t.call('declare_side', { who: 'grish', side: 'goblins' }));
+    const again = t.call('end_combat', { ending: { kind: 'defeated' } });
+    expect(again.status).toBe('refused');
+    if (again.status === 'refused') expect(again.code).toBe('hostiles_remain');
+  });
+
+  it('closes on a surrender, which names a side somebody standing is on', () => {
+    const t = table('a-goblin-in-the-dark');
+    openTheLair(t);
+    expectOk(t.call('roll_initiative', { combatants: [{ who: 'kessa' }, { who: 'grish' }] }));
+
+    // A side nobody standing is on is not a side that can yield: without that
+    // check the tool is a skeleton key.
+    const invented = t.call('end_combat', { ending: { kind: 'surrender', side: 'the kobolds' } });
+    expect(invented.status).toBe('refused');
+    if (invented.status === 'refused') expect(invented.code).toBe('no_such_side');
+
+    const yielded = expectOk(
+      t.call('end_combat', { ending: { kind: 'surrender', side: 'goblins' } }),
+    );
+    expect(yielded.resolution).toMatchObject({ ended: 'surrender', side: 'goblins' });
+    expect(t.surface.observe().initiativeOrder).toBeNull();
+  });
+
+  it('holds a flight open until the table has said, then ends on the same call', () => {
+    const t = table('a-goblin-in-the-dark');
+    openTheLair(t);
+    expectOk(t.call('roll_initiative', { combatants: [{ who: 'kessa' }, { who: 'grish' }] }));
+
+    const before = t.campaign.log().length;
+    const fled = t.call('end_combat', { ending: { kind: 'flight', side: 'goblins' } });
+    expect(fled.status).toBe('refused');
+    if (fled.status === 'refused') expect(fled.code).toBe('flight_not_elected');
+    // A refusal is free: the fight is still on and nothing was written.
+    expect(t.campaign.log()).toHaveLength(before);
+    expect(t.surface.observe().initiativeOrder).not.toBeNull();
+
+    const letGo = expectOk(
+      t.call('end_combat', { ending: { kind: 'flight', side: 'goblins', letThemGo: true } }),
+    );
+    expect(letGo.resolution['ended']).toBe('flight');
+    expect(t.surface.observe().initiativeOrder).toBeNull();
+  });
+
+  it('refuses when there is no fight, and takes no quantity in any of its shapes', () => {
+    const t = table('a-goblin-in-the-dark');
+    openTheLair(t);
+    const peace = t.call('end_combat', { ending: { kind: 'defeated' } });
+    expect(peace.status).toBe('refused');
+    if (peace.status === 'refused') expect(peace.code).toBe('not_in_combat');
+
+    // Three shapes and no number: a surrender has to name a side, and an
+    // ending the engine has no branch for is turned away at the schema.
+    const nameless = t.call('end_combat', { ending: { kind: 'surrender' } });
+    expect(nameless.status).toBe('invalid');
+    const unknown = t.call('end_combat', { ending: { kind: 'routed', side: 'goblins' } });
+    expect(unknown.status).toBe('invalid');
+  });
+
+  it('is idempotent under its command id, like every other call here', () => {
+    const t = table('a-goblin-in-the-dark');
+    lairFight(t);
+
+    const sent = { tool: 'end_combat', input: { ending: { kind: 'defeated' } }, commandId: 'toolu_end' };
+    expectOk(t.surface.call(sent));
+    const after = t.campaign.log().length;
+
+    // The transport re-sending the call it already made, byte for byte.
+    const again = expectOk(t.surface.call(sent));
+    expect(again.events).toHaveLength(0);
+    expect(t.campaign.log()).toHaveLength(after);
+  });
+});

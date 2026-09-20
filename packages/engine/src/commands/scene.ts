@@ -39,6 +39,25 @@
  * that does check, because `spellcasting-declared`'s own reducer case reads
  * the creature and throws.
  *
+ * **`advanceTime`'s `in_combat` is the one refusal here that is not the
+ * reducer's**, and it is written down rather than left to be discovered. The
+ * reducer cannot be taught this one: `golden-log-2.json` advances the clock
+ * five times inside a fight nothing ever ended, so a fold that threw would be
+ * a migration of a frozen log rather than a rule. Nor is it the same claim —
+ * "the clock in a fight belongs to the turn order" is about which *author* may
+ * write the event, and the reducer's business is whether an event can be
+ * applied at all. So the rule sits at the only door that has an author, which
+ * is a command, and a log that already holds one folds exactly as it did.
+ *
+ * **`endCombat` is the second departure, and it splits the other way.** Its
+ * `not_in_combat` *is* the reducer's — a `combat-ended` with no fight running
+ * contradicts itself and `fold/combat.ts` throws on one. Its other three are
+ * not, and must not be: `removeCreatureEverywhere` writes a `combat-ended`
+ * without asking whose side anybody was on, so a fold taught to demand a
+ * settled fight would refuse an event the engine itself emits. Which side may
+ * close a fight is a question about the *author* again, and it sits at the
+ * door that has one.
+ *
  * **3. A missing fact is homework, not a verdict, and it says which fact.**
  * `needs-context` with a request — a `scene` when there is no room to be in,
  * and a `position` when the *anchor* a placement is measured from is not
@@ -85,6 +104,7 @@ import {
 import { type Rng } from '../dice.js';
 import { rollRecorded, type RollIssuer } from '../rolls.js';
 import { statedDawnAmount } from '../resources.js';
+import { isDown } from '../vitals.js';
 import { type SpellcastingState } from '../spellcasting.js';
 import { type Supply } from './casting.js';
 import { creatureOf, sceneFor, unknownCreature } from './command.js';
@@ -337,6 +357,168 @@ export function beginCombat(
 }
 
 /**
+ * How a fight came to an end, as the caller states it.
+ *
+ * The owner's ruling read as a union: "a fight ends when no hostile combatant
+ * remains or the hostiles surrender. A flight is a prompt, not an end."
+ *
+ * `defeated` names nobody, because it is a claim about the world and the
+ * engine checks it. The other two name the side that yielded or ran, because
+ * **only the table knows**: `side` is declared like cover and sight, the
+ * engine holds no notion of who the party is, and a surrender is a sentence
+ * somebody said rather than a number anybody can read off the log.
+ */
+export type CombatEnding =
+  | { readonly kind: 'defeated' }
+  | { readonly kind: 'surrender'; readonly side: string }
+  | {
+      readonly kind: 'flight';
+      readonly side: string;
+      /**
+       * Whether the party lets them go. Absent — or `false`, which is the
+       * table having been asked and having said no — leaves the fight running.
+       */
+      readonly letThemGo?: boolean;
+    };
+
+/**
+ * End the fight.
+ *
+ * **The door the whole engine was missing.** `combat-ended` had exactly one
+ * producer — the branch in `removeCreatureEverywhere` that fires when a
+ * removal takes the *last* combatant out of the order — and no tool removes a
+ * creature. So a session that rolled Initiative once could not close the
+ * fight, and under {@link advanceTime}'s `in_combat` refusal could then never
+ * rest: the two are one decision and landed in one review.
+ *
+ * **What "no hostile combatant remains" is, precisely.** The engine holds one
+ * allegiance fact and it is a declared string — `CreatureState.side`, the same
+ * fact an aura reads for "ally" and a ranged attack reads for "enemy". So the
+ * question it can actually answer is *whether anybody left on their feet is
+ * opposed to anybody else*: the combatants still in the order, alive and not
+ * at 0 hit points, once the side that surrendered or fled is set aside. One
+ * side left standing, or none, is a fight that is over. Two is a fight.
+ *
+ * **On their feet** rather than "able to act": a creature at 0 is Unconscious
+ * and out of the fight, and a dead one more so — but a Paralyzed hostile is
+ * still a hostile, and a fight closed over one would be the engine deciding
+ * the coup de grâce nobody has struck.
+ *
+ * **A creature nobody has put on a side is homework, not a verdict.** Null is
+ * a real state and it means "nobody has said", so a fight holding one cannot
+ * be *known* to be over — answering either way would be the engine settling
+ * the missing fact instead of asking for it. `declareCreatureSide` settles it.
+ *
+ * **And that request carries a `ContextRequest` per creature**, which is the
+ * breach this command recorded and the next task closed. `ContextRequest.kind`
+ * is a closed union in `@ie/shared`, none of whose seven kinds meant "nobody
+ * has said whose side this creature is on" — the creature is *known*; a fact
+ * about it is not — so the "what" sat in the prose that
+ * {@link placeCreatureInScene} above says a tool surface cannot branch on.
+ * `side` is the eighth kind, `declare_side` declares it, and the refusal now
+ * hands back one request per unsided creature rather than a sentence with
+ * their names joined by commas. It is one request each rather than one for the
+ * fight because the remedy is one `declareCreatureSide` each, and a caller
+ * that has to split a string to find that out is reading prose again.
+ *
+ * **A surrender or a flight must name a side somebody standing is on.**
+ * Without that the command is a skeleton key: any fight could be closed by
+ * naming a side that was never in it, and "the hostiles surrender" would mean
+ * nothing more than "somebody typed it".
+ *
+ * **And a flight is a refusal rather than a `needs-context`.** Every request
+ * the engine makes is a fact about the world that the layer above can settle
+ * on its own — `result.ts` says it in as many words: "addressed to the
+ * orchestrator, never to a player". Whether the party lets the goblins go is
+ * the one thing on this list that **only a player can answer**, and dressing
+ * it as homework would tell an orchestrator to go and find out something it
+ * must instead go and ask. So the fight stays open, the code says why, and the
+ * same command carries the answer back.
+ *
+ * What it concluded is pinned into the event. It reads no content — a fight
+ * ending is a fact about the room and the book has nothing to say about it —
+ * so the pinning is of what the *command* decided, which is the half of the
+ * fold's contract this one has to keep: a reader of the log is told why the
+ * fight closed rather than left to infer it from whoever was still standing.
+ */
+export function endCombat(
+  state: GameState,
+  ending: CombatEnding,
+  command: CommandIdentity = {},
+): Result<GameEvent[]> {
+  return once(state, 'end-combat', { ...command, ending }, () => [], (stamp) => {
+    const combat = state.combat;
+    if (combat === null) {
+      return err('not_in_combat', 'no fight is running, so there is no fight to end');
+    }
+
+    if (ending.kind === 'flight' && ending.letThemGo !== true) {
+      return err(
+        'flight_not_elected',
+        `${ending.side} have fled, and a flight is not an end: the party may let them go or go after them, and that is the table's to decide rather than the engine's. Send the same endCombat with letThemGo once they have`,
+      );
+    }
+
+    // Everybody still in this fight: in the order, alive, and not at 0.
+    const onTheirFeet = combat.order.flatMap((combatant) => {
+      const creature = state.creatures[combatant.id];
+      return creature === undefined || creature.vitals.dead || isDown(creature.vitals)
+        ? []
+        : [creature];
+    });
+
+    const yielded = ending.kind === 'defeated' ? null : ending.side;
+    if (yielded !== null && !onTheirFeet.some((creature) => creature.side === yielded)) {
+      return err(
+        'no_such_side',
+        `nobody still standing in this fight is on ${yielded}'s side, so ${yielded} is not a side that can ${ending.kind === 'surrender' ? 'surrender' : 'be let go'}`,
+      );
+    }
+
+    // `yielded === null` is "nobody stated an ending", not "the unsided
+    // yielded": a creature nobody has put on a side is asked about below
+    // rather than quietly swept out of the fight by a comparison with null.
+    const left =
+      yielded === null ? onTheirFeet : onTheirFeet.filter((creature) => creature.side !== yielded);
+    const unsided = left.filter((creature) => creature.side === null).map((c) => c.id);
+    if (unsided.length > 0) {
+      return needsContext(
+        'undeclared_side',
+        `nobody has said whose side ${unsided.join(', ')} ${unsided.length === 1 ? 'is' : 'are'} on, and a fight cannot be known to be over while somebody standing in it is on nobody's — a declareCreatureSide command for each of them settles it`,
+        unsided.map((who) => ({
+          kind: 'side' as const,
+          subject: who,
+          need: `which side ${who} is fighting on`,
+          because: 'a fight is over when nobody standing is opposed to anybody else',
+          satisfyWith: `declareCreatureSide(state, '${who}', side)`,
+        })),
+      );
+    }
+
+    const sides = [...new Set(left.map((creature) => creature.side))].sort();
+    if (sides.length > 1) {
+      return err(
+        'hostiles_remain',
+        `the fight is still on: ${left.map((creature) => `${creature.id} (${creature.side})`).join(', ')} are on their feet on ${sides.length} opposed sides`,
+      );
+    }
+
+    return ok([
+      {
+        type: 'combat-ended',
+        ending:
+          ending.kind === 'defeated'
+            ? { kind: 'defeated' }
+            : ending.kind === 'surrender'
+              ? { kind: 'surrender', side: ending.side }
+              : { kind: 'flight', side: ending.side },
+        ...(stamp === null ? {} : { command: stamp }),
+      },
+    ]);
+  });
+}
+
+/**
  * Move the clock, because somebody said time passed.
  *
  * In combat the clock is derived — a round is six seconds and nobody decides
@@ -344,6 +526,30 @@ export function beginCombat(
  * narration, so it arrives as an event. Whole seconds forwards, which is the
  * reducer's own rule: every duration the game names is a whole number of them,
  * so a fraction is not a shorter span but a log that cannot mean anything.
+ *
+ * **And the first sentence is a refusal now, not a remark.** It had been
+ * written here since the command landed and nothing enforced it, so a session
+ * holding this could say "eight hours pass" on the goblin's turn: every span
+ * hung on the clock expires at once, the turn order does not move, and
+ * `withCombat` then charges the fight's own six seconds *on top* of an hour
+ * the fold never counted. A rest measured against that clock is a rest nobody
+ * took. The gap was found from above the engine, by a caller that could not
+ * fix it in a layer that holds no rules.
+ *
+ * **Outright, rather than only what would cross a deadline.** The narrower
+ * rule was the other candidate and it is not a rule about the clock: it would
+ * pass eight declared hours in a fight where nothing happened to be hanging —
+ * which is a Long Rest taken between two swings — and refuse the same
+ * sentence in the fight next door for a reason about the room rather than
+ * about time. A fight's seconds are the turn order's, all of them, or they are
+ * not.
+ *
+ * What a caller who genuinely wants the clock to move inside a fight has is
+ * the turn order: `resolveTurn` charges six seconds a round, which is what a
+ * round costs. What a caller who wants the *hour* has is {@link endCombat},
+ * which landed in the same review as this refusal and for its sake: a rule
+ * that left a session unable to rest would have been a wedge rather than a
+ * rule.
  */
 export function advanceTime(
   state: GameState,
@@ -356,6 +562,13 @@ export function advanceTime(
       return err(
         'not_whole_seconds',
         `time runs forwards in whole seconds, and ${seconds} is not one of them`,
+      );
+    }
+
+    if (state.combat !== null) {
+      return err(
+        'in_combat',
+        `a fight is running, and inside one the clock is the turn order's: a round is six seconds and the fold charges them as the order wraps, so ${seconds} declared here would be counted twice over and would expire this fight's own deadlines without a turn being taken. Advance the order with resolveTurn, or close the fight with endCombat and declare the time then`,
       );
     }
 

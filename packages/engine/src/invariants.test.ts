@@ -37,6 +37,7 @@ import {
   declareSpellcasting,
   dismissStrandedSummons,
   dismountRider,
+  endCombat,
   joinCombat,
   loseItems,
   mountCreature,
@@ -280,12 +281,15 @@ const SETUP: readonly GameEvent[] = [
 ];
 
 /**
- * The same world with no fight in it.
+ * The same world with no fight in it, which is the only world `advanceTime`
+ * may be sent to.
  *
- * `SETUP` opens with Initiative rolled, and the rest below is measured in
- * hours: a Short Rest taken between two swings is not a thing the table means.
- * Derived by taking the fight out rather than by writing a second setup, so
- * the two cannot drift apart.
+ * The clock inside a fight is the turn order's — `withCombat` charges six
+ * seconds a round — so a declared advance is refused `in_combat`, and a sweep
+ * that ran it against `SETUP` would be reading that refusal rather than the
+ * identity it is about. Derived by taking the fight out rather than by writing
+ * a second setup, and checked below in both directions so it cannot drift into
+ * being a different fixture.
  */
 const OUT_OF_COMBAT: readonly GameEvent[] = SETUP.filter(
   (event) => event.type !== 'combat-started',
@@ -1713,6 +1717,15 @@ const GUARDED: readonly Guarded[] = [
       ),
   },
   {
+    // The other end of the same fight. `SETUP` puts A on `party` and B on
+    // `foes`, so the surrender is a side somebody standing is actually on —
+    // and a retry that got past the guard would write a second `combat-ended`
+    // into a log where the fight is already over.
+    name: 'endCombat',
+    log: SETUP,
+    run: (s, commandId) => endCombat(s, { kind: 'surrender', side: 'foes' }, { commandId }),
+  },
+  {
     // The dangerous retry of the two: a second run rolls Initiative again,
     // which moves the generator for a fight that already started. The order
     // would look well-formed and every number after it would be off by two
@@ -1767,8 +1780,11 @@ const GUARDED: readonly Guarded[] = [
     run: (s, commandId) => joinCombat(s, { id: C, initiative: 15, speed: 30 }, { commandId }),
   },
   {
+    // The one entry that cannot use `SETUP`: a declared advance is refused
+    // inside a fight, so the identity is swept in the world the command is
+    // for. See {@link OUT_OF_COMBAT}.
     name: 'advanceTime',
-    log: SETUP,
+    log: OUT_OF_COMBAT,
     run: (s, commandId) => advanceTime(s, 600, 'searching the vault', { commandId }),
   },
   {
@@ -2816,8 +2832,10 @@ const DECLARED_NOT_ACTED: Readonly<Record<string, string>> = {
     'not an action in the turn economy: cover is declared for the same reason sight is, and a creature does not spend anything to be behind a bar',
   beginCombat:
     'not an action in the turn economy: it is the moment the economy starts existing, so there is no budget yet for it to spend',
+  endCombat:
+    'not an action in the turn economy: a fight being over is a fact about the room rather than a thing anybody does in it — SRD prices no action for the moment the last enemy falls, the moment they throw down their weapons or the moment the party lets them run, and the budget it closes is the very thing it would have had to spend from',
   advanceTime:
-    'not an action in the turn economy: outside combat there are no turns, and how long the party spent searching the vault is narration',
+    'not an action in the turn economy: outside combat there are no turns, and how long the party spent searching the vault is narration. Inside one it is refused — the clock there is the turn order’s — and that refusal is about who owns the clock rather than about anybody’s budget, which is what REFUSED_BY_THE_CLOCK below makes a test rather than a sentence',
   declareDawn:
     'not an action in the turn economy: the sun coming up is a fact the DM declares, it happens to the world rather than to anybody in it, and no SRD rule spends a turn’s budget on a sunrise — it costs the fighter mid-swing exactly nothing',
   declareSpellcasting:
@@ -2918,6 +2936,11 @@ describe('the DM-declared commands declare facts rather than taking actions', ()
           { id: B, initiative: 3, speed: 30 },
         ]),
     },
+    // A surrender, because it is the ending this fixture can state without
+    // hurting anybody: `SETUP` has A on `party` and B on `foes`, both on their
+    // feet. An owed area effect is not a reason a fight cannot be over — the
+    // debt outlives the fight and `settleAreaEffects` still pays it.
+    { name: 'endCombat', run: (s) => endCombat(s, { kind: 'surrender', side: 'foes' }) },
     { name: 'advanceTime', run: (s) => advanceTime(s, 600, 'the storm passes') },
     { name: 'declareDawn', run: (s) => declareDawn(s, supply()) },
     {
@@ -3007,12 +3030,57 @@ describe('the DM-declared commands declare facts rather than taking actions', ()
     expect(fold('s', owedAndWatching()).owedAreaEffects.length).toBeGreaterThan(0);
   });
 
+  /**
+   * The one command here that this fixture refuses, and the code it refuses
+   * with — because the fixture is a **fight** and the clock inside one is the
+   * turn order's, not because anybody owes anything.
+   *
+   * Written down rather than skipped, and then checked three ways below: the
+   * code is the one named, the same refusal comes back from a fight owing
+   * nothing at all, and the command succeeds against the same world with the
+   * fight taken out. Together those say the refusal tracks the fight and not
+   * the debt, which is the claim this whole sweep is about. A second entry
+   * here would have to earn the same three.
+   */
+  const REFUSED_BY_THE_CLOCK: Readonly<Record<string, string>> = {
+    advanceTime: 'in_combat',
+  };
+
+  it('names only commands this sweep actually runs', () => {
+    const names = new Set(declaring.map((entry) => entry.name));
+    expect(Object.keys(REFUSED_BY_THE_CLOCK).filter((name) => !names.has(name))).toEqual([]);
+  });
+
   for (const entry of declaring) {
     it(`${entry.name}: allowed while an area effect is owed`, () => {
       const out = entry.run(fold('s', owedAndWatching()));
-      expect(isErr(out) ? `${out.code}: ${out.reason}` : 'ok').toBe('ok');
+      const refusal = REFUSED_BY_THE_CLOCK[entry.name];
+      if (refusal === undefined) {
+        expect(isErr(out) ? `${out.code}: ${out.reason}` : 'ok').toBe('ok');
+        return;
+      }
+
+      expect(isErr(out) ? out.code : 'ok').toBe(refusal);
+      // A fight with nothing owed answers the same, so the debt is not what
+      // refused it …
+      expect(fold('s', SETUP).owedAreaEffects).toEqual([]);
+      const quiet = entry.run(fold('s', SETUP));
+      expect(isErr(quiet) ? quiet.code : 'ok').toBe(refusal);
+      // … and the same world with no fight in it does not refuse at all.
+      const peace = entry.run(fold('s', OUT_OF_COMBAT));
+      expect(isErr(peace) ? `${peace.code}: ${peace.reason}` : 'ok').toBe('ok');
     });
   }
+
+  /**
+   * And the peacetime fixture is `SETUP` with one event taken out, rather than
+   * a second setup that could drift away from it.
+   */
+  it('takes nothing but the fight out of the peacetime fixture', () => {
+    expect(fold('s', SETUP).combat).not.toBeNull();
+    expect(fold('s', OUT_OF_COMBAT).combat).toBeNull();
+    expect(SETUP.length - OUT_OF_COMBAT.length).toBe(1);
+  });
 });
 
 /**
@@ -3362,6 +3430,38 @@ describe('unknown is not no', () => {
           { placement: { from: { landmark: 'here' }, feet: 10 } },
           supply(),
         );
+      },
+    },
+    {
+      // A fight the DM says is over, with somebody standing in it that nobody
+      // has put on a side. `side` is declared, exactly as sight and cover are:
+      // `null` is "nobody has said", not "neutral", so a fight holding one
+      // cannot be *known* to be over and either answer would be the engine
+      // settling the fact rather than asking for it. `declareCreatureSide`
+      // settles it — and this entry is why that request has a shape rather
+      // than a sentence, because the assertion below reads the shape.
+      name: 'ending a fight with somebody on nobody’s side',
+      run: () => {
+        const unsided: readonly GameEvent[] = [
+          ...SETUP.filter((event) => event.type !== 'combat-started'),
+          {
+            type: 'creature-added',
+            id: C,
+            name: C,
+            sheet: sheet(),
+            maxHp: 60,
+            diesAtZero: false,
+            creatureType: 'Humanoid',
+          },
+          {
+            type: 'combat-started',
+            combatants: [
+              { id: A, initiative: 20, speed: 30 },
+              { id: C, initiative: 10, speed: 30 },
+            ],
+          },
+        ];
+        return endCombat(fold('s', unsided), { kind: 'defeated' });
       },
     },
   ];
@@ -4490,14 +4590,30 @@ describe('every event a command stamps declares that it carries one', () => {
   });
 
   /**
-   * And the reader would notice one that did not. `combat-ended` is the
-   * control: no command stamps it and it declares none, so a reader that
-   * answered "yes" to everything would say it did.
+   * And the reader would notice one that did not. `hit-point-maximum-raised`
+   * is the control: no command stamps it and it declares none, so a reader
+   * that answered "yes" to everything would say it did.
+   *
+   * **It was `combat-ended` until `endCombat` landed**, and the swap is the
+   * point rather than an inconvenience: the old control held only because
+   * nothing in the engine could end a fight, which is the defect that command
+   * closed. This one is a command-layer fact of a different kind and cannot
+   * go the same way by accident — `advanceCharacter` in `creation.ts` writes
+   * it, and `creation.ts` predates the command layer, takes no
+   * `CommandIdentity` and is not published through the `commands.ts` barrel.
+   * It is one of the four `OUTSIDE_THE_COMMAND_LAYER` names above, so a task
+   * that does bring it inside has to say so there first.
    */
   it('would see a type that is missing it', () => {
-    expect(EVENT_MEMBERS.has('combat-ended')).toBe(true);
-    expect(stamped.has('combat-ended')).toBe(false);
-    expect(EVENT_MEMBERS.get('combat-ended')!).not.toMatch(/readonly command\?: CommandStamp/);
+    expect(EVENT_MEMBERS.has('hit-point-maximum-raised')).toBe(true);
+    expect(stamped.has('hit-point-maximum-raised')).toBe(false);
+    expect(EVENT_MEMBERS.get('hit-point-maximum-raised')!).not.toMatch(
+      /readonly command\?: CommandStamp/,
+    );
+    // The event the control used to be does declare one now, which is the
+    // other half of the same claim: `endCombat` stamps it.
+    expect(stamped.has('combat-ended')).toBe(true);
+    expect(EVENT_MEMBERS.get('combat-ended')!).toMatch(/readonly command\?: CommandStamp/);
   });
 });
 

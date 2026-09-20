@@ -1238,7 +1238,32 @@ export type GameEvent =
       readonly combatants: readonly CombatantInput[];
       readonly command?: CommandStamp;
     }
-  | { readonly type: 'combat-ended' }
+  /**
+   * The fight is over.
+   *
+   * **`ending` is why, pinned by the command that closed it**, so a reader of
+   * the log is told what the table decided rather than left to infer it from
+   * the hit points of whoever happened to still be in the order. Three of
+   * them, and they are the owner's ruling read as a union: no hostile
+   * combatant remains, the hostiles surrendered, or they ran and the party
+   * elected to let them go. The election is not recorded separately — a
+   * `flight` that reached this event is one the party made.
+   *
+   * **Optional, because it predates the command that writes it.** The fold
+   * wrote `combat-ended` for years without one — `removeCreatureEverywhere`
+   * still does, when a removal takes the last combatant out of the order,
+   * which is not any of the three endings a table elects — and
+   * `golden-log-2.json` holds one of those. So an absent `ending` means "no
+   * command concluded this", which is a fact rather than a gap.
+   */
+  | {
+      readonly type: 'combat-ended';
+      readonly ending?:
+        | { readonly kind: 'defeated' }
+        | { readonly kind: 'surrender'; readonly side: string }
+        | { readonly kind: 'flight'; readonly side: string };
+      readonly command?: CommandStamp;
+    }
   /**
    * The turn moved on.
    *

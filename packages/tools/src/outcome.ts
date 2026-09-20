@@ -42,6 +42,7 @@ const KIND_COVERAGE: Readonly<Record<ContextRequestKind, true>> = {
   position: true,
   visibility: true,
   'creature-type': true,
+  side: true,
   scene: true,
   route: true,
   'turn-order': true,

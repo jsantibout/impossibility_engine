@@ -105,6 +105,7 @@ import { asCharacterId, needsContext, ok } from '@ie/shared';
 import type {
   CharacterChoices,
   CastSpellRequest,
+  CombatEnding,
   Duration,
   CombatantInput,
   GameEvent,
@@ -141,6 +142,7 @@ import {
   declineTestReaction,
   eligibleTargets,
   endAttunement,
+  endCombat,
   endConcentration,
   endFeature,
   endOngoingSpell,
@@ -893,8 +895,9 @@ const STABILISE_CREATURE = tool({
 const DECLARE_SIDE = tool({
   name: 'declare_side',
   description:
-    'Say which side a creature fights on. Allegiance changes in play, so it is declared rather than being a property of arriving.',
+    'Say which side a creature fights on. Allegiance changes in play, so it is declared rather than being a property of arriving. Until somebody has said, a creature is on nobody’s side — which is not the same as neutral, and is what stops a fight being closed over it.',
   mutates: true,
+  establishes: ['side'],
   input: z.object({ who: creatureId, side: z.string().min(1).describe('e.g. party, or goblins.') }),
   run: (context, args) =>
     settleEvents(
@@ -1264,6 +1267,90 @@ function initiativeRolledFor(events: readonly GameEvent[], id: CharacterId): num
   }
   return null;
 }
+
+/**
+ * The other bookend, and the reason {@link ADVANCE_TIME} below is reachable
+ * at all.
+ *
+ * `roll_initiative` had no counterpart. The engine's only producer of
+ * `combat-ended` was the branch in `removeCreatureEverywhere` that fires when
+ * a removal takes the *last* combatant out of the order, and no tool removes
+ * a creature — so a session that rolled Initiative once was in a fight
+ * forever, and with the clock refusing to move inside one it could then never
+ * rest. Three doors were already shut behind that: `advance_time`,
+ * `begin_rest`, `end_rest`. This is the key, and it ships with them rather
+ * than after them.
+ *
+ * **It carries no number and asserts no outcome.** Which of the three endings
+ * happened is a fact about the room — they were beaten, they gave up, they
+ * ran — and every check on it is the engine's: who is still standing, whether
+ * the side named is a side anybody standing is on, whether anybody is on
+ * nobody's side at all. A caller cannot close a fight by saying it is closed.
+ *
+ * **Four refusals reach the caller as what they are.** Three are verdicts on
+ * established facts — there is no fight, two sides are still up, or a flight
+ * has not been elected — and the fourth is homework: a combatant nobody has
+ * put on a side comes back as `needs-context` carrying a `side` request per
+ * creature, and `declare_side` is the door for each. That is the loop this
+ * surface exists to run, and `fight.test.ts` walks it.
+ *
+ * **`letThemGo` is the one field that is a decision rather than an
+ * observation**, and it is the table's. SRD has nothing to say about whether
+ * the party chases the fleeing goblins; the engine refuses the flight until
+ * somebody answers, and the same call carries the answer back.
+ */
+const END_COMBAT = tool({
+  name: 'end_combat',
+  description:
+    'Close the fight. Say how it ended — the enemy was beaten, they surrendered, or they fled — and the engine checks it against who is still on their feet: a fight with two opposed sides still standing is refused, and so is one holding somebody nobody has put on a side. A flight is a prompt rather than an end, because many tables want to finish them: send it again with letThemGo once the players have said. Nothing else moves the clock while a fight is running, so this is what a rest waits for.',
+  mutates: true,
+  input: z.object({
+    ending: z
+      .discriminatedUnion('kind', [
+        z.object({
+          kind: z.literal('defeated').describe('Nobody opposed is left standing.'),
+        }),
+        z.object({
+          kind: z.literal('surrender'),
+          side: z
+            .string()
+            .min(1)
+            .describe('The side that yielded, as it was declared to `declare_side`.'),
+        }),
+        z.object({
+          kind: z.literal('flight'),
+          side: z
+            .string()
+            .min(1)
+            .describe('The side that ran, as it was declared to `declare_side`.'),
+          letThemGo: z
+            .boolean()
+            .optional()
+            .describe(
+              'True once the players have said they are letting them go. Without it the fight stays open, because chasing them is the table’s call and not the engine’s.',
+            ),
+        }),
+      ])
+      .describe('How the fight ended. A side that nobody standing is on is refused.'),
+  }),
+  run: (context, args) => {
+    const ending: CombatEnding =
+      args.ending.kind === 'defeated'
+        ? { kind: 'defeated' }
+        : args.ending.kind === 'surrender'
+          ? { kind: 'surrender', side: args.ending.side }
+          : {
+              kind: 'flight',
+              side: args.ending.side,
+              ...(args.ending.letThemGo === undefined ? {} : { letThemGo: args.ending.letThemGo }),
+            };
+    return settleEvents(
+      context,
+      endCombat(context.campaign.state(), ending, identity(context)),
+      { ended: ending.kind, ...(ending.kind === 'defeated' ? {} : { side: ending.side }) },
+    );
+  },
+});
 
 const MOVE = tool({
   name: 'move',
@@ -3184,6 +3271,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   DECLINE_TEST_REACTION,
   DRAW_ON_HEALING_POOL,
   ELIGIBLE_TARGETS,
+  END_COMBAT,
   END_CONCENTRATION,
   END_FEATURE,
   END_ATTUNEMENT,
