@@ -590,8 +590,8 @@ describe('the band reaches a readied spell too', () => {
     ];
     // The watch is kept after the fight rather than during it: inside a fight
     // the clock is the turn order's and `advanceTime` refuses `in_combat`. So
-    // the fight is closed through the door \u2014 the quarry, carrying the
-    // Suggestion, yields \u2014 rather than by forging a `combat-ended` no command
+    // the fight is closed through the door — the quarry, carrying the
+    // Suggestion, yields — rather than by forging a `combat-ended` no command
     // would have written. What is under test is unchanged: a span deadline is
     // left alone by the fight ending, and this reads it afterwards.
     const quiet: readonly GameEvent[] = [
