@@ -233,9 +233,19 @@ is and is not general about it.
   Collapsing either pair would invent a rule or hide a gap.
 
 What is deliberately **not** built: a structured `satisfyWith`, a registry of
-fact providers, or a generic "fact" type. Five kinds with five providers is a
-table, not a framework; it becomes one when a sixth kind arrives that does not
-fit the table.
+fact providers, or a generic "fact" type. Kinds with providers are a table, not
+a framework; it becomes one when a kind arrives that does not fit the table — a
+fact with no declaring command. This paragraph counted its own members twice and
+was wrong by two before anybody noticed, which is the argument for the rule
+rather than the count:
+
+> A command-level `needs-context` always carries a request, and a request's
+> `kind` is the name of the declared-not-derived fact that is missing — so a
+> kind is added the first time a command must stop on a fact that already has a
+> declaring command, and is never added for a fact a command can proceed past
+> conservatively (that is an `unverified` clause) or for one no command can
+> declare (that is a gap in the doors, and `doors.test.ts` is where it is
+> recorded).
 
 ## Future Compatibility
 
