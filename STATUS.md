@@ -241,7 +241,7 @@ to homebrew.
   key already goes through `instancedPoolKey`, so the day that predicate
   widens the count follows the copy with no further change.
 - **No monster can be put on the board from the model's surface.** `@ie/srd`
-  parses 330 stat blocks and `addCreature` is reachable from no tool, so the
+  parses the SRD bestiary and `addCreature` is reachable from no tool, so the
   only creature a session can add is a character it builds. The fight driven
   end to end through the surface is a wizard against a copy of itself, and it
   is symmetric because it had to be.
@@ -273,16 +273,21 @@ ground, attacks, spells with slots and Concentration and areas, conditions,
 opportunity attacks, turn boundaries — and the fight it can run is a wizard
 against a copy of itself, because no monster can be placed and no class
 feature can be spent. The rules under all of it are built and tested. Measured
-at level 5: 73 of 114 class features at those levels are engine-executed, and
-of the 183 SRD spells at level 3 and below, 71 are executed and 105 more are
-cast for real with their text handed to the table. Ten doors have been found
-shut; six of them on the day a guard first looked.
+at level 5: most class features at those levels are engine-executed, and of
+the SRD spells at level 3 and below, well over half are cast for real with
+their text handed to the table while a large minority have their effects
+resolved outright. **Those counts are not in this file on purpose** — `npm run
+coverage` does not yet compute them, and a count in prose is a count that goes
+stale silently, which is what rule 8 is for. Making the report answer "what
+can be played at level N" is the brief that would let this paragraph be
+specific. Ten doors have been found shut; six of them on the day a guard first
+looked.
 
 Ranked by what each finishes.
 
 1. **A monster on the board.** One tool, plus the decision of where the stat
-   block comes from — `addCreature` takes a `Monster`, `@ie/srd` has 330 of
-   them, and the surface can reach neither. Nothing else on this list changes
+   block comes from — `addCreature` takes a `Monster`, `@ie/srd` parses the
+   whole bestiary, and the surface can reach neither. Nothing else on this list changes
    what a session can *be* as much: until it lands, every fight is
    player-versus-player.
 2. **A feature a session can spend.** `activateFeature`, `useSelfHeal`,
@@ -314,6 +319,16 @@ Ranked by what each finishes.
 9. **An instance for an item with no charges**, which makes the Wind Fan
    complete rather than partial: widen `issueItemCopies`'s predicate and the
    `itemChargePool(item, instance)!` beneath it.
+
+### A measurement the report does not make
+
+`COVERAGE.md` counts what is executed over the whole book, which is the right
+number for "how much of the SRD is built" and the wrong one for "can a level 5
+party play". Nothing computes per-level readiness: features by the level they
+arrive, spells by the level of the slot that casts them, and which of either a
+model-driven session can actually reach through a tool. Every time that
+question has been asked it has been answered by hand, and a hand answer in a
+document is exactly what rule 8 forbids.
 
 ### Guards that would have caught something
 
