@@ -525,14 +525,26 @@ Multiattack is built for the one mechanism of five the ruling covers.
   menu.
 - **The defender answers first.** A rider that Stuns on the same swing must
   not close the `damage-rolled` window the target was just offered.
-- **The Hydra's count is nobody's to derive** (architect, 2026-09-20). Reading
-  "five heads" off a trait would print a number for a turn the book did not:
-  heads die at 25 damage in a turn and regrow at the end of it, none of which
-  is state. It bites once per action. **Open, and the owner's:** may a DM
-  *state* the count turn by turn — a fact only the table tracks, for an attack
-  the block names — or does it wait for a second creature that needs one? An
-  engine-derived count was refused as fabrication; a DM-declared count is a
-  fact handed over, and no tool sets even `free: true` today.
+- **The Hydra's heads are declared; its Bites are derived** (owner,
+  2026-09-20, on the architect's refusal to derive the count). Reading "five
+  heads" off a trait would print a number for a turn the book did not — heads
+  die at 25 damage in a turn and regrow at the end of it, and none of that is
+  state. So the table declares **how many heads are active** and the Attack
+  action's Bite count follows from it. The engine still derives the number; it
+  derives it from a declared fact instead of inventing one, which is the same
+  move as a declared side or a declared creature type, and re-declarable for
+  the same reason.
+
+  Undeclared is not a refusal and not a request: one Bite per action, which is
+  today's behaviour, reported through `unverified`. By the architect's own rule
+  a fact a command can proceed past conservatively is an `unverified` clause
+  rather than a new `ContextRequest` kind, so this costs no kind.
+
+  **It is the first DM door that takes a number**, which is the line the ruling
+  draws: a number the *engine* produces is a fabrication, a number the *table*
+  states is a fact. The owner's note for whoever builds the surface: a tool may
+  present it as a single affordance — "as many as the hydra still has" — rather
+  than as arithmetic the DM does twice.
 - **A fight ends** when no hostile combatant remains or the hostiles
   surrender. A flight is a prompt, not an end: the players are offered the
   choice to let the enemy go before combat closes, because many tables want to
