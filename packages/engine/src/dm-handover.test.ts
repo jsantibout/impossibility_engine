@@ -18,8 +18,11 @@ import type { CastingOption } from './standing.js';
 import {
   advanceTime,
   eligibleTargets,
+  resolveAttack,
+  resolveAttackDamage,
   resolveDeclaredCast,
   resolveSpell,
+  takeReady,
 } from './commands.js';
 import { createRng, type Rng } from './dice.js';
 import { fold, type GameEvent } from './events.js';
@@ -577,5 +580,212 @@ describe('an atomic casting pins its handover into the log', () => {
       [...after, ...again.events].filter((event) => event.type === 'spell-cast'),
     ).toHaveLength(1);
     expect(remaining(fold('seed', after).creatures[CASTER]!.resources, spellSlotKey(3))).toBe(3);
+  });
+});
+
+/**
+ * **The two atomic paths that handed it only to their caller.**
+ *
+ * A spell cast at a Ready and a spell cast on a hit are both atomic castings —
+ * neither writes a `spell-declared` — and both went through the low-level door
+ * with a definition already in hand and did not pass the handover down. Rule 5
+ * is about what a command *read from content*, so both were a sentence the log
+ * lost: the printed text reached the caller and nowhere else.
+ *
+ * **No SRD spell reaches either**, which is why the spells here are homebrew
+ * loaded through `loadContent` — a Ready takes a spell cast with an action and
+ * all three SRD handovers take a minute or more, and a spell cast on a hit must
+ * print an `attack-damage` effect. That nothing in the catalogue was losing
+ * text is the reason this was a limit rather than a bug, and a homebrew
+ * definition reaching both is the reason it is closed.
+ */
+describe('the two atomic paths that did not keep their handover', () => {
+  const recordIn = (events: readonly GameEvent[]) => {
+    const cast = events.find((event) => event.type === 'spell-cast');
+    if (cast?.type !== 'spell-cast') throw new Error('the casting wrote no spell-cast');
+    return cast;
+  };
+
+  /**
+   * SRD Ready: "you cast it as normal (expending any resources used to cast
+   * it) but hold its energy." The slot goes at the Ready and so does the
+   * `spell-cast` — a turn before the spell takes effect — so that event is the
+   * only place the handover could be written down.
+   */
+  describe('a spell cast at a Ready', () => {
+    const inCombat = (content: Content): readonly GameEvent[] => [
+      ...table(content),
+      {
+        type: 'combat-started',
+        combatants: [
+          { id: CASTER, initiative: 20, speed: 30 },
+          { id: TARGET, initiative: 1, speed: 30 },
+        ],
+      },
+    ];
+
+    const ready = (content: Content, spellId: string) => {
+      const log = inCombat(content);
+      const events = unwrap(
+        takeReady(
+          fold('seed', log),
+          CASTER,
+          {
+            trigger: 'when the door opens',
+            response: { kind: 'spell', spellId, slotLevel: 3 },
+          },
+          content,
+        ),
+        'the Ready',
+      );
+      return { log: [...log, ...events], events };
+    };
+
+    it('pins the printed text onto the casting the Ready writes', () => {
+      const { events } = ready(homebrew, 'far-whisper');
+
+      expect(events.some((event) => event.type === 'spell-declared')).toBe(false);
+      expect(recordIn(events).dmDecides).toEqual([
+        'Range: Special',
+        'The listener hears whatever the winds have carried to them, and the GM decides what that is.',
+      ]);
+    });
+
+    /** And a reader of the log gets it back with no catalogue open. */
+    it('folds back with no content at all', () => {
+      const { log } = ready(homebrew, 'far-whisper');
+      const record = recordIn(log);
+
+      expect(fold('seed', log).creatures[CASTER]!.readied?.response.kind).toBe('spell');
+      expect(record.dmDecides?.map((printed) => handedOver(record.spell, printed))).toEqual([
+        `Far Whisper: ${DM_DECIDES} Range: Special`,
+        `Far Whisper: ${DM_DECIDES} The listener hears whatever the winds have carried to them, and the GM decides what that is.`,
+      ]);
+    });
+
+    /** A spell that hands nothing over writes no field, so nothing else moved. */
+    it('writes no field for a spell with nothing to hand over', () => {
+      const quiet = unwrap(
+        loadContent({
+          spells: [
+            {
+              ...(JSON.parse(FAR_WHISPER) as object),
+              id: 'quiet-whisper',
+              range: { kind: 'ranged', feet: 600 },
+              dmDecides: [],
+              unmodelled: ['The winds carry nothing this engine has a shape for.'],
+            },
+          ],
+        }),
+        'load',
+      );
+      const { events } = ready(quiet, 'quiet-whisper');
+      expect('dmDecides' in recordIn(events)).toBe(false);
+    });
+  });
+
+  /**
+   * SRD Divine Smite is cast in the window a hit opens, so its `spell-cast` is
+   * written by the command that settles the blow. The spell here is a homebrew
+   * smite, because the shape a cast-on-hit must print — an `attack-damage`
+   * effect — is printed by no SRD spell that also hands text over.
+   */
+  describe('a spell cast on a hit', () => {
+    const SMITE = JSON.stringify({
+      id: 'whispered-smite',
+      name: 'Whispered Smite',
+      level: 3,
+      school: 'evocation',
+      castingTime: 'bonus-action',
+      concentration: false,
+      range: { kind: 'self' },
+      targets: { count: 0 },
+      effects: [
+        { kind: 'attack-damage', damage: { dice: '2d8' }, damageType: 'radiant' },
+      ],
+      dmDecides: ['The winds answer the blow, and the GM decides what they say.'],
+    });
+
+    const armed = (content: Content): readonly GameEvent[] => [
+      ...table(content).map((event) =>
+        event.type === 'creature-placed' && event.id === TARGET
+          ? {
+              ...event,
+              placement: { from: { creature: CASTER }, feet: 5, bearing: 0 },
+            }
+          : event,
+      ),
+    ];
+
+    /** A hit held open, with the damage still to roll — the smite's own window. */
+    const held = (content: Content) => {
+      const log = armed(content);
+      const swing = unwrap(
+        resolveAttack(
+          fold('seed', log),
+          CASTER,
+          {
+            target: TARGET,
+            // An Unarmed Strike: the content under test is a spell file and
+            // holds no weapons, which is the point of loading it alone.
+            weapon: null,
+            hold: true,
+            free: true,
+            attackBonuses: [{ source: 'the test insists', flat: 40 }],
+          },
+          supply(content),
+        ),
+        'the swing',
+      );
+      return [...log, ...swing.events];
+    };
+
+    const smite = (content: Content, spellId: string) => {
+      const log = held(content);
+      const out = unwrap(
+        resolveAttackDamage(
+          fold('seed', log),
+          CASTER,
+          { smite: { spellId, slotLevel: 3 } },
+          supply(content),
+        ),
+        'the smite',
+      );
+      return { log: [...log, ...out.events], events: out.events };
+    };
+
+    const smiting = unwrap(loadContent({ spells: [JSON.parse(SMITE)] }), 'load');
+
+    it('pins the printed text onto the casting the blow writes', () => {
+      const { events } = smite(smiting, 'whispered-smite');
+
+      expect(events.some((event) => event.type === 'spell-declared')).toBe(false);
+      expect(recordIn(events).dmDecides).toEqual([
+        'The winds answer the blow, and the GM decides what they say.',
+      ]);
+    });
+
+    it('folds back with no content at all', () => {
+      const { log } = smite(smiting, 'whispered-smite');
+      const record = recordIn(log);
+
+      expect(fold('seed', log).pendingAttack).toBeNull();
+      expect(record.dmDecides?.map((printed) => handedOver(record.spell, printed))).toEqual([
+        `Whispered Smite: ${DM_DECIDES} The winds answer the blow, and the GM decides what they say.`,
+      ]);
+    });
+
+    it('writes no field for a smite with nothing to hand over', () => {
+      const plain = unwrap(
+        loadContent({
+          spells: [
+            { ...(JSON.parse(SMITE) as object), id: 'plain-smite', name: 'Plain Smite', dmDecides: [] },
+          ],
+        }),
+        'load',
+      );
+      const { events } = smite(plain, 'plain-smite');
+      expect('dmDecides' in recordIn(events)).toBe(false);
+    });
   });
 });

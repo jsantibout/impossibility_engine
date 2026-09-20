@@ -2073,13 +2073,16 @@ export interface SpellDefinition {
    * the casting rather than about the casting, and a log that had frozen one
    * would go on reporting a gap this engine had since closed.
    *
-   * **Two castings still hand it only to their caller**, and both are one line
-   * away from the rest: a spell cast at a Ready (`readySpell`, whose
-   * `spell-cast` is written a turn before the spell takes effect) and a spell
-   * cast on a hit (`castOnHit`). No SRD spell that prints a handover can reach
-   * either — a Ready takes a spell cast with an action and all three take a
-   * minute or more, and a spell cast on a hit must print `attack-damage` —
-   * so nothing in the catalogue loses text today. A homebrew definition could.
+   * **Every casting keeps it, including the two that once did not.** A spell
+   * cast at a Ready (`holdSpell`, whose `spell-cast` is written a turn before
+   * the spell takes effect) and a spell cast on a hit (`castOnHit`) each passed
+   * their definition's text to the caller and dropped it from the log. No SRD
+   * spell that prints a handover can reach either — a Ready takes a spell cast
+   * with an action and all three take a minute or more, and a spell cast on a
+   * hit must print `attack-damage` — so nothing in the catalogue was losing
+   * text; a homebrew definition reaching both is what made it worth closing,
+   * and `dm-handover.test.ts` drives both on homebrew loaded through
+   * `loadContent`.
    */
   readonly dmDecides?: readonly string[];
   /**

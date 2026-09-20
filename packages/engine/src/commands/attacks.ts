@@ -1602,6 +1602,13 @@ function castOnHit(
     castingTime: definition.castingTime,
     slotLevel: smite.slotLevel,
     route: routeLabel(route.value),
+    // The printed text the book leaves to the table, pinned onto the casting
+    // the blow writes. CLAUDE.md's rule 5, asked of the second atomic path
+    // that had been handing it to its caller alone: a spell cast on a hit has
+    // no declaration, so `spell-cast` is where a handover lives. No SRD spell
+    // reaches here — a cast-on-hit must print an `attack-damage` effect and
+    // none of the three that hand text over does — and a homebrew one can.
+    ...(definition.dmDecides === undefined ? {} : { dmDecides: definition.dmDecides }),
   }, null);
   if (!cast.ok) return cast;
 
