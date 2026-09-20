@@ -13,6 +13,8 @@ import {
   type SpellDefinition,
 } from './spell-definitions.js';
 import { loadContent, type Content } from './content.js';
+import { alteredCasting } from './commands/casting-options.js';
+import type { CastingOption } from './standing.js';
 import {
   advanceTime,
   eligibleTargets,
@@ -244,6 +246,50 @@ describe('a definition declares what only the DM can decide', () => {
     expect([...named].sort().map((name) => name.replaceAll('\\', '/'))).toEqual([
       'spell-definitions.ts',
     ]);
+  });
+
+  /**
+   * **And an option that doubles a range has nothing here to double.**
+   *
+   * SRD Distant Spell doubles the distance a casting reaches, and a Range the
+   * DM decides is not a distance — so the option is refused rather than
+   * charged for nothing, which is the arm a Range of Self already takes.
+   * Refusing matters more than it looks: the alternative is a casting that
+   * pays a Sorcery Point and reaches exactly as far as it did, and the one
+   * after that is an engine that made a number up to double.
+   *
+   * Driven pure over a definition, because nothing in the catalogue can reach
+   * it — Metamagic is the Sorcerer's and neither SRD spell with this Range is
+   * on the Sorcerer list — which is the move `castingOf`'s docstring already
+   * makes for a branch no content can get to.
+   */
+  it('refuses an option that would double a Range the DM decides', () => {
+    const distant: CastingOption = {
+      feature: 'metamagic',
+      featureName: 'Metamagic',
+      option: 'distant-spell',
+      name: 'Distant Spell',
+      pool: 'sorcery-points',
+      cost: 1,
+      perCasting: 1,
+      alters: { kind: 'range', multiplier: 2 },
+    };
+    const definition = homebrew.spell('far-whisper')!;
+    const refused = alteredCasting(
+      definition,
+      { castLevel: 3, castingTime: 'action' },
+      [distant],
+    );
+    expect(isErr(refused) && refused.code).toBe('option_does_not_reach');
+
+    // And the same option on the same spell with a Range in feet is allowed,
+    // so the refusal is the Range rather than the fixture.
+    const allowed = alteredCasting(
+      homebrew.spell('near-whisper')!,
+      { castLevel: 3, castingTime: 'action' },
+      [distant],
+    );
+    expect(unwrap(allowed, 'distant on a printed range').reachFeet).toBe(120);
   });
 
   it('refuses a handover that is not a list of printed sentences', () => {
