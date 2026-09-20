@@ -525,6 +525,17 @@ Multiattack is built for the one mechanism of five the ruling covers.
   menu.
 - **The defender answers first.** A rider that Stuns on the same swing must
   not close the `damage-rolled` window the target was just offered.
+- **The Hydra's head count gets its own event** (owner, 2026-09-20), not a
+  general "a number the table states about a creature". The doctrine's own
+  paragraph says kinds with providers are a table and become a framework only
+  when something arrives that does not fit; generalising before a second
+  instance is that framework. `creature-heads-declared`, with its fold region,
+  and a general shape the day a second creature needs one.
+- **Shield drops a pinned rider unspent** (owner, 2026-09-20). A held rider
+  survives a deflection today: the point is spent and the condition applied on
+  a swing *Shield* turned into a miss. "When you hit a creature" became false,
+  so the rider is dropped and nothing is paid. The second face of the bug the
+  held-path pin closes.
 - **The Hydra's heads are declared; its Bites are derived** (owner,
   2026-09-20, on the architect's refusal to derive the count). Reading "five
   heads" off a trait would print a number for a turn the book did not — heads
