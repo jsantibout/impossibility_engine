@@ -16,8 +16,8 @@ else an agent needs is `CLAUDE.md` and the design note for the subsystem.
 
 ## The loop
 
-1. The owner approves a **batch**: briefs enough to fill four to six hours of
-   *parallel* work, each bounded enough that a builder never has to invent
+1. The owner approves a **batch**: as many tracks as the tree can be
+   partitioned into, each bounded enough that a builder never has to invent
    architecture, with dependencies and what may run in parallel. Silence is
    not approval.
 2. The coordinator launches the parallel-safe briefs. Two briefs that change
@@ -58,9 +58,22 @@ table that ranks them.
    found by a builder in minutes, after a brief had been written from the
    table alone. `STATUS.md`'s "Next" is a list of things somebody noticed, in
    the order they noticed them, and is not this question either.
-2. **A batch is four to six hours of work running at once**, which means
-   briefs measured in hours rather than in fields, as many of them as can run
-   simultaneously. Partition them by **file ownership** rather than by topic:
+2. **A batch is as wide as the tree can be partitioned**, not as long as a
+   queue. A track runs about half an hour whatever is in it, because it is
+   bounded by tool budget rather than by brief count — nine tracks with two to
+   four briefs each finished in the time one track takes. So size a batch by
+   counting disjoint file sets, not hours: more tracks, never longer queues.
+   A track with nothing left to do stops early and costs nothing; a queue
+   nobody reaches is a brief written for no one.
+
+   Where several tracks must add a member to one union, give each a **distinct
+   anchor** — "insert immediately after member X", a different X per track — so
+   the hunks are not adjacent and git merges them without help. Check the
+   anchor is in the union you think it is: an anchor named in the wrong union
+   sends two tracks to the same place, which is a conflict the protocol exists
+   to prevent.
+
+   Partition by **file ownership** rather than by topic:
    one builder owns a file for the batch and nobody else opens it. Two briefs
    on one topic that would queue behind each other on the same module belong
    to one builder instead.
