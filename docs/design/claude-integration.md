@@ -65,6 +65,27 @@ a list stops guarding the day somebody adds to it and does not think to come
 here. Four doors were found shut by accident before it existed, and six more
 the day it did.
 
+**A monster is a door now, and it arrives able to fight.** `add_creature`
+takes a stat block's id and nothing else about it, which is `addCreature`'s own
+argument one layer up: an entry point that accepts a stat block is the door a
+model-authored Armour Class walks through, and a tool over it taking
+`{ armorClass: 15 }` would reopen it here. So the whole of the call is what to
+call the creature and which block it is, and `unknown_monster` is answerable at
+`monsterId`. It runs two commands, because one is not enough to put a creature
+in a fight: `resolveAttack` refuses a weapon its wielder does not own, so a
+Goblin Warrior added and not armed cannot make the Scimitar attack its own
+block prints. The arrival is composed with `awardItems` under a derived command
+id, exactly as `roll_initiative` composes its two, and appended once. **Turning
+`Javelins (6)` into six `javelin` is this package's job and not the engine's** —
+the engine holds no catalogue and reads no name — and what the catalogue cannot
+find is reported through `unverified` rather than refusing the creature, which
+is `addCreature`'s reading of a qualified defence applied one layer up. One
+consequence is that the surface stopped asking for a size: `creature-added`
+pins it, so `move` and `cast_spell.teleportTo` carry none at all, and
+`place_creature` keeps one only for the creature whose record pins nothing —
+which today is every character, because `createCharacter` writes no size and
+SRD's Gnome and Halfling are Small.
+
 **What a character holds is a third read, beside `look` and `options`.** The
 three answer different questions: `look` is the table — everybody in the room,
 where they stand, what the engine is owed; `options` is the instant — a debt in
