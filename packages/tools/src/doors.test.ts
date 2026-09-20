@@ -131,9 +131,48 @@ function issuePaths(tool: string, input: unknown): readonly string[] {
   return (outcome as InvalidOutcome).issues.map((issue) => issue.path);
 }
 
+/**
+ * The little a call needs before a probe can reach the field it is aimed at.
+ *
+ * **A discriminated union is a wall the bare probe cannot get through.**
+ * `nest` builds a single-key object, so a probe at `take_ready.response.
+ * damageType` arrives as `{ response: { damageType: … } }` — and Zod rejects
+ * that at `response.kind`, because no branch has been chosen, without ever
+ * looking at the field. The probe then reports "no such field" about a field
+ * that is certainly there, which is the direction of error this whole file
+ * exists to prevent: a door reported shut is argued about, and a door reported
+ * open when it is shut is the gap nobody finds. `take_ready`'s five fields
+ * were left out of the tables below for exactly that reason.
+ *
+ * So a tool may record the *discriminator* a probe has to send, and nothing
+ * else. It is hand-written because which branch a field lives in is a fact
+ * about meaning, exactly as {@link ESTABLISHING_FIELDS} is — and it cannot
+ * manufacture a false positive in either case: a key no schema has heard of is
+ * stripped in silence whatever else the call carries, so a scaffold can only
+ * ever let the probe **reach** a field, never invent one. The detector's own
+ * tests below assert both halves.
+ */
+const SCAFFOLDS: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
+  // The four facts a readied casting states live in the `spell` branch, and
+  // naming the branch is the whole of what this supplies.
+  take_ready: { response: { kind: 'spell' } },
+};
+
+/** The scaffold under the probe, deeply, so the probe's own leaf survives. */
+function merged(base: unknown, over: unknown): unknown {
+  const plain = (value: unknown): value is Record<string, unknown> =>
+    typeof value === 'object' && value !== null && !Array.isArray(value);
+  if (!plain(base) || !plain(over)) return over;
+  const out: Record<string, unknown> = { ...base };
+  for (const [key, value] of Object.entries(over)) out[key] = merged(base[key], value);
+  return out;
+}
+
 /** Whether the tool's schema has this field, proved by it refusing one. */
 const hasField = (tool: string, path: string): boolean =>
-  PROBES.some((probe) => issuePaths(tool, nest(path, probe)).includes(path));
+  PROBES.some((probe) =>
+    issuePaths(tool, merged(SCAFFOLDS[tool] ?? {}, nest(path, probe))).includes(path),
+  );
 
 /** `move.route` → the tool and the path inside its arguments. */
 function split(reference: string): { tool: string; path: string } {
@@ -172,6 +211,30 @@ describe('the probe can tell a field that exists from one that does not', () => 
     expect(hasField('move', 'the_way_they_went')).toBe(false);
     expect(hasField('cast_spell', 'flavour')).toBe(false);
     expect(hasField('create_character', 'choices.feats.the-slot.vibes')).toBe(false);
+  });
+
+  /**
+   * And it can see inside a discriminated union now, which it could not.
+   *
+   * The second assertion is the one that matters: it is the *old* probe,
+   * written out, failing on a field that is really there. That is why
+   * `take_ready`'s fields were unlisted, and it is what the scaffold buys.
+   */
+  it('reaches a field inside a discriminated union, given the branch', () => {
+    expect(hasField('take_ready', 'response.damageType')).toBe(true);
+    expect(hasField('take_ready', 'response.fought')).toBe(true);
+  });
+
+  it('because the bare probe is turned away at the discriminator', () => {
+    const bare = issuePaths('take_ready', nest('response.damageType', -1));
+    expect(bare).not.toContain('response.damageType');
+    expect(bare).toContain('response.kind');
+  });
+
+  /** And a scaffold cannot conjure a field: an unknown key is still stripped. */
+  it('and still finds nothing inside that branch that is not there', () => {
+    expect(hasField('take_ready', 'response.flavour')).toBe(false);
+    expect(hasField('take_ready', 'response.payment')).toBe(false);
   });
 
   /**
@@ -580,17 +643,28 @@ const ANSWERS: Readonly<Record<string, Answer>> = {
   },
 
   // — a casting states four facts, and each is refused until it does ———————
-  // Two callers now: a casting that prints a choice of types, and a feature's
-  // pool option that does — SRD Divine Spark's "Necrotic or Radiant damage
-  // (your choice)". One code, and each door carries the field that answers it.
-  damage_type_required: { fields: ['cast_spell.damageType', 'use_pool_option.damageType'] },
-  fought_fact_required: { fields: ['cast_spell.fought'] },
-  destination_required: { fields: ['activate_spell.to', 'cast_spell.teleportTo'] },
+  // Three callers now, and the third is the one the probe could not see: a
+  // casting that prints a choice of types, a feature's pool option that does —
+  // SRD Divine Spark's "Necrotic or Radiant damage (your choice)" — and a
+  // *readied* casting, which states the same four facts at the Ready because
+  // SRD spends the slot there. `take_ready`'s fields were unlisted here for as
+  // long as the probe was turned away at `response.kind`; they are listed now,
+  // which is what the scaffold was for.
+  damage_type_required: {
+    fields: ['cast_spell.damageType', 'use_pool_option.damageType', 'take_ready.response.damageType'],
+  },
+  fought_fact_required: { fields: ['cast_spell.fought', 'take_ready.response.fought'] },
+  destination_required: {
+    fields: ['activate_spell.to', 'cast_spell.teleportTo', 'take_ready.response.teleportTo'],
+  },
 
   // — and three questions about what pays for it ———————————————————————————
-  slot_kind_required: { fields: ['cast_spell.slotKind'] },
+  slot_kind_required: { fields: ['cast_spell.slotKind', 'take_ready.response.slotKind'] },
+  // Not `take_ready`'s: `choosePayment` is reached only from `resolveSpell`,
+  // so a readied casting cannot raise this one, and `ReadyResponse` has no
+  // field for it — which the probe now says out loud rather than by omission.
   payment_required: { fields: ['cast_spell.payment'] },
-  class_required: { fields: ['cast_spell.source'] },
+  class_required: { fields: ['cast_spell.source', 'take_ready.response.source'] },
 
   // — creation, where the refusal names the choice at fault ————————————————
   subclass_required: { fields: ['create_character.choices.subclassId'] },
