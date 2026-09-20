@@ -625,6 +625,15 @@ export function resolveAttack(
     const sequence = multiattackOf(sheet);
     const budget = state.combat?.budgets[id] ?? null;
     let slot: string | null = null;
+    // The composition is a rule about one Attack action, and outside combat
+    // there is no turn to hold one — the same absence Cleave, Slow, Sap and Vex
+    // report rather than enforce. Said out loud, because a rule that checked
+    // and a rule that could not look identical from outside.
+    if (sequence !== null && !free && command.bonusAction !== true && budget === null) {
+      unverified.push(
+        `${id}'s block prints its attacks as a sequence, and there are no turns here to count one against — nothing held this swing to it`,
+      );
+    }
     if (
       sequence !== null &&
       !free &&

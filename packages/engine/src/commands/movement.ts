@@ -617,7 +617,12 @@ export function reactionSwing(
   sheet: CharacterSheet,
   command: { readonly weapon?: string | null; readonly action?: string },
 ): { readonly weapon: string | null; readonly action?: string } {
-  if (command.action !== undefined) return { weapon: null, action: command.action };
+  // Both named goes through as both named, so `resolveAttack` refuses it in
+  // the one place that refusal lives. Choosing one here would make a swing
+  // with two answers legal at this door and illegal at the other.
+  if (command.action !== undefined) {
+    return { weapon: command.weapon ?? null, action: command.action };
+  }
   // Explicitly null is a caller asking for an Unarmed Strike, and is answered
   // rather than second-guessed; undefined is nobody having said.
   if (command.weapon !== undefined) return { weapon: command.weapon };

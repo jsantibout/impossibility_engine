@@ -513,7 +513,16 @@ function parseFeatures(lines: readonly string[]): Feature[] {
     if (text !== '') {
       const attack = parseAttackLine(text);
       const trait = parseTraitShape(text);
-      const multiattack = parseMultiattack(text);
+      // **The one detector the heading is part of.** A sequence is the
+      // composition of *the Attack action*, and the only line that says so is
+      // the one the book prints it under: three legendary actions write the
+      // same sentence — "The aboleth makes one Tentacle attack" — about a
+      // different economy entirely, and reading one of those as the creature's
+      // Multiattack would hand it a cage the book never printed. The
+      // qualified headings ("Multiattack (Vampire Form Only)") are left alone
+      // for the same reason every qualified thing here is: the engine cannot
+      // evaluate the qualification.
+      const multiattack = current.name === 'Multiattack' ? parseMultiattack(text) : null;
       // The one thing read out of the *name* rather than the sentence, and it
       // rides on the attack because that is what has to be told apart from a
       // creature's every-round swing.

@@ -1017,6 +1017,23 @@ describe('a monster’s Opportunity Attack takes its printed line', () => {
   });
 
   /**
+   * A swing whose numbers come from two places is refused here exactly as it
+   * is refused at the Attack action: the default fills in what nobody said and
+   * decides nothing anybody did say.
+   */
+  it('refuses a Reaction that names both a weapon and a printed line', () => {
+    const table = cornered('ogre', OGRE);
+    walksAway(table);
+    const both = takeOpportunityAttack(
+      table.state,
+      OGRE,
+      { weapon: 'greatclub', action: 'Javelin' },
+      supply('swing'),
+    );
+    expect(isErr(both) ? both.code : 'ok').toBe('two_attacks');
+  });
+
+  /**
    * A character prints no lines at all, so nothing about them changes: there is
    * no default to reach for, and the swing is the Unarmed Strike it always was.
    */

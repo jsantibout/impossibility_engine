@@ -344,6 +344,36 @@ describe('parseMultiattack', () => {
   });
 
   /**
+   * **The one detector the heading is part of.** Every other shape here is
+   * matched by its rule, because what a line says is not a property of what it
+   * is printed under — but a sequence is the composition of *the Attack
+   * action*, and the only line that says so is the one the book prints it
+   * under. The Aboleth's Lash writes the same sentence about a legendary
+   * action; read as a Multiattack it would cage the creature in a rule nobody
+   * printed.
+   */
+  it('reads a sequence only under the heading that makes it one', () => {
+    const lash = find('aboleth').legendaryActions.find((a) => a.name === 'Lash');
+    expect(lash?.text).toBe('The aboleth makes one Tentacle attack.');
+    expect(parseMultiattack(lash!.text)).toEqual({
+      entries: [{ count: 1, attack: 'Tentacle' }],
+    });
+    expect(lash?.multiattack).toBeUndefined();
+
+    // And no section but Actions carries one anywhere in the book.
+    for (const monster of bestiary) {
+      for (const line of [
+        ...monster.traits,
+        ...monster.bonusActions,
+        ...monster.reactions,
+        ...monster.legendaryActions,
+      ]) {
+        expect(line.multiattack, `${monster.id}: ${line.name}`).toBeUndefined();
+      }
+    }
+  });
+
+  /**
    * Every sequence names lines the same block prints, which is what makes the
    * grammar honest rather than merely confident: a name read out of one
    * sentence has to be an action somebody can actually take.

@@ -343,6 +343,15 @@ export function settleDamage(
     // a Stunning Strike could not close the window it had just opened — and it
     // resolves on the world the damage has already changed, which is where a
     // rider has always resolved.
+    //
+    // **And it cannot refuse.** This command is the only door out of a held
+    // damage roll, and every other command is refused while one stands: a
+    // refusal here would wedge the fight for ever, and every retry would wedge
+    // it again. So a rider that will not resolve is *reported* — the
+    // settlement happens, the damage lands, and whoever is narrating is told
+    // that what the hit bought did not. That is the same channel a rule the
+    // engine could not evaluate already comes back on, and the opposite
+    // failure from the one this exemption is written against.
     const unverified: string[] = [];
     const riderEvents: GameEvent[] = [];
     if (pending.rider !== undefined) {
@@ -352,9 +361,14 @@ export function settleDamage(
         { attacker: pending.rider.attacker, target: pending.target },
         pending.rider.option,
       );
-      if (!bought.ok) return bought;
-      riderEvents.push(...bought.value.events);
-      unverified.push(...bought.value.unverified);
+      if (bought.ok) {
+        riderEvents.push(...bought.value.events);
+        unverified.push(...bought.value.unverified);
+      } else {
+        unverified.push(
+          `${pending.rider.option.featureName} rode on this hit and did not resolve: ${bought.reason}`,
+        );
+      }
     }
 
     const settled = [...all, ...riderEvents];

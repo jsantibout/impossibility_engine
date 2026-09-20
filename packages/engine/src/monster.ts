@@ -231,7 +231,14 @@ function printedMultiattack(
   monster: Monster,
   attacks: readonly StatedAttack[],
 ): MonsterMultiattack | undefined {
-  const line = monster.actions.find((action) => action.multiattack !== undefined);
+  // An Action, and one that is not itself an attack: a line that states both a
+  // sequence and a swing of its own is two mechanisms under one heading, and
+  // the engine has no reading of it that is not a guess. The rule is
+  // mechanical rather than a heading nobody here may name — content that
+  // arrived from somewhere other than the SRD parser meets the same one.
+  const line = monster.actions.find(
+    (action) => action.multiattack !== undefined && action.attack === undefined,
+  );
   if (line?.multiattack === undefined) return undefined;
 
   const entries: MonsterMultiattack['entries'][number][] = [];

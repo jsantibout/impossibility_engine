@@ -640,13 +640,23 @@ describe('a rider waits for the window the same blow opened', () => {
   });
 
   /**
-   * The rider's own report travels with it: what the engine could not check is
-   * told to whoever settles the damage, because that is where it happened.
+   * A settlement is the one door out of a held damage roll, so it may not
+   * refuse: a rider that will not resolve is reported and the damage still
+   * lands, because a refusal here would wedge the fight for ever and every
+   * retry would wedge it again.
+   *
+   * Nothing in the SRD reaches it — a Stunning Strike whose every refusal was
+   * checked at the swing resolves — so what is asserted is the settlement's
+   * half of the contract: it comes back `ok`, with a channel for what did not
+   * happen, on the world it has changed.
    */
-  it('carries what it could not check to the command that resolves it', () => {
+  it('settles rather than refusing, and has somewhere to say what did not happen', () => {
     const out = stun(facing());
-    const settled = unwrap(settleDamage(out.state, supply(SETTLE_FAILS)), 'settle');
-    expect(settled.unverified).toBeDefined();
+    const settled = settleDamage(out.state, supply(SETTLE_FAILS));
+    expect(isErr(settled)).toBe(false);
+    if (isErr(settled)) return;
+    expect(settled.value.unverified).toEqual([]);
+    expect(fold('seed', [...out.log, ...settled.value.events]).pendingDamage).toBeNull();
   });
 
   /**
