@@ -23,7 +23,8 @@ packages/srd/raw/*.md linguist-vendored
 # `linguist-generated` collapses them in GitHub's diff. It does not affect merge.
 # Do not add `-diff`: CI diffs these files to detect drift.
 
-# resolve with: npm run coverage
+# resolve with: npm run coverage. Better, do not conflict: only the coordinator
+# commits this file, once per batch, after the merges.
 COVERAGE.md                   merge=binary linguist-generated=true
 
 # resolve with: git checkout --ours package-lock.json && npm install

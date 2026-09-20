@@ -24,8 +24,9 @@ else an agent needs is `CLAUDE.md` and the design note for the subsystem.
    the same module under `commands/` or `fold/`, the `GameEvent` union,
    `state.ts`, or a vocabulary type run one after the other.
 3. A builder works test-first in its worktree, runs the gauntlet
-   (`typecheck`, `lint`, `test`, `coverage`, `git diff --exit-code
-   COVERAGE.md`), gets a reviewer verdict, fixes ordinary defects, and
+   (`typecheck`, `lint`, `test`, and `coverage` to read its delta, which it
+   reports and then reverts — `COVERAGE.md` is the coordinator's to commit once
+   per batch), gets a reviewer verdict, fixes ordinary defects, and
    reports a digest: what changed, what the tests prove, deviations from the
    brief, anything it could not do.
 4. The coordinator merges a task that is **clean** — inside its brief,
@@ -90,6 +91,23 @@ bug it serves, the files it may touch, the tests that must exist, and what is
 out of scope. Keep them in the conversation or in a pull request; they are
 not a permanent record. Closed briefs from the earlier queue-driven process
 are in `docs/archive/tasks/`.
+
+## A worktree is not a clone
+
+Every brief says this, because four batches have each rediscovered a face of it.
+A fresh worktree under `.claude/worktrees/` has no `node_modules` and no
+`packages/srd/src/generated/`, and both are gitignored, so nothing about the gap
+shows up in a diff.
+
+- **Copy the generated SRD data in** (`packages/srd/src/generated/`) or nine test
+  files fail on missing JSON, which a builder reads as its own regression.
+- **Run `npm install`** (or junction the six packages). Without it `tsc -b`
+  resolves `@ie/*` to the *main checkout's* `dist`, so a builder's typecheck
+  silently passes against another tree's build of its own package.
+- **Do not run `npm run srd:index` in a worktree.** The copied generated JSON can
+  be stale relative to the checked-in `packages/srd/src/monster-index.ts`, and
+  regenerating from stale input wipes every parsed attack out of a committed
+  file. Re-ingest first or leave it alone.
 
 ## Guards that hold regardless of role
 
