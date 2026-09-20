@@ -33,6 +33,9 @@
  * | `fought` on a casting | the roster. Which creatures you are already fighting is a fact about the fiction — the Charms roll *the target's* save with Advantage for it, so naming one is against the caster's own interest — and an empty list is the answer "none of them" |
  * | `teleportTo` on a casting | the distance the spell prints, the space being unoccupied, the scene's extent and declared sight. A placement like every other, measured from a landmark or a creature |
  * | `slotKind`, `payment`, `source` on a casting | resource *choices* of the same kind as `slotLevel`: which of two pools a Warlock multiclass spends, whether a grant's free casting or a slot pays, which class or feature casts it. Each is refused unless the caster actually has it |
+ * | `usingFeatures` on a casting | the caster's own sheet. It carries no number at all: it says the caster is using a feature they hold, and the engine reads the feature, decides whether it reaches this casting and does the arithmetic. SRD writes these as "you can", so silence declines them |
+ * | `hitPoints` on a drawing from a healing pool | the pool itself. SRD Lay On Hands: "restore a number of Hit Points to that creature, **up to the maximum amount remaining in the pool**" — how much of your *own* pool to spend is a decision the rules hand the player, which is `slotLevel`'s case exactly. The engine refuses a drawing the pool cannot cover before anything is spent, caps what arrives at the target's maximum, and charges the feature's own price for each condition lifted |
+ * | `by` on an extension | nothing, and it is a fact rather than a price. SRD Rage offers three ways to extend and only one costs anything; the engine can see neither of the other two, so the caller says which happened and the log records it, as `fought` records who is already in melee |
  *
  * The consequence is deliberate: an action the engine does not model has no
  * legal path through this surface at step one. It finds a rule the engine
@@ -49,6 +52,26 @@
  * among them. Rests, advancement, inventory, equipment, items, readied
  * actions and mounts are all left for later batches; none of them is needed
  * to fight.
+ *
+ * And, since a fight is fought by a character rather than by a spell list:
+ * what that character holds and the four ways of spending it. `sheet` is the
+ * read — slots, pools, features, and for each feature the tool that spends it
+ * — and the four are an activation with its extension and its dismissal, a
+ * self-heal, a healing touch and a recovery. `sheet` carries the spell list
+ * too, because a caster that cannot see its own prepared spells types ids
+ * from memory, and because the routes it reports are what `source` and
+ * `payment` choose between. They are here because a model
+ * that cannot see its own Rages cannot spend one, and one that has not been
+ * told it holds Empowered Evocation cannot elect it.
+ *
+ * **Two pools the engine holds have no door and are not given one.** Channel
+ * Divinity and Bardic Inspiration are declared, sized off their class tables
+ * and refilled on the right rest, and nothing spends them: what a use *buys*
+ * — Turn Undead, Divine Spark, an inspiration die somebody else adds to a
+ * roll — is not executed by the engine, so a tool here would be a door onto a
+ * room that does not exist. The same holds for Action Surge, whose extra
+ * action nothing grants. A pool a caller could spend for no effect is worse
+ * than a pool it cannot spend, because the use would be gone.
  *
  * A spell's *own* teleport is here, since `cast_spell.teleportTo` is the
  * field Misty Step's refusal names; a `teleport` tool moving a creature for
@@ -76,6 +99,7 @@ import type {
   Point,
 } from '@ie/engine';
 import {
+  activateFeature,
   activateSpell,
   addSceneLandmark,
   applyConditionTo,
@@ -92,7 +116,9 @@ import {
   declineOpportunity,
   eligibleTargets,
   endConcentration,
+  endFeature,
   endOngoingSpell,
+  extendFeature,
   INITIATIVE_LABEL,
   joinCombat,
   mayAct,
@@ -113,9 +139,13 @@ import {
   takeDisengage,
   takeDodge,
   takeOpportunityAttack,
+  useHealingTouch,
+  useRecovery,
+  useSelfHeal,
 } from '@ie/engine';
 import { z } from 'zod';
 import type { Campaign } from './campaign.js';
+import { holdingsOf } from './holdings.js';
 import { observe } from './observe.js';
 import type { ArgumentIssue, ContextRequestKind, ToolOutcome } from './outcome.js';
 import { fromErr, invalid, okOutcome, refused } from './outcome.js';
@@ -1148,6 +1178,12 @@ const CAST_SPELL = tool({
       .describe(
         'Which route casts it, when more than one would serve: `class:<classId>` for one of a multiclass caster’s classes, or a granting feature’s id. Each brings its own spellcasting ability and therefore its own save DC, which is why the engine asks rather than picking.',
       ),
+    usingFeatures: z
+      .array(z.string().min(1))
+      .optional()
+      .describe(
+        'Features of the caster’s that this casting uses — the ones the SRD writes as “you can”, which do nothing unless the casting names them. `sheet` lists them; a feature the caster has not got is refused, and one they have that does not reach this spell is not, because casting outside a feature’s narrowing is legal. This carries no number: the engine reads the feature off the sheet and does the arithmetic itself.',
+      ),
   }),
   run: (context, args) => {
     const state = context.campaign.state();
@@ -1170,6 +1206,7 @@ const CAST_SPELL = tool({
       ...(args.slotKind === undefined ? {} : { slotKind: args.slotKind }),
       ...(args.payment === undefined ? {} : { payment: args.payment }),
       ...(args.source === undefined ? {} : { source: args.source }),
+      ...(args.usingFeatures === undefined ? {} : { usingFeatures: args.usingFeatures }),
       ...identity(context),
     };
     return settle(
@@ -1324,6 +1361,291 @@ const END_ONGOING_SPELL = tool({
     ),
 });
 
+// — what a character holds, and the four ways of spending it ———————————————
+
+/**
+ * The read a session needs before it can spend anything.
+ *
+ * **On a tool of its own rather than on `look` or on `options`**, and the
+ * choice is between three questions rather than three shapes. `look` answers
+ * *what is going on* — everybody in the room, where they are, what the engine
+ * is owed — and is the largest read on the surface already; folding a feature
+ * inventory into it would multiply that by the size of the roster on every
+ * turn, for a caller that usually wants none of it. `options` answers *what
+ * is open to this creature at this instant* — a debt in its way, a Reaction
+ * window standing open, a check an ongoing effect offers — all of which go
+ * away by themselves. What a character *holds* is neither: it is the sheet
+ * and what is left of it, it changes only when something is spent, and it is
+ * the thing a caller reads once and then reasons from.
+ *
+ * It exists because a model could not see its own spell slots. `look` carried
+ * the levels of the ordinary pool that still had a use left, which is the
+ * smaller half of the question: it said nothing about Pact Magic, nothing
+ * about what had been spent, nothing about any feature pool, and nothing
+ * about the features themselves. A caster with an empty fourth level and a
+ * Warlock with two Pact slots looked exactly alike, and both found out by
+ * being refused.
+ */
+const SHEET = tool({
+  name: 'sheet',
+  description:
+    'What one character holds and what is left of it: hit points, conditions, spell slots by level, Pact Magic slots as their own pool, every feature pool with what refills it, the spells this character can actually cast and by which route, and the features themselves — which can be switched on, which spends a pool, which is only ever passive, and the name of the tool that spends each one. Read this before spending anything; a feature you have not been told about is one you cannot elect. Free, and changes nothing.',
+  mutates: false,
+  input: z.object({ who: creatureId }),
+  run: (context, args) => {
+    const held = holdingsOf(context.campaign.state(), who(args.who));
+    if (held === null) {
+      // A creature nobody has created is a thin record, not a mistake: the
+      // engine's own `unknownCreature` says exactly this and is not reachable
+      // from here, so the request is written out in the same shape.
+      return fromErr(
+        needsContext('unknown_creature', `${args.who} is not in this game`, [
+          {
+            kind: 'creature',
+            subject: args.who,
+            need: `a record for ${args.who}`,
+            because: 'the call asks what a creature the engine has never been told about holds',
+            satisfyWith: `a createCharacter command for ${args.who}`,
+          },
+        ]),
+        context.doorsFor,
+      );
+    }
+    return okOutcome([], { ...held });
+  },
+});
+
+/**
+ * Switch a feature on, and the three tools around it.
+ *
+ * SRD Rage is the shape all four are built to, and it needs the whole
+ * lifecycle: it is entered as a Bonus Action out of a pool, it lasts until
+ * the end of the holder's next turn, it is extended a round at a time, and it
+ * can be dropped. `activate_feature` alone would be a door into a room with
+ * no exit — a Rage that expired at the first turn boundary with nothing the
+ * caller could say to keep it — so `extend_feature` and `end_feature` come
+ * with it. All three are one engine command each and carry no number.
+ *
+ * **`by` is a fact, not a choice of price.** SRD offers three ways to extend
+ * a Rage — "make an attack roll against an enemy, force an enemy to make a
+ * saving throw, or take a Bonus Action" — and only the third costs anything.
+ * The engine cannot see the first two for itself, so the caller says which
+ * happened and the log records it, exactly as `fought` records who is already
+ * in melee with whom.
+ */
+const ACTIVATE_FEATURE = tool({
+  name: 'activate_feature',
+  description:
+    'Switch on a feature the character can enter — Rage is the one the SRD writes this way. The engine charges whatever it costs: the Bonus Action if there is a fight running, a use out of the feature’s pool, and the deadline it runs to. What it does while it runs is applied by itself for as long as it runs. Use `sheet` to see which features can be switched on and what is left of their pool.',
+  mutates: true,
+  input: z.object({
+    who: creatureId,
+    feature: z.string().min(1).describe('The feature id, from `sheet`, e.g. barbarian:rage.'),
+  }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      activateFeature(context.campaign.state(), who(args.who), {
+        feature: args.feature,
+        ...identity(context),
+      }),
+      { activated: args.feature },
+    ),
+});
+
+const EXTEND_FEATURE = tool({
+  name: 'extend_feature',
+  description:
+    'Keep a running feature going for another round. SRD Rage offers three ways to do it and only one of them costs anything, so say which happened: `attack` if the character attacked an enemy, `forced-save` if it made one save, `bonus-action` to spend the Bonus Action on it. The engine pushes the deadline out and refuses to push it past the cap the feature prints.',
+  mutates: true,
+  input: z.object({
+    who: creatureId,
+    feature: z.string().min(1).describe('The feature id, from `sheet`.'),
+    by: z
+      .enum(['attack', 'forced-save', 'bonus-action'])
+      .describe('Which of the SRD’s three ways of extending it happened. Only the third costs anything.'),
+  }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      extendFeature(context.campaign.state(), who(args.who), {
+        feature: args.feature,
+        by: args.by,
+        ...identity(context),
+      }),
+      { extended: args.feature, by: args.by },
+    ),
+});
+
+const END_FEATURE = tool({
+  name: 'end_feature',
+  description:
+    'Switch a running feature off deliberately. It costs nothing and refunds nothing — the use that started it is spent. The engine ends one by itself when the feature’s own sentence says it ends.',
+  mutates: true,
+  input: z.object({
+    who: creatureId,
+    feature: z.string().min(1).describe('The feature id, from `sheet`.'),
+  }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      endFeature(context.campaign.state(), who(args.who), {
+        feature: args.feature,
+        ...identity(context),
+      }),
+      { ended: args.feature },
+    ),
+});
+
+/** What a batch of events says was healed, for the caller's summary. */
+const healedIn = (events: readonly GameEvent[]): number =>
+  events.reduce((sum, event) => sum + (event.type === 'healed' ? event.amount : 0), 0);
+
+/** What a batch of events says came out of a pool. */
+const spentIn = (events: readonly GameEvent[]): number =>
+  events.reduce((sum, event) => sum + (event.type === 'resource-spent' ? event.amount : 0), 0);
+
+/**
+ * Spend a use of a feature to heal its own holder.
+ *
+ * SRD Second Wind — "you can use it to regain Hit Points equal to 1d10 plus
+ * your Fighter level" — and Wholeness of Body, which is the same sentence
+ * with the Monk's die. **The caller names the feature and nothing else**: the
+ * die, what is added to it, the floor and the cap at the hit point maximum
+ * are every one of them the engine's, read off the sheet at the moment the
+ * die is thrown.
+ */
+const HEAL_WITH_FEATURE = tool({
+  name: 'heal_with_feature',
+  description:
+    'Spend a use of a feature that restores the character’s own hit points — the SRD writes this as “you can use it to regain Hit Points equal to” a die plus something. The engine spends the use, spends the Bonus Action if there is a fight running, throws the die, adds whatever the feature adds and caps the result at the hit point maximum. You name the feature; every number is the engine’s.',
+  mutates: true,
+  input: z.object({
+    who: creatureId,
+    feature: z.string().min(1).describe('The feature id, from `sheet`, e.g. fighter:second-wind.'),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      useSelfHeal(
+        context.campaign.state(),
+        who(args.who),
+        { feature: args.feature, ...identity(context) },
+        context.campaign.supply(),
+      ),
+      (events) => events,
+      (events) => ({ used: args.feature, restored: healedIn(events) }),
+    ),
+});
+
+/**
+ * Draw on a pool of hit points by touching somebody — and the one quantity on
+ * this surface that a caller really does choose.
+ *
+ * SRD Lay On Hands: "you can touch a creature (which could be yourself) and
+ * draw power from the pool of healing to restore a number of Hit Points to
+ * that creature, **up to the maximum amount remaining in the pool**." How
+ * many of the Paladin's own points to spend is a decision the rules hand the
+ * player, and it is the same kind of decision `slotLevel` already is: which
+ * of your own resources to spend, checked against what you actually have. It
+ * decides nothing the rules otherwise decide — the engine refuses a drawing
+ * larger than the pool before anything is spent, caps the healing at the
+ * target's maximum, and charges the feature's own price for every condition
+ * lifted.
+ *
+ * `hitPoints` may be zero, because SRD's five points for the Poisoned
+ * condition "don't also restore Hit Points to the creature": a touch whose
+ * whole content is lifting is a legal touch.
+ */
+const DRAW_ON_HEALING_POOL = tool({
+  name: 'draw_on_healing_pool',
+  description:
+    'Touch a creature — which may be the character themselves — and spend a feature’s pool of hit points on them, and on lifting the conditions that feature lifts. The SRD lets the user decide how much of their own pool to draw, so `hitPoints` is yours; everything else is the engine’s, including the five-foot reach, the price of each condition, and the refusal when the pool does not hold what was asked for. `sheet` reports the pool, what is left of it and which conditions the feature lifts.',
+  mutates: true,
+  input: z.object({
+    who: creatureId.describe('Whose pool is being drawn on.'),
+    feature: z.string().min(1).describe('The feature id, from `sheet`, e.g. paladin:lay-on-hands.'),
+    target: creatureId.describe('Who is touched. May be the same creature.'),
+    hitPoints: z
+      .int()
+      .min(0)
+      .optional()
+      .describe(
+        'How many hit points to draw out of the pool. Zero, or left out, for a touch whose whole content is lifting a condition — the SRD’s points for that buy the lifting and heal nothing.',
+      ),
+    lift: z
+      .array(conditionSchema)
+      .optional()
+      .describe(
+        'Conditions to end, each at the feature’s own price out of the same pool. The engine refuses one this feature does not lift.',
+      ),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      useHealingTouch(context.campaign.state(), who(args.who), {
+        feature: args.feature,
+        target: who(args.target),
+        ...(args.hitPoints === undefined ? {} : { hitPoints: args.hitPoints }),
+        ...(args.lift === undefined ? {} : { lift: args.lift as readonly ConditionName[] }),
+        ...identity(context),
+      }),
+      (events) => events,
+      (events) => ({
+        used: args.feature,
+        drawn: spentIn(events),
+        restored: healedIn(events),
+        lifted: args.lift ?? [],
+      }),
+    ),
+});
+
+/**
+ * Spend a feature that gives a *different* pool's uses back.
+ *
+ * SRD Sorcerous Restoration, Magical Cunning, Uncanny Metabolism, Persistent
+ * Rage. **How much comes back is derived and there is no field for it**: the
+ * cap is the feature's own sentence, what is actually expended is the pool's,
+ * and the smaller of the two is what is given — the same reason an effect
+ * check has no field for a result.
+ *
+ * Each of them names a moment, and two of the three moments the engine can
+ * see it refuses outside of. That refusal is the one a caller acts on: it
+ * says when the feature happens, and the answer is to call it then.
+ */
+const REGAIN_USES = tool({
+  name: 'regain_uses',
+  description:
+    'Spend a feature whose whole content is giving another pool’s uses back — the SRD writes these as “you can regain expended” something, at a moment the feature names. The engine works out how much comes back from the feature’s own sentence and what is actually expended; there is no amount to send. It refuses when the moment has passed, when the feature’s own use is gone, and when there is nothing expended to give back.',
+  mutates: true,
+  input: z.object({
+    who: creatureId,
+    feature: z
+      .string()
+      .min(1)
+      .describe('The feature id, from `sheet`, e.g. warlock:magical-cunning.'),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      useRecovery(
+        context.campaign.state(),
+        who(args.who),
+        { feature: args.feature, ...identity(context) },
+        context.campaign.supply(),
+      ),
+      (events) => events,
+      (events) => ({
+        used: args.feature,
+        regained: events.reduce(
+          (sum, event) => sum + (event.type === 'resource-regained' ? event.amount : 0),
+          0,
+        ),
+        restored: healedIn(events),
+      }),
+    ),
+});
+
 const TAKE_ACTION = tool({
   name: 'take_action',
   description: 'Take Dodge, Dash or Disengage.',
@@ -1466,6 +1788,7 @@ const END_TURN = tool({
  * invalidate the cache the first time somebody moved one.
  */
 export const TOOLS: readonly ToolDefinition[] = [
+  ACTIVATE_FEATURE,
   ACTIVATE_SPELL,
   ADD_LANDMARK,
   APPLY_CONDITION,
@@ -1480,17 +1803,23 @@ export const TOOLS: readonly ToolDefinition[] = [
   DECLARE_SIDE,
   DECLARE_SIGHT,
   DECLINE_OPPORTUNITY,
+  DRAW_ON_HEALING_POOL,
   ELIGIBLE_TARGETS,
   END_CONCENTRATION,
+  END_FEATURE,
   END_ONGOING_SPELL,
   END_TURN,
+  EXTEND_FEATURE,
+  HEAL_WITH_FEATURE,
   LOOK,
   MOVE,
   OPTIONS,
   PLACE_CREATURE,
+  REGAIN_USES,
   ROLL_INITIATIVE,
   SET_SCENE,
   SETTLE_AREA_EFFECTS,
+  SHEET,
   TAKE_ACTION,
   TAKE_OPPORTUNITY_ATTACK,
 ].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));

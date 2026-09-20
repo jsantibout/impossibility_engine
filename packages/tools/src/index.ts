@@ -14,6 +14,7 @@
 
 export * from './campaign.js';
 export * from './definitions.js';
+export * from './holdings.js';
 export * from './observe.js';
 export * from './outcome.js';
 export * from './schemas.js';
