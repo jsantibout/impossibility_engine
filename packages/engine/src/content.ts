@@ -24,6 +24,7 @@ import {
   type SubclassDefinition,
 } from './progression.js';
 import { parseNotation } from './dice.js';
+import type { StandingRequirement } from './standing.js';
 import { SENSE_NAMES } from './positioning.js';
 import { dawnRollProblem, type Recovery } from './resources.js';
 import { EFFECT_END_CAUSES } from './timers.js';
@@ -1713,16 +1714,27 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
       }
       // The two requirements an item's grant is looked up by — see
       // {@link ITEM_ONLY_REQUIREMENTS}. On a class feature they name nothing.
+      //
+      // **Asked of every grant that carries a gate, not of `standing` alone.**
+      // `requirementsHold` is one evaluator over one vocabulary, so a second
+      // member carrying `requires` inherits the trap along with the clause: a
+      // style written "while worn" would look the clause up against a feature
+      // id, hold never, and say nothing about it — which is precisely the
+      // silence this refusal exists to break.
+      const gated: readonly StandingRequirement[] =
+        feature.grants?.kind === 'standing' || feature.grants?.kind === 'strike-style'
+          ? (feature.grants.requires ?? [])
+          : [];
+      gated.forEach((requirement, position) => {
+        if (ITEM_ONLY_REQUIREMENTS.has(requirement.kind)) {
+          problems.push({
+            field: `${where}.grants.requires[${position}]`,
+            code: 'item_requirement_on_a_feature',
+            reason: `"${requirement.kind}" is read against the id of the item granting it, and a class feature is not an item, so this would never hold`,
+          });
+        }
+      });
       if (feature.grants?.kind === 'standing') {
-        (feature.grants.requires ?? []).forEach((requirement, position) => {
-          if (ITEM_ONLY_REQUIREMENTS.has(requirement.kind)) {
-            problems.push({
-              field: `${where}.grants.requires[${position}]`,
-              code: 'item_requirement_on_a_feature',
-              reason: `"${requirement.kind}" is read against the id of the item granting it, and a class feature is not an item, so this would never hold`,
-            });
-          }
-        });
         // And the narrowing, which is the same door in the same wall: it is
         // keyed on the granting item's id, and a class feature has none, so
         // the benefit would never reach a roll at all. Both members that carry

@@ -520,9 +520,15 @@ describe('a homebrew class redefines its own unarmed strike with no engine chang
 // — what the door refuses ——————————————————————————————————————————————
 
 /**
- * The four ways a style can be written wrong, each refused where a catalogue
- * error belongs: at the door, rather than as a feature that looks executed and
+ * Every way a style can be written wrong, each refused where a catalogue error
+ * belongs: at the door, rather than as a feature that looks executed and
  * silently changes nothing.
+ *
+ * They divide in two. A malformed die or an empty style is a coherence
+ * question one definition can answer, so `checkFeatureDefinition` answers it;
+ * a requirement that is an *item's* to hold needs to know the feature is not
+ * an item, which is `checkContent`'s question and is asked over the whole
+ * catalogue below.
  */
 describe('a malformed style is refused by the content validator', () => {
   const specimen = (grants: unknown): FeatureDefinition =>
@@ -569,5 +575,75 @@ describe('a malformed style is refused by the content validator', () => {
 
   it('refuses "wielding only" on a style that names no weapons', () => {
     expect(codes({ ...sound, whileWieldingOnly: true })).toContain('wields_nothing');
+  });
+
+  /**
+   * And the selector's own three closed sets.
+   *
+   * A value outside them names no weapon, so the style would cover less than
+   * it says and — under "wielding only" — be lost more often than it should,
+   * with nothing anywhere saying why. The compiler holds a class file written
+   * in TypeScript to these; this is the half that arrives as JSON.
+   */
+  it('refuses a weapon category, kind or property the tables do not print', () => {
+    const selector = (over: Record<string, unknown>): unknown => ({
+      ...sound,
+      weapons: [{ category: 'simple', kind: 'melee', ...over }],
+    });
+    expect(codes(selector({ category: 'exotic' }))).toContain('unknown_weapon_category');
+    expect(codes(selector({ kind: 'thrown' }))).toContain('unknown_weapon_kind');
+    expect(codes(selector({ properties: ['light', 'sharp'] }))).toContain(
+      'unknown_weapon_property',
+    );
+    // Not vacuous: the same selector written with values the tables do print
+    // passes, so what fails above is the value and not the shape.
+    expect(codes(selector({ properties: ['light'] }))).toEqual([]);
+  });
+});
+
+/**
+ * A style is gated by the standing vocabulary, so it inherits the one trap
+ * that vocabulary has: two of its members are read against the id of the
+ * **item** granting them, and a feature is not an item.
+ *
+ * `checkContent` has refused that on a `standing` grant since items could
+ * grant anything. It has to refuse it here for the same reason and not because
+ * `strike-style` is special — a second member carrying `requires` inherits the
+ * clause and the trap together, and a style written "while worn" would hold
+ * never and say nothing about it.
+ */
+describe('a style may not carry a requirement only an item can hold', () => {
+  const styleClass = (requires: readonly unknown[]): unknown => ({
+    ...JSON.parse(PUGILIST),
+    id: 'warden',
+    name: 'Warden',
+    features: [
+      {
+        id: 'warden:stance',
+        name: 'Stance',
+        level: 1,
+        automation: 'engine',
+        note: 'a style gated on something only an item can be.',
+        grants: { kind: 'strike-style', ability: 'con', requires },
+      },
+    ],
+  });
+
+  /** The whole catalogue's door, because the refusal is about the population. */
+  const loaded = (requires: readonly unknown[]) =>
+    extendContent(SRD_CONTENT, {
+      classes: [unwrap(parseClassDefinition(styleClass(requires)), 'parse')],
+    });
+
+  it('refuses "while worn" and "while attuned" on a feature', () => {
+    for (const kind of ['while-worn', 'while-attuned']) {
+      const refused = loaded([{ kind }]);
+      expect(isErr(refused), kind).toBe(true);
+      if (isErr(refused)) expect(refused.reason, kind).toContain('is not an item');
+    }
+  });
+
+  it('accepts the requirement the SRD actually writes on one', () => {
+    expect(isErr(loaded([{ kind: 'unarmored' }]))).toBe(false);
   });
 });

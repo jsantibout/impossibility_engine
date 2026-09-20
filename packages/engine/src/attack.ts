@@ -685,12 +685,21 @@ export function rollAttackDamage(
   // **SRD Martial Arts Die: "You *can* roll 1d6 in place of the normal damage
   // of your Unarmed Strike or Monk weapons."**
   //
-  // "Can", so this is the attacker's option and not a substitution — and the
-  // reading is `attackAbility`'s: take the better of the two when nobody has
-  // said. A Monk 1 with a Quarterstaff in two hands keeps its 1d8 over the
-  // style's 1d6, which is what the SRD's permission is *for*. The die replaces
-  // the normal damage rather than joining it, so the flat 1 an Unarmed Strike
-  // deals goes with the dice it stands in for.
+  // "Can", so the style's die does not simply displace the weapon's: a Monk 1
+  // with a Quarterstaff in two hands keeps its 1d8 over the style's 1d6, which
+  // is what the SRD's permission is *for*. The die replaces the normal damage
+  // rather than joining it, so the flat 1 an Unarmed Strike deals goes with
+  // the dice it stands in for.
+  //
+  // **Unlike `attackAbility`'s offer, this is a default and not a choice**, and
+  // the asymmetry is deliberate rather than an oversight. The ability the
+  // attacker picks is read by things beyond the roll — Rage Damage is "when you
+  // make an attack using Strength", and the modifier lands on the damage — so
+  // there is a reason to elect the *worse* score and a field to elect it with.
+  // Nothing downstream reads which die was thrown, so the larger average is the
+  // whole of what the permission is worth, and a field to decline it would be a
+  // question with one answer. The day a feature reads the die — SRD Empowered
+  // Strikes is the nearest — is the day this wants one.
   const styleDie = options.strikeStyle?.die;
   const inPlaceOf =
     styleDie !== undefined &&
