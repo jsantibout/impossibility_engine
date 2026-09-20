@@ -228,6 +228,19 @@ describe('the size comes from the book, not from the caller', () => {
     expect(sizeOf(t.campaign.state().scene!, 'kessa' as never)).toBe('small');
   });
 
+  it('and lets one beat a pinned size, because shrinking a hound is the table’s', () => {
+    const t = table();
+    expectOk(t.call('add_creature', { id: 'grish', monsterId: 'goblin-warrior' }));
+    room(t);
+    // The block pins Small. The caller says Medium, and the caller wins — the
+    // engine's own rule, and the reason the field survives the narrowing at
+    // all rather than being read as "the pinned size, always".
+    expectOk(
+      t.call('place_creature', { who: 'grish', fromLandmark: 'the fire', feet: 0, size: 'medium' }),
+    );
+    expect(sizeOf(t.campaign.state().scene!, 'grish' as never)).toBe('medium');
+  });
+
   it('no longer asks for one on a move or a teleport, where the record has it', () => {
     const t = table();
     const schemaOf = (name: string) => t.surface.tools.find((tool) => tool.name === name)!.schema;

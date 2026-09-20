@@ -767,6 +767,11 @@ function bringIn(
 
   const events: GameEvent[] = [...arrival.value.events];
   if (gear.items.length > 0) {
+    // `supply()` is resumed from the campaign's cache rather than from
+    // `working`, which is right because `creature-added` moves neither `rng`
+    // nor `rollsIssued`: the arrival throws no dice. `roll_initiative` draws
+    // its supply once in the same place for the same reason. A command that
+    // rolled *before* this point would need the supply taken after it.
     const armed = awardItems(
       working,
       campaign.supply(),
