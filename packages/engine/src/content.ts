@@ -1,5 +1,8 @@
 import { ABILITIES, err, ok, SKILL_ABILITY, SKILLS, type Result } from '@ie/shared';
-import { MonsterSchema, type Monster } from '@ie/srd';
+// The subpath, never the barrel: `@ie/srd` re-exports the parsed book, so
+// importing a schema from it loads the catalogue into every process that
+// imports the engine. `srd-barrel.test.ts` is the guard.
+import { MonsterSchema, type Monster } from '@ie/srd/schemas';
 import { CONFERRED_LEVEL, itemChargePool, type CatalogueItem } from './catalogue.js';
 import { MAX_ABILITY_SCORE } from './character.js';
 import {

@@ -7,6 +7,16 @@ import { z } from 'zod';
  * so nothing reaches the engine unvalidated. A malformed save DC or damage die
  * that slipped through would surface much later as a rules bug, which is the
  * hardest kind to trace.
+ *
+ * **This module is published on its own, as `@ie/srd/schemas`, and must stay
+ * a leaf.** The engine validates a supplied monster against `MonsterSchema`
+ * and reads `WEAPON_PROPERTIES`, and it may not buy those through the barrel:
+ * `index.ts` re-exports `monster-index.ts` and the rest of the parsed book, so
+ * an engine that imported `@ie/srd` held the whole catalogue in every process,
+ * given one or not. A shape is not a catalogue, which is the whole of why the
+ * subpath is honest — so nothing here may import an index or the generated
+ * data. `packages/engine/src/srd-barrel.test.ts` walks this file's imports and
+ * holds both halves of that.
  */
 
 export const SPELL_SCHOOLS = [

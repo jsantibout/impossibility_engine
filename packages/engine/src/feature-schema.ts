@@ -1,5 +1,5 @@
 import { ABILITIES, err, ok, type Ability, type Result } from '@ie/shared';
-import { WEAPON_PROPERTIES } from '@ie/srd';
+import { WEAPON_PROPERTIES } from '@ie/srd/schemas';
 import { WEAPON_CATEGORIES, WEAPON_KINDS } from './attack.js';
 import { ABILITY_SCORE_MAXIMUM } from './character.js';
 import { parseNotation } from './dice.js';

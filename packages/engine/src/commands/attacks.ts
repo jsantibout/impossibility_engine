@@ -7,7 +7,10 @@
  */
 
 import { type CharacterId, err, needsContext, ok, type Result, type RollMode } from '@ie/shared';
-import { type Weapon } from '@ie/srd';
+// `import type`, not `import { type … }`: the second keeps the declaration
+// under `verbatimModuleSyntax` and emits `import {} from '@ie/srd'`, which
+// loads the whole parsed book to bind nothing at all.
+import type { Weapon } from '@ie/srd';
 import {
   attackAbility,
   type AttackOptions,
