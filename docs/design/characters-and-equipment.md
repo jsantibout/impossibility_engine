@@ -68,7 +68,9 @@ that differ — a Monk is proficient with a Light Crossbow and it is not a Monk
 weapon — so the set lives on the feature rather than on the proficiency list.
 
 **A pool may carry a menu.** `heals` and `touchHeals` already say what one use
-buys; `options` is the third answer, and it is an effect list. It is a list
+buys; `options` is the third answer and it is an effect list, and
+`confersReaction` is the fourth — a Reaction handed to somebody else, which is
+the Bard's die. Each arrived the same way and for the same reason. It is a list
 rather than a grant of its own because `FeatureDefinition.grants` is singular
 and the SRD prints one feature whose uses buy different things. Dice scale on
 the class table through `diceCountByLevel`, because every `DiceScaling` field
@@ -121,7 +123,7 @@ which a separate population would have to be threaded through before a +1
 longsword could be swung.
 
 **Attunement is a relation on the creature, not a ninth sourced grant.** The
-eight families `grantsOf` enumerates are running effects *hung* on a creature:
+ten families `grantsOf` enumerates are running effects *hung* on a creature:
 stored, unconditional, ended by a source match. A worn item's benefit is the
 other lifetime — the conditional kind `standing.ts` already insists must be
 derived on every read, because "a stored copy would be an unconditional bonus
