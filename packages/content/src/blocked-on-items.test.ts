@@ -475,7 +475,8 @@ describe('the two shapes the re-derivation was sent to check', () => {
     // the damage of the _Fireball_ by 1d6 for each bead after the first" is a
     // benefit that grows with the count spent — so it is blocked and not
     // finished. The wand is finished because its own last sentence is the
-    // crumble clause seven transcribed items already carry in `unmodelled`.
+    // crumble clause every transcribed wand that prints it already carries in
+    // `unmodelled` — the entry's own comment in the map names which.
     expect(range.finishes).toEqual(['wand-of-paralysis']);
     expect(itemBlockersOf('wand-of-paralysis')).toEqual(['a-range-an-item-names']);
     expect(itemBlockersOf('necklace-of-fireballs')).toEqual([
