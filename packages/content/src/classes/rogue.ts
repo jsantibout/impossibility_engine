@@ -163,7 +163,7 @@ export const ROGUE: ClassDefinition = {
       name: 'Cunning Action',
       level: 2,
       automation: 'manual',
-      note: 'Dash, Disengage or Hide as a Bonus Action is not offered: the action economy tracks whether a Bonus Action was spent, not which actions a class may spend it on.',
+      note: 'Dash, Disengage or Hide as a Bonus Action is not offered, and the three clauses fail in three different places rather than in one. The action economy does track which action a slot is being spent on, so the Disengage is a rule the engine can already state and a feature has nowhere to hold: every grant of an action rule belongs to a casting. The Dash is refused one step further down — `takeDisengage` takes the cheaper price as a parameter and `takeDash` charges an Action unconditionally — so a permission to buy one with a Bonus Action would be held and never honoured. The Hide is not refused at all: it is not one of the six named actions, no command takes it, and a rule naming it would read as enforced and would not be.',
     },
     {
       id: 'rogue:subclass',
@@ -336,7 +336,7 @@ export const THIEF: SubclassDefinition = {
       name: 'Fast Hands',
       level: 3,
       automation: 'manual',
-      note: 'Sleight of Hand, Thieves’ Tools and the Utilize action as a Bonus Action are not offered, for the same reason as Cunning Action.',
+      note: 'Sleight of Hand, Thieves’ Tools and the Utilize action as a Bonus Action are not offered, and not for Cunning Action’s reason after all: the engine charges for no Utilize action anywhere, so there is no spend for a cheaper price to be offered on. Sleight of Hand is an ability check rather than an action, and a Bonus Action spent on one would have nothing to name itself as.',
     },
     {
       id: 'thief:second-story-work',

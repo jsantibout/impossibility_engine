@@ -380,6 +380,83 @@ describe('what a shape finishes is the column a tranche is planned from', () => 
       expect(featureConsumersOf('a-one-shot-roll-modifier').blocks, id).not.toContain(id);
     }
   });
+
+  /**
+   * The second shape to be ranked joint-first and turn out to be one id over
+   * four different gaps — and the first to be re-filed *without* anything
+   * being built.
+   *
+   * It read blocks 10 / finishes 4, which is how a batch came to brief four
+   * features off it as a transcription track. A builder read the mechanism
+   * instead and found the entries did not share a blocker at all. What they
+   * shared was a *sentence about the action economy*, and the engine refuses
+   * those in four unrelated places:
+   *
+   * | | |
+   * |---|---|
+   * | the rule is writable and a feature has nowhere to hold it | `an-action-rule-a-feature-holds` |
+   * | the action has no spender, so no rule could name it | `an-action-the-engine-has-no-spender-for` |
+   * | the rule is writable and only one command will be asked for the price | `a-cheaper-price-only-one-command-offers` |
+   * | the rule is not writable at all, by a spell either | `an-action-a-spell-compels-or-forbids` |
+   *
+   * The fourth row is the borrowed spell id doing what a borrowed id is for:
+   * what stays on it is exactly the residue that description already names —
+   * an extra action granted rather than an existing one governed, and a rule
+   * that couples two slots — which is a gap a casting has too.
+   */
+  it('splits the action-economy shape into the four gaps it was standing for', () => {
+    expect(featureConsumersOf('an-action-rule-a-feature-holds')).toEqual({
+      shape: 'an-action-rule-a-feature-holds',
+      blocks: ['barbarian:improved-brutal-strike', 'rogue:cunning-action', 'rogue:steady-aim'],
+      finishes: [],
+    });
+    expect(featureConsumersOf('an-action-the-engine-has-no-spender-for')).toEqual({
+      shape: 'an-action-the-engine-has-no-spender-for',
+      blocks: [
+        'halfling:naturally-stealthy',
+        'rogue:cunning-action',
+        'thief:fast-hands',
+        'thief:supreme-sneak',
+      ],
+      finishes: ['halfling:naturally-stealthy', 'thief:fast-hands'],
+    });
+    expect(featureConsumersOf('a-cheaper-price-only-one-command-offers')).toEqual({
+      shape: 'a-cheaper-price-only-one-command-offers',
+      blocks: ['orc:adrenaline-rush', 'rogue:cunning-action'],
+      finishes: [],
+    });
+    expect(featureConsumersOf('an-action-a-spell-compels-or-forbids')).toEqual({
+      shape: 'an-action-a-spell-compels-or-forbids',
+      blocks: ['open-hand:fleet-step', 'paladin:abjure-foes', 'rogue:devious-strikes'],
+      finishes: ['open-hand:fleet-step'],
+    });
+  });
+
+  /**
+   * And the number the brief would have been sized from, said plainly.
+   *
+   * **The door alone finishes nothing.** Opening `ActionRule` to a feature —
+   * the decision the split sends to an architect — takes no feature off this
+   * list, because every one of the three it blocks is blocked on something
+   * else as well. One Rogue feature needs all three of the new ids at once,
+   * which is the clearest single fact the re-filing produced: a transcription
+   * track briefed off `finishes: 4` would have landed none of them.
+   */
+  it('finishes nothing with the door alone, and one feature wants all three', () => {
+    expect(featureConsumersOf('an-action-rule-a-feature-holds').finishes).toEqual([]);
+    expect(featureBlockersOf('rogue:cunning-action')).toEqual([
+      'a-cheaper-price-only-one-command-offers',
+      'an-action-rule-a-feature-holds',
+      'an-action-the-engine-has-no-spender-for',
+    ]);
+    // The two the coined ids really do finish are finished by a *spender*
+    // rather than by the grant: a Hide the engine takes and a Utilize it
+    // charges for. Neither is a grant vocabulary's business.
+    expect(featureConsumersOf('an-action-the-engine-has-no-spender-for').finishes).toEqual([
+      'halfling:naturally-stealthy',
+      'thief:fast-hands',
+    ]);
+  });
 });
 
 /**
@@ -497,6 +574,17 @@ const CITED_SOURCES: readonly CitedSource[] = [
     name: 'roll-modifiers.ts',
     label: 'packages/engine/src/roll-modifiers.ts',
     files: ['packages/engine/src/roll-modifiers.ts'],
+  },
+  // The action economy's own vocabulary file, registered when three shapes
+  // were coined out of one: `ActionRule`, `NAMED_ACTIONS` and
+  // `STATABLE_PRICES` are the three refusals those ids name, and each of them
+  // argues for itself in prose right where it is declared. A description that
+  // could not quote them would have had to paraphrase the engine's reasons
+  // back at it, which is the drift this table exists to catch.
+  {
+    name: 'combat.ts',
+    label: 'packages/engine/src/combat.ts',
+    files: ['packages/engine/src/combat.ts'],
   },
   {
     name: 'content.ts',

@@ -130,6 +130,12 @@ export const FEATURE_SHAPES = {
     'a mode or a number a feature hangs on **somebody else**, raised by something that happened. A standing grant is derived from its holder\'s own state on every read, and `against-holder` in packages/engine/src/roll-modifiers.ts is the furthest one reaches — "Attack rolls against the affected creature have Advantage" — which is still a fact about the holder. A Disadvantage that starts when a creature hits you and lasts the rest of their turn, and a bonus the next attacker against your target gets, are durable grants on a third party no feature can write.',
   'a-one-shot-roll-modifier':
     'a mode a feature hangs on somebody at a **moment**, spent by the first roll that reaches it. The mechanic itself is built and is a casting’s: packages/engine/src/roll-modifiers.ts carries `RollModifier.oneShot` — "Spent by the first roll it reaches, rather than running to a deadline." — with `RollSelector.counterpart` beside it for the sentences that narrow one to a named creature, and SRD Guiding Bolt and Vicious Mockery write both ends of it through a spell’s rider. What no **feature** has is the door: a `FeatureGrant` of kind `roll-mode` is a standing grant, derived from its holder’s own state on every read, and packages/engine/src/progression.ts says what the list is for — "Deliberately few. A feature whose effect does not fit one of these is" — so nothing lets a feature *emit* a grant when something happens. Sap and Vex wait on the weapon-mastery record before they could be hung at all; Steady Aim’s Bonus Action, Studied Attacks’ miss and Improved Brutal Strike’s landed hit are three more moments with nothing to fire at them.',
+  'an-action-rule-a-feature-holds':
+    'a rule about its holder’s action economy that a **feature** states. **The mechanism is whole and its catalogue is empty on this side.** `ActionRule` in packages/engine/src/combat.ts is "the ninth sourced grant, hung on the creature", it says three of the four things a sentence about a turn can say, and **it is reachable from a casting and from nothing else**: the two emitters of `action-rule-granted` are a spell’s effect and a spell’s attack rider, and both take a casting id as the grant’s source. `FeatureGrant` carries no member that holds one, so nothing compiles one off a class table. `StandingGrant` has none either and could not usefully, because packages/engine/src/standing.ts draws the lifetime itself — "a feature’s grant is derived from the world on every read and stored nowhere, while a spell’s is durable state linked to its casting" — where `creature.actionRules` is stored state every spender reads. And the one feature-side effect list, a pool’s `options`, is refused this kind **by name**: packages/engine/src/content.ts answers that it "needs the casting a feature has none of". So this is the surviving instance of the sentence that field was built to answer, which packages/engine/src/progression.ts still prints beside it: "an effect list was reachable from a spell and from a bottle and from nothing a class prints". The mirror belongs here too, because it has the same absence at the other end — a **precondition** on a spend, SRD Steady Aim’s "only if you haven’t moved during this turn", where the fact is on the budget already and no grant can gate an action on it.',
+  'an-action-the-engine-has-no-spender-for':
+    'an action the book prints that no command takes, so no rule could name it even if a feature could write one. `NAMED_ACTIONS` in packages/engine/src/combat.ts is a closed list of six, admitted one at a time against a spender and an SRD sentence, and it says what the absentees cost: "the engine has no spender that could be told one of them apart", so a rule naming one would read as enforced and would not be. **Hide** is the one four features want — a Rogue’s Cunning Action, a Thief’s Supreme Sneak, a Halfling whose trait is an *exception* to an ordinary Hide, and the Cunning Strike option that turns on holding one — and **Utilize** is the second, bought with a Bonus Action by a Thief while the engine charges for no Utilize at all. It is deliberately **not** the grant shape beside it: no vocabulary a feature could be written in would help here, because there is nothing for a rule to be about until some command takes the action.',
+  'a-cheaper-price-only-one-command-offers':
+    'a named action paid for out of a cheaper slot, where the command that would charge for it cannot be asked. The permission is built — `ActionRule`’s `allows` — and `STATABLE_PRICES` in packages/engine/src/combat.ts is the map of which commands honour one, because "an allowance nobody can ask for is data no code reads". It holds one entry, a Disengage out of a Bonus Action, and the file leaves the door open in as many words: "A second arrives with its own command and its own paragraph, and this map is where it is admitted." So `takeDisengage` takes a `from` and refuses a price the map does not hold, while `takeDash` takes no `from` at all and charges an Action unconditionally. Every feature that buys a Dash with a Bonus Action wants the second entry **and** the parameter beside it, and neither is a grant vocabulary’s business: the permission could be granted today and the command would still spend the wrong slot.',
   'a-roll-mode-a-feature-takes-away':
     'a mode **cancelled** rather than granted. packages/engine/src/roll-modifiers.ts builds the axis as presence — "The mode is not part of the identity" — and `combineRollModes` weighs Advantage against Disadvantage — and SRD Elusive says something else again: no attack roll may **have** Advantage against you at all, which is neither a grant of Disadvantage nor a cancellation the vocabulary can express.',
   'a-turn-boundary-payout-a-feature-owes':
@@ -287,8 +293,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
     },
     {
       clause: 'stops its Opportunity Attacks until the start of your next turn',
-      why: 'an-action-a-spell-compels-or-forbids',
-      note: 'an action forbidden to somebody else, which is the action economy answering to a feature.',
+      why: 'an-action-rule-a-feature-holds',
+      note: 'the rule is writable — `opportunity-attack` is one of the six named actions and `forbids` takes a list of them — and it is hung on somebody else, which a casting does through an effect and a feature through nothing. The moment that would hang it, a Brutal Strike landing, is the clause above.',
     },
     {
       clause: 'the next attack roll another creature makes against the target a bonus of five',
@@ -731,7 +737,7 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
     {
       clause: 'A free Step of the Wind alongside another Bonus Action',
       why: 'an-action-a-spell-compels-or-forbids',
-      note: 'a second Bonus Action in one turn, which the economy counts and no feature adds to.',
+      note: 'a second Bonus Action in one turn. It keeps the spell id through the re-filing, because it is one of the two things that description names as genuinely left — an extra action granted rather than an existing one governed, which is Haste’s sentence. No member of the union creates a slot, so opening the grant to a feature would leave nothing writable in it.',
     },
   ],
   'open-hand:quivering-palm': [
@@ -798,7 +804,7 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
     {
       clause: 'which is the action economy answering to somebody other than the engine',
       why: 'an-action-a-spell-compels-or-forbids',
-      note: 'the restriction on what a Frightened target may do on its turns.',
+      note: 'one of move, an action, or a Bonus Action is a rule that couples three slots, and `forbids` and `permits-only` between them cannot state it — the other thing that description names as left, derived there from Slow. It keeps the spell id for that reason rather than for the door: a Channel Divinity option is the one feature-side effect list there is, and there would be nothing writable to put in it.',
     },
   ],
   'oath-of-devotion:sacred-weapon': [
@@ -958,23 +964,37 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'narration, like Druidic: a language the sheet records and no rule reads.',
     },
   ],
+  // **The feature the re-filing was found on**, and the one that wants every
+  // coined id at once. It carried a single clause naming a single shape, and
+  // the three actions the SRD prints on it are refused in three different
+  // places — which is why a track briefed to transcribe it landed nothing.
   'rogue:cunning-action': [
     {
-      clause: 'not which actions a class may spend it on',
-      why: 'an-action-a-spell-compels-or-forbids',
-      note: 'the economy counts the Bonus Action and nothing says what a class may buy with one.',
+      clause: 'a rule the engine can already state and a feature has nowhere to hold',
+      why: 'an-action-rule-a-feature-holds',
+      note: 'the Disengage, and the only one of the three whose rule is writable today: `allows` was derived from Conjure Woodland Beings and says exactly this sentence. What it has no home in is a class table.',
+    },
+    {
+      clause: '`takeDash` charges an Action unconditionally',
+      why: 'a-cheaper-price-only-one-command-offers',
+      note: 'the Dash, refused a step past the grant. Even holding the permission, the command that spends the slot takes no price and would charge an Action — so this clause survives the door being opened and is filed apart from it.',
+    },
+    {
+      clause: 'it is not one of the six named actions, no command takes it',
+      why: 'an-action-the-engine-has-no-spender-for',
+      note: 'the Hide, which is refused earliest of all: there is no spend for a rule to be about, so neither a grant nor a price would reach it.',
     },
   ],
   'rogue:steady-aim': [
     {
       clause: 'a one-shot Advantage that is consumed by the roll it changes, which nothing here consumes',
       why: 'a-one-shot-roll-modifier',
-      note: 'the clause the feature is actually for. The mechanic is built — `RollModifier.oneShot`, spent by the roll that reaches it — and what is still missing is the moment: a Bonus Action a feature spends to hang one on its own owner.',
+      note: 'the clause the feature is actually for, re-read against the mechanic rather than against the note. `RollModifier.oneShot` is built, and `oneShot` is a field a feature’s own `roll-mode` grant can already carry — writing it there would do nothing, because `consumedRollModifiers` spends what it finds in `creature.rollModifiers`, which is stored state, while a feature’s standing grant is derived afresh on every read and reaches none of it. So what is missing is still the moment: a Bonus Action a feature spends to *emit* one.',
     },
     {
       clause: 'the "haven’t moved during this turn" condition on spending the Bonus Action',
-      why: 'an-action-a-spell-compels-or-forbids',
-      note: 'a condition on whether an action may be spent at all, which `mayAct` does not read.',
+      why: 'an-action-rule-a-feature-holds',
+      note: 'the same absence read from the other end: a precondition on a spend rather than a rule about one. The fact is on the budget already — `TurnBudget.movementSpent` stores the feet rather than what is left of them, which is what lets a question be asked of it — and no grant a feature carries can gate an action on anything.',
     },
     {
       clause: '`speedOf` reads a grant like any other',
@@ -1042,7 +1062,7 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
     {
       clause: 'Daze forbids all but one of its actions on its next turn',
       why: 'an-action-a-spell-compels-or-forbids',
-      note: 'the third, which is the action economy answering to a feature.',
+      note: 'all but one is a *count* rather than a list, and `permits-only` narrows a slot to the actions it names. Abjure Foes prints the same shape of sentence, so this keeps the spell id beside it: what is missing is a member neither polarity of the union has, rather than the feature-side door the rest of this batch was re-filed onto.',
     },
   ],
   'rogue:elusive': [
@@ -1061,9 +1081,9 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
   'thief:fast-hands': [
     {
-      clause: 'for the same reason as Cunning Action',
-      why: 'an-action-a-spell-compels-or-forbids',
-      note: 'inherited whole: which actions a Bonus Action may buy is not a thing a class says.',
+      clause: 'the engine charges for no Utilize action anywhere',
+      why: 'an-action-the-engine-has-no-spender-for',
+      note: 'not inherited whole after all, which is what re-reading the mechanism changed. Cunning Action fails in three places and this fails in the earliest of them alone: Utilize is not a named action and no command spends a slot on it, so there is no price for a cheaper one to be offered against.',
     },
   ],
   'thief:second-story-work': [
@@ -1086,8 +1106,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
     },
     {
       clause: 'the engine takes no Hide action for the exception to widen',
-      why: 'an-action-a-spell-compels-or-forbids',
-      note: 'the Hide action itself, which the economy does not offer.',
+      why: 'an-action-the-engine-has-no-spender-for',
+      note: 'the Hide action itself, which is a spender the engine does not have rather than a rule a feature cannot write. Every grant vocabulary here could be opened to a feature tomorrow and this clause would be exactly where it is.',
     },
   ],
   'thief:use-magic-device': [
@@ -1525,8 +1545,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   'halfling:naturally-stealthy': [
     {
       clause: 'the engine takes no Hide action at all',
-      why: 'an-action-a-spell-compels-or-forbids',
-      note: 'the ordinary case this trait is an exception to.',
+      why: 'an-action-the-engine-has-no-spender-for',
+      note: 'the ordinary case this trait is an exception to, and the plainest statement of the coined shape: the trait widens a Hide and there is no Hide. `NAMED_ACTIONS` admits a member only where some command could be told it apart, and nothing takes this one.',
     },
   ],
   'human:resourceful': [
@@ -1539,8 +1559,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   'orc:adrenaline-rush': [
     {
       clause: 'nothing lets a feature say that an action anybody can take becomes one',
-      why: 'an-action-a-spell-compels-or-forbids',
-      note: 'the Dash taken as a Bonus Action.',
+      why: 'a-cheaper-price-only-one-command-offers',
+      note: 'the Dash taken as a Bonus Action, filed on the blocker that outlives the other one. A feature that could hold an `allows` would still not get this Dash: `STATABLE_PRICES` holds Disengage alone and `takeDash` takes no price at all, so the permission would land and the command would spend an Action anyway.',
     },
     {
       clause: 'no feature route reaches them',
