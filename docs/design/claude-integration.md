@@ -69,7 +69,10 @@ the day it did.
 caller can spend for no effect is worse than one it cannot spend — so Channel
 Divinity stayed shut while nothing executed what a use bought, and opened the
 week a feature's pool use became the third host of an effect list. Cleric's is
-a door now (`use_pool_option`, with the menu on `sheet`); Paladin's, which
+a door now (`use_pool_option`, with the menu on `sheet`, and `among` carrying
+the division a spendable pool makes — a list of `{ target, hitPoints }` the
+engine validates and never trusts, which is not the number rule bending because
+no die is thrown and the budget is read off the sheet); Paladin's, which
 prints no options the engine executes, is not. **Bardic Inspiration opened
 the same way** — not as a pool a caller spends for nothing, but once the die
 had somewhere to go: the Bard's pool is spent on the Bard and the ally holds a
@@ -126,7 +129,16 @@ call the creature and which block it is, and `unknown_monster` is answerable at
 in a fight: `resolveAttack` refuses a weapon its wielder does not own, so a
 Goblin Warrior added and not armed cannot make the Scimitar attack its own
 block prints. The arrival is composed with `awardItems` under a derived command
-id, exactly as `roll_initiative` composes its two, and appended once. **Turning
+id, exactly as `roll_initiative` composes its two, and appended once.
+
+**And it swings with its own printed lines.** `attack` takes `action` — a name,
+never a line, which is `add_creature`'s own rule one layer up — so a model may
+elect the Bite a block prints instead of leaving every monster punching.
+`unknown_action` answers a name the block does not print, and `two_attacks` a
+call that names both a weapon and an action. A monster provoked into an
+opportunity attack needs no election at all: the engine reaches for the
+highest-damage printed melee attack that does not recharge, and a caller may
+still name a different one. **Turning
 `Javelins (6)` into six `javelin` is this package's job and not the engine's** —
 the engine holds no catalogue and reads no name — and what the catalogue cannot
 find is reported through `unverified` rather than refusing the creature, which
