@@ -37,6 +37,7 @@ import { dawnRollProblem, type Recovery } from './resources.js';
 import { EFFECT_END_CAUSES } from './timers.js';
 import { TURN_ANCHORS } from './time.js';
 import { oneShotProblem, rollSelectorProblems } from './roll-modifiers.js';
+import { CREATURE_TYPES } from './spell-definitions.js';
 import type { SpellDefinition } from './spell-definitions.js';
 import {
   checkEffectValue,
@@ -1674,24 +1675,49 @@ function hitPointDivisionProblems(
         `${at}.distributes.hitPoints`,
       );
     }
+    // A column is as long as this source's table and prints whole numbers, and
+    // a multiple or a floor is at least one — `isCount`'s rule in
+    // `feature-schema.ts`, which is where the same question is asked of a
+    // pool's own size. A budget of zero is `empty_feature_option`'s failure
+    // under another name: every use of it would be refused `too_much_divided`.
     const column = sized['usesByLevel'];
-    if (column !== undefined && (!Array.isArray(column) || column.length !== levels)) {
-      say(
-        'bad_division_sizing',
-        `a column of this source's table has ${levels} entries, not ${Array.isArray(column) ? column.length : String(column)}`,
-        `${at}.distributes.hitPoints.usesByLevel`,
-      );
+    if (column !== undefined) {
+      if (!Array.isArray(column) || column.length !== levels) {
+        say(
+          'bad_division_sizing',
+          `a column of this source's table has ${levels} entries, not ${Array.isArray(column) ? column.length : String(column)}`,
+          `${at}.distributes.hitPoints.usesByLevel`,
+        );
+      } else {
+        const bad = column.findIndex(
+          (entry: unknown) => !Number.isInteger(entry) || (entry as number) < 0,
+        );
+        if (bad >= 0) {
+          say(
+            'bad_division_sizing',
+            `a class table prints a whole number of hit points, not ${String(column[bad])}`,
+            `${at}.distributes.hitPoints.usesByLevel[${bad}]`,
+          );
+        }
+      }
     }
     for (const field of ['perClassLevel', 'minimum'] as const) {
       const value = sized[field];
       if (value === undefined) continue;
-      if (!Number.isInteger(value) || (value as number) < 0) {
+      if (!Number.isInteger(value) || (value as number) < 1) {
         say(
           'bad_division_sizing',
-          `${field} is a whole number of hit points, not ${String(value)}`,
+          `${field} is a whole number of hit points of at least one, not ${String(value)}`,
           `${at}.distributes.hitPoints.${field}`,
         );
       }
+    }
+    if (shapes.length === 0 && sized['minimum'] === undefined) {
+      say(
+        'bad_division_sizing',
+        'a division says how many hit points one use mints, and this one names no sizing at all',
+        `${at}.distributes.hitPoints`,
+      );
     }
     const ability = sized['fromAbilityModifier'];
     if (ability !== undefined && !(ABILITIES as readonly string[]).includes(String(ability))) {
@@ -1704,12 +1730,26 @@ function hitPointDivisionProblems(
   }
 
   const types = record['excludesTypes'];
-  if (types !== undefined && (!Array.isArray(types) || types.length === 0)) {
-    say(
-      'bad_division_exclusion',
-      'what a division refuses is a non-empty list of creature types, and an option that refuses nobody omits the field',
-      `${at}.distributes.excludesTypes`,
-    );
+  if (types !== undefined) {
+    if (!Array.isArray(types) || types.length === 0) {
+      say(
+        'bad_division_exclusion',
+        'what a division refuses is a non-empty list of creature types, and an option that refuses nobody omits the field',
+        `${at}.distributes.excludesTypes`,
+      );
+    } else {
+      // The book's own vocabulary, held to as `mustBeType` already is: a
+      // mistyped "undead" would validate and then match nobody, so a homebrew
+      // Preserve Life would quietly heal the Undead it printed a refusal of.
+      types.forEach((type: unknown, index: number) => {
+        if (CREATURE_TYPES.includes(String(type))) return;
+        say(
+          'bad_division_exclusion',
+          `"${String(type)}" is not one of the creature types the SRD prints`,
+          `${at}.distributes.excludesTypes[${index}]`,
+        );
+      });
+    }
   }
 
   return found;

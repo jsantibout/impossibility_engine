@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
 import {
+  checkContent,
   createCharacter,
   fold,
   remaining,
@@ -360,6 +361,57 @@ describe('a trade the book does limit is still limited', () => {
    * of Wild Shape left, you can give yourself one use by expending a spell
    * slot."
    */
+  /**
+   * And the catalogue's own half of the widening. A union content is
+   * validated against grows a member, so what a class file may write has to
+   * grow with it and no further: a limit the engine has never heard of is
+   * refused, and the pool of one an unlimited trade declares is refused
+   * anywhere but on the use it buys back — which is `pool_without_a_limit`'s
+   * failure, a pool nothing would ever spend, wearing the new member's name.
+   */
+  it('refuses a limit the engine does not have, and a pool nothing fills', () => {
+    const codesFor = (over: Record<string, unknown>): readonly string[] =>
+      checkContent({
+        ...SRD_CONTENT,
+        classes: SRD_CONTENT.classes.map((one) =>
+          one.id !== 'druid'
+            ? one
+            : {
+                ...one,
+                features: one.features.map((feature) =>
+                  feature.id !== 'druid:wild-resurgence'
+                    ? feature
+                    : {
+                        ...feature,
+                        grants: {
+                          kind: 'trade',
+                          trades: [
+                            {
+                              id: 'slot-for-wild-shape',
+                              action: 'none',
+                              spends: { kind: 'spell-slot' },
+                              gains: { kind: 'pool', key: 'wild-shape', uses: 1 },
+                              ...over,
+                            },
+                          ],
+                        } as never,
+                      },
+                ),
+              },
+        ),
+      })
+        .filter((one) => one.field.includes('grants.trades'))
+        .map((one) => one.code);
+
+    expect(codesFor({ limit: 'unlimited' })).toEqual([]);
+    expect(codesFor({ limit: 'once-a-week' })).toContain('bad_trade_limit');
+    // A pool of one beside an unlimited trade is the use it fills, or nothing.
+    expect(codesFor({ limit: 'unlimited', pool: 'druid:wild-resurgence' })).toContain(
+      'pool_without_a_limit',
+    );
+    expect(codesFor({ limit: 'unlimited', pool: 'wild-shape' })).toEqual([]);
+  });
+
   it('refuses the second use of a once-a-turn trade in the same turn', () => {
     const log: GameEvent[] = [...made(druid()), FIGHTING, spend('wild-shape', 2)];
 

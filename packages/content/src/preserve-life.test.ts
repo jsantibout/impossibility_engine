@@ -3,6 +3,7 @@ import { SRD_CONTENT } from '@ie/content';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
 import {
   addCreature,
+  checkContent,
   createCharacter,
   createContent,
   createRng,
@@ -489,6 +490,40 @@ describe('a form is refused when the menu it joins is not held', () => {
       subclasses: [...SRD_CONTENT.subclasses, subclass],
     });
 
+  /** The subclass with whatever grant the case under test wants on it. */
+  const granting = (grants: unknown, level = 5): SubclassDefinition => {
+    const base = subclassAt(level);
+    return {
+      ...base,
+      features: [{ ...base.features[0]!, grants: grants as never }],
+    };
+  };
+
+  /** The codes `checkContent` reports about this subclass and nothing else. */
+  const codesFor = (grants: unknown, level = 5): readonly string[] =>
+    checkContent({
+      ...SRD_CONTENT,
+      classes: [...SRD_CONTENT.classes, HOST],
+      subclasses: [...SRD_CONTENT.subclasses, granting(grants, level)],
+    })
+      .filter((one) => one.field.startsWith('subclasses[seers]'))
+      .map((one) => one.code);
+
+  /** A form, with one field of it replaced by whatever the case is about. */
+  const form = (over: Record<string, unknown> = {}): unknown => ({
+    kind: 'pool-options',
+    feature: 'oracle:visions',
+    options: [
+      {
+        id: 'second-sight',
+        name: 'Second Sight',
+        action: 'action',
+        effects: [{ kind: 'heal', healing: { flat: 5 }, addSpellcastingModifier: false }],
+        ...over,
+      },
+    ],
+  });
+
   /** The form arrives at 3 and the menu at 5, so two levels of it are inert. */
   it('refuses a form offered before the menu it joins exists', () => {
     const refused = loaded(subclassAt(3));
@@ -496,39 +531,223 @@ describe('a form is refused when the menu it joins is not held', () => {
     expect(isErr(refused) && refused.reason).toContain(
       'arrives at level 3 and joins a menu oracle:visions does not print until 5',
     );
+    expect(codesFor(form(), 3)).toContain('option_menu_arrives_later');
   });
 
   /** And a form that names a feature nothing in scope prints at all. */
   it('refuses a form that names a menu nobody prints', () => {
-    const stray = subclassAt(5);
-    const refused = loaded({
-      ...stray,
-      features: [
-        {
-          ...stray.features[0]!,
-          grants: {
-            kind: 'pool-options',
-            feature: 'oracle:dreams',
-            options: [
-              {
-                id: 'second-sight',
-                name: 'Second Sight',
-                action: 'action',
-                effects: [{ kind: 'heal', healing: { flat: 5 }, addSpellcastingModifier: false }],
-              },
-            ],
-          },
-        },
-      ],
-    });
+    const refused = loaded(granting({ ...(form() as object), feature: 'oracle:dreams' }));
     expect(isErr(refused) && refused.code).toBe('invalid_content');
     expect(isErr(refused) && refused.reason).toContain(
       'no feature of subclasses[seers] declares a pool by that name',
     );
+    expect(codesFor({ ...(form() as object), feature: 'oracle:dreams' })).toContain(
+      'unknown_option_menu',
+    );
+  });
+
+  /** A menu with no name, and a door onto one with nothing behind it. */
+  it('refuses a form that names no menu and one that adds nothing', () => {
+    expect(codesFor({ ...(form() as object), feature: '  ' })).toContain('option_menu_unnamed');
+    expect(codesFor({ kind: 'pool-options', feature: 'oracle:visions', options: [] })).toContain(
+      'empty_option_menu',
+    );
+  });
+
+  /** An id the host already uses is an option the caller could never reach. */
+  it('refuses a form whose id the menu already offers', () => {
+    expect(codesFor(form({ id: 'foresee' }))).toContain('duplicate_feature_option');
   });
 
   /** The arrangement the SRD's own subclass is in loads, which is the control. */
   it('accepts a form offered at the level the menu arrives', () => {
     expect(loaded(subclassAt(5)).ok).toBe(true);
+    expect(codesFor(form())).toEqual([]);
+  });
+
+  /**
+   * And the division itself, judged as a pool's own size is — the rules
+   * `feature-schema.ts` applies to `usesByLevel`, `perClassLevel` and
+   * `fromAbilityModifier`, asked of hit points.
+   */
+  describe('the budget a form mints', () => {
+    const dividing = (distributes: unknown, over: Record<string, unknown> = {}): unknown =>
+      form({ effects: [], distributes, ...over });
+
+    const SOUND = { hitPoints: { perClassLevel: 5 }, cap: 'half-maximum' };
+
+    it('accepts the shape SRD Preserve Life is in', () => {
+      expect(codesFor(dividing({ ...SOUND, excludesTypes: ['Undead', 'Construct'] }))).toEqual([]);
+    });
+
+    it('refuses a division that is not a record at all', () => {
+      expect(codesFor(dividing('as much as you like'))).toContain('bad_hit_point_division');
+    });
+
+    it('refuses a ceiling this engine cannot measure', () => {
+      expect(codesFor(dividing({ ...SOUND, cap: 'all-of-it' }))).toContain('bad_division_cap');
+    });
+
+    it('refuses a budget of nothing, and a column that is not one', () => {
+      expect(codesFor(dividing({ ...SOUND, hitPoints: { perClassLevel: 0 } }))).toContain(
+        'bad_division_sizing',
+      );
+      expect(codesFor(dividing({ ...SOUND, hitPoints: { minimum: 0 } }))).toContain(
+        'bad_division_sizing',
+      );
+      expect(codesFor(dividing({ ...SOUND, hitPoints: { usesByLevel: [1, 2, 3] } }))).toContain(
+        'bad_division_sizing',
+      );
+      expect(
+        codesFor(
+          dividing({ ...SOUND, hitPoints: { usesByLevel: new Array(20).fill(0).fill(-1, 3, 4) } }),
+        ),
+      ).toContain('bad_division_sizing');
+      expect(codesFor(dividing({ ...SOUND, hitPoints: {} }))).toContain('bad_division_sizing');
+      expect(codesFor(dividing({ ...SOUND, hitPoints: 30 }))).toContain('bad_division_sizing');
+    });
+
+    it('refuses two sizings, because poolSizeOf reads exactly one', () => {
+      expect(
+        codesFor(
+          dividing({ ...SOUND, hitPoints: { perClassLevel: 5, usesByLevel: new Array(20).fill(5) } }),
+        ),
+      ).toContain('ambiguous_division_sizing');
+      expect(
+        codesFor(dividing({ ...SOUND, hitPoints: { fromAbilityModifier: 'luck' } })),
+      ).toContain('bad_division_sizing');
+    });
+
+    it('refuses a refusal of nobody, and one the book does not print', () => {
+      expect(codesFor(dividing({ ...SOUND, excludesTypes: [] }))).toContain(
+        'bad_division_exclusion',
+      );
+      expect(codesFor(dividing({ ...SOUND, excludesTypes: ['undead'] }))).toContain(
+        'bad_division_exclusion',
+      );
+    });
+
+    /** A division names its creatures; an area catches whoever is in it. */
+    it('refuses the fields that belong to an option resolving effects', () => {
+      expect(
+        codesFor(dividing(SOUND, { area: { kind: 'emanation', distance: 30, origin: 'self' } })),
+      ).toContain('division_does_not_take');
+      expect(codesFor(dividing(SOUND, { damageTypeStated: ['necrotic', 'radiant'] }))).toContain(
+        'division_does_not_take',
+      );
+      expect(codesFor(dividing(SOUND, { diceCountByLevel: new Array(20).fill(1) }))).toContain(
+        'division_does_not_take',
+      );
+      expect(codesFor(dividing(SOUND, { mustBeType: 'Undead' }))).toContain(
+        'division_does_not_take',
+      );
+    });
+
+    /** And a hit has already chosen its creature, so it divides nothing. */
+    it('refuses a division bought by a hit', () => {
+      const codes = checkContent({
+        ...SRD_CONTENT,
+        classes: [
+          ...SRD_CONTENT.classes,
+          {
+            ...HOST,
+            features: [
+              ...HOST.features,
+              {
+                id: 'oracle:searing-touch',
+                name: 'Searing Touch',
+                level: 5,
+                automation: 'engine',
+                note: 'An effect a hit buys.',
+                grants: {
+                  kind: 'on-hit',
+                  options: [
+                    {
+                      id: 'mend',
+                      name: 'Mend',
+                      effects: [],
+                      distributes: { hitPoints: { perClassLevel: 5 }, cap: 'half-maximum' },
+                    },
+                  ],
+                } as never,
+              },
+            ],
+          },
+        ],
+      })
+        .filter((one) => one.field.startsWith('classes[oracle]'))
+        .map((one) => one.code);
+      expect(codes).toContain('action_field_on_a_hit_rider');
+    });
+  });
+});
+
+describe('a form that divides refuses before it spends', () => {
+  /**
+   * The pool, checked on this path exactly as it is on the one beside it: a
+   * `resource-spent` the fold cannot apply is a thrown `CorruptLogError`
+   * rather than a refusal anybody can read, which is what makes this the one
+   * missing check worth a test of its own.
+   */
+  it('refuses a Cleric whose Channel Divinity is spent', () => {
+    const log = [
+      ...assembled(3),
+      hurt(NEAR, 40),
+      { type: 'resource-spent', id: BRANNOR, key: 'channel-divinity', amount: 2 } as GameEvent,
+    ];
+    const refused = use(fold('seed', log), 'preserve-life', {
+      among: [{ target: NEAR, hitPoints: 5 }],
+    });
+    expect(isErr(refused) && refused.code).toBe('exhausted');
+  });
+
+  /** It restores hit points and deals none, so a damage type is not on offer. */
+  it('refuses a damage type', () => {
+    const log = [...assembled(3), hurt(NEAR, 40)];
+    const refused = use(fold('seed', log), 'preserve-life', {
+      among: [{ target: NEAR, hitPoints: 5 }],
+      damageType: 'radiant',
+    });
+    expect(isErr(refused) && refused.code).toBe('damage_type_fixed');
+  });
+
+  /**
+   * And a creature nobody has typed is **asked** about rather than waved
+   * through — `isCreatureType(null, 'Undead')` is false, so the alternative is
+   * a feature that may not touch an Undead quietly healing one.
+   */
+  it('asks what kind of creature an untyped one is', () => {
+    const log: GameEvent[] = [
+      ...(unwrap(createCharacter(SRD_CONTENT, cleric(3), BRANNOR), 'create') as GameEvent[]),
+      ...SCENE,
+      // No `creatureType` at all, which is what the question is about.
+      {
+        type: 'creature-added',
+        id: NEAR,
+        name: 'a stranger',
+        sheet: {
+          level: 3,
+          abilities: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
+          skills: {},
+          saveProficiencies: [],
+          armor: null,
+          shield: null,
+          armorTraining: { light: false, medium: false, heavy: false, shields: false },
+          baseSpeed: 30,
+          spellcastingAbility: null,
+        },
+        maxHp: 52,
+        diesAtZero: false,
+      },
+      placed(BRANNOR, 'the altar'),
+      placed(NEAR, 'the pew'),
+      hurt(NEAR, 40),
+    ];
+    const asked = use(fold('seed', log), 'preserve-life', {
+      among: [{ target: NEAR, hitPoints: 5 }],
+    });
+    expect(isErr(asked) && asked.kind).toBe('needs-context');
+    expect(isErr(asked) && asked.code).toBe('unknown_creature_type');
+    expect(isErr(asked) && asked.requests?.[0]?.kind).toBe('creature-type');
   });
 });

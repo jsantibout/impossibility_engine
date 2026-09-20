@@ -10,7 +10,9 @@
 import {
   type CharacterId,
   type ConditionName,
+  type ContextRequest,
   err,
+  needsContext,
   ok,
   type Result,
 } from '@ie/shared';
@@ -1064,16 +1066,35 @@ function divideHitPoints(
   }
 
   // And then the world, share by share.
+  const unstated: ContextRequest[] = [];
   for (const share of shares) {
     const who = creatureOf(state, share.target);
     if (who === null) return unknownCreature(share.target);
 
-    for (const type of divided.excludesTypes ?? []) {
-      if (!isCreatureType(who.creatureType, type)) continue;
-      return err(
-        'cannot_be_restored',
-        `${option.name} cannot be used on ${type === 'Undead' ? 'an' : 'a'} ${type}, and ${share.target} is one`,
-      );
+    // A type the option refuses is checked; a type **nobody has stated** is
+    // asked for rather than waved through, which is the rule `spellTargets`
+    // already keeps of the same comparison — `isCreatureType(null, …)` is
+    // false, so an undeclared creature would otherwise be quietly healed by a
+    // feature that may not touch an Undead.
+    const excluded = divided.excludesTypes ?? [];
+    if (excluded.length > 0) {
+      if (who.creatureType === null || who.creatureType === undefined) {
+        unstated.push({
+          kind: 'creature-type',
+          subject: share.target,
+          need: `what kind of creature ${share.target} is`,
+          because: `${option.name} may not be used on ${excluded.join(' or a ')}`,
+          satisfyWith: `declareCreatureType(${share.target}, …), or a creatureType when the creature is added`,
+        });
+      } else {
+        for (const type of excluded) {
+          if (!isCreatureType(who.creatureType, type)) continue;
+          return err(
+            'cannot_be_restored',
+            `${option.name} may not be used on ${type}, and ${share.target} is ${who.creatureType}`,
+          );
+        }
+      }
     }
 
     const beyond = reachedBy(state, id, share.target, option.name, option.reach ?? 0);
@@ -1088,6 +1109,24 @@ function divideHitPoints(
         `${option.name} restores a creature to no more than half its maximum, and ${share.hitPoints} would carry ${share.target} from ${who.vitals.hp} past ${ceiling}`,
       );
     }
+  }
+
+  if (unstated.length > 0) {
+    return needsContext(
+      'unknown_creature_type',
+      `nobody has said what kind of creature ${unstated.map((one) => one.subject).join(' or ')} ${unstated.length === 1 ? 'is' : 'are'}, and ${option.name} may not be used on some of them`,
+      unstated,
+    );
+  }
+
+  // And the pool, last of the refusals exactly as it is on the path beside
+  // this one: a use that arrives with the pool empty must be a value, because
+  // a `resource-spent` the fold cannot apply is a thrown `CorruptLogError`
+  // rather than a refusal anybody can read.
+  const creature = creatureOf(state, id);
+  if (creature === null) return unknownCreature(id);
+  if (remaining(creature.resources, option.pool) < 1) {
+    return err('exhausted', `${id} has no uses of ${option.featureName} left`);
   }
 
   // — from here it costs something ——————————————————————————————————————
