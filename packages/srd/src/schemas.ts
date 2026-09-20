@@ -139,13 +139,14 @@ export type MonsterDamage = z.infer<typeof MonsterDamageSchema>;
  * number, and a number the engine must supply itself rather than ask a caller
  * for — the same argument `adaptMonster` makes about a printed Armour Class.
  *
- * **What is deliberately not read is `rider`**: the clause after the damage,
- * kept exactly as printed. "If the target is a Medium or smaller creature, it
- * has the Prone condition" and "_Constitution Saving Throw:_ DC 10" are
- * effects a hit buys, and structuring those is a vocabulary rather than a
- * template. Dropping the sentence would quietly make the Wolf's bite a lesser
- * attack than the book prints, so it travels with the numbers and the command
- * that rolls the attack reports it.
+ * **What is deliberately not read are the two English fields.** `rider` is the
+ * clause after the damage — "If the target is a Medium or smaller creature, it
+ * has the Prone condition", "_Constitution Saving Throw:_ DC 10" — and
+ * `qualification` is a condition on the roll itself. Both are effects, and
+ * structuring an effect is a vocabulary rather than a template. Dropping
+ * either would quietly make the creature weaker than the book prints it, so
+ * both travel with the numbers and the command that rolls the attack reports
+ * them — each at the moment it would have mattered.
  */
 export const MonsterAttackSchema = z.object({
   kind: z.enum(['melee', 'ranged', 'melee-or-ranged']),
@@ -158,6 +159,16 @@ export const MonsterAttackSchema = z.object({
     .object({ normal: z.number().int().min(0), long: z.number().int().min(0) })
     .nullable(),
   damage: z.array(MonsterDamageSchema).min(1),
+  /**
+   * A condition the book puts on the **roll**, kept as printed and evaluated
+   * by nobody: "with Advantage if the target is Grappled by the ankheg".
+   *
+   * Its own field rather than part of `rider` because the two are read at
+   * different moments. A rider is what a *hit* does, so it is reported when
+   * one lands; this could have changed whether the attack landed at all, and
+   * the outcome it matters most to is the miss.
+   */
+  qualification: z.string().min(1).nullable(),
   /** Everything the line says after the damage, verbatim. Null where it says nothing. */
   rider: z.string().min(1).nullable(),
 });

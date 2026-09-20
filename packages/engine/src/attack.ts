@@ -875,14 +875,13 @@ export function rollAttackDamage(
       });
     }
 
-    const rest = rollAddedDamage(
-      issuer,
-      rng,
-      options,
-      critical,
-      effects,
-      components[0]?.type ?? stated.damage[0]!.type,
-    );
+    // A bonus is of the attack's own type, and a printed line's own type is
+    // the one it leads with: the Ghoul bites for Piercing "plus" Necrotic, and
+    // the Piercing is what the block calls the bite. The schema promises a
+    // component, so the fallback below is the weaponless sentinel's type and
+    // is reached by nothing.
+    const ownType = stated.damage[0]?.type ?? UNARMED_DAMAGE.type;
+    const rest = rollAddedDamage(issuer, rng, options, critical, effects, ownType);
     if (!rest.ok) return rest;
     const all = [...components, ...rest.value];
     return ok({

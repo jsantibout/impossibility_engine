@@ -653,6 +653,18 @@ export function resolveAttack(
     const attack = rollAttack(supply.issuer, supply.rng, sheet, swing);
     if (!attack.ok) return attack;
 
+    // **What the block says about the roll that the engine cannot evaluate.**
+    // "with Advantage if the target is Grappled by the ankheg", and eight more
+    // like it. Reported here rather than beside the rider below, because this
+    // one could have changed whether the attack landed at all — and the
+    // outcome it matters most to is the miss, which returns before the rider
+    // is ever reached.
+    if (printed?.qualification != null) {
+      unverified.push(
+        `${attackName}'s line reads "${printed.qualification}" — the engine cannot evaluate that, so the roll was made without it`,
+      );
+    }
+
     // **A weapon attack always names an ability.** `AttackResult.ability` is
     // null only for a spell attack whose bonus an item printed, and no spell
     // attack comes through here — so this asks the same question of the same

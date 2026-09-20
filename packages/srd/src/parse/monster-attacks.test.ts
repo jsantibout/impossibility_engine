@@ -49,6 +49,7 @@ describe('parseAttackLine', () => {
       reach: 5,
       range: null,
       damage: [{ dice: '1d6', flat: 2, type: 'piercing', average: 5 }],
+      qualification: null,
       rider:
         'If the target is a Medium or smaller creature, it has the Prone condition.',
     });
@@ -64,6 +65,7 @@ describe('parseAttackLine', () => {
         { dice: '1d6', flat: 2, type: 'piercing', average: 5 },
         { dice: '1d6', flat: 0, type: 'necrotic', average: 3 },
       ],
+      qualification: null,
       rider: null,
     });
   });
@@ -99,6 +101,47 @@ describe('parseAttackLine', () => {
       modifier: 4,
       reach: 10,
     });
+  });
+
+  /**
+   * SRD Ankheg: "_Melee Attack Roll:_ +5 (with Advantage if the target is
+   * Grappled by the ankheg)". A condition on the **roll**, which is a
+   * different moment from a condition on the hit — so it is its own field,
+   * and the command that rolls reports it whether the attack lands or not.
+   */
+  it('keeps a condition on the roll apart from what a hit buys', () => {
+    const bite = parseAttackLine(action('ankheg', 'Bite').text);
+    expect(bite?.modifier).toBe(5);
+    expect(bite?.qualification).toBe('with Advantage if the target is Grappled by the ankheg');
+    expect(bite?.rider).toContain('Grappled condition');
+  });
+
+  /**
+   * SRD Goblin Warrior: "5 (1d6 + 2) Slashing damage, plus 2 (1d4) Slashing
+   * damage **if the attack roll had Advantage**." Read as a second component
+   * that goblin deals the extra die on every hit it ever makes, so the chain
+   * stops — and it stops before the book's own "plus", which goes into the
+   * rider with the clause it introduced rather than being eaten.
+   */
+  it('stops at damage the book only deals sometimes, connective and all', () => {
+    const scimitar = parseAttackLine(action('goblin-warrior', 'Scimitar').text);
+    expect(scimitar?.damage).toEqual([
+      { dice: '1d6', flat: 2, type: 'slashing', average: 5 },
+    ]);
+    expect(scimitar?.rider).toBe(
+      'plus 2 (1d4) Slashing damage if the attack roll had Advantage.',
+    );
+  });
+
+  /**
+   * And an alternative the book prints with "or" is not a component either:
+   * SRD Blood Hawk's Beak deals one die "or" a larger one against a Bloodied
+   * target, and reading both would deal them both.
+   */
+  it('stops at an alternative damage the book offers', () => {
+    const beak = parseAttackLine(action('blood-hawk', 'Beak').text);
+    expect(beak?.damage).toEqual([{ dice: '1d4', flat: 2, type: 'piercing', average: 4 }]);
+    expect(beak?.rider).toContain('or 6 (1d8 + 2) Piercing damage if the target is Bloodied');
   });
 
   it('is null for a line that is not an attack', () => {
@@ -181,6 +224,24 @@ describe('the bestiary, read through the parser', () => {
       expect(reaches, `${monster} ${name} states neither a reach nor a range`).toBe(true);
       if (attack.kind === 'ranged') expect(attack.range).not.toBeNull();
       if (attack.kind === 'melee') expect(attack.reach).not.toBeNull();
+    }
+  });
+
+  /**
+   * Every structured line's two English fields are prose or absent — never an
+   * empty string, which would read as "the book said nothing" while meaning
+   * "the parser dropped something".
+   */
+  it('leaves what it did not read as prose or as nothing', () => {
+    for (const { monster, name, attack } of attacks) {
+      for (const [field, value] of [
+        ['rider', attack.rider],
+        ['qualification', attack.qualification],
+      ] as const) {
+        expect(value === null || value.trim().length > 0, `${monster} ${name}.${field}`).toBe(
+          true,
+        );
+      }
     }
   });
 

@@ -290,7 +290,7 @@ export function parseAttackLine(text: string): MonsterAttack | null {
   const { damage, rest } = parseDamageChain(afterHit.join('_Hit:_'));
   if (damage.length === 0) return null;
 
-  const rider = [qualification?.trim(), rest].filter((part) => part !== undefined && part !== '');
+  const qualified = qualification?.trim() ?? '';
 
   const attack = {
     kind,
@@ -298,7 +298,8 @@ export function parseAttackLine(text: string): MonsterAttack | null {
     reach,
     range,
     damage,
-    rider: rider.length === 0 ? null : rider.join('. '),
+    qualification: qualified === '' ? null : qualified,
+    rider: rest === '' ? null : rest,
   };
 
   // Validated here rather than trusted: this is the one place in the parser
@@ -322,9 +323,12 @@ function parseDamageChain(hit: string): {
 } {
   const damage: MonsterDamage[] = [];
   let rest = hit;
+  // Where to go back to if the component about to be read turns out to be
+  // conditional: the text *including* the "plus" that introduced it, so the
+  // book's own connective goes into the rider with the clause it belongs to.
+  let resume = hit;
 
   for (;;) {
-    const before = rest;
     const rolled = ROLLED_DAMAGE.exec(rest);
     const flat = rolled === null ? FLAT_DAMAGE.exec(rest) : null;
     const match = rolled ?? flat;
@@ -334,10 +338,11 @@ function parseDamageChain(hit: string): {
     if (!DAMAGE_TYPES.some((known) => known === type)) break;
 
     const after = rest.slice(match[0].length);
-    // A component the book only deals sometimes is not one. Roll back to where
-    // it started so the whole clause lands in the rider.
+    // A component the book only deals sometimes is not one. Roll back to
+    // before the connective that introduced it, so the whole clause lands in
+    // the rider as the book wrote it.
     if (CONDITIONAL.test(after)) {
-      rest = before;
+      rest = resume;
       break;
     }
 
@@ -356,6 +361,7 @@ function parseDamageChain(hit: string): {
     rest = after;
     const plus = PLUS.exec(rest);
     if (plus === null) break;
+    resume = rest;
     rest = rest.slice(plus[0].length);
   }
 

@@ -45,6 +45,10 @@ const BREN = id('bren');
 const WOLF = id('wolf');
 const PACK = id('pack');
 const GHOUL = id('ghoul');
+const GOBLIN = id('goblin');
+const OGRE = id('ogre');
+const MUMMY = id('mummy');
+const ANKHEG = id('ankheg');
 
 const supply = (seed = 'fangs') => ({
   issuer: createRollIssuer('r'),
@@ -157,6 +161,7 @@ describe('the adapter carries what a block says it does', () => {
         reach: 5,
         range: null,
         damage: [{ dice: '1d6', flat: 2, type: 'piercing', average: 5 }],
+        qualification: null,
         rider: 'If the target is a Medium or smaller creature, it has the Prone condition.',
       },
     ]);
@@ -298,6 +303,40 @@ describe('a monster attacks with what its block prints', () => {
     expect(bite.unverified.join(' ')).toContain('Prone condition');
   });
 
+  /**
+   * SRD Ankheg: "+5 (with Advantage if the target is Grappled by the ankheg)".
+   *
+   * The engine cannot evaluate that clause, and the outcome it matters most to
+   * is the **miss** — Advantage is exactly what would have changed one. So it
+   * is reported beside the roll rather than beside the hit, and this asserts it
+   * on both, because a report only a landed blow carries is a report missing
+   * where it counts.
+   */
+  it('reports a condition on the roll whether the swing lands or not', () => {
+    let missed = 0;
+    let landed = 0;
+
+    for (const seed of ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']) {
+      const table = inTheWoods('ankheg', ANKHEG);
+      const bite = unwrap(
+        resolveAttack(
+          table.state,
+          ANKHEG,
+          { target: BREN, weapon: null, action: 'Bite', commandId: seed },
+          supply(seed),
+        ),
+        'the bite',
+      );
+
+      expect(bite.unverified.join(' ')).toContain('with Advantage if the target is Grappled');
+      if (bite.attack?.hit === true) landed += 1;
+      else missed += 1;
+    }
+
+    expect(landed).toBeGreaterThan(0);
+    expect(missed).toBeGreaterThan(0);
+  });
+
   it('measures reach against the reach the block prints', () => {
     const table = inTheWoods('wolf', WOLF, 20);
     const bite = resolveAttack(
@@ -359,6 +398,243 @@ describe('a monster attacks with what its block prints', () => {
       supply(),
     );
     expect(isErr(bite)).toBe(false);
+  });
+});
+
+/**
+ * A printed line that reaches across a room, and one that does both.
+ *
+ * The scene is wide because the numbers under test are the book's: a
+ * Shortbow's 80/320 and a Javelin's 30/120 are only checkable on a map big
+ * enough to stand beyond them.
+ */
+const onTheMoor = (monster: string, who: CharacterId, feet: number): Table => {
+  const table = new Table();
+  table.do('the fighter arrives', () => createCharacter(SRD_CONTENT, walkOn('Bren'), BREN));
+  table.did('the monster arrives', (s) => addCreature(s, SRD_CONTENT, who, monster));
+  table.do('the moor', (s) => setScene(s, { width: 600, depth: 60, height: 40 }));
+  table.do('the cairn', (s) => addSceneLandmark(s, 'the cairn', { x: 20, y: 20, z: 0 }));
+  table.do('Bren by the cairn', (s) =>
+    placeCreatureInScene(s, BREN, { from: { landmark: 'the cairn' }, feet: 0 }),
+  );
+  table.do('the monster off across the moor', (s) =>
+    placeCreatureInScene(s, who, { from: { creature: BREN }, feet, bearing: 90 }),
+  );
+  table.do('Bren’s side', (s) => declareCreatureSide(s, BREN, 'party'));
+  table.do('the monster’s side', (s) => declareCreatureSide(s, who, 'wild'));
+  return table;
+};
+
+describe('a printed line that carries rather than reaches', () => {
+  /** SRD Goblin Warrior: "_Ranged Attack Roll:_ +4, range 80/320 ft." */
+  it('shoots at the range the block prints', () => {
+    const table = onTheMoor('goblin-warrior', GOBLIN, 60);
+    const shot = unwrap(
+      resolveAttack(
+        table.state,
+        GOBLIN,
+        { target: BREN, weapon: null, action: 'Shortbow' },
+        supply(),
+      ),
+      'the shot',
+    );
+
+    expect(shot.attack?.roll.modifier).toBe(4);
+    expect(shot.attack?.mode).toBe('normal');
+  });
+
+  /**
+   * SRD: "Your attack roll has Disadvantage when your target is beyond normal
+   * range" — read off the printed line's own two numbers, which is a rule that
+   * could only ever fire for a monster once the line was read.
+   */
+  it('takes Disadvantage beyond the printed normal range', () => {
+    const table = onTheMoor('goblin-warrior', GOBLIN, 120);
+    const shot = unwrap(
+      resolveAttack(
+        table.state,
+        GOBLIN,
+        { target: BREN, weapon: null, action: 'Shortbow' },
+        supply(),
+      ),
+      'the shot',
+    );
+
+    expect(shot.attack?.mode).toBe('disadvantage');
+    expect(shot.attack?.roll.rolls).toHaveLength(2);
+  });
+
+  it('refuses a shot beyond the printed long range', () => {
+    const table = onTheMoor('goblin-warrior', GOBLIN, 400);
+    const shot = resolveAttack(
+      table.state,
+      GOBLIN,
+      { target: BREN, weapon: null, action: 'Shortbow' },
+      supply(),
+    );
+    expect(isErr(shot) ? shot.code : 'ok').toBe('out_of_range');
+  });
+
+  /**
+   * SRD Ogre: "_Melee or Ranged Attack Roll:_ +6, reach 5 ft. or range 30/120
+   * ft." One line, two halves, and which one this swing is belongs to the
+   * attacker — so the Javelin that cannot reach twenty feet carries a hundred
+   * when it is thrown.
+   */
+  it('lets a line that prints both halves be thrown', () => {
+    const table = onTheMoor('ogre', OGRE, 20);
+
+    const stabbed = resolveAttack(
+      table.state,
+      OGRE,
+      { target: BREN, weapon: null, action: 'Javelin' },
+      supply(),
+    );
+    expect(isErr(stabbed) ? stabbed.code : 'ok').toBe('out_of_reach');
+
+    const thrown = unwrap(
+      resolveAttack(
+        table.state,
+        OGRE,
+        { target: BREN, weapon: null, action: 'Javelin', thrown: true },
+        supply(),
+      ),
+      'the javelin',
+    );
+    expect(thrown.attack?.roll.modifier).toBe(6);
+    expect(thrown.attack?.mode).toBe('normal');
+  });
+});
+
+describe('every component of a printed line meets the target’s own defences', () => {
+  /**
+   * SRD Ghoul: "5 (1d6 + 2) Piercing damage plus 3 (1d6) Necrotic damage."
+   *
+   * Two components rather than one number, which is the whole reason damage is
+   * typed: a Mummy is immune to Necrotic and to nothing the other half deals,
+   * so its bite lands the piercing and none of the rest. Folded into one
+   * component the Mummy would take necrotic damage it is immune to, silently.
+   */
+  it('lands the half a Necrotic-immune target has no answer to, and no more', () => {
+    const mummy = statBlock('mummy');
+    expect(mummy.immunities).toContain('Necrotic');
+
+    const seeds = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l'];
+    const against = (target: string, who: CharacterId): readonly number[] => {
+      const table = new Table();
+      table.did('the ghoul arrives', (s) => addCreature(s, SRD_CONTENT, GHOUL, 'ghoul'));
+      table.did('its prey arrives', (s) => addCreature(s, SRD_CONTENT, who, target));
+      const dealt: number[] = [];
+      for (const seed of seeds) {
+        const bite = unwrap(
+          resolveAttack(
+            table.state,
+            GHOUL,
+            { target: who, weapon: null, action: 'Bite', commandId: seed },
+            supply(seed),
+          ),
+          'the bite',
+        );
+        if (bite.attack?.hit === true) dealt.push(bite.damage!);
+      }
+      return dealt;
+    };
+
+    // 1d6 + 2 Piercing and 1d6 Necrotic: 4 to 14 against a creature with no
+    // answer to either, and 3 to 8 against one immune to the second.
+    const onFlesh = against('bandit', id('bandit'));
+    const onTheMummy = against('mummy', MUMMY);
+
+    expect(onFlesh.length).toBeGreaterThan(2);
+    expect(onTheMummy.length).toBeGreaterThan(2);
+    expect(Math.max(...onFlesh)).toBeGreaterThan(8);
+    expect(Math.min(...onTheMummy)).toBeGreaterThanOrEqual(3);
+    expect(Math.max(...onTheMummy)).toBeLessThanOrEqual(8);
+  });
+
+  /**
+   * SRD Critical Hits: "Roll the attack's damage dice twice." A printed line's
+   * dice are damage dice, so they double and the modifier the block printed
+   * beside them does not.
+   *
+   * The critical is forced rather than waited for: SRD Paralyzed says "Any
+   * attack roll that hits you is a Critical Hit if the attacker is within 5
+   * feet", which is a rule the engine already keeps — so every bite that lands
+   * here is one.
+   */
+  it('doubles the printed dice on a critical hit and not the printed modifier', () => {
+    const dealt: number[] = [];
+    let criticals = 0;
+
+    for (const seed of ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']) {
+      const table = inTheWoods('wolf', WOLF);
+      table.do('Bren is held fast', (s) => applyConditionTo(s, BREN, 'paralyzed', 'a spell'));
+      const bite = unwrap(
+        resolveAttack(
+          table.state,
+          WOLF,
+          { target: BREN, weapon: null, action: 'Bite', commandId: seed },
+          supply(seed),
+        ),
+        'the bite',
+      );
+      if (bite.attack?.hit !== true) continue;
+      expect(bite.attack.critical).toBe(true);
+      criticals += 1;
+      dealt.push(bite.damage!);
+    }
+
+    expect(criticals).toBeGreaterThan(2);
+    // 2d6 + 2, so 4 to 14 — and a spread that reaches past 8 could not have
+    // come from the single die an ordinary hit rolls.
+    expect(Math.min(...dealt)).toBeGreaterThanOrEqual(4);
+    expect(Math.max(...dealt)).toBeLessThanOrEqual(14);
+    expect(Math.max(...dealt)).toBeGreaterThan(8);
+  });
+
+  /**
+   * And whatever the caller brings still rides on top. A bonus is of the
+   * attack's own type and extra damage is not — the same two rules a weapon's
+   * damage keeps, through the same walk, so the two cannot drift.
+   */
+  it('carries a bonus of its own type and extra damage of another', () => {
+    const table = inTheWoods('wolf', WOLF);
+    const bare: number[] = [];
+    const laden: number[] = [];
+
+    for (const seed of ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l']) {
+      const plain = unwrap(
+        resolveAttack(
+          table.state,
+          WOLF,
+          { target: BREN, weapon: null, action: 'Bite', commandId: `plain-${seed}` },
+          supply(seed),
+        ),
+        'the bite',
+      );
+      const blessed = unwrap(
+        resolveAttack(
+          table.state,
+          WOLF,
+          {
+            target: BREN,
+            weapon: null,
+            action: 'Bite',
+            commandId: `laden-${seed}`,
+            damageBonuses: [{ source: 'a curse', flat: 2 }],
+            extraDamage: [{ source: 'the moon', type: 'radiant', flat: 3 }],
+          },
+          supply(seed),
+        ),
+        'the bite',
+      );
+      if (plain.attack?.hit !== true) continue;
+      bare.push(plain.damage!);
+      laden.push(blessed.damage!);
+    }
+
+    expect(bare.length).toBeGreaterThan(2);
+    for (const [i, amount] of bare.entries()) expect(laden[i]).toBe(amount + 5);
   });
 });
 
