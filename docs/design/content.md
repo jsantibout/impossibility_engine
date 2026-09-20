@@ -85,6 +85,43 @@ there rather than a casting id; what such a repeat may not say is
 `end-casting`, which is refused at every door that could write one rather
 than quietly read as something else.
 
+## Text the DM decides, and how to tell it from a debt
+
+Some printed text is not a mechanic the engine has yet — it is a fact only a
+person at the table can supply. A definition declares those sentences in
+`dmDecides`, and a Range the format cannot state declares `{ kind: 'dm' }`
+(Dream's `Special`, Mirage Arcane's `Sight`). The casting still spends its
+slot, holds its Concentration and pins what it reads; only the unstatable part
+is handed over, reported under a mark nothing else writes. A definition that
+declares a `dm` Range without printing what the book actually said is refused
+(`silent_dm_range`), and one that spells the mark itself in either list is
+refused too (`forged_dm_mark`).
+
+**A handover is not `unmodelled`, and the difference is the point.** An
+`unmodelled` line is a **debt**: the blocker map ranks it, and one day somebody
+pays it by building the shape. A handover will never be paid. Filing a handover
+as a debt puts work on a list nobody should do and inflates the map with
+entries that are blocked on nothing.
+
+The test, which a reviewer named after eight spells had been sorted by it:
+
+> **A table fact that a rule then reads is a debt; a table fact nothing reads
+> afterwards is a handover.**
+
+So Augury's omen is a handover — the GM chooses it and no rule consults the
+choice. Awaken's statistics are a debt, because a stat block is read by
+everything afterwards. Teleportation Circle's sigil sequence is "determined by
+the GM" and still a debt, because the same line carries 365 days of daily
+casting that nothing counts. A line can be both a mechanism the engine lacks
+and a decision only the DM can make; say so rather than forcing it into one.
+
+Two guards keep the reading checkable rather than a matter of taste: a
+handed-over sentence must trip none of the mechanical markers, and must not be
+a sentence the tracked map already anchors a debt to. A handover reaches the
+log for a long casting, which pins it on `spell-declared`; for an **atomic**
+casting it reaches the caller and not the log, which is a known limit recorded
+in the `dmDecides` doc comment.
+
 ## Adding content
 
 A spell that fits an existing effect kind, or a class whose features use
