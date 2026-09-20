@@ -1466,11 +1466,81 @@ const unionArms = (rhs: string): readonly string[] => {
 };
 
 /**
- * Every optional field and every closed-union value one declaration writes.
+ * The field of a discriminated union's arm that says which arm it is.
+ *
+ * One word, in one place, because both halves of the reading depend on it:
+ * the declaration's arms are told apart by it, and an object in a definition
+ * is placed under its arm by it.
+ */
+const DISCRIMINANT = 'kind';
+
+interface FieldDeclaration {
+  readonly key: string;
+  readonly optional: boolean;
+  readonly type: string;
+}
+
+/** Every `readonly …` field a fragment of the format declares. */
+const fieldsIn = (text: string): readonly FieldDeclaration[] => {
+  const field = /readonly (\w+)(\?)?:\s*([^;}\n]*)/g;
+  const out: FieldDeclaration[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = field.exec(text)) !== null) {
+    out.push({
+      key: match[1]!,
+      optional: match[2] === '?',
+      type: match[3]!.replace(/\s+/g, ' ').trim(),
+    });
+  }
+  return out;
+};
+
+/**
+ * An object type split into what it declares itself and what it nests.
+ *
+ * The two are read differently — an arm's own field belongs to the arm, and a
+ * field inside a `{ … }` the arm merely holds belongs to that shape — so they
+ * are separated here rather than by a regex that would have to know which
+ * braces it was inside.
+ */
+const splitDepth = (text: string): { readonly own: string; readonly nested: string } => {
+  let depth = 0;
+  let own = '';
+  let nested = '';
+  for (const char of text) {
+    if (char === '{') {
+      depth += 1;
+      if (depth === 1) own += char;
+      else nested += char;
+      continue;
+    }
+    if (char === '}') {
+      if (depth === 1) own += char;
+      else nested += char;
+      depth -= 1;
+      continue;
+    }
+    if (depth <= 1) own += char;
+    else nested += char;
+  }
+  return { own, nested };
+};
+
+/**
+ * Every optional field and every closed-union value one declaration writes,
+ * **arm by arm where the declaration has arms**.
  *
  * Derived from the source rather than listed, for the reason every sweep in
  * this repository is: a hand-kept list is a second place to record the format,
  * and the way it rots is a member added to the type and not to the list.
+ *
+ * **A field belongs to the arm that declares it.** Probing by field name over
+ * the whole of `SpellEffect` is what let one arm's writer answer for another's
+ * member: `addSpellcastingModifier` counted as written because an attack, a
+ * heal and a temp-hp all carry one, and `save-damage` — the only
+ * damage-carrying kind that did not declare it at all — was invisible here
+ * until a Cleric's Divine Spark went looking for it. Nineteen arms are
+ * nineteen vocabularies, and each is now asked for its own writer.
  */
 const membersOf = (source: string, name: string): readonly FormatMember[] => {
   const region = regionOf(source, name);
@@ -1479,52 +1549,150 @@ const membersOf = (source: string, name: string): readonly FormatMember[] => {
     found.set(label, { label, probe });
   };
 
-  // `export type RiderDuration = 'a' | 'b' | { … };` — a union's bare
-  // string-literal arms *are* members, and they are written as somebody's
-  // field value rather than under a name of their own, so the probe matches a
-  // value wherever it was written.
-  //
-  // **A union mixing literals with object arms still has literal members**,
-  // and requiring the *whole* right-hand side to be literals is what hid them.
-  // `RiderDuration` is the one such union in the format and it contributed
-  // **nothing at all**: the object arm failed `LITERAL_UNION`, the walk fell
-  // through to the field probe, and that found one required non-union field.
-  // So the type whose members this sweep's own docstring names as the example
-  // was the one type it could not see — the `animals.md` failure arriving
-  // inside the guard again. Arms are taken one at a time now, and a union with
-  // no bare literal arms is unaffected, which is every other union here.
-  const top = /^export type \w+ =([\s\S]*);\s*$/.exec(region.trim());
-  if (top !== null) {
-    for (const arm of unionArms(top[1]!.replace(/\s+/g, ' ').trim())) {
-      // A leading `|` splits to an empty fragment, which would be reported as
-      // a member spelled `''` that no definition could ever write.
-      if (!/^'[a-z0-9-]+'$/.test(arm)) continue;
-      const value = arm.slice(1, -1);
-      add(`${name}='${value}'`, `*='${value}'`);
+  /**
+   * One field, under whatever label and probe its host gives it.
+   *
+   * The host is the whole type for a field the union writes nowhere in
+   * particular, and one arm of it for a field that arm declares — which is the
+   * only difference between the two readings below.
+   */
+  const addField = (host: string, prefix: string, field: FieldDeclaration): void => {
+    if (field.optional) add(`${host}.${field.key}?`, `${prefix}${field.key}?`);
+    for (const value of VOCABULARIES[field.type] ?? []) {
+      add(`${host}.${field.key}='${value}'`, `${prefix}${field.key}='${value}'`);
     }
-  }
-
-  const field = /readonly (\w+)(\?)?:\s*([^;}\n]*)/g;
-  let match: RegExpExecArray | null;
-  while ((match = field.exec(region)) !== null) {
-    const [, key, optional, raw] = match;
-    const type = raw!.replace(/\s+/g, ' ').trim();
-    if (optional === '?') add(`${name}.${key}?`, `${key}?`);
-    for (const value of VOCABULARIES[type] ?? []) {
-      add(`${name}.${key}='${value}'`, `${key}='${value}'`);
-    }
-    if (LITERAL_UNION.test(type)) {
-      for (const literal of type.split('|')) {
+    if (LITERAL_UNION.test(field.type)) {
+      for (const literal of field.type.split('|')) {
         const value = literal.trim().slice(1, -1);
-        add(`${name}.${key}='${value}'`, `${key}='${value}'`);
+        add(`${host}.${field.key}='${value}'`, `${prefix}${field.key}='${value}'`);
       }
     }
+  };
+
+  // An interface has no arms: every field it declares is its own.
+  const top = /^export type \w+ =([\s\S]*);\s*$/.exec(region.trim());
+  if (top === null) {
+    for (const field of fieldsIn(region)) addField(name, '', field);
+    return [...found.values()];
   }
+
+  for (const arm of unionArms(top[1]!.replace(/\s+/g, ' ').trim())) {
+    // `export type RiderDuration = 'a' | 'b' | { … };` — a union's bare
+    // string-literal arms *are* members, and they are written as somebody's
+    // field value rather than under a name of their own, so the probe matches
+    // a value wherever it was written.
+    //
+    // **A union mixing literals with object arms still has literal members**,
+    // and requiring the *whole* right-hand side to be literals is what hid
+    // them. `RiderDuration` is the one such union in the format and it
+    // contributed **nothing at all**: the object arm failed `LITERAL_UNION`,
+    // the walk fell through to the field probe, and that found one required
+    // non-union field. So the type whose members this sweep's own docstring
+    // names as the example was the one type it could not see — the
+    // `animals.md` failure arriving inside the guard again. Arms are taken one
+    // at a time, and a union with no bare literal arms is unaffected, which is
+    // every other union here.
+    if (/^'[a-z0-9-]+'$/.test(arm)) {
+      const value = arm.slice(1, -1);
+      add(`${name}='${value}'`, `*='${value}'`);
+      continue;
+    }
+
+    const { own, nested } = splitDepth(arm);
+    const fields = fieldsIn(own);
+    const discriminant = fields.find(
+      (field) => field.key === DISCRIMINANT && /^'[a-z0-9-]+'$/.test(field.type),
+    );
+
+    // An object arm that names no kind is one shape, and its fields are the
+    // union's own — `RiderDuration`'s `{ readonly untilTurns: number }` and
+    // the two-field arms of `SpellRange` are all of these.
+    if (discriminant === undefined) {
+      for (const field of fieldsIn(arm)) addField(name, '', field);
+      continue;
+    }
+
+    // **The kind itself stays the union's**, rather than becoming a member of
+    // the arm that names it. `SpellEffect.kind='action-rule'` is one closed
+    // vocabulary with one member per arm, and an arm-scoped spelling of it
+    // would be every arm reporting that it is itself.
+    addField(name, '', discriminant);
+
+    const tag = discriminant.type.slice(1, -1);
+    for (const field of fields) {
+      if (field.key === DISCRIMINANT) continue;
+      addField(`${name}[${tag}]`, `${tag}:`, field);
+    }
+
+    // What the arm nests is not the arm's own vocabulary: a `repeats: { at,
+    // onSuccess }` is a shape of its own, written as a value the usage walk
+    // meets with no kind on it, so it keeps the plain probe. Reading it as the
+    // arm's would report it unwritten wherever the nested object is the thing
+    // that carries the field.
+    for (const field of fieldsIn(nested)) addField(name, '', field);
+  }
+
   return [...found.values()];
 };
 
-/** Every field written, and every string value written to it, by any definition. */
-const written = (definitions: readonly SpellDefinition[]): ReadonlySet<string> => {
+/**
+ * Every `SpellEffect` the catalogue writes somewhere that is not a spell.
+ *
+ * **An effect list has three hosts and this sweep knew one of them.** A spell
+ * writes effects, an item confers them without casting, and a feature's pool
+ * use is the third — and the population here was `SPELL_DEFINITIONS` alone, so
+ * a member only a feature or an item writes came back unused. That was
+ * invisible while every member was probed by field name across the whole
+ * union, because some spell's `addSpellcastingModifier` answered for every
+ * arm's; read arm by arm, the Cleric's Divine Spark is the writer of
+ * `save-damage`'s and there is no spell that is.
+ *
+ * Only the effect objects are taken, and everything nested inside them —
+ * **not** the class, the item or the feature that hosts one. A catalogue
+ * walked whole would put every `name`, `id` and `level` in the repository into
+ * the probe space, and a member of the spell format would come back written
+ * because something entirely unrelated happened to share a field name.
+ */
+const effectsHostedElsewhere = (): readonly unknown[] => {
+  const found: unknown[] = [];
+  const walk = (node: unknown): void => {
+    if (Array.isArray(node)) {
+      node.forEach(walk);
+      return;
+    }
+    if (typeof node !== 'object' || node === null) return;
+    const record = node as Record<string, unknown>;
+    const kind = record['kind'];
+    if (typeof kind === 'string' && EFFECT_KINDS.has(kind)) {
+      found.push(record);
+      return;
+    }
+    for (const value of Object.values(record)) walk(value);
+  };
+
+  walk([
+    SRD_CONTENT.classes,
+    SRD_CONTENT.subclasses,
+    SRD_CONTENT.species,
+    SRD_CONTENT.backgrounds,
+    SRD_CONTENT.feats,
+    SRD_CONTENT.items,
+  ]);
+  return found;
+};
+
+/**
+ * Every field written, and every string value written to it, by any
+ * definition — **and the same again under the kind of the object writing it**.
+ *
+ * Both, because the format is read both ways: an arm's own field is probed
+ * under its arm, and a nested shape's field is probed plain. An object gets
+ * the arm prefix only from **its own** `kind`, never an enclosing one — a
+ * `DiceScaling` inside an `attack` effect is not an attack's shape, and
+ * tagging it with the effect's kind is the four-false-positive reading that
+ * was measured and rejected the first time this was tried.
+ */
+const written = (definitions: readonly unknown[]): ReadonlySet<string> => {
   const keys = new Set<string>();
   const walk = (node: unknown): void => {
     if (Array.isArray(node)) {
@@ -1532,12 +1700,17 @@ const written = (definitions: readonly SpellDefinition[]): ReadonlySet<string> =
       return;
     }
     if (typeof node !== 'object' || node === null) return;
-    for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+    const record = node as Record<string, unknown>;
+    const own = record[DISCRIMINANT];
+    const prefix = typeof own === 'string' ? `${own}:` : null;
+    for (const [key, value] of Object.entries(record)) {
       if (value === undefined) continue;
       keys.add(`${key}?`);
+      if (prefix !== null) keys.add(`${prefix}${key}?`);
       if (typeof value === 'string') {
         keys.add(`${key}='${value}'`);
         keys.add(`*='${value}'`);
+        if (prefix !== null) keys.add(`${prefix}${key}='${value}'`);
       }
       walk(value);
     }
@@ -1605,6 +1778,19 @@ const FORMAT_EXEMPTIONS: Readonly<Record<string, string>> = {
     'the standalone half of the ninth sourced grant, whose catalogue users belong to two other builders this batch — IE briefs may not write a spell definition from here. SRD Conjure Woodland Beings ("you can take the Disengage action as a Bonus Action for the spell\'s duration") is the one undefined spell blocked on this shape and nothing else, and Wind Walk, Antimagic Field and Magic Jar each write it beside a blocker of their own. The reader is live — `resolveActionRuleEffect` is dispatched from `resolveOneEffect`, and `action-rules.test.ts` drives it end to end through `loadContent` and `resolveSpell` on homebrew — so what is absent is a definition, not a use. The day Conjure Woodland Beings gets one, this fails rather than going on excusing a member that now has a writer.',
   'SpellCheck.dc?':
     'SRD Maze prints "a DC 20 Intelligence (Investigation) check", which is exactly this field, and Maze has no definition because it is blocked on a demiplane the engine does not model. The reader is live on every executed check — `effectCheckFrom` writes `check.dc ?? saveDc` — so what is absent is a definition, not a use. The pin below is the one Sunburst\'s dispel clause already takes: the day Maze gets a definition it must write the number the book prints, and this fails rather than going on excusing a field that now has a user.',
+  // The three below became sayable on the day the arms were read apart. Each
+  // was written by *something* under the old probe — a payout's `at` by Web's
+  // area trigger, its `dice` and its `damageType` by every damaging spell's
+  // scaling — so each was recorded as a limit of the instrument in the shared
+  // probe list and none could be claimed or refuted. They are claims now.
+  "SpellEffect[turn-payout].at='end-of-turn'":
+    "The catalogue writes two payouts and the book prints both at the start of a turn: Heroism's Temporary Hit Points and Regenerate's one Hit Point a turn. The reader is live and moment-blind — `resolveTurnPayoutEffect` copies `at` into `turn-payout-granted` and the turn-hook machinery hangs a boundary either way, which is the same pair of words every area trigger and every repeated save uses. So what is absent is a spell that pays out when a turn *ends*, not the machinery for one, and the day a definition writes one this fails rather than going on excusing a member that now has a writer.",
+  'SpellEffect[turn-payout].dice?':
+    "A notation thrown at every boundary rather than once at the cast, which neither payout in the catalogue prints: Heroism hands over the caster's ability modifier and prints no dice at all, and Regenerate prints \"regains 1 Hit Point\", which is the `flat` beside this field. The reader is live — the resolver carries `dice` into the event the boundary reads, so a payout that rolled would roll — and the field's own docstring names Heroism as the reason it is optional. The day a definition prints a per-turn die, this fails rather than going on excusing a field that now has a writer.",
+  'SpellEffect[turn-payout].damageType?':
+    'The damage type a payout deals, which `checkSpellDefinition` requires when the payout is damage and refuses on any other kind — and both payouts the catalogue writes hand over hit points rather than taking them, so nothing writes it. The kind `payout: \'damage\'` beside it is unwritten too and is **not** reported here, because `PayoutKind` is a named vocabulary this reader does not expand the way it expands `TurnMoment`; that is a gap in the instrument and is recorded rather than exempted. The reader is live: the resolver copies the type into the event, and the day a spell deals damage at a boundary this fails.',
+  "SpellArea[cone].origin='point'":
+    'Four cones are defined — Burning Hands, Color Spray, Cone of Cold and Fear — and SRD prints "Self (15-foot Cone)" or its like on every one, so every cone this catalogue writes is anchored on the caster. The arm offers a point because the geometry does not care which it is: `resolveArea` reads `origin === \'self\'` once for every area kind, and the cube arm beside it writes both values, so the branch is live and driven. What is absent is a spell or an item that forms a cone somewhere other than where its caster is standing, and the day one is written this fails rather than going on excusing a member that now has a writer.',
 };
 
 /**
@@ -1643,7 +1829,7 @@ describe('every member of the definition format has a user or a written exemptio
   );
 
   const members = FORMAT_TYPES.flatMap((type) => membersOf(source, type));
-  const used = written(SPELL_DEFINITIONS);
+  const used = written([...SPELL_DEFINITIONS, ...effectsHostedElsewhere()]);
   const unused = members.filter((member) => !used.has(member.probe));
 
   /**
@@ -1747,6 +1933,52 @@ describe('every member of the definition format has a user or a written exemptio
   });
 
   /**
+   * **An arm of a discriminated union owns its own fields**, which is the
+   * branch this sweep was missing and paid for.
+   *
+   * A member was probed by field *name* over the whole of `SpellEffect`, so
+   * `addSpellcastingModifier` counted as written the moment any one arm's
+   * writer existed — and `save-damage` was the only damage-carrying kind that
+   * did not declare it, which nothing here could say and nobody noticed until
+   * a Cleric's Divine Spark needed it. Two arms declaring the same field are
+   * two members with two writers, and they are labelled and probed apart.
+   */
+  it('derives the members of each arm of a discriminated union', () => {
+    const synthetic = [
+      'export type Shot =',
+      "  | { readonly kind: 'arrow'; readonly fletched?: boolean }",
+      "  | { readonly kind: 'bolt'; readonly fletched?: boolean; readonly heavy?: boolean };",
+    ].join('\n');
+
+    expect(membersOf(synthetic, 'Shot').map((m) => m.label)).toEqual([
+      "Shot.kind='arrow'",
+      'Shot[arrow].fletched?',
+      "Shot.kind='bolt'",
+      'Shot[bolt].fletched?',
+      'Shot[bolt].heavy?',
+    ]);
+  });
+
+  /**
+   * And the probes are apart too, which is the half that bites: content that
+   * writes the field on one arm leaves the other arm's member unwritten.
+   */
+  it('does not let one arm’s writer answer for another arm’s member', () => {
+    const synthetic = [
+      'export type Shot =',
+      "  | { readonly kind: 'arrow'; readonly fletched?: boolean }",
+      "  | { readonly kind: 'bolt'; readonly fletched?: boolean };",
+    ].join('\n');
+    const used = written([{ effects: [{ kind: 'arrow', fletched: true }] } as never]);
+
+    expect(
+      membersOf(synthetic, 'Shot')
+        .filter((member) => !used.has(member.probe))
+        .map((member) => member.label),
+    ).toEqual(["Shot.kind='bolt'", 'Shot[bolt].fletched?']);
+  });
+
+  /**
    * **A field that names a vocabulary still contributes its members**, which
    * is the branch that keeps this reader honest about `at`.
    *
@@ -1815,19 +2047,31 @@ describe('every member of the definition format has a user or a written exemptio
   });
 
   /**
-   * **The probe is coarser than the label, and that is the sound choice.**
+   * **The probe is as fine as the value can carry, and no finer.**
    *
-   * A member is looked up by field name and value, not by which type declared
-   * it, because the usage walk reads *values* and values carry no types. The
-   * arm-aware alternative was written and measured and is worse: a
-   * `DiceScaling` nested inside an `attack` effect inherits the effect's arm,
-   * so `DiceScaling.flat?` comes back unwritten when False Life writes it —
-   * four false positives, which is the failure mode a guard must not have.
+   * A member is looked up by the field name, the value, and the `kind` of the
+   * object that writes it — because that is everything the usage walk can read
+   * off a value, which carries no type. An arm's own field is therefore probed
+   * under its arm, and that is what the first version of this reader could not
+   * do: it probed by field name over the whole union, so one arm's writer
+   * answered for every arm's member, and `save-damage` went without
+   * `addSpellcastingModifier` in plain sight.
    *
-   * What the coarseness costs is stated rather than hidden: where two members
-   * share a probe, one can be reported as written because the other is. The
-   * list is pinned so that a new collision is a reviewed change, and the one
-   * that actually masks something is named.
+   * **What is still coarse is what a value cannot say.** An object nested
+   * inside an arm — a `repeats: { at, onSuccess }`, a `DiceScaling` — carries
+   * no kind of its own, so it keeps the plain probe. Tagging it with the
+   * *enclosing* arm's kind is the alternative that was written and measured
+   * and is worse: `DiceScaling.flat?` comes back unwritten when False Life
+   * writes it, four false positives, which is the failure mode a guard must
+   * not have.
+   *
+   * What that costs is stated rather than hidden: where two members share a
+   * probe, one can be reported as written because the other is. The list is
+   * pinned so that a new collision is a reviewed change, and the one that
+   * actually masks something is named. **Reading the arms apart emptied most
+   * of it** — seven collisions were a flat field on one arm colliding with the
+   * same word somewhere else, and three of those were masking members that are
+   * now exempted claims instead.
    */
   it('names every place two members share a probe', () => {
     const byProbe = new Map<string, string[]>();
@@ -1840,58 +2084,29 @@ describe('every member of the definition format has a user or a written exemptio
       .sort();
 
     expect(shared).toEqual([
-      // **The pair that masks.** `AreaTrigger.at` and a repeat save's `at` are
-      // different clauses with the same two values, and Web writes
-      // `start-of-turn` as an area boundary while no definition repeats a save
-      // at the start of a turn. So `save.repeats.at: 'start-of-turn'` is
-      // unwritten and this sweep cannot see it. Recorded here rather than
-      // exempted, because it is a limit of the instrument and not a decision
-      // about the format.
+      // A definition's own check — Sunburst's dispel clause — and a rider's,
+      // which `conditionRiderOf` reads as one vocabulary. Two spellings of one
+      // clause, both written, masking nothing. The `save` arm's flat `check`
+      // was the third name in this row and is `SpellEffect[save].check?` now,
+      // which is the arm-apart reading doing what it was added for.
+      'SpellDefinition.check? + ConditionRider.check?',
+      // **The one that still masks, and the one the instrument cannot reach.**
+      // `SpellEffect.at` here is not an arm's field: it is the `at` inside a
+      // save's nested `repeats: { … }`, which carries no kind of its own and
+      // so keeps the plain probe. Web writes `start-of-turn` as an area
+      // boundary and no definition repeats a save at the start of a turn, so
+      // `repeats.at: 'start-of-turn'` is unwritten and unsayable here.
+      // Recorded rather than exempted, because it is a limit of the instrument
+      // and not a decision about the format: closing it means probing a nested
+      // shape by the key that holds it, which is a reader this task did not
+      // write.
       "SpellEffect.at='end-of-turn' + AreaTrigger.at='end-of-turn' + ConditionRider.at='end-of-turn'",
       "SpellEffect.at='start-of-turn' + AreaTrigger.at='start-of-turn' + ConditionRider.at='start-of-turn'",
-      // `save` spells its first rider flat and every other carrier nests it —
-      // `conditionRiderOf` is the view that makes them one vocabulary. These
-      // collisions are two spellings of one field and mask nothing, and
-      // `repeats` moving onto the rider made three of them longer rather than
-      // adding a new kind of masking: the flat field and the rider field are
-      // the same clause read two ways.
-      'SpellEffect.check? + SpellDefinition.check? + ConditionRider.check?',
-      // **The second pair that masks**, and it arrived with `DiceScaling.dice`
-      // becoming optional so that an amount could be a flat number. A payout's
-      // notation and an amount's notation are the same word for the same idea,
-      // exactly as `flat` below — but every damaging spell writes the scaling's
-      // and no definition writes a payout's, because the one SRD spell of that
-      // shape, Heroism, hands over the caster's modifier and rolls nothing. So
-      // `turn-payout.dice` is unwritten and this sweep cannot see it. Recorded
-      // rather than exempted, for the reason the `at` pair above is.
-      'SpellEffect.dice? + DiceScaling.dice?',
-      // A payout's printed number and a scaling's printed addend are the same
-      // word for the same idea — "plus 4", "regains 1 Hit Point" — and the
-      // collision masks nothing today: False Life writes the scaling's, and a
-      // payout's is unwritten because the one SRD spell of that shape the
-      // catalogue defines, Heroism, prints no number at all and adds only the
-      // caster's modifier. What it costs is that a definition writing one
-      // would report the other as written; recorded here rather than renamed,
-      // because renaming a field to satisfy a probe is the instrument
-      // deciding the format.
-      'SpellEffect.flat? + DiceScaling.flat?',
-      'SpellEffect.lasts? + ConditionRider.lasts?',
-      // A save-damage's success and a check's success are different fields
-      // that happen to share two words; both values are written by both.
+      // The same nesting, one field over: a repeat save's `onSuccess` against
+      // a rider's and a check's. Different sentences that share two words, and
+      // every value here is written by at least one of them.
       "SpellEffect.onSuccess='end-casting' + ConditionRider.onSuccess='end-casting'",
       "SpellEffect.onSuccess='end-on-target' + SpellCheck.onSuccess='end-on-target' + ConditionRider.onSuccess='end-on-target'",
-      "SpellEffect.onSuccess='none' + SpellCheck.onSuccess='none'",
-      'SpellEffect.outlivesCasting? + ConditionRider.outlivesCasting?',
-      'SpellEffect.repeats? + ConditionRider.repeats?',
-      // Two different sentences that happen to share a word. A definition's
-      // `requiresSight` is Hold Person's "a Humanoid **that you can see**",
-      // checked against every target the caller names; a teleport's is Misty
-      // Step's "an unoccupied space **you can see**", checked against the
-      // anchor its destination is measured from. Both are written today —
-      // Hold Person the first, Misty Step the second — so this collision
-      // masks nothing; what it costs is that one going unwritten would be
-      // reported as written because the other still is.
-      'SpellEffect.requiresSight? + SpellDefinition.requiresSight?',
     ]);
   });
 });
@@ -1989,6 +2204,51 @@ describe('a format exemption says something that can stop being true', () => {
   it('pins that the member IE-013 handed over is gone rather than unused', () => {
     expect(read('spell-definitions.ts')).not.toContain('readonly save?: Ability;');
     expect(read('spell-definitions.ts')).toContain('readonly modifiers?: readonly ModifierRider[]');
+  });
+
+  /**
+   * The three payout exemptions, pinned to the two payouts that exist.
+   *
+   * Every one of them says "the catalogue writes two payouts and neither does
+   * this", so the fact that can stop being true is the pair itself: a third
+   * payout, or a die or a damage type on one of these two, and the exemptions
+   * are claims about a catalogue that has moved on. The effects are read out
+   * of the definitions rather than the ids trusted, because the claim is about
+   * what the effect says and not about which spell says it.
+   */
+  it('pins that both payouts in the catalogue print a flat start-of-turn benefit', () => {
+    const payouts = SPELL_DEFINITIONS.flatMap((definition) =>
+      definition.effects
+        .filter((effect) => effect.kind === 'turn-payout')
+        .map((effect) => ({ id: definition.id, effect })),
+    );
+
+    expect(payouts.map((one) => one.id)).toEqual(['heroism', 'regenerate']);
+    for (const { id, effect } of payouts) {
+      expect(effect.at, id).toBe('start-of-turn');
+      expect(effect.dice, id).toBeUndefined();
+      expect(effect.damageType, id).toBeUndefined();
+      expect(effect.payout, id).not.toBe('damage');
+    }
+  });
+
+  /**
+   * And the cone exemption, pinned to the two facts it rests on: no cone in
+   * the catalogue is cast from a point, and the branch that would read one is
+   * driven anyway by a cube that is.
+   */
+  it('pins that every cone is cast from its caster and every value of origin has a writer', () => {
+    const areas = SPELL_DEFINITIONS.map((definition) => definition.area).filter(
+      (area) => area !== undefined,
+    );
+
+    expect(areas.filter((area) => area.kind === 'cone')).not.toEqual([]);
+    for (const area of areas.filter((one) => one.kind === 'cone')) {
+      expect(area.origin).toBe('self');
+    }
+    expect(
+      areas.filter((area) => area.kind === 'cube' && area.origin === 'point'),
+    ).not.toEqual([]);
   });
 });
 
