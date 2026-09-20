@@ -183,7 +183,7 @@ every casting; only one of them is waiting for anything.
 - **Arcane Lock** (level 2) — 2 noted
 - **Arcanist's Magic Aura** (level 2) — 3 noted
 - **Astral Projection** (level 9) — 5 noted
-- **Augury** (level 2) — 2 noted
+- **Augury** (level 2) — 1 noted, 3 handed to the DM
 - **Aura of Life** (level 4) — 3 noted
 - **Awaken** (level 5) — 4 noted
 - **Barkskin** (level 2) — 3 noted
@@ -196,18 +196,18 @@ every casting; only one of them is waiting for anything.
 - **Clone** (level 8) — 3 noted
 - **Command** (level 1) — 6 noted
 - **Commune** (level 5) — 1 noted, 4 handed to the DM
-- **Commune with Nature** (level 5) — 2 noted
+- **Commune with Nature** (level 5) — 1 noted, 7 handed to the DM
 - **Comprehend Languages** (level 1) — 1 noted
 - **Confusion** (level 4) — 4 noted
 - **Conjure Animals** (level 3) — 4 noted
 - **Conjure Celestial** (level 7) — 5 noted
 - **Conjure Elemental** (level 5) — 4 noted
 - **Conjure Minor Elementals** (level 4) — 4 noted
-- **Contact Other Plane** (level 5) — 4 noted
+- **Contact Other Plane** (level 5) — 3 noted, 4 handed to the DM
 - **Contingency** (level 6) — 3 noted
 - **Continual Flame** (level 2) — 3 noted
 - **Control Water** (level 4) — 5 noted
-- **Control Weather** (level 8) — 3 noted
+- **Control Weather** (level 8) — 3 noted, 4 handed to the DM
 - **Create Food and Water** (level 3) — 1 noted
 - **Create or Destroy Water** (level 1) — 3 noted
 - **Create Undead** (level 6) — 4 noted
@@ -224,7 +224,7 @@ every casting; only one of them is waiting for anything.
 - **Detect Thoughts** (level 2) — 4 noted
 - **Disguise Self** (level 1) — 2 noted
 - **Dispel Evil and Good** (level 5) — 4 noted
-- **Divination** (level 4) — 2 noted
+- **Divination** (level 4) — 1 noted, 4 handed to the DM
 - **Divine Word** (level 7) — 4 noted
 - **Dragon's Breath** (level 2) — 3 noted
 - **Dream** (level 5) — 4 noted, 2 read, 5 handed to the DM
@@ -255,7 +255,7 @@ every casting; only one of them is waiting for anything.
 - **Forcecage** (level 7) — 4 noted
 - **Foresight** (level 9) — 3 noted
 - **Freedom of Movement** (level 4) — 6 noted
-- **Gate** (level 9) — 4 noted
+- **Gate** (level 9) — 3 noted, 1 handed to the DM
 - **Geas** (level 5) — 4 noted
 - **Gentle Repose** (level 2) — 2 noted
 - **Giant Insect** (level 4) — 4 noted
@@ -281,7 +281,7 @@ every casting; only one of them is waiting for anything.
 - **Irresistible Dance** (level 6) — 4 noted
 - **Jump** (level 1) — 1 noted
 - **Knock** (level 2) — 3 noted
-- **Legend Lore** (level 5) — 2 noted
+- **Legend Lore** (level 5) — 0 noted, 6 handed to the DM
 - **Levitate** (level 2) — 5 noted
 - **Light** (cantrip) — 3 noted
 - **Locate Animals or Plants** (level 2) — 1 noted
@@ -307,7 +307,7 @@ every casting; only one of them is waiting for anything.
 - **Pass without Trace** (level 2) — 2 noted
 - **Passwall** (level 5) — 2 noted
 - **Phantom Steed** (level 3) — 3 noted
-- **Planar Ally** (level 6) — 2 noted
+- **Planar Ally** (level 6) — 1 noted, 16 handed to the DM
 - **Planar Binding** (level 5) — 5 noted
 - **Plane Shift** (level 7) — 2 noted
 - **Plant Growth** (level 3) — 3 noted
@@ -959,7 +959,7 @@ stopped having to be handed:
 
 | Parsed | Carried | Attacking | Defence entries | of which qualified | of which unread | Printed lines | of which read |
 |---|---|---|---|---|---|---|---|
-| 330 | 330 | 328 | 723 | 2 | 2 | 1329 | 518 |
+| 330 | 330 | 328 | 723 | 2 | 2 | 1329 | 614 |
 
 **A stat block used to arrive as a body rather than as an actor.**
 `adaptMonster` has always carried across everything the block states as a
@@ -1009,7 +1009,7 @@ fact the book wrote for a person.
 | Line | Printed | Read |
 |---|---|---|
 | Traits | 337 | 18 |
-| Actions | 811 | 500 |
+| Actions | 811 | 596 |
 | Bonus actions | 75 | 0 |
 | Reactions | 24 | 0 |
 | Legendary actions | 82 | 0 |
@@ -1026,11 +1026,11 @@ and a bite whose hit buys a save.
 |---|---|---|
 | A save a line forces | 127 | 187 |
 | An effect a hit buys | 127 | 143 |
-| How many attacks the Attack action holds | 99 | 99 |
 | A recharge | 87 | 87 |
 | A use the block limits per day | 54 | 60 |
 | A creature that casts | 48 | 48 |
 | A legendary action’s own economy | 30 | 82 |
+| How many attacks the Attack action holds | 3 | 3 |
 
 **A printed line reaches the Attack action and nothing else.** An
 opportunity attack and a readied strike both name a weapon and have
