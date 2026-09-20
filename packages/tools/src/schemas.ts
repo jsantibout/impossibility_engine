@@ -370,6 +370,35 @@ export const characterChoicesSchema = z.object({
   classId: z.string().min(1),
   level: z.int().min(1).max(20),
   speciesId: z.string().min(1),
+  /**
+   * Which of the sizes its species prints this character is.
+   *
+   * SRD prints a size on every species and lets some of them print more than
+   * one, which is the whole of why this is a choice: where a species offers a
+   * single size there is nothing to answer, and where it offers several the
+   * pick is the player's and the engine will not make it for them. Silence is
+   * a legal answer — creation pins the first printed size and says so — so the
+   * field is optional, and stating one is the only way a character ends up as
+   * the other size its species offers.
+   *
+   * **A string and not {@link sizeSchema}**, which is the same judgement
+   * `featChoice.abilities` makes one screen down: the engine matches this
+   * against the word the *species* prints, case-insensitively, exactly as a
+   * language and an alignment are matched by name — so `bad_size` can name the
+   * word the caller wrote back to them. An enum here would be a second,
+   * narrower vocabulary that answered a caller writing the printed word with a
+   * complaint about a key, and it would be this file adjudicating a choice
+   * against a species it has not read. `sizeSchema` is the engine's own union
+   * and is right where a caller is placing a creature nothing has pinned a
+   * size for; this is a word off a species entry, and the species decides.
+   */
+  size: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      'Which of the sizes this species prints, as the species prints it — matched without regard to case, the way a language or an alignment is matched by name. Most species print one size and there is nothing to say; where one prints several, the choice is the player’s. Omit it and creation pins the first size the species prints.',
+    ),
   backgroundId: z.string().min(1),
   abilities: abilityChoice,
   abilityIncreases: z.partialRecord(abilitySchema, z.int()),

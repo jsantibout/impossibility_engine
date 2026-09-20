@@ -11,7 +11,14 @@
 
 import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
-import { createCampaign, createSurface, TOOL_NAMES, TOOLS, type ToolOutcome } from '@ie/tools';
+import {
+  characterChoicesSchema,
+  createCampaign,
+  createSurface,
+  TOOL_NAMES,
+  TOOLS,
+  type ToolOutcome,
+} from '@ie/tools';
 
 const surface = () => createSurface(createCampaign({ content: SRD_CONTENT, seed: 'schemas' }));
 
@@ -178,6 +185,45 @@ describe('creation takes no number, and no grant, the caller made up', () => {
         }),
       }).status,
     ).not.toBe('invalid');
+  });
+
+  /**
+   * A size is a choice, and a choice a schema strips is a choice nobody can
+   * make.
+   *
+   * Zod objects drop an unknown key in silence, so `create_character` carrying
+   * no `size` would not *refuse* a stated one — it would accept the call,
+   * create the character, and throw the word away, which is the failure mode
+   * `doors.test.ts` was written about: "asserting that it succeeds proves
+   * nothing at all". So the field is proved the way that file proves one, with
+   * a value no string field can take, and then proved again by watching the
+   * word survive validation with its case intact.
+   *
+   * **The case is the point of the second assertion.** The engine matches this
+   * against the word the species prints, without regard to case — a language
+   * and an alignment are matched the same way — so what has to arrive is what
+   * the caller wrote, not something this layer normalised on the way past.
+   * What creation then *does* with the word is the engine's: an answer the
+   * species does not offer comes back as `bad_size` naming the field, which is
+   * why the field is a plain string rather than this file's own six-word enum.
+   */
+  it('carries a stated size rather than stripping it', () => {
+    const outcome = send('create_character', { id: 'kessa', choices: choices({ size: -1 }) });
+    expect(outcome.status).toBe('invalid');
+    if (outcome.status !== 'invalid') return;
+    expect(outcome.issues.map((issue) => issue.path)).toContain('choices.size');
+
+    // And the word itself, through validation and out the other side.
+    expect(characterChoicesSchema.parse(choices({ size: 'Small' })).size).toBe('Small');
+
+    // Still a legal call, with the size stated and without it: the field was
+    // added, not made compulsory.
+    expect(
+      send('create_character', { id: 'kessa', choices: choices({ size: 'Small' }) }).status,
+    ).not.toBe('invalid');
+    expect(send('create_character', { id: 'kessa', choices: choices({}) }).status).not.toBe(
+      'invalid',
+    );
   });
 
   it('refuses ability scores nothing checked', () => {
