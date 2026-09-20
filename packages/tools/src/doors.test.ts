@@ -288,6 +288,12 @@ describe('every kind of fact the engine can ask for has a door', () => {
  */
 const ESTABLISHING_FIELDS: Readonly<Record<string, readonly string[]>> = {
   'create_character:creature': ['id', 'choices'],
+  // The second door onto `creature`, and the whole of what it takes: what to
+  // call the monster, and which stat block it is. Every other fact about it
+  // — Armour Class, hit points, size, defences — is read out of the book by
+  // the engine, which is why `monsterId` is the only field and why
+  // `unknown_monster` is answerable at it.
+  'add_creature:creature': ['id', 'monsterId'],
   'declare_creature_type:creature-type': ['who', 'creatureType'],
   'set_scene:scene': ['width', 'depth', 'height'],
   'add_landmark:scene': ['name', 'at'],

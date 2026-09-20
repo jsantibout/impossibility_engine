@@ -111,11 +111,13 @@ import type {
 import {
   activateFeature,
   activateSpell,
+  addCreature,
   addSceneLandmark,
   applyConditionTo,
   applyEvent,
   areaPointAt,
   availableChecks,
+  awardItems,
   createCharacter,
   declareCoverBetween,
   declareCreatureSide,
@@ -155,6 +157,7 @@ import {
 } from '@ie/engine';
 import { z } from 'zod';
 import type { Campaign } from './campaign.js';
+import { resolveGear } from './bestiary.js';
 import { holdingsOf } from './holdings.js';
 import { observe } from './observe.js';
 import type { ArgumentIssue, ContextRequestKind, ToolOutcome } from './outcome.js';
@@ -169,6 +172,7 @@ import {
   pointSchema,
   routeSchema,
   sensesFields,
+  sizeSchema,
 } from './schemas.js';
 
 // — the shape of a definition —————————————————————————————————————————————
@@ -378,7 +382,18 @@ const point = (input: z.infer<typeof pointSchema>): Point => ({
   z: input.z ?? 0,
 });
 
-const placementOf = (input: z.infer<typeof placementSchema>): Placement => ({
+/**
+ * A caller's placement, in the engine's vocabulary.
+ *
+ * The size is taken as a *separate* optional field rather than out of
+ * {@link placementSchema}, because only one of the three tools that build a
+ * placement declares one. A caller that sends none leaves the key off
+ * entirely, and `placeCreatureInScene` fills it from the size the creature's
+ * own `creature-added` pinned.
+ */
+const placementOf = (
+  input: z.infer<typeof placementSchema> & { readonly size?: Placement['size'] },
+): Placement => ({
   from:
     input.fromLandmark !== undefined
       ? { landmark: input.fromLandmark }
@@ -645,6 +660,144 @@ function alreadyWritten(
   return JSON.stringify(log.slice(opens, opens + planned.length)) === JSON.stringify(planned);
 }
 
+/**
+ * A monster out of the bestiary, on the board and holding what it prints.
+ *
+ * **The id, never the block.** `addCreature` takes a stat block's id and reads
+ * the block out of content for exactly the reason this surface exists: an
+ * entry point that accepts a stat block is the door a model-authored Armour
+ * Class walks through, and nothing guards it. A tool over it that took
+ * `{ armorClass: 15 }` would reopen that door one layer up, so this one takes
+ * two strings — what to call the creature, and which block it is — and every
+ * number in the event is the engine's reading of the book. `unknown_monster`
+ * is the refusal that makes the id mean something, and `monsterId` is where a
+ * caller puts a better one.
+ *
+ * **Two commands, because a monster that cannot swing is not on the board.**
+ * `resolveAttack` refuses a weapon its wielder does not own, so a Goblin
+ * Warrior added and not armed is a goblin that cannot make the Scimitar attack
+ * its own stat block prints — present, and unable to do the single thing it
+ * was added to do. So the arrival is composed with `awardItems` for the gear
+ * the catalogue resolves, under a derived command id exactly as
+ * `roll_initiative` composes its two, and appended once through `settle` when
+ * both have succeeded.
+ *
+ * It arms and does not *equip*. A stat block's Armour Class is printed and
+ * carried as stated, so the Leather Armor in a goblin's hands is a record of
+ * what it has rather than a second opinion about what it is worth — and
+ * equipping it would be this layer volunteering an arithmetic the book already
+ * did.
+ *
+ * **What the catalogue cannot find is reported, not refused.** See
+ * `bestiary.ts`: a Mage prints `Wand` and the equipment tables have no wand,
+ * and a missing line of flavour is not a reason there is no Mage. The names
+ * come back through `unverified`, beside the qualified defences `addCreature`
+ * withholds for the same reason.
+ *
+ * **It declares no side and no spellcasting**, which is the engine's division
+ * rather than a gap: allegiance changes in play (`declare_side`) and a stat
+ * block writes its spellcasting as English prose that nothing has parsed. An
+ * NPC who casts takes two calls.
+ */
+const ADD_CREATURE = tool({
+  name: 'add_creature',
+  description:
+    'Put a monster into the game from the bestiary, by the id of its stat block. The engine reads every number off the block — Armour Class, hit points, saves, defences, size — and hands the creature the gear the block prints so that it can use it. You say only what to call it and which monster it is. Declare its side separately; allegiance changes in play.',
+  mutates: true,
+  establishes: ['creature'],
+  input: z.object({
+    id: creatureId.describe('The id this creature will have in play, e.g. grish.'),
+    monsterId: z
+      .string()
+      .min(1)
+      .describe('Which stat block, by its id in the bestiary, e.g. goblin-warrior or ogre.'),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      bringIn(context, who(args.id), args.monsterId),
+      (arrival) => arrival.events,
+      (arrival) => arrival.resolution,
+      (arrival) => arrival.unverified,
+    ),
+});
+
+/** What the two commands behind {@link ADD_CREATURE} answered, put together. */
+interface MonsterArrival {
+  readonly events: readonly GameEvent[];
+  readonly resolution: Readonly<Record<string, unknown>>;
+  readonly unverified: readonly string[];
+}
+
+/**
+ * The arrival and the arming, as one result.
+ *
+ * Built rather than settled twice, so that `settle` stays the only writer: a
+ * refusal from either command returns before anything is appended, which is
+ * what makes a half-armed monster impossible rather than merely unlikely. The
+ * award runs against a *working* state stepped by the engine's own reducer,
+ * because the creature it hands items to is one this call has just written.
+ */
+function bringIn(
+  context: ToolContext,
+  id: CharacterId,
+  monsterId: string,
+): Result<MonsterArrival> {
+  const { campaign } = context;
+  const state = campaign.state();
+
+  const arrival = addCreature(state, campaign.content, id, monsterId, identity(context));
+  if (!arrival.ok) return arrival;
+  if (arrival.value.duplicate) {
+    // A retry. The award was made under its own derived id the first time and
+    // is a no-op too, so there is nothing left to re-run.
+    return ok({
+      events: [],
+      resolution: { added: id, monsterId, duplicate: true },
+      unverified: [],
+    });
+  }
+
+  let working = state;
+  for (const event of arrival.value.events) working = applyEvent(working, event);
+
+  // Non-null: `addCreature` looked this block up and did not refuse it.
+  const printed = campaign.content.monsterById(monsterId)!;
+  const gear = resolveGear(campaign.content, printed.gear);
+
+  const events: GameEvent[] = [...arrival.value.events];
+  if (gear.items.length > 0) {
+    const armed = awardItems(
+      working,
+      campaign.supply(),
+      id,
+      gear.items,
+      `${printed.name}’s printed gear`,
+      identity(context, 'gear'),
+    );
+    if (!armed.ok) return armed;
+    events.push(...armed.value);
+  }
+
+  return ok({
+    events,
+    resolution: {
+      added: id,
+      monsterId,
+      name: printed.name,
+      armed: gear.items.map((line) => line.id),
+      duplicate: false,
+    },
+    unverified: [
+      ...arrival.value.unverified,
+      ...gear.unresolved.map(
+        (name) =>
+          `${id}: ${name} — the stat block prints it and the catalogue has nothing under that name, so it was not handed over`,
+      ),
+    ],
+  });
+}
+
 const DECLARE_SIDE = tool({
   name: 'declare_side',
   description:
@@ -720,13 +873,42 @@ const ADD_LANDMARK = tool({
     ),
 });
 
+/**
+ * And the one field on this surface that still names a size.
+ *
+ * A creature out of the bestiary carries the size its stat block prints:
+ * `addCreature` pins it into `creature-added` and `placeCreatureInScene`
+ * reads the pinned one when a caller states none. So the ordinary call — a
+ * Goblin Warrior, an Ogre — says nothing about size and gets Small and Large
+ * for free, which is the fact being answered by the book rather than asked of
+ * the model.
+ *
+ * It is kept because one creature's record genuinely pins nothing:
+ * `createCharacter` writes no size, and the engine's default is Medium. Every
+ * SRD species is Small or Medium and the two share a 5-foot space, so what
+ * would be lost is the size *category* — which decides who may move through
+ * whose space and who ends up Prone for trying. That is a real rule, and a
+ * Halfling with no way to say it is Small is a rule with no door. The honest
+ * fix is one layer down (creation pinning the species' size), and the engine
+ * is not this batch's to change; until it is, this field is where a caller
+ * answers a question nothing else has answered.
+ */
 const PLACE_CREATURE = tool({
   name: 'place_creature',
   description:
-    'Put a creature into the scene, relative to a landmark or another creature. Use this the first time a creature needs a position; one that already has a position moves instead, spending its Speed.',
+    'Put a creature into the scene, relative to a landmark or another creature. Use this the first time a creature needs a position; one that already has a position moves instead, spending its Speed. A creature out of the bestiary is already the size its stat block prints, so leave the size alone unless nothing has said.',
   mutates: true,
   establishes: ['position'],
-  input: z.object({ who: creatureId }).and(placementSchema),
+  input: z
+    .object({
+      who: creatureId,
+      size: sizeSchema
+        .optional()
+        .describe(
+          'Almost never. A creature added from the bestiary already carries the size its stat block prints. State one only where nothing has — a character of a Small species — or where the table has changed it.',
+        ),
+    })
+    .and(placementSchema),
   run: (context, args) =>
     settleEvents(
       context,
@@ -1811,6 +1993,7 @@ const END_TURN = tool({
 export const TOOLS: readonly ToolDefinition[] = [
   ACTIVATE_FEATURE,
   ACTIVATE_SPELL,
+  ADD_CREATURE,
   ADD_LANDMARK,
   APPLY_CONDITION,
   ATTACK,

@@ -10,7 +10,18 @@
  * Kessa's choices are `scenario.test.ts`'s, transcribed field for field, so
  * the character the surface builds is one the engine is already known to
  * fight with. Vex is the same character under another name, which makes the
- * fight symmetric: whichever way Initiative falls, the same script runs.
+ * first fight symmetric: whichever way Initiative falls, the same script runs.
+ *
+ * **And the second fight is not.** It used to be the only one, and it was
+ * symmetric because it had to be: the only creature a session could put on
+ * the board was a character it built through `create_character`, so every
+ * fight this surface could run was player against player. `add_creature`
+ * ended that. Grish is a Goblin Warrior out of the bestiary — named by the id
+ * of its stat block and by nothing else — who arrives Small because the book
+ * says so, holding the Scimitar the book prints, rolls its own Initiative,
+ * swings that Scimitar at a wizard, and dies of a Fire Bolt. Nobody typed its
+ * Armour Class, its hit points or its size, and there is still no engine in
+ * this file's imports.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -312,5 +323,152 @@ describe('a latecomer joins the fight already running', () => {
     const again = t.call('roll_initiative', { combatants: [{ who: 'kessa' }] });
     expect(again.status).toBe('refused');
     expect(t.campaign.log()).toHaveLength(before);
+  });
+});
+
+// — and the fight that is not symmetric —————————————————————————————————————
+
+/**
+ * The goblin's side of the room: added by id, told which side it is on,
+ * placed, and seen.
+ *
+ * Twenty feet away, which is inside its Speed and outside its reach, so that
+ * closing is something it has to spend a turn doing rather than something the
+ * placement did for it.
+ */
+function openTheLair(t: ReturnType<typeof table>) {
+  expectOk(t.call('create_character', { id: 'kessa', choices: wizard('Kessa') }));
+  expectOk(t.call('add_creature', { id: 'grish', monsterId: 'goblin-warrior' }));
+  expectOk(t.call('declare_side', { who: 'kessa', side: 'party' }));
+  expectOk(t.call('declare_side', { who: 'grish', side: 'goblins' }));
+  expectOk(t.call('set_scene', { width: 60, depth: 40, height: 20 }));
+  expectOk(t.call('add_landmark', { name: 'the fire', at: { x: 20, y: 20 } }));
+  expectOk(t.call('place_creature', { who: 'kessa', fromLandmark: 'the fire', feet: 0 }));
+  // No size in this call. `creature-added` pinned Small off the stat block and
+  // `placeCreatureInScene` reads it, which is the fact being answered by the
+  // book rather than asked of the caller.
+  expectOk(t.call('place_creature', { who: 'grish', fromCreature: 'kessa', feet: 20, bearing: 0 }));
+  expectOk(t.call('declare_sight', { from: 'kessa', to: 'grish', seen: true }));
+  expectOk(t.call('declare_sight', { from: 'grish', to: 'kessa', seen: true }));
+}
+
+/** What one side did on one turn, so the transcript can be read back. */
+interface Beat {
+  readonly who: string;
+  readonly what: string;
+  readonly hit: boolean;
+}
+
+/**
+ * The fight, run until one of them stops standing.
+ *
+ * A loop rather than a script, because the two sides do different things and
+ * neither knows how long the other will take: the goblin closes and swings the
+ * weapon its block prints, the wizard throws a cantrip, and the turn order
+ * decides who is doing which. The bound is a guard against a fight that never
+ * ends, and the test asserts it was not reached.
+ */
+function lairFight(t: ReturnType<typeof table>) {
+  openTheLair(t);
+  const rolled = expectOk(
+    t.call('roll_initiative', { combatants: [{ who: 'kessa' }, { who: 'grish' }] }),
+  );
+
+  const beats: Beat[] = [];
+  let turns = 0;
+  while (turns < 20) {
+    const seen = t.surface.observe();
+    const grish = seen.creatures.find((c) => c.id === 'grish')!;
+    const kessa = seen.creatures.find((c) => c.id === 'kessa')!;
+    if (grish.dead || kessa.hp === 0) break;
+    turns += 1;
+
+    if (seen.turnOf === 'grish') {
+      if ((grish.feetTo['kessa'] ?? Infinity) > 5) {
+        expectOk(t.call('move', { who: 'grish', fromCreature: 'kessa', feet: 5 }));
+      }
+      const swung = expectOk(
+        t.call('attack', { attacker: 'grish', target: 'kessa', weapon: 'scimitar' }),
+      );
+      beats.push({ who: 'grish', what: 'scimitar', hit: swung.resolution['hit'] === true });
+    } else {
+      const cast = expectOk(
+        t.call('cast_spell', { caster: 'kessa', spellId: 'fire-bolt', targets: ['grish'] }),
+      );
+      const outcomes = cast.resolution['outcomes'] as readonly { attack?: { hit?: boolean } }[];
+      beats.push({ who: 'kessa', what: 'fire-bolt', hit: outcomes[0]?.attack?.hit === true });
+    }
+    expectOk(t.call('end_turn', {}));
+  }
+
+  return { rolled, beats, turns };
+}
+
+describe('a fight that is not symmetric', () => {
+  it('runs a monster from the bestiary against a character, and kills it', () => {
+    const t = table('a-goblin-in-the-dark');
+    const { rolled, beats, turns } = lairFight(t);
+
+    // The fight ended because one of them fell, not because the bound ran out.
+    expect(turns).toBeLessThan(20);
+    const grish = t.surface.observe().creatures.find((c) => c.id === 'grish')!;
+    expect(grish.dead).toBe(true);
+    expect(grish.hp).toBe(0);
+
+    // Both sides acted, and they did different things — which is the whole of
+    // what "not symmetric" means here.
+    expect(beats.some((beat) => beat.who === 'grish' && beat.what === 'scimitar')).toBe(true);
+    expect(beats.some((beat) => beat.who === 'kessa' && beat.what === 'fire-bolt')).toBe(true);
+
+    // The goblin landed at least one of them, so the wizard is not at full.
+    expect(beats.some((beat) => beat.who === 'grish' && beat.hit)).toBe(true);
+    const kessa = t.surface.observe().creatures.find((c) => c.id === 'kessa')!;
+    expect(kessa.hp).toBeLessThan(kessa.hpMax);
+
+    // The Initiative the monster rolled is the engine's, recorded where the
+    // log explains it. Nobody said what a goblin adds.
+    expect(
+      rolled.events.some(
+        (event) =>
+          event.type === 'roll-recorded' && event.who === 'grish' && event.label === 'Initiative',
+      ),
+    ).toBe(true);
+  });
+
+  it('arrives as the book prints it, with nothing about it from the caller', () => {
+    const t = table('a-goblin-in-the-dark');
+    openTheLair(t);
+
+    const grish = t.surface.observe().creatures.find((c) => c.id === 'grish')!;
+    expect(grish.name).toBe('Goblin Warrior');
+    expect(grish.armorClass).toBe(15);
+    expect(grish.hpMax).toBe(10);
+    expect(grish.creatureType).toBe('Fey');
+    // Holding what its stat block prints, which is why it can swing at all.
+    expect([...grish.carrying].sort()).toEqual(['leather-armor', 'scimitar', 'shield', 'shortbow']);
+  });
+
+  it('refuses it a weapon its stat block does not print', () => {
+    const t = table('a-goblin-in-the-dark');
+    openTheLair(t);
+    expectOk(t.call('roll_initiative', { combatants: [{ who: 'kessa' }, { who: 'grish' }] }));
+
+    // The other half of the claim above: the Scimitar works because the gear
+    // arrived, not because a monster may swing anything it names.
+    const borrowed = t.call('attack', {
+      attacker: 'grish',
+      target: 'kessa',
+      weapon: 'greatsword',
+    });
+    expect(borrowed.status).toBe('refused');
+    if (borrowed.status === 'refused') expect(borrowed.code).toBe('not_owned');
+  });
+
+  it('is deterministic, monster and all', () => {
+    const a = table('a-goblin-in-the-dark');
+    const b = table('a-goblin-in-the-dark');
+    lairFight(a);
+    lairFight(b);
+    expect(JSON.stringify(b.campaign.log())).toBe(JSON.stringify(a.campaign.log()));
   });
 });

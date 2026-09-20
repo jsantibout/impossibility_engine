@@ -46,6 +46,17 @@ export const damageTypeSchema = z.enum(DAMAGE_TYPES);
  * past the engine for a six-word list would buy a dependency for nothing.
  * The list is fixed by the rules, and the engine's own type is structurally
  * this union, so a divergence is a compile error at the call site.
+ *
+ * **It is asked for in one place, and it used to be asked for in three.** A
+ * size is a fact the book prints — a stat block says Large in its first line —
+ * so a surface that took one from the caller was asking a model to state
+ * something the Engine owes it. `creature-added` pins the size now and
+ * `placeCreatureInScene` reads the pinned one, which left `move` and
+ * `cast_spell.teleportTo` asking about a creature whose size is already in
+ * state, and `place_creature` asking about one whose record usually answers.
+ * The two that could never have a reason lost the field; the one that can
+ * kept it, narrowed to the case where nothing has pinned an answer. See
+ * {@link placementSchema}.
  */
 export const sizeSchema = z.enum(['tiny', 'small', 'medium', 'large', 'huge', 'gargantuan']);
 
@@ -93,6 +104,14 @@ export const routeSchema = z
  * Exactly one anchor, enforced here rather than left to the engine, because
  * "you gave me both" is an argument mistake and not a rules refusal — the two
  * belong in different outcomes.
+ *
+ * **No size.** It was here, described as "only when it is not the default,
+ * Medium", which is a fact the book prints being asked of the caller on every
+ * placement, every move and every teleport. A creature that is already in the
+ * scene has a size in state, so `move` and `cast_spell.teleportTo` could never
+ * have had a reason to carry one at all; `place_creature` declares the field
+ * itself, for the one creature whose record pins nothing. See
+ * {@link sizeSchema}.
  */
 export const placementSchema = z
   .object({
@@ -105,7 +124,6 @@ export const placementSchema = z
       .optional()
       .describe('Degrees clockwise from north. 0 is north, 90 is east. Swept for if omitted.'),
     elevation: z.number().finite().optional().describe('Feet above the anchor, for a flier.'),
-    size: sizeSchema.optional().describe('Only when it is not the default, Medium.'),
   })
   .refine(
     (value) => (value.fromLandmark === undefined) !== (value.fromCreature === undefined),
