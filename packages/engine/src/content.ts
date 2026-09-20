@@ -150,6 +150,29 @@ export interface ContentProblem {
 }
 
 /**
+ * The pools one feature declares, which is what another may spend.
+ *
+ * The five arms `poolsFor` in `creation.ts` pushes a declaration from, read
+ * here so that "this feature spends a pool nobody declares" can be asked at
+ * the door. A list rather than a single key because the question is
+ * membership, and a feature that declared two would answer for both.
+ */
+const poolKeysOf = (feature: FeatureDefinition): readonly string[] => {
+  const grant = feature.grants;
+  if (grant === undefined) return [];
+  if (grant.kind === 'pool') return [grant.key];
+  if (grant.kind === 'activated' && grant.pool !== null) return [grant.pool];
+  if (grant.kind === 'reaction' && grant.declares !== undefined && grant.pool !== undefined) {
+    return [grant.pool];
+  }
+  if (grant.kind === 'recovery') return [grant.pool];
+  if (grant.kind === 'spells' && grant.freeCasting?.declares !== undefined) {
+    return [grant.freeCasting.pool];
+  }
+  return [];
+};
+
+/**
  * The `FeatureGrant` kinds the engine's readers execute.
  *
  * A feature that claims `automation: 'engine'` must declare a grant one of
@@ -2075,6 +2098,27 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
     readonly levels: number;
     readonly features: readonly FeatureDefinition[];
     readonly executedBySource?: ReadonlySet<string>;
+    /**
+     * Whether the class these features belong to casts at all.
+     *
+     * Asked because one member is read only off a **casting** class:
+     * `classFeatureFreeCastings` in `creation.ts` runs over the classes that
+     * have a `spellcasting` block, on that block's own ability, so a free
+     * casting written anywhere else reaches no reader. A subclass inherits
+     * the answer from its parent, which is where a class's spellcasting is
+     * declared; a species and a background have no class and no ability.
+     */
+    readonly casts?: boolean;
+    /**
+     * Features of this source that a pool key may be looked up against —
+     * this source's own, and its parent class's where it has one.
+     *
+     * A subclass feature spending a pool its class declared is a legal thing
+     * to write and `poolsFor` reads both lists, so a check that asked only
+     * about siblings would refuse the one arrangement the SRD's own
+     * subclasses are in.
+     */
+    readonly inScope?: readonly FeatureDefinition[];
   }[] = [];
   const featOf = byId(feats);
 
@@ -2111,6 +2155,7 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
       where,
       levels: definition.table.length,
       features: definition.features,
+      casts: casting !== undefined,
       ...(executedBySource === undefined ? {} : { executedBySource }),
     });
   }
@@ -2121,7 +2166,13 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
     if (parent === undefined) {
       problems.push({ field: `${where}.classId`, code: 'unknown_class', reason: `${subclass.id} belongs to ${subclass.classId}, which this content does not hold` });
     }
-    featureSources.push({ where, levels: parent?.table.length ?? MAX_LEVEL, features: subclass.features });
+    featureSources.push({
+      where,
+      levels: parent?.table.length ?? MAX_LEVEL,
+      features: subclass.features,
+      casts: parent?.spellcasting !== undefined,
+      inScope: [...subclass.features, ...(parent?.features ?? [])],
+    });
   }
   for (const one of species) {
     featureSources.push({ where: `species[${one.id}]`, levels: MAX_LEVEL, features: one.features });
@@ -2287,6 +2338,46 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
             code: 'bad_executed_by',
             reason: `${feature.id} says ${feature.executedBy} executes it, and no feature of that id on ${source.where} declares anything a reader reads`,
           });
+        }
+      }
+      // A casting the feature pays for out of a pool, judged by the two
+      // things a definition cannot check for itself: whether anything here
+      // will ever read it, and whether the pool it spends exists.
+      //
+      // The first is the door `item_casting_on_a_feature` above is: a free
+      // casting is compiled by the loop over this character's **casting
+      // classes**, on that class's own spellcasting ability, so one written
+      // on a species, a background or a class that casts nothing declares a
+      // pool nothing can spend and a route nobody has. The second is the
+      // reading `choiceFrom` below takes of a sibling — a pool a feature
+      // spends without declaring is another feature's, and a key that names
+      // none is a casting that refuses at the table rather than here.
+      if (feature.grants?.kind === 'spells' && feature.grants.freeCasting !== undefined) {
+        const free = feature.grants.freeCasting;
+        if (source.casts !== true) {
+          problems.push({
+            field: `${where}.grants.freeCasting`,
+            code: 'free_casting_without_a_caster',
+            reason: `a casting without a slot is made with the granting class's own spellcasting ability, and ${source.where} supplies none, so ${feature.id} would declare a pool nothing spends`,
+          });
+        }
+        if (free.declares === undefined && typeof free.pool === 'string') {
+          const declaring = (source.inScope ?? source.features).filter((one) =>
+            poolKeysOf(one).includes(free.pool),
+          );
+          if (declaring.length === 0) {
+            problems.push({
+              field: `${where}.grants.freeCasting.pool`,
+              code: 'unknown_free_casting_pool',
+              reason: `${feature.id} spends "${free.pool}" and declares nothing, and no feature of ${source.where} declares a pool by that name — a free casting sizes its own pool through "declares" or comes out of one a feature beside it declared`,
+            });
+          } else if (declaring.every((one) => one.level > feature.level)) {
+            problems.push({
+              field: `${where}.grants.freeCasting.pool`,
+              code: 'free_casting_pool_arrives_later',
+              reason: `${feature.id} arrives at level ${feature.level} and spends a pool ${declaring[0]!.id} does not declare until ${declaring[0]!.level}, so every casting in between would be refused for want of a pool`,
+            });
+          }
         }
       }
       // A grant written in terms of another feature's choice — the SRD's

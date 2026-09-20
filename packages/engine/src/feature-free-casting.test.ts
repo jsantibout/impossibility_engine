@@ -407,6 +407,34 @@ const HEDGEWITCH = JSON.stringify({
         },
       },
     },
+    // And the other half of the vocabulary, which is SRD Wild Companion's:
+    // a feature that declares a pool, and a second feature that spends a use
+    // of it to cast a spell nothing else gives you.
+    {
+      id: 'hedgewitch:greenwatch',
+      name: 'Greenwatch',
+      level: 1,
+      automation: 'engine',
+      note: 'A pool of two uses per Long Rest, which the Hedgeward feature spends.',
+      grants: {
+        kind: 'pool',
+        key: 'greenwatch',
+        label: 'Greenwatch',
+        usesByLevel: Array.from({ length: 20 }, () => 2),
+        recovers: 'long-rest',
+      },
+    },
+    {
+      id: 'hedgewitch:hedgeward',
+      name: 'Hedgeward',
+      level: 1,
+      automation: 'engine',
+      note: 'Spends a use of Greenwatch to cast Bless without a spell slot; the spell is not otherwise prepared.',
+      grants: {
+        kind: 'spells',
+        freeCasting: { spell: 'bless', pool: 'greenwatch' },
+      },
+    },
   ],
 });
 
@@ -474,6 +502,57 @@ describe('a homebrew feature casts out of its own pool with no engine change', (
       route: 'hedgewitch:thornsong',
     });
   });
+
+  /**
+   * The other half of the vocabulary, which is the half SRD Wild Companion
+   * needs: a feature that spends a pool it did **not** declare, to cast a
+   * spell nothing else on the sheet supplies.
+   *
+   * The pool is declared once, by the feature whose pool it is, and the
+   * spender adds no second declaration — which is what the loop over a grant's
+   * own free casting would otherwise have done.
+   */
+  it('spends a pool another feature declared, and declares none of its own', () => {
+    const log = unwrap(createCharacter(content, hedgewitch(), RUBEN), 'create');
+    expect(
+      log.filter(
+        (event) => event.type === 'resource-pool-declared' && event.pool.key === 'greenwatch',
+      ),
+    ).toHaveLength(1);
+
+    const state = fold('seed', log);
+    expect(state.creatures[RUBEN]?.resources.pools['greenwatch']?.max).toBe(2);
+    expect(state.creatures[RUBEN]?.spellcasting.granted).toContainEqual({
+      spellId: 'bless',
+      source: 'hedgewitch:hedgeward',
+      ability: 'wis',
+      freeCastPool: 'greenwatch',
+      slotCasting: false,
+    });
+    // Bless is on no list this character has: the free casting is the only
+    // route to it, which is what makes the pool the only thing paying.
+    expect(state.creatures[RUBEN]?.spellcasting.classes[0]?.prepared).not.toContain('bless');
+
+    const world = table(log, RUBEN);
+    const out = unwrap(
+      cast(
+        fold('seed', world),
+        RUBEN,
+        { spellId: 'bless', targets: [RUBEN], source: 'hedgewitch:hedgeward' },
+        content,
+      ),
+      'the hedgeward',
+    );
+    const after = fold('seed', [...world, ...out.events]);
+    expect(remaining(after.creatures[RUBEN]!.resources, 'greenwatch')).toBe(1);
+    // And the pool it did not touch: the feature's own casting is not free.
+    expect(remaining(after.creatures[RUBEN]!.resources, 'thornsong')).toBe(2);
+    expect(out.events.find((event) => event.type === 'spell-cast')).toMatchObject({
+      spell: 'Bless',
+      slotless: 'special-ability',
+      route: 'hedgewitch:hedgeward',
+    });
+  });
 });
 
 /**
@@ -484,15 +563,14 @@ describe('a homebrew feature casts out of its own pool with no engine change', (
  * table, and a pool with no sizing and no owner.
  */
 describe('a free casting is validated where the rest of the catalogue is', () => {
-  const withGrant = (grant: unknown): unknown => ({
+  const withFeatures = (features: readonly unknown[], over: Record<string, unknown> = {}): unknown => ({
     ...JSON.parse(HEDGEWITCH),
-    features: [
-      {
-        ...JSON.parse(HEDGEWITCH).features[0],
-        grants: grant,
-      },
-    ],
+    features,
+    ...over,
   });
+
+  const withGrant = (grant: unknown): unknown =>
+    withFeatures([{ ...JSON.parse(HEDGEWITCH).features[0], grants: grant }]);
 
   /**
    * Every problem at once rather than the first, which is what `checkContent`
@@ -542,6 +620,76 @@ describe('a free casting is validated where the rest of the catalogue is', () =>
         freeCasting: { spell: 'hunters-mark', pool: '', declares: { minimum: 1, recovers: 'long-rest' } },
       }),
     ).toContain('free_casting_without_a_pool');
+  });
+
+  /**
+   * A free casting nothing will ever read, which is the door
+   * `item_casting_on_a_feature` is in the other direction.
+   *
+   * It is compiled by the loop over a character's **casting classes**, on
+   * that class's own spellcasting ability, so one written on a class that
+   * casts nothing declares a live pool and a route nobody has.
+   */
+  it('refuses a free casting on a source with no spellcasting to make it with', () => {
+    const castless = { ...(withGrant(JSON.parse(HEDGEWITCH).features[0].grants) as object) };
+    delete (castless as Record<string, unknown>)['spellcasting'];
+    expect(
+      checkContent({
+        classes: [castless as ClassDefinition],
+        spells: SRD_CONTENT.spells,
+        spellEntries: SRD_CONTENT.spellEntries,
+      }).map((problem) => problem.code),
+    ).toContain('free_casting_without_a_caster');
+  });
+
+  /**
+   * And a pool that is nobody's: a free casting sizes its own through
+   * `declares`, or comes out of one a feature beside it declared. A key that
+   * names neither refuses every casting it offers, at the table.
+   */
+  it('refuses a borrowed pool no feature of this source declares', () => {
+    expect(
+      codesOf({
+        kind: 'spells',
+        fixed: ['hunters-mark'],
+        freeCasting: { spell: 'hunters-mark', pool: 'thornsnog' },
+      }),
+    ).toContain('unknown_free_casting_pool');
+  });
+
+  /** And one that arrives after the feature spending it. */
+  it('refuses a borrowed pool that is declared at a later level', () => {
+    const problems = checkContent({
+      classes: [
+        withFeatures([
+          {
+            id: 'hedgewitch:hedgeward',
+            name: 'Hedgeward',
+            level: 1,
+            automation: 'engine',
+            note: 'Spends a use of Greenwatch to cast Bless without a spell slot.',
+            grants: { kind: 'spells', freeCasting: { spell: 'bless', pool: 'greenwatch' } },
+          },
+          {
+            id: 'hedgewitch:greenwatch',
+            name: 'Greenwatch',
+            level: 7,
+            automation: 'engine',
+            note: 'A pool of two uses per Long Rest.',
+            grants: {
+              kind: 'pool',
+              key: 'greenwatch',
+              label: 'Greenwatch',
+              usesByLevel: Array.from({ length: 20 }, () => 2),
+              recovers: 'long-rest',
+            },
+          },
+        ]) as ClassDefinition,
+      ],
+      spells: SRD_CONTENT.spells,
+      spellEntries: SRD_CONTENT.spellEntries,
+    });
+    expect(problems.map((problem) => problem.code)).toContain('free_casting_pool_arrives_later');
   });
 
   /**

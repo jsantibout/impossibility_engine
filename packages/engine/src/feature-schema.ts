@@ -538,7 +538,7 @@ export function checkFeatureDefinition(
       found.push({
         field: 'grants.freeCasting.spell',
         code: 'unknown_free_casting',
-        reason: `this content has no executable definition of "${free.spell}", so the casting this feature pays for could never run`,
+        reason: `this content holds no spell with the id "${free.spell}", so the casting this feature pays for names nothing`,
       });
     }
     if (typeof free.pool !== 'string' || free.pool.trim() === '') {
