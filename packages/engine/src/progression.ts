@@ -1477,7 +1477,7 @@ export interface ResourceTradeGrant {
    *
    * Required and closed, because both of Wild Resurgence's sentences print one
    * and writing an unlimited trade as a limited one would be a rule invented
-   * here. Three features the shape map still lists want the absent member:
+   * here. Features the shape map still lists want the absent member:
    * Font of Inspiration is "a spell slot bought into a pool, with no action and
    * no limit", Sorcery Incarnate is "one pool spent to refill another", and
    * Holy Nimbus's is "a slot spent on a feature's own pool". Widening this to
