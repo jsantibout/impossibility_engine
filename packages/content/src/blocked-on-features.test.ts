@@ -388,9 +388,10 @@ describe('what a shape finishes is the column a tranche is planned from', () => 
    *
    * It read blocks 10 / finishes 4, which is how a batch came to brief four
    * features off it as a transcription track. A builder read the mechanism
-   * instead and found the entries did not share a blocker at all. What they
-   * shared was a *sentence about the action economy*, and the engine refuses
-   * those in four unrelated places:
+   * instead and found the entries did not share a blocker at all — and that
+   * **the ten were never ten allowances**: the clauses filed there were not
+   * all `ActionRule` clauses. What they shared was a *sentence about the
+   * action economy*, and the engine refuses those in four unrelated places:
    *
    * | | |
    * |---|---|
@@ -402,13 +403,24 @@ describe('what a shape finishes is the column a tranche is planned from', () => 
    * The fourth row is the borrowed spell id doing what a borrowed id is for:
    * what stays on it is exactly the residue that description already names —
    * an extra action granted rather than an existing one governed, and a rule
-   * that couples two slots — which is a gap a casting has too.
+   * that couples slots — which is a gap a casting has too.
+   *
+   * A fifth entry left the subject altogether. Steady Aim was here for its
+   * "haven't moved" gate, and a gate is a field on the Bonus Action a feature
+   * has no way to spend — which is the moment `a-one-shot-roll-modifier`
+   * already names one entry above. So it is not an action-rule feature at
+   * all, and moving it is what takes that shape's *finishes* column to two.
    */
   it('splits the action-economy shape into the four gaps it was standing for', () => {
     expect(featureConsumersOf('an-action-rule-a-feature-holds')).toEqual({
       shape: 'an-action-rule-a-feature-holds',
-      blocks: ['barbarian:improved-brutal-strike', 'rogue:cunning-action', 'rogue:steady-aim'],
+      blocks: ['barbarian:improved-brutal-strike', 'rogue:cunning-action'],
       finishes: [],
+    });
+    expect(featureConsumersOf('a-one-shot-roll-modifier')).toEqual({
+      shape: 'a-one-shot-roll-modifier',
+      blocks: ['barbarian:improved-brutal-strike', 'fighter:studied-attacks', 'rogue:steady-aim'],
+      finishes: ['fighter:studied-attacks', 'rogue:steady-aim'],
     });
     expect(featureConsumersOf('an-action-the-engine-has-no-spender-for')).toEqual({
       shape: 'an-action-the-engine-has-no-spender-for',
@@ -437,10 +449,16 @@ describe('what a shape finishes is the column a tranche is planned from', () => 
    *
    * **The door alone finishes nothing.** Opening `ActionRule` to a feature —
    * the decision the split sends to an architect — takes no feature off this
-   * list, because every one of the three it blocks is blocked on something
-   * else as well. One Rogue feature needs all three of the new ids at once,
-   * which is the clearest single fact the re-filing produced: a transcription
-   * track briefed off `finishes: 4` would have landed none of them.
+   * list, because both of the ones it blocks are blocked on something else as
+   * well. One Rogue feature needs all three of the new ids at once, which is
+   * the clearest single fact the re-filing produced: a transcription track
+   * briefed off `finishes: 4` would have landed none of them.
+   *
+   * And a brief that built the door **and** a price on `takeDash` would still
+   * not take Cunning Action off the list. It would free two of its three
+   * verbs and leave the Hide, and a feature half applied declares `manual`:
+   * `barbarian:persistent-rage` is the standing reading of that, and it is
+   * why this column counts features rather than clauses.
    */
   it('finishes nothing with the door alone, and one feature wants all three', () => {
     expect(featureConsumersOf('an-action-rule-a-feature-holds').finishes).toEqual([]);
