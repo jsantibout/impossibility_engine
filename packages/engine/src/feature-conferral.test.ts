@@ -394,51 +394,57 @@ describe('the pool behind the options', () => {
   };
 
   /**
-   * **The refusal is a value, and it is asserted on the value.** Folding the
-   * same log twice and finding it unchanged proves nothing: a refusal appends
-   * no events, so that comparison holds however much the command spent before
-   * deciding. What has to be true is that the `Result` itself carries nothing
-   * — no die issued, no `resource-spent`, no Action gone — which is the whole
-   * of "a refused use costs its Cleric nothing".
+   * **What a refusal could have spent, and did not.**
+   *
+   * Folding the same log twice and finding it unchanged proves nothing: a
+   * refusal appends no events, so that comparison holds however much the
+   * command did before deciding. The `Supply` is the observable that *could*
+   * have moved — the issuer counts every roll it stamps and the generator
+   * carries its own state forward — and both are mutable objects the command
+   * is handed. A use that rolled its d8 and then discovered the empty pool
+   * would leave the count raised and the generator advanced, and a replay
+   * from this log would then throw different dice than the session did.
    */
+  const untouched = (
+    state: GameState,
+    command: { feature: string; option: string; target?: CharacterId; commandId?: string },
+    code: string,
+  ): void => {
+    const given = supply(state);
+    const issued = given.issuer.count;
+    const generator = JSON.stringify(given.rng.snapshot());
+
+    const refused = usePoolOption(state, ANSEL, command, given);
+    expect(isErr(refused)).toBe(true);
+    if (isErr(refused)) expect(refused.code).toBe(code);
+
+    expect(given.issuer.count).toBe(issued);
+    expect(JSON.stringify(given.rng.snapshot())).toBe(generator);
+  };
+
   it('is refused when it is empty, and the refusal costs nothing at all', () => {
     const spent = useAll();
     expect(left(spent, ANSEL, 'channel-divinity')).toBe(0);
-
-    const before = fold('seed', spent);
-    const issued = before.rollsIssued;
-    const refused = usePoolOption(
-      before,
-      ANSEL,
+    untouched(
+      fold('seed', spent),
       { feature: CHANNEL, option: 'divine-spark-restore', target: THUG, commandId: 'third' },
-      supply(before),
+      'exhausted',
     );
-    expect(isErr(refused)).toBe(true);
-    if (!isErr(refused)) return;
-    expect(refused.code).toBe('exhausted');
-    // A refusal is a value and carries no events at all, so there is nothing
-    // to spend: the generator has not moved and the pool is where it was.
-    expect('value' in refused).toBe(false);
-    expect(before.rollsIssued).toBe(issued);
-    expect(left(spent, ANSEL, 'channel-divinity')).toBe(0);
   });
 
   /**
-   * And the same, one refusal earlier: an option nobody can reach costs the
-   * use it would have spent. `mayAct`, the feature, the option, the damage
-   * type, the targets and the reach are all asked before the pool is touched.
+   * And the same of a refusal reached *before* the pool is looked at, which is
+   * what makes the order load-bearing rather than incidental: the option, the
+   * damage type, the target and the reach are all settled first, so a Cleric
+   * with two uses left keeps both.
    */
   it('costs no use when the target is out of reach', () => {
     const start = table();
-    const state = fold('seed', start);
-    const refused = usePoolOption(
-      state,
-      ANSEL,
+    untouched(
+      fold('seed', start),
       { feature: CHANNEL, option: 'divine-spark-restore', target: ALLY },
-      supply(state),
+      'out_of_reach',
     );
-    expect(isErr(refused)).toBe(true);
-    if (isErr(refused)) expect(refused.code).toBe('out_of_reach');
     expect(left(start, ANSEL, 'channel-divinity')).toBe(2);
   });
 

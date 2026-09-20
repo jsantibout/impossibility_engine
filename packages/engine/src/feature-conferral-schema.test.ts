@@ -197,6 +197,60 @@ describe('what a feature’s option may not say', () => {
     );
   });
 
+  /**
+   * **And at the second door, which is the one a feature opened.** A conferral
+   * hangs one condition and its repeat is the host's own flat field; a feature
+   * hangs the several SRD Turn Undead prints, so a *further* rider may carry a
+   * repeat of its own and reach `repeatSaveFrom` through `conditionRiderOf`.
+   * A rule enforced at one of two doors is a rule with a hole in it.
+   */
+  it('refuses the same repeat written on one of the further conditions', () => {
+    expect(
+      codesFor(
+        withOption({
+          effects: [
+            {
+              kind: 'save',
+              ability: 'wis',
+              condition: 'frightened',
+              conditions: [
+                {
+                  name: 'incapacitated',
+                  repeats: { at: 'end-of-turn', onSuccess: 'end-casting' },
+                },
+              ],
+            },
+          ],
+        }),
+      ),
+    ).toContain(
+      'feature_repeat_needs_a_casting @ classes[warden].features[0].grants.options[0].effects[0].conditions[0].repeats.onSuccess',
+    );
+  });
+
+  /** And admits the spelling a feature *can* mean: a success ends it there. */
+  it('admits a repeat whose success ends the condition on its target', () => {
+    expect(
+      codesFor(
+        withOption({
+          effects: [
+            {
+              kind: 'save',
+              ability: 'wis',
+              condition: 'frightened',
+              conditions: [
+                {
+                  name: 'incapacitated',
+                  repeats: { at: 'end-of-turn', onSuccess: 'end-on-target' },
+                },
+              ],
+            },
+          ],
+        }),
+      ),
+    ).toEqual([]);
+  });
+
   it('refuses a granted modifier, which is welded to the casting that hung it', () => {
     expect(
       codesFor(
