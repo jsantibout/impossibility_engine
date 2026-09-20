@@ -67,12 +67,21 @@ export interface ContextRequest {
    * repair unless it is told what would repair it. The engine does not start
    * the fight, roll Initiative or invent an order — it says which command
    * would, and the caller casts again exactly as it meant to.
+   *
+   * `side` is the fact a fight's *ending* needs before "hostile" means
+   * anything. Allegiance is declared here, never inferred: `null` is "nobody
+   * has said", not "neutral", so a fight holding somebody standing on nobody's
+   * side cannot be *known* to be over, and either answer would be the engine
+   * settling the fact instead of asking for it. Declaring it satisfies it, and
+   * unlike `creature-type` it is re-declarable — sides change in play, and a
+   * prisoner who turns on their captors is the same creature on another one.
    */
   readonly kind:
     | 'creature'
     | 'position'
     | 'visibility'
     | 'creature-type'
+    | 'side'
     | 'scene'
     | 'route'
     | 'turn-order';

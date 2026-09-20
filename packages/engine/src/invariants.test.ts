@@ -3432,6 +3432,38 @@ describe('unknown is not no', () => {
         );
       },
     },
+    {
+      // A fight the DM says is over, with somebody standing in it that nobody
+      // has put on a side. `side` is declared, exactly as sight and cover are:
+      // `null` is "nobody has said", not "neutral", so a fight holding one
+      // cannot be *known* to be over and either answer would be the engine
+      // settling the fact rather than asking for it. `declareCreatureSide`
+      // settles it — and this entry is why that request has a shape rather
+      // than a sentence, because the assertion below reads the shape.
+      name: 'ending a fight with somebody on nobody’s side',
+      run: () => {
+        const unsided: readonly GameEvent[] = [
+          ...SETUP.filter((event) => event.type !== 'combat-started'),
+          {
+            type: 'creature-added',
+            id: C,
+            name: C,
+            sheet: sheet(),
+            maxHp: 60,
+            diesAtZero: false,
+            creatureType: 'Humanoid',
+          },
+          {
+            type: 'combat-started',
+            combatants: [
+              { id: A, initiative: 20, speed: 30 },
+              { id: C, initiative: 10, speed: 30 },
+            ],
+          },
+        ];
+        return endCombat(fold('s', unsided), { kind: 'defeated' });
+      },
+    },
   ];
 
   for (const entry of thin) {

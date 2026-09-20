@@ -358,6 +358,10 @@ const ESTABLISHING_FIELDS: Readonly<Record<string, readonly string[]>> = {
   // `unknown_monster` is answerable at it.
   'add_creature:creature': ['id', 'monsterId'],
   'declare_creature_type:creature-type': ['who', 'creatureType'],
+  // Its twin, differing only in being re-declarable: a type is what a
+  // creature is and a side is who it is fighting, and the second changes in
+  // play. The same two fields carry it.
+  'declare_side:side': ['who', 'side'],
   'set_scene:scene': ['width', 'depth', 'height'],
   'add_landmark:scene': ['name', 'at'],
   'place_creature:position': ['who', 'feet'],

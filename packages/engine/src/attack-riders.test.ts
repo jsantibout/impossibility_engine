@@ -11,6 +11,8 @@ import { durationSecondsAt } from './spell-definitions.js';
 import type { DamageDefenses } from './attack.js';
 import {
   advanceTime,
+  declareCreatureSide,
+  endCombat,
   endConcentration,
   releaseReady,
   resolveAttack,
@@ -551,8 +553,19 @@ describe('the band reaches a readied spell too', () => {
    */
   const readied = (slotLevel: number, seconds: number): boolean => {
     const start = table();
-    const combat: readonly GameEvent[] = [
+    // Both combatants go on a side before Initiative, because the fight has to
+    // be *closed* below: a fight holding somebody on nobody's side cannot be
+    // known to be over, and `endCombat` asks rather than deciding it either way.
+    const sided: readonly GameEvent[] = [
       ...start,
+      ...must(declareCreatureSide(fold('seed', start), CASTER, 'the watch')),
+    ];
+    const bothSided: readonly GameEvent[] = [
+      ...sided,
+      ...must(declareCreatureSide(fold('seed', sided), QUARRY, 'the quarry')),
+    ];
+    const combat: readonly GameEvent[] = [
+      ...bothSided,
       {
         type: 'combat-started',
         combatants: [
@@ -575,10 +588,17 @@ describe('the band reaches a readied spell too', () => {
       ...must(releaseReady(fold('seed', held), CASTER, { targets: [QUARRY] }, supply('release')))
         .events,
     ];
-    const later = [
+    // The watch is kept after the fight rather than during it: inside a fight
+    // the clock is the turn order's and `advanceTime` refuses `in_combat`. So
+    // the fight is closed through the door \u2014 the quarry, carrying the
+    // Suggestion, yields \u2014 rather than by forging a `combat-ended` no command
+    // would have written. What is under test is unchanged: a span deadline is
+    // left alone by the fight ending, and this reads it afterwards.
+    const quiet: readonly GameEvent[] = [
       ...released,
-      ...must(advanceTime(fold('seed', released), seconds, 'a long watch')),
+      ...must(endCombat(fold('seed', released), { kind: 'surrender', side: 'the quarry' })),
     ];
+    const later = [...quiet, ...must(advanceTime(fold('seed', quiet), seconds, 'a long watch'))];
     return Object.keys(fold('seed', later).ongoing).length > 0;
   };
 

@@ -18,7 +18,14 @@
  * Which is three endings and one refusal, and the file is laid out as them.
  */
 import { describe, expect, it } from 'vitest';
-import { asCharacterId, type CharacterId, isErr, expect as unwrap, type Result } from '@ie/shared';
+import {
+  asCharacterId,
+  type CharacterId,
+  contextRequestsOf,
+  isErr,
+  expect as unwrap,
+  type Result,
+} from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { beginRest, endRest, SHORT_REST } from './rest.js';
@@ -158,11 +165,58 @@ describe('a fight ends when no hostile combatant remains', () => {
     const asked = endCombat(fold('seed', unsided), { kind: 'defeated' });
     expect(codeOf(asked)).toBe('undeclared_side');
     expect(isErr(asked) ? asked.kind : 'ok').toBe('needs-context');
-    expect(isErr(asked) ? asked.reason : '').toContain('declareCreatureSide');
+
+    // And it says so in the field a tool surface branches on rather than in
+    // prose. `kind: 'side'` is the vocabulary `@ie/shared` grew for this, and
+    // the subject is the creature the fight is waiting on — one request
+    // apiece, so a caller with three of them has three things to send and no
+    // sentence to parse.
+    expect(contextRequestsOf(asked).map((request) => [request.kind, request.subject])).toEqual([
+      ['side', GOBLIN],
+    ]);
+    for (const request of contextRequestsOf(asked)) {
+      expect(request.satisfyWith).toContain('declareCreatureSide');
+      expect(request.need.length).toBeGreaterThan(0);
+      expect(request.because.length).toBeGreaterThan(0);
+    }
 
     // And the answer settles it: the same fight, with the fact supplied.
     const said = run(unsided, (s) => declareCreatureSide(s, GOBLIN, RAIDERS));
     expect(codeOf(endCombat(fold('seed', said), { kind: 'defeated' }))).toBe('hostiles_remain');
+  });
+
+  /**
+   * One request per creature, and not one sentence listing them. The whole
+   * point of the structured half is that a caller can act on it without
+   * reading — two unsided combatants are two `declareCreatureSide` calls, and
+   * the surface should be able to see that without splitting a string on a
+   * comma.
+   */
+  it('asks once for each creature the fight is waiting on', () => {
+    const twoUnsided: readonly GameEvent[] = [
+      add(KNIGHT, PARTY),
+      add(GOBLIN, undefined),
+      add(HOBGOBLIN, undefined),
+      {
+        type: 'combat-started',
+        combatants: [
+          { id: KNIGHT, initiative: 20, speed: 30 },
+          { id: HOBGOBLIN, initiative: 12, speed: 30 },
+          { id: GOBLIN, initiative: 8, speed: 30 },
+        ],
+      },
+    ];
+    const asked = endCombat(fold('seed', twoUnsided), { kind: 'defeated' });
+    expect(codeOf(asked)).toBe('undeclared_side');
+    expect(contextRequestsOf(asked).map((request) => request.subject).sort()).toEqual(
+      [GOBLIN, HOBGOBLIN].sort(),
+    );
+    for (const request of contextRequestsOf(asked)) expect(request.kind).toBe('side');
+
+    // And a fight nobody is waiting on carries none at all, so the shape
+    // above is this refusal's rather than every refusal's.
+    const settled = felled(felled(fight(), GOBLIN), HOBGOBLIN);
+    expect(contextRequestsOf(endCombat(fold('seed', settled), { kind: 'defeated' }))).toEqual([]);
   });
 
   /**

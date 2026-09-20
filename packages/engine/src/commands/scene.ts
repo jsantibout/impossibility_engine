@@ -409,17 +409,17 @@ export type CombatEnding =
  * be *known* to be over — answering either way would be the engine settling
  * the missing fact instead of asking for it. `declareCreatureSide` settles it.
  *
- * **And that request carries no `ContextRequest`, which is a gap recorded
- * rather than papered over.** `ContextRequest.kind` is a closed union in
- * `@ie/shared` — `creature | position | visibility | creature-type | scene |
- * route | turn-order` — and not one of them means "nobody has said whose side
- * this creature is on". The creature is *known*; a fact about it is not. So
- * the alternatives were to widen that union and give `declare_side` an
- * `establishes` beside it, which is a new primitive across two packages and a
- * decision this task was not given, or to leave the "what" in the prose the
- * way {@link placeCreatureInScene} above says a tool surface cannot branch on.
- * It is written here so the next task finds a recorded breach rather than an
- * argument: a `side` kind is what would close it.
+ * **And that request carries a `ContextRequest` per creature**, which is the
+ * breach this command recorded and the next task closed. `ContextRequest.kind`
+ * is a closed union in `@ie/shared`, none of whose seven kinds meant "nobody
+ * has said whose side this creature is on" — the creature is *known*; a fact
+ * about it is not — so the "what" sat in the prose that
+ * {@link placeCreatureInScene} above says a tool surface cannot branch on.
+ * `side` is the eighth kind, `declare_side` declares it, and the refusal now
+ * hands back one request per unsided creature rather than a sentence with
+ * their names joined by commas. It is one request each rather than one for the
+ * fight because the remedy is one `declareCreatureSide` each, and a caller
+ * that has to split a string to find that out is reading prose again.
  *
  * **A surrender or a flight must name a side somebody standing is on.**
  * Without that the command is a skeleton key: any fight could be closed by
@@ -485,6 +485,13 @@ export function endCombat(
       return needsContext(
         'undeclared_side',
         `nobody has said whose side ${unsided.join(', ')} ${unsided.length === 1 ? 'is' : 'are'} on, and a fight cannot be known to be over while somebody standing in it is on nobody's — a declareCreatureSide command for each of them settles it`,
+        unsided.map((who) => ({
+          kind: 'side' as const,
+          subject: who,
+          need: `which side ${who} is fighting on`,
+          because: 'a fight is over when nobody standing is opposed to anybody else',
+          satisfyWith: `declareCreatureSide(state, '${who}', side)`,
+        })),
       );
     }
 
