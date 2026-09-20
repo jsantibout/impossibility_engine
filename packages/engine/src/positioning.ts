@@ -655,6 +655,47 @@ export function distanceBetween(
 }
 
 /**
+ * The compass bearing from one creature to another, on the scene's own metric.
+ *
+ * SRD Push: "you can push the creature up to 10 feet **straight away from
+ * yourself**" — a direction the engine had no way to name. `project` turns a
+ * bearing into a point and is private; this is the other direction, and it is
+ * exported because the sentence that needs it is a command's rather than a
+ * placement's.
+ *
+ * Degrees, with 0 as +y and 90 as +x, which is what a {@link Placement} means
+ * by `bearing` — so what comes back can be handed straight to one. Two
+ * creatures in the same space have no bearing between them and say so, rather
+ * than answering north.
+ */
+export function bearingBetween(
+  state: PositionState,
+  from: CharacterId,
+  to: CharacterId,
+): Result<number> {
+  const here = positionOf(state, from);
+  const there = positionOf(state, to);
+  if (here === null) {
+    return needsContext('unplaced', `${from} needs placing before a direction means anything`);
+  }
+  if (there === null) {
+    return needsContext('unplaced', `${to} needs placing before a direction means anything`);
+  }
+
+  const east = there.x - here.x;
+  const north = there.y - here.y;
+  if (east === 0 && north === 0) {
+    return err(
+      'same_space',
+      `${from} and ${to} are in the same space, and there is no direction between them`,
+    );
+  }
+
+  const degrees = (Math.atan2(east, north) * 180) / Math.PI;
+  return ok((degrees + 360) % 360);
+}
+
+/**
  * How far a creature is from a bare point, in feet.
  *
  * "A point you choose within range" is a real target in the rules — Fireball

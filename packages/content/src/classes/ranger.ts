@@ -118,8 +118,10 @@ export const RANGER: ClassDefinition = {
       id: 'ranger:weapon-mastery',
       name: 'Weapon Mastery',
       level: 1,
-      automation: 'manual',
-      note: 'Which two weapons a Ranger is proficient with and has mastery with is recorded nowhere, and the eight properties are parsed onto the weapons that print them and executed by nothing. Cleave, Graze, Push, Slow and Topple would follow the record; Sap and Vex each want a modifier consumed by the roll it changes; Nick redirects the extra attack the Light property gives, and the Attack action holds no such attack to redirect; and changing what was chosen on a Long Rest is an option re-answered, which a choice frozen at creation cannot be.',
+      automation: 'engine',
+      note: 'SRD: "Your training with weapons allows you to use the mastery properties of two kinds of weapons of your choice with which you have proficiency, such as Longbows and Shortswords." A flat two rather than a column, and the proficiency clause the Barbarian and the Fighter leave implicit. Executed: the weapons chosen are recorded on the sheet, and the properties that follow from the record run on the attack — Graze\'s damage on a miss, Cleave\'s second swing, Push\'s forced move, Slow\'s ten feet, Topple\'s Constitution save, and Sap and Vex, which the SRD writes as things that simply happen rather than things you can do. Two clauses are still the table\'s: Nick redirects the extra attack the Light property gives, and nothing pays for one; and changing a choice on a Long Rest is an option re-answered, which a choice frozen at creation is not.',
+      grants: { kind: 'weapon-mastery' },
+      choice: { kind: 'weapon', choose: 2 },
     },
     {
       id: 'ranger:deft-explorer',

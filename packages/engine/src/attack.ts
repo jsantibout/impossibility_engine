@@ -1,5 +1,5 @@
-import { err, ok, type Ability, type Result, type RollMode } from '@ie/shared';
-import type { Weapon, WeaponProperty } from '@ie/srd';
+import { err, ok, type Ability, type CharacterId, type Result, type RollMode } from '@ie/shared';
+import type { Weapon, WeaponMastery, WeaponProperty } from '@ie/srd';
 import { parseNotation, type DieEffect, type Rng } from './dice.js';
 import type { Content } from './content.js';
 // Type-only, and deliberately: `events.ts` reads this module's damage types
@@ -77,6 +77,101 @@ export function proficientWith(sheet: CharacterSheet, weapon: Weapon | null): bo
   // plus your Proficiency Bonus" — there is no unproficient Unarmed Strike.
   if (weapon === null || categories === undefined) return true;
 
+  return proficientWithCategories(categories, weapon);
+}
+
+/**
+ * What the attacker says about the mastery property of the weapon in hand.
+ *
+ * Present at all means "use it"; what is inside says which, how far, and —
+ * for Cleave — whom the extra swing follows.
+ */
+export interface MasteryUse {
+  /**
+   * SRD Tactical Master: "you can replace its mastery property with the Push,
+   * Sap, or Slow property **for that attack**." Refused unless a feature said
+   * this character may.
+   */
+  readonly property?: WeaponMastery;
+  /** SRD Push: "up to 10 feet". Absent pushes the whole ten. */
+  readonly feet?: number;
+  /**
+   * SRD Cleave: the creature already hit, whose neighbour this swing is
+   * against. Its presence is what makes this attack the extra one.
+   */
+  readonly cleaving?: CharacterId;
+}
+
+/**
+ * The two mastery properties the SRD does not ask permission for.
+ *
+ * Five of the eight are written "you can" — Cleave, Graze, Push, Slow, Topple
+ * — and are a decision the attacker states. Sap and Vex are written as things
+ * that happen: "that creature **has** Disadvantage", "you **have** Advantage".
+ * So the split is the book's wording rather than a rule of this engine's, and
+ * it is here rather than in five branches because it is one sentence about the
+ * whole list.
+ */
+const UNASKED: readonly WeaponMastery[] = ['sap', 'vex'];
+
+/**
+ * Which mastery property is in play for this swing, if any.
+ *
+ * SRD: "Each weapon has a mastery property, which is usable only by a
+ * character who has a feature, such as Weapon Mastery, that **unlocks the
+ * property** for the character." So the weapon prints the property, the
+ * character's record says whether it is theirs to use, and a swing with a
+ * weapon nobody unlocked has no property at all.
+ *
+ * Refusing rather than ignoring when the attacker asked for one they do not
+ * have: a mastery silently skipped is a rule the caller believes is running.
+ */
+export function masteryInPlay(
+  sheet: CharacterSheet,
+  weaponId: string | null,
+  weapon: Weapon | null,
+  asked: MasteryUse | undefined,
+): Result<WeaponMastery | null> {
+  const unlocked =
+    weapon !== null && weaponId !== null && (sheet.weaponMasteries ?? []).includes(weaponId);
+
+  if (asked === undefined) {
+    return ok(unlocked && UNASKED.includes(weapon.mastery) ? weapon.mastery : null);
+  }
+
+  if (!unlocked) {
+    return err(
+      'no_mastery',
+      weapon === null
+        ? 'an Unarmed Strike has no mastery property'
+        : `this character does not have mastery with a ${weapon.name}`,
+    );
+  }
+
+  const substituted = asked.property;
+  if (substituted === undefined || substituted === weapon.mastery) return ok(weapon.mastery);
+
+  if (!(sheet.masterySubstitutions ?? []).includes(substituted)) {
+    return err(
+      'no_mastery',
+      `nothing lets this character use ${substituted} in place of a ${weapon.name}'s own property`,
+    );
+  }
+  return ok(substituted);
+}
+
+/**
+ * The same question asked of a list of categories rather than of a sheet.
+ *
+ * Creation needs it before there is a sheet to ask: SRD Weapon Mastery's
+ * "weapons of your choice with which you have proficiency" is checked while
+ * the choices are still being validated. One rule, two callers, and the
+ * qualified categories are the reason it is not four lines inlined twice.
+ */
+export function proficientWithCategories(
+  categories: readonly string[],
+  weapon: Weapon,
+): boolean {
   const light = weapon.properties.includes('light');
   const finesse = weapon.properties.includes('finesse');
 
@@ -319,6 +414,15 @@ export interface AttackOptions {
   readonly damageBonuses?: readonly Bonus[];
   /** Damage of other types: Flame Tongue's fire, a Divine Smite's radiant. */
   readonly extraDamage?: readonly ExtraDamage[];
+  /**
+   * SRD Cleave: "the second creature takes the weapon's damage, but **don't add
+   * your ability modifier** to that damage unless that modifier is negative."
+   *
+   * The clause keeps a negative modifier, so this floors the modifier at zero
+   * rather than dropping it — which is the whole of the sentence and the reason
+   * it is not a boolean the caller has to read as "no modifier".
+   */
+  readonly withoutAbilityModifier?: true;
   /**
    * Per-die rules applied to damage rolls — Great Weapon Fighting, and anything
    * else that reads or reacts to an individual die.
@@ -667,7 +771,9 @@ export function rollAttackDamage(
   if (!valid.ok) return valid;
 
   const effects = options.damageEffects ?? [];
-  const modifier = modifierFor(sheet, attackAbility(sheet, options));
+  const ownModifier = modifierFor(sheet, attackAbility(sheet, options));
+  const modifier =
+    options.withoutAbilityModifier === true ? Math.min(0, ownModifier) : ownModifier;
   const components: DamageComponent[] = [];
 
   // SRD Versatile: the parenthesised die applies when used with two hands.

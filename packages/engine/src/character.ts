@@ -9,7 +9,7 @@ import type {
   StrikeStyle,
 } from './standing.js';
 import type { ConferrableReaction, ReactionFeature } from './reactions.js';
-import type { Armor } from '@ie/srd';
+import type { Armor, WeaponMastery } from '@ie/srd';
 
 /**
  * Derived character statistics.
@@ -201,6 +201,30 @@ export interface CharacterSheet {
    * sum, and the Fighter's own later features are the ones that say more.
    */
   readonly attacksPerAction?: number;
+  /**
+   * The catalogue ids of the weapons this character has mastery with, sorted.
+   *
+   * SRD: "a weapon's mastery property is usable only by a character who has a
+   * feature, such as Weapon Mastery, that unlocks the property" — so this is
+   * the unlocking, per weapon kind, and the properties themselves are printed
+   * on the weapons. On the sheet beside `criticalOn` for the reason that one
+   * is: it is unconditional, there is no state of the world in which it is not
+   * true, and an attack would otherwise re-derive a class table on every
+   * swing.
+   *
+   * **Ids, which are the player's answer rather than the engine's list.** What
+   * is written here came out of `featureChoices`, and nothing in the engine
+   * names a weapon.
+   */
+  readonly weaponMasteries?: readonly string[];
+  /**
+   * Mastery properties this character may use **in place of** a weapon's own.
+   *
+   * SRD Tactical Master: "you can replace its mastery property with Push, Sap,
+   * or Slow for that attack." The substitution is offered per attack and is
+   * refused for any property not on this list.
+   */
+  readonly masterySubstitutions?: readonly WeaponMastery[];
   /**
    * The lowest natural d20 that scores a Critical Hit. 20 unless a feature
    * lowers it.

@@ -11,6 +11,7 @@ import {
   type Result,
   type Skill,
 } from '@ie/shared';
+import { proficientWithCategories } from './attack.js';
 import {
   ABILITY_SCORE_MAXIMUM,
   MAX_ABILITY_SCORE,
@@ -798,10 +799,31 @@ function expertiseSkills(content: Content, choices: CharacterChoices, parts: Par
 }
 
 
+/**
+ * How many weapons a Weapon Mastery choice asks for, at this character's level
+ * in the class that granted it.
+ *
+ * The one count in the vocabulary that is not a number on the definition: two
+ * of the five classes print a column instead. Read at that class's own level,
+ * which is the rule every other table-indexed number here follows.
+ */
+function weaponsAsked(
+  asked: Extract<FeatureChoice, { kind: 'weapon' }>,
+  choices: CharacterChoices,
+  feature: FeatureDefinition,
+): number {
+  if (asked.chooseByLevel === undefined) return asked.choose ?? 0;
+  const level = classLevelFor(choices, feature.id);
+  const column = asked.chooseByLevel;
+  return column[Math.max(0, Math.min(level, column.length) - 1)] ?? 0;
+}
+
 function checkFeatureChoices(
+  content: Content,
   choices: CharacterChoices,
   features: readonly FeatureDefinition[],
   proficient: ReadonlySet<Skill>,
+  weaponCategories: readonly string[],
 ): CreationProblem[] {
   const problems: CreationProblem[] = [];
 
@@ -820,9 +842,30 @@ function checkFeatureChoices(
     }
 
     const made = choices.featureChoices[feature.id];
-    if (made === undefined || made.length !== asked.choose) {
+
+    // **A Weapon Mastery choice is a ceiling rather than a quota**, and the
+    // SRD's own sentence is why: "Whenever you finish a Long Rest, you can
+    // practice weapon drills and change one of those weapon choices." Which
+    // weapons a character has mastery with is a standing decision they revisit,
+    // not a proficiency frozen when the sheet was written — so a character who
+    // has named none has named none, and the properties do not run for them.
+    // Naming *more* than the column allows is still an answer the rules do not
+    // permit, and is refused.
+    if (asked.kind === 'weapon') {
+      const ceiling = weaponsAsked(asked, choices, feature);
+      if ((made ?? []).length > ceiling) {
+        problems.push(
+          problem('too_many_masteries', 'featureChoices', `${feature.id} (${feature.name}) unlocks ${ceiling} kinds of weapon, and ${(made ?? []).length} were named`),
+        );
+        continue;
+      }
+      if (made === undefined) continue;
+    }
+
+    const wanted = asked.kind === 'weapon' ? (made ?? []).length : asked.choose;
+    if (made === undefined || made.length !== wanted) {
       problems.push(
-        problem('missing_feature_choice', 'featureChoices', `${feature.id} (${feature.name}) needs ${asked.choose} choice(s)`),
+        problem('missing_feature_choice', 'featureChoices', `${feature.id} (${feature.name}) needs ${wanted} choice(s)`),
       );
       continue;
     }
@@ -839,6 +882,40 @@ function checkFeatureChoices(
         problems.push(
           problem('duplicate_option', 'featureChoices', `${feature.name} takes ${picked} once`),
         );
+      }
+      continue;
+    }
+
+    if (asked.kind === 'weapon') {
+      for (const picked of duplicates(made)) {
+        problems.push(
+          problem('weapon_not_mastered', 'featureChoices', `${feature.name} unlocks ${picked} once`),
+        );
+      }
+      for (const picked of made) {
+        const weapon = content.item(picked)?.weapon ?? null;
+        if (weapon === null) {
+          problems.push(
+            problem('weapon_not_mastered', 'featureChoices', `${picked} is not a weapon`),
+          );
+          continue;
+        }
+        // SRD Barbarian: "Simple or Martial **Melee** weapons".
+        if (asked.melee === true && weapon.kind !== 'melee') {
+          problems.push(
+            problem('weapon_not_mastered', 'featureChoices', `${feature.name} unlocks Melee weapons, and a ${weapon.name} is not one`),
+          );
+          continue;
+        }
+        // SRD Paladin, Ranger, Rogue: "weapons of your choice **with which you
+        // have proficiency**" — and the two classes whose sentence omits it are
+        // proficient with everything it offers, so asking all five says the
+        // same thing about each.
+        if (!proficientWithCategories(weaponCategories, weapon)) {
+          problems.push(
+            problem('weapon_not_mastered', 'featureChoices', `${feature.name} needs proficiency with a ${weapon.name} first`),
+          );
+        }
       }
       continue;
     }
@@ -1957,6 +2034,29 @@ function gatherProficiencies(
   return { skills, tools, warnings };
 }
 
+/**
+ * The weapon categories this character is proficient with.
+ *
+ * SRD: the starting class grants its weapon proficiencies in full, and a later
+ * class grants the subset its "As a Multiclass Character" section prints. One
+ * function because the sheet and the Weapon Mastery check ask the same
+ * question, and a second copy is how the two come to disagree.
+ */
+function weaponCategoriesOf(
+  content: Content,
+  choices: CharacterChoices,
+  definition: ClassDefinition,
+): readonly string[] {
+  return [
+    ...new Set([
+      ...definition.weaponProficiencies,
+      ...(choices.multiclass ?? []).flatMap(
+        (entry) => content.classById(entry.classId)?.multiclass.weapons ?? [],
+      ),
+    ]),
+  ].sort();
+}
+
 /** Every problem with a set of choices, so a caller can show them all at once. */
 export function checkCharacter(
   content: Content,
@@ -1981,7 +2081,15 @@ export function checkCharacter(
 
   const { skills } = gatherProficiencies(content, choices, parts);
 
-  all.push(...checkFeatureChoices(choices, features, skills));
+  all.push(
+    ...checkFeatureChoices(
+      content,
+      choices,
+      features,
+      skills,
+      weaponCategoriesOf(content, choices, parts.definition),
+    ),
+  );
   all.push(...checkFeats(content, choices, features));
   all.push(...checkSpells(content, choices, parts.definition));
   all.push(...checkFeatureSpellChoices(content, choices, castingClassesOf(content, choices)));
@@ -2420,6 +2528,21 @@ export function planCharacter(
     });
   }
 
+  // SRD Weapon Mastery: which weapons this character has mastery with, and
+  // whatever a later feature lets them swap in. Gathered from the grant rather
+  // than from the five class ids that write it, so a sixth needs no change
+  // here, and sorted because it reaches serialised state.
+  const weaponMasteries = [
+    ...new Set(choicesGranting(choices, features, 'weapon-mastery')),
+  ].sort();
+  const masterySubstitutions = [
+    ...new Set(
+      features.flatMap((feature) =>
+        feature.grants?.kind === 'weapon-mastery' ? (feature.grants.substitutes ?? []) : [],
+      ),
+    ),
+  ].sort();
+
   // A feature that gives some *other* pool's uses back. The key it refills is
   // resolved here rather than named by the feature, because Pact Magic's key
   // carries a slot level that moves as the Warlock levels — the same reason
@@ -2551,14 +2674,7 @@ export function planCharacter(
     // SRD: the starting class grants its weapon proficiencies in full, and a
     // later class grants the subset its "As a Multiclass Character" section
     // prints — which for most of them is nothing at all.
-    weaponProficiencies: [
-      ...new Set([
-        ...definition.weaponProficiencies,
-        ...(choices.multiclass ?? []).flatMap(
-          (entry) => content.classById(entry.classId)?.multiclass.weapons ?? [],
-        ),
-      ]),
-    ].sort(),
+    weaponProficiencies: weaponCategoriesOf(content, choices, definition),
     // SRD Unarmored Defense and Draconic Resilience. Gathered from whatever
     // features grant one rather than by naming the three classes that do, so a
     // fourth needs no change here. A character with none carries none, and
@@ -2567,6 +2683,8 @@ export function planCharacter(
     ...(standing.length === 0 ? {} : { standing }),
     ...(attacksPerAction > 1 ? { attacksPerAction } : {}),
     ...(criticalOn < 20 ? { criticalOn } : {}),
+    ...(weaponMasteries.length === 0 ? {} : { weaponMasteries }),
+    ...(masterySubstitutions.length === 0 ? {} : { masterySubstitutions }),
     ...(strikeStyles.length === 0 ? {} : { strikeStyles }),
     ...(activated.length === 0 ? {} : { activated }),
     ...(reactions.length === 0 ? {} : { reactions }),

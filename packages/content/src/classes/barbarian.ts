@@ -46,6 +46,9 @@ const rows: readonly ClassLevelRow[] = TABLE.map((row) => ({
 export const RAGES_PER_REST: readonly number[] = TABLE.map((row) => row[2] ?? 0);
 export const RAGE_DAMAGE: readonly number[] = TABLE.map((row) => row[3] ?? 0);
 
+/** SRD Weapon Mastery: the Barbarian Features table's own column. */
+export const BARBARIAN_WEAPON_MASTERY_COUNT: readonly number[] = TABLE.map((row) => row[4] ?? 0);
+
 export const BARBARIAN: ClassDefinition = {
   id: 'barbarian',
   name: 'Barbarian',
@@ -122,8 +125,10 @@ export const BARBARIAN: ClassDefinition = {
       id: 'barbarian:weapon-mastery',
       name: 'Weapon Mastery',
       level: 1,
-      automation: 'manual',
-      note: 'Which kinds of Simple or Martial Melee weapon a Barbarian has mastery with is recorded nowhere, and the eight properties are parsed onto the weapons that print them and executed by nothing. Cleave, Graze, Push, Slow and Topple would follow the record; Sap and Vex each want a modifier consumed by the roll it changes; Nick redirects the extra attack the Light property gives, and the Attack action holds no such attack to redirect; and changing what was chosen on a Long Rest is an option re-answered, which a choice frozen at creation cannot be.',
+      automation: 'engine',
+      note: 'SRD: "Your training with weapons allows you to use the mastery properties of two kinds of Simple or Martial Melee weapons of your choice ... When you reach certain Barbarian levels, you gain the ability to use the mastery properties of more kinds of weapons, as shown in the Weapon Mastery column of the Barbarian Features table." The count is the column and the narrowing to Melee is this class’s alone. Executed: the weapons chosen are recorded on the sheet, and the properties that follow from the record run on the attack — Graze\'s damage on a miss, Cleave\'s second swing, Push\'s forced move, Slow\'s ten feet, Topple\'s Constitution save, and Sap and Vex, which the SRD writes as things that simply happen rather than things you can do. Two clauses are still the table\'s: Nick redirects the extra attack the Light property gives, and nothing pays for one; and changing a choice on a Long Rest is an option re-answered, which a choice frozen at creation is not.',
+      grants: { kind: 'weapon-mastery' },
+      choice: { kind: 'weapon', chooseByLevel: BARBARIAN_WEAPON_MASTERY_COUNT, melee: true },
     },
     {
       id: 'barbarian:danger-sense',

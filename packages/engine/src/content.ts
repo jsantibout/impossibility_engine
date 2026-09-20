@@ -174,6 +174,7 @@ export const READABLE_GRANT_KINDS: ReadonlySet<string> = new Set([
   'standing',
   'strike-style',
   'unarmored-defense',
+  'weapon-mastery',
   'widens-reaction',
 ]);
 

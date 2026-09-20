@@ -6,6 +6,7 @@ import {
   type Result,
   type Skill,
 } from '@ie/shared';
+import type { WeaponMastery } from '@ie/srd';
 import type { WeaponSelector } from './attack.js';
 import type { ArmorTraining } from './character.js';
 import type { TurnAnchor } from './time.js';
@@ -135,6 +136,39 @@ export type FeatureChoice =
        * the length of a legal answer is read from it.
        */
       readonly spreads: readonly (readonly number[])[];
+    }
+  /**
+   * Kinds of weapon, for a feature that unlocks their mastery properties.
+   *
+   * SRD Weapon Mastery, on five classes, and the **first choice whose count is
+   * not a fixed number**: the Barbarian's and the Fighter's are columns of
+   * their class tables — three kinds at Fighter 1 and six at 16 — while the
+   * Paladin, the Ranger and the Rogue print a flat two. So `chooseByLevel`
+   * stands beside `choose` exactly as `usesByLevel` stands beside a pool's
+   * other sizings, and the level it is read at is the level of the class that
+   * granted the feature rather than the character's.
+   *
+   * It is on this member rather than on every member because no other choice
+   * the SRD prints varies: a class that wanted a second skill at level 6
+   * prints a second feature, and this is the one sentence that says "as shown
+   * in the ... column of the ... Features table".
+   *
+   * **Proficiency is a rule of the choice and not of the feature.** Three of
+   * the five classes print "with which you have proficiency" and the other two
+   * are proficient with everything their sentence offers, so the narrowing is
+   * checked for all five and says the same thing about each.
+   */
+  | {
+      readonly kind: 'weapon';
+      /** The count where the book prints one: "two kinds of weapons". */
+      readonly choose?: number;
+      /** The count where the book prints a column instead. Exactly one of the two. */
+      readonly chooseByLevel?: readonly number[];
+      /**
+       * SRD Barbarian: "Simple or Martial **Melee** weapons", which is the one
+       * class whose sentence narrows what may be picked.
+       */
+      readonly melee?: true;
     };
 
 /**
@@ -609,6 +643,27 @@ export type FeatureGrant =
    * again, exactly as Extra Attack restates a total.
    */
   | { readonly kind: 'critical-range'; readonly on: number }
+  /**
+   * SRD Weapon Mastery: "your training with weapons allows you to **use the
+   * mastery properties** of ... kinds of weapons of your choice".
+   *
+   * The grant is the unlocking; the weapons are the feature's `choice`, and
+   * the two halves are one feature. What lands on the sheet is a list of
+   * catalogue ids, which is a fact about the character rather than a
+   * catalogue: the engine reads what the player picked and never a list of its
+   * own.
+   *
+   * **`substitutes` is the other shape.** SRD Tactical Master: "when you
+   * attack with a weapon, you can replace its mastery property with Push, Sap,
+   * or Slow for that attack" — a later feature widening what an earlier one
+   * unlocked, which is the Improved Critical shape and not a second grant. A
+   * feature carrying only substitutions asks for no weapons of its own.
+   */
+  | {
+      readonly kind: 'weapon-mastery';
+      /** Properties this feature lets the holder swap in, for one attack. */
+      readonly substitutes?: readonly WeaponMastery[];
+    }
   /**
    * More conditions a healing pool can lift.
    *

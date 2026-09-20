@@ -6,16 +6,28 @@
  * `resolveAttackDamage` settles it.
  */
 
-import { type CharacterId, err, needsContext, ok, type Result, type RollMode } from '@ie/shared';
+import {
+  type Ability,
+  type CharacterId,
+  type Err,
+  err,
+  needsContext,
+  ok,
+  type Result,
+  type RollMode,
+} from '@ie/shared';
 // `import type`, not `import { type … }`: the second keeps the declaration
 // under `verbatimModuleSyntax` and emits `import {} from '@ie/srd'`, which
 // loads the whole parsed book to bind nothing at all.
-import type { Weapon } from '@ie/srd';
+import type { Weapon, WeaponMastery } from '@ie/srd';
 import {
   attackAbility,
   type AttackOptions,
   type AttackResult,
+  type DamageComponent,
   type ExtraDamage,
+  masteryInPlay,
+  type MasteryUse,
   meleeReach,
   proficientWith,
   rangeOf,
@@ -25,8 +37,9 @@ import {
 } from '../attack.js';
 import { type Bonus, bonusesFor, flatBonusTotal, type ModeSource } from '../bonuses.js';
 import { type Content } from '../content.js';
-import { spendAttack, spendBonusAction } from '../combat.js';
+import { canUseFeatureThisTurn, spendAttack, spendBonusAction } from '../combat.js';
 import { applyEvent, type CreatureState, type GameEvent, type GameState } from '../events.js';
+import { modifierFor, type CharacterSheet } from '../character.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import {
   canBeTargeted,
@@ -56,6 +69,12 @@ import {
 import { creatureOf, unknownCreature } from './command.js';
 import { routeLabel } from './item-casting.js';
 import { landDamage } from './damage.js';
+import {
+  CLEAVE_REACH,
+  masteryAfterHit,
+  type MasteryHit,
+  type MasteryOutcome,
+} from './mastery.js';
 import { mayAct } from './holds.js';
 import { quantityOf } from './inventory.js';
 import { defendingModes, enemyWithinFiveFeet } from './rolls.js';
@@ -84,6 +103,16 @@ const inPlay = (style: StrikeStyle): StrikeStyleInPlay => ({
   ...(style.die === undefined ? {} : { die: style.die }),
   ...(style.ability === undefined ? {} : { ability: style.ability }),
 });
+
+/**
+ * What Cleave's once-per-turn allowance is counted under.
+ *
+ * `feature-used` keys by a string and a turn, and the thing spent here is a
+ * *weapon property* rather than a class feature — so it is written in the same
+ * namespace every mastery source uses, and it is a constant because nothing in
+ * any catalogue names it.
+ */
+const CLEAVE = 'weapon-mastery:cleave';
 
 export interface AttackCommand extends CommandIdentity {
   readonly target: CharacterId;
@@ -156,6 +185,17 @@ export interface AttackCommand extends CommandIdentity {
    * naming one it does not offer is refused before anything is rolled.
    */
   readonly featureDamageTypes?: Readonly<Record<string, string>>;
+  /**
+   * Use the mastery property of the weapon in hand.
+   *
+   * SRD: "Each weapon has a mastery property, which is usable only by a
+   * character who has a feature ... that unlocks the property for the
+   * character." Five of the eight properties are written "you can", so this
+   * field is where the attacker says so — and a property the character has not
+   * unlocked is refused rather than quietly skipped. Sap and Vex are not
+   * written that way and are not asked for; see {@link MasteryUse}.
+   */
+  readonly mastery?: MasteryUse;
 }
 
 export interface AttackResolution {
@@ -275,6 +315,24 @@ export function resolveAttack(
       weapon = item.weapon;
     }
 
+    // — the mastery property, if this character has unlocked one ——————————
+    //
+    // Before anything is spent, for the reason the damage types below are:
+    // a swing asking for a property nobody unlocked is refused with nothing
+    // paid for it.
+    const chosen = masteryInPlay(sheet, command.weapon, weapon, command.mastery);
+    if (!chosen.ok) return chosen;
+    const property = chosen.value;
+
+    // SRD Cleave: "a **second** creature within 5 feet of the first that is
+    // also within your reach ... only once per turn." The first creature is
+    // named by the caller, so everything about the opening is checkable here.
+    const cleaving = command.mastery?.cleaving;
+    if (cleaving !== undefined) {
+      const opening = cleaveOpening(state, id, command.target, cleaving, property);
+      if (opening !== null) return opening;
+    }
+
     // — can it even reach ——————————————————————————————————————————————————
     const reach = reachCheck(state, id, command.target, weapon, command.thrown === true);
     if (!reach.ok) return reach;
@@ -316,8 +374,11 @@ export function resolveAttack(
     // SRD: an attack with a weapon is the Attack action. Outside combat there is
     // no economy to spend, exactly as `resolveCast` finds.
     const events: GameEvent[] = [];
+    // SRD Cleave's swing is a rider on a hit rather than an attack the Attack
+    // action holds, so it costs what an Opportunity Attack costs here: nothing.
+    const free = command.free === true || cleaving !== undefined;
     if (
-      command.free !== true &&
+      !free &&
       command.bonusAction === true &&
       state.combat !== null &&
       state.combat.budgets[id] !== undefined
@@ -330,7 +391,7 @@ export function resolveAttack(
       if (!spent.ok) return spent;
       events.push({ type: 'bonus-action-spent', id });
     } else if (
-      command.free !== true &&
+      !free &&
       command.bonusAction !== true &&
       state.combat !== null &&
       state.combat.budgets[id] !== undefined
@@ -457,6 +518,35 @@ export function resolveAttack(
         count: supply.issuer.count - issuedBefore,
         rng: supply.rng.snapshot(),
       });
+
+      // SRD Graze: "If your attack roll with this weapon misses a creature,
+      // you can deal damage to that creature equal to the ability modifier you
+      // used to make the attack roll. This damage is the same type dealt by
+      // the weapon, and the damage can be increased only by increasing the
+      // ability modifier."
+      //
+      // A flat component with no roll and no bonuses: nothing is thrown, so
+      // the count above still stands, and nothing that adds to a damage roll
+      // reaches it — which is the second sentence of the property.
+      const grazed = grazeDamage(weapon, sheet, ability, property);
+      if (grazed !== null) {
+        const world = events.reduce(applyEvent, state);
+        // Not `fromAttack`: the attack roll missed, so a Reaction that answers
+        // "when an attack roll hits you" has nothing to answer.
+        const hurt = landDamage(world, command.target, [grazed], `${weapon?.name ?? 'Unarmed Strike'} (Graze)`, supply, {
+          by: id,
+        });
+        if (!hurt.ok) return hurt;
+        return ok({
+          events: [...events, ...hurt.value.events],
+          attack: attack.value,
+          ...(hurt.value.amount === undefined ? {} : { damage: hurt.value.amount }),
+          ...(hurt.value.offers.length === 0 ? {} : { reactions: hurt.value.offers }),
+          unverified: [...unverified, ...hurt.value.unverified],
+          duplicate: false,
+        });
+      }
+
       return ok({ events, attack: attack.value, unverified, duplicate: false });
     }
 
@@ -534,6 +624,9 @@ export function resolveAttack(
           ...(command.damageBonuses ?? []),
         ],
         extraDamage: [...fromFeatures.extra, ...(command.extraDamage ?? [])],
+        // SRD Cleave: "don't add your ability modifier to that damage unless
+        // that modifier is negative."
+        ...(cleaving === undefined ? {} : { withoutAbilityModifier: true as const }),
       },
       attack.value.critical,
     );
@@ -563,18 +656,132 @@ export function resolveAttack(
     );
     if (!hurt.ok) return hurt;
 
+    const landed = [...events, ...hurt.value.events];
+    const rider = masteryRider(
+      landed.reduce(applyEvent, state),
+      supply,
+      {
+        attacker: id,
+        target: command.target,
+        property,
+        ability,
+        ...(command.mastery?.feet === undefined ? {} : { feet: command.mastery.feet }),
+        dealtDamage: (hurt.value.amount ?? 0) > 0 || hurt.value.offers.length > 0,
+      },
+      cleaving !== undefined,
+      state.combat?.turnsTaken ?? 0,
+    );
+    if (!rider.ok) return rider;
+
     return ok({
-      events: [...events, ...hurt.value.events],
+      events: [...landed, ...rider.value.events],
       attack: attack.value,
       ...(hurt.value.amount === undefined ? {} : { damage: hurt.value.amount }),
       ...(hurt.value.concentration === undefined
         ? {}
         : { concentration: hurt.value.concentration }),
       ...(hurt.value.offers.length === 0 ? {} : { reactions: hurt.value.offers }),
-      unverified: [...unverified, ...hurt.value.unverified],
+      unverified: [...unverified, ...hurt.value.unverified, ...rider.value.unverified],
       duplicate: false,
     });
   });
+}
+
+/**
+ * Whether this swing may be the extra one SRD Cleave gives.
+ *
+ * Four questions, all answerable before anything is spent: the property is
+ * Cleave at all, the first creature was somebody else, the second is within
+ * five feet of the first, and the turn has not already had its extra swing.
+ * The reach to the second creature is the ordinary one and is checked where
+ * every other swing checks it.
+ */
+function cleaveOpening(
+  state: GameState,
+  id: CharacterId,
+  target: CharacterId,
+  cleaving: CharacterId,
+  property: WeaponMastery | null,
+): Err | null {
+  if (property !== 'cleave') {
+    return err('no_mastery', `the weapon ${id} is swinging does not have the Cleave property`);
+  }
+  if (target === cleaving) {
+    return err('same_target', `Cleave swings at a second creature, and ${target} was the first`);
+  }
+  if (state.combat !== null && !canUseFeatureThisTurn(state.combat, id, CLEAVE)) {
+    return err('already_cleaved', `${id} has already made a Cleave attack this turn`);
+  }
+
+  if (state.scene === null) return null;
+  const apart = distanceBetween(state.scene, cleaving, target);
+  // Nobody has said where one of them is standing: the ordinary reach check
+  // below asks for that in its own words, so this one stays quiet.
+  if (!apart.ok) return null;
+  if (apart.value > CLEAVE_REACH) {
+    return err(
+      'out_of_reach',
+      `Cleave reaches a creature within ${CLEAVE_REACH} feet of the first, and ${target} is ${apart.value} feet from ${cleaving}`,
+    );
+  }
+  return null;
+}
+
+/**
+ * What a mastery property does once the blow has landed, plus the mark Cleave's
+ * once-per-turn clause reads.
+ *
+ * One function so the two halves of the attack path — the swing that rolls its
+ * own damage and the held one that rolls it a command later — cannot come to
+ * disagree about what a hit does.
+ */
+function masteryRider(
+  world: GameState,
+  supply: Supply,
+  hit: Omit<MasteryHit, 'property'> & { readonly property: WeaponMastery | null },
+  cleaved: boolean,
+  turn: number,
+): Result<MasteryOutcome> {
+  const events: GameEvent[] = [];
+  // SRD Cleave: "You can make this extra attack only once per turn" — the same
+  // event a once-per-turn damage feature is spent through.
+  if (cleaved && world.combat !== null) {
+    events.push({ type: 'feature-used', id: hit.attacker, feature: CLEAVE, turn });
+  }
+
+  const property = hit.property;
+  if (property === null) return ok({ events, unverified: [] });
+  const rider = masteryAfterHit(events.reduce(applyEvent, world), supply, { ...hit, property });
+  if (!rider.ok) return rider;
+  return ok({
+    events: [...events, ...rider.value.events],
+    unverified: rider.value.unverified,
+  });
+}
+
+/**
+ * SRD Graze's damage: the ability modifier, of the weapon's own type.
+ *
+ * Null where there is nothing to deal — the property is not Graze, there is no
+ * weapon, or the modifier is zero or worse, which is a hit for no damage and
+ * not a hit for a negative one.
+ */
+function grazeDamage(
+  weapon: Weapon | null,
+  sheet: CharacterSheet,
+  ability: Ability,
+  property: WeaponMastery | null,
+): DamageComponent | null {
+  if (property !== 'graze' || weapon === null) return null;
+  const modifier = modifierFor(sheet, ability);
+  if (modifier <= 0) return null;
+  return {
+    source: `${weapon.name} (Graze)`,
+    type: weapon.damage.type,
+    roll: null,
+    flat: modifier,
+    total: modifier,
+  };
 }
 
 /**

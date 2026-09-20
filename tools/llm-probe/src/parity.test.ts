@@ -191,6 +191,9 @@ const AUDIT: readonly {
         'SRD Martial Arts\' "you can make an Unarmed Strike as a Bonus Action", which is a real decision and not a number — a Monk chooses whether to spend the Bonus Action on a punch or keep it for something else. It is refused outright to anybody whose features grant no such strike, and no character in either benchmark is a Monk, so a published field would refuse every value it could be sent today. Publish it the day a benchmark character has a class that grants one',
       ),
       featureDamageTypes: because('Divine Strike and Primal Strike choose a type per hit; both are level 8 features'),
+      mastery: because(
+        'whether to use the weapon’s mastery property, which of them where a feature offers a swap, how far a Push moves and whom a Cleave follows. A decision rather than a number — SRD writes five of the eight as "you can" — and a real one, so it wants publishing on its own evidence rather than as a parity tidy-up. No character in either benchmark has the Weapon Mastery feature, so a published field would be refused every value it could be sent today',
+      ),
     },
   },
   {
