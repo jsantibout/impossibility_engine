@@ -113,11 +113,13 @@ import {
   activateSpell,
   addCreature,
   addSceneLandmark,
+  advanceTime,
   applyConditionTo,
   applyEvent,
   areaPointAt,
   availableChecks,
   awardItems,
+  beginRest,
   createCharacter,
   declareCoverBetween,
   declareCreatureSide,
@@ -132,6 +134,7 @@ import {
   endConcentration,
   endFeature,
   endOngoingSpell,
+  endRest,
   extendFeature,
   INITIATIVE_LABEL,
   joinCombat,
@@ -140,6 +143,7 @@ import {
   positionOf,
   reactionOpportunities,
   recordInitiativeRolls,
+  releaseReady,
   resolveAttack,
   resolveAttackDamage,
   resolveDeclaredCast,
@@ -156,9 +160,11 @@ import {
   takeDash,
   takeDisengage,
   takeDodge,
+  takeReady,
   takeOpportunityAttack,
   takeTestReaction,
   useHealingTouch,
+  useItem,
   usePoolOption,
   useRecovery,
   useSelfHeal,
@@ -2288,6 +2294,332 @@ const ATTEMPT_EFFECT_CHECK = tool({
     ),
 });
 
+/**
+ * The clock, the rest it measures, and the potion somebody drank.
+ *
+ * **A rest is a span and not a button**, which is why three doors arrive
+ * together and none of them is enough alone. `begin_rest` starts it,
+ * `advance_time` moves the clock the rest is measured against — no command on
+ * this surface moved it at all, so a rest begun could never have run its
+ * course — and `end_rest` grants exactly what the span earned. A Short Rest is
+ * what makes a Warlock and a Fighter work across two fights rather than one,
+ * and until these existed a session could spend a Second Wind and never get it
+ * back.
+ *
+ * **Time out of combat is narration, which is why it is a door here at all.**
+ * In a fight the clock is derived and nobody decides it; outside one, how long
+ * the party spent walking is the same kind of fact as how wide the room is and
+ * where the cover stands, and the engine has always taken it as declared
+ * (`advanceTime`: "how long the party spent searching the vault is narration,
+ * so it arrives as an event"). It is stated in the game's own units rather
+ * than in seconds, because a caller that types 3600 has done arithmetic the
+ * layer can do for it.
+ *
+ * **What the rest gives back is never stated.** The benefit is read off the
+ * clock and off the interruptions the engine recorded as they happened — a
+ * completed Long Rest, a Long Rest broken after an hour (a Short Rest), a
+ * Short Rest broken at all (nothing). The one thing a caller chooses is which
+ * Hit Dice to spend, which is `slotLevel`'s kind of choice and not a quantity:
+ * the die is rolled by the engine and what Constitution adds to it is read off
+ * the sheet as it stands.
+ *
+ * **`endRest` takes no command id**, which is the one place this surface
+ * cannot give a call the idempotency every other one has: a retry of a
+ * settlement that landed is answered `not_resting` rather than as a duplicate.
+ * That is an engine signature and a finding rather than something to paper
+ * over here.
+ */
+const ADVANCE_TIME = tool({
+  name: 'advance_time',
+  description:
+    'Say that time passed, outside a fight. In a fight the clock is the engine’s — a round is six seconds and nobody decides that — but how long the party spent walking, searching or resting is narration, and this is how the narration reaches the clock. Durations that were running expire on it, and a rest is measured by it. Say how long in rounds, minutes or hours, and say what the party was doing.',
+  mutates: true,
+  input: z
+    .object({
+      rounds: z.int().min(0).optional().describe('Six seconds apiece.'),
+      minutes: z.int().min(0).optional(),
+      hours: z.int().min(0).optional(),
+      because: z
+        .string()
+        .min(1)
+        .describe('What the party was doing, in one phrase. Recorded in the log.'),
+    })
+    .refine(
+      (args) => (args.rounds ?? 0) + (args.minutes ?? 0) + (args.hours ?? 0) > 0,
+      'time has to move by something: give rounds, minutes or hours',
+    ),
+  run: (context, args) => {
+    const seconds = (args.rounds ?? 0) * 6 + (args.minutes ?? 0) * 60 + (args.hours ?? 0) * 3600;
+    return settleEvents(
+      context,
+      advanceTime(context.campaign.state(), seconds, args.because, identity(context)),
+      { seconds, because: args.because },
+    );
+  },
+});
+
+const BEGIN_REST = tool({
+  name: 'begin_rest',
+  description:
+    'Start a Short or Long Rest for one creature. It is a span rather than a moment: let the clock run with `advance_time` and then call `end_rest`, which grants whatever the span earned. The engine notices the interruptions it can see — Initiative rolled, a spell cast, damage taken — as they happen, so nobody has to report them. A creature at 0 hit points is making death saves rather than resting, and is refused.',
+  mutates: true,
+  input: z.object({
+    who: creatureId,
+    kind: z.enum(['short', 'long']).describe('SRD: a Short Rest is an hour, a Long Rest is eight.'),
+  }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      beginRest(context.campaign.state(), who(args.who), args.kind, context.commandId),
+      { resting: args.kind },
+    ),
+});
+
+const END_REST = tool({
+  name: 'end_rest',
+  description:
+    'End a rest and take what it earned. The engine reads the benefit off the clock and off the interruptions it recorded: a completed rest pays in full, a Long Rest broken after an hour pays as a Short Rest, and a Short Rest broken at all pays nothing. A rest that has simply not finished yet is refused, and the answer is to let more time pass. Name Hit Dice to spend them — a Short Rest is the only rest that offers it, the engine rolls each one and adds the Constitution it finds on the sheet, and asking for more than are left is refused before any is rolled.',
+  mutates: true,
+  input: z.object({
+    who: creatureId,
+    hitDice: z
+      .array(z.string().min(1))
+      .optional()
+      .describe(
+        'Hit Dice to spend, by the pool key `sheet` reports — one entry per die, e.g. ["hit-die:d10", "hit-die:d10"]. Which of your own dice to spend is the choice the rules give you; what each one restores is the engine’s.',
+      ),
+    interruptedBy: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        'An interruption the engine cannot see, such as an hour of walking or other hard exertion. The three it can see — Initiative, a spell cast, damage taken — it records for itself and you should not report.',
+      ),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      endRest(
+        context.campaign.state(),
+        who(args.who),
+        {
+          ...(args.hitDice === undefined ? {} : { hitDice: args.hitDice }),
+          ...(args.interruptedBy === undefined ? {} : { interrupted: args.interruptedBy }),
+        },
+        context.campaign.supply(),
+      ),
+      (value) => value.events,
+      (value) => ({
+        benefit: value.benefit,
+        hitDiceSpent: value.hitDice.map((die) => die.key),
+        hitPointsRegained: value.hitPointsRegained,
+      }),
+    ),
+});
+
+/**
+ * Drink the potion, or administer it.
+ *
+ * **Everything mechanical is the item's.** SRD fixes what an item confers at
+ * the lowest possible level: a Potion of Healing heals the same 2d4 + 2
+ * whoever drinks it and a flask saves against its own printed number in any
+ * hand, so the call names a creature, a bottle and at most who it is being
+ * poured into.
+ *
+ * **What it needed was an inventory with something in it**, and until
+ * `award_items` landed on the DM's door there was no way to put anything in
+ * one: `create_character` on this surface grants no item and no magic item by
+ * rule. Handing out what a party found is the DM's call and stays on the DM's
+ * side; using what a character holds is the character's.
+ */
+const USE_ITEM = tool({
+  name: 'use_item',
+  description:
+    'Use an item a creature is carrying for the benefit it confers — a potion drunk or administered, a flask thrown back, a staff’s charge spent. The dice, the save DC and how long it lasts are the item’s own and printed on it; you name the item and, where somebody else is getting it, the target within five feet. An item that confers nothing by being used is refused rather than quietly consumed: a benefit had by wearing it is had by equipping it, and a spell it casts is cast.',
+  mutates: true,
+  input: z.object({
+    who: creatureId.describe('Whose item it is, and who is using it.'),
+    item: z.string().min(1).describe('Catalogue id, e.g. potion-of-healing.'),
+    target: creatureId
+      .optional()
+      .describe('Who gets the benefit, within five feet. Omit for the user themselves.'),
+    charges: z
+      .int()
+      .min(1)
+      .optional()
+      .describe(
+        'How many charges to spend, for an item whose line lets the user choose — SRD Staff of Striking’s "up to 3 charges". Omit for the price the line prints. Naming one over an item that costs nothing is refused.',
+      ),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      useItem(
+        context.campaign.state(),
+        who(args.who),
+        {
+          item: args.item,
+          ...(args.target === undefined ? {} : { target: who(args.target) }),
+          ...(args.charges === undefined ? {} : { charges: args.charges }),
+          ...identity(context),
+        },
+        context.campaign.supply(),
+      ),
+      (value) => value.events,
+      (value) => ({ used: args.item, outcomes: value.outcomes }),
+      (value) => value.unverified,
+    ),
+});
+
+/**
+ * Wait for something, and then act — the two halves of SRD Ready.
+ *
+ * The action goes at the Ready and the Reaction goes when the trigger fires,
+ * which is two moments and therefore two calls. **The trigger is free text and
+ * stays that way**: SRD asks for "a perceivable circumstance", and the
+ * circumstances a table readies against live in fiction the engine has never
+ * been told about — a trapdoor, a chant, a door. An engine that judged the
+ * trigger would be refusing readied actions on the strength of its own
+ * ignorance, so the caller says when it fired and everything around it is the
+ * engine's.
+ *
+ * A readied **spell** is the SRD's own special case: the slot goes at the
+ * Ready and the effects do not, so the facts a casting states are stated
+ * there — which is why `response` carries the same `damageType` and `fought` a
+ * casting does, and refuses the same way without them.
+ */
+const TAKE_READY = tool({
+  name: 'take_ready',
+  description:
+    'Ready an action: spend your action now to take a Reaction when something happens. Say what you are waiting for in your own words — the engine does not judge the trigger, because the circumstance lives in the fiction — and say what you will do: an action, a move, or a spell. A readied spell is cast now and held, so its slot goes now and its Concentration is held until it is released. Let it go with `release_ready` when the trigger comes, or ignore the trigger there. It lapses at the start of your next turn.',
+  mutates: true,
+  input: z.object({
+    who: creatureId,
+    trigger: z
+      .string()
+      .min(1)
+      .describe('The circumstance being waited for: "the goblin steps out from behind the barrels".'),
+    response: z.discriminatedUnion('kind', [
+      z.object({
+        kind: z.literal('action'),
+        note: z
+          .string()
+          .min(1)
+          .optional()
+          .describe('What the action will be, in one phrase. The action itself goes through its own tool once the Reaction is spent.'),
+      }),
+      z.object({ kind: z.literal('move') }),
+      z.object({
+        kind: z.literal('spell'),
+        spellId: z.string().min(1),
+        slotLevel: z.int().min(1).max(9).optional().describe('Spent now. Omit for a cantrip.'),
+        slotKind: z.enum(['spell', 'pact']).optional(),
+        source: z.string().min(1).optional(),
+        damageType: damageTypeSchema.optional(),
+        fought: z.array(creatureId).optional(),
+        unaffected: z.array(creatureId).optional(),
+        teleportTo: placementSchema.optional(),
+      }),
+    ]),
+  }),
+  run: (context, args) => {
+    const response = args.response;
+    return settleEvents(
+      context,
+      takeReady(
+        context.campaign.state(),
+        who(args.who),
+        {
+          trigger: args.trigger,
+          response:
+            response.kind === 'spell'
+              ? {
+                  kind: 'spell',
+                  spellId: response.spellId,
+                  ...(response.slotLevel === undefined ? {} : { slotLevel: response.slotLevel }),
+                  ...(response.slotKind === undefined ? {} : { slotKind: response.slotKind }),
+                  ...(response.source === undefined ? {} : { source: response.source }),
+                  ...(response.damageType === undefined ? {} : { damageType: response.damageType }),
+                  ...(response.fought === undefined ? {} : { fought: response.fought.map(who) }),
+                  ...(response.unaffected === undefined
+                    ? {}
+                    : { unaffected: response.unaffected.map(who) }),
+                  ...(response.teleportTo === undefined
+                    ? {}
+                    : { teleportTo: placementOf(response.teleportTo) }),
+                }
+              : response.kind === 'move'
+                ? { kind: 'move' }
+                : {
+                    kind: 'action',
+                    ...(response.note === undefined ? {} : { note: response.note }),
+                  },
+          ...identity(context),
+        },
+        context.campaign.content,
+      ),
+      { readied: args.response.kind, waitingFor: args.trigger },
+    );
+  },
+});
+
+const RELEASE_READY = tool({
+  name: 'release_ready',
+  description:
+    'Let a readied action go, because the thing it was waiting for happened — or ignore the trigger, which costs nothing and keeps the Reaction. The Reaction is spent here; a readied spell lands here, a readied move is made here, and a readied action leaves you free to take it through its own tool. Either way the hold is over: the trigger has been and gone.',
+  mutates: true,
+  input: z.object({
+    who: creatureId,
+    ignore: z
+      .boolean()
+      .optional()
+      .describe('True to let the trigger pass. Nothing is spent and the hold ends; a held spell dissipates with it.'),
+    targets: z
+      .array(creatureId)
+      .optional()
+      .describe('Who a readied spell lands on. Empty for an area spell, which picks its own.'),
+    at: pointSchema.optional().describe('Where a readied area spell’s origin goes.'),
+    placement: placementSchema
+      .optional()
+      .describe('Where a readied move goes, measured from a landmark or a creature.'),
+    difficultFeet: z
+      .int()
+      .min(0)
+      .optional()
+      .describe('How many feet of that move are through Difficult Terrain.'),
+    route: routeSchema
+      .optional()
+      .describe('The 5-foot spaces a readied move crossed, in order. Send it when a release comes back `route_required`.'),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      releaseReady(
+        context.campaign.state(),
+        who(args.who),
+        {
+          ...(args.ignore === true ? { ignore: true } : {}),
+          ...(args.targets === undefined ? {} : { targets: args.targets.map(who) }),
+          ...(args.at === undefined ? {} : { at: point(args.at) }),
+          ...(args.placement === undefined ? {} : { placement: placementOf(args.placement) }),
+          ...(args.difficultFeet === undefined ? {} : { difficultFeet: args.difficultFeet }),
+          ...(args.route === undefined ? {} : { route: args.route.map(point) }),
+          ...identity(context),
+        },
+        context.campaign.supply(),
+      ),
+      (value) => value.events,
+      (value) => ({
+        took: value.took,
+        ...(value.spell === undefined
+          ? {}
+          : { castingId: value.spell.castingId, outcomes: value.spell.outcomes }),
+        ...(value.move === undefined ? {} : { feetMoved: value.move.feet }),
+      }),
+      (value) => [...(value.spell?.unverified ?? []), ...(value.move?.unverified ?? [])],
+    ),
+});
+
 const END_TURN = tool({
   name: 'end_turn',
   description:
@@ -2318,11 +2650,13 @@ const END_TURN = tool({
 export const TOOLS: readonly ToolDefinition[] = [
   ACTIVATE_FEATURE,
   ACTIVATE_SPELL,
+  ADVANCE_TIME,
   ADD_CREATURE,
   ADD_LANDMARK,
   APPLY_CONDITION,
   ATTACK,
   ATTEMPT_EFFECT_CHECK,
+  BEGIN_REST,
   CAST_SPELL,
   CREATE_CHARACTER,
   DECLARE_COVER,
@@ -2339,6 +2673,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   END_CONCENTRATION,
   END_FEATURE,
   END_ONGOING_SPELL,
+  END_REST,
   END_TURN,
   EXTEND_FEATURE,
   HEAL_WITH_FEATURE,
@@ -2347,6 +2682,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   OPTIONS,
   PLACE_CREATURE,
   REGAIN_USES,
+  RELEASE_READY,
   RESOLVE_DECLARED_CAST,
   ROLL_INITIATIVE,
   SET_SCENE,
@@ -2357,7 +2693,9 @@ export const TOOLS: readonly ToolDefinition[] = [
   TAKE_ACTION,
   TAKE_DAMAGE_REACTION,
   TAKE_OPPORTUNITY_ATTACK,
+  TAKE_READY,
   TAKE_TEST_REACTION,
+  USE_ITEM,
   USE_POOL_OPTION,
 ].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 

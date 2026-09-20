@@ -66,6 +66,7 @@ import type { ConditionName } from '@ie/shared';
 import type { Duration, ModeSource, TestResolution } from '@ie/engine';
 import {
   applyConditionTo,
+  awardItems,
   liftConditionFrom,
   resolveDamage,
   resolveTest,
@@ -600,11 +601,72 @@ const END_CONDITION = tool({
 });
 
 /**
+ * Hand a party what it found.
+ *
+ * **On this surface and not the model's, by the rule `create_character`
+ * already keeps.** That tool refuses a non-empty `dmGrants`: an item and a
+ * live magic item are the DM's to give and are not a thing a model writes
+ * itself. Handing out treasure is the same decision one call later, so it
+ * lives here — and it is what makes `use_item` on the model's surface a door
+ * onto an inventory rather than onto an empty one, because until this existed
+ * nothing on either surface could put a potion in a character's hands.
+ *
+ * **The quantity is a count of things, not a mechanical number.** How many
+ * potions the chest held is fiction, exactly as how wide the room is. What the
+ * *item* is worth is never stated: the dice, the charges and the save DC are
+ * the catalogue's, and where a copy's charges are rolled — SRD Necklace of
+ * Fireballs' "1d6+3 beads" — the engine rolls them out of the campaign's own
+ * generator and pins the number.
+ *
+ * A pack is opened on the way in, so a Scholar's Pack handed over is nine
+ * things handed over.
+ */
+const AWARD_ITEMS = tool({
+  name: 'award_items',
+  description:
+    'Give a creature what it found, bought or was handed: items by catalogue id, with a quantity where there is more than one. Everything about each item is read out of the book — its weight, its charges, what it confers, and the dice for a copy whose count the book rolls. Say where it came from; the log records it. A pack is unpacked into the things inside it. What a character does with an item afterwards is theirs: a potion is drunk with `use_item` and armour is worn by equipping it.',
+  mutates: true,
+  input: z.strictObject({
+    who: creatureId.describe('Who is receiving it.'),
+    items: z
+      .array(
+        z.strictObject({
+          id: z.string().min(1).describe('Catalogue id, e.g. potion-of-healing, longsword.'),
+          quantity: z.int().min(1).optional().describe('How many. One where it is left out.'),
+        }),
+      )
+      .min(1)
+      .describe('What was found. An award has to name something.'),
+    because: z
+      .string()
+      .min(1)
+      .describe('Where it came from, in one phrase: "the chest under the altar".'),
+  }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      awardItems(
+        context.campaign.state(),
+        context.campaign.supply(),
+        who(args.who),
+        args.items.map((line) => ({
+          id: line.id,
+          ...(line.quantity === undefined ? {} : { quantity: line.quantity }),
+        })),
+        args.because,
+        identity(context),
+      ),
+      { awarded: args.items.map((line) => line.id), to: args.who, because: args.because },
+    ),
+});
+
+/**
  * The tools a model may never reach, in the stable sorted order the prompt
  * cache depends on.
  */
 export const DM_ONLY_TOOLS: readonly ToolDefinition[] = [
   ABILITY_CHECK,
+  AWARD_ITEMS,
   END_CONDITION,
   IMPROVISED_DAMAGE,
   ROLL_IMPROVISED_DAMAGE,
