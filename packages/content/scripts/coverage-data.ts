@@ -213,6 +213,7 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'lightning-bolt',
   'longstrider',
   'mage-armor',
+  'magic-jar',
   'mass-cure-wounds',
   'mind-blank',
   'mind-spike',
@@ -265,6 +266,7 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'vicious-mockery',
   'vitriolic-sphere',
   'web',
+  'wind-walk',
 ];
 
 export interface SpellCoverage {
