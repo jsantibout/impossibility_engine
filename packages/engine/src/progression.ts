@@ -6,6 +6,7 @@ import {
   type Result,
   type Skill,
 } from '@ie/shared';
+import type { WeaponSelector } from './attack.js';
 import type { ArmorTraining } from './character.js';
 import type { TurnAnchor } from './time.js';
 import type { EffectEndCause } from './timers.js';
@@ -429,6 +430,64 @@ export type FeatureGrant =
    * multiclassing takes the highest rather than adding them up.
    */
   | { readonly kind: 'extra-attack'; readonly attacks: number }
+  /**
+   * A class that changes what one of its own attacks **is**.
+   *
+   * The attack layer reads a weapon or the fixed Unarmed Strike, and until
+   * this member nothing could say that a class changes either — which is why
+   * the only class whose *level 1* feature the engine could not execute was
+   * the one whose level 1 feature is this.
+   *
+   * SRD Martial Arts is the one printing, and it wants every field of this at
+   * once under a single gate: a set of weapons the class names beside its
+   * Unarmed Strike ("Simple Melee weapons; Martial Melee weapons that have the
+   * Light property"), a die "in place of the normal damage" of those, an
+   * ability offered "instead of your Strength modifier" for the same, and an
+   * Unarmed Strike "as a Bonus Action" — all of them held by "while you are
+   * unarmed or wielding only Monk weapons and you aren't wearing armor or
+   * wielding a Shield".
+   *
+   * **One grant and not three**, because the book writes one gate over three
+   * italicised clauses and a feature carries one grant. Splitting them would
+   * need the unbuilt "a feature that carries a second grant" shape to put them
+   * back together again, and would spell the same gate out three times.
+   *
+   * **The weapons are here and not in `weaponProficiencies`**, because the SRD
+   * prints two different sets: the Monk's Core Traits table says "Simple
+   * weapons and Martial weapons that have the Light property" and Martial Arts
+   * says the *Melee* halves of the same two lines. A Monk is proficient with a
+   * Light Crossbow and it is not a Monk weapon.
+   *
+   * What this is **not** is the extra attack inside an Attack action. The
+   * Bonus Action strike is paid for out of the Bonus Action the economy
+   * already has, and a feature that puts more swings inside one Attack action
+   * is `extra-attack` above or the gap `docs/design/characters-and-equipment.md`
+   * files beside it.
+   */
+  | {
+      readonly kind: 'strike-style';
+      /**
+       * The weapons the style covers besides the Unarmed Strike, which it
+       * always covers. A list, because the SRD writes a list.
+       */
+      readonly weapons?: readonly WeaponSelector[];
+      /**
+       * The die rolled in place of the normal damage, by class level.
+       *
+       * A column of the class table read at that class's own level, exactly as
+       * a pool's size and Rage Damage's bonus are — the feature cannot name a
+       * number, because the number changes four times between level 1 and 17.
+       */
+      readonly dieByLevel?: readonly string[];
+      /** The ability offered in place of the attack's own. An offer, not a swap. */
+      readonly ability?: Ability;
+      /** SRD: "You can make an Unarmed Strike as a Bonus Action." */
+      readonly bonusUnarmedStrike?: boolean;
+      /** SRD: "while you are unarmed or **wielding only Monk weapons**". */
+      readonly whileWieldingOnly?: boolean;
+      /** SRD: "and you aren't wearing armor or wielding a Shield" — `unarmored`. */
+      readonly requires?: readonly StandingRequirement[];
+    }
   /**
    * SRD Improved Critical: "can score a Critical Hit on a roll of 19 or 20".
    *

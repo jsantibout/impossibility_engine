@@ -115,7 +115,7 @@ export const FEATURE_SHAPES = {
   'an-option-re-chosen-on-a-rest':
     'a choice the book lets you take again after a rest. `docs/design/characters-and-equipment.md` names it and its first consumer — "**A grant that can be re-chosen on a rest.** Circle of the Land\'s spells" — and files every rule about swapping a prepared spell on a rest beside it. A `FeatureChoice` is answered once, at creation, and frozen into the sheet.',
   'an-attack-the-class-redefines':
-    'a class that changes what an attack **is**. The Monk\'s own note says it: the attack layer reads a weapon or the fixed Unarmed Strike and has no notion of a class changing either, so a growing unarmed die, a Dexterity-based fist, a Flurry of Blows and a chosen damage type all sit outside it. `docs/design/characters-and-equipment.md` files the neighbouring half of the same gap — "**Extra attacks inside the Attack action.** The economy counts one Attack action, not the attacks in it".',
+    'a class that changes what an attack **is**. Two of the four ways it does so are built: a `strike-style` grant redefines the die and the ability of a class\'s Unarmed Strike and of the weapons that class names, and the Bonus Action strike it hands out is paid for out of the Bonus Action the economy already holds. What is left is the other two, and they are the ones that touch the action economy or the damage itself — a damage **type** the holder chooses on each hit, and an attack traded for something else: two more Unarmed Strikes bought with a Focus Point, the swing the Light property gives that nothing pays for, a breath weapon put in an Attack action\'s place. `docs/design/characters-and-equipment.md` files the neighbouring half of the same gap — "**Extra attacks inside the Attack action.** The economy counts one Attack action, not the attacks in it".',
   'an-attack-roll-selected-by-the-ability-it-uses':
     'an attack-roll modifier narrowed to the ability the swing was made with. `RollSelector` in packages/engine/src/roll-modifiers.ts allows an ability on a check and a save and refuses one on an attack, and says why: they "are filters and both narrow rather than widen: absent means the whole family". SRD Reckless Attack buys Advantage "on attack rolls using Strength" and would otherwise buy it on every attack the Barbarian makes.',
   'a-move-a-feature-hands-its-holder':
@@ -700,13 +700,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
 
   // — Monk —
-  'monk:martial-arts': [
-    {
-      clause: 'the attack layer reads a weapon or the fixed Unarmed Strike, and has no notion of a class changing either',
-      why: 'an-attack-the-class-redefines',
-      note: 'the growing die, the Dexterity fist and the Bonus Action strike are three sentences of one absence.',
-    },
-  ],
   'monk:slow-fall': [
     {
       clause: 'falling is not modelled',
@@ -728,9 +721,9 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
   'monk:empowered-strikes': [
     {
-      clause: 'because unarmed strikes are not a class-modified attack here',
+      clause: 'carries no damage type for a second feature to change',
       why: 'an-attack-the-class-redefines',
-      note: 'Martial Arts’ blocker on a second Monk feature.',
+      note: 'what Martial Arts left behind: the style redefines which die is thrown and which ability is added, and the type the die deals is still the weapon’s own.',
     },
   ],
   'monk:acrobatic-movement': [

@@ -1,5 +1,5 @@
 import { err, ok, type Ability, type Result, type RollMode } from '@ie/shared';
-import type { Weapon } from '@ie/srd';
+import type { Weapon, WeaponProperty } from '@ie/srd';
 import { parseNotation, type DieEffect, type Rng } from './dice.js';
 import type { Content } from './content.js';
 // Type-only, and deliberately: `events.ts` reads this module's damage types
@@ -97,6 +97,71 @@ export function proficientWith(sheet: CharacterSheet, weapon: Weapon | null): bo
 }
 
 /**
+ * A set of weapons, named the way the SRD names one.
+ *
+ * SRD writes such a set as a short bulleted list of category, kind and
+ * property — Martial Arts' "Simple Melee weapons; Martial Melee weapons that
+ * have the Light property" — so a set is a *list* of these and a weapon is in
+ * it when it matches any one.
+ *
+ * **Not {@link proficientWith}'s four categories**, and the difference is the
+ * SRD's own. A Monk is proficient with "Simple weapons and Martial weapons
+ * that have the Light property" and their *Monk weapons* are the Melee halves
+ * of the same two lines: a Light Crossbow is one of the first and none of the
+ * second. Two sentences that differ are two declarations, and folding them
+ * into one would quietly give a class benefits on a bow.
+ *
+ * An absent field asks nothing. `{}` therefore means every weapon, which is
+ * what a style covering anything held would say.
+ */
+/**
+ * The two axes a weapon row is sorted by, as values.
+ *
+ * The *type* of each is the parsed weapon record's own, held by `satisfies`,
+ * so these cannot drift from what the equipment tables were parsed into. They
+ * are values as well as types because `checkFeatureDefinition` has to hold a
+ * catalogue that arrived as JSON to them, where the compiler was never asked.
+ */
+export const WEAPON_CATEGORIES = ['simple', 'martial'] as const satisfies readonly Weapon['category'][];
+export const WEAPON_KINDS = ['melee', 'ranged'] as const satisfies readonly Weapon['kind'][];
+
+export interface WeaponSelector {
+  /** SRD's two weapon categories. Absent matches either. */
+  readonly category?: (typeof WEAPON_CATEGORIES)[number];
+  /** Melee or Ranged, as the equipment tables print it. Absent matches either. */
+  readonly kind?: (typeof WEAPON_KINDS)[number];
+  /**
+   * Properties the weapon must have, **all** of them. Absent asks for none.
+   *
+   * SRD's closed nine, so the compiler holds a class file to them and
+   * `checkFeatureDefinition` holds a catalogue that arrived as JSON to the
+   * same list — a property nobody prints would otherwise make a selector match
+   * nothing at all and the style would quietly cover less than it says.
+   */
+  readonly properties?: readonly WeaponProperty[];
+}
+
+/**
+ * Whether this weapon is in the set these selectors name.
+ *
+ * An Unarmed Strike — `null` — is in no set of weapons, because it is not a
+ * weapon. A rule that covers both says so in two clauses, exactly as SRD
+ * Martial Arts does ("your Unarmed Strike **and** Monk weapons").
+ */
+export function weaponInSet(
+  weapon: Weapon | null,
+  selectors: readonly WeaponSelector[],
+): boolean {
+  if (weapon === null) return false;
+  return selectors.some(
+    (selector) =>
+      (selector.category === undefined || weapon.category === selector.category) &&
+      (selector.kind === undefined || weapon.kind === selector.kind) &&
+      (selector.properties ?? []).every((property) => weapon.properties.includes(property)),
+  );
+}
+
+/**
  * How far this weapon reaches in melee, in feet.
  *
  * SRD Reach: "This weapon adds 5 feet to your reach when you attack with it."
@@ -169,9 +234,52 @@ export interface SpellAttack {
   readonly ranged: boolean;
 }
 
+/**
+ * A class's own way of striking, as it reaches one swing.
+ *
+ * Whether the style applies at all — its gate, and whether it covers the thing
+ * being swung — is settled before this exists, by the command that can see the
+ * creature's state and the catalogue. What arrives here is only what the style
+ * changes about the arithmetic: a die rolled in place of the normal damage,
+ * and an ability offered in place of the attack's own.
+ *
+ * It is beside `criticalOn` in spirit and for the same reason: `attack.ts` is
+ * pure and holds no state, so a rule read off a creature is read by the
+ * command and handed down.
+ */
+export interface StrikeStyleInPlay {
+  /** The feature that grants it, so a refusal or a log can name the rule. */
+  readonly source: string;
+  /**
+   * SRD Martial Arts Die: "You can roll 1d6 **in place of** the normal damage
+   * of your Unarmed Strike or Monk weapons."
+   *
+   * *In place of*, not beside — so this replaces the weapon's own dice, or the
+   * flat 1 an Unarmed Strike deals. See {@link rollAttackDamage} for which of
+   * the two is used when the weapon's own is the better.
+   */
+  readonly die?: string;
+  /**
+   * SRD Dexterous Attacks: "You **can** use your Dexterity modifier instead of
+   * your Strength modifier for the attack and damage rolls."
+   *
+   * An offer, not a substitution: see {@link attackAbility}.
+   */
+  readonly ability?: Ability;
+}
+
 export interface AttackOptions {
   /** The weapon used, or null for an Unarmed Strike. */
   readonly weapon: Weapon | null;
+  /**
+   * A class feature that redefines this attack — the Monk's growing fist, and
+   * whatever a homebrew class writes with the same grant.
+   *
+   * Set by the command, which resolved it against the creature's own state.
+   * Absent for every creature no such feature belongs to, which is nearly
+   * every creature: the arithmetic below is then exactly what it always was.
+   */
+  readonly strikeStyle?: StrikeStyleInPlay;
   /** Set when this is a spell attack rather than a weapon's or a fist's. */
   readonly spellAttack?: SpellAttack;
   readonly targetAc: number;
@@ -187,7 +295,18 @@ export interface AttackOptions {
   readonly twoHanded?: boolean;
   /** Thrown rather than swung, for a Thrown weapon. */
   readonly thrown?: boolean;
-  /** Which ability to use on a Finesse weapon. Defaults to the better one. */
+  /**
+   * Which ability to use **where a rule offers the attacker a choice of two**.
+   * Defaults to the better one.
+   *
+   * Named for SRD Finesse — "your choice of your Strength or Dexterity
+   * modifier" — which was the only such rule when the field was written. SRD
+   * Dexterous Attacks is the second and is the same sentence in different
+   * words, so it is answered through the same field rather than through a
+   * second one: `PendingAttack` carries this so a held attack rolls its damage
+   * with the ability it was made with, and a second field meaning the same
+   * thing would be two answers to one question.
+   */
   readonly finesseAbility?: 'str' | 'dex';
   /** Situational advantage or disadvantage from the fiction. */
   readonly modes?: readonly (RollMode | ModeSource)[];
@@ -245,6 +364,14 @@ function isRangedAttack(options: AttackOptions): boolean {
  * the caster's spellcasting feature named, which is why a {@link SpellAttack}
  * carries its own rather than falling through to the Strength an Unarmed
  * Strike shares its sentinel with.
+ *
+ * **A style offers an ability; it does not impose one.** SRD Dexterous Attacks
+ * says "you **can** use your Dexterity modifier instead of your Strength
+ * modifier", which is Finesse's "your choice" in different words — so it gets
+ * Finesse's reading: the attacker's own answer if they gave one, and otherwise
+ * whichever of the two is better for them. A Monk with Strength 16 and
+ * Dexterity 12 punches with Strength, and one who says `str` punches with
+ * Strength whatever their scores.
  */
 export function attackAbility(sheet: CharacterSheet, options: AttackOptions): Ability {
   const weapon = options.weapon;
@@ -252,13 +379,25 @@ export function attackAbility(sheet: CharacterSheet, options: AttackOptions): Ab
   const spell = options.spellAttack;
   if (spell !== undefined && spell.ability !== null) return spell.ability;
 
+  const chosen = options.finesseAbility;
+  const better = (one: Ability, other: Ability): Ability =>
+    modifierFor(sheet, one) > modifierFor(sheet, other) ? one : other;
+
+  // What the attack would be made with if no feature had anything to say.
+  let ability: Ability;
   if (has(weapon, 'finesse')) {
-    if (options.finesseAbility !== undefined) return options.finesseAbility;
     // SRD leaves the choice to the player; default to whichever is better.
-    return modifierFor(sheet, 'dex') > modifierFor(sheet, 'str') ? 'dex' : 'str';
+    ability = chosen ?? better('dex', 'str');
+  } else {
+    ability = weapon?.kind === 'ranged' ? 'dex' : 'str';
   }
 
-  return weapon?.kind === 'ranged' ? 'dex' : 'str';
+  const offered = options.strikeStyle?.ability;
+  if (offered === undefined || offered === ability) return ability;
+  // Naming either of the two the rule puts on the table settles it; naming
+  // neither — or naming nothing — takes the better of them, as Finesse does.
+  if (chosen === offered || chosen === ability) return chosen;
+  return better(offered, ability);
 }
 
 /**
@@ -495,6 +634,21 @@ function doubledOnCrit(notation: string, critical: boolean): Result<string> {
   return ok(`${count}d${parsed.value.sides}`);
 }
 
+/**
+ * What a damage expression comes to on average, for comparing two of them.
+ *
+ * Unparseable notation is worth nothing, which is the safe direction: a
+ * malformed style die then loses to the weapon's own rather than replacing it,
+ * and the catalogue validator is what refuses the malformed die at the door.
+ */
+function averageDamage(dice: string | null, fixed: number | null): number {
+  const flat = fixed ?? 0;
+  if (dice === null) return flat;
+  const parsed = parseNotation(dice);
+  if (!parsed.ok) return flat;
+  return flat + (parsed.value.count * (parsed.value.sides + 1)) / 2;
+}
+
 export function rollAttackDamage(
   issuer: RollIssuer,
   rng: Rng,
@@ -517,7 +671,7 @@ export function rollAttackDamage(
   const components: DamageComponent[] = [];
 
   // SRD Versatile: the parenthesised die applies when used with two hands.
-  const dice =
+  const normalDice =
     weapon === null
       ? null
       : options.twoHanded === true && weapon.versatileDamage !== null
@@ -525,8 +679,26 @@ export function rollAttackDamage(
         : weapon.damage.dice;
 
   const type = weapon === null ? UNARMED_DAMAGE.type : weapon.damage.type;
-  const fixed = weapon === null ? UNARMED_DAMAGE.fixed : weapon.damage.fixed;
+  const normalFixed = weapon === null ? UNARMED_DAMAGE.fixed : weapon.damage.fixed;
   const source = weapon?.name ?? 'Unarmed Strike';
+
+  // **SRD Martial Arts Die: "You *can* roll 1d6 in place of the normal damage
+  // of your Unarmed Strike or Monk weapons."**
+  //
+  // "Can", so this is the attacker's option and not a substitution — and the
+  // reading is `attackAbility`'s: take the better of the two when nobody has
+  // said. A Monk 1 with a Quarterstaff in two hands keeps its 1d8 over the
+  // style's 1d6, which is what the SRD's permission is *for*. The die replaces
+  // the normal damage rather than joining it, so the flat 1 an Unarmed Strike
+  // deals goes with the dice it stands in for.
+  const styleDie = options.strikeStyle?.die;
+  const inPlaceOf =
+    styleDie !== undefined &&
+    averageDamage(styleDie, null) > averageDamage(normalDice, normalFixed)
+      ? styleDie
+      : null;
+  const dice = inPlaceOf ?? normalDice;
+  const fixed = inPlaceOf === null ? normalFixed : null;
 
   // The weapon's own damage, carrying the ability modifier.
   if (dice === null) {

@@ -27,6 +27,7 @@ import type {
   SelfHealFeature,
   StandingEffect,
   StandingGrant,
+  StrikeStyle,
 } from './standing.js';
 import type {
   ReactionAddend,
@@ -2351,6 +2352,28 @@ export function planCharacter(
     20,
   );
 
+  // A class's own way of striking. The die is a column of a class table, so it
+  // is read at *that class's* level and pinned here — the same treatment
+  // `feetByLevel` and a recovery's `diceByLevel` already get, and for the same
+  // reason: a Monk 5 / Fighter 5 rolls a d8 rather than a level 10 die.
+  const strikeStyles: StrikeStyle[] = [];
+  for (const feature of features) {
+    const grant = feature.grants;
+    if (grant?.kind !== 'strike-style') continue;
+    const classLevel = classLevelFor(choices, feature.id);
+    const die = grant.dieByLevel?.[Math.max(0, classLevel - 1)];
+    strikeStyles.push({
+      source: feature.id,
+      name: feature.name,
+      ...(grant.weapons === undefined ? {} : { weapons: grant.weapons }),
+      ...(die === undefined ? {} : { die }),
+      ...(grant.ability === undefined ? {} : { ability: grant.ability }),
+      ...(grant.bonusUnarmedStrike === true ? { bonusUnarmedStrike: true } : {}),
+      ...(grant.whileWieldingOnly === true ? { whileWieldingOnly: true } : {}),
+      ...(grant.requires === undefined ? {} : { requires: grant.requires }),
+    });
+  }
+
   const alternatives: UnarmoredDefense[] = [];
   for (const feature of features) {
     const grant = feature.grants;
@@ -2416,6 +2439,7 @@ export function planCharacter(
     ...(standing.length === 0 ? {} : { standing }),
     ...(attacksPerAction > 1 ? { attacksPerAction } : {}),
     ...(criticalOn < 20 ? { criticalOn } : {}),
+    ...(strikeStyles.length === 0 ? {} : { strikeStyles }),
     ...(activated.length === 0 ? {} : { activated }),
     ...(reactions.length === 0 ? {} : { reactions }),
     ...(recoveries.length === 0 ? {} : { recoveries }),

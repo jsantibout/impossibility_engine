@@ -157,6 +157,43 @@ describe('the Monk', () => {
     expect(MARTIAL_ARTS_DIE[16]).toBe('1d12');
   });
 
+  /**
+   * SRD Martial Arts, and the two sentences that had to stay apart.
+   *
+   * The Core Monk Traits table prints "Simple weapons and Martial weapons that
+   * have the Light property" as the *proficiencies*; the feature prints "Simple
+   * Melee weapons" and "Martial Melee weapons that have the Light property" as
+   * the **Monk weapons** its benefits read. They are different sets — a Monk is
+   * proficient with a Light Crossbow and it is not a Monk weapon — so the
+   * feature declares its own rather than pointing at the class's.
+   */
+  it('declares its Monk weapons on the feature and not on the class', () => {
+    expect(MONK.weaponProficiencies).toEqual(['simple', 'martial-light']);
+
+    const martialArts = MONK.features.find((one) => one.id === 'monk:martial-arts');
+    expect(martialArts?.automation).toBe('engine');
+    expect(martialArts?.grants).toEqual({
+      kind: 'strike-style',
+      weapons: [
+        { category: 'simple', kind: 'melee' },
+        { category: 'martial', kind: 'melee', properties: ['light'] },
+      ],
+      dieByLevel: MARTIAL_ARTS_DIE,
+      ability: 'dex',
+      bonusUnarmedStrike: true,
+      whileWieldingOnly: true,
+      requires: [{ kind: 'unarmored' }],
+    });
+  });
+
+  /** And a Monk's sheet carries the die of the level they were built at. */
+  it('compiles the style onto the sheet at that class’s own level', () => {
+    const shan = built(monk(), SHAN).creatures.shan!.sheet;
+    expect(shan.strikeStyles?.map((style) => style.source)).toEqual(['monk:martial-arts']);
+    // The fixture is a Monk 5, whose Martial Arts column reads 1d8.
+    expect(shan.strikeStyles?.[0]?.die).toBe(MARTIAL_ARTS_DIE[4]);
+  });
+
   /** SRD: Focus Points equal Monk level, and there are none before level 2. */
   it('has no Focus Points at level 1 and its level thereafter', () => {
     expect(FOCUS_POINTS[0]).toBe(0);

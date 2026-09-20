@@ -5,6 +5,7 @@ import type {
   RecoveryFeature,
   SelfHealFeature,
   StandingEffect,
+  StrikeStyle,
 } from './standing.js';
 import type { ReactionFeature } from './reactions.js';
 import type { Armor } from '@ie/srd';
@@ -190,6 +191,22 @@ export interface CharacterSheet {
    * the same kind of always-on number read off the features.
    */
   readonly criticalOn?: number;
+  /**
+   * Ways this character's features redefine an attack of their own — the
+   * Monk's growing fist, and whatever a homebrew class writes with the same
+   * grant.
+   *
+   * Resolved at creation beside `reactions`, and for the same reason: the die
+   * is a column of a class table read at *that class's* level, so a Monk 5 /
+   * Fighter 5 rolls the Monk's d8 rather than a level 10 character's d10.
+   *
+   * **Not in `standing` beside the other conditional benefits**, because a
+   * standing effect is a bonus or a mode hung on a creature and this is a
+   * substitution inside one roll: which die is thrown at all, and which
+   * ability is added to it. `attack.ts` is where those two are decided and a
+   * `StandingGrant` has no member that could say either.
+   */
+  readonly strikeStyles?: readonly StrikeStyle[];
   /** Set for creatures whose numbers are printed rather than derived. */
   readonly stated?: StatedValues;
 }

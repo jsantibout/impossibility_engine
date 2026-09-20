@@ -187,6 +187,9 @@ const AUDIT: readonly {
         'opens `pendingAttack` so a Shield can land between the two rolls, and nothing on this surface settles a held attack',
       ),
       free: because('an attack whose cost is paid elsewhere; the engine passes it internally for an Opportunity Attack and no caller should'),
+      bonusAction: because(
+        'SRD Martial Arts\' "you can make an Unarmed Strike as a Bonus Action", which is a real decision and not a number — a Monk chooses whether to spend the Bonus Action on a punch or keep it for something else. It is refused outright to anybody whose features grant no such strike, and no character in either benchmark is a Monk, so a published field would refuse every value it could be sent today. Publish it the day a benchmark character has a class that grants one',
+      ),
       featureDamageTypes: because('Divine Strike and Primal Strike choose a type per hit; both are level 8 features'),
     },
   },

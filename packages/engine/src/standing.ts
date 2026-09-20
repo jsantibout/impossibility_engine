@@ -33,7 +33,7 @@ import {
 import type { CreatureState, GameState } from './events.js';
 import { spellOfSource } from './spells.js';
 import type { Recovery } from './resources.js';
-import type { DamageDefenses, DefenseKind } from './attack.js';
+import { weaponInSet, type DamageDefenses, type DefenseKind, type WeaponSelector } from './attack.js';
 import type { Weapon } from '@ie/srd';
 import { canUseFeatureThisTurn, movementLeft } from './combat.js';
 
@@ -700,6 +700,64 @@ export type ActivationEnd = 'incapacitated' | 'heavy-armor';
  * that can be pushed, a cap it cannot be pushed past, and two ways out that
  * nobody commands.
  */
+/**
+ * A class's own way of striking, compiled onto the sheet.
+ *
+ * SRD Martial Arts is the one the book prints and it needs every field at
+ * once, which is what makes the shape real rather than a guess: a set of
+ * weapons the class names beside its Unarmed Strike, a die rolled in place of
+ * their normal damage, an ability offered in place of the attack's own, a
+ * Bonus Action strike, and a gate with two halves.
+ *
+ * **A style always covers its holder's Unarmed Strike**, and {@link weapons}
+ * widens it to the weapons the class names. That is the sentence the SRD
+ * writes — "your Unarmed Strike **and** Monk weapons" — and it is why a style
+ * with no weapons at all is a coherent thing to write: a class that redefines
+ * only the fist.
+ *
+ * Resolved at creation like `activated` and `reactions` beside it, because the
+ * die is a column of a class table read at *that class's* level — a Monk 5 /
+ * Fighter 5 rolls a d8 and not a level 10 character's d10 — and re-deriving a
+ * class table on every swing is not a thing to do on every swing.
+ */
+export interface StrikeStyle {
+  /** The feature that grants it. */
+  readonly source: string;
+  readonly name: string;
+  /**
+   * The weapons this style covers besides the Unarmed Strike.
+   *
+   * SRD Martial Arts: "Simple Melee weapons" and "Martial Melee weapons that
+   * have the Light property" — a list, because the book writes a list. Absent
+   * covers the fist and nothing else.
+   */
+  readonly weapons?: readonly WeaponSelector[];
+  /** The die rolled in place of the normal damage, at this character's level. */
+  readonly die?: string;
+  /** The ability offered in place of the attack's own. */
+  readonly ability?: Ability;
+  /** SRD Bonus Unarmed Strike: "You can make an Unarmed Strike as a Bonus Action." */
+  readonly bonusUnarmedStrike?: boolean;
+  /**
+   * SRD Martial Arts: "while you are unarmed **or wielding only Monk
+   * weapons**".
+   *
+   * The half of the gate that reads {@link weapons} from the other end: the
+   * whole style is lost the moment its holder picks up something it does not
+   * cover, fist included. Absent, and what is in the other hand is nobody's
+   * business — which is what a homebrew style that redefines only the fist
+   * would say.
+   */
+  readonly whileWieldingOnly?: boolean;
+  /**
+   * The other half, in the vocabulary the standing effects already use.
+   *
+   * SRD Martial Arts: "and you aren't wearing armor or wielding a Shield",
+   * which is `unarmored` word for word.
+   */
+  readonly requires?: readonly StandingRequirement[];
+}
+
 export interface ActivatedFeature {
   readonly feature: string;
   readonly name: string;
@@ -900,10 +958,33 @@ export interface ActiveStanding {
  * from the two ends; it is not a property of standing effects in general.
  */
 function meetsRequirements(state: GameState, who: CharacterId, effect: StandingEffect): boolean {
+  return requirementsHold(state, who, effect.requires, effect.feature);
+}
+
+/**
+ * The same question, asked of a list of requirements rather than of a standing
+ * effect.
+ *
+ * Exported because a {@link StrikeStyle} is gated by the same vocabulary and
+ * is not a standing effect: SRD Martial Arts' "while you aren't wearing armor
+ * or wielding a Shield" is `unarmored`, word for word the clause Unarmored
+ * Movement already carries. A second spelling of that evaluation is the thing
+ * this file exists to prevent, so there is one.
+ *
+ * `source` is what `while-worn` and `while-attuned` look up — an item's id.
+ * A feature naming no item is refused by `checkContent`, so handing a feature
+ * id here withholds the benefit rather than granting it by accident.
+ */
+export function requirementsHold(
+  state: GameState,
+  who: CharacterId,
+  requires: readonly StandingRequirement[] | undefined,
+  source: string,
+): boolean {
   const creature = state.creatures[who];
   if (creature === undefined) return false;
 
-  for (const requirement of effect.requires ?? []) {
+  for (const requirement of requires ?? []) {
     if (requirement.kind === 'not-incapacitated' && isIncapacitated(creature.conditions)) {
       return false;
     }
@@ -932,23 +1013,72 @@ function meetsRequirements(state: GameState, who: CharacterId, effect: StandingE
       return false;
     }
     // The item's own two clauses, read off the creature's relations to it.
-    // `effect.feature` is the item's id for an item grant; a *feature* that
+    // `source` is the item's id for an item grant; a *feature* that
     // carried one of these would name no item and would never hold, which is
     // the conservative direction and what `checkContent` refuses outright.
     if (
       requirement.kind === 'while-worn' &&
-      !creature.equipped.some((held) => held.id === effect.feature)
+      !creature.equipped.some((held) => held.id === source)
     ) {
       return false;
     }
     if (
       requirement.kind === 'while-attuned' &&
-      !creature.attuned.some((held) => held.id === effect.feature)
+      !creature.attuned.some((held) => held.id === source)
     ) {
       return false;
     }
   }
   return true;
+}
+
+/**
+ * The style that reaches this swing, or null where none does.
+ *
+ * Three questions, and a style has to answer all three: its gate holds, it
+ * covers the thing being swung, and — where it says so — nothing outside it is
+ * in the holder's hands.
+ *
+ * **`wielding` is passed in rather than looked up**, because a weapon record
+ * lives in the catalogue and this file holds none: `equipped` carries an
+ * armour record and an item's pinned grants, and nothing else. The command has
+ * the content in hand already, exactly as `reachOf` does.
+ *
+ * The **first** style that applies wins. No character the SRD can build has
+ * two, and a rule for combining two class features that both redefine the fist
+ * is a decision nobody has made — so the answer is the one the sheet lists
+ * first rather than a silently invented maximum.
+ */
+export function strikeStyleFor(
+  state: GameState,
+  who: CharacterId,
+  context: { readonly weapon: Weapon | null; readonly wielding: readonly Weapon[] },
+): StrikeStyle | null {
+  const creature = state.creatures[who];
+  if (creature === undefined) return null;
+  // The sheet as it stands, for the reason every reader in this file takes it:
+  // a Belt of Giant Strength moves the score the style's offer is weighed
+  // against, and the styles themselves ride along untouched.
+  const sheet = sheetAsItStands(state, who) ?? creature.sheet;
+  const styles = sheet.strikeStyles ?? [];
+  if (styles.length === 0) return null;
+
+  for (const style of styles) {
+    if (!requirementsHold(state, who, style.requires, style.source)) continue;
+    const covered = style.weapons ?? [];
+    // SRD: "while you are unarmed **or wielding only Monk weapons**". Holding
+    // nothing satisfies it, which is the first half of the same sentence.
+    if (
+      style.whileWieldingOnly === true &&
+      !context.wielding.every((held) => weaponInSet(held, covered))
+    ) {
+      continue;
+    }
+    // A style always covers the fist; `weapons` is what it adds to it.
+    if (context.weapon !== null && !weaponInSet(context.weapon, covered)) continue;
+    return style;
+  }
+  return null;
 }
 
 /**

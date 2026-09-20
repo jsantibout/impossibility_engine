@@ -18,10 +18,11 @@ import {
   rangeOf,
   rollAttack,
   rollAttackDamage,
+  type StrikeStyleInPlay,
 } from '../attack.js';
 import { type Bonus, bonusesFor, flatBonusTotal, type ModeSource } from '../bonuses.js';
 import { type Content } from '../content.js';
-import { spendAttack } from '../combat.js';
+import { spendAttack, spendBonusAction } from '../combat.js';
 import { applyEvent, type CreatureState, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import {
@@ -40,6 +41,8 @@ import {
   sheetAsItStands,
   standingAttackDamage,
   standingBonuses,
+  strikeStyleFor,
+  type StrikeStyle,
 } from '../standing.js';
 import {
   chooseRoute,
@@ -55,6 +58,30 @@ import { quantityOf } from './inventory.js';
 import { defendingModes, enemyWithinFiveFeet } from './rolls.js';
 import { consumedRollModifiers } from '../roll-modifiers.js';
 
+/**
+ * The weapons this creature currently has in hand, as records.
+ *
+ * `equipped` carries catalogue ids and an armour record; the weapon record
+ * lives in the catalogue, which is why this takes the content the command
+ * already holds. `reachOf` beside it asks the same question of the same list
+ * for the same reason.
+ */
+function wieldingOf(content: Content, creature: CreatureState): readonly Weapon[] {
+  const held: Weapon[] = [];
+  for (const item of creature.equipped) {
+    const weapon = content.item(item.id)?.weapon;
+    if (weapon !== undefined && weapon !== null) held.push(weapon);
+  }
+  return held;
+}
+
+/** What a style changes about the arithmetic, which is all `attack.ts` needs. */
+const inPlay = (style: StrikeStyle): StrikeStyleInPlay => ({
+  source: style.source,
+  ...(style.die === undefined ? {} : { die: style.die }),
+  ...(style.ability === undefined ? {} : { ability: style.ability }),
+});
+
 export interface AttackCommand extends CommandIdentity {
   readonly target: CharacterId;
   /** The weapon, by catalogue id, or null for an Unarmed Strike. */
@@ -63,7 +90,15 @@ export interface AttackCommand extends CommandIdentity {
   readonly twoHanded?: boolean;
   /** Thrown rather than swung, for a Thrown weapon. */
   readonly thrown?: boolean;
-  /** Which ability to use on a Finesse weapon. Defaults to the better one. */
+  /**
+   * Which ability to use where a rule offers the attacker a choice of two.
+   * Defaults to the better one.
+   *
+   * SRD Finesse's "your choice of your Strength or Dexterity modifier", and
+   * SRD Dexterous Attacks' "you can use your Dexterity modifier instead of
+   * your Strength modifier" — one question with one answer, so one field. See
+   * `AttackOptions.finesseAbility`.
+   */
   readonly finesseAbility?: 'str' | 'dex';
   /** Advantage or disadvantage from the fiction, which the engine cannot see. */
   readonly modes?: readonly (RollMode | ModeSource)[];
@@ -92,6 +127,21 @@ export interface AttackCommand extends CommandIdentity {
    * Attack action, not the attacks inside it.
    */
   readonly free?: boolean;
+  /**
+   * Pay for this Unarmed Strike with a Bonus Action rather than the Attack
+   * action.
+   *
+   * SRD Martial Arts: "**Bonus Unarmed Strike.** You can make an Unarmed
+   * Strike as a Bonus Action." A class feature has to have granted it — a
+   * style with `bonusUnarmedStrike` — and it has to be an Unarmed Strike,
+   * because that is what the sentence gives away. Both are checked before
+   * anything is spent.
+   *
+   * **Not `free`, and not the extra attacks inside an Attack action.** `free`
+   * says somebody else has already paid; this says what pays, and the slot it
+   * spends is the one SRD names and the economy already holds.
+   */
+  readonly bonusAction?: boolean;
   /**
    * Which damage type a feature that offers a choice deals on this hit.
    *
@@ -238,12 +288,50 @@ export function resolveAttack(
     const legalTypes = checkFeatureDamageTypes(state, id, command.featureDamageTypes);
     if (!legalTypes.ok) return legalTypes;
 
+    // — what the class says this attack is ————————————————————————————————
+    //
+    // Resolved before the economy, because the Bonus Action strike is a style's
+    // to give: a class that grants no style may not spend a Bonus Action on a
+    // punch, and finding that out after the action was spent would be a
+    // refusal with a footprint.
+    const style = strikeStyleFor(state, id, {
+      weapon,
+      wielding: wieldingOf(supply.content, attacker),
+    });
+
+    if (command.bonusAction === true && (weapon !== null || style?.bonusUnarmedStrike !== true)) {
+      return err(
+        'no_bonus_strike',
+        weapon === null
+          ? `no feature of ${id}'s gives them an Unarmed Strike as a Bonus Action here`
+          : `a Bonus Action strike is an Unarmed Strike; ${id} is swinging a ${weapon.name}`,
+      );
+    }
+
     // — the action it costs —————————————————————————————————————————————————
     //
     // SRD: an attack with a weapon is the Attack action. Outside combat there is
     // no economy to spend, exactly as `resolveCast` finds.
     const events: GameEvent[] = [];
-    if (command.free !== true && state.combat !== null && state.combat.budgets[id] !== undefined) {
+    if (
+      command.free !== true &&
+      command.bonusAction === true &&
+      state.combat !== null &&
+      state.combat.budgets[id] !== undefined
+    ) {
+      // SRD: "You can't take more than one Bonus Action on a turn", which is
+      // the primitive's own rule and the reason nothing else has to say it.
+      const spent = spendBonusAction(state.combat, id, attacker.conditions, {
+        rules: attacker.actionRules,
+      });
+      if (!spent.ok) return spent;
+      events.push({ type: 'bonus-action-spent', id });
+    } else if (
+      command.free !== true &&
+      command.bonusAction !== true &&
+      state.combat !== null &&
+      state.combat.budgets[id] !== undefined
+    ) {
       // SRD Extra Attack: the action is taken once and holds however many
       // attacks a feature puts in it, so only the first swing costs one.
       const spent = spendAttack(
@@ -293,6 +381,7 @@ export function resolveAttack(
 
     const swing: AttackOptions = {
       weapon,
+      ...(style === null ? {} : { strikeStyle: inPlay(style) }),
       targetAc: armorClassOf(state, command.target) + coverAcBonus(cover),
       proficient: proficientWith(sheet, weapon),
       // SRD Improved Critical, off the attacker's own sheet rather than the
@@ -429,6 +518,7 @@ export function resolveAttack(
       sheet,
       {
         weapon,
+        ...(style === null ? {} : { strikeStyle: inPlay(style) }),
         targetAc: attack.value.targetAc,
         ...(command.twoHanded === undefined ? {} : { twoHanded: command.twoHanded }),
         ...(command.thrown === undefined ? {} : { thrown: command.thrown }),
@@ -600,6 +690,10 @@ export function resolveAttackDamage(
     const sheet = sheetAsItStands(state, id) ?? attacker.sheet;
 
     const weapon = pending.weapon === null ? null : (supply.content.item(pending.weapon)?.weapon ?? null);
+    const heldStyle = strikeStyleFor(state, id, {
+      weapon,
+      wielding: wieldingOf(supply.content, attacker),
+    });
     const events: GameEvent[] = [];
     const extra: ExtraDamage[] = [...(command.extraDamage ?? [])];
 
@@ -639,6 +733,13 @@ export function resolveAttackDamage(
       sheet,
       {
         weapon,
+        // Re-derived rather than pinned on the held attack, for the reason the
+        // sheet above is re-read: the style's own gate is "while you aren't
+        // wearing armor", so a Monk who put a breastplate on between the roll
+        // and the blow rolls the blow without it. Nothing new is written to
+        // `attack-landed` for it, and a log from before this existed resolves
+        // exactly as it did.
+        ...(heldStyle === null ? {} : { strikeStyle: inPlay(heldStyle) }),
         targetAc: pending.targetAc,
         twoHanded: pending.twoHanded,
         thrown: pending.thrown,

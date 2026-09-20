@@ -91,8 +91,27 @@ export const MONK: ClassDefinition = {
       id: 'monk:martial-arts',
       name: 'Martial Arts',
       level: 1,
-      automation: 'manual',
-      note: 'The growing unarmed damage die, using Dexterity for unarmed strikes, and the Bonus Action unarmed strike are not applied: the attack layer reads a weapon or the fixed Unarmed Strike, and has no notion of a class changing either.',
+      automation: 'engine',
+      note: 'SRD: "You gain the following benefits while you are unarmed or wielding only Monk weapons and you aren’t wearing armor or wielding a Shield." Three italicised clauses under one gate, so one grant carries all three: the Bonus Unarmed Strike, the Martial Arts die "in place of the normal damage", and Dexterous Attacks\' "you **can** use your Dexterity modifier instead of your Strength modifier" — an offer the character takes or declines, which is Finesse\'s reading of the same sentence. Monk weapons are declared here rather than on `weaponProficiencies` because the SRD prints two different sets: the Core Monk Traits table says "Simple weapons and Martial weapons that have the Light property", and this feature says the **Melee** halves of the same two lines. A Monk is proficient with a Light Crossbow and it is not a Monk weapon. What the grant does not carry is the Grapple and Shove half of Dexterous Attacks, because the Unarmed Strike\'s other two options are not modelled at all.',
+      grants: {
+        kind: 'strike-style',
+        // SRD: "your Unarmed Strike and Monk weapons, which are the following:
+        // Simple Melee weapons; Martial Melee weapons that have the Light
+        // property." The Unarmed Strike is every style's by construction, so
+        // what is listed is the two bullets and nothing else.
+        weapons: [
+          { category: 'simple', kind: 'melee' },
+          { category: 'martial', kind: 'melee', properties: ['light'] },
+        ],
+        // The table's own column, exactly as Monk's Focus reads `FOCUS_POINTS`
+        // and Unarmoured Movement reads its feet. Retyping the twenty rows
+        // would be a second source for one fact.
+        dieByLevel: MARTIAL_ARTS_DIE,
+        ability: 'dex',
+        bonusUnarmedStrike: true,
+        whileWieldingOnly: true,
+        requires: [{ kind: 'unarmored' }],
+      },
     },
     {
       id: 'monk:unarmored-defense',
@@ -216,7 +235,7 @@ export const MONK: ClassDefinition = {
       name: 'Empowered Strikes',
       level: 6,
       automation: 'manual',
-      note: 'Choosing Force damage for unarmed strikes is not applied, because unarmed strikes are not a class-modified attack here.',
+      note: 'SRD: "Whenever you deal damage with your Unarmed Strike, it can deal your choice of Force damage or its normal damage type." The choice is not applied: Martial Arts\' style carries no damage type for a second feature to change, so which die is thrown and which ability is added are the class\'s and the type the die deals is still the weapon\'s own.',
     },
     {
       id: 'monk:evasion',

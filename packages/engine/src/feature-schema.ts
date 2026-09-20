@@ -1,7 +1,14 @@
 import { ABILITIES, err, ok, type Ability, type Result } from '@ie/shared';
+import { WEAPON_PROPERTIES } from '@ie/srd';
+import { WEAPON_CATEGORIES, WEAPON_KINDS } from './attack.js';
 import { ABILITY_SCORE_MAXIMUM } from './character.js';
 import { parseNotation } from './dice.js';
-import type { FeatureDefinition, FeatureOptionMeaning, PoolSizing } from './progression.js';
+import {
+  MAX_LEVEL,
+  type FeatureDefinition,
+  type FeatureOptionMeaning,
+  type PoolSizing,
+} from './progression.js';
 
 /**
  * Whether a feature definition is *coherent*, asked of a value rather than of a
@@ -713,6 +720,95 @@ export function checkFeatureDefinition(
         }
       }
     });
+  }
+
+  // Rule 11. A style that redefines an attack, and the three things it can say
+  // that nothing downstream could recover from.
+  //
+  // **A die that is not a die.** The notation is thrown by `rollAttackDamage`
+  // and compared against the weapon's own before it is, so a malformed one
+  // would silently lose that comparison and the feature would appear to do
+  // nothing at all — the quietest possible failure.
+  //
+  // **A table that does not reach the level it is read at.** The die is a
+  // column of a class table, indexed by that class's level, and a short column
+  // leaves a high-level holder with no die rather than an error.
+  //
+  // **A style that says nothing.** A grant with no die, no ability and no
+  // Bonus Action strike is `automation: 'engine'` claiming an execution that
+  // changes nothing, which is rule 4's failure wearing a legal grant kind.
+  if (grant?.kind === 'strike-style') {
+    const table = grant.dieByLevel;
+    if (table !== undefined) {
+      if (table.length < MAX_LEVEL) {
+        found.push({
+          field: 'grants.dieByLevel',
+          code: 'short_die_table',
+          reason: `a die read at a class level needs a row for each of the ${MAX_LEVEL} levels, and this has ${table.length}`,
+        });
+      }
+      const bad = table.filter((notation) => !parseNotation(notation).ok);
+      if (bad.length > 0) {
+        found.push({
+          field: 'grants.dieByLevel',
+          code: 'bad_strike_die',
+          reason: `a die rolled in place of a weapon's damage is notation: ${bad.join(', ')} ${bad.length === 1 ? 'is' : 'are'} not`,
+        });
+      }
+    }
+    if (
+      grant.dieByLevel === undefined &&
+      grant.ability === undefined &&
+      grant.bonusUnarmedStrike !== true
+    ) {
+      found.push({
+        field: 'grants',
+        code: 'empty_strike_style',
+        reason:
+          'a style redefines a die, an ability or the action a strike costs; one that redefines none of the three is a feature claiming to be executed and changing nothing',
+      });
+    }
+    // **And a selector nobody could ever match**, which is the same quiet
+    // failure from the other end: a category, a kind or a property outside the
+    // closed sets the equipment tables print names no weapon, so the style
+    // would cover less than it says and nothing would ever say so. The
+    // compiler holds a class file written here; this holds one that arrived as
+    // JSON.
+    (grant.weapons ?? []).forEach((selector, index) => {
+      const at = `grants.weapons[${index}]`;
+      if (selector.category !== undefined && !WEAPON_CATEGORIES.includes(selector.category)) {
+        found.push({
+          field: `${at}.category`,
+          code: 'unknown_weapon_category',
+          reason: `the equipment tables print ${WEAPON_CATEGORIES.join(' and ')}, not "${String(selector.category)}"`,
+        });
+      }
+      if (selector.kind !== undefined && !WEAPON_KINDS.includes(selector.kind)) {
+        found.push({
+          field: `${at}.kind`,
+          code: 'unknown_weapon_kind',
+          reason: `a weapon is ${WEAPON_KINDS.join(' or ')}, not "${String(selector.kind)}"`,
+        });
+      }
+      for (const property of selector.properties ?? []) {
+        if (!WEAPON_PROPERTIES.includes(property)) {
+          found.push({
+            field: `${at}.properties`,
+            code: 'unknown_weapon_property',
+            reason: `"${String(property)}" is not one of the ${WEAPON_PROPERTIES.length} properties the SRD prints, so this selector would match no weapon at all`,
+          });
+        }
+      }
+    });
+
+    if (grant.whileWieldingOnly === true && (grant.weapons ?? []).length === 0) {
+      found.push({
+        field: 'grants.whileWieldingOnly',
+        code: 'wields_nothing',
+        reason:
+          '"wielding only" reads the weapons this style names, and a style that names none would be lost the moment its holder picked up anything at all',
+      });
+    }
   }
 
   // And the reading end of the same rule: the field says where a choice is
