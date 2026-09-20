@@ -1336,6 +1336,8 @@ export type FeatureGrant =
        */
       readonly perCasting: number;
       readonly options: readonly CastingOptionGrant[];
+    }
+  /**
    * One resource spent to buy another.
    *
    * The member beside it gives a pool's uses **back**; this one pays for them
