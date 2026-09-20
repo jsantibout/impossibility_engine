@@ -8,7 +8,13 @@ import {
   type DamageType,
   type Skill,
 } from '@ie/shared';
-import type { CreatureSize, Monster, MonsterMultiattack, MonsterTrait } from '@ie/srd';
+import type {
+  CreatureSize,
+  Monster,
+  MonsterMultiattack,
+  MonsterMultiattackEntry,
+  MonsterTrait,
+} from '@ie/srd';
 import type { DamageDefenses } from './attack.js';
 import type { CharacterSheet, StatedAttack, StatedValues } from './character.js';
 import { vitals, type Vitals } from './vitals.js';
@@ -239,38 +245,98 @@ function printedMultiattack(
   const line = monster.actions.find(
     (action) => action.multiattack !== undefined && action.attack === undefined,
   );
-  if (line?.multiattack === undefined) return undefined;
+  const stated = line?.multiattack;
+  if (stated === undefined) return undefined;
 
-  const entries: MonsterMultiattack['entries'][number][] = [];
-  for (const entry of line.multiattack.entries) {
-    const wanted = entry.attack.toLowerCase();
-    const printed = attacks.find((attack) => attack.name.toLowerCase() === wanted);
-    if (printed === undefined) return undefined;
-    entries.push({ count: entry.count, attack: printed.name });
+  const bind = (name: string): string | undefined =>
+    attacks.find((attack) => attack.name.toLowerCase() === name.toLowerCase())?.name;
+
+  const branches: MonsterMultiattackEntry[][] = [];
+  for (const branch of alternativesOf(stated)) {
+    const bound: MonsterMultiattackEntry[] = [];
+    for (const entry of branch) {
+      // A menu is a list of names and a single name is a list of one, so both
+      // are bound the same way and the shape the block printed is kept.
+      const names = entry.attacks ?? [entry.attack!];
+      const printed = names.map(bind);
+      if (printed.some((name) => name === undefined)) return undefined;
+      bound.push(
+        entry.attacks === undefined
+          ? { count: entry.count, attack: printed[0]! }
+          : { count: entry.count, attacks: printed as string[] },
+      );
+    }
+    branches.push(bound);
   }
-  return { entries };
+
+  return {
+    ...(stated.alternatives === undefined ? { entries: branches[0]! } : { alternatives: branches }),
+    // Carried across whole. It is text rather than a mechanism, and what reads
+    // it reports it to whoever is driving rather than spending anything.
+    ...(stated.handOver === undefined ? {} : { handOver: stated.handOver }),
+  };
 }
 
-/** How many swings a stated sequence adds up to. */
+/**
+ * The sequences a stated Multiattack offers, always as a list of them.
+ *
+ * One member for the ordinary block and two where the sentence prints a choice.
+ * Every reader below works in these terms, so a one-sequence block is the
+ * degenerate case of the general one rather than a branch of its own.
+ */
+const alternativesOf = (
+  sequence: MonsterMultiattack,
+): readonly (readonly MonsterMultiattackEntry[])[] => sequence.alternatives ?? [sequence.entries!];
+
+/** The printed names one entry admits — one, or the menu's several. */
+const namesOf = (entry: MonsterMultiattackEntry): readonly string[] =>
+  entry.attacks ?? [entry.attack!];
+
+/**
+ * How many swings a stated sequence adds up to.
+ *
+ * The largest branch, where the block prints a choice. Every alternation the
+ * SRD prints totals the same either way, and the largest is the honest reading
+ * of one that did not: the action's size is a ceiling, and which swings are
+ * legal inside it is settled by the composition rather than by this number.
+ */
 const sequenceTotal = (sequence: MonsterMultiattack): number =>
-  sequence.entries.reduce((sum, entry) => sum + entry.count, 0);
+  Math.max(
+    ...alternativesOf(sequence).map((branch) =>
+      branch.reduce((sum, entry) => sum + entry.count, 0),
+    ),
+  );
 
 /** The sequence this creature's block states, or null where it states none. */
 export const multiattackOf = (sheet: CharacterSheet): MonsterMultiattack | null =>
   sheet.stated?.multiattack ?? null;
 
 /**
- * How many of one printed attack a stated sequence holds.
+ * Whether one branch can account for a turn's swings.
  *
- * Summed across entries rather than found in one, because a sentence may name
- * the same line twice and the engine has no business deciding that it did not
- * mean it.
+ * A name is spent against the entry that admits it, and the branch holds while
+ * no entry runs past its count. The search is a single pass because **no name
+ * appears in two entries of one sequence anywhere in the SRD** — the
+ * Tarrasque's `Bite | {Claw, Tail}` is disjoint — which the bestiary is swept
+ * for rather than assumed. A block that broke that would be refused a turn it
+ * could have taken, never granted one it could not.
  */
-export function multiattackAllowance(sequence: MonsterMultiattack, name: string): number {
-  const wanted = name.trim().toLowerCase();
-  return sequence.entries
-    .filter((entry) => entry.attack.toLowerCase() === wanted)
-    .reduce((sum, entry) => sum + entry.count, 0);
+function branchAdmits(
+  branch: readonly MonsterMultiattackEntry[],
+  made: Readonly<Record<string, number>>,
+): boolean {
+  const spent = branch.map(() => 0);
+  for (const [name, count] of Object.entries(made)) {
+    if (count <= 0) continue;
+    const wanted = name.trim().toLowerCase();
+    const index = branch.findIndex((entry) =>
+      namesOf(entry).some((printed) => printed.toLowerCase() === wanted),
+    );
+    // A name no entry admits is a swing the block does not print.
+    if (index < 0) return false;
+    spent[index] = spent[index]! + count;
+  }
+  return spent.every((count, index) => count <= branch[index]!.count);
 }
 
 /**
@@ -280,12 +346,30 @@ export function multiattackAllowance(sequence: MonsterMultiattack, name: string)
  * the *composition* and not a per-name tally: a Ghoul that has clawed once has
  * not thereby earned a Bite, because "one Claw and one Bite" is not what its
  * block prints either.
+ *
+ * **Some branch, where the block prints a choice.** Nothing elects: the Barbed
+ * Devil's first Claws closes the Hurl Flame branch by itself, because that
+ * branch admits no Claws at all, and the swings already made are the whole of
+ * what decides which sequence is being taken.
  */
 export const multiattackAllows = (
   sequence: MonsterMultiattack,
   made: Readonly<Record<string, number>>,
-): boolean =>
-  Object.entries(made).every(([name, count]) => count <= multiattackAllowance(sequence, name));
+): boolean => alternativesOf(sequence).some((branch) => branchAdmits(branch, made));
+
+/**
+ * What a stated sequence prints, in words, for a refusal to quote back.
+ *
+ * Built out of the block's own names and counts; nothing here is a string this
+ * file chose.
+ */
+export function describeMultiattack(sequence: MonsterMultiattack): string {
+  return alternativesOf(sequence)
+    .map((branch) =>
+      branch.map((entry) => `${entry.count} × ${namesOf(entry).join(' or ')}`).join(' and '),
+    )
+    .join(', or ');
+}
 
 /**
  * The attack a creature reaches for when it is provoked and nobody names one.
