@@ -589,3 +589,82 @@ describe('resting is replayable', () => {
     expect(unwrap(beginRest(begun.state, id('wizard'), 'short', 'rest-1'), 'retry')).toEqual([]);
   });
 });
+
+/**
+ * The other end of the same rest, which took no identity until now.
+ *
+ * A settlement is the call that rolls Hit Dice and heals for them, and it was
+ * the last command whose duplicate came back as a refusal — `not_resting`,
+ * which is also what a caller who never rested is told. A transport that
+ * retries after a dropped connection could not tell those apart, so it could
+ * not safely ask again about the one call it most needed an answer from.
+ */
+describe('a settled rest answers a retry as a duplicate', () => {
+  const settled = (commandId = 'end-1') => {
+    const wounded = [...party(), hurt('wizard', 20)];
+    const rested = run(wounded, (s) => beginRest(s, id('wizard'), 'short'));
+    const waited = [...rested.log, clock(HOUR)];
+    const start = fold('seed', waited);
+    const first = unwrap(
+      endRest(start, id('wizard'), { hitDice: [hitDieKey(6)], commandId }, roller(start)),
+      'the settlement',
+    );
+    const log = [...waited, ...first.events];
+    return { first, log, after: fold('seed', log) };
+  };
+
+  it('rolls the die once, and says so when asked again', () => {
+    const { after, first } = settled();
+    expect(first.duplicate).toBe(false);
+    expect(first.hitDice).toHaveLength(1);
+
+    const retry = unwrap(
+      endRest(after, id('wizard'), { hitDice: [hitDieKey(6)], commandId: 'end-1' }, roller(after)),
+      'the retry',
+    );
+    expect(retry.duplicate).toBe(true);
+    expect(retry.events).toEqual([]);
+  });
+
+  /** And nothing is spent twice: the world the retry leaves is the world it found. */
+  it('leaves the hit points, the die and the generator where the first one did', () => {
+    const { after, log } = settled();
+    const supply = roller(after);
+    const retry = unwrap(
+      endRest(after, id('wizard'), { hitDice: [hitDieKey(6)], commandId: 'end-1' }, supply),
+      'the retry',
+    );
+    expect(fold('seed', [...log, ...retry.events])).toEqual(after);
+    expect(supply.issuer.count).toBe(0);
+  });
+
+  /** The stamp rides on `rest-ended`, so the fold is what remembers. */
+  it('records the command on the event the settlement always emits', () => {
+    const { after, first } = settled();
+    expect(first.events.at(-1)).toMatchObject({ type: 'rest-ended', command: { id: 'end-1' } });
+    expect(after.appliedCommands['end-1']).toBeDefined();
+  });
+
+  /** An id names one command: the same id asking for a different die is refused. */
+  it('refuses an id already spent on a different settlement', () => {
+    const { after } = settled();
+    const other = endRest(
+      after,
+      id('wizard'),
+      { hitDice: [hitDieKey(6), hitDieKey(6)], commandId: 'end-1' },
+      roller(after),
+    );
+    expect(isErr(other) ? other.code : 'ok').toBe('command_id_reused');
+  });
+
+  /**
+   * And the duplicate is told its command landed rather than told about the
+   * world its own first run made — `not_resting` is the answer for somebody
+   * who never rested, and a retry is not that caller.
+   */
+  it('does not answer a retry with not_resting', () => {
+    const { after } = settled();
+    const stranger = endRest(after, id('wizard'), { hitDice: [hitDieKey(6)] }, roller(after));
+    expect(isErr(stranger) ? stranger.code : 'ok').toBe('not_resting');
+  });
+});

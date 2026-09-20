@@ -114,7 +114,7 @@ import {
 // Not a command, and therefore not on the barrel — the low-level half beneath
 // `resolveSpell`, kept here so the `mayAct` guard it gained stays exercised.
 import { resolveCast } from './commands/casting.js';
-import { beginRest } from './rest.js';
+import { beginRest, endRest, hitDieKey, SHORT_REST } from './rest.js';
 import { type FeatDefinition } from './origins.js';
 import type { FeatureSource } from './progression.js';
 
@@ -277,6 +277,45 @@ const SETUP: readonly GameEvent[] = [
     ],
   },
 ];
+
+/**
+ * The same world with no fight in it.
+ *
+ * `SETUP` opens with Initiative rolled, and the rest below is measured in
+ * hours: a Short Rest taken between two swings is not a thing the table means.
+ * Derived by taking the fight out rather than by writing a second setup, so
+ * the two cannot drift apart.
+ */
+const OUT_OF_COMBAT: readonly GameEvent[] = SETUP.filter(
+  (event) => event.type !== 'combat-started',
+);
+
+/**
+ * A Short Rest that has run its hour, with a wound and a Hit Die left.
+ *
+ * All three facts are load-bearing. The wound is dealt **before** the rest
+ * begins, because damage is one of the three interruptions the engine sees for
+ * itself and a rest broken at all earns nothing; the hour is what makes the
+ * rest complete; and the Hit Die is what makes a retry cost something — an
+ * unguarded second settlement rolls a second die, hands back a second heal and
+ * leaves the generator a throw further on than the log says.
+ */
+const RESTED: readonly GameEvent[] = (() => {
+  const hurt: readonly GameEvent[] = [
+    ...OUT_OF_COMBAT,
+    {
+      type: 'resource-pool-declared',
+      id: A,
+      pool: { key: hitDieKey(8), label: 'Hit Dice (d8)', max: 2, recovers: 'long-rest' },
+    },
+    ...unwrap(damageCreature(fold('s', OUT_OF_COMBAT), A, { amount: 20, source: 'a trap' }), 'hurt'),
+  ];
+  return [
+    ...hurt,
+    ...unwrap(beginRest(fold('s', hurt), A, 'short'), 'lying down'),
+    { type: 'time-advanced', seconds: SHORT_REST, reason: 'an hour in the vestry' },
+  ];
+})();
 
 /**
  * SETUP, plus a potion in A's pack and a wound for it to close.
@@ -1269,6 +1308,24 @@ const GUARDED: readonly Guarded[] = [
     run: (s, commandId) => resolveAttackDamage(s, A, { commandId }, supply()),
   },
   { name: 'beginRest', log: SETUP, run: (s, commandId) => beginRest(s, A, 'short', commandId) },
+  /**
+   * And the other end of the same rest, which had been excused from this sweep
+   * with a sentence that described the gap rather than closing it: "a retry
+   * finds nobody resting and is refused `not_resting`, so no Hit Die is rolled
+   * twice — but the caller cannot tell that from never having rested."
+   *
+   * A transport retry is the case that makes that matter. `end_rest` was the
+   * one call on the tool surface whose duplicate came back as a refusal, so a
+   * session that lost its connection between sending the settlement and
+   * hearing the answer had no way to ask again — and the settlement it could
+   * not confirm is the one that rolls dice and heals.
+   */
+  {
+    name: 'endRest',
+    log: RESTED,
+    run: (s, commandId) =>
+      endRest(s, A, { hitDice: [hitDieKey(8)], commandId }, supply()),
+  },
   /**
    * The two the audit found taking no id at all. One **rolls dice** for
    * whatever the state happens to owe, and the other takes a creature out of
@@ -2991,8 +3048,6 @@ const UNIDENTIFIED_ON_PURPOSE: Readonly<Record<string, string>> = {
   applySpellEffect:
     'a builder for a caller reconstructing a log or scripting a fixture; it decides nothing and spends nothing',
   declareResourcePool: 'declaring a pool twice is refused outright, so a retry cannot double one',
-  endRest:
-    'a rest ends once: a retry finds nobody resting and is refused `not_resting`, so no Hit Die is rolled twice — but the caller cannot tell that from never having rested, which is a gap this sweep now names rather than an exemption it endorses',
 };
 
 describe('the idempotency sweep covers every command that hands back events', () => {

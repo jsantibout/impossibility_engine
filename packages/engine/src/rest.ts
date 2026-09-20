@@ -4,7 +4,7 @@ import { HOUR, hours } from './time.js';
 import type { Rng } from './dice.js';
 import { timerKey } from './timers.js';
 import type { GameEvent, GameState } from './events.js';
-import { once } from './idempotency.js';
+import { once, type CommandIdentity } from './idempotency.js';
 import { remaining } from './resources.js';
 import { rollRecorded, type RollIssuer } from './rolls.js';
 import { sheetAsItStands } from './standing.js';
@@ -167,7 +167,7 @@ export interface HitDieSpent {
   readonly regained: number;
 }
 
-export interface RestOptions {
+export interface RestOptions extends CommandIdentity {
   /** Hit Dice to spend, by pool key. Only a Short Rest offers this. */
   readonly hitDice?: readonly string[];
   /** An interruption the engine cannot see, such as an hour of hard walking. */
@@ -184,7 +184,28 @@ export interface RestResolution {
   readonly benefit: RestBenefit;
   readonly hitDice: readonly HitDieSpent[];
   readonly hitPointsRegained: number;
+  /**
+   * Whether this answer is a retry's rather than a settlement's.
+   *
+   * The contract `resolveAttack` and `resolveDamage` already keep, and for the
+   * same reason: a retry must not look like a settlement that earned nothing.
+   * The three numbers beside it are the empty ones a duplicate has to report,
+   * because what the first settlement rolled is not kept anywhere the second
+   * could read it — a Hit Die is spent and healed for in the events, and the
+   * rest is over. A caller that needs the figures reads the log it already
+   * has; a caller that needs to know its command landed reads this.
+   */
+  readonly duplicate: boolean;
 }
+
+/** What a retry is told, and the whole of what it is told. */
+const ALREADY_SETTLED: RestResolution = {
+  events: [],
+  benefit: 'none',
+  hitDice: [],
+  hitPointsRegained: 0,
+  duplicate: true,
+};
 
 /**
  * End a rest and grant exactly what it earned.
@@ -193,6 +214,21 @@ export interface RestResolution {
  * recorded as they happened — a completed Long Rest, a Long Rest broken after
  * three hours (a Short Rest), a Short Rest broken at all (nothing). The caller
  * says only what the engine could not see.
+ *
+ * **And it takes an identity now, which it was the last command not to.** The
+ * sweep in `invariants.test.ts` had excused it with a sentence that described
+ * the gap rather than closing it: a retry finds nobody resting and is refused
+ * `not_resting`, "but the caller cannot tell that from never having rested".
+ * That is the eight-times-recorded shape `once` exists to prevent — *a retry
+ * looks at the world its first run made, and is told about that world instead
+ * of being told its command already landed* — and it mattered here more than
+ * most, because a settlement is the call that rolls Hit Dice and heals for
+ * them. It was also the one call on the tool surface above that could not be
+ * idempotent under the transport's id, which is where it was found.
+ *
+ * The id rides in `RestOptions` beside the Hit Dice, so the fingerprint covers
+ * what the settlement was asked to spend: the same id sent with a different
+ * die is a different command and is refused rather than swallowed.
  */
 export function endRest(
   state: GameState,
@@ -200,187 +236,191 @@ export function endRest(
   options: RestOptions = {},
   supply?: HitDiceSupply,
 ): Result<RestResolution> {
-  const creature = creatureOf(state, id);
-  if (creature === null) return needsContext('unknown_creature', `${id} is not in this game`);
+  return once(state, `end-rest:${id}`, options, () => ALREADY_SETTLED, (stamp) => {
+    const creature = creatureOf(state, id);
+    if (creature === null) return needsContext('unknown_creature', `${id} is not in this game`);
 
-  const rest = creature.resting;
-  if (rest === null) return err('not_resting', `${id} is not resting`);
+    const rest = creature.resting;
+    if (rest === null) return err('not_resting', `${id} is not resting`);
 
-  const interrupted = rest.interruptedBy ?? options.interrupted ?? null;
-  // An interruption the engine could not see happens when it is reported;
-  // one it saw for itself carries the moment it actually happened.
-  const interruptedAt =
-    rest.interruptedBy !== null ? rest.interruptedAt : interrupted === null ? null : state.elapsed;
-  const benefit = restEarned(
-    { ...rest, interruptedBy: interrupted, interruptedAt },
-    state.elapsed,
-  );
-  const elapsed = state.elapsed - rest.startedAt;
-
-  // Nothing interrupted it and it has not run its course, so it is not over.
-  // Ending it here would quietly grant nothing for a rest still in progress.
-  if (benefit === 'none' && interrupted === null) {
-    return err(
-      'rest_incomplete',
-      `${id} has rested ${elapsed} of the ${restRequires(rest.kind)} seconds a ${rest.kind} rest takes`,
+    const interrupted = rest.interruptedBy ?? options.interrupted ?? null;
+    // An interruption the engine could not see happens when it is reported;
+    // one it saw for itself carries the moment it actually happened.
+    const interruptedAt =
+      rest.interruptedBy !== null ? rest.interruptedAt : interrupted === null ? null : state.elapsed;
+    const benefit = restEarned(
+      { ...rest, interruptedBy: interrupted, interruptedAt },
+      state.elapsed,
     );
-  }
+    const elapsed = state.elapsed - rest.startedAt;
 
-  const requested = options.hitDice ?? [];
-  const events: GameEvent[] = [];
-  const spent: HitDieSpent[] = [];
-  /**
-   * The requested dice, with the size the validation pass read off each key.
-   *
-   * Carried forward rather than looked up again in the rolling loop below,
-   * where a second `hitDieSides` could only ever answer what this one already
-   * has — so its refusal was a `bad_hit_die` nothing could reach, spelled
-   * identically to the live one. Two sites for one rule is two places to get
-   * it wrong, and the dead one is the one nobody would notice changing.
-   */
-  const dice: { readonly key: string; readonly sides: number }[] = [];
-
-  // SRD: spending Hit Point Dice is a benefit of a Short Rest. A completed
-  // Long Rest restores hit points and Hit Dice outright, so spending them
-  // there would be burning a resource the rest is about to hand back.
-  if (requested.length > 0) {
-    if (benefit !== 'short') {
+    // Nothing interrupted it and it has not run its course, so it is not over.
+    // Ending it here would quietly grant nothing for a rest still in progress.
+    if (benefit === 'none' && interrupted === null) {
       return err(
-        'no_hit_dice_here',
-        benefit === 'long'
-          ? 'a completed Long Rest restores hit points and Hit Dice; there is nothing to spend them on'
-          : 'a rest that earned nothing offers no Hit Dice',
+        'rest_incomplete',
+        `${id} has rested ${elapsed} of the ${restRequires(rest.kind)} seconds a ${rest.kind} rest takes`,
       );
     }
-    if (supply === undefined) {
-      return err('no_generator', 'spending a Hit Die rolls it, which needs a generator');
-    }
 
-    // Validate every die before rolling any: a request for more dice than are
-    // left must cost neither a die nor a turn of the generator.
-    const needed = new Map<string, number>();
-    for (const key of requested) {
-      const sides = hitDieSides(key);
-      if (sides === null) return err('bad_hit_die', `${key} is not a Hit Die pool`);
-      dice.push({ key, sides });
-      needed.set(key, (needed.get(key) ?? 0) + 1);
-    }
-    for (const [key, count] of needed) {
-      const left = remaining(creature.resources, key);
-      if (left < count) {
-        return err('not_enough_hit_dice', `${id} has ${left} ${key} left, and asked to spend ${count}`);
+    const requested = options.hitDice ?? [];
+    const events: GameEvent[] = [];
+    const spent: HitDieSpent[] = [];
+    /**
+     * The requested dice, with the size the validation pass read off each key.
+     *
+     * Carried forward rather than looked up again in the rolling loop below,
+     * where a second `hitDieSides` could only ever answer what this one already
+     * has — so its refusal was a `bad_hit_die` nothing could reach, spelled
+     * identically to the live one. Two sites for one rule is two places to get
+     * it wrong, and the dead one is the one nobody would notice changing.
+     */
+    const dice: { readonly key: string; readonly sides: number }[] = [];
+
+    // SRD: spending Hit Point Dice is a benefit of a Short Rest. A completed
+    // Long Rest restores hit points and Hit Dice outright, so spending them
+    // there would be burning a resource the rest is about to hand back.
+    if (requested.length > 0) {
+      if (benefit !== 'short') {
+        return err(
+          'no_hit_dice_here',
+          benefit === 'long'
+            ? 'a completed Long Rest restores hit points and Hit Dice; there is nothing to spend them on'
+            : 'a rest that earned nothing offers no Hit Dice',
+        );
+      }
+      if (supply === undefined) {
+        return err('no_generator', 'spending a Hit Die rolls it, which needs a generator');
+      }
+
+      // Validate every die before rolling any: a request for more dice than are
+      // left must cost neither a die nor a turn of the generator.
+      const needed = new Map<string, number>();
+      for (const key of requested) {
+        const sides = hitDieSides(key);
+        if (sides === null) return err('bad_hit_die', `${key} is not a Hit Die pool`);
+        dice.push({ key, sides });
+        needed.set(key, (needed.get(key) ?? 0) + 1);
+      }
+      for (const [key, count] of needed) {
+        const left = remaining(creature.resources, key);
+        if (left < count) {
+          return err('not_enough_hit_dice', `${id} has ${left} ${key} left, and asked to spend ${count}`);
+        }
       }
     }
-  }
 
-  switch (benefit) {
-    case 'none':
-      break;
+    switch (benefit) {
+      case 'none':
+        break;
 
-    case 'short': {
-      events.push({ type: 'resources-restored', id, recovers: 'short-rest' });
+      case 'short': {
+        events.push({ type: 'resources-restored', id, recovers: 'short-rest' });
 
-      if (requested.length > 0 && supply !== undefined) {
-        // The sheet as it stands, not the one the character was built with:
-        // "add your Constitution modifier" is read at the moment the die is
-        // thrown, so an item that *sets* Constitution — an Amulet of Health —
-        // reaches it. This command holds the state and the id, which is the
-        // whole reason the substitution is available here.
-        const constitution = abilityModifier(
-          (sheetAsItStands(state, id) ?? creature.sheet).abilities.con,
-        );
-        const issuedBefore = supply.issuer.count;
-        let regained = 0;
-
-        for (const { key, sides } of dice) {
-          const rolled = rollRecorded(supply.issuer, supply.rng, `1d${sides}`);
-          if (!rolled.ok) return rolled;
-
-          // SRD: "You regain Hit Points equal to the total (minimum of 1)."
-          const natural = rolled.value.total;
-          const gain = Math.max(1, natural + constitution);
-          regained += gain;
-          spent.push({ key, sides, natural, regained: gain });
-
-          events.push(
-            { type: 'resource-spent', id, key, amount: 1 },
-            {
-              type: 'roll-recorded',
-              who: id,
-              label: `Hit Die (d${sides})`,
-              natural,
-              total: natural + constitution,
-              contributions: [{ source: 'Constitution', amount: constitution }],
-              outcome: `${gain} hit points`,
-            },
+        if (requested.length > 0 && supply !== undefined) {
+          // The sheet as it stands, not the one the character was built with:
+          // "add your Constitution modifier" is read at the moment the die is
+          // thrown, so an item that *sets* Constitution — an Amulet of Health —
+          // reaches it. This command holds the state and the id, which is the
+          // whole reason the substitution is available here.
+          const constitution = abilityModifier(
+            (sheetAsItStands(state, id) ?? creature.sheet).abilities.con,
           );
+          const issuedBefore = supply.issuer.count;
+          let regained = 0;
+
+          for (const { key, sides } of dice) {
+            const rolled = rollRecorded(supply.issuer, supply.rng, `1d${sides}`);
+            if (!rolled.ok) return rolled;
+
+            // SRD: "You regain Hit Points equal to the total (minimum of 1)."
+            const natural = rolled.value.total;
+            const gain = Math.max(1, natural + constitution);
+            regained += gain;
+            spent.push({ key, sides, natural, regained: gain });
+
+            events.push(
+              { type: 'resource-spent', id, key, amount: 1 },
+              {
+                type: 'roll-recorded',
+                who: id,
+                label: `Hit Die (d${sides})`,
+                natural,
+                total: natural + constitution,
+                contributions: [{ source: 'Constitution', amount: constitution }],
+                outcome: `${gain} hit points`,
+              },
+            );
+          }
+
+          events.push({
+            type: 'rolls-issued',
+            count: supply.issuer.count - issuedBefore,
+            rng: supply.rng.snapshot(),
+          });
+          if (regained > 0) events.push({ type: 'healed', id, amount: regained });
+        }
+        break;
+      }
+
+      case 'long': {
+        // SRD: "You regain all lost Hit Points and all spent Hit Point Dice."
+        const missing = creature.vitals.hpMax - creature.vitals.hp;
+        if (missing > 0) events.push({ type: 'healed', id, amount: missing });
+
+        // SRD: "Temporary Hit Points last until they're depleted or you finish a
+        // Long Rest." They are not hit points and healing does not touch them,
+        // so the rest has to clear them itself.
+        //
+        // **And whether or not a deadline was ever hung on them.** The owner's
+        // ruling of 2026-09-18 makes the rest the end of the default lifetime
+        // *and* the outer bound of a stated one: a stated duration says when
+        // they run out earlier, never that they survive the night. So the event
+        // goes out for a standing deadline as well as for a live pool — the
+        // fold drops the deadline with the points, and a pool already spent to
+        // nothing would otherwise leave its hour behind to come due over
+        // whatever the creature is holding by then.
+        if (
+          creature.vitals.temporaryHp > 0 ||
+          state.timers[timerKey({ kind: 'temporary-hit-points', on: id })] !== undefined
+        ) {
+          events.push({ type: 'temporary-hp-cleared', id });
         }
 
-        events.push({
-          type: 'rolls-issued',
-          count: supply.issuer.count - issuedBefore,
-          rng: supply.rng.snapshot(),
-        });
-        if (regained > 0) events.push({ type: 'healed', id, amount: regained });
+        // A feature that recharges on a Short Rest recharges on a Long one too,
+        // so both tags fire. The pool says which it is; the rest does not guess.
+        events.push(
+          { type: 'resources-restored', id, recovers: 'short-rest' },
+          { type: 'resources-restored', id, recovers: 'long-rest' },
+        );
+
+        // SRD: "If you have the Exhaustion condition, its level decreases by 1."
+        if (creature.conditions.exhaustion > 0) {
+          events.push({
+            type: 'exhaustion-set',
+            id,
+            level: creature.conditions.exhaustion - 1,
+          });
+        }
+        break;
       }
-      break;
     }
 
-    case 'long': {
-      // SRD: "You regain all lost Hit Points and all spent Hit Point Dice."
-      const missing = creature.vitals.hpMax - creature.vitals.hp;
-      if (missing > 0) events.push({ type: 'healed', id, amount: missing });
+    events.push({
+      type: 'rest-ended',
+      id,
+      kind: rest.kind,
+      benefit,
+      ...(interrupted === null ? {} : { interrupted }),
+      ...(stamp === null ? {} : { command: stamp }),
+    });
 
-      // SRD: "Temporary Hit Points last until they're depleted or you finish a
-      // Long Rest." They are not hit points and healing does not touch them,
-      // so the rest has to clear them itself.
-      //
-      // **And whether or not a deadline was ever hung on them.** The owner's
-      // ruling of 2026-09-18 makes the rest the end of the default lifetime
-      // *and* the outer bound of a stated one: a stated duration says when
-      // they run out earlier, never that they survive the night. So the event
-      // goes out for a standing deadline as well as for a live pool — the
-      // fold drops the deadline with the points, and a pool already spent to
-      // nothing would otherwise leave its hour behind to come due over
-      // whatever the creature is holding by then.
-      if (
-        creature.vitals.temporaryHp > 0 ||
-        state.timers[timerKey({ kind: 'temporary-hit-points', on: id })] !== undefined
-      ) {
-        events.push({ type: 'temporary-hp-cleared', id });
-      }
-
-      // A feature that recharges on a Short Rest recharges on a Long one too,
-      // so both tags fire. The pool says which it is; the rest does not guess.
-      events.push(
-        { type: 'resources-restored', id, recovers: 'short-rest' },
-        { type: 'resources-restored', id, recovers: 'long-rest' },
-      );
-
-      // SRD: "If you have the Exhaustion condition, its level decreases by 1."
-      if (creature.conditions.exhaustion > 0) {
-        events.push({
-          type: 'exhaustion-set',
-          id,
-          level: creature.conditions.exhaustion - 1,
-        });
-      }
-      break;
-    }
-  }
-
-  events.push({
-    type: 'rest-ended',
-    id,
-    kind: rest.kind,
-    benefit,
-    ...(interrupted === null ? {} : { interrupted }),
-  });
-
-  return ok({
-    events,
-    benefit,
-    hitDice: spent,
-    hitPointsRegained: spent.reduce((total, die) => total + die.regained, 0),
+    return ok({
+      events,
+      benefit,
+      hitDice: spent,
+      hitPointsRegained: spent.reduce((total, die) => total + die.regained, 0),
+      duplicate: false,
+    });
   });
 }

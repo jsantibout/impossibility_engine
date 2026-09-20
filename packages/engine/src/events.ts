@@ -1221,6 +1221,12 @@ export type GameEvent =
       /** What it earned, which is not always what was attempted. */
       readonly benefit: RestBenefit;
       readonly interrupted?: string;
+      /**
+       * The one event a settlement always emits, whatever the rest earned, so
+       * the stamp rides here rather than on a Hit Die a short rest happened to
+       * spend.
+       */
+      readonly command?: CommandStamp;
     }
 
 
