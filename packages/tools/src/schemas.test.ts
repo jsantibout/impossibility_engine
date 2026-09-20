@@ -18,8 +18,15 @@ const surface = () => createSurface(createCampaign({ content: SRD_CONTENT, seed:
 const send = (tool: string, input: unknown): ToolOutcome =>
   surface().call({ tool, input, commandId: 'toolu_schema' });
 
-/** The three calls that legitimately take no arguments. */
-const NO_ARGUMENTS = ['end_turn', 'look', 'settle_area_effects'];
+/**
+ * The calls that legitimately take no arguments.
+ *
+ * Each of them is an instruction to do the one thing the engine is owed, and
+ * the engine knows which thing: a turn boundary, a look, an area effect it is
+ * holding, a damage roll it is holding. There is nothing to name because there
+ * is only ever one of them open at a time.
+ */
+const NO_ARGUMENTS = ['end_turn', 'look', 'settle_area_effects', 'settle_damage'];
 
 describe('every schema rejects a malformed call', () => {
   it.each(TOOLS.map((definition) => definition.name))(

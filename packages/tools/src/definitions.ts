@@ -125,7 +125,9 @@ import {
   declareDifficultTerrain,
   declareFalling,
   declareSightBetween,
+  declineDamageReaction,
   declineOpportunity,
+  declineTestReaction,
   eligibleTargets,
   endConcentration,
   endFeature,
@@ -139,6 +141,7 @@ import {
   reactionOpportunities,
   recordInitiativeRolls,
   resolveAttack,
+  resolveAttackDamage,
   resolveEffectCheck,
   resolveMove,
   resolveSpell,
@@ -146,11 +149,14 @@ import {
   rollInitiativeAndBeginCombat,
   setScene,
   settleAreaEffects,
+  settleDamage,
   speedOf,
+  takeDamageReaction,
   takeDash,
   takeDisengage,
   takeDodge,
   takeOpportunityAttack,
+  takeTestReaction,
   useHealingTouch,
   usePoolOption,
   useRecovery,
@@ -1263,6 +1269,12 @@ const ATTACK = tool({
       .enum(['str', 'dex'])
       .optional()
       .describe('Which ability a Finesse weapon uses. Defaults to the better one.'),
+    hold: z
+      .boolean()
+      .optional()
+      .describe(
+        'Roll the attack and stop on the hit, leaving the damage to `settle_attack`. Ask for it when the target may want the moment the rules give them — SRD Shield is "a Reaction you take when you are hit by an attack roll", and that instant exists only in an attack that has not rolled its damage yet. It costs nothing and decides nothing; a miss is over either way.',
+      ),
   }),
   run: (context, args) =>
     settle(
@@ -1276,6 +1288,7 @@ const ATTACK = tool({
           ...(args.thrown === true ? { thrown: true } : {}),
           ...(args.twoHanded === true ? { twoHanded: true } : {}),
           ...(args.finesseAbility === undefined ? {} : { finesseAbility: args.finesseAbility }),
+          ...(args.hold === true ? { hold: true } : {}),
           ...identity(context),
         },
         context.campaign.supply(),
@@ -1286,6 +1299,9 @@ const ATTACK = tool({
         natural: value.attack?.roll.natural ?? null,
         total: value.attack?.total ?? null,
         critical: value.attack?.critical ?? null,
+        // Whether the damage is still to come, so a caller knows a debt is
+        // open without having to infer it from an absent field.
+        held: args.hold === true && value.attack?.hit === true,
         ...(value.damage === undefined ? {} : { damageDealt: value.damage }),
         ...(value.reactions === undefined
           ? {}
@@ -1986,6 +2002,181 @@ const DECLINE_OPPORTUNITY = tool({
     ),
 });
 
+/**
+ * The four doors onto a window that is open, and the two that close one.
+ *
+ * `reactionOpportunities` has reported every offer since it was written and
+ * `options` has published them since this surface had an `options` — so a
+ * caller could *see* that a Shield, an Uncanny Dodge or a Tactical Mind was
+ * available and had no call to make. Three of the six windows were shut on
+ * this side: a hit that is held, a damage roll that has not landed, and a D20
+ * Test whose effects have not occurred.
+ *
+ * **None of these carries a number.** A window names a (creature, feature)
+ * pair and the whole of the call is which pair; how much a reduction takes off,
+ * what a reroll comes back as, what is finally dealt and whether a use is
+ * refunded are the engine's, read off the feature's own sentence.
+ *
+ * **Each window that holds something has a door that closes it**, because a
+ * window nothing closes wedges the fight it was opened in: `end_turn` refuses
+ * while a hit is held or damage is waiting, which is the engine keeping a debt
+ * rather than a bug. A held hit is settled by its attacker; held damage is
+ * settled by `settle_damage` whether or not anybody answered. The D20 Test's
+ * settlement is the **DM's**, beside the check that opened it — the engine
+ * opens one only for a check or a save somebody set a DC for, and a DC is a
+ * number this surface does not carry.
+ */
+const SETTLE_ATTACK = tool({
+  name: 'settle_attack',
+  description:
+    'Roll the damage of a hit that was held, and deal it. Everything the roll needs was written down when the hit landed, so this takes nothing but whose hit it is. Call it when the target has answered the window or is not going to: nothing else can happen while a hit is held, including ending the turn. A Shield that turned the blow aside closes the hold by itself, and there is then nothing to settle.',
+  mutates: true,
+  input: z.object({
+    attacker: creatureId.describe('Whose held hit it is. Only the attacker may settle it.'),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      resolveAttackDamage(
+        context.campaign.state(),
+        who(args.attacker),
+        { ...identity(context) },
+        context.campaign.supply(),
+      ),
+      (value) => value.events,
+      (value) => ({
+        ...(value.damage === undefined ? {} : { damageDealt: value.damage }),
+        ...(value.reactions === undefined
+          ? {}
+          : { mayAnswer: value.reactions.map((offer) => offer.reactor) }),
+        duplicate: value.duplicate,
+      }),
+      (value) => value.unverified,
+    ),
+});
+
+const TAKE_DAMAGE_REACTION = tool({
+  name: 'take_damage_reaction',
+  description:
+    'Answer a damage roll that has not landed with a feature that reduces it — SRD Uncanny Dodge, Deflect Attacks, Cutting Words. `options` lists what this creature is offered and whether the feature costs its Reaction; you name the feature and the engine rolls or halves whatever the feature says. The damage is still waiting afterwards: `settle_damage` deals what is left.',
+  mutates: true,
+  input: z.object({
+    who: creatureId.describe('Who is answering.'),
+    feature: z.string().min(1).describe('The feature id, from `options`, e.g. rogue:uncanny-dodge.'),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      takeDamageReaction(
+        context.campaign.state(),
+        who(args.who),
+        { feature: args.feature, ...identity(context) },
+        context.campaign.supply(),
+      ),
+      (value) => value.events,
+      (value) => ({
+        took: args.feature,
+        prevented: value.reduction?.amount ?? 0,
+        duplicate: value.duplicate,
+      }),
+    ),
+});
+
+const DECLINE_DAMAGE_REACTION = tool({
+  name: 'decline_damage_reaction',
+  description:
+    'Let a damage roll pass without answering it. SRD is explicit that ignoring a trigger costs nothing and keeps the Reaction — but the offer is gone, so it cannot be taken afterwards. Name a feature to pass on one offer and leave the others; name none to pass on every offer this creature holds against this roll.',
+  mutates: true,
+  input: z.object({
+    who: creatureId,
+    feature: z
+      .string()
+      .min(1)
+      .optional()
+      .describe('Pass on this one offer. Omit to pass on all of them.'),
+  }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      declineDamageReaction(context.campaign.state(), who(args.who), {
+        ...(args.feature === undefined ? {} : { feature: args.feature }),
+        ...identity(context),
+      }),
+      { declined: args.feature ?? 'every offer' },
+    ),
+});
+
+const SETTLE_DAMAGE = tool({
+  name: 'settle_damage',
+  description:
+    'Deal a damage roll that was held open for Reactions, minus whatever they took off it. Anybody still to answer is recorded as passing, which is how a caller says nobody is going to. The engine applies Resistance, Vulnerability and Immunity to what is left and asks for the Concentration save if one is owed; you supply nothing at all. Until this is called every other action refuses, including ending the turn.',
+  mutates: true,
+  input: z.object({}),
+  run: (context) =>
+    settle(
+      context,
+      settleDamage(context.campaign.state(), context.campaign.supply(), identity(context)),
+      (value) => value.events,
+      (value) => ({
+        amount: value.amount,
+        concentration: value.concentration.kind,
+        duplicate: value.duplicate,
+      }),
+    ),
+});
+
+const TAKE_TEST_REACTION = tool({
+  name: 'take_test_reaction',
+  description:
+    'Push a d20 roll that has come back and whose effects have not happened yet — SRD Indomitable rerolls it, Dark One’s Own Luck and Tactical Mind add a die, Cutting Words subtracts one. `options` lists what this creature is offered and whether it costs a Reaction; most of these cost none. You name the feature and the engine rolls, adds or rerolls what the feature prints, and reports the new total.',
+  mutates: true,
+  input: z.object({
+    who: creatureId.describe('Who is answering. Not necessarily whoever rolled.'),
+    feature: z.string().min(1).describe('The feature id, from `options`, e.g. fighter:indomitable.'),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      takeTestReaction(
+        context.campaign.state(),
+        who(args.who),
+        { feature: args.feature, ...identity(context) },
+        context.campaign.supply(),
+      ),
+      (value) => value.events,
+      (value) => ({
+        took: args.feature,
+        total: value.test?.total ?? null,
+        success: value.test?.success ?? null,
+        duplicate: value.duplicate,
+      }),
+    ),
+});
+
+const DECLINE_TEST_REACTION = tool({
+  name: 'decline_test_reaction',
+  description:
+    'Let a d20 roll stand without pushing it. It costs nothing and keeps the Reaction, and the offer is spent. Name a feature to pass on one offer; name none to pass on every offer this creature holds against this roll.',
+  mutates: true,
+  input: z.object({
+    who: creatureId,
+    feature: z
+      .string()
+      .min(1)
+      .optional()
+      .describe('Pass on this one offer. Omit to pass on all of them.'),
+  }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      declineTestReaction(context.campaign.state(), who(args.who), {
+        ...(args.feature === undefined ? {} : { feature: args.feature }),
+        ...identity(context),
+      }),
+      { declined: args.feature ?? 'every offer' },
+    ),
+});
+
 const SETTLE_AREA_EFFECTS = tool({
   name: 'settle_area_effects',
   description:
@@ -2082,7 +2273,9 @@ export const TOOLS: readonly ToolDefinition[] = [
   DECLARE_FALLING,
   DECLARE_SIDE,
   DECLARE_SIGHT,
+  DECLINE_DAMAGE_REACTION,
   DECLINE_OPPORTUNITY,
+  DECLINE_TEST_REACTION,
   DRAW_ON_HEALING_POOL,
   ELIGIBLE_TARGETS,
   END_CONCENTRATION,
@@ -2099,9 +2292,13 @@ export const TOOLS: readonly ToolDefinition[] = [
   ROLL_INITIATIVE,
   SET_SCENE,
   SETTLE_AREA_EFFECTS,
+  SETTLE_ATTACK,
+  SETTLE_DAMAGE,
   SHEET,
   TAKE_ACTION,
+  TAKE_DAMAGE_REACTION,
   TAKE_OPPORTUNITY_ATTACK,
+  TAKE_TEST_REACTION,
   USE_POOL_OPTION,
 ].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 
