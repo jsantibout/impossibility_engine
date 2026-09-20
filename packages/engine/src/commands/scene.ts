@@ -409,6 +409,18 @@ export type CombatEnding =
  * be *known* to be over — answering either way would be the engine settling
  * the missing fact instead of asking for it. `declareCreatureSide` settles it.
  *
+ * **And that request carries no `ContextRequest`, which is a gap recorded
+ * rather than papered over.** `ContextRequest.kind` is a closed union in
+ * `@ie/shared` — `creature | position | visibility | creature-type | scene |
+ * route | turn-order` — and not one of them means "nobody has said whose side
+ * this creature is on". The creature is *known*; a fact about it is not. So
+ * the alternatives were to widen that union and give `declare_side` an
+ * `establishes` beside it, which is a new primitive across two packages and a
+ * decision this task was not given, or to leave the "what" in the prose the
+ * way {@link placeCreatureInScene} above says a tool surface cannot branch on.
+ * It is written here so the next task finds a recorded breach rather than an
+ * argument: a `side` kind is what would close it.
+ *
  * **A surrender or a flight must name a side somebody standing is on.**
  * Without that the command is a skeleton key: any fight could be closed by
  * naming a side that was never in it, and "the hostiles surrender" would mean
