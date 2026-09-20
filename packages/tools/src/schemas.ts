@@ -382,15 +382,16 @@ export const characterChoicesSchema = z.object({
    * the other size its species offers.
    *
    * **A string and not {@link sizeSchema}**, which is the same judgement
-   * `featChoice.abilities` makes one screen down: the engine matches this
+   * `featChoice.abilities` makes a few lines above: the engine matches this
    * against the word the *species* prints, case-insensitively, exactly as a
    * language and an alignment are matched by name — so `bad_size` can name the
    * word the caller wrote back to them. An enum here would be a second,
    * narrower vocabulary that answered a caller writing the printed word with a
    * complaint about a key, and it would be this file adjudicating a choice
-   * against a species it has not read. `sizeSchema` is the engine's own union
-   * and is right where a caller is placing a creature nothing has pinned a
-   * size for; this is a word off a species entry, and the species decides.
+   * against a species it has not read. {@link sizeSchema} is this file's own
+   * spelled-out list, and it is right where a caller is placing a creature
+   * nothing has pinned a size for; this is a word off a species entry, and the
+   * species decides which words there are.
    */
   size: z
     .string()

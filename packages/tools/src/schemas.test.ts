@@ -216,8 +216,10 @@ describe('creation takes no number, and no grant, the caller made up', () => {
     // And the word itself, through validation and out the other side.
     expect(characterChoicesSchema.parse(choices({ size: 'Small' })).size).toBe('Small');
 
-    // Still a legal call, with the size stated and without it: the field was
-    // added, not made compulsory.
+    // Still a call this schema accepts, with the size stated and without it:
+    // the field was added, not made compulsory. Whether a *particular* word is
+    // one the species offers is creation's answer and not this file's, so a
+    // `bad_size` refusal would leave both of these assertions standing.
     expect(
       send('create_character', { id: 'kessa', choices: choices({ size: 'Small' }) }).status,
     ).not.toBe('invalid');
