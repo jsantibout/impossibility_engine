@@ -55,7 +55,15 @@ table that ranks them.
 
    Then read the shape's own description in
    `packages/content/scripts/missing-shapes.ts` and, before briefing it,
-   **check the claim against the code and the book**. Of those four, one
+   **check the claim against the code and the book**.
+
+   **The shape a brief prescribes is a claim about the code too**, and is
+   checked the same way. One batch wrote three briefs against an anchor that
+   was not in the union named, a union member that could have no host, and a
+   counter the engine already had under another name. A builder found each in
+   minutes and stopped; a builder that had not would have built the wrong
+   thing correctly. So a brief names an anchor and a shape as a *starting
+   point to verify*, never as an instruction to follow past the evidence. Of those four, one
    shape was a marker rather than a blocker, one was three mechanisms wearing
    a single id, and one described a mechanic `main` had already built — each
    found by a builder in minutes, after a brief had been written from the
