@@ -89,12 +89,15 @@ const swept = (): { file: string; text: string }[] =>
  *    because rebuilding both per call and throwing them away is what that file
  *    is for, and is what makes a refusal free.
  *
- * The fourth group is **derived** below rather than trusted — every public
- * engine function that takes an `Rng` and hands back anything but events must
- * be on this list, so the next roller somebody exports fails this file instead
- * of slipping past it. The other four hold no generator and cannot be derived,
- * which is why they are written out and why the derivation is not the whole
- * guard.
+ * **Half of this is derived and half is argued for**, and the line does not
+ * fall between the groups. Every public engine function that takes an `Rng`
+ * and hands back anything but events must be on the list, which is the whole
+ * of group 4 *and* the four of group 3 that take a generator — so the next
+ * roller somebody exports fails this file instead of slipping past it. What
+ * the derivation cannot reach is written out: `resolveStatedD20` and
+ * `resolveDeathSave` take a stated face and no generator at all, groups 1 and
+ * 2 take a number rather than dice, and group 5 *makes* a generator rather
+ * than being handed one.
  */
 const FORBIDDEN = [
   // — the external-roll functions, which are the rule ————————————————————————
@@ -245,8 +248,8 @@ function engineSources(directory = ENGINE): { file: string; text: string }[] {
  * **The criterion is the return type, not the directory.** This walk read only
  * the modules above `commands/` at first, on the reasoning that a command is
  * handed a `Supply` and a primitive a bare `Rng`. That was simply untrue —
- * four commands take a bare `Rng`, and `rollInitiativeFor` is a *roller* that
- * lives under `commands/` and whose own note says "it throws dice and hands
+ * commands under `commands/` take a bare `Rng`, and `rollInitiativeFor` is a
+ * *roller* that lives there too, whose own note says "it throws dice and hands
  * back a number; it emits nothing". A directory said nothing about either. So
  * the whole engine is walked, and what separates the two is what comes back: a
  * command hands over `GameEvent[]`, which is the only way a die reaches the
@@ -288,9 +291,17 @@ function rollersThatHandBackARoll(): string[] {
  * `export const` whose head runs past four hundred characters before it
  * reaches its arrow. Both are shapes the engine has never written — it
  * declares with `export function`, or with a short `export const` — and a
- * guard that claimed them would be the same lie one function down. A function
- * taking a `Supply` is not on the list either, and is not a gap: that is what
- * a command is.
+ * guard that claimed them would be the same lie one function down.
+ *
+ * **And a roller handed a `Supply` rather than a bare `Rng`** is invisible to
+ * the walk as well, because a `Supply` is what a command takes. That is not
+ * hypothetical: `commands/rolls.ts` has `rollSpellDice`, which rolls through
+ * `supply.rng` and hands back damage components and no events at all. It is
+ * off the list because it is off the engine's *public surface*, and that is a
+ * claim rather than a fact of nature — so it is asserted beside the walk,
+ * under `every public function handed a Supply hands back events`, rather
+ * than left as the sentence that used to stand here saying a `Supply` taker
+ * is what a command is.
  */
 function shapesTheWalkCannotRead(file: string, source: string): string[] {
   const breaches: string[] = [];
@@ -357,10 +368,13 @@ function shapesTheWalkCannotRead(file: string, source: string): string[] {
  * destructure, and a string key.
  *
  * **A rename is not an annotation.** `{ rng: generator }` binds and
- * `{ readonly rng: Rng }` declares, and the two are one character apart. The
- * rename pattern requires a lower-case target, which is the difference — and
- * `doors.test.ts` quotes the annotation inside a string fixture, so a guard
- * that could not tell them apart would be a guard somebody deletes.
+ * `{ readonly rng: Rng }` declares, and the two are one character apart. What
+ * tells them apart is the *type*: an annotation of this field names the type
+ * this field has, and a rename names anything else. A lower-case target was
+ * the first reading of that and it was the wrong one — `{ rng: Generator }` is
+ * a rename anybody might write and it walked straight past. `doors.test.ts`
+ * quotes the annotation inside a string fixture, so a guard that could not
+ * tell them apart would be a guard somebody deletes.
  *
  * `campaign.ts` may name a generator and an issuer, because rebuilding both
  * per call from `state.rng` and `state.rollsIssued` and throwing them away is
@@ -368,10 +382,10 @@ function shapesTheWalkCannotRead(file: string, source: string): string[] {
  * the rule an exemption would otherwise carry away with it; and the mint is
  * swept there as everywhere, because nothing above the engine stamps a roll.
  */
-const BOUND_AS = (field: string): RegExp[] => [
+const BOUND_AS = (field: string, type: string): RegExp[] => [
   new RegExp(String.raw`\.${field}\b`),
   new RegExp(String.raw`\{[^}]*\b${field}\s*[,}]`),
-  new RegExp(String.raw`\b${field}\s*:\s*[a-z_$][\w$]*\s*[,}=]`),
+  new RegExp(String.raw`\b${field}\s*:\s*(?!${type}\b)[A-Za-z_$][\w$]*\s*[,}=]`),
   new RegExp(String.raw`['"\`]${field}['"\`]`),
 ];
 
@@ -383,17 +397,20 @@ function reachesPastTheSupply(file: string, source: string): string[] {
   // `issue` is the whole of what a `RollIssuer` is for, so the call is the
   // first detector and the bindings are the rest: a name it was destructured
   // to is called under that name and never under this one.
-  if ([/\bissue\s*\(/, ...BOUND_AS('issue')].some((pattern) => pattern.test(text))) {
+  if ([/\bissue\s*\(/, ...BOUND_AS('issue', 'RollIssuer')].some((pattern) => pattern.test(text))) {
     breaches.push(`${file} mints a roll provenance`);
   }
 
-  if (!mayHoldOne && BOUND_AS('rng').some((pattern) => pattern.test(text))) {
+  if (!mayHoldOne && BOUND_AS('rng', 'Rng').some((pattern) => pattern.test(text))) {
     breaches.push(`${file} reaches for a generator`);
   }
 
   // And inside the one file that may hold one: it may build a generator and
   // hand it to a command, and may not read a die off it.
-  if (mayHoldOne && [/\bint\s*\(/, ...BOUND_AS('int')].some((pattern) => pattern.test(text))) {
+  if (
+    mayHoldOne &&
+    [/\bint\s*\(/, ...BOUND_AS('int', 'number')].some((pattern) => pattern.test(text))
+  ) {
     breaches.push(`${file} reads a face off the generator it may hold`);
   }
 
@@ -539,6 +556,48 @@ describe('the surface cannot reach the external-roll functions', () => {
     expect(rollers.filter((name) => !FORBIDDEN.includes(name))).toEqual([]);
   });
 
+  it('and every public function handed a Supply hands back events', () => {
+    // The other half of the criterion. The walk reads a bare `rng: Rng`, so a
+    // roller handed a whole `Supply` is invisible to it — and there is one:
+    // `rollSpellDice` rolls through `supply.rng` and hands back damage
+    // components. What keeps it off the list is that it is not exported from
+    // the engine, which is a claim about the barrel and therefore checkable.
+    //
+    // "Hands back events" is `GameEvent[]` directly, or a named outcome that
+    // declares an `events` field — `Result<AttackResolution>` and the two
+    // dozen like it.
+    const all = engineSources()
+      .map(({ text }) => text)
+      .join('\n');
+    const handsBackEvents = (returnType: string): boolean => {
+      if (/\bGameEvent\b/.test(returnType)) return true;
+      const named = /Result<\s*(?:readonly\s+)?(\w+)/.exec(returnType);
+      if (named === null) return false;
+      const body = new RegExp(
+        String.raw`interface ${named[1]!}\s*(?:extends [\w\s,<>]*)?\{([\s\S]*?)\n\}`,
+      ).exec(all);
+      return body !== null && /\bevents\s*[?:]/.test(body[1]!);
+    };
+
+    const takers: string[] = [];
+    const silent: string[] = [];
+    for (const { text } of engineSources()) {
+      for (const match of text.matchAll(/export function (\w+)\(([\s\S]*?)\)\s*:\s*([^{\n]*)/g)) {
+        if (!/:\s*Supply\b/.test(match[2]!)) continue;
+        if (typeof (engine as Record<string, unknown>)[match[1]!] !== 'function') continue;
+        takers.push(match[1]!);
+        if (!handsBackEvents(match[3]!)) silent.push(`${match[1]!} -> ${match[3]!.trim()}`);
+      }
+    }
+    expect(silent).toEqual([]);
+    // Non-vacuous twice over: there really are public `Supply` takers, and the
+    // roller this is about really is not one of them.
+    expect(takers).toContain('resolveAttack');
+    expect(takers.length).toBeGreaterThan(10);
+    expect(takers).not.toContain('rollSpellDice');
+    expect((engine as Record<string, unknown>)['rollSpellDice']).toBeUndefined();
+  });
+
   it('and it tells a command from a roller by what comes back, not by where it lives', () => {
     // The claim the criterion rests on: under `commands/` there are functions
     // that take a bare generator and *are* commands, and one that is not. If
@@ -643,6 +702,11 @@ describe('the surface cannot reach the external-roll functions', () => {
       generator,
     );
     expect(caught('const { supply: { rng: g } } = holder;\ng.int(20);\n')).toEqual(generator);
+    // A capitalised rename is still a rename: what tells one from an
+    // annotation is the type named, not the case of the name.
+    expect(caught('const { rng: Generator } = campaign.supply();\nGenerator.int(20);\n')).toEqual(
+      generator,
+    );
 
     expect(caught("campaign.supply().issuer.issue('engine');\n")).toEqual(mint);
     expect(caught("const { issue } = campaign.supply().issuer;\nissue('engine');\n")).toEqual(mint);

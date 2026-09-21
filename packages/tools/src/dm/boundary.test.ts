@@ -171,13 +171,14 @@ const stripComments = (text: string): string =>
  * Every shape a binding of one field can take — step one's detector, and a
  * test below holds the two character for character.
  *
- * A rename target is lower case and a type is not, which is what tells
- * `{ rng: generator }` from `{ readonly rng: Rng }`.
+ * What tells `{ rng: generator }` from `{ readonly rng: Rng }` is the type: an
+ * annotation of this field names the type this field has, and a rename names
+ * anything else.
  */
-const BOUND_AS = (field: string): RegExp[] => [
+const BOUND_AS = (field: string, type: string): RegExp[] => [
   new RegExp(String.raw`\.${field}\b`),
   new RegExp(String.raw`\{[^}]*\b${field}\s*[,}]`),
-  new RegExp(String.raw`\b${field}\s*:\s*[a-z_$][\w$]*\s*[,}=]`),
+  new RegExp(String.raw`\b${field}\s*:\s*(?!${type}\b)[A-Za-z_$][\w$]*\s*[,}=]`),
   new RegExp(String.raw`['"\`]${field}['"\`]`),
 ];
 
@@ -191,10 +192,10 @@ const BOUND_AS = (field: string): RegExp[] => [
 function reachesPastTheSupply(file: string, source: string): string[] {
   const breaches: string[] = [];
   const text = stripComments(source);
-  if ([/\bissue\s*\(/, ...BOUND_AS('issue')].some((pattern) => pattern.test(text))) {
+  if ([/\bissue\s*\(/, ...BOUND_AS('issue', 'RollIssuer')].some((pattern) => pattern.test(text))) {
     breaches.push(`${file} mints a roll provenance`);
   }
-  if (BOUND_AS('rng').some((pattern) => pattern.test(text))) {
+  if (BOUND_AS('rng', 'Rng').some((pattern) => pattern.test(text))) {
     breaches.push(`${file} reaches for a generator`);
   }
   return breaches;
@@ -540,9 +541,12 @@ describe('the DM surface cannot reach the external-roll functions either', () =>
     // change. `BOUND_AS` is not that: it was wrong once already, in both
     // copies, and a fix applied to one is the drift arriving rather than being
     // predicted. So the two are held equal by their own source.
+    // Read with the line endings normalised: a checkout with `autocrlf` on
+    // would otherwise fail this for a difference nobody wrote.
+    const read = (path: string): string => readFileSync(path, 'utf8').replace(/\r\n/g, '\n');
     const declaration = /const BOUND_AS = [\s\S]*?\n\];/;
-    const ours = declaration.exec(readFileSync(`${HERE}${GUARD_FILE}`, 'utf8'));
-    const theirs = declaration.exec(readFileSync(`${ABOVE}${GUARD_FILE}`, 'utf8'));
+    const ours = declaration.exec(read(`${HERE}${GUARD_FILE}`));
+    const theirs = declaration.exec(read(`${ABOVE}${GUARD_FILE}`));
     expect(ours, 'this file declares BOUND_AS').not.toBeNull();
     expect(theirs, 'step one declares BOUND_AS').not.toBeNull();
     expect(ours![0]).toBe(theirs![0]);
