@@ -213,6 +213,22 @@ export function resolveStatedD20(
   const scratch = createRollIssuer('stated-face-check');
   const faces: number[] = [];
 
+  // The claim first, before anything about the faces, and on a face the engine
+  // chose rather than one the caller stated — a probe that can only fail for
+  // its source. `checkExternalSource` is not exported and must not be copied,
+  // and a forgery that stated no face at all would otherwise fall through to
+  // the arity check below and be answered as a thin record, inviting a retry
+  // of a call the engine will refuse however many faces it arrives with. A
+  // forged provenance is a fact that is wrong, not one that is missing.
+  const claim = recordExternalD20(scratch, {
+    natural: 1,
+    modifier,
+    mode,
+    source: stated.source,
+    note,
+  });
+  if (!claim.ok) return claim;
+
   for (const face of stated.faces) {
     const checked = recordExternalD20(scratch, {
       natural: face,

@@ -214,6 +214,21 @@ describe('what the engine refuses, and what it costs', () => {
     expect(issuer.count).toBe(0);
   });
 
+  it('calls a forgery a forgery even where it states no face at all', () => {
+    // The claim is wrong, not missing, and answering it with `needs-context`
+    // would invite a retry of a call the engine refuses however many faces it
+    // arrives with.
+    const issuer = createRollIssuer('r');
+    const forged = rollAbilityCheck(issuer, untouchable(), sheet(), 'dex', {
+      dc: 10,
+      statedRoll: { faces: [], source: 'engine' },
+    });
+
+    expect(kind(forged)).toBe('refusal');
+    expect(code(forged)).toBe('forged_provenance');
+    expect(issuer.count).toBe(0);
+  });
+
   it('refuses an impossible face even where the other one is fine', () => {
     const issuer = createRollIssuer('r');
     const refused = rollAttack(issuer, untouchable(), sheet(), {
@@ -395,10 +410,25 @@ describe('a table roll costs an id and not a die', () => {
 });
 
 /**
- * **The boundary.** The seam is on the engine's roll functions and on nothing a
- * command builds, so no tool — and therefore no model — can reach it. The
- * command surface gains its fields in a later track and the door a human table
- * knocks on in a later one still; until then this sweep is what says so.
+ * **The boundary, and exactly how much of it this file keeps.**
+ *
+ * The seam is on the engine's roll functions and on nothing a command builds.
+ * The sweep below proves one thing and only that thing: no command module names
+ * the field, the type or the function. The other half — that every command
+ * assembles its options field by field rather than spreading what a caller
+ * handed it, so a field nobody names cannot arrive anyway — was read rather
+ * than swept, at every call site that rolls.
+ *
+ * **The gap it does not close, reported rather than dug.** `resolveStatedD20`
+ * and the two roll functions are on `@ie/engine`'s public surface, and neither
+ * `boundary.test.ts` nor `dm/boundary.test.ts` in `@ie/tools` lists them among
+ * the names it may not import — so a tools file *written to* could reach a
+ * stated face without either name sweep going red. Nothing it produced could
+ * reach the event log, because the log is written from a command's own events
+ * and no command carries the field. The fix belongs to whoever owns
+ * `packages/tools` next, exactly as `dm/boundary.test.ts` records the same
+ * hazard for `rollAttackDamage`: add `resolveStatedD20` to both `FORBIDDEN`
+ * lists when the command surface and the table's door are built.
  */
 describe('no command reaches the seam', () => {
   const COMMANDS = fileURLToPath(new URL('./commands/', import.meta.url));
