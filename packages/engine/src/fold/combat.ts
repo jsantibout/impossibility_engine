@@ -37,6 +37,7 @@ import {
  * to the Monk table changes future sheets rather than historical folds.
  */
 import { speedOf } from '../standing.js';
+import { attacksInAction } from '../monster.js';
 import type { GameEvent } from '../events.js';
 import type { GameState } from '../state.js';
 import {
@@ -164,7 +165,11 @@ export function applyCombat({ state, next }: Applying, event: CombatEvent): Game
           spendAttack(
             combatOf(state, event),
             event.id,
-            creature.sheet.attacksPerAction ?? 1,
+            // The command's own question with the command's own inputs — the
+            // sheet's count, or the head count the table declared for a block
+            // whose sequence the parser could not read. A reducer measuring
+            // against a different number is a fork rather than a guard.
+            attacksInAction(creature.sheet, creature.heads),
             creature.conditions,
           ),
         ).state,

@@ -499,6 +499,14 @@ function holdSpell(
           ...(response.slotKind === undefined ? {} : { slotKind: response.slotKind }),
         }),
     route: routeLabel(route),
+    // The printed text the book leaves to the table, pinned onto the casting
+    // this Ready writes. CLAUDE.md's rule 5: a handover is something this
+    // command read from content, and a Ready's `spell-cast` is written a turn
+    // before the spell takes effect — so it is the only event that could carry
+    // it. No SRD spell reaches here, because a Ready takes an Action casting
+    // and all three SRD handovers take a minute or more; a homebrew definition
+    // does.
+    ...(definition.dmDecides === undefined ? {} : { dmDecides: definition.dmDecides }),
     // No duration. The spell has not taken effect, so its own clock has not
     // started; what *is* capped is the hold, and that is the Ready feature's
     // deadline rather than the spell's.

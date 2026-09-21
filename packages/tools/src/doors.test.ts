@@ -406,7 +406,7 @@ describe('every kind a tool declares it establishes has fields to carry it', () 
  * window, a slot and a minute on the clock — was uncastable from the only
  * surface that exists to cast spells.
  *
- * **A recorded exclusion is an answer and a shut door is not.** Four of these
+ * **A recorded exclusion is an answer and a shut door is not.** Five of these
  * are deliberately on neither surface, each for a reason the surface's own
  * rule already gives, and the reason is written here rather than left to be
  * re-derived by whoever next wonders. The test checks the exclusions too: a
@@ -420,6 +420,10 @@ const DECLARATIONS: Readonly<Record<string, { readonly tool: string } | { readon
   declareDifficultTerrain: { tool: 'declare_difficult_terrain' },
   declareFalling: { tool: 'declare_falling' },
 
+  declareCreatureHeads: {
+    withheld:
+      'the count sizes an Attack action — five heads are five Bites — so a caller stating it is producing a mechanically authoritative number, which is the line declareResourcePool is on rather than the line declare_side is. A command that needs it never stops for it: the engine holds the action to one swing and says so in `unverified`, so nothing is unreachable for want of this door. A human DM tracking a Hydra’s heads may want one; a model may not have it.',
+  },
   declareCreatureDead: {
     withheld:
       'a death that is not hit-point loss is a ruling, not a declaration of fact: it asserts an outcome the rules otherwise decide, which is the line that keeps setExhaustionLevel off this surface. A human DM may want it; a model may not have it.',
@@ -810,6 +814,11 @@ describe('every choice a creation refusal names can be sent through the door', (
  */
 const KIND_SETTLED_BY: Readonly<Record<string, ContextRequestKind | null>> = {
   declareCreatureSide: 'side',
+  // Null, and not a hole: no command stops on a head count. The swing proceeds
+  // with one attack and reports the assumption, which is the doctrine's own
+  // rule for a fact a command can proceed past conservatively — so adding a
+  // kind here would be adding one nothing raises.
+  declareCreatureHeads: null,
   declareCreatureType: 'creature-type',
   declareSightBetween: 'visibility',
   declareCoverBetween: null,

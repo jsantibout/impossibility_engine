@@ -31,6 +31,7 @@ import {
   continueCasting,
   declareCoverBetween,
   declareCreatureDead,
+  declareCreatureHeads,
   declareCreatureSide,
   declareDawn,
   declareSightBetween,
@@ -1843,6 +1844,11 @@ const GUARDED: readonly Guarded[] = [
     run: (s, commandId) => declareCreatureSide(s, B, 'the watch', { commandId }),
   },
   {
+    name: 'declareCreatureHeads',
+    log: SETUP,
+    run: (s, commandId) => declareCreatureHeads(s, B, 3, { commandId }),
+  },
+  {
     name: 'swapInitiativeBetween',
     log: SETUP,
     run: (s, commandId) => swapInitiativeBetween(s, A, B, { commandId }),
@@ -2842,6 +2848,8 @@ const DECLARED_NOT_ACTED: Readonly<Record<string, string>> = {
     'not an action in the turn economy: it states what a creature with no class table can cast, which is a fact about the creature and not a casting',
   declareCreatureSide:
     'not an action in the turn economy: who counts as an ally is fiction, and a bandit being bribed costs the bandit nothing on anybody’s turn',
+  declareCreatureHeads:
+    'not an action in the turn economy: how many heads a creature has is a fact about the creature, and SRD prices nothing for having them — the Attack action those heads size is spent by the swing that takes it, through its own command',
   swapInitiativeBetween:
     'not an action in the turn economy: SRD Alert spends nothing on the swap — "immediately after you roll Initiative, you can swap" — and at that moment no budget has been handed out yet',
   stabiliseCreature:
@@ -2948,6 +2956,7 @@ describe('the DM-declared commands declare facts rather than taking actions', ()
       run: (s) => declareSpellcasting(s, B, declaredCasting({ ability: 'wis', prepared: ['bless'] })),
     },
     { name: 'declareCreatureSide', run: (s) => declareCreatureSide(s, C, 'the watch') },
+    { name: 'declareCreatureHeads', run: (s) => declareCreatureHeads(s, C, 3) },
     { name: 'swapInitiativeBetween', run: (s) => swapInitiativeBetween(s, A, B) },
     { name: 'stabiliseCreature', run: (s) => stabiliseCreature(s, C) },
     { name: 'declareCreatureDead', run: (s) => declareCreatureDead(s, C, 'off-screen') },

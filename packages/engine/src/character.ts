@@ -149,6 +149,33 @@ export interface StatedValues {
    * a sequence names an attack that exists.
    */
   readonly multiattack?: MonsterMultiattack;
+  /**
+   * The **names** of the Actions lines the parser read nothing out of.
+   *
+   * Not the prose: a block's sentences are kilobytes and the stat block's id
+   * is deliberately not stored either, so what is pinned is the shortest thing
+   * that makes a report legible — "Multiattack", "Change Shape". The engine
+   * branches on none of them; it quotes them.
+   *
+   * It exists because an absence otherwise looks like an answer. A block that
+   * prints no Multiattack and a block whose Multiattack the parser could not
+   * read both reach the sheet with no sequence on them, and only the second is
+   * a creature whose Attack action the engine has *assumed* the size of — SRD
+   * Hydra's "as many Bite attacks as it has heads" is the sentence.
+   *
+   * **It does not tell the two apart, and a reader must not think it does.**
+   * Which line went unread is all this holds; whether that line was the one
+   * that sized the action is exactly what the parser could not say. So a swing
+   * whose block left *anything* unread reports what it was — a Winter Wolf's
+   * Cold Breath as readily as a Hydra's Multiattack — and claims only that
+   * something went unread. That is narrower than every stat block without a
+   * sequence, which would be noise about a fact that is not missing, and wider
+   * than the handful of blocks whose unread line is the one that sizes the
+   * action — which is the honest width of what the engine knows.
+   *
+   * Absent for every character and for every block the parser read whole.
+   */
+  readonly unreadActions?: readonly string[];
 }
 
 export interface CharacterSheet {

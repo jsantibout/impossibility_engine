@@ -5,11 +5,22 @@ import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
-import { resolveAttack, resolveTurn, settleDamage, takeDamageReaction } from './commands.js';
+import {
+  reactionOpportunities,
+  removeCreatureEverywhere,
+  resolveAttack,
+  resolveAttackDamage,
+  resolveSpell,
+  resolveTurn,
+  settleDamage,
+  takeDamageReaction,
+} from './commands.js';
 import { createCharacter, planCharacter, type CharacterChoices } from './creation.js';
 import { extendContent, parseClassDefinition } from './content.js';
 import { remaining } from './resources.js';
 import { spellSaveDcWith } from './character.js';
+import { spellSlotKey } from './resources.js';
+import { declaredCasting } from './spellcasting.js';
 
 /**
  * An effect list bought by **a hit that has already landed**.
@@ -690,5 +701,204 @@ describe('a rider waits for the window the same blow opened', () => {
     expect(out.reactions).toBeUndefined();
     expect(stunned(out.state)).toBe(true);
     expect(remaining(out.state.creatures.shan!.resources, FOCUS)).toBe(4);
+  });
+
+  /**
+   * **And the same rule on the half of a swing that stops.**
+   *
+   * `hold: true` is SRD's "immediately after hitting a target" window — the hit
+   * is known, the damage is unrolled — and a `hit-by-attack` Reaction lives
+   * exactly there: Shield is cast "when you are hit by an attack roll" and may
+   * still turn the hit into a miss. The rider fired at the hold, so a Monk who
+   * Stunned on the swing took that window away from the creature it had just
+   * been offered to: `reactionOpportunities` offers a Stunned creature nothing.
+   *
+   * So a held swing pins what it bought **on the hold** and settles it with the
+   * damage, as an ordinary swing pins it on the damage roll. The pin is
+   * unconditional, unlike the ordinary one: a hold's window is open for the
+   * whole life of the hold by construction, so there is no "nobody can answer"
+   * case to fire early in. What follows is three closers rather than one, and
+   * each has an answer below.
+   */
+  describe('held until the damage, on a swing that was held', () => {
+    const SLOTS: readonly GameEvent[] = [
+      {
+        type: 'resource-pool-declared',
+        id: THUG,
+        pool: { key: spellSlotKey(1), label: 'l1', max: 4, recovers: 'long-rest' },
+      },
+      {
+        type: 'spellcasting-declared',
+        id: THUG,
+        spellcasting: declaredCasting({ ability: 'int', prepared: ['shield'] }),
+      },
+    ];
+
+    /** The Monk's table, with a thug who can answer a hit with Shield. */
+    const armed = (): readonly GameEvent[] => [...table(), ...SLOTS];
+
+    /** And one who can answer the *damage* as well, which is the Rogue's sheet. */
+    const armedAndQuick = (): readonly GameEvent[] => [...facing(), ...SLOTS];
+
+    /** The held swing, with the Stunning Strike riding on it. */
+    const hold = (log: readonly GameEvent[]) =>
+      swing(
+        log,
+        { target: THUG, weapon: null, hold: true, onHit: { feature: STUNNING, option: 'stun' } },
+        FAILS,
+      );
+
+    const focus = (state: GameState): number => remaining(state.creatures.shan!.resources, FOCUS);
+
+    /** A seed the thug's Constitution save fails on, rolled at the damage. */
+    const HELD_FAILS = 'h1';
+
+    it('holds the hit without stunning anybody or spending anything', () => {
+      const out = hold(armed());
+
+      expect(out.state.pendingAttack).not.toBeNull();
+      expect(stunned(out.state)).toBe(false);
+      expect(focus(out.state)).toBe(5);
+    });
+
+    /**
+     * The bug, in one assertion: a creature Stunned by the same swing can take
+     * no Reaction at all, so the window the hit had just opened was shut by
+     * the attacker's own rider before the defender could speak.
+     */
+    it('leaves the defender the hit-by-attack window the swing just opened', () => {
+      const out = hold(armed());
+      const offered = reactionOpportunities(out.state, SRD_CONTENT);
+
+      expect(offered.some((one) => one.reactor === THUG)).toBe(true);
+    });
+
+    /** And what the hit bought is on the hold, whole, rather than looked up again. */
+    it('pins what the hit bought onto the hold', () => {
+      const out = hold(armed());
+      expect(out.state.pendingAttack?.rider?.option).toBe('stun');
+    });
+
+    /**
+     * The ordinary ending: the damage is rolled a command later and the rider
+     * resolves with it — the save rolled, the condition applied, the point
+     * spent, on the world the damage has already changed.
+     */
+    it('resolves the rider when the damage lands', () => {
+      const out = hold(armed());
+      const hurt = unwrap(resolveAttackDamage(out.state, SHAN, {}, supply(HELD_FAILS)), 'damage');
+      const after = fold('seed', [...out.log, ...hurt.events]);
+
+      expect(after.pendingAttack).toBeNull();
+      expect(stunned(after)).toBe(true);
+      expect(focus(after)).toBe(4);
+    });
+
+    /**
+     * And where that damage opens a window of its own, the rider goes onto
+     * *that* hold and settles with it — the ordinary path's rule, reached
+     * through the held one. `settleDamage` does not know which half of a swing
+     * sent it.
+     */
+    it('hands the rider on to a damage roll somebody may answer', () => {
+      const out = hold(armedAndQuick());
+      const hurt = unwrap(resolveAttackDamage(out.state, SHAN, {}, supply(HELD_FAILS)), 'damage');
+      const rolled = fold('seed', [...out.log, ...hurt.events]);
+
+      expect(hurt.reactions?.map((offer) => offer.feature)).toEqual([DODGE]);
+      expect(rolled.pendingDamage?.rider?.option.option).toBe('stun');
+      expect(stunned(rolled)).toBe(false);
+      expect(focus(rolled)).toBe(5);
+
+      const settled = unwrap(settleDamage(rolled, supply(SETTLE_FAILS)), 'settle');
+      const after = fold('seed', [...out.log, ...hurt.events, ...settled.events]);
+      expect(stunned(after)).toBe(true);
+      expect(focus(after)).toBe(4);
+    });
+
+    /**
+     * **Shield drops a pinned rider unspent**, and refunds nothing because
+     * nothing was charged: the point and the once-per-turn allowance are spent
+     * by `applyHitRider`, which the deferral moved to the settlement, so a
+     * swing Shield turned into a miss never reaches it. "When you hit a
+     * creature" became false, and the log shows a hold closed with its damage
+     * unrolled and no Focus Point spent anywhere in it.
+     */
+    it('drops the rider when Shield turns the triggering attack into a miss', () => {
+      // A hit whose numbers are stated rather than rolled, for the reason
+      // `reaction-triggers.test.ts` states them: whether +5 is enough is the
+      // rule under test, and a d20 in the middle of it decides which branch
+      // runs. The rider is pinned exactly as a swing pins it — the Monk's own
+      // option, off the Monk's own sheet.
+      const log = armed();
+      const option = fold('seed', log).creatures.shan!.sheet.hitOptions!.find(
+        (one) => one.feature === STUNNING && one.option === 'stun',
+      )!;
+      const held: readonly GameEvent[] = [
+        ...log,
+        {
+          type: 'attack-landed',
+          attack: {
+            attacker: SHAN,
+            target: THUG,
+            weapon: null,
+            twoHanded: false,
+            thrown: false,
+            critical: false,
+            ability: 'dex',
+            targetAc: 10,
+            total: 12,
+            natural: 11,
+            rider: option,
+          },
+        },
+      ];
+
+      const shield = unwrap(
+        resolveSpell(
+          fold('seed', held),
+          THUG,
+          { spellId: 'shield', targets: [THUG], slotLevel: 1 },
+          supply('shield'),
+        ),
+        'the Shield',
+      );
+      const after = fold('seed', [...held, ...shield.events]);
+
+      // 12 does not reach 10 + 5: the hold closes with its damage unrolled.
+      expect(after.pendingAttack).toBeNull();
+      expect(stunned(after)).toBe(false);
+      expect(focus(after)).toBe(5);
+      expect(
+        [...held, ...shield.events].some(
+          (event) => event.type === 'resource-spent' && event.key === FOCUS,
+        ),
+      ).toBe(false);
+    });
+
+    /**
+     * And a creature leaving mid-hold takes the rider with the hold it was on.
+     * `settleHoldsInvolving` closes a held hit with its damage unrolled, and a
+     * rider is what that damage still owed: there is nobody to Stun where the
+     * target left and nobody to spend the point where the attacker did. It is
+     * the answer `pendingDamage.rider` already gets from the same function.
+     */
+    it('drops the rider when the target leaves mid-hold', () => {
+      const out = hold(armed());
+      const gone = unwrap(removeCreatureEverywhere(out.state, THUG), 'the target leaves');
+      const after = fold('seed', [...out.log, ...gone]);
+
+      expect(after.pendingAttack).toBeNull();
+      expect(focus(after)).toBe(5);
+    });
+
+    it('drops the rider when the attacker leaves mid-hold', () => {
+      const out = hold(armed());
+      const gone = unwrap(removeCreatureEverywhere(out.state, SHAN), 'the attacker leaves');
+      const after = fold('seed', [...out.log, ...gone]);
+
+      expect(after.pendingAttack).toBeNull();
+      expect(stunned(after)).toBe(false);
+    });
   });
 });

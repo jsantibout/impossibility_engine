@@ -312,6 +312,52 @@ export const multiattackOf = (sheet: CharacterSheet): MonsterMultiattack | null 
   sheet.stated?.multiattack ?? null;
 
 /**
+ * The Actions lines this creature's block prints that the parser read nothing
+ * out of, by name. Empty for a character and for a block read whole.
+ */
+export const unreadActionsOf = (sheet: CharacterSheet): readonly string[] =>
+  sheet.stated?.unreadActions ?? [];
+
+/**
+ * How many swings this creature's Attack action holds, right now.
+ *
+ * Three answers in one function, so the command that spends the action and the
+ * fold that re-spends it cannot come to disagree:
+ *
+ * - A block that states a sequence states the count with it, and
+ *   `attacksPerAction` already carries that total. A class feature's Extra
+ *   Attack is the same field, read the same way.
+ * - A **declared head count** is the answer where the block states no sequence
+ *   the engine can execute. SRD Hydra: "The hydra makes as many Bite attacks
+ *   as it has heads" — the engine derives the number, from a fact the table
+ *   declared rather than one it invented. What each swing may *be* is still
+ *   the block's business: nothing here names an attack, and a creature whose
+ *   block prints one line has one thing to bite with.
+ * - One, otherwise, which is what an Attack action has always held.
+ *
+ * **Only for a creature whose numbers are printed.** A head count declared on
+ * a character is a fact about fiction and not a licence to swing five times:
+ * what a character's Attack action holds is on their sheet, put there by the
+ * features they have.
+ *
+ * **And for any such creature, not only the ones a swing warned about.** The
+ * `unverified` clause the attack path reports is narrower than this — it needs
+ * a line the parser left unread to have something to name — and the two sets
+ * are deliberately not one. A declaration is a thing the table said, and a
+ * declared count that silently did nothing because the engine had no clause to
+ * offer would be worse than a count nobody was prompted for: the prompt is a
+ * courtesy, the declaration is the fact. So a block with no sequence takes the
+ * count it was given, whether or not anything was reported about it.
+ */
+export const attacksInAction = (
+  sheet: CharacterSheet,
+  heads: number | null,
+): number =>
+  heads !== null && heads >= 1 && sheet.stated !== undefined && multiattackOf(sheet) === null
+    ? heads
+    : (sheet.attacksPerAction ?? 1);
+
+/**
  * Whether one branch can account for a turn's swings.
  *
  * A name is spent against the entry that admits it, and the branch holds while
@@ -445,6 +491,18 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
   const attacks = printedAttacks(monster);
   const traits = printedTraits(monster);
   const multiattack = printedMultiattack(monster, attacks);
+  // **What the parser did not read, named rather than interpreted.** A line
+  // with no attack, no trait and no sequence on it is one the parser got
+  // nothing out of — the test is mechanical, exactly as the search for the
+  // sequence above is, so a block from somewhere other than the SRD parser
+  // meets the same one. Nothing branches on these names; they are what a swing
+  // quotes when it says which line it could not execute.
+  const unreadActions = monster.actions
+    .filter(
+      (line) =>
+        line.attack === undefined && line.trait === undefined && line.multiattack === undefined,
+    )
+    .map((line) => line.name);
 
   const stated: StatedValues = {
     armorClass: monster.ac,
@@ -459,6 +517,7 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
     ...(attacks.length === 0 ? {} : { attacks }),
     ...(traits.length === 0 ? {} : { traits }),
     ...(multiattack === undefined ? {} : { multiattack }),
+    ...(unreadActions.length === 0 ? {} : { unreadActions }),
   };
 
   // **The count follows the composition.** A block that states a sequence

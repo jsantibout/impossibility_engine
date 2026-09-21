@@ -42,11 +42,13 @@ import { canUseFeatureThisTurn, spendAttack, spendBonusAction } from '../combat.
 import { applyEvent, type CreatureState, type GameEvent, type GameState } from '../events.js';
 import { modifierFor, type CharacterSheet, type StatedAttack } from '../character.js';
 import {
+  attacksInAction,
   hasPrintedTrait,
   describeMultiattack,
   multiattackAllows,
   multiattackOf,
   printedAttackOf,
+  unreadActionsOf,
 } from '../monster.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import {
@@ -635,6 +637,41 @@ export function resolveAttack(
         `${id}'s block prints its attacks as a sequence, and there are no turns here to count one against — nothing held this swing to it`,
       );
     }
+    // **The lines the parser read nothing out of, where nothing else sizes the
+    // action.** SRD Hydra: "The hydra makes as many Bite attacks as it has
+    // heads" — a sentence that sizes the Attack action and that the engine
+    // could not execute. The action is held to one swing, which is what it
+    // always held, and the clause *says so*: a fact a command can proceed past
+    // conservatively owes an `unverified` clause and never a `needs-context`,
+    // because a fight must not stop to ask how many heads something has.
+    //
+    // **It names the lines and claims no more than that.** Which of them, if
+    // any, was the one that sized the action is a thing the engine cannot
+    // know: an unread Multiattack and an unread breath weapon arrive at the
+    // sheet identically, as a name in `unreadActions` and nothing else — what
+    // the sheet tells apart is a sequence the parser *read* from one it did
+    // not. So the clause reports what went unread and offers the remedy
+    // conditionally — a Winter Wolf's reader learns its Cold Breath is prose,
+    // which is true, and is not told the wolf has heads.
+    //
+    // A block the parser read whole says nothing at all, and neither does one
+    // whose sequence the engine can execute: a clause on every block without a
+    // sequence would be noise about a fact that is not missing. Once at the
+    // swing that takes the action, like the handover beside a sequence, rather
+    // than at every swing inside it.
+    if (
+      sequence === null &&
+      !free &&
+      command.bonusAction !== true &&
+      attacker.heads === null &&
+      unreadActionsOf(sheet).length > 0 &&
+      budget !== null &&
+      budget.attacksRemaining === null
+    ) {
+      unverified.push(
+        `${id}'s block prints ${unreadActionsOf(sheet).join(', ')}, which the engine read nothing out of, and nothing states how many swings its Attack action holds — it held one. Where one of those lines counts the swings off a number the table keeps, a declareCreatureHeads command states that number.`,
+      );
+    }
     if (
       sequence !== null &&
       !free &&
@@ -711,7 +748,11 @@ export function resolveAttack(
       const spent = spendAttack(
         state.combat,
         id,
-        sheet.attacksPerAction ?? 1,
+        // SRD Hydra: "as many Bite attacks as it has heads" — the size of the
+        // action follows a declared head count where the block states no
+        // sequence the engine can execute, and is the sheet's number
+        // otherwise. The fold spends the same answer.
+        attacksInAction(sheet, attacker.heads),
         attacker.conditions,
         { rules: attacker.actionRules },
       );
@@ -962,27 +1003,17 @@ export function resolveAttack(
           total: attack.value.total,
           natural: attack.value.roll.natural,
           mode: attack.value.roll.mode,
+          // **The defender answers first**, and a hold is the window they
+          // answer in: SRD Shield is cast "when you are hit by an attack roll"
+          // and turns this very hit into a miss, so a rider resolved here would
+          // Stun the creature out of the Reaction it had just been offered.
+          // What the hit bought rides on the hold and `resolveAttackDamage`
+          // settles it, which is also where the SRD's own order puts it — the
+          // save is rolled after the blow rather than before damage nobody has
+          // rolled. See {@link PendingAttack.rider}.
+          ...(rider.value === null ? {} : { rider: rider.value }),
         },
       });
-
-      // **The hit is what buys a rider, and a held attack has hit.** Splitting
-      // the blow is the caller's to do — SRD's "immediately after hitting a
-      // target" window is why the two halves exist — and "when you hit a
-      // creature" does not wait for the damage. So the rider fires here rather
-      // than being lost between the commands, and the one difference from an
-      // ordinary swing is the order: the save is rolled before damage nobody
-      // has rolled yet.
-      if (rider.value !== null) {
-        const bought = applyHitRider(
-          events.reduce(applyEvent, state),
-          supply,
-          { attacker: id, target: command.target },
-          rider.value,
-        );
-        if (!bought.ok) return bought;
-        events.push(...bought.value.events);
-        unverified.push(...bought.value.unverified);
-      }
 
       return ok({ events, attack: attack.value, unverified, duplicate: false });
     }
@@ -1434,7 +1465,18 @@ export function resolveAttackDamage(
       rolled.value.components,
       weapon?.name ?? 'Unarmed Strike',
       supply,
-      { by: pending.attacker, fromAttack: true, ...(pending.critical ? { critical: true } : {}) },
+      {
+        by: pending.attacker,
+        fromAttack: true,
+        ...(pending.critical ? { critical: true } : {}),
+        // What the hit bought, carried from the hold onto the damage roll
+        // where one opens a window — so a held swing whose damage somebody may
+        // answer settles through `settleDamage` exactly as an ordinary one
+        // does, and nothing there knows which half of a swing sent it.
+        ...(pending.rider === undefined
+          ? {}
+          : { rider: { attacker: pending.attacker, option: pending.rider } }),
+      },
     );
     if (!hurt.ok) return hurt;
 
@@ -1456,15 +1498,36 @@ export function resolveAttackDamage(
     });
     if (!rider.ok) return rider;
 
+    // **What the hold still owed, now that the blow has landed.** The same two
+    // rules the ordinary path follows: after the weapon's mastery property,
+    // because a Stunned creature fails a Strength or Dexterity save
+    // automatically and a Topple must be rolled for; and **not at all** where
+    // somebody was offered a Reaction to this damage, because the rider went
+    // onto that hold above and `settleDamage` resolves it once the defender
+    // has spoken.
+    const bought: GameEvent[] = [];
+    const unverified: string[] = [];
+    if (pending.rider !== undefined && hurt.value.offers.length === 0) {
+      const paid = applyHitRider(
+        [...landed, ...rider.value.events].reduce(applyEvent, state),
+        supply,
+        { attacker: pending.attacker, target: pending.target },
+        pending.rider,
+      );
+      if (!paid.ok) return paid;
+      bought.push(...paid.value.events);
+      unverified.push(...paid.value.unverified);
+    }
+
     return ok({
-      events: [...landed, ...rider.value.events],
+      events: [...landed, ...rider.value.events, ...bought],
       attack: null,
       ...(hurt.value.amount === undefined ? {} : { damage: hurt.value.amount }),
       ...(hurt.value.concentration === undefined
         ? {}
         : { concentration: hurt.value.concentration }),
       ...(hurt.value.offers.length === 0 ? {} : { reactions: hurt.value.offers }),
-      unverified: [...hurt.value.unverified, ...rider.value.unverified],
+      unverified: [...hurt.value.unverified, ...rider.value.unverified, ...unverified],
       duplicate: false,
     });
   });
@@ -1549,6 +1612,13 @@ function castOnHit(
     castingTime: definition.castingTime,
     slotLevel: smite.slotLevel,
     route: routeLabel(route.value),
+    // The printed text the book leaves to the table, pinned onto the casting
+    // the blow writes. CLAUDE.md's rule 5, asked of the second atomic path
+    // that had been handing it to its caller alone: a spell cast on a hit has
+    // no declaration, so `spell-cast` is where a handover lives. No SRD spell
+    // reaches here — a cast-on-hit must print an `attack-damage` effect and
+    // none of the three that hand text over does — and a homebrew one can.
+    ...(definition.dmDecides === undefined ? {} : { dmDecides: definition.dmDecides }),
   }, null);
   if (!cast.ok) return cast;
 
