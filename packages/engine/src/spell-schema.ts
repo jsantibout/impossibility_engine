@@ -163,16 +163,23 @@ const ROLLS_ITS_OWN_DAMAGE: ReadonlySet<string> = new Set(['attack', 'save-damag
  * counts an effect's bonus dice against the call it is in. So a definition that
  * throws its damage twice would be allowed the cap twice.
  *
- * Six ways one casting reaches a damage roll again, and the first three are the
- * ones a reader expects:
+ * The ways one casting reaches a damage roll again — a list rather than a
+ * count, so that adding one is adding a bullet and a clause:
  *
- * - **Two damaging effects**, or one whose payload prints a second damage type
- *   — `plus`, which `resolveSaveDamageEffect` rolls part by part.
+ * - **Two damaging effects.**
+ * - **A payload printed in a second damage type** — `plus`, which
+ *   `resolveSaveDamageEffect` rolls part by part. Only `save-damage` carries
+ *   one; an `attack` has no such field.
  * - **More than one target**, which the per-target loop rolls for one at a
- *   time, *including* the ones a bigger slot adds: `targetCountFor` is
+ *   time.
+ * - **The targets a bigger slot adds**: `targetCountFor` is
  *   `count + extraPerSlotLevelAbove × above`, so the base count alone does not
- *   answer this, and `unlimited` states no count at all.
- * - **An area**, which resolves per creature caught.
+ *   answer this.
+ * - **A count the definition never states** — `unlimited`, which requires a
+ *   base count of zero beside it and so scores nothing against the clause
+ *   above.
+ * - **An area**, which resolves per creature caught, and `targetsWithin`
+ *   beside it, which bounds a choice with the same geometry.
  * - **An activation.** SRD Vampiric Touch: "you can make the attack again on
  *   each of your turns." The later action resolves its own effects under the
  *   *same* casting, so the rule is read off the same definition and handed a
