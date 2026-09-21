@@ -16,7 +16,12 @@ import type {
   MonsterTrait,
 } from '@ie/srd';
 import type { DamageDefenses } from './attack.js';
-import type { CharacterSheet, StatedAttack, StatedValues } from './character.js';
+import type {
+  CharacterSheet,
+  StatedAttack,
+  StatedBonusAction,
+  StatedValues,
+} from './character.js';
 import { vitals, type Vitals } from './vitals.js';
 
 /**
@@ -471,6 +476,58 @@ export function printedAttackOf(sheet: CharacterSheet, name: string): StatedAtta
   );
 }
 
+/**
+ * Find a Bonus Action line a creature's stat block prints, by its heading.
+ *
+ * Case-insensitive, for the reason {@link printedAttackOf} above it is: the
+ * heading is something a caller types. Null where the sheet states no such
+ * line, which is every character and every block that prints none.
+ */
+export function statedBonusActionOf(
+  sheet: CharacterSheet,
+  name: string,
+): StatedBonusAction | null {
+  const wanted = name.trim().toLowerCase();
+  return sheet.stated?.bonusActions?.find((line) => line.name.toLowerCase() === wanted) ?? null;
+}
+
+/**
+ * Where a printed Bonus Action line's use is counted: the combat ledger, under
+ * a namespace of its own.
+ *
+ * **The ledger rather than a second counter beside it.** `featureUsedOnTurn`
+ * keys a string against the turn it was spent on, which is exactly the
+ * question a gated Multiattack asks — "did it use that line *this turn*" —
+ * and it is already how a swing inside a sequence and a once-per-turn weapon
+ * property are counted. A record of its own would be a second answer to the
+ * same question.
+ *
+ * The prefix is a constant and the name in the key comes out of the creature's
+ * own block, so nothing here names a line.
+ */
+const STATED_BONUS_ACTION = 'stated-bonus-action:';
+
+/** The ledger key one printed Bonus Action line is spent under. */
+export const statedBonusActionSlot = (line: string): string =>
+  `${STATED_BONUS_ACTION}${line}`;
+
+/**
+ * The printed Bonus Action lines a creature has taken on the turn in progress.
+ *
+ * Read back off the ledger rather than stored a second time, so there is one
+ * record of what happened and a replay cannot disagree with it. Takes the
+ * ledger and the turn rather than the combat record, so that the fold, the
+ * command that spends a line and the command that swings can all ask it
+ * without this file knowing what a `CombatState` is.
+ */
+export const statedBonusActionsUsed = (
+  usedOnTurn: Readonly<Record<string, number>>,
+  turn: number,
+): readonly string[] =>
+  Object.entries(usedOnTurn)
+    .filter(([key, on]) => on === turn && key.startsWith(STATED_BONUS_ACTION))
+    .map(([key]) => key.slice(STATED_BONUS_ACTION.length));
+
 /** Whether this creature's stat block states a trait of the given shape. */
 export const hasPrintedTrait = (sheet: CharacterSheet, kind: MonsterTrait['kind']): boolean =>
   sheet.stated?.traits?.some((trait) => trait.kind === kind) === true;
@@ -504,6 +561,17 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
     )
     .map((line) => line.name);
 
+  // **The Bonus Actions section, carried whole and executed not at all.** A
+  // heading in a stat block says what the line under it *costs*, which is why
+  // the attacks above come from the Actions section and only that one; these
+  // cost a Bonus Action, and carrying them is what gives a caller something to
+  // spend one on. The sentence comes with the name because the engine applies
+  // none of it and a spend has to hand it back.
+  const bonusActions: readonly StatedBonusAction[] = monster.bonusActions.map((line) => ({
+    name: line.name,
+    text: line.text,
+  }));
+
   const stated: StatedValues = {
     armorClass: monster.ac,
     proficiencyBonus: monster.proficiencyBonus,
@@ -516,6 +584,7 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
     // field saying so — the reading every optional field on the sheet takes.
     ...(attacks.length === 0 ? {} : { attacks }),
     ...(traits.length === 0 ? {} : { traits }),
+    ...(bonusActions.length === 0 ? {} : { bonusActions }),
     ...(multiattack === undefined ? {} : { multiattack }),
     ...(unreadActions.length === 0 ? {} : { unreadActions }),
   };

@@ -37,7 +37,7 @@ import {
  * to the Monk table changes future sheets rather than historical folds.
  */
 import { speedOf } from '../standing.js';
-import { attacksInAction } from '../monster.js';
+import { attacksInAction, statedBonusActionSlot } from '../monster.js';
 import type { GameEvent } from '../events.js';
 import type { GameState } from '../state.js';
 import {
@@ -74,6 +74,7 @@ export const COMBAT_EVENTS = [
   'combatant-removed',
   'initiative-swapped',
   'feature-used',
+  'stated-bonus-action-taken',
   'reaction-taken',
 ] as const;
 
@@ -251,6 +252,26 @@ export function applyCombat({ state, next }: Applying, event: CombatEvent): Game
       }
       creatureOf(state, event, event.id);
       return { ...next, combat: markFeatureUsed(state.combat, event.id, event.feature, event.turn) };
+    }
+
+    // The same ledger under its own namespace: what was spent is a line the
+    // creature's block prints, and the question anything asks of it is the
+    // once-per-turn one. The Bonus Action it cost is the `bonus-action-spent`
+    // beside it, folded by this seam like any other.
+    case 'stated-bonus-action-taken': {
+      if (state.combat === null) {
+        throw new CorruptLogError(event, 'a printed Bonus Action was taken outside combat');
+      }
+      creatureOf(state, event, event.id);
+      return {
+        ...next,
+        combat: markFeatureUsed(
+          state.combat,
+          event.id,
+          statedBonusActionSlot(event.line),
+          event.turn,
+        ),
+      };
     }
 
     // Changes nothing, like `roll-recorded`. It exists so the log can say why

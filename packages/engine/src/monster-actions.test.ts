@@ -20,6 +20,7 @@ import {
   setScene,
   addSceneLandmark,
   takeOpportunityAttack,
+  takeStatedBonusAction,
 } from './commands.js';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
@@ -29,6 +30,7 @@ import {
   bestPrintedMeleeAttack,
   multiattackAllows,
   printedAttackOf,
+  statedBonusActionsUsed,
 } from './monster.js';
 import { createRollIssuer } from './rolls.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
@@ -137,6 +139,16 @@ const statBlock = (slug: string) => {
   if (found === null) throw new Error(`no such monster: ${slug}`);
   return found;
 };
+
+const GOLEM = id('golem');
+
+/**
+ * The golem's Bonus Action line, by the heading its own block prints it under
+ * — read off the block rather than typed out, because the heading carries the
+ * book's recharge and the book's en dash and a test that retyped either would
+ * be testing its own transcription.
+ */
+const HASTEN = statBlock('clay-golem').bonusActions[0]!.name;
 
 /**
  * A fighter with a wolf ten feet away, and everybody's side declared.
@@ -1250,5 +1262,120 @@ describe('a monster’s Opportunity Attack takes its printed line', () => {
     const bren = table.state.creatures[BREN];
     expect(bren?.sheet.stated?.attacks).toBeUndefined();
     expect(bestPrintedMeleeAttack(bren!.sheet)).toBeNull();
+  });
+});
+
+/**
+ * What a stat block prints under **Bonus Actions**.
+ *
+ * Seventy-five lines in the SRD and not one of them prints an attack roll:
+ * they cast a spell, force a saving throw, take another action, move,
+ * shape-shift, teleport, or are prose. So there was never a sentence here for
+ * a parser to read — what was missing is an economy to spend one against, and
+ * a record of which line was spent, which is what a Multiattack gated on one
+ * has to read.
+ *
+ * The engine executes none of them. It spends the Bonus Action, writes down
+ * which line was taken, and hands the sentence back the way a Multiattack's
+ * `handOver` clause is already handed back.
+ */
+describe('a Bonus Action a stat block prints', () => {
+  const taking = (table: Table, who: CharacterId, line: string, commandId?: string) =>
+    takeStatedBonusAction(table.state, who, {
+      line,
+      ...(commandId === undefined ? {} : { commandId }),
+    });
+
+  const usedBy = (state: GameState, who: CharacterId): readonly string[] =>
+    statedBonusActionsUsed(
+      state.combat?.budgets[who]?.featureUsedOnTurn ?? {},
+      state.combat?.turnsTaken ?? 0,
+    );
+
+  it('carries the section onto the sheet, by the name and the sentence', () => {
+    const goblin = adaptMonster(statBlock('goblin-warrior'), GOBLIN);
+    expect(goblin.sheet.stated?.bonusActions).toEqual([
+      { name: 'Nimble Escape', text: 'The goblin takes the Disengage or Hide action.' },
+    ]);
+
+    // A block that prints none carries no field saying so, which is the
+    // reading every optional field on the sheet takes — and a character
+    // prints none either.
+    expect(adaptMonster(statBlock('wolf'), WOLF).sheet.stated?.bonusActions).toBeUndefined();
+  });
+
+  it('spends the creature’s Bonus Action and records which line it was', () => {
+    const table = inTheWoods('goblin-warrior', GOBLIN);
+    table.did('the goblin slips away', (s) =>
+      takeStatedBonusAction(s, GOBLIN, { line: 'Nimble Escape', commandId: 'escape' }),
+    );
+
+    const state = table.state;
+    expect(state.combat?.budgets[GOBLIN]?.bonusAction).toBe(false);
+    expect(usedBy(state, GOBLIN)).toEqual(['Nimble Escape']);
+
+    // And the log says which line, by the name the block prints it under.
+    const taken = table.events.filter((e) => e.type === 'stated-bonus-action-taken');
+    expect(taken).toHaveLength(1);
+    expect(taken[0]?.type === 'stated-bonus-action-taken' ? taken[0].line : null).toBe(
+      'Nimble Escape',
+    );
+  });
+
+  /**
+   * **The sentence is handed over rather than executed.** The goblin's line
+   * says it takes the Disengage or Hide action; nothing here takes either, and
+   * a caller told that the Bonus Action was spent and nothing else would have
+   * been told the creature did something it did not.
+   */
+  it('reports the sentence, because the engine applies none of it', () => {
+    const table = inTheWoods('goblin-warrior', GOBLIN);
+    const out = unwrap(taking(table, GOBLIN, 'Nimble Escape', 'escape'), 'the escape');
+    expect(out.unverified.join(' ')).toContain('The goblin takes the Disengage or Hide action.');
+
+    // And it really did not take one: the Disengage a DM applies is not here.
+    expect(out.events.map((e) => e.type)).toEqual([
+      'bonus-action-spent',
+      'stated-bonus-action-taken',
+    ]);
+  });
+
+  /** SRD: "You can't take more than one Bonus Action on a turn." */
+  it('refuses a second line in the same turn', () => {
+    const table = inTheWoods('clay-golem', GOLEM);
+    table.did('the golem hastens', (s) =>
+      takeStatedBonusAction(s, GOLEM, { line: HASTEN, commandId: 'one' }),
+    );
+    const again = taking(table, GOLEM, HASTEN, 'two');
+    expect(isErr(again) ? again.code : 'ok').toBe('no_bonus_action');
+  });
+
+  it('refuses a line the block does not print', () => {
+    const table = inTheWoods('goblin-warrior', GOBLIN);
+    const out = taking(table, GOBLIN, HASTEN, 'wrong');
+    expect(isErr(out) ? out.code : 'ok').toBe('no_such_line');
+  });
+
+  /** A retry is not a second Bonus Action. */
+  it('counts a repeated command id once', () => {
+    const table = inTheWoods('goblin-warrior', GOBLIN);
+    table.did('the goblin slips away', (s) =>
+      takeStatedBonusAction(s, GOBLIN, { line: 'Nimble Escape', commandId: 'escape' }),
+    );
+    const retry = unwrap(taking(table, GOBLIN, 'Nimble Escape', 'escape'), 'the retry');
+    expect(retry.events).toEqual([]);
+    expect(retry.duplicate).toBe(true);
+    expect(table.events.filter((e) => e.type === 'stated-bonus-action-taken')).toHaveLength(1);
+  });
+
+  /**
+   * **A log with none of this in it folds exactly as it did.** The event is
+   * additive and optional, and a creature that never took a printed Bonus
+   * Action has nothing in the ledger to show for it.
+   */
+  it('leaves a turn nobody spent one on exactly where it was', () => {
+    const table = inTheWoods('goblin-warrior', GOBLIN);
+    expect(usedBy(table.state, GOBLIN)).toEqual([]);
+    expect(table.state.combat?.budgets[GOBLIN]?.bonusAction).toBe(true);
   });
 });

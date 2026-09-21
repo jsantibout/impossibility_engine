@@ -537,6 +537,16 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // anyway, and the deadline that ends one nobody spent.
   'roll-modifier-consumed',
   'speed-modifier-granted',
+  // A line a stat block prints under Bonus Actions, taken. Neither log was
+  // written when the section reached a creature's sheet at all — `StatedValues`
+  // carried the printed attacks and nothing else the block could do — and both
+  // fixtures fold to exactly the states they always folded to with the field
+  // absent on every creature. `monster-actions.test.ts` folds it and drives it
+  // end to end: the Bonus Action spent, the ledger that says which line, the
+  // second line in one turn refused, the sentence handed back because the
+  // engine applies none of it, and the Multiattack branch a golem's block
+  // gates on having taken one.
+  'stated-bonus-action-taken',
   'turn-payout-granted',
 ];
 

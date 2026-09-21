@@ -221,6 +221,7 @@ export {
   takeDodge,
   takeHide,
   takeReady,
+  takeStatedBonusAction,
   useFreeObjectInteraction,
 } from './commands/actions.js';
 export type {
@@ -232,6 +233,8 @@ export type {
   ReadyRelease,
   ReadyResponse,
   ReleaseCommand,
+  StatedBonusActionCommand,
+  StatedBonusActionOutcome,
 } from './commands/actions.js';
 export {
   joinCombat,
