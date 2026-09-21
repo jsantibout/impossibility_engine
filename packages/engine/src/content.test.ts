@@ -1228,6 +1228,63 @@ describe('the one door refuses what it cannot execute, with a path', () => {
     ).toEqual([]);
   });
 
+  /**
+   * And the arrangement `inScope` exists for: the pool is a **subclass**'s and
+   * the feature that moves it is the class's.
+   *
+   * `recoveryOf` gates on the whole list a character earned — `poolsFor` is
+   * handed class and subclass features together — so this is legal to write
+   * and executes. A check that asked only about siblings would refuse it while
+   * the SRD's own one-source case stayed green, which is the false refusal the
+   * neighbouring pool-key check already records.
+   */
+  it('reads a rewrite across the class a subclass belongs to', () => {
+    const cls = JSON.parse(BLOODHUNTER);
+    cls.features = [
+      {
+        id: 'bloodhunter:font-of-rites',
+        name: 'Font of Rites',
+        level: 5,
+        // Manual rather than executed, because `executedBy` names a feature on
+        // the *same* source and this one is executed by a subclass's
+        // declaration. What the rewrite needs of it is only that the character
+        // holds it, which is the whole of the gate.
+        automation: 'manual',
+        note: 'The order’s dice come back on a Short Rest from here, which is this feature rewriting that declaration.',
+      },
+    ];
+    // Through JSON text, the way this file's class fixture arrives: a literal
+    // widens `automation` and a grant's `kind` to `string`, and the door these
+    // are held to takes the typed shape.
+    const subclass = JSON.parse(
+      JSON.stringify({
+        id: 'order-of-blood',
+        name: 'Order of Blood',
+        classId: 'bloodhunter',
+        features: [
+          {
+            id: 'order-of-blood:rite-dice',
+            name: 'Rite Dice',
+            level: 3,
+            automation: 'engine',
+            note: 'A pool of two per Long Rest, moved onto a Short Rest by the class feature two levels later.',
+            grants: {
+              kind: 'pool',
+              key: 'rite-dice',
+              usesByLevel: Array.from({ length: 20 }, () => 2),
+              recovers: 'long-rest',
+              recoversSooner: {
+                withFeature: 'bloodhunter:font-of-rites',
+                recovers: 'short-rest',
+              },
+            },
+          },
+        ],
+      }),
+    );
+    expect(checkContent({ classes: [cls], subclasses: [subclass] }).map((p) => p.code)).toEqual([]);
+  });
+
   it('refuses a duplicate id and a feature executed by nobody', () => {
     const twice = checkContent({ spells: [JSON.parse(EMBER_LASH), JSON.parse(EMBER_LASH)] });
     expect(twice.map((p) => p.code)).toContain('duplicate_id');
