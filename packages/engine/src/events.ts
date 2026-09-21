@@ -23,11 +23,11 @@
  * `type`-only, so every edge back into this file is erased and the run-time
  * graph is the DAG `scripts/fold-graph.ts` reports.
  */
-import type { CharacterId, ConditionName } from '@ie/shared';
+import type { CharacterId, ConditionName, RollId } from '@ie/shared';
 import type { Armor, CreatureSize } from '@ie/srd';
 import type { CharacterSheet, GrantedArmorClass } from './character.js';
 import { type ActiveRollModifier } from './roll-modifiers.js';
-import type { RngState } from './dice.js';
+import type { DieRoll, RngState } from './dice.js';
 import { type PoolDeclaration, type Recovery } from './resources.js';
 import type { CharacterRecord } from './creation.js';
 import type { DamageDefenses, DamageReduction, GrantedDefense } from './attack.js';
@@ -142,6 +142,77 @@ export {
   ITEM_INSTANCE_PREFIX,
 } from './state.js';
 export * from './fold/index.js';
+
+/**
+ * A roll the engine did not throw, on the record of the roll.
+ *
+ * `RollSource` has three members and this shape can hold two of them: the
+ * absence of this field **is** `engine`, and `'engine'` is not expressible
+ * here at all. That is the point rather than a tidiness — an engine-rolled
+ * site cannot fill it wrongly, because there is nothing correct it could put
+ * in it, and a reader of an old log is not left wondering whether a missing
+ * field means "the engine threw it" or "nobody said".
+ *
+ * **Absent is what every log ever written says**, which is what makes the
+ * field additive: the two frozen fixtures fold unchanged because neither ever
+ * carried a roll from anywhere else. `modes?` on `roll-recorded` is the
+ * precedent and states the same argument in its own docstring.
+ *
+ * **It arrives ahead of its filler, deliberately.** Nothing produces a
+ * non-engine roll through a command today — `recordExternalD20` and
+ * `recordExternalDamage` are swept out of both AI-held surfaces and the door a
+ * table of physical dice would reach them through is not built — so every
+ * occurrence of this field in a driven log is absent, and
+ * `damage-dice-in-the-log.test.ts` sweeps a whole one to say so. It is
+ * declared now because it belongs to the same events the damage dice opened,
+ * and a second pass over eleven emitters to add one field is a second pass
+ * over eleven emitters.
+ */
+export interface StatedRoll {
+  /** The id the issuer gave it, so the record joins the roll it describes. */
+  readonly id: RollId;
+  readonly source: 'physical-dice' | 'dm-override';
+  /** Why a roll was overridden. Null for a roll that was simply read out. */
+  readonly note: string | null;
+}
+
+/**
+ * One typed slice of a damage roll, with every face it showed.
+ *
+ * The same cut `DamageComponent` makes, because it is the cut the rules make:
+ * Resistance is per type, a Critical doubles the dice of the components that
+ * came from the hit, and SRD Great Weapon Fighting rerolls the dice of *the
+ * weapon's* damage and not of the Divine Smite beside it. So the faces are
+ * grouped by the component that threw them rather than flattened into one
+ * list — a flat list could not answer any of those three questions, and a
+ * label a reader had to parse to answer them would be prose standing in for
+ * structure.
+ *
+ * `dice` is `RollOutcome.dice` as it was thrown: **every die in the order it
+ * was rolled, dropped and rerolled ones included**. That is what SRD Sorcerous
+ * Burst's explosion and Chromatic Orb's matching faces are about, and what
+ * makes a substitution visible — a Great Weapon Fighting die shows the 1 it
+ * rolled and the 3 it counts as, side by side.
+ *
+ * A component that threw nothing carries an empty `dice` and its `flat`, which
+ * is how an ability modifier appears: the record is a complete account of the
+ * pre-defence total rather than a list of dice with a hole where the
+ * arithmetic was.
+ */
+export interface RecordedDamageDice {
+  /** Where the slice came from: the weapon, "Flame Tongue", "Dueling". */
+  readonly source: string;
+  readonly type: string;
+  /** The id the engine issued for this slice's roll, or null where it threw none. */
+  readonly roll: RollId | null;
+  /** Every face, in the order thrown. Empty for a slice that is all modifier. */
+  readonly dice: readonly DieRoll[];
+  /** What was added without being rolled for. */
+  readonly flat: number;
+  /** The slice's own total, before the target's defences. */
+  readonly total: number;
+  readonly stated?: StatedRoll;
+}
 
 export type GameEvent =
   // — the cast ————————————————————————————————————————————————
@@ -530,7 +601,14 @@ export type GameEvent =
     }
 
   // — vitals ——————————————————————————————————————————————————
-  /** The amount is already rolled and already reduced by the target's defences. */
+  /**
+   * The amount is already rolled and already reduced by the target's defences.
+   *
+   * What the dice *showed* is the other half of the same moment and is a
+   * different fact: `damage-dice-recorded` carries it, beside this event on
+   * every unheld damage roll and on `damage-rolled` for a held one. This one
+   * says what landed, and only that.
+   */
   | {
       readonly type: 'damage-taken';
       readonly id: CharacterId;
@@ -1955,6 +2033,14 @@ export type GameEvent =
       /** How it came out, in the caller's own words. */
       readonly outcome?: string;
       /**
+       * Where the roll came from, when it was not this engine.
+       *
+       * Absent means the engine threw it — see {@link StatedRoll} for why that
+       * is the only reading the shape allows, and why the field is here before
+       * anything can fill it.
+       */
+      readonly stated?: StatedRoll;
+      /**
        * The command that produced it, for a command that rolls and may miss.
        *
        * `resolveAttack` needs somewhere to stamp its identity that happens
@@ -1964,6 +2050,74 @@ export type GameEvent =
        * makes a retry a no-op.
        */
       readonly command?: CommandStamp;
+    }
+  /**
+   * What the dice showed, for a damage roll nobody was offered a chance to
+   * answer.
+   *
+   * **The asymmetry this closes.** A damage roll somebody may react to is held
+   * in `damage-rolled`, which carries the whole `PendingDamage` — and on each
+   * of its components the `RecordedRoll` that threw it, faces and all. A
+   * damage roll nobody can answer opened no window and reached no event: the
+   * log kept `damage-taken`, which is a *post-defence total*, and the faces
+   * went out with the value the command returned. So the same greatsword swing
+   * was fully auditable against a Rogue with Uncanny Dodge and opaque against
+   * a goblin, which is not a rule — it is an accident of who happened to be
+   * standing there.
+   *
+   * **Owner, 2026-09-21:** "each individual damage dice needs to reach the
+   * log, specifically for spells like sorcerous burst and chromatic orb, which
+   * burst on certain numbers. it also creates transparency for things like the
+   * great weapon fighting style feat." Two of those three are mechanics that
+   * *read* a face — an 8 on Sorcerous Burst's d8 throws another, Chromatic
+   * Orb's matching faces chain — and the third is a substitution a reader
+   * cannot see in a total. None of them can be built on a number.
+   *
+   * **It is emitted from one place**, `dealSpellDamage`, which is the single
+   * funnel every unheld damage roll already passed through: a weapon attack, a
+   * spell, a scheduled hit, an Overchannel backlash and a DM's improvised dice
+   * all record their faces by the same route and not one of them had to be
+   * taught to. The held path does **not** emit it — `settleDamage` deals its
+   * damage through `resolveDamage` directly — so the faces are reported
+   * exactly once on each path, and neither loses them.
+   *
+   * **It is not a second account of what landed**, and the distinction is the
+   * whole point of the ruling. This says what the dice showed; `damage-taken`
+   * says what the target took once its Resistances, Vulnerabilities and
+   * Immunities and any Reaction had their say. A Resistance halving 13 to 6
+   * leaves `rolled: 13` here and `amount: 6` there, and a reader can see both.
+   *
+   * **Its seam is `fold/rolls.ts` and it writes no state at all**, exactly as
+   * `roll-recorded` writes none: the damage beside it is what moves hit
+   * points. That is what makes it additive — every log written before it
+   * existed folds to precisely the state it always folded to, the two frozen
+   * fixtures included, because a log without it is a log missing something
+   * that changes nothing.
+   *
+   * It carries no `command` stamp: it is never the only event a command
+   * writes, and the damage it sits beside is already stamped by whatever
+   * emitted that.
+   */
+  | {
+      readonly type: 'damage-dice-recorded';
+      readonly target: CharacterId;
+      /**
+       * Who dealt it, where anybody did. A falling brazier has no dealer, the
+       * same real answer `damage-taken.by` and `PendingDamage.by` record.
+       */
+      readonly by?: CharacterId;
+      /** Prose for the audit trail — "Longsword", "Fire Bolt". */
+      readonly source: string;
+      /**
+       * What the components come to **before** the target's defences.
+       *
+       * The number `damage-taken.amount` is to be read against, stated rather
+       * than left to be summed, because it is the comparison the ruling asks
+       * to be legible and a reader should not have to do arithmetic to make
+       * one half of it.
+       */
+      readonly rolled: number;
+      readonly components: readonly RecordedDamageDice[];
     }
 
   // — dice ——————————————————————————————————————————————————————

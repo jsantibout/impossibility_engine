@@ -73,6 +73,7 @@ import {
   heldDamageTotal,
   reactionContributions,
   spendReactionCost,
+  statedFrom,
 } from './damage.js';
 import { applyHitRider } from './hit-riders.js';
 import { completeIfSettled, pendingCastingsOf } from './holds.js';
@@ -191,6 +192,10 @@ export function takeDamageReaction(
       total: applied.amount,
       contributions: reactionContributions(amount, abilities, applied.roll?.total ?? 0, halved),
       outcome: `${applied.amount} damage prevented`,
+      // A reduction that rolled nothing — Uncanny Dodge's halving — has no
+      // provenance to report, and one the engine threw reports none either.
+      // See `StatedRoll` in `events.ts`.
+      ...statedFrom(applied.roll?.provenance),
     });
 
     events.push({

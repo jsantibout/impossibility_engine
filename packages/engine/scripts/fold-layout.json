@@ -24,6 +24,8 @@
     "initialState"
   ],
   "events.ts": [
+    "StatedRoll",
+    "RecordedDamageDice",
     "GameEvent"
   ],
   "fold/common.ts": [

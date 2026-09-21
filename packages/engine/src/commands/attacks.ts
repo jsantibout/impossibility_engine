@@ -90,7 +90,7 @@ import {
 } from './casting.js';
 import { creatureOf, unknownCreature } from './command.js';
 import { routeLabel } from './item-casting.js';
-import { landDamage } from './damage.js';
+import { landDamage, statedFrom } from './damage.js';
 import {
   CLEAVE_REACH,
   masteryAfterHit,
@@ -1022,6 +1022,11 @@ export function resolveAttack(
         ...namedFlat.map((bonus) => ({ source: bonus.source, amount: bonus.flat ?? 0 })),
       ],
       outcome: attack.value.hit ? 'hit' : 'miss',
+      // Where the d20 came from, when it was not this engine. Absent for every
+      // roll anything can make today, and read off the roll rather than
+      // assumed — see `StatedRoll` in `events.ts` for why the field is here
+      // before a door exists that could fill it.
+      ...statedFrom(attack.value.roll.provenance),
       // Stamped on the roll rather than on the damage, because a miss deals none
       // and a missed swing must not be retryable.
       ...(stamp === null ? {} : { command: stamp }),

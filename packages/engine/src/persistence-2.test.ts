@@ -500,6 +500,15 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // acknowledgement this list exists to collect.
   'creature-summoned',
   'damage-defense-granted',
+  // The faces a damage roll showed. Neither log was written when the ordinary
+  // damage path recorded them at all — a blow nobody could react to kept its
+  // post-defence total and nothing else — and both fixtures fold to exactly
+  // the states they always folded to without it, because the seam that owns it
+  // writes no state. `damage-dice-in-the-log.test.ts` folds it and drives it
+  // end to end: a greatsword, a Fire Bolt, a DM's improvised dice, a Critical
+  // Hit's doubled dice, a Resistance halving the total the faces made, and the
+  // held path that reports the same faces on `damage-rolled` instead.
+  'damage-dice-recorded',
   // A patch of Difficult Terrain the table declared: neither log was written
   // when the ground could cost anything but a foot per foot — the scene held
   // no terrain at all — and both fixtures fold to exactly the states they
