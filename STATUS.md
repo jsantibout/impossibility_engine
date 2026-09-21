@@ -552,6 +552,18 @@ Multiattack is built for the one mechanism of five the ruling covers.
   (The vampire spawn is not an example. Its `Bite` is a Constitution saving
   throw, so handing it over is right; the earlier report that it was a printed
   attack line was mistaken.)
+- **Recharge is enforced** (owner, 2026-09-20). "Recharge 5-6" means the
+  ability is expended when used, and at the start of the creature's turn the
+  engine rolls a d6; on a 5 or 6 it may be used again. The roll is the
+  engine's, at a boundary that already raises payouts, against state that says
+  what is expended.
+
+  Measured the day it was ruled: **87 lines print a recharge** across 87 blocks
+  — 73 actions, 13 bonus actions, 1 reaction — printing `5-6` sixty-seven
+  times, `6` fourteen, `4-6` five, and "after a Short or Long Rest" once. The
+  parsed field sits on `MonsterAttackSchema`, so only the **2** lines that
+  print an attack roll can carry one and the other 85 have nowhere to put it;
+  the schema's `rest` arm is written and nothing produces it.
 - **`alsoHolding` stays, though no content can reach it** (owner, 2026-09-20).
   `holdings.ts` used to list a feature once under first-claim-wins, so a feature
   holding both a pool's menu and a hit rider would have lost one. No catalogue
