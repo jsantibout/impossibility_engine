@@ -130,6 +130,88 @@ const CASTING_TIMES: ReadonlySet<string> = new Set([
   'reaction',
   'long',
 ]);
+
+/**
+ * The die behaviours a definition may ask for, and the caps they may be bounded
+ * by — `DieRule` and `DieRuleCap` written out as data.
+ *
+ * Written out rather than derived because the validator's whole job is to judge
+ * input the compiler never saw. A kind joins this set in the commit that
+ * teaches `declaredDieEffects` to build it, which is the rule
+ * `FEAT_GRANT_KINDS` states for a feat's grant and `CONFERRED_EFFECT_KINDS` for
+ * an item's: a vocabulary member with no reader is a promise the engine does
+ * not keep.
+ */
+const DIE_RULE_KINDS: ReadonlySet<string> = new Set(['bonus-die-on-max']);
+const DIE_RULE_CAPS: ReadonlySet<string> = new Set(['spellcasting-modifier']);
+
+/**
+ * The effect kinds that roll a casting's **own** damage dice.
+ *
+ * What a die rule has to find on a definition for the rule to be about
+ * anything. The two are the attack and the damaging save — the pair
+ * `resolveAttackEffect` and `resolveSaveDamageEffect` roll — and a kind joins
+ * them here the day its resolver carries the effects through.
+ */
+const ROLLS_ITS_OWN_DAMAGE: ReadonlySet<string> = new Set(['attack', 'save-damage']);
+
+/**
+ * Whether a casting of this definition rolls its damage **more than once**.
+ *
+ * `DieRule`'s cap is a budget for the whole casting — SRD caps "the maximum
+ * number of these d8s you can add to **the spell's damage**" — and `roll()`
+ * counts an effect's bonus dice against the call it is in. So a definition that
+ * throws its damage twice would be allowed the cap twice.
+ *
+ * The ways one casting reaches a damage roll again — a list rather than a
+ * count, so that adding one is adding a bullet and a clause:
+ *
+ * - **Two damaging effects.**
+ * - **A payload printed in a second damage type** — `plus`, which
+ *   `resolveSaveDamageEffect` rolls part by part. Only `save-damage` carries
+ *   one; an `attack` has no such field.
+ * - **More than one target**, which the per-target loop rolls for one at a
+ *   time.
+ * - **The targets a bigger slot adds**: `targetCountFor` is
+ *   `count + extraPerSlotLevelAbove × above`, so the base count alone does not
+ *   answer this.
+ * - **A count the definition never states** — `unlimited`, which requires a
+ *   base count of zero beside it and so scores nothing against the clause
+ *   above.
+ * - **An area**, which resolves per creature caught, and `targetsWithin`
+ *   beside it, which bounds a choice with the same geometry.
+ * - **An activation.** SRD Vampiric Touch: "you can make the attack again on
+ *   each of your turns." The later action resolves its own effects under the
+ *   *same* casting, so the rule is read off the same definition and handed a
+ *   fresh cap every turn, which is a budget spent once a round rather than once
+ *   a casting.
+ *
+ * Two shapes deliberately absent: `onMiss: 'half'` is the other arm of an
+ * either/or and rolls instead of the hit rather than beside it, and an
+ * `areaTrigger` is refused without an `area`, which the area clause already
+ * catches.
+ *
+ * Refused rather than answered wrongly, and the refusal is the honest form of
+ * the limit: the day the budget is carried across the rolls of one casting,
+ * this function is what goes so that they can be admitted.
+ */
+function rollsDamageTwice(definition: SpellDefinition): boolean {
+  const rollers = definition.effects.filter((effect) => ROLLS_ITS_OWN_DAMAGE.has(effect.kind));
+  if (rollers.length > 1) return true;
+  const targets = definition.targets;
+  if (targets.count > 1 || (targets.extraPerSlotLevelAbove ?? 0) > 0 || targets.unlimited === true) {
+    return true;
+  }
+  if (definition.area !== undefined || definition.targetsWithin !== undefined) return true;
+  if (
+    (definition.activation?.effects ?? []).some((effect) =>
+      ROLLS_ITS_OWN_DAMAGE.has(effect.kind),
+    )
+  ) {
+    return true;
+  }
+  return rollers.some((effect) => 'plus' in effect && (effect.plus ?? []).length > 0);
+}
 const ABILITY_NAMES_SET: ReadonlySet<Ability> = new Set(ABILITIES);
 const SKILL_NAMES: ReadonlySet<Skill> = new Set(SKILLS);
 /**
@@ -2172,6 +2254,59 @@ export function checkSpellDefinition(
     definition.damageTypeStated.forEach((type, i) =>
       checkDamageType(type, `damageTypeStated[${i}]`, found),
     );
+  }
+
+  // — what the individual dice of this spell's damage do ————————————————————
+
+  if (
+    definition.dieRule !== undefined &&
+    readsAsObject(
+      definition.dieRule,
+      'dieRule',
+      'a die rule is an object naming what the dice do and what bounds it',
+      found,
+    )
+  ) {
+    const rule = definition.dieRule as { kind?: unknown; cap?: unknown };
+
+    if (!DIE_RULE_KINDS.has(rule.kind as string)) {
+      found.push({
+        field: 'dieRule.kind',
+        code: 'unknown_die_rule',
+        reason: `"${String(rule.kind)}" is not a die behaviour the engine has; ${[...DIE_RULE_KINDS].join(', ')} is`,
+      });
+    }
+
+    // A cap is a **derivation** the engine performs off the caster's sheet, so
+    // an unknown one is a number nothing can compute rather than a number out
+    // of range — which is why a literal fails here as loudly as a misspelling.
+    if (!DIE_RULE_CAPS.has(rule.cap as string)) {
+      found.push({
+        field: 'dieRule.cap',
+        code: 'unknown_die_rule_cap',
+        reason: `"${String(rule.cap)}" is not a cap the engine can derive; ${[...DIE_RULE_CAPS].join(', ')} is`,
+      });
+    }
+
+    // **And the rule has to reach a die.** The two effect kinds that roll a
+    // casting's own damage are the attack and the damaging save; a definition
+    // that has neither throws nothing this could be about, and a rule nobody
+    // reads is the failure the whole validator exists to prevent.
+    if (!definition.effects.some((effect) => ROLLS_ITS_OWN_DAMAGE.has(effect.kind))) {
+      found.push({
+        field: 'dieRule',
+        code: 'die_rule_rolls_nothing',
+        reason:
+          'a die rule is about the dice this spell rolls for damage, and this spell rolls none: give it an attack or a damaging save, or drop the rule',
+      });
+    } else if (rollsDamageTwice(definition)) {
+      found.push({
+        field: 'dieRule',
+        code: 'die_rule_rolls_more_than_once',
+        reason:
+          "the cap is a budget for the whole casting and is spent per damage roll, so a spell that rolls its damage more than once — several targets, more of them out of a bigger slot, a count it never states, an area, an activation that rolls again on a later turn, two damaging effects, or a payload printed in a second damage type — would be allowed it once per roll",
+      });
+    }
   }
 
   // — duration —————————————————————————————————————————————————————————————

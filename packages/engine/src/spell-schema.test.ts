@@ -1751,6 +1751,11 @@ const FORMAT_TYPES = [
   'CastingEndCause',
   'CastingEndTrigger',
   'DiceScaling',
+  // Both halves of what a spell says about its own dice: the behaviour and the
+  // bound on it. One arm and one cap today, and the sweep is why a second of
+  // either arrives with a definition that writes it rather than ahead of one.
+  'DieRule',
+  'DieRuleCap',
   'CastingOrigin',
   'SpellActivation',
   'SpellRange',

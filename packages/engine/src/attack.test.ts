@@ -7,7 +7,7 @@ import type { Rng, RngState } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { createRng } from './dice.js';
 import { conditionState } from './conditions.js';
-import { rerollDice, treatLowRollsAs } from './dice.js';
+import { explodeOnMax, rerollDice, treatLowRollsAs } from './dice.js';
 import type { AbilityScores, CharacterSheet } from './character.js';
 import {
   applyDamage,
@@ -541,6 +541,60 @@ describe('against real SRD weapons', () => {
     expect(damage.components[0]!.roll!.dice.map((d) => d.rolled)).toEqual([1, 2]);
     expect(damage.components[0]!.roll!.dice.map((d) => d.value)).toEqual([3, 3]);
     expect(damage.total).toBe(3 + 3 + 3);
+  });
+
+  /**
+   * **The two scopes a per-die rule can have, in one roll.**
+   *
+   * SRD Great Weapon Fighting is about the attack — "any 1 or 2 on a damage
+   * die" — and reaches every die the swing throws, which is `damageEffects`.
+   * SRD Sorcerous Burst is about one spell — "for this spell" — and a damage
+   * roll may carry dice that are somebody else's casting's, so a rule declared
+   * by a spell travels on its own component. Here both are in play at once: a
+   * Greatsword under the style, and a Flame Tongue's Fire riding along with a
+   * rule of its own that the style's substitution must not hide and that must
+   * not reach the blade.
+   */
+  it('keeps a component’s own die rule off the rest of the roll', () => {
+    const s = sheet({ abilities: scores({ str: 16 }) });
+    const damage = unwrap(
+      rollAttackDamage(
+        issuer(),
+        // 2d6 for the blade, then the extra's d6.
+        scriptedRng([1, 4, 6, 2]),
+        s,
+        {
+          weapon: weapon('greatsword'),
+          targetAc: 10,
+          damageEffects: [treatLowRollsAs(2, 3, 'Great Weapon Fighting')],
+          extraDamage: [
+            {
+              source: 'Flame Tongue',
+              type: 'fire',
+              dice: '1d6',
+              effects: [explodeOnMax(1, 'Flame Tongue')],
+            },
+          ],
+        },
+        false,
+      ),
+      'scopes',
+    );
+
+    // The attack's rule reached the weapon: a 1 counts as 3, a 4 is untouched.
+    expect(damage.components[0]!.roll!.dice.map((d) => d.rolled)).toEqual([1, 4]);
+    expect(damage.components[0]!.roll!.dice.map((d) => d.value)).toEqual([3, 4]);
+    // And it reached the extra as well, because it is about the attack — but
+    // the extra's own rule added a die and the weapon's roll has only the two
+    // it was asked for, so nothing exploded on the blade's own 6.
+    const fire = damage.components.find((c) => c.source === 'Flame Tongue')!;
+    expect(fire.roll!.dice.map((d) => d.rolled)).toEqual([6, 2]);
+    expect(fire.roll!.dice.map((d) => d.origin)).toEqual(['initial', 'bonus']);
+    expect(fire.roll!.dice[1]!.cause).toBe('Flame Tongue');
+    // The added die showed a 2 and the style counts it as a 3, which is the
+    // composition order: the attack's rules run first and the component's own
+    // decide what the die *does*.
+    expect(fire.total).toBe(6 + 3);
   });
 
   it('exposes the damage roll so a rule can reroll one die of it', () => {

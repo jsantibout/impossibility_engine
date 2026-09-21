@@ -19,7 +19,7 @@ import {
   type Skill,
 } from '@ie/shared';
 import { type DamageComponent, rollAttackDamage } from '../attack.js';
-import { parseNotation } from '../dice.js';
+import { type DieEffect, explodeOnMax, parseNotation } from '../dice.js';
 import { type Bonus, bonusesFor, flatBonusTotal, type ModeSource } from '../bonuses.js';
 import { abilityModifier, type CharacterSheet } from '../character.js';
 import { type D20TestResult, skillName } from '../checks.js';
@@ -27,7 +27,7 @@ import { type ConditionState, isIncapacitated } from '../conditions.js';
 import { type EffectCheck } from '../timers.js';
 import { type CreatureState, type GameEvent, type GameState } from '../events.js';
 import { distanceBetween } from '../positioning.js';
-import { type SpellCheck } from '../spell-definitions.js';
+import { type DieRule, type SpellCheck } from '../spell-definitions.js';
 import {
   canSee,
   type CastingDamageFeature,
@@ -280,6 +280,44 @@ export function alteredCastingDice(
 }
 
 /**
+ * A spell's declared die rule, as the per-die effects the generator takes.
+ *
+ * **The declaration names a derivation and this is where it is derived.** SRD
+ * Sorcerous Burst caps its extra d8s at "your spellcasting ability modifier",
+ * which is a fact about the caster rather than about the spell, so the
+ * catalogue says *which* number it wants and the engine reads it off the
+ * numbers the casting pinned. A definition stating a literal would be content
+ * answering a question only the sheet can — the mistake inviolable rule 4
+ * exists to prevent, arriving on a cap instead of on an id.
+ *
+ * A modifier of zero or less caps the rule at nothing, which is the arithmetic
+ * and not a special case: a Sorcerer with a Charisma of 10 adds no dice.
+ *
+ * Absent rule, empty list, and the roll is thrown exactly as it was before this
+ * field existed — which is what keeps every log written until now folding
+ * unchanged.
+ */
+export function declaredDieEffects(
+  rule: DieRule | undefined,
+  spellcastingModifier: number,
+  name: string,
+): readonly DieEffect[] {
+  if (rule === undefined) return [];
+  switch (rule.kind) {
+    case 'bonus-die-on-max':
+      return [explodeOnMax(Math.max(0, capOf(rule.cap, spellcastingModifier)), name)];
+  }
+}
+
+/** The one derivation a {@link DieRule} cap names — see `DieRuleCap`. */
+function capOf(cap: DieRule['cap'], spellcastingModifier: number): number {
+  switch (cap) {
+    case 'spellcasting-modifier':
+      return spellcastingModifier;
+  }
+}
+
+/**
  * A pinned notation as the caster's features leave it.
  *
  * The half of {@link alteredCastingDice} that reaches a die nobody is throwing
@@ -325,6 +363,7 @@ export function rollSpellDice(
   source: string,
   type: string,
   dice: string | undefined,
+  effects: readonly DieEffect[] = [],
 ): Result<readonly DamageComponent[]> {
   const rolled = rollAttackDamage(
     supply.issuer,
@@ -333,7 +372,17 @@ export function rollSpellDice(
     {
       weapon: null,
       targetAc: 0,
-      extraDamage: [{ source, type, ...(dice === undefined ? {} : { dice }) }],
+      extraDamage: [
+        {
+          source,
+          type,
+          ...(dice === undefined ? {} : { dice }),
+          // On the component rather than on the whole roll, which costs nothing
+          // here — there is one component — and keeps one reading of where a
+          // spell's declared rule lives across every site that rolls one.
+          ...(effects.length === 0 ? {} : { effects }),
+        },
+      ],
     },
     false,
   );
