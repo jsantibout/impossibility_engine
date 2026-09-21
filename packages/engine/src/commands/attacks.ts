@@ -65,13 +65,13 @@ import {
   coverBetween,
   distanceBetween,
   positionOf,
+  sightBetween,
 } from '../positioning.js';
 import { type ReactionOffer } from '../reactions.js';
 import { isCreatureType, scaledDiceFor, scaledFlatFor } from '../spell-definitions.js';
 import {
   actionRulesOn,
   armorClassOf,
-  canSee,
   checkFeatureDamageTypes,
   effectiveConditions,
   sheetAsItStands,
@@ -903,19 +903,40 @@ export function resolveAttack(
     // exception; nothing reaching them ever carried the fact, so declaring
     // that the goblin is looking straight at the Rogue took nothing away.
     //
-    // **The same three-valued `canSee` `defendingModes` asks just above**, and
-    // the third value is homework rather than a verdict: `null` is "nobody has
-    // said", and reading it as either answer would be the engine inventing the
-    // one input the doctrine leaves to the fiction. So an undeclared sight
-    // line keeps exactly the behaviour this roll has always had — the benefit
-    // applied rather than withheld, which is `rollModesFor`'s own reading of
-    // the same absence — and is *reported* rather than asked about. A
-    // `needs-context` here would stop a fight to settle a sight line on every
-    // swing, which is a rule nobody has ruled on.
+    // Three-valued, and the third value is homework rather than a verdict:
+    // `null` is "nobody has said", and reading it as either answer would be
+    // the engine inventing the one input the doctrine leaves to the fiction.
+    // So an undeclared sight line keeps exactly the behaviour this roll has
+    // always had — the benefit applied rather than withheld, which is
+    // `rollModesFor`'s own reading of the same absence — and is *reported*
+    // rather than asked about. A `needs-context` here would stop a fight to
+    // settle a sight line on every swing, which is a rule nobody has ruled on.
+    //
+    // **The declaration alone, and deliberately not `canSee`.** This is the
+    // one sight question in the engine that `canSee` answers wrongly, and the
+    // difference is the senses: `sightBetween` reports `true` from any member
+    // of `SIGHT_SENSES`, and Darkvision is in it — five SRD species carry it
+    // as a standing grant. SRD Darkvision lets you see in Darkness; it does
+    // **not** let you see a creature with the Invisible condition. Asking
+    // `canSee` here would therefore take Hide's and Greater Invisibility's
+    // Advantage away from every elf, dwarf, gnome, orc and dragonborn in
+    // range, silently, because a sense answers `true` rather than `null` and
+    // the clause below would have nothing to report.
+    //
+    // Truesight *does* see the Invisible and Blindsight arguably does, so the
+    // right answer is a narrower set of senses than `SIGHT_SENSES` — and that
+    // set is a ruling nobody has made and lives beside `canSee` rather than
+    // here. Until it exists this reads what the table declared and nothing
+    // else, which changes no behaviour that was not already declared. The
+    // sibling clause `defendingModes` asks is a different sentence — Dodge's
+    // "if you can see the attacker", which Darkvision genuinely satisfies —
+    // so it rightly keeps `canSee`.
     const attackerConditions = effectiveConditions(state, id);
     const targetConditions = effectiveConditions(state, command.target);
-    const targetCanSeeAttacker = canSee(state, command.target, id);
-    const attackerCanSeeTarget = canSee(state, id, command.target);
+    const declaredSight = (from: CharacterId, to: CharacterId): boolean | null =>
+      state.scene === null ? null : sightBetween(state.scene, from, to);
+    const targetCanSeeAttacker = declaredSight(command.target, id);
+    const attackerCanSeeTarget = declaredSight(id, command.target);
 
     if (targetCanSeeAttacker === null && hasCondition(attackerConditions, 'invisible')) {
       unverified.push(

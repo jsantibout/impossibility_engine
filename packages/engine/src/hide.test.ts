@@ -12,9 +12,17 @@ import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent } from './events.js';
-import { resolveAttack, resolveSpell, takeHide, HIDE_DC } from './commands.js';
+import {
+  pendingCastingsOf,
+  resolveAttack,
+  resolveDeclaredCast,
+  resolveSpell,
+  takeHide,
+  HIDE_DC,
+} from './commands.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
 import { spellSlotKey } from './resources.js';
+import { canSee } from './standing.js';
 import { declaredCasting } from './spellcasting.js';
 
 /**
@@ -514,5 +522,178 @@ describe('SRD Hide: what ends it', () => {
 
     expect(cast.events.some((event) => event.type === 'spell-cast')).toBe(true);
     expect(sourcesOn(after, ROGUE)).toEqual([]);
+  });
+});
+
+/**
+ * The third door into `hidingEndedBy`, and the one the other two cannot reach:
+ * a casting **declared** on one command and settled on another.
+ *
+ * The two halves are a pair and only the second of them ends the hiding. SRD
+ * says "you cast a spell", and a rite the caster is still muttering over has
+ * not been cast — which is the same reading `target-casts` takes of
+ * `spell-cast` rather than of `spell-declared`, because a declaration
+ * Counterspell dissipates is not a spell anybody cast. So the declaration
+ * leaves the Rogue hidden and the settlement is what gives them away.
+ */
+describe('SRD Hide: a casting declared on one command and settled on another', () => {
+  const armed = (): readonly GameEvent[] => [
+    ...WITHIN_REACH,
+    {
+      type: 'resource-pool-declared',
+      id: ROGUE,
+      pool: { key: spellSlotKey(1), label: 'l1', max: 2, recovers: 'long-rest' },
+    },
+    {
+      type: 'spellcasting-declared',
+      id: ROGUE,
+      spellcasting: declaredCasting({ ability: 'int', prepared: ['mage-armor'] }),
+    },
+  ];
+
+  const declare = (log: readonly GameEvent[]) =>
+    unwrap(
+      resolveSpell(
+        fold('seed', log),
+        ROGUE,
+        { spellId: 'mage-armor', targets: [ROGUE], slotLevel: 1, hold: true },
+        supply('declare'),
+      ),
+      'the declaration',
+    );
+
+  it('leaves the hiding standing while the casting is only declared', () => {
+    const log = hidden(armed());
+    const held = declare(log);
+    const after = [...log, ...held.events];
+
+    expect(pendingCastingsOf(fold('seed', after))).toHaveLength(1);
+    expect(held.events.some((event) => event.type === 'spell-cast')).toBe(false);
+    expect(sourcesOn(after, ROGUE)).toEqual(['action:hide']);
+  });
+
+  it('ends it when that casting settles', () => {
+    const log = hidden(armed());
+    const held = declare(log);
+    const open = [...log, ...held.events];
+
+    const settled = unwrap(
+      resolveDeclaredCast(fold('seed', open), held.castingId!, supply('settle')),
+      'the settlement',
+    );
+    const after = [...open, ...settled.events];
+
+    expect(settled.events.some((event) => event.type === 'spell-cast')).toBe(true);
+    expect(sourcesOn(after, ROGUE)).toEqual([]);
+  });
+});
+
+/**
+ * **The decision this wiring stops just short of**, pinned so that nobody
+ * makes it by accident.
+ *
+ * `canSee` is the seam every other sight rule in the engine comes through, and
+ * for this one sentence it answers the wrong question: `sightBetween` reports
+ * `true` from any member of `SIGHT_SENSES`, and Darkvision is one of the
+ * three. Five SRD species carry Darkvision as a standing grant, so asking
+ * `canSee` whether the watcher can see the hidden Rogue would take the
+ * Advantage away from most of the party — silently, because a sense answers
+ * `true` rather than `null` and the report below only fires on `null`.
+ *
+ * SRD Darkvision lets you see in Dim Light and Darkness; it says nothing about
+ * the Invisible condition. Truesight *does* say so, and Blindsight arguably
+ * does, so the rule this clause actually wants is a narrower set of senses
+ * than `SIGHT_SENSES` — which is a ruling nobody has made, and which belongs
+ * beside `canSee` rather than on the attack command. Until it exists, the
+ * clause reads the declaration and nothing else.
+ *
+ * So this test asserts the *absence*: a dwarf whose Darkvision reaches the
+ * Rogue, with nobody having declared a thing, does not take the Advantage
+ * away — and the swing says out loud that nobody declared it.
+ */
+describe('the senses, and the ruling this clause is waiting on', () => {
+  const DWARF = id('dwarf');
+
+  const dwarfChoices: CharacterChoices = {
+    ...common,
+    name: 'Dain',
+    classId: 'fighter',
+    level: 5,
+    speciesId: 'dwarf',
+    abilities: {
+      method: 'standard-array',
+      assignment: { str: 15, dex: 13, con: 14, int: 8, wis: 12, cha: 10 },
+    },
+    abilityIncreases: { con: 2, wis: 1 },
+    classSkills: ['athletics', 'survival'],
+    subclassId: 'champion',
+    featureChoices: { 'fighter:weapon-mastery': [] },
+    feats: {
+      ...MAGIC_INITIATE,
+      'fighter:fighting-style': { featId: 'archery' },
+      'fighter:ability-score-improvement': { featId: 'savage-attacker' },
+    },
+  };
+
+  /**
+   * The Rogue Invisible and a dwarf five feet away who has declared nothing.
+   * The condition is applied directly rather than hidden for, because a Hide
+   * needs a declaration and the whole point here is that there is none.
+   */
+  const unlit = (): readonly GameEvent[] => [
+    ...(unwrap(createCharacter(SRD_CONTENT, rogueChoices, ROGUE), 'the rogue') as GameEvent[]),
+    { type: 'creature-side-declared', id: ROGUE, side: 'party' },
+    ...(unwrap(createCharacter(SRD_CONTENT, dwarfChoices, DWARF), 'the dwarf') as GameEvent[]),
+    { type: 'creature-side-declared', id: DWARF, side: 'delvers' },
+    { type: 'scene-set', extent: { width: 400, depth: 400, height: 40 } },
+    { type: 'landmark-added', name: 'the deep', at: { x: 100, y: 100, z: 0 } },
+    { type: 'creature-placed', id: ROGUE, placement: { from: { landmark: 'the deep' }, feet: 0 } },
+    {
+      type: 'creature-placed',
+      id: DWARF,
+      placement: { from: { creature: ROGUE }, feet: 5, bearing: 0 },
+    },
+    { type: 'condition-applied', id: ROGUE, condition: 'invisible', source: 'casting:greater' },
+  ];
+
+  it('has the dwarf seeing the Rogue as far as canSee is concerned', () => {
+    // The premise, stated rather than assumed: the sense really does answer,
+    // so the test below is about what this clause does with that answer.
+    expect(canSee(fold('seed', unlit()), DWARF, ROGUE)).toBe(true);
+  });
+
+  it('does not let Darkvision alone take the Invisible attacker’s Advantage', () => {
+    const out = unwrap(
+      resolveAttack(
+        fold('seed', unlit()),
+        ROGUE,
+        { target: DWARF, weapon: null, attackBonuses: [{ source: 'forced', flat: 40 }] },
+        supply('deep'),
+      ),
+      'the swing',
+    );
+
+    expect(out.attack?.roll.mode).toBe('advantage');
+    expect(out.unverified.some((line) => line.includes('Invisible'))).toBe(true);
+  });
+
+  /** And a declaration still outranks everything, which is the rule that did land. */
+  it('still takes it away when the dwarf is declared to see them', () => {
+    const declared: readonly GameEvent[] = [
+      ...unlit(),
+      { type: 'sight-declared', from: DWARF, to: ROGUE, seen: true },
+    ];
+    const out = unwrap(
+      resolveAttack(
+        fold('seed', declared),
+        ROGUE,
+        { target: DWARF, weapon: null, attackBonuses: [{ source: 'forced', flat: 40 }] },
+        supply('deep'),
+      ),
+      'the swing',
+    );
+
+    expect(out.attack?.roll.mode).toBe('normal');
+    expect(out.unverified.some((line) => line.includes('Invisible'))).toBe(false);
   });
 });
