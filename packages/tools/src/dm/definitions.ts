@@ -761,7 +761,7 @@ const LOSE_ITEMS = tool({
 const DECLARE_HEADS = tool({
   name: 'declare_heads',
   description:
-    'Say how many heads a creature still has — the Hydra’s, and anything else whose block counts its attacks off them. Its Attack action then holds that many of the attack its block prints, derived by the engine rather than stated by you: you say five heads, not five Bites. Say it again whenever the number changes; the newest count is the one that counts. Until somebody says, the action holds one attack and the engine reports that it assumed so.',
+    'Say how many heads a creature still has — the Hydra’s, and anything else whose block counts its attacks off them. Where the block states no attack sequence the engine could read, its Attack action then holds that many swings, derived by the engine rather than stated by you: you say five heads, not five Bites. A creature whose sequence the engine did read is held to what the book printed, whatever you say about its heads. Say it again whenever the number changes; the newest count is the one that counts. Until somebody says, the action holds one attack and the engine reports that it assumed so.',
   mutates: true,
   input: z.strictObject({
     who: creatureId.describe('Which creature.'),
