@@ -24,6 +24,7 @@ import {
   featuresBlockedByNothing,
   featuresTheTableOwns,
   knownFeatureBlockers,
+  ledgerFeatureIds,
   manualFeatureIds,
   unanchoredFeatureClauses,
   type FeatureEntry,
@@ -57,10 +58,20 @@ import {
 
 const MANUAL = manualFeatureIds();
 
+/**
+ * The whole population the map answers for: the manual features **and** the
+ * pools that declare `engine` for the half they count and have nothing to
+ * spend a use on. `pool-blockers.test.ts` owns the widening; what this file
+ * needs from it is that the completeness guard is driven over the same
+ * population it defaults to, or the two synthetics below stop being one-line
+ * failures.
+ */
+const POPULATION = ledgerFeatureIds();
+
 /** A real feature to hang synthetic readings on, chosen for a short note. */
 const SPECIMEN = 'druid:druidic';
 
-describe('the feature blocked-on map covers the manual population', () => {
+describe('the feature blocked-on map covers the population it answers for', () => {
   /**
    * The completeness guard, and it has to be able to fail.
    *
@@ -69,7 +80,7 @@ describe('the feature blocked-on map covers the manual population', () => {
    * guard.
    */
   it('reports a feature marked manual that nobody has adjudicated', () => {
-    const synthetic = [...MANUAL, 'wizard:a-feature-nobody-read'];
+    const synthetic = [...POPULATION, 'wizard:a-feature-nobody-read'];
     expect(featureCoverageGaps(synthetic).unrecorded).toEqual(['wizard:a-feature-nobody-read']);
   });
 
@@ -79,12 +90,12 @@ describe('the feature blocked-on map covers the manual population', () => {
    * with the conversion rather than a commit later.
    */
   it('reports a line for a feature that has since been executed', () => {
-    const converted = MANUAL.filter((id) => id !== 'ranger:tireless');
+    const converted = POPULATION.filter((id) => id !== 'ranger:tireless');
     expect(featureCoverageGaps(converted).stale).toEqual(['ranger:tireless']);
   });
 
   /** Neither synthetic case is vacuous: the real corpus has no gap either way. */
-  it('has a line for every manual feature and no line for anything else', () => {
+  it('has a line for every feature in the population and no line for anything else', () => {
     expect(featureCoverageGaps()).toEqual({ unrecorded: [], stale: [] });
   });
 

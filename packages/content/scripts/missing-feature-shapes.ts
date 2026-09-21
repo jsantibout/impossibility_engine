@@ -98,6 +98,8 @@ export const FEATURE_SHAPES = {
     'a recovery that tops a pool up to a number rather than giving back a share of it. `Recovery`\'s `upTo` in packages/engine/src/progression.ts is half the class level, half the maximum, or all, and the SRD prints a fourth shape twice — "until you have two", "until you have 4 if you have 3 or fewer" — where what is regained depends on what is left rather than on the pool\'s size.',
   'a-resource-traded-for-another':
     'one resource spent to buy another. The conversion between two **pools** is built: the `trade` grant in packages/engine/src/progression.ts is "One resource spent to buy another", a list because "a feature carries one grant and the SRD prints two directions in one feature", and Wild Resurgence spends a Wild Shape use for a level 1 slot and a slot for a use. What is still unsaid is everything either end of which is not a pool — Sneak Attack dice forgone to buy an effect, a mode given up for a harder hit, a Channel Divinity use minting hit points to divide — and the trades the grant\'s own closed vocabulary cannot yet write: "a trade can never mint a use above a pool\'s maximum", so a slot a class table never printed is refused rather than given. The limit is no longer one of them: `ResourceTradeGrant.limit` carries an `unlimited` member, and Font of Inspiration, Sorcery Incarnate and Holy Nimbus each spend through it.',
+  'a-creature-swapped-for-another-stat-block':
+    'a creature whose game statistics are **replaced** by another block\'s, for as long as it holds the form. The neighbouring shape is a summons and this is not one: `a-stat-block-created-mid-fight` puts a second combatant on the field, while SRD Wild Shape leaves one creature standing under two sheets and names the half that survives line by line — "Your game statistics are replaced by the Beast\'s stat block, but you retain your creature type; Hit Points; Hit Point Dice; Intelligence, Wisdom, and Charisma scores; class features; languages; and feats". `docs/design/characters-and-equipment.md` holds the one direction that exists, which "turns a parsed stat block into a fightable creature" that had no sheet before; nothing lays a block over a character who already has one, and nothing takes it off again. The owner\'s ruling of 2026-09-20 settled the four questions the swap raises — gear merges, the block\'s Armour Class always wins, an oversized form is the forced-movement rule, and forms are chosen at the start of a Long Rest — so what is left here is the mechanism rather than the judgement.',
   'a-casting-paid-for-out-of-a-feature-pool':
     'a spell a feature lets you cast without a slot. The route exists for an **item** and is refused to a feature by name: packages/engine/src/progression.ts says of the `casts` grant "An item-only member. Nothing executes it from a class feature and `checkContent` refuses it there", because the charges it spends are an item\'s pool looked up by the granting item\'s id. Every SRD sentence of the shape "cast it without expending a spell slot" wants exactly that grant with a feature\'s pool behind it.',
   'an-option-whose-span-is-a-turn-boundary':
@@ -454,6 +456,30 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
 
   // — Druid —
+  /**
+   * The first of the four bare pools, and the reason the population widened.
+   *
+   * It declares `engine` truthfully — the uses are counted, sized off the Wild
+   * Shape column and refilled by both rests — and the feature is *becoming a
+   * Beast*, which nothing does.
+   */
+  'druid:wild-shape': [
+    {
+      clause: "the form's statistics",
+      why: 'a-creature-swapped-for-another-stat-block',
+      note: 'the whole of what a use buys: a Beast block laid over a character who already has a sheet, with Hit Points, mental scores, class features and proficiencies kept.',
+    },
+    {
+      clause: 'the hours it lasts',
+      why: 'a-benefit-that-runs-for-a-printed-span',
+      note: 'half the Druid level in hours, which is a printed span and not a boundary the feature could keep extending to.',
+    },
+    {
+      clause: 'the Bonus Action either way',
+      why: 'expressible',
+      note: 'a pool option already says what invoking it costs, so entering and leaving on a Bonus Action is a field nobody has filled rather than a mechanic nobody has built.',
+    },
+  ],
   'druid:druidic': [
     {
       clause: 'recorded as a proficiency and read by nobody',
@@ -577,6 +603,26 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
 
   // — Monk —
+  /**
+   * The pool that buys one of the three things its page prints.
+   *
+   * Not a bare pool — Focus Points really do buy Flurry of Blows — which is
+   * why it is declared in {@link POOLS_ONLY_PARTLY_BOUGHT} rather than
+   * derived: how many options the book offers is a fact about the page and
+   * the grant says only what it holds.
+   */
+  'monk:focus': [
+    {
+      clause: 'each is an action taken out of a cheaper slot, which the vocabulary can say',
+      why: 'expressible',
+      note: 'the same `action-rule` a Rogue’s Cunning Action is written through; Disengage, Dodge and Dash out of a Bonus Action is a sentence the catalogue can already write.',
+    },
+    {
+      clause: 'at a price in points, which it cannot',
+      why: 'a-resource-traded-for-another',
+      note: 'a purchase buys an extra action or extra attacks and there is no member for buying an action rule, so a Focus Point cannot be charged for the cheaper slot the vocabulary can otherwise state.',
+    },
+  ],
   'monk:slow-fall': [
     {
       clause: 'falling is not modelled',
@@ -684,6 +730,20 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
 
   // — Paladin —
+  /**
+   * A bare pool, and the one of the four whose debt is smallest.
+   *
+   * SRD gives this pool exactly one effect at level 3 — Divine Sense — and
+   * the subclass options that join it are features of their own with entries
+   * of their own.
+   */
+  'paladin:channel-divinity': [
+    {
+      clause: 'What each use buys is not executed',
+      why: 'a-declared-fact-a-feature-sets',
+      note: 'SRD Divine Sense: "you know the location of any creature of those types within 60 feet of yourself" — awareness of a filtered set of creatures for ten minutes, which is the declared fact a DM writes today and a feature cannot.',
+    },
+  ],
   'paladin:fighting-style': [
     {
       clause: 'The other two of the four are still a note rather than a grant',
@@ -999,6 +1059,13 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
 
   // — Sorcerer —
+  'sorcerer:font-of-magic': [
+    {
+      clause: 'Converting them into spell slots and back is not modelled',
+      why: 'a-resource-traded-for-another',
+      note: 'the half of the trade the grant refuses by rule: a slot bought with points is a use above a maximum the class table never printed, and the direction that already works — a slot spent for points — is the one where both ends are known.',
+    },
+  ],
   'sorcerer:innate-sorcery': [
     {
       clause: 'the +1 to spell save DC and Advantage on spell attacks',
@@ -1161,6 +1228,18 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
 
   // — Wizard —
+  'wizard:arcane-recovery': [
+    {
+      clause: 'Choosing which slots to recover',
+      why: 'a-resource-traded-for-another',
+      note: 'Font of Magic’s gap arriving at a second door: one use of a pool spent to give back spell slots the caller names, where what is gained is not a pool.',
+    },
+    {
+      clause: 'the half-level cap on their total',
+      why: 'a-resource-traded-for-another',
+      note: 'and the same trade needs a limit the vocabulary has no member for — a ceiling on the combined **level** of what is bought, rather than on how often the trade may be made.',
+    },
+  ],
   'wizard:ritual-adept': [
     {
       clause: 'the engine does not check that the spell has the Ritual tag or that the book is in hand',
@@ -1496,12 +1575,101 @@ const allFeatures = (): readonly FeatureDefinition[] => [
   ...SRD_CONTENT.backgrounds.flatMap((one) => one.features),
 ];
 
-/** The population: every feature that declares it is not executed. */
+/** The first population: every feature that declares it is not executed. */
 export const manualFeatureIds = (): readonly string[] =>
   allFeatures()
     .filter((feature) => feature.automation === 'manual')
     .map((feature) => feature.id)
     .sort();
+
+/**
+ * Every member of a `pool` grant that says what a use **buys**.
+ *
+ * Read off `progression.ts`'s pool member, where the rest of the fields say
+ * how big the pool is (`usesByLevel`, `fromAbilityModifier`, `perClassLevel`,
+ * `uses`, `usesRolled`, `minimum`) and when it comes back (`recovers`,
+ * `regainsOnShortRest`, `regainsAtDawn`, `recoversSooner`). A pool declaring
+ * none of these five is a resource the engine counts and nothing spends.
+ *
+ * Exported so the guard can drive {@link isBarePool} with each of them in
+ * turn: a member added to the grant and not added here would silently make a
+ * new pool read as bare.
+ */
+export const POOL_SPENDING_MEMBERS = [
+  'buysBudget',
+  'confersReaction',
+  'heals',
+  'options',
+  'touchHeals',
+] as const;
+
+/**
+ * A pool grant with nothing to spend a use on.
+ *
+ * The derived half of the second population. It is a **shape** rather than an
+ * opinion — the grant either says what a use buys or it does not — which is
+ * what lets four features join the map with no list to keep.
+ */
+export const isBarePool = (feature: FeatureDefinition): boolean => {
+  const grant = feature.grants as { kind?: string } | undefined;
+  if (grant?.kind !== 'pool') return false;
+  return POOL_SPENDING_MEMBERS.every(
+    (member) => (grant as Record<string, unknown>)[member] === undefined,
+  );
+};
+
+/**
+ * The second population: `engine` features whose pool buys nothing.
+ *
+ * **The map could not see these and their whole point is unbuilt.** Each
+ * declares `engine` truthfully — the uses are counted, sized off the class
+ * table and refilled by the right rest — and each is a feature whose *effect*
+ * nobody has written: Wild Shape's Beast form, Font of Magic's conversion,
+ * Arcane Recovery's chosen slots, a Paladin's Divine Sense. Selecting the map
+ * by `automation === 'manual'` hid all four, because the flag answers "does
+ * the engine apply what this declares" and these declare only a pool.
+ *
+ * Manual features are excluded: one of those is already in the first
+ * population, and a feature counted twice would be a second answer to one
+ * question.
+ */
+export const barePoolFeatureIds = (): readonly string[] =>
+  allFeatures()
+    .filter((feature) => feature.automation === 'engine' && isBarePool(feature))
+    .map((feature) => feature.id)
+    .sort();
+
+/**
+ * The third population, declared: pools that buy **some** of what the book
+ * prints.
+ *
+ * **This one cannot be derived and saying why is the point.** A grant states
+ * what it offers and never what its page left out, so nothing in the
+ * catalogue knows SRD spends a Focus Point three ways and that the engine
+ * executes one of them. The only query available would be a regex over the
+ * note — over the 194 engine features it catches 22, most of them features
+ * whose note merely mentions the table — which is a classifier wearing a
+ * derivation's clothes, the failure `missing-shapes.ts` keeps a record of.
+ *
+ * So it is a list, and it is held down at both ends: every id must be an
+ * engine pool that {@link isBarePool} does **not** already find, and must
+ * carry an entry whose clauses anchor in its own note, which is the same
+ * discipline every other line in this map is written under.
+ */
+export const POOLS_ONLY_PARTLY_BOUGHT: readonly string[] = ['monk:focus'];
+
+/**
+ * The whole population this map answers for: the three arms together.
+ *
+ * {@link featureCoverageGaps} reads this rather than the manual list alone,
+ * which is what makes an entry for an `engine` pool possible at all — before
+ * the widening, a line for one was `stale` by definition and the four could
+ * not have been recorded even by somebody who had read them.
+ */
+export const ledgerFeatureIds = (): readonly string[] =>
+  [
+    ...new Set([...manualFeatureIds(), ...barePoolFeatureIds(), ...POOLS_ONLY_PARTLY_BOUGHT]),
+  ].sort();
 
 let notes: Map<string, string> | undefined;
 
@@ -1561,9 +1729,15 @@ export const unanchoredFeatureClauses = (
 /**
  * The two ways {@link FEATURE_BLOCKED_ON} can fail to cover its population.
  *
- * `unrecorded` is a manual feature with no line — a feature somebody wrote a
- * note for and nobody adjudicated. `stale` is a line for a feature that is not
- * manual, which after a conversion lands is the other half of the same drift.
+ * `unrecorded` is a member of the population with no line — a feature
+ * somebody wrote a note for and nobody adjudicated. `stale` is a line for a
+ * feature that has left the population, which after a conversion lands is the
+ * other half of the same drift.
+ *
+ * The population is {@link ledgerFeatureIds} rather than the manual list: a
+ * bare pool declares `engine` and is still a debt, and while the default was
+ * the manual list alone a line for one of those four read as `stale`, so the
+ * map could not have recorded them even if somebody had read them.
  *
  * Parameterised over the population for {@link itemCoverageGaps}'s reason: a
  * guard that can only be run against the data it already agrees with is not a
@@ -1571,10 +1745,10 @@ export const unanchoredFeatureClauses = (
  * synthetic conversion that must make a line stale.
  */
 export const featureCoverageGaps = (
-  manual: readonly string[] = manualFeatureIds(),
+  population: readonly string[] = ledgerFeatureIds(),
   blockedOn: Readonly<Record<string, unknown>> = FEATURE_BLOCKED_ON,
 ): { readonly unrecorded: readonly string[]; readonly stale: readonly string[] } => {
-  const open = new Set(manual);
+  const open = new Set(population);
   return {
     unrecorded: [...open].filter((id) => blockedOn[id] === undefined).sort(),
     stale: Object.keys(blockedOn)
@@ -1585,7 +1759,7 @@ export const featureCoverageGaps = (
 
 export interface FeatureShapeConsumers {
   readonly shape: FeatureBlockerId;
-  /** Manual features this shape blocks. */
+  /** Features of the population this shape blocks. */
   readonly blocks: readonly string[];
   /** The features it is the **only** blocker for: building it finishes exactly these. */
   readonly finishes: readonly string[];
@@ -1593,7 +1767,7 @@ export interface FeatureShapeConsumers {
 
 const sorted = (ids: Iterable<string>): readonly string[] => [...new Set(ids)].sort();
 
-/** How many manual features a shape blocks, and which. */
+/** How many features of the population a shape blocks, and which. */
 export function featureConsumersOf(shape: FeatureBlockerId): FeatureShapeConsumers {
   const blocks = sorted(
     Object.entries(FEATURE_BLOCKED_ON)
@@ -1644,7 +1818,7 @@ export const knownFeatureBlockers = (): ReadonlySet<string> =>
   ]);
 
 /**
- * Manual features that name no missing mechanic at all.
+ * Features of the population that name no missing mechanic at all.
  *
  * Two kinds, and they were one kind until the advancement shape retired: a
  * feature the **table** owns, which is fiction and will never be executed,
@@ -1659,7 +1833,7 @@ export const featuresBlockedByNothing = (): readonly string[] =>
     .sort();
 
 /**
- * Manual features whose every clause is the table's — finished business.
+ * Features whose every clause is the table's — finished business.
  *
  * The *fiction* pile on the other book, and it is reported rather than
  * omitted for the same reason: "there is nothing here for the engine to do" is

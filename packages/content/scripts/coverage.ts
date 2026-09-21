@@ -101,14 +101,14 @@ function renderClasses(coverage: ClassCoverage): readonly string[] {
  * repository about where the next mechanic should go — were prose scattered
  * across twelve class files and `origins.ts`, read by nothing.
  *
- * **Blocks** is every manual feature a shape touches. **Finishes** is the ones
+ * **Blocks** is every feature of the population a shape touches. **Finishes** is the ones
  * it is the *only* blocker for, which is the column a tranche is planned from,
  * and the two are different numbers for the same reason they are on the spells
  * and the items: reporting only one is how one family came to be ranked three
  * ways in three documents.
  *
  * It counts **features**, exactly as the column above does, and a feature may
- * need more than one shape — so the column does not sum to the manual total.
+ * need more than one shape — so the column does not sum to the population.
  * Species and background traits are in it: they are the same
  * `FeatureDefinition` and the same notes, and leaving them out would have
  * hidden a shape four of them share.
@@ -121,12 +121,22 @@ function renderFeatureBlockers(): readonly string[] {
     '',
     'Derived from `packages/content/scripts/missing-feature-shapes.ts`, which',
     'holds the shapes only a feature wants plus the ones it shares with the',
-    'spells and the magic items, and every manual feature read against its own',
-    '`automation: \'manual\'` note. Species and background traits are counted',
+    'spells and the magic items, and every feature of its population read',
+    'against its own note. Species and background traits are counted',
     'here too, because a species trait is the same `FeatureDefinition` a class',
     'feature is and four of them turn out to want one shape.',
     '',
-    '**Blocks** is every manual feature a shape touches. **Finishes** is the',
+    'The population is wider than the *executed* column\'s. Every feature that',
+    'declares `automation: \'manual\'` is in it, and so is every feature that',
+    'declares `engine` for a **pool** with nothing to spend a use on — Wild',
+    'Shape, Font of Magic, Arcane Recovery and a Paladin\'s Channel Divinity',
+    'each count and refill their uses truthfully and buy nothing — plus the one',
+    'pool whose uses buy some of what its page prints and not the rest. Those',
+    'five were invisible while the map selected on the automation flag alone,',
+    'because that flag answers "does the engine apply what this declares" and',
+    'a bare pool declares only a pool.',
+    '',
+    '**Blocks** is every feature a shape touches. **Finishes** is the',
     'features it is the *only* blocker for — the ones building it would take off',
     'the list. Those are different numbers, and reporting only the first is how',
     'one family came to be ranked three ways in three documents.',
@@ -147,7 +157,7 @@ function renderFeatureBlockers(): readonly string[] {
   lines.push(
     '',
     'A feature can need more than one shape, so neither column sums to the',
-    'manual total.',
+    'size of the population.',
     '',
     '**Some features are nobody’s work.** A Fighting Style is its feat’s debt,',
     'Thieves’ Cant and Druidic are languages, and Hunter’s Lore is knowledge —',
