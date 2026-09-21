@@ -720,8 +720,8 @@ describe('the surface cannot reach the external-roll functions', () => {
     // A type annotation naming the field is not a binding — `doors.test.ts`
     // quotes one inside a string fixture, and a guard that fired on it would
     // be a guard somebody deletes. What tells them apart is the type named:
-    // an annotation of this field names the type this field has, and the two
-    // fixtures above show a rename naming anything else, in either case.
+    // an annotation of this field names the type this field has, and the
+    // rename fixtures above show one naming anything else, in either case.
     expect(caught('const declare = (supply: { readonly rng: Rng }): void => undefined;\n')).toEqual(
       [],
     );
