@@ -12,7 +12,7 @@ import { spendMovement, spendReaction } from '../combat.js';
 import { isIncapacitated } from '../conditions.js';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
-import { canSee, sheetAsItStands, speedOf } from '../standing.js';
+import { actionRulesOn, canSee, sheetAsItStands, speedOf } from '../standing.js';
 import type { CharacterSheet } from '../character.js';
 import { bestPrintedMeleeAttack } from '../monster.js';
 import {
@@ -277,7 +277,7 @@ export function moveWithin(
       // reading the reason were given two different answers to one question,
       // which is exactly what a refusal being a value is meant to prevent.
       const spent = spendMovement(state.combat, id, cost, speedOf(state, id), {
-        rules: mover.actionRules,
+        rules: actionRulesOn(state, id),
       });
       // **Running out of movement mid-square has to say what made the ground
       // expensive.** The economy knows a number was too big and nothing about
@@ -666,7 +666,7 @@ export function takeOpportunityAttack(
       // of its next turn." This is the one place the engine offers that
       // Reaction, so it is the one place the name can be told apart.
       const spent = spendReaction(state.combat, reactor, creature?.conditions, {
-        rules: creature?.actionRules ?? [],
+        rules: actionRulesOn(state, reactor),
         as: 'opportunity-attack',
       });
       if (!spent.ok) return spent;
@@ -792,7 +792,7 @@ function spendMounting(state: GameState, rider: CharacterId): Result<readonly Ga
   // `resolveMove` records above — this rewrite was copied from there, and the
   // rider climbing up out of turn is the case it got wrong.
   const spent = spendMovement(state.combat, rider, feet, speed, {
-    rules: creatureOf(state, rider)?.actionRules ?? [],
+    rules: actionRulesOn(state, rider),
   });
   if (!spent.ok) return spent;
 

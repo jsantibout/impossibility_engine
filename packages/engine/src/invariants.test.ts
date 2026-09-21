@@ -96,6 +96,7 @@ import {
   takeDash,
   takeDisengage,
   takeDodge,
+  takeHide,
   declineDamageReaction,
   declineTestReaction,
   resolveTest,
@@ -460,6 +461,17 @@ interface Guarded {
   readonly log: readonly GameEvent[];
   readonly run: (state: GameState, commandId: string) => Result<unknown>;
 }
+
+/**
+ * A behind total cover, with B declared unable to see them: the two facts SRD
+ * Hide asks for before the check, so the command is legal enough to be run
+ * twice under one id.
+ */
+const lurking = (): readonly GameEvent[] => [
+  ...SETUP,
+  { type: 'sight-declared', from: B, to: A, seen: false },
+  { type: 'cover-declared', from: B, to: A, degree: 'total' },
+];
 
 const readied = (): readonly GameEvent[] => {
   const held = [
@@ -1269,6 +1281,11 @@ const GUARDED: readonly Guarded[] = [
   { name: 'takeDash', log: SETUP, run: (s, commandId) => takeDash(s, A, { commandId }) },
   { name: 'takeDisengage', log: SETUP, run: (s, commandId) => takeDisengage(s, A, { commandId }) },
   { name: 'takeDodge', log: SETUP, run: (s, commandId) => takeDodge(s, A, { commandId }) },
+  {
+    name: 'takeHide',
+    log: lurking(),
+    run: (s, commandId) => takeHide(s, A, { commandId }, supply()),
+  },
   {
     name: 'takeReady',
     log: SETUP,
@@ -2265,6 +2282,7 @@ const SPENDERS: readonly Spender[] = [
   { name: 'takeDash', run: (s) => takeDash(s, B, {}) },
   { name: 'takeDisengage', run: (s) => takeDisengage(s, B, {}) },
   { name: 'takeDodge', run: (s) => takeDodge(s, B, {}) },
+  { name: 'takeHide', run: (s) => takeHide(s, B, {}, supply()) },
   {
     name: 'takeReady',
     run: (s) => takeReady(s, B, { trigger: 'when it moves', response: { kind: 'action' } }, SRD_CONTENT),

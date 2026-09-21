@@ -43,7 +43,7 @@ import {
   type OwedAreaEffect,
   spellOfSource,
 } from '../spells.js';
-import { effectiveConditions, rollModesFor, sheetAsItStands } from '../standing.js';
+import { actionRulesOn, effectiveConditions, rollModesFor, sheetAsItStands } from '../standing.js';
 import { isDown, rollDeathSave } from '../vitals.js';
 import { type Supply } from './casting.js';
 import { type DamageComponent } from '../attack.js';
@@ -506,7 +506,7 @@ export function resolveEffectCheck(
     const inCombat = combat !== null && combat.budgets[who] !== undefined;
     if (inCombat) {
       const spent = spendAction(combat, who, creature.conditions, {
-        rules: creature.actionRules,
+        rules: actionRulesOn(state, who),
       });
       if (!spent.ok) return spent;
     }

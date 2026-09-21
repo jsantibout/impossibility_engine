@@ -127,11 +127,9 @@ export const FEATURE_SHAPES = {
   'a-one-shot-roll-modifier':
     'a mode a feature hangs on somebody at a **moment**, spent by the first roll that reaches it. The mechanic itself is built and is a casting’s: packages/engine/src/roll-modifiers.ts carries `RollModifier.oneShot` — "Spent by the first roll it reaches, rather than running to a deadline." — with `RollSelector.counterpart` beside it for the sentences that narrow one to a named creature, and SRD Guiding Bolt and Vicious Mockery write both ends of it through a spell’s rider. What no **feature** has is the door: a `FeatureGrant` of kind `roll-mode` is a standing grant, derived from its holder’s own state on every read, and packages/engine/src/progression.ts says what the list is for — "Deliberately few. A feature whose effect does not fit one of these is" — so nothing lets a feature *emit* a grant when something happens. Sap and Vex wait on the weapon-mastery record before they could be hung at all; Steady Aim’s Bonus Action, Studied Attacks’ miss and Improved Brutal Strike’s landed hit are three more moments with nothing to fire at them. **A moment is declared and not only fired**, which is the half this description owed its `finishes` column: SRD Steady Aim spends a Bonus Action — gated on not having moved, a fact `TurnBudget.movementSpent` already holds — so whatever declares a moment says what it costs and what must be true to pay it, or a feature built from this shape emits its grant and leaves its own condition unenforced.',
   'an-action-rule-a-feature-holds':
-    'a rule about the action economy that a **feature** states — about its own holder, or about somebody it reaches. **The mechanism is whole and its catalogue is empty on this side.** `ActionRule` in packages/engine/src/combat.ts is "the ninth sourced grant, hung on the creature", it says three of the four things a sentence about a turn can say, and **it is reachable from a casting and from nothing else**: the two emitters of `action-rule-granted` are a spell’s effect and a spell’s attack rider, and both take a casting id as the grant’s source. `FeatureGrant` carries no member that holds one, so nothing compiles one off a class table. `StandingGrant` has none either and could not usefully, because packages/engine/src/standing.ts draws the lifetime itself — "a feature’s grant is derived from the world on every read and stored nowhere, while a spell’s is durable state linked to its casting" — where `creature.actionRules` is stored state every spender reads. And the one feature-side effect list, a pool’s `options`, is refused this kind by its **absence from `CONFERRED_EFFECT_KINDS`** in packages/engine/src/content.ts rather than by an argument about it: the refusal names the arriving kind back and says it "needs the casting a feature has none of". So this is the surviving instance of the sentence that field was built to answer, which packages/engine/src/progression.ts still prints beside it: "an effect list was reachable from a spell and from a bottle and from nothing a class prints". **What the door alone finishes is nothing**, and the reason is worth reading in the column’s own terms: with a price on `takeDash` in the same brief it would reach two clauses of Cunning Action and one of Adrenaline Rush, and Cunning Action would still declare `manual`, because its Hide is refused somewhere else entirely — the reading `barbarian:persistent-rage` already records, where half of a feature being applied is exactly why it is not marked as executed.',
+    'a rule about the action economy that a **feature** states about **somebody else**. The holder half is built and the catalogue writes it: `StandingGrant` in packages/engine/src/standing.ts carries an `action-rule` member, and `actionRulesOn` merges what a feature says with what a casting hung at every site a spend is checked — derived on every read rather than compiled onto the creature, because a stored copy "would put a permanent unconditional row into every Rogue’s state" and would reach no character already written into a log. SRD Cunning Action and SRD Adrenaline Rush are written through it. **What is left is the other direction**, and the SRD writes it on a *hit*: a rule hung on the creature you have just struck — Improved Brutal Strike stopping its Opportunity Attacks — which a casting does through an effect on its target and a feature through nothing, because a standing grant is a fact about its own holder. packages/engine/src/combat.ts keeps the neighbouring refusal about spending somebody else’s budget — "Nothing here can express that, on purpose" — and this is the narrower one beside it, waiting on the moment that would hang the rule as much as on the reach.',
   'an-action-the-engine-has-no-spender-for':
-    'an action the book prints that no command takes, so no rule could name it even if a feature could write one. `NAMED_ACTIONS` in packages/engine/src/combat.ts is a closed list of six that **names its own absences and why they are absent**: "Hide, Search, Study, Influence, Ready and Utilize are the book’s too and are absent: the engine has no spender that could be told one of them apart", so a rule naming one would read as enforced and would not be. The engine had written this down before the shape was coined, which is most of the argument for coining it. **Hide** is the one three features want — a Rogue’s Cunning Action, the Cunning Strike option a Thief’s Supreme Sneak widens, and a Halfling whose trait is an *exception* to an ordinary Hide — and **Utilize** is the second, bought with a Bonus Action by a Thief while nothing charges for a Utilize at all. It is deliberately **not** the grant shape beside it: no vocabulary a feature could be written in would help here, because there is nothing for a rule to be about until some command takes the action. Each member of that list was admitted with a spender that names it and an SRD sentence that asks for it, which is the price a new member pays.',
-  'a-cheaper-price-only-one-command-offers':
-    'a named action paid for out of a cheaper slot, where the command that would charge for it cannot be asked. The permission is built — `ActionRule`’s `allows` — and `STATABLE_PRICES` in packages/engine/src/combat.ts is the map of which commands honour one, because "an allowance nobody can ask for is data no code reads". It holds one entry, a Disengage out of a Bonus Action, and the file leaves the door open in as many words: "A second arrives with its own command and its own paragraph, and this map is where it is admitted." So `takeDisengage` takes a `from` and refuses a price the map does not hold, while `takeDash` takes no `from` at all and charges an Action unconditionally. Every feature that buys a Dash with a Bonus Action wants the second entry **and** the parameter beside it, and neither is a grant vocabulary’s business: the permission could be granted today and the command would still spend the wrong slot.',
+    'an action the book prints that no command takes, so no rule could name it even if a feature could write one. `NAMED_ACTIONS` in packages/engine/src/combat.ts **names its own absences and why they are absent**: "Search, Study, Influence, Ready and Utilize are the book’s too and are still absent, for the reason Hide was: no spender could be told one of them apart", so a rule naming one would read as enforced and would not be. **Hide has left this list**, and the way it left is the price the list charges: it came back with a command that takes it, which is why the same file now says "`hide` is the member that arrived with its spender". **Utilize** is what is left — bought with a Bonus Action by a Thief, while nothing charges for a Utilize at all — and it is deliberately **not** the grant shape beside it: no vocabulary a feature could be written in would help here, because there is nothing for a rule to be about until some command takes the action.',
   'a-roll-mode-a-feature-takes-away':
     'a mode **cancelled** rather than granted. packages/engine/src/roll-modifiers.ts builds the axis as presence — "The mode is not part of the identity" — and `combineRollModes` weighs Advantage against Disadvantage — and SRD Elusive says something else again: no attack roll may **have** Advantage against you at all, which is neither a grant of Disadvantage nor a cancellation the vocabulary can express.',
   'a-turn-boundary-payout-a-feature-owes':
@@ -878,23 +876,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   // coined id at once. It carried a single clause naming a single shape, and
   // the three actions the SRD prints on it are refused in three different
   // places — which is why a track briefed to transcribe it landed nothing.
-  'rogue:cunning-action': [
-    {
-      clause: 'a rule the engine can already state and a feature has nowhere to hold',
-      why: 'an-action-rule-a-feature-holds',
-      note: 'the Disengage, and the only one of the three whose rule is writable today: `allows` was derived from Conjure Woodland Beings and says exactly this sentence. What it has no home in is a class table.',
-    },
-    {
-      clause: '`takeDash` charges an Action unconditionally',
-      why: 'a-cheaper-price-only-one-command-offers',
-      note: 'the Dash, refused a step past the grant. Even holding the permission, the command that spends the slot takes no price and would charge an Action — so this clause survives the door being opened and is filed apart from it.',
-    },
-    {
-      clause: 'it is not one of the six named actions, no command takes it',
-      why: 'an-action-the-engine-has-no-spender-for',
-      note: 'the Hide, which is refused earliest of all: there is no spend for a rule to be about, so neither a grant nor a price would reach it. It is why the two clauses above being built would not make this feature executed — the reading `barbarian:persistent-rage` prints: "Half of it is applied, which is why this is not marked as executed."',
-    },
-  ],
   'rogue:steady-aim': [
     {
       clause: 'a one-shot Advantage that is consumed by the roll it changes, which nothing here consumes',
@@ -1012,12 +993,12 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
     {
       clause: 'which needs the same trade of Sneak Attack dice every Cunning Strike option needs',
       why: 'a-resource-traded-for-another',
-      note: 'inherited from Cunning Strike.',
+      note: 'inherited from Cunning Strike, and the whole of what is left now that the Hide action is taken: the option is bought with a die this feature has no way to spend.',
     },
     {
-      clause: 'the engine takes no Hide action for the exception to widen',
-      why: 'an-action-the-engine-has-no-spender-for',
-      note: 'the Hide action itself, which is a spender the engine does not have rather than a rule a feature cannot write. Every grant vocabulary here could be opened to a feature tomorrow and this clause would be exactly where it is.',
+      clause: 'the engine ends that condition on no attack at all',
+      why: 'table',
+      note: 'the exception has nothing to except. SRD ends a Hide when its holder attacks, makes a sound, casts or is found, and all four are moments the table narrates — so the condition is lifted by whoever narrates one, and an exception to an ending nobody automates is the table\u2019s too.',
     },
   ],
   'thief:use-magic-device': [
@@ -1464,9 +1445,9 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
   'halfling:naturally-stealthy': [
     {
-      clause: 'the engine takes no Hide action at all',
-      why: 'an-action-the-engine-has-no-spender-for',
-      note: 'the ordinary case this trait is an exception to, and the plainest statement of the coined shape: the trait widens a Hide and there is no Hide. `NAMED_ACTIONS` admits a member only where some command could be told it apart, and nothing takes this one.',
+      clause: 'no feature widens the concealment a Hide asks for',
+      why: 'a-rule-the-engine-fixes-for-everybody',
+      note: 'the ordinary case this trait is an exception to exists now — `takeHide` asks for Three-Quarters Cover, Total Cover or a declared Heavy Obscurement — and what the trait bends is that test itself, which is a constant inside the command rather than anything on the sheet. It is the attunement cap\u2019s shape exactly: a rule the engine holds for everybody, and a trait bending it for its holder alone with nothing to bend.',
     },
   ],
   'human:resourceful': [
@@ -1477,11 +1458,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
     },
   ],
   'orc:adrenaline-rush': [
-    {
-      clause: 'nothing lets a feature say that an action anybody can take becomes one',
-      why: 'a-cheaper-price-only-one-command-offers',
-      note: 'the Dash taken as a Bonus Action, filed on the blocker that outlives the other one. A feature that could hold an `allows` would still not get this Dash: `STATABLE_PRICES` holds Disengage alone and `takeDash` takes no price at all, so the permission would land and the command would spend an Action anyway.',
-    },
     {
       clause: 'no feature route reaches them',
       why: 'temporary-hit-points-a-feature-grants',

@@ -896,8 +896,12 @@ describe('the validator holds the vocabulary', () => {
    * this repository's most-repeated finding, pointed at its own new members.
    */
   it('refuses an allowance no command could ever honour', () => {
+    // The Dodge is the pair nothing charges now: `takeDash`, `takeDisengage`
+    // and `takeHide` each take a Bonus Action price, and `takeDodge` takes
+    // none — so a spell offering a cheap Dodge would land and be spent as an
+    // Action, which is what this guard exists to refuse.
     expect(
-      bad({ kind: 'action-rule', rule: { kind: 'allows', action: 'dash', from: 'bonus-action' } }),
+      bad({ kind: 'action-rule', rule: { kind: 'allows', action: 'dodge', from: 'bonus-action' } }),
     ).toContain('bad_action_rule');
   });
 

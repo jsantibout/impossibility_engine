@@ -63,7 +63,7 @@ import {
   type SlotlessReason,
   validateSpellName,
 } from '../spells.js';
-import { armorClassOf, sheetAsItStands } from '../standing.js';
+import { actionRulesOn, armorClassOf, sheetAsItStands } from '../standing.js';
 import { concentrationSaveDc } from '../vitals.js';
 import { creatureOf, turnContextFor, unknownCreature } from './command.js';
 import { applyConditionTo, schedule } from './conditions.js';
@@ -1744,7 +1744,7 @@ export function continueCasting(
     // fresh casting — SRD Befuddlement: "can't cast spells or take the Magic
     // action". The slot was never spent, so nothing is refunded.
     const spent = spendAction(combat, casterId, caster.conditions, {
-      rules: caster.actionRules,
+      rules: actionRulesOn(state, casterId),
       as: 'magic',
     });
     if (!spent.ok) return spent;
@@ -1786,7 +1786,7 @@ export function resolveCastWith(
   // "casting spells" rather than an Action, and a Bonus Action casting and a
   // Reaction casting are both castings — so the name travels with all three
   // and the slot is what differs.
-  const spend = { rules: caster?.actionRules ?? [], as: 'magic' as const };
+  const spend = { rules: actionRulesOn(state, id), as: 'magic' as const };
 
   const spent =
     castingTime === 'reaction'

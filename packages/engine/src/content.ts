@@ -35,11 +35,13 @@ import type { StandingRequirement } from './standing.js';
 import { SENSE_NAMES } from './positioning.js';
 import { dawnRollProblem, type Recovery } from './resources.js';
 import { EFFECT_END_CAUSES } from './timers.js';
+import type { ActionRule } from './combat.js';
 import { TURN_ANCHORS } from './time.js';
 import { oneShotProblem, rollSelectorProblems } from './roll-modifiers.js';
 import { CREATURE_TYPES } from './spell-definitions.js';
 import type { SpellDefinition } from './spell-definitions.js';
 import {
+  checkActionRule,
   checkEffectValue,
   checkSpellDefinition,
   parseSpellDefinition,
@@ -284,6 +286,12 @@ export const ITEM_EFFECT_KINDS: ReadonlySet<string> = new Set([
   // and read by the same gatherer: `castingHealingBonus` walks `standingFor`,
   // which a worn item's grants are already part of.
   'casting-healing',
+  // A rule about the action economy, on the same test as the two above: the
+  // gatherer is `actionRulesOn`, which reads `standingFor`, so a pair of boots
+  // whose wearer may Dash out of a Bonus Action would be executed rather than
+  // transcribed and ignored. No SRD item prints the sentence today; the list's
+  // rule is what a reader reaches, not what the book happens to have written.
+  'action-rule',
 ]);
 
 /**
@@ -2482,6 +2490,22 @@ function itemGrantProblems(
         for (const problem of senseProblems(effect as unknown as Record<string, unknown>, on)) {
           say(problem.code, problem.reason, problem.field);
         }
+        return;
+      }
+      // **The same rule a feature's is held to, and for a worse reason.** A
+      // worn item's grants reach `actionRulesOn` through `itemStandingOf`, so
+      // an allowance no command charges is data nothing reads — and a rule
+      // that is not an object at all reaches `allowsPrice`, which reads its
+      // `kind` and would throw where rule 6 wants a returned refusal. One
+      // validator for all three doors.
+      if (effect.kind === 'action-rule') {
+        const problems: { field: string; code: string; reason: string }[] = [];
+        checkActionRule(
+          (effect as unknown as { readonly rule?: ActionRule }).rule,
+          `${on}.rule`,
+          problems,
+        );
+        for (const problem of problems) say(problem.code, problem.reason, problem.field);
         return;
       }
       if (effect.kind === 'ability-score-set') {

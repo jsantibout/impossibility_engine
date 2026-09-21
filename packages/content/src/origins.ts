@@ -386,7 +386,7 @@ export const HALFLING: SpeciesDefinition = {
       name: 'Naturally Stealthy',
       level: 1,
       automation: 'manual',
-      note: 'Not applied: the engine takes no Hide action at all, so there is no ordinary case for this exception to widen. A DM allows the Hide behind a creature one size larger.',
+      note: 'Not applied. The ordinary case this trait is an exception to exists now - takeHide asks for Three-Quarters Cover, Total Cover or a declared Heavy Obscurement before the DC 15 check - and what the trait widens is that test itself: no feature widens the concealment a Hide asks for, because it is a constant inside the command rather than anything on the sheet. A DM allows the Hide behind a creature one size larger.',
     },
   ],
 };
@@ -436,7 +436,14 @@ export const ORC: SpeciesDefinition = {
       name: 'Adrenaline Rush',
       level: 1,
       automation: 'manual',
-      note: 'Not applied: the engine spends a Bonus Action on what a feature declares, and nothing lets a feature say that an action anybody can take becomes one. The Temporary Hit Points equal to your Proficiency Bonus are real state the engine holds, and no feature route reaches them. The uses are not declared either - "equal to your Proficiency Bonus" is not one of the three ways the engine sizes a pool.',
+      note: 'Half of it is applied, which is why this is not marked as executed. SRD: "You can take the Dash action as a Bonus Action" is an action rule the trait holds, derived on every read like any other standing grant, and `takeDash` charges the Bonus Action when the Orc asks for that price. The other half is not: the Temporary Hit Points equal to your Proficiency Bonus are real state the engine holds, and no feature route reaches them, so a DM hands them over; and the uses are not declared either - "equal to your Proficiency Bonus" is not one of the three ways the engine sizes a pool, so nothing counts them and nothing refuses the fourth Dash of the day.',
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        effects: [
+          { kind: 'action-rule', rule: { kind: 'allows', action: 'dash', from: 'bonus-action' } },
+        ],
+      },
     },
     {
       id: 'orc:darkvision',

@@ -713,8 +713,16 @@ const strangers = (list: unknown, known: ReadonlySet<string>): readonly string[]
  * a rule this validator accepts is one some primitive actually refuses. A
  * second copy written out here is how a definition comes to name an action
  * nothing checks — which is a sentence that reads as adjudicated and is not.
+ *
+ * **Exported, because a feature holds one of these now.** `StandingGrant`'s
+ * `action-rule` member is the same vocabulary written on a class table, so
+ * `checkFeatureDefinition` asks this rather than a second copy of it: a
+ * homebrew feature offering a Dodge out of a Bonus Action is refused at
+ * authoring with the sentence a spell is refused with, and the two validators
+ * cannot drift about which prices exist. The problem shape is the same three
+ * fields either side, which is why nothing had to be generalised to share it.
  */
-function checkActionRule(
+export function checkActionRule(
   rule: ActionRule | undefined,
   path: string,
   found: SpellDefinitionProblem[],

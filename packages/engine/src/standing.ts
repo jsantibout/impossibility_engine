@@ -38,7 +38,13 @@ import type { EffectEndCause } from './timers.js';
 import type { Recovery } from './resources.js';
 import { weaponInSet, type DamageDefenses, type DefenseKind, type WeaponSelector } from './attack.js';
 import type { Weapon } from '@ie/srd';
-import { canUseFeatureThisTurn, movementLeft } from './combat.js';
+import {
+  actionRuleKey,
+  canUseFeatureThisTurn,
+  movementLeft,
+  type ActionRule,
+  type GrantedActionRule,
+} from './combat.js';
 
 /**
  * Benefits a class feature grants for as long as its rule holds.
@@ -416,6 +422,40 @@ export type StandingGrant =
    * nothing about it.
    */
   | { readonly kind: 'evasion' }
+  /**
+   * SRD Cunning Action, SRD Adrenaline Rush: a rule about the action economy
+   * that a **feature** states about its own holder.
+   *
+   * The vocabulary is {@link ActionRule} in `combat.ts` and it is deliberately
+   * the same one a casting hangs — "what this creature's action economy
+   * permits *now*" is one fact, and a second mechanism for it would be a
+   * second place for one sentence to be wrong. What differs is the lifetime,
+   * which is the difference this whole file is about: a casting's rule is
+   * stored on the creature and released when the casting ends, and a
+   * feature's is **derived on every read** by {@link actionRulesOn}, because
+   * whether a Rogue may Dash out of a Bonus Action is a fact about the sheet
+   * they are holding rather than an event anybody could write down.
+   *
+   * Storing one at creation would have been the tempting reading and is wrong
+   * twice over: it would put a permanent unconditional row into every Rogue's
+   * state — the copy `StandingEffect` exists to refuse — and it would reach no
+   * character already written into a log, because a fold replays the events a
+   * log holds rather than re-compiling a sheet.
+   */
+  | {
+      readonly kind: 'action-rule';
+      readonly rule: ActionRule;
+      /**
+       * How a refusal finishes its sentence: "your Rage ends".
+       *
+       * Optional, unlike a casting's, and that is the derivation showing
+       * through: a casting pins a deadline because the casting ends at a
+       * moment, while a feature's rule holds exactly as long as the feature's
+       * own clause does and is re-read rather than remembered. A feature that
+       * has something to say about when it stops says it here.
+       */
+      readonly until?: string;
+    }
   /**
    * Feet added to the holder's Speed while the feature's own clause holds.
    *
@@ -1946,6 +1986,58 @@ export function conditionImmunitiesOf(
     for (const condition of granted.conditions) names.add(condition);
   }
   return [...names].sort();
+}
+
+/**
+ * Every rule about the action economy standing over this creature right now:
+ * what a casting hung on them, and what their own features say.
+ *
+ * **The one reader**, which is the point of it. `Spend` is built at eighteen
+ * sites across nine command modules, and every one of them read
+ * `creature.actionRules` — the stored half — so a feature's rule reaching only
+ * seventeen of them would be a permission that worked everywhere but the
+ * spender somebody happened to use.
+ *
+ * **The stored rules come first and the order is the fold's.** `refuseSpend`
+ * takes the first rule that bites, so appending rather than merging by key is
+ * what keeps every log this engine has already written answering exactly as it
+ * did: a creature under Stinking Cloud is refused by Stinking Cloud, with the
+ * same sentence, whatever its sheet says. The derived half is sorted by
+ * {@link actionRuleKey} so that two readers of one state agree about it — a
+ * tidiness rather than a rule, since nothing in this half is order-sensitive:
+ * `governs` answers `false` for an `allows`, so a derived allowance never
+ * reaches `refuseSpend` at all, and `allowsPrice` is an exact-match scan.
+ *
+ * A feature's rule is filtered by `meetsRequirements` on the way through —
+ * that is what `standingFor` does — so a rule conditioned on a Rage stops the
+ * moment the Rage does, with nothing having to remember to end it.
+ */
+export function actionRulesOn(
+  state: GameState,
+  who: CharacterId,
+): readonly GrantedActionRule[] {
+  const creature = state.creatures[who];
+  if (creature === undefined) return [];
+
+  const derived: GrantedActionRule[] = [];
+  for (const { effect } of standingFor(state, who)) {
+    if (effect.grant.kind !== 'action-rule') continue;
+    derived.push({
+      source: effect.feature,
+      rule: effect.grant.rule,
+      label: effect.name,
+      // A feature holds its rule for as long as it holds the feature. Where
+      // its own sentence names a shorter span it says so, and a requirement
+      // that has stopped holding has already removed the rule above.
+      until: effect.grant.until ?? 'you no longer have it',
+    });
+  }
+  if (derived.length === 0) return creature.actionRules;
+
+  derived.sort((a, b) =>
+    actionRuleKey(a.source, a.rule).localeCompare(actionRuleKey(b.source, b.rule)),
+  );
+  return [...creature.actionRules, ...derived];
 }
 
 /**
