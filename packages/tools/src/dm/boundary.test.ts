@@ -61,22 +61,42 @@ const swept = (): { file: string; text: string }[] =>
 /**
  * The names no file under `dm/` may import from the engine.
  *
- * **Step one's list, minus exactly one name, plus exactly one.** The first
- * two are the rule both surfaces keep — `recordExternalD20` and
- * `recordExternalDamage` stamp a roll as the engine's own, and a DM stating
- * a number is not the same act. The rest are step one's, and they stay
- * forbidden here because they state an **outcome the rules decide**, which is
- * nobody's to state: `recordD20Test` and `setExhaustionLevel` are named in
- * `dm/definitions.ts`'s own "no" column, `damageCreature` skips the
- * Concentration save that `resolveDamage` settles, and healing and Temporary
- * Hit Points are simply not in this slice and should have to be argued for.
+ * **Step one's list, minus exactly one name.** The two surfaces are
+ * partitioned by *authority*, and authority runs one way: a DM decides what
+ * the rules leave open, and a model running the table holds that door as a
+ * human does. So everything a model may not import, a DM may not import
+ * either, except where a DM's authority buys it back — which is
+ * {@link ALLOWED_A_DM}, and is one name.
  *
- * `rollAttackDamage` is the addition, and it is not on step one's list
- * because step one had no reason to want it. It is the engine's one damage
- * roller and it is *public*, so a DM tool that wanted dice for a chandelier
- * could reach it — and would advance a generator whose `rolls-issued` event
- * only a command emits, leaving the campaign's dice out of step with its log.
- * That is the gap this batch reports rather than the hole it digs.
+ * The reason for each is step one's and is written beside it there, in
+ * `FORBIDDEN_BECAUSE`. What *this* list says is only which of them a DM's
+ * authority does not reach, and the answer for every group is all of them:
+ *
+ * - The external-roll functions stamp a roll as the engine's own, and a DM
+ *   stating a number is not the same act. `recordD20Test` and
+ *   `setExhaustionLevel` are named in `dm/definitions.ts`'s own "no" column.
+ * - **The stated-face seam is not a DM door either.** `resolveStatedD20` and
+ *   the four that carry a face into a check, a save, an attack or a death save
+ *   all end at `recordExternalD20`, which this list has always forbidden.
+ *   Forbidding the callee and permitting the callers is the hole rather than
+ *   the guard. `CLAUDE.md` says the face a table throws reaches the engine
+ *   "only through a door built for one", in "its own directory with its own
+ *   sweep" — and `dm/` is not that directory.
+ * - The rollers that hand back a roll rather than events advance a generator
+ *   whose `rolls-issued` event only a command emits, leaving the campaign's
+ *   dice out of step with its log. `rollAttackDamage` is where that reason was
+ *   first written down, and it is on step one's list now too: a name forbidden
+ *   the wider surface and allowed the narrower one was a hole, not an
+ *   asymmetry. `rollInitiativeFor` is the one that lives under `commands/` and
+ *   is not a command, which is why step one derives that group on what comes
+ *   back rather than on where a function lives.
+ * - `createRng`, `restoreRng` and `createRollIssuer` make the generator and
+ *   the stamp all of those need: `Rng.int(20)` is a face, and `issue` takes
+ *   the source it stamps and refuses nothing. Step one exempts `campaign.ts`,
+ *   which rebuilds both per call and throws them away; **nothing here is
+ *   exempt**, because no file under `dm/` rebuilds either — `supply()` is
+ *   passed whole to the command that rolls, which is the only thing that
+ *   should hold one.
  */
 const FORBIDDEN_HERE = [
   'recordExternalD20',
@@ -86,7 +106,28 @@ const FORBIDDEN_HERE = [
   'grantTemporaryHpTo',
   'setExhaustionLevel',
   'recordD20Test',
+  'resolveStatedD20',
+  'rollD20Test',
+  'rollAbilityCheck',
+  'rollSavingThrow',
+  'rollAttack',
+  'resolveDeathSave',
+  'roll',
+  'rollD20',
+  'rerollDice',
+  'rollD20Recorded',
+  'rollRecorded',
+  'rollBonusDice',
+  'rerollTest',
+  'interveneAfterRoll',
+  'reduceDamage',
   'rollAttackDamage',
+  'rollInitiative',
+  'rollInitiativeFor',
+  'rollDeathSave',
+  'createRng',
+  'restoreRng',
+  'createRollIssuer',
 ];
 
 /**
@@ -121,6 +162,44 @@ const opaqueForms = (module: string): readonly { readonly what: string; readonly
 ];
 
 const ENGINE_FORMS = opaqueForms('@ie/engine');
+
+/** Source with its comments removed, so prose about a field is not a use. */
+const stripComments = (text: string): string =>
+  text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+
+/**
+ * Every shape a binding of one field can take — step one's detector, and a
+ * test below holds the two character for character.
+ *
+ * What tells `{ rng: generator }` from `{ readonly rng: Rng }` is the type: an
+ * annotation of this field names the type this field has, and a rename names
+ * anything else.
+ */
+const BOUND_AS = (field: string, type: string): RegExp[] => [
+  new RegExp(String.raw`\.${field}\b`),
+  new RegExp(String.raw`\{[^}]*\b${field}\s*[,}]`),
+  new RegExp(String.raw`\b${field}\s*:\s*(?!${type}\b)[A-Za-z_$][\w$]*\s*[,}=]`),
+  new RegExp(String.raw`['"\`]${field}['"\`]`),
+];
+
+/**
+ * A file under `dm/` reaching past `supply()` for what it holds.
+ *
+ * Step one's guard over the files step one cannot reach, and with no exempt
+ * file: nothing here rebuilds a generator or an issuer, because `supply()` is
+ * passed whole to the command that rolls.
+ */
+function reachesPastTheSupply(file: string, source: string): string[] {
+  const breaches: string[] = [];
+  const text = stripComments(source);
+  if ([/\bissue\s*\(/, ...BOUND_AS('issue', 'RollIssuer')].some((pattern) => pattern.test(text))) {
+    breaches.push(`${file} mints a roll provenance`);
+  }
+  if (BOUND_AS('rng', 'Rng').some((pattern) => pattern.test(text))) {
+    breaches.push(`${file} reaches for a generator`);
+  }
+  return breaches;
+}
 
 /**
  * The same four forms, aimed at the two specifiers that reach a DM tool.
@@ -354,19 +433,20 @@ describe('the DM surface cannot reach the external-roll functions either', () =>
       engineImports(text).some((name) => FORBIDDEN_HERE.includes(name)) ||
       ENGINE_FORMS.some(({ pattern }) => pattern.test(text));
 
-    expect(caught("import { recordExternalD20 } from '@ie/engine';")).toBe(true);
-    expect(caught("import { recordExternalD20 as roll } from '@ie/engine';")).toBe(true);
-    expect(caught("import type { recordExternalDamage } from '@ie/engine';")).toBe(true);
+    // Every name, not a sample: two of the forms are caught by the shape of
+    // the import rather than by the name inside it, so a sample would pass for
+    // a name the name sweep could not read at all.
+    for (const name of FORBIDDEN_HERE) {
+      expect(caught(`import { ${name} } from '@ie/engine';`), name).toBe(true);
+      expect(caught(`import { ${name} as alias } from '@ie/engine';`), name).toBe(true);
+      expect(caught(`import type { ${name} } from '@ie/engine';`), name).toBe(true);
+      expect(caught(`export { ${name} } from '@ie/engine';`), name).toBe(true);
+      expect(caught(`const { ${name} } = await import('@ie/engine');`), name).toBe(true);
+    }
+    // And the two forms that name nothing at all, which no loop over names
+    // would produce.
     expect(caught("import * as anything from '@ie/engine';")).toBe(true);
     expect(caught("export * from '@ie/engine';")).toBe(true);
-    expect(caught("export { recordExternalD20 } from '@ie/engine';")).toBe(true);
-    expect(caught("const { recordExternalDamage } = await import('@ie/engine');")).toBe(true);
-    // And the four this list adds to the pair, each of which states an
-    // outcome rather than a decision.
-    expect(caught("import { recordD20Test } from '@ie/engine';")).toBe(true);
-    expect(caught("import { setExhaustionLevel } from '@ie/engine';")).toBe(true);
-    expect(caught("import { damageCreature } from '@ie/engine';")).toBe(true);
-    expect(caught("import { rollAttackDamage } from '@ie/engine';")).toBe(true);
     // The DM surface *does* import the command that takes an amount, which is
     // the whole difference between the two surfaces — and is not a breach.
     expect(caught("import { resolveDamage, resolveTest } from '@ie/engine';")).toBe(false);
@@ -390,6 +470,14 @@ describe('the DM surface cannot reach the external-roll functions either', () =>
     // And an exemption is not a note: a name excused here must really be one
     // step one forbade, or it is a sentence about nothing.
     expect(Object.keys(ALLOWED_A_DM).filter((name) => !theirs.includes(name))).toEqual([]);
+
+    // **And the difference runs one way only.** The clause above catches this
+    // list shrinking; this one catches step one's. Authority is a containment:
+    // a DM decides what the rules leave open and a model does not, so a name
+    // forbidden here and allowed there would be a hole in the *stricter*
+    // surface — which is what `rollAttackDamage` was for one batch, sitting on
+    // this list alone because step one had had no reason to want it.
+    expect(FORBIDDEN_HERE.filter((name) => !theirs.includes(name))).toEqual([]);
   });
 
   it('and the ones that are forbidden here are really reachable', () => {
@@ -397,6 +485,77 @@ describe('the DM surface cannot reach the external-roll functions either', () =>
     for (const name of FORBIDDEN_HERE) {
       expect(typeof (engine as Record<string, unknown>)[name], name).toBe('function');
     }
+  });
+
+  it('and mints no roll of its own out of the supply it is handed', () => {
+    // The same text sweep step one makes, over the files step one cannot
+    // reach. `campaign.supply()` hands back a live `RollIssuer` and a live
+    // `Rng`, and neither `issuer.issue('engine')` nor `rng.int(20)` names a
+    // forbidden import — so the import sweep above cannot see either.
+    //
+    // **The bindings, not the property, and the rename as much as the name**,
+    // for step one's reason: a detector reading `.rng` misses
+    // `const { rng } = supply()` and one reading `{ rng }` misses
+    // `const { rng: generator }`, which are how anybody would actually write
+    // it. No file under `dm/` rebuilds either at all, so nothing here is
+    // exempt: `supply()` is passed whole to the command that rolls, which is
+    // the only thing that should hold one.
+    const breaches = swept().flatMap(({ file, text }) => reachesPastTheSupply(file, text));
+    expect(breaches).toEqual([]);
+  });
+
+  it('and that detector catches the way anybody would write it', () => {
+    // A detector nobody tested is a guard nobody tested — and the first
+    // version of this one caught the form nobody uses and missed the form
+    // everybody would, which is why the fixtures are here rather than a
+    // reading of the regex.
+    const caught = (source: string) => reachesPastTheSupply('probe.ts', source);
+    const generator = ['probe.ts reaches for a generator'];
+    const mint = ['probe.ts mints a roll provenance'];
+
+    expect(caught('const { rng } = campaign.supply();')).toEqual(generator);
+    expect(caught('const { rng, issuer, content } = campaign.supply();')).toEqual(generator);
+    expect(caught('const supply = campaign.supply();\nsupply.rng.int(20);')).toEqual(generator);
+    expect(caught("const g = campaign.supply()['rng'];")).toEqual(generator);
+    expect(caught('const { rng: generator } = campaign.supply();\ngenerator.int(20);')).toEqual(
+      generator,
+    );
+    expect(caught('const { rng: Generator } = campaign.supply();\nGenerator.int(20);')).toEqual(
+      generator,
+    );
+    // The issuer, through a property, a destructure, a rename or a bound name.
+    expect(caught("campaign.supply().issuer.issue('engine');")).toEqual(mint);
+    expect(caught("const { issue } = issuer;\nissue('engine');")).toEqual(mint);
+    expect(caught("const { issue: mint } = issuer;\nmint('engine');")).toEqual(mint);
+    expect(caught("const mint = issuer.issue;\nmint('engine');")).toEqual(mint);
+    // A type annotation naming the field is not a binding, and passing the
+    // supply whole is what every tool here does.
+    expect(caught('const declare = (supply: { readonly rng: Rng }): void => undefined;')).toEqual(
+      [],
+    );
+    expect(caught('resolveDamage(state, target, amount, context.campaign.supply());')).toEqual([]);
+    expect(caught('const outcome = resolveTest(state, supply);')).toEqual([]);
+    expect(caught('const spent = state.rollsIssued;\nconst n = z.int().min(1);')).toEqual([]);
+  });
+
+  it('and that detector is step one’s, character for character', () => {
+    // This file re-declares step one's detectors rather than importing them,
+    // which is its own convention and is fine for a regex nobody has had to
+    // change. `BOUND_AS` is not that: it was wrong once already, in both
+    // copies, and a fix applied to one is the drift arriving rather than being
+    // predicted. So the two are held equal by their own source.
+    // Read with the line endings normalised. `.gitattributes` says `eol=lf`,
+    // so a checkout cannot produce CRLF — but an editor on Windows can, and
+    // one did, which is how this test came to fail on two byte-identical
+    // declarations. A guard that reports a difference nobody wrote is a guard
+    // somebody stops believing.
+    const read = (path: string): string => readFileSync(path, 'utf8').replace(/\r\n/g, '\n');
+    const declaration = /const BOUND_AS = [\s\S]*?\n\];/;
+    const ours = declaration.exec(read(`${HERE}${GUARD_FILE}`));
+    const theirs = declaration.exec(read(`${ABOVE}${GUARD_FILE}`));
+    expect(ours, 'this file declares BOUND_AS').not.toBeNull();
+    expect(theirs, 'step one declares BOUND_AS').not.toBeNull();
+    expect(ours![0]).toBe(theirs![0]);
   });
 
   it('sweeps something: the DM files do import the engine', () => {
