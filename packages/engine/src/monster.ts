@@ -237,6 +237,10 @@ function printedAttacks(monster: Monster): readonly StatedAttack[] {
             // that hold an attack — the default Opportunity Attack and the
             // swing that spends one — ask the object they already have.
             ...(line.recharge === undefined ? {} : { recharge: line.recharge }),
+            // And the other notation, carried the same way. No SRD attack line
+            // prints it; a homebrew block reaching the same door can, and a
+            // limit dropped here is a limit that silently becomes none.
+            ...(line.perDay === undefined ? {} : { perDay: line.perDay }),
           },
         ],
   );
@@ -547,8 +551,11 @@ export function describeMultiattack(sequence: MonsterMultiattack): string {
  *
  * - **Melee**, because that is the attack the sentence names. A line that is
  *   only ranged never wins this, however hard it hits.
- * - **Not on a recharge**, because a line the creature may not have available
- *   is not the one it reaches for by default.
+ * - **Not on a recharge, and not on a per-day limit**, because a line the
+ *   creature may not have available is not the one it reaches for by default.
+ *   The two notations are different rules on different clocks and the same
+ *   sentence covers both: a once-a-day strike spent on a Reaction nobody asked
+ *   for is a creature robbed of the line the book printed for it.
  * - **The highest summed printed average**, the book's own arithmetic, so
  *   nothing is rolled and nothing is re-derived from notation. Ties go to the
  *   first line printed, which is a rule rather than an accident of sorting.
@@ -563,6 +570,7 @@ export function bestPrintedMeleeAttack(sheet: CharacterSheet): StatedAttack | nu
   for (const attack of sheet.stated?.attacks ?? []) {
     if (attack.kind === 'ranged') continue;
     if (attack.recharge !== undefined) continue;
+    if (attack.perDay !== undefined) continue;
     const average = attack.damage.reduce((sum, part) => sum + part.average, 0);
     // Strictly greater, so the first line printed keeps a tie.
     if (average > most) {
@@ -688,6 +696,33 @@ export function rechargeOfLine(sheet: CharacterSheet, line: string): MonsterRech
 }
 
 /**
+ * How many times a day a stat block's line may be used, or null where the
+ * block prints no limit.
+ *
+ * `rechargeOfLine`'s sibling, and deliberately a second function rather than a
+ * second field on one answer: the two notations are two rules on two clocks —
+ * a d6 at a turn boundary and a rest, against a sunrise — and no heading in
+ * the SRD prints both, so nothing ever has to ask for them together.
+ *
+ * **Three arms, for the reason that one has three**: the rule is about a
+ * *line*, and the heading it was printed under decides what it costs rather
+ * than how often it comes back. Twelve of the SRD's are printed under Bonus
+ * Actions and ten under Actions; none is printed on an attack, and the attack
+ * arm is here because `adaptMonster` is the door homebrew comes through too.
+ *
+ * Case-insensitive for the reason {@link printedAttackOf} is: the heading is
+ * something a caller types.
+ */
+export function perDayOfLine(sheet: CharacterSheet, line: string): number | null {
+  const wanted = line.trim().toLowerCase();
+  const attack = sheet.stated?.attacks?.find((one) => one.name.toLowerCase() === wanted);
+  if (attack !== undefined) return attack.perDay ?? null;
+  const bonus = sheet.stated?.bonusActions?.find((one) => one.name.toLowerCase() === wanted);
+  if (bonus !== undefined) return bonus.perDay ?? null;
+  return statedActionOf(sheet, line)?.perDay ?? null;
+}
+
+/**
  * The die a recharge is rolled on, in the book's own notation.
  *
  * SRD *Monsters*: "At the start of each of the monster's turns, roll 1d6." One
@@ -720,6 +755,17 @@ export const describeRecharge = (recharge: MonsterRecharge): string =>
         recharge.low === 6 ? '' : `–6`
       }, and so does finishing a Short or Long Rest`
     : 'finishing a Short or Long Rest brings it back';
+
+/**
+ * The same, in words, for the refusal a per-day limit raises.
+ *
+ * Built out of the block's own number, exactly as {@link describeRecharge} is,
+ * and it names **dawn** because that is the whole of the difference between
+ * the two rules: a caller told only that a line is gone would reasonably call
+ * a rest, and a rest is precisely what does not bring this one back.
+ */
+export const describePerDay = (uses: number): string =>
+  `the block prints it ${uses}/Day, and dawn brings it back`;
 
 /** Whether this creature's stat block states a trait of the given shape. */
 export const hasPrintedTrait = (sheet: CharacterSheet, kind: MonsterTrait['kind']): boolean =>
@@ -764,6 +810,9 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
       name: line.name,
       text: line.text,
       ...(line.recharge === undefined ? {} : { recharge: line.recharge }),
+      // And the per-day limit beside it, which ten of these lines print: a
+      // Dretch's Fetid Cloud, a Treant's Animate Trees, a Sphinx's Roar.
+      ...(line.perDay === undefined ? {} : { perDay: line.perDay }),
     }));
 
   // **The Bonus Actions section, carried whole and executed not at all.** A
@@ -780,6 +829,9 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
     // thirteen of them are printed on a recharge, which is a fact about the
     // economy rather than about the sentence.
     ...(line.recharge === undefined ? {} : { recharge: line.recharge }),
+    // And twelve of them are printed on a per-day limit, which is more than
+    // any other section a caller can spend from.
+    ...(line.perDay === undefined ? {} : { perDay: line.perDay }),
   }));
 
   const stated: StatedValues = {

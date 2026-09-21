@@ -5,6 +5,7 @@ import {
   parseAttackLine,
   parseMonsters,
   parseMultiattack,
+  parsePerDay,
   parseTraitShape,
 } from './monsters.js';
 import { entriesOfBranch, gateOfBranch } from '../schemas.js';
@@ -1339,5 +1340,147 @@ describe('a use that names a printed attack and is still not a swap', () => {
     expect(
       parseMultiattack('The thing makes two Bite attacks. It can replace one attack with a Bite attack.'),
     ).toBeNull();
+  });
+});
+
+/**
+ * *N/Day*: the book's **other** sentence about how often a line may be used,
+ * and it is not a recharge.
+ *
+ * "Dominate Mind (2/Day)", "Fetid Cloud (1/Day)", "Divine Aid (3/Day)". No
+ * die, no turn boundary and no rest — the owner has ruled that one of these
+ * comes back at **dawn**, which is a clock the engine already holds a tag for
+ * and which `resources-restored` deliberately keeps apart from a rest. So the
+ * two notations are two fields, read off the one place the book writes either:
+ * the heading.
+ *
+ * **The lair number is dropped, and that is a decision rather than an
+ * omission.** Twenty-seven of the book's per-day headings print a second
+ * number — "Legendary Resistance (3/Day, or 4/Day in Lair)" — and every one of
+ * them is a Legendary Resistance trait. The engine has no lair, no state that
+ * could say a creature is in one, and no rule that reads a failed save at all,
+ * so the second number would be a field with no reader in any of those three
+ * senses. It is also the answer this parser already gives to the same
+ * construction one field along: `CR_LINE` swallows "or 7,200 in lair" and
+ * takes the XP the book prints outside it. What is carried is the number that
+ * is true wherever the engine can actually put the creature.
+ *
+ * **A qualification is not a reason to drop the number.** SRD Night Hag prints
+ * "Nightmare Haunting (1/Day; Requires Soul Bag)", and the engine cannot check
+ * a soul bag. It can check the 1, and a limit it enforces is never more
+ * permissive than the book — where dropping it would make the line unlimited,
+ * which is wrong in the direction that matters.
+ */
+describe('a per-day limit on a printed line', () => {
+  /** Every line in the bestiary, whichever section it is printed under. */
+  const everyLine = bestiary.flatMap((monster) =>
+    [
+      ...monster.traits,
+      ...monster.actions,
+      ...monster.bonusActions,
+      ...monster.reactions,
+      ...monster.legendaryActions,
+    ].map((line) => ({ monster: monster.id, line })),
+  );
+
+  const lineOf = (id: string, section: 'traits' | 'actions' | 'bonusActions', starts: string) => {
+    const found = find(id)[section].find((line) => line.name.startsWith(starts));
+    expect(found, `${id} prints no ${section} line starting ${starts}`).toBeDefined();
+    return found!;
+  };
+
+  it('reads the number the book prints, off the name', () => {
+    expect(action('aboleth', 'Dominate Mind (2/Day)').perDay).toBe(2);
+    expect(lineOf('dretch', 'actions', 'Fetid Cloud').perDay).toBe(1);
+    expect(lineOf('priest', 'bonusActions', 'Divine Aid').perDay).toBe(3);
+    expect(lineOf('tarrasque', 'traits', 'Legendary Resistance').perDay).toBe(6);
+  });
+
+  /**
+   * The number outside the lair, and no second field for the one inside it —
+   * see the note above this block.
+   */
+  it('takes the number printed outside a lair and carries nothing for the one inside', () => {
+    const resistance = lineOf('aboleth', 'traits', 'Legendary Resistance');
+    expect(resistance.name).toContain('or 4/Day in Lair');
+    expect(resistance.perDay).toBe(3);
+    // Nothing anywhere on the parsed line holds the lair's number: the only 4
+    // on this record is the one the heading itself prints.
+    expect(JSON.stringify({ ...resistance, name: '', text: '' })).not.toContain('4');
+  });
+
+  /** The number is readable; the soul bag is not. The readable half is read. */
+  it('reads through a qualification it cannot evaluate', () => {
+    const haunting = lineOf('night-hag', 'actions', 'Nightmare Haunting');
+    expect(haunting.name).toContain('Requires Soul Bag');
+    expect(haunting.perDay).toBe(1);
+  });
+
+  it('leaves a line the book prints no limit on without the field', () => {
+    expect(action('wolf', 'Bite').perDay).toBeUndefined();
+    expect(action('ape', 'Rock (Recharge 6)').perDay).toBeUndefined();
+  });
+
+  /**
+   * **Asserted against the names, and counted.** A parser that silently read
+   * nothing would satisfy "no line disagrees with its name"; the counts are
+   * what say it read them all — and the split by section is what says where
+   * they are, which is the whole of what decides how many of them the engine
+   * can reach today.
+   */
+  it('reads every per-day line in the book, in every section', () => {
+    const printed = /\d+\s*\/\s*Day/i;
+    let read = 0;
+    for (const { monster, line } of everyLine) {
+      expect(line.perDay !== undefined, `${monster}: ${line.name}`).toBe(printed.test(line.name));
+      if (line.perDay !== undefined) read += 1;
+    }
+    expect(read).toBe(60);
+
+    const per = (
+      section: 'traits' | 'actions' | 'bonusActions' | 'reactions' | 'legendaryActions',
+    ) => bestiary.flatMap((m) => m[section]).filter((line) => line.perDay !== undefined).length;
+    expect(per('traits')).toBe(33);
+    expect(per('actions')).toBe(10);
+    expect(per('bonusActions')).toBe(12);
+    expect(per('reactions')).toBe(5);
+    expect(per('legendaryActions')).toBe(0);
+
+    const blocks = bestiary.filter((m) =>
+      [...m.traits, ...m.actions, ...m.bonusActions, ...m.reactions, ...m.legendaryActions].some(
+        (line) => line.perDay !== undefined,
+      ),
+    );
+    expect(blocks).toHaveLength(54);
+  });
+
+  /**
+   * **The corpus fact the two rules rest on.** A recharge and a per-day limit
+   * are different clocks — a die at the start of a turn against a sunrise —
+   * and no heading in the SRD prints both. So nothing has to decide which of
+   * the two answers first, and a line that printed both would be a rule
+   * nobody has written rather than a case quietly settled by ordering.
+   */
+  it('never prints both notations on one heading', () => {
+    const both = everyLine.filter(
+      ({ line }) => line.recharge !== undefined && line.perDay !== undefined,
+    );
+    expect(both.map(({ monster, line }) => `${monster}: ${line.name}`)).toEqual([]);
+  });
+
+  /** And the forms themselves, read directly, including one the book does not print. */
+  it('reads the notation off a heading and refuses everything else', () => {
+    expect(parsePerDay('Roar (3/Day)')).toBe(3);
+    expect(parsePerDay('Legendary Resistance (4/Day, or 5/Day in Lair)')).toBe(4);
+    expect(parsePerDay('Nightmare Haunting (1/Day; Requires Soul Bag)')).toBe(1);
+    // Two digits: nothing in the SRD prints one, and a rule that read a single
+    // digit would silently turn a homebrew "12/Day" line into a 1/Day one.
+    expect(parsePerDay('Homebrew Line (12/Day)')).toBe(12);
+    expect(parsePerDay('Bite')).toBeNull();
+    expect(parsePerDay('Whirlwind (Recharge 4–6)')).toBeNull();
+    // Outside the parenthesis the book prints it in, it is prose.
+    expect(parsePerDay('Three A Day')).toBeNull();
+    // A count of nothing is not a limit the book prints.
+    expect(parsePerDay('Broken (0/Day)')).toBeNull();
   });
 });

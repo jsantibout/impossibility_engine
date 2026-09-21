@@ -1696,6 +1696,37 @@ export type GameEvent =
       readonly line: string;
     }
   /**
+   * One of the uses a line's **per-day limit** allows, spent.
+   *
+   * SRD stat blocks print "Dominate Mind (2/Day)", "Divine Aid (3/Day)" — the
+   * book's other sentence about how often, on a different clock from a
+   * recharge. This is *one* use, so a 2/Day line taken twice writes two of
+   * these and the count is folded rather than stated; what the line costs is
+   * the `action-spent` or `bonus-action-spent` beside it.
+   *
+   * **Its own event rather than a field on the use**, for the reason
+   * `printed-line-expended` above is one: the Action happened, and separately
+   * a day's use of the line it was spent on is gone. It is emitted only where
+   * the block prints a limit, so a creature that takes an ordinary line writes
+   * nothing here — which is what every log written before this existed says.
+   *
+   * **And there is no event that gives one back.** A day turns at dawn and
+   * dawn is already an event: `resources-restored` with the `dawn` tag, which
+   * is the one the rest tags sit beside and are deliberately not. A second
+   * event for the morning would be a thing an emitter could forget on a
+   * morning the rest of the world was already told about.
+   *
+   * **No stamp**, for the reason its sibling carries none: the spend rides the
+   * `stated-action-taken` or `stated-bonus-action-taken` its command always
+   * writes. A stamp nothing sets is a guard that never fires.
+   */
+  | {
+      readonly type: 'printed-line-used-today';
+      readonly id: CharacterId;
+      /** The heading the block prints the line under. */
+      readonly line: string;
+    }
+  /**
    * An action held back for a trigger.
    *
    * The Ready action's own cost is a separate `action-spent`, and a readied

@@ -35,6 +35,7 @@ export const UPKEEP_EVENTS = [
   'resources-restored',
   'printed-line-expended',
   'printed-line-recharged',
+  'printed-line-used-today',
   'time-advanced',
   'rest-begun',
   'rest-ended',
@@ -108,6 +109,15 @@ export function applyUpkeep({ state, next }: Applying, event: UpkeepEvent): Game
           ...(event.recovers === 'short-rest' || event.recovers === 'long-rest'
             ? { expendedLines: [] }
             : {}),
+          // **And the other notation comes back on the other tag, alone.** A
+          // heading that prints *N/Day* is a count between dawns, which the
+          // owner has ruled directly: not on a Short Rest, not on a Long Rest.
+          // The two clauses above and below this one are the same distinction
+          // read from its two ends, and they are deliberately disjoint — a
+          // recharge comes back on a rest and not on a morning, a per-day line
+          // on a morning and not on a rest. `special` is neither, and is left
+          // alone by both. See {@link CreatureState.linesUsedToday}.
+          ...(event.recovers === 'dawn' ? { linesUsedToday: {} } : {}),
         },
         creature,
       );
@@ -140,6 +150,29 @@ export function applyUpkeep({ state, next }: Applying, event: UpkeepEvent): Game
         { expendedLines: creature.expendedLines.filter((line) => line !== event.line) },
         creature,
       );
+    }
+
+    case 'printed-line-used-today': {
+      const creature = creatureOf(state, event, event.id);
+      // **No ceiling is checked here.** The limit is the sheet's — what the
+      // block prints — and the command that spends a line is where it is read
+      // and refused, before the economy is touched. A second copy of the rule
+      // in the fold would be a second answer to one question, and the fold's
+      // job on a count is that it goes up by one.
+      //
+      // Absent and zero are the same fact, and only one of them is written
+      // down: a line joins the record the first time it is used.
+      const counted = {
+        ...creature.linesUsedToday,
+        [event.line]: (creature.linesUsedToday[event.line] ?? 0) + 1,
+      };
+      // Keys in one order, for the reason `expendedLines` is sorted and with
+      // more riding on it: two logs that spent the same two lines in opposite
+      // orders would otherwise fold to states that compare equal and
+      // serialise differently, and a frozen fixture is compared as bytes.
+      const linesUsedToday: Record<string, number> = {};
+      for (const line of Object.keys(counted).sort()) linesUsedToday[line] = counted[line]!;
+      return withCreature(next, event.id, { linesUsedToday }, creature);
     }
 
     case 'time-advanced': {

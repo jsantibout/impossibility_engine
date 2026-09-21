@@ -315,6 +315,34 @@ export interface CreatureState {
    */
   readonly expendedLines: readonly string[];
   /**
+   * The lines this creature's stat block prints a **per-day limit** on, and
+   * how many times it has used each of them since the last dawn.
+   *
+   * The book's other sentence about how often, and a different rule from the
+   * one above: "Dominate Mind (2/Day)", "Divine Aid (3/Day)". Sixty headings
+   * across fifty-four SRD blocks print one, and none of them prints both
+   * notations.
+   *
+   * **A count rather than a name, which is the whole reason this is not
+   * `expendedLines` with a second entry.** A recharging line is available or
+   * it is not; a 2/Day line is used once and is still there. So what has to be
+   * folded out of the log is uses-so-far, checked against the number the sheet
+   * carries — and the sheet is where the limit lives, because that is what the
+   * block prints and this is what happened.
+   *
+   * **Cleared at dawn, and by nothing else.** Not on a Short Rest, not on a
+   * Long Rest, not on a turn boundary. `Recovery` has kept `dawn` apart from
+   * the two rest tags since pools landed and the recharge rule leans on that
+   * distinction in one direction — "Dawn is not a rest" — so this one leans on
+   * it in the other.
+   *
+   * Keys are sorted, so state serialises identically however they were spent.
+   * Empty for every character, for every creature whose block prints no limit,
+   * and for every log written before this existed — so both frozen fixtures
+   * fold unchanged.
+   */
+  readonly linesUsedToday: Readonly<Record<string, number>>;
+  /**
    * The action this creature is holding for a trigger, or null.
    *
    * Paired with the `action:ready` feature rather than standing alone: that is
