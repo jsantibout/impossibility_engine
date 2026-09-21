@@ -77,6 +77,7 @@ import {
   sheetAsItStands,
   standingAttackDamage,
   standingBonuses,
+  standingDamageEffects,
   strikeStyleFor,
   type StrikeStyle,
 } from '../standing.js';
@@ -898,8 +899,15 @@ export function resolveAttack(
     // the log can name each piece. SRD Weapon, +1: "a bonus to attack rolls …
     // made with this magic weapon" — the weapon in hand is what narrows it, so
     // the bow in the same pack gets nothing.
+    // And SRD Archery: "attack rolls you make with **Ranged weapons**" — the
+    // other narrowing, which asks what kind of thing is in hand rather than
+    // which copy of it, so the record goes along with the id.
     const attackBonuses: readonly Bonus[] = [
-      ...standingBonuses(state, id, 'attack', { withItem: command.weapon }),
+      ...standingBonuses(state, id, 'attack', {
+        withItem: command.weapon,
+        weapon,
+        ...(command.twoHanded === undefined ? {} : { twoHanded: command.twoHanded }),
+      }),
       // Bless is on the creature, not in the caller's head.
       ...bonusesFor(attacker.bonuses, 'attack'),
       ...(command.attackBonuses ?? []),
@@ -1204,11 +1212,23 @@ export function resolveAttack(
         damageBonuses: [
           // "…and damage rolls made with this magic weapon": a bonus of the
           // weapon's own type, so it meets Resistance with the blade.
-          ...standingBonuses(state, id, 'damage', { withItem: command.weapon }),
+          ...standingBonuses(state, id, 'damage', {
+            withItem: command.weapon,
+            weapon,
+            ...(command.twoHanded === undefined ? {} : { twoHanded: command.twoHanded }),
+          }),
           ...fromFeatures.bonuses,
           ...(command.damageBonuses ?? []),
         ],
         extraDamage: [...fromFeatures.extra, ...(command.extraDamage ?? [])],
+        // SRD Great Weapon Fighting: "you can treat any 1 or 2 on a damage die
+        // as a 3." A rule the swing is read under rather than a number added
+        // to it, gathered from the attacker's own standing effects and
+        // narrowed by the weapon in hand — see `standingDamageEffects`.
+        damageEffects: standingDamageEffects(state, id, {
+          weapon,
+          ...(command.twoHanded === undefined ? {} : { twoHanded: command.twoHanded }),
+        }),
         // SRD Cleave: "don't add your ability modifier to that damage unless
         // that modifier is negative."
         ...(cleaving === undefined ? {} : { withoutAbilityModifier: true as const }),
@@ -1569,12 +1589,25 @@ export function resolveAttackDamage(
           ? {}
           : { finesseAbility: pending.finesseAbility }),
         damageBonuses: [
-          // The weapon the hit was made with was written down when it landed.
-          ...standingBonuses(current, id, 'damage', { withItem: pending.weapon }),
+          // The weapon the hit was made with was written down when it landed,
+          // and so was the hand it was in — both narrowings read the swing the
+          // hold remembers rather than a fact the caller restates.
+          ...standingBonuses(current, id, 'damage', {
+            withItem: pending.weapon,
+            weapon,
+            twoHanded: pending.twoHanded,
+          }),
           ...fromFeatures.bonuses,
           ...(command.damageBonuses ?? []),
         ],
         extraDamage: [...fromFeatures.extra, ...extra],
+        // Re-derived like the style above and from the same swing: a rule
+        // about the dice is a standing effect, and a standing effect is read
+        // afresh at the moment it bites.
+        damageEffects: standingDamageEffects(current, id, {
+          weapon,
+          twoHanded: pending.twoHanded,
+        }),
       },
       pending.critical,
     );

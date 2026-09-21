@@ -2477,6 +2477,8 @@ export function planCharacter(
     }
   }
 
+  standing.push(...standingFromFeats(content, choices));
+
   // A feature the character can switch on, and the standing effects it
   // switches on with it. The benefits are ordinary standing effects requiring
   // `feature-active`, so nothing about them is special-cased anywhere else.
@@ -3292,6 +3294,58 @@ function declaresInitiativeSwap(
   return Object.values(choices.feats).some((feat) =>
     grants(content.featById(feat.featId)?.grants),
   );
+}
+
+/**
+ * The benefits a **feat** simply has, compiled onto the sheet.
+ *
+ * The missing half of `FEAT_GRANT_KINDS`, which admits a grant kind only once
+ * this file reads it off a feat. A class feature's `standing` grant is
+ * compiled by the pass above, against a class table and the choices made on
+ * the feature; a feat is not a feature and has neither, so what it may say is
+ * the plain sentence — the effects, and what must hold for them.
+ * `featStandingProblems` refuses the rest at the door rather than letting a
+ * feat declare a field nothing here reads.
+ *
+ * SRD writes it on the Fighting Style feats: "You gain a +2 bonus to attack
+ * rolls you make with Ranged weapons" is a standing effect and nothing more.
+ * Read off the declaration rather than off any feat's id, so a homebrew style
+ * saying the same thing is compiled by the same lines — which is the whole of
+ * what makes this vocabulary rather than a special case.
+ *
+ * Every feat a character holds is one **taken choice**, so a repeatable feat
+ * taken twice is two entries under two feature keys and the effect is compiled
+ * under the feat's own id both times. `standingBonuses` keys the best by
+ * `feature`, which is the SRD's own same-name rule, so the second copy does
+ * not stack — the reading `declaredInitiativeBonuses` already takes of the
+ * same arrangement.
+ */
+function standingFromFeats(
+  content: Content,
+  choices: CharacterChoices,
+): readonly StandingEffect[] {
+  const compiled: StandingEffect[] = [];
+
+  for (const taken of Object.values(choices.feats)) {
+    const definition = content.featById(taken.featId);
+    const grant = definition?.grants;
+    if (definition === null || grant?.kind !== 'standing') continue;
+
+    for (const effect of grant.effects ?? []) {
+      compiled.push({
+        feature: definition.id,
+        name: definition.name,
+        // A feat belongs to no source that could declare a radius, so its
+        // benefit is its holder's own — `featStandingProblems` refuses an
+        // aura rather than letting one be granted at nought feet.
+        reach: { kind: 'self' },
+        grant: effect,
+        ...(grant.requires === undefined ? {} : { requires: grant.requires }),
+      });
+    }
+  }
+
+  return compiled;
 }
 
 function declaredInitiativeBonuses(

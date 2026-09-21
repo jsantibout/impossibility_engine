@@ -37,7 +37,16 @@ import { spellOfSource, type CastingTime } from './spells.js';
 import type { SpellArea, SpellEffect } from './spell-definitions.js';
 import type { EffectEndCause } from './timers.js';
 import type { Recovery } from './resources.js';
-import { weaponInSet, type DamageDefenses, type DefenseKind, type WeaponSelector } from './attack.js';
+import {
+  weaponInSet,
+  weaponNarrowingHolds,
+  type DamageDefenses,
+  type DefenseKind,
+  type WeaponNarrowing,
+  type WeaponSelector,
+  type WieldingContext,
+} from './attack.js';
+import { treatLowRollsAs, type DieEffect } from './dice.js';
 import type { Weapon } from '@ie/srd';
 import {
   actionRuleKey,
@@ -241,6 +250,36 @@ export interface CastingDamageCost {
   readonly recovers: Recovery;
 }
 
+/**
+ * What a feature says about the **dice an attack throws**, as a declaration.
+ *
+ * SRD Great Weapon Fighting: "you can treat any 1 or 2 on a damage die as a
+ * 3." The arithmetic has lived in the dice layer since it was written — every
+ * die is individually addressable, and a substitution is a `DieEffect` — and
+ * what was missing was a way for a *declaration* to ask for one. This is that
+ * way, and the reader turns it into the effect the roller already takes.
+ *
+ * One arm, named for its writer, which is the rule every closed vocabulary in
+ * this file follows. The dice layer has two other effects and neither has a
+ * declaring feature yet: an explosion belongs to a spell rather than to a
+ * swing and is asked for on the spell's own definition, and a reroll the
+ * roller *chooses* needs a caller who is asked which dice, which nothing in
+ * the command layer does. An arm arrives with the sentence that writes it.
+ *
+ * Declared here rather than inside {@link StandingGrant} so that the member
+ * carrying it stays one kind: the union is read out of this file as data by
+ * `content.test.ts`, and a nested `kind` would be counted as a grant nobody
+ * grants.
+ */
+export type AttackDieRule = {
+  /** SRD Great Weapon Fighting's substitution, and `treatLowRollsAs`'s shape. */
+  readonly kind: 'treat-low-rolls-as';
+  /** SRD's "any 1 or 2": the highest face the rule reaches. */
+  readonly atMost: number;
+  /** SRD's "as a 3": what such a face counts as instead. */
+  readonly as: number;
+};
+
 /** What a standing benefit does. */
 export type StandingGrant =
   /**
@@ -361,6 +400,47 @@ export type StandingGrant =
        * rather than accepting a benefit that could never hold.
        */
       readonly onlyWithItem?: boolean;
+      /**
+       * SRD Archery: "attack rolls you make with **Ranged weapons**".
+       *
+       * The narrowing above's sibling and a different sentence — one names an
+       * object, this names a kind of weapon. See {@link WeaponNarrowing}, and
+       * `checkContent` holds it to the same two families `onlyWithItem` is
+       * held to: a roll is *made with* a weapon, and an Armour Class is not.
+       */
+      readonly onlyWithWeapon?: WeaponNarrowing;
+    }
+  /**
+   * A rule about the **dice** a weapon swing throws, rather than a number
+   * added to it.
+   *
+   * SRD Great Weapon Fighting: "When you roll damage for an attack you make
+   * with a Melee weapon that you are holding with two hands, you can treat any
+   * 1 or 2 on a damage die as a 3. The weapon must have the Two-Handed or
+   * Versatile property to gain this benefit."
+   *
+   * `flat-bonus` above is every sentence that adds a number and `attack-damage`
+   * is every one that adds a die; this is the third thing a feature can say
+   * about a hit, and neither of the other two could say it — the benefit
+   * changes what a die *counts as* rather than what stands beside it.
+   *
+   * **Its scope is the attack, not a component.** The SRD's clause is about
+   * "an attack you make", so the rule reaches every damage die the swing
+   * throws, which is `AttackOptions.damageEffects` and is what `attack.test.ts`
+   * has pinned since the field existed. A rule about one *spell's* dice is the
+   * other scope and travels on that component — the two are different
+   * sentences and both are printed.
+   */
+  | {
+      readonly kind: 'attack-die-rule';
+      readonly rule: AttackDieRule;
+      /**
+       * The sentence's own narrowing, read off the weapon the swing resolved.
+       *
+       * Absent covers every attack its holder makes, which no SRD feature
+       * says and a homebrew one might.
+       */
+      readonly onlyWithWeapon?: WeaponNarrowing;
     }
   /**
    * SRD Aura of Courage: "Immunity to the Frightened condition while in your
@@ -1790,6 +1870,18 @@ export function standingCheckBonuses(
  */
 export interface BonusContext {
   readonly withItem?: string | null;
+  /**
+   * The weapon record the swing resolved, for the *other* narrowing.
+   *
+   * SRD Archery's "with Ranged weapons" is a question about what kind of thing
+   * is in hand rather than which copy of it, so it is answered off the record
+   * and not off `withItem` — see {@link WeaponNarrowing}. Absent is a roll made
+   * with no weapon, which is the conservative direction: a narrowed benefit is
+   * withheld from a caller who has not said.
+   */
+  readonly weapon?: Weapon | null;
+  /** SRD Great Weapon Fighting's "holding with two hands". */
+  readonly twoHanded?: boolean;
 }
 
 /**
@@ -1819,6 +1911,17 @@ export interface BonusContext {
  * withheld from every roll made with anything else, including the rolls no
  * object is made with at all.
  */
+/**
+ * The half of a context a weapon narrowing asks about.
+ *
+ * One conversion in one place, so the two readers that ask cannot come to
+ * disagree about what an unstated hand means.
+ */
+const wielding = (context: { readonly weapon?: Weapon | null; readonly twoHanded?: boolean }): WieldingContext => ({
+  weapon: context.weapon ?? null,
+  ...(context.twoHanded === undefined ? {} : { twoHanded: context.twoHanded }),
+});
+
 export function standingBonuses(
   state: GameState,
   who: CharacterId,
@@ -1833,6 +1936,14 @@ export function standingBonuses(
     if (!effect.grant.applies.includes(applies)) continue;
     // "Made with this magic weapon", and with no other.
     if (effect.grant.onlyWithItem === true && withItem !== effect.feature) continue;
+    // "With Ranged weapons", and with nothing else — the other narrowing, read
+    // off the record rather than off the id.
+    if (
+      effect.grant.onlyWithWeapon !== undefined &&
+      !weaponNarrowingHolds(effect.grant.onlyWithWeapon, wielding(context))
+    ) {
+      continue;
+    }
 
     const flat = effect.grant.flat;
     const current = best.get(effect.feature);
@@ -1842,6 +1953,46 @@ export function standingBonuses(
   }
 
   return [...best.values()];
+}
+
+/**
+ * Every per-die rule this creature's standing effects state about a swing.
+ *
+ * {@link standingBonuses}' sibling on the other half of what a feature can say
+ * about a hit: that one gathers the numbers added to a roll, this the rules the
+ * dice themselves are read under. Both are derived on every read and both ask
+ * the same narrowing, because SRD Archery and SRD Great Weapon Fighting are one
+ * clause about the weapon in hand wearing two sets of words.
+ *
+ * What comes back is the dice layer's own vocabulary, named after the feature
+ * that stated the rule — so a die the rule moved carries that name into the log
+ * as its `cause`, and a narrator reading the log can say a 1 counted as a 3 and
+ * why.
+ *
+ * Deduplicated by feature, for the reason `standingBonuses` is: two holders of
+ * one name are one rule, and applying a substitution twice would be a
+ * substitution of a substitution.
+ */
+export function standingDamageEffects(
+  state: GameState,
+  who: CharacterId,
+  context: { readonly weapon?: Weapon | null; readonly twoHanded?: boolean } = {},
+): readonly DieEffect[] {
+  const found = new Map<string, DieEffect>();
+
+  for (const { effect } of standingFor(state, who)) {
+    const grant = effect.grant;
+    if (grant.kind !== 'attack-die-rule') continue;
+    if (
+      grant.onlyWithWeapon !== undefined &&
+      !weaponNarrowingHolds(grant.onlyWithWeapon, wielding(context))
+    ) {
+      continue;
+    }
+    found.set(effect.feature, treatLowRollsAs(grant.rule.atMost, grant.rule.as, effect.name));
+  }
+
+  return [...found.values()];
 }
 
 /**

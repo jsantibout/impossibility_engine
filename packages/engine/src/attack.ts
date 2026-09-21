@@ -271,6 +271,70 @@ export function weaponInSet(
 }
 
 /**
+ * A benefit narrowed to **a kind of weapon**, rather than to one object.
+ *
+ * `StandingGrant.onlyWithItem` is the other narrowing and a different
+ * sentence: SRD Weapon, +1's "made with **this** magic weapon" names one copy
+ * out of a pack and is keyed on the granting item's id. The SRD writes this
+ * one far more often and about no object at all —
+ *
+ * > "a +2 bonus to attack rolls you make with **Ranged weapons**"
+ *
+ * > "a **Melee** weapon that you are **holding with two hands** … The weapon
+ * > must have the **Two-Handed or Versatile** property"
+ *
+ * — so it is a *description*, matched against the weapon record the swing
+ * resolved. That is rule 4 showing through rather than a style choice: the
+ * engine must never learn that a Longbow is Ranged, and a list of ids is
+ * exactly that lesson.
+ *
+ * Both fields absent asks nothing, which is {@link WeaponSelector}'s own
+ * reading of an absent field.
+ */
+export interface WeaponNarrowing {
+  /**
+   * The weapons the sentence names; any one selector matching is enough.
+   *
+   * Absent asks nothing about the weapon. A *list*, because the SRD writes
+   * one: "Two-Handed **or** Versatile" is two selectors over the same kind.
+   */
+  readonly weapons?: readonly WeaponSelector[];
+  /**
+   * SRD Great Weapon Fighting: "that you are **holding with two hands**".
+   *
+   * Not a property of the weapon and so not a {@link WeaponSelector} field: a
+   * Versatile weapon has the property in either hand and the sentence is about
+   * how it is being held, which is {@link AttackOptions.twoHanded} — the same
+   * fact the Versatile damage die is already read off.
+   */
+  readonly heldInTwoHands?: true;
+}
+
+/** What a narrowing is asked about: the weapon in hand, and how it is held. */
+export interface WieldingContext {
+  /** Null for an Unarmed Strike, which is not a weapon. */
+  readonly weapon: Weapon | null;
+  readonly twoHanded?: boolean;
+}
+
+/**
+ * Whether this swing is one the narrowing's sentence covers.
+ *
+ * Conservative in the one direction that matters: a caller who does not say
+ * how the weapon is held has not said it is held in two hands, so a benefit
+ * asking for two hands is withheld rather than invented — the reading
+ * `onlyWithItem` already takes of an absent item.
+ */
+export function weaponNarrowingHolds(
+  narrowing: WeaponNarrowing,
+  context: WieldingContext,
+): boolean {
+  if (narrowing.heldInTwoHands === true && context.twoHanded !== true) return false;
+  if (narrowing.weapons === undefined) return true;
+  return weaponInSet(context.weapon, narrowing.weapons);
+}
+
+/**
  * How far this weapon reaches in melee, in feet.
  *
  * SRD Reach: "This weapon adds 5 feet to your reach when you attack with it."
