@@ -12,14 +12,22 @@
  * commands while it stands, so a surface that does not report them leaves the
  * caller discovering them one refusal at a time, and — for a held move with
  * two Opportunity Attacks outstanding — with no way to learn *who* owes what.
+ *
+ * `printed` is the other half a caller forgets exists, and it was missing for
+ * longer. `attack.action` demands an attack the creature's own block prints,
+ * *by its printed name*, and `unknown_action` is what anything else meets — so
+ * until a Wolf's `Bite` was reported somewhere, a human DM had to know the
+ * block out of band and a model, which holds no book, could not be told one at
+ * all. See {@link ObservedBlock}.
  */
 
 import type { CharacterId } from '@ie/shared';
 import { asCharacterId } from '@ie/shared';
-import type { GameState } from '@ie/engine';
+import type { CharacterSheet, GameState, StatedAttack } from '@ie/engine';
 import {
   armorClassOf,
   carrying,
+  describeRecharge,
   distanceBetween,
   movementLeftFor,
   positionOf,
@@ -37,6 +45,120 @@ export interface ObservedBudget {
   readonly reaction: boolean;
   readonly movementFeet: number;
   readonly spentASlotThisTurn: boolean;
+}
+
+/**
+ * One attack this creature's stat block prints, under the heading it prints it.
+ *
+ * `name` is the whole point: it is the string `attack.action` takes, so a
+ * caller can round-trip what it read into a swing. The rest is what the block
+ * says *about* that swing and nothing derived from it.
+ *
+ * **The two numbers a swing is made of are deliberately absent.** The attack
+ * bonus and the damage are the engine's to roll and its outcome's to report;
+ * a caller told `+5` and `2d6 + 3` before the die is thrown is a caller one
+ * step from narrating a number nobody rolled. `reach` and `range` are here
+ * because they answer a different question — whether this line can be used
+ * from where the creature is standing — and the engine already reports a
+ * printed Armour Class and Speed for the same reason.
+ */
+export interface ObservedPrintedAttack {
+  readonly name: string;
+  readonly kind: StatedAttack['kind'];
+  /** Feet of reach, for the melee half. Null for a purely ranged attack. */
+  readonly reach: number | null;
+  /** Normal and long range in feet. Null for a purely melee attack. */
+  readonly range: StatedAttack['range'];
+  /** A condition the book puts on the roll, evaluated by nobody. */
+  readonly qualification: string | null;
+  /** Everything the line says after the damage, which a hit hands back. */
+  readonly rider: string | null;
+  /** What brings the line back, in the words a refusal quotes. Null where it never went. */
+  readonly recharge: string | null;
+  /** Whether this line has been used and not yet got back. */
+  readonly expended: boolean;
+}
+
+/**
+ * One line printed under **Actions** or **Bonus Actions** that is not an
+ * attack, as printed.
+ *
+ * The heading and the book's sentence, because the engine applies no part of
+ * one: a line reported without its text is a creature doing something nobody
+ * could act on, which is the same argument the spend makes when it hands the
+ * sentence back.
+ */
+export interface ObservedPrintedLine {
+  readonly name: string;
+  readonly text: string;
+  /** See {@link ObservedPrintedAttack.recharge}. */
+  readonly recharge: string | null;
+  readonly expended: boolean;
+}
+
+/**
+ * One clause of a Multiattack: a count, and the printed names it attaches to.
+ *
+ * `attacks` is a list because the book writes menus — "two attacks, using
+ * Scimitar and Pistol in any combination" is several printed lines sharing one
+ * count — and a list of one in the ordinary case, where the book names a
+ * single line.
+ */
+export interface ObservedMultiattackClause {
+  readonly count: number;
+  readonly attacks: readonly string[];
+}
+
+/** One sequence a Multiattack offers, and what must have happened for it. */
+export interface ObservedMultiattackSequence {
+  readonly clauses: readonly ObservedMultiattackClause[];
+  /**
+   * The printed Bonus Action line this sequence is gated on, or null.
+   *
+   * The Clay Golem's "three Slam attacks **if it used Hasten this turn**" is
+   * the only one the SRD prints, and the name is a heading the same block
+   * prints — so a caller told it can find the line it must take first.
+   */
+  readonly requires: string | null;
+}
+
+/**
+ * What this creature's stat block prints, read off the sheet the arrival
+ * pinned.
+ *
+ * Null for every creature whose sheet states no block, which is every
+ * character: a caller is told what a creature *has*, and nothing is invented
+ * for one that has nothing. Nothing here opens a catalogue — a block nobody
+ * added is a block nobody can read.
+ *
+ * **The Multiattack is a named sequence rather than a count**, which is the
+ * difference between "a Ghoul makes two attacks" and what the book prints: a
+ * Ghoul makes two *Bite* attacks, and it prints a Claw as well. A creature
+ * allowed two of anything is a creature the book did not print.
+ *
+ * Out of it: a block's **Traits** and its **Legendary Actions**, which is not
+ * a choice made here — `adaptMonster` carries neither onto the sheet, so
+ * there is nothing on this side to report.
+ */
+export interface ObservedBlock {
+  readonly attacks: readonly ObservedPrintedAttack[];
+  /** Printed Actions lines that are not attacks — a breath weapon, a gaze. */
+  readonly actions: readonly ObservedPrintedLine[];
+  readonly bonusActions: readonly ObservedPrintedLine[];
+  /** Null where the block prints no Multiattack this engine can execute. */
+  readonly multiattack: {
+    readonly sequences: readonly ObservedMultiattackSequence[];
+    /** The line the sentence trails that the engine executes no part of. */
+    readonly handOver: string | null;
+  } | null;
+  /**
+   * Every line this creature has used and not got back, by its printed name.
+   *
+   * The creature's own record, reported beside the per-line `expended` flags
+   * it explains: a caller that reads one line at a time cannot see at a glance
+   * what a fight has already cost this creature.
+   */
+  readonly expendedLines: readonly string[];
 }
 
 export interface ObservedCreature {
@@ -62,6 +184,8 @@ export interface ObservedCreature {
   readonly creatureType: string | null;
   readonly conditions: readonly string[];
   readonly carrying: readonly string[];
+  /** What this creature's stat block prints, or null where it states none. */
+  readonly printed: ObservedBlock | null;
   readonly concentratingOn: string | null;
   readonly placed: boolean | null;
   /** Feet to every other creature, or null where nobody has said. */
@@ -112,6 +236,94 @@ export interface Observation {
   readonly owed: ObservedDebts;
 }
 
+type Stated = NonNullable<CharacterSheet['stated']>;
+type PrintedMultiattack = NonNullable<Stated['multiattack']>;
+type PrintedBranch = NonNullable<PrintedMultiattack['alternatives']>[number];
+type PrintedClause = NonNullable<PrintedMultiattack['entries']>[number];
+
+/**
+ * A branch's clauses and its gate.
+ *
+ * The engine reads the same union through `entriesOfBranch` / `gateOfBranch`
+ * in `@ie/srd/schemas`, which this package does not depend on and the engine
+ * does not re-export — so the discrimination is written once more here, over
+ * `requires` rather than over `Array.isArray`, because `entries` is a method
+ * every array has and `in` would find it.
+ */
+const clausesOfBranch = (branch: PrintedBranch): readonly PrintedClause[] =>
+  'requires' in branch ? branch.entries : branch;
+
+const gateOf = (branch: PrintedBranch): string | null =>
+  'requires' in branch ? branch.requires.usedBonusAction : null;
+
+const clauses = (entries: readonly PrintedClause[]): readonly ObservedMultiattackClause[] =>
+  entries.map((entry) => ({
+    count: entry.count,
+    // One name or a menu of them; the schema guarantees exactly one of the two.
+    attacks: entry.attacks ?? (entry.attack === undefined ? [] : [entry.attack]),
+  }));
+
+const sequencesOf = (multiattack: PrintedMultiattack): readonly ObservedMultiattackSequence[] =>
+  multiattack.entries === undefined
+    ? (multiattack.alternatives ?? []).map((branch) => ({
+        clauses: clauses(clausesOfBranch(branch)),
+        requires: gateOf(branch),
+      }))
+    : [{ clauses: clauses(multiattack.entries), requires: null }];
+
+/** What the block printed about coming back, in the words a refusal quotes. */
+const rechargeSaid = (recharge: StatedAttack['recharge']): string | null =>
+  recharge === undefined ? null : describeRecharge(recharge);
+
+/**
+ * The block, or null for a creature whose sheet states none.
+ *
+ * Every field is read off the sheet the arrival pinned and the creature's own
+ * `expendedLines`. Nothing is computed and no catalogue is opened, so what a
+ * caller reads here cannot disagree with what the engine will accept.
+ */
+function printedBlock(
+  sheet: CharacterSheet,
+  expendedLines: readonly string[],
+): ObservedBlock | null {
+  const stated = sheet.stated;
+  if (stated === undefined) return null;
+
+  const line = (one: {
+    readonly name: string;
+    readonly text: string;
+    readonly recharge?: StatedAttack['recharge'];
+  }): ObservedPrintedLine => ({
+    name: one.name,
+    text: one.text,
+    recharge: rechargeSaid(one.recharge),
+    expended: expendedLines.includes(one.name),
+  });
+
+  return {
+    attacks: (stated.attacks ?? []).map((attack) => ({
+      name: attack.name,
+      kind: attack.kind,
+      reach: attack.reach,
+      range: attack.range,
+      qualification: attack.qualification,
+      rider: attack.rider,
+      recharge: rechargeSaid(attack.recharge),
+      expended: expendedLines.includes(attack.name),
+    })),
+    actions: (stated.unreadActions ?? []).map(line),
+    bonusActions: (stated.bonusActions ?? []).map(line),
+    multiattack:
+      stated.multiattack === undefined
+        ? null
+        : {
+            sequences: sequencesOf(stated.multiattack),
+            handOver: stated.multiattack.handOver ?? null,
+          },
+    expendedLines,
+  };
+}
+
 const feet = (state: GameState, a: CharacterId, b: CharacterId): number | null => {
   if (state.scene === null) return null;
   const apart = distanceBetween(state.scene, a, b);
@@ -144,6 +356,7 @@ export function observe(state: GameState): Observation {
       creatureType: c.creatureType ?? null,
       conditions: c.conditions.conditions,
       carrying: carrying(state, c.id).map((line) => line.id),
+      printed: printedBlock(c.sheet, c.expendedLines),
       concentratingOn: c.concentration?.spell ?? null,
       placed: state.scene === null ? null : positionOf(state.scene, c.id) !== null,
       feetTo: Object.fromEntries(
