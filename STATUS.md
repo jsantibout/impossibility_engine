@@ -551,6 +551,17 @@ Multiattack is built for the one mechanism of five the ruling covers.
   (The vampire spawn is not an example. Its `Bite` is a Constitution saving
   throw, so handing it over is right; the earlier report that it was a printed
   attack line was mistaken.)
+- **`alsoHolding` stays, though no content can reach it** (owner, 2026-09-20).
+  `holdings.ts` used to list a feature once under first-claim-wins, so a feature
+  holding both a pool's menu and a hit rider would have lost one. No catalogue
+  this engine accepts can express that — `FeatureDefinition.grants` is
+  singular, `checkContent` refuses two definitions sharing an id across all four
+  sources `grantedFeatures` draws from, and a `pool-options` grant whose host is
+  not a `pool` grant is refused outright — so the merge branch is latent code
+  and was kept deliberately rather than reverted. The reason: the guard lives in
+  a **reader** and the thing preventing the case lives in a **validator**, and a
+  reader that silently drops data if a validator ever loosens is the coupling
+  that bites. Loosening is what the content door exists for.
 - **The Hydra's head count gets its own event** (owner, 2026-09-20), not a
   general "a number the table states about a creature". The doctrine's own
   paragraph says kinds with providers are a table and become a framework only
