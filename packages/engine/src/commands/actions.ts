@@ -64,10 +64,11 @@ import {
 import {
   describePerDay,
   describeRecharge,
+  perDayTallyKey,
   statedActionOf,
   statedBonusActionOf,
 } from '../monster.js';
-import { type SlotKind } from '../resources.js';
+import { tallied, type SlotKind } from '../resources.js';
 import { type Content } from '../content.js';
 import { durationSecondsAt } from '../spell-definitions.js';
 import { castSpell, chooseRoute, type Supply, nextCastingId } from './casting.js';
@@ -336,8 +337,13 @@ export function takeStatedBonusAction(
       // on the other clock, refused in the same place and for the same reason
       // — before the economy, so the refusal has no footprint. No SRD heading
       // prints both, so the order of the two checks settles nothing.
+      //
+      // The count is a `Tally` tagged `dawn`, which is the shape `resources.ts`
+      // already holds; the *ceiling* is the block's, read off the sheet here,
+      // because a tally has none and its own doc says whoever reads the count
+      // decides what a high one costs.
       const perDay = line.perDay ?? null;
-      const usedToday = creature.linesUsedToday[line.name] ?? 0;
+      const usedToday = tallied(creature.resources, perDayTallyKey(line.name));
       if (perDay !== null && usedToday >= perDay) {
         return err(
           'daily_limit_reached',
@@ -363,11 +369,20 @@ export function takeStatedBonusAction(
             ? []
             : [{ type: 'printed-line-expended' as const, id, line: line.name }]),
           // And one of the day's uses, where the block prints a number of
-          // them. One event per use, because the count is folded rather than
-          // stated — see `printed-line-used-today`.
+          // them. The event a tally is already counted through — nothing new
+          // in the union, and the morning that clears it is the
+          // `resources-restored` a dawn already writes.
           ...(perDay === null
             ? []
-            : [{ type: 'printed-line-used-today' as const, id, line: line.name }]),
+            : [
+                {
+                  type: 'resource-spent' as const,
+                  id,
+                  key: perDayTallyKey(line.name),
+                  amount: 1,
+                  tally: 'dawn' as const,
+                },
+              ]),
           {
             type: 'stated-bonus-action-taken',
             id,
@@ -501,9 +516,10 @@ export function takeStatedAction(
       // other notation — a Dretch's Fetid Cloud, a Treant's Animate Trees, a
       // Sphinx's Roar — and it is a different clock: a count between dawns
       // rather than a die at a boundary. Refused in the same position and for
-      // the same reason, before the economy.
+      // the same reason, before the economy; counted as a `dawn` tally, with
+      // the ceiling read off the block. See `perDayTallyKey`.
       const perDay = line.perDay ?? null;
-      const usedToday = creature.linesUsedToday[line.name] ?? 0;
+      const usedToday = tallied(creature.resources, perDayTallyKey(line.name));
       if (perDay !== null && usedToday >= perDay) {
         return err(
           'daily_limit_reached',
@@ -526,10 +542,19 @@ export function takeStatedAction(
             ? []
             : [{ type: 'printed-line-expended' as const, id, line: line.name }]),
           // And one of the day's uses, where the block prints a number of
-          // them — see `printed-line-used-today`.
+          // them — a `dawn` tally, counted through the event tallies already
+          // use. See `perDayTallyKey`.
           ...(perDay === null
             ? []
-            : [{ type: 'printed-line-used-today' as const, id, line: line.name }]),
+            : [
+                {
+                  type: 'resource-spent' as const,
+                  id,
+                  key: perDayTallyKey(line.name),
+                  amount: 1,
+                  tally: 'dawn' as const,
+                },
+              ]),
           {
             type: 'stated-action-taken',
             id,

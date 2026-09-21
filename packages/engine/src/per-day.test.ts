@@ -16,10 +16,14 @@
  *   tags since pools landed, and the recharge rule leans on that distinction
  *   in one direction — "Dawn is not a rest" — so this rule leans on it in the
  *   other. A party that sleeps through the afternoon gets no Divine Aid back.
- * - **A count, not a flag.** A 2/Day line is taken twice. What the creature
- *   carries is uses-so-far, which is why this is a number per line and not a
- *   name on the expended list; and the third use is refused before a single
- *   point of the action economy is spent.
+ * - **A count, not a flag, and the count is a `Tally`.** A 2/Day line is taken
+ *   twice, so what the creature carries is uses-so-far rather than a name on
+ *   the expended list — and `resources.ts` already holds exactly that shape: a
+ *   keyed count with no ceiling, carrying a `Recovery` tag, declared by
+ *   nothing, zeroed by `restoreOn`. So the rule adds no member to `GameEvent`
+ *   and no field to `CreatureState`; it counts through `resource-spent` with
+ *   the `dawn` tag, reads the *ceiling* off the sheet, and refuses the third
+ *   use before a single point of the action economy is spent.
  * - **Nothing here knows a monster's name.** The blocks are written in this
  *   file because a *test* is content, and the engine reads a field. The
  *   generated SRD bestiary cannot serve: it predates the field and this
@@ -43,7 +47,6 @@ import {
   beginCombat,
   declareCreatureSide,
   declareDawn,
-  declareResourcePool,
   endCombat,
   placeCreatureInScene,
   resolveTurn,
@@ -55,7 +58,12 @@ import {
 import { extendContent, type Content } from './content.js';
 import { createRng, type Rng } from './dice.js';
 import { fold, type GameEvent, type GameState } from './events.js';
-import { adaptMonster, bestPrintedMeleeAttack, perDayOfLine } from './monster.js';
+import {
+  adaptMonster,
+  bestPrintedMeleeAttack,
+  perDayOfLine,
+  perDayTallyKey,
+} from './monster.js';
 import { beginRest, endRest } from './rest.js';
 import { createRollIssuer } from './rolls.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
@@ -297,11 +305,45 @@ const roundTrip = (table: Table, seed = 'dawn'): GameState => {
   return table.state;
 };
 
-const usedToday = (state: GameState, who: CharacterId): Readonly<Record<string, number>> =>
-  state.creatures[who]?.linesUsedToday ?? {};
+/**
+ * What this creature has used today, by heading — read back off the tallies
+ * the uses were counted into, which is where the rule keeps them.
+ *
+ * A record rather than a lookup per line, so a test that expected one count
+ * fails when a second one appeared beside it.
+ */
+const usedToday = (state: GameState, who: CharacterId): Record<string, number> => {
+  const out: Record<string, number> = {};
+  for (const [key, counted] of Object.entries(state.creatures[who]?.resources.tallies ?? {})) {
+    const line = perDayLineOf(key);
+    if (line !== null) out[line] = counted.count;
+  }
+  return out;
+};
+
+/** The heading a per-day tally key names, or null where the key is not one. */
+const perDayLineOf = (key: string): string | null => {
+  const prefix = perDayTallyKey('');
+  return key.startsWith(prefix) ? key.slice(prefix.length) : null;
+};
 
 const ofType = (table: Table, type: GameEvent['type']): readonly GameEvent[] =>
   table.events.filter((event) => event.type === type);
+
+/**
+ * The headings the log counted a day's use of, in the order it counted them.
+ *
+ * Read off `resource-spent` — the event a tally has always been counted
+ * through — rather than off a member of the union this rule deliberately did
+ * not add. A count written some other way would not appear here, which is what
+ * makes this an assertion about the log rather than about the state.
+ */
+const countedInLog = (table: Table): readonly string[] =>
+  table.events.flatMap((event) => {
+    if (event.type !== 'resource-spent' || event.tally !== 'dawn') return [];
+    const line = perDayLineOf(event.key);
+    return line === null ? [] : [line];
+  });
 
 /** The herald's sheet, with nothing folded — what `adaptMonster` pinned. */
 const sheetOf = (monster: Monster) => adaptMonster(monster, HERALD).sheet;
@@ -348,9 +390,7 @@ describe('a 2/Day Actions line', () => {
     table.did('the herald burns', (s) => takeStatedAction(s, HERALD, { line: SUNBURST }));
 
     expect(usedToday(table.state, HERALD)).toEqual({ [SUNBURST]: 1 });
-    const used = ofType(table, 'printed-line-used-today');
-    expect(used).toHaveLength(1);
-    expect(used[0]?.type === 'printed-line-used-today' ? used[0].line : null).toBe(SUNBURST);
+    expect(countedInLog(table)).toEqual([SUNBURST]);
   });
 
   /** The rule reads the field, not the section: a line with no limit is free. */
@@ -359,7 +399,7 @@ describe('a 2/Day Actions line', () => {
     table.did('the herald calls out', (s) => takeStatedAction(s, HERALD, { line: SHOUT }));
 
     expect(usedToday(table.state, HERALD)).toEqual({});
-    expect(ofType(table, 'printed-line-used-today')).toEqual([]);
+    expect(countedInLog(table)).toEqual([]);
   });
 
   it('is taken twice, a turn apart, and counted twice', () => {
@@ -369,7 +409,7 @@ describe('a 2/Day Actions line', () => {
     table.did('the second burst', (s) => takeStatedAction(s, HERALD, { line: SUNBURST }));
 
     expect(usedToday(table.state, HERALD)).toEqual({ [SUNBURST]: 2 });
-    expect(ofType(table, 'printed-line-used-today')).toHaveLength(2);
+    expect(countedInLog(table)).toEqual([SUNBURST, SUNBURST]);
   });
 
   /**
@@ -453,23 +493,23 @@ describe('the day that turns', () => {
   });
 
   /**
-   * **And through the door the world takes.** `declareDawn` is a moment the GM
-   * declares over everybody at once, and what it gives a creature back is the
-   * `resources-restored` a rest already emits with the other tag on it — so
-   * the rule rides the tag rather than a second event an emitter could forget.
+   * **And through the door the world takes, with nothing else declared on the
+   * creature.** This is the test that decided the shape of the rule.
+   *
+   * `declareDawn` is a moment the GM declares over everybody at once, and it
+   * writes about a creature only where that creature holds something a morning
+   * gives back: `if (pools.length === 0 && !counted) continue`. A monster
+   * arrives through `creature-added` holding no pools at all — so a per-day
+   * count kept in a record of its own would have been a count this door could
+   * never reach, and a reset the GM's own sunrise cannot deliver is not a
+   * reset. Kept as a `dawn` **tally**, the creature *is* one of the ones the
+   * door writes about, and the count clears with nothing added to that command.
+   *
+   * The herald declares no pool here. That absence is the assertion.
    */
   it('brings it back through the sunrise the GM declares', () => {
     const table = spentTwice();
-    // A dawn pool of its own, because `declareDawn` writes about a creature
-    // that holds something a morning gives back.
-    table.do('a charged relic', (s) =>
-      declareResourcePool(s, HERALD, {
-        key: 'relic:charges',
-        label: 'Relic Charges',
-        max: 3,
-        recovers: 'dawn',
-      }),
-    );
+    expect(Object.keys(table.state.creatures[HERALD]?.resources.pools ?? {})).toEqual([]);
     table.do('the sun comes up', (s) => declareDawn(s, supply()));
 
     expect(usedToday(table.state, HERALD)).toEqual({});
@@ -543,7 +583,7 @@ describe('the log the rule writes', () => {
 
     expect(retry.events).toEqual([]);
     expect(retry.duplicate).toBe(true);
-    expect(ofType(table, 'printed-line-used-today')).toHaveLength(1);
+    expect(countedInLog(table)).toEqual([SUNBURST]);
     expect(usedToday(table.state, HERALD)).toEqual({ [SUNBURST]: 1 });
   });
 

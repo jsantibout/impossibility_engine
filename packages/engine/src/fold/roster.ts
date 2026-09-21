@@ -100,11 +100,6 @@ export function applyRoster({ state, next }: Applying, event: RosterEvent): Game
             // event that adds a creature — so both frozen fixtures fold
             // unchanged and a fresh stat block has every line it prints.
             expendedLines: [],
-            // And nothing has been used today either, which is what every log
-            // says on the event that adds a creature — so both frozen fixtures
-            // fold unchanged and a fresh stat block has every day's worth of
-            // every line it prints.
-            linesUsedToday: {},
             readied: null,
             lastDamage: null,
             // Nobody falls into a game. Absent is what every log written

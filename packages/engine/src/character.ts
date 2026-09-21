@@ -175,10 +175,11 @@ export interface StatedAction {
    * across the SRD print the notation and none of them prints both, which is
    * asserted over the corpus where the book is parsed.
    *
-   * What the creature has *spent* against this number is
-   * {@link CreatureState.linesUsedToday}, for the reason the recharge's
-   * expenditure is state and not sheet: this is what the block prints, and
-   * that is what happened.
+   * What the creature has *spent* against this number is a `Tally` tagged
+   * `dawn` in its own resources — see `perDayTallyKey` — for the reason the
+   * recharge's expenditure is state and not sheet: this is what the block
+   * prints, and that is what happened. The ceiling is here because a tally
+   * has none.
    *
    * Absent on the rest, which is a line a creature may take every turn.
    */

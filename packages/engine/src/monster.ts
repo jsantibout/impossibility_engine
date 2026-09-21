@@ -651,6 +651,37 @@ export const statedBonusActionSlot = (line: string): string =>
   `${STATED_BONUS_ACTION}${line}`;
 
 /**
+ * The tally key one printed line's **per-day** uses are counted under.
+ *
+ * **A tally, not a record of its own.** `Tally` in `resources.ts` is already
+ * this shape exactly: a keyed count with no ceiling, carrying a `Recovery` tag,
+ * declared by nothing because it "springs into existence the first time
+ * something is counted", zeroed by `restoreOn` and therefore by the
+ * `resources-restored` a morning already emits. The tag is `dawn`, so a Short
+ * or Long Rest leaves it standing and `declareDawn` — which writes about any
+ * creature holding a dawn tally — clears it with nothing added to that command.
+ * A second counter beside this one would be a second answer to one question,
+ * and the one the GM's own door could not reach.
+ *
+ * `Tally`'s own line is why the ceiling is not here: "it cannot run out, which
+ * is the whole of why it is not a pool ... whoever reads the count decides what
+ * a high one costs." What a high one costs is the number the block prints, read
+ * off the sheet by the command that spends the line.
+ *
+ * The prefix is a constant and the name in the key comes out of the creature's
+ * own block, so nothing here names a line — the same construction
+ * {@link statedBonusActionSlot} above is. It is **not** reserved against
+ * content the way that ledger is, because the map it shares is
+ * `resources.ts`'s and a homebrew feature could in principle count under the
+ * same string; the prefix is spelled to make that a collision somebody has to
+ * go looking for rather than one they could reach by accident.
+ */
+const PER_DAY_TALLY = 'printed-line-per-day:';
+
+/** The tally key one printed line's per-day uses are counted under. */
+export const perDayTallyKey = (line: string): string => `${PER_DAY_TALLY}${line}`;
+
+/**
  * The printed Bonus Action lines a creature has taken on the turn in progress.
  *
  * Read back off the ledger rather than stored a second time, so there is one
