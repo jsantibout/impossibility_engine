@@ -117,7 +117,8 @@ describe('a printed Action line, taken through the door', () => {
     // And the answer says what the log says rather than echoing the call, so a
     // caller is never told two spellings of one heading.
     expect(out.resolution['line']).toBe(COLD_BREATH);
-    // The recharge the block prints is reported off the event that recorded it.
+    // The recharge the block prints is reported off the creature's own ledger —
+    // the one the engine's `line_expended` refusal reads.
     expect(out.resolution['expended']).toBe(true);
   });
 });

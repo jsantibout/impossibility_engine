@@ -757,26 +757,25 @@ const LOSE_ITEMS = tool({
  * echo would be the surface answering a question the engine already answered,
  * and answering it differently.
  *
- * `expended` is the same read one event along: a line the block prints a
- * recharge on is gone until it comes back, and `printed-line-expended` is the
- * engine saying so. A caller that could not see it would have to take the line
- * again to find out, which costs an Action.
+ * `expended` says whether the line is gone until it comes back, which a caller
+ * that could not see it would have to spend another Action to find out. It is
+ * asked of the **creature** — `expendedLines`, the same ledger the engine's own
+ * `line_expended` refusal reads, so the answer here and the refusal there
+ * cannot disagree. A `printed-line-expended` out of the log would answer "was
+ * it ever", and a line the engine handed back at a turn boundary would still
+ * read as gone.
  *
- * **Both are read out of the campaign and not out of this call's batch**, and
- * that is what makes a retry honest. `once` hands a duplicate back with *no*
- * events, so a reading of the batch would fall through to echoing the caller's
- * casing and would report a spent recharge as unspent — the two failures this
- * note forbids, arriving through the one path with nothing to read. The log is
- * searched instead, matched on the command stamp the first call left on its own
- * event, which is the same id the transport is re-sending; `settle` appends
- * before it asks for a resolution, so the fresh path finds its own event there
- * too and there is one path rather than two. A call whose event cannot be found
- * claims neither field: `duplicate` is then the whole of the answer.
- *
- * And `expended` is asked of the *creature* rather than of an event, because
- * "is this line spent" is a question about now. Reading a
- * `printed-line-expended` out of the log would answer "was it ever", and a line
- * the engine handed back at a turn boundary would still read as gone.
+ * **Neither is read out of this call's batch**, and that is what makes a retry
+ * honest. `once` hands a duplicate back with *no* events, so a reading of the
+ * batch would fall through to echoing the caller's casing and would report a
+ * spent recharge as unspent — the two failures this note forbids, arriving
+ * through the one path with nothing to read. The log is searched instead,
+ * matched on the command stamp the first call left on its own event, which is
+ * the same id the transport is re-sending; `settle` appends before it asks for
+ * a resolution, so the fresh path finds its own event there too and there is one
+ * path rather than two. It is searched from the back, where the fresh path's
+ * event always is. A call whose event cannot be found claims neither field:
+ * `duplicate` is then the whole of the answer.
  */
 const lineTaken = (
   context: ToolContext,
@@ -786,7 +785,7 @@ const lineTaken = (
 ): Readonly<Record<string, unknown>> => {
   const taken = context.campaign
     .log()
-    .find(
+    .findLast(
       (event) =>
         event.type === type &&
         (event as { command?: { id: string } }).command?.id === context.commandId,
