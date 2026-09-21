@@ -547,6 +547,12 @@ export function resolveAttack(
       weapon = item.weapon;
     }
 
+    // SRD Martial Arts and SRD Flurry of Blows both say "Unarmed Strike", and
+    // this is the whole of what one is here: no weapon named, and no line off
+    // the creature's own block either — a Wolf's Bite is the block's attack
+    // rather than a fist.
+    const unarmedStrike = command.weapon === null && command.action === undefined;
+
     // — the mastery property, if this character has unlocked one ——————————
     //
     // Before anything is spent, for the reason the damage types below are:
@@ -798,9 +804,14 @@ export function resolveAttack(
         attacksInAction(sheet, attacker.heads, linesUsed),
         attacker.conditions,
         { rules: actionRulesOn(state, id) },
+        // SRD Flurry of Blows buys attacks an Unarmed Strike may take and a
+        // weapon may not, so the price of this swing depends on which it was.
+        // A block's printed Claw is neither: it is the creature's own line,
+        // named by `command.action`, and no Unarmed Strike at all.
+        unarmedStrike,
       );
       if (!spent.ok) return spent;
-      events.push({ type: 'attack-made', id });
+      events.push({ type: 'attack-made', id, ...(unarmedStrike ? { unarmed: true } : {}) });
     }
 
     // The slot this swing filled, written down where the economy was spent.

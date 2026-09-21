@@ -127,6 +127,8 @@ export type {
   ImprovisedDamageCommand,
   ImprovisedDamageResolution,
 } from './commands/damage.js';
+export { budgetPurchaseSlot, useBudgetPurchase } from './commands/budget.js';
+export type { UseBudgetPurchaseCommand } from './commands/budget.js';
 export { resolveAttack, resolveAttackDamage } from './commands/attacks.js';
 export type { AttackCommand, AttackDamageCommand, AttackResolution } from './commands/attacks.js';
 export {

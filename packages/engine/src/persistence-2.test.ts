@@ -579,6 +579,15 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // engine applies none of it, and the Multiattack branch a golem's block
   // gates on having taken one.
   'stated-bonus-action-taken',
+  // Room a feature bought in a turn's own budget. Neither log was written
+  // when a turn could hold more than one action or an attack outside an
+  // Attack action — the budget had no field for either — and both fixtures
+  // fold to exactly the states they always folded to with the extras empty.
+  // `turn-budget-grants.test.ts` folds it and drives it end to end: a second
+  // action taken and a third refused, the use spent from its own pool, the
+  // budget back to one next turn, and a log holding the extra action replayed
+  // byte for byte.
+  'turn-budget-granted',
   'turn-payout-granted',
   // The Attack action spent on an Unarmed Strike that threw no attack roll —
   // the Grapple and Shove options. Neither log was written when either option

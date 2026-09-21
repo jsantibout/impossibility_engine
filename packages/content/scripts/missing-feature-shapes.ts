@@ -602,7 +602,7 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
     {
       clause: 'Improved Flurry of Blows',
       why: 'an-attack-the-class-redefines',
-      note: 'three Unarmed Strikes instead of two, which is the attack the Monk class redefines.',
+      note: 'three Unarmed Strikes instead of two. The two are bought now — a Focus Point and a Bonus Action buy attacks the Attack action does not hold — and what is left is the count: a later feature rewriting an earlier one’s printed number, which is `recoversSooner`’s sentence asked of a purchase rather than of a recovery.',
     },
     {
       clause: 'Patient Defense',

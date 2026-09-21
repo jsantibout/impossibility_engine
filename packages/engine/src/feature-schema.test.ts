@@ -675,7 +675,7 @@ describe('rule 7 — no FeatureGrant member sits unwritten', () => {
     expect([...written].filter((kind) => !fromClasses.has(kind)).sort()).toEqual([
       'casts',
       'confers',
-      'initiative-proficiency',
+      'initiative',
     ]);
     expect(fromClasses.has('pool')).toBe(true);
 
@@ -690,7 +690,7 @@ describe('rule 7 — no FeatureGrant member sits unwritten', () => {
     // the boon rather than on the level 19 class feature that grants one, so
     // this kind is written by a class table *and* by a feat, which is the
     // sharing this assertion is here to make visible.
-    expect([...fromFeats].sort()).toEqual(['ability-score-increase', 'initiative-proficiency']);
+    expect([...fromFeats].sort()).toEqual(['ability-score-increase', 'initiative']);
     expect(fromClasses.has('ability-score-increase')).toBe(true);
   });
 

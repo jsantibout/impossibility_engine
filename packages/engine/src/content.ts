@@ -199,7 +199,7 @@ export const READABLE_GRANT_KINDS: ReadonlySet<string> = new Set([
   'critical-range',
   'expertise',
   'extra-attack',
-  'initiative-proficiency',
+  'initiative',
   'lifts-conditions',
   'on-hit',
   'pool',
@@ -232,7 +232,7 @@ export const READABLE_GRANT_KINDS: ReadonlySet<string> = new Set([
  * read it off a feat, with the test that proves it arrives.
  */
 export const FEAT_GRANT_KINDS: ReadonlySet<string> = new Set([
-  'initiative-proficiency',
+  'initiative',
   // SRD prints the ceiling on a feat and on nothing else: every Epic Boon is
   // "Increase one ability score of your choice by 1, **to a maximum of 30**",
   // and the level 19 class feature says only that you gain one. Read by
@@ -2670,6 +2670,32 @@ function duplicates(ids: readonly string[]): readonly string[] {
  *   oracle's question, and it lives with the SRD content, because a DM's
  *   invented spell is valid engine data and is not in the book.
  */
+/**
+ * A grant about Initiative has to change something about Initiative.
+ *
+ * SRD Alert prints two benefits under one heading and the grant carries both
+ * as flags, so either alone is a whole sentence and neither is a sentence
+ * somebody meant to finish. Asked of a feat and of a feature alike, because
+ * the kind is a member of the one vocabulary and `creation.ts` reads it off
+ * both holders.
+ */
+function initiativeGrantProblems(
+  declared: unknown,
+  where: string,
+  who: string,
+): readonly ContentProblem[] {
+  const grant = declared as Record<string, unknown>;
+  if (grant['kind'] !== 'initiative') return [];
+  if (grant['proficiency'] === true || grant['swap'] === true) return [];
+  return [
+    {
+      field: where,
+      code: 'empty_initiative_grant',
+      reason: `${who} declares a grant about Initiative that neither adds the Proficiency Bonus nor allows the swap, so it changes nothing about Initiative`,
+    },
+  ];
+}
+
 export function checkContent(input: ContentInput): readonly ContentProblem[] {
   const problems: ContentProblem[] = [];
   const spells = input.spells ?? [];
@@ -2769,6 +2795,7 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
         reason: `nothing reads "${kind}" off a feat — creation compiles a class feature's grants onto the sheet and a feat goes through none of that — so ${feat.id} would declare a benefit nobody ever pays`,
       });
     }
+    problems.push(...initiativeGrantProblems(declared, where, feat.id));
   }
 
   const classOf = byId(classes);
@@ -3124,6 +3151,47 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
       // that names a menu nobody in scope prints, one that arrives before the
       // menu does, or one whose id the host already uses is a line on a class
       // table that looks executed and reaches nobody.
+      // The same sentence asked of a feature, because the kind is a member of
+      // the one vocabulary and a homebrew class feature may print it.
+      if (feature.grants !== undefined) {
+        problems.push(
+          ...initiativeGrantProblems(feature.grants, `${where}.grants`, feature.id),
+        );
+      }
+
+      // What a use of this pool buys in the turn budget. A purchase that adds
+      // nothing is the failure `empty_feature_option` names one menu along,
+      // and a count of zero attacks is the same thing wearing a number.
+      if (feature.grants?.kind === 'pool' && feature.grants.buysBudget !== undefined) {
+        const purchases = feature.grants.buysBudget;
+        const seen = new Set<string>();
+        purchases.forEach((purchase, at) => {
+          const field = `${where}.grants.buysBudget[${at}]`;
+          if (purchase.extraAction === undefined && purchase.extraAttacks === undefined) {
+            problems.push({
+              field,
+              code: 'empty_budget_purchase',
+              reason: `${feature.id}'s "${purchase.name}" spends a use and adds nothing to the turn`,
+            });
+          }
+          if (purchase.extraAttacks !== undefined && purchase.extraAttacks.count < 1) {
+            problems.push({
+              field: `${field}.extraAttacks.count`,
+              code: 'empty_budget_purchase',
+              reason: `${feature.id}'s "${purchase.name}" buys no attacks at all`,
+            });
+          }
+          if (seen.has(purchase.id)) {
+            problems.push({
+              field: `${field}.id`,
+              code: 'duplicate_budget_purchase',
+              reason: `${feature.id} sells two things called "${purchase.id}", and the caller names one`,
+            });
+          }
+          seen.add(purchase.id);
+        });
+      }
+
       if (feature.grants?.kind === 'pool-options') {
         const grant = feature.grants;
         if (!isString(grant.feature) || grant.feature.trim() === '') {

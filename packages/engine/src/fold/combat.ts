@@ -15,6 +15,7 @@ import {
   disengage,
   markFeatureUsed,
   removeCombatant,
+  grantTurnBudget,
   spendAction,
   spendAttack,
   spendBonusAction,
@@ -74,6 +75,7 @@ export const COMBAT_EVENTS = [
   'combatant-joined',
   'combatant-removed',
   'initiative-swapped',
+  'turn-budget-granted',
   'feature-used',
   'stated-bonus-action-taken',
   'stated-action-taken',
@@ -190,6 +192,13 @@ export function applyCombat({ state, next }: Applying, event: CombatEvent): Game
               ),
             ),
             creature.conditions,
+            undefined,
+            // The command's own question again: attacks a feature bought
+            // outside the Attack action may be narrowed to Unarmed Strikes,
+            // and which this was is a fact only the command held until the
+            // event carried it. Absent is a weapon, which is what every log
+            // written before the field says.
+            event.unarmed ?? false,
           ),
         ).state,
       );
@@ -262,6 +271,25 @@ export function applyCombat({ state, next }: Applying, event: CombatEvent): Game
         next,
         state,
         must(event, swapInitiative(combatOf(state, event), event.a, event.b)),
+      );
+
+    // The one door that adds to a turn rather than spending from it. What it
+    // cost is the `resource-spent` and the `bonus-action-spent` beside it,
+    // folded here and by the resource seam like any other; this is what was
+    // bought, and the numbers on it were pinned by the command that read them.
+    case 'turn-budget-granted':
+      return withCombat(
+        next,
+        state,
+        must(
+          event,
+          grantTurnBudget(combatOf(state, event), event.id, {
+            ...(event.action === undefined
+              ? {}
+              : { action: { source: event.source, ...(event.action.except === undefined ? {} : { except: event.action.except }) } }),
+            ...(event.attacks === undefined ? {} : { attacks: event.attacks }),
+          }),
+        ),
       );
 
     case 'feature-used': {

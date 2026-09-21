@@ -12,6 +12,7 @@ import type {
   TradeFeature,
 } from './standing.js';
 import type { ConferrableReaction, ReactionFeature } from './reactions.js';
+import type { NamedAction } from './combat.js';
 import type {
   Armor,
   MonsterAttack,
@@ -321,6 +322,30 @@ export interface StatedValues {
   readonly unreadActions?: readonly StatedAction[];
 }
 
+/**
+ * What a use of one of this character's pools buys in the turn budget.
+ *
+ * `PoolOption`'s neighbour, resolved at creation the same way and out of the
+ * same grant: the pool grant prices it and `BudgetPurchaseGrant` says what it
+ * is. It is declared here rather than in `standing.ts` beside the rest because
+ * nothing about it is derived from state — there is no rule to re-read on
+ * every look, only a purchase to make and a `TurnBudget` to write.
+ */
+export interface BudgetPurchase {
+  /** The feature that sells it, by id — SRD's Monk's Focus. */
+  readonly feature: string;
+  readonly featureName: string;
+  /** The purchase, by id — SRD's Flurry of Blows. */
+  readonly purchase: string;
+  readonly name: string;
+  /** The pool a use comes out of, which may be another feature's. */
+  readonly pool: string;
+  readonly action: 'action' | 'bonus-action' | 'none';
+  readonly extraAction?: { readonly except?: readonly NamedAction[] };
+  readonly extraAttacks?: { readonly count: number; readonly unarmedOnly: boolean };
+  readonly oncePerTurn?: boolean;
+}
+
 export interface CharacterSheet {
   readonly level: number;
   readonly abilities: AbilityScores;
@@ -413,6 +438,27 @@ export interface CharacterSheet {
    * to the class that granted the feature rather than to the character.
    */
   readonly poolOptions?: readonly PoolOption[];
+  /**
+   * What a use of a feature's pool buys, where what it buys is room in the
+   * turn's own budget — SRD Action Surge, SRD Flurry of Blows.
+   *
+   * Resolved at creation beside `poolOptions`, and for the nearer of its
+   * reasons: the menu is the feature's and the pool it is priced in may belong
+   * to a different feature, so the answer is read once here rather than a
+   * class table being re-opened on somebody's turn.
+   */
+  readonly budgetPurchases?: readonly BudgetPurchase[];
+  /**
+   * Whether this character may swap Initiative with a willing ally — SRD
+   * Alert's second printed benefit.
+   *
+   * Resolved at creation off a declaration rather than off a feat's id, for
+   * inviolable rule 4's reason: a catalogue without Alert would otherwise lose
+   * the rule, and one that spelled it differently would never get it. Absent
+   * means no, which is what every creature the engine was ever told about says
+   * — including every stat block, none of which prints the sentence.
+   */
+  readonly initiativeSwap?: boolean;
   /**
    * What a casting of this character's may buy, and what each purchase costs
    * — SRD Metamagic's menu.
