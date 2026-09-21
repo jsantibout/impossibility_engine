@@ -14,6 +14,7 @@ import {
   resolveTurn,
   settleDamage,
   takeDamageReaction,
+  usePoolOption,
 } from './commands.js';
 import { createCharacter, planCharacter, type CharacterChoices } from './creation.js';
 import { extendContent, parseClassDefinition } from './content.js';
@@ -900,5 +901,270 @@ describe('a rider waits for the window the same blow opened', () => {
       expect(after.pendingAttack).toBeNull();
       expect(stunned(after)).toBe(false);
     });
+  });
+});
+
+// — and the price that stopped being payable between the two halves ————————
+
+/**
+ * **A rider whose price can no longer be paid is dropped, not thrown.**
+ *
+ * `hitRiderAsked` checks the pool at the *swing*, which is the right place for
+ * it: a refusal that arrives after the blow has landed is a refusal with a
+ * footprint. But a held swing settles a command later, and `mayAct`
+ * deliberately does not stop a creature acting while `pendingAttack` stands —
+ * SRD Divine Smite is cast into exactly that window. So the pool the rider was
+ * priced against can legally be spent in between, by the holder, on something
+ * else.
+ *
+ * What then arrived at `applyHitRider` was a `resource-spent` for a pool with
+ * nothing in it, and `spend` refuses that — which the fold wraps in `must` and
+ * turns into a `CorruptLogError`. A crash, on a sequence of three legal
+ * commands, in a settlement that has no refusal available to it: the hold is
+ * the only door out, and refusing here would wedge the fight for ever.
+ *
+ * So it is the answer the owner already ruled for the other two endings of a
+ * pinned rider — "Shield drops a pinned rider unspent", a creature leaving
+ * takes it with them — and the answer `settleDamage` gives when a rider will
+ * not resolve: **dropped unspent and reported**. Nothing is charged, because
+ * nothing could be; nothing is refunded, because nothing was taken.
+ */
+const NIGHTBLADE = JSON.stringify({
+  id: 'nightblade',
+  name: 'Nightblade',
+  primaryAbility: 'dex',
+  hitDie: 8,
+  saveProficiencies: ['dex', 'int'],
+  skillChoices: { choose: 2, from: ['acrobatics', 'stealth', 'nature', 'insight'] },
+  weaponProficiencies: ['simple', 'martial'],
+  armorTraining: { light: true, medium: false, heavy: false, shields: false },
+  subclassLevel: 3,
+  table: Array.from({ length: 20 }, (_, i) => ({
+    level: i + 1,
+    proficiencyBonus: 2 + Math.floor(i / 4),
+  })),
+  startingEquipment: [{ option: 'A', items: [{ id: 'shortsword', quantity: 1 }], goldPieces: 10 }],
+  multiclass: {
+    weapons: ['martial'],
+    armorTraining: { light: true, medium: false, heavy: false, shields: false },
+    tools: [],
+  },
+  features: [
+    {
+      id: 'nightblade:reservoir',
+      name: 'Shadow Reservoir',
+      level: 1,
+      automation: 'engine',
+      note: 'One point, and two different things want it: a use of the pool itself, and the rider below. That is Monk’s Focus and Stunning Strike, with the pool shrunk to a size a test can empty.',
+      grants: {
+        kind: 'pool',
+        key: 'shadow-points',
+        label: 'Shadow Points',
+        usesByLevel: Array.from({ length: 20 }, () => 1),
+        recovers: 'long-rest',
+        options: [
+          {
+            id: 'steel',
+            name: 'Shadow Steel',
+            action: 'bonus-action',
+            effects: [{ kind: 'temp-hp', amount: { flat: 5 }, addSpellcastingModifier: false }],
+          },
+        ],
+      },
+    },
+    {
+      id: 'nightblade:sting',
+      name: 'Shadow Sting',
+      level: 1,
+      automation: 'engine',
+      note: 'Stunning Strike’s sentence with the condition changed: a point out of a pool another feature declares, bought by a hit that has already landed.',
+      grants: {
+        kind: 'on-hit',
+        pool: 'shadow-points',
+        costs: 1,
+        options: [
+          {
+            id: 'sting',
+            name: 'Shadow Sting',
+            effects: [{ kind: 'save', ability: 'con', condition: 'poisoned' }],
+            durationSeconds: 60,
+          },
+        ],
+      },
+    },
+  ],
+});
+
+describe('a held rider whose pool is emptied before the damage lands', () => {
+  const parsed = unwrap(parseClassDefinition(JSON.parse(NIGHTBLADE)), 'parse');
+  const content = unwrap(extendContent(SRD_CONTENT, { classes: [parsed] }), 'extend');
+  const NYX = id('nyx');
+  const POOL = 'shadow-points';
+  const STING = { feature: 'nightblade:sting', option: 'sting' };
+
+  const nightblade = (): CharacterChoices => ({
+    name: 'Nyx',
+    classId: 'nightblade',
+    level: 1,
+    speciesId: 'human',
+    backgroundId: 'sage',
+    abilities: {
+      method: 'standard-array',
+      assignment: { str: 12, dex: 15, con: 13, int: 14, wis: 10, cha: 8 },
+    },
+    abilityIncreases: { con: 2, int: 1 },
+    classSkills: ['acrobatics', 'stealth'],
+    languages: ['Elvish', 'Orc'],
+    alignment: 'Neutral',
+    cantrips: [],
+    spellbook: [],
+    preparedSpells: [],
+    classEquipment: 'A',
+    backgroundEquipment: 'A',
+    equipped: [],
+    hitPoints: { method: 'fixed' },
+    featureChoices: { 'human:skillful': ['perception'] },
+    feats: {
+      'sage:magic-initiate-wizard': {
+        featId: 'magic-initiate',
+        spellList: 'wizard',
+        spellcastingAbility: 'int',
+        cantrips: ['mage-hand', 'light'],
+        levelOneSpell: 'find-familiar',
+      },
+      'human:versatile': { featId: 'alert' },
+    },
+  });
+
+  const scene = (): readonly GameEvent[] => [
+    ...(unwrap(createCharacter(content, nightblade(), NYX), 'create') as GameEvent[]),
+    { type: 'creature-side-declared', id: NYX, side: 'party' },
+    {
+      type: 'creature-added',
+      id: THUG,
+      name: 'thug',
+      sheet: plain(),
+      maxHp: 400,
+      diesAtZero: false,
+      creatureType: 'Humanoid',
+      side: 'thugs',
+    },
+    { type: 'scene-set', extent: { width: 200, depth: 200, height: 40 } },
+    { type: 'landmark-added', name: 'the road', at: { x: 50, y: 50, z: 0 } },
+    { type: 'creature-placed', id: NYX, placement: { from: { landmark: 'the road' }, feet: 0 } },
+    {
+      type: 'creature-placed',
+      id: THUG,
+      placement: { from: { creature: NYX }, feet: 5, bearing: 0 },
+    },
+  ];
+
+  const stock = (seed: string) => ({
+    issuer: createRollIssuer('r'),
+    rng: createRng(seed) as Rng,
+    content,
+  });
+
+  const left = (log: readonly GameEvent[]): number =>
+    remaining(fold('seed', log).creatures.nyx!.resources, POOL);
+
+  /** A seed whose Constitution save at the settlement comes up short. */
+  const STING_LANDS = 's9';
+
+  /** The swing, held for the window SRD Divine Smite is cast into. */
+  const held = (log: readonly GameEvent[]): readonly GameEvent[] => {
+    const out = unwrap(
+      resolveAttack(
+        fold('seed', log),
+        NYX,
+        {
+          target: THUG,
+          weapon: 'shortsword',
+          hold: true,
+          onHit: STING,
+          attackBonuses: [{ source: 'forced', flat: 40 }],
+        },
+        stock('swung'),
+      ),
+      'the held swing',
+    );
+    return [...log, ...out.events];
+  };
+
+  /** And the legal thing the holder does with the point while the hold stands. */
+  const emptied = (log: readonly GameEvent[]): readonly GameEvent[] => {
+    const out = unwrap(
+      usePoolOption(
+        fold('seed', log),
+        NYX,
+        { feature: 'nightblade:reservoir', option: 'steel' },
+        stock('steel'),
+      ),
+      'the pool use',
+    );
+    return [...log, ...out.events];
+  };
+
+  it('holds the swing with the point still in the pool', () => {
+    const log = held(scene());
+    expect(fold('seed', log).pendingAttack?.rider?.option).toBe('sting');
+    expect(left(log)).toBe(1);
+  });
+
+  it('lets the holder spend that point on something else while the hold stands', () => {
+    const log = emptied(held(scene()));
+    expect(left(log)).toBe(0);
+    expect(fold('seed', log).creatures.nyx!.vitals.temporaryHp).toBe(5);
+    // The hold is untouched: what was pinned on it is still pinned on it.
+    expect(fold('seed', log).pendingAttack?.rider?.option).toBe('sting');
+  });
+
+  /**
+   * The settlement, with nothing left to pay the rider with. It must be a
+   * value: this is the only door out of the hold, and an exception here is a
+   * campaign that cannot be advanced and cannot be reloaded past.
+   */
+  it('settles the damage rather than throwing, and spends nothing', () => {
+    const log = emptied(held(scene()));
+    const out = unwrap(
+      resolveAttackDamage(fold('seed', log), NYX, {}, stock('bl1')),
+      'the settlement',
+    );
+    const after = fold('seed', [...log, ...out.events]);
+
+    expect(after.pendingAttack).toBeNull();
+    expect(after.creatures.thug!.vitals.hp).toBeLessThan(400);
+    expect(left([...log, ...out.events])).toBe(0);
+    expect(out.events.some((e) => e.type === 'resource-spent' && e.key === POOL)).toBe(false);
+    expect(after.creatures.thug!.conditions.conditions).not.toContain('poisoned');
+  });
+
+  /** And the drop is reported rather than silent — the channel `settleDamage` uses. */
+  it('reports the rider it dropped', () => {
+    const log = emptied(held(scene()));
+    const out = unwrap(
+      resolveAttackDamage(fold('seed', log), NYX, {}, stock('bl1')),
+      'the settlement',
+    );
+    expect(out.unverified.some((line) => line.includes('Shadow Sting'))).toBe(true);
+  });
+
+  /**
+   * The same three commands with the point left alone: nothing changes.
+   *
+   * A seed the thug's Constitution save fails on, so that the rider is seen to
+   * have done its whole job rather than merely to have been charged for.
+   */
+  it('leaves a rider whose price is still payable exactly as it was', () => {
+    const log = held(scene());
+    const out = unwrap(
+      resolveAttackDamage(fold('seed', log), NYX, {}, stock(STING_LANDS)),
+      'the settlement',
+    );
+    const after = fold('seed', [...log, ...out.events]);
+
+    expect(left([...log, ...out.events])).toBe(0);
+    expect(out.events.some((e) => e.type === 'resource-spent' && e.key === POOL)).toBe(true);
+    expect(after.creatures.thug!.conditions.conditions).toContain('poisoned');
   });
 });
