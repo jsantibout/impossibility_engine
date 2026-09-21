@@ -958,7 +958,7 @@ stopped having to be handed:
 
 | Parsed | Carried | Attacking | Defence entries | of which qualified | of which unread | Printed lines | of which read |
 |---|---|---|---|---|---|---|---|
-| 330 | 330 | 328 | 723 | 2 | 2 | 1329 | 614 |
+| 330 | 330 | 328 | 723 | 2 | 2 | 1329 | 615 |
 
 **A stat block used to arrive as a body rather than as an actor.**
 `adaptMonster` has always carried across everything the block states as a
@@ -1008,7 +1008,7 @@ fact the book wrote for a person.
 | Line | Printed | Read |
 |---|---|---|
 | Traits | 337 | 18 |
-| Actions | 811 | 596 |
+| Actions | 811 | 597 |
 | Bonus actions | 75 | 0 |
 | Reactions | 24 | 0 |
 | Legendary actions | 82 | 0 |
@@ -1029,7 +1029,7 @@ and a bite whose hit buys a save.
 | A use the block limits per day | 54 | 60 |
 | A creature that casts | 48 | 48 |
 | A legendary action’s own economy | 30 | 82 |
-| How many attacks the Attack action holds | 3 | 3 |
+| How many attacks the Attack action holds | 2 | 2 |
 
 **A printed line reaches the Attack action and nothing else.** An
 opportunity attack and a readied strike both name a weapon and have

@@ -34,6 +34,14 @@ to homebrew.
   cannot make two Claws; and an opportunity attack that reaches for the
   highest-damage printed melee attack that does not recharge, instead of
   fabricating an Unarmed Strike. A caller may still name a different one.
+- **A monster's Bonus Action is spendable.** The 75 printed lines are carried
+  onto the sheet and one may be taken: the Bonus Action is spent, the printed
+  sentence is handed back, and the engine executes nothing — most of the 75
+  name a spell, a save or a shape-shift it cannot run, and a line it cannot run
+  is handed over rather than silently succeeding. The once-per-turn ledger is
+  the existing one under a reserved namespace, so there is no second counter.
+  On the back of it the clay golem's gate is evaluable: three Slams after
+  Hasten, two without, and two when nothing was spent.
 - **A feature that holds an action rule.** A feature may say a price its holder
   pays for a named action, derived at every spend rather than stored, so a log
   frozen before the rule existed still folds to what it always folded to. SRD
@@ -431,19 +439,12 @@ one, three spells were two, four features were one, 177 Multiattack blocks were
 about the corpus rather than a law. Every one was caught by a builder, in
 minutes, after the brief was written. `WORKFLOW.md` rule 1 says to check first.
 
-1. **Bonus actions, and the clay golem that waits on them.** The 75 printed
-   bonus-action lines are **already parsed** — `parseFeatures` runs every
-   detector over every section and none of the 75 prints an attack roll. They
-   are seven mechanisms under one heading: ~16 cast a spell, 15 force a save,
-   12 take another action, 12 move, 10 shape-shift, 5 teleport, 5 prose. So
-   what is left is not parsing. It is carrying the lines onto the sheet and
-   **spending** one, which needs a command, a `GameEvent` member and a fold
-   region. **A decision first:** does a monster's Bonus Action get a spend of
-   its own, and does `MonsterMultiattack` gain a branch gate the engine can
-   evaluate against it? Until both exist the clay golem has nothing to stand
-   on — reading its gated branch with nothing able to evaluate the gate would
-   hand it three Slams unconditionally, because `sequenceTotal` is `Math.max`
-   over branches.
+1. **Two readings nobody has ruled on, both conservative today.** A
+   bonus-action heading carrying `(Recharge 5-6)` or `(2/Day)` is not
+   enforced, because the engine tracks no recharge anywhere — printed attacks
+   included. And a clay golem that Slams *before* it Hastens gets two, because
+   the action's size is fixed at the first swing. Both err toward giving less
+   than the book, which is the safe direction, and neither has been decided.
 
 2. **What the bestiary still does not read.** 75 printed bonus-action lines read
    as 0, which is also what leaves the clay golem's gated alternative prose. And
