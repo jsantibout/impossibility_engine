@@ -580,6 +580,15 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // gates on having taken one.
   'stated-bonus-action-taken',
   'turn-payout-granted',
+  // The Attack action spent on an Unarmed Strike that threw no attack roll —
+  // the Grapple and Shove options. Neither log was written when either option
+  // existed at all: the engine modelled only the Damage one, so every attack
+  // in both fixtures is an `attack-made` and both fold to exactly the states
+  // they always folded to. `unarmed.test.ts` folds it and drives it end to
+  // end: the save against the striker's own DC, the Grappled condition and the
+  // escape DC pinned beside it, the Prone and the five-foot push, the size
+  // rule, and the Hide that stands because no attack roll was made.
+  'unarmed-strike-made',
 ];
 
 /** What the pair must cover between them, whatever else changes. */

@@ -80,9 +80,18 @@ export function applyTimers({ state, next }: Applying, event: TimersEvent): Game
           `${event.effectKey} ends on its target, but it is not on a creature`,
         );
       }
+      // **A source that is not a casting ends on its own timer**, which is the
+      // reading `effect-save-resolved` below already takes of the very same
+      // sentence: SRD writes "ending the condition on itself on a success" on
+      // plenty of things nobody cast — a grapple's escape is the first of them
+      // to reach this door — and there is then no casting to release on a
+      // target, nothing in `ongoing` and no Concentration to drop. What the
+      // success ends is the condition and the deadline that was holding it.
+      // This used to be a `CorruptLogError`, so a check offered against
+      // anything but a spell wrote a log that could not be folded.
       const castingId = castingIdOf(timer.target.instance);
       if (castingId === null) {
-        throw new CorruptLogError(event, `${event.effectKey} belongs to no casting`);
+        return endTimedCondition(next, event.effectKey, timer.target);
       }
       return releaseOnTarget(next, timer.target.on, castingId);
     }
