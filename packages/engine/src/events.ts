@@ -845,6 +845,19 @@ export type GameEvent =
        */
       readonly command?: CommandStamp;
     }
+  /**
+   * Everything a recovery tag gives this creature back.
+   *
+   * **Pools and tallies, and — on the two rest tags — the printed lines a
+   * recharge took away.** SRD *Monsters* puts the rest in the same sentence as
+   * the die: "the monster regains the use of that part, which also recharges
+   * when the monster finishes a Short or Long Rest", and the book's other
+   * notation is that clause with the die taken away. A rest *is* this event
+   * with a rest's tag on it — `endRest` emits both tags for a Long Rest — so
+   * the recharge rides the tag rather than waiting on a second event an
+   * emitter could forget. `dawn` and `special` return no line: a morning is
+   * not a rest. See {@link CreatureState.expendedLines}.
+   */
   | {
       readonly type: 'resources-restored';
       readonly id: CharacterId;
@@ -1622,13 +1635,16 @@ export type GameEvent =
    * made with is now spent. It is emitted only where the block prints a
    * recharge, so a creature that takes an ordinary Bonus Action writes nothing
    * here — which is what every log written before this existed says.
+   *
+   * **No stamp**, because neither command that emits it is guaranteed to: a
+   * spend rides the `stated-bonus-action-taken` its command always writes, and
+   * a swing's rides its own. A stamp nothing sets is a guard that never fires.
    */
   | {
       readonly type: 'printed-line-expended';
       readonly id: CharacterId;
       /** The heading the block prints the line under. */
       readonly line: string;
-      readonly command?: CommandStamp;
     }
   /**
    * The same line, back.
