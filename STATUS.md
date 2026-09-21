@@ -495,6 +495,10 @@ to homebrew.
 
 ## Next
 
+**The plan is `docs/ROADMAP.md`** (2026-09-21): phases, gates and tracks from
+here to playable levels 1–5 through Infinite Realms. The list below predates it
+and is kept until the foreman folds it in under P0-T6.
+
 **A level 5 party can be built, armed, placed against monsters that fight with
 their own printed lines, their own Multiattacks and their own daily limits,
 played through a fight, a rest and an ending — and then levelled.** The numbers

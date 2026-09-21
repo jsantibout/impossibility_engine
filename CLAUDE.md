@@ -153,8 +153,9 @@ The load-bearing tests, so you know what a change can break:
 | a rules question, or the SRD parsers | `docs/rules/srd-policy.md` |
 | the tool surface, the session boundary, the orchestration layer | `docs/design/claude-integration.md` |
 
-`STATUS.md` says what runs and what is next. `CONTRIBUTING.md` says how two
-people share the tree. `docs/dev/WORKFLOW.md` is the agent workflow.
+`STATUS.md` says what runs and what is next. `docs/ROADMAP.md` is the road
+to playable levels 1–5 through Infinite Realms, the plan a foreman works
+from. `CONTRIBUTING.md` says how two people share the tree. `docs/dev/WORKFLOW.md` is the agent workflow.
 `docs/archive/` is frozen history: audits, closed task briefs, the old
 working notes. Do not read it unless a note above sends you there, and never
 cite it as current.
