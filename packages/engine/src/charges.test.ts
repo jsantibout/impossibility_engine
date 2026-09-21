@@ -656,6 +656,22 @@ describe('the validator judges an item’s charge pool', () => {
     );
   });
 
+  /**
+   * And a recovery a later *feature* rewrites, which is the fifth field this
+   * host could never apply.
+   *
+   * The gate is "does this character hold that feature", read off the feature
+   * list a class table produced; a wand's charges are declared when the copy
+   * is gained and no feature list is ever consulted. So the field would sit
+   * there looking like a rule in force, which is what the four sizings beside
+   * it are refused for.
+   */
+  it('refuses a recovery a later feature rewrites, which no item has a table for', () => {
+    expect(
+      codes(charged({ recoversSooner: { withFeature: 'a-class:later', recovers: 'short-rest' } })),
+    ).toContain('item_grant_reads_a_level');
+  });
+
   it('refuses a dawn roll that is not dice, or that is not at dawn', () => {
     expect(codes(charged({ regainsAtDawn: 'some' }))).toContain('bad_dawn_roll');
     expect(codes(charged({ recovers: 'long-rest', regainsAtDawn: '1d3' }))).toContain(

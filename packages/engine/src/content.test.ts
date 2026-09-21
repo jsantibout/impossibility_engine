@@ -1177,6 +1177,57 @@ describe('the one door refuses what it cannot execute, with a path', () => {
     if (isErr(refused)) expect(refused.code).toBe('invalid_content');
   });
 
+  /**
+   * A pool whose recovery is rewritten by a feature the source never prints.
+   *
+   * `executedBy`'s failure, one field along and with the same silence: the
+   * rewrite is gated on the character holding the feature named, so an id
+   * nobody prints never fires and the pool keeps the tag it was declared with
+   * while the class file reads as though it does not. A definition cannot see
+   * its siblings, which is why the question is asked here and not in
+   * `feature-schema.ts`.
+   */
+  it('refuses a recovery rewritten by a feature nobody prints, and accepts a real one', () => {
+    const withRewrite = (withFeature: string) => {
+      const cls = JSON.parse(BLOODHUNTER);
+      cls.features = [
+        {
+          id: 'bloodhunter:rite-dice',
+          name: 'Rite Dice',
+          level: 1,
+          automation: 'engine',
+          note: 'A pool of two per Long Rest, moved onto a Short Rest by a later feature.',
+          grants: {
+            kind: 'pool',
+            key: 'rite-dice',
+            usesByLevel: Array.from({ length: 20 }, () => 2),
+            recovers: 'long-rest',
+            recoversSooner: { withFeature, recovers: 'short-rest' },
+          },
+        },
+        {
+          id: 'bloodhunter:font-of-rites',
+          name: 'Font of Rites',
+          level: 5,
+          automation: 'engine',
+          note: 'Rite Dice come back on a Short Rest from here, which is this feature rewriting that declaration.',
+          executedBy: 'bloodhunter:rite-dice',
+        },
+      ];
+      return cls;
+    };
+
+    expect(
+      checkContent({ classes: [withRewrite('bloodhunter:nobody')] }).map((p) => p.code),
+    ).toContain('bad_recovery_rewrite');
+    expect(
+      checkContent({ classes: [withRewrite('bloodhunter:rite-dice')] }).map((p) => p.code),
+    ).toContain('bad_recovery_rewrite');
+    expect(
+      checkContent({ classes: [withRewrite('bloodhunter:font-of-rites')] }).map((p) => p.code),
+    ).toEqual([]);
+  });
+
   it('refuses a duplicate id and a feature executed by nobody', () => {
     const twice = checkContent({ spells: [JSON.parse(EMBER_LASH), JSON.parse(EMBER_LASH)] });
     expect(twice.map((p) => p.code)).toContain('duplicate_id');
