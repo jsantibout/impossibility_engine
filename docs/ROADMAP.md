@@ -44,18 +44,39 @@ Four criteria, all measured, all four required:
    app with the model narrating what the log says, on a stored campaign that
    survives a reload (§7, milestone I-3).
 
-The starting numbers, 2026-09-21, unique over all twelve paths at level 5:
+The starting numbers, 2026-09-21, unique over all twelve paths at level 5.
+**These are now generated**: `npm run ledger` writes `LEDGER.md` and a
+freshness test fails on a stale one, so this table is a snapshot of the first
+run and the report is the authority.
 
 | Ledger | Size | Waits on an engine shape | Waits on none |
 |---|---|---|---|
 | Spells in reach, not executed | 141 | 89 | 52 (6 handover-only, Darkness, 45 never adjudicated) |
-| Features manual, or a pool with nothing to buy | 31 | 21 | 10 (3 Fighting Styles, 3 languages/knowledge, 4 pools the map cannot see) |
+| Features manual, or a pool with nothing to buy | 55 | 49 | 6 |
 | CR ≤ 5 stat-block items: handed-over lines + unapplied hit riders | 434 | on 198 of 242 blocks | 44 blocks already clean |
 
-Two doors that exist in the engine and reach no tool: Action Surge and Flurry
-of Blows (`useBudgetPurchase`). Seven spells in reach with no definition at
-all: Magic Missile, Entangle, Find Familiar, Darkness, Phantasmal Force,
-Sending, Slow.
+**The features row was 31/21/10 when this file was written, and the generated
+report corrects it to 55/49/6.** Two things were missing. The count was taken
+over class and subclass features alone, and a level 5 character also holds a
+species and a background — criterion 1 would have been false by omission
+without them. And P0-T4 added the five features no automation flag could see:
+four pools that count and refill their uses truthfully and buy nothing, plus
+Monk's Focus, which buys one of the three things its page prints.
+
+Spells and the bestiary came out of the generated report **entry for entry
+equal to the hand-measured snapshot**, which is the evidence that the
+promotion was faithful.
+
+**Action Surge and Flurry of Blows are open** (P1-T1, merged): the engine had
+been executing what a use buys for a week and no tool reached it.
+`use_budget_purchase` is that door, and `reachability.test.ts` now fails on any
+engine feature a level 5 character of any path cannot reach. Four pools stay
+shut because nothing yet executes what a use buys — Wild Shape, Paladin's
+Channel Divinity, Font of Magic, Arcane Recovery — recorded in that test's
+`NOTHING_TO_BUY` and checked in both directions.
+
+Seven spells in reach with no definition at all: Magic Missile, Entangle, Find
+Familiar, Darkness, Phantasmal Force, Sending, Slow.
 
 ## 1. Rules of the road
 
@@ -119,7 +140,7 @@ Between gates the foreman merges clean tracks without asking, exactly as
 Small, and before any mechanics, because every later batch is chosen and
 measured with these. One batch, tracks partitioned by file.
 
-- `[ ]` **P0-T1 The ledger becomes a generated file.** Promote the audit's
+- `[x]` **P0-T1 The ledger becomes a generated file.** Promote the audit's
   scripts (`node_modules/.audit/ledger-*.ts`, copies of their output in
   `docs/dev/roadmap-ledger-2026-09-21.md`) into
   `packages/content/scripts/ledger.ts`, run by `npm run ledger`, writing
@@ -130,7 +151,7 @@ measured with these. One batch, tracks partitioned by file.
   *Verify first:* the restriction to level-5 reach must use the same reach
   rule `playableLevels` uses (cantrip where `cantripsKnown > 0`, a spell
   whose level the class table has a slot of at level 5).
-- `[ ]` **P0-T2 The reachability test.** In `packages/tools`, build one
+- `[x]` **P0-T2 The reachability test.** In `packages/tools`, build one
   level 5 character per path with `createCharacter`, fold, read
   `holdingsOf`, and assert every `automation: 'engine'` feature is one of:
   passive, creation-time (spellcasting, subclass, ASI, expertise, mastery,
@@ -140,7 +161,7 @@ measured with these. One batch, tracks partitioned by file.
   lands; brief the two together. Files: new
   `packages/tools/src/reachability.test.ts`, `holdings.ts`
   (`budgetPurchases` branch). Moves: criterion 2 exists.
-- `[ ]` **P0-T3 The session test.** In `packages/tools`, a scripted level 5
+- `[x]` **P0-T3 The session test.** In `packages/tools`, a scripted level 5
   party (Fighter, Cleric, Rogue, Wizard is the suggestion; four paths that
   between them touch weapons, slots, Sneak Attack, Channel Divinity and
   concentration) against a CR-appropriate encounter, through
@@ -150,14 +171,14 @@ measured with these. One batch, tracks partitioned by file.
   `unverified` clause, every handed-over line and every `manual` feature the
   party held and could not use. Print the count; assert nothing yet. Moves:
   criterion 3 exists and is a number from day one.
-- `[ ]` **P0-T4 Widen the feature blocker map** (owner ruling 4,
+- `[x]` **P0-T4 Widen the feature blocker map** (owner ruling 4,
   2026-09-21). `packages/content/scripts/missing-feature-shapes.ts` selects
   its population by `automation === 'manual'`; add a second population of
   `engine` features whose grant is a bare `pool` or whose note says a half is
   unapplied, and entries for `druid:wild-shape`, `sorcerer:font-of-magic`,
   `wizard:arcane-recovery`, `paladin:channel-divinity`, `monk:focus` (Patient
   Defense and Step of the Wind). Moves: five features the map could not see.
-- `[ ]` **P0-T5 The yard.** All small, one builder, one commit each:
+- `[!]` **P0-T5 The yard.** All small, one builder, one commit each:
   `.editorconfig` with `end_of_line = lf`; rewrite the six CRLF lines in
   `packages/engine/src/commands/mastery.ts:282–287`; a shared `linesOf`
   splitting on `/\r?\n/` in the fourteen tests that parse source
@@ -171,7 +192,7 @@ measured with these. One batch, tracks partitioned by file.
   `origin-and-feature-sweep.test.ts` with `spellbook` on the vocabulary
   list. Then, by the owner: prune the eighteen merged worktrees under
   `.claude/worktrees`, push the commits ahead of `origin/main`.
-- `[ ]` **P0-T6 STATUS.md to its cap**, by the foreman: "What runs" to a
+- `[x]` **P0-T6 STATUS.md to its cap**, by the foreman: "What runs" to a
   dated changelog under `docs/archive/`, "Next" replaced by a pointer here,
   the rulings kept.
 
@@ -195,7 +216,7 @@ no two hunks are adjacent. Line numbers are as of `f163717`; re-read them.
   with the sentence quoted. Moves: the ledger becomes honest; some spells
   execute on no engine change. *Verify first:* "no entry" means unread, not
   finished; the audit over-read it as finished.
-- `[ ]` **P1-T1 The `use_budget_purchase` door.** `useBudgetPurchase`
+- `[x]` **P1-T1 The `use_budget_purchase` door.** `useBudgetPurchase`
   (`packages/engine/src/commands/budget.ts:52`, on the barrel at
   `commands.ts:130`) is complete and reachable by nothing. Add the tool after
   `use_pool_option` in `packages/tools/src/definitions.ts`, a `SPENT_BY`
@@ -723,3 +744,27 @@ Appended by the foreman; answered by the owner or at a gate.
   table did not print, within the SRD's limits.
 - Meld into Stone and the other `a-world-fact-nothing-can-represent`
   entries (P3-R): handover, or a fact the scene should hold.
+
+Appended after Phase 0 (2026-09-21):
+
+- **A stat block's handover has no exported mark.** `DM_DECIDES` is exported
+  for a casting's; the four stat-block sites (`commands/actions.ts:397,568`,
+  `commands/attacks.ts:756,1117`) end their line with a bare copied sentence,
+  so the session test's handover count rests on a literal pinned by an
+  occurrence test. A one-line engine change, for whichever Phase 1 track opens
+  those files.
+- **A stat block's attack refuses `hold`** (`commands/attacks.ts:236`,
+  `cannot_hold`), so a party fighting monsters is never offered the window SRD
+  *Shield* answers, and the Wizard's Shield was unreachable for a whole
+  session. Rules question or oversight — decide before P2-T14 writes Shield.
+- **Six dead exports are re-exported by name from `commands.ts`** and two more
+  are dead code rather than dead exports, so P0-T5's chore stopped at 16 of 24.
+  Removing them is a change to `@ie/engine`'s published surface and wants the
+  owner's word.
+- **Two chores cannot live in a commit**: the six CRLF lines in
+  `commands/mastery.ts` are working-tree-only (every tracked file is LF in
+  git), and `tools/cli` is two empty untracked directories. Both are hand work
+  in the main checkout.
+- `ALSO_VOCABULARY` in the origin sweep excuses a word across all eight
+  populations rather than the one it was argued for. Tightening it to
+  `${Kind} ${string}` is a one-line change nobody has needed yet.

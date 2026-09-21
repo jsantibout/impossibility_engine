@@ -77,8 +77,17 @@ prints no options the engine executes, is not. **Bardic Inspiration opened
 the same way** — not as a pool a caller spends for nothing, but once the die
 had somewhere to go: the Bard's pool is spent on the Bard and the ally holds a
 sourced grant consumed when a test it was given for fails, so `confer_reaction`
-hands over a thing that exists. Action Surge is still shut for the original
-reason, and stays shut until what a use buys is built.
+hands over a thing that exists. **Action Surge was never shut for that
+reason**, and the sentence here that said so was wrong for a week:
+`useBudgetPurchase` had been executing what a use buys the whole time and no
+tool reached it, which is the opposite defect — a door nobody built, rather
+than a pool waiting on its mechanism. `use_budget_purchase` is that door, and
+the Monk's Focus opened with it. Four pools are still shut for the original
+reason — Druid's Wild Shape, Paladin's Channel Divinity, Font of Magic and
+Arcane Recovery — each counting and refilling its uses truthfully and buying
+nothing, and each named in `reachability.test.ts`'s `NOTHING_TO_BUY` with the
+sentence that keeps it shut. That table is checked in both directions, so a
+pool that opens deletes its line in the same commit.
 
 **A window a caller can see and cannot answer is worse than one it is never
 shown.** `options` has reported every open Reaction since `reactionOpportunities`
@@ -167,7 +176,13 @@ character is holding at all, as `look` now says whether a dying creature is
 stable. The doors themselves are one tool per engine command. **A pool the
 engine holds with nothing behind it still gets none** — that rule closed
 Channel Divinity and the Bard's die only when what a use bought was built, and
-Action Surge is what it still refuses.
+what it still refuses is Wild Shape, Paladin's Channel Divinity, Font of Magic
+and Arcane Recovery. **A door the engine has and nobody builds is the other
+half of the same failure**, and it is now a test rather than a promise:
+`reachability.test.ts` builds one level 5 character of every path in the book
+and fails unless each feature it holds is passive, made at creation, a
+Reaction with a window that answers it, or spendable through a tool the
+surface really publishes.
 
 Out of scope until decided: persisting the log (a `Content` holds closures, so
 what is stored is the `ContentInput`), and multiple scenes. Two things a later
