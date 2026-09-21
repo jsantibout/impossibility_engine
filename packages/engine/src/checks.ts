@@ -1,4 +1,12 @@
-import { ok, type Ability, type Result, type RollMode, type Skill } from '@ie/shared';
+import {
+  err,
+  needsContext,
+  ok,
+  type Ability,
+  type Result,
+  type RollMode,
+  type Skill,
+} from '@ie/shared';
 import type { Rng } from './dice.js';
 import {
   flatBonusTotal,
@@ -16,7 +24,14 @@ import {
   untrainedArmorPenalty,
   type CharacterSheet,
 } from './character.js';
-import { rollD20Recorded, type RecordedD20, type RollIssuer } from './rolls.js';
+import {
+  createRollIssuer,
+  recordExternalD20,
+  rollD20Recorded,
+  type RecordedD20,
+  type RollIssuer,
+  type RollSource,
+} from './rolls.js';
 import {
   checkConditionEffect,
   exhaustionBonus,
@@ -135,10 +150,130 @@ export interface D20Roll {
 }
 
 /**
+ * A d20 thrown somewhere other than in the engine — physical dice on a real
+ * table, or a DM stating the face they want.
+ *
+ * **Faces, and never a total.** The modifier, the mode, every named
+ * contribution and the outcome stay the engine's; what comes in from outside is
+ * what the dice showed and who threw them, which is the only part of a roll
+ * that the engine has no way of knowing.
+ *
+ * **Why this is a list.** A table rolling with Advantage throws two physical
+ * dice, and *which of them counts* is not the table's to decide — because
+ * whether the roll has Advantage at all is not something the table can know
+ * before it rolls. Advantage and Disadvantage are gathered from the sheet, the
+ * creature's conditions, its standing effects and the granted modifiers on it
+ * as well as from what the caller supplied, and they **cancel**. A table that
+ * believed it had Advantage, threw two dice and handed over the higher one
+ * would be silently overriding a cancellation the engine had just computed, and
+ * nothing in the log would show it happened. So the table reads out every face
+ * it threw, the engine takes as many as the mode it computed calls for, and
+ * highest-or-lowest is applied here exactly as it is for a die the engine
+ * threw itself.
+ */
+export interface StatedD20 {
+  /** The faces the dice showed, in the order they were read out. */
+  readonly faces: readonly number[];
+  /**
+   * Who threw them. Never `engine` — `recordExternalD20` refuses that claim,
+   * which is what keeps the audit trail unforgeable.
+   */
+  readonly source: RollSource;
+  /** Why, for a DM's ruling. Null for dice somebody simply read out. */
+  readonly note?: string | null;
+}
+
+/** How many dice a mode throws: one, or two to choose between. */
+const dieCount = (mode: RollMode): number => (mode === 'normal' ? 1 : 2);
+
+/**
+ * Take a d20 the engine did not throw, and make it the engine's roll.
+ *
+ * The die is validated by the one function that knows what faces a d20 has and
+ * the one function that refuses a caller claiming `engine` provenance —
+ * `recordExternalD20` — rather than by a second copy of either check here. Both
+ * have to happen *before* any id is issued, because a refused face must cost
+ * nothing at all, so every face is first put through it against a throwaway
+ * issuer whose ids nobody ever sees; only the face that counts is recorded
+ * against the real one.
+ *
+ * What it costs when it succeeds is exactly one roll id and no generator
+ * movement. That is what `rolls-issued {count, rng}` was built to carry: the
+ * fold advances the id counter and copies an unchanged snapshot, so the next
+ * die the engine throws is the die it would have thrown had the table roll
+ * never happened.
+ */
+export function resolveStatedD20(
+  issuer: RollIssuer,
+  stated: StatedD20,
+  mode: RollMode,
+  modifier: number,
+): Result<RecordedD20> {
+  const note = stated.note ?? null;
+  const scratch = createRollIssuer('stated-face-check');
+  const faces: number[] = [];
+
+  for (const face of stated.faces) {
+    const checked = recordExternalD20(scratch, {
+      natural: face,
+      modifier,
+      mode,
+      source: stated.source,
+      note,
+    });
+    if (!checked.ok) return checked;
+    faces.push(checked.value.natural);
+  }
+
+  const wanted = dieCount(mode);
+  // A face short is homework rather than a verdict: nothing was spent, no die
+  // was thrown, and the same call with the missing face filled in is the call
+  // the caller meant. The mode is named because it is the answer to "why two?"
+  // and the caller could not have known it before asking.
+  if (faces.length < wanted) {
+    return needsContext(
+      'stated_faces_missing',
+      wanted === 1
+        ? 'state the face the die showed'
+        : `this roll is made with ${mode === 'advantage' ? 'Advantage' : 'Disadvantage'}, so it is two dice: state both faces`,
+    );
+  }
+  // A face too many is a refusal, because the fact is wrong rather than
+  // missing. Quietly dropping one of two dice a person actually threw would be
+  // the engine deciding which one the table rolled.
+  if (faces.length > wanted) {
+    return err(
+      'stated_faces_surplus',
+      wanted === 1
+        ? `this roll is made without Advantage or Disadvantage, so it is one die, and ${faces.length} faces were stated`
+        : `this roll is two dice, and ${faces.length} faces were stated`,
+    );
+  }
+
+  const natural = mode === 'disadvantage' ? Math.min(...faces) : Math.max(...faces);
+  const recorded = recordExternalD20(issuer, {
+    natural,
+    modifier,
+    mode,
+    source: stated.source,
+    note,
+  });
+  if (!recorded.ok) return recorded;
+
+  // Every die thrown reaches the record, not just the one that counted — the
+  // same thing an engine roll under Advantage says about itself.
+  return ok({ ...recorded.value, rolls: faces });
+}
+
+/**
  * Roll a d20 with modes and bonuses resolved. Flat bonuses ride on the die's
  * own modifier so `roll.total` stays meaningful; dice bonuses are rolled after
  * and added, which keeps the natural-20 and natural-1 rules reading the die
  * rather than an inflated total.
+ *
+ * `stated` is a die thrown at a table rather than by the generator. Everything
+ * after it is identical either way: the same modifier, the same mode, the same
+ * bonuses rolled afterwards, the same total.
  */
 export function rollD20Test(
   issuer: RollIssuer,
@@ -146,6 +281,7 @@ export function rollD20Test(
   baseModifier: number,
   modeSources: readonly ModeSource[],
   bonuses: readonly Bonus[],
+  stated?: StatedD20,
 ): Result<D20Roll> {
   // Nothing is rolled until the whole operation is known to be valid, so a
   // rejected roll leaves the generator and the roll counter untouched.
@@ -154,7 +290,14 @@ export function rollD20Test(
 
   const mode = combineRollModes(modeSources);
   const modifier = baseModifier + flatBonusTotal(bonuses);
-  const roll = rollD20Recorded(issuer, rng, mode, modifier);
+  const d20 =
+    stated === undefined
+      ? ok(rollD20Recorded(issuer, rng, mode, modifier))
+      : resolveStatedD20(issuer, stated, mode, modifier);
+  // A refused face is refused before the bonus dice are thrown, so it leaves
+  // the generator where it found it.
+  if (!d20.ok) return d20;
+  const roll = d20.value;
 
   const rolled = rollBonusDice(issuer, rng, bonuses);
   if (!rolled.ok) return rolled;
@@ -183,6 +326,14 @@ export interface D20TestOptions {
   readonly modes?: readonly (RollMode | ModeSource)[];
   /** Named modifiers: Guidance's 1d4, a tool's flat bonus, and so on. */
   readonly bonuses?: readonly Bonus[];
+  /**
+   * A die thrown at a table rather than by the engine — see {@link StatedD20}.
+   *
+   * Absent for every roll an AI-held surface can cause: no command carries this
+   * field, so nothing above the engine can reach it, and the door a human table
+   * knocks on is its own and is never a model's.
+   */
+  readonly statedRoll?: StatedD20;
   /**
    * The creature's conditions. Their modes, exhaustion penalty and automatic
    * failures are folded in without the caller having to remember any of it.
@@ -279,7 +430,14 @@ function resolve(
   const exhaustion = conditions === undefined ? null : exhaustionBonus(conditions);
   const allBonuses = [...(options.bonuses ?? []), ...(exhaustion === null ? [] : [exhaustion])];
 
-  const rolled = rollD20Test(issuer, rng, baseModifier, modeSources, allBonuses);
+  const rolled = rollD20Test(
+    issuer,
+    rng,
+    baseModifier,
+    modeSources,
+    allBonuses,
+    options.statedRoll,
+  );
   if (!rolled.ok) return rolled;
 
   const { roll, modifier, flatBonuses, bonuses, total } = rolled.value;

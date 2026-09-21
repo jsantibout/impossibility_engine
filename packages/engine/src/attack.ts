@@ -6,7 +6,7 @@ import type { Content } from './content.js';
 // the same way, so a value edge in either direction would be a real cycle.
 import type { CreatureState } from './events.js';
 import { modifierFor, proficiencyBonus, type CharacterSheet } from './character.js';
-import { characterRollModes, combineRollModes } from './checks.js';
+import { characterRollModes, combineRollModes, resolveStatedD20, type StatedD20 } from './checks.js';
 import {
   flatBonusTotal,
   rollBonusDice,
@@ -450,6 +450,14 @@ export interface AttackOptions {
   readonly finesseAbility?: 'str' | 'dex';
   /** Situational advantage or disadvantage from the fiction. */
   readonly modes?: readonly (RollMode | ModeSource)[];
+  /**
+   * A die thrown at a table rather than by the engine — see {@link StatedD20}.
+   *
+   * Absent for every attack an AI-held surface can cause: no command carries
+   * this field, so nothing above the engine can reach it, and the door a human
+   * table knocks on is its own and is never a model's.
+   */
+  readonly statedRoll?: StatedD20;
   readonly beyondNormalRange?: boolean;
   /** An enemy is within 5 feet, which hampers a ranged attack. */
   readonly nearbyEnemy?: boolean;
@@ -705,7 +713,17 @@ export function rollAttack(
   const mode = combineRollModes([...attackRollModes(sheet, options), ...(options.modes ?? [])]);
 
   // Flat bonuses ride on the d20's own modifier; dice bonuses are rolled after.
-  const roll = rollD20Recorded(issuer, rng, mode, attackModifier(sheet, options));
+  // A die the table threw enters here and nowhere else: the modifier, the mode
+  // and everything below are the engine's either way, and a refused face
+  // returns before the bonus dice are thrown, so it leaves the generator where
+  // it found it.
+  const modifier = attackModifier(sheet, options);
+  const stated =
+    options.statedRoll === undefined
+      ? ok(rollD20Recorded(issuer, rng, mode, modifier))
+      : resolveStatedD20(issuer, options.statedRoll, mode, modifier);
+  if (!stated.ok) return stated;
+  const roll = stated.value;
 
   const bonuses = rollBonusDice(issuer, rng, options.attackBonuses);
   if (!bonuses.ok) return bonuses;
