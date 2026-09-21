@@ -272,6 +272,51 @@ describe('the validator judges a die rule like every other member', () => {
     );
   });
 
+  /**
+   * **And the three routes to a second roll that a target count does not show.**
+   *
+   * Each is a field rather than a number, which is what made them easy to miss:
+   * a casting reaches a damage roll again by being *taken up again* on a later
+   * turn (SRD Vampiric Touch's "you can make the attack again on each of your
+   * turns", which resolves the activation's effects under the same casting and
+   * hands each run a fresh cap), by catching **more** creatures out of a bigger
+   * slot, and by naming a count it never states at all.
+   */
+  it('refuses the three second rolls a base target count does not show', () => {
+    const again = {
+      ...JSON.parse(EMBER_CASCADE),
+      durationSeconds: 60,
+      concentration: true,
+      activation: {
+        action: 'action',
+        range: { kind: 'ranged', feet: 60 },
+        label: 'Ember Cascade (again)',
+        effects: [
+          { kind: 'attack', attack: 'ranged', damage: { dice: '1d6' }, damageType: 'fire' },
+        ],
+      },
+    };
+    expect(checkSpellDefinitionValue(again).map((p) => p.code)).toContain(
+      'die_rule_rolls_more_than_once',
+    );
+
+    const wider = {
+      ...JSON.parse(EMBER_CASCADE),
+      targets: { count: 1, extraPerSlotLevelAbove: 1 },
+    };
+    expect(checkSpellDefinitionValue(wider).map((p) => p.code)).toContain(
+      'die_rule_rolls_more_than_once',
+    );
+
+    const everyone = {
+      ...JSON.parse(EMBER_CASCADE),
+      targets: { count: 0, unlimited: true },
+    };
+    expect(checkSpellDefinitionValue(everyone).map((p) => p.code)).toContain(
+      'die_rule_rolls_more_than_once',
+    );
+  });
+
   it('is content with the rule on a spell whose save deals damage', () => {
     const saving = {
       ...JSON.parse(EMBER_CASCADE),

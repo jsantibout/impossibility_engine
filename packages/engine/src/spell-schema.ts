@@ -161,10 +161,28 @@ const ROLLS_ITS_OWN_DAMAGE: ReadonlySet<string> = new Set(['attack', 'save-damag
  * `DieRule`'s cap is a budget for the whole casting — SRD caps "the maximum
  * number of these d8s you can add to **the spell's damage**" — and `roll()`
  * counts an effect's bonus dice against the call it is in. So a definition that
- * throws its damage twice would be allowed the cap twice, and four shapes throw
- * twice: two damaging effects, a payload printed in a second damage type
- * (`plus`, which `resolveSaveDamageEffect` rolls part by part), more than one
- * target, and an area, which resolves per creature caught.
+ * throws its damage twice would be allowed the cap twice.
+ *
+ * Six ways one casting reaches a damage roll again, and the first three are the
+ * ones a reader expects:
+ *
+ * - **Two damaging effects**, or one whose payload prints a second damage type
+ *   — `plus`, which `resolveSaveDamageEffect` rolls part by part.
+ * - **More than one target**, which the per-target loop rolls for one at a
+ *   time, *including* the ones a bigger slot adds: `targetCountFor` is
+ *   `count + extraPerSlotLevelAbove × above`, so the base count alone does not
+ *   answer this, and `unlimited` states no count at all.
+ * - **An area**, which resolves per creature caught.
+ * - **An activation.** SRD Vampiric Touch: "you can make the attack again on
+ *   each of your turns." The later action resolves its own effects under the
+ *   *same* casting, so the rule is read off the same definition and handed a
+ *   fresh cap every turn, which is a budget spent once a round rather than once
+ *   a casting.
+ *
+ * Two shapes deliberately absent: `onMiss: 'half'` is the other arm of an
+ * either/or and rolls instead of the hit rather than beside it, and an
+ * `areaTrigger` is refused without an `area`, which the area clause already
+ * catches.
  *
  * Refused rather than answered wrongly, and the refusal is the honest form of
  * the limit: the day the budget is carried across the rolls of one casting,
@@ -173,8 +191,18 @@ const ROLLS_ITS_OWN_DAMAGE: ReadonlySet<string> = new Set(['attack', 'save-damag
 function rollsDamageTwice(definition: SpellDefinition): boolean {
   const rollers = definition.effects.filter((effect) => ROLLS_ITS_OWN_DAMAGE.has(effect.kind));
   if (rollers.length > 1) return true;
-  if (definition.targets.count > 1) return true;
+  const targets = definition.targets;
+  if (targets.count > 1 || (targets.extraPerSlotLevelAbove ?? 0) > 0 || targets.unlimited === true) {
+    return true;
+  }
   if (definition.area !== undefined || definition.targetsWithin !== undefined) return true;
+  if (
+    (definition.activation?.effects ?? []).some((effect) =>
+      ROLLS_ITS_OWN_DAMAGE.has(effect.kind),
+    )
+  ) {
+    return true;
+  }
   return rollers.some((effect) => 'plus' in effect && (effect.plus ?? []).length > 0);
 }
 const ABILITY_NAMES_SET: ReadonlySet<Ability> = new Set(ABILITIES);
@@ -2269,7 +2297,7 @@ export function checkSpellDefinition(
         field: 'dieRule',
         code: 'die_rule_rolls_more_than_once',
         reason:
-          "the cap is a budget for the whole casting and is spent per damage roll, so a spell that rolls its damage more than once — several targets, an area, two damaging effects, or a payload printed in a second damage type — would be allowed it once per roll",
+          "the cap is a budget for the whole casting and is spent per damage roll, so a spell that rolls its damage more than once — several targets, more of them out of a bigger slot, a count it never states, an area, an activation that rolls again on a later turn, two damaging effects, or a payload printed in a second damage type — would be allowed it once per roll",
       });
     }
   }

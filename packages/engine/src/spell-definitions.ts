@@ -1966,9 +1966,17 @@ export interface SpellDefinition {
    * rather than a rule about spells. A cap is a budget for the whole casting
    * and the generator counts bonus dice against the roll it is in, so a spell
    * that throws its damage at three creatures would be allowed the cap three
-   * times. The day something carries one budget across the rolls of a casting
-   * — the shape `CastingAlterations.addend` already has, for the same reason —
-   * that refusal goes and an area may declare one.
+   * times.
+   *
+   * What the guard checks is the six routes `rollsDamageTwice` enumerates —
+   * two damaging effects, a second printed damage type, a target count above
+   * one, targets a bigger slot adds, an unstated count, an area, and an
+   * activation that rolls again on a later turn — and it is a list rather than
+   * a derivation, so a **seventh** route added to the resolution layer is a
+   * clause that has to be added here too. The day something carries one budget
+   * across the rolls of a casting — the shape `CastingAlterations.addend`
+   * already has, for the same reason — the whole refusal goes and an area may
+   * declare one.
    */
   readonly dieRule?: DieRule;
   /**
