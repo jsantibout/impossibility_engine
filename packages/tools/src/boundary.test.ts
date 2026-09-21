@@ -58,7 +58,7 @@ const swept = (): { file: string; text: string }[] =>
  *
  * `CLAUDE.md` rule 1 rests on **reachability, not a handshake**: every door an
  * AI holds reaches only commands that roll. This list is what makes that
- * sentence true, so it is four groups rather than two names, and the reason
+ * sentence true, so it is several groups rather than two names, and the reason
  * for each name is beside it in {@link FORBIDDEN_BECAUSE} rather than in a
  * paragraph that goes stale the first time somebody adds to the list.
  *
@@ -73,23 +73,26 @@ const swept = (): { file: string; text: string }[] =>
  *    filling in `statedRoll` would have passed this sweep. No command carries
  *    the field, so nothing such a file produced could reach the log today;
  *    this is the guard arriving before the command surface makes it live.
- * 4. **The rollers that are not commands.** A command emits `rolls-issued`,
- *    which is the only event that moves the generator in the log. A roller
- *    called directly moves a generator, emits nothing, and hands the face to
- *    its caller. `rollAttackDamage` was on the DM list alone for this reason
- *    and is on both now: a name forbidden the wider surface and allowed the
- *    narrower one is a hole rather than an asymmetry.
- * 5. **The generator itself.** Forbidding every roller and leaving open the
- *    two functions that *make* the thing they roll is the guard with the door
- *    in it: `Rng.int(20)` is a face, and a seed the caller chose decides which
- *    one. `campaign.ts` is exempt by name — see {@link REBUILDS_THE_GENERATOR}
- *    — because rebuilding one per call from `state.rng` and throwing it away
- *    is what that file is for, and is what makes a refusal free.
+ * 4. **The rollers that hand back a roll.** A command hands back
+ *    `GameEvent[]`, which is the only way a die reaches the log. Anything else
+ *    that takes a generator throws dice, emits nothing, and hands the face to
+ *    its caller — `rollInitiativeFor` says so about itself in as many words,
+ *    and lives under `commands/`, which is why the criterion is what comes
+ *    back rather than where it lives. `rollAttackDamage` was on the DM list
+ *    alone for this reason and is on both now: a name forbidden the wider
+ *    surface and allowed the narrower one is a hole rather than an asymmetry.
+ * 5. **The supply itself.** Forbidding every roller and leaving open the
+ *    functions that *make* what they roll with is the guard with the door in
+ *    it: `Rng.int(20)` is a face, a seed the caller chose decides which one,
+ *    and a `RollIssuer` stamps a provenance `engine` for anyone who asks.
+ *    `campaign.ts` is exempt by name — see {@link REBUILDS_THE_SUPPLY} —
+ *    because rebuilding both per call and throwing them away is what that file
+ *    is for, and is what makes a refusal free.
  *
  * The fourth group is **derived** below rather than trusted — every public
- * engine function outside `commands/` that takes an `Rng` must be on this
- * list, so the next roller somebody exports fails this file instead of
- * slipping past it. The other four take no generator and cannot be derived,
+ * engine function that takes an `Rng` and hands back anything but events must
+ * be on this list, so the next roller somebody exports fails this file instead
+ * of slipping past it. The other four hold no generator and cannot be derived,
  * which is why they are written out and why the derivation is not the whole
  * guard.
  */
@@ -111,7 +114,7 @@ const FORBIDDEN = [
   'rollSavingThrow',
   'rollAttack',
   'resolveDeathSave',
-  // — rollers that are not commands: dice thrown outside the log ————————————
+  // — rollers that hand back a roll rather than events ——————————————————————
   'roll',
   'rollD20',
   'rerollDice',
@@ -123,27 +126,29 @@ const FORBIDDEN = [
   'reduceDamage',
   'rollAttackDamage',
   'rollInitiative',
+  'rollInitiativeFor',
   'rollDeathSave',
-  // — the generator every roller above needs, and one file may rebuild ———————
+  // — the supply every roller above needs, and one file may rebuild —————————
   'createRng',
   'restoreRng',
+  'createRollIssuer',
 ];
 
 /**
- * The one file that may name a generator, and the two names it may name.
+ * The one file that may name a generator or an issuer, and the names it may.
  *
- * An exemption is the weakest thing in a guard, so it is one file and two
+ * An exemption is the weakest thing in a guard, so it is one file and three
  * names and it is checked: a test below holds `campaign.ts` to actually
- * importing both, because an exemption for an import nobody makes is a hole
- * kept open for nothing.
+ * importing all of them, because an exemption for an import nobody makes is a
+ * hole kept open for nothing.
  */
-const REBUILDS_THE_GENERATOR = {
+const REBUILDS_THE_SUPPLY = {
   file: 'campaign.ts',
-  names: ['createRng', 'restoreRng'] as readonly string[],
+  names: ['createRng', 'restoreRng', 'createRollIssuer'] as readonly string[],
 };
 
-const mayNameAGenerator = (file: string, name: string): boolean =>
-  file === REBUILDS_THE_GENERATOR.file && REBUILDS_THE_GENERATOR.names.includes(name);
+const mayRebuildTheSupply = (file: string, name: string): boolean =>
+  file === REBUILDS_THE_SUPPLY.file && REBUILDS_THE_SUPPLY.names.includes(name);
 
 /**
  * Why each of them is on the list.
@@ -192,64 +197,91 @@ const FORBIDDEN_BECAUSE: Readonly<Record<string, string>> = {
     'the engine one damage roller, and the name the DM list carried alone until now',
   rollInitiative:
     'the primitive under rollInitiativeAndBeginCombat, which is the command a caller may have instead',
+  rollInitiativeFor:
+    'lives under commands/ and is not one: its own note says it throws dice and hands back a number and emits nothing, which is why this list is derived on what comes back rather than on where a function lives',
   rollDeathSave: 'throws a death save with no command to put it in the log',
   createRng:
     'makes a generator from a seed the caller chose, and Rng.int hands a face straight back — which is every group above in two lines and no forbidden name at all',
   restoreRng: 'the same generator, resumed from a snapshot rather than built from a seed',
+  createRollIssuer:
+    'makes a RollIssuer, whose issue takes the source it stamps and refuses nothing — checkExternalSource is not exported and guards only the two external-roll functions, so the stamper is the door under the stamp',
 };
 
-/** The engine's own source, for the one guard that asks what it exports. */
+/** The engine's own source, for the two guards that ask what it exports. */
 const ENGINE = fileURLToPath(new URL('../../engine/src/', import.meta.url));
 
 /**
- * Every public engine function that takes an `Rng` and is not a command.
+ * Source with its comments removed, the way `doors.test.ts` reads code.
  *
- * The fourth group of {@link FORBIDDEN} written down by hand would be a list
+ * The engine's prose names its own rollers constantly, and a sweep that read
+ * `rollAttackDamage` out of a sentence about `rollAttackDamage` would find
+ * functions that do not exist. A trailing `//` is stripped as well as a
+ * leading one, and the `[^:]` keeps a `https://` out of it.
+ */
+const stripComments = (text: string): string =>
+  text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+
+/** Every non-test source file in the engine, at any depth. */
+function engineSources(directory = ENGINE): { file: string; text: string }[] {
+  const found: { file: string; text: string }[] = [];
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const path = `${directory}${entry.name}`;
+    if (entry.isDirectory()) found.push(...engineSources(`${path}/`));
+    else if (entry.name.endsWith('.ts') && !entry.name.includes('.test.')) {
+      found.push({ file: entry.name, text: stripComments(readFileSync(path, 'utf8')) });
+    }
+  }
+  return found;
+}
+
+/**
+ * Every public engine function that throws dice and hands back a roll.
+ *
+ * The roller half of {@link FORBIDDEN} written down by hand would be a list
  * that stops guarding the day somebody adds to it — which is exactly how
  * `resolveStatedD20` came to sit on the engine's surface and on neither sweep.
- * So it is read out of the engine instead, on the one criterion that separates
- * a roller from a command: a command lives under `commands/` and is handed a
- * `Supply`, while the primitives it is built from take a bare `Rng` and live
- * in the modules above. `readdirSync` is not recursive and the directory entry
- * for `commands/` is skipped, so this walk sees the primitives and nothing
- * else.
+ * So it is read out of the engine instead.
  *
- * Comments are stripped first: the engine's prose names its own rollers
- * constantly, and a sweep that read `rollAttackDamage` out of a sentence about
- * `rollAttackDamage` would find functions that do not exist.
+ * **The criterion is the return type, not the directory.** This walk read only
+ * the modules above `commands/` at first, on the reasoning that a command is
+ * handed a `Supply` and a primitive a bare `Rng`. That was simply untrue —
+ * four commands take a bare `Rng`, and `rollInitiativeFor` is a *roller* that
+ * lives under `commands/` and whose own note says "it throws dice and hands
+ * back a number; it emits nothing". A directory said nothing about either. So
+ * the whole engine is walked, and what separates the two is what comes back: a
+ * command hands over `GameEvent[]`, which is the only way a die reaches the
+ * log, and anything else hands the face to its caller.
  *
- * **What it reads, exactly.** An `export function`, in a file directly under
+ * **What it reads, exactly.** An `export function`, anywhere under
  * `engine/src`, whose signature ends in an explicit return type, with a
- * parameter spelled `rng: Rng`. That is four assumptions, and a derivation is
- * only a guard while they hold — a roller declared as an arrow, or taking a
- * `Rng` under another name, or in a new engine subdirectory, would be
- * invisible to it and the list would go on looking complete. So the first
- * three are asserted by {@link shapesTheWalkCannotRead} and the fourth by the
- * directory check beside it, both in `nothing the walk cannot read`, below;
- * this function makes no claim about any of them on its own, and that note
- * says in turn what it still does not read.
+ * parameter spelled `rng: Rng`. Three assumptions, and a derivation is only a
+ * guard while they hold — a roller declared as an arrow, or taking an `Rng`
+ * under another name, or with no return type to end its signature, would be
+ * invisible to it and the list would go on looking complete. Each is asserted
+ * by {@link shapesTheWalkCannotRead}; this function makes no claim about any
+ * of them on its own, and that note says in turn what it still does not read.
  */
-function rollersOutsideACommand(): string[] {
+function rollersThatHandBackARoll(): string[] {
   const found: string[] = [];
-  for (const entry of readdirSync(ENGINE, { withFileTypes: true })) {
-    if (!entry.isFile() || !entry.name.endsWith('.ts') || entry.name.includes('.test.')) continue;
-    const text = readFileSync(ENGINE + entry.name, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
-    for (const match of text.matchAll(/export function (\w+)\(([\s\S]*?)\)\s*:/g)) {
-      if (/\brng\s*:\s*Rng\b/.test(match[2]!)) found.push(match[1]!);
+  for (const { text } of engineSources()) {
+    for (const match of text.matchAll(/export function (\w+)\(([\s\S]*?)\)\s*:\s*([^{\n]*)/g)) {
+      if (!/\brng\s*:\s*Rng\b/.test(match[2]!)) continue;
+      if (/\bGameEvent\b/.test(match[3]!)) continue;
+      found.push(match[1]!);
     }
   }
   return found.sort();
 }
 
 /**
- * The ways of declaring a roller that {@link rollersOutsideACommand} would
+ * The ways of declaring a roller that {@link rollersThatHandBackARoll} would
  * not see, found in one engine file's text.
  *
  * Four detectors rather than four sentences in a comment: a generator
  * parameter under another name, an exported function the walk could not read,
- * an `export const` holding an arrow or a function expression, and a default
- * export. Between them they say that the engine declares its rollers the one
- * way the walk reads.
+ * an `export const` holding an arrow or a function expression, named or not,
+ * and a default export. Between them they say that the engine declares its
+ * rollers the one way the walk reads.
  *
  * **What they still do not read, said plainly** rather than claimed away: a
  * curried arrow whose generator is in the *second* parameter list, and an
@@ -262,7 +294,7 @@ function rollersOutsideACommand(): string[] {
  */
 function shapesTheWalkCannotRead(file: string, source: string): string[] {
   const breaches: string[] = [];
-  const text = source.replace(/\/\*[\s\S]*?\*\//g, '');
+  const text = stripComments(source);
   const read = [...text.matchAll(/export function (\w+)\(([\s\S]*?)\)\s*:/g)];
 
   // One: a generator parameter spelled something other than `rng`, which the
@@ -284,9 +316,13 @@ function shapesTheWalkCannotRead(file: string, source: string): string[] {
   // Three: a declaration that is not an `export function` at all, which the
   // walk does not look for. An arrow and a function expression are both
   // `export const`; a default export is neither, and the engine has none.
+  // The window stops at a `;` as well as at four hundred characters, or an
+  // `export const LIMIT = 20;` standing above a roller is reported as the
+  // roller — which is the wrong name on a true breach, and reads as a bug in
+  // the guard rather than in the code.
   const heads = [
-    /export const (\w+)[\s\S]{0,400}?\(([^)]*)\)\s*(?::[^=;]*)?=>/g,
-    /export const (\w+)[\s\S]{0,400}?function\s*\(([^)]*)\)/g,
+    /export const (\w+)[^;]{0,400}?\(([^)]*)\)\s*(?::[^=;]*)?=>/g,
+    /export const (\w+)[^;]{0,400}?function\s*(?:\w+\s*)?\(([^)]*)\)/g,
   ];
   for (const pattern of heads) {
     for (const match of text.matchAll(pattern)) {
@@ -311,38 +347,53 @@ function shapesTheWalkCannotRead(file: string, source: string): string[] {
  * `CLAUDE.md` says only `rolls.ts` applies, and `rng.int(20)` is a face — with
  * no forbidden name anywhere in the file.
  *
- * **The bindings, not the property.** A detector reading `.rng` catches
- * `supply().rng` and misses `const { rng } = supply()`, which is how anybody
- * would actually write it — the form nobody uses caught and the form everybody
- * would, missed. So the generator is looked for as a *binding* in all three
- * shapes it can take, and the issuer as the only call a `RollIssuer` exists
- * for, under whatever name it was bound to.
+ * **The bindings, not the property, and the rename as much as the name.** A
+ * detector reading `.rng` catches `supply().rng` and misses
+ * `const { rng } = supply()`, which is how anybody would actually write it —
+ * the form nobody uses caught and the form everybody would, missed. And a
+ * detector reading only `{ rng }` misses `const { rng: generator }`, which is
+ * how anybody writes it when `rng` is already taken. So each is looked for in
+ * every shape a binding takes: a property, a plain destructure, a renamed
+ * destructure, and a string key.
  *
- * `campaign.ts` may name a generator, because rebuilding one per call from
- * `state.rng` and throwing it away is what that file is for. It may not read a
- * face off one, which is the half of the rule an exemption would otherwise
- * carry away with it.
+ * **A rename is not an annotation.** `{ rng: generator }` binds and
+ * `{ readonly rng: Rng }` declares, and the two are one character apart. The
+ * rename pattern requires a lower-case target, which is the difference — and
+ * `doors.test.ts` quotes the annotation inside a string fixture, so a guard
+ * that could not tell them apart would be a guard somebody deletes.
+ *
+ * `campaign.ts` may name a generator and an issuer, because rebuilding both
+ * per call from `state.rng` and `state.rollsIssued` and throwing them away is
+ * what that file is for. It may not read a face off one, which is the half of
+ * the rule an exemption would otherwise carry away with it; and the mint is
+ * swept there as everywhere, because nothing above the engine stamps a roll.
  */
+const BOUND_AS = (field: string): RegExp[] => [
+  new RegExp(String.raw`\.${field}\b`),
+  new RegExp(String.raw`\{[^}]*\b${field}\s*[,}]`),
+  new RegExp(String.raw`\b${field}\s*:\s*[a-z_$][\w$]*\s*[,}=]`),
+  new RegExp(String.raw`['"\`]${field}['"\`]`),
+];
+
 function reachesPastTheSupply(file: string, source: string): string[] {
   const breaches: string[] = [];
-  const text = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
-  const mayHoldOne = file === REBUILDS_THE_GENERATOR.file;
+  const text = stripComments(source);
+  const mayHoldOne = file === REBUILDS_THE_SUPPLY.file;
 
   // `issue` is the whole of what a `RollIssuer` is for, so the call is the
-  // detector — through the property, or through a name it was destructured to.
-  if (/\bissue\s*\(/.test(text)) breaches.push(`${file} mints a roll provenance`);
+  // first detector and the bindings are the rest: a name it was destructured
+  // to is called under that name and never under this one.
+  if ([/\bissue\s*\(/, ...BOUND_AS('issue')].some((pattern) => pattern.test(text))) {
+    breaches.push(`${file} mints a roll provenance`);
+  }
 
-  // A property access, a destructured binding, and a string key. A type
-  // annotation — `readonly rng: Rng` — is none of the three, which is what
-  // keeps this off `doors.test.ts`, whose fixture quotes one.
-  const generator = [/\.rng\b/, /\{[^}]*\brng\s*[,}]/, /['"]rng['"]/];
-  if (!mayHoldOne && generator.some((pattern) => pattern.test(text))) {
+  if (!mayHoldOne && BOUND_AS('rng').some((pattern) => pattern.test(text))) {
     breaches.push(`${file} reaches for a generator`);
   }
 
   // And inside the one file that may hold one: it may build a generator and
   // hand it to a command, and may not read a die off it.
-  if (mayHoldOne && /\.int\(/.test(text)) {
+  if (mayHoldOne && [/\bint\s*\(/, ...BOUND_AS('int')].some((pattern) => pattern.test(text))) {
     breaches.push(`${file} reads a face off the generator it may hold`);
   }
 
@@ -393,7 +444,7 @@ describe('the surface cannot reach the external-roll functions', () => {
     const breaches: string[] = [];
     for (const { file, text } of swept()) {
       for (const name of engineImports(text)) {
-        if (FORBIDDEN.includes(name) && !mayNameAGenerator(file, name)) {
+        if (FORBIDDEN.includes(name) && !mayRebuildTheSupply(file, name)) {
           breaches.push(`${file} imports ${name}`);
         }
       }
@@ -406,14 +457,14 @@ describe('the surface cannot reach the external-roll functions', () => {
     // exemption nobody checks is a list of names somebody can add to. So
     // `campaign.ts` has to actually make both imports for the sentence
     // excusing it to mean anything.
-    const campaign = swept().find(({ file }) => file === REBUILDS_THE_GENERATOR.file);
+    const campaign = swept().find(({ file }) => file === REBUILDS_THE_SUPPLY.file);
     expect(campaign, 'the exempt file exists').toBeDefined();
-    for (const name of REBUILDS_THE_GENERATOR.names) {
+    for (const name of REBUILDS_THE_SUPPLY.names) {
       expect(engineImports(campaign!.text), name).toContain(name);
     }
     // And the exemption is aimed at the list: a name excused here that nothing
     // forbids is a sentence about nothing.
-    expect(REBUILDS_THE_GENERATOR.names.filter((name) => !FORBIDDEN.includes(name))).toEqual([]);
+    expect(REBUILDS_THE_SUPPLY.names.filter((name) => !FORBIDDEN.includes(name))).toEqual([]);
   });
 
   it('reaches the engine only through named imports, which the sweep can read', () => {
@@ -473,41 +524,49 @@ describe('the surface cannot reach the external-roll functions', () => {
     }
   });
 
-  it('and the list keeps up with the engine: every roller outside a command is on it', () => {
+  it('and the list keeps up with the engine: every roller that hands one back is on it', () => {
     // The half of the list that can be derived, derived. A new primitive that
     // throws dice arrives on the engine's surface and fails here, rather than
     // waiting for somebody to notice it — which is the failure this whole
     // addition is a repair of.
-    const rollers = rollersOutsideACommand();
-    // Non-vacuous: the walk really does read the engine and find its rollers.
+    const rollers = rollersThatHandBackARoll();
+    // Non-vacuous: the walk really does read the engine and find its rollers,
+    // including the one under `commands/` that is not a command.
     expect(rollers).toContain('rollD20Recorded');
     expect(rollers).toContain('rollAttackDamage');
+    expect(rollers).toContain('rollInitiativeFor');
     expect(rollers.length).toBeGreaterThan(10);
     expect(rollers.filter((name) => !FORBIDDEN.includes(name))).toEqual([]);
   });
 
+  it('and it tells a command from a roller by what comes back, not by where it lives', () => {
+    // The claim the criterion rests on: under `commands/` there are functions
+    // that take a bare generator and *are* commands, and one that is not. If
+    // that stopped being true — if every roller lived above `commands/` after
+    // all — the sharper reading below would be free, and it is not.
+    const commands = engineSources().flatMap(({ text }) =>
+      [...text.matchAll(/export function (\w+)\(([\s\S]*?)\)\s*:\s*([^{\n]*)/g)]
+        .filter((match) => /\brng\s*:\s*Rng\b/.test(match[2]!) && /\bGameEvent\b/.test(match[3]!))
+        .map((match) => match[1]!),
+    );
+    expect(commands.length).toBeGreaterThan(0);
+    // And none of them is forbidden: a command that rolls is the one thing
+    // this surface is supposed to reach.
+    expect(commands.filter((name) => FORBIDDEN.includes(name))).toEqual([]);
+    expect(commands).toContain('recordInitiativeRolls');
+  });
+
   it('and nothing the walk cannot read throws dice: its assumptions, asserted', () => {
     // A derivation that quietly reads less than it used to is worse than a
-    // hand list, because a hand list at least does not claim to keep up. Three
-    // of the four things `rollersOutsideACommand` assumes are checked over the
-    // engine's own text here; the fourth is the directory set below.
-    const breaches: string[] = [];
-    const directories: string[] = [];
-    for (const entry of readdirSync(ENGINE, { withFileTypes: true })) {
-      if (entry.isDirectory()) {
-        directories.push(entry.name);
-        continue;
-      }
-      if (!entry.name.endsWith('.ts') || entry.name.includes('.test.')) continue;
-      const text = readFileSync(ENGINE + entry.name, 'utf8');
-      breaches.push(...shapesTheWalkCannotRead(entry.name, text));
-    }
+    // hand list, because a hand list at least does not claim to keep up. Every
+    // assumption `rollersThatHandBackARoll` makes about *how* a roller is
+    // declared is checked over the engine's own text, at every depth.
+    const breaches = engineSources().flatMap(({ file, text }) =>
+      shapesTheWalkCannotRead(file, text),
+    );
     expect(breaches).toEqual([]);
-
-    // And "outside a command" still names the directories it thinks it does.
-    // A third one would be read by neither this walk nor `commands/`, in
-    // silence, which is the shape of hole the whole file is about.
-    expect(directories.sort()).toEqual(['commands', 'fold']);
+    // Non-vacuous: it really did read the engine, `commands/` included.
+    expect(engineSources().map(({ file }) => file)).toContain('initiative.ts');
   });
 
   it('and those detectors catch the shapes they are aimed at', () => {
@@ -545,6 +604,13 @@ describe('the surface cannot reach the external-roll functions', () => {
       caught('export function rollThing(issuer: RollIssuer, rng: Rng): number {\n  return 1;\n}\n'),
     ).toEqual([]);
     expect(caught('export const skillName = (skill: Skill): string => NAMES[skill];\n')).toEqual([]);
+    // And a constant standing above a roller is not the roller: the window
+    // stops at the semicolon, or the breach comes back under the wrong name.
+    expect(
+      caught(
+        "export const LABEL = 'Initiative';\nfunction rollIt(rng: Rng): number {\n  return rng.int(20);\n}\n",
+      ),
+    ).toEqual([]);
   });
 
   it('and mints no roll of its own out of the supply it is handed', () => {
@@ -558,49 +624,63 @@ describe('the surface cannot reach the external-roll functions', () => {
 
   it('and that detector catches the way anybody would write it', () => {
     // The detector this file had first read `.rng`, which catches the form
-    // nobody uses and misses the one everybody would. These are the four
-    // shapes, written out and fed to it rather than trusted to a reading of
-    // the regex — and the two it must not cry wolf at.
+    // nobody uses and misses the one everybody would; the one after that read
+    // the plain destructure and missed the rename. These are every shape, fed
+    // to it rather than trusted to a reading of the regex — and the ones it
+    // must not cry wolf at.
     const caught = (source: string) => reachesPastTheSupply('probe.ts', source);
-    const exempt = (source: string) => reachesPastTheSupply(REBUILDS_THE_GENERATOR.file, source);
+    const exempt = (source: string) => reachesPastTheSupply(REBUILDS_THE_SUPPLY.file, source);
+    const generator = ['probe.ts reaches for a generator'];
+    const mint = ['probe.ts mints a roll provenance'];
 
-    expect(caught('const { rng } = campaign.supply();\nrng.int(20);\n')).toEqual([
-      'probe.ts reaches for a generator',
-    ]);
-    expect(caught('const { rng, issuer, content } = campaign.supply();\n')).toEqual([
-      'probe.ts reaches for a generator',
-    ]);
-    expect(caught('const supply = campaign.supply();\nsupply.rng.int(20);\n')).toEqual([
-      'probe.ts reaches for a generator',
-    ]);
-    expect(caught("const g = campaign.supply()['rng'];\n")).toEqual([
-      'probe.ts reaches for a generator',
-    ]);
-    expect(caught("campaign.supply().issuer.issue('engine');\n")).toEqual([
-      'probe.ts mints a roll provenance',
-    ]);
-    expect(caught("const { issue } = campaign.supply().issuer;\nissue('engine');\n")).toContain(
-      'probe.ts mints a roll provenance',
+    expect(caught('const { rng } = campaign.supply();\nrng.int(20);\n')).toEqual(generator);
+    expect(caught('const { rng, issuer, content } = campaign.supply();\n')).toEqual(generator);
+    expect(caught('const supply = campaign.supply();\nsupply.rng.int(20);\n')).toEqual(generator);
+    expect(caught("const g = campaign.supply()['rng'];\n")).toEqual(generator);
+    expect(caught('const g = campaign.supply()[`rng`];\n')).toEqual(generator);
+    // The rename, in both the shapes it takes.
+    expect(caught('const { rng: generator } = campaign.supply();\ngenerator.int(20);\n')).toEqual(
+      generator,
     );
+    expect(caught('const { supply: { rng: g } } = holder;\ng.int(20);\n')).toEqual(generator);
+
+    expect(caught("campaign.supply().issuer.issue('engine');\n")).toEqual(mint);
+    expect(caught("const { issue } = campaign.supply().issuer;\nissue('engine');\n")).toEqual(mint);
+    expect(caught("const { issue: mint } = campaign.supply().issuer;\nmint('engine');\n")).toEqual(
+      mint,
+    );
+    expect(caught("const mint = campaign.supply().issuer.issue;\nmint('engine');\n")).toEqual(mint);
 
     // A type annotation naming the field is not a binding — `doors.test.ts`
     // quotes one inside a string fixture, and a guard that fired on it would
-    // be a guard somebody deletes.
+    // be a guard somebody deletes. The rename target is lower case and a type
+    // is not, which is the whole of the difference.
     expect(caught('const declare = (supply: { readonly rng: Rng }): void => undefined;\n')).toEqual(
       [],
     );
+    expect(caught('interface Supply {\n  readonly issue: RollIssuer;\n}\n')).toEqual([]);
     // And passing the supply whole, which is the only thing a tool should do
     // with it, is not a breach.
     expect(caught('resolveAttack(state, campaign.supply(), identity(context));\n')).toEqual([]);
+    // Nor is the word arriving inside a longer one.
+    expect(caught('const spent = state.rollsIssued;\nconst n = z.int().min(1);\n')).toEqual([]);
 
-    // The exempt file may build one and hand it over, and may not read a face
-    // off it.
+    // The exempt file may build both and hand them over, and may not read a
+    // face off one.
     expect(exempt('rng: cached.rng === null ? createRng(seed) : restoreRng(cached.rng),\n')).toEqual(
       [],
     );
+    expect(exempt("issuer: createRollIssuer('r', cached.rollsIssued),\n")).toEqual([]);
     expect(exempt('const face = createRng(seed).int(20);\n')).toEqual([
-      `${REBUILDS_THE_GENERATOR.file} reads a face off the generator it may hold`,
+      `${REBUILDS_THE_SUPPLY.file} reads a face off the generator it may hold`,
     ]);
+    expect(exempt("const face = createRng(seed)['int'](20);\n")).toEqual([
+      `${REBUILDS_THE_SUPPLY.file} reads a face off the generator it may hold`,
+    ]);
+    // And it is not exempt from the mint: nothing above the engine stamps.
+    expect(exempt("createRollIssuer('r', 0).issue('engine');\n")).toContain(
+      `${REBUILDS_THE_SUPPLY.file} mints a roll provenance`,
+    );
   });
 
   it('publishes neither of them on its own surface', () => {

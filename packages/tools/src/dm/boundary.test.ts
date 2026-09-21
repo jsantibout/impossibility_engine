@@ -70,8 +70,7 @@ const swept = (): { file: string; text: string }[] =>
  *
  * The reason for each is step one's and is written beside it there, in
  * `FORBIDDEN_BECAUSE`. What *this* list says is only which of them a DM's
- * authority does not reach, and the answer for four groups out of four is all
- * of them:
+ * authority does not reach, and the answer for every group is all of them:
  *
  * - The external-roll functions stamp a roll as the engine's own, and a DM
  *   stating a number is not the same act. `recordD20Test` and
@@ -83,16 +82,21 @@ const swept = (): { file: string; text: string }[] =>
  *   the guard. `CLAUDE.md` says the face a table throws reaches the engine
  *   "only through a door built for one", in "its own directory with its own
  *   sweep" — and `dm/` is not that directory.
- * - The rollers that are not commands advance a generator whose `rolls-issued`
- *   event only a command emits, leaving the campaign's dice out of step with
- *   its log. `rollAttackDamage` is where that reason was first written down,
- *   and it is on step one's list now too: a name forbidden the wider surface
- *   and allowed the narrower one was a hole, not an asymmetry.
- * - `createRng` and `restoreRng` make the generator all of those need, and
- *   `Rng.int(20)` is a face. Step one exempts `campaign.ts`, which rebuilds
- *   one per call and throws it away; **nothing here is exempt**, because no
- *   file under `dm/` rebuilds a generator at all — `supply()` is passed whole
- *   to the command that rolls, which is the only thing that should hold one.
+ * - The rollers that hand back a roll rather than events advance a generator
+ *   whose `rolls-issued` event only a command emits, leaving the campaign's
+ *   dice out of step with its log. `rollAttackDamage` is where that reason was
+ *   first written down, and it is on step one's list now too: a name forbidden
+ *   the wider surface and allowed the narrower one was a hole, not an
+ *   asymmetry. `rollInitiativeFor` is the one that lives under `commands/` and
+ *   is not a command, which is why step one derives that group on what comes
+ *   back rather than on where a function lives.
+ * - `createRng`, `restoreRng` and `createRollIssuer` make the generator and
+ *   the stamp all of those need: `Rng.int(20)` is a face, and `issue` takes
+ *   the source it stamps and refuses nothing. Step one exempts `campaign.ts`,
+ *   which rebuilds both per call and throws them away; **nothing here is
+ *   exempt**, because no file under `dm/` rebuilds either — `supply()` is
+ *   passed whole to the command that rolls, which is the only thing that
+ *   should hold one.
  */
 const FORBIDDEN_HERE = [
   'recordExternalD20',
@@ -119,9 +123,11 @@ const FORBIDDEN_HERE = [
   'reduceDamage',
   'rollAttackDamage',
   'rollInitiative',
+  'rollInitiativeFor',
   'rollDeathSave',
   'createRng',
   'restoreRng',
+  'createRollIssuer',
 ];
 
 /**
@@ -156,6 +162,43 @@ const opaqueForms = (module: string): readonly { readonly what: string; readonly
 ];
 
 const ENGINE_FORMS = opaqueForms('@ie/engine');
+
+/** Source with its comments removed, so prose about a field is not a use. */
+const stripComments = (text: string): string =>
+  text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+
+/**
+ * Every shape a binding of one field can take — step one's detector, and a
+ * test below holds the two character for character.
+ *
+ * A rename target is lower case and a type is not, which is what tells
+ * `{ rng: generator }` from `{ readonly rng: Rng }`.
+ */
+const BOUND_AS = (field: string): RegExp[] => [
+  new RegExp(String.raw`\.${field}\b`),
+  new RegExp(String.raw`\{[^}]*\b${field}\s*[,}]`),
+  new RegExp(String.raw`\b${field}\s*:\s*[a-z_$][\w$]*\s*[,}=]`),
+  new RegExp(String.raw`['"\`]${field}['"\`]`),
+];
+
+/**
+ * A file under `dm/` reaching past `supply()` for what it holds.
+ *
+ * Step one's guard over the files step one cannot reach, and with no exempt
+ * file: nothing here rebuilds a generator or an issuer, because `supply()` is
+ * passed whole to the command that rolls.
+ */
+function reachesPastTheSupply(file: string, source: string): string[] {
+  const breaches: string[] = [];
+  const text = stripComments(source);
+  if ([/\bissue\s*\(/, ...BOUND_AS('issue')].some((pattern) => pattern.test(text))) {
+    breaches.push(`${file} mints a roll provenance`);
+  }
+  if (BOUND_AS('rng').some((pattern) => pattern.test(text))) {
+    breaches.push(`${file} reaches for a generator`);
+  }
+  return breaches;
+}
 
 /**
  * The same four forms, aimed at the two specifiers that reach a DM tool.
@@ -449,20 +492,14 @@ describe('the DM surface cannot reach the external-roll functions either', () =>
     // `Rng`, and neither `issuer.issue('engine')` nor `rng.int(20)` names a
     // forbidden import — so the import sweep above cannot see either.
     //
-    // **The bindings, not the property**, for step one's reason: a detector
-    // reading `.rng` misses `const { rng } = supply()`, which is how anybody
-    // would actually write it. No file under `dm/` rebuilds a generator at
-    // all, so nothing here is exempt: `supply()` is passed whole to the
-    // command that rolls, which is the only thing that should hold one.
-    const generator = [/\.rng\b/, /\{[^}]*\brng\s*[,}]/, /['"]rng['"]/];
-    const breaches: string[] = [];
-    for (const { file, text } of swept()) {
-      const stripped = text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
-      if (/\bissue\s*\(/.test(stripped)) breaches.push(`${file} mints a roll provenance`);
-      if (generator.some((pattern) => pattern.test(stripped))) {
-        breaches.push(`${file} reaches for a generator`);
-      }
-    }
+    // **The bindings, not the property, and the rename as much as the name**,
+    // for step one's reason: a detector reading `.rng` misses
+    // `const { rng } = supply()` and one reading `{ rng }` misses
+    // `const { rng: generator }`, which are how anybody would actually write
+    // it. No file under `dm/` rebuilds either at all, so nothing here is
+    // exempt: `supply()` is passed whole to the command that rolls, which is
+    // the only thing that should hold one.
+    const breaches = swept().flatMap(({ file, text }) => reachesPastTheSupply(file, text));
     expect(breaches).toEqual([]);
   });
 
@@ -471,23 +508,44 @@ describe('the DM surface cannot reach the external-roll functions either', () =>
     // version of this one caught the form nobody uses and missed the form
     // everybody would, which is why the fixtures are here rather than a
     // reading of the regex.
-    const generator = [/\.rng\b/, /\{[^}]*\brng\s*[,}]/, /['"]rng['"]/];
-    const reaches = (source: string) => generator.some((pattern) => pattern.test(source));
+    const caught = (source: string) => reachesPastTheSupply('probe.ts', source);
+    const generator = ['probe.ts reaches for a generator'];
+    const mint = ['probe.ts mints a roll provenance'];
 
-    expect(reaches('const { rng } = campaign.supply();')).toBe(true);
-    expect(reaches('const { rng, issuer, content } = campaign.supply();')).toBe(true);
-    expect(reaches('const supply = campaign.supply();\nsupply.rng.int(20);')).toBe(true);
-    expect(reaches("const g = campaign.supply()['rng'];")).toBe(true);
+    expect(caught('const { rng } = campaign.supply();')).toEqual(generator);
+    expect(caught('const { rng, issuer, content } = campaign.supply();')).toEqual(generator);
+    expect(caught('const supply = campaign.supply();\nsupply.rng.int(20);')).toEqual(generator);
+    expect(caught("const g = campaign.supply()['rng'];")).toEqual(generator);
+    expect(caught('const { rng: generator } = campaign.supply();\ngenerator.int(20);')).toEqual(
+      generator,
+    );
+    // The issuer, through a property, a destructure, a rename or a bound name.
+    expect(caught("campaign.supply().issuer.issue('engine');")).toEqual(mint);
+    expect(caught("const { issue } = issuer;\nissue('engine');")).toEqual(mint);
+    expect(caught("const { issue: mint } = issuer;\nmint('engine');")).toEqual(mint);
+    expect(caught("const mint = issuer.issue;\nmint('engine');")).toEqual(mint);
     // A type annotation naming the field is not a binding, and passing the
     // supply whole is what every tool here does.
-    expect(reaches('const declare = (supply: { readonly rng: Rng }): void => undefined;')).toBe(
-      false,
+    expect(caught('const declare = (supply: { readonly rng: Rng }): void => undefined;')).toEqual(
+      [],
     );
-    expect(reaches('resolveDamage(state, target, amount, context.campaign.supply());')).toBe(false);
-    // And the issuer, through a property or through a name it was bound to.
-    expect(/\bissue\s*\(/.test("campaign.supply().issuer.issue('engine');")).toBe(true);
-    expect(/\bissue\s*\(/.test("const { issue } = issuer;\nissue('engine');")).toBe(true);
-    expect(/\bissue\s*\(/.test('const outcome = resolveTest(state, supply);')).toBe(false);
+    expect(caught('resolveDamage(state, target, amount, context.campaign.supply());')).toEqual([]);
+    expect(caught('const outcome = resolveTest(state, supply);')).toEqual([]);
+    expect(caught('const spent = state.rollsIssued;\nconst n = z.int().min(1);')).toEqual([]);
+  });
+
+  it('and that detector is step one’s, character for character', () => {
+    // This file re-declares step one's detectors rather than importing them,
+    // which is its own convention and is fine for a regex nobody has had to
+    // change. `BOUND_AS` is not that: it was wrong once already, in both
+    // copies, and a fix applied to one is the drift arriving rather than being
+    // predicted. So the two are held equal by their own source.
+    const declaration = /const BOUND_AS = [\s\S]*?\n\];/;
+    const ours = declaration.exec(readFileSync(`${HERE}${GUARD_FILE}`, 'utf8'));
+    const theirs = declaration.exec(readFileSync(`${ABOVE}${GUARD_FILE}`, 'utf8'));
+    expect(ours, 'this file declares BOUND_AS').not.toBeNull();
+    expect(theirs, 'step one declares BOUND_AS').not.toBeNull();
+    expect(ours![0]).toBe(theirs![0]);
   });
 
   it('sweeps something: the DM files do import the engine', () => {
