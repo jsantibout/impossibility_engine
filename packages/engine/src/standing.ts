@@ -829,6 +829,60 @@ export interface StandingEffect {
 export type ActivationEnd = 'incapacitated' | 'heavy-armor';
 
 /**
+ * How long a grant an activation hangs runs for.
+ *
+ * The two turn anchors, resolved against the holder, and the turn in progress
+ * ending. Every member is a `Duration` the engine already builds — this names
+ * the three a *use* of a feature can reach, which excludes the spans a casting
+ * measures on the clock: nothing a Bonus Action buys is a number of seconds,
+ * and a grant with no deadline at all is a durable one, which is
+ * {@link StandingGrant}'s job and not this one.
+ */
+export type HungSpan = TurnAnchor | 'end-of-current-turn';
+
+/**
+ * A grant a *use* of a feature hangs on its holder, at the moment it is paid
+ * for.
+ *
+ * **The stored half of {@link StandingGrant}, and the distinction is the whole
+ * reason this type exists.** A standing grant is derived from the holder's own
+ * state on every read, which is what keeps an aura honest and what lets a
+ * feature's benefit stop the moment its condition does. What derivation cannot
+ * do is be *spent*: `consumedRollModifiers` reads `CreatureState.rollModifiers`
+ * — stored state — so `oneShot` written on a standing grant is a promise
+ * nothing keeps, and SRD Steady Aim's "Advantage on your next attack roll"
+ * could not be written at all. Derived rules for what a feature permits; stored
+ * state for what is actually spent.
+ *
+ * **Two kinds because one SRD sentence needs both at once.** Steady Aim hangs
+ * an Advantage and a Speed of 0 out of one Bonus Action, and neither is
+ * expressible the other way: the Advantage has to be stored to be spent, and
+ * `StandingGrant`'s `speed` member carries feet to *add* — "Speed reductions
+ * are not this member's business" — so a derived zero does not exist.
+ *
+ * **Each grant carries its own source, and that is a rule rather than a
+ * spelling.** `roll-modifier-consumed` releases everything one source granted a
+ * creature, because that is `releaseGrants` and one deadline ends one source's
+ * whole sentence. Two grants filed under one source would therefore end
+ * together, so the roll that spent the Advantage would hand the Speed back —
+ * which is not what the book says. See `hungSource`.
+ */
+export type HungGrant =
+  | {
+      readonly kind: 'roll-mode';
+      readonly modifier: RollModifier;
+      readonly lasts: HungSpan;
+    }
+  | {
+      /** SRD Steady Aim: "your Speed is 0 until the end of the current turn." */
+      readonly kind: 'speed';
+      readonly change: SpeedChange;
+      /** Signed feet, for an `add`; absent for the other two — see {@link GrantedSpeed}. */
+      readonly feet?: number;
+      readonly lasts: HungSpan;
+    };
+
+/**
  * A feature a creature switches on, and what switching it on costs.
  *
  * What it *does* while it runs is ordinary {@link StandingEffect}s requiring
@@ -917,6 +971,24 @@ export interface ActivatedFeature {
   readonly endsOn?: readonly ActivationEnd[];
   /** SRD Rage: "You can't maintain Concentration, and you can't cast spells." */
   readonly forbidsCasting?: boolean;
+  /**
+   * SRD Steady Aim: "You can use this feature only if you haven't moved during
+   * this turn."
+   *
+   * A gate on *paying* for the use, which is why it is here and not an
+   * {@link ActivationEnd}: the list above holds what stops a feature starting
+   * because it is what would end it, and moving does not end a Steady Aim
+   * already taken. Nor is it a {@link StandingRequirement}: those are read
+   * afresh on every read of a benefit, and this is asked once, at the moment
+   * the Bonus Action is spent.
+   *
+   * Read off `TurnBudget.movementSpent`, which stores the feet that were spent
+   * rather than what is left of them — which is exactly what lets the question
+   * be asked at all.
+   */
+  readonly onlyIfUnmoved?: boolean;
+  /** What a use of it hangs on its holder — see {@link HungGrant}. */
+  readonly hangs?: readonly HungGrant[];
 }
 
 /**

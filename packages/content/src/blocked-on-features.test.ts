@@ -429,11 +429,13 @@ describe('what a shape finishes is the column a tranche is planned from', () => 
    * an extra action granted rather than an existing one governed, and a rule
    * that couples slots — which is a gap a casting has too.
    *
-   * A fifth entry left the subject altogether. Steady Aim was here for its
-   * "haven't moved" gate, and a gate is a field on the Bonus Action a feature
-   * has no way to spend — which is the moment `a-one-shot-roll-modifier`
-   * already names one entry above. So it is not an action-rule feature at
-   * all, and moving it is what takes that shape's *finishes* column to two.
+   * A fifth entry left the subject altogether, and then left the map. Steady
+   * Aim was here for its "haven't moved" gate, and a gate is a field on the
+   * Bonus Action a feature has no way to spend — which is the moment
+   * `a-one-shot-roll-modifier` already names one entry above. Re-filing it
+   * there took that shape's *finishes* column to two; building the declared
+   * half of the moment — a use of a feature that hangs a stored grant, and the
+   * gate on paying for it — took the feature off the map altogether.
    */
   it('splits the action-economy shape into the four gaps it was standing for', () => {
     expect(featureConsumersOf('an-action-rule-a-feature-holds')).toEqual({
@@ -442,10 +444,14 @@ describe('what a shape finishes is the column a tranche is planned from', () => 
       blocks: ['barbarian:improved-brutal-strike'],
       finishes: [],
     });
+    // And Steady Aim has left that row too, by the route the list charges for:
+    // the declared half of the moment was built, so the feature is executed and
+    // records no gap at all. What is left of the shape is the moment nobody
+    // declares — a grant fired by a miss or by a landed hit.
     expect(featureConsumersOf('a-one-shot-roll-modifier')).toEqual({
       shape: 'a-one-shot-roll-modifier',
-      blocks: ['barbarian:improved-brutal-strike', 'fighter:studied-attacks', 'rogue:steady-aim'],
-      finishes: ['fighter:studied-attacks', 'rogue:steady-aim'],
+      blocks: ['barbarian:improved-brutal-strike', 'fighter:studied-attacks'],
+      finishes: ['fighter:studied-attacks'],
     });
     // The Hide left this row with a spender; the Utilize is what is left of it.
     expect(featureConsumersOf('an-action-the-engine-has-no-spender-for')).toEqual({

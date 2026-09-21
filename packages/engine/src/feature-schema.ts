@@ -9,6 +9,11 @@ import {
   type FeatureOptionMeaning,
   type PoolSizing,
 } from './progression.js';
+import {
+  oneShotProblem,
+  type RollModifier,
+  type RollSelector,
+} from './roll-modifiers.js';
 import { checkActionRule } from './spell-schema.js';
 
 /**
@@ -608,6 +613,60 @@ export function checkFeatureDefinition(
           reason:
             'a conferred Reaction costs its holder no pool use, so there is nothing to refund on a failure; what a use of it spends is the grant itself',
         });
+      }
+    });
+  }
+
+  // The two things a hung grant can promise that nothing would keep.
+  //
+  // **An ending no roll delivers.** A grant a use hangs is *stored* state, so
+  // `oneShot` on it is a real promise rather than the inert one it is on a
+  // derived `whileActive` effect — and only the two attack rollers keep it. On
+  // any other family the flag compiles, the grant lands, and it then runs to
+  // its deadline like a durable one. The same refusal `spell-schema.ts` and the
+  // item door already make, at the third door onto the same field.
+  //
+  // **And two clauses filed under one name.** `hungSource` names a grant by its
+  // kind, because everything one source granted a creature ends together —
+  // `roll-modifier-consumed`'s body *is* `releaseGrants`. Two grants of one
+  // kind would therefore share a source, and the roll that spent the first
+  // would silently end the second.
+  if (grant?.kind === 'activated') {
+    const kinds = new Set<string>();
+    (grant.hangs ?? []).forEach((hung, index) => {
+      const at = `grants.hangs[${index}]`;
+      if (kinds.has(hung.kind)) {
+        found.push({
+          field: `${at}.kind`,
+          code: 'two_grants_of_one_kind',
+          reason: `a use hangs one "${hung.kind}" grant: two share a source, and whatever ends the first ends the second`,
+        });
+      }
+      kinds.add(hung.kind);
+
+      if (hung.kind !== 'roll-mode') return;
+
+      // **Asked of the value rather than of the type**, because this validator's
+      // other half takes `unknown`: `parseFeatureDefinition` is the door a
+      // homebrew class comes through as JSON text, and a missing modifier there
+      // is a *refusal* rather than a `TypeError` thrown out of a function whose
+      // contract is to return every problem it found.
+      const modifier = hung.modifier as Partial<RollModifier> | undefined;
+      const selector = modifier?.selector as Partial<RollSelector> | undefined;
+      if (modifier === undefined || selector?.roll === undefined) {
+        found.push({
+          field: `${at}.modifier`,
+          code: 'bad_roll_modifier',
+          reason: 'a hung roll-mode grant carries a modifier, and a modifier says which rolls it reaches',
+        });
+        return;
+      }
+
+      if (modifier.oneShot === true) {
+        const wrong = oneShotProblem(selector.roll);
+        if (wrong !== null) {
+          found.push({ field: `${at}.modifier.oneShot`, code: wrong.code, reason: wrong.reason });
+        }
       }
     });
   }

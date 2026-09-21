@@ -2488,6 +2488,11 @@ export function planCharacter(
       ...(grant.capSeconds === undefined ? {} : { capSeconds: grant.capSeconds }),
       ...(grant.endsOn === undefined ? {} : { endsOn: grant.endsOn }),
       ...(grant.forbidsCasting === undefined ? {} : { forbidsCasting: grant.forbidsCasting }),
+      ...(grant.onlyIfUnmoved === undefined ? {} : { onlyIfUnmoved: grant.onlyIfUnmoved }),
+      // Carried across whole, and read at the moment of use rather than here:
+      // what a use hangs is a grant the command emits, not a class table to be
+      // resolved at a level — see `HungGrant`.
+      ...(grant.hangs === undefined ? {} : { hangs: grant.hangs }),
     });
 
     for (const declared of grant.whileActive ?? []) {

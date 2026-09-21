@@ -923,3 +923,89 @@ describe('parseFeatureDefinition is the Result half', () => {
     expect(refused).toEqual([]);
   });
 });
+
+/**
+ * The grants a *use* hangs, which are the stored half of a standing effect —
+ * see `ActivatedFeature.hangs`. Two promises can be written there that nothing
+ * downstream would keep, and both are silent: the grant lands, and what the
+ * definition said about its ending is simply not what happens.
+ */
+describe('a hung grant may not promise an ending nothing keeps', () => {
+  const hanging = (hangs: unknown): FeatureDefinition =>
+    ({
+      ...sound,
+      automation: 'engine',
+      note: 'A Bonus Action that hangs something on its holder, for the validator to read.',
+      grants: {
+        kind: 'activated',
+        action: 'bonus-action',
+        pool: null,
+        lasts: 'start-of-next-turn',
+        hangs,
+      },
+    }) as FeatureDefinition;
+
+  const advantage = (roll: string) => ({
+    kind: 'roll-mode',
+    modifier: { mode: 'advantage', selector: { roll, relation: 'roller' }, oneShot: true },
+    lasts: 'end-of-current-turn',
+  });
+
+  it('accepts the one SRD writes: a one-shot on an attack roll', () => {
+    expect(codes(hanging([advantage('attack')]))).toEqual([]);
+  });
+
+  /** Only the two attack rollers spend one; on a save it runs to its deadline. */
+  it('refuses a one-shot on a roll nothing spends one from', () => {
+    expect(codes(hanging([advantage('saving-throw')]))).toContain('one_shot_off_an_attack');
+  });
+
+  /** Two of one kind share a source, and one ending would end both. */
+  it('refuses two grants of one kind, which would share a source', () => {
+    expect(codes(hanging([advantage('attack'), advantage('attack')]))).toContain(
+      'two_grants_of_one_kind',
+    );
+  });
+
+  /**
+   * The half of this validator that takes `unknown`: a homebrew class arrives
+   * as JSON text through `parseFeatureDefinition`, where a missing modifier is
+   * a refusal and never a `TypeError` thrown out of a function whose contract
+   * is to hand back every problem it found.
+   */
+  it('refuses a hung roll-mode with nothing to read, rather than throwing', () => {
+    expect(codes(hanging([{ kind: 'roll-mode', lasts: 'end-of-current-turn' }]))).toContain(
+      'bad_roll_modifier',
+    );
+    expect(
+      codes(
+        hanging([
+          {
+            kind: 'roll-mode',
+            modifier: { mode: 'advantage', oneShot: true },
+            lasts: 'end-of-current-turn',
+          },
+        ]),
+      ),
+    ).toContain('bad_roll_modifier');
+  });
+
+  it('says so through the door untyped content comes in by', () => {
+    const refused = parseFeatureDefinition(
+      hanging([{ kind: 'roll-mode', lasts: 'end-of-current-turn' }]),
+      CONTEXT,
+    );
+    expect(isErr(refused) && refused.code).toBe('bad_roll_modifier');
+  });
+
+  it('allows two grants of different kinds, which is the sentence Steady Aim writes', () => {
+    expect(
+      codes(
+        hanging([
+          advantage('attack'),
+          { kind: 'speed', change: 'zero', lasts: 'end-of-current-turn' },
+        ]),
+      ),
+    ).toEqual([]);
+  });
+});

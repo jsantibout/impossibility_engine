@@ -125,7 +125,7 @@ export const FEATURE_SHAPES = {
   'a-modifier-a-feature-puts-on-another-creature':
     'a mode or a number a feature hangs on **somebody else**, raised by something that happened. A standing grant is derived from its holder\'s own state on every read, and `against-holder` in packages/engine/src/roll-modifiers.ts is the furthest one reaches — "Attack rolls against the affected creature have Advantage" — which is still a fact about the holder. A Disadvantage that starts when a creature hits you and lasts the rest of their turn, and a bonus the next attacker against your target gets, are durable grants on a third party no feature can write.',
   'a-one-shot-roll-modifier':
-    'a mode a feature hangs on somebody at a **moment**, spent by the first roll that reaches it. The mechanic itself is built and is a casting’s: packages/engine/src/roll-modifiers.ts carries `RollModifier.oneShot` — "Spent by the first roll it reaches, rather than running to a deadline." — with `RollSelector.counterpart` beside it for the sentences that narrow one to a named creature, and SRD Guiding Bolt and Vicious Mockery write both ends of it through a spell’s rider. What no **feature** has is the door: a `FeatureGrant` of kind `roll-mode` is a standing grant, derived from its holder’s own state on every read, and packages/engine/src/progression.ts says what the list is for — "Deliberately few. A feature whose effect does not fit one of these is" — so nothing lets a feature *emit* a grant when something happens. Sap and Vex wait on the weapon-mastery record before they could be hung at all; Steady Aim’s Bonus Action, Studied Attacks’ miss and Improved Brutal Strike’s landed hit are three more moments with nothing to fire at them. **A moment is declared and not only fired**, which is the half this description owed its `finishes` column: SRD Steady Aim spends a Bonus Action — gated on not having moved, a fact `TurnBudget.movementSpent` already holds — so whatever declares a moment says what it costs and what must be true to pay it, or a feature built from this shape emits its grant and leaves its own condition unenforced.',
+    'a mode a feature hangs on somebody at a **moment**, spent by the first roll that reaches it. The mechanic itself is built and is a casting’s: packages/engine/src/roll-modifiers.ts carries `RollModifier.oneShot` — "Spent by the first roll it reaches, rather than running to a deadline." — with `RollSelector.counterpart` beside it for the sentences that narrow one to a named creature, and SRD Guiding Bolt and Vicious Mockery write both ends of it through a spell’s rider. What no **feature** has is the door: a `FeatureGrant` of kind `roll-mode` is a standing grant, derived from its holder’s own state on every read, and packages/engine/src/progression.ts says what the list is for — "Deliberately few. A feature whose effect does not fit one of these is" — so a feature’s own `roll-mode` grant reaches none of it. **One of the two moments is built now**, and it is the declared one: `ActivatedFeature.hangs` in packages/engine/src/standing.ts is the stored half of a standing grant, emitted by `activateFeature` where the action is paid for, with `onlyIfUnmoved` beside it for the condition a use is gated on — SRD Steady Aim spends a Bonus Action it may take only before moving, and hangs both of its clauses through it. What is still missing is the moment nobody declares: a grant **fired** by something that happened to an attack, which is Studied Attacks’ miss and Improved Brutal Strike’s landed hit. Sap and Vex reach theirs through the weapon-mastery record and `masteryAfterHit`, which is one hit’s rider rather than a door a feature can write.',
   'an-action-rule-a-feature-holds':
     'a rule about the action economy that a **feature** states about **somebody else**. The holder half is built and the catalogue writes it: `StandingGrant` in packages/engine/src/standing.ts carries an `action-rule` member, and `actionRulesOn` merges what a feature says with what a casting hung at every site a spend is checked — derived on every read rather than compiled onto the creature, because a stored copy "would put a permanent unconditional row into every Rogue’s state" and would reach no character already written into a log. SRD Cunning Action and SRD Adrenaline Rush are written through it. **What is left is the other direction**, and the SRD writes it on a *hit*: a rule hung on the creature you have just struck — Improved Brutal Strike stopping its Opportunity Attacks — which a casting does through an effect on its target and a feature through nothing, because a standing grant is a fact about its own holder. packages/engine/src/combat.ts keeps the neighbouring refusal about spending somebody else’s budget — "Nothing here can express that, on purpose" — and this is the narrower one beside it, waiting on the moment that would hang the rule as much as on the reach.',
   'an-action-the-engine-has-no-spender-for':
@@ -870,27 +870,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'A language with no mechanics attached',
       why: 'table',
       note: 'narration, like Druidic: a language the sheet records and no rule reads.',
-    },
-  ],
-  // **The feature the re-filing was found on**, and the one that wants every
-  // coined id at once. It carried a single clause naming a single shape, and
-  // the three actions the SRD prints on it are refused in three different
-  // places — which is why a track briefed to transcribe it landed nothing.
-  'rogue:steady-aim': [
-    {
-      clause: 'a one-shot Advantage that is consumed by the roll it changes, which nothing here consumes',
-      why: 'a-one-shot-roll-modifier',
-      note: 'the clause the feature is actually for, re-read against the mechanic rather than against the note. `RollModifier.oneShot` is built, and `oneShot` is a field a feature’s own `roll-mode` grant can already carry — writing it there would do nothing, because `consumedRollModifiers` spends what it finds in `creature.rollModifiers`, which is stored state, while a feature’s standing grant is derived afresh on every read and reaches none of it. So what is missing is still the moment: a Bonus Action a feature spends to *emit* one.',
-    },
-    {
-      clause: 'the "haven’t moved during this turn" condition on spending the Bonus Action',
-      why: 'a-one-shot-roll-modifier',
-      note: 'a field on the unbuilt moment above rather than a rule about the economy, which is the correction that took this feature off the action-rule list altogether: what Steady Aim needs is a Bonus Action a feature spends to emit a grant, and a gate is part of declaring that Bonus Action. The fact it gates on is already on the budget — `TurnBudget.movementSpent` stores the feet rather than what is left of them, which is what lets a question be asked of it.',
-    },
-    {
-      clause: '`speedOf` reads a grant like any other',
-      why: 'expressible',
-      note: 'both halves of the Speed sentence are built, which is why they are recorded rather than counted as missing.',
     },
   ],
   'rogue:cunning-strike': [
