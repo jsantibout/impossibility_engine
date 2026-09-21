@@ -586,6 +586,10 @@ function withOneReplaced(
   if (entries.length !== 1) return null;
   const only = entries[0]!;
   if (only.count <= count) return null;
+  // And not a name the entry it comes out of already spends: the engine
+  // assigns a turn's swings in one pass over entries no name appears in twice,
+  // and "two Bites, one of which may be a Bite" would break that for nothing.
+  if (alreadyNamed(entries, attack)) return null;
   return [{ ...only, count: only.count - count }, { count, attack }];
 }
 
@@ -659,22 +663,32 @@ export function parseMultiattack(
     // a second sentence read onto a branch nobody could identify is a guess.
     if (branches.length > 1) return null;
     const replacement = REPLACEMENT.exec(second);
-    // "a use of X" where X is a line this block prints an attack for is the
-    // same swap in the book's other words.
-    const use = replacement === null ? REPLACEMENT_USE.exec(second) : null;
-    const used = use === null ? null : boundName(printedAttacks, use[2]!);
-    const swap = replacement ?? (used === null ? null : use);
-    if (swap !== null) {
+    if (replacement !== null) {
       const swapped = withOneReplaced(
         branches[0]!,
-        COUNT_WORDS[swap[1]!]!,
-        used ?? swap[2]!.trim(),
+        COUNT_WORDS[replacement[1]!]!,
+        replacement[2]!.trim(),
       );
       if (swapped === null) return null;
       branches.push(swapped);
-    } else if (NAMES_A_USE.test(second)) {
-      secondClause = second;
-    } else return null;
+    } else {
+      // "a use of X" where X is a line this block prints an attack for is the
+      // same swap in the book's other words.
+      const use = REPLACEMENT_USE.exec(second);
+      const used = use === null ? null : boundName(printedAttacks, use[2]!);
+      const swapped =
+        used === null ? null : withOneReplaced(branches[0]!, COUNT_WORDS[use![1]!]!, used);
+      if (swapped !== null) branches.push(swapped);
+      // **Knowing what the block prints may never make this read less.** A use
+      // this grammar cannot write out as a swap — because the base sequence has
+      // two entries, or because it already spends the name — is the hand-over
+      // it was before the names were passed in, and not a refusal of the
+      // sequence the first sentence already stated. Otherwise a block would
+      // lose its whole Multiattack for having printed an attack by that name,
+      // which is the opposite of what reading the name is for.
+      else if (NAMES_A_USE.test(second)) secondClause = second;
+      else return null;
+    }
   }
 
   // **A trailing use of a printed attack is a swing, and joins the sequence.**

@@ -1122,3 +1122,52 @@ _Medium Aberration, Neutral Evil_
 
 **_Hook._** _Melee Attack Roll:_ +5, reach 10 ft. _Hit:_ 6 (1d6 + 3) Piercing damage.
 `;
+
+/**
+ * **Knowing more about the block may never make the grammar read less.**
+ *
+ * The names are passed in to turn a hand-over into a swing where one is
+ * printed. A block that gained nothing by them has to come out exactly where
+ * it was — never worse, and least of all with the sequence its first sentence
+ * plainly states taken away from it for a clause about a second thing.
+ */
+describe('a use that names a printed attack and is still not a swap', () => {
+  it('keeps the sequence and hands the clause over when the swap cannot be written', () => {
+    // Two entries in the base, so the sentence does not say which of them the
+    // replaced swing came out of.
+    const text =
+      'The thing makes one Claw attack and one Tail attack. It can replace one attack with a use of Bite.';
+    const unbound = parseMultiattack(text, ['Claw', 'Tail']);
+    expect(unbound).toEqual({
+      entries: [
+        { count: 1, attack: 'Claw' },
+        { count: 1, attack: 'Tail' },
+      ],
+      handOver: 'It can replace one attack with a use of Bite.',
+    });
+    expect(parseMultiattack(text, ['Claw', 'Tail', 'Bite'])).toEqual(unbound);
+  });
+
+  /**
+   * And a replacement may not put one name in two entries of a sequence any
+   * more than a trailing use may: the engine assigns a turn's swings in a
+   * single pass, and a guard on one clause is worth nothing while the sentence
+   * beside it can write the same thing.
+   */
+  it('refuses a replacement that would name one attack in two entries', () => {
+    expect(
+      parseMultiattack(
+        'The thing makes two Bite attacks. It can replace one attack with a use of Bite.',
+        ['Bite'],
+      ),
+    ).toEqual({
+      entries: [{ count: 2, attack: 'Bite' }],
+      handOver: 'It can replace one attack with a use of Bite.',
+    });
+    // The same sequence, in the wording the book prints for a printed line —
+    // where there is no hand-over to fall back to, so the line stays prose.
+    expect(
+      parseMultiattack('The thing makes two Bite attacks. It can replace one attack with a Bite attack.'),
+    ).toBeNull();
+  });
+});
