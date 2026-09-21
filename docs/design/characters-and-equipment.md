@@ -85,9 +85,11 @@ that differ — a Monk is proficient with a Light Crossbow and it is not a Monk
 weapon — so the set lives on the feature rather than on the proficiency list.
 
 **A pool may carry a menu.** `heals` and `touchHeals` already say what one use
-buys; `options` is the third answer and it is an effect list, and
-`confersReaction` is the fourth — a Reaction handed to somebody else, which is
-the Bard's die. Each arrived the same way and for the same reason. It is a list
+buys; `options` is the third answer and it is an effect list; `confersReaction`
+is the fourth — a Reaction handed to somebody else, which is the Bard's die —
+and `buysBudget` is the fifth, which is room in the turn's own budget: the
+Fighter's second action and the Monk's two Unarmed Strikes. Each arrived the
+same way and for the same reason. It is a list
 rather than a grant of its own because `FeatureDefinition.grants` is singular
 and the SRD prints one feature whose uses buy different things. Dice scale on
 the class table through `diceCountByLevel`, because every `DiceScaling` field

@@ -83,6 +83,29 @@ to homebrew.
   one swing and says so. It is the first DM door that takes a number, and the
   line it draws is that a number the engine produces is a fabrication while a
   number the table states is a fact.
+- **A turn budget a feature can add to.** A pool use may buy room in the
+  turn's own budget — the Fighter's second action, the Monk's two Unarmed
+  Strikes for a Focus Point — with the book's own narrowings carried as data:
+  Action Surge excepts the Magic action and may be spent only once on a turn
+  even at the level that grants two uses. A log holding the extra action folds
+  and replays byte-identically, which is the thing an extra action most easily
+  breaks.
+- **The Unarmed Strike's three options.** Grapple and Shove are built as SRD
+  2024 prints them — no contest, a fixed DC of 8 + Strength modifier +
+  Proficiency Bonus, and the target choosing Strength or Dexterity. They are
+  the Attack action and are *not* an attack roll, which is a distinction with
+  consequences: a Potion of Invisibility survives a grapple. The escape DC is
+  pinned at the moment of the grab, so tearing free an hour later is against
+  the number it was made at.
+- **A purse somebody can fill.** A DM awards or takes coin in the denomination
+  the book prints treasure in, through two doors over one signed command, and
+  an overdraw is a refusal rather than a corrupt log. `purchase_item` has a
+  purse to spend at last.
+- **Alert's swap, with its window.** The holder of the feat trades Initiative
+  with a willing ally, in the moment after the roll and before the first turn.
+  Consent unstated is a question the caller answers by re-sending; consent
+  refused is a refusal; and the question now names its own door instead of
+  telling a caller to cast a spell.
 - **A daily limit the book prints.** Sixty headings across fifty-four blocks
   carry an `N/Day`, and the twenty-two with a home on the sheet are enforced:
   refused before the economy is spent, and cleared by a declared dawn and by
@@ -521,14 +544,15 @@ same change, or the next batch pays for it.
    pool's recovery tag — the fifth restatement the engine allows — and the
    advancement path emits the change rather than only resizing the pool.
 
-6. **A turn budget nothing can add to.** Action Surge grants no second action,
-   Flurry of Blows buys no pair of strikes, and Haste's extra action is the
-   third consumer of the same missing shape. It cannot be built from the grant
-   vocabulary alone: the fold calls `spendAction` inside `must`, so an extra
-   action a creature merely *holds* still throws on replay. It has to be
-   visible in the `TurnBudget`, which only a combat event writes. A second,
-   smaller shape sits beside it — a *price* on an allowance, which is what
-   Patient Defense and Step of the Wind need and what `ActionRule` cannot say.
+6. **Haste, and a price on an allowance.** The turn-budget shape is built and
+   has two consumers; Haste is the third and is not one of them, because a
+   spell buying an action needs a `SpellEffect` kind and a resolver, and its
+   "on each of its turns" needs a per-turn re-arm only `standing.ts` can read.
+   Beside it, the smaller shape that did not fall out: a **price on an
+   allowance**. Patient Defense and Step of the Wind are ordinary permissions
+   the vocabulary already has, but `ActionRule` cannot say "and it costs a
+   Focus Point", and an allowance is derived on every read, so nothing can
+   charge for one. Both features stay the table's until it exists.
 
 7. **A recorded breach, and a recorded seam.** Mirage Arcane's opening sentence
    is a handover with a debt inside it — "an area up to 1 mile square" is a size
@@ -546,7 +570,19 @@ same change, or the next batch pays for it.
    that schema is shared by `create_character` on both surfaces, so widening it
    would hand a model the authorship the field exists to refuse.
 
-9. **Found in passing, each small, none invented.** A rider's once-per-turn
+9. **Rules that are built and cannot be reached.** Truesight and Blindsight
+   now satisfy Invisible's "can somehow see you" and Darkvision does not — but
+   **no creature in the shipped catalogue can satisfy it below level 18**. The
+   only Truesight in content is `boon-of-truesight`, whose sense clause is not
+   applied because the feat's single grant is spent on the ability-score
+   ceiling; the only Blindsight is `ranger:feral-senses`; and a monster's
+   printed senses are unparsed prose that reaches nothing. The ruling's guard
+   against a silent refactor is worth having on its own, but the rule changes
+   nothing at a table until a carrier exists. Beside it: the spell-attack
+   roller passes neither context, so Invisible reaches no Fire Bolt in either
+   direction — the same fork, reopened on the condition side.
+
+10. **Found in passing, each small, none invented.** A rider's once-per-turn
    mark can be laid twice when a second swing settles first — harmless in the
    fold, which is a set, but a real double-spend of a "once per turn" clause.
    `HIDE` wants to move beside `DODGE` in `actions.ts`, which dissolves the
@@ -560,7 +596,7 @@ same change, or the next batch pays for it.
    lines a creature holds by `look` but not by `sheet`, which is the half-door
    rule inverted.
 
-10. **The long tail**: the item range shape (two fields, not one), a casting
+11. **The long tail**: the item range shape (two fields, not one), a casting
     ended by a trigger, the remaining Metamagic options,
     `an-effect-list-a-hit-buys` for the Rogue's Cunning Strike, a damage-less
     attack line, and the bestiary's ranked prose table.
@@ -748,6 +784,25 @@ its fixture, in both shapes.
 
 Each of these is a rules or doctrine call a builder stopped rather than guess at.
 
+- **The provenance chain, four questions.** The owner ruled that Nimbus
+  Quill's table rolls its own dice, and the architect's answer is that
+  provenance belongs on the record: one optional field on `roll-recorded`,
+  typed so it can say `physical-dice` or `dm-override` and never `engine`, with
+  the face entering through an optional stated die on the commands that already
+  exist. `rolls-issued` already handles it correctly — a table roll consumes an
+  id without moving the generator, so the next engine die is exactly the die it
+  would have been. Still to decide: **which nested rolls** the table also
+  throws (the Concentration save fired inside the damage command, turn-boundary
+  saves, Initiative, death saves); whether the third door offers `dm-override`
+  as well as `physical-dice`; where that door's directory lives, given
+  `dm/definitions.ts` currently states "No tool takes the number a die showed";
+  and **the doctrine's own sentences** — row 7 and CLAUDE.md rule 1 describe a
+  `RollId` handshake no command has, and row 3's "every damage event carries
+  the number rolled" is loose in a second way, since unheld damage dice reach
+  the log only through the rng snapshot.
+- **An ally's side, on Alert's swap.** Nothing checks the two creatures are on
+  the same side, though state holds sides, and a null side means nobody has
+  said — so it wants its own request rather than a refusal.
 - Where a reachability measurement lives, since `@ie/tools` depends on
   `@ie/content` and the report cannot import the surface without inverting the
   build.
