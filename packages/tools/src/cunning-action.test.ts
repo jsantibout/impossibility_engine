@@ -299,6 +299,21 @@ describe("SRD Adrenaline Rush: 'you can take the Dash action as a Bonus Action'"
   });
 });
 
+/**
+ * The four Hide outcomes this file can reach with the book, and the fifth it
+ * cannot.
+ *
+ * `undeclared_sight` and `no_scene` are the two `needs-context` codes,
+ * `seen` and `not_concealed` the two refusals. `immune` — "is immune to the
+ * Invisible condition, so hiding buys nothing" — is the fifth, and **no SRD
+ * content reaches it**: nothing in the bestiary lists Invisible among its
+ * condition immunities and no spell in the catalogue grants immunity to it,
+ * so a test for it here would have to mint homebrew content to exercise a line
+ * of plumbing `seen` and `not_concealed` already prove twice. It is `err` like
+ * both of those and arrives as `refused` for the same reason they do. The
+ * engine's own `hide.test.ts` does not drive it either, and for the same
+ * reason.
+ */
 describe('a Hide refuses in more shapes than any other named action, and each arrives as itself', () => {
   /**
    * The one that must not be flattened. Nobody has said whether the guard can
@@ -321,6 +336,23 @@ describe('a Hide refuses in more shapes than any other named action, and each ar
     // Nothing was spent and no die was thrown asking.
     expect(budget(t, 'nyx').action).toBe(true);
     expect(budget(t, 'nyx').bonusAction).toBe(true);
+  });
+
+  /**
+   * The second of the two kinds a Hide can ask for, and the same claim of it:
+   * cover and sight have to be *somewhere*, so a Hide before anybody has set a
+   * scene is homework rather than a refusal, and the door it names is the one
+   * that settles it.
+   */
+  it('asks for a scene when there is none for cover or sight to be in', () => {
+    const t = table('hide-no-scene');
+    expectOk(t.call('create_character', { id: 'nyx', choices: rogue('Nyx') }));
+    expectOk(t.call('create_character', { id: 'bram', choices: fighter('Bram') }));
+    const asked = expectNeedsContext(t.call('take_action', { who: 'nyx', kind: 'hide' }));
+    expect(asked.code).toBe('no_scene');
+    expect(asked.establish).toHaveLength(1);
+    expect(asked.establish[0]!.kind).toBe('scene');
+    expect(asked.establish[0]!.tools).toContain('set_scene');
   });
 
   /**
