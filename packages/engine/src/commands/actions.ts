@@ -313,11 +313,16 @@ export interface HideCommand extends CommandIdentity {
    * SRD: "while you're **Heavily Obscured**" — declared, never derived.
    *
    * The engine holds no light, no fog and no obscurement; three spells say so
-   * in their own notes. So this is the table's fact about this attempt, in the
-   * shape cover and sight already have, and it is pinned into nothing because
-   * what it changes is only whether the attempt was legal. The alternative —
-   * deriving it — would be the engine inventing the one input the doctrine
-   * says belongs to the fiction.
+   * in their own notes. So this is the table's fact about this attempt, stated
+   * on the command the way `declaredFacts` states the other clauses a caster
+   * cannot see for itself. The alternative — deriving it — would be the engine
+   * inventing the one input the doctrine says belongs to the fiction.
+   *
+   * **What it costs is that the log does not carry it.** Cover and sight are
+   * declarations with events behind them, and this is a sentence somebody said
+   * once: the log records that the Hide succeeded, not that it was legal
+   * because there was fog. A reader of the log alone cannot tell this attempt
+   * from one taken behind a wall. Whoever models obscurement takes it back.
    */
   readonly obscured?: boolean;
   /** Advantage or Disadvantage the table knows about and the engine does not. */
@@ -330,7 +335,13 @@ export interface HideResolution {
   readonly events: readonly GameEvent[];
   /** The check, or null when this command id had already been applied. */
   readonly check: D20TestResult | null;
-  /** Whether the creature is now hiding. */
+  /**
+   * Whether **this attempt** hid them — false, like `check`, on a replay.
+   *
+   * A retry is told its command already landed rather than re-answered about
+   * the world its own first run made, which is what `duplicate` is for: the
+   * creature may well be hiding, and this did not do it.
+   */
   readonly hidden: boolean;
   /** True when this command id had already been applied. */
   readonly duplicate?: boolean;

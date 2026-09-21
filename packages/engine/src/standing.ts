@@ -2003,7 +2003,10 @@ export function conditionImmunitiesOf(
  * what keeps every log this engine has already written answering exactly as it
  * did: a creature under Stinking Cloud is refused by Stinking Cloud, with the
  * same sentence, whatever its sheet says. The derived half is sorted by
- * {@link actionRuleKey} so that two readers of one state agree about it.
+ * {@link actionRuleKey} so that two readers of one state agree about it — a
+ * tidiness rather than a rule, since nothing in this half is order-sensitive:
+ * `governs` answers `false` for an `allows`, so a derived allowance never
+ * reaches `refuseSpend` at all, and `allowsPrice` is an exact-match scan.
  *
  * A feature's rule is filtered by `meetsRequirements` on the way through —
  * that is what `standingFor` does — so a rule conditioned on a Rage stops the

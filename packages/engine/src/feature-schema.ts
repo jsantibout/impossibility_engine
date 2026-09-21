@@ -9,6 +9,7 @@ import {
   type FeatureOptionMeaning,
   type PoolSizing,
 } from './progression.js';
+import { checkActionRule } from './spell-schema.js';
 
 /**
  * Whether a feature definition is *coherent*, asked of a value rather than of a
@@ -774,6 +775,17 @@ export function checkFeatureDefinition(
   // (`mismatched_backlash_dice`) and this refuses it at the door, which is
   // where a catalogue error belongs.
   if (grant?.kind === 'standing') {
+    // **And the rule a feature holds about a turn, asked of the one
+    // validator.** `action-rule` is `combat.ts`'s vocabulary written on a
+    // class table, and the sentence that refuses a spell's allowance refuses a
+    // feature's for the same reason: a price no command will charge is a
+    // clause that validates, compiles onto the sheet, is handed back by
+    // `actionRulesOn` and is honoured by nothing.
+    (grant.effects ?? []).forEach((effect, index) => {
+      if (effect.kind !== 'action-rule') return;
+      checkActionRule(effect.rule, `grants.effects[${index}].rule`, found);
+    });
+
     (grant.effects ?? []).forEach((effect, index) => {
       if (effect.kind !== 'casting-damage') return;
       const at = `grants.effects[${index}]`;

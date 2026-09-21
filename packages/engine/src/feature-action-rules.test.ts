@@ -6,6 +6,9 @@ import { fold, type GameEvent } from './events.js';
 import { actionRulesOn } from './standing.js';
 import { takeDash, takeDisengage } from './commands.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
+import { checkFeatureDefinition } from './feature-schema.js';
+import { READABLE_FEATURE_FIELDS, READABLE_GRANT_KINDS } from './content.js';
+import { MAX_LEVEL, type FeatureDefinition } from './progression.js';
 
 /**
  * A rule about the action economy that a **feature** states.
@@ -244,6 +247,49 @@ describe("SRD Cunning Action: Dash, Disengage or Hide as a Bonus Action", () => 
   });
 });
 
+/**
+ * The invariant the merge is written around, asserted rather than argued.
+ *
+ * `refuseSpend` takes the **first** rule that bites, and the stored ones come
+ * first — so a creature under a spell is refused by that spell, with that
+ * spell's own sentence and deadline, exactly as it was before any feature
+ * could hold a rule at all. A merge that sorted the two halves together would
+ * be a change to every log already written.
+ */
+describe('a casting still outranks a feature, and says so in its own words', () => {
+  const GAGGED: readonly GameEvent[] = [
+    ...ROGUE_TURN,
+    {
+      type: 'action-rule-granted',
+      id: ROGUE,
+      rule: {
+        source: 'Stinking Cloud#cast:1',
+        rule: { kind: 'forbids', slots: ['action', 'bonus-action'] },
+        label: 'Stinking Cloud',
+        until: 'the spell ends',
+      },
+    },
+  ];
+
+  it('refuses the Rogue their own Bonus Action Dash, naming the spell', () => {
+    const state = fold('seed', GAGGED);
+    // Both halves are in hand: the spell's, stored, and the feature's, derived.
+    expect(state.creatures[ROGUE]?.actionRules).toHaveLength(1);
+    expect(actionRulesOn(state, ROGUE)).toHaveLength(4);
+    expect(actionRulesOn(state, ROGUE)[0]?.label).toBe('Stinking Cloud');
+
+    const refused = takeDash(state, ROGUE, {}, { from: 'bonus-action' });
+    expect(isErr(refused) && refused.code).toBe('action_forbidden');
+    expect(isErr(refused) && refused.reason).toContain('Stinking Cloud');
+    expect(isErr(refused) && refused.reason).toContain('the spell ends');
+  });
+
+  it('refuses the ordinary Action price the same way', () => {
+    const refused = takeDash(fold('seed', GAGGED), ROGUE, {});
+    expect(isErr(refused) && refused.code).toBe('action_forbidden');
+  });
+});
+
 describe('SRD Adrenaline Rush: "You can take the Dash action as a Bonus Action"', () => {
   it('reaches an Orc through a species trait, and the same command spends the cheaper slot', () => {
     const state = fold('seed', ORC_TURN);
@@ -262,5 +308,58 @@ describe('SRD Adrenaline Rush: "You can take the Dash action as a Bonus Action"'
   it('does not buy the Orc a Disengage', () => {
     const refused = takeDisengage(fold('seed', ORC_TURN), ORC, {}, { from: 'bonus-action' });
     expect(isErr(refused) && refused.code).toBe('action_not_allowed');
+  });
+});
+
+/**
+ * The guard that keeps the door from being a way to write data nothing reads.
+ *
+ * `checkSpellDefinition` has refused an allowance outside `STATABLE_PRICES`
+ * since Conjure Woodland Beings, and a feature holding one is the same clause
+ * from the other side: a homebrew class offering a cheap Dodge would compile
+ * onto the sheet, be handed back by `actionRulesOn` and be honoured by
+ * nothing — "an allowance nobody can ask for is data no code reads". So
+ * `checkFeatureDefinition` asks the same function rather than a second copy of
+ * it, and the author is told at the door.
+ */
+describe('a feature may not hold a price no command charges', () => {
+  const holding = (rule: unknown): FeatureDefinition =>
+    ({
+      id: 'brigand:light-footed',
+      name: 'Light Footed',
+      level: 2,
+      automation: 'engine',
+      note: 'A homebrew class that buys an action with a cheaper slot.',
+      grants: { kind: 'standing', reach: 'self', effects: [{ kind: 'action-rule', rule }] },
+    }) as FeatureDefinition;
+
+  const codes = (rule: unknown): readonly string[] =>
+    checkFeatureDefinition(holding(rule), {
+      levels: MAX_LEVEL,
+      readableGrants: READABLE_GRANT_KINDS,
+      readableFields: READABLE_FEATURE_FIELDS,
+      spellExists: () => true,
+    }).map((problem) => problem.code);
+
+  it('takes the three the commands do charge', () => {
+    expect(codes({ kind: 'allows', action: 'dash', from: 'bonus-action' })).toEqual([]);
+    expect(codes({ kind: 'allows', action: 'disengage', from: 'bonus-action' })).toEqual([]);
+    expect(codes({ kind: 'allows', action: 'hide', from: 'bonus-action' })).toEqual([]);
+  });
+
+  it('refuses a Dodge nothing will charge a Bonus Action for', () => {
+    expect(codes({ kind: 'allows', action: 'dodge', from: 'bonus-action' })).toContain(
+      'bad_action_rule',
+    );
+  });
+
+  it('refuses an action no spender can tell apart', () => {
+    expect(codes({ kind: 'allows', action: 'search', from: 'bonus-action' })).toContain(
+      'bad_action_rule',
+    );
+  });
+
+  it('refuses a rule that forbids nothing at all', () => {
+    expect(codes({ kind: 'forbids' })).toContain('bad_action_rule');
   });
 });
