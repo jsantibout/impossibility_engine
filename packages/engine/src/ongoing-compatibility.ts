@@ -116,6 +116,10 @@ export function upgradeOngoing(
   }
   const area = casting.area ?? definition?.area;
   const areaTrigger = casting.areaTrigger ?? definition?.areaTrigger;
+  // What the area does to whoever stands in it, read off the record first and
+  // out of the legacy book only for a record written before the field existed
+  // — the rule the area and the trigger above already follow.
+  const areaStanding = casting.areaStanding ?? definition?.areaStanding;
   const endsEarly = casting.endsEarly ?? definition?.endsEarly;
   return {
     version: ONGOING_RECORD_VERSION,
@@ -128,6 +132,7 @@ export function upgradeOngoing(
     aimed: casting.aimed ?? (casting.on ?? []).filter(holdsNothingOf),
     ...(area === undefined ? {} : { area }),
     ...(areaTrigger === undefined ? {} : { areaTrigger }),
+    ...(areaStanding === undefined ? {} : { areaStanding }),
     // And what ends the casting early, for the same reason and by the same
     // rule: a pre-versioned record never wrote it down, so the catalogue is
     // the only place it was ever recorded. A version 2 record with no

@@ -4356,10 +4356,12 @@ export const SPEAK_WITH_DEAD: SpellDefinition = {
  * like Insect Plague's is the separate "only once per turn" sentence, which
  * caps the creature across all three clauses.
  *
- * What this definition does **not** do is stated in `unmodelled` and counted
- * against it: the halved Speed inside the Emanation is a standing spatial
- * effect rather than a trigger, and needs a primitive the engine has not
- * built.
+ * **The halved Speed is `areaStanding` and not a third trigger**, because the
+ * SRD writes it in a different grammar: "Any other creature's Speed is halved
+ * in the Emanation" names no moment, asks for no save and fires nothing. It
+ * holds while a creature is in the volume and lifts when it walks out, so the
+ * engine derives it from the scene on every read — see `AreaStanding` — and
+ * grants nobody anything that would have to be taken back.
  */
 export const SPIRIT_GUARDIANS: SpellDefinition = {
   id: 'spirit-guardians',
@@ -4397,8 +4399,14 @@ export const SPIRIT_GUARDIANS: SpellDefinition = {
       },
     ],
   },
+  // "Any other creature's Speed is halved in the Emanation." Not a trigger:
+  // nothing fires, nothing is rolled, and there is no moment — which creatures
+  // it reaches is a fact about where they are standing, so the engine derives
+  // it on every read and stores it on nobody. The designated-unaffected list is
+  // filtered once, where the area is read, so it reaches this sentence and the
+  // saving throw below alike.
+  areaStanding: { kind: 'speed', change: 'halve' },
   unmodelled: [
-    'the halved Speed of every unaffected-list creature inside the Emanation: a standing spatial effect rather than a trigger, and the engine has no primitive that derives a Speed from where a creature is standing',
     'whether the spirits look angelic, fey or fiendish, which the SRD makes the caster’s choice and is narration',
   ],
 };

@@ -742,10 +742,7 @@ describe('every member of the change vocabulary has a user or a written reason',
    * member has found a user fails, and one whose member the union no longer
    * declares fails too.
    */
-  const EXEMPT: Readonly<Record<string, string>> = {
-    halve:
-      'SRD Slow prints "An affected target’s Speed is halved", and Slow has no definition because it is blocked on two other shapes — a 25 percent chance that is not a d20 roll, and the action it forbids. The reader is live on every read of a Speed: `speedOf` counts the halvings it finds and `combineSpeed` applies one however many there are, which `the order of a Speed` above drives. So what is absent is a definition, not a use, and the day Slow gets one this exemption fails as a stale licence.',
-  };
+  const EXEMPT: Readonly<Record<string, string>> = {};
 
   const declared = (): readonly string[] => {
     const match = /export type SpeedChange =([\s\S]*?);/.exec(source);
@@ -787,8 +784,12 @@ describe('every member of the change vocabulary has a user or a written reason',
   });
 
   /**
-   * And the fact that makes the exemption more than prose: the day Slow gets
-   * a definition, `halve` has a user and the exemption above goes.
+   * `halve` was exempt until Spirit Guardians wrote it, on the reason that the
+   * spell the SRD prints it in — Slow, "An affected target’s Speed is halved"
+   * — is blocked on two other shapes and has no definition. **The exemption
+   * failed as a stale licence the moment something else wrote the member**,
+   * which is what it was written to do; the pin stays, because the fact it
+   * pins is still true and the day Slow lands is the day this test says so.
    */
   it('pins that the spell printing a halved Speed has no definition', () => {
     expect(SPELL_DEFINITIONS.filter((d) => d.id === 'slow')).toEqual([]);
@@ -811,6 +812,9 @@ describe('every member of the change vocabulary has a user or a written reason',
 
     expect(usedBy('add')).toEqual(['longstrider', 'ray-of-frost']);
     expect(usedBy('zero')).toEqual(['hypnotic-pattern']);
-    expect(usedBy('halve')).toEqual([]);
+    // SRD Spirit Guardians, "Any other creature's Speed is halved in the
+    // Emanation" — written as `areaStanding` rather than as an effect, because
+    // it is derived from where a creature stands and granted to nobody.
+    expect(usedBy('halve')).toEqual(['spirit-guardians']);
   });
 });

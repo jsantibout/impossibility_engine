@@ -2204,6 +2204,41 @@ export function checkSpellDefinition(
     }
   }
 
+  if (definition.areaStanding !== undefined) {
+    if (definition.area === undefined) {
+      found.push({
+        field: 'areaStanding',
+        code: 'standing_without_area',
+        reason:
+          'a standing effect an area has needs an area to stand in; nothing derives it from a spell with no volume',
+      });
+    }
+    if (
+      readsAsObject(
+        definition.areaStanding,
+        'areaStanding',
+        'a standing area effect is an object naming what the area does to whoever is in it',
+        found,
+      )
+    ) {
+      // One kind, and it is named rather than assumed: a second SRD sentence
+      // of this shape adds a member to `AreaStanding`, and data written
+      // against it must not resolve to the Speed rule by default.
+      if (definition.areaStanding.kind !== 'speed') {
+        found.push({
+          field: 'areaStanding.kind',
+          code: 'unknown_area_standing',
+          reason: `"${String(definition.areaStanding.kind)}" is not something an area does to a creature standing in it; the engine derives a Speed and nothing else`,
+        });
+      } else {
+        // The same pairing the standalone effect and the rider are held to,
+        // through the same function, so a Speed a casting's area moves cannot
+        // be spelled a fourth way.
+        checkSpeedChange(definition.areaStanding, 'areaStanding', found);
+      }
+    }
+  }
+
   // The geometry pass's one bit of information, declared in data.
   if (definition.anchoring !== undefined) {
     const template = definition.area ?? definition.targetsWithin;

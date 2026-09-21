@@ -327,9 +327,20 @@ describe('the partial set is derived from the debts', () => {
     expect(PARTIAL_SPELLS.length).toBeGreaterThan(0);
   });
 
-  /** Spirit Guardians was the hand list's only entry, and is still partial. */
-  it('keeps the spell the third state was invented for', () => {
-    expect(PARTIAL_SPELLS).toContain('spirit-guardians');
+  /**
+   * Spirit Guardians was the hand list's only entry and the spell the third
+   * state was invented for. It is **finished**: the one shape it was waiting
+   * on — a Speed derived from where a creature is standing — was built, so its
+   * halved Emanation is executed and its last debt is the spirits' appearance,
+   * which is narration and names no mechanic.
+   *
+   * **The pin inverts rather than goes.** A spell that reacquires a shape debt
+   * is a regression, and the debt this one would reacquire is precisely the
+   * one that was just paid.
+   */
+  it('has finished the spell the third state was invented for', () => {
+    expect(ADJUDICATED['spirit-guardians'] ?? []).toEqual([]);
+    expect(PARTIAL_SPELLS).not.toContain('spirit-guardians');
   });
 
   /**

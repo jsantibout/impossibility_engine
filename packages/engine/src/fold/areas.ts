@@ -16,16 +16,13 @@
  */
 import type { CharacterId } from '@ie/shared';
 import type { TurnMoment } from '../time.js';
-import { areaStampKey, type AreaMoment, type OngoingSpell } from '../spells.js';
 import {
-  areaPointAt,
-  creaturesInArea,
-  type AreaOrigin,
-  type AreaShape,
-  type PointAnchoring,
-  type PositionState,
-  type Point,
-} from '../positioning.js';
+  areaStampKey,
+  creaturesStandingInCastingArea,
+  type AreaMoment,
+  type OngoingSpell,
+} from '../spells.js';
+import type { PositionState, Point } from '../positioning.js';
 // **Type-only, deliberately.** The fold does not open the spell catalogue: a
 // casting's area and its clauses are pinned on the ongoing record at the cast,
 // so a replay answers out of the log rather than out of this week's
@@ -37,103 +34,22 @@ import type { GameState } from '../state.js';
 import { sortedRecord } from './common.js';
 
 /**
- * Which placed creatures a persistent casting's area currently holds.
+ * Which placed creatures a persistent casting's area currently holds, for the
+ * clauses that fire in it.
  *
- * The geometry is `positioning.ts`'s and is not reimplemented: the shape and
- * its dimensions come off the definition, the point and the direction off the
- * ongoing record. There is one area function in this engine and this is a
- * caller of it, not a second one.
- *
- * **Two origins, both read off facts the engine already had.** SRD's glossary
- * decides it and says so in one sentence: "An Emanation **moves with the
- * creature or object that is its origin** unless it is an instantaneous or a
- * stationary effect." So a casting's area sits at a point *or* on a creature,
- * and which it is was settled at the casting by the definition:
- *
- * | | `area.origin` | Read from | Spells |
- * |---|---|---|---|
- * | A point the casting keeps | `point` | `record.origin` | Web, Grease, Insect Plague, Black Tentacles, Moonbeam |
- * | The caster, wherever they now are | `self` | `record.caster` | Spirit Guardians |
- *
- * **Nothing is stored for the second and nothing is synchronised.** A copied
- * point would be a second answer to "where is the aura", kept in step by
- * remembering to update it — and the first time anything moved the caster by a
- * route that forgot, the aura would be frozen where it was. Deriving it is not
- * an optimisation: it is the difference between one fact and two facts that
- * can disagree.
- *
- * An Emanation measures from the origin creature's **whole occupied volume**
- * and excludes that creature, both of which `creaturesInArea` has always done.
- * A Gargantuan carrier's 15-foot Emanation covers vastly more ground than a
- * Medium one's, and neither includes the carrier.
- *
- * Null when the casting has no persistent area to ask about — no definition,
- * no area, no trigger, or a point-origin area with no point recorded — which
- * is every casting but a handful.
+ * The geometry, the two origins and the designated-unaffected list are
+ * `creaturesStandingInCastingArea`'s, which is the one answer to "who is in
+ * this casting's area" and lives beside the record it reads. This adds the one
+ * thing the trigger path asks for and the standing one does not: a casting
+ * with no trigger clauses catches nobody *here*, because there is nothing for
+ * it to catch them with.
  */
 function creaturesInCastingArea(
   scene: PositionState,
   record: OngoingSpell,
 ): ReadonlySet<CharacterId> | null {
-  const definition = areaDefinitionOf(record);
-  if (definition === null) return null;
-
-  const origin = originOfCastingArea(definition.area, record);
-  if (origin === null) return null;
-
-  const shape = areaShapeOf(definition.area, record.towards, record.anchoring ?? 'space');
-  if (shape === null) return null;
-
-  const caught = creaturesInArea(scene, origin, shape);
-  if (!caught.ok) return null;
-
-  // SRD Spirit Guardians: "When you cast this spell, you can designate
-  // creatures to be unaffected by it." Filtered here rather than at each
-  // clause, so the one decision reaches every sentence that reads the area —
-  // the damage today, the halved Speed whenever that is built.
-  const spared = record.unaffected;
-  return new Set(spared === undefined ? caught.value : caught.value.filter((id) => !spared.includes(id)));
-}
-
-/** Where this casting's area sits: a point it keeps, or the creature carrying it. */
-function originOfCastingArea(area: SpellArea, record: OngoingSpell): AreaOrigin | null {
-  if (area.origin === 'self') return { creature: record.caster as CharacterId };
-  return record.origin === undefined
-    ? null
-    : areaPointAt(record.origin, record.anchoring ?? 'space');
-}
-
-/**
- * Turn a definition's area into the geometric template, with its direction.
- *
- * The direction is the half that had to be stored: everything else is a
- * printed dimension and reconstructs itself. A directional shape with no
- * recorded direction answers null rather than pointing somewhere plausible.
- */
-function areaShapeOf(
-  area: SpellArea,
-  towards: Point | undefined,
-  anchoring: PointAnchoring,
-): AreaShape | null {
-  // The direction is read under the casting's own anchoring, the same one its
-  // origin was written with, so the axis between them stays in one frame.
-  const aim = towards === undefined ? null : areaPointAt(towards, anchoring);
-  switch (area.kind) {
-    case 'sphere':
-      return { kind: 'sphere', radius: area.radius };
-    case 'cylinder':
-      return { kind: 'cylinder', radius: area.radius, height: area.height };
-    case 'emanation':
-      return { kind: 'emanation', distance: area.distance };
-    case 'cone':
-      return aim === null ? null : { kind: 'cone', length: area.length, towards: aim };
-    case 'cube':
-      return aim === null ? null : { kind: 'cube', size: area.size, towards: aim };
-    case 'line':
-      return aim === null
-        ? null
-        : { kind: 'line', length: area.length, width: area.width, towards: aim };
-  }
+  if (areaDefinitionOf(record) === null) return null;
+  return creaturesStandingInCastingArea(scene, record);
 }
 
 /**

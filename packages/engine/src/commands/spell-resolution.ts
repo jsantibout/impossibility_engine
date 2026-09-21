@@ -1976,6 +1976,7 @@ export function resolveEffects(
         // rewrite what a historical replay raised.
         ...(definition.area === undefined ? {} : { area: definition.area }),
         ...(definition.areaTrigger === undefined ? {} : { areaTrigger: definition.areaTrigger }),
+        ...(definition.areaStanding === undefined ? {} : { areaStanding: definition.areaStanding }),
         // And what ends it early, pinned by the same rule for the same
         // reason: a sentence corrected in the catalogue next month must not
         // reach a casting made today.
