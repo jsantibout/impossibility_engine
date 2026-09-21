@@ -83,6 +83,24 @@ to homebrew.
   one swing and says so. It is the first DM door that takes a number, and the
   line it draws is that a number the engine produces is a fabrication while a
   number the table states is a fact.
+- **A daily limit the book prints.** Sixty headings across fifty-four blocks
+  carry an `N/Day`, and the twenty-two with a home on the sheet are enforced:
+  refused before the economy is spent, and cleared by a declared dawn and by
+  nothing else — a Long Rest does not give one back, because a per-day line is
+  not a rested one. The count is a tally rather than a second ledger, which is
+  what makes the GM's own dawn reach it.
+- **A Hide that ends.** A hider who swings or casts stops being hidden, by that
+  source alone, so a Greater Invisibility standing beside it survives. Whether a
+  creature's *senses* end it is a ruling nobody has made, so the clause reads the
+  declared sight line and the tests pin that absence.
+- **The doors, and what they now reach.** A DM spends a stat block's printed
+  Action and Bonus Action lines by their printed names, and `look` reports those
+  names, the Multiattack as the sequence it is, and what the creature has already
+  spent — so a name a caller can be refused for is a name it can read. A morning
+  can be declared; a rider can mount and dismount; the free object interaction,
+  the initiative swap and the trade a feature grants all have doors. A character
+  can be levelled: `advance_character` takes the rung being arrived at, never XP,
+  which is a thing tables keep on paper.
 - **Casting** — slots and Pact slots as pools, castings with identities,
   Concentration, interruptible declared castings, long castings and rituals,
   reaction spells, ongoing records that later activations act through.
@@ -338,11 +356,13 @@ to homebrew.
 
 ## What does not
 
-- No orchestration, persistence or web app. `@ie/tools` covers one fight;
-  the DM-facing half of the surface — a check against a DC the DM sets,
-  improvised damage, the wider ruled conditions — is not built, and nothing
-  stores a log. The engine still has no idea a language model exists, which
-  is the point.
+- No orchestration, persistence or web app. `@ie/tools` covers one fight and
+  nothing stores a log. Both halves of the surface are built: the player's
+  door and, under `dm/`, the DM's — a check against a DC the DM sets,
+  improvised damage, the wider ruled conditions, what a stat block prints.
+  They are partitioned by **authority**, not by species of caller: a DM's door
+  takes a decision the rules leave open, and neither door takes a die face.
+  The engine still has no idea a language model exists, which is the point.
 - Spells whose text needs a mechanic the engine lacks are *tracked* (cast,
   costed, timed, and the effect left to the table) rather than executed;
   `COVERAGE.md` lists which and names the missing shape.
@@ -387,9 +407,12 @@ to homebrew.
 - Seven emitters of `roll-recorded` pass no modes, so the field's absence
   means both "nobody ruled" and "this emitter never says". An attack roll and
   an Initiative roll can each carry Advantage and neither records it.
-- Nothing above the engine can summon, so no session can reach the stranded
-  debt. The day a summoning tool lands, the sweep must land beside it or a
-  model-driven fight can wedge.
+- **A casting cannot summon.** The door and its sweep are built and shipped
+  together — `summon_creature` and `dismiss_stranded_summons`, with the wedge
+  they exist to prevent driven end to end in a test. What is missing is one
+  level up: there is no summon *effect kind*, so a caller must cast, read the
+  `castingId` back, and summon by hand. The engine never derives the creature
+  from the spell.
 - No carried weight, no ammunition spent. Objects that are not creatures
   are not modelled.
 - Two copies of the Wind Fan in one pack share one count of uses, which is
@@ -397,11 +420,12 @@ to homebrew.
   labelled with an instance when it is gained, and a fan has no charges; the
   key already goes through `instancedPoolKey`, so the day that predicate
   widens the count follows the copy with no further change.
-- **Two pools the engine holds with nothing behind them.** Bardic Inspiration
-  and Action Surge are counted and recovered and what a use *buys* is
-  unexecuted, so both were deliberately given no tool: a pool a caller can
-  spend for no effect is worse than one it cannot spend. Channel Divinity has
-  come off this list. The Bard's die is **not** a resource handed to another
+- **One pool the engine holds with nothing behind it.** Action Surge is
+  counted and recovered and what a use *buys* is unexecuted, so it was
+  deliberately given no tool: a pool a caller can spend for no effect is worse
+  than one it cannot spend. Channel Divinity and Bardic Inspiration have both
+  come off this list — the Bard's die is conferred, and its Font of Inspiration
+  is spent through the trade door. The Bard's die is **not** a resource handed to another
   creature, which is what its note used to say — nothing hands a resource
   over. The Bard's pool is spent on the Bard, and what the ally holds is a
   sourced grant with a deadline, consumed on use: a granted `intervene`
@@ -418,44 +442,46 @@ to homebrew.
   size a species does not print is still refused. Promoting the warning to a
   refusal is the same corpus migration the weapon mastery is owed, and the
   owner has ruled the default is the design.
-- **A Rage's ten minutes are nobody's to keep.** `capSeconds` is pinned at
-  creation and read by no command; `extendFeature` replaces the timer and
-  checks nothing else. The surface reports the number and says the bound is
-  the table's.
-- **No reaction spell and no held casting.** `cast_spell` has no trigger
-  field and `takeDamageReaction` / `takeTestReaction` are unimported, so Shield
-  sits in the test wizard's spellbook uncast. Counterspell needs more than a
-  field: `hold` and `answers` are unoffered and a held casting also wants a
-  `resolve_declared_cast` door.
-- **Nothing summoned** from above the engine — the one command on this list the
-  surface still does not call. Rest, item use, ready/release, weapon mastery and
-  a conferred Reaction all have doors; this sentence claimed otherwise for four
-  of them until a track was briefed from it and found them already open.
-- **A feature cannot be elected on a casting.** `usingFeatures` reaches no
-  tool, so no session can spend Overchannel or add Elemental Affinity's
-  Charisma. Unlike the other shut doors this one needs a companion: a model
-  cannot elect a feature it has not been told it holds.
 - Overriding printed content with homebrew of the same id is refused; only
   adding beside it is supported.
 
 ## Next
 
 **A level 5 party can be built, armed, placed against monsters that fight with
-their own printed lines and their own Multiattacks, and played through a fight,
-a rest, and an ending.** The numbers are in `COVERAGE.md` and no sentence here
-repeats one.
+their own printed lines, their own Multiattacks and their own daily limits,
+played through a fight, a rest and an ending — and then levelled.** The numbers
+are in `COVERAGE.md` and no sentence here repeats one.
 
-Two batches have now each taught the same lesson: **a brief that names a number
-taken from a table nobody checked is wrong about half the time.** Six doors were
-one, three spells were two, four features were one, 177 Multiattack blocks were
-78, one Augury was eight, and a rule that held 55 times out of 55 was a fact
-about the corpus rather than a law. Every one was caught by a builder, in
-minutes, after the brief was written. `WORKFLOW.md` rule 1 says to check first.
+Three batches have now taught the same lesson twice over: **a brief that names a
+number taken from a table nobody checked is wrong about half the time, and a
+brief that names a *shape* is wrong about as often.** Six doors were one, three
+spells were two, four features were one, 177 Multiattack blocks were 78, one
+Augury was eight, a rule that held 55 times out of 55 was a fact about the
+corpus rather than a law, and 10 `X/Day` lines were 60. Then two briefs were
+written against anchors that did not exist — a union member with no host, and a
+list a file derives rather than declares — and a third ordered a counter the
+engine already had. Every one was caught before it shipped, by a builder that
+verified its own headline first. `WORKFLOW.md` rule 1 says to check the number;
+the corollary this batch adds is that **the shape a brief prescribes is a claim
+about the code too**, and gets checked the same way.
 
-1. **An `X/Day` notation nothing enforces.** 10 of the 212 spendable Actions
-   lines print one. It is a different rule from a recharge with a different
-   clock — no die, no turn boundary, a count that resets on a long rest — and
-   nothing reads it. The same gap the recharge rule closed, one notation over.
+**The staleness this file itself caused is the other lesson.** Six claims under
+"What does not" described code that had been deleted or built, two "Next" items
+were finished, and the queued item was resolved — several of them for a week.
+Four briefs were written from them before six read-only probes measured every
+claim against the tree. A commit that closes a gap corrects this file in the
+same change, or the next batch pays for it.
+
+1. **The 38 daily limits with nowhere to live.** 60 headings print an `N/Day`,
+   and the 22 with a home on the sheet are enforced and cleared at a declared
+   dawn. The rest wait on carriers that do not exist: 32 Legendary Resistances
+   want a rule that reads a *failed saving throw* and lets a creature replace
+   the result, which the engine has nothing like; the Troll's severed limbs and
+   the five printed Reactions want `adaptMonster` to carry trait text and the
+   Reactions section onto the sheet at all, plus a command to spend a printed
+   Reaction line. The Reaction economy exists; the carrier and the spend do not.
+   Separately, 45 lines print the notation *inside* a Spellcasting sentence
+   rather than in a heading, which is a different job and not counted here.
 
 2. **What the bestiary still does not read.** 75 printed bonus-action lines read
    as 0, which is also what leaves the clay golem's gated alternative prose. And
@@ -471,11 +497,16 @@ minutes, after the brief was written. `WORKFLOW.md` rule 1 says to check first.
    `MonsterAttackSchema.damage` is `min(1)`), and the Hydra, whose line stays
    prose by design because the table declares its heads.
 
-3. **Summoning, with the sweep that must land beside it.** Nothing above the
-   engine can summon, so no session can reach the stranded debt, and the
-   standing warning is that a summoning tool without its sweep lets a
-   model-driven fight wedge. Check that warning against the code before
-   briefing it.
+3. **A casting that summons.** The door and its sweep are built and shipped
+   together; what is missing is one level up — there is no summon *effect
+   kind*, so a caller casts, reads the `castingId` back and summons by hand.
+   The catalogue reading was wrong in our favour: SRD 5.2.1 rewrote the Conjure
+   family as *spirits*, a pack or an Emanation with no AC, HP or turn, so none
+   of them wants a stat block. Within a level 5 party's reach: `find-familiar`
+   (which has no `SpellDefinition` at all), `unseen-servant`, `find-steed`,
+   `animate-dead` and `phantom-steed`. Only `animate-dead` names bestiary
+   blocks the door can already reach; the others want a stat block whose AC and
+   HP scale with the slot, which `Summons` deliberately has no field for.
 
 4. **A casting that spends an attack.** 20 of the dragons' Multiattack lines
    name Spellcasting, and a dragon that casts through the engine loses its
@@ -483,15 +514,21 @@ minutes, after the brief was written. `WORKFLOW.md` rule 1 says to check first.
    book. The hand-over clause is at least reported at the first swing now, which
    is the honest DM route until this lands.
 
-5. **Three features whose trades are built and whose clauses are not**: Font of
-   Inspiration's Short-Rest recovery rewrite, Sorcery Incarnate's two-Metamagic
-   limit rewrite, Holy Nimbus's aura with no-roll damage, a save-side mode and a
-   printed span. Flipping them to `engine` without the shapes would delete four
-   real gaps from the blocked-on map.
+5. **Two features whose trades are built and whose clauses are not**: Sorcery
+   Incarnate's two-Metamagic limit rewrite, and Holy Nimbus's aura with no-roll
+   damage, a save-side mode and a printed span. Both are past level 5. Font of
+   Inspiration has come off this list: a later feature may now move an earlier
+   pool's recovery tag — the fifth restatement the engine allows — and the
+   advancement path emits the change rather than only resizing the pool.
 
-6. **A Rage's ten minutes are nobody's to keep.** `capSeconds` is pinned at
-   creation and read by no command; `extendFeature` replaces the timer and
-   checks nothing else. A pinned value that exists to be enforced and is not.
+6. **A turn budget nothing can add to.** Action Surge grants no second action,
+   Flurry of Blows buys no pair of strikes, and Haste's extra action is the
+   third consumer of the same missing shape. It cannot be built from the grant
+   vocabulary alone: the fold calls `spendAction` inside `must`, so an extra
+   action a creature merely *holds* still throws on replay. It has to be
+   visible in the `TurnBudget`, which only a combat event writes. A second,
+   smaller shape sits beside it — a *price* on an allowance, which is what
+   Patient Defense and Step of the Wind need and what `ActionRule` cannot say.
 
 7. **A recorded breach, and a recorded seam.** Mirage Arcane's opening sentence
    is a handover with a debt inside it — "an area up to 1 mile square" is a size
@@ -501,10 +538,32 @@ minutes, after the brief was written. `WORKFLOW.md` rule 1 says to check first.
    granting both a pool option and a hit rider would lose its menu —
    unreachable in the SRD, reachable by homebrew.
 
-8. **The long tail**: the item range shape (two fields, not one), a casting
-   ended by a trigger, the remaining Metamagic options,
-   `an-effect-list-a-hit-buys` for the Rogue's Cunning Strike, a damage-less
-   attack line, and the bestiary's ranked prose table.
+8. **A party that cannot be paid.** No engine command grants coin.
+   `coins-changed` exists and the fold accepts a positive delta, but the only
+   emitters are `purchaseItem`, which is negative, and creation — so
+   `purchase_item` spends a purse nothing can fill. The door wants to be its
+   own DM-only tool over a new command, and **not** a loosening of `dmGrants`:
+   that schema is shared by `create_character` on both surfaces, so widening it
+   would hand a model the authorship the field exists to refuse.
+
+9. **Found in passing, each small, none invented.** A rider's once-per-turn
+   mark can be laid twice when a second swing settles first — harmless in the
+   fold, which is a set, but a real double-spend of a "once per turn" clause.
+   `HIDE` wants to move beside `DODGE` in `actions.ts`, which dissolves the
+   import cycle that ending a Hide created. `perDayTallyKey` shares the tally
+   map with content-supplied keys and is reserved against nothing, as
+   `spell-slot:` and `pact-slot:` also are; reserving the resource namespaces
+   is one coherent brief. `TradeFeature` carries the trade's name and not the
+   feature's, so Wild Resurgence reports as "Wild Resurgence (a slot for a
+   use)". `advanceCharacter` hand-writes its `unknown_creature` refusal instead
+   of using the helper, so it names no door. And a DM is told which printed
+   lines a creature holds by `look` but not by `sheet`, which is the half-door
+   rule inverted.
+
+10. **The long tail**: the item range shape (two fields, not one), a casting
+    ended by a trigger, the remaining Metamagic options,
+    `an-effect-list-a-hit-buys` for the Rogue's Cunning Strike, a damage-less
+    attack line, and the bestiary's ranked prose table.
 
 
 ### Decisions the owner has ruled (2026-09-20)
@@ -630,39 +689,80 @@ Multiattack is built for the one mechanism of five the ruling covers.
   finish them. `endCombat` ships with the clock refusal held on
   `held/clock-in-combat`.
 
-### Queued by the owner for the next batch
+### The `unknown_spellcasting` mis-tag, resolved by recording the gap
 
-- **The `unknown_spellcasting` mis-tag.** `commands/inventory.ts:592-604` raises it
-  as `kind: 'creature'` with `satisfyWith: declareSpellcasting`, so
-  `doorsFor('creature')` answers `create_character` / `add_creature` — an
-  orchestrator told to create a creature that already exists. Found by the
-  architect on 2026-09-20 while ruling on the `side` kind, and queued by the
-  owner the same day.
+The refusal now carries **no** `ContextRequest` at all — no kind to be wrong
+about — and says in its prose that a `declareSpellcasting` would settle it, that
+no surface offers one, and that this is a fact the table states directly or not
+at all. The three-way split is kept: a Barbarian gets `prerequisite_unmet`
+because it casts nothing, and only a stat-block creature nobody has been asked
+about reaches the `needs-context`.
 
-  It is not a retag. A `spellcasting` kind would have **no door**, because
-  `declareSpellcasting` is withheld on both surfaces (`doors.test.ts:426`), and
-  the architect's own rule says a fact no command can declare is a gap in the
-  doors rather than a kind — while the same rule says a command-level
-  `needs-context` always carries a request. The brief has to resolve that
-  tension: open the door, or record the gap and say what the refusal carries
-  meanwhile.
+The guard that came with it is the durable half. `doors.test.ts` grew
+`UNDECLARABLE` — refusals that are homework with no door — whose tests assert
+the named command is a real engine export **and still withheld**, so the entry
+must be deleted deliberately the day a door opens. Beside it, a fifth guard
+parses every `satisfyWith` in the engine sources and fails when a request's tag
+is not the kind the named declaration settles, with the historical bug itself as
+its fixture, in both shapes.
 
 ### Decisions genuinely open
 
-Where a reachability measurement lives, since `@ie/tools` depends on
-`@ie/content` and the report cannot import the surface without inverting the
-build.
+Each of these is a rules or doctrine call a builder stopped rather than guess at.
+
+- **Which senses satisfy "if a creature can somehow see you".** Invisible's
+  clause is wired to the *declared* sight line and to nothing else, deliberately:
+  `canSee` answers `true` from any member of `SIGHT_SENSES`, and **Darkvision is
+  one of them**, carried by five SRD species as a standing grant. Wiring it
+  through took Hide's and Greater Invisibility's Advantage away from most of the
+  party, silently, because a sense answers `true` rather than `null` and the
+  `unverified` clause only fires on `null`. SRD Darkvision says nothing about the
+  Invisible condition; Truesight explicitly does; Blindsight arguably does. Three
+  tests pin today's answer so whoever rules finds a guard rather than the bug.
+  Dodge deliberately keeps `canSee`, because "if you can see the attacker" is a
+  sentence Darkvision genuinely satisfies.
+- **`swap_initiative` on the model's surface, or the DM's.** The engine checks
+  combat membership and Incapacitated — not Alert, not "immediately after the
+  roll", not willingness — so a model may reorder the turn order at any point in
+  a fight. One line either way, and the DM surface derives it regardless.
+- **Wild Shape, four questions before it can be briefed**: whether gear falls,
+  merges or stays worn on shifting (the SRD makes it the player's choice); what
+  a form larger than the space its holder stands in does; whether known forms
+  are a creation choice naming monster ids or eligibility-only for now; and what
+  Wild Companion's familiar is bound to, since "disappears when you finish a Long
+  Rest" is a bond to a *rest*, which nothing in the engine has.
+- **Nimbus Quill's physical dice.** That client is a human DM at a real table
+  whose phrase detector already parses "7 slashing, 4 fire damage" off a
+  microphone, and no door on either surface takes a rolled number. Either the app
+  becomes the table's dice — the engine rolls, the DM reads it out — or a third,
+  deliberately swept directory exposes `recordExternalD20` / `recordExternalDamage`
+  with `physical-dice` provenance, bounds-checked and never stamped `engine`. A
+  smaller one rides with it: whether a spoken "18 slashing" is before or after
+  defences, which decides whether `improvised_damage` may take a damage type at
+  all — today it drops the type on purpose, so a spoken number bypasses
+  Resistance.
+- Where a reachability measurement lives, since `@ie/tools` depends on
+  `@ie/content` and the report cannot import the surface without inverting the
+  build.
 
 ### Interactions ruled on and half built
 
-- **A rider fires after `landDamage`** — fixed on the ordinary path:
-  `PendingDamage.rider` pins the election and `settleDamage` resolves it after
-  the damage lands, so the defender answers first. The **held** path does not:
-  with `hold: true` the rider still fires at the hit, before the target answers
-  `hit-by-attack`, so a Stunning Strike can still close a *Shield*. That half
-  is item 4 above.
 - **`rider_deals_damage` keys on the effect kind**, so a `turn-payout` carrying
   dice would slip past it. Harmless while nothing is rolled at the hit.
+
+The rider that fired before the defender answered was the other entry here, and
+both its faces are now built — the ordinary path and the held one, the second
+being the same change that makes a *Shield* drop a pinned rider unspent.
+Reproducing it turned up a crash nothing had reported: three legal commands — a
+held swing with a rider pinned, a legal pool use in the window `mayAct`
+deliberately leaves open for Divine Smite, then the settlement — emitted a
+`resource-spent` the fold could not apply, and `must` threw `CorruptLogError`
+rather than refusing. A rider whose price can no longer be paid is now dropped
+unspent and reported, because the settlement is the only door out of
+`pendingAttack` and a refusal there wedges the fight. Underneath it sat a second
+defect: `applyHitRider` handed `runEffects` a state it had already folded its own
+events onto, and `runEffects` folds them again — invisible on a pool of five, a
+corrupt log on a pool of one.
 
 ### Guards, and what they now catch
 
