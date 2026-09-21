@@ -236,6 +236,28 @@ export const hitRiderSchema = z.object({
 });
 
 /**
+ * The heading a stat block prints a line under, as the caller types it.
+ *
+ * **A name and never a line**, which is `add_creature`'s rule and `attack`'s
+ * `action` one section along: the sentence under the heading, the save DC in
+ * it, the dice and the recharge are all the block's, pinned into the creature
+ * when it arrived, and a field that carried any of them would be the caller
+ * writing the monster. What this field carries is which of the headings the
+ * creature already holds is meant.
+ *
+ * **No list, and there could not be one.** Which headings there are is the
+ * stat block's answer and differs per creature, so an enum here would be the
+ * engine's catalogue rule broken one layer up. The engine matches the name
+ * against the lines it pinned — trimmed, and without regard to case, because
+ * the heading is something a person types — and refuses `no_such_line` naming
+ * what was sent, which is what makes this field answerable.
+ */
+export const printedLineName = z
+  .string()
+  .min(1, 'a printed line is named by its heading')
+  .describe('The heading the stat block prints the line under, exactly as it is printed.');
+
+/**
  * How long a ruled condition lasts, said as a moment and never as a number.
  *
  * SRD writes the ends of things as moments in the turn order — "until the

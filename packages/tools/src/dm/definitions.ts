@@ -50,6 +50,20 @@
  * - `rule_condition` / `end_condition` — a ruled condition, for a span of time
  *   only a DM may state, and the ruling ended when the DM says it is over.
  *
+ * And, added since: the two halves of a stat block nothing on either surface
+ * could spend.
+ *
+ * - `take_printed_action` / `take_printed_bonus_action` — the Actions lines
+ *   that are not attacks, and the printed Bonus Actions. The engine's two
+ *   commands have been finished and barrelled for as long as the recharge
+ *   ledger has existed and **neither surface imported either of them**, so
+ *   every breath weapon and every printed Bonus Action in the book was a
+ *   heading a caller could read and could not take. They are *here* rather
+ *   than on the model's door because a successful call applies nothing: the
+ *   whole result is the spend and the block's own sentence handed back
+ *   unapplied, and adjudicating that sentence is the DM's in the same way the
+ *   DC in `saving_throw` is. See {@link TAKE_PRINTED_ACTION}.
+ *
  * And `advantage` / `disadvantage` on both of the D20 tools, which is not a
  * tool but is the third thing step one wanted: `TestCommand.modes` existed
  * and nothing offered it. They are fields whose *value is the reason*, so a
@@ -74,6 +88,8 @@ import {
   resolveTest,
   rollImprovisedDamage,
   settleTest,
+  takeStatedAction,
+  takeStatedBonusAction,
 } from '@ie/engine';
 import { z } from 'zod';
 import {
@@ -82,6 +98,7 @@ import {
   senses,
   settle,
   settleEvents,
+  type ToolContext,
   type ToolDefinition,
   tool,
   TOOLS,
@@ -93,6 +110,7 @@ import {
   conditionSchema,
   creatureId,
   damageTypeSchema,
+  printedLineName,
   sensesFields,
   skillSchema,
 } from '../schemas.js';
@@ -729,6 +747,149 @@ const LOSE_ITEMS = tool({
 });
 
 /**
+ * What a spend of a printed line answers with, for both of the tools that
+ * take one.
+ *
+ * **The name is read back out of the event rather than echoed from the
+ * call.** The engine matches a heading without regard to case and writes the
+ * *printed* spelling down, so a caller that typed `cold breath (recharge 5-6)`
+ * is told what the block says and what the log says, which are one string. An
+ * echo would be the surface answering a question the engine already answered,
+ * and answering it differently.
+ *
+ * `expended` says whether the line is gone until it comes back, which a caller
+ * that could not see it would have to spend another Action to find out. It is
+ * asked of the **creature** — `expendedLines`, the same ledger the engine's own
+ * `line_expended` refusal reads, so the answer here and the refusal there
+ * cannot disagree. A `printed-line-expended` out of the log would answer "was
+ * it ever", and a line the engine handed back at a turn boundary would still
+ * read as gone.
+ *
+ * **Neither is read out of this call's batch**, and that is what makes a retry
+ * honest. `once` hands a duplicate back with *no* events, so a reading of the
+ * batch would fall through to echoing the caller's casing and would report a
+ * spent recharge as unspent — the two failures this note forbids, arriving
+ * through the one path with nothing to read. The log is searched instead,
+ * matched on the command stamp the first call left on its own event, which is
+ * the same id the transport is re-sending; `settle` appends before it asks for
+ * a resolution, so the fresh path finds its own event there too and there is one
+ * path rather than two. It is searched from the back, where the fresh path's
+ * event always is. A call whose event cannot be found claims neither field:
+ * `duplicate` is then the whole of the answer.
+ */
+const lineTaken = (
+  context: ToolContext,
+  type: 'stated-action-taken' | 'stated-bonus-action-taken',
+  duplicate: boolean,
+  id: string,
+): Readonly<Record<string, unknown>> => {
+  const taken = context.campaign
+    .log()
+    .findLast(
+      (event) =>
+        event.type === type &&
+        (event as { command?: { id: string } }).command?.id === context.commandId,
+    ) as { line: string } | undefined;
+
+  return {
+    who: id,
+    ...(taken === undefined
+      ? {}
+      : {
+          line: taken.line,
+          expended:
+            context.campaign.state().creatures[id]?.expendedLines.includes(taken.line) ?? false,
+        }),
+    duplicate,
+  };
+};
+
+/**
+ * Take one of the lines a creature's stat block prints under **Actions** that
+ * is not an attack.
+ *
+ * The breath weapon, the gaze, the spellcasting line, the swallow, the roar.
+ * Two hundred-odd of them across a third of the bestiary, and until this door
+ * existed every one was a heading a caller could read off the block and could
+ * not spend — `attack` takes the lines the parser read, and nothing took the
+ * rest.
+ *
+ * **It is here and not on the model's surface, by `award_items`' own rule.**
+ * The engine executes no part of a printed line: the whole of a successful
+ * call is the Action spent, the heading written down, and the block's sentence
+ * handed back under `unverified`. Somebody then has to *adjudicate* that
+ * sentence — call the Constitution save, decide what the Cone covers, rule on
+ * the shape-shift — and that is the DM's, exactly as the DC in `saving_throw`
+ * is. A model holding this tool would be a model narrating a breath weapon
+ * into effect with nothing having checked it, which is the one thing the
+ * doctrine's division of authority forbids. What a creature does with a line
+ * the engine *can* resolve is already a door: `attack` for a printed attack,
+ * `cast_spell` for a spell.
+ *
+ * **It states no number and takes none.** The caller names a heading; the
+ * recharge, the DC, the dice and the prose are the block's, pinned into the
+ * creature at `add_creature` and never sent through here.
+ */
+const TAKE_PRINTED_ACTION = tool({
+  name: 'take_printed_action',
+  description:
+    'Take one of the lines a creature’s stat block prints under Actions that is not an attack — a breath weapon, a gaze, a spellcasting line, a swallow. Name the heading as the block prints it. The engine spends the Action, records that this line was taken, and hands you the line’s own sentence back under `unverified`: it applies none of it, so the save, the area and what follows are yours to adjudicate. A line the block prints a recharge on is spent once and refused until it comes back. A printed *attack* is not taken here — `attack` takes that, by its name.',
+  mutates: true,
+  input: z.strictObject({
+    who: creatureId.describe('Which creature is taking the line.'),
+    line: printedLineName,
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      takeStatedAction(context.campaign.state(), who(args.who), {
+        line: args.line,
+        ...identity(context),
+      }),
+      (value) => value.events,
+      (value) => lineTaken(context, 'stated-action-taken', value.duplicate, args.who),
+      (value) => value.unverified,
+    ),
+});
+
+/**
+ * The same, one section of the block along: a line printed under **Bonus
+ * Actions**.
+ *
+ * A door of its own rather than a `kind` on the one above, because the two
+ * spend different halves of the action economy and the engine has two
+ * commands. A single tool with a slot would let a caller ask for the Action's
+ * price and get the Bonus Action's, which is the quiet wrong answer the fourth
+ * outcome exists to prevent.
+ *
+ * SRD's rule that a creature takes one Bonus Action a turn is the economy's
+ * and is enforced there, so a second line on one turn is refused whichever
+ * line it is — and a line with a recharge on it is refused before the economy
+ * is charged at all.
+ */
+const TAKE_PRINTED_BONUS_ACTION = tool({
+  name: 'take_printed_bonus_action',
+  description:
+    'Take one of the lines a creature’s stat block prints under Bonus Actions — the goblin’s Nimble Escape, the golem’s Hasten. Name the heading as the block prints it. The engine spends the Bonus Action, records which line was taken, and hands the line’s own sentence back under `unverified` without applying any of it. One Bonus Action a turn, and a line the block prints a recharge on is spent once until it comes back.',
+  mutates: true,
+  input: z.strictObject({
+    who: creatureId.describe('Which creature is taking the line.'),
+    line: printedLineName,
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      takeStatedBonusAction(context.campaign.state(), who(args.who), {
+        line: args.line,
+        ...identity(context),
+      }),
+      (value) => value.events,
+      (value) => lineTaken(context, 'stated-bonus-action-taken', value.duplicate, args.who),
+      (value) => value.unverified,
+    ),
+});
+
+/**
  * Say how many of a creature's heads are still on it.
  *
  * SRD Hydra's Multiattack: "The hydra makes as many Bite attacks as it has
@@ -795,6 +956,8 @@ export const DM_ONLY_TOOLS: readonly ToolDefinition[] = [
   RULE_CONDITION,
   SAVING_THROW,
   SETTLE_TEST,
+  TAKE_PRINTED_ACTION,
+  TAKE_PRINTED_BONUS_ACTION,
 ].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 
 export const DM_ONLY_TOOL_NAMES: readonly string[] = DM_ONLY_TOOLS.map((tool) => tool.name);
