@@ -398,6 +398,62 @@ describe('every kind a tool declares it establishes has fields to carry it', () 
   });
 });
 
+// — guard two and a half: a tool that answers its own question ——————————————
+
+/**
+ * And the same question of `selfAnswers`, which is the other way a kind gets
+ * a door: not a second call that establishes the fact, but **this call again**
+ * with a field on it.
+ *
+ * It is the same failure mode as gap one, one turn further round. A tool that
+ * declares it answers a kind on itself takes the caller's answer away from
+ * whatever the surface-wide mapping would have said — so if the field it means
+ * does not exist, a caller told to re-send has nothing to re-send *with*, and
+ * the honest wrong answer has been replaced by a confident one. The pairing is
+ * written out for the same reason as {@link ESTABLISHING_FIELDS}'s and the
+ * left-hand side derived for the same reason.
+ */
+const SELF_ANSWERED_FIELDS: Readonly<Record<string, readonly string[]>> = {
+  // SRD Alert's "one **willing** ally". The engine tags the request `route`
+  // because it is the re-send kind, and the two tools that establish a route
+  // for everybody else — a path through a room — are no help at all to a
+  // caller being asked whether its friend agreed.
+  'swap_initiative:route': ['willing'],
+};
+
+describe('every kind a tool answers on itself has a field to carry it', () => {
+  const selfAnsweredPairs = (): readonly string[] =>
+    TOOLS.flatMap((tool) => tool.selfAnswers.map((kind) => `${tool.name}:${kind}`)).sort();
+
+  it('records exactly the ones the surface declares', () => {
+    expect(Object.keys(SELF_ANSWERED_FIELDS).sort()).toEqual([...selfAnsweredPairs()]);
+  });
+
+  it('names fields that really exist, proved at their own path', () => {
+    const shut: string[] = [];
+    for (const [pair, fields] of Object.entries(SELF_ANSWERED_FIELDS)) {
+      const tool = pair.slice(0, pair.lastIndexOf(':'));
+      shut.push(...shutDoors(fields.map((field) => `${tool}.${field}`)));
+    }
+    expect(shut).toEqual([]);
+  });
+
+  /**
+   * And the narrowing stays a narrowing: a tool answering a kind on itself
+   * changes nobody else's door. `doorsFor` is the surface's own answer and is
+   * untouched — the substitution happens inside the one tool that declared it.
+   */
+  it('takes no kind away from the surface-wide mapping', () => {
+    const doors = surface();
+    for (const pair of Object.keys(SELF_ANSWERED_FIELDS)) {
+      const kind = pair.slice(pair.lastIndexOf(':') + 1) as ContextRequestKind;
+      const tool = pair.slice(0, pair.lastIndexOf(':'));
+      expect(doors.doorsFor(kind).length).toBeGreaterThan(0);
+      expect(doors.doorsFor(kind)).not.toContain(tool);
+    }
+  });
+});
+
 // — guard three: a fact the engine can be told, and a tool that tells it ————
 
 /**
