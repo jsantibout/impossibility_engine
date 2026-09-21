@@ -545,12 +545,22 @@ believe it has twelve working classes when it has twelve validated ones.
 
 Derived from `packages/content/scripts/missing-feature-shapes.ts`, which
 holds the shapes only a feature wants plus the ones it shares with the
-spells and the magic items, and every manual feature read against its own
-`automation: 'manual'` note. Species and background traits are counted
+spells and the magic items, and every feature of its population read
+against its own note. Species and background traits are counted
 here too, because a species trait is the same `FeatureDefinition` a class
 feature is and four of them turn out to want one shape.
 
-**Blocks** is every manual feature a shape touches. **Finishes** is the
+The population is wider than the *executed* column's. Every feature that
+declares `automation: 'manual'` is in it, and so is every feature that
+declares `engine` for a **pool** with nothing to spend a use on — Wild
+Shape, Font of Magic, Arcane Recovery and a Paladin's Channel Divinity
+each count and refill their uses truthfully and buy nothing — plus the one
+pool whose uses buy some of what its page prints and not the rest. Those
+five were invisible while the map selected on the automation flag alone,
+because that flag answers "does the engine apply what this declares" and
+a bare pool declares only a pool.
+
+**Blocks** is every feature a shape touches. **Finishes** is the
 features it is the *only* blocker for — the ones building it would take off
 the list. Those are different numbers, and reporting only the first is how
 one family came to be ranked three ways in three documents.
@@ -565,6 +575,7 @@ be the second spelling of one derivation.
 | Shape | Blocks | Finishes |
 |---|---|---|
 | `a-feature-that-rewrites-another-features-rule` | 9 | 5 |
+| `a-resource-traded-for-another` | 10 | 4 |
 | `a-roll-result-an-effect-replaces` | 5 | 4 |
 | `a-casting-paid-for-out-of-a-feature-pool` | 8 | 3 |
 | `a-save-keyed-to-a-condition` | 4 | 3 |
@@ -575,13 +586,13 @@ be the second spelling of one derivation.
 | `a-feature-that-changes-who-a-casting-catches` | 4 | 2 |
 | `a-spell-a-source-that-does-not-cast-grants` | 4 | 2 |
 | `movement-modes` | 4 | 2 |
+| `a-declared-fact-a-feature-sets` | 2 | 2 |
 | `a-hit-point-maximum-a-spell-moves` | 2 | 2 |
 | `a-pool-refilled-to-a-floor` | 2 | 2 |
 | `a-spell-list-that-is-not-your-class-list` | 2 | 2 |
 | `an-effect-that-intercepts-dropping-to-0` | 2 | 2 |
 | `healing-modified-by-an-effect` | 2 | 2 |
 | `heroic-inspiration` | 2 | 2 |
-| `a-resource-traded-for-another` | 7 | 1 |
 | `a-grant-gated-on-one-option-of-a-choice` | 4 | 1 |
 | `an-action-a-spell-compels-or-forbids` | 4 | 1 |
 | `an-attack-the-class-redefines` | 4 | 1 |
@@ -597,14 +608,13 @@ be the second spelling of one derivation.
 | `a-bonus-an-ability-modifier-sizes` | 1 | 1 |
 | `a-bonus-narrowed-to-a-skill` | 1 | 1 |
 | `a-concentration-rule-that-names-its-casting` | 1 | 1 |
-| `a-declared-fact-a-feature-sets` | 1 | 1 |
 | `a-roll-mode-a-feature-takes-away` | 1 | 1 |
 | `a-turn-a-spell-inserts-into-the-order` | 1 | 1 |
 | `an-action-the-engine-has-no-spender-for` | 1 | 1 |
 | `an-effect-that-waits-for-a-later-trigger` | 1 | 1 |
 | `an-option-whose-span-is-a-turn-boundary` | 1 | 1 |
 | `falling` | 1 | 1 |
-| `a-benefit-that-runs-for-a-printed-span` | 6 | 0 |
+| `a-benefit-that-runs-for-a-printed-span` | 7 | 0 |
 | `a-pool-the-proficiency-bonus-sizes` | 6 | 0 |
 | `temporary-hit-points-a-feature-grants` | 4 | 0 |
 | `a-feature-that-carries-a-second-grant` | 3 | 0 |
@@ -616,6 +626,7 @@ be the second spelling of one derivation.
 | `damage-with-neither-an-attack-roll-nor-a-save` | 2 | 0 |
 | `forced-movement-a-spell-causes` | 2 | 0 |
 | `a-bonus-to-spell-attack-rolls` | 1 | 0 |
+| `a-creature-swapped-for-another-stat-block` | 1 | 0 |
 | `a-dc-a-feature-derives-from-its-own-abilities` | 1 | 0 |
 | `a-random-outcome-that-is-not-a-d20` | 1 | 0 |
 | `a-second-place-to-put-a-creature` | 1 | 0 |
@@ -627,7 +638,7 @@ be the second spelling of one derivation.
 | `jumping` | 1 | 0 |
 
 A feature can need more than one shape, so neither column sums to the
-manual total.
+size of the population.
 
 **Some features are nobody’s work.** A Fighting Style is its feat’s debt,
 Thieves’ Cant and Druidic are languages, and Hunter’s Lore is knowledge —
