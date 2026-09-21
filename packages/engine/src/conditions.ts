@@ -271,7 +271,32 @@ const advantage = (condition: ConditionName): ModeSource => ({
 });
 
 export interface AttackerContext {
-  /** The target can see the attacker, which negates Invisible's advantage. */
+  /**
+   * The target can **somehow** see the attacker, which negates Invisible's
+   * Advantage — and the adverb is the whole of the difference.
+   *
+   * SRD Invisible: "If a creature can somehow see you, you don't gain this
+   * benefit against that creature." That is *not* the sight question the rest
+   * of the engine asks. **Owner's ruling, 2026-09-20: Truesight and Blindsight
+   * satisfy this sentence; Darkvision does not** — Darkvision is a rule about
+   * light, and an Invisible creature is not hidden by the dark. So the fact
+   * this field wants is `canSomehowSee` in `standing.ts`, never `canSee`:
+   * asking the wider question here would take Hide's and Greater
+   * Invisibility's Advantage away from every elf, dwarf, gnome, orc and
+   * dragonborn in range, silently, because a sense answers `true` rather than
+   * `null`.
+   *
+   * **And the asymmetry is deliberate.** `defendingModes` asks `canSee` whole,
+   * on purpose: Dodge's "if you can see the attacker" is a sentence Darkvision
+   * genuinely satisfies. One sense, two sentences, two answers — see
+   * `canSomehowSee`'s own note for the table, and `hide.test.ts` for both
+   * halves asserted on one dwarf.
+   *
+   * **Absent means nobody has said.** The reader below asks `!== true`, so an
+   * unsaid fact leaves the Advantage standing, which is what the clause's
+   * "if" requires; the caller reports the silence rather than refusing the
+   * swing.
+   */
   readonly targetCanSeeAttacker?: boolean;
   /** The source of fear is in the attacker's line of sight. */
   readonly fearSourceVisible?: boolean;
@@ -322,7 +347,13 @@ export interface TargetContext {
    * implication, which is what `position: Point | null` exists to prevent.
    */
   readonly withinFiveFeet?: boolean;
-  /** The attacker can see the target, negating Invisible's protection. */
+  /**
+   * The attacker can **somehow** see the target, negating Invisible's
+   * protection — SRD Invisible's "Attack rolls against you have Disadvantage"
+   * read from the other end, and the same sentence and the same ruling as
+   * {@link AttackerContext.targetCanSeeAttacker}. `canSomehowSee`, never
+   * `canSee`: Truesight and Blindsight satisfy it, Darkvision does not.
+   */
   readonly attackerCanSeeTarget?: boolean;
 }
 

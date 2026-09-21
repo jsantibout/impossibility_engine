@@ -28,6 +28,7 @@ import { abilityModifier, armorClass, type CharacterSheet } from './character.js
 import {
   distanceBetween,
   sightBetween,
+  SIGHT_SENSES,
   type CreatureSense,
   type SenseName,
 } from './positioning.js';
@@ -2173,10 +2174,80 @@ export function sensesOf(state: GameState, who: CharacterId): readonly CreatureS
  * Dodge is the one that runs against the direction of the action, and the
  * last is the one a sense cannot move — only a declared no excuses that
  * attacker. Both say so where they are written.
+ *
+ * **One sentence in the book does not ask this question**, and it is the one
+ * that looks most like it: SRD Invisible's "if a creature can somehow see
+ * you". See {@link canSomehowSee} below for the sense that is the difference
+ * and the ruling that put it there.
  */
 export function canSee(state: GameState, from: CharacterId, to: CharacterId): boolean | null {
   if (state.scene === null) return null;
   return sightBetween(state.scene, from, to, sensesOf(state, from));
+}
+
+/**
+ * The senses that see a creature who is not there to be seen.
+ *
+ * **The owner's ruling, 2026-09-20: Truesight and Blindsight satisfy SRD
+ * Invisible's "if a creature can somehow see you". Darkvision does not.**
+ *
+ * The book is the reason, sense by sense. Darkvision is a rule about *light*
+ * — it "can see in Dim Light within the range as if it were Bright Light and
+ * in Darkness as if it were Dim Light" — and an Invisible creature is not
+ * hidden by darkness, so the sense has nothing to say about it. Blindsight
+ * is sight "without relying on physical sight", which is precisely the
+ * reliance being Invisible defeats. Truesight is the glossary's own answer:
+ * it sees "into the Ethereal Plane" and through the illusions and
+ * transformations the clause exists for.
+ *
+ * It is a **narrowing** of `SIGHT_SENSES` rather than a second list, so no
+ * member here can fail to be a form of sight in the first place — and
+ * Tremorsense, which "doesn't count as a form of sight", is out of both.
+ */
+export const SENSES_THAT_SOMEHOW_SEE: ReadonlySet<SenseName> = new Set<SenseName>(
+  [...SIGHT_SENSES].filter((sense) => sense !== 'darkvision'),
+);
+
+/**
+ * Whether one creature can **somehow** see another — {@link canSee} with
+ * {@link SENSES_THAT_SOMEHOW_SEE} in place of `SIGHT_SENSES`.
+ *
+ * SRD Invisible: "If a creature can somehow see you, you don't gain this
+ * benefit against that creature," and, read from the other end, "Attack rolls
+ * against you have Disadvantage." That is a *different sentence* from the
+ * ones {@link canSee} answers, and the engine now says so out loud:
+ *
+ * | Question | Senses that answer | Whose sentence |
+ * |---|---|---|
+ * | {@link canSee} | Blindsight, Darkvision, Truesight | Dodge's "if you can see the attacker"; a spell's "a creature you can see"; an Opportunity Attack's |
+ * | this one | Blindsight, Truesight | Invisible's "if a creature can somehow see you" |
+ *
+ * **The asymmetry is the ruling, not an oversight.** `defendingModes` asks
+ * {@link canSee} on purpose and must keep asking it: a dwarf Dodging in a
+ * lightless hall really can see the orc swinging at her, and Dodge's clause
+ * is satisfied. The same dwarf's Darkvision tells her nothing about where the
+ * Invisible Rogue is standing. One sense, two sentences, two answers.
+ *
+ * Everything else about it is {@link canSee}'s behaviour, because it *is*
+ * that function with a shorter list: a declaration outranks a sense, declared
+ * Total Cover silences one, a creature sees itself, and a question nobody has
+ * answered is `null` — homework rather than a verdict. The caller decides
+ * what to do with the `null`; on the ordinary attack route it is an
+ * `unverified` line and never a `needs-context`, because a swing must not
+ * stop to ask.
+ */
+export function canSomehowSee(
+  state: GameState,
+  from: CharacterId,
+  to: CharacterId,
+): boolean | null {
+  if (state.scene === null) return null;
+  return sightBetween(
+    state.scene,
+    from,
+    to,
+    sensesOf(state, from).filter((sense) => SENSES_THAT_SOMEHOW_SEE.has(sense.sense)),
+  );
 }
 
 /**

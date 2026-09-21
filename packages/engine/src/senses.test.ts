@@ -3,7 +3,7 @@ import { SRD_CONTENT } from '@ie/content';
 import { asCharacterId, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { fold, type GameEvent } from './events.js';
-import { canSee, sensesOf } from './standing.js';
+import { canSee, canSomehowSee, sensesOf, SENSES_THAT_SOMEHOW_SEE } from './standing.js';
 import {
   scene,
   sensesReaching,
@@ -11,6 +11,7 @@ import {
   SENSE_NAMES,
   SIGHT_SENSES,
   type CreatureSense,
+  type SenseName,
 } from './positioning.js';
 import { checkContent, extendContent, loadContent } from './content.js';
 import type { CatalogueItem } from './catalogue.js';
@@ -408,6 +409,140 @@ describe('the sight question consults the seer’s own senses', () => {
     const empty = scene({ width: 100, depth: 100, height: 20 });
     const senses: readonly CreatureSense[] = [{ sense: 'darkvision', feet: 60 }];
     expect(sensesReaching(empty, senses, SEER, NEAR)).toEqual([]);
+  });
+});
+
+// — the narrower sight question: "if a creature can somehow see you" ——————
+
+/**
+ * SRD Invisible: "If a creature can somehow see you, you don't gain this
+ * benefit against that creature."
+ *
+ * **The owner's ruling, 2026-09-20: Truesight and Blindsight satisfy that
+ * sentence. Darkvision does not.** SRD Darkvision lets you see in Dim Light
+ * and Darkness, and says nothing at all about a creature with the Invisible
+ * condition; Blindsight is sight "without relying on physical sight", which
+ * is the whole of what being unseen defeats, and Truesight is the sense the
+ * glossary writes the clause for.
+ *
+ * So the engine asks two different sight questions, and the difference
+ * between them is one sense:
+ *
+ * | Question | Senses that answer | Whose sentence |
+ * |---|---|---|
+ * | `canSee` | `SIGHT_SENSES` — Blindsight, Darkvision, Truesight | Dodge's "if you can see the attacker"; a spell's "a creature you can see" |
+ * | `canSomehowSee` | `SENSES_THAT_SOMEHOW_SEE` — Blindsight, Truesight | Invisible's "if a creature can somehow see you" |
+ *
+ * Everything else about the two is the same, because the narrower one is the
+ * wider one with a shorter list of senses: a declaration outranks a sense in
+ * both, declared Total Cover silences a sense in both, and undeclared with
+ * nothing to answer is `null` — homework, not a verdict — in both.
+ */
+describe('SRD Invisible: the senses that satisfy “can somehow see you”', () => {
+  /** A watcher thirty feet from the watched, with one sense and no declarations. */
+  const watching = (sense: SenseName, feet: number): readonly GameEvent[] => [
+    added(SEER, {
+      standing: [
+        {
+          feature: 'a-species:a-trait',
+          name: 'A Sense',
+          reach: { kind: 'self' },
+          grant: { kind: 'sense', sense, feet },
+        },
+      ],
+    }),
+    added(NEAR),
+    { type: 'scene-set', extent: { width: 400, depth: 400, height: 40 } },
+    { type: 'landmark-added', name: 'the well', at: { x: 100, y: 100, z: 0 } },
+    { type: 'creature-placed', id: SEER, placement: { from: { landmark: 'the well' }, feet: 0 } },
+    {
+      type: 'creature-placed',
+      id: NEAR,
+      placement: { from: { creature: SEER }, feet: 30, bearing: 90 },
+    },
+  ];
+
+  /**
+   * The ruling itself, as a set. A refactor that folded this question back
+   * into `canSee` would put Darkvision back in it — which is exactly what the
+   * owner ruled against — so the membership is asserted rather than left to
+   * the four cases below to imply.
+   */
+  it('is Blindsight and Truesight, and those two only', () => {
+    expect([...SENSES_THAT_SOMEHOW_SEE].sort()).toEqual(['blindsight', 'truesight']);
+    // And each of them is a form of sight in the first place: this is a
+    // narrowing of `SIGHT_SENSES`, never a second, disagreeing list.
+    for (const sense of SENSES_THAT_SOMEHOW_SEE) expect(SIGHT_SENSES.has(sense)).toBe(true);
+  });
+
+  it.each([
+    ['truesight', true],
+    ['blindsight', true],
+    ['darkvision', null],
+    ['tremorsense', null],
+  ] as const)('answers %s: %s', (sense, answer) => {
+    expect(canSomehowSee(fold('seed', watching(sense, 60)), SEER, NEAR)).toBe(answer);
+  });
+
+  /**
+   * **The load-bearing case, stated as the pair it is.** Five SRD species
+   * carry Darkvision as a standing grant, so a clause that asked `canSee`
+   * here would take Hide's and Greater Invisibility's Advantage away from
+   * most of the party — silently, because a sense answers `true` rather than
+   * `null` and an `unverified` report only fires on `null`. The two answers
+   * differ, on purpose, and the difference is the ruling.
+   */
+  it('parts company with canSee exactly over Darkvision', () => {
+    const state = fold('seed', watching('darkvision', 60));
+    expect(canSee(state, SEER, NEAR)).toBe(true);
+    expect(canSomehowSee(state, SEER, NEAR)).toBeNull();
+  });
+
+  /** Beyond the sense's range it is homework again, as the wider question is. */
+  it('still asks beyond the sense’s range', () => {
+    expect(canSomehowSee(fold('seed', watching('truesight', 10)), SEER, NEAR)).toBeNull();
+  });
+
+  /** A declaration outranks a sense here too, in both directions. */
+  it('obeys a declared no despite Truesight', () => {
+    const state = fold('seed', [
+      ...watching('truesight', 60),
+      { type: 'sight-declared', from: SEER, to: NEAR, seen: false },
+    ]);
+    expect(canSomehowSee(state, SEER, NEAR)).toBe(false);
+  });
+
+  it('obeys a declared yes with no satisfying sense at all', () => {
+    const state = fold('seed', [
+      ...watching('darkvision', 60),
+      { type: 'sight-declared', from: SEER, to: NEAR, seen: true },
+    ]);
+    expect(canSomehowSee(state, SEER, NEAR)).toBe(true);
+  });
+
+  /** Declared Total Cover silences a sense here for the reason it does there. */
+  it('is silenced by declared Total Cover', () => {
+    const state = fold('seed', [
+      ...watching('truesight', 60),
+      { type: 'cover-declared', from: SEER, to: NEAR, degree: 'total' },
+    ]);
+    expect(canSomehowSee(state, SEER, NEAR)).toBeNull();
+  });
+
+  /** A creature sees itself, which is the engine's fact rather than the table's. */
+  it('answers yes for a creature and itself', () => {
+    expect(canSomehowSee(fold('seed', watching('darkvision', 60)), SEER, SEER)).toBe(true);
+  });
+
+  /** Outside a scene there is no distance for a range to be measured against. */
+  it('asks rather than answers when nobody is anywhere', () => {
+    const state = fold('seed', [added(SEER), added(NEAR)]);
+    expect(canSomehowSee(state, SEER, NEAR)).toBeNull();
+  });
+
+  /** The sense belongs to the looker, as it does in the wider question. */
+  it('does not lend Truesight to whoever is being looked at', () => {
+    expect(canSomehowSee(fold('seed', watching('truesight', 60)), NEAR, SEER)).toBeNull();
   });
 });
 
