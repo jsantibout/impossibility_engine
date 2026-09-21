@@ -468,11 +468,63 @@ const MENU_SEPARATOR = /,\s+or\s+|,\s+and\s+|\s+or\s+|\s+and\s+|,\s+/;
  */
 const TRAILING_USE = /,? (?:and|or) (?:it )?(?:can )?uses? [^.]*$/;
 
+/**
+ * ", and it uses Bite" — the whole of a trailing clause, when what it names is
+ * one action and nothing else.
+ *
+ * Matched against the clause {@link TRAILING_USE} already found rather than
+ * against the sentence, so the two can never disagree about where the clause
+ * begins. Anchored at both ends, which is what keeps every clause that says
+ * more than a name — "uses Bite **twice**", "uses Bite **if available**",
+ * "uses Charm **or** Draining Kiss" — outside it: a count, a qualification and
+ * a choice are each a rule this grammar does not read, and reading the name out
+ * of one of them would grant a swing the sentence did not.
+ *
+ * The connective is `and` alone. The book's `or` offers the use *instead of*
+ * the swings rather than beside them, which is an alternation and not an extra
+ * entry.
+ */
+const NAMED_USE_CLAUSE = new RegExp(`^,? and (?:it )?(?:can )?uses? (${NAMES})$`);
+
 /** "It can replace one attack with a Tail attack." — a swap for a printed line. */
 const REPLACEMENT = new RegExp(`^It can replace ${COUNT} attacks? with an? (${NAMES}) attack\\.$`);
 
+/**
+ * "It can replace one attack with a use of Constrict." — the same swap, for
+ * what the book calls a *use*.
+ *
+ * The book is consistent that "a **use of** X" is a save or a prose action
+ * rather than a printed swing, and in the SRD it always is. That is a fact
+ * about this corpus and not a rule, so what settles it here is the same thing
+ * that settles the trailing clause: whether the block prints an attack by that
+ * name. Where it does, the sentence is a swing traded for a swing, which is
+ * exactly what {@link REPLACEMENT} reads.
+ */
+const REPLACEMENT_USE = new RegExp(`^It can replace ${COUNT} attacks? with a use of (${NAMES})\\.$`);
+
 /** Whether a second sentence names a *use*, which is the thing handed over. */
 const NAMES_A_USE = /\buses?\b/;
+
+/**
+ * The **printed** spelling of a name, where the block prints an attack by it.
+ *
+ * Case-insensitive, because a sentence and a heading are two places one word
+ * gets typed; the heading's spelling is what comes back, because that is the
+ * name a caller spends and the one the engine binds a sequence against.
+ */
+const boundName = (printed: readonly string[], name: string): string | null =>
+  printed.find((line) => line.toLowerCase() === name.trim().toLowerCase()) ?? null;
+
+/** Whether a sequence already spends a name, in any of its entries. */
+const alreadyNamed = (
+  branch: readonly MonsterMultiattackEntry[],
+  name: string,
+): boolean =>
+  branch.some((entry) =>
+    (entry.attacks ?? [entry.attack!]).some(
+      (printed) => printed.toLowerCase() === name.toLowerCase(),
+    ),
+  );
 
 /** The clauses of one sequence, or null where the text is not one. */
 function parseSequence(text: string): MonsterMultiattackEntry[] | null {
@@ -548,12 +600,23 @@ function withOneReplaced(
  * branch of the Barbed Devil's line would have deleted the second from the
  * book.
  *
- * What it does *not* check is that the names are lines the same block prints:
- * this reads one sentence and knows nothing about the block around it. The
- * bestiary is swept for that, and the engine binds each name to a printed
- * attack before it will spend one.
+ * What it does *not* check is that a name in a *sequence* is a line the same
+ * block prints: a count and a name are what the clause states, and the engine
+ * binds each name to a printed attack before it will spend one.
+ *
+ * `printedAttacks` is the other half, and it is the one thing here that is a
+ * fact about the **block** rather than about the sentence: the names of the
+ * Actions lines this block prints an attack roll for. It decides one question
+ * only — whether a clause naming a *use* is a swing or something to hand a DM
+ * — and a sentence that names a use of something else is handed over exactly as
+ * it always was. The default is the empty list, which is the reading this
+ * parser gave before the argument existed: nothing binds, so every use is
+ * prose. It can only ever refuse a swing, never invent one.
  */
-export function parseMultiattack(text: string): MonsterMultiattack | null {
+export function parseMultiattack(
+  text: string,
+  printedAttacks: readonly string[] = [],
+): MonsterMultiattack | null {
   const clean = text.replace(/[_*]/g, '').trim();
   if (!clean.endsWith('.')) return null;
 
@@ -563,11 +626,19 @@ export function parseMultiattack(text: string): MonsterMultiattack | null {
   if (sentences.length > 2) return null;
   const second = sentences.length === 2 ? `${sentences[1]!}.` : null;
 
-  let handOver: string | null = null;
+  // The two clauses this sentence may hand over, kept apart until the end: a
+  // trailing use can turn out to be a swing, and composing the string early
+  // would take the *other* clause down with it.
+  let trailingClause: string | null = null;
+  let secondClause: string | null = null;
+  // The printed name of the attack a trailing use names, where it names one.
+  let trailingSwing: string | null = null;
   let stated = sentences[0]!;
   const trailing = TRAILING_USE.exec(stated);
   if (trailing !== null) {
-    handOver = trailing[0].replace(/^,/, '').trim();
+    trailingClause = trailing[0].replace(/^,/, '').trim();
+    const named = NAMED_USE_CLAUSE.exec(trailing[0]);
+    trailingSwing = named === null ? null : boundName(printedAttacks, named[1]!);
     stated = stated.slice(0, trailing.index).replace(/,$/, '');
   }
 
@@ -588,22 +659,43 @@ export function parseMultiattack(text: string): MonsterMultiattack | null {
     // a second sentence read onto a branch nobody could identify is a guess.
     if (branches.length > 1) return null;
     const replacement = REPLACEMENT.exec(second);
-    if (replacement !== null) {
+    // "a use of X" where X is a line this block prints an attack for is the
+    // same swap in the book's other words.
+    const use = replacement === null ? REPLACEMENT_USE.exec(second) : null;
+    const used = use === null ? null : boundName(printedAttacks, use[2]!);
+    const swap = replacement ?? (used === null ? null : use);
+    if (swap !== null) {
       const swapped = withOneReplaced(
         branches[0]!,
-        COUNT_WORDS[replacement[1]!]!,
-        replacement[2]!.trim(),
+        COUNT_WORDS[swap[1]!]!,
+        used ?? swap[2]!.trim(),
       );
       if (swapped === null) return null;
       branches.push(swapped);
     } else if (NAMES_A_USE.test(second)) {
-      handOver = handOver === null ? second : `${handOver} ${second}`;
+      secondClause = second;
     } else return null;
   }
 
+  // **A trailing use of a printed attack is a swing, and joins the sequence.**
+  // Only where the sentence prints one: with a choice of sequences nothing in
+  // the clause says which of them the swing belongs to. And only where the
+  // sequence does not already name it, because the engine assigns a turn's
+  // swings in one pass over entries no name appears in twice — a rule the
+  // bestiary is swept for, and one a block from anywhere else must keep too.
+  if (
+    trailingSwing !== null &&
+    branches.length === 1 &&
+    !alreadyNamed(branches[0]!, trailingSwing)
+  ) {
+    branches[0]!.push({ count: 1, attack: trailingSwing });
+    trailingClause = null;
+  }
+
+  const clauses = [trailingClause, secondClause].filter((clause) => clause !== null);
   const shape =
     branches.length === 1 ? { entries: branches[0]! } : { alternatives: branches };
-  return { ...shape, ...(handOver === null ? {} : { handOver }) };
+  return { ...shape, ...(clauses.length === 0 ? {} : { handOver: clauses.join(' ') }) };
 }
 
 /**
@@ -625,7 +717,10 @@ export function parseRecharge(name: string): MonsterRecharge | null {
   return null;
 }
 
-function parseFeatures(lines: readonly string[]): Feature[] {
+function parseFeatures(
+  lines: readonly string[],
+  printedAttacks: readonly string[] = [],
+): Feature[] {
   const features: Feature[] = [];
   let current: { name: string; text: string[] } | null = null;
 
@@ -648,7 +743,8 @@ function parseFeatures(lines: readonly string[]): Feature[] {
       // qualified headings ("Multiattack (Vampire Form Only)") are left alone
       // for the same reason every qualified thing here is: the engine cannot
       // evaluate the qualification.
-      const multiattack = current.name === 'Multiattack' ? parseMultiattack(text) : null;
+      const multiattack =
+        current.name === 'Multiattack' ? parseMultiattack(text, printedAttacks) : null;
       // The one thing read out of the *name* rather than the sentence, and it
       // rides on the attack because that is what has to be told apart from a
       // creature's every-round swing.
@@ -867,6 +963,18 @@ function parseEntry(
     if (currentSection !== null) sections[currentSection].push(line);
   }
 
+  // **The one thing a line is read against the rest of its block for.** A
+  // Multiattack's trailing "and uses X" is a swing where X is a line with an
+  // attack roll on it and a hand-over where it is not, and the sentence cannot
+  // say which. So the Actions section is read once for the names it prints an
+  // attack under, and those names are handed to every section's reader — the
+  // Actions section, because that is the one the engine binds a sequence
+  // against. The first pass's own sequences are thrown away rather than kept:
+  // they were read without this, and half of them is worse than none.
+  const printedAttacks = parseFeatures(sections.actions).flatMap((line) =>
+    line.attack === undefined ? [] : [line.name],
+  );
+
   const monster = {
     id,
     name: entry.name,
@@ -898,11 +1006,11 @@ function parseEntry(
     xp: Number(xpText.replace(/,/g, '')),
     proficiencyBonus,
 
-    traits: parseFeatures(sections.traits),
-    actions: parseFeatures(sections.actions),
-    bonusActions: parseFeatures(sections.bonusActions),
-    reactions: parseFeatures(sections.reactions),
-    legendaryActions: parseFeatures(sections.legendaryActions),
+    traits: parseFeatures(sections.traits, printedAttacks),
+    actions: parseFeatures(sections.actions, printedAttacks),
+    bonusActions: parseFeatures(sections.bonusActions, printedAttacks),
+    reactions: parseFeatures(sections.reactions, printedAttacks),
+    legendaryActions: parseFeatures(sections.legendaryActions, printedAttacks),
   };
 
   const validated = MonsterSchema.safeParse(monster);
