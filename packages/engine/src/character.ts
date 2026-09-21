@@ -170,8 +170,8 @@ export interface StatedValues {
    * Cold Breath as readily as a Hydra's Multiattack — and claims only that
    * something went unread. That is narrower than every stat block without a
    * sequence, which would be noise about a fact that is not missing, and wider
-   * than the three blocks the sentence is really about, which is the honest
-   * width of what the engine knows.
+   * than the handful of blocks whose unread line is the one that sizes the
+   * action — which is the honest width of what the engine knows.
    *
    * Absent for every character and for every block the parser read whole.
    */

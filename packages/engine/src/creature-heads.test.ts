@@ -290,7 +290,10 @@ describe('a head count is declared, and the swings follow it', () => {
 
     const said = swung.unverified.find((line) => /read nothing out of/.test(line));
     expect(said).toContain('Cold Breath');
-    expect(said).not.toMatch(/\bhas heads\b/);
+    // The word itself, case-sensitively: `declareCreatureHeads` is the remedy
+    // and may be named, and any sentence *about* this creature's heads may not.
+    // The wording this replaced — "how many heads it has" — fails here.
+    expect(said).not.toMatch(/\bheads\b/);
   });
 
   /**

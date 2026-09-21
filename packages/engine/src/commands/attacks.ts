@@ -647,9 +647,10 @@ export function resolveAttack(
     //
     // **It names the lines and claims no more than that.** Which of them, if
     // any, was the one that sized the action is a thing the engine cannot
-    // know: a parsed sequence and an unparsed heading arrive at the sheet the
-    // same way, so an unread breath weapon and an unread Multiattack are one
-    // fact here. So the clause reports what went unread and offers the remedy
+    // know: an unread Multiattack and an unread breath weapon arrive at the
+    // sheet identically, as a name in `unreadActions` and nothing else — what
+    // the sheet tells apart is a sequence the parser *read* from one it did
+    // not. So the clause reports what went unread and offers the remedy
     // conditionally — a Winter Wolf's reader learns its Cold Breath is prose,
     // which is true, and is not told the wolf has heads.
     //
