@@ -100,15 +100,17 @@
  * and `boundary.test.ts` asserts that every kind the engine has is covered.
  */
 
-import type { CharacterId, ConditionName, Result } from '@ie/shared';
+import type { Ability, CharacterId, ConditionName, Result } from '@ie/shared';
 import { asCharacterId, needsContext, ok } from '@ie/shared';
 import type {
   AddCreatureOutcome,
+  AdvanceChoices,
   CharacterChoices,
   CastSpellRequest,
   CombatEnding,
   Duration,
   CombatantInput,
+  FeatChoice,
   GameEvent,
   GameState,
   InitiativeEntrant,
@@ -120,6 +122,7 @@ import {
   activateFeature,
   activateSpell,
   addCreature,
+  advanceCharacter,
   addSceneLandmark,
   advanceTime,
   applyConditionTo,
@@ -184,6 +187,7 @@ import {
   takeReady,
   takeOpportunityAttack,
   takeTestReaction,
+  tradeResource,
   transferItem,
   unequipItem,
   useHealingTouch,
@@ -2445,6 +2449,318 @@ const USE_POOL_OPTION = tool({
 });
 
 /**
+ * Pay for one resource with another, and gain a level — the two doors a
+ * character needs to go on being one.
+ *
+ * ## `trade_resource`
+ *
+ * `regain_uses` one door along, and the pair is the SRD's own split: that one
+ * gives a pool's uses **back**, free, at a moment the feature names; this one
+ * *buys* them out of something else. "You can expend a spell slot to regain
+ * one expended use of Bardic Inspiration"; "you can expend one use of Wild
+ * Shape to give yourself a level 1 spell slot". `tradeResource` has run both
+ * ends of that since it landed — the two refusals, the once-a-turn ledger key
+ * and the once-a-day pool of one — and **nothing above it could ask**, so two
+ * level 5 features were stopped at a door that did not exist and `sheet`
+ * reported neither.
+ *
+ * **The caller names the feature, which of its trades, and at most one number
+ * that is not a number.** SRD Wild Resurgence prints two trades in one
+ * sentence running in opposite directions with different limits, so the trade
+ * is named as well as the feature; `sheet` lists both under the feature, with
+ * the two pool keys each one runs between. `slotLevel` is `cast_spell`'s own
+ * field with the same justification: "expend **a spell slot**" leaves the
+ * level to the caster, the engine picks between candidates nowhere, and
+ * `slot_level_required` is the refusal that asks for it — the one refusal
+ * `doors.test.ts` recorded as answerable through no field on either surface.
+ *
+ * **How much comes back is derived and there is no field for it**, which is
+ * `regain_uses`'s rule and is load-bearing here: `restore` never takes a pool
+ * above its maximum, so a trade gives back what was spent rather than minting
+ * what no class table printed, and a caster holding all of theirs is refused
+ * `nothing_to_regain` with nothing spent at either end.
+ *
+ * ## `advance_character`
+ *
+ * **Levels, not experience points.** Owner ruling, 2026-09-20: XP is not state
+ * in this engine and is not to become state. So the door takes the level the
+ * character is arriving at, and everything that level gives — the hit points,
+ * the pools that grew, the slots that opened, the features — is the class
+ * table's and is the engine's to derive. There is no number here a caller
+ * produced: a level is which rung, exactly as `slotLevel` is which slot.
+ *
+ * **Why the level is declared rather than implied.** `advanceCharacter` takes
+ * no `CommandIdentity`, so the engine cannot fingerprint the call, and a door
+ * that simply meant "one more" would advance a character twice the first time
+ * a transport re-sent its call. A call naming the rung it is arriving at
+ * cannot: the retry is arriving at a level the character is already at, and is
+ * refused with nothing written. It is also the one thing a caller can state
+ * that an orchestrator can check against the sheet it was just shown.
+ *
+ * **`hitPointRoll` and `dmGrants` are not here**, for the two reasons
+ * `create_character` already excludes their equivalents: a rolled hit die is a
+ * number the caller produced, and what the party found on the way up is the
+ * DM's to award. Neither is lost by their absence — the engine keeps the
+ * character's own hit point method and whatever grants the record already
+ * carries.
+ */
+const TRADE_RESOURCE = tool({
+  name: 'trade_resource',
+  description:
+    'Spend one of a character’s resources to buy back another — the SRD writes these as “you can expend X to regain Y”, and SRD Font of Inspiration and Wild Resurgence are the two in the book. Name the feature and which of its trades; `sheet` lists both under the feature, with the pools each end runs between, what limits it and whether you have to choose a slot level. How much comes back is the engine’s: a trade gives back what was spent and never mints a use a class table did not print, so it refuses when there is nothing expended to give back, when the clause the trade prints does not hold, and when the limit is already used — spending nothing at either end.',
+  mutates: true,
+  input: z.object({
+    who: creatureId.describe('Whose feature it is. Both ends are spent and gained here.'),
+    feature: z
+      .string()
+      .min(1)
+      .describe('The feature id, from `sheet`, e.g. bard:font-of-inspiration.'),
+    trade: z
+      .string()
+      .min(1)
+      .describe(
+        'Which of that feature’s trades, from its `trades` on `sheet`, e.g. slot-for-inspiration. A feature prints more than one — SRD Wild Resurgence runs in both directions — so naming the feature is not enough.',
+      ),
+    slotLevel: z
+      .int()
+      .min(1)
+      .max(9)
+      .optional()
+      .describe(
+        'Which slot to expend, for a trade that spends one and leaves the level to the caster — SRD’s "expending a spell slot". The trade’s `slotLevelRequired` on `sheet` says whether this one does; sending it for a trade that spends a named pool instead is simply ignored, and leaving it out where it is wanted is refused rather than guessed at.',
+      ),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      tradeResource(context.campaign.state(), who(args.who), {
+        feature: args.feature,
+        trade: args.trade,
+        ...(args.slotLevel === undefined ? {} : { slotLevel: args.slotLevel }),
+        ...identity(context),
+      }),
+      (events) => events,
+      (events) => ({
+        feature: args.feature,
+        traded: args.trade,
+        // Both halves, read off the events the engine wrote rather than off
+        // the call: a trade that spends a daily use as well as its price
+        // writes two, and what is actually given back is capped at what was
+        // expended. Neither number was ever the caller's.
+        spent: events
+          .filter((event) => event.type === 'resource-spent')
+          .map((event) => ({ pool: event.key, uses: event.amount })),
+        regained: events
+          .filter((event) => event.type === 'resource-regained')
+          .map((event) => ({ pool: event.key, uses: event.amount })),
+      }),
+    ),
+});
+
+const ADVANCE_CHARACTER = tool({
+  name: 'advance_character',
+  description:
+    'Take a character up one level. Say which level they are arriving at — this engine keeps no experience points, so a level is declared the way any other fact about the fiction is — along with any choices that level asks for. Everything the level gives is derived from the class tables: the hit points, the spell slots, the pools that grow and the features that arrive. It is not a rebuild: wounds, conditions and slots already spent are kept exactly as they are. A level that is not the next one is refused, which is also what makes re-sending this call safe.',
+  mutates: true,
+  input: z.object({
+    who: creatureId.describe('The character going up, e.g. lyra.'),
+    toLevel: z
+      .int()
+      .min(2)
+      .max(20)
+      .describe(
+        'The character level they are arriving at: one more than the `level` on their `sheet`. Total character level, so a Fighter 3 / Wizard 2 taking a third Wizard level is arriving at 6.',
+      ),
+    classId: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        'Which class the level is taken in. Left out for the character’s starting class, which is the ordinary case; naming another deepens an existing multiclass or begins a new one at its level 1.',
+      ),
+    subclassId: z
+      .string()
+      .min(1)
+      .optional()
+      .describe('The subclass, for the level whose class table asks for one.'),
+    cantrips: z
+      .array(z.string().min(1))
+      .optional()
+      .describe('The whole cantrip list as it now stands, for a level that adds one.'),
+    newSpells: z
+      .array(z.string().min(1))
+      .optional()
+      .describe(
+        'Spells this level grants — two, for a Wizard. Added to the book as the subset a class table’s count is measured against.',
+      ),
+    copiedSpells: z
+      .array(z.string().min(1))
+      .optional()
+      .describe(
+        'Spells copied from scrolls or other books since the last level. Added to the book and deliberately *not* counted, so a Wizard who looted a scroll is not told their book is the wrong size.',
+      ),
+    preparedSpells: z
+      .array(z.string().min(1))
+      .optional()
+      .describe('The whole prepared list as it now stands, for a single-class caster.'),
+    spellsByClass: z
+      .record(
+        z.string().min(1),
+        z.strictObject({
+          cantrips: z.array(z.string().min(1)).optional(),
+          preparedSpells: z.array(z.string().min(1)).optional(),
+        }),
+      )
+      .optional()
+      .describe(
+        'The same lists for a character with more than one casting class, keyed by class id, because preparation is per class and each count comes from that class’s own table. A Wizard/Cleric taking a Cleric level restates the Cleric’s list here.',
+      ),
+    featureChoices: z
+      .record(z.string().min(1), z.array(z.string().min(1)))
+      .optional()
+      .describe(
+        'The choices the new level’s features ask for, keyed by feature id — a skill, an option off a printed list, a spell a feature grants. A level that asks for one and is not given it is refused by name.',
+      ),
+    feats: z
+      .record(
+        z.string().min(1),
+        z.strictObject({
+          featId: z.string().min(1),
+          spellList: z.string().min(1).optional(),
+          spellcastingAbility: z.string().min(1).optional(),
+          cantrips: z.array(z.string().min(1)).optional(),
+          levelOneSpell: z.string().min(1).optional(),
+          proficiencies: z.array(z.string().min(1)).optional(),
+          abilities: z
+            .array(z.string().min(1))
+            .optional()
+            .describe(
+              'Which scores the points go into, one entry per point: ["str","str"] is one score by 2 and ["str","dex"] is two by 1.',
+            ),
+        }),
+      )
+      .optional()
+      .describe(
+        'The feat the level’s Ability Score Improvement takes, keyed by the feature id offering the slot, with whatever that feat itself asks for.',
+      ),
+  }),
+  run: (context, args) => {
+    const state = context.campaign.state();
+    const id = who(args.who);
+    const creature = state.creatures[id];
+    // Only a character has a level to be the next one after. A monster, or a
+    // creature nobody has created, falls through to the engine's own answer —
+    // `not_a_character` and `unknown_creature` — rather than being told about
+    // a rung it was never on.
+    if (creature?.character != null && args.toLevel !== creature.sheet.level + 1) {
+      return refused(
+        'not_the_next_level',
+        `${id} is level ${creature.sheet.level} and this door takes one level at a time, so the next one is ${creature.sheet.level + 1}, not ${args.toLevel}`,
+      );
+    }
+    return settle(
+      context,
+      advanceCharacter(state, context.campaign.content, id, advanceOf(args)),
+      (events) => events,
+      () => ({ who: args.who, level: args.toLevel }),
+    );
+  },
+});
+
+/**
+ * Zod's level-up choices, in the engine's advancement vocabulary.
+ *
+ * `choicesOf`'s job one door along, and written out field by field for the
+ * same reason: `exactOptionalPropertyTypes` makes "absent" and "present and
+ * undefined" different types, the engine asks for the first and an optional
+ * Zod field produces the second. A generic strip would need a cast, and a cast
+ * is where a schema drifting from the vocabulary stops being a compile error.
+ *
+ * `toLevel` is not passed on at all. It is this surface's guard — the engine
+ * takes the next level as read — and the two would be a pair that could
+ * disagree.
+ */
+function advanceOf(input: {
+  readonly classId?: string | undefined;
+  readonly subclassId?: string | undefined;
+  readonly cantrips?: readonly string[] | undefined;
+  readonly newSpells?: readonly string[] | undefined;
+  readonly copiedSpells?: readonly string[] | undefined;
+  readonly preparedSpells?: readonly string[] | undefined;
+  readonly spellsByClass?:
+    | Readonly<
+        Record<
+          string,
+          {
+            readonly cantrips?: readonly string[] | undefined;
+            readonly preparedSpells?: readonly string[] | undefined;
+          }
+        >
+      >
+    | undefined;
+  readonly featureChoices?: Readonly<Record<string, readonly string[]>> | undefined;
+  readonly feats?: Readonly<Record<string, Record<string, unknown>>> | undefined;
+}): AdvanceChoices {
+  return {
+    ...(input.classId === undefined ? {} : { classId: input.classId }),
+    ...(input.subclassId === undefined ? {} : { subclassId: input.subclassId }),
+    ...(input.cantrips === undefined ? {} : { cantrips: input.cantrips }),
+    ...(input.newSpells === undefined ? {} : { newSpells: input.newSpells }),
+    ...(input.copiedSpells === undefined ? {} : { copiedSpells: input.copiedSpells }),
+    ...(input.preparedSpells === undefined ? {} : { preparedSpells: input.preparedSpells }),
+    ...(input.spellsByClass === undefined
+      ? {}
+      : {
+          spellsByClass: Object.fromEntries(
+            Object.entries(input.spellsByClass).map(([classId, chosen]) => [
+              classId,
+              {
+                ...(chosen.cantrips === undefined ? {} : { cantrips: chosen.cantrips }),
+                ...(chosen.preparedSpells === undefined
+                  ? {}
+                  : { preparedSpells: chosen.preparedSpells }),
+              },
+            ]),
+          ),
+        }),
+    ...(input.featureChoices === undefined ? {} : { featureChoices: input.featureChoices }),
+    ...(input.feats === undefined
+      ? {}
+      : {
+          feats: Object.fromEntries(
+            Object.entries(input.feats).map(([slot, choice]) => [slot, featChoiceOf(choice)]),
+          ),
+        }),
+  };
+}
+
+/** One feat choice, with the keys Zod left undefined dropped. See {@link advanceOf}. */
+function featChoiceOf(choice: Record<string, unknown>): FeatChoice {
+  const entry = choice as {
+    readonly featId: string;
+    readonly spellList?: string;
+    readonly spellcastingAbility?: string;
+    readonly cantrips?: readonly string[];
+    readonly levelOneSpell?: string;
+    readonly proficiencies?: readonly string[];
+    readonly abilities?: readonly string[];
+  };
+  return {
+    featId: entry.featId,
+    ...(entry.spellList === undefined ? {} : { spellList: entry.spellList }),
+    // The ability is validated by the engine against the feat's own sentence,
+    // which is why the schema takes a string rather than restating the list.
+    ...(entry.spellcastingAbility === undefined
+      ? {}
+      : { spellcastingAbility: entry.spellcastingAbility as Ability }),
+    ...(entry.cantrips === undefined ? {} : { cantrips: entry.cantrips }),
+    ...(entry.levelOneSpell === undefined ? {} : { levelOneSpell: entry.levelOneSpell }),
+    ...(entry.proficiencies === undefined ? {} : { proficiencies: entry.proficiencies }),
+    ...(entry.abilities === undefined ? {} : { abilities: entry.abilities }),
+  };
+}
+
+/**
  * Put a Reaction in somebody else's hands — and the second of the two pools
  * that were deliberately left shut.
  *
@@ -3589,6 +3905,8 @@ export const TOOLS: readonly ToolDefinition[] = [
   UNEQUIP_ITEM,
   USE_ITEM,
   USE_POOL_OPTION,
+  TRADE_RESOURCE,
+  ADVANCE_CHARACTER,
 ].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 
 export const TOOL_NAMES: readonly string[] = TOOLS.map((definition) => definition.name);

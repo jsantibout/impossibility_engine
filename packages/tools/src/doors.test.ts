@@ -739,10 +739,12 @@ const ANSWERS: Readonly<Record<string, Answer>> = {
   },
 
   // — a trade the caster pays for, where only they can say with what ———————
-  slot_level_required: {
-    unanswerable:
-      'not a field **yet**: `tradeResource` is the engine command SRD Wild Resurgence needs — "you can give yourself one use by expending a spell slot", with the level left to the caster — and no tool on either surface opens onto it, so there is nothing here to name. The day one does, this becomes `trade_resource.slotLevel` and the entry moves up with the rest.',
-  },
+  // The entry that said "not a field **yet**", moved up with the rest the day
+  // a door opened onto `tradeResource`. SRD Font of Inspiration and Wild
+  // Resurgence both write "expend a spell slot" and leave the level to the
+  // caster; the engine picks between candidates nowhere, so it asks, and
+  // `trade_resource` is where the answer goes.
+  slot_level_required: { fields: ['trade_resource.slotLevel'] },
 
   // — a use that mints hit points for the holder to divide ————————————————
   // SRD Preserve Life's "divide those Hit Points among them", which is a list
