@@ -34,6 +34,14 @@ to homebrew.
   cannot make two Claws; and an opportunity attack that reaches for the
   highest-damage printed melee attack that does not recharge, instead of
   fabricating an Unarmed Strike. A caller may still name a different one.
+- **A recharge is kept.** A printed line the creature used is expended; at the
+  start of its turn the engine throws one d6 per expended line and gives it
+  back on the printed number or better, and a Short or Long Rest gives back
+  every expended line whichever way it recharges. The book says both in one
+  sentence. A line printed "Recharge after a Short or Long Rest" has no die and
+  comes back only at the rest. Using an expended line is refused before
+  anything is spent. The door that opens a fight reaches the same moment, so it
+  throws dice now too.
 - **A monster's Bonus Action is spendable.** The 75 printed lines are carried
   onto the sheet and one may be taken: the Bonus Action is spent, the printed
   sentence is handed back, and the engine executes nothing — most of the 75
@@ -439,12 +447,19 @@ one, three spells were two, four features were one, 177 Multiattack blocks were
 about the corpus rather than a law. Every one was caught by a builder, in
 minutes, after the brief was written. `WORKFLOW.md` rule 1 says to check first.
 
-1. **Two readings nobody has ruled on, both conservative today.** A
-   bonus-action heading carrying `(Recharge 5-6)` or `(2/Day)` is not
-   enforced, because the engine tracks no recharge anywhere — printed attacks
-   included. And a clay golem that Slams *before* it Hastens gets two, because
-   the action's size is fixed at the first swing. Both err toward giving less
-   than the book, which is the safe direction, and neither has been decided.
+1. **A spend for an unread Actions line.** All 87 recharge lines are parsed,
+   but only **15** reach a sheet — the 2 printed attacks and the 13 Bonus
+   Action lines — because those are the only lines anything can spend. The
+   other 72 are the 71 unread Actions lines and the Stone Giant's reaction:
+   `unreadActions` holds names alone, and a reaction section never reaches the
+   sheet. Give an Actions line the hand-over spend `takeStatedBonusAction`
+   already has and **71 more recharges become live with no change to that
+   rule** — which is why carrying a recharge to a line nothing can spend was
+   left undone rather than built ahead of its consumer.
+
+   Still undecided beside it: a clay golem that Slams *before* it Hastens gets
+   two, because the action's size is fixed at the first swing. It errs toward
+   giving less than the book, which is the safe direction.
 
 2. **What the bestiary still does not read.** 75 printed bonus-action lines read
    as 0, which is also what leaves the clay golem's gated alternative prose. And
