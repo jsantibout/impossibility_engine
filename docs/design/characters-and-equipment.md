@@ -47,6 +47,23 @@ player chooses when they gain it. Creation compiles grants onto the sheet
 an aura stops the moment its holder is stunned without anything having to
 remember to.
 
+**A use may also hang a grant that is stored rather than derived**, which is
+the other half and the one a roll can spend. A derived grant is recomputed
+from state, so nothing can consume it: `consumedRollModifiers` reads stored
+state, and a `oneShot` written on a derived grant is never spent. So
+`ActivatedFeature.hangs` is emitted where the price is paid — SRD Steady Aim's
+Advantage on the next attack, and the Speed of 0 that comes with it — as the
+`roll-modifier-granted` and `speed-modifier-granted` the engine already
+writes, on the timer `commands/mastery.ts` files for Sap and Vex. Derived
+grants say what a feature **permits**; hung grants are what a use **spends**.
+
+Each clause of a hung grant carries **its own source**, and that is not
+tidiness. `roll-modifier-consumed` folds to `releaseGrants`, which drops
+everything one source granted, across every grant family at once — so under a
+shared source the attack that spent Steady Aim's Advantage would have handed
+back its Speed as well. One source and one timer per clause, and the validator
+refuses two hung grants of one kind.
+
 Multiclass rules read the definitions: caster level from each class's
 `progression`, Pact slots from any class whose feature is `pact-magic`, hit
 dice pooled by die type, a later class's proficiencies from its own
