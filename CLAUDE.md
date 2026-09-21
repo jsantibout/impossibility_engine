@@ -13,10 +13,17 @@ line: **AI interprets possibility; the Engine adjudicates reality.**
 
 1. **The model never produces a number.** It states intent by calling a tool;
    the engine rolls, validates legality and returns the outcome; the model
-   narrates what the event log says happened. Damage takes a `RollId` the
-   engine issued; only `rolls.ts` stamps `engine`; the external-roll functions
-   (`recordExternalD20`, `recordExternalDamage`) exist for a human DM and are
-   never exposed to an AI one.
+   narrates what the event log says happened. What enforces it is
+   **reachability, not a handshake**: every door an AI holds reaches only
+   commands that roll, only `rolls.ts` stamps a roll `engine`, and
+   `checkExternalSource` refuses any caller claiming that stamp.
+   The external-roll functions (`recordExternalD20`, `recordExternalDamage`)
+   are for a table whose people roll their own dice — physical dice a human DM
+   reads out, and a DM's stated ruling, which the engine records *as* a ruling
+   and does not bounds-check. They are swept out of both AI-held surfaces by
+   name, in every import form, and reach a table only through a door built for
+   one. No such door exists yet; when it does it is its own directory with its
+   own sweep, and it is never on a model's surface.
 2. **`packages/engine` is pure.** No `Math.random`, `Date.now`,
    `crypto.randomUUID`, I/O, or content. ESLint enforces the first three; the
    sweep in `spell-schema.test.ts` enforces the last.
