@@ -39,6 +39,17 @@ import { createCampaign, createDmSurface, createSurface, type ToolOutcome } from
 
 /** Three charges back at dawn on a `1d3`, which is SRD's Wand of Secrets line. */
 const DAWN_LANTERN = 'sunrise-lantern';
+/**
+ * "Regains **all** expended charges daily at dawn" — SRD Eyes of Charming's
+ * half of the same rule, which is the `dawn` tag on its own with no dice
+ * beside it.
+ *
+ * It is the shape a printed `N/Day` line comes back in, so it is the branch
+ * this door most needs proved: a refill is one `resources-restored` and no
+ * roll at all, and a door that only ever exercised the rolled branch would say
+ * nothing about it.
+ */
+const PLAIN_LANTERN = 'daylight-lantern';
 /** The same object with the tag a Short Rest answers. */
 const SHORT_LANTERN = 'hearth-lantern';
 /** And the tag a Long Rest answers. */
@@ -82,6 +93,7 @@ const CONTENT: Content = (() => {
   const built = extendContent(SRD_CONTENT, {
     items: [
       lantern(DAWN_LANTERN, 'Sunrise Lantern', 'dawn', '1d3'),
+      lantern(PLAIN_LANTERN, 'Daylight Lantern', 'dawn'),
       lantern(SHORT_LANTERN, 'Hearth Lantern', 'short-rest'),
       lantern(LONG_LANTERN, 'Midnight Lantern', 'long-rest'),
     ],
@@ -168,18 +180,20 @@ const lanternPool = (t: ReturnType<typeof table>, who: string, item: string): Po
   return found;
 };
 
-/** A character holding all three lanterns, with a charge out of each. */
+const LANTERNS = [DAWN_LANTERN, PLAIN_LANTERN, SHORT_LANTERN, LONG_LANTERN];
+
+/** A character holding all four lanterns, with a charge out of each. */
 function theNightBefore(seed = 'dawn') {
   const t = table(seed);
   expectOk(t.call('create_character', { id: 'bram', choices: fighter('Bram') }));
   expectOk(
     t.rule('award_items', {
       who: 'bram',
-      items: [{ id: DAWN_LANTERN }, { id: SHORT_LANTERN }, { id: LONG_LANTERN }],
+      items: LANTERNS.map((id) => ({ id })),
       because: 'the hoard',
     }),
   );
-  for (const item of [DAWN_LANTERN, SHORT_LANTERN, LONG_LANTERN]) {
+  for (const item of LANTERNS) {
     expectOk(t.call('equip_item', { who: 'bram', item }));
     expectOk(t.call('use_item', { who: 'bram', item }));
   }
@@ -213,6 +227,33 @@ describe('a morning is a door, and everything it gives back is the engine’s', 
     const regained = dawn.events.find((event) => event.type === 'resource-regained');
     expect(regained?.type === 'resource-regained' && regained.amount).toBe(1);
     expect(lanternPool(t, 'bram', DAWN_LANTERN).left).toBe(before.max);
+  });
+
+  /**
+   * The other kind of morning, and the one the dependent work needs: "regains
+   * **all** expended charges daily at dawn" is the `dawn` tag with no dice
+   * beside it, and a printed `N/Day` line that resets at dawn comes back the
+   * same way. It is one `resources-restored` and no roll at all.
+   */
+  it('refills a dawn pool that prints no dice, and throws none for it', () => {
+    const t = theNightBefore();
+    const before = lanternPool(t, 'bram', PLAIN_LANTERN);
+    expect(before.left).toBe(before.max - 1);
+
+    const dawn = expectOk(t.call('declare_dawn', {}));
+
+    const restored = dawn.events.find(
+      (event) => event.type === 'resources-restored' && event.recovers === 'dawn',
+    );
+    expect(restored, 'the morning is one restoration by tag').toBeDefined();
+    expect(lanternPool(t, 'bram', PLAIN_LANTERN).left).toBe(before.max);
+
+    // And two charges out of it come back together, because "all" is all.
+    expectOk(t.call('use_item', { who: 'bram', item: PLAIN_LANTERN }));
+    expectOk(t.call('use_item', { who: 'bram', item: PLAIN_LANTERN }));
+    expect(lanternPool(t, 'bram', PLAIN_LANTERN).left).toBe(before.max - 2);
+    expectOk(t.call('declare_dawn', {}));
+    expect(lanternPool(t, 'bram', PLAIN_LANTERN).left).toBe(before.max);
   });
 
   it('is the same morning for the same seed, and not always the same die', () => {
