@@ -2527,14 +2527,15 @@ const CONFER_REACTION = tool({
  * defect as one that claims a rule the engine lacks, because a model acts on
  * it either way.
  *
- * **Hide is the fourth kind, and it was not a kind at all.** `takeHide` is the
- * sixth named action, arriving with its own spender: the DC 15 Dexterity
- * (Stealth) check, the Invisible condition a success buys, the watchers and
- * the cover. Until it was offered here, `rogue:cunning-action` could be
- * invoked for one of the three verbs the sentence prints.
+ * **Hide is a kind here now, and it was not one at all.** `takeHide` joined
+ * `NAMED_ACTIONS` with its own spender: the DC 15 Dexterity (Stealth) check,
+ * the Invisible condition a success buys, the watchers and the cover. Until it
+ * was offered here, `rogue:cunning-action` could be invoked for one of the
+ * three verbs the sentence prints.
  *
- * **Hide refuses in more shapes than the other five put together, and each
- * arrives as itself.** Who can see the hider is the table's fact and the check
+ * **Hide is the named action whose legality turns on facts only the table
+ * holds, and each way it can refuse arrives as itself.** Who can see the hider
+ * is the table's fact and the check
  * is the engine's, so a sight line nobody has settled is *homework* —
  * `needs-context`, one request per watcher, tagged `visibility` and therefore
  * carrying `declare_sight` as the door that settles it — where a settled line

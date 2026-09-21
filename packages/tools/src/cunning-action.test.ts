@@ -16,8 +16,8 @@
  *
  * **Hide is the reason this is a file and not two lines.** It is the one named
  * action whose legality turns on facts the table holds — who is looking, and
- * what is in the way — so it refuses in more shapes than the other five put
- * together, and each shape has to arrive as what it is. A sight line nobody
+ * what is in the way — so it can refuse in ways the rest cannot, and each of
+ * those ways has to arrive as what it is. A sight line nobody
  * has settled is *homework*: `needs-context`, one request per watcher, naming
  * the door that settles it. A settled one that says the enemy is looking is a
  * refusal and closes the question. Flattening the first into the second would
@@ -314,7 +314,7 @@ describe("SRD Adrenaline Rush: 'you can take the Dash action as a Bonus Action'"
  * engine's own `hide.test.ts` does not drive it either, and for the same
  * reason.
  */
-describe('a Hide refuses in more shapes than any other named action, and each arrives as itself', () => {
+describe('a Hide can refuse in ways no other named action can, and each arrives as itself', () => {
   /**
    * The one that must not be flattened. Nobody has said whether the guard can
    * see the Rogue, so the engine has not decided anything — it has asked. The
