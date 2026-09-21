@@ -1104,10 +1104,7 @@ export function spendAttack(
   }
 
   // Still inside an Attack action already taken.
-  if (budget.value.attacksRemaining !== null) {
-    if (budget.value.attacksRemaining < 1) {
-      return err('no_attacks_left', `${id} has used every attack of their Attack action`);
-    }
+  if (budget.value.attacksRemaining !== null && budget.value.attacksRemaining >= 1) {
     return ok({
       state: withBudget(
         state,
@@ -1125,8 +1122,23 @@ export function spendAttack(
   // compels the Attack action, which is `permits-only` on the same slot.
   // Swings after the first spend nothing and are above this line, which is
   // the same asymmetry the action budget already has.
+  //
+  // **An emptied quiver comes here too**, and that is what lets SRD Action
+  // Surge buy the thing it is bought for. "You can take one additional
+  // action" and the Attack action is an action: a Fighter who has swung twice
+  // has spent the *action*, not the turn, so a second Attack action is a
+  // second action — and the quiver fills again exactly as it did the first
+  // time. Refusing here without asking was a Fighter who could Dodge after a
+  // surge and could not swing.
   const taken = spendAction(state, id, conditions, { rules: spend?.rules ?? [], as: 'attack' });
-  if (!taken.ok) return taken;
+  if (!taken.ok) {
+    // The more useful of two true sentences: a creature whose Attack action is
+    // spent and who has nothing to buy a second one with is out of *attacks*,
+    // which is what the swing was asking about.
+    return budget.value.attacksRemaining === null
+      ? taken
+      : err('no_attacks_left', `${id} has used every attack of their Attack action`);
+  }
 
   const after = requireTheirTurn(taken.value, id);
   if (!after.ok) return after;

@@ -176,6 +176,20 @@ const budget = (log: readonly GameEvent[], who: CharacterId) =>
 const refusal = (out: { readonly ok: boolean } & Partial<{ readonly code: string }>): string =>
   out.ok ? 'it was allowed' : (out.code ?? '');
 
+/** Swing a longsword, and hand back the longer log. */
+const attempt = (log: readonly GameEvent[], seed: string) =>
+  resolveAttack(
+    fold('seed', log),
+    FIGHTER,
+    { target: GOBLIN, weapon: 'longsword' },
+    supply(seed),
+  );
+
+const swing = (log: readonly GameEvent[], seed: string): readonly GameEvent[] => [
+  ...log,
+  ...unwrap(attempt(log, seed), 'swing').events,
+];
+
 describe('an extra action a feature buys', () => {
   const surge = (log: readonly GameEvent[], commandId?: string) =>
     useBudgetPurchase(
@@ -277,6 +291,48 @@ describe('an extra action a feature buys', () => {
       'action_forbidden',
     );
     expect(spendAction(combat, FIGHTER, undefined, { rules: [], as: 'dodge' }).ok).toBe(true);
+  });
+
+  /**
+   * **What a Fighter surges for**, and the case the first draft of this file
+   * drove entirely through Dodge and Dash and so never asked: an Attack action
+   * *is* an action, so a second one is what the second action buys — and the
+   * quiver fills again exactly as it did the first time.
+   */
+  it('buys a second Attack action, with its own attacks in it', () => {
+    let log = table(FIGHTER, fighter(5));
+
+    // The Attack action, and both swings a level 5 Fighter has in it.
+    log = swing(log, 'one');
+    log = swing(log, 'two');
+    expect(budget(log, FIGHTER)?.attacksRemaining).toBe(0);
+    expect(refusal(attempt(log, 'three'))).toBe('no_attacks_left');
+
+    log = [...log, ...unwrap(surge(log), 'surge')];
+    log = swing(log, 'three');
+    // A fresh Attack action: one swing spent out of it and one left.
+    expect(budget(log, FIGHTER)?.attacksRemaining).toBe(1);
+    expect(budget(log, FIGHTER)?.extraActions).toEqual([]);
+
+    log = swing(log, 'four');
+    expect(refusal(attempt(log, 'five'))).toBe('no_attacks_left');
+    expect(JSON.stringify(fold('seed', log))).toBe(JSON.stringify(fold('seed', log)));
+  });
+
+  /**
+   * SRD Action Surge is "on **your** turn". A command that said `ok` here
+   * would hand back events the fold calls corrupt, which is the failure a
+   * refusal-as-a-value exists to prevent.
+   */
+  it('refuses a purchase made on somebody else’s turn', () => {
+    let log = table(FIGHTER, fighter(5));
+    const resolved = unwrap(resolveTurn(fold('seed', log), supply(), { commandId: 'on' }), 'turn');
+    log = [...log, ...resolved.events];
+    expect(fold('seed', log).combat?.order[fold('seed', log).combat!.turnIndex]?.id).toBe(GOBLIN);
+
+    expect(refusal(surge(log, 'off-turn'))).toBe('not_their_turn');
+    // And nothing was spent on the way to the refusal.
+    expect(fold('seed', log).creatures.fighter?.resources.pools['action-surge']?.spent).toBe(0);
   });
 
   /** A purchase the feature does not sell. */

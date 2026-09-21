@@ -16,7 +16,7 @@
 
 import { type CharacterId, err, ok, type Result } from '@ie/shared';
 import type { BudgetPurchase } from '../character.js';
-import { canUseFeatureThisTurn } from '../combat.js';
+import { canUseFeatureThisTurn, grantTurnBudget } from '../combat.js';
 import type { GameEvent, GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import { remaining } from '../resources.js';
@@ -98,6 +98,38 @@ export function useBudgetPurchase(
       return err('exhausted', `${id} has no uses of ${purchase.featureName} left`);
     }
 
+    // What the purchase adds, worked out before anything is spent, because it
+    // is also what the reducer will apply.
+    const grant = {
+      ...(purchase.extraAction === undefined
+        ? {}
+        : {
+            action: {
+              source: purchase.name,
+              ...(purchase.extraAction.except === undefined
+                ? {}
+                : { except: purchase.extraAction.except }),
+            },
+          }),
+      ...(purchase.extraAttacks === undefined
+        ? {}
+        : {
+            attacks: {
+              remaining: purchase.extraAttacks.count,
+              unarmedOnly: purchase.extraAttacks.unarmedOnly,
+            },
+          }),
+    };
+
+    // **The command's own check with the command's own inputs**, which is the
+    // rule this whole layer keeps: a command refuses exactly what the reducer
+    // would call corrupt. `mayAct` does not ask whose turn it is and a
+    // purchase costing no action never reaches `spendFor`, so without this a
+    // Fighter could surge on the goblin's turn, be told `ok`, and have the
+    // fold throw `CorruptLogError` on the events they were handed.
+    const granted = grantTurnBudget(combat, id, grant);
+    if (!granted.ok) return granted;
+
     // — from here it costs something ——————————————————————————————————————
     const events: GameEvent[] = [];
 
@@ -118,14 +150,7 @@ export function useBudgetPurchase(
       id,
       source: purchase.name,
       ...(purchase.extraAction === undefined ? {} : { action: purchase.extraAction }),
-      ...(purchase.extraAttacks === undefined
-        ? {}
-        : {
-            attacks: {
-              remaining: purchase.extraAttacks.count,
-              unarmedOnly: purchase.extraAttacks.unarmedOnly,
-            },
-          }),
+      ...(grant.attacks === undefined ? {} : { attacks: grant.attacks }),
       ...(stamp === null ? {} : { command: stamp }),
     });
 
