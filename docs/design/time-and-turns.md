@@ -77,9 +77,17 @@ turn begins is a question about the world the previous end left behind.
 6. When the end owes nothing, the fold reaches the start: the next
    creature's start-of-turn area effects are raised, and `mayAct` refuses
    that creature until they are settled.
+7. The start is settled too, and **this is the step that throws dice**: a
+   printed line the creature expended and whose recharge is a die gets one
+   `1d6`, rolled with provenance like any other, and comes back on the printed
+   number or better. `recharge_owed` refuses where there is no generator, the
+   fourth member of the family `payout_owed`, `damage_owed` and
+   `death_save_owed` already belong to.
 
 A fight opening is the same moment by a second door: `combat-started`
-marks the first combatant's start pending and step 6 reaches it.
+marks the first combatant's start pending, step 6 reaches it, and **step 7
+runs there too** — so the door that opens a fight throws dice, which it did
+not before recharge was enforced.
 
 ## Rests
 
@@ -87,5 +95,9 @@ A Short Rest is an hour; a Long Rest eight, with a sixteen-hour cooldown.
 `beginRest` and `endRest` bracket one, so an interruption the engine can see
 (damage, a fight starting) collapses a Long Rest into a Short one honestly.
 Pools restore by their `Recovery` tag; a pool may regain a stated number on a
-Short Rest without refilling (`regainsOnShortRest`). Hit Dice are pools keyed
+Short Rest without refilling (`regainsOnShortRest`). **A rest also clears every
+expended printed line**, whichever way it recharges: the book recharges a die
+line at a rest as well as on the turn roll (`packages/srd/raw/monsters.md:431`),
+and a line printed "Recharge after a Short or Long Rest" has no die and comes
+back only here. Hit Dice are pools keyed
 by die type, so multiclassed characters track theirs separately.
