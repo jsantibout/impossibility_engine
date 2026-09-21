@@ -2107,16 +2107,15 @@ const SHEET = tool({
  * happened and the log records it, exactly as `fought` records who is already
  * in melee with whom.
  *
- * **And the extension has no ceiling, which the description says out loud.**
+ * **And the extension has a ceiling, which the engine now keeps.**
  * SRD Rage prints one — "You can maintain a Rage for up to 10 minutes" — and
- * `ActivatedFeature.capSeconds` carries it onto the sheet at creation, where
- * no engine command reads it: `extendFeature` replaces the timer and checks
- * nothing else. A description claiming the cap was guarded would be this layer
- * asserting a rule the engine does not have, which is worse than a comment
- * that claims too much because a model would act on it. So the tool says the
- * bound is the table's to keep and `sheet` reports the number to keep it by.
- * That the engine could enforce it is a finding for whoever owns `timers.ts`,
- * not a thing to paper over here.
+ * `ActivatedFeature.capSeconds` carries it onto the sheet at creation. This
+ * comment used to say no command read it and that the bound was the table's;
+ * `extendFeature` now refuses `cap_reached` before anything is spent, and the
+ * ceiling is pinned at the activation and carried rather than re-derived, so
+ * approaching it does not push it away. The description below says so, because
+ * a description claiming less than the engine enforces is the same defect as
+ * one claiming more: a model acts on it either way.
  */
 const ACTIVATE_FEATURE = tool({
   name: 'activate_feature',
@@ -2141,7 +2140,7 @@ const ACTIVATE_FEATURE = tool({
 const EXTEND_FEATURE = tool({
   name: 'extend_feature',
   description:
-    'Keep a running feature going for another round. SRD Rage offers three ways to do it and only one of them costs anything, so say which happened: `attack` if the character attacked an enemy, `forced-save` if it made one save, `bonus-action` to spend the Bonus Action on it. In a fight the engine replaces the feature’s deadline with a fresh one; outside a fight there are no turns, so there is no deadline to replace and the feature simply runs until something ends it. It does **not** enforce the longest the feature may be maintained — `sheet` reports that as `capSeconds` and nothing stops an extension past it, so a table that wants the bound kept keeps it.',
+    'Keep a running feature going for another round. SRD Rage offers three ways to do it and only one of them costs anything, so say which happened: `attack` if the character attacked an enemy, `forced-save` if it made one save, `bonus-action` to spend the Bonus Action on it. In a fight the engine replaces the feature’s deadline with a fresh one; outside a fight there are no turns, so there is no deadline to replace and the feature simply runs until something ends it. It **does** enforce the longest the feature may be maintained: `sheet` reports that as `capSeconds`, and an extension past it is refused `cap_reached` with nothing spent. The ceiling is fixed when the feature is activated, so maintaining it does not push it further away. A feature whose sheet prints no cap is not bounded by this.',
   mutates: true,
   input: z.object({
     who: creatureId,
