@@ -23,6 +23,38 @@
 import type { Ability, CharacterId, Skill } from '@ie/shared';
 import type { Deadline, TurnMoment } from './time.js';
 
+/**
+ * The longest one activation of a feature may be maintained.
+ *
+ * SRD Rage: "You can maintain a Rage for up to 10 minutes." That is not a
+ * duration — the Rage's duration is "until the end of your next turn", and it
+ * is pushed out again every round — it is a **ceiling on how many times that
+ * can be done**, and the two are different enough that folding one into the
+ * other would either end the Rage a round in or never end it at all.
+ *
+ * So it is a second number beside the deadline, and both of its fields are
+ * pinned at the moment the activation begins:
+ *
+ * - {@link seconds} is the span the feature was written with, read off the
+ *   holder's own sheet, where creation pinned it. Kept as well as the clock
+ *   reading so a refusal can say *ten minutes* rather than *second 600*.
+ * - {@link until} is the clock reading it may not be maintained past, which is
+ *   the span added to the clock at the activation.
+ *
+ * **Carried across an extension, never re-derived.** A ceiling recomputed
+ * each time the feature is extended is pushed a further ten minutes away by
+ * the very act of approaching it, which is not a bound at all. And it is read
+ * back out of the timer rather than out of a catalogue, so a log written
+ * against a book that said one minute is still bounded by one minute — the
+ * fold opens no catalogue, and neither does the command that reads this.
+ */
+export interface MaintenanceCap {
+  /** The pinned span. SRD Rage's 600, straight off the sheet. */
+  readonly seconds: number;
+  /** The clock reading the activation may not be maintained past. */
+  readonly until: number;
+}
+
 /** What an expiring timer ends. */
 export type EffectTarget =
   /** One condition instance on one creature, by its deterministic id. */
@@ -34,8 +66,23 @@ export type EffectTarget =
    *
    * SRD Rage: "The Rage lasts until the end of your next turn" — a deadline
    * like any other, on a thing that is neither a condition nor a casting.
+   *
+   * **The one member that carries something beside its identity**, and
+   * {@link MaintenanceCap} says why: a feature's activation has no other
+   * record anywhere in the state. `activeFeatures` is a list of strings and
+   * the fold keeps no moment for any of them, so this timer *is* the engine's
+   * handle on "this running Rage", and the ceiling that activation runs under
+   * belongs on it. {@link timerKey} reads only {@link kind}, {@link on} and
+   * {@link feature}, so a re-scheduled deadline still lands on the same key
+   * and still replaces rather than joins.
    */
-  | { readonly kind: 'feature'; readonly on: CharacterId; readonly feature: string }
+  | {
+      readonly kind: 'feature';
+      readonly on: CharacterId;
+      readonly feature: string;
+      /** The longest this activation may be maintained, or absent for no bound. */
+      readonly cap?: MaintenanceCap;
+    }
   /**
    * Every grant one source made on one creature.
    *

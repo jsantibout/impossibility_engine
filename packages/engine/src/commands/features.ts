@@ -25,8 +25,8 @@ import {
 } from '../character.js';
 import { conditionInstanceId, isIncapacitated } from '../conditions.js';
 import { type Rng } from '../dice.js';
-import { turnAnchored } from '../time.js';
-import { type EffectTarget, timerKey } from '../timers.js';
+import { describeElapsed, turnAnchored } from '../time.js';
+import { type EffectTarget, type MaintenanceCap, timerKey } from '../timers.js';
 import {
   applyEvent,
   type CommandStamp,
@@ -698,6 +698,22 @@ export function extendFeature(
       return err('no_such_feature', `${id} has no feature called ${command.feature}`);
     }
 
+    // SRD Rage: "You can maintain a Rage for up to 10 minutes." The ceiling
+    // was pinned onto this activation when it began and is read back off it —
+    // **before anything is spent**, so a refused extension costs the Bonus
+    // Action nothing. Nothing ends here: the feature's own deadline is simply
+    // not pushed out again, so it lapses at the boundary it was already
+    // running to, which is what "can be maintained for up to" says.
+    const cap = maintenanceCap(state, id, definition, true);
+    if (cap !== null && state.elapsed >= cap.until) {
+      return err(
+        'cap_reached',
+        `${definition.name} may be maintained for ${describeElapsed(cap.seconds)} — the cap ` +
+          `pinned onto this activation from ${id}'s sheet — and it began ` +
+          `${describeElapsed(state.elapsed - (cap.until - cap.seconds))} ago`,
+      );
+    }
+
     const events: GameEvent[] = [];
     if (command.by === 'bonus-action' && state.combat !== null) {
       const spent = spendFor(state, id, 'bonus-action');
@@ -705,7 +721,7 @@ export function extendFeature(
       events.push(spent.value);
     }
 
-    const timer = featureTimer(state, id, definition);
+    const timer = featureTimer(state, id, definition, true);
     if (!timer.ok) return timer;
     // Outside combat there is no timer and no Bonus Action, so the batch is
     // empty — and an empty batch is idempotent without needing a stamp at all.
@@ -719,20 +735,79 @@ export function extendFeature(
   });
 }
 
-/** The deadline one activation runs to. */
+/**
+ * The ceiling this activation of a feature runs under, or null for none.
+ *
+ * Two readings, and {@link maintaining} is what decides between them, because
+ * the state cannot:
+ *
+ * - **Maintaining** an activation that is already running: the ceiling is
+ *   carried off its own timer, unchanged. A ceiling re-derived at every
+ *   extension is pushed out by the act of approaching it, and reading it back
+ *   out of the log is what keeps a Rage bounded by the number it was written
+ *   with rather than by this year's book.
+ * - **Beginning** one: the span on the holder's sheet, where creation pinned
+ *   it, added to the clock now. Still not a catalogue — the sheet folded out
+ *   of the log like everything else.
+ *
+ * **The flag is not an optimisation and the state cannot stand in for it.**
+ * `feature-ended` drops the feature and leaves its deadline to lapse on its
+ * own, so for up to a round there is a timer standing over a Rage that has
+ * already been dismissed. A second Rage entered in that window would inherit
+ * the first one's ceiling and get whatever was left of somebody else's ten
+ * minutes, which is why the caller says which of the two it is doing.
+ *
+ * A feature whose record carries no span is bounded by nothing either way,
+ * which is every feature in the SRD but one.
+ */
+function maintenanceCap(
+  state: GameState,
+  id: CharacterId,
+  definition: ActivatedFeature,
+  maintaining: boolean,
+): MaintenanceCap | null {
+  if (maintaining) {
+    const running = state.timers[timerKey({ kind: 'feature', on: id, feature: definition.feature })];
+    if (running?.target.kind === 'feature' && running.target.cap !== undefined) {
+      return running.target.cap;
+    }
+  }
+  if (definition.capSeconds === undefined) return null;
+  return { seconds: definition.capSeconds, until: state.elapsed + definition.capSeconds };
+}
+
+/**
+ * The deadline one activation runs to.
+ *
+ * @param maintaining whether this is an activation *continuing* rather than
+ * one beginning, which is the whole of what {@link maintenanceCap} cannot
+ * read off the state. Default false, so a caller with no cap to think about —
+ * Dodge, Ready — says nothing and gets the reading that cannot go wrong.
+ */
 export function featureTimer(
   state: GameState,
   id: CharacterId,
   definition: ActivatedFeature,
+  maintaining = false,
 ): Result<GameEvent | null> {
   // Outside combat there are no turns, so a turn-anchored deadline has no
   // meaning — `resolveDuration` refuses it rather than inventing seconds, and
   // the feature simply runs until something ends it.
   if (state.combat === null) return ok(null);
 
+  // The ceiling rides on the target rather than beside it, so replacing the
+  // deadline carries it across: `timerKey` reads only the identity fields, and
+  // this is the only record the engine keeps of one activation.
+  const cap = maintenanceCap(state, id, definition, maintaining);
+
   const timer = schedule(
     state,
-    { kind: 'feature', on: id, feature: definition.feature },
+    {
+      kind: 'feature',
+      on: id,
+      feature: definition.feature,
+      ...(cap === null ? {} : { cap }),
+    },
     // The feature's own anchor, carried across rather than branched on: a
     // mapping from each member of the pair to its constructor is what
     // `turnAnchored` is, and one written here would be a third place a third

@@ -340,6 +340,221 @@ describe('the deadline, and pushing it', () => {
     expect(isErr(out)).toBe(true);
     if (isErr(out)) expect(out.code).toBe('not_active');
   });
+
+  /**
+   * SRD: "You can maintain a Rage for up to 10 minutes."
+   *
+   * The sentence the sheet has always carried and nothing has ever read.
+   * `capSeconds` was pinned at creation for the express purpose of bounding
+   * this, and every extension replaced the deadline without ever looking at
+   * it — so a Barbarian could hold a Rage for a week.
+   *
+   * The ceiling is pinned onto **the activation**, at the moment it begins,
+   * as the clock reading it may not be maintained past. Every later extension
+   * carries that same reading across rather than deriving a fresh one, which
+   * is the difference between a bound and a thing that moves whenever it is
+   * approached — and it is read back out of the log, never out of the book.
+   */
+  describe('the ten minutes it may be maintained for', () => {
+    const later = (log: readonly GameEvent[], seconds: number): readonly GameEvent[] => [
+      ...log,
+      { type: 'time-advanced', seconds, reason: 'the fight dragged on' },
+    ];
+
+    const capOf = (log: readonly GameEvent[]) => {
+      const timer = fold('seed', log).timers[`feature|${GRUM}|${RAGE}`];
+      return timer?.target.kind === 'feature' ? timer.target.cap : undefined;
+    };
+
+    it('pins the ceiling onto the activation, from the number on the sheet', () => {
+      expect(capOf(raging(fighting()))).toEqual({ seconds: 600, until: 600 });
+    });
+
+    it('extends while the ten minutes are still running', () => {
+      const out = extendFeature(fold('seed', later(raging(fighting()), 594)), GRUM, {
+        feature: RAGE,
+        by: 'attack',
+      });
+      expect(isErr(out)).toBe(false);
+    });
+
+    it('refuses the extension once they are up, naming the cap and where it came from', () => {
+      const out = extendFeature(fold('seed', later(raging(fighting()), 600)), GRUM, {
+        feature: RAGE,
+        by: 'attack',
+      });
+      expect(isErr(out)).toBe(true);
+      if (isErr(out)) {
+        expect(out.code).toBe('cap_reached');
+        // The cap itself, in the units the SRD prints it in ...
+        expect(out.reason).toContain('10 minutes');
+        // ... and where the number came from, which is the sheet and not the book.
+        expect(out.reason).toContain('sheet');
+      }
+    });
+
+    it('refuses the Bonus Action route too, and spends nothing doing it', () => {
+      const log = later(raging(fighting()), 600);
+      const before = fold('seed', log).combat?.budgets.grum?.bonusAction;
+      const out = extendFeature(fold('seed', log), GRUM, { feature: RAGE, by: 'bonus-action' });
+      expect(isErr(out)).toBe(true);
+      // A refusal is a value and carries no events, so the Bonus Action is still there.
+      expect(fold('seed', log).combat?.budgets.grum?.bonusAction).toBe(before);
+    });
+
+    /**
+     * The test the whole mechanism turns on. A ceiling re-derived at each
+     * extension is pushed out by the very act of approaching it, and would
+     * never be reached however long the Rage ran.
+     */
+    it('carries the ceiling across an extension rather than pushing it out', () => {
+      const midway = later(raging(fighting()), 300);
+      const extended: readonly GameEvent[] = [
+        ...midway,
+        ...unwrap(
+          extendFeature(fold('seed', midway), GRUM, { feature: RAGE, by: 'attack' }),
+          'extend',
+        ),
+      ];
+      expect(capOf(extended)).toEqual({ seconds: 600, until: 600 });
+
+      const out = extendFeature(fold('seed', later(extended, 300)), GRUM, {
+        feature: RAGE,
+        by: 'attack',
+      });
+      expect(isErr(out)).toBe(true);
+    });
+
+    /**
+     * A log written against a book that said one minute is still bounded by
+     * one minute, whatever this year's catalogue says. The fold opens no
+     * catalogue, and neither does the command that reads the bound back out.
+     */
+    it('is bounded by the cap its own log pinned, not by the catalogue', () => {
+      const pinnedShort: readonly GameEvent[] = [
+        ...fighting(),
+        { type: 'resource-spent', id: GRUM, key: 'rage', amount: 1 },
+        { type: 'feature-activated', id: GRUM, feature: RAGE },
+        {
+          type: 'effect-scheduled',
+          target: { kind: 'feature', on: GRUM, feature: RAGE, cap: { seconds: 60, until: 60 } },
+          deadline: { kind: 'turn-end', of: GRUM, count: 2 },
+        },
+      ];
+
+      const inside = extendFeature(fold('seed', later(pinnedShort, 54)), GRUM, {
+        feature: RAGE,
+        by: 'attack',
+      });
+      expect(isErr(inside)).toBe(false);
+
+      const past = extendFeature(fold('seed', later(pinnedShort, 60)), GRUM, {
+        feature: RAGE,
+        by: 'attack',
+      });
+      expect(isErr(past)).toBe(true);
+      if (isErr(past)) {
+        expect(past.reason).toContain('1 minute');
+        expect(past.reason).not.toContain('10 minutes');
+      }
+    });
+
+    /**
+     * Nothing that was unbounded becomes bounded by accident: a feature whose
+     * record carries no `capSeconds` is extended for as long as anybody likes,
+     * exactly as it was before there was a cap to read.
+     */
+    it('leaves a feature with no pinned cap exactly as it was', () => {
+      const UNCAPPED = id('kes');
+      const sheet = base().creatures.grum!.sheet;
+      const uncapped: readonly GameEvent[] = [
+        ...made(),
+        {
+          type: 'creature-added',
+          id: UNCAPPED,
+          name: 'Kes',
+          sheet: {
+            ...sheet,
+            activated: [
+              {
+                feature: 'test:stance',
+                name: 'Stance',
+                action: 'bonus-action',
+                pool: null,
+                lasts: 'end-of-next-turn',
+              },
+            ],
+          },
+          maxHp: 20,
+          diesAtZero: true,
+        },
+        {
+          type: 'combat-started',
+          combatants: [
+            { id: UNCAPPED, initiative: 20, speed: 30 },
+            { id: GRUM, initiative: 10, speed: 30 },
+          ],
+        },
+        { type: 'feature-activated', id: UNCAPPED, feature: 'test:stance' },
+      ];
+
+      const out = extendFeature(fold('seed', later(uncapped, 6000)), UNCAPPED, {
+        feature: 'test:stance',
+        by: 'attack',
+      });
+      expect(isErr(out)).toBe(false);
+    });
+
+    /**
+     * A second Rage is a second ten minutes.
+     *
+     * The ceiling is carried across an *extension*, which is the same
+     * activation continuing. A fresh activation is not, and the timer left
+     * standing by a dismissal is close enough to one to be mistaken for it:
+     * `feature-ended` drops the feature and leaves the deadline to lapse on
+     * its own, so for a round there is a stale record of the Rage that was.
+     * Entering a new one while it stands must read the sheet, not that.
+     */
+    it('starts the ten minutes again when the feature is entered afresh', () => {
+      let current = raging(fighting());
+      current = [
+        ...current,
+        ...unwrap(endFeature(fold('seed', current), GRUM, { feature: RAGE }), 'dismiss'),
+        { type: 'time-advanced', seconds: 500, reason: 'the party walked on' },
+      ];
+      // Round the order back to Grum, whose Bonus Action is his again — and
+      // whose lapsed Rage's timer has not reached its own deadline yet.
+      for (let n = 0; n < 2; n += 1) {
+        current = [...current, ...unwrap(resolveTurn(fold('seed', current), supply()), 'turn').events];
+      }
+      expect(capOf(current)).toEqual({ seconds: 600, until: 600 });
+
+      current = [
+        ...current,
+        ...unwrap(activateFeature(fold('seed', current), GRUM, { feature: RAGE }), 'again'),
+      ];
+      const now = fold('seed', current).elapsed;
+      expect(now).toBeGreaterThan(0);
+      expect(capOf(current)).toEqual({ seconds: 600, until: now + 600 });
+    });
+
+    it('extends once under one command id however many times it is asked', () => {
+      const log = later(raging(fighting()), 300);
+      const first = unwrap(
+        extendFeature(fold('seed', log), GRUM, { feature: RAGE, by: 'attack', commandId: 'once' }),
+        'first',
+      );
+      const again = unwrap(
+        extendFeature(fold('seed', [...log, ...first]), GRUM, {
+          feature: RAGE,
+          by: 'attack',
+          commandId: 'once',
+        }),
+        'again',
+      );
+      expect(again).toEqual([]);
+    });
+  });
 });
 
 describe('it replays and survives a reload', () => {
