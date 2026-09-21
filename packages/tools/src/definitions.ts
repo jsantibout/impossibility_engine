@@ -100,7 +100,7 @@
  * and `boundary.test.ts` asserts that every kind the engine has is covered.
  */
 
-import type { Ability, CharacterId, ConditionName, Result } from '@ie/shared';
+import type { CharacterId, ConditionName, Result } from '@ie/shared';
 import { asCharacterId, needsContext, ok } from '@ie/shared';
 import type {
   AddCreatureOutcome,
@@ -156,6 +156,7 @@ import {
   extendFeature,
   INITIATIVE_LABEL,
   joinCombat,
+  MAX_LEVEL,
   mayAct,
   placeCreatureInScene,
   positionOf,
@@ -204,6 +205,7 @@ import { observe } from './observe.js';
 import type { ArgumentIssue, ContextRequestKind, ToolOutcome } from './outcome.js';
 import { fromErr, invalid, okOutcome, refused } from './outcome.js';
 import {
+  abilitySchema,
   characterChoicesSchema,
   conditionDurationSchema,
   conditionSchema,
@@ -2557,93 +2559,133 @@ const TRADE_RESOURCE = tool({
     ),
 });
 
+/**
+ * One feat, as a level-up states it.
+ *
+ * Named rather than written inline because it is the type the converter takes,
+ * so {@link featChoiceOf} and the schema cannot drift apart. `abilitySchema`
+ * is shared with `create_character` rather than restated: an ability is a
+ * closed list of six, and a second copy of a closed list is how a seventh gets
+ * accepted at one door and refused at the other.
+ */
+const advanceFeatSchema = z.strictObject({
+  featId: z.string().min(1),
+  spellList: z.string().min(1).optional(),
+  spellcastingAbility: abilitySchema.optional(),
+  cantrips: z.array(z.string().min(1)).optional(),
+  levelOneSpell: z.string().min(1).optional(),
+  proficiencies: z.array(z.string().min(1)).optional(),
+  abilities: z
+    .array(z.string().min(1))
+    .optional()
+    .describe(
+      'Which scores the points go into, one entry per point: ["str","str"] is one score by 2 and ["str","dex"] is two by 1.',
+    ),
+});
+
+const advanceSchema = z.object({
+  who: creatureId.describe('The character going up, e.g. lyra.'),
+  toLevel: z
+    .int()
+    .min(2)
+    .max(20)
+    .describe(
+      'The character level they are arriving at: one more than the `level` on their `sheet`. Total character level, so a Fighter 3 / Wizard 2 taking a third Wizard level is arriving at 6.',
+    ),
+  classId: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      'Which class the level is taken in. Left out for the character’s starting class, which is the ordinary case; naming another deepens an existing multiclass or begins a new one at its level 1.',
+    ),
+  subclassId: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('The subclass, for the level whose class table asks for one.'),
+  cantrips: z
+    .array(z.string().min(1))
+    .optional()
+    .describe('The whole cantrip list as it now stands, for a level that adds one.'),
+  newSpells: z
+    .array(z.string().min(1))
+    .optional()
+    .describe(
+      'Spells this level grants — two, for a Wizard. Added to the book as the subset a class table’s count is measured against.',
+    ),
+  copiedSpells: z
+    .array(z.string().min(1))
+    .optional()
+    .describe(
+      'Spells copied from scrolls or other books since the last level. Added to the book and deliberately *not* counted, so a Wizard who looted a scroll is not told their book is the wrong size.',
+    ),
+  preparedSpells: z
+    .array(z.string().min(1))
+    .optional()
+    .describe('The whole prepared list as it now stands, for a single-class caster.'),
+  spellsByClass: z
+    .record(
+      z.string().min(1),
+      z.strictObject({
+        cantrips: z.array(z.string().min(1)).optional(),
+        preparedSpells: z.array(z.string().min(1)).optional(),
+      }),
+    )
+    .optional()
+    .describe(
+      'The same lists for a character with more than one casting class, keyed by class id, because preparation is per class and each count comes from that class’s own table. A Wizard/Cleric taking a Cleric level restates the Cleric’s list here.',
+    ),
+  featureChoices: z
+    .record(z.string().min(1), z.array(z.string().min(1)))
+    .optional()
+    .describe(
+      'The choices the new level’s features ask for, keyed by feature id — a skill, an option off a printed list, a spell a feature grants. A level that asks for one and is not given it is refused by name.',
+    ),
+  feats: z
+    .record(z.string().min(1), advanceFeatSchema)
+    .optional()
+    .describe(
+      'The feat the level’s Ability Score Improvement takes, keyed by the feature id offering the slot, with whatever that feat itself asks for.',
+    ),
+  /**
+   * The GM's decision, narrowed to the note exactly as `create_character`
+   * narrows it — and it is here because without it a level 1 party cannot
+   * reach level 2 at all.
+   *
+   * SRD "Starting at Higher Levels" makes a character above level 1 state what
+   * the GM handed out beyond the standard package, and the plan asks for it at
+   * every level above the first. A character *created* at level 1 has none on
+   * its record, so its first level-up is the first time anything asks — and
+   * `missing_dm_grants` was then a refusal this door could not answer, which is
+   * the failure `doors.test.ts`'s fourth guard exists for.
+   *
+   * **Nothing is granted through it.** The items, the gold and the magic items
+   * are empty here as they are at creation: what the party found is
+   * `award_items`, and that is the DM's door. The note is the whole of what a
+   * caller says, and "nothing beyond the standard package" is a fine answer.
+   */
+  dmGrants: z
+    .strictObject({
+      note: z
+        .string()
+        .min(1)
+        .describe(
+          'Why, in the GM’s own words — "nothing beyond the standard package" will do.',
+        ),
+    })
+    .optional()
+    .describe(
+      'What the GM handed out with this level beyond the standard package, in the GM’s own words. The rules ask for it from level 2 up, so a character created at level 1 states it on its first level-up and a character created higher already has one on its record. It grants nothing by itself — items and gold are the DM’s `award_items`.',
+    ),
+});
+
 const ADVANCE_CHARACTER = tool({
   name: 'advance_character',
   description:
     'Take a character up one level. Say which level they are arriving at — this engine keeps no experience points, so a level is declared the way any other fact about the fiction is — along with any choices that level asks for. Everything the level gives is derived from the class tables: the hit points, the spell slots, the pools that grow and the features that arrive. It is not a rebuild: wounds, conditions and slots already spent are kept exactly as they are. A level that is not the next one is refused, which is also what makes re-sending this call safe.',
   mutates: true,
-  input: z.object({
-    who: creatureId.describe('The character going up, e.g. lyra.'),
-    toLevel: z
-      .int()
-      .min(2)
-      .max(20)
-      .describe(
-        'The character level they are arriving at: one more than the `level` on their `sheet`. Total character level, so a Fighter 3 / Wizard 2 taking a third Wizard level is arriving at 6.',
-      ),
-    classId: z
-      .string()
-      .min(1)
-      .optional()
-      .describe(
-        'Which class the level is taken in. Left out for the character’s starting class, which is the ordinary case; naming another deepens an existing multiclass or begins a new one at its level 1.',
-      ),
-    subclassId: z
-      .string()
-      .min(1)
-      .optional()
-      .describe('The subclass, for the level whose class table asks for one.'),
-    cantrips: z
-      .array(z.string().min(1))
-      .optional()
-      .describe('The whole cantrip list as it now stands, for a level that adds one.'),
-    newSpells: z
-      .array(z.string().min(1))
-      .optional()
-      .describe(
-        'Spells this level grants — two, for a Wizard. Added to the book as the subset a class table’s count is measured against.',
-      ),
-    copiedSpells: z
-      .array(z.string().min(1))
-      .optional()
-      .describe(
-        'Spells copied from scrolls or other books since the last level. Added to the book and deliberately *not* counted, so a Wizard who looted a scroll is not told their book is the wrong size.',
-      ),
-    preparedSpells: z
-      .array(z.string().min(1))
-      .optional()
-      .describe('The whole prepared list as it now stands, for a single-class caster.'),
-    spellsByClass: z
-      .record(
-        z.string().min(1),
-        z.strictObject({
-          cantrips: z.array(z.string().min(1)).optional(),
-          preparedSpells: z.array(z.string().min(1)).optional(),
-        }),
-      )
-      .optional()
-      .describe(
-        'The same lists for a character with more than one casting class, keyed by class id, because preparation is per class and each count comes from that class’s own table. A Wizard/Cleric taking a Cleric level restates the Cleric’s list here.',
-      ),
-    featureChoices: z
-      .record(z.string().min(1), z.array(z.string().min(1)))
-      .optional()
-      .describe(
-        'The choices the new level’s features ask for, keyed by feature id — a skill, an option off a printed list, a spell a feature grants. A level that asks for one and is not given it is refused by name.',
-      ),
-    feats: z
-      .record(
-        z.string().min(1),
-        z.strictObject({
-          featId: z.string().min(1),
-          spellList: z.string().min(1).optional(),
-          spellcastingAbility: z.string().min(1).optional(),
-          cantrips: z.array(z.string().min(1)).optional(),
-          levelOneSpell: z.string().min(1).optional(),
-          proficiencies: z.array(z.string().min(1)).optional(),
-          abilities: z
-            .array(z.string().min(1))
-            .optional()
-            .describe(
-              'Which scores the points go into, one entry per point: ["str","str"] is one score by 2 and ["str","dex"] is two by 1.',
-            ),
-        }),
-      )
-      .optional()
-      .describe(
-        'The feat the level’s Ability Score Improvement takes, keyed by the feature id offering the slot, with whatever that feat itself asks for.',
-      ),
-  }),
+  input: advanceSchema,
   run: (context, args) => {
     const state = context.campaign.state();
     const id = who(args.who);
@@ -2651,11 +2693,13 @@ const ADVANCE_CHARACTER = tool({
     // Only a character has a level to be the next one after. A monster, or a
     // creature nobody has created, falls through to the engine's own answer —
     // `not_a_character` and `unknown_creature` — rather than being told about
-    // a rung it was never on.
-    if (creature?.character != null && args.toLevel !== creature.sheet.level + 1) {
+    // a rung it was never on. So does a character at the ceiling, where there
+    // is no next level to name and `bad_level` is the honest answer.
+    const at = creature?.character == null ? null : creature.sheet.level;
+    if (at !== null && at < MAX_LEVEL && args.toLevel !== at + 1) {
       return refused(
         'not_the_next_level',
-        `${id} is level ${creature.sheet.level} and this door takes one level at a time, so the next one is ${creature.sheet.level + 1}, not ${args.toLevel}`,
+        `${id} is level ${at} and this door takes one level at a time, so the next one is ${at + 1}, not ${args.toLevel}`,
       );
     }
     return settle(
@@ -2673,34 +2717,18 @@ const ADVANCE_CHARACTER = tool({
  * `choicesOf`'s job one door along, and written out field by field for the
  * same reason: `exactOptionalPropertyTypes` makes "absent" and "present and
  * undefined" different types, the engine asks for the first and an optional
- * Zod field produces the second. A generic strip would need a cast, and a cast
- * is where a schema drifting from the vocabulary stops being a compile error.
+ * Zod field produces the second.
  *
- * `toLevel` is not passed on at all. It is this surface's guard — the engine
- * takes the next level as read — and the two would be a pair that could
- * disagree.
+ * **Its argument is the schema's own inferred type**, not a structural one
+ * written out beside it. A hand-written parameter compiles after a field is
+ * renamed in the schema and hands the engine `undefined` in silence, which is
+ * exactly the drift the paragraph above is about.
+ *
+ * `who` and `toLevel` are not passed on at all. The level is this surface's
+ * guard — the engine takes the next level as read — and two fields carrying
+ * one fact are a pair that can disagree.
  */
-function advanceOf(input: {
-  readonly classId?: string | undefined;
-  readonly subclassId?: string | undefined;
-  readonly cantrips?: readonly string[] | undefined;
-  readonly newSpells?: readonly string[] | undefined;
-  readonly copiedSpells?: readonly string[] | undefined;
-  readonly preparedSpells?: readonly string[] | undefined;
-  readonly spellsByClass?:
-    | Readonly<
-        Record<
-          string,
-          {
-            readonly cantrips?: readonly string[] | undefined;
-            readonly preparedSpells?: readonly string[] | undefined;
-          }
-        >
-      >
-    | undefined;
-  readonly featureChoices?: Readonly<Record<string, readonly string[]>> | undefined;
-  readonly feats?: Readonly<Record<string, Record<string, unknown>>> | undefined;
-}): AdvanceChoices {
+function advanceOf(input: z.infer<typeof advanceSchema>): AdvanceChoices {
   return {
     ...(input.classId === undefined ? {} : { classId: input.classId }),
     ...(input.subclassId === undefined ? {} : { subclassId: input.subclassId }),
@@ -2731,32 +2759,27 @@ function advanceOf(input: {
             Object.entries(input.feats).map(([slot, choice]) => [slot, featChoiceOf(choice)]),
           ),
         }),
+    // The two lists and the purse are empty, as they are at creation: this
+    // surface grants no equipment and no magic item, and the note is the whole
+    // of what a caller says.
+    ...(input.dmGrants === undefined
+      ? {}
+      : { dmGrants: { items: [], goldPieces: 0, magicItems: [], note: input.dmGrants.note } }),
   };
 }
 
 /** One feat choice, with the keys Zod left undefined dropped. See {@link advanceOf}. */
-function featChoiceOf(choice: Record<string, unknown>): FeatChoice {
-  const entry = choice as {
-    readonly featId: string;
-    readonly spellList?: string;
-    readonly spellcastingAbility?: string;
-    readonly cantrips?: readonly string[];
-    readonly levelOneSpell?: string;
-    readonly proficiencies?: readonly string[];
-    readonly abilities?: readonly string[];
-  };
+function featChoiceOf(choice: z.infer<typeof advanceFeatSchema>): FeatChoice {
   return {
-    featId: entry.featId,
-    ...(entry.spellList === undefined ? {} : { spellList: entry.spellList }),
-    // The ability is validated by the engine against the feat's own sentence,
-    // which is why the schema takes a string rather than restating the list.
-    ...(entry.spellcastingAbility === undefined
+    featId: choice.featId,
+    ...(choice.spellList === undefined ? {} : { spellList: choice.spellList }),
+    ...(choice.spellcastingAbility === undefined
       ? {}
-      : { spellcastingAbility: entry.spellcastingAbility as Ability }),
-    ...(entry.cantrips === undefined ? {} : { cantrips: entry.cantrips }),
-    ...(entry.levelOneSpell === undefined ? {} : { levelOneSpell: entry.levelOneSpell }),
-    ...(entry.proficiencies === undefined ? {} : { proficiencies: entry.proficiencies }),
-    ...(entry.abilities === undefined ? {} : { abilities: entry.abilities }),
+      : { spellcastingAbility: choice.spellcastingAbility }),
+    ...(choice.cantrips === undefined ? {} : { cantrips: choice.cantrips }),
+    ...(choice.levelOneSpell === undefined ? {} : { levelOneSpell: choice.levelOneSpell }),
+    ...(choice.proficiencies === undefined ? {} : { proficiencies: choice.proficiencies }),
+    ...(choice.abilities === undefined ? {} : { abilities: choice.abilities }),
   };
 }
 

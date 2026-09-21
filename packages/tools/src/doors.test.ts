@@ -727,7 +727,14 @@ const ANSWERS: Readonly<Record<string, Answer>> = {
   // — creation, where the refusal names the choice at fault ————————————————
   subclass_required: { fields: ['create_character.choices.subclassId'] },
   missing_feature_choice: { fields: ['create_character.choices.featureChoices'] },
-  missing_dm_grants: { fields: ['create_character.choices.dmGrants'] },
+  // Two doors, because the rules ask for it at every level above the first
+  // and a character created at level 1 states it for the first time on its
+  // way to level 2. `advance_character` was written without the field and
+  // this row was what would have caught it: the probe is aimed at a schema,
+  // and a door left off the list is a door nothing aims at.
+  missing_dm_grants: {
+    fields: ['create_character.choices.dmGrants', 'advance_character.dmGrants'],
+  },
   // The four that live *inside* a feat's choice, which is the level gap three
   // was at: `feats` existed, and the answer goes one field deeper.
   missing_feat_choice: { fields: ['create_character.choices.feats.the-slot.featId'] },

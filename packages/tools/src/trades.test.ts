@@ -233,6 +233,7 @@ interface FeatureLine {
   readonly name: string;
   readonly kind: string;
   readonly spentBy: string | null;
+  readonly alsoSpentBy?: readonly string[];
   readonly trades?: readonly TradeLine[];
 }
 
@@ -348,6 +349,39 @@ describe('the sheet reports a trade as a thing this surface can spend', () => {
         limitPool: 'druid:wild-resurgence',
       },
     ]);
+  });
+  /**
+   * And nobody grows a second door by accident.
+   *
+   * `holdings.ts` reports a feature once and the first claim on its id decides
+   * what it is, so a feature holding a trade **and** something else would keep
+   * the first claim's kind and carry the trade across in `alsoSpentBy` — which
+   * is the merge `two-menus.test.ts` holds for a pool's menu and a hit's, and
+   * the branch this file's trades loop joined. Nothing in the book can reach
+   * it: `FeatureDefinition.grants` is singular and `checkContent` refuses two
+   * definitions under one id, so a trade is always the only claim on its id.
+   * The claim is recorded rather than argued about, in both directions — the
+   * machinery stays, and the day the catalogue can write such a feature this
+   * says so.
+   */
+  it('reports every trade in the book as a trade, with one door and no second', () => {
+    const t = stage();
+    const other = grove();
+    const lines = [
+      ...(sheetOf(t, 'lyra')['features'] as readonly FeatureLine[]),
+      ...(sheetOf(other, 'fenn')['features'] as readonly FeatureLine[]),
+    ];
+    const withTrades = lines.filter((one) => one.trades !== undefined);
+    // Non-vacuous: the two features this file is about.
+    expect(withTrades.map((one) => one.feature).sort()).toEqual([
+      'bard:font-of-inspiration',
+      'druid:wild-resurgence',
+    ]);
+    for (const line of withTrades) {
+      expect(line.kind).toBe('trade');
+      expect(line.spentBy).toBe('trade_resource');
+      expect(line.alsoSpentBy).toBeUndefined();
+    }
   });
 });
 

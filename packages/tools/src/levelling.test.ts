@@ -27,28 +27,97 @@ import { SRD_CONTENT } from '@ie/content';
 import { createCampaign, createSurface, type ToolOutcome } from '@ie/tools';
 
 /**
- * The level 1 Bard list, in the catalogue's own order.
+ * A Bard of the College of Lore at whatever level a test needs one, built out
+ * of the catalogue rather than written down.
  *
- * A prepared list is sized by the class table — seven at level 4, nine at
- * five, twelve at eight — so a level-up restates it, and a test that hard-coded
- * one list would be testing the level it happened to be written at. Level 1
- * spells only, because a level 4 Bard has no level 3 slot to prepare into.
+ * Every number a level asks for is a column of the class table — seven
+ * prepared spells at level 4, nine at five, twenty-two at twenty — and every
+ * choice arrives at a level the book names. A fixture written out at one level
+ * tests that level, so this reads both off the content: what is on this page
+ * is only the *answer* to each choice, which is the part a person picks.
  */
-const BARD_SPELLS: readonly string[] = SRD_CONTENT.spells
+const CANTRIPS: readonly string[] = SRD_CONTENT.spells
+  .filter((spell) => spell.level === 0)
+  .filter((spell) => (SRD_CONTENT.spellEntry(spell.id)?.classes ?? []).includes('bard'))
+  .map((spell) => spell.id);
+
+/**
+ * The level 1 list, which is legal to prepare at every level.
+ *
+ * Twenty-three of them, which is one more than a level 20 Bard prepares.
+ */
+const SPELLS: readonly string[] = SRD_CONTENT.spells
   .filter((spell) => spell.level === 1)
   .filter((spell) => (SRD_CONTENT.spellEntry(spell.id)?.classes ?? []).includes('bard'))
   .map((spell) => spell.id);
 
-/** What that class table says a Bard of this level has prepared. */
-const preparedAt = (level: number): readonly string[] =>
-  BARD_SPELLS.slice(0, SRD_CONTENT.classById('bard')!.table[level - 1]!.preparedSpells!);
+const row = (level: number) => SRD_CONTENT.classById('bard')!.table[level - 1]!;
 
-/** A Bard of the College of Lore at whatever level the test needs one. */
+const cantripsAt = (level: number): readonly string[] =>
+  CANTRIPS.slice(0, row(level).cantripsKnown ?? 0);
+
+const preparedAt = (level: number): readonly string[] =>
+  SPELLS.slice(0, row(level).preparedSpells ?? 0);
+
+/** Every choice this Bard has been offered by the level it has reached. */
+const choicesAt = (level: number): Record<string, readonly string[]> => ({
+  'human:skillful': ['acrobatics'],
+  ...(level >= 2 ? { 'bard:expertise': ['performance', 'persuasion'] } : {}),
+  ...(level >= 3
+    ? { 'college-of-lore:bonus-proficiencies': ['arcana', 'history', 'insight'] }
+    : {}),
+  ...(level >= 9 ? { 'bard:second-expertise': ['deception', 'arcana'] } : {}),
+});
+
+/** The origin's two feat slots, and one Ability Score Improvement per slot. */
+const featsAt = (level: number): Record<string, Record<string, unknown>> => {
+  const improvement = { featId: 'ability-score-improvement', abilities: ['cha', 'cha'] };
+  return {
+    'acolyte:magic-initiate-cleric': {
+      featId: 'magic-initiate',
+      spellList: 'cleric',
+      spellcastingAbility: 'wis',
+      cantrips: ['guidance', 'sacred-flame'],
+      levelOneSpell: 'bless',
+    },
+    'human:versatile': { featId: 'alert' },
+    ...(level >= 4 ? { 'bard:ability-score-improvement': improvement } : {}),
+    ...(level >= 8
+      ? {
+          'bard:ability-score-improvement-2': {
+            featId: 'ability-score-improvement',
+            abilities: ['dex', 'dex'],
+          },
+        }
+      : {}),
+    ...(level >= 12
+      ? {
+          'bard:ability-score-improvement-3': {
+            featId: 'ability-score-improvement',
+            abilities: ['con', 'con'],
+          },
+        }
+      : {}),
+    ...(level >= 16
+      ? {
+          'bard:ability-score-improvement-4': {
+            featId: 'ability-score-improvement',
+            abilities: ['wis', 'wis'],
+          },
+        }
+      : {}),
+    ...(level >= 19
+      ? { 'bard:epic-boon': { featId: 'boon-of-fate', abilities: ['cha'] } }
+      : {}),
+  };
+};
+
 const bard = (level: number) => ({
   name: 'Lyra',
   classId: 'bard',
   level,
-  subclassId: 'college-of-lore',
+  // SRD: "a Bard has no subclass until level 3".
+  ...(level >= 3 ? { subclassId: 'college-of-lore' } : {}),
   speciesId: 'human',
   backgroundId: 'acolyte',
   abilities: {
@@ -59,33 +128,21 @@ const bard = (level: number) => ({
   classSkills: ['performance', 'persuasion', 'deception'],
   languages: ['Elvish', 'Dwarvish'],
   alignment: 'Neutral',
-  cantrips: ['vicious-mockery', 'dancing-lights', 'mage-hand'],
+  cantrips: cantripsAt(level),
   spellbook: [],
   preparedSpells: preparedAt(level),
   classEquipment: 'A',
   backgroundEquipment: 'A',
   equipped: [],
   hitPoints: { method: 'fixed' },
-  featureChoices: {
-    'human:skillful': ['acrobatics'],
-    'bard:expertise': ['performance', 'persuasion'],
-    'college-of-lore:bonus-proficiencies': ['arcana', 'history', 'insight'],
-  },
-  feats: {
-    'acolyte:magic-initiate-cleric': {
-      featId: 'magic-initiate',
-      spellList: 'cleric',
-      spellcastingAbility: 'wis',
-      cantrips: ['guidance', 'sacred-flame'],
-      levelOneSpell: 'bless',
-    },
-    'human:versatile': { featId: 'alert' },
-    'bard:ability-score-improvement': {
-      featId: 'ability-score-improvement',
-      abilities: ['cha', 'cha'],
-    },
-  },
-  dmGrants: { items: [], goldPieces: 0, magicItems: [], note: 'standard package only' },
+  featureChoices: choicesAt(level),
+  feats: featsAt(level),
+  // SRD "Starting at Higher Levels" asks for this from level 2 up, and a level
+  // 1 character is the one case that states nothing — which is the whole of
+  // why `advance_character` has a field for it.
+  ...(level >= 2
+    ? { dmGrants: { items: [], goldPieces: 0, magicItems: [], note: 'standard package only' } }
+    : {}),
 });
 
 function table(seed = 'levelling') {
@@ -143,15 +200,72 @@ const party = (level = 4, seed = 'levelling') => {
   return t;
 };
 
-/** A level-up, with the prepared list the level it arrives at asks for. */
-const growTo = (t: ReturnType<typeof table>, toLevel: number, over: Record<string, unknown> = {}, commandId?: string) =>
+/**
+ * A level-up, restating what the level it arrives at asks for.
+ *
+ * The lists and the choices, because a prepared list is sized by the class
+ * table and a choice arrives at a level the book names — both of which the
+ * fixture already derives. What each test adds by hand is the one thing it is
+ * about.
+ */
+const growTo = (
+  t: ReturnType<typeof table>,
+  toLevel: number,
+  over: Record<string, unknown> = {},
+  commandId?: string,
+) =>
   t.call(
     'advance_character',
-    { who: 'lyra', toLevel, preparedSpells: preparedAt(toLevel), ...over },
+    {
+      who: 'lyra',
+      toLevel,
+      cantrips: cantripsAt(toLevel),
+      preparedSpells: preparedAt(toLevel),
+      featureChoices: choicesAt(toLevel),
+      ...over,
+    },
     commandId,
   );
 
 describe('a character advances through the door', () => {
+  /**
+   * **The ordinary starting party, which is the case the door was opened for.**
+   *
+   * SRD "Starting at Higher Levels" makes a character above level 1 state what
+   * the GM handed out beyond the standard package, and the plan asks for it at
+   * every level above the first — so a character *created* at level 1 has none
+   * on its record and its first level-up is the first time anything asks. With
+   * no field for it this door answered `missing_dm_grants` and named nothing
+   * that could supply it, which is a level 1 party that can never reach 2 and
+   * is exactly the shape `doors.test.ts`'s fourth guard exists to catch.
+   */
+  it('takes a level 1 Bard, created with no GM grants at all, to level 2', () => {
+    const t = party(1);
+    expect(sheetOf(t, 'lyra')['level']).toBe(1);
+
+    const short = expectRefused(growTo(t, 2));
+    expect(short.code).toBe('missing_dm_grants');
+
+    expectOk(growTo(t, 2, { dmGrants: { note: 'nothing beyond the standard package' } }));
+    expect(sheetOf(t, 'lyra')['level']).toBe(2);
+    // The level 2 feature, which is the proof the level really arrived.
+    expect(featureIds(t, 'lyra')).toContain('bard:bardic-inspiration');
+  });
+
+  /** And the note is not optional prose: an empty one is turned away by Zod. */
+  it('refuses a GM note that says nothing', () => {
+    const t = party(1);
+    const outcome = t.call('advance_character', {
+      who: 'lyra',
+      toLevel: 2,
+      preparedSpells: preparedAt(2),
+      dmGrants: { note: '' },
+    });
+    expect(outcome.status).toBe('invalid');
+    if (outcome.status !== 'invalid') return;
+    expect(outcome.issues.map((issue) => issue.path)).toContain('dmGrants.note');
+  });
+
   /**
    * The whole of the gap: a level 4 Bard has none of what level 5 gives, and a
    * level 5 Bard has all of it. Font of Inspiration is the level 5 feature,
@@ -236,6 +350,19 @@ describe('a character advances through the door', () => {
   });
 
   /**
+   * At the ceiling the guard steps aside, because there is no next level to
+   * name. A level 20 character told "the next one is 21, not 20" would be
+   * reading a rung that does not exist; `bad_level` is what is actually true,
+   * and it is the engine's to say.
+   */
+  it('hands a character at the ceiling the answer that is true about it', () => {
+    const t = party(20);
+    const outcome = expectRefused(growTo(t, 20, { feats: featsAt(20) }));
+    expect(outcome.code).toBe('bad_level');
+    expect(outcome.reason).toContain('20');
+  });
+
+  /**
    * The choices a level asks for go through the door with it, and a level that
    * asks for one and is not given it is refused by name rather than guessed
    * at. SRD: the Bard's level 8 is an Ability Score Improvement.
@@ -248,23 +375,26 @@ describe('a character advances through the door', () => {
     expect(short.reason).toContain('bard:ability-score-improvement-2');
     expect(sheetOf(t, 'lyra')['level']).toBe(7);
 
-    expectOk(
-      growTo(t, 8, {
-        feats: {
-          'bard:ability-score-improvement-2': {
-            featId: 'ability-score-improvement',
-            abilities: ['dex', 'dex'],
-          },
-        },
-      }),
-    );
+    expectOk(growTo(t, 8, { feats: featsAt(8) }));
     expect(sheetOf(t, 'lyra')['level']).toBe(8);
     // The feat's own sentence, applied by the engine: two points of Dexterity
     // is one point of Armour Class on an unarmoured Bard in Leather.
     expect(sheetOf(t, 'lyra')['armorClass']).toBe((before['armorClass'] as number) + 1);
   });
 
-  /** A creature the engine has never been told about is homework, not a verdict. */
+  /**
+   * A creature the engine has never been told about is homework, not a verdict
+   * — and the homework is presently blank, which is written down rather than
+   * left to be discovered.
+   *
+   * `advanceCharacter` hand-writes `needsContext('unknown_creature', …)`
+   * instead of calling the `unknownCreature` helper every command under
+   * `commands/` uses, so the `ContextRequest` that would name the door is
+   * missing and `establish` comes back empty. That is the engine's line and
+   * `packages/engine` is not this brief's to change; this door is simply the
+   * first thing to show it. The assertion is exact in both directions so that
+   * the day the engine is fixed, this fails and is deleted deliberately.
+   */
   it('asks rather than refuses for a creature nobody has created', () => {
     const t = party(4);
     const outcome = t.call('advance_character', { who: 'nobody', toLevel: 2 });
@@ -272,6 +402,20 @@ describe('a character advances through the door', () => {
     if (outcome.status !== 'needs-context') return;
     expect(outcome.code).toBe('unknown_creature');
     expect(outcome.reason).toContain('nobody');
+    // Empty, and not because nothing asked: `create_character` is the tool
+    // that would answer it, and the request that would name it is not built.
+    expect(outcome.establish).toEqual([]);
+  });
+
+  /**
+   * A monster has no level to be the next one after, so the guard steps aside
+   * and the engine gives the answer that is actually true about it.
+   */
+  it('leaves a creature that is not a character to the engine', () => {
+    const t = party(4);
+    expectOk(t.call('add_creature', { id: 'grish', name: 'Grish', monsterId: 'goblin-warrior' }));
+    const refusedIt = expectRefused(t.call('advance_character', { who: 'grish', toLevel: 2 }));
+    expect(refusedIt.code).toBe('not_a_character');
   });
 
   /** A number the caller made up is not a level: the schema turns it away. */
