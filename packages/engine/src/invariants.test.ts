@@ -63,6 +63,10 @@ import {
   declineOpportunity,
   endConcentration,
   endOngoingSpell,
+  escapeGrapple,
+  grappleSource,
+  grappleTarget,
+  shoveTarget,
   grantTemporaryHpTo,
   setExhaustionLevel,
   pendingAttackOf,
@@ -121,6 +125,7 @@ import {
 // Not a command, and therefore not on the barrel — the low-level half beneath
 // `resolveSpell`, kept here so the `mayAct` guard it gained stays exercised.
 import { resolveCast } from './commands/casting.js';
+import { conditionInstanceId } from './conditions.js';
 import { beginRest, endRest, hitDieKey, SHORT_REST } from './rest.js';
 import { type FeatDefinition } from './origins.js';
 import type { FeatureSource } from './progression.js';
@@ -499,6 +504,36 @@ interface Guarded {
   readonly log: readonly GameEvent[];
   readonly run: (state: GameState, commandId: string) => Result<unknown>;
 }
+
+/**
+ * B held in A's grapple, with the turn passed to B so the escape has an Action
+ * to spend.
+ *
+ * Written as events rather than by running `grappleTarget`, because a fixture
+ * that has to roll a failed save to exist is a fixture whose shape depends on
+ * the generator. The escape DC is the one that command would have pinned.
+ */
+const HELD: readonly GameEvent[] = [
+  ...SETUP,
+  { type: 'condition-applied', id: B, condition: 'grappled', source: grappleSource(A) },
+  {
+    type: 'effect-scheduled',
+    target: {
+      kind: 'condition',
+      on: B,
+      instance: conditionInstanceId('grappled', grappleSource(A)),
+    },
+    deadline: { kind: 'indefinite' },
+    check: {
+      ability: 'str',
+      skill: 'athletics',
+      dc: 13,
+      onSuccess: 'end-on-target',
+      label: `check to escape ${A}'s grapple`,
+    },
+  },
+  { type: 'turn-advanced' },
+];
 
 /**
  * A behind total cover, with B declared unable to see them: the two facts SRD
@@ -1305,6 +1340,27 @@ const GUARDED: readonly Guarded[] = [
     name: 'continueCasting',
     log: RECITING,
     run: (s, commandId) => continueCasting(s, A, RITE, { commandId }),
+  },
+  /**
+   * The Unarmed Strike's other two options. Each throws the target's save, so
+   * a retry that was not caught would throw a second one — a creature saving
+   * twice against one grab.
+   */
+  {
+    name: 'grappleTarget',
+    log: SETUP,
+    run: (s, commandId) => grappleTarget(s, A, { target: B, save: 'dex', commandId }, supply()),
+  },
+  {
+    name: 'shoveTarget',
+    log: SETUP,
+    run: (s, commandId) =>
+      shoveTarget(s, A, { target: B, save: 'dex', outcome: 'prone', commandId }, supply()),
+  },
+  {
+    name: 'escapeGrapple',
+    log: HELD,
+    run: (s, commandId) => escapeGrapple(s, B, { ability: 'str', commandId }, supply()),
   },
   {
     name: 'damageCreature',
@@ -2448,6 +2504,25 @@ const SPENDERS: readonly Spender[] = [
     name: 'usePoolOption',
     run: (s) => usePoolOption(s, B, { feature: 'test:channelling', option: 'mend' }, supply()),
   },
+  /**
+   * The Unarmed Strike's Grapple and Shove options. Each spends the Attack
+   * action's one attack, and a creature owing a mandatory area effect may not
+   * spend it. The target need not be reachable or the right size: `mayAct` is
+   * asked immediately after the two creatures are found and before the
+   * distance or either size is looked at.
+   */
+  { name: 'grappleTarget', run: (s) => grappleTarget(s, B, { target: A, save: 'dex' }, supply()) },
+  {
+    name: 'shoveTarget',
+    run: (s) => shoveTarget(s, B, { target: A, save: 'dex', outcome: 'prone' }, supply()),
+  },
+  /**
+   * Tearing free of a grapple. SRD spends the Action on it, and a creature
+   * owing a mandatory area effect may not spend one. Nothing need be holding
+   * them: `mayAct` is asked immediately after the duplicate check and before
+   * any grapple is looked for.
+   */
+  { name: 'escapeGrapple', run: (s) => escapeGrapple(s, B, { ability: 'str' }, supply()) },
 ];
 
 /**

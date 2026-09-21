@@ -130,6 +130,28 @@ export type {
 export { resolveAttack, resolveAttackDamage } from './commands/attacks.js';
 export type { AttackCommand, AttackDamageCommand, AttackResolution } from './commands/attacks.js';
 export {
+  escapeGrapple,
+  grappleSource,
+  grapplerOf,
+  grapplesOn,
+  grappleTarget,
+  lapsedGrapples,
+  SHOVE_FEET,
+  shoveTarget,
+  UNARMED_REACH,
+} from './commands/unarmed.js';
+export type {
+  EscapeCommand,
+  EscapeResolution,
+  GrappleCommand,
+  HeldGrapple,
+  LapsedGrapple,
+  SaveChoice,
+  ShoveCommand,
+  ShoveOutcome,
+  UnarmedResolution,
+} from './commands/unarmed.js';
+export {
   declineOpportunity,
   dismountRider,
   mountCreature,

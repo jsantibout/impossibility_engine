@@ -65,6 +65,7 @@ export const COMBAT_EVENTS = [
   'action-spent',
   'bonus-action-spent',
   'attack-made',
+  'unarmed-strike-made',
   'dash-taken',
   'disengage-taken',
   'reaction-spent',
@@ -157,7 +158,13 @@ export function applyCombat({ state, next }: Applying, event: CombatEvent): Game
         must(event, spendBonusAction(combatOf(state, event), event.id)),
       );
 
-    case 'attack-made': {
+    // **One spend, two events**, and the second of them is here rather than in
+    // a case of its own because the budget arithmetic is identical: an Unarmed
+    // Strike's Grapple and Shove options are the Attack action's one attack.
+    // What separates them is what `fold/endings.ts` reads, and it reads only
+    // the first — see `unarmed-strike-made` in `events.ts`.
+    case 'attack-made':
+    case 'unarmed-strike-made': {
       const creature = creatureOf(state, event, event.id);
       return withCombat(
         next,

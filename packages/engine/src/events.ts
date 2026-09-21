@@ -622,6 +622,37 @@ export type GameEvent =
       readonly source: string;
       readonly command?: CommandStamp;
     }
+  /**
+   * The Attack action spent on an Unarmed Strike that threw no attack roll.
+   *
+   * SRD Unarmed Strike prints three options under one heading and only the
+   * first of them rolls: Damage "make an attack roll against the target",
+   * while Grapple and Shove each impose a saving throw instead. All three are
+   * the Attack action's one attack — Extra Attack puts a punch after a grapple
+   * — so the budget has to move exactly as `attack-made` moves it.
+   *
+   * **And `attack-made` is the wrong event to move it with**, which is the
+   * whole reason this one exists. Two SRD sentences are read off that event —
+   * SRD Hide's "the condition ends … after you make an attack roll" and the
+   * `target-attacks` ending SRD Invisibility and Potion of Invisibility print
+   * in the same words — and `fold/endings.ts` already records that reading it
+   * as the Attack action is an approximation. For a weapon swing the
+   * approximation is right nearly always; for these two options it is wrong
+   * *every* time, because neither ever throws a d20 at anybody's Armour Class.
+   * So they spend the same attack through an event that makes no such claim,
+   * and a hidden character who grabs somebody is still hidden.
+   *
+   * Reduced by the combat seam, beside `attack-made`, because what it changes
+   * is the action budget and nothing else. It is filed here in the union for
+   * the merge protocol of the batch it arrived in; its seam is combat's.
+   */
+  | {
+      readonly type: 'unarmed-strike-made';
+      readonly id: CharacterId;
+      /** Which of the Unarmed Strike's other two options was taken. */
+      readonly option: 'grapple' | 'shove';
+      readonly command?: CommandStamp;
+    }
   | {
       readonly type: 'condition-removed';
       readonly id: CharacterId;
