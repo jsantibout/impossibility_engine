@@ -1583,6 +1583,32 @@ export type GameEvent =
       readonly turn: number;
     }
   /**
+   * A creature taking one of the lines its stat block prints under **Bonus
+   * Actions**.
+   *
+   * The Bonus Action it costs is the `bonus-action-spent` beside it, exactly as
+   * a Dash's cost is; this says *which line*, because that is a fact nothing
+   * else in the log carries and because a Multiattack the book gates on one —
+   * "three Slam attacks if it used Hasten this turn" — has no other way to ask.
+   *
+   * **What the line says is not on the event.** The name is, and the sentence
+   * is already on the creature's sheet, which `creature-added` pinned; the fold
+   * opens no catalogue to read either. So this is a name and a turn, and the
+   * seam it belongs to is the one that owns the once-per-turn ledger.
+   *
+   * The engine applies nothing the line says. The sentence goes back to the
+   * caller through the command's `unverified` clauses, where a DM applies it.
+   */
+  | {
+      readonly type: 'stated-bonus-action-taken';
+      readonly id: CharacterId;
+      /** The heading the block prints the line under. */
+      readonly line: string;
+      /** The turn it was taken on, from the combat's own never-reused counter. */
+      readonly turn: number;
+      readonly command?: CommandStamp;
+    }
+  /**
    * An action held back for a trigger.
    *
    * The Ready action's own cost is a separate `action-spent`, and a readied

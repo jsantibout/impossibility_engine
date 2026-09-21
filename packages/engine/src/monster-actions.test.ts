@@ -20,6 +20,7 @@ import {
   setScene,
   addSceneLandmark,
   takeOpportunityAttack,
+  takeStatedBonusAction,
 } from './commands.js';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
@@ -29,6 +30,7 @@ import {
   bestPrintedMeleeAttack,
   multiattackAllows,
   printedAttackOf,
+  statedBonusActionsUsed,
 } from './monster.js';
 import { createRollIssuer } from './rolls.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
@@ -137,6 +139,16 @@ const statBlock = (slug: string) => {
   if (found === null) throw new Error(`no such monster: ${slug}`);
   return found;
 };
+
+const GOLEM = id('golem');
+
+/**
+ * The golem's Bonus Action line, by the heading its own block prints it under
+ * — read off the block rather than typed out, because the heading carries the
+ * book's recharge and the book's en dash and a test that retyped either would
+ * be testing its own transcription.
+ */
+const HASTEN = statBlock('clay-golem').bonusActions[0]!.name;
 
 /**
  * A fighter with a wolf ten feet away, and everybody's side declared.
@@ -1250,5 +1262,301 @@ describe('a monster’s Opportunity Attack takes its printed line', () => {
     const bren = table.state.creatures[BREN];
     expect(bren?.sheet.stated?.attacks).toBeUndefined();
     expect(bestPrintedMeleeAttack(bren!.sheet)).toBeNull();
+  });
+});
+
+/**
+ * What a stat block prints under **Bonus Actions**.
+ *
+ * Seventy-five lines in the SRD and not one of them prints an attack roll:
+ * they cast a spell, force a saving throw, take another action, move,
+ * shape-shift, teleport, or are prose. So there was never a sentence here for
+ * a parser to read — what was missing is an economy to spend one against, and
+ * a record of which line was spent, which is what a Multiattack gated on one
+ * has to read.
+ *
+ * The engine executes none of them. It spends the Bonus Action, writes down
+ * which line was taken, and hands the sentence back the way a Multiattack's
+ * `handOver` clause is already handed back.
+ */
+describe('a Bonus Action a stat block prints', () => {
+  const taking = (table: Table, who: CharacterId, line: string, commandId?: string) =>
+    takeStatedBonusAction(table.state, who, {
+      line,
+      ...(commandId === undefined ? {} : { commandId }),
+    });
+
+  const usedBy = (state: GameState, who: CharacterId): readonly string[] =>
+    statedBonusActionsUsed(
+      state.combat?.budgets[who]?.featureUsedOnTurn ?? {},
+      state.combat?.turnsTaken ?? 0,
+    );
+
+  it('carries the section onto the sheet, by the name and the sentence', () => {
+    const goblin = adaptMonster(statBlock('goblin-warrior'), GOBLIN);
+    expect(goblin.sheet.stated?.bonusActions).toEqual([
+      { name: 'Nimble Escape', text: 'The goblin takes the Disengage or Hide action.' },
+    ]);
+
+    // A block that prints none carries no field saying so, which is the
+    // reading every optional field on the sheet takes — and a character
+    // prints none either.
+    expect(adaptMonster(statBlock('wolf'), WOLF).sheet.stated?.bonusActions).toBeUndefined();
+  });
+
+  it('spends the creature’s Bonus Action and records which line it was', () => {
+    const table = inTheWoods('goblin-warrior', GOBLIN);
+    table.did('the goblin slips away', (s) =>
+      takeStatedBonusAction(s, GOBLIN, { line: 'Nimble Escape', commandId: 'escape' }),
+    );
+
+    const state = table.state;
+    expect(state.combat?.budgets[GOBLIN]?.bonusAction).toBe(false);
+    expect(usedBy(state, GOBLIN)).toEqual(['Nimble Escape']);
+
+    // And the log says which line, by the name the block prints it under.
+    const taken = table.events.filter((e) => e.type === 'stated-bonus-action-taken');
+    expect(taken).toHaveLength(1);
+    expect(taken[0]?.type === 'stated-bonus-action-taken' ? taken[0].line : null).toBe(
+      'Nimble Escape',
+    );
+  });
+
+  /**
+   * **The sentence is handed over rather than executed.** The goblin's line
+   * says it takes the Disengage or Hide action; nothing here takes either, and
+   * a caller told that the Bonus Action was spent and nothing else would have
+   * been told the creature did something it did not.
+   */
+  it('reports the sentence, because the engine applies none of it', () => {
+    const table = inTheWoods('goblin-warrior', GOBLIN);
+    const out = unwrap(taking(table, GOBLIN, 'Nimble Escape', 'escape'), 'the escape');
+    expect(out.unverified.join(' ')).toContain('The goblin takes the Disengage or Hide action.');
+
+    // And it really did not take one: the Disengage a DM applies is not here.
+    expect(out.events.map((e) => e.type)).toEqual([
+      'bonus-action-spent',
+      'stated-bonus-action-taken',
+    ]);
+  });
+
+  /** SRD: "You can't take more than one Bonus Action on a turn." */
+  it('refuses a second line in the same turn', () => {
+    const table = inTheWoods('clay-golem', GOLEM);
+    table.did('the golem hastens', (s) =>
+      takeStatedBonusAction(s, GOLEM, { line: HASTEN, commandId: 'one' }),
+    );
+    const again = taking(table, GOLEM, HASTEN, 'two');
+    expect(isErr(again) ? again.code : 'ok').toBe('no_bonus_action');
+  });
+
+  it('refuses a line the block does not print', () => {
+    const table = inTheWoods('goblin-warrior', GOBLIN);
+    const out = taking(table, GOBLIN, HASTEN, 'wrong');
+    expect(isErr(out) ? out.code : 'ok').toBe('no_such_line');
+  });
+
+  /** A retry is not a second Bonus Action. */
+  it('counts a repeated command id once', () => {
+    const table = inTheWoods('goblin-warrior', GOBLIN);
+    table.did('the goblin slips away', (s) =>
+      takeStatedBonusAction(s, GOBLIN, { line: 'Nimble Escape', commandId: 'escape' }),
+    );
+    const retry = unwrap(taking(table, GOBLIN, 'Nimble Escape', 'escape'), 'the retry');
+    expect(retry.events).toEqual([]);
+    expect(retry.duplicate).toBe(true);
+    expect(table.events.filter((e) => e.type === 'stated-bonus-action-taken')).toHaveLength(1);
+  });
+
+  /**
+   * **A log with none of this in it folds exactly as it did.** The event is
+   * additive and optional, and a creature that never took a printed Bonus
+   * Action has nothing in the ledger to show for it.
+   */
+  it('leaves a turn nobody spent one on exactly where it was', () => {
+    const table = inTheWoods('goblin-warrior', GOBLIN);
+    expect(usedBy(table.state, GOBLIN)).toEqual([]);
+    expect(table.state.combat?.budgets[GOBLIN]?.bonusAction).toBe(true);
+  });
+});
+
+/**
+ * **A branch the block gates on one of those lines.**
+ *
+ * SRD Clay Golem: "The golem makes two Slam attacks, or it makes three Slam
+ * attacks **if it used Hasten this turn**." The sentence went unread for as
+ * long as nothing could evaluate the clause, and the reason is arithmetic: the
+ * Attack action's size is the largest branch it is offered, so a gated branch
+ * read with nothing to gate it hands the golem three Slams every turn — an
+ * attack the book gates, given away free.
+ *
+ * So the size of the action is the largest branch the creature is **offered
+ * right now**: two on an ordinary turn, three on a turn it took the line. The
+ * sheet pins the unconditional reading, and the gate is read off the ledger by
+ * the swing that spends the action and by the fold that re-spends it, which
+ * are the same question asked with the same inputs.
+ */
+describe('a Multiattack branch gated on a printed Bonus Action', () => {
+  const GATED: MonsterMultiattack = {
+    alternatives: [
+      [{ count: 2, attack: 'Slam' }],
+      {
+        entries: [{ count: 3, attack: 'Slam' }],
+        requires: { usedBonusAction: HASTEN },
+      },
+    ],
+  };
+
+  const swinging = (table: Table, who: CharacterId, dice = supply('clay')) =>
+    (action: string, commandId?: string) =>
+      table.did(`${who} swings ${action}`, (s) =>
+        resolveAttack(
+          s,
+          who,
+          { target: BREN, weapon: null, action, ...(commandId === undefined ? {} : { commandId }) },
+          dice,
+        ),
+      );
+
+  const refused = (table: Table, who: CharacterId, action: string): string => {
+    const out = resolveAttack(table.state, who, { target: BREN, weapon: null, action }, supply('clay'));
+    return isErr(out) ? out.code : 'ok';
+  };
+
+  const hasten = (table: Table) =>
+    table.did('the golem hastens', (s) =>
+      takeStatedBonusAction(s, GOLEM, { line: HASTEN, commandId: 'hasten' }),
+    );
+
+  it('states the alternation the block prints, gate and all', () => {
+    const golem = adaptMonster(statBlock('clay-golem'), GOLEM);
+    expect(golem.sheet.stated?.multiattack).toEqual(GATED);
+  });
+
+  /**
+   * **The number pinned onto the sheet is the unconditional one.** It is read
+   * at the moment the creature arrives, when nothing has been spent and no turn
+   * has begun, so a maximum taken over the gated branch there would be the free
+   * third Slam written onto the creature for the rest of the game.
+   */
+  it('pins the action at the size the gate does not buy', () => {
+    expect(adaptMonster(statBlock('clay-golem'), GOLEM).sheet.attacksPerAction).toBe(2);
+  });
+
+  /** The failure mode this exists to prevent: two Slams, when nothing was spent. */
+  it('holds the Attack action to two Slams on a turn with no Hasten in it', () => {
+    const table = inTheWoods('clay-golem', GOLEM);
+    const slam = swinging(table, GOLEM);
+    slam('Slam', 'one');
+    slam('Slam', 'two');
+    expect(table.state.combat?.budgets[GOLEM]?.attacksRemaining).toBe(0);
+    expect(refused(table, GOLEM, 'Slam')).toBe('not_in_multiattack');
+  });
+
+  it('holds it to three on a turn the golem took the line', () => {
+    const table = inTheWoods('clay-golem', GOLEM);
+    hasten(table);
+    const slam = swinging(table, GOLEM);
+    slam('Slam', 'one');
+    expect(table.state.combat?.budgets[GOLEM]?.attacksRemaining).toBe(2);
+    slam('Slam', 'two');
+    slam('Slam', 'three');
+    expect(
+      table.events.filter((e) => e.type === 'roll-recorded' && e.label === 'Slam attack'),
+    ).toHaveLength(3);
+    // And no more than three: the branch the gate opened is a ceiling too.
+    expect(refused(table, GOLEM, 'Slam')).toBe('not_in_multiattack');
+  });
+
+  /**
+   * **And the gate shuts when the turn it was opened on ends.**
+   *
+   * The ledger records the *turn* each key was spent on, because "once per
+   * turn" is a question about a turn rather than a flag anybody clears. Two
+   * things shut the gate afterwards and they are not the same thing: the
+   * creature's budget is replaced when its own next turn begins, and the reader
+   * asks which turn the key belongs to — which is what covers the window where
+   * the budget has *not* been replaced, because it is somebody else's turn.
+   * This is the end-to-end half; the reader's own half is below it.
+   */
+  it('shuts again once the turn the line was taken on is over', () => {
+    const table = inTheWoods('clay-golem', GOLEM);
+    hasten(table);
+    expect(
+      statedBonusActionsUsed(
+        table.state.combat?.budgets[GOLEM]?.featureUsedOnTurn ?? {},
+        table.state.combat?.turnsTaken ?? 0,
+      ),
+    ).toEqual([HASTEN]);
+
+    table.did('the golem ends its turn', (s) =>
+      resolveTurn(s, supply('clay'), { commandId: 'golem-ends' }),
+    );
+    table.did('Bren ends his', (s) => resolveTurn(s, supply('clay'), { commandId: 'bren-ends' }));
+    expect(table.state.combat?.order[table.state.combat.turnIndex]?.id).toBe(GOLEM);
+
+    expect(
+      statedBonusActionsUsed(
+        table.state.combat?.budgets[GOLEM]?.featureUsedOnTurn ?? {},
+        table.state.combat?.turnsTaken ?? 0,
+      ),
+    ).toEqual([]);
+
+    const slam = swinging(table, GOLEM);
+    slam('Slam', 'one');
+    slam('Slam', 'two');
+    expect(refused(table, GOLEM, 'Slam')).toBe('not_in_multiattack');
+  });
+
+  /**
+   * **And the reader asks which turn, rather than whether.**
+   *
+   * A creature's budget is replaced at the start of its *own* next turn, so
+   * between those two moments its ledger still holds the keys it spent — that
+   * is exactly why `featureUsedOnTurn` stores a turn rather than a flag, and
+   * why a Rogue may Sneak Attack again on somebody else's turn. A reader that
+   * took a key's presence for an answer would report a line taken two rounds
+   * ago as taken now.
+   */
+  it('reads the ledger for this turn and not for any turn', () => {
+    const ledger = { [`stated-bonus-action:${HASTEN}`]: 4 };
+    expect(statedBonusActionsUsed(ledger, 4)).toEqual([HASTEN]);
+    expect(statedBonusActionsUsed(ledger, 5)).toEqual([]);
+    // And a key that is somebody else's — a feature's own once-per-turn mark —
+    // is none of this reader's business whichever turn it was spent on.
+    expect(statedBonusActionsUsed({ 'rogue:sneak-attack': 4 }, 4)).toEqual([]);
+  });
+
+  /**
+   * And the gate reads the line's own name off the ledger. A creature that
+   * spent its Bonus Action on something else has not opened it — which is what
+   * makes this a gate rather than a second reading of the Bonus Action budget.
+   */
+  it('is opened by that line and by nothing else', () => {
+    expect(multiattackAllows(GATED, { Slam: 3 }, [])).toBe(false);
+    expect(multiattackAllows(GATED, { Slam: 3 }, ['Nimble Escape'])).toBe(false);
+    expect(multiattackAllows(GATED, { Slam: 3 }, [HASTEN])).toBe(true);
+    // The ungated branch is offered either way.
+    expect(multiattackAllows(GATED, { Slam: 2 }, [])).toBe(true);
+    expect(multiattackAllows(GATED, { Slam: 2 }, [HASTEN])).toBe(true);
+  });
+
+  /**
+   * And the refusal quotes the whole sentence back, gate included, because a
+   * caller told only "three Slams is not what is left of it" would not know
+   * there was a way to have three.
+   */
+  it('says what the gated branch requires when it refuses', () => {
+    const table = inTheWoods('clay-golem', GOLEM);
+    const slam = swinging(table, GOLEM);
+    slam('Slam', 'one');
+    slam('Slam', 'two');
+    const out = resolveAttack(
+      table.state,
+      GOLEM,
+      { target: BREN, weapon: null, action: 'Slam' },
+      supply('clay'),
+    );
+    expect(isErr(out) ? out.reason : '').toContain(HASTEN);
   });
 });

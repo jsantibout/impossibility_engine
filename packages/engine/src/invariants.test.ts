@@ -106,6 +106,7 @@ import {
   takeDamageResponse,
   takeOpportunityAttack,
   takeReady,
+  takeStatedBonusAction,
   takeTestReaction,
   tradeResource,
   unequipItem,
@@ -295,6 +296,26 @@ const SETUP: readonly GameEvent[] = [
  */
 const OUT_OF_COMBAT: readonly GameEvent[] = SETUP.filter(
   (event) => event.type !== 'combat-started',
+);
+
+/** A line a stat block prints under Bonus Actions, in the shape a sheet holds one. */
+const PRINTED_LINE = {
+  name: 'A Printed Line',
+  text: 'The creature does something the engine applies no part of.',
+} as const;
+
+/**
+ * The same world with that line on A's sheet, and nothing else changed.
+ *
+ * Derived from `SETUP` by replacing the arrival rather than by writing a
+ * second setup, so the fixture cannot drift into being a different world — and
+ * the line is invented here rather than lifted off a stat block because the
+ * sweep is about the command's identity and not about any block.
+ */
+const LINED: readonly GameEvent[] = SETUP.map((event) =>
+  event.type === 'creature-added' && event.id === A
+    ? { ...event, sheet: sheet({ stated: { bonusActions: [PRINTED_LINE] } }) }
+    : event,
 );
 
 /**
@@ -1277,6 +1298,11 @@ const GUARDED: readonly Guarded[] = [
     name: 'healCreature',
     log: [...SETUP, ...unwrap(damageCreature(fold('s', SETUP), B, { amount: 30, source: 'a trap' }), 'd')],
     run: (s, commandId) => healCreature(s, B, 5, { commandId }),
+  },
+  {
+    name: 'takeStatedBonusAction',
+    log: LINED,
+    run: (s, commandId) => takeStatedBonusAction(s, A, { line: PRINTED_LINE.name, commandId }),
   },
   { name: 'takeDash', log: SETUP, run: (s, commandId) => takeDash(s, A, { commandId }) },
   { name: 'takeDisengage', log: SETUP, run: (s, commandId) => takeDisengage(s, A, { commandId }) },
@@ -2340,6 +2366,16 @@ const SPENDERS: readonly Spender[] = [
     run: (s) => dismountRider(s, B, { from: { creature: A }, feet: 5, bearing: 180 }),
   },
   { name: 'useFreeObjectInteraction', run: (s) => useFreeObjectInteraction(s, B) },
+  /**
+   * A line a stat block prints under Bonus Actions. SRD spends a Bonus Action
+   * on one, and a creature owing a mandatory area effect may not spend it. The
+   * line need not be printed on anything: `mayAct` is asked immediately after
+   * the duplicate check and before the sheet is read at all.
+   */
+  {
+    name: 'takeStatedBonusAction',
+    run: (s) => takeStatedBonusAction(s, B, { line: 'A Printed Line' }),
+  },
   /**
    * A wand's charge. It spends no Action here — what a charge *buys* is not
    * resolved from an item yet — but it takes a pool use, which is the sweep's

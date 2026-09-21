@@ -61,6 +61,7 @@ import {
   type Placement,
   type Point,
 } from '../positioning.js';
+import { statedBonusActionOf } from '../monster.js';
 import { type SlotKind } from '../resources.js';
 import { type Content } from '../content.js';
 import { durationSecondsAt } from '../spell-definitions.js';
@@ -225,6 +226,114 @@ export function takeDisengage(
       { type: 'disengage-taken', id, ...(stamp === null ? {} : { command: stamp }) },
     ]);
   });
+}
+
+/** Which line the caller is taking, by the heading the block prints it under. */
+export interface StatedBonusActionCommand extends CommandIdentity {
+  readonly line: string;
+}
+
+export interface StatedBonusActionOutcome {
+  readonly events: readonly GameEvent[];
+  /**
+   * What the line says, handed back rather than applied — see
+   * `AttackResolution.unverified`.
+   *
+   * **Always, and that is the whole report.** The SRD prints seventy-five of
+   * these lines and the engine executes none of them: they cast a spell, force
+   * a saving throw, take another action, move, shape-shift, teleport, or are
+   * prose. A spend that said only "the Bonus Action is gone" would leave a
+   * caller believing the creature had done something.
+   */
+  readonly unverified: readonly string[];
+  readonly duplicate: boolean;
+}
+
+/**
+ * Take one of the lines a creature's stat block prints under **Bonus
+ * Actions**.
+ *
+ * It spends the Bonus Action, writes down which line was taken, and hands the
+ * sentence back. It executes nothing: a line that casts Misty Step does not
+ * cast it here, a line that forces a save does not roll it, and a line that
+ * says the creature Dashes does not Dash — those are seven mechanisms wearing
+ * one heading, and half of one of them would be worse than none. Making the
+ * spend visible is what this is for, because until it existed the seventy-five
+ * lines the book prints were a section of the stat block nothing above the
+ * engine could touch.
+ *
+ * **Which line is recorded because something reads it.** A Multiattack the
+ * book gates on one — "three Slam attacks if it used Hasten this turn" — has
+ * no other way to ask, and the ledger it asks is the once-per-turn one every
+ * other per-turn count already uses.
+ *
+ * **What it does not enforce is what the engine enforces nowhere**: a heading
+ * that carries a recharge or a per-day limit is spent here as often as the
+ * turn economy allows, exactly as a printed attack on a recharge is swung.
+ * That is one gap rather than a new one, and it belongs to whoever builds the
+ * recharge.
+ */
+export function takeStatedBonusAction(
+  state: GameState,
+  id: CharacterId,
+  command: StatedBonusActionCommand,
+): Result<StatedBonusActionOutcome> {
+  return once(
+    state,
+    `stated-bonus-action:${id}`,
+    command,
+    () => ({ events: [], unverified: [], duplicate: true }),
+    (stamp) => {
+      // A mandatory effect this creature has been caught by, or a turn whose
+      // start has not arrived. **After the duplicate check, never before it.**
+      const owedHere = mayAct(state, id);
+      if (owedHere !== null) return owedHere;
+
+      const creature = creatureOf(state, id);
+      if (creature === null) return unknownCreature(id, 'has no record here yet; add it first');
+      if (state.combat === null) {
+        return err('not_in_combat', 'there is no Bonus Action to spend outside combat');
+      }
+
+      // Read off the sheet, which is where `creature-added` pinned the block's
+      // own lines; nothing here opens a catalogue and nothing branches on the
+      // name it finds.
+      const line = statedBonusActionOf(creature.sheet, command.line);
+      if (line === null) {
+        return err(
+          'no_such_line',
+          `no Bonus Action called ${command.line} is printed on this creature's stat block`,
+        );
+      }
+
+      // SRD: "You can't take more than one Bonus Action on a turn", which is
+      // the primitive's own rule and the reason nothing else has to say it —
+      // so a second line in one turn is refused here, whichever line it is.
+      const spent = spendBonusAction(state.combat, id, creature.conditions, {
+        rules: actionRulesOn(state, id),
+      });
+      if (!spent.ok) return spent;
+
+      return ok({
+        events: [
+          { type: 'bonus-action-spent', id },
+          {
+            type: 'stated-bonus-action-taken',
+            id,
+            // The **printed** heading rather than what the caller typed, so the
+            // log and the block say the same string however it was asked for.
+            line: line.name,
+            turn: state.combat.turnsTaken,
+            ...(stamp === null ? {} : { command: stamp }),
+          },
+        ],
+        unverified: [
+          `${id}'s block prints "${line.name}: ${line.text}" — the engine does not apply that; a DM does`,
+        ],
+        duplicate: false,
+      });
+    },
+  );
 }
 
 /**

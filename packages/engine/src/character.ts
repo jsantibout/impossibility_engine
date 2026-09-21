@@ -84,6 +84,20 @@ export interface StatedAttack extends MonsterAttack {
 }
 
 /**
+ * One line a stat block prints under **Bonus Actions**, as printed.
+ *
+ * The heading and the sentence, and nothing derived from either. A caller
+ * names the line by its heading — including whatever the book prints inside it
+ * — exactly as a caller names a printed attack, so the string a log carries
+ * and the string the block prints are one.
+ */
+export interface StatedBonusAction {
+  readonly name: string;
+  /** The book's sentence, verbatim, because a spend reports it. */
+  readonly text: string;
+}
+
+/**
  * Values a stat block states outright instead of deriving.
  *
  * A character's Armour Class follows from what they are wearing and their
@@ -149,6 +163,30 @@ export interface StatedValues {
    * a sequence names an attack that exists.
    */
   readonly multiattack?: MonsterMultiattack;
+  /**
+   * The lines the block prints under **Bonus Actions**, in printed order.
+   *
+   * A name and the book's sentence, which is the whole of what one of these
+   * lines *is*: the SRD prints seventy-five of them and not one prints an
+   * attack roll, so there is no structure under the heading for a parser to
+   * carry — they cast a spell, force a saving throw, take another action,
+   * move, shape-shift, teleport, or are prose.
+   *
+   * **The sentence is here, and that is the difference between this and
+   * {@link unreadActions} above.** That field holds names alone because the
+   * Actions lines it covers are a report about an absence and their prose is
+   * kilobytes. A line here is spent deliberately by a caller who then has to
+   * be told what it says: the engine applies none of it, so a spend that did
+   * not hand the sentence back would be a creature doing something nobody
+   * could act on.
+   *
+   * Nothing branches on a name. A caller names a line, `statedBonusActionOf`
+   * finds it, and the name is written into the log — the same way a printed
+   * attack is named and for the same reason.
+   *
+   * Absent for every character and for a block that prints none.
+   */
+  readonly bonusActions?: readonly StatedBonusAction[];
   /**
    * The **names** of the Actions lines the parser read nothing out of.
    *

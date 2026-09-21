@@ -292,6 +292,7 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'spell-origin-moved',
   'spellcasting-declared',
   'stabilised',
+  'stated-bonus-action-taken',
   'temporary-hp-cleared',
   'temporary-hp-granted',
   'test-reaction-answered',

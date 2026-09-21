@@ -234,6 +234,47 @@ export const MonsterMultiattackEntrySchema = z
 export type MonsterMultiattackEntry = z.infer<typeof MonsterMultiattackEntrySchema>;
 
 /**
+ * What must already have happened this turn for a branch to be offered.
+ *
+ * One member, and it is the only gate the SRD prints: the Clay Golem's "three
+ * Slam attacks **if it used Hasten this turn**". `usedBonusAction` is the
+ * heading of a line the same block prints under Bonus Actions, bound before it
+ * reaches this shape — a name, and never a mechanism read out of what that
+ * line says.
+ */
+export const MonsterMultiattackGateSchema = z.object({
+  usedBonusAction: z.string().min(1),
+});
+export type MonsterMultiattackGate = z.infer<typeof MonsterMultiattackGateSchema>;
+
+/**
+ * One branch of an alternation: a bare sequence, or one the sentence gates.
+ *
+ * **A union rather than a field, so that every sequence pinned before the gate
+ * existed is still a branch this reads.** An alternation is a list of branches
+ * and it always was; what is new is that a branch may say what it requires, and
+ * the ungated form is the array it has always been.
+ */
+export const MonsterMultiattackBranchSchema = z.union([
+  z.array(MonsterMultiattackEntrySchema).min(1),
+  z.object({
+    entries: z.array(MonsterMultiattackEntrySchema).min(1),
+    requires: MonsterMultiattackGateSchema,
+  }),
+]);
+export type MonsterMultiattackBranch = z.infer<typeof MonsterMultiattackBranchSchema>;
+
+/** The clauses one branch holds, whichever of the two shapes it is written in. */
+export const entriesOfBranch = (
+  branch: MonsterMultiattackBranch,
+): readonly MonsterMultiattackEntry[] => (Array.isArray(branch) ? branch : branch.entries);
+
+/** What that branch requires, or null where it requires nothing. */
+export const gateOfBranch = (
+  branch: MonsterMultiattackBranch,
+): MonsterMultiattackGate | null => (Array.isArray(branch) ? null : branch.requires);
+
+/**
  * The sequence a Multiattack prints, where the sentence states one.
  *
  * SRD Air Elemental: "The elemental makes two Thunderous Slam attacks." A
@@ -260,22 +301,35 @@ export type MonsterMultiattackEntry = z.infer<typeof MonsterMultiattackEntrySche
  *   a sequence prints has always been legal — so this is reported rather than
  *   spent, and a DM applies it.
  *
- * Absent for the sentences that still say something else: a branch gated on a
- * Bonus Action the engine does not read (the Clay Golem's Hasten), a use in
- * the middle of the sequence rather than trailing it (the Roper's Reel) and a
- * count that reads off a fact nobody has declared (the Hydra's heads). Each of
- * those is a mechanism of its own, and half of one read into this shape would
- * be a rule nobody printed.
+ * A branch of an alternation may be **gated**, which is the Clay Golem's "or
+ * it makes three Slam attacks if it used Hasten this turn": a sequence the
+ * creature is offered only on a turn it took the line the gate names. The gate
+ * and the branch are one value because they have to arrive together — a branch
+ * read without a gate anything could evaluate is three Slams given away free,
+ * which is the whole reason the sentence went unread until the spend existed.
+ *
+ * Absent for the sentences that still say something else: a use in the middle
+ * of the sequence rather than trailing it (the Roper's Reel) and a count that
+ * reads off a fact nobody has declared (the Hydra's heads). Each of those is a
+ * mechanism of its own, and half of one read into this shape would be a rule
+ * nobody printed.
  */
 export const MonsterMultiattackSchema = z
   .object({
     entries: z.array(MonsterMultiattackEntrySchema).min(1).optional(),
-    alternatives: z.array(z.array(MonsterMultiattackEntrySchema).min(1)).min(2).optional(),
+    alternatives: z.array(MonsterMultiattackBranchSchema).min(2).optional(),
     handOver: z.string().min(1).optional(),
   })
   .refine(
     (m) => (m.entries === undefined) !== (m.alternatives === undefined),
     'a Multiattack states one sequence or a choice of them, never both and never neither',
+  )
+  .refine(
+    (m) => m.alternatives === undefined || m.alternatives.some((b) => gateOfBranch(b) === null),
+    // A creature whose every branch is gated has no Attack action on an
+    // ordinary turn, which is not a thing the book prints — and reading one
+    // would leave `sequenceTotal` taking a maximum over nothing.
+    'an alternation offers at least one sequence nothing gates',
   );
 export type MonsterMultiattack = z.infer<typeof MonsterMultiattackSchema>;
 

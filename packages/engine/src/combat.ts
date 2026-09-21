@@ -1275,6 +1275,35 @@ export function canUseFeatureThisTurn(
   return budget.featureUsedOnTurn[feature] !== state.turnsTaken;
 }
 
+/**
+ * The namespaces the **engine itself** writes into the once-per-turn ledger.
+ *
+ * `featureUsedOnTurn` is one map keyed by a string, and three things write
+ * into it: a feature's own id, which is content's; a swing inside a stated
+ * sequence; a weapon property's allowance; and a printed Bonus Action line the
+ * creature took. The last three are namespaced so that a reader can pick its
+ * own entries out again — and a *reader* is the half a write-side convention
+ * does not cover. `statedBonusActionsUsed` filters on the third of these and
+ * hands what it finds to a gated Multiattack, so a feature whose id began
+ * `stated-bonus-action:` would open a branch the book gates behind a line the
+ * creature never took.
+ *
+ * So the namespaces are reserved: `checkFeatureDefinition` refuses a content
+ * id in one of them. Reserved rather than the readers being made defensive,
+ * because the ledger is one key space and the question "whose key is this" has
+ * to have one answer.
+ */
+export const MULTIATTACK_LEDGER = 'multiattack:';
+export const STATED_BONUS_ACTION_LEDGER = 'stated-bonus-action:';
+export const WEAPON_MASTERY_LEDGER = 'weapon-mastery:';
+
+/** All of them, for the validator that keeps content out. */
+export const RESERVED_LEDGER_NAMESPACES: readonly string[] = [
+  MULTIATTACK_LEDGER,
+  STATED_BONUS_ACTION_LEDGER,
+  WEAPON_MASTERY_LEDGER,
+];
+
 export function markFeatureUsed(
   state: CombatState,
   id: CharacterId,

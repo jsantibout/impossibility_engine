@@ -5,6 +5,11 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { isErr } from '@ie/shared';
 import { spellById } from '@ie/srd';
+import {
+  MULTIATTACK_LEDGER,
+  RESERVED_LEDGER_NAMESPACES,
+  STATED_BONUS_ACTION_LEDGER,
+} from './combat.js';
 import { MAX_LEVEL, type FeatureDefinition } from './progression.js';
 import {
   checkFeatureDefinition,
@@ -150,6 +155,38 @@ describe('rule 1 — ids are unique and namespaced', () => {
     expect(codes({ ...sound, id: 'a-sound-feature' })).toContain('bad_feature_id');
     expect(codes({ ...sound, id: 'Wizard:Scholar' })).toContain('bad_feature_id');
     expect(codes(sound)).not.toContain('bad_feature_id');
+  });
+
+  /**
+   * **And not a namespace the engine keeps for its own turn ledger.**
+   *
+   * `featureUsedOnTurn` is one map: a feature's id goes in it the moment
+   * something is spent once per turn, and so do the engine's own per-turn
+   * entries, behind a prefix. `statedBonusActionsUsed` reads one of those
+   * prefixes back out and hands what it finds to a Multiattack branch the book
+   * gates on a printed Bonus Action — so a feature id inside that prefix would
+   * open the gate with a class feature. The write side was always the engine's;
+   * this is the read side, which a convention cannot cover.
+   */
+  it('reports an id in a namespace the engine writes into the turn ledger', () => {
+    for (const namespace of RESERVED_LEDGER_NAMESPACES) {
+      expect(codes({ ...sound, id: `${namespace}something` })).toContain(
+        'reserved_feature_namespace',
+      );
+    }
+    expect(codes(sound)).not.toContain('reserved_feature_namespace');
+    // And the list is the one the readers actually use, rather than a copy of
+    // it: the gate reads this prefix and the sequence slots read the other.
+    expect(RESERVED_LEDGER_NAMESPACES).toContain(STATED_BONUS_ACTION_LEDGER);
+    expect(RESERVED_LEDGER_NAMESPACES).toContain(MULTIATTACK_LEDGER);
+  });
+
+  /** And no feature the engine ships is in one, which is the same claim of the catalogue. */
+  it('has no feature anywhere in the engine inside a reserved namespace', () => {
+    const inside = POPULATION.map((entry) => entry.feature.id).filter((id) =>
+      RESERVED_LEDGER_NAMESPACES.some((namespace) => id.startsWith(namespace)),
+    );
+    expect(inside).toEqual([]);
   });
 
   it('reports a shared id, and accepts a population with none', () => {
