@@ -7,7 +7,7 @@ import { actionRulesOn } from './standing.js';
 import { takeDash, takeDisengage } from './commands.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
 import { checkFeatureDefinition } from './feature-schema.js';
-import { READABLE_FEATURE_FIELDS, READABLE_GRANT_KINDS } from './content.js';
+import { loadContent, READABLE_FEATURE_FIELDS, READABLE_GRANT_KINDS } from './content.js';
 import { MAX_LEVEL, type FeatureDefinition } from './progression.js';
 
 /**
@@ -361,5 +361,97 @@ describe('a feature may not hold a price no command charges', () => {
 
   it('refuses a rule that forbids nothing at all', () => {
     expect(codes({ kind: 'forbids' })).toContain('bad_action_rule');
+  });
+
+  /**
+   * **Both spellings of a standing effect**, because there are two and
+   * creation compiles both onto the sheet: `standing.effects` and an
+   * `activated` grant's `whileActive`. A guard on one of them is a rule
+   * enforced on whichever spelling the author happened not to use.
+   */
+  it('asks the same of a rule that runs only while the feature is active', () => {
+    const whileRaging = (rule: unknown): FeatureDefinition =>
+      ({
+        id: 'brigand:reckless-dash',
+        name: 'Reckless Dash',
+        level: 2,
+        automation: 'engine',
+        note: 'A homebrew class whose switched-on feature buys an action cheaply.',
+        grants: {
+          kind: 'activated',
+          feature: 'brigand:reckless-dash',
+          action: 'bonus-action',
+          pool: null,
+          lasts: 'end-of-next-turn',
+          whileActive: [{ kind: 'action-rule', rule }],
+        },
+      }) as FeatureDefinition;
+
+    const codesOf = (rule: unknown): readonly string[] =>
+      checkFeatureDefinition(whileRaging(rule), {
+        levels: MAX_LEVEL,
+        readableGrants: READABLE_GRANT_KINDS,
+        readableFields: READABLE_FEATURE_FIELDS,
+        spellExists: () => true,
+      }).map((problem) => problem.code);
+
+    expect(codesOf({ kind: 'allows', action: 'dash', from: 'bonus-action' })).toEqual([]);
+    expect(codesOf({ kind: 'allows', action: 'dodge', from: 'bonus-action' })).toContain(
+      'bad_action_rule',
+    );
+  });
+});
+
+/**
+ * And the third door onto the same vocabulary: a magic item.
+ *
+ * `ITEM_EFFECT_KINDS` admits `action-rule` because `itemStandingOf` feeds a
+ * worn item's pinned grants into `standingFor`, which is where `actionRulesOn`
+ * reads them — so boots whose wearer may Dash out of a Bonus Action are
+ * executed rather than transcribed and ignored. The same admission is what
+ * makes the guard necessary, and one case is worse here than on a feature: a
+ * rule that is not an object at all reaches `allowsPrice`, which reads its
+ * `kind`, and a content error would arrive as an exception rather than as the
+ * refusal rule 6 asks for.
+ */
+describe('an item may not grant a rule nothing reads either', () => {
+  const boots = (effect: unknown): string =>
+    JSON.stringify({
+      items: [
+        {
+          id: 'boots-of-the-quick',
+          name: 'Boots of the Quick',
+          kind: 'gear',
+          priceCopper: 100,
+          weightLb: 1,
+          grants: [{ kind: 'standing', reach: 'self', effects: [effect] }],
+        },
+      ],
+    });
+
+  const codesOf = (effect: unknown): readonly string[] => {
+    const loaded = loadContent(JSON.parse(boots(effect)) as Parameters<typeof loadContent>[0]);
+    return isErr(loaded) ? [loaded.code, loaded.reason] : [];
+  };
+
+  it('takes a price a command charges', () => {
+    expect(codesOf({ kind: 'action-rule', rule: { kind: 'allows', action: 'dash', from: 'bonus-action' } })).toEqual([]);
+  });
+
+  // `loadContent` reports one refusal for the whole file, so what a test can
+  // read is the sentence: the path to the clause and the reason for it.
+  it('refuses one no command charges', () => {
+    const said = codesOf({
+      kind: 'action-rule',
+      rule: { kind: 'allows', action: 'dodge', from: 'bonus-action' },
+    }).join(' ');
+    expect(said).toContain('grants[0].effects[0].rule');
+    expect(said).toContain('no command will charge bonus-action for the dodge action');
+  });
+
+  it('refuses a rule that is no rule, rather than throwing at the first spend', () => {
+    expect(codesOf({ kind: 'action-rule' }).join(' ')).toContain(
+      'a rule about a turn is an object saying what it forbids, permits or allows',
+    );
   });
 });

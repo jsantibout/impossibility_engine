@@ -774,18 +774,27 @@ export function checkFeatureDefinition(
   // d12s and escalating by d8s has no single answer. The resolver refuses it
   // (`mismatched_backlash_dice`) and this refuses it at the door, which is
   // where a catalogue error belongs.
-  if (grant?.kind === 'standing') {
-    // **And the rule a feature holds about a turn, asked of the one
-    // validator.** `action-rule` is `combat.ts`'s vocabulary written on a
-    // class table, and the sentence that refuses a spell's allowance refuses a
-    // feature's for the same reason: a price no command will charge is a
-    // clause that validates, compiles onto the sheet, is handed back by
-    // `actionRulesOn` and is honoured by nothing.
-    (grant.effects ?? []).forEach((effect, index) => {
+  // **The rule a feature holds about a turn, asked of the one validator, on
+  // both spellings of a standing effect.** `action-rule` is `combat.ts`'s
+  // vocabulary written on a class table, and the sentence that refuses a
+  // spell's allowance refuses a feature's for the same reason: a price no
+  // command will charge is a clause that validates, compiles onto the sheet,
+  // is handed back by `actionRulesOn` and is honoured by nothing.
+  //
+  // `standing.effects` and `activated.whileActive` are both `StandingGrant[]`
+  // and creation compiles both onto the sheet, so a guard on one of them is a
+  // rule enforced on whichever spelling the author happened not to use.
+  for (const [at, effects] of [
+    ['grants.effects', grant?.kind === 'standing' ? grant.effects : undefined],
+    ['grants.whileActive', grant?.kind === 'activated' ? grant.whileActive : undefined],
+  ] as const) {
+    (effects ?? []).forEach((effect, index) => {
       if (effect.kind !== 'action-rule') return;
-      checkActionRule(effect.rule, `grants.effects[${index}].rule`, found);
+      checkActionRule(effect.rule, `${at}[${index}].rule`, found);
     });
+  }
 
+  if (grant?.kind === 'standing') {
     (grant.effects ?? []).forEach((effect, index) => {
       if (effect.kind !== 'casting-damage') return;
       const at = `grants.effects[${index}]`;
