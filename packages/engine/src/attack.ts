@@ -52,6 +52,20 @@ export interface ExtraDamage {
   readonly type: string;
   readonly dice?: string;
   readonly flat?: number;
+  /**
+   * Per-die rules that are **this component's own**, on top of whatever
+   * {@link AttackOptions.damageEffects} says about the whole roll.
+   *
+   * The two scopes are different sentences and both are printed. SRD Great
+   * Weapon Fighting is about the attack — "you can treat any 1 or 2 on a damage
+   * die as a 3" — and reaches every die the swing throws, which is
+   * `damageEffects`. SRD Sorcerous Burst is about one spell — "If you roll an 8
+   * on a d8 **for this spell**" — and a casting's damage roll is not all one
+   * spell's: a Hunter's Mark die granted by somebody else's casting rides along
+   * in the same call and is nobody's business here. So a rule declared by a
+   * spell travels on the component its own notation rolls.
+   */
+  readonly effects?: readonly DieEffect[];
 }
 
 /**
@@ -1017,7 +1031,16 @@ function rollAddedDamage(
     if (extra.dice !== undefined) {
       const notation = doubledOnCrit(extra.dice, critical);
       if (!notation.ok) return notation;
-      const outcome = rollRecorded(issuer, rng, notation.value, effects);
+      // The attack's rules first, then this component's own — see
+      // `ExtraDamage.effects`. Order matters only to a substitution, and the
+      // attack's is what the die "shows" as far as anything narrower is
+      // concerned.
+      const outcome = rollRecorded(
+        issuer,
+        rng,
+        notation.value,
+        extra.effects === undefined ? effects : [...effects, ...extra.effects],
+      );
       if (!outcome.ok) return outcome;
       roll = outcome.value;
     }

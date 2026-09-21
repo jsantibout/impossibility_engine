@@ -162,6 +162,61 @@ export interface DiceScaling {
   readonly perSlotLevelAbove?: string;
 }
 
+/**
+ * How many extra dice a {@link DieRule} may add, **named as a derivation
+ * rather than written as a number**.
+ *
+ * SRD: "the maximum number of these d8s you can add to the spell's damage
+ * equals your spellcasting ability modifier." That is a fact about whoever is
+ * casting and not about the spell, so a definition carrying a literal would be
+ * a catalogue stating a number only the sheet can answer for — the same
+ * mistake `addSpellcastingModifier` exists to avoid on the addend beside it.
+ * The engine derives it from the numbers the casting pinned.
+ *
+ * One member, because the SRD writes one sentence of this shape. A cap counted
+ * off a class table, or off the slot, is a second member the day something
+ * prints one.
+ */
+export type DieRuleCap = 'spellcasting-modifier';
+
+/**
+ * What a spell says about the **individual dice** of its own damage.
+ *
+ * `dice.ts` has addressed dice one at a time since it was written — every
+ * `DieRoll` records what it showed, what it counts as and what became of it —
+ * and until this field there was no way for a catalogue to ask for any of it.
+ * A spell's damage went in as a notation and came back as a total, so SRD
+ * Sorcerous Burst's "If you roll an 8 on a d8 for this spell, you can roll
+ * another d8" was a sentence the format could not hold.
+ *
+ * **The scope is the spell's own dice.** "For this spell" is the SRD's phrase
+ * and it is load-bearing: a casting's damage roll may carry dice that are not
+ * this spell's at all — SRD Hunter's Mark hangs a d6 on the caster that rides
+ * along with every attack roll they make — and a rule about a d8 this spell
+ * threw has nothing to say about a Ranger's d6. So the rule reaches the
+ * component the definition's own notation rolls, and every other component of
+ * the same roll is left alone. A rule about *the attack*, rather than about
+ * one spell — SRD Great Weapon Fighting's "any 1 or 2 on a damage die" — is
+ * `AttackOptions.damageEffects`, which is the other scope and a different
+ * sentence.
+ *
+ * **One arm, because the SRD prints one spell sentence of this shape.** The
+ * substitution and the reroll `dice.ts` also builds are a fighting style's and
+ * a Metamagic's, and neither has a definition that could write one; an arm
+ * here for either would be shape ahead of a writer, which is what the format's
+ * own unused-member sweep exists to refuse. It is a tagged union of one so the
+ * second arrives beside the first rather than instead of it.
+ */
+export type DieRule = {
+  /**
+   * SRD Sorcerous Burst: a die showing its maximum face adds another die of
+   * the same size, and an added die can do it again — which is what "if you
+   * roll an 8 on a d8 for this spell" means for the dice the spell added.
+   */
+  readonly kind: 'bonus-die-on-max';
+  readonly cap: DieRuleCap;
+};
+
 /** What a spell does to a target it reaches. */
 /**
  * How long a rider lasts, when it ends at a moment in the turn order.
@@ -1890,6 +1945,23 @@ export interface SpellDefinition {
    * that evidence; it is.
    */
   readonly damageTypeStated?: readonly string[];
+  /**
+   * How the individual dice of this spell's damage behave — see
+   * {@link DieRule}.
+   *
+   * **On the definition rather than on an effect**, because the SRD's sentence
+   * is about the spell: "If you roll an 8 on a d8 **for this spell**". A spell
+   * whose damage arrives at two targets by two different branches — an attack
+   * that hits, and the splash a miss still deals — prints the clause once, and
+   * a field per effect would make a definition say it twice and let the two
+   * copies disagree.
+   *
+   * Refused on a definition that rolls no damage of its own
+   * (`die_rule_rolls_nothing`), for the reason every other reachability rule in
+   * the validator exists: a rule about dice nothing throws is a line in the
+   * book that quietly does nothing.
+   */
+  readonly dieRule?: DieRule;
   /**
    * An area the targets the caller names must all be standing in.
    *

@@ -130,6 +130,30 @@ const CASTING_TIMES: ReadonlySet<string> = new Set([
   'reaction',
   'long',
 ]);
+
+/**
+ * The die behaviours a definition may ask for, and the caps they may be bounded
+ * by — `DieRule` and `DieRuleCap` written out as data.
+ *
+ * Written out rather than derived because the validator's whole job is to judge
+ * input the compiler never saw. A kind joins this set in the commit that
+ * teaches `declaredDieEffects` to build it, which is the rule
+ * `FEAT_GRANT_KINDS` states for a feat's grant and `CONFERRED_EFFECT_KINDS` for
+ * an item's: a vocabulary member with no reader is a promise the engine does
+ * not keep.
+ */
+const DIE_RULE_KINDS: ReadonlySet<string> = new Set(['bonus-die-on-max']);
+const DIE_RULE_CAPS: ReadonlySet<string> = new Set(['spellcasting-modifier']);
+
+/**
+ * The effect kinds that roll a casting's **own** damage dice.
+ *
+ * What a die rule has to find on a definition for the rule to be about
+ * anything. The two are the attack and the damaging save — the pair
+ * `resolveAttackEffect` and `resolveSaveDamageEffect` roll — and a kind joins
+ * them here the day its resolver carries the effects through.
+ */
+const ROLLS_ITS_OWN_DAMAGE: ReadonlySet<string> = new Set(['attack', 'save-damage']);
 const ABILITY_NAMES_SET: ReadonlySet<Ability> = new Set(ABILITIES);
 const SKILL_NAMES: ReadonlySet<Skill> = new Set(SKILLS);
 /**
@@ -2172,6 +2196,52 @@ export function checkSpellDefinition(
     definition.damageTypeStated.forEach((type, i) =>
       checkDamageType(type, `damageTypeStated[${i}]`, found),
     );
+  }
+
+  // — what the individual dice of this spell's damage do ————————————————————
+
+  if (
+    definition.dieRule !== undefined &&
+    readsAsObject(
+      definition.dieRule,
+      'dieRule',
+      'a die rule is an object naming what the dice do and what bounds it',
+      found,
+    )
+  ) {
+    const rule = definition.dieRule as { kind?: unknown; cap?: unknown };
+
+    if (!DIE_RULE_KINDS.has(rule.kind as string)) {
+      found.push({
+        field: 'dieRule.kind',
+        code: 'unknown_die_rule',
+        reason: `"${String(rule.kind)}" is not a die behaviour the engine has; ${[...DIE_RULE_KINDS].join(', ')} is`,
+      });
+    }
+
+    // A cap is a **derivation** the engine performs off the caster's sheet, so
+    // an unknown one is a number nothing can compute rather than a number out
+    // of range — which is why a literal fails here as loudly as a misspelling.
+    if (!DIE_RULE_CAPS.has(rule.cap as string)) {
+      found.push({
+        field: 'dieRule.cap',
+        code: 'unknown_die_rule_cap',
+        reason: `"${String(rule.cap)}" is not a cap the engine can derive; ${[...DIE_RULE_CAPS].join(', ')} is`,
+      });
+    }
+
+    // **And the rule has to reach a die.** The two effect kinds that roll a
+    // casting's own damage are the attack and the damaging save; a definition
+    // that has neither throws nothing this could be about, and a rule nobody
+    // reads is the failure the whole validator exists to prevent.
+    if (!definition.effects.some((effect) => ROLLS_ITS_OWN_DAMAGE.has(effect.kind))) {
+      found.push({
+        field: 'dieRule',
+        code: 'die_rule_rolls_nothing',
+        reason:
+          'a die rule is about the dice this spell rolls for damage, and this spell rolls none: give it an attack or a damaging save, or drop the rule',
+      });
+    }
   }
 
   // — duration —————————————————————————————————————————————————————————————

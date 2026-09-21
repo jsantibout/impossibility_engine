@@ -844,12 +844,20 @@ export const EPIC_BOON_FEATS: readonly FeatDefinition[] = [
  *
  * **None of the four is executed, and a feat can declare a grant now**, so
  * each note below says what is really left rather than "feats are not
- * executed". Two of them are blocked on a *narrowing* the grant vocabulary
- * cannot write — Archery's "with Ranged weapons", Defense's "while wearing
- * armour" — and two on a rule that is not a grant at all: Great Weapon
- * Fighting is a dice-layer option the caller opts into per roll, and
- * Two-Weapon Fighting asks which hand an attack came from, which no attack
- * carries. What `bonuses.ts` said when it was written still holds for the
+ * executed". **Three** of them are blocked on a *narrowing* the grant
+ * vocabulary cannot write — Archery's "with Ranged weapons", Defense's "while
+ * wearing armour", and Great Weapon Fighting's "a Melee weapon that you are
+ * holding with two hands … Two-Handed or Versatile", which is the same clause
+ * wearing a third set of words — and the fourth on a fact no attack carries:
+ * Two-Weapon Fighting asks which hand an attack came from.
+ *
+ * Great Weapon Fighting is the one whose *arithmetic* is built and driven
+ * (`treatLowRollsAs`, and `attack.test.ts` throws a Greatsword's 1 and 2 and
+ * counts both as 3), so its note says which of the three gaps between the feat
+ * and the swing is which. A spell says how its own dice behave now —
+ * `SpellDefinition.dieRule`, which SRD Sorcerous Burst writes — and this is
+ * the other scope of the same idea: a rule about every die an *attack* throws
+ * rather than about one spell's. What `bonuses.ts` said when it was written still holds for the
  * first two: "whether Archery is in play is a question about feats and
  * inventory, which the engine does not model; the layer that knows passes
  * them in."
@@ -877,7 +885,7 @@ export const FIGHTING_STYLE_FEATS: readonly FeatDefinition[] = [
     category: 'fighting-style',
     requires: { kind: 'none' },
     repeatable: false,
-    note: 'Treating a 1 or 2 on a damage die as a 3 is `treatLowRollsAs` in the dice layer, which the caller opts into per roll; taking the feat does not switch it on.',
+    note: 'Treating a 1 or 2 on a damage die as a 3 is `treatLowRollsAs` in the dice layer, which the caller opts into per roll; taking the feat does not switch it on. Three things stand between the two, and the arithmetic is not one of them. The **narrowing** is this family’s own blocker arriving a third time: "a Melee weapon that you are holding with two hands … The weapon must have the Two-Handed or Versatile property" is a clause about a category of weapon, which is what stops Archery and Defense above. The **reader** is missing: FEAT_GRANT_KINDS admits a grant only once creation reads it off a feat, and nothing reads a die rule off one. And the **supply** is missing at the far end: a spell states how its own dice behave through `SpellDefinition.dieRule`, but a fighting style is about the whole swing rather than one spell, so its scope is `AttackOptions.damageEffects` — which exists, is read where the damage is thrown, and is passed by no command.',
   },
   {
     id: 'two-weapon-fighting',

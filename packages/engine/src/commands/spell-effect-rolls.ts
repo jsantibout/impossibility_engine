@@ -10,6 +10,7 @@
 
 import { ABILITY_NAMES, type CharacterId, type ConditionName, ok, type Result } from '@ie/shared';
 import { type DamageComponent, rollAttack, rollAttackDamage } from '../attack.js';
+import { type DieEffect } from '../dice.js';
 import { bonusesFor } from '../bonuses.js';
 import { rollSavingThrow } from '../checks.js';
 import { applyEvent, type CreatureState, type GameEvent, type GameState } from '../events.js';
@@ -37,6 +38,7 @@ import {
   defendingModes,
   enemyWithinFiveFeet,
   recordD20Test,
+  declaredDieEffects,
   rollSpellDice,
   savingSupport,
   takeCastingAddend,
@@ -45,6 +47,25 @@ import {
 } from './rolls.js';
 import { type EffectContext, type EffectOfKind } from './spell-effect-context.js';
 import { applyRiders, conditionLanding, repeatSaveFrom } from './spell-effect-riders.js';
+
+/**
+ * What the spell being resolved says about its own damage dice, as effects.
+ *
+ * **Only a casting has one**, and the two other origins are absent rather than
+ * empty for the same reason `EffectContext.casting` is loud: an item confers a
+ * spell's *effects* and a feature's pool use has no definition at all, so
+ * neither has a printed spell sentence to read `dieRule` off. Either can still
+ * confer an effect that rolls damage; it simply rolls its dice plainly, which
+ * is what the book prints.
+ *
+ * The cap comes off `numbers`, which the casting pinned — so a Headband of
+ * Intellect taken off after the cast does not change how many dice the spell
+ * was allowed, exactly as it does not change the save DC.
+ */
+const dieEffectsOf = (ctx: EffectContext): readonly DieEffect[] =>
+  ctx.origin.kind === 'casting'
+    ? declaredDieEffects(ctx.origin.definition.dieRule, ctx.numbers.spellcastingModifier, ctx.name)
+    : [];
 
 /**
  * A spell attack roll, the damage a hit deals, and the riders it carries.
@@ -203,6 +224,9 @@ export function resolveAttackEffect(
       definition.name,
       effect.damageType,
       splashDice.value.dice,
+      // SRD says "for this spell", and a miss that still splashes is this
+      // spell dealing damage — the same dice, halved afterwards.
+      dieEffectsOf(ctx),
     );
     if (!splash.ok) return splash;
 
@@ -260,6 +284,7 @@ export function resolveAttackEffect(
   // rules — Sneak Attack and Rage Damage — and a spell attack must not take
   // them.
   const carried = grantedAttackRiders(current.creatures[casterId], { weapon: null, target });
+  const declared = dieEffectsOf(ctx);
   // A critical doubles the dice, which is `rollAttackDamage`'s job, so
   // this one call keeps the weapon-shaped signature rather than going
   // through `rollSpellDice`.
@@ -274,7 +299,17 @@ export function resolveAttackEffect(
         // Absent when the spell's amount rolls nothing: `rollAttackDamage`
         // throws no die for a dice-free extra, and the flat number the line
         // prints lands on the component below.
-        { source: definition.name, type: effect.damageType, ...(dice === undefined ? {} : { dice }) },
+        //
+        // **The die rule rides on this component and not on the roll.** The
+        // riders below are in the same call and are another casting's dice, so
+        // a rule about "this spell" must not reach them — see
+        // `ExtraDamage.effects`.
+        {
+          source: definition.name,
+          type: effect.damageType,
+          ...(dice === undefined ? {} : { dice }),
+          ...(declared.length === 0 ? {} : { effects: declared }),
+        },
         ...carried,
       ],
     },
@@ -500,6 +535,9 @@ export function resolveSaveDamageEffect(
       name,
       part.damageType,
       dice.value.dice,
+      // Every part of the payload the spell prints, because "for this spell" is
+      // about the spell and not about which of its damage types is rolling.
+      dieEffectsOf(ctx),
     );
     if (!rolled.ok) return rolled;
     rolledParts.push(

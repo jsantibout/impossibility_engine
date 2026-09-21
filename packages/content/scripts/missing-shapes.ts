@@ -160,7 +160,7 @@ export const MISSING_SHAPES = {
   'a-roll-result-an-effect-replaces':
     'a die whose result an effect overrides or throws again. `docs/design/rolls-and-damage.md` has both halves for damage dice — "Substitute a value | Great Weapon Fighting: 1 or 2 counts as 3 | `treatLowRollsAs`" — and for a D20 Test only `rerollTest`, which is a Reaction a feature takes. No spell effect reaches either.',
   'a-die-behaviour-a-spell-asks-for':
-    '`docs/design/rolls-and-damage.md`’s "Dice Are Individually Addressable" table: `treatLowRollsAs`, `explodeOnMax` and `rerollDice` are built, tested, and named for the SRD sentences that want them — and no `SpellEffect` passes any of them, which is the recurring finding that a pure function nothing calls is a rule nothing enforces.',
+    '`docs/design/rolls-and-damage.md`’s "Dice Are Individually Addressable" table: `treatLowRollsAs`, `explodeOnMax` and `rerollDice` are built and tested, and the claim this description used to make — that no definition passes any of them — is **half retired**. `SpellDefinition.dieRule` is the door a spell asks through, `explodeOnMax` is behind its one arm, and Sorcerous Burst is the SRD sentence that walks through it, capped at a modifier the engine derives rather than one the catalogue states. What is left under this id is three different things, and none of them is the plumbing. **A predicate over a whole roll**: `DieEffect` judges one die at a time — `substitute` and `bonusOn` both take `(rolled, sides)` — and Chromatic Orb’s "If you roll the same number on two or more of the d8s" asks about a pair, which no signature here can be handed; its consequence is a second attack out of one casting in any case, so the trigger alone would fire at nothing. **A reroll the roller chooses**: `rerollDice` takes indices because SRD Empowered Spell and Savage Attacker let a player pick, and nothing in the command layer asks a caller which dice, so the two features that print it stay filed here. **An attack’s scope rather than a spell’s**: `AttackOptions.damageEffects` is where Great Weapon Fighting’s substitution would go, and it is supplied by nothing — a fighting style feat has no grant kind creation reads a die rule off, and its own sentence narrows to "a Melee weapon that you are holding with two hands", which is the weapon-category clause Archery and Defense are each blocked on too.',
   'a-reduction-an-effect-applies-to-damage':
     '`docs/design/rolls-and-damage.md`: "`reduceDamage` takes its amount off the **total**, never off a component", and it is reachable only from `takeDamageReaction` — a Reaction a class feature spends. A standing effect that takes a rolled amount off every hit of a chosen type has no path to it.',
   'a-damage-penalty-a-spell-grants':
@@ -1019,13 +1019,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'cannot make Opportunity Attacks',
       why: 'an-action-a-spell-compels-or-forbids',
       note: 'SRD: the target "can’t make Opportunity Attacks until the start of its next turn". **The rule is writable and the deadline is not.** `forbids` takes a named action away and leaves the rest of the budget alone — `NAMED_ACTIONS` lists `opportunity-attack` against this spell by name, and Stinking Cloud, Fear, Wind Walk and Magic Jar all write the vocabulary now. What stops this one is that a cantrip is Instantaneous, so the rider must carry a `lasts` of its own, and `RiderDuration` declares the start of the **caster’s** next turn and the end of the **target’s**, with no member for the start of the target’s. `Duration` beneath it has one — `start-of-next-turn` names any creature — so what is absent is a member of the content-facing vocabulary and the readers that expand it, which is engine work rather than a definition.',
-    },
-  ],
-  'sorcerous-burst': [
-    {
-      clause: 'reads the face of one die out of a roll that comes back as a total',
-      why: 'a-die-behaviour-a-spell-asks-for',
-      note: 'the exploding die asks whether an 8 came up on a d8 and adds another on the strength of it, up to the caster’s spellcasting ability modifier. The generator throws a notation and returns a total; nothing asks it which faces it showed.',
     },
   ],
   'spirit-guardians': [

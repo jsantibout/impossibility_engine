@@ -7603,6 +7603,16 @@ export const SHILLELAGH: SpellDefinition = {
  * Fire Bolt with the type named at the casting, and one sentence more. The
  * third user of `damageTypeStated` and the first to print **seven** options,
  * which is what a field rather than a flag is for.
+ *
+ * **And the first definition in the book to say how its own dice behave.** The
+ * exploding d8 was filed as debt on the reading that "a damage roll comes back
+ * as a total" — which was true of what a definition could *ask for* and never
+ * of the generator, whose dice have been individually addressable since it was
+ * written. `dieRule` is the ask, and the cap is named as the derivation the
+ * sentence prints rather than as a number: "the maximum number of these d8s
+ * you can add to the spell's damage equals your spellcasting ability
+ * modifier" is a fact about the Sorcerer, and the engine reads it off the
+ * numbers the casting pinned.
  */
 export const SORCEROUS_BURST: SpellDefinition = {
   id: 'sorcerous-burst',
@@ -7614,6 +7624,7 @@ export const SORCEROUS_BURST: SpellDefinition = {
   range: { kind: 'ranged', feet: 120 },
   targets: { count: 1 },
   damageTypeStated: ['acid', 'cold', 'fire', 'lightning', 'poison', 'psychic', 'thunder'],
+  dieRule: { kind: 'bonus-die-on-max', cap: 'spellcasting-modifier' },
   effects: [
     {
       kind: 'attack',
@@ -7624,9 +7635,6 @@ export const SORCEROUS_BURST: SpellDefinition = {
       damage: { dice: '1d8', cantripUpgradesAt: [5, 11, 17] },
       damageType: 'acid',
     },
-  ],
-  unmodelled: [
-    'the exploding die is not rolled: "If you roll an 8 on a d8 for this spell, you can roll another d8, and add it to the damage" reads the face of one die out of a roll that comes back as a total, and the cap beside it — as many extra dice as the caster’s spellcasting ability modifier — adds nothing because none are added',
   ],
 };
 
