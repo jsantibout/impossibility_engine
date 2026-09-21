@@ -121,6 +121,31 @@ export interface StatedBonusAction {
 }
 
 /**
+ * One line a stat block prints under **Actions** that the parser read nothing
+ * out of, as printed.
+ *
+ * The heading, the sentence and whatever recharge the heading carries — the
+ * same three fields {@link StatedBonusAction} holds, because the two sections
+ * differ in what a line *costs* and in nothing else the engine can see. A
+ * caller names the line by its heading, exactly as a printed attack is named.
+ */
+export interface StatedAction {
+  readonly name: string;
+  /** The book's sentence, verbatim, because a spend reports it. */
+  readonly text: string;
+  /**
+   * What brings this line back once it has been taken, where its heading
+   * prints a recharge — see {@link StatedAttack.recharge}.
+   *
+   * **Where most of the book's recharges are**: seventy-one of them are
+   * printed on one of these lines, against thirteen under Bonus Actions and a
+   * handful on attacks. Absent on the rest, which is a line a creature may
+   * take every turn.
+   */
+  readonly recharge?: MonsterRecharge;
+}
+
+/**
  * Values a stat block states outright instead of deriving.
  *
  * A character's Armour Class follows from what they are wearing and their
@@ -195,13 +220,11 @@ export interface StatedValues {
    * carry — they cast a spell, force a saving throw, take another action,
    * move, shape-shift, teleport, or are prose.
    *
-   * **The sentence is here, and that is the difference between this and
-   * {@link unreadActions} above.** That field holds names alone because the
-   * Actions lines it covers are a report about an absence and their prose is
-   * kilobytes. A line here is spent deliberately by a caller who then has to
-   * be told what it says: the engine applies none of it, so a spend that did
-   * not hand the sentence back would be a creature doing something nobody
-   * could act on.
+   * The sentence is here because a line is spent deliberately by a caller who
+   * then has to be told what it says: the engine applies none of it, so a
+   * spend that did not hand the sentence back would be a creature doing
+   * something nobody could act on. {@link unreadActions} below now says the
+   * same, for the same reason, since the same spend arrived for it.
    *
    * Nothing branches on a name. A caller names a line, `statedBonusActionOf`
    * finds it, and the name is written into the log — the same way a printed
@@ -211,12 +234,30 @@ export interface StatedValues {
    */
   readonly bonusActions?: readonly StatedBonusAction[];
   /**
-   * The **names** of the Actions lines the parser read nothing out of.
+   * The Actions lines the parser read nothing out of, in printed order.
    *
-   * Not the prose: a block's sentences are kilobytes and the stat block's id
-   * is deliberately not stored either, so what is pinned is the shortest thing
-   * that makes a report legible — "Multiattack", "Change Shape". The engine
-   * branches on none of them; it quotes them.
+   * **This held names alone, and the reason it no longer does is a spend.**
+   * The argument for names was that these lines are a *report about an
+   * absence* — what a swing quotes when it says it could not size the Attack
+   * action — and that their prose is kilobytes nobody had a use for. The first
+   * half is still true and is the second paragraph below. The second half
+   * stopped being true the moment `takeStatedAction` existed: two hundred-odd
+   * lines the engine applies no part of are handed over rather than executed,
+   * and a hand-over with no sentence in it is a creature doing something
+   * nobody can act on.
+   *
+   * **And the sentence could not live anywhere else.** The other candidate was
+   * to keep names here and let the spend read the block out of content and pin
+   * the one sentence it quotes into its own event — cheaper in the log, and it
+   * does not work: the turn boundary asks `rechargeOfLine` of this sheet with
+   * no content in its hand, `adaptMonster` is a door a block reaches a fight
+   * through with no catalogue behind it at all, and a caller who could state
+   * the prose would be a caller stating the rules. So the record is pinned
+   * where every other stat-block fact is pinned, at the arrival, and the event
+   * a spend writes carries the name alone. The price is measured rather than
+   * feared: across the whole SRD bestiary the worst block gains under two
+   * kilobytes, a third of them gain nothing, and the field is absent — not
+   * empty — on every block the parser read whole.
    *
    * It exists because an absence otherwise looks like an answer. A block that
    * prints no Multiattack and a block whose Multiattack the parser could not
@@ -225,7 +266,7 @@ export interface StatedValues {
    * Hydra's "as many Bite attacks as it has heads" is the sentence.
    *
    * **It does not tell the two apart, and a reader must not think it does.**
-   * Which line went unread is all this holds; whether that line was the one
+   * Which lines went unread is all this holds; whether one of them was the one
    * that sized the action is exactly what the parser could not say. So a swing
    * whose block left *anything* unread reports what it was — a Winter Wolf's
    * Cold Breath as readily as a Hydra's Multiattack — and claims only that
@@ -236,7 +277,7 @@ export interface StatedValues {
    *
    * Absent for every character and for every block the parser read whole.
    */
-  readonly unreadActions?: readonly string[];
+  readonly unreadActions?: readonly StatedAction[];
 }
 
 export interface CharacterSheet {

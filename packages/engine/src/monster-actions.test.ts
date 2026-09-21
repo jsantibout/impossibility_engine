@@ -20,6 +20,7 @@ import {
   setScene,
   addSceneLandmark,
   takeOpportunityAttack,
+  takeStatedAction,
   takeStatedBonusAction,
 } from './commands.js';
 import type { CharacterSheet } from './character.js';
@@ -31,6 +32,7 @@ import {
   multiattackAllows,
   printedAttackOf,
   statedBonusActionsUsed,
+  unreadActionsOf,
 } from './monster.js';
 import { createRollIssuer } from './rolls.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
@@ -1384,6 +1386,182 @@ describe('a Bonus Action a stat block prints', () => {
     const table = inTheWoods('goblin-warrior', GOBLIN);
     expect(usedBy(table.state, GOBLIN)).toEqual([]);
     expect(table.state.combat?.budgets[GOBLIN]?.bonusAction).toBe(true);
+  });
+});
+
+/**
+ * What a stat block prints under **Actions** that the parser read nothing out
+ * of.
+ *
+ * Two hundred-odd lines in the SRD, across a third of the bestiary, and the
+ * same absence the Bonus Actions section had before it could be spent: they
+ * name a saving throw, a spell, a shape-shift or prose, so there is no attack
+ * under the heading for a parser to carry. Until this, they reached the sheet
+ * as names in a *report* — what a swing quotes when it says the size of the
+ * Attack action is a guess — and nothing could take one.
+ *
+ * The engine executes none of them. It spends the Action, writes down which
+ * line was taken, and hands the sentence back, exactly as its Bonus Action
+ * sibling does.
+ *
+ * **The sentence is on the sheet, and that is the decision this section
+ * settles.** It could not be anywhere else: `rechargeOfLine` is asked at a
+ * turn boundary that has no content in its hand, `adaptMonster` is a door a
+ * block reaches a fight through without any catalogue behind it, and a caller
+ * who could state the prose would be a model stating the rules. So the record
+ * is pinned where every other stat-block fact is pinned — at the arrival —
+ * and the event carries the name alone, which is what the Bonus Action event
+ * already says about itself.
+ */
+describe('an Actions line the parser read nothing out of', () => {
+  const WINTER = id('winter');
+  /**
+   * The Winter Wolf's breath, by the heading its own block prints it under —
+   * read off the block rather than typed out, because the heading carries the
+   * book's recharge and the book's en dash.
+   */
+  const COLD_BREATH = statBlock('winter-wolf').actions[1]!.name;
+
+  const taking = (table: Table, who: CharacterId, line: string, commandId?: string) =>
+    takeStatedAction(table.state, who, {
+      line,
+      ...(commandId === undefined ? {} : { commandId }),
+    });
+
+  it('carries the section onto the sheet, by the name and the sentence', () => {
+    const wolf = adaptMonster(statBlock('winter-wolf'), WINTER);
+    const printed = statBlock('winter-wolf').actions[1]!;
+    expect(wolf.sheet.stated?.unreadActions).toEqual([
+      { name: printed.name, text: printed.text, recharge: { kind: 'die', low: 5 } },
+    ]);
+
+    // And the report is still a report: the names alone, which is what the
+    // swing that cannot size an Attack action quotes.
+    expect(unreadActionsOf(wolf.sheet)).toEqual([printed.name]);
+
+    // A block the parser read whole carries no field saying so, which is the
+    // reading every optional field on the sheet takes — and a character
+    // prints none either.
+    expect(adaptMonster(statBlock('wolf'), WOLF).sheet.stated?.unreadActions).toBeUndefined();
+  });
+
+  it('spends the creature’s Action and records which line it was', () => {
+    const table = inTheWoods('winter-wolf', WINTER);
+    table.did('the wolf breathes', (s) =>
+      takeStatedAction(s, WINTER, { line: COLD_BREATH, commandId: 'breath' }),
+    );
+
+    const state = table.state;
+    expect(state.combat?.budgets[WINTER]?.action).toBe(false);
+
+    // And the log says which line, by the name the block prints it under.
+    const taken = table.events.filter((e) => e.type === 'stated-action-taken');
+    expect(taken).toHaveLength(1);
+    expect(taken[0]?.type === 'stated-action-taken' ? taken[0].line : null).toBe(COLD_BREATH);
+  });
+
+  /**
+   * **The sentence is handed over rather than executed.** The wolf's line
+   * names a Constitution save and a Cone; nothing here rolls one or measures
+   * the other, and a caller told only that the Action was spent would have
+   * been told the creature did something it did not.
+   */
+  it('reports the sentence verbatim, because the engine applies none of it', () => {
+    const table = inTheWoods('winter-wolf', WINTER);
+    const out = unwrap(taking(table, WINTER, COLD_BREATH, 'breath'), 'the breath');
+    expect(out.unverified.join(' ')).toContain(statBlock('winter-wolf').actions[1]!.text);
+
+    // No save was rolled, nothing was placed, nobody was hurt: the Action
+    // going and the line being written down are the whole of it.
+    expect(out.events.map((e) => e.type)).toEqual([
+      'action-spent',
+      'printed-line-expended',
+      'stated-action-taken',
+    ]);
+  });
+
+  /**
+   * SRD: a creature takes one Action on its turn, which is the economy's own
+   * rule and the reason nothing here has to restate it.
+   *
+   * **On a line the block prints no recharge on**, deliberately, so the "no"
+   * comes from the economy rather than from the notation — a test that could
+   * not tell the two apart would pass while the economy did nothing.
+   */
+  it('refuses a second line in the same turn', () => {
+    const HARPY = id('harpy');
+    const table = inTheWoods('harpy', HARPY);
+    const line = statBlock('harpy').actions.find(
+      (one) => one.attack === undefined && one.multiattack === undefined,
+    )!.name;
+    table.did('the harpy sings', (s) => takeStatedAction(s, HARPY, { line, commandId: 'one' }));
+    const again = taking(table, HARPY, line, 'two');
+    expect(isErr(again) ? again.code : 'ok').toBe('no_action');
+
+    // And the line is where it was: a block that prints no notation has
+    // nothing to expend, so only the turn stops it.
+    expect(table.state.creatures[HARPY]?.expendedLines).toEqual([]);
+  });
+
+  /**
+   * **Four headings reach the same refusal, and it claims nothing about which
+   * one it got.** A line nobody prints, a line the parser read as an attack, a
+   * line it read as a sequence, and a line printed under another section are
+   * each somebody else's — and a refusal that said "that is an attack" would
+   * be telling a golem its Multiattack is one.
+   */
+  it('refuses every heading that is not one of these', () => {
+    const table = inTheWoods('winter-wolf', WINTER);
+    const nowhere = taking(table, WINTER, 'Whirlwind', 'wrong');
+    expect(isErr(nowhere) ? nowhere.code : 'ok').toBe('no_such_line');
+
+    // A heading the parser read: the block's own Bite, which `resolveAttack`
+    // takes at the numbers the line prints.
+    const attack = taking(table, WINTER, 'Bite', 'wrong');
+    expect(isErr(attack) ? attack.code : 'ok').toBe('no_such_line');
+
+    // A sequence, and a line printed under Bonus Actions — both off a block
+    // that prints them, so the refusal is about the section and not about the
+    // string being unknown to the book.
+    const golem = id('golem');
+    const other = inTheWoods('clay-golem', golem);
+    const sequence = takeStatedAction(other.state, golem, { line: 'Multiattack' });
+    expect(isErr(sequence) ? sequence.code : 'ok').toBe('no_such_line');
+    const bonus = takeStatedAction(other.state, golem, {
+      line: statBlock('clay-golem').bonusActions[0]!.name,
+    });
+    expect(isErr(bonus) ? bonus.code : 'ok').toBe('no_such_line');
+
+    // And none of the four said which door to use instead, because the command
+    // cannot tell them apart from where it is standing.
+    for (const refused of [nowhere, attack, sequence, bonus]) {
+      expect(isErr(refused) ? refused.reason : '').not.toContain('is an attack');
+    }
+  });
+
+  /** A retry is not a second Action. */
+  it('counts a repeated command id once', () => {
+    const table = inTheWoods('winter-wolf', WINTER);
+    table.did('the wolf breathes', (s) =>
+      takeStatedAction(s, WINTER, { line: COLD_BREATH, commandId: 'breath' }),
+    );
+    const retry = unwrap(taking(table, WINTER, COLD_BREATH, 'breath'), 'the retry');
+    expect(retry.events).toEqual([]);
+    expect(retry.duplicate).toBe(true);
+    expect(table.events.filter((e) => e.type === 'stated-action-taken')).toHaveLength(1);
+  });
+
+  /**
+   * **A block that prints no unread line is untouched.** Nothing to take,
+   * nothing on the sheet, and the Action still there to swing with — which is
+   * every block the parser read whole and every character alive.
+   */
+  it('leaves a block that prints none exactly where it was', () => {
+    const table = inTheWoods('wolf', WOLF);
+    expect(unreadActionsOf(table.state.creatures[WOLF]!.sheet)).toEqual([]);
+    const out = taking(table, WOLF, 'Cold Breath', 'nope');
+    expect(isErr(out) ? out.code : 'ok').toBe('no_such_line');
+    expect(table.state.combat?.budgets[WOLF]?.action).toBe(true);
   });
 });
 

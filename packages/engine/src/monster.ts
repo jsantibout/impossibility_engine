@@ -26,6 +26,7 @@ import { STATED_BONUS_ACTION_LEDGER } from './combat.js';
 import type { DamageDefenses } from './attack.js';
 import type {
   CharacterSheet,
+  StatedAction,
   StatedAttack,
   StatedBonusAction,
   StatedValues,
@@ -400,10 +401,15 @@ export const multiattackOf = (sheet: CharacterSheet): MonsterMultiattack | null 
 
 /**
  * The Actions lines this creature's block prints that the parser read nothing
- * out of, by name. Empty for a character and for a block read whole.
+ * out of, **by name**. Empty for a character and for a block read whole.
+ *
+ * Names, because this is the reader the *report* uses: a swing that could not
+ * size the Attack action quotes what went unread and claims no more than that.
+ * What each line says is on the record beside the name and is the spend's
+ * business — {@link statedActionOf} is that door.
  */
 export const unreadActionsOf = (sheet: CharacterSheet): readonly string[] =>
-  sheet.stated?.unreadActions ?? [];
+  (sheet.stated?.unreadActions ?? []).map((line) => line.name);
 
 /**
  * How many swings this creature's Attack action holds, right now.
@@ -599,6 +605,21 @@ export function statedBonusActionOf(
 }
 
 /**
+ * Find an Actions line a creature's stat block prints that the parser read
+ * nothing out of, by its heading.
+ *
+ * Case-insensitive, for the reason {@link printedAttackOf} above it is: the
+ * heading is something a caller types. Null where the sheet states no such
+ * line — which is every character, every block the parser read whole, and
+ * **every line the parser did read**: a heading with an attack under it is an
+ * attack, and the command that rolls it is the one that takes it.
+ */
+export function statedActionOf(sheet: CharacterSheet, name: string): StatedAction | null {
+  const wanted = name.trim().toLowerCase();
+  return sheet.stated?.unreadActions?.find((line) => line.name.toLowerCase() === wanted) ?? null;
+}
+
+/**
  * Where a printed Bonus Action line's use is counted: the combat ledger, under
  * a namespace of its own.
  *
@@ -642,11 +663,17 @@ export const statedBonusActionsUsed = (
  * What a stat block's line has to wait for before it can be used again, or
  * null where the block prints nothing.
  *
- * **One reader for both sections a caller can spend**, because the rule is
+ * **One reader for every section a caller can spend**, because the rule is
  * about a *line* and the heading it was printed under decides what it costs
  * rather than how often it comes back. A block that printed the same heading
  * twice would answer from the attacks first, which is where the swing that
  * asks is standing; nothing in the SRD does.
+ *
+ * The third arm is where most of the book's recharges actually are: seventy-one
+ * on an Actions line the parser read nothing out of, against thirteen under
+ * Bonus Actions. Every one of them was parsed and none of them reached this
+ * function for as long as no command could spend one, because the rule expends
+ * a line and a line nobody can take is never expended.
  *
  * Case-insensitive for the reason {@link printedAttackOf} is: the heading is
  * something a caller types.
@@ -656,7 +683,8 @@ export function rechargeOfLine(sheet: CharacterSheet, line: string): MonsterRech
   const attack = sheet.stated?.attacks?.find((one) => one.name.toLowerCase() === wanted);
   if (attack !== undefined) return attack.recharge ?? null;
   const bonus = sheet.stated?.bonusActions?.find((one) => one.name.toLowerCase() === wanted);
-  return bonus?.recharge ?? null;
+  if (bonus !== undefined) return bonus.recharge ?? null;
+  return statedActionOf(sheet, line)?.recharge ?? null;
 }
 
 /**
@@ -713,18 +741,30 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
   const attacks = printedAttacks(monster);
   const traits = printedTraits(monster);
   const multiattack = printedMultiattack(monster, attacks);
-  // **What the parser did not read, named rather than interpreted.** A line
+  // **What the parser did not read, carried rather than interpreted.** A line
   // with no attack, no trait and no sequence on it is one the parser got
   // nothing out of — the test is mechanical, exactly as the search for the
   // sequence above is, so a block from somewhere other than the SRD parser
   // meets the same one. Nothing branches on these names; they are what a swing
-  // quotes when it says which line it could not execute.
-  const unreadActions = monster.actions
+  // quotes when it says which line it could not execute, and what a spend
+  // hands back when a caller takes one.
+  //
+  // The sentence comes with the name for the reason the Bonus Actions below
+  // carry theirs: the engine applies no part of one of these and a spend that
+  // did not quote it would report a creature having done something nobody
+  // could act on. And the recharge comes with both, because most of the book's
+  // are printed here — a fact about the economy rather than about the sentence,
+  // and the one the turn boundary asks this sheet for.
+  const unreadActions: readonly StatedAction[] = monster.actions
     .filter(
       (line) =>
         line.attack === undefined && line.trait === undefined && line.multiattack === undefined,
     )
-    .map((line) => line.name);
+    .map((line) => ({
+      name: line.name,
+      text: line.text,
+      ...(line.recharge === undefined ? {} : { recharge: line.recharge }),
+    }));
 
   // **The Bonus Actions section, carried whole and executed not at all.** A
   // heading in a stat block says what the line under it *costs*, which is why

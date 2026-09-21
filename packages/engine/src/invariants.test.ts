@@ -106,6 +106,7 @@ import {
   takeDamageResponse,
   takeOpportunityAttack,
   takeReady,
+  takeStatedAction,
   takeStatedBonusAction,
   takeTestReaction,
   tradeResource,
@@ -315,6 +316,21 @@ const PRINTED_LINE = {
 const LINED: readonly GameEvent[] = SETUP.map((event) =>
   event.type === 'creature-added' && event.id === A
     ? { ...event, sheet: sheet({ stated: { bonusActions: [PRINTED_LINE] } }) }
+    : event,
+);
+
+/**
+ * The same world with that line under **Actions** instead, and nothing else
+ * changed.
+ *
+ * The two sections hold the same shape and are spent out of different slots,
+ * so the sweep drives each against its own fixture rather than one creature
+ * carrying both — a duplicate check that passed because the *other* command
+ * had already spent the turn would be a guard testing nothing.
+ */
+const UNREAD: readonly GameEvent[] = SETUP.map((event) =>
+  event.type === 'creature-added' && event.id === A
+    ? { ...event, sheet: sheet({ stated: { unreadActions: [PRINTED_LINE] } }) }
     : event,
 );
 
@@ -1303,6 +1319,11 @@ const GUARDED: readonly Guarded[] = [
     name: 'takeStatedBonusAction',
     log: LINED,
     run: (s, commandId) => takeStatedBonusAction(s, A, { line: PRINTED_LINE.name, commandId }),
+  },
+  {
+    name: 'takeStatedAction',
+    log: UNREAD,
+    run: (s, commandId) => takeStatedAction(s, A, { line: PRINTED_LINE.name, commandId }),
   },
   { name: 'takeDash', log: SETUP, run: (s, commandId) => takeDash(s, A, { commandId }) },
   { name: 'takeDisengage', log: SETUP, run: (s, commandId) => takeDisengage(s, A, { commandId }) },
@@ -2375,6 +2396,16 @@ const SPENDERS: readonly Spender[] = [
   {
     name: 'takeStatedBonusAction',
     run: (s) => takeStatedBonusAction(s, B, { line: 'A Printed Line' }),
+  },
+  /**
+   * A line a stat block prints under Actions that the parser read nothing out
+   * of. It spends the Action, and a creature owing a mandatory area effect may
+   * not spend it. The line need not be printed on anything, for the reason its
+   * Bonus Action sibling's need not be.
+   */
+  {
+    name: 'takeStatedAction',
+    run: (s) => takeStatedAction(s, B, { line: 'A Printed Line' }),
   },
   /**
    * A wand's charge. It spends no Action here — what a charge *buys* is not

@@ -61,7 +61,7 @@ import {
   type Placement,
   type Point,
 } from '../positioning.js';
-import { describeRecharge, statedBonusActionOf } from '../monster.js';
+import { describeRecharge, statedActionOf, statedBonusActionOf } from '../monster.js';
 import { type SlotKind } from '../resources.js';
 import { type Content } from '../content.js';
 import { durationSecondsAt } from '../spell-definitions.js';
@@ -344,6 +344,147 @@ export function takeStatedBonusAction(
             // log and the block say the same string however it was asked for.
             line: line.name,
             turn: state.combat.turnsTaken,
+            ...(stamp === null ? {} : { command: stamp }),
+          },
+        ],
+        unverified: [
+          `${id}'s block prints "${line.name}: ${line.text}" — the engine does not apply that; a DM does`,
+        ],
+        duplicate: false,
+      });
+    },
+  );
+}
+
+/** Which line the caller is taking, by the heading the block prints it under. */
+export interface StatedActionCommand extends CommandIdentity {
+  readonly line: string;
+}
+
+export interface StatedActionOutcome {
+  readonly events: readonly GameEvent[];
+  /**
+   * What the line says, handed back rather than applied — see
+   * {@link StatedBonusActionOutcome.unverified}, which this is the other half
+   * of.
+   *
+   * **Always, and that is the whole report.** Two hundred-odd of these lines
+   * are printed across a third of the SRD's bestiary and the engine executes
+   * none of them: they force a saving throw, cast a spell, shape-shift,
+   * swallow, teleport, or are prose. A spend that said only "the Action is
+   * gone" would leave a caller believing the creature had done something.
+   */
+  readonly unverified: readonly string[];
+  readonly duplicate: boolean;
+}
+
+/**
+ * Take one of the lines a creature's stat block prints under **Actions** that
+ * the parser read nothing out of.
+ *
+ * The Actions section's other half. A line the parser *read* is an attack and
+ * `resolveAttack` takes it, at the numbers the block prints; this is every
+ * other line under that heading — and until it existed they were a section of
+ * the stat block a caller could see named and could not touch, which is the
+ * absence `takeStatedBonusAction` was written to close one section along.
+ *
+ * It spends the Action, writes down which line was taken, and hands the
+ * sentence back. It executes nothing: a line that breathes a Cone of cold does
+ * not roll the save, a line that says the creature casts a spell does not cast
+ * it, and a line that swallows somebody moves nobody. Those are seven
+ * mechanisms wearing one heading, and half of one of them would be worse than
+ * none.
+ *
+ * **A second line on the same turn is refused by the economy**, which is the
+ * one place that rule lives: a creature takes one Action on a turn, and
+ * `spendAction` has always said so. Nothing is written into the once-per-turn
+ * ledger, because nothing reads it — the gate a Multiattack prints names a
+ * Bonus Action.
+ *
+ * **A heading that carries a recharge is spent once.** SRD *Monsters*: "a
+ * monster can use the stat block part once", and seventy-one of these lines
+ * print the notation — most of the book's, and every one of them inert until
+ * something could expend a line by taking it. So the line is checked against
+ * what this creature has expended, refused with what would bring it back, and
+ * written down as spent beside the Action it cost.
+ *
+ * **A per-day limit is still enforced nowhere**, which is the gap its Bonus
+ * Action sibling already names and which this reaches ten more lines of: an
+ * *X/Day* notation is a different rule with a different clock, and reading it
+ * as a recharge would hand a creature back a thing the book gives it once
+ * between dawns.
+ */
+export function takeStatedAction(
+  state: GameState,
+  id: CharacterId,
+  command: StatedActionCommand,
+): Result<StatedActionOutcome> {
+  return once(
+    state,
+    `stated-action:${id}`,
+    command,
+    () => ({ events: [], unverified: [], duplicate: true }),
+    (stamp) => {
+      // A mandatory effect this creature has been caught by, or a turn whose
+      // start has not arrived. **After the duplicate check, never before it.**
+      const owedHere = mayAct(state, id);
+      if (owedHere !== null) return owedHere;
+
+      const creature = creatureOf(state, id);
+      if (creature === null) return unknownCreature(id, 'has no record here yet; add it first');
+      if (state.combat === null) {
+        return err('not_in_combat', 'there is no Action to spend outside combat');
+      }
+
+      // Read off the sheet, which is where `creature-added` pinned the block's
+      // own lines; nothing here opens a catalogue and nothing branches on the
+      // name it finds.
+      const line = statedActionOf(creature.sheet, command.line);
+      if (line === null) {
+        // **It says what was searched and claims nothing about where else the
+        // heading might be.** Four things reach this refusal — a heading no
+        // block prints, an attack, a sequence, and a line printed under
+        // another section — and a reason that named only the first of them
+        // would be telling a caller its Multiattack is an attack.
+        return err(
+          'no_such_line',
+          `no line called ${command.line} is printed under this creature's Actions with nothing the engine could read beneath it; a heading the parser did read, and a heading printed under another section, are each taken by the command that owns them`,
+        );
+      }
+
+      // **A line already used and not yet back.** Before the economy, because
+      // a refusal after the Action is gone is a refusal with a footprint — the
+      // rule every other argument on this command follows.
+      const recharge = line.recharge ?? null;
+      if (creature.expendedLines.includes(line.name)) {
+        return err(
+          'line_expended',
+          `${id} has used ${line.name} and not got it back${
+            recharge === null ? '' : `: ${describeRecharge(recharge)}`
+          }`,
+        );
+      }
+
+      const spent = spendAction(state.combat, id, creature.conditions, {
+        rules: actionRulesOn(state, id),
+      });
+      if (!spent.ok) return spent;
+
+      return ok({
+        events: [
+          { type: 'action-spent', id },
+          // SRD *Monsters*: "a monster can use the stat block part once."
+          // Only where the block prints the notation — an ordinary line is
+          // taken every turn and writes nothing here.
+          ...(recharge === null
+            ? []
+            : [{ type: 'printed-line-expended' as const, id, line: line.name }]),
+          {
+            type: 'stated-action-taken',
+            id,
+            // The **printed** heading rather than what the caller typed, so the
+            // log and the block say the same string however it was asked for.
+            line: line.name,
             ...(stamp === null ? {} : { command: stamp }),
           },
         ],
