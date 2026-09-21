@@ -193,8 +193,35 @@ export const ROGUE: ClassDefinition = {
       id: 'rogue:steady-aim',
       name: 'Steady Aim',
       level: 3,
-      automation: 'manual',
-      note: 'SRD: "you can take a Bonus Action to give yourself Advantage on your next attack roll on the current turn. You can use this Bonus Action only if you haven’t moved during this turn, and after you use it, your Speed is 0 until the end of the current turn." Not modelled, and neither half of the Speed sentence is the blocker any more: `speedOf` reads a grant like any other, and "until the end of the current turn" is `end-of-current-turn`, which IE-043 built for Stinking Cloud. What is left is the clause this feature is actually for — a one-shot Advantage that is consumed by the roll it changes, which nothing here consumes — and the "haven’t moved during this turn" condition on spending the Bonus Action.',
+      automation: 'engine',
+      note: 'SRD: "As a Bonus Action, you give yourself Advantage on your next attack roll on the current turn. You can use this feature only if you haven’t moved during this turn, and after you use it, your Speed is 0 until the end of the current turn." Executed, and every clause of it is a grant a use hangs rather than a benefit running the feature derives: the Bonus Action is spent, the Advantage is a one-shot roll modifier the next attack roll uses up, the Speed of 0 is a granted Speed, and both of them end at the end of the current turn whether or not anything spent them. The gate is `onlyIfUnmoved`, read off the feet the turn budget stored. The two clauses carry two sources because everything one source granted ends together — sharing one would hand the Speed back to the swing that spent the Advantage.',
+      grants: {
+        kind: 'activated',
+        action: 'bonus-action',
+        // No pool: the SRD prints no limit on the uses, only on when one may
+        // be taken. The limit is the Bonus Action and the gate below it.
+        pool: null,
+        // The record of the use, which the holder is done with when their next
+        // turn begins; what the use *did* ends sooner and says so itself.
+        lasts: 'start-of-next-turn',
+        onlyIfUnmoved: true,
+        hangs: [
+          {
+            kind: 'roll-mode',
+            modifier: {
+              mode: 'advantage',
+              selector: { roll: 'attack', relation: 'roller' },
+              // "your next attack roll" — the roll spends it.
+              oneShot: true,
+            },
+            // "on the current turn".
+            lasts: 'end-of-current-turn',
+          },
+          // "after you use it, your Speed is 0 until the end of the current
+          // turn" — the price, which no attack spends.
+          { kind: 'speed', change: 'zero', lasts: 'end-of-current-turn' },
+        ],
+      },
     },
     {
       id: 'rogue:ability-score-improvement',

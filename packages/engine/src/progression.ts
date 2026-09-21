@@ -15,9 +15,11 @@ import type { D20TestKind } from './checks.js';
 import type { ReactionReach } from './reactions.js';
 import type { Recovery } from './resources.js';
 import type { SpellArea, SpellEffect } from './spell-definitions.js';
+import { CASTING_MARK } from './spells.js';
 import type {
   ActivationEnd,
   CastingCostAlteration,
+  HungGrant,
   StandingGrant,
   StandingRequirement,
 } from './standing.js';
@@ -303,6 +305,24 @@ export const featureSource = (featureId: string): string => `feature:${featureId
  */
 export const conferredSource = (featureId: string, from: string): string =>
   `${featureSource(featureId)}@${from}`;
+
+/**
+ * How the log names one of the grants a *use* of a feature hung.
+ *
+ * {@link featureSource} with the clause in it, because a use may hang more
+ * than one grant and **each of them ends on its own**: `releaseGrants` matches
+ * the whole source string, so everything filed under one source ends together.
+ * SRD Steady Aim is why that matters — the attack roll that spends its
+ * Advantage would otherwise hand back the Speed of 0 the same sentence imposed,
+ * since `roll-modifier-consumed`'s fold body *is* `releaseGrants`.
+ *
+ * The mark is the casting mark and that is deliberate: `castingIdOf` reads
+ * `cast:<n>` and nothing else after it, so a clause name can never forge a link
+ * to a casting. `conferredSource`'s `@` makes the same argument from the other
+ * side.
+ */
+export const hungSource = (featureId: string, clause: string): string =>
+  `${featureSource(featureId)}${CASTING_MARK}${clause}`;
 
 /**
  * One thing a use of a pool buys, where what it buys is an effect list.
@@ -763,6 +783,21 @@ export type FeatureGrant =
       readonly capSeconds?: number;
       readonly endsOn?: readonly ActivationEnd[];
       readonly forbidsCasting?: boolean;
+      /**
+       * SRD Steady Aim: "You can use this feature only if you haven't moved
+       * during this turn." See `ActivatedFeature.onlyIfUnmoved`.
+       */
+      readonly onlyIfUnmoved?: boolean;
+      /**
+       * What a *use* hangs on its holder, as against what running it derives.
+       *
+       * `whileActive` below is the derived half: standing effects that hold
+       * while the feature is on and are re-read from the world every time
+       * anybody asks. This is the stored half, emitted where the action is
+       * spent — and it is the only half that can be *spent in turn*, because
+       * `consumedRollModifiers` reads stored state. See {@link HungGrant}.
+       */
+      readonly hangs?: readonly HungGrant[];
       readonly whileActive?: readonly StandingGrant[];
       /**
        * The flat amount a `whileActive` damage grant adds, by class level.

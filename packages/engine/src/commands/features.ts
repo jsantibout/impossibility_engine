@@ -25,7 +25,7 @@ import {
 } from '../character.js';
 import { conditionInstanceId, isIncapacitated } from '../conditions.js';
 import { type Rng } from '../dice.js';
-import { describeElapsed, turnAnchored } from '../time.js';
+import { describeElapsed, endOfCurrentTurn, turnAnchored, type Duration } from '../time.js';
 import { type EffectTarget, type MaintenanceCap, timerKey } from '../timers.js';
 import {
   applyEvent,
@@ -36,13 +36,14 @@ import {
   wearsHeavyArmor,
 } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
-import { conferredSource, featureSource } from '../progression.js';
+import { conferredSource, featureSource, hungSource } from '../progression.js';
 import { remaining } from '../resources.js';
 import { type RollIssuer, rollRecorded } from '../rolls.js';
 import { isCreatureType, statedDamageType, type SpellEffect } from '../spell-definitions.js';
 import {
   type ActivatedFeature,
   canSee,
+  type HungSpan,
   type HealAmount,
   type HitPointBudget,
   type PoolOption,
@@ -109,6 +110,21 @@ export function activateFeature(
       }
     }
 
+    // SRD Steady Aim: "You can use this feature only if you haven't moved
+    // during this turn." A gate on paying for the use, asked before anything is
+    // spent like every other prerequisite here, and read off the feet the
+    // budget *stored* rather than off what is left of an allowance — which is
+    // the whole reason `movementSpent` holds what happened.
+    if (definition.onlyIfUnmoved === true) {
+      const moved = state.combat?.budgets[id]?.movementSpent ?? 0;
+      if (moved > 0) {
+        return err(
+          'already_moved',
+          `${definition.name} may be used only before moving, and ${id} has already moved ${moved} feet this turn`,
+        );
+      }
+    }
+
     if (definition.pool !== null && remaining(creature.resources, definition.pool) < 1) {
       return err('exhausted', `${id} has no uses of ${definition.name} left`);
     }
@@ -133,6 +149,10 @@ export function activateFeature(
       feature: command.feature,
       ...(stamp === null ? {} : { command: stamp }),
     });
+
+    const hung = hangGrants(state, id, definition);
+    if (!hung.ok) return hung;
+    events.push(...hung.value);
 
     const timer = featureTimer(state, id, definition);
     if (!timer.ok) return timer;
@@ -774,6 +794,70 @@ function maintenanceCap(
   }
   if (definition.capSeconds === undefined) return null;
   return { seconds: definition.capSeconds, until: state.elapsed + definition.capSeconds };
+}
+
+/**
+ * The moment a hung grant runs to, in the vocabulary the engine already has.
+ *
+ * A ternary rather than a `switch`, and safely: the tail hands `lasts` to
+ * `turnAnchored`, which takes a {@link TurnAnchor} — so a member added to
+ * {@link HungSpan} that is not one fails to compile here rather than being
+ * silently given somebody's next turn.
+ */
+const hungSpan = (lasts: HungSpan, holder: CharacterId): Duration =>
+  lasts === 'end-of-current-turn' ? endOfCurrentTurn : turnAnchored(lasts, holder);
+
+/**
+ * What a use of a feature hangs on its holder, and the deadline on each.
+ *
+ * **The stored grants an activation emits, as against the derived ones running
+ * it implies.** `whileActive` compiles to standing effects requiring
+ * `feature-active` and is re-read from the world every time anybody asks;
+ * these are written into the log where the action is paid for, because a
+ * derived grant can never be *spent* — `consumedRollModifiers` reads
+ * `CreatureState.rollModifiers`. SRD Steady Aim's "Advantage on your next
+ * attack roll" is the sentence that needs the stored half.
+ *
+ * **One source per grant and one timer per source.** Everything one source
+ * granted ends together, whether the ending arrives as a deadline or as the
+ * roll that spent it, so two clauses of one sentence with two different
+ * lifetimes are two sources — see {@link hungSource}.
+ *
+ * `schedule` reads the clock and the turn order and nothing a grant moves, so
+ * the grants are not folded in on the way: what each of them is timed against
+ * is the same world the activation was paid for in. A span that cannot be
+ * resolved — a turn boundary with no combat to have one — refuses the whole
+ * activation, which is right: nothing is spent, and a grant nothing could end
+ * would run for ever.
+ */
+function hangGrants(
+  state: GameState,
+  id: CharacterId,
+  definition: ActivatedFeature,
+): Result<readonly GameEvent[]> {
+  const events: GameEvent[] = [];
+
+  for (const hung of definition.hangs ?? []) {
+    const source = hungSource(definition.feature, hung.kind);
+    const granted: GameEvent =
+      hung.kind === 'roll-mode'
+        ? { type: 'roll-modifier-granted', id, modifier: { source, modifier: hung.modifier } }
+        : {
+            type: 'speed-modifier-granted',
+            id,
+            modifier: {
+              source,
+              change: hung.change,
+              ...(hung.feet === undefined ? {} : { feet: hung.feet }),
+            },
+          };
+
+    const timer = schedule(state, { kind: 'grants', on: id, source }, hungSpan(hung.lasts, id));
+    if (!timer.ok) return timer;
+    events.push(granted, timer.value);
+  }
+
+  return ok(events);
 }
 
 /**

@@ -230,3 +230,52 @@ describe('a Rogue is a creature the rest of the engine accepts', () => {
     }
   });
 });
+
+/**
+ * SRD Steady Aim: "As a Bonus Action, you give yourself Advantage on your next
+ * attack roll on the current turn. You can use this feature only if you haven’t
+ * moved during this turn, and after you use it, your Speed is 0 until the end
+ * of the current turn."
+ *
+ * The catalogue’s half of it: three clauses declared in the vocabulary the
+ * engine reads, compiled onto the sheet at the level the table prints it. What
+ * the engine does with them is `steady-aim.test.ts`’s.
+ */
+describe('Steady Aim is declared rather than left to the table', () => {
+  const steadyAim = ROGUE.features.find((feature) => feature.id === 'rogue:steady-aim');
+
+  it('is executed by the engine, at the level the table grants it', () => {
+    expect(steadyAim?.automation).toBe('engine');
+    expect(steadyAim?.level).toBe(3);
+  });
+
+  it('hangs both of its clauses off one Bonus Action, gated on not having moved', () => {
+    expect(steadyAim?.grants).toEqual({
+      kind: 'activated',
+      action: 'bonus-action',
+      pool: null,
+      lasts: 'start-of-next-turn',
+      onlyIfUnmoved: true,
+      hangs: [
+        {
+          kind: 'roll-mode',
+          modifier: {
+            mode: 'advantage',
+            selector: { roll: 'attack', relation: 'roller' },
+            oneShot: true,
+          },
+          lasts: 'end-of-current-turn',
+        },
+        { kind: 'speed', change: 'zero', lasts: 'end-of-current-turn' },
+      ],
+    });
+  });
+
+  it('reaches the sheet of a Rogue who has the level for it', () => {
+    const activated = built().creatures.nyx!.sheet.activated ?? [];
+    const compiled = activated.find((feature) => feature.feature === 'rogue:steady-aim');
+    expect(compiled?.action).toBe('bonus-action');
+    expect(compiled?.onlyIfUnmoved).toBe(true);
+    expect(compiled?.hangs).toHaveLength(2);
+  });
+});
