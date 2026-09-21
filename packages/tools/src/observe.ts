@@ -26,6 +26,7 @@ import {
   remaining,
   speedOf,
   spellSlotKey,
+  strandedSummons,
 } from '@ie/engine';
 
 const SLOT_LEVELS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
@@ -80,6 +81,21 @@ export interface ObservedDebts {
     readonly mustAnswerOpportunityAttack: readonly string[];
   } | null;
   readonly owedAreaEffects: number;
+  /**
+   * Who is still standing on a casting that has ended.
+   *
+   * **Named rather than counted**, which is the one debt here that has to be:
+   * the others are settled by a call that takes no argument and this one is
+   * too, but a caller narrating the room has to know *which* creature is
+   * about to vanish — and the refusal it would otherwise meet
+   * (`summons_stranded`, from every attempt to end a turn) is the engine's
+   * way of saying the same thing one wasted call later.
+   *
+   * Derived rather than filed, as the engine derives it: a question about the
+   * world as it stands rather than a record of a moment that has passed.
+   * `dismiss_stranded_summons` is the door that empties it.
+   */
+  readonly strandedSummons: readonly string[];
   readonly turnStartUnsettled: string | null;
 }
 
@@ -171,6 +187,7 @@ export function observe(state: GameState): Observation {
               mustAnswerOpportunityAttack: state.pendingMove.provoked.map((p) => p.reactor),
             },
       owedAreaEffects: state.owedAreaEffects.length,
+      strandedSummons: strandedSummons(state).map(String),
       turnStartUnsettled: state.pendingTurnStart?.who ?? null,
     },
   };

@@ -309,6 +309,8 @@ interface Feature {
   readonly name: string;
   readonly kind: string;
   readonly spentBy: string | null;
+  /** The second door, for a feature with two menus. Absent for every other. */
+  readonly alsoSpentBy?: readonly string[];
   readonly pool: string | null;
   readonly left: number | null;
   readonly active: boolean;
@@ -455,6 +457,24 @@ describe('a character can be asked what it holds', () => {
       Object.keys(SPENT_BY).sort(),
     );
     for (const one of spendable) expect(TOOL_NAMES).toContain(one.spentBy);
+  });
+
+  /**
+   * And the second door, where a feature ever has one.
+   *
+   * A feature holding two menus reports the first claim's tool and names the
+   * other in `alsoSpentBy` — see `two-menus.test.ts`, which is also where the
+   * reason no class in the book has one is written down. The claim here is
+   * both halves at once: nothing in the catalogue grows a second door by
+   * accident, and any that does names a tool this surface really has.
+   */
+  it('names a real tool for a second door too, and grows none by accident', () => {
+    const t = wholeCatalogue();
+    const second = EVERY_CLASS.flatMap((classId) =>
+      sheetOf(t, classId).features.flatMap((one) => one.alsoSpentBy ?? []),
+    );
+    for (const door of second) expect(TOOL_NAMES).toContain(door);
+    expect(second).toEqual([]);
   });
 
   /**

@@ -33,7 +33,13 @@ const send = (tool: string, input: unknown): ToolOutcome =>
  * holding, a damage roll it is holding. There is nothing to name because there
  * is only ever one of them open at a time.
  */
-const NO_ARGUMENTS = ['end_turn', 'look', 'settle_area_effects', 'settle_damage'];
+const NO_ARGUMENTS = [
+  'dismiss_stranded_summons',
+  'end_turn',
+  'look',
+  'settle_area_effects',
+  'settle_damage',
+];
 
 describe('every schema rejects a malformed call', () => {
   it.each(TOOLS.map((definition) => definition.name))(

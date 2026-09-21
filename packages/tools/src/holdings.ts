@@ -170,6 +170,19 @@ export interface HeldFeature {
   readonly kind: HeldFeatureKind;
   /** The tool that spends it, or null where nothing on this surface does. */
   readonly spentBy: string | null;
+  /**
+   * The other tools that spend it, for a feature that offers more than one
+   * menu.
+   *
+   * A feature is listed once and the first claim on its id decides what it
+   * *is* — see {@link holdingsOf} — so a feature holding both a pool's menu
+   * and a hit's would otherwise report the pool's door and hand over the
+   * other menu with nothing to call. It is absent rather than empty wherever
+   * one door is the whole answer, which today is every feature in the book:
+   * the SRD prints `on-hit` exactly once and the catalogue cannot yet put two
+   * grants on one feature at all. See `two-menus.test.ts`.
+   */
+  readonly alsoSpentBy?: readonly string[];
   /** What using it costs in the action economy, where it costs anything. */
   readonly action: 'action' | 'bonus-action' | 'none' | null;
   /** The pool it draws on, and what is left of that pool. */
@@ -394,6 +407,38 @@ const slotAt = (
   return { level, max: pool.max, spent: pool.spent, left: pool.max - pool.spent };
 };
 
+/**
+ * Two claims on one feature id, as one line.
+ *
+ * The first claim stands — its kind, its pool, its price and the tool that
+ * spends it — and what the second brings is the **menu** the first has not
+ * got, with the door that spends that menu named beside it. Anything else a
+ * second claim carries is dropped exactly as it always was: a feature's kind
+ * is decided once, and two kinds under one id would be a caller dispatching
+ * on a coin toss.
+ *
+ * **It is a no-op unless there is a menu to carry**, which is why Rage still
+ * reports as an activation with nothing added when its standing effects claim
+ * the id again, and why no character the SRD can build gains a field here.
+ */
+function alsoHolding(first: HeldFeature, second: HeldFeature): HeldFeature {
+  const options = first.options ?? second.options;
+  const onHit = first.onHit ?? second.onHit;
+  if (options === first.options && onHit === first.onHit) return first;
+
+  const doors = [...(first.alsoSpentBy ?? [])];
+  if (second.spentBy !== null && second.spentBy !== first.spentBy && !doors.includes(second.spentBy)) {
+    doors.push(second.spentBy);
+  }
+
+  return {
+    ...first,
+    ...(options === undefined ? {} : { options }),
+    ...(onHit === undefined ? {} : { onHit }),
+    ...(doors.length === 0 ? {} : { alsoSpentBy: doors }),
+  };
+}
+
 const leftIn = (state: GameState, who: string, key: string | null): number | null => {
   if (key === null) return null;
   const pool = state.creatures[who]?.resources.pools[key];
@@ -443,7 +488,7 @@ export function holdingsOf(state: GameState, id: CharacterId): Holdings | null {
     }));
 
   /**
-   * One line per feature, and the **first** claim on an id wins.
+   * One line per feature, and the **first** claim on an id decides what it is.
    *
    * A feature is usually one thing, but Rage is two: it is an activation, and
    * while it runs it is also three standing effects carrying its own id. The
@@ -451,13 +496,22 @@ export function holdingsOf(state: GameState, id: CharacterId): Holdings | null {
    * last, so Rage reads as the thing a caller can switch on rather than as a
    * damage resistance it can do nothing with. A feature that grants several
    * standing effects likewise reports once rather than once per grant.
+   *
+   * **What a later claim still brings with it is its menu**, which is the one
+   * thing the rule used to swallow: the `hit-rider` loop runs after
+   * `pool-option`, so a feature holding both would have been reported as the
+   * pool with its riders silently dropped — and a menu a caller is never shown
+   * is a menu it cannot elect from. So a second claim merges rather than
+   * disappearing, carrying whichever of the two menus the first has not got
+   * and naming the door that spends it. Nothing else of the second claim is
+   * taken: the kind, the pool, the price and `spentBy` are the first's, which
+   * is the rule above unchanged.
    */
   const features: HeldFeature[] = [];
-  const named = new Set<string>();
   const add = (entry: HeldFeature): void => {
-    if (named.has(entry.feature)) return;
-    named.add(entry.feature);
-    features.push(entry);
+    const at = features.findIndex((one) => one.feature === entry.feature);
+    if (at === -1) features.push(entry);
+    else features[at] = alsoHolding(features[at]!, entry);
   };
 
   for (const one of sheet.activated ?? []) {
@@ -576,11 +630,19 @@ export function holdingsOf(state: GameState, id: CharacterId): Holdings | null {
    * The action is `null` rather than `'none'`: a rider costs no action because
    * it is not bought with one, which is a recovery's answer to the same field.
    *
-   * **A feature is listed once and the first claim on its id wins**, which is
-   * this list's rule and not this loop's. A feature granting both a pool menu
-   * and a rider would therefore be reported as the pool and lose its `onHit`;
-   * nothing in the catalogue does, and the day one does the fix is a line that
-   * merges the two rather than a second entry under one id.
+   * **A feature is listed once and the first claim on its id decides what it
+   * is**, which is this list's rule and not this loop's — and the menu is
+   * carried across rather than lost, which is {@link alsoHolding}. A feature
+   * granting both a pool menu and a rider reports as the pool, with the
+   * riders beside it and `alsoSpentBy` naming this door.
+   *
+   * **No catalogue can write one today**, and that is a fact about the
+   * vocabulary rather than about the book: `FeatureDefinition.grants` is
+   * singular and `checkContent` refuses two definitions under one id, so the
+   * two menus cannot meet. `two-menus.test.ts` holds both refusals and asks
+   * the reader the question anyway, because the seam is one grant's worth of
+   * vocabulary away and a report that quietly loses half a feature is not
+   * something to discover from a session.
    */
   const riders = new Map<string, HeldHitOption[]>();
   for (const one of sheet.hitOptions ?? []) {
