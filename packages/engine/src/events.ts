@@ -164,9 +164,14 @@ export * from './fold/index.js';
  * table of physical dice would reach them through is not built — so every
  * occurrence of this field in a driven log is absent, and
  * `damage-dice-in-the-log.test.ts` sweeps a whole one to say so. It is
- * declared now because it belongs to the same events the damage dice opened,
- * and a second pass over eleven emitters to add one field is a second pass
- * over eleven emitters.
+ * declared now because it belongs to the same events the damage dice opened.
+ *
+ * **Declared everywhere it belongs, filled in two places.** It is on
+ * `roll-recorded` and on every slice of `damage-dice-recorded`, and the sites
+ * that fill it are the weapon attack and the damage Reaction — the two this
+ * field's own branch owned. Which sites do not, and why that is safe until the
+ * door lands, is recorded on `roll-recorded.stated` rather than left to be
+ * inferred from this one.
  */
 export interface StatedRoll {
   /** The id the issuer gave it, so the record joins the roll it describes. */
@@ -2035,9 +2040,28 @@ export type GameEvent =
       /**
        * Where the roll came from, when it was not this engine.
        *
-       * Absent means the engine threw it — see {@link StatedRoll} for why that
-       * is the only reading the shape allows, and why the field is here before
-       * anything can fill it.
+       * See {@link StatedRoll} for why `'engine'` is not expressible here and
+       * why the field is declared before anything can fill it.
+       *
+       * **Two of the thirteen sites that build this event fill it today, so
+       * absent means two things**, and that is a gap being recorded rather
+       * than a shape being claimed — the same record `modes?` above keeps of
+       * its own. The weapon attack (`commands/attacks.ts`) and the damage
+       * Reaction (`commands/reactions.ts`) read the provenance off the roll
+       * they just made; the other eleven — `recordD20Test` and the ten
+       * commands that build the event directly — pass nothing, though every
+       * one of them holds a `RecordedRoll` or a `RecordedD20` that carries
+       * one. Each is a one-line `...statedFrom(…)` in a module this field did
+       * not own.
+       *
+       * **Nothing can currently reach the other reading**, which is what makes
+       * the gap safe rather than merely known: no command produces a roll
+       * whose provenance is not `engine`, so every occurrence in every log
+       * this engine has written is absent for the one true reason.
+       * `damage-dice-in-the-log.test.ts` sweeps a whole driven log and asserts
+       * zero. The line that closes the gap is `recordD20Test` in
+       * `commands/rolls.ts`, which is where the D20 pipeline funnels and where
+       * the door for a table's own dice is being built.
        */
       readonly stated?: StatedRoll;
       /**
