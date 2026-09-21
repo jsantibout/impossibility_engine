@@ -37,6 +37,15 @@ export default tseslint.config(
     // same event log must always fold to a byte-identical GameState. Ambient
     // randomness or clock reads would silently break replay, so they are
     // banned here rather than left to review.
+    //
+    // **Three of these were written down and six were not**, and the six are
+    // the same sentence said in other words: a module reaches them without
+    // importing anything, so nothing in a diff shows that a fold has started
+    // depending on the host. They are banned in the three shapes the language
+    // gives them — a property of a global object, a bare global, and `new` on
+    // a constructor — and every one is driven through ESLint in
+    // `purity-zone.test.ts`, because a restricted global that ESLint does not
+    // resolve is a rule that reports nothing and looks enforced.
     files: ['packages/engine/**/*.ts'],
     ignores: ['packages/engine/**/*.test.ts'],
     rules: {
@@ -57,8 +66,74 @@ export default tseslint.config(
           property: 'randomUUID',
           message: 'Ids must be derived deterministically or supplied by the caller.',
         },
+        {
+          object: 'performance',
+          property: 'now',
+          message:
+            'The engine must not read a clock, monotonic or otherwise — a fold that timed itself ' +
+            'would not replay. Pass the number in on the event, or measure from outside the engine.',
+        },
+        {
+          object: 'process',
+          property: 'env',
+          message:
+            'The environment is input nobody passed: the engine would fold one way on your machine ' +
+            'and another in CI, from a log that says nothing about either. Take it as an argument.',
+        },
+      ],
+      'no-restricted-globals': [
+        'error',
+        {
+          name: 'globalThis',
+          message:
+            'The engine holds no ambient state. Whatever is on the global object came from outside ' +
+            'the event log, so a fold that read it would not replay. Pass it in.',
+        },
+        {
+          name: 'Intl',
+          message:
+            'Intl formats by the host locale, so the engine would produce different text on ' +
+            'different machines from the same log. Format outside the engine.',
+        },
+        {
+          name: 'structuredClone',
+          message:
+            'A host builtin whose behaviour is the runtime version’s, not this repository’s. ' +
+            'The engine copies with the spread it already uses, which is also what the fold expects.',
+        },
+      ],
+      // `Date.now` is a property and is banned above; `new Date()` is the same
+      // clock read written as a constructor, and no property ban can see it.
+      // The selector is on the `new`, so a `Date` *type* annotation and a
+      // parameter somebody named `Date` are untouched.
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'NewExpression[callee.name="Date"]',
+          message:
+            'The engine must not read the clock. `new Date()` is `Date.now()` with a wrapper: pass ' +
+            'the timestamp in on the event, which is the only place replay can find it again.',
+        },
       ],
     },
+  },
+  {
+    // The one place the zone above does not reach, named rather than a
+    // directory, and with the other eight bans left switched on.
+    //
+    // `packages/engine/scripts/` is not the engine: nothing in it is compiled
+    // into `@ie/engine` (the package builds `src/**/*`), and the instruments
+    // there read the disk, print to stdout and time themselves with
+    // `process.hrtime` — a benchmark that may not read a clock is not a
+    // benchmark. `bench-fold.ts:82` reads `globalThis.__PASS__`, a profiling
+    // hook the fold used to set while somebody was measuring it; **nothing in
+    // the tree sets it today**, so the readout is inert, and no fold folds
+    // differently for it. That is why this is `no-restricted-globals` off for
+    // one file rather than the scripts directory excused: `Math.random` and
+    // `new Date()` in `make-golden-log.ts` would still be refused, which is
+    // the ban that actually matters there.
+    files: ['packages/engine/scripts/bench-fold.ts'],
+    rules: { 'no-restricted-globals': 'off' },
   },
   {
     // `events.ts` re-exports `./fold/index.js` and that barrel is the whole of
