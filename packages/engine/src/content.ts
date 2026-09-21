@@ -600,6 +600,19 @@ function itemPoolProblems(
       );
     }
   }
+  // A recovery a later feature rewrites is a class table's step, and an item
+  // has no feature list for the gate to read: `recoveryOf` in `creation.ts`
+  // asks whether the character holds the feature named, and the answer for a
+  // wand's charges is that nothing ever asks. Refused for the reason the four
+  // sizings above are — a field this host could never apply is a rule the
+  // writer believes is in force.
+  if (grant.recoversSooner !== undefined) {
+    say(
+      'item_grant_reads_a_level',
+      "an item's charges are not a class feature's pool, so a later feature has no table here to step and recoversSooner would never be read",
+      `${at}.recoversSooner`,
+    );
+  }
   // Both hang a *feature's* payout off the pool — hit points for its holder,
   // and a touch that lifts conditions — and nothing runs either from an item.
   for (const field of ['heals', 'touchHeals'] as const) {
@@ -3235,6 +3248,30 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
             field: `${where}.executedBy`,
             code: 'bad_executed_by',
             reason: `${feature.id} says ${feature.executedBy} executes it, and no feature of that id on ${source.where} declares anything a reader reads`,
+          });
+        }
+      }
+      // A pool whose recovery a later feature rewrites names a feature this
+      // character could actually hold, which is `executedBy`'s reason with its
+      // failure: the rewrite is gated on holding the feature named, so an id
+      // nobody prints is a sentence that never fires, and the pool keeps the
+      // tag it was declared with while the class file reads as though it does
+      // not. Silence rather than a refusal is what this file turns into a
+      // problem.
+      //
+      // **Read against `inScope` rather than against siblings**, for the
+      // reason that field exists: `recoveryOf` gates on the whole feature
+      // list a character earned, class and subclass together, so a subclass
+      // pool a class feature moves is a legal thing to write and asking only
+      // about siblings would refuse it.
+      if (feature.grants?.kind === 'pool' && feature.grants.recoversSooner !== undefined) {
+        const named = feature.grants.recoversSooner.withFeature;
+        const rewriter = byId(source.inScope ?? source.features).get(named);
+        if (rewriter === undefined || rewriter.id === feature.id) {
+          problems.push({
+            field: `${where}.grants.recoversSooner.withFeature`,
+            code: 'bad_recovery_rewrite',
+            reason: `${feature.id} says ${named} rewrites its recovery, and no other feature ${source.where} reaches carries that id`,
           });
         }
       }

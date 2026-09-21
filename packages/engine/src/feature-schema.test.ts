@@ -451,6 +451,32 @@ describe('rule 6 — a pool is sized the three ways the SRD sizes one', () => {
     };
     expect(codes(reaction)).toContain('not_a_table_column');
   });
+
+  /**
+   * And the recovery a **later feature** rewrites, judged by the two ways the
+   * rewrite could be silent.
+   *
+   * SRD Font of Inspiration moves a pool declared four levels earlier onto a
+   * Short Rest. `recoveryOf` in `creation.ts` gates that on the character
+   * holding the feature named, so a name nobody could hold never fires — and a
+   * tag that is the one already declared is a rewrite of nothing at all.
+   * Whether the id names a *real* sibling is `checkContent`'s, which sees the
+   * source's other features; both halves are asked, neither twice.
+   */
+  it('reports a rewrite naming nobody, and one that changes nothing', () => {
+    expect(codes(pool({ recoversSooner: { withFeature: '  ', recovers: 'short-rest' } }))).toContain(
+      'rewrite_without_a_feature',
+    );
+    expect(codes(pool({ recoversSooner: { recovers: 'short-rest' } }))).toContain(
+      'rewrite_without_a_feature',
+    );
+    expect(
+      codes(pool({ recoversSooner: { withFeature: 'a-class:later', recovers: 'long-rest' } })),
+    ).toContain('rewrite_changes_nothing');
+    expect(
+      codes(pool({ recoversSooner: { withFeature: 'a-class:later', recovers: 'short-rest' } })),
+    ).toEqual([]);
+  });
 });
 
 /**

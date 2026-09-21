@@ -1032,6 +1032,46 @@ export type FeatureGrant =
        */
       readonly regainsAtDawn?: string;
       /**
+       * A **later feature** that rewrites this pool's recovery.
+       *
+       * SRD Font of Inspiration, at Bard level 5: "you regain all your expended
+       * uses of Bardic Inspiration when you finish a Short Rest." The pool was
+       * declared four levels earlier with a Long Rest on it, and the second
+       * feature changes that one tag and nothing else — not what a use buys,
+       * not how many there are.
+       *
+       * **It is declared here rather than on the feature that prints it**, for
+       * the reason {@link FeatureDefinition.executedBy} gives: a later feature
+       * that only moves a number an earlier declaration already carries is a
+       * *step in the earlier feature's table*, and `FeatureDefinition.grants`
+       * is singular — the SRD's own host for this sentence carries a `trade`
+       * for its first sentence and has no second grant to spare. So the pool
+       * names the feature whose arrival moves it, and creation applies the
+       * rewrite exactly when the character holds that feature: at creation for
+       * one built past the level, and through
+       * `resource-pool-recovery-changed` for one who reaches it in play.
+       *
+       * **Not {@link regainsOnShortRest}**, which is the partial rule — "one
+       * back on a Short, all on a Long" — and would hand back a single use.
+       * This is the whole tag, and `restoreOn` needs no new branch to read it:
+       * a rest emits both tags on a Long Rest, so a pool moved to the Short is
+       * still refilled by the night.
+       */
+      readonly recoversSooner?: {
+        /**
+         * The feature whose sentence rewrites it, out of the features this
+         * source reaches: its own, and for a subclass its parent class's —
+         * `checkContent` holds it to that list because `recoveryOf` gates on
+         * the whole list a character earned.
+         *
+         * A class feature that moves a *subclass*'s pool cannot also claim
+         * `executedBy`, which is held to one source, so it records `manual`
+         * and says in its note what the other declaration does.
+         */
+        readonly withFeature: string;
+        readonly recovers: Recovery;
+      };
+      /**
        * What one use buys, where what it buys is hit points for the holder.
        *
        * Second Wind and Wholeness of Body, which are one sentence apart —

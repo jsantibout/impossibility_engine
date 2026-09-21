@@ -540,6 +540,17 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // and the hour that ends one nobody used.
   'reaction-grant-consumed',
   'reaction-granted',
+  // A pool's recovery rewritten by a later feature. Neither log was written
+  // when a recovery could move at all — the tag was pinned when the pool was
+  // declared and nothing but a re-declaration could have touched it, which
+  // neither log does — so both fixtures fold to exactly the states they always
+  // folded to, and the fixtures are read for the type by name in
+  // `pool-recovery-rewrite.test.ts`. That file folds the event and drives it:
+  // the tag moved with the maximum and the spent uses untouched, the Short
+  // Rest that then answers for it, the Long Rest that still does, and the
+  // refusal on a key the creature has no pool for. `font-of-inspiration.test.ts`
+  // takes it through the catalogue, on both paths into the level that grants it.
+  'resource-pool-recovery-changed',
   // A grant a roll used up. No frozen log carries a one-shot modifier — the
   // mechanic postdates both of them by a long way — so neither could carry the
   // event that spends one. `one-shot-modifiers.test.ts` folds it and drives it
