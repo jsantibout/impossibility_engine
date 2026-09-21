@@ -67,9 +67,9 @@
  * is nowhere above it to write a guard.
  */
 
-import { type CharacterId, err, ok, type Result } from '@ie/shared';
+import { type CharacterId, err, needsContext, ok, type Result } from '@ie/shared';
 import { instancedPoolKeys, itemChargePool, itemChargeRoll } from '../catalogue.js';
-import { swapInitiative } from '../combat.js';
+import { isInitiativeMoment, swapInitiative } from '../combat.js';
 import { type GameEvent, type GameState, type InventoryLine } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import { rollRecorded } from '../rolls.js';
@@ -149,19 +149,48 @@ export function declareCreatureHeads(
   });
 }
 
+export interface SwapInitiativeCommand extends CommandIdentity {
+  /**
+   * Whether the ally consents — SRD Alert's "one **willing** ally".
+   *
+   * Optional in the type and required in the rule: absent is a fact nobody has
+   * stated, which is asked for rather than refused, and the two are different
+   * answers rather than one defaulted one.
+   */
+  readonly willing?: boolean;
+}
+
 /**
  * Swap two combatants' places in the Initiative order.
  *
  * SRD Alert: "Immediately after you roll Initiative, you can swap your
  * Initiative with the Initiative of one willing ally in the same combat."
  *
- * **This is the event a DM declares; it is not the feat's offer.** `CLAUDE.md`
- * records Alert's swap as not modelled, and it still is: nothing here checks
- * that either creature has the feat, that the moment is immediately after the
- * roll, or that the ally is willing — the first two need a feature that offers
- * a choice at a moment the engine does not hold, and willingness is fiction.
- * What the engine does own is the arithmetic, and `swapInitiative` has owned
- * it since it was written, reachable from the reducer alone.
+ * **It is the feat's offer now**, and the three things it used to leave
+ * unchecked are the three the sentence says. The owner ruled on 2026-09-20
+ * that the swap is Alert's and has a window: the holder chooses immediately
+ * after the Initiative roll and before the first turn is taken, with one
+ * willing ally.
+ *
+ * | | Checked by |
+ * |---|---|
+ * | "**you** can swap your Initiative" | the swapper's sheet declaring it — `initiativeSwap`, off a grant and never off a feat's id |
+ * | "**immediately after** you roll Initiative" | {@link isInitiativeMoment}, which is the first turn of the fight |
+ * | "one **willing** ally" | the caller stating it, and asked for where nobody has |
+ *
+ * **The swapper is `a`**, which the SRD's own sentence fixes: the swap is the
+ * feat-holder's to make and the ally's to consent to, so the two arguments are
+ * not interchangeable even though the arithmetic beneath them is symmetric.
+ *
+ * **Consent is asked for rather than refused.** Willingness is fiction and the
+ * table owns it, so a caller that has not said is a caller whose *record is
+ * thin* rather than one the rules have said no to: it gets a `needs-context`
+ * carrying the `route` request — the kind whose whole definition is "satisfied
+ * by re-sending the same command with a field filled in". A stated `false` is
+ * a different thing entirely and is an ordinary refusal.
+ *
+ * What the engine already owned is the arithmetic, and `swapInitiative` has
+ * owned it since it was written.
  *
  * The Incapacitated clause is the half that was unreachable. `swapInitiative`
  * takes both creatures' conditions and the reducer passes neither, so the rule
@@ -183,11 +212,43 @@ export function swapInitiativeBetween(
   state: GameState,
   a: CharacterId,
   b: CharacterId,
-  command: CommandIdentity = {},
+  command: SwapInitiativeCommand = {},
 ): Result<GameEvent[]> {
   return once(state, `swap-initiative:${a}<>${b}`, command, () => [], (stamp) => {
     if (state.combat === null) {
       return err('not_in_combat', 'there is no Initiative order to swap places in');
+    }
+
+    // The three the sentence says, before the arithmetic that was always here.
+    if (creatureOf(state, a)?.sheet.initiativeSwap !== true) {
+      return err(
+        'no_such_feature',
+        `nothing ${a} has lets them swap Initiative with an ally`,
+      );
+    }
+    if (!isInitiativeMoment(state.combat)) {
+      return err(
+        'not_the_moment',
+        `the swap happens immediately after Initiative is rolled, and ${a}'s fight is already under way`,
+      );
+    }
+    if (command.willing === undefined) {
+      return needsContext(
+        'consent_not_stated',
+        `nobody has said whether ${b} is willing to swap Initiative with ${a}; send the same command saying so`,
+        [
+          {
+            kind: 'route',
+            subject: b,
+            need: 'whether the ally consents to the swap',
+            because: 'SRD Alert swaps with "one willing ally", and willingness is the table’s fiction rather than the engine’s arithmetic',
+            satisfyWith: 'swapInitiativeBetween with willing stated',
+          },
+        ],
+      );
+    }
+    if (!command.willing) {
+      return err('ally_unwilling', `${b} is not willing to swap Initiative with ${a}`);
     }
 
     const swapped = swapInitiative(

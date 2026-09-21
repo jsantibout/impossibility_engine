@@ -59,6 +59,11 @@ const sheet = (): CharacterSheet => ({
   armorTraining: { light: true, medium: true, heavy: true, shields: true },
   baseSpeed: 30,
   spellcastingAbility: null,
+  // SRD Alert's Initiative Swap, which the swap command asks the swapper for.
+  // Everybody in this fixture holds it: the file is about what the command
+  // declares and refuses, and who may make the swap at all is
+  // `alert-initiative-swap.test.ts`'s question.
+  initiativeSwap: true,
 });
 
 const added = (who: string, side?: string): GameEvent => ({
@@ -358,7 +363,7 @@ describe('Initiative can be swapped, which is the event Alert asks for', () => {
   it('swaps the two and rebuilds the order', () => {
     const table = fighting();
     const before = table.state.combat!.order.map((c) => [c.id, c.initiative]);
-    table.do('the swap', (s) => swapInitiativeBetween(s, KNIGHT, SQUIRE));
+    table.do('the swap', (s) => swapInitiativeBetween(s, KNIGHT, SQUIRE, { willing: true }));
     const after = table.state.combat!.order;
 
     expect(after.find((c) => c.id === KNIGHT)?.initiative).toBe(10);
@@ -368,14 +373,14 @@ describe('Initiative can be swapped, which is the event Alert asks for', () => {
 
   it('tells a retry under one id that its command landed', () => {
     const table = fighting();
-    table.do('the swap', (s) => swapInitiativeBetween(s, KNIGHT, SQUIRE, { commandId: 'alert' }));
+    table.do('the swap', (s) => swapInitiativeBetween(s, KNIGHT, SQUIRE, { commandId: 'alert', willing: true }));
     expect(
-      unwrap(swapInitiativeBetween(table.state, KNIGHT, SQUIRE, { commandId: 'alert' }), 'retry'),
+      unwrap(swapInitiativeBetween(table.state, KNIGHT, SQUIRE, { commandId: 'alert', willing: true }), 'retry'),
     ).toEqual([]);
   });
 
   it('refuses a creature swapping with itself', () => {
-    const out = swapInitiativeBetween(fighting().state, KNIGHT, KNIGHT);
+    const out = swapInitiativeBetween(fighting().state, KNIGHT, KNIGHT, { willing: true });
     expect(isErr(out) ? out.code : 'ok').toBe('same_combatant');
   });
 
@@ -391,19 +396,19 @@ describe('Initiative can be swapped, which is the event Alert asks for', () => {
     table.push([
       { type: 'condition-applied', id: SQUIRE, condition: 'stunned', source: 'a blow' },
     ]);
-    const out = swapInitiativeBetween(table.state, KNIGHT, SQUIRE);
+    const out = swapInitiativeBetween(table.state, KNIGHT, SQUIRE, { willing: true });
     expect(isErr(out) ? out.code : 'ok').toBe('incapacitated');
   });
 
   /** Out of combat there is no order, and the reducer throws for the event. */
   it('refuses outside combat', () => {
-    const out = swapInitiativeBetween(yard().state, KNIGHT, SQUIRE);
+    const out = swapInitiativeBetween(yard().state, KNIGHT, SQUIRE, { willing: true });
     expect(isErr(out) ? out.code : 'ok').toBe('not_in_combat');
   });
 
   it('asks about a creature nobody has mentioned', () => {
     const table = fighting();
-    const out = swapInitiativeBetween(table.state, KNIGHT, id('a-passer-by'));
+    const out = swapInitiativeBetween(table.state, KNIGHT, id('a-passer-by'), { willing: true });
     expect(isNeedsContext(out)).toBe(true);
     expect(contextRequestsOf(out).map((r) => [r.kind, r.subject])).toEqual([
       ['creature', id('a-passer-by')],
@@ -432,7 +437,7 @@ describe('Initiative can be swapped, which is the event Alert asks for', () => {
       ]),
     );
 
-    const out = swapInitiativeBetween(table.state, KNIGHT, id('ostler'));
+    const out = swapInitiativeBetween(table.state, KNIGHT, id('ostler'), { willing: true });
     expect(isErr(out) ? out.code : 'ok').toBe('unknown_combatant');
     expect(isNeedsContext(out)).toBe(false);
     expect(isErr(out) ? out.reason : '').toContain('ostler');
@@ -716,14 +721,14 @@ describe('a declared-fact command refuses what the reducer would call corrupt', 
       name: 'swapping Initiative with yourself',
       code: 'same_combatant',
       log: fighting,
-      run: (s) => swapInitiativeBetween(s, KNIGHT, KNIGHT),
+      run: (s) => swapInitiativeBetween(s, KNIGHT, KNIGHT, { willing: true }),
       forged: () => ({ type: 'initiative-swapped', a: KNIGHT, b: KNIGHT }),
     },
     {
       name: 'swapping Initiative outside combat',
       code: 'not_in_combat',
       log: yard,
-      run: (s) => swapInitiativeBetween(s, KNIGHT, SQUIRE),
+      run: (s) => swapInitiativeBetween(s, KNIGHT, SQUIRE, { willing: true }),
       forged: () => ({ type: 'initiative-swapped', a: KNIGHT, b: SQUIRE }),
     },
     {

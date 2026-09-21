@@ -162,6 +162,9 @@ const sheet = (over: Partial<CharacterSheet> = {}): CharacterSheet => ({
   baseSpeed: 30,
   spellcastingAbility: 'int',
   weaponProficiencies: ['simple', 'martial'],
+  // SRD Alert's Initiative Swap, so the sweep's well-formed call reaches the
+  // command's own body rather than stopping at whose feat the swap is.
+  initiativeSwap: true,
   activated: [
     { feature: 'test:stance', name: 'Stance', action: 'bonus-action', pool: null, lasts: 'end-of-next-turn' },
   ],
@@ -1930,7 +1933,7 @@ const GUARDED: readonly Guarded[] = [
   {
     name: 'swapInitiativeBetween',
     log: SETUP,
-    run: (s, commandId) => swapInitiativeBetween(s, A, B, { commandId }),
+    run: (s, commandId) => swapInitiativeBetween(s, A, B, { commandId, willing: true }),
   },
   {
     name: 'stabiliseCreature',
@@ -3079,7 +3082,7 @@ describe('the DM-declared commands declare facts rather than taking actions', ()
     },
     { name: 'declareCreatureSide', run: (s) => declareCreatureSide(s, C, 'the watch') },
     { name: 'declareCreatureHeads', run: (s) => declareCreatureHeads(s, C, 3) },
-    { name: 'swapInitiativeBetween', run: (s) => swapInitiativeBetween(s, A, B) },
+    { name: 'swapInitiativeBetween', run: (s) => swapInitiativeBetween(s, A, B, { willing: true }) },
     { name: 'stabiliseCreature', run: (s) => stabiliseCreature(s, C) },
     { name: 'declareCreatureDead', run: (s) => declareCreatureDead(s, C, 'off-screen') },
     {
@@ -3177,14 +3180,47 @@ describe('the DM-declared commands declare facts rather than taking actions', ()
     advanceTime: 'in_combat',
   };
 
+  /**
+   * The one command here that this fixture refuses because of **when** it is,
+   * and the code it refuses with.
+   *
+   * SRD Alert's swap happens "immediately after you roll Initiative", and this
+   * fixture has moved on a turn to put somebody in the grease — so the window
+   * is shut for the same reason it would be shut in any fight a round old.
+   * Earned the same three ways as the entry above, with the axes swapped: the
+   * code is the one named, a fight one turn in and owing **nothing** refuses
+   * identically, and the same fight still at the moment does not refuse at
+   * all.
+   */
+  const REFUSED_BY_THE_MOMENT: Readonly<Record<string, string>> = {
+    swapInitiativeBetween: 'not_the_moment',
+  };
+
   it('names only commands this sweep actually runs', () => {
     const names = new Set(declaring.map((entry) => entry.name));
     expect(Object.keys(REFUSED_BY_THE_CLOCK).filter((name) => !names.has(name))).toEqual([]);
+    expect(Object.keys(REFUSED_BY_THE_MOMENT).filter((name) => !names.has(name))).toEqual([]);
   });
 
   for (const entry of declaring) {
     it(`${entry.name}: allowed while an area effect is owed`, () => {
       const out = entry.run(fold('s', owedAndWatching()));
+      const moment = REFUSED_BY_THE_MOMENT[entry.name];
+      if (moment !== undefined) {
+        expect(isErr(out) ? out.code : 'ok').toBe(moment);
+        // A fight one turn in and owing nothing answers the same, so the debt
+        // is not what refused it …
+        const movedOn = [
+          ...SETUP,
+          ...unwrap(resolveTurn(fold('s', SETUP), supply()), 'on to B').events,
+        ];
+        expect(fold('s', movedOn).owedAreaEffects).toEqual([]);
+        expect(isErr(entry.run(fold('s', movedOn))) ? 'refused' : 'ok').toBe('refused');
+        // … and the same fight still at the moment does not refuse at all.
+        expect(isErr(entry.run(fold('s', SETUP))) ? 'refused' : 'ok').toBe('ok');
+        return;
+      }
+
       const refusal = REFUSED_BY_THE_CLOCK[entry.name];
       if (refusal === undefined) {
         expect(isErr(out) ? `${out.code}: ${out.reason}` : 'ok').toBe('ok');

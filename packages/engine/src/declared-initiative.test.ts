@@ -143,7 +143,11 @@ describe('Alert gets its Initiative bonus because the feat declares it', () => {
 
   /** The catalogue says it in the vocabulary, not in prose. */
   it('is declared on the feat rather than recorded in its note', () => {
-    expect(SRD_CONTENT.featById('alert')?.grants).toEqual({ kind: 'initiative-proficiency' });
+    expect(SRD_CONTENT.featById('alert')?.grants).toEqual({
+      kind: 'initiative',
+      proficiency: true,
+      swap: true,
+    });
   });
 });
 
@@ -159,7 +163,7 @@ describe('a homebrew feat declaring the same bonus gets the same bonus', () => {
     requires: { kind: 'none' },
     repeatable: false,
     note: 'Adds the Proficiency Bonus to Initiative, declared and executed.',
-    grants: { kind: 'initiative-proficiency' },
+    grants: { kind: 'initiative', proficiency: true },
   };
 
   const homebrew = (): Content =>
@@ -179,7 +183,7 @@ describe('a homebrew feat declaring the same bonus gets the same bonus', () => {
       loadContent(JSON.parse(JSON.stringify({ feats: [WATCHFUL] }))),
       'load',
     );
-    expect(loaded.featById('watchful')?.grants).toEqual({ kind: 'initiative-proficiency' });
+    expect(loaded.featById('watchful')?.grants).toEqual({ kind: 'initiative', proficiency: true });
   });
 
   /**
@@ -233,13 +237,27 @@ describe('what a feat may declare is held to what creation executes', () => {
     expect(checkContent(featWith({ attacks: 2 })).map((problem) => problem.code)).toEqual([
       'bad_feat_grant',
     ]);
-    expect(checkContent(featWith('initiative-proficiency')).map((problem) => problem.code)).toEqual([
+    expect(checkContent(featWith('initiative')).map((problem) => problem.code)).toEqual([
       'bad_feat_grant',
     ]);
   });
 
   it('accepts the kind it does execute', () => {
-    expect(checkContent(featWith({ kind: 'initiative-proficiency' }))).toEqual([]);
+    expect(checkContent(featWith({ kind: 'initiative', proficiency: true, swap: true }))).toEqual([]);
+    // Either half alone is a whole sentence; SRD Alert prints both and a
+    // homebrew feat may print one.
+    expect(checkContent(featWith({ kind: 'initiative', proficiency: true }))).toEqual([]);
+    expect(checkContent(featWith({ kind: 'initiative', swap: true }))).toEqual([]);
+  });
+
+  /**
+   * And a grant about Initiative that raises neither flag changes nothing
+   * about Initiative, which is a sentence somebody meant to finish.
+   */
+  it('refuses a grant that declares neither half', () => {
+    expect(checkContent(featWith({ kind: 'initiative' })).map((problem) => problem.code)).toEqual([
+      'empty_initiative_grant',
+    ]);
   });
 
   /** The JSON door refuses the same thing, because half its input is untyped. */

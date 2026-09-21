@@ -673,12 +673,14 @@ export const ORIGIN_FEATS: readonly FeatDefinition[] = [
     category: 'origin',
     requires: { kind: 'none' },
     repeatable: false,
-    // SRD prints two benefits under Alert and this is the first of them,
-    // "Initiative Proficiency". Declared rather than described: creation reads
-    // the grant, puts the Proficiency Bonus into initiativeBonuses under this
-    // feat name, and rollInitiative takes it like any other named bonus.
-    grants: { kind: 'initiative-proficiency' },
-    note: 'Initiative Swap is not applied: "you can swap your Initiative with one willing ally" needs a decision about whose choice that is and when it is offered, which nobody has modelled - swapInitiative exists and nothing offers it.',
+    // SRD prints two benefits under Alert and both are declared here, because
+    // the feat prints two sentences and a definition carries one grant.
+    // Creation reads the first into initiativeBonuses under this feat name,
+    // where rollInitiative takes it like any other named bonus; the second is
+    // the permission swapInitiativeBetween asks for before it will write a
+    // swap at all.
+    grants: { kind: 'initiative', proficiency: true, swap: true },
+    note: 'Both printed benefits are applied. Initiative Proficiency adds the Proficiency Bonus to the roll. Initiative Swap is the permission the swap command asks for: the owner ruled on 2026-09-20 that the choice is the feat-holder’s and has a window, so the swap is refused outside the first turn of the fight, refused for a swapper without this grant, and refused for an ally whose consent the table has not stated - which is asked for rather than refused, because a fact nobody has said is missing rather than wrong.',
   },
   {
     id: 'magic-initiate',

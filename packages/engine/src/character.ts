@@ -449,6 +449,17 @@ export interface CharacterSheet {
    */
   readonly budgetPurchases?: readonly BudgetPurchase[];
   /**
+   * Whether this character may swap Initiative with a willing ally — SRD
+   * Alert's second printed benefit.
+   *
+   * Resolved at creation off a declaration rather than off a feat's id, for
+   * inviolable rule 4's reason: a catalogue without Alert would otherwise lose
+   * the rule, and one that spelled it differently would never get it. Absent
+   * means no, which is what every creature the engine was ever told about says
+   * — including every stat block, none of which prints the sentence.
+   */
+  readonly initiativeSwap?: boolean;
+  /**
    * What a casting of this character's may buy, and what each purchase costs
    * — SRD Metamagic's menu.
    *

@@ -3103,6 +3103,11 @@ export function planCharacter(
     ...(healingTouch.length === 0 ? {} : { healingTouch }),
     ...(poolOptions.length === 0 ? {} : { poolOptions }),
     ...(budgetPurchases.length === 0 ? {} : { budgetPurchases }),
+    // SRD Alert's Initiative Swap: a permission rather than a number, so it
+    // reaches the sheet as a flag and is absent for everybody who has not been
+    // granted it — which is the same shape `attacksPerAction` takes when
+    // nothing has widened the Attack action.
+    ...(declaresInitiativeSwap(content, choices, features) ? { initiativeSwap: true } : {}),
     ...(castingOptions.length === 0 ? {} : { castingOptions }),
     ...(hitOptions.length === 0 ? {} : { hitOptions }),
     // The *first* casting class's ability, and null for a character who casts
@@ -3248,7 +3253,7 @@ export function planCharacter(
  * to be executed by reading that one feat's id, which is inviolable rule 4
  * broken mechanically — a catalogue without the feat lost the rule, and a
  * catalogue that spelled it differently never got it. Now the feat declares
- * `initiative-proficiency` and this reads the declaration, so a homebrew feat
+ * `initiative` with `proficiency` and this reads the declaration, so a homebrew feat
  * saying the same thing gets the same bonus with no engine change.
  *
  * **Asked of features as well as feats**, because the grant is a member of the
@@ -3265,6 +3270,30 @@ export function planCharacter(
  * repeatable feat taken twice would otherwise get wrong, and the same rule
  * `bonusesFor` keeps about a source granting twice.
  */
+/**
+ * Whether anything this character holds lets them swap Initiative.
+ *
+ * SRD Alert's second printed benefit, read exactly as its first one above is:
+ * off the declaration rather than off the feat's id, and asked of features as
+ * well as of feats because the grant is a member of the one vocabulary and a
+ * homebrew class feature may print the same sentence. The answer is a flag
+ * rather than a list because the permission does not stack — two ways to be
+ * allowed one swap is still one swap.
+ */
+function declaresInitiativeSwap(
+  content: Content,
+  choices: CharacterChoices,
+  features: readonly FeatureDefinition[],
+): boolean {
+  const grants = (grant: FeatureGrant | undefined): boolean =>
+    grant?.kind === 'initiative' && grant.swap === true;
+
+  if (features.some((feature) => grants(feature.grants))) return true;
+  return Object.values(choices.feats).some((feat) =>
+    grants(content.featById(feat.featId)?.grants),
+  );
+}
+
 function declaredInitiativeBonuses(
   content: Content,
   choices: CharacterChoices,
@@ -3274,7 +3303,7 @@ function declaredInitiativeBonuses(
   const named = new Map<string, number>();
 
   const declare = (source: string, grant: FeatureGrant | undefined): void => {
-    if (grant?.kind !== 'initiative-proficiency') return;
+    if (grant?.kind !== 'initiative' || grant.proficiency !== true) return;
     named.set(source, proficiencyBonus);
   };
 

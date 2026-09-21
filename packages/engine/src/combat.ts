@@ -1389,6 +1389,24 @@ export function removeCombatant(state: CombatState, id: CharacterId): Result<Com
 }
 
 /**
+ * Whether the fight is still at the moment Initiative was rolled.
+ *
+ * SRD writes "when you roll Initiative" and "immediately after you roll
+ * Initiative" on a handful of features, and the closest moment the engine
+ * holds is the **first turn of the fight**: `turnsTaken` counts turns
+ * *finished*, so it is still 0 throughout it. That window is the same for
+ * everyone in the order rather than depending on where in it the holder sits,
+ * which is what the sentence means — a creature fourth in Initiative takes it
+ * during the first combatant's turn.
+ *
+ * `commands/features.ts` spells this out inline for `moment: 'initiative'`,
+ * which is the same reading of the same clause; whoever next touches that file
+ * should call this instead, so the moment has one definition rather than two
+ * that agree today.
+ */
+export const isInitiativeMoment = (state: CombatState): boolean => state.turnsTaken === 0;
+
+/**
  * SRD Alert: "Immediately after you roll Initiative, you can swap your
  * Initiative with the Initiative of one willing ally in the same combat. You
  * can't make this swap if you or the ally has the Incapacitated condition."
