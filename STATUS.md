@@ -34,9 +34,19 @@ to homebrew.
   cannot make two Claws; and an opportunity attack that reaches for the
   highest-damage printed melee attack that does not recharge, instead of
   fabricating an Unarmed Strike. A caller may still name a different one.
-- **The defender answers first.** A rider elected on a swing is pinned on the
-  pending damage and resolved after it lands, so a target Stunned by the same
-  hit still answers the window it was offered.
+- **The defender answers first, on both paths.** A rider elected on a swing is
+  pinned on the pending record and resolved after the damage lands, so a target
+  Stunned by the same hit still answers the window it was offered — held swings
+  included. A *Shield* that turns the hit into a miss drops the rider unspent,
+  because "when you hit a creature" became false, and a hold that ends when a
+  party leaves drops it the same way: resolving it would apply a condition from
+  a blow the log says never landed.
+- **A count the table keeps.** A Hydra's active heads are declared through the
+  DM's surface and nowhere else, and the Attack action's Bites derive from what
+  was declared — a printed sequence still wins, and a block with neither holds
+  one swing and says so. It is the first DM door that takes a number, and the
+  line it draws is that a number the engine produces is a fabrication while a
+  number the table states is a fact.
 - **Casting** — slots and Pact slots as pools, castings with identities,
   Concentration, interruptible declared castings, long castings and rituals,
   reaction spells, ongoing records that later activations act through.
@@ -395,95 +405,81 @@ to homebrew.
 ## Next
 
 **A level 5 party can be built, armed, placed against monsters that fight with
-their own printed lines, and played through a fight, a rest, and now an ending.**
-The numbers are in `COVERAGE.md` and no sentence here repeats one.
+their own printed lines and their own Multiattacks, and played through a fight,
+a rest, and an ending.** The numbers are in `COVERAGE.md` and no sentence here
+repeats one.
 
-The batch of six tracks that closed on 2026-09-20 taught the same lesson four
-times, and it is a lesson about briefs rather than about building: **four of
-six briefs named a number taken from a table nobody had checked.** Six doors
-were one, three spells were two, four features were one, and Multiattack's 177
-blocks were 78. In each case the builder checked, found the truth, and shrank
-or re-aimed its own brief. `WORKFLOW.md` rule 1 already says to check the claim
-against the code and the book before briefing it; it was applied to one track
-of six.
+Two batches have now each taught the same lesson: **a brief that names a number
+taken from a table nobody checked is wrong about half the time.** Six doors were
+one, three spells were two, four features were one, 177 Multiattack blocks were
+78, one Augury was eight, and a rule that held 55 times out of 55 was a fact
+about the corpus rather than a law. Every one was caught by a builder, in
+minutes, after the brief was written. `WORKFLOW.md` rule 1 says to check first.
 
-1. **A feature that holds an action rule.** `ActionRule` is reachable from a
-   casting and from nothing else. The architect's decision is in hand: a
-   derived `StandingGrant` member plus `actionRulesOn(state, id)` merged with
-   the stored rules at every `Spend`, **not** a grant stored at creation. 18
-   reads across 9 command files. **Honest cost: the door alone finishes none of
-   the ten features** — but Hide is now ruled to be the engine's verb, so the
-   pair (the door, and the Hide spender) finishes Cunning Action, which the
-   door alone never could. Brief them together or neither.
-2. **Steady Aim, which is its own shape** — an activated feature that hangs a
-   *stored* one-shot at the moment it pays for it, generalising what
-   `commands/mastery.ts` does bespoke for Sap and Vex.
-3. **The rest of Multiattack, now ruled and briefable.** 78 of the 177 printed
-   lines are built. The architect re-derived the other 99 on 2026-09-20 and
-   found the five mechanisms are **two**: the book says "a *X attack*" when it
-   means a printed attack line (8 of 8 replace-clauses, 2 of 2 alternations)
-   and "a *use of X*" when it means a save or prose action (37 of 37, 18 of
-   18). So everything composing printed attacks is one structure in three
-   wordings, and everything else is a hand-over. Ranked by lines cleared:
+1. **A feature that holds an action rule, and the two things that make it
+   finish something.** The architect's decision is in hand: a derived
+   `StandingGrant` member plus `actionRulesOn(state, id)` merged with the stored
+   rules at every `Spend`, **not** a grant stored at creation, which would put a
+   permanent unconditional row into every Rogue's state and silently miss the
+   Rogue frozen in `golden-log-2.json`. Measured footprint: 18 files, plus
+   `standing.ts`.
 
-   - **R1, the hand-over field — 37 lines.** Parse the first sentence as the
-     sequence, carry the second whole as stated text, report it through
-     `unverified` at the first swing, the channel a hit's rider already uses.
-     Nothing to enforce: making fewer swings than the sequence is already
-     legal. 20 of the 37 name Spellcasting, and a dragon cast through the
-     engine loses its Rends because a casting spends the action — fixing that
-     is a casting that spends an attack, its own brief.
-   - **R2, the menu — 41 lines.** One entry, several printed names, one shared
-     count: `{ count: 2, attacks: ['Scimitar', 'Pistol'] }`. The caller elects
-     swing by swing through `AttackCommand.action`, which already exists. The
-     engine never picks.
-   - **R4, alternation — 10 lines.** `alternatives: [entries, entries]`, and
-     the check becomes "the multiset so far fits *some* alternative". Nothing
-     chooses: the branch is fixed by the swings already made. Both branches
-     total the same in all ten, so `attacksPerAction` stays one number.
-   - **R3, sequence plus a use — 18 lines.** R1's field, landing with it.
+   **The door alone finishes nothing.** With a `from` on `takeDash` it reaches
+   two of Cunning Action's three verbs and Adrenaline Rush's Dash, and Cunning
+   Action stays `manual` until **Hide** is built — ruled the engine's verb, and
+   waiting on a spender rather than on a decision. **Steady Aim** is the third
+   piece and cannot ride the same derivation: a `oneShot` on a *derived*
+   standing grant is never spent, because `consumedRollModifiers` reads stored
+   state. Brief the three together or none.
 
-   All four ride the shipped per-name multiset and the `feature-used` ledger:
-   **no new event, no `TurnBudget` field, no fold change.** The shape change
-   must be additive so a Ghoul pinned today still reads.
+2. **What the bestiary still does not read.** 75 printed bonus-action lines read
+   as 0, which is also what leaves the clay golem's gated alternative prose. And
+   `parseMultiattack` decides a hand-over from **wording** — it takes only the
+   sentence, so it cannot see whether the named action is one the block prints
+   an attack for. Zero SRD blocks are affected and forty such clauses are saves
+   or prose, so nothing in the book is wrong; a homebrew "uses Bite" of an
+   actual Bite loses the swing. The engine knows the answer where
+   `printedMultiattack` binds every name and never asks.
 
-   Three lines the first categorisation missed: the **pit-fiend** is a pure
-   named sequence the parser drops because it splits on ` and ` and an Oxford
-   comma leaves a clause it refuses — a parser gap in `@ie/srd`, zero engine
-   change, and the chimera shares it; the **clay golem**'s third Slam is gated
-   on a Bonus Action the engine does not read, so withhold and report rather
-   than build a field for one monster; the **planetar** is R4 with a hand-over
-   branch.
-4. **The held path of "the defender answers first".** The ordinary path is
-   fixed. The *held* path (`hold: true`, SRD Divine Smite's window) still fires
-   the rider at the hit, before the target answers `hit-by-attack` — so a
-   Stunning Strike can still close a *Shield*. Pre-existing, and now the only
-   half of the ruling outstanding.
-5. **Doors the engine has and the surface still does not call**: the `action`
-   field for a monster's printed attack, `among` on `use_pool_option` (recorded
-   in `doors.test.ts` as a refusal the surface cannot answer), and summoning —
-   which must land with its sweep beside it or a model-driven fight can wedge.
-6. **An atomic casting's handover is not pinned to its log.** The three DM-text
-   spells are long castings, so their text rides `PendingCasting.unverified` on
-   `spell-declared` and rule 5 holds. An atomic casting's handover reaches its
-   caller and nothing else. Closing it is a field on `spell-cast`.
-7. **Augury's class of line.** "The omen is the GM's" is still filed
-   `unmodelled`, which is a debt the blocker table ranks and somebody may one
-   day pay. Under the ruling it is a handover, which nobody will ever pay.
-   Re-filing that class across the catalogue turns fake debt into honest
-   handovers and costs no engine change.
-8. **An unlimited trade is built; three features still are not.** Font of
-   Inspiration, Sorcery Incarnate and Holy Nimbus each spend through the new
-   arm and each keeps a clause blocked on a shape the engine lacks — a
-   Short-Rest recovery rewrite, the two-Metamagic limit rewrite, an aura with
-   no-roll damage and a save-side mode. Flipping them to `engine` would delete
-   four real gaps from the blocked-on map.
-9. **The long tail**: the item range shape (two fields, not one), a casting
+   Three lines the shape row still counts unread: the clay golem (waits on the
+   bonus actions above), the roper (a damage-less attack line, and
+   `MonsterAttackSchema.damage` is `min(1)`), and the Hydra, whose line stays
+   prose by design because the table declares its heads.
+
+3. **Summoning, with the sweep that must land beside it.** Nothing above the
+   engine can summon, so no session can reach the stranded debt, and the
+   standing warning is that a summoning tool without its sweep lets a
+   model-driven fight wedge. Check that warning against the code before
+   briefing it.
+
+4. **A casting that spends an attack.** 20 of the dragons' Multiattack lines
+   name Spellcasting, and a dragon that casts through the engine loses its
+   Rends, because a casting spends the action. The engine stricter than the
+   book. The hand-over clause is at least reported at the first swing now, which
+   is the honest DM route until this lands.
+
+5. **Three features whose trades are built and whose clauses are not**: Font of
+   Inspiration's Short-Rest recovery rewrite, Sorcery Incarnate's two-Metamagic
+   limit rewrite, Holy Nimbus's aura with no-roll damage, a save-side mode and a
+   printed span. Flipping them to `engine` without the shapes would delete four
+   real gaps from the blocked-on map.
+
+6. **A Rage's ten minutes are nobody's to keep.** `capSeconds` is pinned at
+   creation and read by no command; `extendFeature` replaces the timer and
+   checks nothing else. A pinned value that exists to be enforced and is not.
+
+7. **A recorded breach, and a recorded seam.** Mirage Arcane's opening sentence
+   is a handover with a debt inside it — "an area up to 1 mile square" is a size
+   chosen at the casting that a `SpellArea` cannot record; it shipped before
+   there was a rule for it to break and is recorded rather than exempted.
+   `holdings.ts` lists a feature once under first-claim-wins, so a feature
+   granting both a pool option and a hit rider would lose its menu —
+   unreachable in the SRD, reachable by homebrew.
+
+8. **The long tail**: the item range shape (two fields, not one), a casting
    ended by a trigger, the remaining Metamagic options,
-   `an-effect-list-a-hit-buys` for the Rogue's Cunning Strike, `holdings.ts`
-   listing a feature once under first-claim-wins (unreachable until a homebrew
-   feature grants both a pool option and a hit rider), and the bestiary's
-   ranked prose table.
+   `an-effect-list-a-hit-buys` for the Rogue's Cunning Strike, a damage-less
+   attack line, and the bestiary's ranked prose table.
 
 
 ### Decisions the owner has ruled (2026-09-20)
