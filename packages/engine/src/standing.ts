@@ -1885,6 +1885,17 @@ export interface BonusContext {
 }
 
 /**
+ * The half of a context a weapon narrowing asks about.
+ *
+ * One conversion in one place, so the two readers that ask cannot come to
+ * disagree about what an unstated hand means.
+ */
+const wielding = (context: { readonly weapon?: Weapon | null; readonly twoHanded?: boolean }): WieldingContext => ({
+  weapon: context.weapon ?? null,
+  ...(context.twoHanded === undefined ? {} : { twoHanded: context.twoHanded }),
+});
+
+/**
  * Flat bonuses this creature's standing effects add to one kind of thing.
  *
  * {@link standingSaveBonuses}' sibling, and the general one: that answers only
@@ -1911,17 +1922,6 @@ export interface BonusContext {
  * withheld from every roll made with anything else, including the rolls no
  * object is made with at all.
  */
-/**
- * The half of a context a weapon narrowing asks about.
- *
- * One conversion in one place, so the two readers that ask cannot come to
- * disagree about what an unstated hand means.
- */
-const wielding = (context: { readonly weapon?: Weapon | null; readonly twoHanded?: boolean }): WieldingContext => ({
-  weapon: context.weapon ?? null,
-  ...(context.twoHanded === undefined ? {} : { twoHanded: context.twoHanded }),
-});
-
 export function standingBonuses(
   state: GameState,
   who: CharacterId,
@@ -1965,9 +1965,11 @@ export function standingBonuses(
  * clause about the weapon in hand wearing two sets of words.
  *
  * What comes back is the dice layer's own vocabulary, named after the feature
- * that stated the rule — so a die the rule moved carries that name into the log
- * as its `cause`, and a narrator reading the log can say a 1 counted as a 3 and
- * why.
+ * that stated the rule. **The name is for the deduplication rather than for the
+ * log**: a substituted die records what it showed and what it counts as, side
+ * by side, and `DieRoll.cause` names only the effect that *added or replaced* a
+ * die — which a substitution does not do. So the log says a 1 counted as a 3
+ * and does not say which rule said so.
  *
  * Deduplicated by feature, for the reason `standingBonuses` is: two holders of
  * one name are one rule, and applying a substitution twice would be a

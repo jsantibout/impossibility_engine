@@ -925,7 +925,7 @@ export const FIGHTING_STYLE_FEATS: readonly FeatDefinition[] = [
         },
       ],
     },
-    note: 'Applied. The substitution is treatLowRollsAs in the dice layer, asked for by the grant and supplied to the swing as an attack-wide die rule, so a 1 or a 2 on a damage die counts as a 3 and the log shows both numbers and the name of the rule that moved it. The narrowing is the sentence\'s own: a Melee weapon with the Two-Handed or Versatile property, held in two hands, which is the hand the attack itself declares.',
+    note: 'Applied. The substitution is treatLowRollsAs in the dice layer, asked for by the grant and supplied to the swing as an attack-wide die rule, so a 1 or a 2 on a damage die counts as a 3 and the log shows what the die physically showed beside what it counted as. The narrowing is the sentence\'s own: a Melee weapon with the Two-Handed or Versatile property, held in two hands, which is the hand the attack itself declares. Attack-wide rather than weapon-only, which is what the printed sentence conditions on: a rider\'s die rolled for the same swing is raised with the blade\'s.',
   },
   {
     id: 'two-weapon-fighting',

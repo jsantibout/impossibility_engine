@@ -308,6 +308,19 @@ export const ITEM_EFFECT_KINDS: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * Every kind of standing benefit there is, for the holders that are not items.
+ *
+ * Derived rather than restated: it is {@link ITEM_EFFECT_KINDS} plus the one
+ * member that list withholds, and `content.test.ts` holds that list equal to
+ * the union in `standing.ts` in both directions — so this stays exactly the
+ * union without anybody keeping it so. The withheld member is `speed`, and the
+ * reason it is withheld from an *item* is the reason it belongs here: `speedOf`
+ * gathers Speed from the sheet alone, and a feat's grant is compiled onto the
+ * sheet.
+ */
+const STANDING_GRANT_KINDS: ReadonlySet<string> = new Set([...ITEM_EFFECT_KINDS, 'speed']);
+
+/**
  * What a feat says about ability scores: the question it asks, the ceiling it
  * lifts, and the level the bracket gates it on.
  *
@@ -3004,11 +3017,24 @@ function featStandingProblems(
   }
 
   effects.forEach((effect, position) => {
-    if (effect === null || typeof effect !== 'object' || !isString((effect as { kind?: unknown }).kind)) {
+    const kind = (effect as { readonly kind?: unknown }).kind;
+    if (effect === null || typeof effect !== 'object' || !isString(kind)) {
       problems.push({
         field: `${where}.effects[${position}]`,
         code: 'bad_feat_grant',
         reason: 'a standing effect is an object naming its kind',
+      });
+      return;
+    }
+    // The same refusal the item door makes with `ITEM_EFFECT_KINDS`, against
+    // the whole union rather than against the one an item withholds. A kind
+    // nothing grants is compiled onto the sheet and matched by no reader,
+    // which is indistinguishable from a benefit that simply never applies.
+    if (!STANDING_GRANT_KINDS.has(kind)) {
+      problems.push({
+        field: `${where}.effects[${position}]`,
+        code: 'bad_feat_grant',
+        reason: `"${kind}" is not a standing effect this engine grants, so ${who} would put a benefit on the sheet that no reader ever matches`,
       });
       return;
     }
@@ -3028,7 +3054,20 @@ function featStandingProblems(
   if (Array.isArray(requires)) {
     requires.forEach((requirement, position) => {
       const kind = (requirement as { readonly kind?: unknown })?.kind;
-      if (isString(kind) && ITEM_ONLY_REQUIREMENTS.has(kind)) {
+      if (!isString(kind) || !REQUIREMENT_KINDS.has(kind)) {
+        // The item door's refusal, at the door beside it: a clause
+        // `requirementsHold` does not know is a clause it answers `true` to,
+        // so a benefit gated on a condition nobody evaluates would simply
+        // always apply — the confident wrong answer rather than the missing
+        // one.
+        problems.push({
+          field: `${where}.requires[${position}]`,
+          code: 'bad_feat_grant',
+          reason: `"${String(kind)}" is not a requirement this engine evaluates, so ${who} would grant its benefit unconditionally`,
+        });
+        return;
+      }
+      if (ITEM_ONLY_REQUIREMENTS.has(kind)) {
         problems.push({
           field: `${where}.requires[${position}]`,
           code: 'item_requirement_on_a_feature',

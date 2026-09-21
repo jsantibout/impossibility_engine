@@ -143,7 +143,12 @@ const supply = (rng: Rng = createRng('swing') as Rng) => ({
 const swing = (
   log: readonly GameEvent[],
   who: CharacterId,
-  command: { readonly target: CharacterId; readonly weapon: string; readonly twoHanded?: boolean },
+  command: {
+    readonly target: CharacterId;
+    readonly weapon: string;
+    readonly twoHanded?: boolean;
+    readonly extraDamage?: readonly { readonly source: string; readonly type: string; readonly dice: string }[];
+  },
   rng?: Rng,
 ) => {
   const out = unwrap(
@@ -275,6 +280,40 @@ describe('SRD Great Weapon Fighting: "treat any 1 or 2 on a damage die as a 3"',
       scripted([18, 1]),
     );
     expect(loggedDice(out.log).map((die) => die.value)).toEqual([3]);
+  });
+
+  /**
+   * **The scope, pinned where it now lives.**
+   *
+   * A die rule supplied at the attack's scope reaches every damage die the
+   * swing throws, riders included, and that is the reading of the printed
+   * sentence rather than an accident of the plumbing: SRD conditions the
+   * benefit on "an attack you make with a Melee weapon that you are holding
+   * with two hands" and says nothing whatever about where a die came from.
+   * `attack.test.ts` pins the same answer one layer down, for a caller who
+   * passes `damageEffects` by hand; this is the road that is new, where a
+   * standing grant supplies it and nobody asked.
+   *
+   * It is written down because the other reading is arguable and a future
+   * narrowing of `standingDamageEffects` to the weapon's own component would
+   * otherwise pass every test in this file.
+   */
+  it('reaches a rider’s die on the same swing, because the sentence is about the attack', () => {
+    const out = swing(
+      log,
+      HEWER,
+      {
+        target: GOBLIN,
+        weapon: 'greatsword',
+        twoHanded: true,
+        extraDamage: [{ source: 'a rider', type: 'force', dice: '1d6' }],
+      },
+      // The d20, the Greatsword's 2d6, then the rider's d6.
+      scripted([18, 1, 2, 1]),
+    );
+    const dice = loggedDice(out.log);
+    expect(dice.map((die) => die.rolled)).toEqual([1, 2, 1]);
+    expect(dice.map((die) => die.value)).toEqual([3, 3, 3]);
   });
 
   /** A style nobody took changes nothing, which is the control. */

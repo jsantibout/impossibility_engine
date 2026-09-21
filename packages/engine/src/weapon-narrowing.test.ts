@@ -416,6 +416,38 @@ describe('the untyped door takes the same declaration', () => {
     );
   });
 
+  /**
+   * The refusal the item door makes with `ITEM_EFFECT_KINDS`, at the door
+   * beside it. A kind nothing grants is compiled onto the sheet and matched by
+   * no reader, which looks exactly like a benefit that never applies.
+   */
+  it('refuses a standing effect kind nothing grants', () => {
+    const style = JSON.parse(HEDGE_MARKSMAN) as {
+      grants: { effects: Record<string, unknown>[] };
+    };
+    style.grants.effects[0]!['kind'] = 'flat-bonuss';
+    expect(codesOf(style)).toContain('bad_feat_grant @ feats[hedge-marksman].grants.effects[0]');
+  });
+
+  /**
+   * And a gate nobody evaluates, which fails the *other* way: `requirementsHold`
+   * does not know the clause, so the benefit would simply always apply.
+   */
+  it('refuses a requirement this engine does not evaluate', () => {
+    const style = JSON.parse(HEDGE_MARKSMAN) as { grants: Record<string, unknown> };
+    style.grants['requires'] = [{ kind: 'while-whistling' }];
+    expect(codesOf(style)).toContain('bad_feat_grant @ feats[hedge-marksman].grants.requires[0]');
+  });
+
+  /** And the requirement that is read against an item's id, which a feat has not. */
+  it('refuses a requirement only an item could be looked up by', () => {
+    const style = JSON.parse(HEDGE_MARKSMAN) as { grants: Record<string, unknown> };
+    style.grants['requires'] = [{ kind: 'while-worn' }];
+    expect(codesOf(style)).toContain(
+      'item_requirement_on_a_feature @ feats[hedge-marksman].grants.requires[0]',
+    );
+  });
+
   /** And the narrowing that is keyed on an item's id, which a feat is not. */
   it('refuses "made with this item" on a feat', () => {
     const style = JSON.parse(HEDGE_MARKSMAN) as {
