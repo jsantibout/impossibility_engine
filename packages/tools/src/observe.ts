@@ -136,9 +136,15 @@ export interface ObservedMultiattackSequence {
  * Ghoul makes two *Bite* attacks, and it prints a Claw as well. A creature
  * allowed two of anything is a creature the book did not print.
  *
- * Out of it: a block's **Traits** and its **Legendary Actions**, which is not
- * a choice made here — `adaptMonster` carries neither onto the sheet, so
- * there is nothing on this side to report.
+ * Out of it: a block's **Traits** and its **Legendary Actions**, and the two
+ * are out for different reasons. `adaptMonster` carries no Legendary Action
+ * onto the sheet at all, so there is nothing on this side to report. It does
+ * carry `stated.traits` — but that is the handful of *parsed mechanics* a
+ * trait was recognised as, which `hasPrintedTrait` asks about by kind and
+ * which names no sentence a caller could act on; the English stays in the
+ * catalogue, where a DM reads it. A list of kinds is not what "what can this
+ * creature do" is asking, and reporting one would be half an answer wearing
+ * the whole one's name.
  */
 export interface ObservedBlock {
   readonly attacks: readonly ObservedPrintedAttack[];

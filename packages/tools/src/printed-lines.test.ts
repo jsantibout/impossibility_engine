@@ -1,7 +1,7 @@
 /**
  * What a creature's own stat block prints, where a caller can read it.
  *
- * `attack.printed` has always demanded an attack **the block prints, by its
+ * `attack.action` has always demanded an attack **the block prints, by its
  * printed name** — a Wolf's `Bite` — and `unknown_action` is what a caller
  * meets for anything else. Until this file, nothing on either surface said
  * what those names were: `add_creature` reported the id it was sent and the
