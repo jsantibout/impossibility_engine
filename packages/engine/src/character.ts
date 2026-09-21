@@ -95,6 +95,18 @@ export interface StatedAttack extends MonsterAttack {
    * second place it could be written.
    */
   readonly recharge?: MonsterRecharge;
+  /**
+   * How many times between dawns this attack may be made, where its heading
+   * prints a limit — see {@link StatedAction.perDay}, which carries the rule.
+   *
+   * **No SRD attack line prints one**, and it is here anyway, because the
+   * adapter is the door homebrew comes through as well as the book and a
+   * limit dropped at the door is a limit that silently becomes none. One
+   * reader today: `bestPrintedMeleeAttack`, which leaves a once-a-day line out
+   * of the default Opportunity Attack for exactly the reason it already leaves
+   * out a recharging one.
+   */
+  readonly perDay?: number;
 }
 
 /**
@@ -118,6 +130,15 @@ export interface StatedBonusAction {
    * line a creature may take every turn.
    */
   readonly recharge?: MonsterRecharge;
+  /**
+   * How many times between dawns this line may be taken, where its heading
+   * prints a limit — see {@link StatedAction.perDay}, which carries the rule.
+   *
+   * **Twelve of the SRD's Bonus Action lines print one**, which is more than
+   * any other section the engine can spend from: Divine Aid, Misty Step,
+   * Spiritual Weapon, Rampage, a Unicorn's Blessing.
+   */
+  readonly perDay?: number;
 }
 
 /**
@@ -143,6 +164,26 @@ export interface StatedAction {
    * take every turn.
    */
   readonly recharge?: MonsterRecharge;
+  /**
+   * How many times between dawns this line may be taken, where its heading
+   * prints a limit: "Dominate Mind (2/Day)" is 2.
+   *
+   * **The book's other sentence about how often, and it is not a recharge.**
+   * A recharge is a d6 at the start of a turn and a rest; this is a count, and
+   * the owner has ruled that it comes back at **dawn** — the `Recovery` tag
+   * the engine has always kept apart from the two rest tags. Sixty headings
+   * across the SRD print the notation and none of them prints both, which is
+   * asserted over the corpus where the book is parsed.
+   *
+   * What the creature has *spent* against this number is a `Tally` tagged
+   * `dawn` in its own resources — see `perDayTallyKey` — for the reason the
+   * recharge's expenditure is state and not sheet: this is what the block
+   * prints, and that is what happened. The ceiling is here because a tally
+   * has none.
+   *
+   * Absent on the rest, which is a line a creature may take every turn.
+   */
+  readonly perDay?: number;
 }
 
 /**

@@ -377,6 +377,36 @@ export const FeatureSchema = z.object({
    * the rest form, which is why nothing had ever produced that arm.
    */
   recharge: MonsterRechargeSchema.optional(),
+  /**
+   * How many times between dawns the line may be used, where the name prints
+   * a limit: "Dominate Mind (2/Day)", "Divine Aid (3/Day)".
+   *
+   * **Here for the reason `recharge` is here — and it is not a recharge.** The
+   * book writes both notations inside the heading and nowhere else, so both are
+   * read once, here, and nothing downstream tells a breath weapon from a
+   * once-a-day spell by looking at a string. But the two say different things
+   * about different clocks: a recharge is a d6 at the start of a turn (and a
+   * rest), and this is a count that comes back at **dawn**, which the engine's
+   * `Recovery` vocabulary has always kept apart from a rest. No heading in the
+   * SRD prints both, which is asserted over the corpus rather than assumed.
+   *
+   * **The lair number is not carried.** Twenty-seven of the sixty headings
+   * print a second one — "Legendary Resistance (3/Day, or 4/Day in Lair)" —
+   * and every one of those twenty-seven is a Legendary Resistance trait. The
+   * engine has no lair, nothing that could say a creature is standing in one,
+   * and no rule that reads a failed saving throw, so a second field here would
+   * have no reader in any of those senses; and it is the answer `CR_LINE`
+   * already gives to the same construction, swallowing "or 7,200 in lair" and
+   * taking the XP printed outside it. What is carried is the number that holds
+   * wherever the engine can put the creature.
+   *
+   * **A qualification the parser cannot evaluate does not suppress the
+   * number.** SRD Night Hag prints "Nightmare Haunting (1/Day; Requires Soul
+   * Bag)"; the soul bag is not checkable and the 1 is, and a limit enforced is
+   * never more permissive than the book — whereas dropping it would make the
+   * line unlimited, which is the direction that matters.
+   */
+  perDay: z.number().int().min(1).optional(),
   /** The mechanic this trait's sentence states, where the parser knows it. */
   trait: MonsterTraitSchema.optional(),
   /** The sequence this line's sentence states, where it states one. */

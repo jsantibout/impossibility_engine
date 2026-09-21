@@ -797,6 +797,34 @@ export function parseRecharge(name: string): MonsterRecharge | null {
   return null;
 }
 
+/**
+ * The per-day limit printed in a line's **name**, or null where it prints
+ * none: "Dominate Mind (2/Day)" is 2.
+ *
+ * Read here for the reason {@link parseRecharge} above it is: the heading is
+ * the only place the book states it, and a heading is exactly what nothing
+ * downstream may branch on. It is a **different rule** from a recharge and is
+ * a different field — see `FeatureSchema.perDay`, which carries the whole
+ * argument, including why the lair number is dropped and why a qualification
+ * the parser cannot evaluate does not suppress the number it can.
+ *
+ * Matched at the front of the parenthesis the book prints it in — every one of
+ * the sixty headings opens with the count — so the prose of a heading cannot
+ * produce one, and the number taken is the first, which is the one printed
+ * outside a lair.
+ */
+export function parsePerDay(name: string): number | null {
+  // `\d+` rather than `\d`: nothing in the SRD prints a two-digit limit, and a
+  // single digit would silently read a homebrew "12/Day" line as a 1/Day one,
+  // which is the quiet class of wrongness this parser is strict about.
+  const printed = /\((\d+)\s*\/\s*Day\b/i.exec(name);
+  if (printed === null) return null;
+  const uses = Number(printed[1]!);
+  // A limit of nothing is not something the book prints; it is a misread line,
+  // and a zero handed on would be a line no creature could ever use.
+  return uses > 0 ? uses : null;
+}
+
 function parseFeatures(
   lines: readonly string[],
   printedAttacks: readonly string[] = [],
@@ -828,11 +856,14 @@ function parseFeatures(
         current.name === 'Multiattack'
           ? parseMultiattack(text, printedAttacks, printedBonusActions)
           : null;
-      // The one thing read out of the *name* rather than the sentence, and it
-      // rides on the **line**, which is what the book prints it on: eighty-five
-      // of the eighty-seven lines that print one print no attack roll for it to
-      // have ridden on.
+      // The two things read out of the *name* rather than the sentence, and
+      // both ride on the **line**, which is what the book prints them on:
+      // eighty-five of the eighty-seven lines that print a recharge print no
+      // attack roll for it to have ridden on, and none of the sixty that print
+      // a per-day limit does. They are two rules on two clocks — a d6 at a turn
+      // boundary against a sunrise — and no heading in the SRD prints both.
       const recharge = parseRecharge(current.name);
+      const perDay = parsePerDay(current.name);
       features.push({
         name: current.name,
         text,
@@ -840,6 +871,7 @@ function parseFeatures(
         ...(trait === null ? {} : { trait }),
         ...(multiattack === null ? {} : { multiattack }),
         ...(recharge === null ? {} : { recharge }),
+        ...(perDay === null ? {} : { perDay }),
       });
     }
     current = null;

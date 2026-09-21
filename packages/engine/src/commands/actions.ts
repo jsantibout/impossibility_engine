@@ -61,8 +61,14 @@ import {
   type Placement,
   type Point,
 } from '../positioning.js';
-import { describeRecharge, statedActionOf, statedBonusActionOf } from '../monster.js';
-import { type SlotKind } from '../resources.js';
+import {
+  describePerDay,
+  describeRecharge,
+  perDayTallyKey,
+  statedActionOf,
+  statedBonusActionOf,
+} from '../monster.js';
+import { tallied, type SlotKind } from '../resources.js';
 import { type Content } from '../content.js';
 import { durationSecondsAt } from '../spell-definitions.js';
 import { castSpell, chooseRoute, type Supply, nextCastingId } from './casting.js';
@@ -271,8 +277,15 @@ export interface StatedBonusActionOutcome {
  * monster can use the stat block part once", and thirteen of the book's Bonus
  * Action lines print the notation. So the line is checked against what this
  * creature has expended, refused with what would bring it back, and written
- * down as spent beside the Bonus Action it cost. A per-day limit is still
- * enforced nowhere, which is a different notation and a gap that stands.
+ * down as spent beside the Bonus Action it cost.
+ *
+ * **And a heading that prints *N/Day* is spent a stated number of times.**
+ * "Divine Aid (2/Day)", "Misty Step (3/Day)" — twelve of the book's Bonus
+ * Action lines, which is more than any other section carries. It is a
+ * different rule from the recharge and it is checked in the same place: a
+ * count of what this creature has used today against the number the block
+ * prints, before the economy, refused with the clock that clears it. The two
+ * checks never both bite, because no SRD heading prints both notations.
  */
 export function takeStatedBonusAction(
   state: GameState,
@@ -320,6 +333,24 @@ export function takeStatedBonusAction(
         );
       }
 
+      // **And a line whose day's worth is gone.** The book's other notation,
+      // on the other clock, refused in the same place and for the same reason
+      // — before the economy, so the refusal has no footprint. No SRD heading
+      // prints both, so the order of the two checks settles nothing.
+      //
+      // The count is a `Tally` tagged `dawn`, which is the shape `resources.ts`
+      // already holds; the *ceiling* is the block's, read off the sheet here,
+      // because a tally has none and its own doc says whoever reads the count
+      // decides what a high one costs.
+      const perDay = line.perDay ?? null;
+      const usedToday = tallied(creature.resources, perDayTallyKey(line.name));
+      if (perDay !== null && usedToday >= perDay) {
+        return err(
+          'daily_limit_reached',
+          `${id} has used ${line.name} ${usedToday} times today: ${describePerDay(perDay)}`,
+        );
+      }
+
       // SRD: "You can't take more than one Bonus Action on a turn", which is
       // the primitive's own rule and the reason nothing else has to say it —
       // so a second line in one turn is refused here, whichever line it is.
@@ -337,6 +368,21 @@ export function takeStatedBonusAction(
           ...(recharge === null
             ? []
             : [{ type: 'printed-line-expended' as const, id, line: line.name }]),
+          // And one of the day's uses, where the block prints a number of
+          // them. The event a tally is already counted through — nothing new
+          // in the union, and the morning that clears it is the
+          // `resources-restored` a dawn already writes.
+          ...(perDay === null
+            ? []
+            : [
+                {
+                  type: 'resource-spent' as const,
+                  id,
+                  key: perDayTallyKey(line.name),
+                  amount: 1,
+                  tally: 'dawn' as const,
+                },
+              ]),
           {
             type: 'stated-bonus-action-taken',
             id,
@@ -408,11 +454,12 @@ export interface StatedActionOutcome {
  * what this creature has expended, refused with what would bring it back, and
  * written down as spent beside the Action it cost.
  *
- * **A per-day limit is still enforced nowhere**, which is the gap its Bonus
- * Action sibling already names and which this reaches ten more lines of: an
- * *X/Day* notation is a different rule with a different clock, and reading it
- * as a recharge would hand a creature back a thing the book gives it once
- * between dawns.
+ * **And a per-day limit is enforced too**, which is the gap its Bonus Action
+ * sibling used to name beside it: an *N/Day* notation is a different rule on a
+ * different clock — a count between dawns, not a die at a boundary — so it is
+ * a count checked against the number the block prints, refused in the same
+ * position, and cleared by a sunrise rather than by a rest. Ten of these lines
+ * print one.
  */
 export function takeStatedAction(
   state: GameState,
@@ -465,6 +512,21 @@ export function takeStatedAction(
         );
       }
 
+      // **And a line whose day's worth is gone.** Ten of these lines print the
+      // other notation — a Dretch's Fetid Cloud, a Treant's Animate Trees, a
+      // Sphinx's Roar — and it is a different clock: a count between dawns
+      // rather than a die at a boundary. Refused in the same position and for
+      // the same reason, before the economy; counted as a `dawn` tally, with
+      // the ceiling read off the block. See `perDayTallyKey`.
+      const perDay = line.perDay ?? null;
+      const usedToday = tallied(creature.resources, perDayTallyKey(line.name));
+      if (perDay !== null && usedToday >= perDay) {
+        return err(
+          'daily_limit_reached',
+          `${id} has used ${line.name} ${usedToday} times today: ${describePerDay(perDay)}`,
+        );
+      }
+
       const spent = spendAction(state.combat, id, creature.conditions, {
         rules: actionRulesOn(state, id),
       });
@@ -479,6 +541,20 @@ export function takeStatedAction(
           ...(recharge === null
             ? []
             : [{ type: 'printed-line-expended' as const, id, line: line.name }]),
+          // And one of the day's uses, where the block prints a number of
+          // them — a `dawn` tally, counted through the event tallies already
+          // use. See `perDayTallyKey`.
+          ...(perDay === null
+            ? []
+            : [
+                {
+                  type: 'resource-spent' as const,
+                  id,
+                  key: perDayTallyKey(line.name),
+                  amount: 1,
+                  tally: 'dawn' as const,
+                },
+              ]),
           {
             type: 'stated-action-taken',
             id,
