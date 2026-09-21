@@ -1504,14 +1504,39 @@ describe('an Actions line the parser read nothing out of', () => {
   });
 
   /**
-   * A line the parser *did* read is not one of these: it is an attack, and the
-   * command that rolls it is the one that takes it.
+   * **Four headings reach the same refusal, and it claims nothing about which
+   * one it got.** A line nobody prints, a line the parser read as an attack, a
+   * line it read as a sequence, and a line printed under another section are
+   * each somebody else's — and a refusal that said "that is an attack" would
+   * be telling a golem its Multiattack is one.
    */
-  it('refuses a line the block does not print here', () => {
+  it('refuses every heading that is not one of these', () => {
     const table = inTheWoods('winter-wolf', WINTER);
-    expect(isErr(taking(table, WINTER, 'Bite', 'wrong'))).toBe(true);
-    const out = taking(table, WINTER, 'Nimble Escape', 'wrong');
-    expect(isErr(out) ? out.code : 'ok').toBe('no_such_line');
+    const nowhere = taking(table, WINTER, 'Whirlwind', 'wrong');
+    expect(isErr(nowhere) ? nowhere.code : 'ok').toBe('no_such_line');
+
+    // A heading the parser read: the block's own Bite, which `resolveAttack`
+    // takes at the numbers the line prints.
+    const attack = taking(table, WINTER, 'Bite', 'wrong');
+    expect(isErr(attack) ? attack.code : 'ok').toBe('no_such_line');
+
+    // A sequence, and a line printed under Bonus Actions — both off a block
+    // that prints them, so the refusal is about the section and not about the
+    // string being unknown to the book.
+    const golem = id('golem');
+    const other = inTheWoods('clay-golem', golem);
+    const sequence = takeStatedAction(other.state, golem, { line: 'Multiattack' });
+    expect(isErr(sequence) ? sequence.code : 'ok').toBe('no_such_line');
+    const bonus = takeStatedAction(other.state, golem, {
+      line: statBlock('clay-golem').bonusActions[0]!.name,
+    });
+    expect(isErr(bonus) ? bonus.code : 'ok').toBe('no_such_line');
+
+    // And none of the four said which door to use instead, because the command
+    // cannot tell them apart from where it is standing.
+    for (const refused of [nowhere, attack, sequence, bonus]) {
+      expect(isErr(refused) ? refused.reason : '').not.toContain('is an attack');
+    }
   });
 
   /** A retry is not a second Action. */

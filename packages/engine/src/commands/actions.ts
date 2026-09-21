@@ -441,9 +441,14 @@ export function takeStatedAction(
       // name it finds.
       const line = statedActionOf(creature.sheet, command.line);
       if (line === null) {
+        // **It says what was searched and claims nothing about where else the
+        // heading might be.** Four things reach this refusal — a heading no
+        // block prints, an attack, a sequence, and a line printed under
+        // another section — and a reason that named only the first of them
+        // would be telling a caller its Multiattack is an attack.
         return err(
           'no_such_line',
-          `no Action called ${command.line} is printed on this creature's stat block that the engine read nothing out of; a line it did read is an attack, and the command that rolls one takes it`,
+          `no line called ${command.line} is printed under this creature's Actions with nothing the engine could read beneath it; a heading the parser did read, and a heading printed under another section, are each taken by the command that owns them`,
         );
       }
 
