@@ -103,6 +103,7 @@
 import type { CharacterId, ConditionName, Result } from '@ie/shared';
 import { asCharacterId, needsContext, ok } from '@ie/shared';
 import type {
+  AddCreatureOutcome,
   CharacterChoices,
   CastSpellRequest,
   CombatEnding,
@@ -140,6 +141,7 @@ import {
   declineDamageReaction,
   declineOpportunity,
   declineTestReaction,
+  dismissStrandedSummons,
   eligibleTargets,
   endAttunement,
   endCombat,
@@ -171,6 +173,8 @@ import {
   settleDamage,
   speedOf,
   stabiliseCreature,
+  strandedSummons,
+  summonCreature,
   takeDamageReaction,
   takeDamageResponse,
   takeDash,
@@ -790,23 +794,34 @@ interface MonsterArrival {
  * what makes a half-armed monster impossible rather than merely unlikely. The
  * award runs against a *working* state stepped by the engine's own reducer,
  * because the creature it hands items to is one this call has just written.
+ *
+ * **Written over the arrival rather than over `addCreature`**, because there
+ * are two ways a stat block comes into a game and both need the gear: a DM
+ * walking a monster through the door, and a casting summoning one. The
+ * argument for arming is the same in both — `resolveAttack` refuses a weapon
+ * its wielder does not own, so a hound summoned and not armed cannot make the
+ * attack its own block prints — and `summonCreature` composes `addCreature`
+ * and hands out nothing, because the engine holds no catalogue and reads no
+ * name. `describing` is the caller's half of the answer: which call this was,
+ * said in that call's own words.
  */
-function bringIn(
+function armFor(
   context: ToolContext,
   id: CharacterId,
   monsterId: string,
+  arrival: Result<AddCreatureOutcome>,
+  describing: Readonly<Record<string, unknown>>,
 ): Result<MonsterArrival> {
   const { campaign } = context;
   const state = campaign.state();
 
-  const arrival = addCreature(state, campaign.content, id, monsterId, identity(context));
   if (!arrival.ok) return arrival;
   if (arrival.value.duplicate) {
     // A retry. The award was made under its own derived id the first time and
     // is a no-op too, so there is nothing left to re-run.
     return ok({
       events: [],
-      resolution: { added: id, monsterId, duplicate: true },
+      resolution: { ...describing, duplicate: true },
       unverified: [],
     });
   }
@@ -840,8 +855,7 @@ function bringIn(
   return ok({
     events,
     resolution: {
-      added: id,
-      monsterId,
+      ...describing,
       name: printed.name,
       armed: gear.items.map((line) => line.id),
       duplicate: false,
@@ -855,6 +869,137 @@ function bringIn(
     ],
   });
 }
+
+/** {@link ADD_CREATURE}'s two commands: the monster, and what its block prints. */
+const bringIn = (
+  context: ToolContext,
+  id: CharacterId,
+  monsterId: string,
+): Result<MonsterArrival> =>
+  armFor(
+    context,
+    id,
+    monsterId,
+    addCreature(context.campaign.state(), context.campaign.content, id, monsterId, identity(context)),
+    { added: id, monsterId },
+  );
+
+/**
+ * A creature a spell put there, and the sweep that takes it away again.
+ *
+ * **The door `add_creature` is, with the sentence a summoning spell prints.**
+ * Everything the creature *is* is still read out of the book by the engine and
+ * pinned into the arrival — the sheet, the Armour Class, the hit points, the
+ * size, the defences — so the call is four ids: what to call it, which stat
+ * block it is, who summoned it, and which of that caster's running spells is
+ * holding it here. A tool that took a stat block would be the door a
+ * model-authored Armour Class walks through, which is `add_creature`'s own
+ * rule and is not weakened by the spell.
+ *
+ * **What `Summons` offers and this does not take.** A *stated* Initiative
+ * total, which the engine accepts from a human DM who gives one and which is
+ * exactly the number this surface exists not to take: the creature arrives
+ * with no rung in the order and `roll_initiative` seats it, which is the same
+ * pair of calls a monster already makes. A placement and a side, because
+ * `place_creature` and `declare_side` are doors of their own and the engine's
+ * default — a summons is on its summoner's side — is what a summons *means*.
+ *
+ * **`castingId` is optional, and its absence is an answer.** SRD Animate Dead
+ * is Instantaneous and its Skeleton is still standing next week; a creature
+ * bound to no casting outlives every spell and is swept by nothing. A creature
+ * bound to one goes when the spell goes, which is the other half of this pair.
+ *
+ * **And the sweep lands beside it, because a door that only summons wedges the
+ * fight it summoned into.** A casting ends four ways nobody commands — a
+ * deadline, a Concentration broken by unconsciousness, a trigger, the caster
+ * leaving — the fold finds the ending and emits nothing, and `resolveTurn`
+ * then refuses `summons_stranded` until somebody takes the creature away.
+ * Nothing above the engine could, so the refusal named a command no caller
+ * could reach. {@link DISMISS_STRANDED_SUMMONS} is that caller, `look` reports
+ * the debt beside the others, and the two ship together.
+ */
+const SUMMON_CREATURE = tool({
+  name: 'summon_creature',
+  description:
+    'Summon a creature: a casting puts a stat block from the bestiary into the game on the summoner’s side. You say what to call it, which monster it is, who summoned it and — where a spell is holding it here rather than simply making it — which casting. The engine reads every number off the block and hands the creature the gear the block prints. It arrives with no place and no rung in the Initiative order: `place_creature` puts it down and `roll_initiative` seats it. When the casting that holds it ends, the creature is owed a departure — `look` reports it under `strandedSummons` and `dismiss_stranded_summons` performs it.',
+  mutates: true,
+  establishes: ['creature'],
+  input: z.object({
+    id: creatureId.describe('The id this creature will have in play, e.g. hound.'),
+    monsterId: z
+      .string()
+      .min(1)
+      .describe('Which stat block, by its id in the bestiary, e.g. wolf or skeleton.'),
+    by: creatureId.describe('The summoner. The creature is on this creature’s side.'),
+    castingId: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        'The casting that holds it here, from the cast_spell that started it. Leave it out for a creature a spell *made* rather than sustains — an Animate Dead Skeleton is still standing next week — and the creature is then bound to nothing and swept by nothing. A casting that is not running, or one that is somebody else’s, is refused.',
+      ),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      armFor(
+        context,
+        who(args.id),
+        args.monsterId,
+        summonCreature(
+          context.campaign.state(),
+          context.campaign.content,
+          {
+            id: who(args.id),
+            monsterId: args.monsterId,
+            by: who(args.by),
+            ...(args.castingId === undefined ? {} : { castingId: args.castingId }),
+          },
+          identity(context),
+        ),
+        {
+          summoned: args.id,
+          monsterId: args.monsterId,
+          by: args.by,
+          ...(args.castingId === undefined ? {} : { castingId: args.castingId }),
+        },
+      ),
+      (arrival) => arrival.events,
+      (arrival) => arrival.resolution,
+      (arrival) => arrival.unverified,
+    ),
+});
+
+/**
+ * The other half: every creature whose spell is over, taken away.
+ *
+ * `settle_area_effects`' twin, and it takes no arguments for the same reason —
+ * the engine knows which creatures are owed a departure and the caller is
+ * instructing it to settle what it is owed, not naming one. The debt is
+ * **derived** rather than filed, so `strandedSummons` answers it from the
+ * roster and the running castings alone, and this reports who left in the
+ * words the state gave before the batch ran.
+ *
+ * **An empty sweep is an answer and not a refusal.** A caller sweeping after
+ * every ending must not have to tell "nothing to do" from a rule it broke.
+ */
+const DISMISS_STRANDED_SUMMONS = tool({
+  name: 'dismiss_stranded_summons',
+  description:
+    'Take away every creature whose summoning spell has ended. A summons goes when its spell does, and the engine will not do it unasked: until this is called, ending a turn refuses, naming whoever is still standing on a casting that is over. `look` reports them under `strandedSummons`. You supply nothing but the instruction to do it now, and sweeping when nothing is owed is an empty answer rather than a refusal.',
+  mutates: true,
+  input: z.object({}),
+  run: (context) => {
+    // Read before the batch, because the batch is what makes the answer
+    // empty: after it, nobody is stranded by construction.
+    const dismissed = strandedSummons(context.campaign.state()).map(String);
+    return settleEvents(
+      context,
+      dismissStrandedSummons(context.campaign.state(), identity(context)),
+      { dismissed },
+    );
+  },
+});
 
 /**
  * Stop a dying creature from dying.
@@ -3341,6 +3486,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   DECLINE_DAMAGE_REACTION,
   DECLINE_OPPORTUNITY,
   DECLINE_TEST_REACTION,
+  DISMISS_STRANDED_SUMMONS,
   DRAW_ON_HEALING_POOL,
   ELIGIBLE_TARGETS,
   END_COMBAT,
@@ -3368,6 +3514,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   SETTLE_DAMAGE,
   SHEET,
   STABILISE_CREATURE,
+  SUMMON_CREATURE,
   TAKE_ACTION,
   TAKE_DAMAGE_REACTION,
   TAKE_DAMAGE_RESPONSE,

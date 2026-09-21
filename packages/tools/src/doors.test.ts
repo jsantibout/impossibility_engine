@@ -359,6 +359,10 @@ const ESTABLISHING_FIELDS: Readonly<Record<string, readonly string[]>> = {
   // the engine, which is why `monsterId` is the only field and why
   // `unknown_monster` is answerable at it.
   'add_creature:creature': ['id', 'monsterId'],
+  // The third, and the same two fields plus whose it is: a summons is a stat
+  // block read out of the book exactly as `add_creature` reads one, put on the
+  // summoner's side by a casting. No number of the caller's, here either.
+  'summon_creature:creature': ['id', 'monsterId', 'by'],
   'declare_creature_type:creature-type': ['who', 'creatureType'],
   // Its twin, differing only in being re-declarable: a type is what a
   // creature is and a side is who it is fighting, and the second changes in
