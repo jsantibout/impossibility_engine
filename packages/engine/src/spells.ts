@@ -29,7 +29,7 @@ export const CASTING_MARK = '#';
 const CASTING_ID = /^cast:\d+$/;
 
 /** What every casting id begins with. One spelling, read and written here. */
-export const CASTING_PREFIX = 'cast:';
+const CASTING_PREFIX = 'cast:';
 
 /**
  * The number inside a casting id, for putting castings back in the order they

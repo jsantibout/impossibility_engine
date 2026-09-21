@@ -42,8 +42,8 @@ import { creatureOf } from './command.js';
  * a mastery property is a **rule** in the same sense the Prone condition is,
  * and the catalogue's part is only which weapon prints which property.
  */
-export const PUSH_FEET = 10;
-export const SLOW_FEET = 10;
+const PUSH_FEET = 10;
+const SLOW_FEET = 10;
 export const CLEAVE_REACH = 5;
 
 /** SRD Push: "if it is **Large or smaller**". */
@@ -63,7 +63,7 @@ const PUSHABLE_UP_TO = 'large';
  * turn holds two of them — which is what the counterpart in the key buys, and
  * why this one takes the creature it is about.
  */
-export const masterySource = (property: WeaponMastery, about?: CharacterId): string =>
+const masterySource = (property: WeaponMastery, about?: CharacterId): string =>
   about === undefined ? `weapon-mastery:${property}` : `weapon-mastery:${property}@${about}`;
 
 /**

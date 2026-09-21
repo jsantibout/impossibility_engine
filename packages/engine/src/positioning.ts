@@ -1494,7 +1494,7 @@ export function declareDifficultPatch(
  * spell; a patch of ground has no creator standing on it, and Arcane Hand's
  * "its space counts as Difficult Terrain" wants the origin space included.
  */
-export function spaceInRegion(
+function spaceInRegion(
   state: PositionState,
   region: TerrainRegion,
   space: Point,

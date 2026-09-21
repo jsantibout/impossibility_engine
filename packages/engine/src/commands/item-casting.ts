@@ -65,7 +65,7 @@ export type ItemRoute = Extract<CastingRoute, { kind: 'item' }>;
  * comes to for every item in the book. It is read by a cantrip's upgrade
  * steps, which is why it has to be a number rather than the wielder's.
  */
-export const ITEM_CASTER_LEVEL = 1;
+const ITEM_CASTER_LEVEL = 1;
 
 /** What a request says about casting from an item. */
 export interface ItemCastRequest {
