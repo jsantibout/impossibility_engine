@@ -43,15 +43,21 @@ import {
  * Every feature the catalogue publishes whose grant is a trade, in id order.
  *
  * Derived rather than listed, so that a class the book grows fails the sweep
- * below instead of going unreported. Every host of a feature is walked, not
- * just the classes: a species, a background or a feat could grant one and the
- * vocabulary would not mind.
+ * below instead of going unreported — and writing the derivation is what
+ * found two the list had not.
+ *
+ * **The four hosts walked here are the four `checkContent` itself walks**, so
+ * the sweep is exhaustive by construction rather than by somebody having
+ * remembered. A feat is not among them and is not an omission: `FEAT_GRANT_KINDS`
+ * admits two kinds and a trade is neither, so `checkContent` refuses a feat
+ * that carries one with `feat_grant_not_read`. An item carries a standing
+ * grant rather than a feature grant, which is a different vocabulary again.
  */
 const TRADE_FEATURES: readonly string[] = [
   ...SRD_CONTENT.classes.flatMap((one) => one.features),
   ...SRD_CONTENT.subclasses.flatMap((one) => one.features),
-  ...SRD_CONTENT.species.flatMap((one) => one.features ?? []),
-  ...SRD_CONTENT.backgrounds.flatMap((one) => one.features ?? []),
+  ...SRD_CONTENT.species.flatMap((one) => one.features),
+  ...SRD_CONTENT.backgrounds.flatMap((one) => one.features),
 ]
   .filter((feature) => feature.grants?.kind === 'trade')
   .map((feature) => feature.id)
@@ -383,11 +389,20 @@ describe('the sheet reports a trade as a thing this surface can spend', () => {
    * - **Font of Inspiration** (Bard 5) and **Wild Resurgence** (Druid 5) are
    *   driven end to end through the door in this file.
    * - **Sorcery Incarnate** (Sorcerer 7) is inside the level 10 catalogue
-   *   sweep in `holdings.test.ts`, which builds one character of every class
-   *   and derives both sides of its claim from `SPENT_BY`.
-   * - **Holy Nimbus** (Oath of Devotion 20) is above every sweep there is. It
-   *   is the same `unlimited` slot-for-a-pool shape Font of Inspiration is,
-   *   and this line is the record that nothing reaches it.
+   *   sweep in `holdings.test.ts` — which proves less than it sounds like: it
+   *   is the Sorcerer 10 sheet that keeps this file's new `SPENT_BY` key
+   *   non-vacuous, and that every `spentBy` it reports names a real tool.
+   * - **Holy Nimbus** (Oath of Devotion 20) is above every sweep there is.
+   *
+   * **Both of the two are driven end to end against the engine command**, in
+   * `packages/content/src/unlimited-trades.test.ts` — including the clause
+   * Sorcery Incarnate prints and the fixed-level slot Holy Nimbus spends. What
+   * no test reaches is the *door* over them, which is one `settle` the Bard
+   * and the Druid exercise twice between them. The one content shape nothing
+   * here holds is Holy Nimbus's: a trade that spends a spell slot of a level
+   * the grant names rather than one the caster chooses. The sheet would report
+   * `slotLevelRequired: false` for it, which is the branch Wild Resurgence's
+   * second trade already takes by spending a pool instead.
    *
    * The second assertion is the merge. `holdings.ts` reports a feature once
    * and the first claim on its id decides what it is, so a feature holding a
