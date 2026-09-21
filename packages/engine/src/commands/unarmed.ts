@@ -236,6 +236,13 @@ function sizeProblem(
  * count is the same question `resolveAttack` and the fold both ask, with the
  * same inputs.
  *
+ * **What is spent here is a gate and not a ledger**, which is the shape every
+ * command in the engine has: the budget this call returns is discarded, and
+ * the one the game runs on is written by the fold when it reduces the event
+ * below. So the second strike of an Extra Attack is let through by reading the
+ * allowance the *reducer* left, and `unarmed.test.ts` takes one end to end
+ * rather than asserting the number handed over here.
+ *
  * Outside combat there is nothing to spend, exactly as a Dodge finds.
  */
 function strikeSpend(

@@ -236,6 +236,32 @@ describe('Grapple', () => {
     expect(state.combat!.budgets[BRAM]!.attacksRemaining).toBe(1);
   });
 
+  /**
+   * And the grab really is followed by the punch, through the command rather
+   * than through the budget the fold left behind.
+   *
+   * The reducer is the backstop and the command is the gate, and they ask the
+   * same question with the same inputs — so the claim is only whole when a
+   * second strike is *taken*. A sheet with one attack is refused in the same
+   * breath, which is what says the allowance was doing the work.
+   */
+  it('lets that fighter shove after grabbing, and refuses the second to one who cannot', () => {
+    const twice = [added(BRAM, 'party', { attacksPerAction: 2 }), ...fighting().slice(1)];
+    const after = grappled(twice).state;
+    expect(
+      shoveTarget(after, BRAM, { target: GOBLIN, save: 'dex', outcome: 'prone' }, supply('two')).ok,
+    ).toBe(true);
+
+    const once = grappled().state;
+    const second = shoveTarget(
+      once,
+      BRAM,
+      { target: GOBLIN, save: 'dex', outcome: 'prone' },
+      supply('two'),
+    );
+    expect(isErr(second) && second.code).toBe('no_attacks_left');
+  });
+
   it('is idempotent under a repeated command id', () => {
     const log = fighting();
     const command = { target: GOBLIN, save: 'dex' as const, commandId: 'grab-1' };
