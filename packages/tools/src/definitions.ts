@@ -135,6 +135,7 @@ import {
   declareCoverBetween,
   declareCreatureSide,
   declareCreatureType,
+  declareDawn,
   declareDifficultTerrain,
   declareFalling,
   declareSightBetween,
@@ -142,6 +143,7 @@ import {
   declineOpportunity,
   declineTestReaction,
   dismissStrandedSummons,
+  dismountRider,
   eligibleTargets,
   endAttunement,
   endCombat,
@@ -154,6 +156,7 @@ import {
   INITIATIVE_LABEL,
   joinCombat,
   mayAct,
+  mountCreature,
   placeCreatureInScene,
   positionOf,
   purchaseItem,
@@ -175,6 +178,7 @@ import {
   stabiliseCreature,
   strandedSummons,
   summonCreature,
+  swapInitiativeBetween,
   takeDamageReaction,
   takeDamageResponse,
   takeDash,
@@ -186,6 +190,7 @@ import {
   takeTestReaction,
   transferItem,
   unequipItem,
+  useFreeObjectInteraction,
   useHealingTouch,
   useItem,
   usePoolOption,
@@ -1035,6 +1040,238 @@ const STABILISE_CREATURE = tool({
       context,
       stabiliseCreature(context.campaign.state(), who(args.who), identity(context)),
       { stabilised: args.who },
+    ),
+});
+
+/**
+ * Four rooms the engine finished and nothing above it could reach.
+ *
+ * `stabilise_creature` above was the first of a set found by counting the
+ * other way — from the engine's own exports towards this surface, rather than
+ * from a refusal towards the field that answers it. Each of these commands has
+ * been correct, tested and exported since its subsystem landed, with the
+ * *reducer* as its only caller: an event no command wrote, folded by a state
+ * machine that could never be asked to write it.
+ *
+ * None of the four takes a number the caller produced, which is why they could
+ * all be opened at once. A mount is a creature and a placement measured on the
+ * lattice; an object interaction is a budget field the engine flips; a swap is
+ * two ids over the engine's own order; and a morning is a word.
+ */
+
+/**
+ * The one free object interaction a turn.
+ *
+ * SRD: "You can also interact with one object or feature of the environment
+ * for free, during either your Move or your Action." One, and the engine has
+ * counted it since the action economy landed — it is the sixth field of the
+ * turn budget and the only one with no door, so a session could open a door,
+ * draw a sword and sheathe another inside six seconds with the engine
+ * recording none of it and the second Ready or Utilise costing nothing.
+ *
+ * **What the interaction *is* stays in the fiction**, exactly as a Ready's
+ * trigger does: a lever, a lid, a corpse's belt. The engine holds no doors and
+ * no belts, so it counts the allowance and narrates nothing. There is
+ * therefore no field to carry the object, and inventing one would be this
+ * surface asking for a fact nothing reads.
+ *
+ * **Outside a fight it refuses rather than quietly succeeding**, which is the
+ * engine's own ruling passed through: the allowance is per *turn*, and outside
+ * combat there are no turns to spend one on.
+ */
+const USE_FREE_INTERACTION = tool({
+  name: 'use_free_interaction',
+  description:
+    'Spend the one free object interaction a turn — open the door, draw the sword, pull the lever, yank the tapestry down. SRD gives exactly one of these a turn on top of your Action and your Move, and this is what counts it: the second one in the same turn is refused, and anything else you want to do with an object costs an Action instead. What the object is stays in the narration; the engine holds the allowance, not the door. Outside a fight there is no turn to spend one on, so it is refused there.',
+  mutates: true,
+  input: z.object({
+    who: creatureId.describe('Whose turn it is, and who is reaching for the thing.'),
+  }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      useFreeObjectInteraction(context.campaign.state(), who(args.who), identity(context)),
+      { interacted: args.who },
+    ),
+});
+
+/**
+ * Getting on, and getting off again.
+ *
+ * SRD Mounted Combat: "you can mount a creature that is within 5 feet of you"
+ * and "mounting or dismounting costs an amount of movement equal to half your
+ * Speed". Both halves have been in `positioning.ts` since positions were, with
+ * the reducer as their only caller — which is why a Paladin's Faithful Steed
+ * had nowhere at all to go: the engine could seat a rider, and nothing could
+ * ask it to.
+ *
+ * **`willing` is a fact the caller states, and it is not a rules refusal.**
+ * SRD covers "a willing creature that is at least one size larger than a
+ * rider" and says nothing about leaping onto a hostile dragon, which is among
+ * the most-attempted moves at any table. So the engine records `willing:
+ * false` rather than refusing it, and whether the character got up there is a
+ * check the DM calls for — the reading `declare_cover` and `fought` already
+ * take of a fact only the table can see. It carries no number either way.
+ *
+ * **Everything else is the engine's.** Half a Speed is read off the rider's
+ * own sheet, so a Barbarian's Fast Movement and a level of Exhaustion both
+ * count; the five feet is measured on the lattice; the size rule is the
+ * book's; and where a rider lands is an ordinary `Placement` like every other,
+ * refused if it does not work. What a caller supplies is who, onto what, and
+ * — getting down — where relative to something already established.
+ */
+const MOUNT = tool({
+  name: 'mount',
+  description:
+    'Climb onto another creature. SRD asks for a willing creature at least one size larger than the rider and within five feet, and charges half the rider’s Speed for the climb — all of which the engine works out for itself. Say who is getting up, onto what, and whether the mount is willing: an unwilling one is recorded rather than refused, because leaping onto something that would rather you did not is a check the table calls for and not a thing the rules forbid.',
+  mutates: true,
+  input: z.object({
+    rider: creatureId.describe('Who is climbing up.'),
+    mount: creatureId.describe('What they are climbing onto.'),
+    willing: z
+      .boolean()
+      .describe(
+        'Whether the mount wants to be ridden. True is SRD’s case; false records clinging to something that would rather you did not, which the engine writes down rather than refusing.',
+      ),
+  }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      mountCreature(
+        context.campaign.state(),
+        who(args.rider),
+        who(args.mount),
+        { willing: args.willing },
+        identity(context),
+      ),
+      { rider: args.rider, mounted: args.mount, willing: args.willing },
+    ),
+});
+
+const DISMOUNT = tool({
+  name: 'dismount',
+  description:
+    'Get down off a mount, into a space beside it. The other half of the same SRD sentence and the same price — half the rider’s Speed — and where they land is an ordinary placement, measured from a landmark or a creature and refused if the space does not work.',
+  mutates: true,
+  input: z
+    .object({ rider: creatureId.describe('Who is getting down.') })
+    .and(placementSchema),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      dismountRider(
+        context.campaign.state(),
+        who(args.rider),
+        placementOf(args),
+        identity(context),
+      ),
+      { dismounted: args.rider },
+    ),
+});
+
+/**
+ * Two combatants trade places in the order.
+ *
+ * SRD Alert: "Immediately after you roll Initiative, you can swap your
+ * Initiative with the Initiative of one willing ally in the same combat."
+ *
+ * **This is the event the table declares, not the feat's offer**, which is the
+ * engine's own reading one layer down: nothing checks that either creature has
+ * Alert, that the moment is immediately after the roll, or that the ally is
+ * willing. The first two need a feature that offers a choice at a moment the
+ * engine does not hold, and willingness is fiction. What the engine owns is
+ * the arithmetic and the Incapacitated clause — a creature that cannot act
+ * cannot be swapped into acting — and it has owned both since `swapInitiative`
+ * was written, reachable from the reducer alone.
+ *
+ * It carries no number: the two Initiative totals are the ones the engine
+ * rolled, and this says only which pair to exchange.
+ */
+const SWAP_INITIATIVE = tool({
+  name: 'swap_initiative',
+  description:
+    'Swap two combatants’ places in the Initiative order. SRD Alert lets a character trade Initiative with one willing ally in the same fight immediately after rolling; whether the feat offers it here is the table’s ruling, and this records the trade. Neither number is yours — the engine rolled both and simply exchanges them. A creature that is Incapacitated cannot be swapped, and one who is not in the order is refused rather than added to it.',
+  mutates: true,
+  input: z.object({
+    combatant: creatureId.describe('One of the two, usually the one making the offer.'),
+    ally: creatureId.describe('The other, who is trading places with them.'),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      swapInitiativeBetween(
+        context.campaign.state(),
+        who(args.combatant),
+        who(args.ally),
+        identity(context),
+      ),
+      (events) => events,
+      // Read after the append, so it is the order the swap left behind rather
+      // than the one it found.
+      () => ({
+        swapped: [args.combatant, args.ally],
+        order: (context.campaign.state().combat?.order ?? []).map((entry) => String(entry.id)),
+      }),
+    ),
+});
+
+/**
+ * The sun comes up.
+ *
+ * **Dawn is declared, never derived**, and `time.ts` says why in as many
+ * words: there is no calendar and no time of day, because those are fiction
+ * and the DM owns them. The clock counts seconds since the campaign began and
+ * no number of them is a sunrise — a party that rests eight hours underground
+ * has not seen one, and a party that walks out at noon will.
+ *
+ * **This door was recorded as deliberately withheld, and the reason it gave
+ * has stopped being true.** `doors.test.ts` had it as "the rest slice
+ * `definitions.ts` says is left for a later batch. It also rolls recovery" —
+ * and the rest slice landed with `begin_rest`, `end_rest` and `advance_time`,
+ * while a command that rolls is what almost every door here already is. What
+ * was left was a world in which nothing could say the morning had come, so
+ * every line the book gives back "daily at dawn" was given back never. A pool
+ * nothing refills is the mirror of the pool a caller can spend for no effect,
+ * which is the rule that kept Action Surge shut.
+ *
+ * **It is a moment, not a duration.** No time passes, nothing expires and no
+ * turn ends; declaring dawn during a fight is legal and changes nothing about
+ * the fight, because sunrise is not a thing anybody spends a turn on. Whoever
+ * wants the night to have gone by advances the clock or rests, which are the
+ * two doors that own elapsed time — and neither of them is this one: a rest
+ * gives back what a rest gives back, and a morning gives back what a morning
+ * does.
+ *
+ * **The call carries nothing at all**, which is the narrowest form invariant 1
+ * takes on this surface. Not who, not which pools, not how many charges. The
+ * engine walks every creature in sorted key order, reads each pool's own
+ * recovery tag, and throws the dice the line prints — "regains 1d3 expended
+ * charges daily at dawn" is a die, and a caller supplying that number would be
+ * the model producing one. Three kinds of morning come back out: a refill, a
+ * rolled recovery recorded with its roll and its generator, and a stated
+ * number handed back with no die thrown at all.
+ */
+const DECLARE_DAWN = tool({
+  name: 'declare_dawn',
+  description:
+    'Say that the sun has come up. There is no calendar and no time of day in the engine — a night that passed underground is not a sunrise, and walking out into the light is — so dawn is yours to declare and this is the whole of the call: no arguments, nobody named. Everything a morning gives back comes back at once, to everybody: wands and rods regain their charges, and where the item’s line prints dice the engine throws them. It is a moment rather than a duration, so no time passes and nothing expires; use advance_time or a rest for that. A rest does not do this and this does not do a rest.',
+  mutates: true,
+  input: z.object({}),
+  run: (context) =>
+    settle(
+      context,
+      declareDawn(context.campaign.state(), context.campaign.supply(), identity(context)),
+      (events) => events,
+      (events) => ({
+        restored: events.flatMap((event) =>
+          event.type === 'resources-restored' ? [String(event.id)] : [],
+        ),
+        regained: events.flatMap((event) =>
+          event.type === 'resource-regained'
+            ? [{ who: String(event.id), key: event.key, amount: event.amount }]
+            : [],
+        ),
+      }),
     ),
 });
 
@@ -3578,6 +3815,14 @@ export const TOOLS: readonly ToolDefinition[] = [
   SETTLE_DAMAGE,
   SHEET,
   STABILISE_CREATURE,
+  // The four rooms the engine had finished and nothing could reach, opened as
+  // one block. The list is sorted at run time, so where they sit here is only
+  // where they were written.
+  DECLARE_DAWN,
+  DISMOUNT,
+  MOUNT,
+  SWAP_INITIATIVE,
+  USE_FREE_INTERACTION,
   SUMMON_CREATURE,
   TAKE_ACTION,
   TAKE_DAMAGE_REACTION,

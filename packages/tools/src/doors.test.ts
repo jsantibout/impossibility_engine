@@ -411,11 +411,18 @@ describe('every kind a tool declares it establishes has fields to carry it', () 
  * window, a slot and a minute on the clock — was uncastable from the only
  * surface that exists to cast spells.
  *
- * **A recorded exclusion is an answer and a shut door is not.** Four of these
+ * **A recorded exclusion is an answer and a shut door is not.** Three of these
  * are deliberately on neither surface, each for a reason the surface's own
  * rule already gives, and the reason is written here rather than left to be
  * re-derived by whoever next wonders. The test checks the exclusions too: a
  * tool that starts calling one of them fails this file until the line moves.
+ *
+ * **And the reason has to survive being read again.** `declareDawn` was a
+ * fourth exclusion until the batch that opened it, and the entry it left
+ * behind is what a table checked in both directions buys: the line had to be
+ * deleted deliberately, in the same commit as the door, rather than quietly
+ * ceasing to be true while nobody looked. Both halves of its reason — that the
+ * rest slice was a later batch's, and that it rolls — had stopped holding.
  *
  * **And which surface holds the door is part of the answer.** `dmOnly` says a
  * declaration is on the human DM's surface and not the model's, which is a
@@ -444,6 +451,24 @@ const DECLARATIONS: Readonly<
   // front of it. The engine still derives the Bites, which is what makes the
   // door safe to open.
   declareCreatureHeads: { tool: 'declare_heads', dmOnly: true },
+  /**
+   * **Withheld until this batch, and the reason it gave has stopped being
+   * true.** The line here read "the clock and what a morning refills, which is
+   * the rest slice `definitions.ts` says is left for a later batch. It also
+   * rolls recovery, so it is a command that spends dice on everybody at once."
+   * The rest slice landed — `begin_rest`, `end_rest` and `advance_time` are
+   * doors — and a command that rolls is what nearly every door on this surface
+   * already is; the dice are the engine's in exactly the way an attack's are.
+   *
+   * What was left was worse than either half: a pool nothing refills is the
+   * mirror of the pool a caller can spend for no effect, which is the rule
+   * that kept Action Surge shut. Every SRD line that gives back "daily at
+   * dawn" — and a monster's `N/Day` with it — was given back never, because
+   * nothing in a session could say the sun had come up.
+   *
+   * It carries no number and names nobody: the whole of the call is `{}`.
+   */
+  declareDawn: { tool: 'declare_dawn' },
 
   declareCreatureDead: {
     withheld:
@@ -456,10 +481,6 @@ const DECLARATIONS: Readonly<
   declareSpellcasting: {
     withheld:
       'the same: it writes an NPC’s spell list and the ability its save DC comes from, which is authorship of a stat block rather than a fact the table observed. It is the one withholding a *refusal* waits on — see `UNDECLARABLE` below, where `unknown_spellcasting` is recorded as a question this surface cannot be given a door to.',
-  },
-  declareDawn: {
-    withheld:
-      'the clock and what a morning refills, which is the rest slice `definitions.ts` says is left for a later batch. It also rolls recovery, so it is a command that spends dice on everybody at once.',
   },
 };
 
@@ -852,11 +873,14 @@ describe('every choice a creation refusal names can be sent through the door', (
  * `declare*` command the engine exports — so a new declaration has to say
  * which kind it settles, or say `null` and mean it.
  *
- * **`null` is not a hole to be filled in later.** Four of these are facts the
- * engine can be told and *no kind names*, and they are `null` because no
+ * **`null` is not a hole to be filled in later.** Several of these are facts
+ * the engine can be told and *no kind names*, and they are `null` because no
  * command stops on them: `declareCoverBetween`, `declareDifficultTerrain` and
- * `declareFalling` are declared before the command that would want them, and
- * the three withheld ones are never asked for at all. The doctrine's rule is
+ * `declareFalling` are declared before the command that would want them, the
+ * three withheld ones are never asked for at all, and `declareDawn` — a door
+ * now — is the case that shows a door and a kind are different things: no
+ * command in the engine stops because nobody has said it is morning, so a kind
+ * for it would be a kind nothing raises. The doctrine's rule is
  * the reason — "a kind is added the first time a command must stop on a fact
  * that already has a declaring command" — and adding one before that is how a
  * kind ends up with no door.

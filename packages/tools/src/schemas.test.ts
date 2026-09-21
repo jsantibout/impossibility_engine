@@ -32,8 +32,17 @@ const send = (tool: string, input: unknown): ToolOutcome =>
  * the engine knows which thing: a turn boundary, a look, an area effect it is
  * holding, a damage roll it is holding. There is nothing to name because there
  * is only ever one of them open at a time.
+ *
+ * **`declare_dawn` is the one that is empty for a different reason**, and it
+ * is the narrowest form invariant 1 takes on this surface. Nothing is owed and
+ * nothing is open; a morning simply happens to the world rather than to a
+ * person, so there is no creature to name, and what it gives back — which
+ * pools, how many charges, which dice — is read off each pool's own recovery
+ * tag by the engine. A field here would be the caller producing one of those
+ * answers.
  */
 const NO_ARGUMENTS = [
+  'declare_dawn',
   'dismiss_stranded_summons',
   'end_turn',
   'look',
