@@ -83,6 +83,31 @@ to homebrew.
   one swing and says so. It is the first DM door that takes a number, and the
   line it draws is that a number the engine produces is a fabrication while a
   number the table states is a fact.
+- **Every die a blow was made of.** A damage roll's individual faces reach
+  the log on every road, not only where a reaction window opened one, grouped
+  by damage type because that is what the rules ask of them: Resistance applies
+  per type, a critical doubles the hit's own components, and a reroll belongs to
+  the weapon's dice and not to a Divine Smite beside them. A Resistance halving
+  13 to 6 is now legible as both numbers rather than as the six.
+- **A die that behaves the way its spell says.** Content declares a die rule
+  and the engine applies it: Sorcerous Burst explodes on an 8, capped at a
+  modifier the engine derives rather than one the catalogue states. The rule is
+  supplied per damage component, so "for this spell" cannot reach a Hunter's
+  Mark die riding on the same swing.
+- **A fighting style that does something.** Archery's +2 with Ranged weapons
+  and Great Weapon Fighting's substitution are declared arithmetic now, matched
+  against the weapon a swing resolves rather than against a list of ids — and a
+  feat can carry a standing grant at all, which is the reader half that made
+  every style describable and none of them declarable.
+- **A die somebody else threw.** The engine's two d20 sites accept faces from
+  a table: faces and never a total, with the modifier, the mode and the outcome
+  staying the engine's. Faces plural, because a table cannot know before it
+  rolls whether Advantage applies — the mode is gathered from the sheet, the
+  conditions and the standing effects, and Advantage and Disadvantage cancel, so
+  a single face would mean the table had already picked and silently overridden
+  a cancellation. A face short is a question; a face too many is a refusal. An
+  external roll consumes an id and does not move the generator, so the next
+  engine die is exactly the die it would have been.
 - **A turn budget a feature can add to.** A pool use may buy room in the
   turn's own budget — the Fighter's second action, the Monk's two Unarmed
   Strikes for a Focus Point — with the book's own narrowings carried as data:
@@ -779,6 +804,29 @@ must be deleted deliberately the day a door opens. Beside it, a fifth guard
 parses every `satisfyWith` in the engine sources and fails when a request's tag
 is not the kind the named declaration settles, with the historical bug itself as
 its fixture, in both shapes.
+
+### The guard rule 1 rests on, and what it did not know
+
+CLAUDE.md rule 1 and the doctrine's invariant 7 were corrected on 2026-09-21:
+what keeps "the model never produces a number" is **reachability, not a
+handshake**. No damage command ever took a `RollId`, and the sentence saying one
+did had been describing a mechanism that never existed.
+
+The sweep that enforces the true claim knew **eight** names. It knows thirty.
+What was missing is the measure of how weak the guarantee had been:
+`rollD20Recorded` and `rollRecorded`, the only two functions that stamp a roll
+`engine`; `createRng`, `restoreRng` and `createRollIssuer`, the mint — every
+roller forbidden while the things that make what they roll with stood open; and
+`campaign.supply()`, which hands out a live issuer and generator and so needs no
+engine import at all. Nothing was a live breach, because no command carries a
+stated face. The list is half derived now, on the return type rather than the
+directory — the first attempt used "lives under `commands/` and takes a
+`Supply`", which is false, and is how a roller under `commands/` was missed.
+
+Two things it could not close itself: `rollSpellDice` is off the list only
+because it is off the barrel, so a property of the engine is guarded by a test
+in `packages/tools`; and `.gitattributes` says "check out native on Windows"
+directly above a line saying `eol=lf`.
 
 ### Decisions genuinely open
 
