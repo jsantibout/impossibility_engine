@@ -15,6 +15,7 @@ import {
   parseClassDefinition,
   parseSubclassDefinition,
   REQUIREMENT_KINDS,
+  STANDING_GRANT_KINDS,
   type Content,
 } from './content.js';
 import {
@@ -1003,6 +1004,20 @@ describe('what an item may grant is derived from the union, not recalled', () =>
     expect([...ITEM_EFFECT_KINDS].sort()).toEqual(
       unionKinds('StandingGrant').filter((kind) => kind !== 'speed'),
     );
+  });
+
+  /**
+   * And the set a **feat's** grant is held to, which is the whole union: a
+   * feat's effects are compiled onto the sheet, which is where `speedOf` reads
+   * Speed from, so the member an item is refused is one a feat may write.
+   *
+   * Pinned directly rather than left to follow from the assertion above,
+   * because it is derived from `ITEM_EFFECT_KINDS` and a *second* deliberately
+   * withheld member would fail that one and be fixed by editing its filter —
+   * which need lead nobody back here.
+   */
+  it('holds a feat to the whole union, Speed included', () => {
+    expect([...STANDING_GRANT_KINDS].sort()).toEqual(unionKinds('StandingGrant'));
   });
 });
 

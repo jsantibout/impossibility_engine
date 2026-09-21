@@ -225,35 +225,46 @@ describe('SRD Chromatic Orb is not this shape, and says so', () => {
 });
 
 /**
- * **SRD Great Weapon Fighting is refused, and the die is the part that works.**
+ * **SRD Great Weapon Fighting is the attack's scope, and it is wired now.**
  *
- * `treatLowRollsAs(2, 3, 'Great Weapon Fighting')` is built, tested and driven
- * in `attack.test.ts` — a Greatsword's 1 and 2 both count as 3, and the
- * substitution is visible on the dice rather than folded into a total. What
- * taking the feat does not do is switch it on, and three separate things stand
- * between the feat and the swing. Every one of them is outside this shape:
+ * `treatLowRollsAs(2, 3, …)` was built, tested and driven in `attack.test.ts`
+ * long before anything asked for it — a Greatsword's 1 and 2 both count as 3,
+ * and the substitution is visible on the dice rather than folded into a total.
+ * What the feat could not do was switch it on, and the three things that stood
+ * between them are each gone:
  *
  * 1. **The narrowing.** "a Melee weapon that you are holding with two hands …
  *    The weapon must have the Two-Handed or Versatile property" is a clause
- *    about a category of weapon, which is the same thing that blocks Archery's
- *    "with Ranged weapons" and Defense's "while wearing armour" — the note on
- *    each of those three says so.
+ *    about a kind of weapon, which `WeaponNarrowing` now writes — and which
+ *    Archery's "with Ranged weapons" writes too. Defense was filed here and
+ *    never belonged: its clause is about **armour**, and it is still a note.
  * 2. **The reader.** `FEAT_GRANT_KINDS` admits a grant only once creation reads
- *    it off a feat, and nothing reads a die rule off one.
+ *    it off a feat, and `standing` joined that list with `standingFromFeats`.
  * 3. **The supply.** `AttackOptions.damageEffects` is the attack-wide scope a
- *    fighting style wants, and no command supplies it.
+ *    fighting style wants, and `standingDamageEffects` is what fills it.
+ *
+ * What is left under `a-die-behaviour-a-spell-asks-for` is therefore two
+ * things rather than three: a predicate over a whole roll, and a reroll the
+ * roller chooses. The attack's scope has a writer.
+ *
+ * The end-to-end behaviour is `fighting-styles.test.ts`'s; what this asserts
+ * is that the catalogue declares it rather than describing it.
  */
-describe('SRD Great Weapon Fighting is the attack’s scope, and is not wired', () => {
+describe('SRD Great Weapon Fighting is the attack’s scope, and is wired', () => {
   const gwf = FIGHTING_STYLE_FEATS.find((feat) => feat.id === 'great-weapon-fighting');
 
-  it('is still a note rather than a grant, and the note says what is left', () => {
+  it('declares the rule and the weapons it is narrowed to', () => {
     expect(gwf).toBeDefined();
-    expect(gwf?.grants).toBeUndefined();
-    // The three blockers, each named in the note rather than left to a reader
-    // to reconstruct from the fact that nothing happens.
-    expect(gwf?.note).toContain('Two-Handed or Versatile');
-    expect(gwf?.note).toContain('FEAT_GRANT_KINDS');
-    expect(gwf?.note).toContain('damageEffects');
+    const grant = gwf?.grants;
+    expect(grant?.kind).toBe('standing');
+    if (grant?.kind !== 'standing') throw new Error('unreachable');
+    expect(grant.effects?.[0]).toMatchObject({
+      kind: 'attack-die-rule',
+      rule: { kind: 'treat-low-rolls-as', atMost: 2, as: 3 },
+      onlyWithWeapon: { heldInTwoHands: true },
+    });
+    // And the note says what happens rather than what is missing.
+    expect(gwf?.note).toContain('Applied');
   });
 
   /** And the substitution itself is real, which is why the note is about wiring. */

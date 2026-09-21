@@ -31,7 +31,7 @@ import {
   type SubclassDefinition,
 } from './progression.js';
 import { parseNotation } from './dice.js';
-import type { StandingRequirement } from './standing.js';
+import type { StandingGrant, StandingRequirement } from './standing.js';
 import { SENSE_NAMES } from './positioning.js';
 import { dawnRollProblem, type Recovery } from './resources.js';
 import { EFFECT_END_CAUSES } from './timers.js';
@@ -239,6 +239,13 @@ export const FEAT_GRANT_KINDS: ReadonlySet<string> = new Set([
   // `abilityPointsFrom` and `abilityMaximums` in `creation.ts`, beside the
   // feature's own.
   'ability-score-increase',
+  // A benefit that simply holds, which is the whole of what a Fighting Style
+  // feat is: "a +2 bonus to attack rolls you make with Ranged weapons" is a
+  // standing effect and nothing else. `standingFromFeats` in `creation.ts`
+  // compiles it onto the sheet beside a class feature's, and
+  // {@link featStandingProblems} refuses the fields of that grant only a
+  // **class table** could answer for — a feat has no table and no level.
+  'standing',
 ]);
 
 /** The optional `FeatureDefinition` fields a reader dereferences — see {@link READABLE_GRANT_KINDS}. */
@@ -276,6 +283,12 @@ export const ITEM_EFFECT_KINDS: ReadonlySet<string> = new Set([
   'attack-damage',
   'sense',
   'ability-score-set',
+  // A rule about the dice a swing throws, on the same test as the three
+  // below: the gatherer is `standingDamageEffects`, which walks `standingFor`,
+  // and a worn item's grants are already part of that. No SRD item prints the
+  // sentence today; the list's rule is what a reader reaches, not what the
+  // book happens to have written.
+  'attack-die-rule',
   // Read from an item exactly as it is read from a feature: the gatherer is
   // `standingFor`, which folds a worn item's effects in beside a class's, so a
   // staff that empowered its wielder's Evocations would be executed rather than
@@ -293,6 +306,19 @@ export const ITEM_EFFECT_KINDS: ReadonlySet<string> = new Set([
   // rule is what a reader reaches, not what the book happens to have written.
   'action-rule',
 ]);
+
+/**
+ * Every kind of standing benefit there is, for the holders that are not items.
+ *
+ * Derived rather than restated: it is {@link ITEM_EFFECT_KINDS} plus the one
+ * member that list withholds, and `content.test.ts` holds that list equal to
+ * the union in `standing.ts` in both directions — so this stays exactly the
+ * union without anybody keeping it so. The withheld member is `speed`, and the
+ * reason it is withheld from an *item* is the reason it belongs here: `speedOf`
+ * gathers Speed from the sheet alone, and a feat's grant is compiled onto the
+ * sheet.
+ */
+export const STANDING_GRANT_KINDS: ReadonlySet<string> = new Set([...ITEM_EFFECT_KINDS, 'speed']);
 
 /**
  * What a feat says about ability scores: the question it asks, the ceiling it
@@ -464,6 +490,202 @@ function checkBonusProblems(
         });
       }
     }
+  }
+  return found;
+}
+
+/**
+ * Everything wrong with one standing effect declared by something that is
+ * **not an item** — a class feature, a species trait, or a feat.
+ *
+ * Two families of refusal, and the first is the reason the function exists.
+ *
+ * **What only an item can mean.** `onlyWithItem` is keyed on the id of the
+ * thing granting the benefit, and a feature has no copy in anybody's pack, so
+ * a feature writing it would grant nothing at all and say nothing about it.
+ * Both members that carry the clause are refused — a flat bonus's "made with
+ * this magic weapon" and an extra die's "this magic weapon deals" — because a
+ * rule enforced on one of two spellings is a rule with a hole in it.
+ *
+ * **What is judged the same wherever it is written.** A sense's range, an
+ * ability-sized bonus's skills, a casting's healing, a set score, a weapon
+ * narrowing and a rule about the dice are all checked by the helpers an item's
+ * door already calls: the SRD writes several of these on a class feature *and*
+ * on an item, and untyped input reaches both.
+ *
+ * One function for all three holders, so a fourth inherits the whole list the
+ * day it compiles rather than the day somebody remembers.
+ */
+function ownedStandingEffectProblems(
+  effect: StandingGrant,
+  at: string,
+  holder: string,
+): readonly { readonly code: string; readonly reason: string; readonly field: string }[] {
+  const found: { code: string; reason: string; field: string }[] = [];
+
+  if (
+    (effect.kind === 'flat-bonus' || effect.kind === 'attack-damage') &&
+    effect.onlyWithItem === true
+  ) {
+    found.push({
+      field: `${at}.onlyWithItem`,
+      code: 'item_narrowing_on_a_feature',
+      reason: `"made with this item" is read against the id of the item granting it, and ${holder} is not an item, so it would grant nothing`,
+    });
+  }
+  // And the *other* narrowing, which a feature may write and an item may too:
+  // it is a description of a weapon rather than a name of one, so nothing
+  // about a feature stops it holding — what is checked is that it describes a
+  // weapon the equipment tables print, and that the roll it narrows is one
+  // somebody makes *with* a weapon.
+  if (
+    (effect.kind === 'flat-bonus' || effect.kind === 'attack-die-rule') &&
+    effect.onlyWithWeapon !== undefined
+  ) {
+    found.push(...weaponNarrowingProblems(effect.onlyWithWeapon, `${at}.onlyWithWeapon`));
+    if (
+      effect.kind === 'flat-bonus' &&
+      Array.isArray(effect.applies) &&
+      effect.applies.some((aimed) => !MADE_WITH_AN_ITEM.has(aimed))
+    ) {
+      found.push({
+        field: `${at}.onlyWithWeapon`,
+        code: 'narrowing_without_a_roll',
+        reason: `only ${[...MADE_WITH_AN_ITEM].join(' and ')} rolls are made *with* a weapon, so "with weapons like this" could never hold for the rest`,
+      });
+    }
+  }
+  if (effect.kind === 'attack-die-rule') {
+    found.push(...attackDieRuleProblems(effect as unknown as Record<string, unknown>, at));
+  }
+  if (effect.kind === 'sense') {
+    found.push(...senseProblems(effect as unknown as Record<string, unknown>, at));
+  }
+  if (effect.kind === 'check-bonus') {
+    found.push(...checkBonusProblems(effect as unknown as Record<string, unknown>, at));
+  }
+  if (effect.kind === 'casting-healing') {
+    found.push(...castingHealingProblems(effect as unknown as Record<string, unknown>, at));
+  }
+  if (effect.kind === 'ability-score-set') {
+    found.push(...abilitySetProblems(effect as unknown as Record<string, unknown>, at));
+  }
+  return found;
+}
+
+/**
+ * Everything wrong with a weapon narrowing, wherever one is written.
+ *
+ * `WeaponNarrowing` is a *description* of a weapon rather than a list of ids,
+ * which is what keeps rule 4 — and the cost of a description is that one
+ * naming a category nobody prints matches no weapon at all and says nothing
+ * about it. That is the quiet failure this whole validator exists to turn into
+ * a refusal at authoring, and the reason `weaponSelectorProblems` is reused
+ * rather than restated: a `strike-style` and an `on-hit` rider already hold
+ * their selectors to the same three closed sets.
+ *
+ * Its own function because three doors write the clause — an item's grant, a
+ * class feature's, and now a feat's — and a rule enforced at two of three is a
+ * rule with a hole in it.
+ */
+function weaponNarrowingProblems(
+  narrowing: unknown,
+  at: string,
+): readonly { readonly code: string; readonly reason: string; readonly field: string }[] {
+  const found: { code: string; reason: string; field: string }[] = [];
+  if (!isShape(narrowing)) {
+    return [
+      {
+        code: 'bad_weapon_narrowing',
+        reason: 'a weapon narrowing is an object naming the weapons it covers, how they are held, or both',
+        field: at,
+      },
+    ];
+  }
+  const weapons = narrowing['weapons'];
+  if (weapons !== undefined) {
+    if (!Array.isArray(weapons) || weapons.length === 0) {
+      found.push({
+        code: 'bad_weapon_narrowing',
+        reason: 'the weapons a narrowing covers are a non-empty list of selectors; one that asks nothing of the weapon omits the field',
+        field: `${at}.weapons`,
+      });
+    } else {
+      weapons.forEach((selector, index) => {
+        for (const problem of weaponSelectorProblems(
+          selector as Parameters<typeof weaponSelectorProblems>[0],
+          `${at}.weapons[${index}]`,
+        )) {
+          found.push({ code: problem.code, reason: problem.reason, field: problem.field });
+        }
+      });
+    }
+  }
+  const held = narrowing['heldInTwoHands'];
+  if (held !== undefined && held !== true) {
+    found.push({
+      code: 'bad_weapon_narrowing',
+      reason: 'SRD\'s "holding it with two hands" is asked or not asked; `false` is a clause that says nothing, so the field is omitted instead',
+      field: `${at}.heldInTwoHands`,
+    });
+  }
+  if (weapons === undefined && held === undefined) {
+    found.push({
+      code: 'bad_weapon_narrowing',
+      reason: 'a narrowing that narrows nothing withholds a benefit from nobody; omit the field rather than writing an empty one',
+      field: at,
+    });
+  }
+  return found;
+}
+
+/**
+ * Everything wrong with an `attack-die-rule` grant, wherever one is written.
+ *
+ * The arm is SRD Great Weapon Fighting's substitution — "treat any 1 or 2 on a
+ * damage die as a 3" — and the two numbers are the sentence's own. A
+ * replacement no higher than the threshold is a rule that changes nothing, and
+ * a threshold of zero reaches no face a die can show: both are benefits that
+ * could never hold, which is what this door refuses.
+ */
+function attackDieRuleProblems(
+  effect: Record<string, unknown>,
+  at: string,
+): readonly { readonly code: string; readonly reason: string; readonly field: string }[] {
+  const found: { code: string; reason: string; field: string }[] = [];
+  const rule = effect['rule'];
+  if (!isShape(rule)) {
+    return [
+      {
+        code: 'bad_die_rule',
+        reason: 'a rule about the dice an attack throws is an object saying which kind it is',
+        field: `${at}.rule`,
+      },
+    ];
+  }
+  if (rule['kind'] !== 'treat-low-rolls-as') {
+    found.push({
+      code: 'bad_die_rule',
+      reason: `"${String(rule['kind'])}" is not a rule this engine reads off a feature; the substitution is the one arm a printed sentence writes`,
+      field: `${at}.rule.kind`,
+    });
+    return found;
+  }
+  const atMost = rule['atMost'];
+  const as = rule['as'];
+  if (!Number.isInteger(atMost) || (atMost as number) < 1) {
+    found.push({
+      code: 'bad_die_rule',
+      reason: `SRD's "any 1 or 2" is a face a die can show, not ${JSON.stringify(atMost)}`,
+      field: `${at}.rule.atMost`,
+    });
+  }
+  if (!Number.isInteger(as) || (as as number) <= (atMost as number)) {
+    found.push({
+      code: 'bad_die_rule',
+      reason: `SRD's "as a 3" counts a low face as a higher one; ${JSON.stringify(as)} is not higher than ${JSON.stringify(atMost)}, so the rule would change nothing`,
+      field: `${at}.rule.as`,
+    });
   }
   return found;
 }
@@ -2578,6 +2800,38 @@ function itemGrantProblems(
             `${on}.onlyWithItem`,
           );
         }
+        // And the other narrowing, at the same door and by the same argument:
+        // "with Ranged weapons" is a clause about a roll made *with* a weapon,
+        // and an Armour Class is not one either.
+        if (effect.onlyWithWeapon !== undefined) {
+          for (const problem of weaponNarrowingProblems(effect.onlyWithWeapon, `${on}.onlyWithWeapon`)) {
+            say(problem.code, problem.reason, problem.field);
+          }
+          if (applies.some((aimed) => !MADE_WITH_AN_ITEM.has(aimed))) {
+            say(
+              'narrowing_without_a_roll',
+              `only ${[...MADE_WITH_AN_ITEM].join(' and ')} rolls are made *with* a weapon, so "with weapons like this" could never hold for the rest`,
+              `${on}.onlyWithWeapon`,
+            );
+          }
+        }
+        return;
+      }
+      if (effect.kind === 'attack-die-rule') {
+        for (const problem of attackDieRuleProblems(
+          effect as unknown as Record<string, unknown>,
+          on,
+        )) {
+          say(problem.code, problem.reason, problem.field);
+        }
+        if (effect.onlyWithWeapon !== undefined) {
+          for (const problem of weaponNarrowingProblems(
+            effect.onlyWithWeapon,
+            `${on}.onlyWithWeapon`,
+          )) {
+            say(problem.code, problem.reason, problem.field);
+          }
+        }
         return;
       }
       if (effect.kind === 'roll-mode') {
@@ -2696,6 +2950,136 @@ function initiativeGrantProblems(
   ];
 }
 
+/**
+ * What a feat's `standing` grant may say, and the fields of it a feat cannot
+ * mean.
+ *
+ * **A feat is not a feature and goes through none of the class-feature
+ * passes.** `standingFromFeats` reads a feat's declaration on its own, and
+ * what it can read is the plain sentence: the effects, and what must hold for
+ * them. Every other field of the grant is resolved against something a feat
+ * has not got —
+ *
+ * | Field | What answers it for a feature |
+ * |---|---|
+ * | `diceCountByLevel`, `feetByLevel` | a column of that class's own table |
+ * | `onlyIfChoice`, `damageTypesFromChoice`, `choiceFrom` | a choice made on that feature or a sibling |
+ * | `auraFeet` | whichever feature of the source declares the radius |
+ *
+ * — so each is refused rather than accepted and silently never read, which is
+ * the whole argument `feat_grant_not_read` makes one level up.
+ *
+ * `reach` is the same refusal wearing the radius's clothes: an aura's size is
+ * declared by a feature of the granting source and a feat belongs to no
+ * source, so a feat's benefit is its holder's own.
+ */
+function featStandingProblems(
+  declared: unknown,
+  where: string,
+  who: string,
+): readonly ContentProblem[] {
+  const problems: ContentProblem[] = [];
+  const grant = declared as Record<string, unknown>;
+
+  for (const field of [
+    'diceCountByLevel',
+    'feetByLevel',
+    'onlyIfChoice',
+    'damageTypesFromChoice',
+    'choiceFrom',
+    'auraFeet',
+  ] as const) {
+    if (grant[field] !== undefined) {
+      problems.push({
+        field: `${where}.${field}`,
+        code: 'feat_grant_not_read',
+        reason: `a feat has no class table and no feature choices, so ${field} would never be read off ${who}`,
+      });
+    }
+  }
+
+  if (grant['reach'] !== undefined && grant['reach'] !== 'self') {
+    problems.push({
+      field: `${where}.reach`,
+      code: 'feat_grant_not_read',
+      reason: `an aura's size is declared by a feature of the source granting it, and ${who} is a feat and belongs to no source, so its benefit is its holder's own`,
+    });
+  }
+
+  const effects = grant['effects'];
+  if (!Array.isArray(effects) || effects.length === 0) {
+    problems.push({
+      field: `${where}.effects`,
+      code: 'empty_feat_grant',
+      reason: `${who} declares a standing grant with no effects, which grants nothing`,
+    });
+    return problems;
+  }
+
+  effects.forEach((effect, position) => {
+    const kind = (effect as { readonly kind?: unknown }).kind;
+    if (effect === null || typeof effect !== 'object' || !isString(kind)) {
+      problems.push({
+        field: `${where}.effects[${position}]`,
+        code: 'bad_feat_grant',
+        reason: 'a standing effect is an object naming its kind',
+      });
+      return;
+    }
+    // The same refusal the item door makes with `ITEM_EFFECT_KINDS`, against
+    // the whole union rather than against the one an item withholds. A kind
+    // nothing grants is compiled onto the sheet and matched by no reader,
+    // which is indistinguishable from a benefit that simply never applies.
+    if (!STANDING_GRANT_KINDS.has(kind)) {
+      problems.push({
+        field: `${where}.effects[${position}]`,
+        code: 'bad_feat_grant',
+        reason: `"${kind}" is not a standing effect this engine grants, so ${who} would put a benefit on the sheet that no reader ever matches`,
+      });
+      return;
+    }
+    problems.push(
+      ...ownedStandingEffectProblems(
+        effect as StandingGrant,
+        `${where}.effects[${position}]`,
+        who,
+      ),
+    );
+  });
+
+  // The two requirements a grant's is looked up by an *item's* id — the same
+  // door `item_requirement_on_a_feature` refuses one step along, and a feat is
+  // no more an item than a class feature is.
+  const requires = grant['requires'];
+  if (Array.isArray(requires)) {
+    requires.forEach((requirement, position) => {
+      const kind = (requirement as { readonly kind?: unknown })?.kind;
+      if (!isString(kind) || !REQUIREMENT_KINDS.has(kind)) {
+        // The item door's refusal, at the door beside it: a clause
+        // `requirementsHold` does not know is a clause it answers `true` to,
+        // so a benefit gated on a condition nobody evaluates would simply
+        // always apply — the confident wrong answer rather than the missing
+        // one.
+        problems.push({
+          field: `${where}.requires[${position}]`,
+          code: 'bad_feat_grant',
+          reason: `"${String(kind)}" is not a requirement this engine evaluates, so ${who} would grant its benefit unconditionally`,
+        });
+        return;
+      }
+      if (ITEM_ONLY_REQUIREMENTS.has(kind)) {
+        problems.push({
+          field: `${where}.requires[${position}]`,
+          code: 'item_requirement_on_a_feature',
+          reason: `"${kind}" is read against the id of the item granting it, and ${who} is a feat rather than an item, so this would never hold`,
+        });
+      }
+    });
+  }
+
+  return problems;
+}
+
 export function checkContent(input: ContentInput): readonly ContentProblem[] {
   const problems: ContentProblem[] = [];
   const spells = input.spells ?? [];
@@ -2796,6 +3180,7 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
       });
     }
     problems.push(...initiativeGrantProblems(declared, where, feat.id));
+    if (kind === 'standing') problems.push(...featStandingProblems(declared, where, feat.id));
   }
 
   const classOf = byId(classes);
@@ -2929,64 +3314,13 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
         }
       });
       if (feature.grants?.kind === 'standing') {
-        // And the narrowing, which is the same door in the same wall: it is
-        // keyed on the granting item's id, and a class feature has none, so
-        // the benefit would never reach a roll at all. Both members that carry
-        // the clause are refused here — a flat bonus's "made with this magic
-        // weapon" and an extra die's "this magic weapon deals" — because a
-        // rule enforced on one of two spellings is a rule with a hole in it.
         (feature.grants.effects ?? []).forEach((effect, position) => {
-          if (
-            (effect.kind === 'flat-bonus' || effect.kind === 'attack-damage') &&
-            effect.onlyWithItem === true
-          ) {
-            problems.push({
-              field: `${where}.grants.effects[${position}].onlyWithItem`,
-              code: 'item_narrowing_on_a_feature',
-              reason: `"made with this item" is read against the id of the item granting it, and a class feature is not an item, so ${feature.id} would grant nothing`,
-            });
-          }
-          // A sense, judged by the same rule an item's is — see
-          // {@link senseProblems}. A species prints the commonest one in the
-          // book and an untyped species definition may get it wrong in
-          // exactly the ways an untyped item can.
-          if (effect.kind === 'sense') {
-            for (const problem of senseProblems(
-              effect as unknown as Record<string, unknown>,
-              `${where}.grants.effects[${position}]`,
-            )) {
-              problems.push({ field: problem.field, code: problem.code, reason: problem.reason });
-            }
-          }
-          // And the ability-sized bonus to named checks, by the same rule at
-          // the same two doors: the SRD writes it on two class features, and
-          // nothing stops an item's line from writing it too.
-          if (effect.kind === 'check-bonus') {
-            for (const problem of checkBonusProblems(
-              effect as unknown as Record<string, unknown>,
-              `${where}.grants.effects[${position}]`,
-            )) {
-              problems.push({ field: problem.field, code: problem.code, reason: problem.reason });
-            }
-          }
-          // And what a feature adds to a casting's healing, by the same rule at
-          // the same two doors.
-          if (effect.kind === 'casting-healing') {
-            for (const problem of castingHealingProblems(
-              effect as unknown as Record<string, unknown>,
-              `${where}.grants.effects[${position}]`,
-            )) {
-              problems.push({ field: problem.field, code: problem.code, reason: problem.reason });
-            }
-          }
-          // And a set score, by the same rule at the same two doors.
-          if (effect.kind === 'ability-score-set') {
-            for (const problem of abilitySetProblems(
-              effect as unknown as Record<string, unknown>,
-              `${where}.grants.effects[${position}]`,
-            )) {
-              problems.push({ field: problem.field, code: problem.code, reason: problem.reason });
-            }
+          for (const problem of ownedStandingEffectProblems(
+            effect,
+            `${where}.grants.effects[${position}]`,
+            feature.id,
+          )) {
+            problems.push({ field: problem.field, code: problem.code, reason: problem.reason });
           }
         });
       }

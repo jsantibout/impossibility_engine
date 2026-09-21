@@ -150,7 +150,7 @@ export const FIGHTER: ClassDefinition = {
       name: 'Fighting Style',
       level: 1,
       automation: 'manual',
-      note: 'The chosen Fighting Style feat is recorded and validated against the SRD list. None of the four is applied: every one is a modifier the caller passes to a roll, which is where the engine has always put them.',
+      note: 'The chosen Fighting Style feat is recorded and validated against the SRD list. Archery and Great Weapon Fighting are applied: each carries a standing grant, compiled onto the sheet at creation and read at the swing. The other two of the four are still a note rather than a grant, and on different blockers - Defense wants a requirement about wearing armour, and Two-Weapon Fighting a fact no attack carries.',
       choice: { kind: 'feat', choose: 1, category: 'fighting-style' },
     },
     {
@@ -399,7 +399,7 @@ export const CHAMPION: SubclassDefinition = {
       name: 'Additional Fighting Style',
       level: 7,
       automation: 'manual',
-      note: 'A second Fighting Style feat is recorded like the first, and applied no more than the first.',
+      note: 'A second Fighting Style feat is recorded like the first, and applied exactly as the first is.',
       choice: { kind: 'feat', choose: 1, category: 'fighting-style' },
     },
     {

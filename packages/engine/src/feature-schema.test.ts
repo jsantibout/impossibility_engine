@@ -686,12 +686,20 @@ describe('rule 7 — no FeatureGrant member sits unwritten', () => {
         feat.grants === undefined ? [] : [String(feat.grants.kind)],
       ),
     );
-    // The Epic Boons write the second: SRD prints "to a maximum of 30" on
+    // The Epic Boons write the first: SRD prints "to a maximum of 30" on
     // the boon rather than on the level 19 class feature that grants one, so
     // this kind is written by a class table *and* by a feat, which is the
-    // sharing this assertion is here to make visible.
-    expect([...fromFeats].sort()).toEqual(['ability-score-increase', 'initiative']);
+    // sharing this assertion is here to make visible. The Fighting Style
+    // feats write the third, which a class table writes too — "a +2 bonus to
+    // attack rolls you make with Ranged weapons" is an ordinary standing
+    // benefit that happens to be printed on a feat.
+    expect([...fromFeats].sort()).toEqual([
+      'ability-score-increase',
+      'initiative',
+      'standing',
+    ]);
     expect(fromClasses.has('ability-score-increase')).toBe(true);
+    expect(fromClasses.has('standing')).toBe(true);
   });
 
   it('reports a member nobody writes, driven over a synthetic one', () => {

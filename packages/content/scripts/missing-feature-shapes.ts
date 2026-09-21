@@ -525,9 +525,9 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   // — Fighter —
   'fighter:fighting-style': [
     {
-      clause: 'every one is a modifier the caller passes to a roll',
+      clause: 'The other two of the four are still a note rather than a grant',
       why: 'table',
-      note: 'a Fighting Style feat that does nothing is that feat’s debt; recording and validating the choice is all this feature claims.',
+      note: 'two of the four feats are executed now and two are their own feats’ debt; recording and validating the choice is all this feature ever claimed, and that has not changed.',
     },
   ],
   'fighter:tactical-shift': [
@@ -548,7 +548,7 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
     {
       clause: 'A second Fighting Style feat is recorded like the first',
       why: 'table',
-      note: 'the feat’s debt, exactly as the Fighter’s own is.',
+      note: 'whatever the first one does, exactly as the Fighter’s own is.',
     },
   ],
   'champion:heroic-warrior': [
@@ -686,9 +686,9 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   // — Paladin —
   'paladin:fighting-style': [
     {
-      clause: 'each is a modifier the caller passes to a roll',
+      clause: 'The other two of the four are still a note rather than a grant',
       why: 'table',
-      note: 'the feat’s own debt, exactly as the Fighter’s Fighting Style is.',
+      note: 'the two unbuilt feats’ own debt, exactly as the Fighter’s Fighting Style is.',
     },
   ],
   'paladin:smite': [
@@ -770,9 +770,9 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   // — Ranger —
   'ranger:fighting-style': [
     {
-      clause: 'each is a modifier the caller passes to a roll',
+      clause: 'The other two of the four are still a note rather than a grant',
       why: 'table',
-      note: 'the feat’s own debt, exactly as the Fighter’s Fighting Style is.',
+      note: 'the two unbuilt feats’ own debt, exactly as the Fighter’s Fighting Style is.',
     },
   ],
   'ranger:tireless': [
