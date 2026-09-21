@@ -12,7 +12,7 @@
  * weapons, slots, Sneak Attack, Channel Divinity and concentration: a Fighter,
  * a Cleric, a Rogue and a Wizard, each built at level 5 through
  * `create_character`. Against them, four Undead — a Wight, a Ghast and two
- * Skeletons, 1,300 XP against a four-character level 5 party — chosen Undead
+ * Skeletons, 1,250 XP against a four-character level 5 party — chosen Undead
  * so that Turn Undead has something to turn and Preserve Life has the
  * exclusion it prints something to refuse on.
  *
@@ -44,6 +44,8 @@
  * finding and is in the digest.
  */
 
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
 import { DM_DECIDES, dmDecisionsIn, type FeatureDefinition } from '@ie/engine';
@@ -52,6 +54,7 @@ import {
   createDmSurface,
   createSurface,
   type Campaign,
+  type Holdings,
   type Observation,
   type Surface,
   type ToolOutcome,
@@ -377,6 +380,21 @@ interface Clause {
  */
 const BLOCK_HANDOVER = 'the engine does not apply that; a DM does';
 
+/**
+ * The four engine files the sentence is written in, so the copy is pinned.
+ *
+ * A copied literal is the one unguarded input to count 2: reword the sentence
+ * in `attacks.ts` and "handed over to the DM" falls to zero with nothing
+ * failing, which is exactly the silence the header invokes `DM_DECIDES` to
+ * avoid. So the copy is held to the original the way `doors.test.ts` and
+ * `boundary.test.ts` hold theirs — by reading the source — and the day the
+ * wording moves, this file says so rather than the count saying nothing.
+ */
+const WRITES_THE_HANDOVER: readonly string[] = [
+  '../../engine/src/commands/actions.ts',
+  '../../engine/src/commands/attacks.ts',
+];
+
 const clausesIn = (sent: readonly Sent[]): readonly Clause[] =>
   sent.flatMap(({ tool, outcome }) =>
     outcome.status === 'ok'
@@ -457,24 +475,23 @@ const poolsWithNoDoor = (t: Table): readonly PoolWithNoDoor[] => {
   for (const member of PARTY) {
     const outcome = t.call('sheet', { who: member.id });
     if (outcome.status !== 'ok') continue;
-    const held = outcome.resolution as {
-      pools?: readonly { key: string; label: string }[];
-      features?: readonly { pool: string | null; spentBy: string | null }[];
-      spellcasting?: { granted?: readonly { freeCastPool: string | null }[] };
-    };
+    // `Holdings` rather than a structural stand-in with optional fields: an
+    // ad-hoc shape turns a rename in `holdings.ts` into a census that quietly
+    // reports nothing, and this cast turns it into a typecheck error.
+    const held = outcome.resolution as unknown as Holdings;
     // Three doors a pool can have, and all three are read off the sheet
     // rather than assumed: a feature line naming the tool that spends it, a
     // granted spell naming it as what `cast_spell.payment` draws on, and the
     // Hit Die pool `end_rest` takes by name.
     const doored = new Set<string>([
-      ...(held.features ?? [])
+      ...held.features
         .filter((one) => one.spentBy !== null && one.pool !== null)
         .map((one) => one.pool as string),
-      ...(held.spellcasting?.granted ?? [])
+      ...held.spellcasting.granted
         .map((one) => one.freeCastPool)
         .filter((one): one is string => one !== null),
     ]);
-    for (const pool of held.pools ?? []) {
+    for (const pool of held.pools) {
       if (!doored.has(pool.key) && !pool.key.startsWith(HIT_DIE)) {
         found.push({ who: member.id, pool: pool.key, label: pool.label });
       }
@@ -1162,11 +1179,19 @@ function playTheSession(seed?: string): Table {
 
 // — the report ————————————————————————————————————————————————————————————————
 
+/**
+ * The three counts, as the run's own transcript reports them.
+ *
+ * **The pool census goes first, and that ordering is load-bearing.** It reads
+ * four sheets, and a read is a call: taken after the clauses were counted, the
+ * report would print a call total from one transcript and an `unverified`
+ * total from a shorter one. Nothing below this line adds to `sent`.
+ */
 function report(t: Table): string {
+  const shut = poolsWithNoDoor(t);
   const clauses = clausesIn(t.sent);
   const handovers = clauses.filter((one) => one.kind !== 'unmodelled');
   const manual = manualHoldings();
-  const shut = poolsWithNoDoor(t);
 
   const lines: string[] = [];
   lines.push('');
@@ -1197,7 +1222,14 @@ function report(t: Table): string {
   for (const one of shut) lines.push(`   ${one.who} — ${one.pool} (${one.label})`);
 
   const called = new Set(t.sent.filter((one) => one.outcome.status === 'ok').map((one) => one.tool));
-  const never = [...t.dm.tools.map((one) => one.name)].filter((name) => !called.has(name)).sort();
+  // Both lists, because `DM_TOOLS` is not a superset: it is `TOOLS` minus
+  // `apply_condition`, which `rule_condition` widens. One surface's names
+  // would leave that tool out of a list headed "on the two surfaces".
+  const published = new Set([
+    ...t.player.tools.map((one) => one.name),
+    ...t.dm.tools.map((one) => one.name),
+  ]);
+  const never = [...published].filter((name) => !called.has(name)).sort();
   lines.push('');
   lines.push(`for the record — tools on the two surfaces this session never used: ${never.length}`);
   lines.push(`   ${never.join(', ')}`);
@@ -1236,12 +1268,46 @@ describe('a level 5 party plays a session', () => {
   it('plays the session end to end and prints what it handed over', () => {
     const t = playTheSession();
 
-    console.log(report(t));
+    // **`process.stdout`, and not `console.log`.** Vitest 4 defaults to
+    // `silent: 'passed-only'`: it intercepts the console and drops whatever a
+    // *passing* test logged, and it does the same to a task annotation. Both
+    // were tried. A count the gauntlet cannot show anybody is a count that
+    // does not exist, and a write straight to the stream is the one channel
+    // the reporter passes through.
+    process.stdout.write(report(t));
 
-    // The session got to the end of itself: eight steps, and the party is a
-    // level higher than it started.
+    // The session got to the end of itself, and the assertions say so rather
+    // than a comment saying so: the fight began and was closed, every one of
+    // the four is a level higher than it started, and the log is the log of a
+    // session rather than of four characters standing in a room.
     expect(t.look().round).toBeNull();
+    expect(t.sent.some((one) => one.tool === 'roll_initiative' && one.outcome.status === 'ok')).toBe(
+      true,
+    );
+    expect(t.sent.some((one) => one.tool === 'end_combat' && one.outcome.status === 'ok')).toBe(true);
+    for (const member of PARTY) {
+      const sheet = t.call('sheet', { who: member.id });
+      expect(sheet.status).toBe('ok');
+      if (sheet.status !== 'ok') continue;
+      expect(sheet.resolution['level']).toBe(6);
+    }
     expect(t.campaign.log().length).toBeGreaterThan(50);
+  });
+
+  /**
+   * The copy is still the original — see {@link WRITES_THE_HANDOVER}.
+   *
+   * Not a count and not an assertion about the session: an assertion about
+   * the one string this file typed out instead of importing.
+   */
+  it('reads the same handover mark the engine writes', () => {
+    for (const where of WRITES_THE_HANDOVER) {
+      const text = readFileSync(fileURLToPath(new URL(where, import.meta.url)), 'utf8');
+      expect(text).toContain(BLOCK_HANDOVER);
+    }
+    // And the other mark is imported rather than copied, so it needs no guard
+    // — this only says the two are different marks and neither is the other.
+    expect(DM_DECIDES).not.toContain(BLOCK_HANDOVER);
   });
 
   it('replays byte-identically from the same seed', () => {
