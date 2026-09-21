@@ -26,7 +26,9 @@ else an agent needs is `CLAUDE.md` and the design note for the subsystem.
 3. A builder works test-first in its worktree, runs the gauntlet
    (`typecheck`, `lint`, `test`, and `coverage` to read its delta, which it
    reports and then reverts — `COVERAGE.md` is the coordinator's to commit once
-   per batch), gets a reviewer verdict, fixes ordinary defects, and
+   per batch, and the `playable-levels.test.ts` failure the revert leaves on a
+   branch that moved a number is expected rather than a defect), gets a reviewer
+   verdict, fixes ordinary defects, and
    reports a digest: what changed, what the tests prove, deviations from the
    brief, anything it could not do.
 4. The coordinator merges a task that is **clean** — inside its brief,

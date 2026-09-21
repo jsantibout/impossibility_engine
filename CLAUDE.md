@@ -106,6 +106,13 @@ number its brief names, reports it, and then `git checkout -- COVERAGE.md`. Six
 branches regenerating one 1,100-line file means six diffs a reviewer must read,
 six conflicts on the way in, and seven computations of an answer that is only
 true once, at the end.
+
+**The cost of that, so nobody reads it as a defect:** a track that moves a
+number will see `playable-levels.test.ts` fail on its own branch after the
+revert, because that test asserts the committed report matches the code. That
+one failure is expected, is the only one allowed, and clears when the
+coordinator regenerates after the merge. Say so in the digest; do not chase it,
+and do not commit the report to silence it.
 CI runs the same on Node 22 and 24.
 
 The load-bearing tests, so you know what a change can break:
