@@ -200,7 +200,10 @@ describe('every reader of a rider’s deadline names every member of it', () => 
       "  if (lasts === 'first') return 'the first';",
       "  return lasts === 'second' ? 'the second' : 'whatever else';",
       '}',
-      'export const somethingAfterTheBrace = 1;',
+      // After the brace, and naming the member the reader misses: that is
+      // what makes the body's end load-bearing. A body that ran on past `}`
+      // would find `'third'` down here and report nothing.
+      "export const somethingAfterTheBrace = 'third';",
     ];
     const synthetic = { 'a-module.ts': lines.join('\r\n') };
     expect(membersOf(synthetic['a-module.ts'])).toEqual(['first', 'second', 'third']);
