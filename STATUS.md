@@ -564,6 +564,13 @@ Multiattack is built for the one mechanism of five the ruling covers.
   parsed field sits on `MonsterAttackSchema`, so only the **2** lines that
   print an attack roll can carry one and the other 85 have nowhere to put it;
   the schema's `rest` arm is written and nothing produces it.
+
+  **And a recharge ability returns on a rest** (owner, same day), so a die line
+  has two ways back — the turn-start roll, and a Short or Long Rest
+  unconditionally. The cloaker's printed "Recharge after a Short or Long Rest"
+  stays a distinct form because it is the *rest only* case: no die, no
+  turn-start roll. The two arms differ as "die plus rest" against "rest alone",
+  which is why the arm that produced nothing was still the right shape.
 - **`alsoHolding` stays, though no content can reach it** (owner, 2026-09-20).
   `holdings.ts` used to list a feature once under first-claim-wins, so a feature
   holding both a pool's menu and a hit rider would have lost one. No catalogue
