@@ -202,17 +202,26 @@ function sizeProblem(
 ): Err | null {
   const mine = sizeStated(state, striker);
   const theirs = sizeStated(state, target);
+  // **Normally the map has already answered**: a placement writes a size and
+  // defaults an unstated one to Medium, and an unplaced pair is refused by
+  // `reachedBy` before this is reached at all. What is left is the table with
+  // no scene in it — where nobody is keeping positions, nobody is keeping
+  // sizes either — and there the default is reported rather than hidden.
   if (mine === null || theirs === null) {
     unverified.push(
       `nobody has said how big ${mine === null ? striker : target} is, so ${what} took them for Medium; ` +
         'a creature more than one size larger cannot be grabbed or shoved',
     );
   }
+  // **The size the rule actually applied**, rather than the record it read it
+  // from: where nobody has said, the default above is what decided this, and a
+  // refusal reading "goblin is null" would name a fact instead of a reason.
+  const stood = theirs ?? 'medium';
   const limit = oneLargerThan(mine ?? 'medium');
-  if (sizeAtMost(theirs ?? 'medium', limit)) return null;
+  if (sizeAtMost(stood, limit)) return null;
   return err(
     'too_large',
-    `${target} is ${theirs}, and ${what} reaches a creature no more than one size larger than ${striker}, which is ${limit}`,
+    `${target} is ${stood}, and ${what} reaches a creature no more than one size larger than ${striker}, which is ${limit}`,
   );
 }
 
@@ -277,7 +286,7 @@ function strikeProblem(
   if (creatureOf(state, striker) === null) return unknownCreature(striker);
   if (creatureOf(state, target) === null) return unknownCreature(target);
   if (striker === target) {
-    return err('self_target', `${striker} cannot ${what.split(' ')[0]} themselves`);
+    return err('self_target', `${striker} cannot make ${what} against themselves`);
   }
 
   const owedHere = mayAct(state, striker);

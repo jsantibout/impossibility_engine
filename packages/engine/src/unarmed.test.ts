@@ -67,7 +67,7 @@ const added = (
   who: CharacterId,
   side: string,
   over: Partial<CharacterSheet> = {},
-  size?: 'small' | 'medium' | 'large' | 'huge',
+  size?: 'tiny' | 'small' | 'medium' | 'large' | 'huge',
 ): GameEvent => ({
   type: 'creature-added',
   id: who,
@@ -85,7 +85,7 @@ const at = (
   from: CharacterId,
   feet: number,
   bearing: number,
-  size?: 'small' | 'medium' | 'large' | 'huge',
+  size?: 'tiny' | 'small' | 'medium' | 'large' | 'huge',
 ): GameEvent => ({
   type: 'creature-placed',
   id: who,
@@ -215,10 +215,25 @@ describe('Grapple', () => {
     expect(withStr.save!.total).toBeLessThan(withDex.save!.total);
   });
 
-  it('spends the Attack action, and leaves a second attack to a fighter who has one', () => {
+  it('spends the Attack action, and leaves nothing behind for a character with one attack', () => {
     const { state } = grappled();
     expect(state.combat!.budgets[BRAM]!.action).toBe(false);
     expect(state.combat!.budgets[BRAM]!.attacksRemaining).toBe(0);
+  });
+
+  /**
+   * SRD Extra Attack puts more swings inside the one Attack action, and all
+   * three of the Unarmed Strike's options are that same one attack — so a
+   * Fighter may grab somebody and then punch them.
+   */
+  it('leaves the second attack to a fighter who has one', () => {
+    const log = [
+      added(BRAM, 'party', { attacksPerAction: 2 }),
+      ...fighting().slice(1),
+    ];
+    const { state } = grappled(log);
+    expect(state.combat!.budgets[BRAM]!.action).toBe(false);
+    expect(state.combat!.budgets[BRAM]!.attacksRemaining).toBe(1);
   });
 
   it('is idempotent under a repeated command id', () => {
@@ -501,7 +516,7 @@ describe('ending a grapple', () => {
 // ——— what each command refuses ———————————————————————————————————————————————
 
 describe('refusals', () => {
-  it('refuses a creature grabbing itself', () => {
+  it('refuses a creature grabbing itself, in words a DM can narrate', () => {
     const out = grappleTarget(
       fold('seed', fighting()),
       BRAM,
@@ -509,6 +524,33 @@ describe('refusals', () => {
       supply('me'),
     );
     expect(isErr(out) && out.code).toBe('self_target');
+    expect(isErr(out) && out.reason).toBe('bram cannot make a Grapple against themselves');
+  });
+
+  /**
+   * A table with no map at all. `reachedBy` lets it through — refusing a grab
+   * for want of a map nobody drew would be the engine inventing a rule — so
+   * this is the one path where the Medium default decides the size rule, and
+   * the assumption is reported rather than hidden.
+   */
+  it('reports the Medium it assumed where nobody is keeping a map', () => {
+    const log: readonly GameEvent[] = [added(BRAM, 'party'), added(GOBLIN, 'goblins', feeble)];
+    const out = unwrap(
+      grappleTarget(fold('seed', log), BRAM, { target: GOBLIN, save: 'dex' }, supply('nowhere')),
+      'mapless',
+    );
+    expect(out.unverified.join(' ')).toMatch(/nobody has said how big .* took them for Medium/);
+  });
+
+  /** And the refusal names the size the rule applied, never a null it read. */
+  it('names a size in the refusal even where nobody stated one', () => {
+    const log: readonly GameEvent[] = [
+      added(BRAM, 'party', {}, 'tiny'),
+      added(GOBLIN, 'goblins', feeble),
+    ];
+    const out = grappleTarget(fold('seed', log), BRAM, { target: GOBLIN, save: 'dex' }, supply('n'));
+    expect(isErr(out) && out.code).toBe('too_large');
+    expect(isErr(out) && out.reason).toContain('goblin is medium');
   });
 
   /**
