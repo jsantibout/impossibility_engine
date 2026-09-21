@@ -642,7 +642,8 @@ export function checkFeatureDefinition(
   // that is the one already declared**, which is a sentence saying the book
   // changed its mind and printed the same rule — the reading
   // `ambiguous_pool_sizing` below refuses in its own units. Whether the *id*
-  // names a feature of this same source is `checkContent`'s `bad_recovery_rewrite`,
+  // names one of the features this source reaches — its own, and for a
+  // subclass its parent class's — is `checkContent`'s `bad_recovery_rewrite`,
   // asked beside `executedBy`'s own cross-feature question, because a
   // definition cannot see its siblings from here.
   if (grant?.kind === 'pool' && grant.recoversSooner !== undefined) {

@@ -1058,7 +1058,16 @@ export type FeatureGrant =
        * still refilled by the night.
        */
       readonly recoversSooner?: {
-        /** The feature whose sentence rewrites it, on this same source. */
+        /**
+         * The feature whose sentence rewrites it, out of the features this
+         * source reaches: its own, and for a subclass its parent class's —
+         * `checkContent` holds it to that list because `recoveryOf` gates on
+         * the whole list a character earned.
+         *
+         * A class feature that moves a *subclass*'s pool cannot also claim
+         * `executedBy`, which is held to one source, so it records `manual`
+         * and says in its note what the other declaration does.
+         */
         readonly withFeature: string;
         readonly recovers: Recovery;
       };
