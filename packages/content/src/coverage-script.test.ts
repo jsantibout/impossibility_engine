@@ -100,7 +100,12 @@ const SCRIPT_SOURCE: Readonly<Record<string, string>> = Object.fromEntries(
  * do is fail when the population **empties**: a wrong directory, a filter too
  * narrow, or an exclusion too broad all take these three out of it.
  */
-const WRITING_SCRIPTS = ['coverage.ts', 'make-golden-log-2.ts', 'make-golden-log.ts'];
+const WRITING_SCRIPTS = [
+  'coverage.ts',
+  'ledger.ts',
+  'make-golden-log-2.ts',
+  'make-golden-log.ts',
+];
 
 /** A call to `writeFileSync`, however it was imported or reached. */
 const isWrite = (node: ts.Node): boolean =>

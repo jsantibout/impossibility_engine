@@ -481,6 +481,75 @@ export interface PlayableCoverage {
   readonly paths: readonly LevelPath[];
 }
 
+/** One row of a class table, which is where the reach rule reads from. */
+type ClassTableRow = ClassDefinition['table'][number] | undefined;
+
+/** What a class table row lets a character of that level cast. */
+export interface SpellReach {
+  /** The highest spell level the row has a slot of, or 0. */
+  readonly highestSpellLevel: number;
+  /** Whether the row gives cantrips at all. */
+  readonly cantrips: boolean;
+}
+
+/**
+ * The reach rule, in one place, because two readers ask it.
+ *
+ * `playableLevels` asks it per class per level to count a row; `LEDGER.md`
+ * asks it over the twelve classes at the fifth to name the spells a level 5
+ * party can reach. Those are one rule and were written out twice — once here
+ * and once in the audit's throwaway script — which is the "second spelling of
+ * one derivation" failure this file keeps a record of. A ledger that drifted
+ * from the report about which spells a Cleric reaches would put a spell on
+ * somebody's brief that nobody can cast.
+ *
+ * The highest slot is the **last column with a number in it** rather than the
+ * width of the run: a Warlock's row reads `[0, 0, 2]` at the fifth level and
+ * casts at the third. Nothing here says "half caster" — the rule about full
+ * and half progressions lives in `spellcasting.progression` and in the twenty
+ * rows the book prints.
+ */
+export const reachOf = (row: ClassTableRow): SpellReach => ({
+  highestSpellLevel: (row?.spellSlots ?? []).reduce(
+    (highest, count, index) => (count > 0 ? index + 1 : highest),
+    0,
+  ),
+  cantrips: (row?.cantripsKnown ?? 0) > 0,
+});
+
+/** Whether a reach takes in one spell: a cantrip, or a slot of its level. */
+export const withinReach = (spell: { readonly level: number }, reach: SpellReach): boolean =>
+  spell.level === 0 ? reach.cantrips : spell.level <= reach.highestSpellLevel;
+
+/**
+ * Every spell **any** class can reach at a level, deduplicated, by id.
+ *
+ * The union the level-5 ledger is over. A spell is on a class's list when the
+ * book's own index says so, which is the `classes` run `@ie/srd` parses off
+ * the entry — the same filter `playableLevels` applies, through the same two
+ * functions above, so the two cannot disagree about what a party can cast.
+ *
+ * Subclasses are not walked: a spell list belongs to the class, and a path is
+ * a class through a subclass, so the union over paths and the union over
+ * classes are the same set with one of them counted twelve times over.
+ */
+export function spellsInReach(
+  classes: readonly ClassDefinition[],
+  spells: readonly ParsedSpell[],
+  level: number,
+): readonly ParsedSpell[] {
+  const found = new Map<string, ParsedSpell>();
+  for (const definition of classes) {
+    const reach = reachOf(definition.table[level - 1]);
+    for (const spell of spells) {
+      if (!spell.classes.includes(definition.id)) continue;
+      if (!withinReach(spell, reach)) continue;
+      found.set(spell.id, spell);
+    }
+  }
+  return [...found.values()].sort((a, b) => a.level - b.level || a.name.localeCompare(b.name));
+}
+
 /** What the derivation needs, so that a test can hand it something else. */
 export interface PlayableInput {
   readonly classes: readonly ClassDefinition[];
@@ -549,26 +618,18 @@ export function playableLevels(input: PlayableInput): PlayableCoverage {
       const levels: PathLevel[] = [];
 
       for (let level = 1; level <= MAX_LEVEL; level += 1) {
-        const row = definition.table[level - 1];
-        const slots = row?.spellSlots ?? [];
-        // The highest slot the table gives, which is the last column with a
-        // number in it rather than the width of the run: a Warlock's row reads
-        // `[0, 0, 2]` at the fifth level and casts at the third.
-        const highestSpellLevel = slots.reduce(
-          (highest, count, index) => (count > 0 ? index + 1 : highest),
-          0,
-        );
-        const cantrips = (row?.cantripsKnown ?? 0) > 0;
-        const reachable = list.filter((one) =>
-          one.level === 0 ? cantrips : one.level <= highestSpellLevel,
-        );
+        // The one reach rule, shared with the ledger rather than spelled a
+        // second time here: a cantrip where the row gives cantrips, and a
+        // spell whose level the row has a slot of.
+        const reach = reachOf(definition.table[level - 1]);
+        const reachable = list.filter((one) => withinReach(one, reach));
         const held = features.filter((one) => one.level <= level);
 
         levels.push({
           level,
           features: held.length,
           executed: held.filter(isExecutedFeature).length,
-          highestSpellLevel,
+          highestSpellLevel: reach.highestSpellLevel,
           reachable: reachable.length,
           tracked: reachable.filter((one) => input.tracked.has(one.id)).length,
           executedSpells: reachable.filter((one) => input.executed.has(one.id)).length,
@@ -806,6 +867,80 @@ export interface BestiaryCoverage {
  * and they are counted here by asking the adapter rather than by re-deriving
  * its rule.
  */
+/** One printed line of a stat block, as the catalogue carries it. */
+export interface StatBlockLine {
+  readonly name: string;
+  readonly text: string;
+  readonly attack?: unknown;
+  readonly trait?: unknown;
+  readonly multiattack?: unknown;
+}
+
+/** Every line of every section of one block, which is what the shapes count over. */
+export const statBlockLines = (
+  monster: (typeof SRD_CONTENT.monsters)[number],
+): readonly StatBlockLine[] => [
+  ...monster.traits,
+  ...monster.actions,
+  ...monster.bonusActions,
+  ...monster.reactions,
+  ...monster.legendaryActions,
+];
+
+/** A line the parser got structure out of: an attack's numbers, a trait's mechanic. */
+export const isReadLine = (line: StatBlockLine): boolean =>
+  line.attack !== undefined || line.trait !== undefined || line.multiattack !== undefined;
+
+/** A read attack line whose printed rider nothing applies. */
+export const hasUnappliedRider = (line: StatBlockLine): boolean =>
+  line.attack !== undefined && (line.attack as { rider: string | null }).rider !== null;
+
+/**
+ * The one shape that runs over a line the parser **read**.
+ *
+ * Named, because the ledger gates the other five on a line nothing was read
+ * from and needs to say which one is the exception rather than match a
+ * string.
+ */
+export const RIDER_SHAPE = 'An effect a hit buys';
+
+/**
+ * The shapes a printed stat-block line waits on, over the whole bestiary and
+ * over the CR ≤ 5 tail alike.
+ *
+ * **Exported so `LEDGER.md` asks the same question of a smaller population.**
+ * The report answers "how much of the book is read"; the ledger answers "what
+ * stands between a level 5 party and a fight that runs", which is these
+ * predicates restricted to CR ≤ 5. The audit that first asked it wrote them
+ * out a second time in a throwaway script, so a predicate tightened here
+ * would have left the ledger measuring the old one.
+ *
+ * The piles overlap and do not sum: one line can force a save and recharge.
+ */
+export const MONSTER_LINE_SHAPES: readonly (readonly [
+  string,
+  (line: StatBlockLine) => boolean,
+])[] = [
+  // Still the predicate it was, with the half that is now read taken out of
+  // it: a Multiattack whose sentence states a named sequence is structure
+  // the engine spends, so what is left here is the sentences that say
+  // something else — an alternative, a free choice from a menu, a use that
+  // is not an attack. The row shrinks rather than going quiet, which is what
+  // this table was built to do.
+  [
+    'How many attacks the Attack action holds',
+    (line) => line.name === 'Multiattack' && line.multiattack === undefined,
+  ],
+  ['A save a line forces', (line) => line.attack === undefined && /Saving Throw:_/.test(line.text)],
+  [RIDER_SHAPE, hasUnappliedRider],
+  ['A recharge', (line) => /\(Recharge/.test(line.name)],
+  ['A use the block limits per day', (line) => /\(\d+\/Day/.test(line.name)],
+  ['A creature that casts', (line) => /^Spellcasting/.test(line.name)],
+];
+
+/** The economy a legendary block owes, which is the block's rather than a line's. */
+export const LEGENDARY_ECONOMY = 'A legendary action’s own economy';
+
 export function auditBestiary(): BestiaryCoverage {
   const parsed = JSON.parse(
     readFileSync('packages/srd/src/generated/monsters.json', 'utf8'),
@@ -839,54 +974,11 @@ export function auditBestiary(): BestiaryCoverage {
     ),
   }));
 
-  // Every line of every block, which is what the shapes below are counted
-  // over: what a line costs is the section's, and what it *needs* is not.
-  const linesOf = (monster: (typeof SRD_CONTENT.monsters)[number]) => [
-    ...monster.traits,
-    ...monster.actions,
-    ...monster.bonusActions,
-    ...monster.reactions,
-    ...monster.legendaryActions,
-  ];
-
-  const SHAPES: readonly [
-    string,
-    (line: {
-      name: string;
-      text: string;
-      attack?: unknown;
-      trait?: unknown;
-      multiattack?: unknown;
-    }) => boolean,
-  ][] = [
-    // Still the predicate it was, with the half that is now read taken out of
-    // it: a Multiattack whose sentence states a named sequence is structure
-    // the engine spends, so what is left here is the sentences that say
-    // something else — an alternative, a free choice from a menu, a use that
-    // is not an attack. The row shrinks rather than going quiet, which is what
-    // this table was built to do.
-    [
-      'How many attacks the Attack action holds',
-      (line) => line.name === 'Multiattack' && line.multiattack === undefined,
-    ],
-    [
-      'A save a line forces',
-      (line) => line.attack === undefined && /Saving Throw:_/.test(line.text),
-    ],
-    [
-      'An effect a hit buys',
-      (line) => line.attack !== undefined && (line.attack as { rider: string | null }).rider !== null,
-    ],
-    ['A recharge', (line) => /\(Recharge/.test(line.name)],
-    ['A use the block limits per day', (line) => /\(\d+\/Day/.test(line.name)],
-    ['A creature that casts', (line) => /^Spellcasting/.test(line.name)],
-  ];
-
-  const shapes = SHAPES.map(([shape, matches]) => {
+  const shapes = MONSTER_LINE_SHAPES.map(([shape, matches]) => {
     let blocks = 0;
     let lines = 0;
     for (const monster of SRD_CONTENT.monsters) {
-      const hits = linesOf(monster).filter(matches).length;
+      const hits = statBlockLines(monster).filter(matches).length;
       if (hits > 0) blocks += 1;
       lines += hits;
     }
@@ -896,7 +988,7 @@ export function auditBestiary(): BestiaryCoverage {
   // The legendary economy is a property of the block rather than of any one
   // line, so it is counted as the block it belongs to.
   shapes.push({
-    shape: 'A legendary action’s own economy',
+    shape: LEGENDARY_ECONOMY,
     blocks: SRD_CONTENT.monsters.filter((monster) => monster.legendaryActions.length > 0).length,
     lines: SRD_CONTENT.monsters.reduce((sum, monster) => sum + monster.legendaryActions.length, 0),
   });
