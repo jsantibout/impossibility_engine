@@ -689,6 +689,44 @@ Multiattack is built for the one mechanism of five the ruling covers.
   finish them. `endCombat` ships with the clock refusal held on
   `held/clock-in-combat`.
 
+### Ruled after the batch of 2026-09-20
+
+Four questions the batch's builders stopped on rather than guess at.
+
+- **Truesight and Blindsight satisfy "if a creature can somehow see you";
+  Darkvision does not.** Invisible's clause reads the declared sight line today
+  and the tests pin that, so the brief widens it to those two senses and leaves
+  Darkvision out — which is what keeps a hidden Rogue hidden from the dwarf five
+  feet away. The set belongs beside `canSee`, not inside the attack route. Dodge
+  keeps reading `canSee` whole, because "if you can see the attacker" is a
+  sentence Darkvision genuinely satisfies.
+- **The Initiative swap is the Alert feat's, and it has a window.** The holder
+  of the feat chooses, **immediately after the Initiative roll and before the
+  first turn is taken**, to swap with one *willing* ally. So the command needs
+  three things it does not check: that the swapper holds the feature, that the
+  moment is that window, and that the ally consents. Membership and Incapacitated
+  it already checks. Which surface it sits on stops being the question once the
+  gate exists: a player's choice, gated by the player's own feat.
+- **Wild Shape, all four answered.** Gear **merges** by default. The Armour Class
+  is **always the stat block's** — the form's AC is not a floor or a choice.
+  A form larger than the space it stands in is **normal**: it fills the space
+  available around it, and where that puts it in another creature's space, it is
+  the forced-movement rule, which the engine already has. **Known forms are
+  chosen at the start of a Long Rest**, the way a Cleric prepares spells — the
+  same shape, not a creation-time list. And Wild Companion needs no new bond:
+  when a Long Rest completes, any Wild Companion familiar that exists goes away.
+  A rest already ends things; this is one more.
+- **Nimbus Quill's table rolls its own dice.** The app is *not* the table's
+  dice: players roll physical dice, the DM says the result aloud, and the client
+  works out which state change that result makes. So the third door is the
+  answer, and the engine was written for it — `RollSource` already has
+  `physical-dice` beside `dm-override`, `recordExternalD20` validates the face
+  whoever is holding the die, and `recordExternalDamage` bounds-checks a physical
+  total against its notation, because nobody rolls 30 on a `1d4` and trusting a
+  transcription error corrupts the log. What is missing is only the door, in its
+  own deliberately swept directory, never stamped `engine`, and never on an AI
+  DM's surface — which is the one true human/AI line in the whole tool layer.
+
 ### The `unknown_spellcasting` mis-tag, resolved by recording the gap
 
 The refusal now carries **no** `ContextRequest` at all — no kind to be wrong
@@ -710,37 +748,6 @@ its fixture, in both shapes.
 
 Each of these is a rules or doctrine call a builder stopped rather than guess at.
 
-- **Which senses satisfy "if a creature can somehow see you".** Invisible's
-  clause is wired to the *declared* sight line and to nothing else, deliberately:
-  `canSee` answers `true` from any member of `SIGHT_SENSES`, and **Darkvision is
-  one of them**, carried by five SRD species as a standing grant. Wiring it
-  through took Hide's and Greater Invisibility's Advantage away from most of the
-  party, silently, because a sense answers `true` rather than `null` and the
-  `unverified` clause only fires on `null`. SRD Darkvision says nothing about the
-  Invisible condition; Truesight explicitly does; Blindsight arguably does. Three
-  tests pin today's answer so whoever rules finds a guard rather than the bug.
-  Dodge deliberately keeps `canSee`, because "if you can see the attacker" is a
-  sentence Darkvision genuinely satisfies.
-- **`swap_initiative` on the model's surface, or the DM's.** The engine checks
-  combat membership and Incapacitated — not Alert, not "immediately after the
-  roll", not willingness — so a model may reorder the turn order at any point in
-  a fight. One line either way, and the DM surface derives it regardless.
-- **Wild Shape, four questions before it can be briefed**: whether gear falls,
-  merges or stays worn on shifting (the SRD makes it the player's choice); what
-  a form larger than the space its holder stands in does; whether known forms
-  are a creation choice naming monster ids or eligibility-only for now; and what
-  Wild Companion's familiar is bound to, since "disappears when you finish a Long
-  Rest" is a bond to a *rest*, which nothing in the engine has.
-- **Nimbus Quill's physical dice.** That client is a human DM at a real table
-  whose phrase detector already parses "7 slashing, 4 fire damage" off a
-  microphone, and no door on either surface takes a rolled number. Either the app
-  becomes the table's dice — the engine rolls, the DM reads it out — or a third,
-  deliberately swept directory exposes `recordExternalD20` / `recordExternalDamage`
-  with `physical-dice` provenance, bounds-checked and never stamped `engine`. A
-  smaller one rides with it: whether a spoken "18 slashing" is before or after
-  defences, which decides whether `improvised_damage` may take a damage type at
-  all — today it drops the type on purpose, so a spoken number bypasses
-  Resistance.
 - Where a reachability measurement lives, since `@ie/tools` depends on
   `@ie/content` and the report cannot import the surface without inverting the
   build.
