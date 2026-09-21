@@ -28,7 +28,7 @@ than to the table.
 
 | Parsed | Tracked | Executed | of which partial | Verified |
 |---|---|---|---|---|
-| 339 | 215 (63.4%) | 113 (33.3%) | 55 | 87 (25.7%) |
+| 339 | 215 (63.4%) | 113 (33.3%) | 54 | 87 (25.7%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -134,7 +134,7 @@ a plain statement of what the table decides.
 - **Shield of Faith** (level 1) — untested
 - **Shining Smite** (level 2) — verified, partial — a clause the engine owns is still unbuilt
 - **Shocking Grasp** (cantrip) — verified, partial — a clause the engine owns is still unbuilt
-- **Sorcerous Burst** (cantrip) — verified, partial — a clause the engine owns is still unbuilt
+- **Sorcerous Burst** (cantrip) — verified
 - **Spirit Guardians** (level 3) — verified, partial — a clause the engine owns is still unbuilt
 - **Spiritual Weapon** (level 2) — verified
 - **Starry Wisp** (cantrip) — untested, partial — a clause the engine owns is still unbuilt
@@ -477,7 +477,6 @@ of *Tracked* and is never added to it.
 | `a-condition-that-ends-when-its-holder-leaves-an-area` | 2 | 0 | 0 | 1 | 1 | 0 | 0 |
 | `a-damage-penalty-a-spell-grants` | 2 | 0 | 0 | 0 | 2 | 0 | 0 |
 | `a-dc-the-caster-does-not-set` | 2 | 0 | 0 | 0 | 2 | 0 | 0 |
-| `a-die-behaviour-a-spell-asks-for` | 2 | 0 | 0 | 2 | 0 | 0 | 0 |
 | `a-flat-amount-with-no-dice` | 2 | 0 | 0 | 0 | 1 | 0 | 1 |
 | `a-roll-result-an-effect-replaces` | 2 | 0 | 0 | 0 | 1 | 0 | 1 |
 | `an-ability-score-a-spell-changes` | 2 | 0 | 0 | 1 | 0 | 0 | 1 |
@@ -488,6 +487,7 @@ of *Tracked* and is never added to it.
 | `a-cap-on-how-many-castings-run-at-once` | 1 | 0 | 0 | 0 | 1 | 1 | 0 |
 | `a-casting-that-casts-another-spell` | 1 | 0 | 0 | 0 | 0 | 0 | 1 |
 | `a-condition-a-spell-suppresses` | 1 | 0 | 0 | 0 | 1 | 1 | 0 |
+| `a-die-behaviour-a-spell-asks-for` | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `a-distance-a-creature-travels-inside-an-area` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `a-duration-the-slot-changes` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `a-mode-on-the-save-a-spell-forces` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
