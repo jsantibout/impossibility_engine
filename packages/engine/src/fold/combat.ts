@@ -75,6 +75,7 @@ export const COMBAT_EVENTS = [
   'initiative-swapped',
   'feature-used',
   'stated-bonus-action-taken',
+  'stated-action-taken',
   'reaction-taken',
 ] as const;
 
@@ -282,6 +283,21 @@ export function applyCombat({ state, next }: Applying, event: CombatEvent): Game
           event.turn,
         ),
       };
+    }
+
+    // An Actions line the parser read nothing out of. It changes nothing here:
+    // the Action it cost is the `action-spent` beside it, folded by this seam
+    // like any other, and nothing gates a branch on one of these the way a
+    // Multiattack gates on a Bonus Action — so there is no ledger entry to
+    // write and no turn on the event to write it with. What it is checked for
+    // is what every event in this seam is checked for: a fight to have happened
+    // in and a creature it happened to.
+    case 'stated-action-taken': {
+      if (state.combat === null) {
+        throw new CorruptLogError(event, 'a printed Action was taken outside combat');
+      }
+      creatureOf(state, event, event.id);
+      return next;
     }
 
     // Changes nothing, like `roll-recorded`. It exists so the log can say why

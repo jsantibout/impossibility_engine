@@ -18,6 +18,7 @@ import {
   resolveTurn,
   setScene,
   addSceneLandmark,
+  takeStatedAction,
   takeStatedBonusAction,
 } from './commands.js';
 import { createRng, type Rng } from './dice.js';
@@ -626,6 +627,130 @@ describe('the log the rule writes', () => {
     const run = () => {
       const table = inTheWoods('clay-golem', GOLEM);
       table.did('the golem hastens', (s) => takeStatedBonusAction(s, GOLEM, { line: HASTEN }));
+      roundTrip(table, ROLLS_THREE);
+      roundTrip(table, ROLLS_FIVE);
+      return JSON.stringify(table.events);
+    };
+    expect(run()).toBe(run());
+  });
+});
+
+/**
+ * And the section the notation is mostly printed in: **Actions**.
+ *
+ * Seventy-one of the SRD's recharges are printed on an Actions line the parser
+ * read nothing out of — a breath weapon, a gaze, a spray — against thirteen
+ * under Bonus Actions. Every one of them was parsed, and every one of them
+ * reached nothing, because the rule spends a *line* and no command could spend
+ * one of these: a line that cannot be taken cannot be expended, and a recharge
+ * on a line nobody can take is a die nobody throws.
+ *
+ * So this is the same three claims as the file's first section, made on the
+ * section that carries most of them, driven end to end on the book's own
+ * block.
+ */
+describe('a recharge printed on an Actions line', () => {
+  const WINTER = id('winter');
+
+  /**
+   * The Winter Wolf's breath, read off its own block: a 5–6 on an Actions line
+   * with no attack roll under it, which is the shape all seventy-one share.
+   */
+  const COLD_BREATH = statBlock('winter-wolf').actions[1]!.name;
+
+  it('is the notation the block prints, carried onto the sheet', () => {
+    const sheet = adaptMonster(statBlock('winter-wolf'), WINTER).sheet;
+    expect(rechargeOfLine(sheet, COLD_BREATH)).toEqual({ kind: 'die', low: 5 });
+  });
+
+  it('is expended by the use, and the log says so', () => {
+    const table = inTheWoods('winter-wolf', WINTER);
+    table.did('the wolf breathes', (s) => takeStatedAction(s, WINTER, { line: COLD_BREATH }));
+
+    expect(expendedOn(table.state, WINTER)).toEqual([COLD_BREATH]);
+    const spent = ofType(table, 'printed-line-expended');
+    expect(spent).toHaveLength(1);
+    expect(spent[0]?.type === 'printed-line-expended' ? spent[0].line : null).toBe(COLD_BREATH);
+  });
+
+  /**
+   * A second use is refused by the notation rather than by the turn: the order
+   * has come round to the wolf again and its Action is unspent, so a refusal
+   * here can only be the recharge.
+   */
+  it('is refused a second time in the same fight', () => {
+    const table = inTheWoods('winter-wolf', WINTER);
+    table.did('the wolf breathes', (s) => takeStatedAction(s, WINTER, { line: COLD_BREATH }));
+    roundTrip(table, ROLLS_THREE);
+
+    const again = takeStatedAction(table.state, WINTER, { line: COLD_BREATH });
+    expect(isErr(again) ? again.code : 'ok').toBe('line_expended');
+    expect(isErr(again) ? again.reason : '').toContain(COLD_BREATH);
+    expect(isErr(again) ? again.reason : '').toContain('5');
+
+    // And the refusal has no footprint: the Action is still there to bite with.
+    expect(table.state.combat?.budgets[WINTER]?.action).toBe(true);
+  });
+
+  /** The payoff: the die the engine already throws now reaches this line. */
+  it('comes back on a turn-start roll that made it', () => {
+    const table = inTheWoods('winter-wolf', WINTER);
+    table.did('the wolf breathes', (s) => takeStatedAction(s, WINTER, { line: COLD_BREATH }));
+    roundTrip(table, ROLLS_FIVE);
+
+    expect(expendedOn(table.state, WINTER)).toEqual([]);
+    const back = ofType(table, 'printed-line-recharged');
+    expect(back).toHaveLength(1);
+    expect(back[0]?.type === 'printed-line-recharged' ? back[0].line : null).toBe(COLD_BREATH);
+
+    // The engine threw it, and the log holds what fell.
+    const rolled = ofType(table, 'roll-recorded').filter(
+      (event) => event.type === 'roll-recorded' && event.label.includes(COLD_BREATH),
+    );
+    expect(rolled).toHaveLength(1);
+    expect(rolled[0]?.type === 'roll-recorded' ? rolled[0].natural : 0).toBe(5);
+
+    // And it is usable again, which is the whole point of the die.
+    expect(isErr(takeStatedAction(table.state, WINTER, { line: COLD_BREATH }))).toBe(false);
+  });
+
+  it('stays expended on a roll that did not make it', () => {
+    const table = inTheWoods('winter-wolf', WINTER);
+    table.did('the wolf breathes', (s) => takeStatedAction(s, WINTER, { line: COLD_BREATH }));
+    roundTrip(table, ROLLS_THREE);
+
+    expect(expendedOn(table.state, WINTER)).toEqual([COLD_BREATH]);
+    expect(ofType(table, 'printed-line-recharged')).toEqual([]);
+  });
+
+  /** SRD: "which also recharges when the monster finishes a Short or Long Rest." */
+  it('comes back on a Short Rest', () => {
+    const table = inTheWoods('winter-wolf', WINTER);
+    table.did('the wolf breathes', (s) => takeStatedAction(s, WINTER, { line: COLD_BREATH }));
+    expect(expendedOn(table.state, WINTER)).toEqual([COLD_BREATH]);
+
+    table.do('the fight ends', (s) => endCombat(s, { kind: 'surrender', side: 'party' }));
+    table.do('the rest begins', (s) => beginRest(s, WINTER, 'short'));
+    table.do('time passes', (s) => advanceTime(s, 3600, 'the rest'));
+    table.did('the rest ends', (s) => endRest(s, WINTER));
+
+    expect(expendedOn(table.state, WINTER)).toEqual([]);
+  });
+
+  /** Nobody rolls for a line nobody has spent. */
+  it('throws no die at a boundary where nothing is expended', () => {
+    const table = inTheWoods('winter-wolf', WINTER);
+    roundTrip(table, ROLLS_FIVE);
+
+    expect(ofType(table, 'roll-recorded')).toEqual([]);
+    expect(ofType(table, 'printed-line-recharged')).toEqual([]);
+  });
+
+  /** The same seed and the same script write the same log. */
+  it('replays byte-identically from its seed', () => {
+    const run = () => {
+      const table = inTheWoods('winter-wolf', WINTER);
+      table.did('the wolf breathes', (s) => takeStatedAction(s, WINTER, { line: COLD_BREATH }));
       roundTrip(table, ROLLS_THREE);
       roundTrip(table, ROLLS_FIVE);
       return JSON.stringify(table.events);

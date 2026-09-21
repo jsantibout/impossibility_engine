@@ -1622,23 +1622,53 @@ export type GameEvent =
       readonly command?: CommandStamp;
     }
   /**
+   * A creature taking one of the lines its stat block prints under **Actions**
+   * that the parser read nothing out of.
+   *
+   * The Action it costs is the `action-spent` beside it, exactly as a Dash's
+   * cost is; this says *which line*, because that is a fact nothing else in the
+   * log carries and a reader asking what a turn was spent on would otherwise
+   * see an Action vanish with no account of it.
+   *
+   * **What the line says is not on the event**, which is what its Bonus Action
+   * sibling above says of itself and for the same reason: the sentence is on
+   * the creature's sheet, which `creature-added` pinned, and the fold opens no
+   * catalogue to read either. So this is a name, and the engine applies no part
+   * of what it names — the sentence goes back to the caller through the
+   * command's `unverified` clauses, where a DM applies it.
+   *
+   * **No turn, and no ledger entry.** The Bonus Action event carries one
+   * because a Multiattack the book gates on "if it used X this turn" reads it;
+   * nothing in the book gates a branch on an Actions line, and the once-per-turn
+   * rule this one needs is the Action economy's own. A namespace reserved for a
+   * reader that does not exist is a guard that never fires.
+   */
+  | {
+      readonly type: 'stated-action-taken';
+      readonly id: CharacterId;
+      /** The heading the block prints the line under. */
+      readonly line: string;
+      readonly command?: CommandStamp;
+    }
+  /**
    * A line a stat block prints a **recharge** on, used up.
    *
    * SRD *Monsters*: "a monster can use the stat block part once." What it cost
-   * is the `bonus-action-spent` or `attack-made` beside it, exactly as a
-   * Dash's cost is its own event; this says that the *line* is gone, which is
-   * a fact that outlives the turn and the fight and so cannot be read off
-   * either.
+   * is the `action-spent`, `bonus-action-spent` or `attack-made` beside it,
+   * exactly as a Dash's cost is its own event; this says the *line* is gone,
+   * which is a fact that outlives the turn and the fight and so cannot be read
+   * off any of them.
    *
    * **Its own event rather than a field on the use**, for the reason
    * `feature-used` is one: the swing happened, and separately the line it was
    * made with is now spent. It is emitted only where the block prints a
-   * recharge, so a creature that takes an ordinary Bonus Action writes nothing
-   * here — which is what every log written before this existed says.
+   * recharge, so a creature that takes an ordinary line writes nothing here —
+   * which is what every log written before this existed says.
    *
-   * **No stamp**, because neither command that emits it is guaranteed to: a
-   * spend rides the `stated-bonus-action-taken` its command always writes, and
-   * a swing's rides its own. A stamp nothing sets is a guard that never fires.
+   * **No stamp**, because no command that emits it is guaranteed to: a spend
+   * rides the `stated-action-taken` or `stated-bonus-action-taken` its command
+   * always writes, and a swing's rides its own. A stamp nothing sets is a guard
+   * that never fires.
    */
   | {
       readonly type: 'printed-line-expended';

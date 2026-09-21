@@ -548,6 +548,16 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // anyway, and the deadline that ends one nobody spent.
   'roll-modifier-consumed',
   'speed-modifier-granted',
+  // A line a stat block prints under **Actions** that the parser read nothing
+  // out of, taken. Neither log was written when those lines reached a sheet as
+  // anything but names, and nothing could spend one — so both fixtures fold to
+  // exactly the states they always folded to with the field absent on every
+  // creature. `monster-actions.test.ts` folds it and drives it end to end: the
+  // Action spent, the sentence handed back verbatim because the engine applies
+  // none of it, a second line in one turn refused by the economy, and
+  // `recharge.test.ts` takes the seventy-one recharges printed on these lines
+  // through expending, refusal, a turn-start die and a rest.
+  'stated-action-taken',
   // A line a stat block prints under Bonus Actions, taken. Neither log was
   // written when the section reached a creature's sheet at all — `StatedValues`
   // carried the printed attacks and nothing else the block could do — and both
