@@ -69,7 +69,7 @@ import { rollSpellDice } from './rolls.js';
  * component the engine threw carries no `stated`, and that absence is the
  * claim — see {@link StatedRoll}.
  */
-export function damageDiceRecorded(
+function damageDiceRecorded(
   target: CharacterId,
   components: readonly DamageComponent[],
   source: string,

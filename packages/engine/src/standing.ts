@@ -1565,7 +1565,7 @@ function meetsRequirements(state: GameState, who: CharacterId, effect: StandingE
  * A feature naming no item is refused by `checkContent`, so handing a feature
  * id here withholds the benefit rather than granting it by accident.
  */
-export function requirementsHold(
+function requirementsHold(
   state: GameState,
   who: CharacterId,
   requires: readonly StandingRequirement[] | undefined,
@@ -1685,7 +1685,7 @@ export function strikeStyleFor(
  * item worn by somebody who never attuned to it still offers whatever needs no
  * attunement.
  */
-export function itemStandingOf(creature: CreatureState): readonly StandingEffect[] {
+function itemStandingOf(creature: CreatureState): readonly StandingEffect[] {
   if (creature.equipped.length === 0 && creature.attuned.length === 0) return [];
 
   const byItem = new Map<string, readonly StandingEffect[]>();

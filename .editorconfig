@@ -1,0 +1,17 @@
+# What `.gitattributes` already tells git, told to the editor as well.
+#
+# `.gitattributes:2` says `* text=auto eol=lf`, so nothing is ever *committed*
+# with CRLF and `git status` stays clean whatever an editor writes. That is
+# exactly why CRLF creeps into a working tree unseen: a file saved with CRLF
+# is normalised on the way into the index and is invisible in every diff and
+# every review, while on disk it breaks the source-parsing sweeps, whose
+# `$`-anchored regexes cannot match a line ending in `\r`. (`linesOf` is the
+# other half of that fix; this half stops the CRLF arriving.)
+#
+# So this file says the same sentence to the editor, which is the only place
+# the choice is actually made.
+
+root = true
+
+[*]
+end_of_line = lf

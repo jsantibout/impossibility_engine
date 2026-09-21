@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { SRD_CONTENT } from '@ie/content';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { linesOf } from '../../../test-support/lines.js';
 import {
   asCharacterId,
   contextRequestsOf,
@@ -511,7 +512,7 @@ describe('no command-layer duration site is left refusing', () => {
   ): readonly { readonly file: string; readonly at: string; readonly follows: string }[] => {
     const found: { file: string; at: string; follows: string }[] = [];
     for (const [file, source] of Object.entries(sources)) {
-      const lines = source.split('\n');
+      const lines = linesOf(source);
       lines.forEach((line, index) => {
         // A call, never a mention: `{@link resolveDuration}` and the prose
         // around it name the function far more often than the code calls it,

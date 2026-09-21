@@ -2845,7 +2845,7 @@ function checkShape(value: unknown): readonly SpellDefinitionProblem[] {
  * written beside whether the engine knows it: a caller's own rules may have
  * something to say about a malformed entry that this one has already reported.
  */
-export function checkEffectKind(
+function checkEffectKind(
   effect: unknown,
   path: string,
   found: SpellDefinitionProblem[],

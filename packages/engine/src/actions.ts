@@ -47,7 +47,7 @@ export const DODGE_ACTION: ActivatedFeature = {
  * by two different rules — and the first carries the sight clause, which the
  * second does not.
  */
-export const DODGE_EFFECTS: readonly StandingEffect[] = [
+const DODGE_EFFECTS: readonly StandingEffect[] = [
   {
     feature: DODGE,
     name: 'Dodge',
@@ -103,7 +103,7 @@ export const READY_ACTION: ActivatedFeature = {
 };
 
 /** Every action a creature can take that leaves something behind. */
-export const UNIVERSAL_ACTIONS: readonly ActivatedFeature[] = [DODGE_ACTION, READY_ACTION];
+const UNIVERSAL_ACTIONS: readonly ActivatedFeature[] = [DODGE_ACTION, READY_ACTION];
 
 /** The standing effects those actions grant while they run. */
 export const UNIVERSAL_ACTION_EFFECTS: readonly StandingEffect[] = [...DODGE_EFFECTS];

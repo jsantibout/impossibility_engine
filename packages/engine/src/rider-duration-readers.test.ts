@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { linesOf } from '../../../test-support/lines.js';
 import { asCharacterId } from '@ie/shared';
 import { anchoredOnTarget, riderDuration, riderDurationPhrase } from './spell-definitions.js';
 
@@ -38,9 +39,18 @@ const SOURCES: Readonly<Record<string, string>> = {
   'spell-schema.ts': readFileSync(`${SRC}spell-schema.ts`, 'utf8'),
 };
 
-/** The union's named moments, read off the declaration rather than listed. */
+/**
+ * The union's named moments, read off the declaration rather than listed.
+ *
+ * The `\r?` is not decoration: the declaration is found by the `;` that ends
+ * it and the newline after it, and on a file with CRLF endings that `;` is
+ * followed by a `\r`. Without it this reader hands back **no members at all**
+ * on such a file, and every assertion below passes over an empty list — a
+ * sweep reporting no problems because it could not see the type. A split
+ * helper cannot reach this one, which is why it is spelled out here.
+ */
 const membersOf = (source: string): readonly string[] => {
-  const declared = /export type RiderDuration =([\s\S]*?);\n/.exec(source);
+  const declared = /export type RiderDuration =([\s\S]*?);\r?\n/.exec(source);
   if (declared === null) return [];
   return [...declared[1]!.matchAll(/'([a-z-]+)'/g)].map((match) => match[1]!);
 };
@@ -58,7 +68,7 @@ interface Reader {
  * line that is a lone `}`.
  */
 const functionsIn = (file: string, source: string): readonly Reader[] => {
-  const lines = source.split('\n');
+  const lines = linesOf(source);
   const found: Reader[] = [];
   for (let i = 0; i < lines.length; i += 1) {
     const head = /^(?:export )?function (\w+)\(/.exec(lines[i]!);
@@ -160,6 +170,42 @@ describe('every reader of a rider’s deadline names every member of it', () => 
         '}',
       ].join('\n'),
     };
+    expect(membersOf(synthetic['a-module.ts'])).toEqual(['first', 'second', 'third']);
+    expect(unnamed(synthetic, membersOf(synthetic['a-module.ts']))).toEqual([
+      "a-module.ts:readsTwoOfThem never names 'third'",
+    ]);
+  });
+
+  /**
+   * And it reports the same thing when the file on disk ends its lines CRLF.
+   *
+   * **Two different things break on a `\r` here, and this drives both.** The
+   * body of a function ends at `lines[end] !== '}'`, a whole-line comparison
+   * a trailing `\r` makes false for ever, so the body would run to the end of
+   * the file and find every member "named" by the declaration it swallowed.
+   * And `membersOf` finds the declaration by the `;` and the newline after
+   * it, which on a CRLF file is `;\r\n` — so the union came back empty and
+   * every assertion in this file passed over nothing. Either one alone is a
+   * sweep reporting no problems and checking nothing.
+   *
+   * The sample carries a line **after** the closing brace on purpose: a
+   * file's last line has no ending at all, so a sample that stops at the
+   * brace leaves the one line that matters without its `\r` and passes
+   * whatever the reader does.
+   */
+  it('reports the same over source whose lines end CRLF', () => {
+    const lines = [
+      "export type RiderDuration = 'first' | 'second' | 'third';",
+      'export function readsTwoOfThem(lasts: RiderDuration): string {',
+      "  if (lasts === 'first') return 'the first';",
+      "  return lasts === 'second' ? 'the second' : 'whatever else';",
+      '}',
+      // After the brace, and naming the member the reader misses: that is
+      // what makes the body's end load-bearing. A body that ran on past `}`
+      // would find `'third'` down here and report nothing.
+      "export const somethingAfterTheBrace = 'third';",
+    ];
+    const synthetic = { 'a-module.ts': lines.join('\r\n') };
     expect(membersOf(synthetic['a-module.ts'])).toEqual(['first', 'second', 'third']);
     expect(unnamed(synthetic, membersOf(synthetic['a-module.ts']))).toEqual([
       "a-module.ts:readsTwoOfThem never names 'third'",

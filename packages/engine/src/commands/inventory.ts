@@ -327,7 +327,7 @@ const EQUIPPABLE: ReadonlySet<ItemKind> = new Set<ItemKind>([
 ]);
 
 /** SRD: "You can be attuned to no more than three magic items at a time." */
-export const ATTUNEMENT_LIMIT = 3;
+const ATTUNEMENT_LIMIT = 3;
 
 /**
  * Wear or wield something already owned.

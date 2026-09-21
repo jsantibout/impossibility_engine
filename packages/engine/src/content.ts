@@ -231,7 +231,7 @@ export const READABLE_GRANT_KINDS: ReadonlySet<string> = new Set([
  * the same way: a kind joins this list in the commit that teaches creation to
  * read it off a feat, with the test that proves it arrives.
  */
-export const FEAT_GRANT_KINDS: ReadonlySet<string> = new Set([
+const FEAT_GRANT_KINDS: ReadonlySet<string> = new Set([
   'initiative',
   // SRD prints the ceiling on a feat and on nothing else: every Epic Boon is
   // "Increase one ability score of your choice by 1, **to a maximum of 30**",
@@ -1138,7 +1138,7 @@ function itemCastsProblems(
  * below, `repeats`' `end-casting` among them, which is why admitting the kind
  * admits no casting with it.
  */
-export const CONFERRED_EFFECT_KINDS: ReadonlySet<string> = new Set([
+const CONFERRED_EFFECT_KINDS: ReadonlySet<string> = new Set([
   'heal',
   'temp-hp',
   'save-damage',

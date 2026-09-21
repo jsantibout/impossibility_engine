@@ -174,7 +174,7 @@ export function itemStandingEffects(item: CatalogueItem): readonly StandingEffec
  * unlabelled copy keeps the unsuffixed key it has always had, which is what
  * makes every log written before copies had records fold unchanged.
  */
-export const instancedPoolKey = (key: string, instance: string | undefined): string =>
+const instancedPoolKey = (key: string, instance: string | undefined): string =>
   instance === undefined ? key : `${key}@${instance}`;
 
 /**
