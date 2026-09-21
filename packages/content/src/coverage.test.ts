@@ -454,9 +454,11 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
    * not counting, so it fails here rather than quietly joining the *read*
    * column.
    *
-   * `recharge` is read off the **name** rather than the sentence, which is why
-   * it changes nothing about what "read" counts: a line whose prose the parser
-   * got nothing out of is still unread with a recharge on it.
+   * `recharge` and `perDay` are read off the **name** rather than the
+   * sentence, which is why they change nothing about what "read" counts: a
+   * line whose prose the parser got nothing out of is still unread with a
+   * recharge or a daily limit on it. Both joined this list in the commit that
+   * taught the parser to read them, which is the only way a field joins it.
    */
   it('finds nothing in a printed line but a name, prose, and what was read out of it', () => {
     const keys = new Set<string>();
@@ -476,6 +478,7 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
       'attack',
       'multiattack',
       'name',
+      'perDay',
       'recharge',
       'text',
       'trait',
