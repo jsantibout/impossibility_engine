@@ -447,15 +447,47 @@ describe('the DM surface cannot reach the external-roll functions either', () =>
     // The same text sweep step one makes, over the files step one cannot
     // reach. `campaign.supply()` hands back a live `RollIssuer` and a live
     // `Rng`, and neither `issuer.issue('engine')` nor `rng.int(20)` names a
-    // forbidden import — so the import sweep above cannot see either. No file
-    // under `dm/` rebuilds a generator at all: `supply()` is passed whole to
-    // the command that rolls, which is the only thing that should hold it.
+    // forbidden import — so the import sweep above cannot see either.
+    //
+    // **The bindings, not the property**, for step one's reason: a detector
+    // reading `.rng` misses `const { rng } = supply()`, which is how anybody
+    // would actually write it. No file under `dm/` rebuilds a generator at
+    // all, so nothing here is exempt: `supply()` is passed whole to the
+    // command that rolls, which is the only thing that should hold one.
+    const generator = [/\.rng\b/, /\{[^}]*\brng\s*[,}]/, /['"]rng['"]/];
     const breaches: string[] = [];
     for (const { file, text } of swept()) {
-      if (/\.issue\(/.test(text)) breaches.push(`${file} mints a roll provenance`);
-      if (/\.rng\b/.test(text)) breaches.push(`${file} reaches for a generator`);
+      const stripped = text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
+      if (/\bissue\s*\(/.test(stripped)) breaches.push(`${file} mints a roll provenance`);
+      if (generator.some((pattern) => pattern.test(stripped))) {
+        breaches.push(`${file} reaches for a generator`);
+      }
     }
     expect(breaches).toEqual([]);
+  });
+
+  it('and that detector catches the way anybody would write it', () => {
+    // A detector nobody tested is a guard nobody tested — and the first
+    // version of this one caught the form nobody uses and missed the form
+    // everybody would, which is why the fixtures are here rather than a
+    // reading of the regex.
+    const generator = [/\.rng\b/, /\{[^}]*\brng\s*[,}]/, /['"]rng['"]/];
+    const reaches = (source: string) => generator.some((pattern) => pattern.test(source));
+
+    expect(reaches('const { rng } = campaign.supply();')).toBe(true);
+    expect(reaches('const { rng, issuer, content } = campaign.supply();')).toBe(true);
+    expect(reaches('const supply = campaign.supply();\nsupply.rng.int(20);')).toBe(true);
+    expect(reaches("const g = campaign.supply()['rng'];")).toBe(true);
+    // A type annotation naming the field is not a binding, and passing the
+    // supply whole is what every tool here does.
+    expect(reaches('const declare = (supply: { readonly rng: Rng }): void => undefined;')).toBe(
+      false,
+    );
+    expect(reaches('resolveDamage(state, target, amount, context.campaign.supply());')).toBe(false);
+    // And the issuer, through a property or through a name it was bound to.
+    expect(/\bissue\s*\(/.test("campaign.supply().issuer.issue('engine');")).toBe(true);
+    expect(/\bissue\s*\(/.test("const { issue } = issuer;\nissue('engine');")).toBe(true);
+    expect(/\bissue\s*\(/.test('const outcome = resolveTest(state, supply);')).toBe(false);
   });
 
   it('sweeps something: the DM files do import the engine', () => {
