@@ -24,6 +24,7 @@ import { spendAction, spendBonusAction } from '../combat.js';
 import { type Duration } from '../time.js';
 import { type GameEvent, type GameState } from '../events.js';
 import { distanceBetween, positionOf, type PositionState } from '../positioning.js';
+import { actionRulesOn } from '../standing.js';
 
 /**
  * The source recorded for unconsciousness that comes from having no hit points
@@ -351,7 +352,7 @@ export function spendFor(
   // or an item activation costs, and the engine has no member of
   // `NAMED_ACTIONS` for "whatever this feature is". The slot-level rules
   // still bite, which is what SRD Stinking Cloud's sentence actually says.
-  const spend = { rules: creature?.actionRules ?? [] };
+  const spend = { rules: actionRulesOn(state, id) };
 
   const spent =
     action === 'bonus-action'

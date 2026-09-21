@@ -61,6 +61,7 @@ import {
 import { type ReactionOffer } from '../reactions.js';
 import { isCreatureType, scaledDiceFor, scaledFlatFor } from '../spell-definitions.js';
 import {
+  actionRulesOn,
   armorClassOf,
   checkFeatureDamageTypes,
   effectiveConditions,
@@ -733,7 +734,7 @@ export function resolveAttack(
       // SRD: "You can't take more than one Bonus Action on a turn", which is
       // the primitive's own rule and the reason nothing else has to say it.
       const spent = spendBonusAction(state.combat, id, attacker.conditions, {
-        rules: attacker.actionRules,
+        rules: actionRulesOn(state, id),
       });
       if (!spent.ok) return spent;
       events.push({ type: 'bonus-action-spent', id });
@@ -754,7 +755,7 @@ export function resolveAttack(
         // otherwise. The fold spends the same answer.
         attacksInAction(sheet, attacker.heads),
         attacker.conditions,
-        { rules: attacker.actionRules },
+        { rules: actionRulesOn(state, id) },
       );
       if (!spent.ok) return spent;
       events.push({ type: 'attack-made', id });

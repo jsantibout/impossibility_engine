@@ -1,13 +1,28 @@
 /**
  * The actions that change what a turn can do.
  *
- * Dash, Disengage, Dodge, and Ready with the release that answers it. Ready is
- * why this module sits at the top: releasing a readied spell runs the whole
- * casting path, and holding one runs part of it at the moment of readying.
+ * Dash, Disengage, Dodge, Hide, and Ready with the release that answers it.
+ * Ready is why this module sits at the top: releasing a readied spell runs the
+ * whole casting path, and holding one runs part of it at the moment of
+ * readying.
+ *
+ * **Three of them take a price now.** SRD Cunning Action and SRD Adrenaline
+ * Rush buy a Dash, a Disengage or a Hide with a Bonus Action, so each of those
+ * commands takes a `from` and refuses one nothing has allowed — rather than
+ * holding a permission it could never be asked to honour, which is the defect
+ * `STATABLE_PRICES` exists to prevent.
  */
 
 import { type CommandIdentity, once } from '../idempotency.js';
-import { type CharacterId, err, ok, type Result } from '@ie/shared';
+import {
+  type CharacterId,
+  type ContextRequest,
+  err,
+  needsContext,
+  ok,
+  type Result,
+  type RollMode,
+} from '@ie/shared';
 import { DODGE, DODGE_ACTION, READY, READY_ACTION } from '../actions.js';
 import {
   allowsPrice,
@@ -20,7 +35,19 @@ import {
   useFreeInteraction,
   type ActionSlot,
 } from '../combat.js';
-import { speedOf } from '../standing.js';
+import { type Bonus, type ModeSource } from '../bonuses.js';
+import { rollAbilityCheck, type D20TestResult } from '../checks.js';
+import { isDown } from '../vitals.js';
+import {
+  actionRulesOn,
+  canSee,
+  conditionImmunitiesOf,
+  effectiveConditions,
+  rollModesFor,
+  sheetAsItStands,
+  speedOf,
+} from '../standing.js';
+import { checkBonuses, recordD20Test } from './rolls.js';
 import {
   applyEvent,
   type GameEvent,
@@ -28,7 +55,12 @@ import {
   type ReadiedAction,
   type ReadiedResponse,
 } from '../events.js';
-import { type Placement, type Point } from '../positioning.js';
+import {
+  coverBetween,
+  type CoverDegree,
+  type Placement,
+  type Point,
+} from '../positioning.js';
 import { type SlotKind } from '../resources.js';
 import { type Content } from '../content.js';
 import { durationSecondsAt } from '../spell-definitions.js';
@@ -43,6 +75,20 @@ import { castOrRelease } from './spell-resolution.js';
 import { declaredFacts, type SpellResolution } from './targeting.js';
 
 /**
+ * Which slot the caller is offering to pay a Dash out of.
+ *
+ * The same shape as {@link DisengageOptions}, for the same reason and with the
+ * same refusals: SRD Cunning Action and SRD Adrenaline Rush both say "you can
+ * take the Dash action as a Bonus Action", and a permission the command could
+ * not be *asked* for would land on the creature and be spent as an Action
+ * anyway — which is the defect `STATABLE_PRICES` was written to close, found
+ * once already on this file's other command.
+ */
+export interface DashOptions {
+  readonly from?: ActionSlot;
+}
+
+/**
  * SRD Dash: "you gain extra movement for the current turn. The increase equals
  * your Speed after applying any modifiers."
  */
@@ -50,6 +96,7 @@ export function takeDash(
   state: GameState,
   id: CharacterId,
   command: CommandIdentity,
+  options: DashOptions = {},
 ): Result<GameEvent[]> {
   return once(state, `dash:${id}`, command, () => [], (stamp) => {
     // A mandatory effect this creature has been caught by, or a turn whose start
@@ -63,19 +110,37 @@ export function takeDash(
       return err('not_in_combat', 'there is no movement budget to add to outside combat');
     }
 
+    // The caller asks for the cheaper price and the engine rules on whether
+    // they may have it, exactly as a Disengage does below: an allowance nobody
+    // invokes changes nothing, and the engine never spends a slot the caller
+    // did not name.
+    const from: ActionSlot = options.from ?? 'action';
+    if (from !== 'action' && !isStatablePrice('dash', from)) {
+      return err(
+        'no_such_price',
+        `Dash cannot be paid for out of ${from}; this command charges an action, or a Bonus Action where something has allowed it`,
+      );
+    }
+    const rules = actionRulesOn(state, id);
+    if (from !== 'action') {
+      const allowed = allowsPrice(id, 'dash', from, rules);
+      if (!allowed.ok) return allowed;
+    }
+
     // Validate the whole operation before any of it is emitted: the action has
     // to be there to spend, and the increase has to be one this creature can
     // actually receive.
-    const spent = spendAction(state.combat, id, creature.conditions, {
-      rules: creature.actionRules,
-      as: 'dash',
-    });
+    const spend = { rules, as: 'dash' as const };
+    const spent =
+      from === 'bonus-action'
+        ? spendBonusAction(state.combat, id, creature.conditions, spend)
+        : spendAction(state.combat, id, creature.conditions, spend);
     if (!spent.ok) return spent;
     const dashed = dash(spent.value, id, speedOf(state, id));
     if (!dashed.ok) return dashed;
 
     return ok([
-      { type: 'action-spent', id },
+      { type: from === 'bonus-action' ? 'bonus-action-spent' : 'action-spent', id },
       { type: 'dash-taken', id, ...(stamp === null ? {} : { command: stamp }) },
     ]);
   });
@@ -142,11 +207,11 @@ export function takeDisengage(
       );
     }
     if (from !== 'action') {
-      const allowed = allowsPrice(id, 'disengage', from, creature.actionRules);
+      const allowed = allowsPrice(id, 'disengage', from, actionRulesOn(state, id));
       if (!allowed.ok) return allowed;
     }
 
-    const spend = { rules: creature.actionRules, as: 'disengage' as const };
+    const spend = { rules: actionRulesOn(state, id), as: 'disengage' as const };
     const spent =
       from === 'bonus-action'
         ? spendBonusAction(state.combat, id, creature.conditions, spend)
@@ -192,7 +257,7 @@ export function takeDodge(
     const events: GameEvent[] = [];
     if (state.combat !== null && state.combat.budgets[id] !== undefined) {
       const spent = spendAction(state.combat, id, creature.conditions, {
-        rules: creature.actionRules,
+        rules: actionRulesOn(state, id),
         as: 'dodge',
       });
       if (!spent.ok) return spent;
@@ -212,6 +277,285 @@ export function takeDodge(
 
     return ok(events);
   });
+}
+
+/** SRD Hide: "you must succeed on a DC 15 Dexterity (Stealth) check". */
+export const HIDE_DC = 15;
+
+/**
+ * The cover a Hide can be taken behind: "Three-Quarters Cover or Total Cover".
+ *
+ * Half Cover is the degree the sentence leaves out, and leaving it out is the
+ * point — a +2 to Armour Class is not a thing you can disappear behind, and
+ * reading the third degree in would print a better Hide than the book does.
+ */
+const HIDING_COVER: readonly CoverDegree[] = ['three-quarters', 'total'];
+
+/**
+ * What the Invisible condition a Hide buys is recorded under.
+ *
+ * A source string rather than a casting, for the reason every condition has
+ * one: ending the hiding must lift *this* Invisible and leave the Greater
+ * Invisibility somebody cast on the same creature exactly where it is.
+ */
+export const HIDE = 'action:hide';
+
+export interface HideCommand extends CommandIdentity {
+  /**
+   * SRD Cunning Action: "you can take the Hide action as a Bonus Action."
+   *
+   * The same parameter `takeDash` and `takeDisengage` take, refused the same
+   * way: a price `STATABLE_PRICES` does not hold, or one nothing has allowed
+   * this creature, is a refusal rather than a quiet charge of the Action.
+   */
+  readonly from?: ActionSlot;
+  /**
+   * SRD: "while you're **Heavily Obscured**" — declared, never derived.
+   *
+   * The engine holds no light, no fog and no obscurement; three spells say so
+   * in their own notes. So this is the table's fact about this attempt, in the
+   * shape cover and sight already have, and it is pinned into nothing because
+   * what it changes is only whether the attempt was legal. The alternative —
+   * deriving it — would be the engine inventing the one input the doctrine
+   * says belongs to the fiction.
+   */
+  readonly obscured?: boolean;
+  /** Advantage or Disadvantage the table knows about and the engine does not. */
+  readonly modes?: readonly (RollMode | ModeSource)[];
+  /** Named modifiers the table supplies: Guidance's 1d4, a tool's bonus. */
+  readonly bonuses?: readonly Bonus[];
+}
+
+export interface HideResolution {
+  readonly events: readonly GameEvent[];
+  /** The check, or null when this command id had already been applied. */
+  readonly check: D20TestResult | null;
+  /** Whether the creature is now hiding. */
+  readonly hidden: boolean;
+  /** True when this command id had already been applied. */
+  readonly duplicate?: boolean;
+}
+
+/**
+ * Whoever might catch this creature hiding.
+ *
+ * "Any enemy", read through the one allegiance fact the engine holds: a
+ * creature on another declared side, and **a creature nobody has sided with
+ * too**. That is the conservative direction and the reading `alliedWith`
+ * already takes — "a creature nobody has placed on a side is nobody's ally" —
+ * so an unsided goblin is asked about rather than quietly hidden from.
+ *
+ * Somebody on the floor is nobody's watcher: an Unconscious creature sees
+ * nothing, and a dead one less. The same "on their feet" reading `endCombat`
+ * takes of the same question.
+ */
+function watchersOf(state: GameState, hider: CharacterId): readonly CharacterId[] {
+  const side = state.creatures[hider]?.side ?? null;
+  return Object.keys(state.creatures)
+    .sort()
+    .flatMap((who) => {
+      if (who === hider) return [];
+      const creature = state.creatures[who as CharacterId];
+      if (creature === undefined) return [];
+      if (creature.vitals.dead || isDown(creature.vitals)) return [];
+      if (side !== null && creature.side === side) return [];
+      return [who as CharacterId];
+    });
+}
+
+/**
+ * SRD Hide: conceal yourself.
+ *
+ * > "With this action, you try to conceal yourself. To do so, you must succeed
+ * > on a DC 15 Dexterity (Stealth) check while you're Heavily Obscured or
+ * > behind Three-Quarters Cover or Total Cover, and you must be out of any
+ * > enemy's line of sight."
+ *
+ * **The sixth named action, and the one that arrived with its own spender.**
+ * `NAMED_ACTIONS` admits a member only where a command can be told it apart,
+ * and Hide was out of the list for four batches because nothing took it —
+ * which is what left SRD Cunning Action, Naturally Stealthy and Supreme Sneak
+ * unexecuted however good the grant vocabulary got.
+ *
+ * **What is the table's and what is the engine's** is the whole of the design,
+ * and it is the owner's ruling rather than this command's invention: who can
+ * see the hider is declared, exactly as cover is declared and as sides are;
+ * the check, the DC and the Invisible condition it buys are the engine's. So a
+ * sight line nobody has settled is *homework* — `needs-context`, one request
+ * per watcher — where a declared one that says the enemy is looking straight
+ * at the hider is a refusal.
+ *
+ * **Nothing is rolled until the whole attempt is known to be legal**, which is
+ * this repository's oldest discipline: the price, the watchers, the cover and
+ * an immunity are all settled before the generator moves, so a refused Hide
+ * costs neither the slot nor a turn of the dice.
+ *
+ * What ends it is **not** here, and the SRD's own sentence says why: the
+ * condition ends when the creature makes a sound, attacks, casts a spell, or
+ * is found by somebody's Search — four moments the table narrates. It is an
+ * ordinary condition under an ordinary source, so `endConditionsOn` lifts it.
+ */
+export function takeHide(
+  state: GameState,
+  id: CharacterId,
+  command: HideCommand,
+  supply: Supply,
+): Result<HideResolution> {
+  return once(
+    state,
+    `hide:${id}`,
+    command,
+    () => ({ events: [], check: null, hidden: false, duplicate: true }),
+    (stamp) => {
+      // A mandatory effect this creature has been caught by, or a turn whose
+      // start has not arrived. **After the duplicate check, never before it.**
+      const owedHere = mayAct(state, id);
+      if (owedHere !== null) return owedHere;
+
+      const creature = creatureOf(state, id);
+      if (creature === null) return unknownCreature(id, 'has no record here yet; add it first');
+
+      const from: ActionSlot = command.from ?? 'action';
+      if (from !== 'action' && !isStatablePrice('hide', from)) {
+        return err(
+          'no_such_price',
+          `Hide cannot be paid for out of ${from}; this command charges an action, or a Bonus Action where something has allowed it`,
+        );
+      }
+      const rules = actionRulesOn(state, id);
+      if (from !== 'action') {
+        const allowed = allowsPrice(id, 'hide', from, rules);
+        if (!allowed.ok) return allowed;
+      }
+
+      // Before the die, because a condition that could never land is a check
+      // nobody should have to throw.
+      if (conditionImmunitiesOf(state, id).includes('invisible')) {
+        return err('immune', `${id} is immune to the Invisible condition, so hiding buys nothing`);
+      }
+
+      const watchers = watchersOf(state, id);
+      if (state.scene === null && (watchers.length > 0 || command.obscured !== true)) {
+        return needsContext(
+          'no_scene',
+          'hiding is about cover and sight lines, and there is no scene for either to be in',
+          [
+            {
+              kind: 'scene',
+              subject: id,
+              need: 'a scene, so that cover and sight mean something',
+              because: 'SRD Hide asks what is between the hider and whoever is looking',
+              satisfyWith: 'a setScene command',
+            },
+          ],
+        );
+      }
+
+      // — "out of any enemy's line of sight" —
+      const unsettled: ContextRequest[] = [];
+      for (const watcher of watchers) {
+        const seen = canSee(state, watcher, id);
+        if (seen === true) {
+          return err('seen', `${watcher} can see ${id}, who is therefore not out of their sight`);
+        }
+        if (seen === null) {
+          unsettled.push({
+            kind: 'visibility',
+            subject: watcher,
+            need: `whether ${watcher} can see ${id}`,
+            because: 'SRD Hide asks the hider to be out of any enemy\'s line of sight',
+            satisfyWith: `a declareSightBetween command from ${watcher} to ${id}`,
+          });
+        }
+      }
+      if (unsettled.length > 0) {
+        return needsContext(
+          'undeclared_sight',
+          `nobody has said whether ${unsettled.map((request) => request.subject).join(', ')} can see ${id}, and a Hide turns on it`,
+          unsettled,
+        );
+      }
+
+      // — "Heavily Obscured or behind Three-Quarters Cover or Total Cover" —
+      //
+      // Half Cover is deliberately not enough: the book names two degrees and
+      // reading the third in would be a better Hide than the SRD prints.
+      if (command.obscured !== true) {
+        const scene = state.scene;
+        const exposed =
+          scene === null
+            ? watchers
+            : watchers.filter((watcher) => !HIDING_COVER.includes(coverBetween(scene, watcher, id)));
+        if (watchers.length === 0 || exposed.length > 0) {
+          return err(
+            'not_concealed',
+            watchers.length === 0
+              ? `${id} has nobody to take cover from and nothing declared obscuring them; SRD Hide wants Heavily Obscured or Three-Quarters Cover, and cover is declared between two creatures`
+              : `${id} is behind neither Three-Quarters nor Total Cover from ${exposed.join(', ')}, and nobody has said they are Heavily Obscured`,
+          );
+        }
+      }
+
+      const events: GameEvent[] = [];
+      if (state.combat !== null && state.combat.budgets[id] !== undefined) {
+        const spend = { rules, as: 'hide' as const };
+        const spent =
+          from === 'bonus-action'
+            ? spendBonusAction(state.combat, id, creature.conditions, spend)
+            : spendAction(state.combat, id, creature.conditions, spend);
+        if (!spent.ok) return spent;
+        events.push({
+          type: from === 'bonus-action' ? 'bonus-action-spent' : 'action-spent',
+          id,
+        });
+      }
+
+      // The check itself: the engine's ability, the engine's skill, the
+      // engine's DC and the engine's die. What the caller may hand over is a
+      // mode or a named bonus the table knows about, which is what every other
+      // check in the engine already takes.
+      const issuedBefore = supply.issuer.count;
+      const fromFeatures = rollModesFor(state, {
+        family: 'ability-check',
+        roller: id,
+        ability: 'dex',
+        skill: 'stealth',
+      }).modes;
+      const sheet = sheetAsItStands(state, id) ?? creature.sheet;
+      const rolled = rollAbilityCheck(supply.issuer, supply.rng, sheet, 'dex', {
+        dc: HIDE_DC,
+        skill: 'stealth',
+        conditions: effectiveConditions(state, id),
+        modes: [...fromFeatures, ...(command.modes ?? [])],
+        bonuses: checkBonuses(state, id, command.bonuses, 'stealth'),
+      });
+      if (!rolled.ok) return rolled;
+
+      events.push({
+        type: 'rolls-issued',
+        count: supply.issuer.count - issuedBefore,
+        rng: supply.rng.snapshot(),
+      });
+      // The stamp rides the roll, which happens whether the Hide works or not:
+      // stamping the condition would leave a failed attempt retryable and
+      // rolled twice, which is `resolveAttack`'s reasoning about a miss.
+      events.push({
+        ...recordD20Test(
+          id,
+          'Dexterity (Stealth) check to Hide',
+          rolled.value,
+          rolled.value.success ? 'hidden' : 'in plain sight',
+        ),
+        ...(stamp === null ? {} : { command: stamp }),
+      });
+
+      if (rolled.value.success) {
+        events.push({ type: 'condition-applied', id, condition: 'invisible', source: HIDE });
+      }
+
+      return ok({ events, check: rolled.value, hidden: rolled.value.success });
+    },
+  );
 }
 
 /**
@@ -380,7 +724,7 @@ export function takeReady(
     // a Ready that refuses must leave the action, the slot and the
     // Concentration exactly as they were.
     const spent = spendAction(state.combat, id, creature.conditions, {
-      rules: creature.actionRules,
+      rules: actionRulesOn(state, id),
     });
     if (!spent.ok) return spent;
 
@@ -671,7 +1015,7 @@ export function releaseReady(
       return err('not_in_combat', 'there is no Reaction to spend outside combat');
     }
     const spent = spendReaction(state.combat, id, creature.conditions, {
-      rules: creature.actionRules,
+      rules: actionRulesOn(state, id),
     });
     if (!spent.ok) return spent;
 

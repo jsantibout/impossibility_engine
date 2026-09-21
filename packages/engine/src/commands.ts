@@ -212,16 +212,22 @@ export type {
 export { activateSpell } from './commands/activation.js';
 export type { ActivateSpellCommand } from './commands/activation.js';
 export {
+  HIDE,
+  HIDE_DC,
   readiedBy,
   releaseReady,
   takeDash,
   takeDisengage,
   takeDodge,
+  takeHide,
   takeReady,
   useFreeObjectInteraction,
 } from './commands/actions.js';
 export type {
+  DashOptions,
   DisengageOptions,
+  HideCommand,
+  HideResolution,
   ReadyCommand,
   ReadyRelease,
   ReadyResponse,

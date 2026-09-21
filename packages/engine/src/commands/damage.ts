@@ -36,7 +36,7 @@ import {
   type ReactionOffer,
 } from '../reactions.js';
 import { remaining, tallied } from '../resources.js';
-import { type CastingDamageFeature, defensesOf } from '../standing.js';
+import { actionRulesOn, type CastingDamageFeature, defensesOf } from '../standing.js';
 import {
   type ConcentrationConsequence,
   type Supply,
@@ -199,7 +199,7 @@ export function spendReactionCost(
   if (feature.costsReaction) {
     if (state.combat !== null && state.combat.budgets[reactor] !== undefined) {
       const spent = spendReaction(state.combat, reactor, creature.conditions, {
-        rules: creature.actionRules,
+        rules: actionRulesOn(state, reactor),
       });
       if (!spent.ok) return spent;
       events.push({ type: 'reaction-spent', id: reactor });

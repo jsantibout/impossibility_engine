@@ -162,8 +162,23 @@ export const ROGUE: ClassDefinition = {
       id: 'rogue:cunning-action',
       name: 'Cunning Action',
       level: 2,
-      automation: 'manual',
-      note: 'Dash, Disengage or Hide as a Bonus Action is not offered, and the three clauses fail in three different places rather than in one. The action economy does track which action a slot is being spent on, so the Disengage is a rule the engine can already state and a feature has nowhere to hold: every grant of an action rule belongs to a casting. The Dash is refused one step further down — `takeDisengage` takes the cheaper price as a parameter and `takeDash` charges an Action unconditionally — so a permission to buy one with a Bonus Action would be held and never honoured. The Hide is not refused at all: it is not one of the six named actions, no command takes it, and a rule naming it would read as enforced and would not be.',
+      automation: 'engine',
+      note: 'SRD: "you can take one of the following actions as a Bonus Action: Dash, Disengage, or Hide." Executed, as three action rules the feature holds: the Rogue may state the cheaper price on `takeDash`, `takeDisengage` and `takeHide`, and each command charges the Bonus Action rather than the Action. The rules are derived from the sheet on every read rather than stored on the creature, so a Rogue written into a log before any of this existed holds them too. What the feature says about "the number of times shown" is nothing — this one is free and unlimited — and Cunning Strike, which spends its dice on effects, is a separate feature and separately unbuilt.',
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        // SRD: "Dash, Disengage, or Hide" — three clauses of one sentence, so
+        // three rules under one feature. `allows` is the member, and it is the
+        // same one SRD Conjure Woodland Beings writes from the spell side.
+        effects: [
+          { kind: 'action-rule', rule: { kind: 'allows', action: 'dash', from: 'bonus-action' } },
+          {
+            kind: 'action-rule',
+            rule: { kind: 'allows', action: 'disengage', from: 'bonus-action' },
+          },
+          { kind: 'action-rule', rule: { kind: 'allows', action: 'hide', from: 'bonus-action' } },
+        ],
+      },
     },
     {
       id: 'rogue:subclass',
@@ -350,7 +365,7 @@ export const THIEF: SubclassDefinition = {
       name: 'Supreme Sneak',
       level: 9,
       automation: 'manual',
-      note: 'Not applied. SRD gives one more Cunning Strike option — "_Stealth Attack (Cost: 1d6)._ If you have the Hide action’s Invisible condition, this attack doesn’t end that condition on you if you end the turn behind Three-Quarters Cover or Total Cover" — which needs the same trade of Sneak Attack dice every Cunning Strike option needs, and the engine takes no Hide action for the exception to widen.',
+      note: 'Not applied. SRD gives one more Cunning Strike option — "_Stealth Attack (Cost: 1d6)._ If you have the Hide action’s Invisible condition, this attack doesn’t end that condition on you if you end the turn behind Three-Quarters Cover or Total Cover" — which needs the same trade of Sneak Attack dice every Cunning Strike option needs. The Hide itself is taken now, and the exception has nothing to except: the engine ends that condition on no attack at all, because the four things the SRD says end a Hide are moments the table narrates.',
     },
     {
       id: 'thief:use-magic-device',

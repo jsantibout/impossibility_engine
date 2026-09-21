@@ -87,6 +87,7 @@ import {
 import { type CastingRoute } from '../spellcasting.js';
 import { castingSource, type CastingNumbers, type CastingTime } from '../spells.js';
 import {
+  actionRulesOn,
   castingDamageFeatures,
   type CastingDamageFeature,
   sheetAsItStands,
@@ -1107,7 +1108,7 @@ function castingEconomy(
   const combat = state.combat;
   if (combat === null || combat.budgets[casterId] === undefined) return ok(null);
 
-  const spend = { rules: caster.actionRules, as: 'magic' as const };
+  const spend = { rules: actionRulesOn(state, casterId), as: 'magic' as const };
   const spent =
     castingTime === 'reaction'
       ? spendReaction(combat, casterId, caster.conditions, spend)

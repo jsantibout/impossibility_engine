@@ -284,6 +284,12 @@ export const ITEM_EFFECT_KINDS: ReadonlySet<string> = new Set([
   // and read by the same gatherer: `castingHealingBonus` walks `standingFor`,
   // which a worn item's grants are already part of.
   'casting-healing',
+  // A rule about the action economy, on the same test as the two above: the
+  // gatherer is `actionRulesOn`, which reads `standingFor`, so a pair of boots
+  // whose wearer may Dash out of a Bonus Action would be executed rather than
+  // transcribed and ignored. No SRD item prints the sentence today; the list's
+  // rule is what a reader reaches, not what the book happens to have written.
+  'action-rule',
 ]);
 
 /**

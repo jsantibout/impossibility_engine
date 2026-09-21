@@ -141,12 +141,20 @@ export type ActionSlot = (typeof ACTION_SLOTS)[number];
  * | `dash` | `takeDash` | Fear, Eyebite, Wind Walk |
  * | `disengage` | `takeDisengage` | Conjure Woodland Beings |
  * | `dodge` | `takeDodge` | Bestow Curse, "forced to take the Dodge action" |
+ * | `hide` | `takeHide` | Wind Walk, Cunning Action, Naturally Stealthy |
  * | `magic` | every casting route | Befuddlement, Antimagic Field, True Polymorph |
  * | `opportunity-attack` | the Reaction a leaving move offers | Shocking Grasp |
  *
- * Hide, Search, Study, Influence, Ready and Utilize are the book's too and are
- * absent: the engine has no spender that could be told one of them apart, so
- * a rule naming one would read as enforced and would not be. Wind Walk's
+ * **`hide` is the member that arrived with its spender**, which is the rule
+ * this list is kept by rather than an exception to it: the Hide action was
+ * left out for four batches because "the engine has no spender that could be
+ * told one of them apart", and it is here now because `takeHide` takes it —
+ * cover, watchers, the DC 15 Dexterity (Stealth) check and the Invisible
+ * condition it buys.
+ *
+ * Search, Study, Influence, Ready and Utilize are the book's too and are still
+ * absent, for the reason Hide was: no spender could be told one of them apart,
+ * so a rule naming one would read as enforced and would not be. Wind Walk's
  * "Dash, Hide, Search" is therefore writable as the part the engine can
  * adjudicate — see {@link ActionRule}, `permits-only`, which fails closed.
  */
@@ -155,6 +163,7 @@ export const NAMED_ACTIONS = [
   'dash',
   'disengage',
   'dodge',
+  'hide',
   'magic',
   'opportunity-attack',
 ] as const;
@@ -185,13 +194,21 @@ export type NamedAction = (typeof NAMED_ACTIONS)[number];
  * in it. The normal price is **not** a member: an allowance that charges what
  * the book charges grants nothing, and the validator says so in those words.
  *
- * One entry today. SRD Conjure Woodland Beings is the one sentence in the
- * book that moves an action to a cheaper slot, and `takeDisengage`'s `from`
- * is what answers it. A second arrives with its own command and its own
- * paragraph, and this map is where it is admitted.
+ * **Three entries, and the two that arrived brought their paragraphs with
+ * them.** SRD Conjure Woodland Beings was the first — the one *spell* that
+ * moves an action to a cheaper slot — and the others are the sentence a
+ * feature writes: SRD Cunning Action, "you can take the Dash, Disengage or
+ * Hide action as a Bonus Action", and SRD Adrenaline Rush, "You can take the
+ * Dash action as a Bonus Action". Each is admitted here because a command
+ * takes the price: `takeDash`, `takeDisengage` and `takeHide` each take a
+ * `from` and refuse one this map does not hold.
+ *
+ * A fourth arrives the same way, with its own command and its own paragraph.
  */
 export const STATABLE_PRICES: Readonly<Partial<Record<NamedAction, readonly ActionSlot[]>>> = {
+  dash: ['bonus-action'],
   disengage: ['bonus-action'],
+  hide: ['bonus-action'],
 };
 
 /** Whether some command will actually charge this slot for this action. */
@@ -413,6 +430,7 @@ const ACTION_TITLES: Readonly<Record<NamedAction, string>> = {
   dash: 'Dash',
   disengage: 'Disengage',
   dodge: 'Dodge',
+  hide: 'Hide',
   magic: 'Magic',
   'opportunity-attack': 'Opportunity Attack',
 };

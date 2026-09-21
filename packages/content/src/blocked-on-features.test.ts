@@ -415,6 +415,15 @@ describe('what a shape finishes is the column a tranche is planned from', () => 
    * | the rule is writable and only one command will be asked for the price | `a-cheaper-price-only-one-command-offers` |
    * | the rule is not writable at all, by a spell either | `an-action-a-spell-compels-or-forbids` |
    *
+   * **Two of those four are closed now, and the third is halved.** A feature
+   * holds an action rule about its own holder (`StandingGrant`'s `action-rule`
+   * member, derived on every read), three commands take a Bonus Action price
+   * rather than one, and `takeHide` takes the action nothing took — so the
+   * cheaper-price id is gone from the vocabulary altogether, the spender id is
+   * down to the Utilize, and what is left of the first is a rule hung on
+   * **somebody else**. Cunning Action needed all three at once and is executed;
+   * Adrenaline Rush kept the two clauses that were never about the economy.
+   *
    * The fourth row is the borrowed spell id doing what a borrowed id is for:
    * what stays on it is exactly the residue that description already names —
    * an extra action granted rather than an existing one governed, and a rule
@@ -429,7 +438,8 @@ describe('what a shape finishes is the column a tranche is planned from', () => 
   it('splits the action-economy shape into the four gaps it was standing for', () => {
     expect(featureConsumersOf('an-action-rule-a-feature-holds')).toEqual({
       shape: 'an-action-rule-a-feature-holds',
-      blocks: ['barbarian:improved-brutal-strike', 'rogue:cunning-action'],
+      // What the door did not reach: a rule hung on the creature you struck.
+      blocks: ['barbarian:improved-brutal-strike'],
       finishes: [],
     });
     expect(featureConsumersOf('a-one-shot-roll-modifier')).toEqual({
@@ -437,21 +447,16 @@ describe('what a shape finishes is the column a tranche is planned from', () => 
       blocks: ['barbarian:improved-brutal-strike', 'fighter:studied-attacks', 'rogue:steady-aim'],
       finishes: ['fighter:studied-attacks', 'rogue:steady-aim'],
     });
+    // The Hide left this row with a spender; the Utilize is what is left of it.
     expect(featureConsumersOf('an-action-the-engine-has-no-spender-for')).toEqual({
       shape: 'an-action-the-engine-has-no-spender-for',
-      blocks: [
-        'halfling:naturally-stealthy',
-        'rogue:cunning-action',
-        'thief:fast-hands',
-        'thief:supreme-sneak',
-      ],
-      finishes: ['halfling:naturally-stealthy', 'thief:fast-hands'],
+      blocks: ['thief:fast-hands'],
+      finishes: ['thief:fast-hands'],
     });
-    expect(featureConsumersOf('a-cheaper-price-only-one-command-offers')).toEqual({
-      shape: 'a-cheaper-price-only-one-command-offers',
-      blocks: ['orc:adrenaline-rush', 'rogue:cunning-action'],
-      finishes: [],
-    });
+    // And the cheaper price is no longer a shape: `STATABLE_PRICES` holds three
+    // entries and three commands take a `from`, so nothing claims the id and it
+    // is gone from the vocabulary rather than left standing over nothing.
+    expect(knownFeatureBlockers()).not.toContain('a-cheaper-price-only-one-command-offers');
     expect(featureConsumersOf('an-action-a-spell-compels-or-forbids')).toEqual({
       shape: 'an-action-a-spell-compels-or-forbids',
       blocks: [
@@ -485,19 +490,17 @@ describe('what a shape finishes is the column a tranche is planned from', () => 
    * `barbarian:persistent-rage` is the standing reading of that, and it is
    * why this column counts features rather than clauses.
    */
-  it('finishes nothing with the door alone, and one feature wants all three', () => {
+  it('took all three at once to finish the one feature that wanted all three', () => {
+    // Cunning Action is off the map: no clause of it is waiting on anything.
+    expect(featureBlockersOf('rogue:cunning-action')).toEqual([]);
+    // The door alone still finishes nothing, which is what the split said: the
+    // feature it does block is blocked on a moment as well as on a reach.
     expect(featureConsumersOf('an-action-rule-a-feature-holds').finishes).toEqual([]);
-    expect(featureBlockersOf('rogue:cunning-action')).toEqual([
-      'a-cheaper-price-only-one-command-offers',
-      'an-action-rule-a-feature-holds',
-      'an-action-the-engine-has-no-spender-for',
-    ]);
-    // The two the coined ids really do finish are finished by a *spender*
-    // rather than by the grant: a Hide the engine takes and a Utilize it
-    // charges for. Neither is a grant vocabulary's business.
-    expect(featureConsumersOf('an-action-the-engine-has-no-spender-for').finishes).toEqual([
-      'halfling:naturally-stealthy',
-      'thief:fast-hands',
+    // And the trait the Hide did *not* finish, because what it wants is not a
+    // spender at all: it widens the concealment the command asks for, which is
+    // a constant inside the command.
+    expect(featureBlockersOf('halfling:naturally-stealthy')).toEqual([
+      'a-rule-the-engine-fixes-for-everybody',
     ]);
   });
 });
