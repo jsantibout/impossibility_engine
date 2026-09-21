@@ -113,7 +113,7 @@ export const FEATURE_SHAPES = {
   'a-grant-gated-on-one-option-of-a-choice':
     'a grant that applies only when the player picked a particular option. `onlyIfChoice` in packages/engine/src/progression.ts is that gate and it lives on the `standing` grant alone, written for the three features SRD prints "You gain one of the following options of your choice" on — "only one of the options is this grant. A feature whose chosen option is the other one grants nothing" — so an option whose benefit is a pool, a Reaction, a proficiency or a spell has nowhere to hang.',
   'a-feature-that-rewrites-another-features-rule':
-    'a later feature that changes an earlier one. The engine allows exactly four restatements and each arrived with its sentence — a `critical-range` threshold restated, a `lifts-conditions` list lengthened, `widens-reaction` which packages/engine/src/progression.ts calls "A second feature restating the first rather than a second mechanism", and `executedBy` for a step in another feature\'s table. A feature that changes another one\'s **duration**, its **recovery**, or what its uses buy is a fifth and has no member.',
+    'a later feature that changes an earlier one. The engine allows exactly five restatements and each arrived with its sentence — a `critical-range` threshold restated, a `lifts-conditions` list lengthened, `widens-reaction` which packages/engine/src/progression.ts calls "A second feature restating the first rather than a second mechanism", `executedBy` for a step in another feature\'s table, and the pool field the same file calls "A **later feature** that rewrites this pool\'s recovery", declared on the pool and gated on the feature whose sentence moves it. A feature that changes another one\'s **duration**, or what its uses buy, is a sixth and has no member.',
   'an-option-re-chosen-on-a-rest':
     'a choice the book lets you take again after a rest. `docs/design/characters-and-equipment.md` names it and its first consumer — "**A grant that can be re-chosen on a rest.** Circle of the Land\'s spells" — and files every rule about swapping a prepared spell on a rest beside it. A `FeatureChoice` is answered once, at creation, and frozen into the sheet.',
   'an-attack-the-class-redefines':
@@ -341,13 +341,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: '2024 excludes Initiative from it',
       why: 'table',
       note: 'a rules reading rather than a gap, written down so the 2014 answer does not creep back.',
-    },
-  ],
-  'bard:font-of-inspiration': [
-    {
-      clause: 'Regaining Bardic Inspiration on a Short Rest',
-      why: 'a-feature-that-rewrites-another-features-rule',
-      note: 'a later feature changing an earlier pool’s recovery, which is fixed when the sheet is built.',
     },
   ],
   'bard:countercharm': [

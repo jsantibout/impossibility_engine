@@ -633,6 +633,36 @@ export function checkFeatureDefinition(
     });
   }
 
+  // A recovery a later feature rewrites, judged by the two things that would
+  // make the rewrite silent.
+  //
+  // **A feature nobody is named**, so nothing could ever bring the new tag in:
+  // `recoveryOf` in `creation.ts` gates the rewrite on the character holding
+  // the feature named here, and an empty name is held by nobody. **And a tag
+  // that is the one already declared**, which is a sentence saying the book
+  // changed its mind and printed the same rule — the reading `ambiguous_pool_sizing`
+  // above refuses in its own units. Whether the *id* names a feature of this
+  // same source is `checkContent`'s, where `executedBy`'s own cross-feature
+  // question is asked.
+  if (grant?.kind === 'pool' && grant.recoversSooner !== undefined) {
+    const sooner = grant.recoversSooner;
+    if (typeof sooner.withFeature !== 'string' || sooner.withFeature.trim() === '') {
+      found.push({
+        field: 'grants.recoversSooner.withFeature',
+        code: 'rewrite_without_a_feature',
+        reason:
+          "a pool's recovery is rewritten by a later feature, named here — a rewrite naming nobody is one no character could ever be granted",
+      });
+    }
+    if (sooner.recovers === grant.recovers) {
+      found.push({
+        field: 'grants.recoversSooner.recovers',
+        code: 'rewrite_changes_nothing',
+        reason: `this pool already recovers on a ${String(grant.recovers)}, so the later feature rewrites nothing`,
+      });
+    }
+  }
+
   // The two things a hung grant can promise that nothing would keep.
   //
   // **An ending no roll delivers.** A grant a use hangs is *stored* state, so

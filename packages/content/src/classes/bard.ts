@@ -88,7 +88,7 @@ export const BARD: ClassDefinition = {
       name: 'Bardic Inspiration',
       level: 1,
       automation: 'engine',
-      note: 'Declared as a pool of Charisma-modifier uses, minimum one, refilling on a Long Rest — SRD: "a number of times equal to your Charisma modifier (minimum of once)". Cutting Words and Peerless Skill spend those uses in the `test-rolled` and `damage-rolled` windows, and the feature\'s own sentence spends one here: "As a Bonus Action, you can inspire another creature within 60 feet of yourself who can see or hear you. That creature gains one of your Bardic Inspiration dice ... Once within the next hour when the creature fails a D20 Test, the creature can roll the die and add the number rolled to the d20." Nothing is handed over — the use is spent on the Bard at the moment of conferral and the ally holds a Reaction with a deadline, expended when it is used. Two limits of the engine, stated rather than hidden: "any D20 Test" reaches the ability checks and saving throws the table asks for as their own command, because a spell-forced save settles in one breath and an attack roll opens no window at all; and "see or hear" is checked as far as sight, which is declared, while hearing is modelled nowhere — so an ally the log says cannot see the Bard is still offered the die, with the unchecked half reported.',
+      note: 'Declared as a pool of Charisma-modifier uses, minimum one, refilling on a Long Rest — SRD: "a number of times equal to your Charisma modifier (minimum of once)" — and, from Bard level 5, on a Short Rest as well, which is Font of Inspiration\'s first sentence rewriting this declaration rather than a second pool. Cutting Words and Peerless Skill spend those uses in the `test-rolled` and `damage-rolled` windows, and the feature\'s own sentence spends one here: "As a Bonus Action, you can inspire another creature within 60 feet of yourself who can see or hear you. That creature gains one of your Bardic Inspiration dice ... Once within the next hour when the creature fails a D20 Test, the creature can roll the die and add the number rolled to the d20." Nothing is handed over — the use is spent on the Bard at the moment of conferral and the ally holds a Reaction with a deadline, expended when it is used. Two limits of the engine, stated rather than hidden: "any D20 Test" reaches the ability checks and saving throws the table asks for as their own command, because a spell-forced save settles in one breath and an attack roll opens no window at all; and "see or hear" is checked as far as sight, which is declared, while hearing is modelled nowhere — so an ally the log says cannot see the Bard is still offered the die, with the unchecked half reported.',
       grants: {
         kind: 'pool',
         key: 'bardic-inspiration',
@@ -96,6 +96,14 @@ export const BARD: ClassDefinition = {
         fromAbilityModifier: 'cha',
         minimum: 1,
         recovers: 'long-rest',
+        // SRD Font of Inspiration, at level 5: "You now regain all your
+        // expended uses of Bardic Inspiration when you finish a Short or Long
+        // Rest." A Short Rest tag says both, because a Long Rest emits the
+        // Short one as well. It is declared on the pool the sentence moves and
+        // gated on the feature that prints it — that feature's one grant is
+        // already its slot trade, and this is the step in *this* table its
+        // level reaches, exactly as an "Improved X" steps a die column.
+        recoversSooner: { withFeature: 'bard:font-of-inspiration', recovers: 'short-rest' },
         confersReaction: {
           // SRD: "As a Bonus Action ... another creature within 60 feet".
           action: 'bonus-action',
@@ -166,8 +174,8 @@ export const BARD: ClassDefinition = {
       id: 'bard:font-of-inspiration',
       name: 'Font of Inspiration',
       level: 5,
-      automation: 'manual',
-      note: 'Half of it is applied, which is why this is not marked as executed. SRD: "you can expend a spell slot (no action required) to regain one expended use of Bardic Inspiration" — a slot the caster names spent on the pool Bardic Inspiration declared, with no action and no limit at all, so a Bard with slots left may do it as often as they like on one turn. A trade gives back what was spent: a Bard holding every die they have is refused rather than handed one the table never printed. Regaining Bardic Inspiration on a Short Rest is the other sentence and is not applied — "You now regain all your expended uses ... when you finish a Short Rest" is a later feature rewriting an earlier pool’s recovery, and a pool’s recovery is fixed when the sheet is built.',
+      automation: 'engine',
+      note: 'Both sentences are applied. SRD: "you can expend a spell slot (no action required) to regain one expended use of Bardic Inspiration" — a slot the caster names spent on the pool Bardic Inspiration declared, with no action and no limit at all, so a Bard with slots left may do it as often as they like on one turn. A trade gives back what was spent: a Bard holding every die they have is refused rather than handed one the table never printed. The other sentence — "You now regain all your expended uses of Bardic Inspiration when you finish a Short or Long Rest" — is this feature rewriting the recovery an earlier feature declared, and it is declared where the pool is: Bardic Inspiration names this feature and the tag becomes a Short Rest the moment a Bard holds it, whether they were built at level 5 or reached it in play. It costs nothing and has no limit, so it is neither the partial "one back on a Short Rest" rule nor a recovery a use is spent on.',
       grants: {
         kind: 'trade',
         trades: [

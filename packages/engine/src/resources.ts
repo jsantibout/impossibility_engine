@@ -558,3 +558,27 @@ export function resize(state: ResourceState, key: string, max: number): Result<R
     derive({ ...state.pools, [key]: { ...pool, max, spent: Math.min(pool.spent, max) } }, state.tallies),
   );
 }
+
+/**
+ * Change what refills a pool, leaving its size and what has been spent alone.
+ *
+ * A later feature may rewrite an earlier one's recovery — SRD prints the
+ * sentence on the second feature, four levels after the pool was declared —
+ * and the tag is pinned into the declaration, so the move is a change to a
+ * folded value rather than a re-derivation. Re-declaring the pool would hand
+ * back everything already spent, which is the same quiet refund {@link resize}
+ * exists to avoid.
+ *
+ * The *partial* rule is `regainsOnShortRest` beside it and is not this: that
+ * one gives back a stated number without emptying the pool, and this moves
+ * which rest empties it.
+ */
+export function rewriteRecovery(
+  state: ResourceState,
+  key: string,
+  recovers: Recovery,
+): Result<ResourceState> {
+  const pool = state.pools[key];
+  if (pool === undefined) return err('unknown_pool', `${key} is not a pool this creature has`);
+  return ok(derive({ ...state.pools, [key]: { ...pool, recovers } }, state.tallies));
+}

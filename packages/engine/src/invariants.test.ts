@@ -4562,7 +4562,7 @@ describe('every declared event type is reachable from a command', () => {
   /**
    * **Where the command layer is drawn changes the answer, so it is named
    * rather than assumed.** Read as the sweeps above read it — every module
-   * under `commands/`, plus `rest.ts` — four types come back, and every one of
+   * under `commands/`, plus `rest.ts` — five types come back, and every one of
    * them is emitted by `creation.ts`. That is a question about where a command
    * lives rather than about whether one exists, and it is the only such
    * question left: `createCharacter` and `advanceCharacter` predate the command
@@ -4585,9 +4585,11 @@ describe('every declared event type is reachable from a command', () => {
       'emitted by `advanceCharacter` in `creation.ts`, which pays out the hit points a level granted',
     'resource-pool-resized':
       'emitted by `advanceCharacter` in `creation.ts`, which grows a pool the level made bigger',
+    'resource-pool-recovery-changed':
+      'emitted by `advanceCharacter` in `creation.ts`, beside the resize, where the level brought a feature that rewrites an earlier pool’s recovery',
   };
 
-  it('names the four that `creation.ts` emits and no command does', () => {
+  it('names the five that `creation.ts` emits and no command does', () => {
     const commandLayer = Object.fromEntries(
       [...COMMAND_MODULES, 'rest.ts'].map((file) => [file, MODULE_SOURCE[file]!]),
     );

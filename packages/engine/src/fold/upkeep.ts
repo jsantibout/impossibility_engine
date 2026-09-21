@@ -11,6 +11,7 @@ import {
   resize,
   restore,
   restoreOn,
+  rewriteRecovery,
   spend as spendResource,
   tally,
 } from '../resources.js';
@@ -32,6 +33,7 @@ export const UPKEEP_EVENTS = [
   'resource-spent',
   'resource-regained',
   'resource-pool-resized',
+  'resource-pool-recovery-changed',
   'resources-restored',
   'printed-line-expended',
   'printed-line-recharged',
@@ -84,6 +86,18 @@ export function applyUpkeep({ state, next }: Applying, event: UpkeepEvent): Game
     case 'resource-pool-resized': {
       const creature = creatureOf(state, event, event.id);
       const resources = must(event, resize(creature.resources, event.key, event.max));
+      return withCreature(next, event.id, { resources }, creature);
+    }
+
+    // A later feature rewriting an earlier one's recovery. The pool's size and
+    // what has been spent are left exactly as they were: the character has
+    // levelled, not rested.
+    case 'resource-pool-recovery-changed': {
+      const creature = creatureOf(state, event, event.id);
+      const resources = must(
+        event,
+        rewriteRecovery(creature.resources, event.key, event.recovers),
+      );
       return withCreature(next, event.id, { resources }, creature);
     }
 

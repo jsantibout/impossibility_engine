@@ -80,7 +80,12 @@ import {
   type ReactionGrantAmount,
   type ReactionGrantEffect,
 } from './progression.js';
-import { pactSlotKey, spellSlotKey, type PoolDeclaration } from './resources.js';
+import {
+  pactSlotKey,
+  spellSlotKey,
+  type PoolDeclaration,
+  type Recovery,
+} from './resources.js';
 import { hitDieKey } from './rest.js';
 import {
   countOf,
@@ -3558,6 +3563,32 @@ function hitDiePools(content: Content, choices: CharacterChoices): readonly Pool
 }
 
 /**
+ * What refills a pool, once every feature the character actually holds has
+ * been read.
+ *
+ * A pool's recovery is pinned when the pool is declared, and the SRD prints
+ * features that move it later — "you regain all your expended uses ... when
+ * you finish a Short Rest", four levels after the pool arrived. The rewrite is
+ * declared on the pool and gated on the feature that prints it, so this is the
+ * whole of the reading: the character holds that feature or they do not, and
+ * the list handed in is already the one their level earned.
+ *
+ * A feature named here that this source does not print leaves the pool exactly
+ * as declared, which is the conservative half — a rewrite nobody granted is a
+ * rewrite that has not happened.
+ */
+function recoveryOf(
+  grant: Extract<FeatureGrant, { kind: 'pool' }>,
+  features: readonly FeatureDefinition[],
+): Recovery {
+  const sooner = grant.recoversSooner;
+  if (sooner === undefined) return grant.recovers;
+  return features.some((feature) => feature.id === sooner.withFeature)
+    ? sooner.recovers
+    : grant.recovers;
+}
+
+/**
  * Every pool a character of these choices has, at the level they are now.
  *
  * **One derivation, two callers.** Creation declares all of them; advancement
@@ -3639,7 +3670,11 @@ function poolsFor(
       key: grant.key,
       label: grant.label ?? feature.name,
       max: poolSizeOf(content, choices, features, feature.id, grant),
-      recovers: grant.recovers,
+      // A later feature may rewrite this one's recovery, and the character
+      // either holds that feature or does not — the same question the level
+      // gate already answers, asked of the list it produced. See
+      // `FeatureGrant` `pool`'s `recoversSooner`.
+      recovers: recoveryOf(grant, features),
       ...(grant.regainsOnShortRest === undefined
         ? {}
         : { regainsOnShortRest: grant.regainsOnShortRest }),
@@ -4027,14 +4062,30 @@ export function advanceCharacter(
   // used to be a second list naming the Hit Die pool and the spell slots and
   // no other kind, which is why a Fighter who reached level 9 in play had
   // Indomitable on the sheet and nothing to spend.
+  //
+  // **And every *difference*, not only the size.** A level may move a pool's
+  // recovery without touching its maximum — a later feature rewriting an
+  // earlier one's rule — and a loop that compared maxima alone said nothing at
+  // all for that, so the pool kept a tag `poolsFor` had already stopped
+  // deriving. Two ways into one character that disagree is the shape the
+  // paragraph above records for Indomitable, one field along.
   for (const pool of poolsFor(content, plan.value, plan.value.features, choices)) {
     const held = creature.resources.pools[pool.key];
     if (held === undefined) {
       events.push({ type: 'resource-pool-declared', id, pool });
       continue;
     }
-    if (held.max === pool.max) continue;
-    events.push({ type: 'resource-pool-resized', id, key: pool.key, max: pool.max });
+    if (held.max !== pool.max) {
+      events.push({ type: 'resource-pool-resized', id, key: pool.key, max: pool.max });
+    }
+    if (held.recovers !== pool.recovers) {
+      events.push({
+        type: 'resource-pool-recovery-changed',
+        id,
+        key: pool.key,
+        recovers: pool.recovers,
+      });
+    }
   }
 
   events.push({

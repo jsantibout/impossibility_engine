@@ -895,6 +895,27 @@ export type GameEvent =
       readonly key: string;
       readonly max: number;
     }
+  /**
+   * A pool's **recovery tag** changing, which is what a later feature that
+   * rewrites an earlier one's rule does to it.
+   *
+   * SRD writes the sentence on the second feature — "you regain all your
+   * expended uses ... when you finish a Short Rest" — and the tag it moves was
+   * pinned into `resource-pool-declared` when the first feature declared the
+   * pool. So a character who reaches that level *in play* needs the move said
+   * out loud: re-declaring the pool would hand back everything already spent,
+   * and a resize says nothing at all when the maximum has not changed, which
+   * is exactly the case here.
+   *
+   * What it does not touch is the maximum or what has been spent. A level is
+   * not a rest.
+   */
+  | {
+      readonly type: 'resource-pool-recovery-changed';
+      readonly id: CharacterId;
+      readonly key: string;
+      readonly recovers: Recovery;
+    }
 
   // — characters —————————————————————
   /** The choices a character was built from, so it can be rebuilt and advanced. */
