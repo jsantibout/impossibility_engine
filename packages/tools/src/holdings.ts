@@ -198,11 +198,13 @@ export interface HeldFeature {
    * The longest the feature's own sentence says it may be maintained, in
    * seconds — SRD Rage's "up to 10 minutes".
    *
-   * **Reported precisely because nothing enforces it.** It is pinned onto the
-   * sheet at creation and read by no engine command, so a table that wants the
-   * bound kept has to keep it, and a caller that is never shown it cannot. The
-   * other two bounds beside it *are* the engine's: `lasts` is a real deadline
-   * and `endsOn` really ends the feature.
+   * **Reported because the engine keeps it and a caller should see it coming.**
+   * It is pinned onto the sheet at creation, pinned again onto the timer when
+   * the feature is activated, and `extendFeature` refuses `cap_reached` past
+   * it with nothing spent. This comment used to say no engine command read it,
+   * which was true until the ceiling was made load-bearing. All three bounds
+   * beside each other are the engine's now: `lasts` is a real deadline,
+   * `endsOn` really ends the feature, and this one really refuses.
    */
   readonly capSeconds?: number;
   /**
