@@ -198,7 +198,12 @@ export function applyCombat({ state, next }: Applying, event: CombatEvent): Game
             // and which this was is a fact only the command held until the
             // event carried it. Absent is a weapon, which is what every log
             // written before the field says.
-            event.unarmed ?? false,
+            // An `unarmed-strike-made` needs no field to answer this: Grapple
+            // and Shove *are* two of the Unarmed Strike's three options, so the
+            // event's own type is the answer. A `attack-made` says which it was,
+            // and absent is a weapon, which is what every log written before the
+            // field says.
+            event.type === 'unarmed-strike-made' ? true : (event.unarmed ?? false),
           ),
         ).state,
       );
