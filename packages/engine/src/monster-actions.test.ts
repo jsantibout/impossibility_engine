@@ -1340,13 +1340,20 @@ describe('a Bonus Action a stat block prints', () => {
     ]);
   });
 
-  /** SRD: "You can't take more than one Bonus Action on a turn." */
+  /**
+   * SRD: "You can't take more than one Bonus Action on a turn."
+   *
+   * **On a line the block prints no recharge on**, deliberately: the Golem's
+   * Hasten is spent once and then refused by its own notation, which is a
+   * different rule reaching the same "no" — and a test that could not tell
+   * them apart would pass while the economy did nothing.
+   */
   it('refuses a second line in the same turn', () => {
-    const table = inTheWoods('clay-golem', GOLEM);
-    table.did('the golem hastens', (s) =>
-      takeStatedBonusAction(s, GOLEM, { line: HASTEN, commandId: 'one' }),
+    const table = inTheWoods('goblin-warrior', GOBLIN);
+    table.did('the goblin slips away', (s) =>
+      takeStatedBonusAction(s, GOBLIN, { line: 'Nimble Escape', commandId: 'one' }),
     );
-    const again = taking(table, GOLEM, HASTEN, 'two');
+    const again = taking(table, GOBLIN, 'Nimble Escape', 'two');
     expect(isErr(again) ? again.code : 'ok').toBe('no_bonus_action');
   });
 

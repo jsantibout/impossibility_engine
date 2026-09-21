@@ -61,7 +61,7 @@ import {
   type Placement,
   type Point,
 } from '../positioning.js';
-import { statedBonusActionOf } from '../monster.js';
+import { describeRecharge, statedBonusActionOf } from '../monster.js';
 import { type SlotKind } from '../resources.js';
 import { type Content } from '../content.js';
 import { durationSecondsAt } from '../spell-definitions.js';
@@ -267,11 +267,12 @@ export interface StatedBonusActionOutcome {
  * no other way to ask, and the ledger it asks is the once-per-turn one every
  * other per-turn count already uses.
  *
- * **What it does not enforce is what the engine enforces nowhere**: a heading
- * that carries a recharge or a per-day limit is spent here as often as the
- * turn economy allows, exactly as a printed attack on a recharge is swung.
- * That is one gap rather than a new one, and it belongs to whoever builds the
- * recharge.
+ * **A heading that carries a recharge is spent once.** SRD *Monsters*: "a
+ * monster can use the stat block part once", and thirteen of the book's Bonus
+ * Action lines print the notation. So the line is checked against what this
+ * creature has expended, refused with what would bring it back, and written
+ * down as spent beside the Bonus Action it cost. A per-day limit is still
+ * enforced nowhere, which is a different notation and a gap that stands.
  */
 export function takeStatedBonusAction(
   state: GameState,
@@ -306,6 +307,19 @@ export function takeStatedBonusAction(
         );
       }
 
+      // **A line already used and not yet back.** Before the economy, because
+      // a refusal after the Bonus Action is gone is a refusal with a
+      // footprint — the rule every other argument on this command follows.
+      const recharge = line.recharge ?? null;
+      if (creature.expendedLines.includes(line.name)) {
+        return err(
+          'line_expended',
+          `${id} has used ${line.name} and not got it back${
+            recharge === null ? '' : `: ${describeRecharge(recharge)}`
+          }`,
+        );
+      }
+
       // SRD: "You can't take more than one Bonus Action on a turn", which is
       // the primitive's own rule and the reason nothing else has to say it —
       // so a second line in one turn is refused here, whichever line it is.
@@ -317,6 +331,12 @@ export function takeStatedBonusAction(
       return ok({
         events: [
           { type: 'bonus-action-spent', id },
+          // SRD *Monsters*: "a monster can use the stat block part once."
+          // Only where the block prints the notation — an ordinary line is
+          // taken every turn and writes nothing here.
+          ...(recharge === null
+            ? []
+            : [{ type: 'printed-line-expended' as const, id, line: line.name }]),
           {
             type: 'stated-bonus-action-taken',
             id,

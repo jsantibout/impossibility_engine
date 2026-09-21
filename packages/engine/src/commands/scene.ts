@@ -108,7 +108,7 @@ import { isDown } from '../vitals.js';
 import { type SpellcastingState } from '../spellcasting.js';
 import { type Supply } from './casting.js';
 import { creatureOf, sceneFor, unknownCreature } from './command.js';
-import { settleBoundaryPayouts } from './turns.js';
+import { settleBoundaryPayouts, settleStartOfTurnRecharges } from './turns.js';
 
 /**
  * Set the scene, and with it what the room can contain.
@@ -352,7 +352,18 @@ export function beginCombat(
     const paid = settleBoundaryPayouts(after, supply, undefined, beginning);
     if (!paid.ok) return paid;
 
-    return ok([opened, ...paid.value]);
+    // And the d6 the first combatant's turn beginning owes each of its
+    // expended lines. SRD *Monsters*: "At the start of each of the monster's
+    // turns" — a fight opening on the turn of a creature whose breath weapon
+    // is spent from the last fight is that start, by the second door.
+    const recharged = settleStartOfTurnRecharges(
+      paid.value.reduce(applyEvent, after),
+      supply,
+      beginning,
+    );
+    if (!recharged.ok) return recharged;
+
+    return ok([opened, ...paid.value, ...recharged.value]);
   });
 }
 

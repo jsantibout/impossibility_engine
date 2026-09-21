@@ -518,6 +518,17 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // cast through the public API.
   'fall-declared',
   'item-transferred',
+  // A line a stat block prints a recharge on, spent and got back. Neither log
+  // was written when the notation reached the engine at all — it was a field
+  // on a parsed attack that nothing rolled a die for — and both fixtures fold
+  // to exactly the states they always folded to with an empty `expendedLines`
+  // on every creature. `recharge.test.ts` folds both events and drives them
+  // end to end: the line used and refused a second time, the turn-start d6
+  // that brings it back and the one that does not, all three printed
+  // thresholds, the rest that returns it, and the Clay Golem's gate reading a
+  // line that is now spendable and rechargeable at once.
+  'printed-line-expended',
+  'printed-line-recharged',
   // A Reaction one creature put in another's hands, and the use that spends
   // it. Neither log was written when a creature could hold anything of
   // somebody else's — no creature had a `grantedReactions` list and the Bard's

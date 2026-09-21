@@ -790,8 +790,9 @@ export function parseRecharge(name: string): MonsterRecharge | null {
 
   const die = /^\s*(\d)(?:\s*[–—-]\s*6)?\s*$/.exec(printed[1]!);
   if (die !== null) return { kind: 'die', low: Number(die[1]) };
-  // "Recharge after a Short or Long Rest": still not an every-round attack,
-  // and the rest it waits on is the clock's rather than a die's.
+  // "Recharge after a Short or Long Rest": the rest **alone**, with no die and
+  // no turn-start roll, which is why the book prints it as a second notation
+  // rather than as a shorter way of saying the first.
   if (/rest/i.test(printed[1]!)) return { kind: 'rest' };
   return null;
 }
@@ -828,17 +829,17 @@ function parseFeatures(
           ? parseMultiattack(text, printedAttacks, printedBonusActions)
           : null;
       // The one thing read out of the *name* rather than the sentence, and it
-      // rides on the attack because that is what has to be told apart from a
-      // creature's every-round swing.
+      // rides on the **line**, which is what the book prints it on: eighty-five
+      // of the eighty-seven lines that print one print no attack roll for it to
+      // have ridden on.
       const recharge = parseRecharge(current.name);
       features.push({
         name: current.name,
         text,
-        ...(attack === null
-          ? {}
-          : { attack: recharge === null ? attack : { ...attack, recharge } }),
+        ...(attack === null ? {} : { attack }),
         ...(trait === null ? {} : { trait }),
         ...(multiattack === null ? {} : { multiattack }),
+        ...(recharge === null ? {} : { recharge }),
       });
     }
     current = null;

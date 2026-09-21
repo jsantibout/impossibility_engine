@@ -450,28 +450,91 @@ describe('parseMultiattack', () => {
  * A recharge is printed in the action's **name** — "Whirlwind (Recharge 4–6)"
  * — and the engine may not branch on a name. So it is read here into a field,
  * once, and whatever filters on it downstream reads structure.
+ *
+ * **On the line, because the line is what the book prints it on.** It lived on
+ * the parsed *attack* while the only reader was the one that has to leave a
+ * breath weapon out of an Opportunity Attack — and that argument covered two
+ * lines of eighty-seven. Eighty-five of the book's recharging lines print no
+ * attack roll at all: they are a saving throw, a spell, a teleport, a
+ * shape-shift. A field on the attack gave every one of them nowhere to carry
+ * what the book plainly printed about them.
  */
-describe('a recharge on a printed attack', () => {
+describe('a recharge on a printed line', () => {
+  /** Every line in the bestiary, whichever section it is printed under. */
+  const everyLine = bestiary.flatMap((monster) =>
+    [
+      ...monster.traits,
+      ...monster.actions,
+      ...monster.bonusActions,
+      ...monster.reactions,
+      ...monster.legendaryActions,
+    ].map((line) => ({ monster: monster.id, line })),
+  );
+
   it('reads the die the book prints, off the name', () => {
-    expect(action('ape', 'Rock (Recharge 6)').attack?.recharge).toEqual({ kind: 'die', low: 6 });
-    expect(action('minotaur-of-baphomet', 'Gore (Recharge 5–6)').attack?.recharge).toEqual({
+    expect(action('ape', 'Rock (Recharge 6)').recharge).toEqual({ kind: 'die', low: 6 });
+    expect(action('minotaur-of-baphomet', 'Gore (Recharge 5–6)').recharge).toEqual({
       kind: 'die',
       low: 5,
     });
   });
 
-  it('leaves an attack that recharges on nothing without the field', () => {
-    expect(action('wolf', 'Bite').attack?.recharge).toBeUndefined();
+  /**
+   * The three die forms the book prints, each on a line that prints no attack
+   * — which is where the field being on the attack lost eighty-five of them.
+   */
+  it('reads all three die thresholds off lines that print no attack', () => {
+    const whirlwind = action('air-elemental', 'Whirlwind (Recharge 4–6)');
+    expect(whirlwind.attack).toBeUndefined();
+    expect(whirlwind.recharge).toEqual({ kind: 'die', low: 4 });
+
+    const breath = action('young-red-dragon', 'Fire Breath (Recharge 5–6)');
+    expect(breath.attack).toBeUndefined();
+    expect(breath.recharge).toEqual({ kind: 'die', low: 5 });
+
+    const spray = action('ankheg', 'Acid Spray (Recharge 6)');
+    expect(spray.attack).toBeUndefined();
+    expect(spray.recharge).toEqual({ kind: 'die', low: 6 });
   });
 
-  it('reads every recharging attack line in the book', () => {
-    for (const monster of bestiary) {
-      for (const line of monster.actions) {
-        if (line.attack === undefined) continue;
-        expect(line.attack.recharge !== undefined, `${monster.id}: ${line.name}`).toBe(
-          /\(Recharge/i.test(line.name),
-        );
-      }
+  /**
+   * SRD Cloaker, and the only line in the book printed this way: "Phantasms
+   * (Recharge after a Short or Long Rest)". It is the whole reason the `rest`
+   * arm was written, and nothing had ever produced one — the line carries no
+   * attack, so the field it would have gone in did not exist on it.
+   */
+  it('reads the book’s one rest form', () => {
+    const phantasms = find('cloaker').bonusActions.find((line) =>
+      line.name.startsWith('Phantasms'),
+    );
+    expect(phantasms?.attack).toBeUndefined();
+    expect(phantasms?.recharge).toEqual({ kind: 'rest' });
+  });
+
+  it('leaves a line that recharges on nothing without the field', () => {
+    expect(action('wolf', 'Bite').recharge).toBeUndefined();
+  });
+
+  /**
+   * **Asserted against the names, and counted.** A parser that silently read
+   * nothing would satisfy "no line disagrees with its name"; the count is what
+   * says it read them all.
+   */
+  it('reads every recharging line in the book, in every section', () => {
+    let read = 0;
+    for (const { monster, line } of everyLine) {
+      const printed = /\(Recharge/i.test(line.name);
+      expect(line.recharge !== undefined, `${monster}: ${line.name}`).toBe(printed);
+      if (printed) read += 1;
+    }
+    expect(read).toBe(87);
+  });
+
+  /** And the field is gone from the attack, so there is one place to read it. */
+  it('carries it nowhere but on the line', () => {
+    for (const { line } of everyLine) {
+      if (line.attack === undefined) continue;
+      expect(line.attack).not.toHaveProperty('recharge');
     }
   });
 });

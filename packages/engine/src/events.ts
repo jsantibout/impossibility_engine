@@ -1609,6 +1609,47 @@ export type GameEvent =
       readonly command?: CommandStamp;
     }
   /**
+   * A line a stat block prints a **recharge** on, used up.
+   *
+   * SRD *Monsters*: "a monster can use the stat block part once." What it cost
+   * is the `bonus-action-spent` or `attack-made` beside it, exactly as a
+   * Dash's cost is its own event; this says that the *line* is gone, which is
+   * a fact that outlives the turn and the fight and so cannot be read off
+   * either.
+   *
+   * **Its own event rather than a field on the use**, for the reason
+   * `feature-used` is one: the swing happened, and separately the line it was
+   * made with is now spent. It is emitted only where the block prints a
+   * recharge, so a creature that takes an ordinary Bonus Action writes nothing
+   * here — which is what every log written before this existed says.
+   */
+  | {
+      readonly type: 'printed-line-expended';
+      readonly id: CharacterId;
+      /** The heading the block prints the line under. */
+      readonly line: string;
+      readonly command?: CommandStamp;
+    }
+  /**
+   * The same line, back.
+   *
+   * Two things put it here and the log tells them apart by what stands beside
+   * it: the `roll-recorded` of a turn-start d6 that came up inside the printed
+   * range, or nothing at all, which is a rest — SRD "which also recharges when
+   * the monster finishes a Short or Long Rest". The roll is not *on* this
+   * event because a roll is its own record with its own provenance, and a die
+   * that failed still belongs in the log while this event does not.
+   *
+   * A line that is not expended is never recharged, so a second one of these
+   * is a corrupt log rather than a no-op.
+   */
+  | {
+      readonly type: 'printed-line-recharged';
+      readonly id: CharacterId;
+      /** The heading the block prints the line under. */
+      readonly line: string;
+    }
+  /**
    * An action held back for a trigger.
    *
    * The Ready action's own cost is a separate `action-spent`, and a readied
