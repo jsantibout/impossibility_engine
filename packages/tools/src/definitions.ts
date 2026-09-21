@@ -180,6 +180,7 @@ import {
   takeDash,
   takeDisengage,
   takeDodge,
+  takeHide,
   takeReady,
   takeOpportunityAttack,
   takeTestReaction,
@@ -1165,7 +1166,7 @@ const PLACE_CREATURE = tool({
 const DECLARE_SIGHT = tool({
   name: 'declare_sight',
   description:
-    'State whether one creature can see another. Directional, and three-valued: nobody having said is not the same as "no", which is why a spell that needs sight asks rather than refusing.',
+    'State whether one creature can see another. Directional, and three-valued: nobody having said is not the same as "no", which is why a spell that needs sight asks rather than refusing — and so does a Hide, which is asked of every enemy who might catch the hider.',
   mutates: true,
   establishes: ['visibility'],
   input: z.object({ from: creatureId, to: creatureId, seen: z.boolean() }),
@@ -1186,7 +1187,7 @@ const DECLARE_SIGHT = tool({
 const DECLARE_COVER = tool({
   name: 'declare_cover',
   description:
-    'Declare how much cover one creature has from another — the bar it is crouched behind, the millstone between them. The engine applies exactly what the SRD prints (+2 to Armour Class and Dexterity saves for Half, +5 for Three-Quarters, no targeting at all through Total) and never works cover out from geometry, because that means modelling every wall. Use "none" to say the line is clear again.',
+    'Declare how much cover one creature has from another — the bar it is crouched behind, the millstone between them. The engine applies exactly what the SRD prints (+2 to Armour Class and Dexterity saves for Half, +5 for Three-Quarters, no targeting at all through Total) and never works cover out from geometry, because that means modelling every wall. It is also what a Hide asks for: SRD wants Three-Quarters or Total, Half is not enough, and a creature nobody has declared cover for is refused unless it is stated Heavily Obscured instead. Use "none" to say the line is clear again.',
   mutates: true,
   input: z.object({
     from: creatureId.describe('The attacker — whose line to the target this is about.'),
@@ -2063,7 +2064,7 @@ const END_ONGOING_SPELL = tool({
 const SHEET = tool({
   name: 'sheet',
   description:
-    'What one character holds and what is left of it: hit points, conditions, spell slots by level, Pact Magic slots as their own pool, every feature pool with what refills it, the spells this character can actually cast and by which route, and the features themselves — which can be switched on, which spends a pool, which is only ever passive, and the name of the tool that spends each one. Read this before spending anything; a feature you have not been told about is one you cannot elect. Free, and changes nothing.',
+    'What one character holds and what is left of it: hit points, conditions, spell slots by level, Pact Magic slots as their own pool, every feature pool with what refills it, the spells this character can actually cast and by which route, and the features themselves — which can be switched on, which spends a pool, which buys a named action at a cheaper price, which is only ever passive, and the name of the tool that spends each one. Read this before spending anything; a feature you have not been told about is one you cannot elect. Free, and changes nothing.',
   mutates: false,
   input: z.object({ who: creatureId }),
   run: (context, args) => {
@@ -2496,7 +2497,8 @@ const CONFER_REACTION = tool({
 });
 
 /**
- * Dodge, Dash or Disengage — and which slot pays for the third of them.
+ * Dodge, Dash, Disengage or Hide — and which slot pays for the three of them
+ * that take one.
  *
  * **`from` is here because the engine already takes it and nothing could say
  * it.** `takeDisengage` has taken a slot since SRD Conjure Woodland Beings
@@ -2506,15 +2508,6 @@ const CONFER_REACTION = tool({
  * allowance was unreachable from any caller at all: whatever granted it, the
  * only call that could invoke it spent an Action every time.
  *
- * **What grants one today is homebrew, and that is the catalogue's business
- * rather than this tool's.** Conjure Woodland Beings' own entry records the
- * allowance as adjudicated — the spell's other half is a creature the engine
- * does not summon — so no SRD content hands this rule out yet. The engine
- * executes it, `spell-schema.ts` validates it, and a definition that grants
- * `{ kind: 'allows', action: 'disengage', from: 'bonus-action' }` works
- * through this field with no engine change, which is what `disengage.test.ts`
- * drives.
- *
  * It states no price. The caller names which slot it is asking to pay from and
  * the engine rules on whether this creature may — a slot nothing granted is
  * refused rather than quietly charged at the ordinary price, which is the
@@ -2523,52 +2516,124 @@ const CONFER_REACTION = tool({
  * engine *can* charge and nothing has granted, `no_such_price` for one no
  * command charges at all.
  *
- * **It is refused for a Dodge or a Dash, in the schema**, on
- * {@link placementSchema}'s rule rather than as a rules judgement: neither
- * command has such a parameter, so a slot sent with either would be a key Zod
- * strips in silence and a caller acting on an answer it never got. That a Dash
- * cannot be paid for out of a Bonus Action *at all* — `takeDash` has no `from`
- * — is an engine gap and is reported as one rather than papered over with a
- * field this surface would have nowhere to send.
+ * **A Dash takes one too, and this comment used to say it could not.** It said
+ * that a Dash "cannot be paid for out of a Bonus Action *at all* — `takeDash`
+ * has no `from` — is an engine gap", and the schema refused the field on that
+ * reading. `takeDash` takes a slot now, `STATABLE_PRICES` holds `dash`, and
+ * the schema admits it. That was not a cosmetic gap while it lasted: SRD
+ * Cunning Action's Dash and SRD Adrenaline Rush's — "You can take the Dash
+ * action as a Bonus Action" — were both executed underneath and reachable from
+ * nobody. A description that asserts a gap the engine has closed is the same
+ * defect as one that claims a rule the engine lacks, because a model acts on
+ * it either way.
+ *
+ * **Hide is a kind here now, and it was not one at all.** `takeHide` joined
+ * `NAMED_ACTIONS` with its own spender: the DC 15 Dexterity (Stealth) check,
+ * the Invisible condition a success buys, the watchers and the cover. Until it
+ * was offered here, `rogue:cunning-action` could be invoked for one of the
+ * three verbs the sentence prints.
+ *
+ * **Hide is the named action whose legality turns on facts only the table
+ * holds, and each way it can refuse arrives as itself.** Who can see the hider
+ * is the table's fact and the check
+ * is the engine's, so a sight line nobody has settled is *homework* —
+ * `needs-context`, one request per watcher, tagged `visibility` and therefore
+ * carrying `declare_sight` as the door that settles it — where a settled line
+ * saying the enemy is looking is `seen` and closes the question. `not_concealed`
+ * is the cover the sentence asks for and does not have, and `immune` is a
+ * creature the Invisible condition would buy nothing for. Nothing is rolled
+ * until the whole attempt is known to be legal, so a refused Hide costs
+ * neither the slot nor a turn of the dice.
+ *
+ * **What grants a cheaper price is content, and the SRD hands out four of
+ * them.** `rogue:cunning-action` holds three — Dash, Disengage and Hide, the
+ * three clauses of one sentence — and `orc:adrenaline-rush` holds the Dash.
+ * Conjure Woodland Beings' own entry still records its allowance as
+ * adjudicated, because the spell's other half is a creature the engine does
+ * not summon, so the homebrew path `disengage.test.ts` drives is still the
+ * only way to reach that one. Nothing in this file names any of them: a
+ * definition granting `{ kind: 'allows', action: 'hide', from: 'bonus-action' }`
+ * reaches this field with no change here or in the engine.
+ *
+ * **`from` is still refused for a Dodge, and `obscured` for everything but a
+ * Hide**, on {@link placementSchema}'s rule rather than as a rules judgement:
+ * `takeDodge` has no slot parameter and the other three commands have no
+ * obscurement, so either key sent to the wrong kind would be one Zod strips in
+ * silence and a caller acting on an answer it never got.
  */
 const TAKE_ACTION = tool({
   name: 'take_action',
   description:
-    'Take Dodge, Dash or Disengage. Each costs what the book charges unless something running on the creature says otherwise — and where something does, `from` is how it is invoked. A slot nothing has granted this creature is refused rather than charged at the usual price.',
+    'Take Dodge, Dash, Disengage or Hide. Each costs what the book charges unless something running on the creature says otherwise — SRD Cunning Action and SRD Adrenaline Rush are the two the book writes this way — and where something does, `from` is how it is invoked. A slot nothing has granted this creature is refused rather than charged at the usual price. A Hide is the one that can be refused for reasons other than the price: it needs cover or darkness and needs to be out of every enemy’s sight, and where nobody has said whether an enemy can see the hider you are asked rather than refused.',
   mutates: true,
   input: z
     .object({
       who: creatureId,
-      kind: z.enum(['dodge', 'dash', 'disengage']),
+      kind: z.enum(['dodge', 'dash', 'disengage', 'hide']),
       from: z
         .enum(['action', 'bonus-action', 'reaction'])
         .optional()
         .describe(
-          'Which slot to pay a Disengage out of, where an effect running on the creature has made a cheaper one available — the shape SRD Conjure Woodland Beings writes, "as a Bonus Action". Omit for what the book charges, which is an Action. A slot nothing has granted this creature is refused, and so is one no command charges at all. Only a Disengage takes one.',
+          'Which slot to pay a Dash, a Disengage or a Hide out of, where something running on the creature has made a cheaper one available — SRD Cunning Action’s "Dash, Disengage, or Hide" as a Bonus Action, SRD Adrenaline Rush’s Dash. `sheet` lists the features a character holds. Omit for what the book charges, which is an Action. A slot nothing has granted this creature is refused, and so is one no command charges at all. A Dodge takes none.',
+        ),
+      obscured: z
+        .boolean()
+        .optional()
+        .describe(
+          'True when the hider is Heavily Obscured — in fog, in darkness, in a cloud of the stuff. SRD Hide asks for that *or* Three-Quarters or Total Cover, and the engine models no light, so this is yours to state and cover is declared through `declare_cover`. Half Cover is not enough and never stands in for it. Only a Hide takes it.',
         ),
     })
-    .refine((value) => value.from === undefined || value.kind === 'disengage', {
-      error: 'only a Disengage can be paid for out of a named slot; a Dodge and a Dash cost an Action',
+    .refine((value) => value.from === undefined || value.kind !== 'dodge', {
+      error: 'a Dodge costs an Action and cannot be paid for out of a named slot',
       path: ['from'],
+    })
+    .refine((value) => value.obscured === undefined || value.kind === 'hide', {
+      error: 'only a Hide asks whether the creature is Heavily Obscured',
+      path: ['obscured'],
     }),
   run: (context, args) => {
     const state = context.campaign.state();
     const id = who(args.who);
+    const slot = args.from === undefined ? {} : { from: args.from };
+    const took = {
+      took: args.kind,
+      ...(args.from === undefined ? {} : { paidFrom: args.from }),
+    };
+    // Hide is the one of the four that answers with more than its events — the
+    // engine's own check — so it settles through `settle` rather than the
+    // shorthand. `hidden` is whether *this attempt* hid them, which is not the
+    // same question as whether the creature is hiding: a replay under the same
+    // command id is told `duplicate` and answers `false` to both.
+    if (args.kind === 'hide') {
+      return settle(
+        context,
+        takeHide(
+          state,
+          id,
+          {
+            ...slot,
+            ...(args.obscured === undefined ? {} : { obscured: args.obscured }),
+            ...identity(context),
+          },
+          context.campaign.supply(),
+        ),
+        (value) => value.events,
+        (value) => ({
+          ...took,
+          natural: value.check?.natural ?? null,
+          total: value.check?.total ?? null,
+          hidden: value.hidden,
+          duplicate: value.duplicate ?? false,
+        }),
+      );
+    }
     const command =
       args.kind === 'dodge'
         ? takeDodge(state, id, identity(context))
         : args.kind === 'dash'
-          ? takeDash(state, id, identity(context))
-          : takeDisengage(
-              state,
-              id,
-              identity(context),
-              args.from === undefined ? {} : { from: args.from },
-            );
-    return settleEvents(context, command, {
-      took: args.kind,
-      ...(args.from === undefined ? {} : { paidFrom: args.from }),
-    });
+          ? takeDash(state, id, identity(context), slot)
+          : takeDisengage(state, id, identity(context), slot);
+    return settleEvents(context, command, took);
   },
 });
 
