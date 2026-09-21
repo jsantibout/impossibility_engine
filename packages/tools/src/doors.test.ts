@@ -48,6 +48,7 @@ import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
 import {
   CONTEXT_REQUEST_KINDS,
+  DM_ONLY_TOOL_NAMES,
   DM_TOOL_NAMES,
   createCampaign,
   createSurface,
@@ -406,24 +407,40 @@ describe('every kind a tool declares it establishes has fields to carry it', () 
  * window, a slot and a minute on the clock — was uncastable from the only
  * surface that exists to cast spells.
  *
- * **A recorded exclusion is an answer and a shut door is not.** Five of these
+ * **A recorded exclusion is an answer and a shut door is not.** Four of these
  * are deliberately on neither surface, each for a reason the surface's own
  * rule already gives, and the reason is written here rather than left to be
  * re-derived by whoever next wonders. The test checks the exclusions too: a
  * tool that starts calling one of them fails this file until the line moves.
+ *
+ * **And which surface holds the door is part of the answer.** `dmOnly` says a
+ * declaration is on the human DM's surface and not the model's, which is a
+ * third state rather than a softer withholding: the fact can be stated, and
+ * not by a model. `declareCreatureHeads` is the one — how many heads a Hydra
+ * still has is a number, and the ruling that put it here is that a number the
+ * *engine* produces is a fabrication while a number the *table* states is a
+ * fact. The tests below check the door is on the surface the entry names and
+ * absent from the other, so a tool that drifted across would fail here.
  */
-const DECLARATIONS: Readonly<Record<string, { readonly tool: string } | { readonly withheld: string }>> = {
+const DECLARATIONS: Readonly<
+  Record<
+    string,
+    { readonly tool: string; readonly dmOnly?: true } | { readonly withheld: string }
+  >
+> = {
   declareCreatureSide: { tool: 'declare_side' },
   declareCreatureType: { tool: 'declare_creature_type' },
   declareSightBetween: { tool: 'declare_sight' },
   declareCoverBetween: { tool: 'declare_cover' },
   declareDifficultTerrain: { tool: 'declare_difficult_terrain' },
   declareFalling: { tool: 'declare_falling' },
+  // The first door on either surface that takes a number, and the DM's alone:
+  // the count sizes an Attack action, so a model stating it would be writing
+  // itself attacks, while the table stating it is reporting the creature in
+  // front of it. The engine still derives the Bites, which is what makes the
+  // door safe to open.
+  declareCreatureHeads: { tool: 'declare_heads', dmOnly: true },
 
-  declareCreatureHeads: {
-    withheld:
-      'the count sizes an Attack action — five heads are five Bites — so a caller stating it is producing a mechanically authoritative number, which is the line declareResourcePool is on rather than the line declare_side is. A command that needs it never stops for it: the engine holds the action to one swing and says so in `unverified`, so nothing is unreachable for want of this door. A human DM tracking a Hydra’s heads may want one; a model may not have it.',
-  },
   declareCreatureDead: {
     withheld:
       'a death that is not hit-point loss is a ruling, not a declaration of fact: it asserts an outcome the rules otherwise decide, which is the line that keeps setExhaustionLevel off this surface. A human DM may want it; a model may not have it.',
@@ -581,19 +598,47 @@ describe('every fact the engine can be told has a tool that tells it', () => {
     }
   });
 
-  it('answers each with a tool on this surface that calls that command', () => {
+  it('answers each with a tool on the surface it names, that calls that command', () => {
     const shut: string[] = [];
-    const surfaceSource = stripComments(definitionsText());
+    const bySurface = {
+      model: { names: TOOL_NAMES, source: stripComments(definitionsText()) },
+      dm: { names: DM_ONLY_TOOL_NAMES, source: stripComments(dmDefinitionsText()) },
+    };
     for (const [command, answer] of Object.entries(DECLARATIONS)) {
       if (!('tool' in answer)) continue;
-      if (!TOOL_NAMES.includes(answer.tool)) shut.push(`${command}: there is no ${answer.tool}`);
+      const { names, source } = bySurface[answer.dmOnly === true ? 'dm' : 'model'];
+      if (!names.includes(answer.tool)) shut.push(`${command}: there is no ${answer.tool}`);
       // The tool has to be the one that *calls* it. A name that happens to
       // match would be a door painted on a wall.
-      if (!new RegExp(`\\b${command}\\(`).test(surfaceSource)) {
+      if (!new RegExp(`\\b${command}\\(`).test(source)) {
         shut.push(`${command}: no tool calls it`);
       }
     }
     expect(shut).toEqual([]);
+  });
+
+  /**
+   * And a door the DM alone holds is on the DM's surface **and nowhere else**.
+   * The claim is two-sided on purpose: a `dmOnly` entry whose tool had drifted
+   * onto the model's list would read above exactly as a door correctly placed,
+   * and which surface holds it is the whole of what the entry says.
+   */
+  it('keeps a DM-only door off the model’s surface', () => {
+    const dmOnly = Object.values(DECLARATIONS).filter(
+      (answer): answer is { readonly tool: string; readonly dmOnly?: true } =>
+        'tool' in answer && answer.dmOnly === true,
+    );
+    // Non-vacuous: there is one, and it is the head count.
+    expect(dmOnly.map((answer) => answer.tool)).toContain('declare_heads');
+    for (const answer of dmOnly) {
+      expect(DM_ONLY_TOOL_NAMES).toContain(answer.tool);
+      expect(DM_TOOL_NAMES).toContain(answer.tool);
+      expect(TOOL_NAMES).not.toContain(answer.tool);
+      // And the model's own definitions do not so much as name it: that list
+      // is what `createSurface` dispatches over, so a definition written there
+      // would reach a model whatever this table said.
+      expect(stripComments(definitionsText())).not.toContain(`'${answer.tool}'`);
+    }
   });
 
   /**

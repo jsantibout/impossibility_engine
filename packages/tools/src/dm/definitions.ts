@@ -67,6 +67,7 @@ import type { Duration, ModeSource, TestResolution } from '@ie/engine';
 import {
   applyConditionTo,
   awardItems,
+  declareCreatureHeads,
   liftConditionFrom,
   loseItems,
   resolveDamage,
@@ -728,12 +729,65 @@ const LOSE_ITEMS = tool({
 });
 
 /**
+ * Say how many of a creature's heads are still on it.
+ *
+ * SRD Hydra's Multiattack: "The hydra makes as many Bite attacks as it has
+ * heads", with the Multiple Heads trait taking one off at 25 damage in a turn
+ * and growing two back at the end of it. None of that is state the engine
+ * holds — the book counts damage *per turn* and the engine counts hit points —
+ * so the count is the table's, and the Bites are the engine's to derive from
+ * it. The owner's ruling in one line: a number the *engine* produces is a
+ * fabrication, a number the *table* states is a fact.
+ *
+ * **The first door on either surface that takes a number, and it is here for
+ * that reason rather than in spite of it.** Every other authoritative number a
+ * caller could state is refused on the model's surface; this one is a fact
+ * about the creature in front of the DM, like its side and unlike its hit
+ * points. A model may not state it — a model that could say "the hydra has
+ * twelve heads" would be writing itself twelve attacks — and that is what the
+ * directory is: `boundary.test.ts` beside this file proves the model's surface
+ * cannot reach anything in here.
+ *
+ * **One affordance, not arithmetic done twice.** The DM says how many heads
+ * are active; nothing here asks how many Bites that is, and nothing takes an
+ * attack count. A caller re-sends this whenever the number changes — a head
+ * struck off, two grown back — and the Attack action follows the latest
+ * answer, which is why the engine's command is re-declarable.
+ *
+ * Nobody is *required* to say. A creature nobody has counted swings once and
+ * the engine reports the assumption, so this door exists to make a fight
+ * right rather than to make one possible.
+ */
+const DECLARE_HEADS = tool({
+  name: 'declare_heads',
+  description:
+    'Say how many heads a creature still has — the Hydra’s, and anything else whose block counts its attacks off them. Where the block states no attack sequence the engine could read, its Attack action then holds that many swings, derived by the engine rather than stated by you: you say five heads, not five Bites. A creature whose sequence the engine did read is held to what the book printed, whatever you say about its heads. Say it again whenever the number changes; the newest count is the one that counts. Until somebody says, the action holds one attack and the engine reports that it assumed so.',
+  mutates: true,
+  input: z.strictObject({
+    who: creatureId.describe('Which creature.'),
+    heads: z
+      .int()
+      .min(1)
+      .describe(
+        'How many heads are on it now — the whole count, not the change. A creature whose last head is gone is dead, which is a different thing to say.',
+      ),
+  }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      declareCreatureHeads(context.campaign.state(), who(args.who), args.heads, identity(context)),
+      { heads: args.heads, of: args.who },
+    ),
+});
+
+/**
  * The tools a model may never reach, in the stable sorted order the prompt
  * cache depends on.
  */
 export const DM_ONLY_TOOLS: readonly ToolDefinition[] = [
   ABILITY_CHECK,
   AWARD_ITEMS,
+  DECLARE_HEADS,
   END_CONDITION,
   IMPROVISED_DAMAGE,
   LOSE_ITEMS,
