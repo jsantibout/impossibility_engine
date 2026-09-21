@@ -318,7 +318,7 @@ export const ITEM_EFFECT_KINDS: ReadonlySet<string> = new Set([
  * gathers Speed from the sheet alone, and a feat's grant is compiled onto the
  * sheet.
  */
-const STANDING_GRANT_KINDS: ReadonlySet<string> = new Set([...ITEM_EFFECT_KINDS, 'speed']);
+export const STANDING_GRANT_KINDS: ReadonlySet<string> = new Set([...ITEM_EFFECT_KINDS, 'speed']);
 
 /**
  * What a feat says about ability scores: the question it asks, the ceiling it
