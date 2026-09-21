@@ -185,13 +185,25 @@ export const FIGHTER: ClassDefinition = {
       name: 'Action Surge',
       level: 2,
       automation: 'engine',
-      note: 'Declared as a pool of one use, two from Fighter level 17, refilling on a **Short** Rest — SRD: "you can’t do so again until you finish a Short or Long Rest", which is all-or-nothing and so is exactly what the pool system already says. The extra action itself is not granted: the turn budget holds one action and nothing adds a second.',
+      note: 'Declared as a pool of one use, two from Fighter level 17, refilling on a **Short** Rest — SRD: "you can’t do so again until you finish a Short or Long Rest", which is all-or-nothing and so is exactly what the pool system already says. What the use buys is the additional action itself: SRD "On your turn, you can take one additional action, except the Magic action", so the purchase costs nothing to invoke, narrows the action it hands over to everything but the Magic action, and is capped at one a turn — the level 17 sentence, "you can use it twice before a rest but only once on a turn".',
       grants: {
         kind: 'pool',
         key: 'action-surge',
         label: 'Action Surge',
         usesByLevel: ACTION_SURGE_USES,
         recovers: 'short-rest',
+        buysBudget: [
+          {
+            id: 'action-surge',
+            name: 'Action Surge',
+            // "On your turn, you can take one additional action" — saying so
+            // costs nothing; the use is the whole price.
+            action: 'none',
+            extraAction: { except: ['magic'] },
+            // "you can use it twice before a rest but only once on a turn."
+            oncePerTurn: true,
+          },
+        ],
       },
     },
     {

@@ -521,10 +521,67 @@ export interface CombatantInput {
   readonly tiebreak?: number;
 }
 
+/**
+ * One action a feature or a spell added to this turn, beyond the turn's own.
+ *
+ * **It is here rather than on the creature, and that is the whole reason this
+ * shape exists.** A rule standing on a creature — an `actionRules` entry, a
+ * standing grant — is invisible to `fold/combat.ts`, which folds
+ * `action-spent` through `must(event, spendAction(...))` and passes neither
+ * the conditions nor the rules; an extra action carried anywhere else is an
+ * event the command legally emitted and the reducer calls corrupt. Only a
+ * combat event writes a budget, so only a combat event can add to one.
+ *
+ * {@link except} is SRD Action Surge's second clause — "you can take one
+ * additional action, **except the Magic action**" — and it is a list of
+ * {@link NAMED_ACTIONS} for the reason {@link ActionRule} is: a slot says how
+ * much a thing costs and a name says what it is. It bites only where the
+ * spender named itself, which is the same honesty `forbids` already has.
+ *
+ * The source is what the log calls whatever bought it, so a refusal can say
+ * which extra action would not pay for the action asked for.
+ */
+export interface GrantedAction {
+  readonly source: string;
+  readonly except?: readonly NamedAction[];
+}
+
+/**
+ * Attacks bought outside an Attack action, and what they may be spent on.
+ *
+ * SRD Flurry of Blows: "You can expend 1 Focus Point to make two Unarmed
+ * Strikes as a Bonus Action." {@link TurnBudget.attacksRemaining} cannot hold
+ * them: that counter *is* the Attack action — null means the action has not
+ * been taken — so putting two Bonus Action strikes in it would spend the
+ * Fighter's action and refuse the Monk's later one.
+ *
+ * `unarmedOnly` is the SRD's own narrowing and the only one printed, so it is
+ * a flag rather than a set of weapons: a swing that does not qualify falls
+ * through to the ordinary price instead of being refused, which is how a Monk
+ * may flurry and then take the Attack action with a Quarterstaff.
+ */
+export interface GrantedAttacks {
+  readonly remaining: number;
+  readonly unarmedOnly: boolean;
+}
+
 export interface TurnBudget {
   readonly action: boolean;
   readonly bonusAction: boolean;
   readonly reaction: boolean;
+  /**
+   * Actions added to this turn beyond the one it holds — SRD Action Surge.
+   *
+   * A list rather than a count, because each carries the narrowing its own
+   * sentence prints and two of them need not narrow alike. Spent **after** the
+   * turn's own action and never before it: the book adds to a turn rather than
+   * replacing what it had, so a Magic action takes the ordinary one while
+   * there is one to take, and meets Action Surge's exception only when there
+   * is not.
+   */
+  readonly extraActions: readonly GrantedAction[];
+  /** Attacks bought outside an Attack action, or null if none were. */
+  readonly grantedAttacks: GrantedAttacks | null;
   /**
    * Feet of movement already spent this turn.
    *
@@ -648,6 +705,8 @@ const fullBudget = (): TurnBudget => ({
   action: true,
   bonusAction: true,
   reaction: true,
+  extraActions: [],
+  grantedAttacks: null,
   movementSpent: 0,
   movementGained: 0,
   attacksRemaining: null,
@@ -839,9 +898,120 @@ export function spendAction(
 
   const budget = requireTheirTurn(state, id);
   if (!budget.ok) return budget;
-  if (!budget.value.action) return err('no_action', `${id} has already taken an action`);
+
+  // **The turn's own action first, and the extras after it.** SRD Action Surge
+  // adds to a turn rather than replacing what it had, so nothing is spent out
+  // of a narrowed extra while the unnarrowed one is still there — which is
+  // also what makes "except the Magic action" bite in the one case it is about.
+  if (!budget.value.action) {
+    return spendExtraAction(state, id, budget.value, spend?.as);
+  }
 
   return ok(withBudget(state, id, { action: false }, budget.value));
+}
+
+/**
+ * Spend one of the actions something added to this turn.
+ *
+ * The first extra that permits this action wins, and the order is the order
+ * they were granted in — so a turn holding two extras spends them in the order
+ * the log put them there, which is a fact about the log rather than about who
+ * asked.
+ *
+ * The refusal says which is which: an empty list is the ordinary
+ * `no_action`, and a list that all refuses the named action names what refused
+ * it, because "you cannot do this" with no reason is the least useful true
+ * thing a rules engine can say.
+ */
+function spendExtraAction(
+  state: CombatState,
+  id: CharacterId,
+  budget: TurnBudget,
+  as: NamedAction | undefined,
+): Result<CombatState> {
+  if (budget.extraActions.length === 0) {
+    return err('no_action', `${id} has already taken an action`);
+  }
+
+  const index = budget.extraActions.findIndex(
+    (extra) => as === undefined || !(extra.except ?? []).includes(as),
+  );
+  if (index === -1) {
+    const refusing = budget.extraActions[0]!;
+    return err(
+      'action_forbidden',
+      `${id} has only the extra action ${refusing.source} bought, and that one is not the ${ACTION_TITLES[as!]} action`,
+    );
+  }
+
+  return ok(
+    withBudget(
+      state,
+      id,
+      { extraActions: budget.extraActions.filter((_, at) => at !== index) },
+      budget,
+    ),
+  );
+}
+
+/**
+ * Add to what this turn may be spent on: an action, or attacks outside an
+ * Attack action.
+ *
+ * SRD Action Surge and SRD Flurry of Blows, which are one shape and two
+ * fields. The command has already taken whatever the purchase cost — a Focus
+ * Point, a Bonus Action — so everything this refuses is about the turn itself:
+ * it is this creature's, and a second grant of attacks does not quietly
+ * rewrite the gate on the ones already standing.
+ */
+export function grantTurnBudget(
+  state: CombatState,
+  id: CharacterId,
+  grant: {
+    readonly action?: GrantedAction;
+    readonly attacks?: GrantedAttacks;
+  },
+): Result<CombatState> {
+  if (grant.action === undefined && grant.attacks === undefined) {
+    return err('nothing_granted', `nothing was added to ${id}'s turn`);
+  }
+
+  const budget = requireTheirTurn(state, id);
+  if (!budget.ok) return budget;
+
+  const standing = budget.value.grantedAttacks;
+  if (
+    grant.attacks !== undefined &&
+    standing !== null &&
+    standing.remaining > 0 &&
+    standing.unarmedOnly !== grant.attacks.unarmedOnly
+  ) {
+    return err(
+      'attacks_outstanding',
+      `${id} still has ${standing.remaining} granted attack(s) under a different rule about what may be swung`,
+    );
+  }
+
+  return ok(
+    withBudget(
+      state,
+      id,
+      {
+        ...(grant.action === undefined
+          ? {}
+          : { extraActions: [...budget.value.extraActions, grant.action] }),
+        ...(grant.attacks === undefined
+          ? {}
+          : {
+              grantedAttacks: {
+                remaining: (standing?.remaining ?? 0) + grant.attacks.remaining,
+                unarmedOnly: grant.attacks.unarmedOnly,
+              },
+            }),
+      },
+      budget.value,
+    ),
+  );
 }
 
 /** SRD: "You can't take more than one Bonus Action on a turn." */
@@ -909,9 +1079,29 @@ export function spendAttack(
   attacksPerAction: number,
   conditions?: ConditionState,
   spend?: Spend,
+  unarmed = false,
 ): Result<{ readonly state: CombatState; readonly tookAction: boolean }> {
   const budget = requireTheirTurn(state, id);
   if (!budget.ok) return budget;
+
+  // **Attacks something else bought come first**, where the swing qualifies
+  // for them. A Monk who flurried and then swings a Quarterstaff does not
+  // qualify and falls through to the ordinary price, which is the Attack
+  // action they still have; a Monk who swings a fist spends what the Focus
+  // Point bought and keeps the action. Taking the cheaper price first is never
+  // worse — the action is still there afterwards either way.
+  const granted = budget.value.grantedAttacks;
+  if (granted !== null && granted.remaining > 0 && (!granted.unarmedOnly || unarmed)) {
+    return ok({
+      state: withBudget(
+        state,
+        id,
+        { grantedAttacks: { ...granted, remaining: granted.remaining - 1 } },
+        budget.value,
+      ),
+      tookAction: false,
+    });
+  }
 
   // Still inside an Attack action already taken.
   if (budget.value.attacksRemaining !== null) {

@@ -54,7 +54,7 @@ import {
   type SlotlessReason,
   type WrittenOngoing,
 } from './spells.js';
-import { type CombatantInput, type GrantedActionRule } from './combat.js';
+import { type CombatantInput, type GrantedActionRule, type NamedAction } from './combat.js';
 import { type GrantedAttackRider, type GrantedSpeed, type StandingEffect } from './standing.js';
 import {
   type CoverDegree,
@@ -1345,7 +1345,17 @@ export type GameEvent =
    * many attacks a feature puts in it. The reducer works out which of the two
    * this is, from the budget and the sheet.
    */
-  | { readonly type: 'attack-made'; readonly id: CharacterId }
+  /**
+   * A swing, and whether it was an Unarmed Strike.
+   *
+   * The flag is what lets the reducer spend the same thing the command spent.
+   * SRD Flurry of Blows buys attacks an Unarmed Strike may take and a weapon
+   * may not, and the price of a swing therefore depends on which it was — a
+   * fact only the command held until this field. Absent means no, which is
+   * what every log written before it says and what every armed swing says
+   * still.
+   */
+  | { readonly type: 'attack-made'; readonly id: CharacterId; readonly unarmed?: boolean }
   | { readonly type: 'dash-taken'; readonly id: CharacterId; readonly command?: CommandStamp }
   | {
       readonly type: 'disengage-taken';
@@ -1381,6 +1391,34 @@ export type GameEvent =
       readonly type: 'initiative-swapped';
       readonly a: CharacterId;
       readonly b: CharacterId;
+      readonly command?: CommandStamp;
+    }
+  /**
+   * Something added to what this turn may be spent on.
+   *
+   * SRD Action Surge's "you can take one additional action" and SRD Flurry of
+   * Blows' "two Unarmed Strikes as a Bonus Action" — one event, because they
+   * are one fact about a turn arriving by two doors, and because the thing
+   * they write is the same `TurnBudget` and nothing else may write it.
+   *
+   * **What the purchase cost is not here.** The Focus Point is the
+   * `resource-spent` beside it and the Bonus Action is the
+   * `bonus-action-spent`, both folded by this seam and by `fold/resources.ts`
+   * exactly as every other spender's are. This event is what was *bought*.
+   *
+   * The numbers are pinned from the feature that sold it — the count, the
+   * narrowing, the name — so the fold opens no catalogue and a log written
+   * against last year's Monk still replays.
+   */
+  | {
+      readonly type: 'turn-budget-granted';
+      readonly id: CharacterId;
+      /** What the log calls whatever bought it: SRD's "Action Surge". */
+      readonly source: string;
+      /** SRD Action Surge: "one additional action, except the Magic action". */
+      readonly action?: { readonly except?: readonly NamedAction[] };
+      /** SRD Flurry of Blows: "two Unarmed Strikes". */
+      readonly attacks?: { readonly remaining: number; readonly unarmedOnly: boolean };
       readonly command?: CommandStamp;
     }
 

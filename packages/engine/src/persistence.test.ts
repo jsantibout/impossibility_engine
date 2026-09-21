@@ -304,6 +304,7 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'test-settled',
   'time-advanced',
   'turn-advanced',
+  'turn-budget-granted',
   'turn-payout-granted',
 ];
 

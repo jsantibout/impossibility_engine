@@ -22,6 +22,7 @@ import {
   MAX_ABILITY_SCORE,
   abilityModifier,
   proficiencyBonusForLevel,
+  type BudgetPurchase,
   type CharacterSheet,
   type UnarmoredDefense,
 } from './character.js';
@@ -2603,6 +2604,36 @@ export function planCharacter(
     });
   }
 
+  // What a use of a pool buys, where what it buys is room in the turn's own
+  // budget — SRD Action Surge's additional action, SRD Flurry of Blows' two
+  // Unarmed Strikes.
+  //
+  // **Nothing is resolved here**, which is what tells this pass apart from the
+  // one below it: no class table is read, because an extra action is one
+  // action at every level and a Flurry is two strikes at every level the SRD
+  // prints it at. It is compiled onto the sheet all the same, so the command
+  // that spends a use reads a sheet rather than a catalogue — the rule every
+  // other menu keeps, and the one that makes the numbers on the event pinned
+  // rather than looked up.
+  const budgetPurchases: BudgetPurchase[] = [];
+  for (const feature of features) {
+    const grant = feature.grants;
+    if (grant?.kind !== 'pool' || grant.buysBudget === undefined) continue;
+    for (const purchase of grant.buysBudget) {
+      budgetPurchases.push({
+        feature: feature.id,
+        featureName: feature.name,
+        purchase: purchase.id,
+        name: purchase.name,
+        pool: grant.key,
+        action: purchase.action,
+        ...(purchase.extraAction === undefined ? {} : { extraAction: purchase.extraAction }),
+        ...(purchase.extraAttacks === undefined ? {} : { extraAttacks: purchase.extraAttacks }),
+        ...(purchase.oncePerTurn === undefined ? {} : { oncePerTurn: purchase.oncePerTurn }),
+      });
+    }
+  }
+
   // What a use of a pool buys, where what it buys is an effect list. The dice
   // are resolved here for the same reason a self-heal's are — SRD Divine
   // Spark's die is a column of the Cleric table — and the spellcasting ability
@@ -3071,6 +3102,7 @@ export function planCharacter(
     ...(selfHeals.length === 0 ? {} : { selfHeals }),
     ...(healingTouch.length === 0 ? {} : { healingTouch }),
     ...(poolOptions.length === 0 ? {} : { poolOptions }),
+    ...(budgetPurchases.length === 0 ? {} : { budgetPurchases }),
     ...(castingOptions.length === 0 ? {} : { castingOptions }),
     ...(hitOptions.length === 0 ? {} : { hitOptions }),
     // The *first* casting class's ability, and null for a character who casts

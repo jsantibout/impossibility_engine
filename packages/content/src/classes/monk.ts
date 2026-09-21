@@ -138,13 +138,24 @@ export const MONK: ClassDefinition = {
       name: "Monk's Focus",
       level: 2,
       automation: 'engine',
-      note: 'Declared as a pool of Focus Points sized by the class table, refilling on a **Short** Rest — SRD: "unavailable until you finish a Short or Long Rest, at the end of which you regain all your expended points", which is all-or-nothing and needs nothing the pool system lacks. What the points buy — Flurry of Blows, Patient Defense, Step of the Wind — is not executed.',
+      note: 'Declared as a pool of Focus Points sized by the class table, refilling on a **Short** Rest — SRD: "unavailable until you finish a Short or Long Rest, at the end of which you regain all your expended points", which is all-or-nothing and needs nothing the pool system lacks. One of the three things the points buy is executed: Flurry of Blows, "expend 1 Focus Point to make two Unarmed Strikes as a Bonus Action" — a Bonus Action and a point buy two attacks that no weapon may take and that cost no Attack action. Patient Defense and Step of the Wind are still the table’s: each is an action taken out of a cheaper slot, which the vocabulary can say, at a price in points, which it cannot — an allowance is derived on every read and nothing can charge for one.',
       grants: {
         kind: 'pool',
         key: 'focus-points',
         label: 'Focus Points',
         usesByLevel: FOCUS_POINTS,
         recovers: 'short-rest',
+        buysBudget: [
+          {
+            id: 'flurry-of-blows',
+            name: 'Flurry of Blows',
+            // "as a Bonus Action", which is the whole of what it costs beside
+            // the point itself.
+            action: 'bonus-action',
+            // "two Unarmed Strikes" — two, and no weapon takes one of them.
+            extraAttacks: { count: 2, unarmedOnly: true },
+          },
+        ],
       },
     },
     {

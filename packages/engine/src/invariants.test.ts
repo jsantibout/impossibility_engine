@@ -113,6 +113,7 @@ import {
   unequipItem,
   useHealingTouch,
   useItem,
+  useBudgetPurchase,
   usePoolOption,
   useRecovery,
   useSelfHeal,
@@ -219,6 +220,20 @@ const sheet = (over: Partial<CharacterSheet> = {}): CharacterSheet => ({
   // option, aimed at a creature in reach, so the two sweeps below have a
   // well-formed call to make — the heal is the least interesting effect there
   // is, which is the point: the entries are about the identity and the guard.
+  // What a use of a pool buys, where what it buys is room in the turn's own
+  // budget. One purchase, costing nothing to invoke, so the two sweeps have a
+  // well-formed call to make.
+  budgetPurchases: [
+    {
+      feature: 'test:channelling',
+      featureName: 'A Channelling',
+      purchase: 'surge',
+      name: 'A Second Wind Of Purpose',
+      pool: 'test:vigour',
+      action: 'none',
+      extraAction: {},
+    },
+  ],
   poolOptions: [
     {
       feature: 'test:channelling',
@@ -1988,6 +2003,17 @@ const GUARDED: readonly Guarded[] = [
    * the use goes and the effects resolve in one batch, so an unguarded retry
    * is a second use of a pool that has one less in it.
    */
+  /**
+   * A feature's pool use, where what the use buys is room in the turn's own
+   * budget: an unguarded retry is a second point spent and a second action
+   * added to a turn that is entitled to one.
+   */
+  {
+    name: 'useBudgetPurchase',
+    log: vigorous(),
+    run: (s, commandId) =>
+      useBudgetPurchase(s, A, { feature: 'test:channelling', purchase: 'surge', commandId }),
+  },
   {
     name: 'usePoolOption',
     log: vigorous(),
@@ -2435,6 +2461,17 @@ const SPENDERS: readonly Spender[] = [
   {
     name: 'usePoolOption',
     run: (s) => usePoolOption(s, B, { feature: 'test:channelling', option: 'mend' }, supply()),
+  },
+  /**
+   * A feature's pool use that buys room in the turn budget. It takes a pool
+   * use — the sweep's own definition of spending — and may take a Bonus Action
+   * with it, and a creature owing a mandatory area effect may spend neither.
+   * The arguments need only be well-formed: `mayAct` is asked immediately
+   * after the duplicate check and before the feature is looked up at all.
+   */
+  {
+    name: 'useBudgetPurchase',
+    run: (s) => useBudgetPurchase(s, B, { feature: 'test:channelling', purchase: 'surge' }),
   },
 ];
 

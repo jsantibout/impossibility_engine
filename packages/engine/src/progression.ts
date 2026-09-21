@@ -8,6 +8,7 @@ import {
 } from '@ie/shared';
 import type { WeaponMastery } from '@ie/srd';
 import type { WeaponSelector } from './attack.js';
+import type { NamedAction } from './combat.js';
 import type { ArmorTraining } from './character.js';
 import type { TurnAnchor } from './time.js';
 import type { EffectEndCause } from './timers.js';
@@ -430,6 +431,53 @@ export interface PoolOptionGrant {
    * buys.
    */
   readonly distributes?: HitPointDivision;
+}
+
+/**
+ * One thing a pool's use buys, where what it buys is room in the turn budget.
+ *
+ * Two SRD sentences and one shape:
+ *
+ * | | SRD | |
+ * |---|---|---|
+ * | Action Surge | "On your turn, you can take one additional action, except the Magic action" | {@link extraAction}, costing nothing to invoke |
+ * | Flurry of Blows | "expend 1 Focus Point to make two Unarmed Strikes as a Bonus Action" | {@link extraAttacks}, costing a Bonus Action |
+ *
+ * **What it may not say is as much the point as what it may.** There is no
+ * field for an action granted to somebody *else*, and none for an extra action
+ * that arrives every turn for a while rather than once when it is bought:
+ * the first is the budget of a creature the engine is not playing, and the
+ * second has no host here at all, because a pool use happens once and a
+ * `TurnBudget` is rebuilt at every turn.
+ */
+export interface BudgetPurchaseGrant {
+  /** The purchase's own id, named by the caller who spends the use. */
+  readonly id: string;
+  /** What the log calls it — SRD's "Flurry of Blows". */
+  readonly name: string;
+  /**
+   * What invoking it costs in the economy, beside the use itself.
+   *
+   * `none` is Action Surge's answer and is a member rather than an absence
+   * because the SRD prints it: "On your turn, you can take one additional
+   * action" costs nothing to say, and a purchase that cost an Action to buy an
+   * Action would buy nothing at all.
+   */
+  readonly action: 'action' | 'bonus-action' | 'none';
+  /** SRD Action Surge: "one additional action, except the Magic action". */
+  readonly extraAction?: { readonly except?: readonly NamedAction[] };
+  /** SRD Flurry of Blows: "two Unarmed Strikes". */
+  readonly extraAttacks?: { readonly count: number; readonly unarmedOnly: boolean };
+  /**
+   * SRD Action Surge at Fighter 17: "you can use it twice before a rest but
+   * **only once on a turn**."
+   *
+   * The ledger this reads is the one Sneak Attack's "once per turn" already
+   * uses — `featureUsedOnTurn`, keyed by the turn rather than by a flag,
+   * because the two are only distinguishable on somebody else's turn and the
+   * budget refresh would clear a flag at the one moment that does not matter.
+   */
+  readonly oncePerTurn?: boolean;
 }
 
 /**
@@ -1150,6 +1198,26 @@ export type FeatureGrant =
        * needs no pool of their own.
        */
       readonly confersReaction?: ConferredReactionGrant;
+      /**
+       * What one use buys, where what it buys is **room in the turn's own
+       * budget** — SRD Action Surge and SRD Flurry of Blows.
+       *
+       * The fifth answer to "what does a use of this pool buy", beside
+       * {@link heals}, `touchHeals`, {@link options} and
+       * {@link confersReaction}, and a list for the reason `options` is one:
+       * `FeatureDefinition.grants` is singular and the SRD prints one feature
+       * whose points buy several different things. Monk's Focus is that
+       * feature exactly — "You start knowing three such features: Flurry of
+       * Blows, Patient Defense, and Step of the Wind" — which is the owner's
+       * Channel Divinity ruling arriving at a second pool: a shell with one
+       * pool, and each purchase a form the shell takes.
+       *
+       * **It is not {@link options}.** Those buy an effect list resolved over
+       * targets; these buy nothing that happens to anybody at all. What they
+       * write is a `TurnBudget`, which no effect kind reaches and no resolver
+       * may — see `GrantedAction`.
+       */
+      readonly buysBudget?: readonly BudgetPurchaseGrant[];
     }
   /**
    * A form **another feature's** menu takes — a subclass adding an option to a

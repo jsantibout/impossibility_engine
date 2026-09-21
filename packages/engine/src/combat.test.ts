@@ -260,6 +260,8 @@ describe('startCombat', () => {
       // Null rather than 1: the Attack action has not been taken, which is a
       // different state from having taken it and used every attack in it.
       attacksRemaining: null,
+      extraActions: [],
+      grantedAttacks: null,
       disengaged: false,
       freeInteraction: true,
       spellSlotSpentOnTurn: null,
