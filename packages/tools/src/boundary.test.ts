@@ -79,11 +79,17 @@ const swept = (): { file: string; text: string }[] =>
  *    its caller. `rollAttackDamage` was on the DM list alone for this reason
  *    and is on both now: a name forbidden the wider surface and allowed the
  *    narrower one is a hole rather than an asymmetry.
+ * 5. **The generator itself.** Forbidding every roller and leaving open the
+ *    two functions that *make* the thing they roll is the guard with the door
+ *    in it: `Rng.int(20)` is a face, and a seed the caller chose decides which
+ *    one. `campaign.ts` is exempt by name — see {@link REBUILDS_THE_GENERATOR}
+ *    — because rebuilding one per call from `state.rng` and throwing it away
+ *    is what that file is for, and is what makes a refusal free.
  *
  * The fourth group is **derived** below rather than trusted — every public
  * engine function outside `commands/` that takes an `Rng` must be on this
  * list, so the next roller somebody exports fails this file instead of
- * slipping past it. The first three take no generator and cannot be derived,
+ * slipping past it. The other four take no generator and cannot be derived,
  * which is why they are written out and why the derivation is not the whole
  * guard.
  */
@@ -118,7 +124,26 @@ const FORBIDDEN = [
   'rollAttackDamage',
   'rollInitiative',
   'rollDeathSave',
+  // — the generator every roller above needs, and one file may rebuild ———————
+  'createRng',
+  'restoreRng',
 ];
+
+/**
+ * The one file that may name a generator, and the two names it may name.
+ *
+ * An exemption is the weakest thing in a guard, so it is one file and two
+ * names and it is checked: a test below holds `campaign.ts` to actually
+ * importing both, because an exemption for an import nobody makes is a hole
+ * kept open for nothing.
+ */
+const REBUILDS_THE_GENERATOR = {
+  file: 'campaign.ts',
+  names: ['createRng', 'restoreRng'] as readonly string[],
+};
+
+const mayNameAGenerator = (file: string, name: string): boolean =>
+  file === REBUILDS_THE_GENERATOR.file && REBUILDS_THE_GENERATOR.names.includes(name);
 
 /**
  * Why each of them is on the list.
@@ -168,6 +193,9 @@ const FORBIDDEN_BECAUSE: Readonly<Record<string, string>> = {
   rollInitiative:
     'the primitive under rollInitiativeAndBeginCombat, which is the command a caller may have instead',
   rollDeathSave: 'throws a death save with no command to put it in the log',
+  createRng:
+    'makes a generator from a seed the caller chose, and Rng.int hands a face straight back — which is every group above in two lines and no forbidden name at all',
+  restoreRng: 'the same generator, resumed from a snapshot rather than built from a seed',
 };
 
 /** The engine's own source, for the one guard that asks what it exports. */
@@ -189,6 +217,15 @@ const ENGINE = fileURLToPath(new URL('../../engine/src/', import.meta.url));
  * Comments are stripped first: the engine's prose names its own rollers
  * constantly, and a sweep that read `rollAttackDamage` out of a sentence about
  * `rollAttackDamage` would find functions that do not exist.
+ *
+ * **What it reads, exactly.** An `export function`, in a file directly under
+ * `engine/src`, whose signature ends in an explicit return type, with a
+ * parameter spelled `rng: Rng`. That is four assumptions, and a derivation is
+ * only a guard while they hold — a roller declared as an arrow, or taking a
+ * `Rng` under another name, or in a new engine subdirectory, would be
+ * invisible to it and the list would go on looking complete. So each of the
+ * four is asserted separately in `nothing the walk cannot read`, below; this
+ * function makes no claim about them on its own.
  */
 function rollersOutsideACommand(): string[] {
   const found: string[] = [];
@@ -200,6 +237,45 @@ function rollersOutsideACommand(): string[] {
     }
   }
   return found.sort();
+}
+
+/**
+ * The ways of declaring a roller that {@link rollersOutsideACommand} would
+ * not see, found in one engine file's text.
+ *
+ * Three of its four assumptions, each written as a detector rather than as a
+ * sentence in a comment, so the day the engine starts declaring a roller some
+ * other way it fails here instead of falling off the list.
+ */
+function shapesTheWalkCannotRead(file: string, source: string): string[] {
+  const breaches: string[] = [];
+  const text = source.replace(/\/\*[\s\S]*?\*\//g, '');
+  const read = [...text.matchAll(/export function (\w+)\(([\s\S]*?)\)\s*:/g)];
+
+  // One: a generator parameter spelled something other than `rng`, which the
+  // walk finds and then throws away.
+  for (const match of read) {
+    if (/:\s*Rng\b/.test(match[2]!) && !/\brng\s*:\s*Rng\b/.test(match[2]!)) {
+      breaches.push(`${file}: ${match[1]!} takes an Rng under another name`);
+    }
+  }
+
+  // Two: an exported function the walk could not read at all — which is what
+  // a missing return type does to it, since the signature regex ends at `):`
+  // and runs on into the body looking for one.
+  const declared = [...text.matchAll(/export function (\w+)\(/g)].map((match) => match[1]!);
+  if (declared.join(',') !== read.map((match) => match[1]!).join(',')) {
+    breaches.push(`${file}: the walk reads ${read.length} of ${declared.length} exported functions`);
+  }
+
+  // Three: an exported arrow, which the walk does not look for at all.
+  for (const match of text.matchAll(/export const (\w+)[\s\S]{0,400}?=>/g)) {
+    if (/:\s*Rng\b/.test(match[0]!)) {
+      breaches.push(`${file}: ${match[1]!} is an arrow taking an Rng`);
+    }
+  }
+
+  return breaches;
 }
 
 /** Every identifier this package imports from `@ie/engine`, file by file. */
@@ -246,10 +322,27 @@ describe('the surface cannot reach the external-roll functions', () => {
     const breaches: string[] = [];
     for (const { file, text } of swept()) {
       for (const name of engineImports(text)) {
-        if (FORBIDDEN.includes(name)) breaches.push(`${file} imports ${name}`);
+        if (FORBIDDEN.includes(name) && !mayNameAGenerator(file, name)) {
+          breaches.push(`${file} imports ${name}`);
+        }
       }
     }
     expect(breaches).toEqual([]);
+  });
+
+  it('and the one exemption on that sweep is real, and is one file', () => {
+    // An exemption nobody uses is a hole held open for nothing, and an
+    // exemption nobody checks is a list of names somebody can add to. So
+    // `campaign.ts` has to actually make both imports for the sentence
+    // excusing it to mean anything.
+    const campaign = swept().find(({ file }) => file === REBUILDS_THE_GENERATOR.file);
+    expect(campaign, 'the exempt file exists').toBeDefined();
+    for (const name of REBUILDS_THE_GENERATOR.names) {
+      expect(engineImports(campaign!.text), name).toContain(name);
+    }
+    // And the exemption is aimed at the list: a name excused here that nothing
+    // forbids is a sentence about nothing.
+    expect(REBUILDS_THE_GENERATOR.names.filter((name) => !FORBIDDEN.includes(name))).toEqual([]);
   });
 
   it('reaches the engine only through named imports, which the sweep can read', () => {
@@ -320,6 +413,55 @@ describe('the surface cannot reach the external-roll functions', () => {
     expect(rollers).toContain('rollAttackDamage');
     expect(rollers.length).toBeGreaterThan(10);
     expect(rollers.filter((name) => !FORBIDDEN.includes(name))).toEqual([]);
+  });
+
+  it('and nothing the walk cannot read throws dice: its assumptions, asserted', () => {
+    // A derivation that quietly reads less than it used to is worse than a
+    // hand list, because a hand list at least does not claim to keep up. Three
+    // of the four things `rollersOutsideACommand` assumes are checked over the
+    // engine's own text here; the fourth is the directory set below.
+    const breaches: string[] = [];
+    const directories: string[] = [];
+    for (const entry of readdirSync(ENGINE, { withFileTypes: true })) {
+      if (entry.isDirectory()) {
+        directories.push(entry.name);
+        continue;
+      }
+      if (!entry.name.endsWith('.ts') || entry.name.includes('.test.')) continue;
+      const text = readFileSync(ENGINE + entry.name, 'utf8');
+      breaches.push(...shapesTheWalkCannotRead(entry.name, text));
+    }
+    expect(breaches).toEqual([]);
+
+    // And "outside a command" still names the directories it thinks it does.
+    // A third one would be read by neither this walk nor `commands/`, in
+    // silence, which is the shape of hole the whole file is about.
+    expect(directories.sort()).toEqual(['commands', 'fold']);
+  });
+
+  it('and those detectors catch the shapes they are aimed at', () => {
+    // A detector nobody tested is a guard nobody tested, and these three are
+    // aimed at code that does not exist yet — so the fixtures are the only
+    // way to know they would fire. Each is a roller written the way the walk
+    // cannot read, and each must come back named.
+    const caught = (source: string) => shapesTheWalkCannotRead('probe.ts', source);
+
+    expect(
+      caught('export function rollThing(issuer: RollIssuer, generator: Rng): number {\n  return 1;\n}\n'),
+    ).toEqual(['probe.ts: rollThing takes an Rng under another name']);
+
+    expect(
+      caught('export function rollThing(issuer: RollIssuer, rng: Rng) {\n  return 1;\n}\n'),
+    ).toContain('probe.ts: the walk reads 0 of 1 exported functions');
+
+    expect(caught('export const rollThing = (rng: Rng): number => rng.int(20);\n')).toEqual([
+      'probe.ts: rollThing is an arrow taking an Rng',
+    ]);
+
+    // And it does not cry wolf at the way the engine actually writes one.
+    expect(
+      caught('export function rollThing(issuer: RollIssuer, rng: Rng): number {\n  return 1;\n}\n'),
+    ).toEqual([]);
   });
 
   it('and mints no roll of its own out of the supply it is handed', () => {

@@ -88,6 +88,11 @@ const swept = (): { file: string; text: string }[] =>
  *   its log. `rollAttackDamage` is where that reason was first written down,
  *   and it is on step one's list now too: a name forbidden the wider surface
  *   and allowed the narrower one was a hole, not an asymmetry.
+ * - `createRng` and `restoreRng` make the generator all of those need, and
+ *   `Rng.int(20)` is a face. Step one exempts `campaign.ts`, which rebuilds
+ *   one per call and throws it away; **nothing here is exempt**, because no
+ *   file under `dm/` rebuilds a generator at all — `supply()` is passed whole
+ *   to the command that rolls, which is the only thing that should hold one.
  */
 const FORBIDDEN_HERE = [
   'recordExternalD20',
@@ -115,6 +120,8 @@ const FORBIDDEN_HERE = [
   'rollAttackDamage',
   'rollInitiative',
   'rollDeathSave',
+  'createRng',
+  'restoreRng',
 ];
 
 /**
