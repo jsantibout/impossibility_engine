@@ -48,6 +48,7 @@ import {
   multiattackAllows,
   multiattackOf,
   printedAttackOf,
+  statedBonusActionsUsed,
   unreadActionsOf,
 } from '../monster.js';
 import { type CommandIdentity, once } from '../idempotency.js';
@@ -628,6 +629,19 @@ export function resolveAttack(
     // follows.
     const sequence = multiattackOf(sheet);
     const budget = state.combat?.budgets[id] ?? null;
+    // The lines this creature's block prints that it has taken this turn, which
+    // is what a branch the block gates asks about — SRD Clay Golem's third
+    // Slam. Read off the same ledger the swings inside the action are counted
+    // in, so the composition and the size of the action cannot come to disagree
+    // about which branch is being taken; empty outside a fight, where there is
+    // no turn to have taken anything on.
+    const linesUsed =
+      state.combat === null
+        ? []
+        : statedBonusActionsUsed(
+            state.combat.budgets[id]?.featureUsedOnTurn ?? {},
+            state.combat.turnsTaken,
+          );
     let slot: string | null = null;
     // The composition is a rule about one Attack action, and outside combat
     // there is no turn to hold one — the same absence Cleave, Slow, Sap and Vex
@@ -688,7 +702,7 @@ export function resolveAttack(
       // follow. Everything after it is measured against the whole turn's
       // swings — so a Claw and a Bite is refused as surely as two Claws are,
       // and for the same reason: neither pair is what the block printed.
-      if (budget.attacksRemaining !== null && !multiattackAllows(sequence, next)) {
+      if (budget.attacksRemaining !== null && !multiattackAllows(sequence, next, linesUsed)) {
         return err(
           'not_in_multiattack',
           `${id}'s block prints ${describeMultiattack(sequence)} in one action, and a ${attackName} is not what is left of it`,
@@ -751,9 +765,10 @@ export function resolveAttack(
         id,
         // SRD Hydra: "as many Bite attacks as it has heads" — the size of the
         // action follows a declared head count where the block states no
-        // sequence the engine can execute, and is the sheet's number
-        // otherwise. The fold spends the same answer.
-        attacksInAction(sheet, attacker.heads),
+        // sequence the engine can execute, is the largest branch the creature
+        // is offered where it states one, and is the sheet's number otherwise.
+        // The fold spends the same answer.
+        attacksInAction(sheet, attacker.heads, linesUsed),
         attacker.conditions,
         { rules: actionRulesOn(state, id) },
       );

@@ -12,9 +12,15 @@ import type {
   CreatureSize,
   Monster,
   MonsterMultiattack,
+  MonsterMultiattackBranch,
   MonsterMultiattackEntry,
+  MonsterMultiattackGate,
   MonsterTrait,
 } from '@ie/srd';
+// The two readers of the branch shape, from the subpath that is schemas and no
+// data: a value imported from the barrel loads the whole parsed SRD into every
+// process that imports the engine, which `srd-barrel.test.ts` is the guard for.
+import { entriesOfBranch, gateOfBranch } from '@ie/srd/schemas';
 import type { DamageDefenses } from './attack.js';
 import type {
   CharacterSheet,
@@ -256,10 +262,19 @@ function printedMultiattack(
   const bind = (name: string): string | undefined =>
     attacks.find((attack) => attack.name.toLowerCase() === name.toLowerCase())?.name;
 
-  const branches: MonsterMultiattackEntry[][] = [];
-  for (const branch of alternativesOf(stated)) {
+  // The gate's name is bound the same way an attack's is, against the lines the
+  // block prints under Bonus Actions — so a sequence reaching the sheet never
+  // names a line the creature has no way to take, and a gate that binds to
+  // nothing takes its whole sequence with it exactly as a loose attack name
+  // does. What comes back is the **printed** heading, which is what a caller
+  // spends and what the ledger records.
+  const bindLine = (name: string): string | undefined =>
+    monster.bonusActions.find((line) => line.name.toLowerCase() === name.toLowerCase())?.name;
+
+  const branches: MonsterMultiattackBranch[] = [];
+  for (const branch of branchesOf(stated)) {
     const bound: MonsterMultiattackEntry[] = [];
-    for (const entry of branch) {
+    for (const entry of branch.entries) {
       // A menu is a list of names and a single name is a list of one, so both
       // are bound the same way and the shape the block printed is kept.
       const names = entry.attacks ?? [entry.attack!];
@@ -271,11 +286,20 @@ function printedMultiattack(
           : { count: entry.count, attacks: printed as string[] },
       );
     }
-    branches.push(bound);
+
+    if (branch.requires === null) {
+      branches.push(bound);
+      continue;
+    }
+    const line = bindLine(branch.requires.usedBonusAction);
+    if (line === undefined) return undefined;
+    branches.push({ entries: bound, requires: { usedBonusAction: line } });
   }
 
   return {
-    ...(stated.alternatives === undefined ? { entries: branches[0]! } : { alternatives: branches }),
+    ...(stated.alternatives === undefined
+      ? { entries: [...entriesOfBranch(branches[0]!)] }
+      : { alternatives: branches }),
     // Carried across whole. It is text rather than a mechanism, and what reads
     // it reports it to whoever is driving rather than spending anything.
     ...(stated.handOver === undefined ? {} : { handOver: stated.handOver }),
@@ -283,32 +307,76 @@ function printedMultiattack(
 }
 
 /**
- * The sequences a stated Multiattack offers, always as a list of them.
+ * The branches a stated Multiattack offers, always as a list of them, each with
+ * whatever it requires.
  *
  * One member for the ordinary block and two where the sentence prints a choice.
  * Every reader below works in these terms, so a one-sequence block is the
- * degenerate case of the general one rather than a branch of its own.
+ * degenerate case of the general one rather than a branch of its own — and a
+ * branch that requires nothing is the degenerate case of a gated one, which is
+ * what keeps the gate out of every reader that does not care about it.
  */
-const alternativesOf = (
+const branchesOf = (
   sequence: MonsterMultiattack,
-): readonly (readonly MonsterMultiattackEntry[])[] => sequence.alternatives ?? [sequence.entries!];
+): readonly {
+  readonly entries: readonly MonsterMultiattackEntry[];
+  readonly requires: MonsterMultiattackGate | null;
+}[] =>
+  sequence.alternatives === undefined
+    ? [{ entries: sequence.entries!, requires: null }]
+    : sequence.alternatives.map((branch) => ({
+        entries: entriesOfBranch(branch),
+        requires: gateOfBranch(branch),
+      }));
+
+/**
+ * The branches this creature is offered **right now**.
+ *
+ * A gate asks one question — did this creature take the line the gate names, on
+ * the turn in progress — and the answer is the ledger's. Outside a turn, or on
+ * one where nothing was taken, the list is empty and only the ungated branches
+ * are offered, which is the reading that keeps a gated branch from being a
+ * branch at all until it is bought.
+ */
+const offeredBranches = (
+  sequence: MonsterMultiattack,
+  linesUsed: readonly string[],
+): readonly { readonly entries: readonly MonsterMultiattackEntry[] }[] =>
+  branchesOf(sequence).filter(
+    (branch) =>
+      branch.requires === null ||
+      linesUsed.some(
+        (line) => line.toLowerCase() === branch.requires!.usedBonusAction.toLowerCase(),
+      ),
+  );
 
 /** The printed names one entry admits — one, or the menu's several. */
 const namesOf = (entry: MonsterMultiattackEntry): readonly string[] =>
   entry.attacks ?? [entry.attack!];
 
 /**
- * How many swings a stated sequence adds up to.
+ * How many swings a stated sequence adds up to, for a creature that has taken
+ * the lines named.
  *
- * The largest branch, where the block prints a choice. Every alternation the
- * SRD prints totals the same either way, and the largest is the honest reading
- * of one that did not: the action's size is a ceiling, and which swings are
- * legal inside it is settled by the composition rather than by this number.
+ * The largest branch it is **offered**, where the block prints a choice. Every
+ * ungated alternation the SRD prints totals the same either way, and the
+ * largest is the honest reading of one that did not: the action's size is a
+ * ceiling, and which swings are legal inside it is settled by the composition
+ * rather than by this number.
+ *
+ * **A gated branch is not in the maximum until the gate is open**, and that is
+ * the whole of what stops the Clay Golem making three Slams on a turn it did
+ * nothing to earn them. The default is no lines taken, which is what the
+ * adapter pins onto the sheet: the number a creature has before it has done
+ * anything.
  */
-const sequenceTotal = (sequence: MonsterMultiattack): number =>
+const sequenceTotal = (
+  sequence: MonsterMultiattack,
+  linesUsed: readonly string[] = [],
+): number =>
   Math.max(
-    ...alternativesOf(sequence).map((branch) =>
-      branch.reduce((sum, entry) => sum + entry.count, 0),
+    ...offeredBranches(sequence, linesUsed).map((branch) =>
+      branch.entries.reduce((sum, entry) => sum + entry.count, 0),
     ),
   );
 
@@ -357,10 +425,22 @@ export const unreadActionsOf = (sheet: CharacterSheet): readonly string[] =>
 export const attacksInAction = (
   sheet: CharacterSheet,
   heads: number | null,
-): number =>
-  heads !== null && heads >= 1 && sheet.stated !== undefined && multiattackOf(sheet) === null
-    ? heads
-    : (sheet.attacksPerAction ?? 1);
+  linesUsed: readonly string[],
+): number => {
+  const sequence = multiattackOf(sheet);
+  if (sequence === null) {
+    // SRD Hydra, and every creature whose block states no sequence at all.
+    return heads !== null && heads >= 1 && sheet.stated !== undefined
+      ? heads
+      : (sheet.attacksPerAction ?? 1);
+  }
+  // **Re-read rather than taken off the sheet**, because a branch the block
+  // gates is a branch whose size changes within a turn: `attacksPerAction` was
+  // pinned when the creature arrived and is the ungated reading, which is the
+  // same number this gives while nothing has been taken. A creature that has
+  // taken the line the gate names is offered the branch that gate buys.
+  return sequenceTotal(sequence, linesUsed);
+};
 
 /**
  * Whether one branch can account for a turn's swings.
@@ -402,23 +482,36 @@ function branchAdmits(
  * Devil's first Claws closes the Hurl Flame branch by itself, because that
  * branch admits no Claws at all, and the swings already made are the whole of
  * what decides which sequence is being taken.
+ *
+ * **And some branch the creature is offered.** A gated branch is not one of
+ * them until the line the gate names has been taken this turn, which is the
+ * difference between a Clay Golem's third Slam and a third Slam.
  */
 export const multiattackAllows = (
   sequence: MonsterMultiattack,
   made: Readonly<Record<string, number>>,
-): boolean => alternativesOf(sequence).some((branch) => branchAdmits(branch, made));
+  linesUsed: readonly string[] = [],
+): boolean =>
+  offeredBranches(sequence, linesUsed).some((branch) => branchAdmits(branch.entries, made));
 
 /**
  * What a stated sequence prints, in words, for a refusal to quote back.
  *
  * Built out of the block's own names and counts; nothing here is a string this
- * file chose.
+ * file chose. **A branch says what it requires**, because a caller told only
+ * that a third Slam is not what is left of the sequence would not learn that
+ * there is a way to have one.
  */
 export function describeMultiattack(sequence: MonsterMultiattack): string {
-  return alternativesOf(sequence)
-    .map((branch) =>
-      branch.map((entry) => `${entry.count} × ${namesOf(entry).join(' or ')}`).join(' and '),
-    )
+  return branchesOf(sequence)
+    .map((branch) => {
+      const clauses = branch.entries
+        .map((entry) => `${entry.count} × ${namesOf(entry).join(' or ')}`)
+        .join(' and ');
+      return branch.requires === null
+        ? clauses
+        : `${clauses} on a turn it used ${branch.requires.usedBonusAction}`;
+    })
     .join(', or ');
 }
 

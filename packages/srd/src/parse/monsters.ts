@@ -486,6 +486,39 @@ const TRAILING_USE = /,? (?:and|or) (?:it )?(?:can )?uses? [^.]*$/;
  */
 const NAMED_USE_CLAUSE = new RegExp(`^,? and (?:it )?(?:can )?uses? (${NAMES})$`);
 
+/**
+ * " if it used Hasten this turn" — the one gate the book prints on a branch.
+ *
+ * Anchored at the end of the branch it trails, and it names one thing: a line
+ * the same block prints under Bonus Actions. Anything else the clause could
+ * say — a condition on the target, a count, a qualification — does not match,
+ * and a branch this does not clear is a branch {@link parseSequence} refuses,
+ * which takes the whole sentence with it.
+ */
+const GATE = new RegExp(` if it used (${NAMES}) this turn$`);
+
+/**
+ * A heading with the parenthetical the book prints inside it taken off.
+ *
+ * "Hasten (Recharge 5–6)" is the heading and `Hasten` is what the sentence
+ * beside it says, and the same is true of "(2/Day)" and of "(Recharge after a
+ * Short or Long Rest)". The heading is what comes back from a bind, because
+ * that is the string a caller spends and a log records; this is only how the
+ * two are recognised as one line.
+ */
+const headingName = (name: string): string => name.replace(/\s*\([^)]*\)\s*$/, '').trim();
+
+/**
+ * The printed heading of a Bonus Action line a sentence names, or null.
+ *
+ * The same discipline {@link boundName} applies to an attack: a name is a name
+ * until the block is shown to print a line by it, and a gate that binds to
+ * nothing is not read at all.
+ */
+const boundLine = (printed: readonly string[], name: string): string | null =>
+  printed.find((heading) => headingName(heading).toLowerCase() === name.trim().toLowerCase()) ??
+  null;
+
 /** "It can replace one attack with a Tail attack." — a swap for a printed line. */
 const REPLACEMENT = new RegExp(`^It can replace ${COUNT} attacks? with an? (${NAMES}) attack\\.$`);
 
@@ -620,6 +653,7 @@ function withOneReplaced(
 export function parseMultiattack(
   text: string,
   printedAttacks: readonly string[] = [],
+  printedBonusActions: readonly string[] = [],
 ): MonsterMultiattack | null {
   const clean = text.replace(/[_*]/g, '').trim();
   if (!clean.endsWith('.')) return null;
@@ -652,11 +686,29 @@ export function parseMultiattack(
   const branchTexts = stated.slice(subject[0].length).split(', or it makes ');
   if (branchTexts.length > 2) return null;
   const branches: MonsterMultiattackEntry[][] = [];
-  for (const branchText of branchTexts) {
+  // The gate each branch trails, where it trails one. Kept beside the branches
+  // rather than folded into them, because a branch is still the list of clauses
+  // every reader below works in — the two are composed at the end, once.
+  const gates: (string | null)[] = [];
+  for (const raw of branchTexts) {
+    // **Peeled before the clauses are read, and bound before either is kept.**
+    // A gate naming a line the block does not print is a clause this grammar
+    // cannot evaluate, so the sentence stays prose — the alternative being a
+    // branch offered unconditionally that the book offers only sometimes.
+    const gate = GATE.exec(raw);
+    const bound = gate === null ? null : boundLine(printedBonusActions, gate[1]!);
+    if (gate !== null && bound === null) return null;
+    const branchText = gate === null ? raw : raw.slice(0, gate.index);
+
     const entries = parseSequence(branchText);
     if (entries === null) return null;
     branches.push(entries);
+    gates.push(bound);
   }
+  // A sentence that gates every branch leaves the creature no Attack action at
+  // all on an ordinary turn, which is not something the book prints and not
+  // something this reads half of.
+  if (gates.every((gate) => gate !== null)) return null;
 
   if (second !== null) {
     // Nothing in the book prints both wordings of the alternation at once, and
@@ -671,6 +723,7 @@ export function parseMultiattack(
       );
       if (swapped === null) return null;
       branches.push(swapped);
+      gates.push(null);
     } else {
       // "a use of X" where X is a line this block prints an attack for is the
       // same swap in the book's other words.
@@ -678,7 +731,10 @@ export function parseMultiattack(
       const used = use === null ? null : boundName(printedAttacks, use[2]!);
       const swapped =
         used === null ? null : withOneReplaced(branches[0]!, COUNT_WORDS[use![1]!]!, used);
-      if (swapped !== null) branches.push(swapped);
+      if (swapped !== null) {
+        branches.push(swapped);
+        gates.push(null);
+      }
       // **Knowing what the block prints may never make this read less.** A use
       // this grammar cannot write out as a swap — because the base sequence has
       // two entries, or because it already spends the name — is the hand-over
@@ -707,8 +763,17 @@ export function parseMultiattack(
   }
 
   const clauses = [trailingClause, secondClause].filter((clause) => clause !== null);
+  // A branch carries its gate or is the bare list of clauses it has always
+  // been, so an alternation nothing gates comes out byte for byte as it did.
   const shape =
-    branches.length === 1 ? { entries: branches[0]! } : { alternatives: branches };
+    branches.length === 1
+      ? { entries: branches[0]! }
+      : {
+          alternatives: branches.map((entries, at) => {
+            const gate = gates[at] ?? null;
+            return gate === null ? entries : { entries, requires: { usedBonusAction: gate } };
+          }),
+        };
   return { ...shape, ...(clauses.length === 0 ? {} : { handOver: clauses.join(' ') }) };
 }
 
@@ -734,6 +799,7 @@ export function parseRecharge(name: string): MonsterRecharge | null {
 function parseFeatures(
   lines: readonly string[],
   printedAttacks: readonly string[] = [],
+  printedBonusActions: readonly string[] = [],
 ): Feature[] {
   const features: Feature[] = [];
   let current: { name: string; text: string[] } | null = null;
@@ -758,7 +824,9 @@ function parseFeatures(
       // for the same reason every qualified thing here is: the engine cannot
       // evaluate the qualification.
       const multiattack =
-        current.name === 'Multiattack' ? parseMultiattack(text, printedAttacks) : null;
+        current.name === 'Multiattack'
+          ? parseMultiattack(text, printedAttacks, printedBonusActions)
+          : null;
       // The one thing read out of the *name* rather than the sentence, and it
       // rides on the attack because that is what has to be told apart from a
       // creature's every-round swing.
@@ -989,6 +1057,14 @@ function parseEntry(
     line.attack === undefined ? [] : [line.name],
   );
 
+  // **The second thing a line is read against the rest of its block for**, and
+  // the headings are the whole of it: a branch gated on "if it used Hasten this
+  // turn" is read only where the block prints a Bonus Action by that name, and
+  // what the line under that heading *says* is nobody's business here. Read off
+  // the section's own headings rather than through a detector, because a
+  // heading is what a gate names and what a spend records.
+  const printedBonusActions = parseFeatures(sections.bonusActions).map((line) => line.name);
+
   const monster = {
     id,
     name: entry.name,
@@ -1020,11 +1096,11 @@ function parseEntry(
     xp: Number(xpText.replace(/,/g, '')),
     proficiencyBonus,
 
-    traits: parseFeatures(sections.traits, printedAttacks),
-    actions: parseFeatures(sections.actions, printedAttacks),
-    bonusActions: parseFeatures(sections.bonusActions, printedAttacks),
-    reactions: parseFeatures(sections.reactions, printedAttacks),
-    legendaryActions: parseFeatures(sections.legendaryActions, printedAttacks),
+    traits: parseFeatures(sections.traits, printedAttacks, printedBonusActions),
+    actions: parseFeatures(sections.actions, printedAttacks, printedBonusActions),
+    bonusActions: parseFeatures(sections.bonusActions, printedAttacks, printedBonusActions),
+    reactions: parseFeatures(sections.reactions, printedAttacks, printedBonusActions),
+    legendaryActions: parseFeatures(sections.legendaryActions, printedAttacks, printedBonusActions),
   };
 
   const validated = MonsterSchema.safeParse(monster);

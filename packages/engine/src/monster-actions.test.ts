@@ -1379,3 +1379,125 @@ describe('a Bonus Action a stat block prints', () => {
     expect(table.state.combat?.budgets[GOBLIN]?.bonusAction).toBe(true);
   });
 });
+
+/**
+ * **A branch the block gates on one of those lines.**
+ *
+ * SRD Clay Golem: "The golem makes two Slam attacks, or it makes three Slam
+ * attacks **if it used Hasten this turn**." The sentence went unread for as
+ * long as nothing could evaluate the clause, and the reason is arithmetic: the
+ * Attack action's size is the largest branch it is offered, so a gated branch
+ * read with nothing to gate it hands the golem three Slams every turn — an
+ * attack the book gates, given away free.
+ *
+ * So the size of the action is the largest branch the creature is **offered
+ * right now**: two on an ordinary turn, three on a turn it took the line. The
+ * sheet pins the unconditional reading, and the gate is read off the ledger by
+ * the swing that spends the action and by the fold that re-spends it, which
+ * are the same question asked with the same inputs.
+ */
+describe('a Multiattack branch gated on a printed Bonus Action', () => {
+  const GATED: MonsterMultiattack = {
+    alternatives: [
+      [{ count: 2, attack: 'Slam' }],
+      {
+        entries: [{ count: 3, attack: 'Slam' }],
+        requires: { usedBonusAction: HASTEN },
+      },
+    ],
+  };
+
+  const swinging = (table: Table, who: CharacterId, dice = supply('clay')) =>
+    (action: string, commandId?: string) =>
+      table.did(`${who} swings ${action}`, (s) =>
+        resolveAttack(
+          s,
+          who,
+          { target: BREN, weapon: null, action, ...(commandId === undefined ? {} : { commandId }) },
+          dice,
+        ),
+      );
+
+  const refused = (table: Table, who: CharacterId, action: string): string => {
+    const out = resolveAttack(table.state, who, { target: BREN, weapon: null, action }, supply('clay'));
+    return isErr(out) ? out.code : 'ok';
+  };
+
+  const hasten = (table: Table) =>
+    table.did('the golem hastens', (s) =>
+      takeStatedBonusAction(s, GOLEM, { line: HASTEN, commandId: 'hasten' }),
+    );
+
+  it('states the alternation the block prints, gate and all', () => {
+    const golem = adaptMonster(statBlock('clay-golem'), GOLEM);
+    expect(golem.sheet.stated?.multiattack).toEqual(GATED);
+  });
+
+  /**
+   * **The number pinned onto the sheet is the unconditional one.** It is read
+   * at the moment the creature arrives, when nothing has been spent and no turn
+   * has begun, so a maximum taken over the gated branch there would be the free
+   * third Slam written onto the creature for the rest of the game.
+   */
+  it('pins the action at the size the gate does not buy', () => {
+    expect(adaptMonster(statBlock('clay-golem'), GOLEM).sheet.attacksPerAction).toBe(2);
+  });
+
+  /** The failure mode this exists to prevent: two Slams, when nothing was spent. */
+  it('holds the Attack action to two Slams on a turn with no Hasten in it', () => {
+    const table = inTheWoods('clay-golem', GOLEM);
+    const slam = swinging(table, GOLEM);
+    slam('Slam', 'one');
+    slam('Slam', 'two');
+    expect(table.state.combat?.budgets[GOLEM]?.attacksRemaining).toBe(0);
+    expect(refused(table, GOLEM, 'Slam')).toBe('not_in_multiattack');
+  });
+
+  it('holds it to three on a turn the golem took the line', () => {
+    const table = inTheWoods('clay-golem', GOLEM);
+    hasten(table);
+    const slam = swinging(table, GOLEM);
+    slam('Slam', 'one');
+    expect(table.state.combat?.budgets[GOLEM]?.attacksRemaining).toBe(2);
+    slam('Slam', 'two');
+    slam('Slam', 'three');
+    expect(
+      table.events.filter((e) => e.type === 'roll-recorded' && e.label === 'Slam attack'),
+    ).toHaveLength(3);
+    // And no more than three: the branch the gate opened is a ceiling too.
+    expect(refused(table, GOLEM, 'Slam')).toBe('not_in_multiattack');
+  });
+
+  /**
+   * And the gate reads the line's own name off the ledger. A creature that
+   * spent its Bonus Action on something else has not opened it — which is what
+   * makes this a gate rather than a second reading of the Bonus Action budget.
+   */
+  it('is opened by that line and by nothing else', () => {
+    expect(multiattackAllows(GATED, { Slam: 3 }, [])).toBe(false);
+    expect(multiattackAllows(GATED, { Slam: 3 }, ['Nimble Escape'])).toBe(false);
+    expect(multiattackAllows(GATED, { Slam: 3 }, [HASTEN])).toBe(true);
+    // The ungated branch is offered either way.
+    expect(multiattackAllows(GATED, { Slam: 2 }, [])).toBe(true);
+    expect(multiattackAllows(GATED, { Slam: 2 }, [HASTEN])).toBe(true);
+  });
+
+  /**
+   * And the refusal quotes the whole sentence back, gate included, because a
+   * caller told only "three Slams is not what is left of it" would not know
+   * there was a way to have three.
+   */
+  it('says what the gated branch requires when it refuses', () => {
+    const table = inTheWoods('clay-golem', GOLEM);
+    const slam = swinging(table, GOLEM);
+    slam('Slam', 'one');
+    slam('Slam', 'two');
+    const out = resolveAttack(
+      table.state,
+      GOLEM,
+      { target: BREN, weapon: null, action: 'Slam' },
+      supply('clay'),
+    );
+    expect(isErr(out) ? out.reason : '').toContain(HASTEN);
+  });
+});

@@ -7,6 +7,7 @@ import {
   parseMultiattack,
   parseTraitShape,
 } from './monsters.js';
+import { entriesOfBranch, gateOfBranch } from '../schemas.js';
 
 /**
  * The two shapes this parser now reads out of a stat block's prose.
@@ -414,7 +415,7 @@ describe('parseMultiattack', () => {
         read += 1;
         const printed = monster.actions.map((a) => a.name.toLowerCase());
         for (const branch of parsed.alternatives ?? [parsed.entries ?? []]) {
-          for (const entry of branch) {
+          for (const entry of entriesOfBranch(branch)) {
             for (const name of entry.attacks ?? [entry.attack!]) {
               expect(printed, `${monster.id}: ${name}`).toContain(name.toLowerCase());
             }
@@ -619,11 +620,17 @@ describe('parseMultiattack reads the rest of the sentence', () => {
   });
 
   /**
-   * Three lines the book prints that this still leaves as prose, each for a
+   * Two lines the book prints that this still leaves as prose, each for a
    * reason worth writing down rather than a gap in the grammar.
+   *
+   * The golem's was a third: its gated branch is read now, and only where the
+   * caller supplies the block's Bonus Actions, which is what the assertion
+   * below still holds — with nothing to bind the gate to, the sentence is as
+   * unreadable as it ever was.
    */
-  it('still refuses the three sentences nothing here can read', () => {
-    // The third Slam is gated on a Bonus Action the engine does not read.
+  it('still refuses the sentences nothing here can read', () => {
+    // The third Slam is gated on a Bonus Action; told nothing about the block's,
+    // there is nothing to bind the gate to.
     expect(parseMultiattack(action('clay-golem', 'Multiattack').text)).toBeNull();
     // "uses Reel" sits in the middle of the sequence rather than trailing it,
     // and Reel is an action line with no damage on it.
@@ -636,7 +643,7 @@ describe('parseMultiattack reads the rest of the sentence', () => {
    * The counts, because a grammar that quietly stopped reading something would
    * report no problems at all.
    */
-  it('reads every Multiattack in the book but three', () => {
+  it('reads every Multiattack in the book but two', () => {
     let read = 0;
     const prose: string[] = [];
     for (const monster of bestiary) {
@@ -646,8 +653,8 @@ describe('parseMultiattack reads the rest of the sentence', () => {
         else read += 1;
       }
     }
-    expect(prose.sort()).toEqual(['clay-golem', 'hydra', 'roper']);
-    expect(read).toBe(174);
+    expect(prose.sort()).toEqual(['hydra', 'roper']);
+    expect(read).toBe(175);
   });
 
   /**
@@ -664,7 +671,7 @@ describe('parseMultiattack reads the rest of the sentence', () => {
         if (parsed === undefined) continue;
         for (const branch of parsed.alternatives ?? [parsed.entries ?? []]) {
           const seen = new Set<string>();
-          for (const entry of branch) {
+          for (const entry of entriesOfBranch(branch)) {
             for (const name of entry.attacks ?? [entry.attack!]) {
               expect(seen.has(name.toLowerCase()), `${monster.id}: ${name}`).toBe(false);
               seen.add(name.toLowerCase());
@@ -688,7 +695,7 @@ describe('parseMultiattack reads the rest of the sentence', () => {
         if (parsed === undefined) continue;
         const printed = monster.actions.map((a) => a.name.toLowerCase());
         for (const branch of parsed.alternatives ?? [parsed.entries ?? []]) {
-          for (const entry of branch) {
+          for (const entry of entriesOfBranch(branch)) {
             for (const name of entry.attacks ?? [entry.attack!]) {
               if (!printed.includes(name.toLowerCase())) unbound.add(monster.id);
             }
@@ -700,21 +707,39 @@ describe('parseMultiattack reads the rest of the sentence', () => {
   });
 
   /**
-   * Both branches of every alternation the book prints total the same, which is
-   * what lets the Attack action still hold one number.
+   * Every **ungated** branch of every alternation totals the same, which is
+   * what lets the Attack action hold one number on an ordinary turn.
+   *
+   * The gated branch is the exception and the reason the qualification is here:
+   * the Clay Golem's third Slam is a swing the book gives it only on a turn it
+   * used the line the gate names, so a reading that let it into this count
+   * would be the free third Slam the gate exists to prevent. It is asserted
+   * separately, in the other direction — the branches are *not* the same size,
+   * and the bigger one is the one that is gated.
    */
-  it('gives both branches of every alternation the same total', () => {
+  it('gives every ungated branch of an alternation the same total', () => {
     let alternations = 0;
+    let gated = 0;
     for (const monster of bestiary) {
       for (const line of monster.actions) {
         const branches = line.multiattack?.alternatives;
         if (branches === undefined) continue;
         alternations += 1;
-        const totals = branches.map((b) => b.reduce((sum, e) => sum + e.count, 0));
-        expect(new Set(totals).size, monster.id).toBe(1);
+        const totalOf = (branch: (typeof branches)[number]) =>
+          entriesOfBranch(branch).reduce((sum, e) => sum + e.count, 0);
+        const open = branches.filter((b) => gateOfBranch(b) === null);
+        expect(new Set(open.map(totalOf)).size, monster.id).toBe(1);
+
+        for (const branch of branches.filter((b) => gateOfBranch(b) !== null)) {
+          gated += 1;
+          // A gate that bought nothing would be a clause with no consequence,
+          // and a gate that bought a *smaller* branch would never be taken.
+          expect(totalOf(branch), monster.id).toBeGreaterThan(totalOf(open[0]!));
+        }
       }
     }
-    expect(alternations).toBe(10);
+    expect(alternations).toBe(11);
+    expect(gated).toBe(1);
   });
 });
 
@@ -1010,7 +1035,10 @@ describe('what a stat block’s sections print, and what is read', () => {
   it('counts the printed lines and the read ones, section by section', () => {
     expect(census()).toEqual({
       traits: { printed: 337, read: 18 },
-      actions: { printed: 811, read: 596 },
+      // One more than before the gate: the Clay Golem's Multiattack is read
+      // now that its "if it used Hasten this turn" has a Bonus Action spend to
+      // read, and every other unread line here is unread for its own reason.
+      actions: { printed: 811, read: 597 },
       // **Nothing here is a number waiting to be parsed.** All seventy-five are
       // read by every detector the Actions section gets and none of them yields
       // anything, because not one prints an attack roll: they are a saving
@@ -1131,6 +1159,85 @@ _Medium Aberration, Neutral Evil_
  * it was — never worse, and least of all with the sequence its first sentence
  * plainly states taken away from it for a clause about a second thing.
  */
+/**
+ * **A branch the sentence gates on a Bonus Action the block prints.**
+ *
+ * SRD Clay Golem: "The golem makes two Slam attacks, or it makes three Slam
+ * attacks **if it used Hasten this turn**." The line went unread for exactly as
+ * long as nothing could evaluate that clause, and the reason is arithmetic
+ * rather than taste: the Attack action's size is the largest branch, so a
+ * reader that took the second branch without the gate would hand the golem
+ * three Slams on every turn — an attack the book gates, given away free.
+ *
+ * So the gate is read *with* the branch or neither is read. The name it states
+ * has to be a line the same block prints under Bonus Actions, and what comes
+ * back is that line's **heading** — the string a caller spends and the string
+ * the ledger records — so nothing downstream has to match a sentence against a
+ * heading again.
+ */
+describe('a branch gated on a printed Bonus Action', () => {
+  const GOLEM = 'The golem makes two Slam attacks, or it makes three Slam attacks if it used Hasten this turn.';
+
+  it('reads the golem’s sentence when the block’s Bonus Actions are known', () => {
+    expect(parseMultiattack(GOLEM, ['Slam'], ['Hasten (Recharge 5–6)'])).toEqual({
+      alternatives: [
+        [{ count: 2, attack: 'Slam' }],
+        {
+          entries: [{ count: 3, attack: 'Slam' }],
+          requires: { usedBonusAction: 'Hasten (Recharge 5–6)' },
+        },
+      ],
+    });
+  });
+
+  /**
+   * **The gate and the branch land together or neither does.** A caller that
+   * passes no Bonus Actions — every caller before this existed, and the default
+   * the signature keeps — gets the reading the parser has always given, which
+   * is none at all rather than a free third Slam.
+   */
+  it('reads nothing when nothing can bind the gate', () => {
+    expect(parseMultiattack(GOLEM, ['Slam'])).toBeNull();
+    expect(parseMultiattack(GOLEM, ['Slam'], ['Nimble Escape'])).toBeNull();
+  });
+
+  /** And the gate binds through the recharge the heading carries, or not at all. */
+  it('binds the name the sentence prints to the heading the block prints', () => {
+    const plain = parseMultiattack(GOLEM, ['Slam'], ['Hasten']);
+    expect(plain?.alternatives?.[1]).toEqual({
+      entries: [{ count: 3, attack: 'Slam' }],
+      requires: { usedBonusAction: 'Hasten' },
+    });
+  });
+
+  /**
+   * A sentence that gates every branch would leave the creature no Attack
+   * action at all on an ordinary turn, which is not a thing the book prints.
+   */
+  it('reads nothing where every branch is gated', () => {
+    expect(
+      parseMultiattack(
+        'The golem makes two Slam attacks if it used Hasten this turn, or it makes three Slam attacks if it used Hasten this turn.',
+        ['Slam'],
+        ['Hasten'],
+      ),
+    ).toBeNull();
+  });
+
+  /** And the block itself, read through the whole parser. */
+  it('reads the Clay Golem’s line out of the book', () => {
+    expect(action('clay-golem', 'Multiattack').multiattack).toEqual({
+      alternatives: [
+        [{ count: 2, attack: 'Slam' }],
+        {
+          entries: [{ count: 3, attack: 'Slam' }],
+          requires: { usedBonusAction: 'Hasten (Recharge 5–6)' },
+        },
+      ],
+    });
+  });
+});
+
 describe('a use that names a printed attack and is still not a swap', () => {
   it('keeps the sequence and hands the clause over when the swap cannot be written', () => {
     // Two entries in the base, so the sentence does not say which of them the
