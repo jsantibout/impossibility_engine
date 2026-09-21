@@ -8,12 +8,20 @@ import { describe, expect, it } from 'vitest';
  *
  * `spell-schema.test.ts` holds the spell and class half: no engine file names
  * a spell of the catalogue, writes a definition's `id:` line, writes a fixed
- * spell grant, or names a class. The other four populations the registry
+ * spell grant, or names a class. The other populations the registry
  * holds — **species, backgrounds, feats and the features any of them grant** —
  * were held by a reader noticing, and by nothing else. `docs/design/content.md`
  * says so in as many words, and calls it "a gap noticed while the
  * sibling-choice grant was built, and worth closing with a test rather than a
  * habit". This is that test.
+ *
+ * **And since the structure audit of 2026-09-21, the last four as well:**
+ * items, languages, alignments and monsters. `Content` declares ten
+ * populations; the two sweeps between them covered six, and for the rest the
+ * rule was a promise. The whole bestiary and every item, language and
+ * alignment are swept here now, and what that found is written up under
+ * {@link ALSO_VOCABULARY}: four collisions, every one a word the engine
+ * would still write if the SRD sold none of them, and no breach.
  *
  * It is the spell sweep's argument applied to the other half, so it repeats
  * the three choices that argument turns on:
@@ -33,12 +41,12 @@ import { describe, expect, it } from 'vitest';
  * `feature-schema.test.ts` because `feature-schema.test.ts` is the *validator's*
  * file — it asks whether one feature definition is coherent, and reads three
  * named reader modules as one string to do it. This asks a different question
- * of the whole runtime, about four populations of which features are only one,
+ * of the whole runtime, about eight populations of which features are only one,
  * three of which have no validator file to live in. Two instruments asking
  * different questions is the point, and folding this in would have made that
  * file two instruments wearing one name.
  */
-describe('no species, background, feat or feature is special-cased in the runtime', () => {
+describe('no origin, feat, feature, item, language, alignment or monster is special-cased', () => {
   const here = fileURLToPath(new URL('.', import.meta.url));
 
   /** Every non-test source file under `src`, at any depth. */
@@ -55,12 +63,21 @@ describe('no species, background, feat or feature is special-cased in the runtim
   const source = (file: string): string => readFileSync(`${here}${file}`, 'utf8');
 
   /**
-   * The four populations, read off the catalogue.
+   * The populations, read off the catalogue.
    *
    * A feature belongs to whatever granted it, so the feature population is
    * every feature every class, subclass, species and background declares —
    * asked of the four holders rather than of a list, for the same reason the
    * file listing is a listing.
+   *
+   * **Items, languages, alignments and monsters were the four `Content`
+   * declares that nothing swept.** `spell-schema.test.ts` holds spells and
+   * classes, this file held species, backgrounds, feats and features, and
+   * rule 4 names ten populations — so it was enforced for six and promised
+   * for four, which is the shape of a rule that is true until the day it
+   * is not. They are here now, and the hole turned out to be empty: the four
+   * hits are all mechanics wearing an item's name rather than breaches, and
+   * each is argued one at a time under {@link ALSO_VOCABULARY}.
    */
   const POPULATIONS = {
     species: SRD_CONTENT.species.map((entry) => entry.id),
@@ -72,7 +89,57 @@ describe('no species, background, feat or feature is special-cased in the runtim
       ...SRD_CONTENT.species,
       ...SRD_CONTENT.backgrounds,
     ].flatMap((holder) => holder.features.map((feature) => feature.id)),
+    item: SRD_CONTENT.items.map((entry) => entry.id),
+    language: SRD_CONTENT.languages.map((entry) => entry.id),
+    alignment: SRD_CONTENT.alignments.map((entry) => entry.id),
+    monster: SRD_CONTENT.monsters.map((entry) => entry.id),
   } as const;
+
+  /**
+   * Where a catalogue id is also a word the **engine's own vocabulary** uses.
+   *
+   * The spell sweep next door keeps the same list for the same reason, and
+   * its docstring argues the case eight times over: `shield` is an item and
+   * a spell and the thing `fold/inventory.ts` equips; `darkvision` is a spell
+   * and a sense the rules glossary defines. A catalogue must not be unable to
+   * hold an entry because its slug collides with a mechanic the engine
+   * executes.
+   *
+   * The widening found four, all of them item slugs, and every one is a word
+   * the engine would still be writing if the SRD sold none of them. **The
+   * breach record below is still empty**, which is a claim about each of
+   * these four and is why each gets its own paragraph.
+   *
+   * - **`spellbook`.** `SpellcastingStyle` has had a `spellbook` member since
+   *   the Wizard was built — the style of preparation where spells are copied
+   *   into a book and prepared from it — and `creation.ts` and
+   *   `progression.ts` write the word thirteen times deciding how a class
+   *   prepares. The SRD also sells a Spellbook for 50 gp under the same slug.
+   * - **`shield`.** The armour record's `category` is
+   *   `light | medium | heavy | shield`, and `fold/inventory.ts` sorts worn
+   *   pieces into the two slots by reading it. The spell sweep excuses the
+   *   same word for the same file by name, which is this argument already
+   *   made once.
+   * - **`ammunition`.** A member of `ItemKind` (`catalogue.ts`), the closed
+   *   vocabulary for what *kind* of thing an item is. A homebrew quiver of
+   *   bolts is `kind: 'ammunition'` and gets the same treatment.
+   * - **`string`.** `typeof entry === 'string'`, in a dozen files. The SRD
+   *   sells ten feet of String for a copper piece, and its slug is the name
+   *   of a primitive type. This is the flattest collision in the repository
+   *   and it excuses the least: nothing about `typeof` reads a catalogue.
+   *
+   * The test in each case is the one the feat allowance below states —
+   * delete the catalogue entry and see whether the engine still means the
+   * word — and all four pass it. Named one word at a time rather than matched
+   * loosely, so each entry is reviewed rather than being a heuristic that
+   * quietly stops catching things.
+   */
+  const ALSO_VOCABULARY: ReadonlySet<string> = new Set([
+    'spellbook',
+    'shield',
+    'ammunition',
+    'string',
+  ]);
 
   type Kind = keyof typeof POPULATIONS;
   const KINDS = Object.keys(POPULATIONS) as readonly Kind[];
@@ -129,9 +196,9 @@ describe('no species, background, feat or feature is special-cased in the runtim
   /** Every catalogue id a file names outside that construct, tagged by population. */
   const namedIn = (text: string): readonly string[] => {
     const prose = proseOf(text);
-    return CATALOGUE.filter(
-      ([, id]) => prose.includes(`'${id}'`) || prose.includes(`"${id}"`),
-    ).map(([kind, id]) => `${kind} ${id}`);
+    return CATALOGUE.filter(([, id]) => !ALSO_VOCABULARY.has(id))
+      .filter(([, id]) => prose.includes(`'${id}'`) || prose.includes(`"${id}"`))
+      .map(([kind, id]) => `${kind} ${id}`);
   };
 
   // — and the direct shape: an id compared against a literal ————————————————
@@ -200,14 +267,14 @@ describe('no species, background, feat or feature is special-cased in the runtim
   // — the sweep ————————————————————————————————————————————————————————————
 
   it.each(CLEAN.map((file) => [file] as const))(
-    '%s compares no species, background, feat or feature id against a literal',
+    '%s compares no catalogue id this sweep holds against a literal',
     (file) => {
       expect(comparedIn(source(file)), file).toEqual([]);
     },
   );
 
   it.each(CLEAN.map((file) => [file] as const))(
-    '%s names no species, background, feat or feature of the catalogue',
+    '%s names no origin, feat, feature, item, language, alignment or monster',
     (file) => {
       expect(namedIn(source(file)), file).toEqual([]);
     },
@@ -257,6 +324,10 @@ describe('no species, background, feat or feature is special-cased in the runtim
     background: 'acolyte',
     feat: 'savage-attacker',
     feature: 'wizard:scholar',
+    item: 'longsword',
+    language: 'dwarvish',
+    alignment: 'chaotic-evil',
+    monster: 'commoner',
   };
 
   it.each(RUNTIME.map((file) => [file] as const))(
@@ -291,18 +362,50 @@ describe('no species, background, feat or feature is special-cased in the runtim
   });
 
   /**
-   * Every kind is watched under a spelling the engine really writes.
+   * Every kind is watched under a spelling the engine really writes — except
+   * the one it writes none of, which is pinned rather than waved through.
    *
    * Both spellings are swept for each kind because either could arrive, but
    * at least one has to be live or the kind is watched only in theory — which
    * is how a field rename blinds a sweep without turning it red.
+   *
+   * **`alignment` is the exception and is the honest answer**, not a hole.
+   * Nothing in the 2024 rules hangs off the choice — `origins.ts` says the
+   * nine "are recorded rather than read from" — so the engine has no
+   * `alignmentId` field and no `alignment.id` read, and the comparison half
+   * of this sweep watches the population in principle only. The *naming* half
+   * above still sweeps all nine ids in every file, which is the half that
+   * would catch a `'lawful-good'` appearing in a rule. Pinned as equality, so
+   * the day the engine reads an alignment off anything this test fails and
+   * the exception is deleted rather than inherited.
    */
   it('watches a field spelling each population really writes', () => {
     const whole = RUNTIME.map(source).join('\n');
-    for (const kind of KINDS) {
-      expect([`${kind}Id`, `${kind}.id`].filter((field) => whole.includes(field)), kind).not.toEqual(
-        [],
-      );
+    const written = (kind: Kind): boolean =>
+      [`${kind}Id`, `${kind}.id`].some((field) => whole.includes(field));
+    expect(KINDS.filter((kind) => !written(kind))).toEqual(['alignment']);
+  });
+
+  /**
+   * The vocabulary allowance is needed, is narrow, and blinds only one half.
+   *
+   * Three claims, because a word list is the easiest kind of exemption to
+   * let rot. Each word must really be a catalogue id (or it excuses nothing
+   * and should go), the engine must really write it (same), and the
+   * comparison half of the sweep must still catch it — `item.id === 'shield'`
+   * is a branch on a catalogue entry whatever the word is, and the allowance
+   * has no business excusing that.
+   */
+  it('excuses a vocabulary word in prose, and never in a comparison', () => {
+    const ids = new Set(CATALOGUE.map(([, id]) => id));
+    const whole = RUNTIME.map(source).join('\n');
+    expect([...ALSO_VOCABULARY].filter((word) => !ids.has(word))).toEqual([]);
+    expect([...ALSO_VOCABULARY].filter((word) => !whole.includes(`'${word}'`))).toEqual([]);
+    for (const word of ALSO_VOCABULARY) {
+      expect(namedIn(`const x = '${word}';`), word).toEqual([]);
+      expect(comparedIn(`if (item.id === '${word}') return;`), word).toEqual([
+        `item.id === '${word}'`,
+      ]);
     }
   });
 
