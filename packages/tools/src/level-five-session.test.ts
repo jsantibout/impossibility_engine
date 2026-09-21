@@ -381,7 +381,8 @@ interface Clause {
 const BLOCK_HANDOVER = 'the engine does not apply that; a DM does';
 
 /**
- * The four engine files the sentence is written in, so the copy is pinned.
+ * The two engine files the sentence is written in, and how often, so the copy
+ * is pinned.
  *
  * A copied literal is the one unguarded input to count 2: reword the sentence
  * in `attacks.ts` and "handed over to the DM" falls to zero with nothing
@@ -390,9 +391,11 @@ const BLOCK_HANDOVER = 'the engine does not apply that; a DM does';
  * `boundary.test.ts` hold theirs — by reading the source — and the day the
  * wording moves, this file says so rather than the count saying nothing.
  */
-const WRITES_THE_HANDOVER: readonly string[] = [
-  '../../engine/src/commands/actions.ts',
-  '../../engine/src/commands/attacks.ts',
+const WRITES_THE_HANDOVER: readonly (readonly [string, number])[] = [
+  // A printed Actions line and a printed Bonus Actions line.
+  ['../../engine/src/commands/actions.ts', 2],
+  // A Multiattack's spare sentence and an attack's rider.
+  ['../../engine/src/commands/attacks.ts', 2],
 ];
 
 const clausesIn = (sent: readonly Sent[]): readonly Clause[] =>
@@ -602,8 +605,12 @@ function settleDebts(t: Table): void {
               (one) => one.window === 'damage-rolled',
             )
           : undefined;
-      // Taken the first time and waved off the second, because both halves of
-      // a window are doors and a session that only ever takes one proves one.
+      // Taken the first time and waved off after that. **The decline branch
+      // is written and this session never reaches it**, and the report says
+      // so — `decline_damage_reaction` is on its never-used list — because a
+      // reaction already spent is offered nothing, so no second window opens
+      // to decline. The branch stays because the next party to play this
+      // script may hold two.
       if (answer === undefined || t.memo['dodged'] === 'yes') {
         t.call('decline_damage_reaction', {
           who: owed.pendingDamage,
@@ -629,8 +636,9 @@ function settleDebts(t: Table): void {
       continue;
     }
     if (owed.pendingMove !== null) {
-      // One is taken and the rest are waved off, because both halves of the
-      // window are doors and a session that only ever declines proves one.
+      // The first is taken and the rest waved off. Nothing in this barrow
+      // ever provoked two at once, so `decline_opportunity` is on the
+      // never-used list too; the branch is here for the debt, not the count.
       const owedBy = owed.pendingMove.mustAnswerOpportunityAttack;
       for (const [at, attacker] of owedBy.entries()) {
         if (at === 0) t.call('take_opportunity_attack', { attacker });
@@ -1301,9 +1309,12 @@ describe('a level 5 party plays a session', () => {
    * the one string this file typed out instead of importing.
    */
   it('reads the same handover mark the engine writes', () => {
-    for (const where of WRITES_THE_HANDOVER) {
+    // Counted, not merely found. One site of four reworded is one fifth of
+    // count 2 gone in silence, and a `toContain` over a file holding three
+    // more would not notice — which is the silence this guard exists for.
+    for (const [where, sites] of WRITES_THE_HANDOVER) {
       const text = readFileSync(fileURLToPath(new URL(where, import.meta.url)), 'utf8');
-      expect(text).toContain(BLOCK_HANDOVER);
+      expect(text.split(BLOCK_HANDOVER)).toHaveLength(sites + 1);
     }
     // And the other mark is imported rather than copied, so it needs no guard
     // — this only says the two are different marks and neither is the other.
