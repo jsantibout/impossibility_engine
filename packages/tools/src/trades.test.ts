@@ -39,6 +39,24 @@ import {
   type ToolOutcome,
 } from '@ie/tools';
 
+/**
+ * Every feature the catalogue publishes whose grant is a trade, in id order.
+ *
+ * Derived rather than listed, so that a class the book grows fails the sweep
+ * below instead of going unreported. Every host of a feature is walked, not
+ * just the classes: a species, a background or a feat could grant one and the
+ * vocabulary would not mind.
+ */
+const TRADE_FEATURES: readonly string[] = [
+  ...SRD_CONTENT.classes.flatMap((one) => one.features),
+  ...SRD_CONTENT.subclasses.flatMap((one) => one.features),
+  ...SRD_CONTENT.species.flatMap((one) => one.features ?? []),
+  ...SRD_CONTENT.backgrounds.flatMap((one) => one.features ?? []),
+]
+  .filter((feature) => feature.grants?.kind === 'trade')
+  .map((feature) => feature.id)
+  .sort();
+
 // — two characters at the level their trade arrives at ————————————————————
 
 /** A level 5 Bard of the College of Lore: Font of Inspiration is a level 5 feature. */
@@ -351,28 +369,49 @@ describe('the sheet reports a trade as a thing this surface can spend', () => {
     ]);
   });
   /**
-   * And nobody grows a second door by accident.
+   * What the book prints, recorded; and what these two hold, checked.
    *
-   * `holdings.ts` reports a feature once and the first claim on its id decides
-   * what it is, so a feature holding a trade **and** something else would keep
-   * the first claim's kind and carry the trade across in `alsoSpentBy` — which
-   * is the merge `two-menus.test.ts` holds for a pool's menu and a hit's, and
-   * the branch this file's trades loop joined. Nothing in the book can reach
-   * it: `FeatureDefinition.grants` is singular and `checkContent` refuses two
-   * definitions under one id, so a trade is always the only claim on its id.
-   * The claim is recorded rather than argued about, in both directions — the
-   * machinery stays, and the day the catalogue can write such a feature this
-   * says so.
+   * **The list is derived from `SRD_CONTENT`** — every feature anywhere in it
+   * whose grant is a trade — rather than written down, so a class the
+   * catalogue grows fails here instead of going unreported. That is the
+   * mistake `holdings.test.ts` records against its own former five-character
+   * party, and writing the derivation is what found the other two: a Bard 5
+   * and a Druid 5 are not the whole of the shape.
+   *
+   * Where each of the four is covered, so that no reader has to guess:
+   *
+   * - **Font of Inspiration** (Bard 5) and **Wild Resurgence** (Druid 5) are
+   *   driven end to end through the door in this file.
+   * - **Sorcery Incarnate** (Sorcerer 7) is inside the level 10 catalogue
+   *   sweep in `holdings.test.ts`, which builds one character of every class
+   *   and derives both sides of its claim from `SPENT_BY`.
+   * - **Holy Nimbus** (Oath of Devotion 20) is above every sweep there is. It
+   *   is the same `unlimited` slot-for-a-pool shape Font of Inspiration is,
+   *   and this line is the record that nothing reaches it.
+   *
+   * The second assertion is the merge. `holdings.ts` reports a feature once
+   * and the first claim on its id decides what it is, so a feature holding a
+   * trade **and** something else would keep the first claim's kind and name
+   * this door in `alsoSpentBy` — the merge `two-menus.test.ts` holds for a
+   * pool's menu and a hit's, and the branch this file's trades loop joined.
+   * Nothing in the book can reach it: `FeatureDefinition.grants` is singular
+   * and `checkContent` refuses two definitions under one id, so a trade is
+   * always the only claim on its id. The machinery stays and the claim is
+   * recorded rather than argued about.
    */
-  it('reports every trade in the book as a trade, with one door and no second', () => {
-    const t = stage();
-    const other = grove();
+  it('records every trade the book prints, and grows no second door for one', () => {
+    expect(TRADE_FEATURES).toEqual([
+      'bard:font-of-inspiration',
+      'druid:wild-resurgence',
+      'oath-of-devotion:holy-nimbus',
+      'sorcerer:sorcery-incarnate',
+    ]);
+
     const lines = [
-      ...(sheetOf(t, 'lyra')['features'] as readonly FeatureLine[]),
-      ...(sheetOf(other, 'fenn')['features'] as readonly FeatureLine[]),
+      ...(sheetOf(stage(), 'lyra')['features'] as readonly FeatureLine[]),
+      ...(sheetOf(grove(), 'fenn')['features'] as readonly FeatureLine[]),
     ];
     const withTrades = lines.filter((one) => one.trades !== undefined);
-    // Non-vacuous: the two features this file is about.
     expect(withTrades.map((one) => one.feature).sort()).toEqual([
       'bard:font-of-inspiration',
       'druid:wild-resurgence',

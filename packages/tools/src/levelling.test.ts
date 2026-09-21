@@ -384,16 +384,14 @@ describe('a character advances through the door', () => {
 
   /**
    * A creature the engine has never been told about is homework, not a verdict
-   * — and the homework is presently blank, which is written down rather than
-   * left to be discovered.
+   * — and the homework names the door that does it.
    *
-   * `advanceCharacter` hand-writes `needsContext('unknown_creature', …)`
-   * instead of calling the `unknownCreature` helper every command under
-   * `commands/` uses, so the `ContextRequest` that would name the door is
-   * missing and `establish` comes back empty. That is the engine's line and
-   * `packages/engine` is not this brief's to change; this door is simply the
-   * first thing to show it. The assertion is exact in both directions so that
-   * the day the engine is fixed, this fails and is deleted deliberately.
+   * `advanceCharacter` hand-writes `needsContext('unknown_creature', …)` with
+   * no `ContextRequest` at all, instead of calling the `unknownCreature`
+   * helper every command under `commands/` uses, so the engine's own answer
+   * carries nothing to act on. `sheet` hits the same gap and writes the
+   * request out at this layer; this door does the same, which is why the
+   * assertion below is on `tools` and not just on the code.
    */
   it('asks rather than refuses for a creature nobody has created', () => {
     const t = party(4);
@@ -402,9 +400,9 @@ describe('a character advances through the door', () => {
     if (outcome.status !== 'needs-context') return;
     expect(outcome.code).toBe('unknown_creature');
     expect(outcome.reason).toContain('nobody');
-    // Empty, and not because nothing asked: `create_character` is the tool
-    // that would answer it, and the request that would name it is not built.
-    expect(outcome.establish).toEqual([]);
+    expect(outcome.establish.map((one) => one.kind)).toEqual(['creature']);
+    // The whole point of an ask: a tool that settles it.
+    expect(outcome.establish[0]!.tools).toContain('create_character');
   });
 
   /**

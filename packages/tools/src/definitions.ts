@@ -2690,12 +2690,32 @@ const ADVANCE_CHARACTER = tool({
     const state = context.campaign.state();
     const id = who(args.who);
     const creature = state.creatures[id];
-    // Only a character has a level to be the next one after. A monster, or a
-    // creature nobody has created, falls through to the engine's own answer —
-    // `not_a_character` and `unknown_creature` — rather than being told about
-    // a rung it was never on. So does a character at the ceiling, where there
-    // is no next level to name and `bad_level` is the honest answer.
-    const at = creature?.character == null ? null : creature.sheet.level;
+    if (creature === undefined) {
+      // A creature nobody has created is homework, and homework names the door
+      // that does it. `advanceCharacter` hand-writes `needsContext` with no
+      // `ContextRequest` at all, so a caller following the answer would be
+      // told a fact was missing and given nothing to establish it with — which
+      // is the failure `docs/design/claude-integration.md` calls "a kind with
+      // no door". `sheet` hits the same engine gap and closes it here in the
+      // same shape; this is that, one door along.
+      return fromErr(
+        needsContext('unknown_creature', `${args.who} is not in this game`, [
+          {
+            kind: 'creature',
+            subject: args.who,
+            need: `a record for ${args.who}`,
+            because: 'the call takes a creature the engine has never been told about up a level',
+            satisfyWith: `a createCharacter command for ${args.who}`,
+          },
+        ]),
+        context.doorsFor,
+      );
+    }
+    // Only a character has a level to be the next one after, so a monster falls
+    // through to the engine's own `not_a_character` rather than being told
+    // about a rung it was never on. So does a character at the ceiling, where
+    // there is no next level to name and `bad_level` is the honest answer.
+    const at = creature.character == null ? null : creature.sheet.level;
     if (at !== null && at < MAX_LEVEL && args.toLevel !== at + 1) {
       return refused(
         'not_the_next_level',
