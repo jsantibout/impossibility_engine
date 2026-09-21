@@ -1,10 +1,12 @@
 /**
- * The generator's own two events.
+ * The generator's own event, and the two records of what it threw.
  *
  * `rolls-issued` is the only thing that moves `rng` and `rollsIssued`, which
  * is what lets a live session resume its sequence mid-fight. `roll-recorded`
- * exists so the log can answer "why did the goblin die", and this seam writes
- * nothing for it: its consequences arrive as their own events.
+ * and `damage-dice-recorded` exist so the log can answer "why did the goblin
+ * die" — the first for the roll that decided whether it was hit, the second
+ * for the faces of the dice that killed it — and this seam writes nothing for
+ * either: their consequences arrive as their own events.
  *
  * **It is not, for all that, an event with no consequence of its own.** One
  * label carries a rule: `interruptedRests` in `fold/apply.ts` breaks a rest
@@ -23,6 +25,7 @@ import { seamOf, unhandledEvent, type Applying } from './common.js';
 
 /** The event types this seam owns. Every one of them, and no other seam's. */
 export const ROLLS_EVENTS = [
+  'damage-dice-recorded',
   'roll-recorded',
   'rolls-issued',
 ] as const;
@@ -46,6 +49,15 @@ export function applyRolls({ state, next }: Applying, event: RollsEvent): GameSt
     // events, and the one rule the event itself carries — Initiative breaking
     // a rest — is a derived pass in `fold/apply.ts`, not this seam's.
     case 'roll-recorded':
+      return next;
+
+    // The same, and with no exception at all: the faces a damage roll showed,
+    // beside the `damage-taken` that is what actually moved hit points. It is
+    // in this seam rather than `vitals` precisely because it writes nothing —
+    // a log with the record and the same log without it fold to one state,
+    // which is what lets every log written before it existed keep folding to
+    // exactly what it always did.
+    case 'damage-dice-recorded':
       return next;
 
     case 'rolls-issued':

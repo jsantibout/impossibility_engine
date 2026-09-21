@@ -26,7 +26,9 @@ import {
   type GameState,
   type PendingDamage,
   type PendingHitRider,
+  type StatedRoll,
 } from '../events.js';
+import type { RollProvenance } from '../rolls.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import {
   offersForDamage,
@@ -44,6 +46,68 @@ import {
 } from './casting.js';
 import { creatureOf, unknownCreature } from './command.js';
 import { rollSpellDice } from './rolls.js';
+
+/**
+ * The faces a damage roll showed, as an event, or null where it threw none.
+ *
+ * **Owner, 2026-09-21:** "each individual damage dice needs to reach the log,
+ * specifically for spells like sorcerous burst and chromatic orb, which burst
+ * on certain numbers. it also creates transparency for things like the great
+ * weapon fighting style feat." The dice were always there — `RollOutcome.dice`
+ * is every die in the order it was rolled, dropped and rerolled ones included
+ * — and on the held path they already reached the log inside `damage-rolled`.
+ * Nothing carried them there on the ordinary path, which is the asymmetry this
+ * closes. See `damage-dice-recorded` in `events.ts` for the whole argument.
+ *
+ * **Null where nothing was rolled**, which is not tidiness either: a blow made
+ * entirely of modifiers has no faces to report, and an event with an empty
+ * dice list in it would be a record of nothing appearing in a log beside every
+ * flat amount a DM ever stated. Emitting one only where a die was thrown also
+ * means no existing path that deals unrolled damage grows an event.
+ *
+ * The provenance comes off the roll itself rather than being assumed: a
+ * component the engine threw carries no `stated`, and that absence is the
+ * claim — see {@link StatedRoll}.
+ */
+export function damageDiceRecorded(
+  target: CharacterId,
+  components: readonly DamageComponent[],
+  source: string,
+  by?: CharacterId,
+): GameEvent | null {
+  if (!components.some((component) => (component.roll?.dice.length ?? 0) > 0)) return null;
+
+  return {
+    type: 'damage-dice-recorded',
+    target,
+    ...(by === undefined ? {} : { by }),
+    source,
+    rolled: rawDamageTotal(components),
+    components: components.map((component) => ({
+      source: component.source,
+      type: component.type,
+      roll: component.roll?.provenance.id ?? null,
+      dice: component.roll?.dice ?? [],
+      flat: component.flat,
+      total: component.total,
+      ...statedFrom(component.roll?.provenance),
+    })),
+  };
+}
+
+/**
+ * The `stated` half of a roll's provenance, or nothing at all.
+ *
+ * One reading of `RollProvenance` in one place, so no emitter has to remember
+ * that `engine` is the absence rather than a value. Spread into an event
+ * literal: `...statedFrom(roll?.provenance)`.
+ */
+export function statedFrom(
+  provenance: RollProvenance | undefined,
+): { readonly stated: StatedRoll } | Record<string, never> {
+  if (provenance === undefined || provenance.source === 'engine') return {};
+  return { stated: { id: provenance.id, source: provenance.source, note: provenance.note } };
+}
 
 /** What the held damage currently comes to, after everything taken off so far. */
 export function heldDamageTotal(pending: PendingDamage): number {
@@ -313,8 +377,15 @@ export function dealSpellDamage(
   );
   if (!resolved.ok) return resolved;
 
+  // The faces first, then what they came to: this is the chronology of the
+  // moment, and the only place every unheld damage roll passes through. A held
+  // one reports its dice on `damage-rolled` instead and does not come here at
+  // all — `settleDamage` deals its damage through `resolveDamage` directly —
+  // so the faces reach the log exactly once by either road.
+  const dice = damageDiceRecorded(target, components, source, options.by);
+
   return ok({
-    events: resolved.value.events,
+    events: dice === null ? resolved.value.events : [dice, ...resolved.value.events],
     amount: applied.total,
     concentration: resolved.value.concentration,
   });
