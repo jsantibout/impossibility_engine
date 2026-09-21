@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { linesOf } from '../../../test-support/lines.js';
 import type { CharacterId } from '@ie/shared';
 import { TURN_ANCHORS, TURN_MOMENTS, endOfNextTurn, startOfNextTurn } from './time.js';
 
@@ -93,8 +94,7 @@ describe('the turn vocabulary is named once', () => {
    * needs no parser.
    */
   const codeOf = (text: string): string =>
-    text
-      .split('\n')
+    linesOf(text)
       .filter((line) => {
         const trimmed = line.trim();
         return !trimmed.startsWith('*') && !trimmed.startsWith('//') && !trimmed.startsWith('/*');

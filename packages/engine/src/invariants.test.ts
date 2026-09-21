@@ -2,6 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { BACKGROUNDS, FIGHTING_STYLE_FEATS, ORIGIN_FEATS, SPECIES, SRD_CONTENT } from '@ie/content';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { linesOf } from '../../../test-support/lines.js';
 import {
   asCharacterId,
   isErr,
@@ -3358,7 +3359,7 @@ const DECLARATIONS = Object.values(MODULE_SOURCE)
 const returnTypesIn = (
   source: string,
 ): readonly { readonly name: string; readonly returns: string }[] => {
-  const lines = source.split('\n');
+  const lines = linesOf(source);
   const found: { name: string; returns: string }[] = [];
   // Both declaration forms and both signature layouts. A function-valued
   // export whose shape is matched by none of these comes back with an empty
@@ -3568,6 +3569,39 @@ describe('the idempotency sweep covers every command that hands back events', ()
       ['doSomethingUntracked', true],
       ['lookSomethingUp', false],
       ['answerOneWayOrAnother', 'unresolved'],
+    ]);
+  });
+
+  /**
+   * And it reads the same source when the file on disk ends its lines CRLF.
+   *
+   * `.gitattributes` normalises to LF on the way into the index, so a working
+   * tree that has picked up CRLF — an editor on Windows saving one file — is
+   * clean in `git status`, invisible in a diff and invisible in review. On
+   * disk it is not invisible at all: every signature pattern here ends in
+   * `\{$` or `=>`, a trailing `\r` makes the line unmatchable, and the sweep
+   * answers that a command declares *no return type*. It reports no problems
+   * and checks nothing, which is the failure these sweeps exist to catch,
+   * arriving inside one of them because of a byte nobody can see.
+   *
+   * So the parser splits on `/\r?\n/` through the shared `linesOf`, and this
+   * is the same sample as above with the other ending. `mastery.ts` carried
+   * six CRLF lines the day this was written.
+   */
+  it('reads a signature whose lines end CRLF', () => {
+    const smuggled = [
+      'export function doSomethingUntracked(',
+      '  state: GameState,',
+      '): Result<GameEvent[]> {',
+      '  return ok([]);',
+      '}',
+      'export function lookSomethingUp(state: GameState): number {',
+      '  return 1;',
+      '}',
+    ].join('\r\n');
+    expect(returnTypesIn(smuggled).map((e) => [e.name, e.returns])).toEqual([
+      ['doSomethingUntracked', 'Result<GameEvent[]>'],
+      ['lookSomethingUp', 'number'],
     ]);
   });
 });

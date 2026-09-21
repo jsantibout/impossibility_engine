@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { linesOf } from '../../../test-support/lines.js';
 import { asCharacterId } from '@ie/shared';
 import { anchoredOnTarget, riderDuration, riderDurationPhrase } from './spell-definitions.js';
 
@@ -58,7 +59,7 @@ interface Reader {
  * line that is a lone `}`.
  */
 const functionsIn = (file: string, source: string): readonly Reader[] => {
-  const lines = source.split('\n');
+  const lines = linesOf(source);
   const found: Reader[] = [];
   for (let i = 0; i < lines.length; i += 1) {
     const head = /^(?:export )?function (\w+)\(/.exec(lines[i]!);

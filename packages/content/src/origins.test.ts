@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { linesOf } from '../../../test-support/lines.js';
 import { SRD_CONTENT } from '@ie/content';
 import { asCharacterId, expect as unwrap, type Ability } from '@ie/shared';
 import {
@@ -44,7 +45,7 @@ const RAW = readFileSync(
 
 /** The `####` headings under one `###` section, up to the next heading of any rank. */
 function printedUnder(section: string): readonly string[] {
-  const lines = RAW.split(/\r?\n/);
+  const lines = linesOf(RAW);
   const start = lines.findIndex((line) => line.trim() === `### ${section}`);
   if (start < 0) throw new Error(`no "${section}" section in character-origins.md`);
   const names: string[] = [];
@@ -100,7 +101,7 @@ describe('every origin the SRD prints is in the catalogue', () => {
 
 /** The lines of one `####` entry, up to the next heading of any rank. */
 function blockFor(name: string): readonly string[] {
-  const lines = RAW.split(/\r?\n/);
+  const lines = linesOf(RAW);
   const start = lines.findIndex((line) => line.trim() === `#### ${name}`);
   if (start < 0) throw new Error(`no "${name}" in character-origins.md`);
   const rest = lines.slice(start + 1);
@@ -511,7 +512,7 @@ describe('a species or background feature marked engine is one something reads',
 
   /** The range the book prints under a species' own heading, or null. */
   const printedDarkvision = (name: string): number | null => {
-    const lines = RAW.split(/\r?\n/);
+    const lines = linesOf(RAW);
     const start = lines.findIndex((line) => line.trim() === `#### ${name}`);
     if (start < 0) throw new Error(`no "${name}" heading in character-origins.md`);
     for (const line of lines.slice(start + 1)) {

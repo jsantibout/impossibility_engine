@@ -2,6 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { SPELL_DEFINITIONS, SRD_CONTENT } from '@ie/content';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { linesOf } from '../../../test-support/lines.js';
 import { isErr } from '@ie/shared';
 import { TURN_MOMENTS } from './time.js';
 import { type SpellDefinition } from './spell-definitions.js';
@@ -1378,7 +1379,7 @@ const withoutComments = (text: string): string =>
  * reports no problems and checks nothing.
  */
 const regionOf = (source: string, name: string): string => {
-  const lines = source.split('\n');
+  const lines = linesOf(source);
   const start = lines.findIndex(
     (line) =>
       line.startsWith(`export interface ${name} `) || line.startsWith(`export type ${name} =`),
@@ -1919,6 +1920,32 @@ describe('every member of the definition format has a user or a written exemptio
   });
 
   /**
+   * And it reads the same declaration when the file on disk ends its lines CRLF.
+   *
+   * `.gitattributes` normalises to LF on the way into the index, so a working
+   * tree that has picked up CRLF is clean in `git status` and invisible in a
+   * diff — and this reader finds a declaration's end by `lines[i] === '}'`,
+   * which a trailing `\r` makes false for ever. The region then runs to the
+   * end of the file and the *next* declaration's fields are reported as this
+   * one's: a sweep answering a different question than the one it is asked,
+   * because of a byte nobody can see. Both endings are asserted to give the
+   * same answer, which is the claim rather than merely that CRLF parses.
+   */
+  it('reads a declaration whose lines end CRLF', () => {
+    const lines = [
+      'export interface Widget {',
+      "  readonly mood?: 'sullen' | 'merry';",
+      '}',
+      'export interface Gadget {',
+      '  readonly size?: number;',
+      '}',
+    ];
+    const expected = ['Widget.mood?', "Widget.mood='sullen'", "Widget.mood='merry'"];
+    expect(membersOf(lines.join('\n'), 'Widget').map((m) => m.label)).toEqual(expected);
+    expect(membersOf(lines.join('\r\n'), 'Widget').map((m) => m.label)).toEqual(expected);
+  });
+
+  /**
    * **The arms of a union are read one at a time**, which is what lets a union
    * mixing named moments with an object arm be seen at all. Asserted over
    * synthetic source, and asserted to find the literals *and* the object arm's
@@ -2413,8 +2440,7 @@ describe('no spell is special-cased in the runtime', () => {
 
   /** A file's text with the two data constructs removed. */
   const proseOf = (text: string): string =>
-    text
-      .split('\n')
+    linesOf(text)
       .filter((line) => !ID_LINE.test(line))
       .join('\n')
       .replace(SPELL_GRANT, 'fixed: []');
@@ -2487,7 +2513,7 @@ describe('no spell is special-cased in the runtime', () => {
    */
   it.each(RUNTIME.map((file) => [file] as const))('%s holds no content', (file) => {
     const text = source(file);
-    expect(text.split('\n').filter((line) => ID_LINE.test(line)), file).toEqual([]);
+    expect(linesOf(text).filter((line) => ID_LINE.test(line)), file).toEqual([]);
     expect([...text.matchAll(SPELL_GRANT)], file).toEqual([]);
     for (const classId of SRD_CONTENT.classes.map((c) => c.id)) {
       expect(text.includes(`'${classId}'`), `${file} names the class ${classId}`).toBe(false);
@@ -2534,8 +2560,7 @@ describe('no spell is special-cased in the runtime', () => {
     ];
     for (const construct of GLOSSARY) expect(source('positioning.ts')).toContain(construct);
     expect(
-      source('positioning.ts')
-        .split('\n')
+      linesOf(source('positioning.ts'))
         .filter((line) => line.includes("'darkvision'"))
         .map((line) => line.trim()),
     ).toEqual([GLOSSARY[0], "'darkvision',"]);
@@ -2556,8 +2581,7 @@ describe('no spell is special-cased in the runtime', () => {
     // word only where the eight are being listed.
     expect(source('spell-schema.ts')).toContain("const SCHOOLS: ReadonlySet<string> = new Set([");
     expect(
-      source('spell-schema.ts')
-        .split('\n')
+      linesOf(source('spell-schema.ts'))
         .filter((line) => line.includes("'divination'"))
         .map((line) => line.trim()),
     ).toEqual(["'divination',"]);
@@ -2567,7 +2591,7 @@ describe('no spell is special-cased in the runtime', () => {
     // Each is needed: the catalogue really writes its ids that way, and the
     // class tables really write their grants that way, or it excuses nothing
     // — in the content package, which is the only place either construct is.
-    expect(content('spells.ts').split('\n').filter((line) => ID_LINE.test(line)).length)
+    expect(linesOf(content('spells.ts')).filter((line) => ID_LINE.test(line)).length)
       .toBeGreaterThan(100);
     expect([...content('classes/cleric.ts').matchAll(SPELL_GRANT)]).not.toEqual([]);
 
