@@ -967,6 +967,37 @@ describe('a hung grant may not promise an ending nothing keeps', () => {
     );
   });
 
+  /**
+   * The half of this validator that takes `unknown`: a homebrew class arrives
+   * as JSON text through `parseFeatureDefinition`, where a missing modifier is
+   * a refusal and never a `TypeError` thrown out of a function whose contract
+   * is to hand back every problem it found.
+   */
+  it('refuses a hung roll-mode with nothing to read, rather than throwing', () => {
+    expect(codes(hanging([{ kind: 'roll-mode', lasts: 'end-of-current-turn' }]))).toContain(
+      'bad_roll_modifier',
+    );
+    expect(
+      codes(
+        hanging([
+          {
+            kind: 'roll-mode',
+            modifier: { mode: 'advantage', oneShot: true },
+            lasts: 'end-of-current-turn',
+          },
+        ]),
+      ),
+    ).toContain('bad_roll_modifier');
+  });
+
+  it('says so through the door untyped content comes in by', () => {
+    const refused = parseFeatureDefinition(
+      hanging([{ kind: 'roll-mode', lasts: 'end-of-current-turn' }]),
+      CONTEXT,
+    );
+    expect(isErr(refused) && refused.code).toBe('bad_roll_modifier');
+  });
+
   it('allows two grants of different kinds, which is the sentence Steady Aim writes', () => {
     expect(
       codes(

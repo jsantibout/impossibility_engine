@@ -9,7 +9,11 @@ import {
   type FeatureOptionMeaning,
   type PoolSizing,
 } from './progression.js';
-import { oneShotProblem } from './roll-modifiers.js';
+import {
+  oneShotProblem,
+  type RollModifier,
+  type RollSelector,
+} from './roll-modifiers.js';
 import { checkActionRule } from './spell-schema.js';
 
 /**
@@ -640,8 +644,26 @@ export function checkFeatureDefinition(
       }
       kinds.add(hung.kind);
 
-      if (hung.kind === 'roll-mode' && hung.modifier.oneShot === true) {
-        const wrong = oneShotProblem(hung.modifier.selector.roll);
+      if (hung.kind !== 'roll-mode') return;
+
+      // **Asked of the value rather than of the type**, because this validator's
+      // other half takes `unknown`: `parseFeatureDefinition` is the door a
+      // homebrew class comes through as JSON text, and a missing modifier there
+      // is a *refusal* rather than a `TypeError` thrown out of a function whose
+      // contract is to return every problem it found.
+      const modifier = hung.modifier as Partial<RollModifier> | undefined;
+      const selector = modifier?.selector as Partial<RollSelector> | undefined;
+      if (modifier === undefined || selector?.roll === undefined) {
+        found.push({
+          field: `${at}.modifier`,
+          code: 'bad_roll_modifier',
+          reason: 'a hung roll-mode grant carries a modifier, and a modifier says which rolls it reaches',
+        });
+        return;
+      }
+
+      if (modifier.oneShot === true) {
+        const wrong = oneShotProblem(selector.roll);
         if (wrong !== null) {
           found.push({ field: `${at}.modifier.oneShot`, code: wrong.code, reason: wrong.reason });
         }
