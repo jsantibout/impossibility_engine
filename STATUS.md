@@ -34,6 +34,11 @@ to homebrew.
   cannot make two Claws; and an opportunity attack that reaches for the
   highest-damage printed melee attack that does not recharge, instead of
   fabricating an Unarmed Strike. A caller may still name a different one.
+- **A printed line the parser could not read is spendable.** An Actions line
+  with no attack block — 212 of them across 138 blocks — is spent like a Bonus
+  Action line: the Action goes, the printed sentence comes back, and the engine
+  applies none of it. The 71 of those carrying a recharge are live as a result,
+  expended by the spend and returned by the turn roll or a rest.
 - **A recharge is kept.** A printed line the creature used is expended; at the
   start of its turn the engine throws one d6 per expended line and gives it
   back on the printed number or better, and a Short or Long Rest gives back
@@ -447,19 +452,10 @@ one, three spells were two, four features were one, 177 Multiattack blocks were
 about the corpus rather than a law. Every one was caught by a builder, in
 minutes, after the brief was written. `WORKFLOW.md` rule 1 says to check first.
 
-1. **A spend for an unread Actions line.** All 87 recharge lines are parsed,
-   but only **15** reach a sheet — the 2 printed attacks and the 13 Bonus
-   Action lines — because those are the only lines anything can spend. The
-   other 72 are the 71 unread Actions lines and the Stone Giant's reaction:
-   `unreadActions` holds names alone, and a reaction section never reaches the
-   sheet. Give an Actions line the hand-over spend `takeStatedBonusAction`
-   already has and **71 more recharges become live with no change to that
-   rule** — which is why carrying a recharge to a line nothing can spend was
-   left undone rather than built ahead of its consumer.
-
-   Still undecided beside it: a clay golem that Slams *before* it Hastens gets
-   two, because the action's size is fixed at the first swing. It errs toward
-   giving less than the book, which is the safe direction.
+1. **An `X/Day` notation nothing enforces.** 10 of the 212 spendable Actions
+   lines print one. It is a different rule from a recharge with a different
+   clock — no die, no turn boundary, a count that resets on a long rest — and
+   nothing reads it. The same gap the recharge rule closed, one notation over.
 
 2. **What the bestiary still does not read.** 75 printed bonus-action lines read
    as 0, which is also what leaves the clay golem's gated alternative prose. And
