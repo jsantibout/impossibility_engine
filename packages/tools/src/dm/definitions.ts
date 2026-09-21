@@ -81,6 +81,8 @@ import type { Duration, ModeSource, TestResolution } from '@ie/engine';
 import {
   applyConditionTo,
   awardItems,
+  changeCoins,
+  COPPER_PER,
   declareCreatureHeads,
   liftConditionFrom,
   loseItems,
@@ -747,6 +749,154 @@ const LOSE_ITEMS = tool({
 });
 
 /**
+ * Which coin, in the book's own denominations.
+ *
+ * A DM says "fifty gold", not "five thousand copper", and the rate between
+ * them is the SRD's rather than the caller's — `COPPER_PER` is the catalogue's
+ * own table, the one every printed price is already read through. So the
+ * amount is a decision (how rich was the hoard) and the conversion is not,
+ * which is the line this whole surface is drawn along.
+ *
+ * Gold by default, because that is the coin the treasure tables print.
+ */
+const COIN = z
+  .enum(Object.keys(COPPER_PER) as [string, ...string[]])
+  .default('gp')
+  .describe('Which coin: cp, sp, ep, gp or pp. Gold where it is left out.');
+
+/** How much, as a count of coins. Never a die, and never zero. */
+const AMOUNT = z
+  .int()
+  .min(1)
+  .describe('How many coins. A count you decided on, like the number of potions in a chest.');
+
+/** The caller's two fields in the engine's single signed unit. */
+const copperOf = (amount: number, coin: string): number =>
+  amount * COPPER_PER[coin as keyof typeof COPPER_PER];
+
+/**
+ * Pay a party.
+ *
+ * **The door that was missing, and the shape of what was missing is exact.**
+ * `purchase_item` has been on the model's surface for as long as the engine
+ * has priced a shop, and it spent a purse that nothing on either surface could
+ * fill: `coins-changed` had two writers, creation and a purchase, and the
+ * second only ever wrote a negative one. A party's money was therefore what it
+ * was born with and could only go down, so every shop in the book was
+ * reachable exactly once and only by whoever started rich.
+ *
+ * **On this surface for the reason `award_items` is on it**, which is the same
+ * sentence about a different kind of treasure: what a party found is the DM's
+ * to give, and a model that could pay itself would be writing the world rather
+ * than playing in it. It is a *tool* rather than a field on `create_character`
+ * for the sharper half of that — `dmGrants.goldPieces` is pinned to a literal
+ * zero in a schema **both** surfaces share, and loosening it there to let a DM
+ * start a party rich would hand a model the same authorship in the same call.
+ *
+ * **The amount is a decision and the rate is not.** How much the patron paid
+ * is fiction, exactly as how wide the room is; the conversion from the coin a
+ * DM named into the copper the purse counts is the catalogue's.
+ */
+const AWARD_COIN = tool({
+  name: 'award_coin',
+  description:
+    'Pay a creature: the reward for the caravan, the purse on the body, a share of the hoard. Say how many coins and which — gold where you do not say. The engine converts to the copper a purse is counted in and the character can spend it at the prices the book prints. Say where it came from; the log records it.',
+  mutates: true,
+  input: z.strictObject({
+    who: creatureId.describe('Who is being paid.'),
+    amount: AMOUNT,
+    coin: COIN,
+    because: z
+      .string()
+      .min(1)
+      .describe('Where it came from, in one phrase: "the reward for the caravan".'),
+  }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      changeCoins(
+        context.campaign.state(),
+        who(args.who),
+        copperOf(args.amount, args.coin),
+        args.because,
+        identity(context).commandId,
+      ),
+      // **Both numbers, and the unit of each.** The purse is counted in copper
+      // and the DM spoke in gold, so an echo that said `paid: 5000` to
+      // somebody who typed `50` would read as the surface having invented a
+      // number. It says what was asked for and what the catalogue made of it.
+      {
+        paid: args.amount,
+        coin: args.coin,
+        copper: copperOf(args.amount, args.coin),
+        to: args.who,
+        because: args.because,
+      },
+    ),
+});
+
+/**
+ * Take coin away — `award_coin`'s other half, and `lose_items`' other half
+ * too.
+ *
+ * **Two doors over one command, on purpose.** The engine has a single signed
+ * event whose own comment reads "Money in or out", and `changeCoins` is a
+ * single signed command over it, because splitting the directions down there
+ * would invent an asymmetry the log does not have. A *surface* is exactly
+ * where that turns back into the two sentences a DM would actually say: "pass
+ * a negative number to rob them" is not prose a door should print, and
+ * `award_items` and `lose_items` next door already answer the question this
+ * way.
+ *
+ * **Not `purchase_item` in disguise.** A toll buys no item, a bribe has no
+ * catalogue row and a thief leaves no receipt, and a purchase refuses an id
+ * the catalogue does not hold — so there is no fiction to buy and this is not
+ * a thing a shop could have done. `lose_items`, whose prose names "a purse
+ * cut" among the things it is for, says in its next sentence that no coin
+ * moves; this is the half that sentence was describing the absence of.
+ *
+ * **More than is carried is refused, and the refusal is the engine's.** The
+ * reducer would throw on a purse below zero, which is the right answer to a
+ * corrupt log and the wrong one to a DM who named a bigger bribe than the
+ * party can pay; `changeCoins` answers `not_enough_coin` as a value and names
+ * what is actually there, so the table can lower its price.
+ */
+const TAKE_COIN = tool({
+  name: 'take_coin',
+  description:
+    'Take coin from a creature: the toll at the bridge, the bribe, the thief in the night, the tax on the gate. Say how many coins and which — gold where you do not say. More than the creature is carrying is refused, and the refusal says what is there. Say where it went; the log records it.',
+  mutates: true,
+  input: z.strictObject({
+    who: creatureId.describe('Who is losing it.'),
+    amount: AMOUNT,
+    coin: COIN,
+    because: z
+      .string()
+      .min(1)
+      .describe('Where it went, in one phrase: "the toll at the bridge".'),
+  }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      changeCoins(
+        context.campaign.state(),
+        who(args.who),
+        -copperOf(args.amount, args.coin),
+        args.because,
+        identity(context).commandId,
+      ),
+      // The same two numbers and the same two units; see {@link AWARD_COIN}.
+      {
+        taken: args.amount,
+        coin: args.coin,
+        copper: copperOf(args.amount, args.coin),
+        from: args.who,
+        because: args.because,
+      },
+    ),
+});
+
+/**
  * What a spend of a printed line answers with, for both of the tools that
  * take one.
  *
@@ -947,6 +1097,7 @@ const DECLARE_HEADS = tool({
  */
 export const DM_ONLY_TOOLS: readonly ToolDefinition[] = [
   ABILITY_CHECK,
+  AWARD_COIN,
   AWARD_ITEMS,
   DECLARE_HEADS,
   END_CONDITION,
@@ -956,6 +1107,7 @@ export const DM_ONLY_TOOLS: readonly ToolDefinition[] = [
   RULE_CONDITION,
   SAVING_THROW,
   SETTLE_TEST,
+  TAKE_COIN,
   TAKE_PRINTED_ACTION,
   TAKE_PRINTED_BONUS_ACTION,
 ].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
