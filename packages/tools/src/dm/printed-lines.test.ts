@@ -148,6 +148,35 @@ describe('a line the block prints a recharge on', () => {
   });
 });
 
+describe('a retry says what the first call said', () => {
+  it('answers a re-sent recharge line with the printed name and the recharge still spent', () => {
+    const t = fight('resend-the-breath');
+    turnOf(t, 'fang');
+
+    // The heading in the caller's own casing, so an echo and a read of the log
+    // cannot answer alike — this is the call that tells them apart.
+    const input = { who: 'fang', line: COLD_BREATH.toUpperCase() };
+    const first = expectOk(
+      t.surface.call({ tool: 'take_printed_action', input, commandId: 'toolu_breath' }),
+    );
+    expect(first.resolution['line']).toBe(COLD_BREATH);
+    expect(first.resolution['expended']).toBe(true);
+
+    const before = t.campaign.log().length;
+    const again = expectOk(
+      t.surface.call({ tool: 'take_printed_action', input, commandId: 'toolu_breath' }),
+    );
+
+    // Nothing happened twice — and the answer is still the first one's, rather
+    // than the caller's spelling and a recharge reported as unspent.
+    expect(again.resolution['duplicate']).toBe(true);
+    expect(again.events).toHaveLength(0);
+    expect(t.campaign.log()).toHaveLength(before);
+    expect(again.resolution['line']).toBe(COLD_BREATH);
+    expect(again.resolution['expended']).toBe(true);
+  });
+});
+
 describe('a printed Bonus Action line, taken through its own door', () => {
   it('spends the Bonus Action and hands the sentence back', () => {
     const t = fight('nimble');

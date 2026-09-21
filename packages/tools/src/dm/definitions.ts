@@ -77,7 +77,7 @@
  */
 
 import type { ConditionName } from '@ie/shared';
-import type { Duration, GameEvent, ModeSource, TestResolution } from '@ie/engine';
+import type { Duration, ModeSource, TestResolution } from '@ie/engine';
 import {
   applyConditionTo,
   awardItems,
@@ -98,6 +98,7 @@ import {
   senses,
   settle,
   settleEvents,
+  type ToolContext,
   type ToolDefinition,
   tool,
   TOOLS,
@@ -760,19 +761,46 @@ const LOSE_ITEMS = tool({
  * recharge on is gone until it comes back, and `printed-line-expended` is the
  * engine saying so. A caller that could not see it would have to take the line
  * again to find out, which costs an Action.
+ *
+ * **Both are read out of the campaign and not out of this call's batch**, and
+ * that is what makes a retry honest. `once` hands a duplicate back with *no*
+ * events, so a reading of the batch would fall through to echoing the caller's
+ * casing and would report a spent recharge as unspent — the two failures this
+ * note forbids, arriving through the one path with nothing to read. The log is
+ * searched instead, matched on the command stamp the first call left on its own
+ * event, which is the same id the transport is re-sending; `settle` appends
+ * before it asks for a resolution, so the fresh path finds its own event there
+ * too and there is one path rather than two. A call whose event cannot be found
+ * claims neither field: `duplicate` is then the whole of the answer.
+ *
+ * And `expended` is asked of the *creature* rather than of an event, because
+ * "is this line spent" is a question about now. Reading a
+ * `printed-line-expended` out of the log would answer "was it ever", and a line
+ * the engine handed back at a turn boundary would still read as gone.
  */
 const lineTaken = (
-  events: readonly GameEvent[],
+  context: ToolContext,
   type: 'stated-action-taken' | 'stated-bonus-action-taken',
-  asked: string,
   duplicate: boolean,
-  who: string,
+  id: string,
 ): Readonly<Record<string, unknown>> => {
-  const taken = events.find((event) => event.type === type);
+  const taken = context.campaign
+    .log()
+    .find(
+      (event) =>
+        event.type === type &&
+        (event as { command?: { id: string } }).command?.id === context.commandId,
+    ) as { line: string } | undefined;
+
   return {
-    who,
-    line: taken === undefined ? asked : (taken as { line: string }).line,
-    expended: events.some((event) => event.type === 'printed-line-expended'),
+    who: id,
+    ...(taken === undefined
+      ? {}
+      : {
+          line: taken.line,
+          expended:
+            context.campaign.state().creatures[id]?.expendedLines.includes(taken.line) ?? false,
+        }),
     duplicate,
   };
 };
@@ -820,8 +848,7 @@ const TAKE_PRINTED_ACTION = tool({
         ...identity(context),
       }),
       (value) => value.events,
-      (value) =>
-        lineTaken(value.events, 'stated-action-taken', args.line, value.duplicate, args.who),
+      (value) => lineTaken(context, 'stated-action-taken', value.duplicate, args.who),
       (value) => value.unverified,
     ),
 });
@@ -858,8 +885,7 @@ const TAKE_PRINTED_BONUS_ACTION = tool({
         ...identity(context),
       }),
       (value) => value.events,
-      (value) =>
-        lineTaken(value.events, 'stated-bonus-action-taken', args.line, value.duplicate, args.who),
+      (value) => lineTaken(context, 'stated-bonus-action-taken', value.duplicate, args.who),
       (value) => value.unverified,
     ),
 });
