@@ -64,19 +64,22 @@
  * that cannot see its own Rages cannot spend one, and one that has not been
  * told it holds Empowered Evocation cannot elect it.
  *
- * **One pool the engine holds has no door, and the rule that shut three is
- * why.** "A pool a caller could spend for no effect is worse than a pool it
- * cannot spend, because the use would be gone" — so Channel Divinity, Bardic
- * Inspiration and Action Surge were all left shut while nothing executed what
- * a use bought. Two of the three have stopped being that: a pool use is the
- * third host of an effect list, so `use_pool_option` spends a Cleric's, and a
- * conferred Reaction is a real Reaction with an hour on it and a door that
- * takes it, so `confer_reaction` spends a Bard's. **Action Surge is still
- * shut**, and by the original sentence: nothing grants the extra action, so
- * the use would be gone and nothing would have happened. Paladin's Channel
- * Divinity is shut for the same reason — it prints no option the engine
- * executes, so `sheet` reports no feature line for it and there is nothing
- * here to call.
+ * **The three pools the engine held with no door are open, and the rule that
+ * shut them is why they opened one at a time.** "A pool a caller could spend
+ * for no effect is worse than a pool it cannot spend, because the use would
+ * be gone" — so Channel Divinity, Bardic Inspiration and Action Surge were
+ * all left shut while nothing executed what a use bought. A pool use became
+ * the third host of an effect list, so `use_pool_option` spends a Cleric's; a
+ * conferred Reaction became a real Reaction with an hour on it and a door
+ * that takes it, so `confer_reaction` spends a Bard's; and a use became able
+ * to buy room in the turn's own budget, so `use_budget_purchase` spends a
+ * Fighter's Action Surge and a Monk's Flurry of Blows. Each door landed the
+ * week its mechanism did, which is the rule rather than an accident of order.
+ * **Paladin's Channel Divinity is still shut**, and by the original sentence
+ * — it prints no option the engine executes, so `sheet` reports no feature
+ * line for it and there is nothing here to call. `reachability.test.ts` holds
+ * the whole of that claim: every feature the engine executes at level 5 is
+ * reachable from here, or is one of the four pools recorded as still shut.
  *
  * **And `spendFor` is not a command, so it is not a door either.** It is the
  * helper in `commands/command.ts` that the four feature commands costing an
@@ -214,6 +217,7 @@ import {
   tradeResource,
   transferItem,
   unequipItem,
+  useBudgetPurchase,
   useFreeObjectInteraction,
   useHealingTouch,
   useItem,
@@ -2753,6 +2757,66 @@ const USE_POOL_OPTION = tool({
 });
 
 /**
+ * Spend a use of a pool on room in the turn's own budget.
+ *
+ * `use_pool_option` one kind of purchase along, and the difference is what
+ * the use buys: an effect list is aimed at somebody, and this is aimed at the
+ * turn. SRD Action Surge — "you can take one additional action, except the
+ * Magic action" — and SRD Flurry of Blows — "expend 1 Focus Point to make two
+ * Unarmed Strikes as a Bonus Action" — are the two the book writes this way.
+ *
+ * **This is the last of the pools the note above says were left shut, and the
+ * sentence that shut it has stopped being true.** "A pool a caller can spend
+ * for no effect is worse than one it cannot spend, because the use would be
+ * gone" — and nothing granted the extra action, so Action Surge stayed shut
+ * while Channel Divinity and Bardic Inspiration opened. `useBudgetPurchase`
+ * grants it: an extra action and extra attacks are written into the
+ * `TurnBudget` by a combat event, which is the only thing that may write one.
+ * The engine executed both purchases for a week and no tool called the
+ * command, which is the gap `sheet`'s `spentBy` exists to make visible.
+ *
+ * **It carries no number and states no outcome.** The whole of the call is
+ * whose turn it is, which feature sells the purchase and which purchase — the
+ * price in the action economy, the use out of the pool, the once-a-turn
+ * clause and what the budget gains are all read off the sheet the character
+ * was created with. `sheet` lists the feature, what is left of its pool and
+ * every purchase it sells.
+ *
+ * **It refuses outside a fight**, which is the engine's own ruling passed
+ * through and the one place this differs from its neighbours: a self-heal out
+ * of combat heals and simply spends no action, while an additional action
+ * does not exist where there is no turn order at all — so buying one there
+ * would spend the use on nothing and report success.
+ */
+const USE_BUDGET_PURCHASE = tool({
+  name: 'use_budget_purchase',
+  description:
+    'Spend one use of a feature whose pool buys room in this turn — SRD Action Surge’s additional action and SRD Flurry of Blows’ two Unarmed Strikes are the two the book writes this way. Name the feature and which of the things its uses buy; `sheet` lists both, what each costs in the action economy and what is left of the pool. The engine charges the price the purchase prints, spends the use, and adds what it buys to this turn’s budget — the extra action is then taken through the ordinary tools, and the extra attacks through `attack`. It refuses outside a fight, where there is no turn to add to, and it refuses a second use on a turn where the feature says once.',
+  mutates: true,
+  input: z.object({
+    who: creatureId.describe('Whose turn it is, and whose pool pays for it.'),
+    feature: z
+      .string()
+      .min(1)
+      .describe('The feature id, from `sheet`, e.g. fighter:action-surge or monk:focus.'),
+    purchase: z
+      .string()
+      .min(1)
+      .describe('Which of the things a use buys, from that feature’s `buys`, e.g. flurry-of-blows.'),
+  }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      useBudgetPurchase(context.campaign.state(), who(args.who), {
+        feature: args.feature,
+        purchase: args.purchase,
+        ...identity(context),
+      }),
+      { feature: args.feature, bought: args.purchase },
+    ),
+});
+
+/**
  * Pay for one resource with another, and gain a level — the two doors a
  * character needs to go on being one.
  *
@@ -4257,6 +4321,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   TRANSFER_ITEM,
   UNEQUIP_ITEM,
   USE_ITEM,
+  USE_BUDGET_PURCHASE,
   USE_POOL_OPTION,
   TRADE_RESOURCE,
   ADVANCE_CHARACTER,

@@ -95,6 +95,17 @@ export const SPENT_BY = {
    * turn and not a door — which is what `passive` has always meant here.
    */
   'action-price': 'take_action',
+  /**
+   * A use that buys room in the turn's own budget: SRD Action Surge's
+   * additional action, SRD Flurry of Blows' two Unarmed Strikes.
+   *
+   * `pool-option` one purchase along, and the difference is what the use
+   * buys: an effect list is aimed at somebody, and this is aimed at the
+   * turn. It is the last of the pools that were shut under the rule "a pool
+   * a caller can spend for no effect is worse than one it cannot spend" —
+   * `useBudgetPurchase` executes what the use buys, so the door is honest.
+   */
+  'budget-purchase': 'use_budget_purchase',
 } as const;
 
 export type SpendableKind = keyof typeof SPENT_BY;
@@ -197,6 +208,37 @@ export interface HeldHitOption {
   readonly weapons?: readonly WeaponSelector[];
   /** Whether an Unarmed Strike counts, which no set of weapons can say. */
   readonly unarmedStrike?: boolean;
+}
+
+/**
+ * One thing a use buys in the turn's own budget, named by the call that buys
+ * it.
+ *
+ * {@link HeldPoolOption} with the price kept and the target dropped, which is
+ * the difference between the two: a pool option is aimed at somebody and this
+ * is aimed at the turn. SRD Action Surge and SRD Flurry of Blows are the two
+ * the book writes, and they disagree on every field — one costs nothing to
+ * say and may be said once a turn, the other costs a Bonus Action and may be
+ * said as often as the points last.
+ *
+ * **What it adds is reported, and it is not a number the caller may send.**
+ * The engine writes the budget from the sheet's own record; these two fields
+ * are the *description* a caller needs to choose between purchases, in the
+ * same way `HeldHitOption.weapons` reports the clause that qualifies a swing.
+ */
+export interface HeldBudgetPurchase {
+  /** The id `use_budget_purchase.purchase` takes — SRD's `flurry-of-blows`. */
+  readonly purchase: string;
+  /** What the log calls it: SRD's "Action Surge". */
+  readonly name: string;
+  /** SRD Action Surge costs nothing to invoke, which is `none`. */
+  readonly action: 'none' | 'action' | 'bonus-action';
+  /** SRD Action Surge at Fighter 17: "only once on a turn". */
+  readonly oncePerTurn: boolean;
+  /** SRD: "one additional action, except the Magic action". */
+  readonly extraAction?: { readonly except?: readonly string[] };
+  /** SRD Flurry of Blows: "two Unarmed Strikes". */
+  readonly extraAttacks?: { readonly count: number; readonly unarmedOnly: boolean };
 }
 
 /**
@@ -328,6 +370,15 @@ export interface HeldFeature {
    * does not take it.
    */
   readonly trades?: readonly HeldTrade[];
+  /**
+   * What a use buys in the turn's budget, for a pool that sells room in it.
+   *
+   * The fourth menu, on the same terms as the other three: `use_budget_purchase`
+   * is asked for the feature *and* the purchase, because SRD's Monk's Focus
+   * sells more than Flurry of Blows and a caller shown the feature alone has
+   * been told half of what it needs to type the call.
+   */
+  readonly buys?: readonly HeldBudgetPurchase[];
   /** A healing touch's conditions, and what each one costs out of the pool. */
   readonly lifts?: readonly string[];
   readonly costPerCondition?: number;
@@ -424,6 +475,32 @@ export interface HeldBudget {
   readonly bonusAction: boolean;
   readonly reaction: boolean;
   readonly movementFeet: number;
+  /**
+   * Actions something added to this turn beyond the one it came with — SRD
+   * Action Surge.
+   *
+   * **Reported because a purchase a caller cannot see is a purchase it will
+   * not spend.** The engine keeps these in a list of their own and spends the
+   * turn's own action first, so a Fighter that has surged still reads
+   * `action: false` and would conclude it had bought nothing. Each carries
+   * the narrowing its own sentence prints, because two of them need not
+   * narrow alike and "except the Magic action" is a rule a caller acts on.
+   *
+   * Empty on every turn nobody has added to, which is nearly all of them.
+   */
+  readonly extraActions: readonly { readonly source: string; readonly except?: readonly string[] }[];
+  /**
+   * Attacks bought outside an Attack action — SRD Flurry of Blows' two
+   * Unarmed Strikes — or null where none were.
+   *
+   * `extraActions`' other half and reported for its reason: the strikes are
+   * made through `attack` like any other, and a caller that cannot see how
+   * many it has left will stop after one or be refused after three.
+   */
+  readonly grantedAttacks: {
+    readonly remaining: number;
+    readonly unarmedOnly: boolean;
+  } | null;
 }
 
 export interface Holdings {
@@ -531,7 +608,18 @@ function alsoHolding(first: HeldFeature, second: HeldFeature): HeldFeature {
   // uses are bought rather than spent states which bargain on the call, so a
   // trade dropped by a merge is a trade nothing could name.
   const trades = first.trades ?? second.trades;
-  if (options === first.options && onHit === first.onHit && trades === first.trades) return first;
+  // And a fourth. SRD's Monk's Focus is the feature that makes this live: it
+  // is one pool selling room in the turn's budget, and the day a subclass adds
+  // an effect list to the same pool the two claims meet under one id.
+  const buys = first.buys ?? second.buys;
+  if (
+    options === first.options &&
+    onHit === first.onHit &&
+    trades === first.trades &&
+    buys === first.buys
+  ) {
+    return first;
+  }
 
   const doors = [...(first.alsoSpentBy ?? [])];
   if (second.spentBy !== null && second.spentBy !== first.spentBy && !doors.includes(second.spentBy)) {
@@ -543,6 +631,7 @@ function alsoHolding(first: HeldFeature, second: HeldFeature): HeldFeature {
     ...(options === undefined ? {} : { options }),
     ...(onHit === undefined ? {} : { onHit }),
     ...(trades === undefined ? {} : { trades }),
+    ...(buys === undefined ? {} : { buys }),
     ...(doors.length === 0 ? {} : { alsoSpentBy: doors }),
   };
 }
@@ -790,6 +879,63 @@ export function holdingsOf(state: GameState, id: CharacterId): Holdings | null {
   }
 
   /**
+   * A pool whose uses buy room in the turn's own budget — the same shape a
+   * pool with a menu takes, one kind of purchase along.
+   *
+   * SRD Action Surge and SRD Flurry of Blows, which are one sentence apart in
+   * what they are and disagree on every field: one costs nothing to invoke
+   * and may be invoked once a turn, the other costs a Bonus Action and may be
+   * invoked while the points last. So the price is the **purchase's** and the
+   * feature reports one only where every purchase agrees, which is the rule a
+   * pool option's menu already keeps for the same reason.
+   *
+   * **This was the last pool the surface held and could not spend.** The rule
+   * that shut it — "a pool a caller can spend for no effect is worse than one
+   * it cannot spend, because the use would be gone" — stopped applying the
+   * day `useBudgetPurchase` landed and an extra action found somewhere to
+   * live; the engine executed both purchases for a week and no tool called
+   * the command. A feature a caller is told it holds and can find no door for
+   * is half a door, and this file is where the other half is named.
+   */
+  const purchases = new Map<string, HeldBudgetPurchase[]>();
+  for (const one of sheet.budgetPurchases ?? []) {
+    const entry: HeldBudgetPurchase = {
+      purchase: one.purchase,
+      name: one.name,
+      action: one.action,
+      oncePerTurn: one.oncePerTurn === true,
+      ...(one.extraAction === undefined ? {} : { extraAction: one.extraAction }),
+      ...(one.extraAttacks === undefined ? {} : { extraAttacks: one.extraAttacks }),
+    };
+    const found = purchases.get(one.feature);
+    if (found === undefined) purchases.set(one.feature, [entry]);
+    else found.push(entry);
+  }
+  for (const [feature, buys] of purchases) {
+    const mine = (sheet.budgetPurchases ?? []).filter((one) => one.feature === feature);
+    const first = mine[0]!;
+    // **And the pool is the purchases' too, for the price's reason.** A
+    // purchase names the pool a use comes out of and the sheet's own comment
+    // says it "may be another feature's", so two purchases under one feature
+    // need not draw on one pool — and a line reporting the first one's `left`
+    // for both would be a number that is wrong about the other. Where they
+    // disagree there is no single pool to name, which is the answer a trade
+    // already gives to the same question; what is left of each is on `pools`.
+    const shared = mine.every((one) => one.pool === first.pool) ? first.pool : null;
+    add({
+      feature,
+      name: first.featureName,
+      kind: 'budget-purchase',
+      spentBy: SPENT_BY['budget-purchase'],
+      action: buys.every((one) => one.action === buys[0]!.action) ? buys[0]!.action : null,
+      pool: shared,
+      left: leftIn(state, who, shared),
+      active: false,
+      buys,
+    });
+  }
+
+  /**
    * A feature a *hit* buys, reported once per feature with its menu — the same
    * shape a pool with a menu takes, one trigger along.
    *
@@ -995,6 +1141,19 @@ export function holdingsOf(state: GameState, id: CharacterId): Holdings | null {
             bonusAction: budget.bonusAction,
             reaction: budget.reaction,
             movementFeet: movementLeftFor(state, creature.id) ?? 0,
+            // The engine's own list, passed through: the narrowing is the
+            // grant's and rephrasing it here would be a second copy of a rule.
+            extraActions: budget.extraActions.map((extra) => ({
+              source: extra.source,
+              ...(extra.except === undefined ? {} : { except: extra.except }),
+            })),
+            grantedAttacks:
+              budget.grantedAttacks === null
+                ? null
+                : {
+                    remaining: budget.grantedAttacks.remaining,
+                    unarmedOnly: budget.grantedAttacks.unarmedOnly,
+                  },
           },
     spellSlots,
     pactSlots,

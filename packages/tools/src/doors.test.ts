@@ -968,13 +968,24 @@ const KIND_SETTLED_BY: Readonly<Record<string, ContextRequestKind | null>> = {
   declareDawn: null,
 };
 
-/** Every request raised in these sources, as the kind it is tagged and the prose. */
+/**
+ * Every request raised in these sources, as the kind it is tagged and the
+ * prose.
+ *
+ * **A line ends at either line ending.** The capture stops at `\r` as well as
+ * at `\n`, which is this file's share of the same fix every sweep that reads
+ * source needs: a carriage return swept up into `satisfyWith` is a character
+ * the detector below then has to match past, and a repository with one CRLF
+ * file in it is a repository where that happens on that file alone. There is
+ * no line *split* here to share a helper with — the "nearest kind above" is
+ * found by offset rather than by line — so the fix is the character class.
+ */
 function requestsIn(
   sources: readonly { file: string; text: string }[],
 ): readonly { readonly file: string; readonly kind: string; readonly satisfyWith: string }[] {
   const found: { file: string; kind: string; satisfyWith: string }[] = [];
   for (const { file, text } of sources) {
-    for (const match of text.matchAll(/satisfyWith\s*:\s*([^\n]*)/g)) {
+    for (const match of text.matchAll(/satisfyWith\s*:\s*([^\r\n]*)/g)) {
       const above = [...text.slice(0, match.index).matchAll(/kind\s*:\s*'([a-z-]+)'/g)];
       const nearest = above[above.length - 1];
       expect(nearest, `a request in ${file} with no kind above it`).toBeDefined();

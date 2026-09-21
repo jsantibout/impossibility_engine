@@ -1217,3 +1217,234 @@ describe('a casting can elect a feature its caster holds', () => {
     expect(hpOf(t, 'bram')).toBe(sheetOf(t, 'bram').all['hpMax']);
   });
 });
+
+/**
+ * SRD Action Surge and SRD Flurry of Blows: a pool whose use buys room in the
+ * turn's own budget, and the door that was missing for a week.
+ *
+ * `useBudgetPurchase` has been complete, tested and on the engine's barrel
+ * since an extra action found somewhere to live, and nothing above it could
+ * ask — so a Fighter was shown a pool called Action Surge and no tool that
+ * spends it, which is the half-door `spentBy` exists to prevent. The rule
+ * that kept it shut was "a pool a caller can spend for no effect is worse
+ * than one it cannot spend"; what a use buys is executed now, so the same
+ * rule says open it.
+ *
+ * **What is asserted is the budget and never a die.** The call carries the
+ * feature and the purchase and nothing else: the price in the action economy,
+ * the use out of the pool and what the purchase adds are all the engine's,
+ * read off the sheet the character was created with.
+ */
+describe('a Fighter can surge, and a Monk can flurry', () => {
+  /** A fight, wound on to the turn of the character the test is about. */
+  const fight = (classId: string, seed: string) => {
+    const t = table(seed);
+    expectOk(t.call('create_character', { id: 'bram', choices: character(classId, 5) }));
+    expectOk(t.call('create_character', { id: 'foe', choices: character('rogue', 5) }));
+    expectOk(t.call('roll_initiative', { combatants: [{ who: 'bram' }, { who: 'foe' }] }));
+    // Whose turn it is comes off the engine's own order, so the test walks to
+    // the one it is about rather than asserting a roll went a certain way.
+    while (t.surface.observe().turnOf !== 'bram') expectOk(t.call('end_turn', {}));
+    return t;
+  };
+
+  /**
+   * The turn's own economy, off the character's sheet.
+   *
+   * `look`'s budget is the three flags and the feet; what a purchase *adds*
+   * is on the sheet, because the extras are a list of their own and the
+   * engine spends the turn's own action before any of them — so a Fighter
+   * that has surged still reads `action: false` and has to be told about the
+   * one it bought somewhere.
+   */
+  const budgetOf = (t: ReturnType<typeof table>, who: string) =>
+    sheetOf(t, who).all['budget'] as {
+      readonly action: boolean;
+      readonly bonusAction: boolean;
+      readonly extraActions: readonly { readonly source: string; readonly except?: readonly string[] }[];
+      readonly grantedAttacks: { readonly remaining: number; readonly unarmedOnly: boolean } | null;
+    };
+
+  const buysOf = (t: ReturnType<typeof table>, who: string, feature: string) =>
+    (
+      sheetOf(t, who).feature(feature) as unknown as {
+        readonly buys: readonly Record<string, unknown>[];
+      }
+    ).buys;
+
+  /**
+   * The report first: a caller that has not been told what a use buys cannot
+   * name it, because the call is asked for the feature *and* the purchase.
+   */
+  it('reports what a use buys, and the tool that spends one', () => {
+    const t = table('surge-sheet');
+    expectOk(t.call('create_character', { id: 'bram', choices: character('fighter', 5) }));
+
+    expect(sheetOf(t, 'bram').feature('fighter:action-surge')).toMatchObject({
+      name: 'Action Surge',
+      kind: 'budget-purchase',
+      spentBy: 'use_budget_purchase',
+      // SRD: "On your turn, you can take one additional action" — saying so
+      // costs nothing, and the use is the whole price.
+      action: 'none',
+      pool: 'action-surge',
+      left: 1,
+    });
+    expect(buysOf(t, 'bram', 'fighter:action-surge')).toEqual([
+      {
+        purchase: 'action-surge',
+        name: 'Action Surge',
+        action: 'none',
+        oncePerTurn: true,
+        extraAction: { except: ['magic'] },
+      },
+    ]);
+  });
+
+  /**
+   * And the Monk's, which is the same shape with the other half of the grant
+   * filled in: two Unarmed Strikes bought with a Bonus Action and a point.
+   */
+  it('reports the Monk’s two strikes as what a Focus Point buys', () => {
+    const t = table('flurry-sheet');
+    expectOk(t.call('create_character', { id: 'kai', choices: character('monk', 5) }));
+
+    expect(sheetOf(t, 'kai').feature('monk:focus')).toMatchObject({
+      kind: 'budget-purchase',
+      spentBy: 'use_budget_purchase',
+      action: 'bonus-action',
+      pool: 'focus-points',
+    });
+    expect(buysOf(t, 'kai', 'monk:focus')).toEqual([
+      {
+        purchase: 'flurry-of-blows',
+        name: 'Flurry of Blows',
+        action: 'bonus-action',
+        oncePerTurn: false,
+        extraAttacks: { count: 2, unarmedOnly: true },
+      },
+    ]);
+  });
+
+  /**
+   * The Action the use buys, proved twice over: the sheet says the turn holds
+   * one, and a second Dodge — refused before the surge — is taken after it.
+   *
+   * SRD adds to a turn rather than refilling it, so `action` stays false and
+   * the extra is a thing of its own; a caller told only the flag would
+   * conclude the use had bought nothing.
+   */
+  it('buys an action for a Fighter who has already spent theirs', () => {
+    const t = fight('fighter', 'surge');
+    expectOk(t.call('take_action', { who: 'bram', kind: 'dodge' }));
+    expect(budgetOf(t, 'bram').action).toBe(false);
+    expect(budgetOf(t, 'bram').extraActions).toEqual([]);
+    // A Dash needs an Action and there is none: the refusal is the price and
+    // not the Dodge already running, which is why it is a different action.
+    expect(expectRefused(t.call('take_action', { who: 'bram', kind: 'dash' })).code).toBe(
+      'no_action',
+    );
+
+    const surged = expectOk(
+      t.call('use_budget_purchase', {
+        who: 'bram',
+        feature: 'fighter:action-surge',
+        purchase: 'action-surge',
+      }),
+    );
+
+    expect(surged.resolution['bought']).toBe('action-surge');
+    // SRD: "one additional action, except the Magic action."
+    expect(budgetOf(t, 'bram').extraActions).toEqual([
+      { source: 'Action Surge', except: ['magic'] },
+    ]);
+    expect(sheetOf(t, 'bram').pool('action-surge')!.left).toBe(0);
+
+    // And it is a real action: the Dash that was refused a moment ago lands.
+    expectOk(t.call('take_action', { who: 'bram', kind: 'dash' }));
+    expect(budgetOf(t, 'bram').extraActions).toEqual([]);
+  });
+
+  /**
+   * SRD Action Surge: "you can use it twice before a rest but only once on a
+   * turn", and the turn clause is the one that bites first — the engine
+   * checks it before the pool, so a Fighter with a use left is still refused.
+   */
+  it('refuses a second surge on the same turn', () => {
+    const t = fight('fighter', 'surge-twice');
+    expectOk(
+      t.call('use_budget_purchase', {
+        who: 'bram',
+        feature: 'fighter:action-surge',
+        purchase: 'action-surge',
+      }),
+    );
+    const again = expectRefused(
+      t.call('use_budget_purchase', {
+        who: 'bram',
+        feature: 'fighter:action-surge',
+        purchase: 'action-surge',
+      }),
+    );
+    expect(again.code).toBe('already_used');
+  });
+
+  /**
+   * SRD Flurry of Blows costs the Bonus Action as well as the point, and the
+   * engine charges both — which is why the price is the purchase's rather
+   * than the feature's.
+   */
+  it('charges a Monk the Bonus Action and the Focus Point, and hands over two strikes', () => {
+    const t = fight('monk', 'flurry');
+    expect(budgetOf(t, 'bram').bonusAction).toBe(true);
+    const before = sheetOf(t, 'bram').pool('focus-points')!.left;
+
+    expectOk(
+      t.call('use_budget_purchase', {
+        who: 'bram',
+        feature: 'monk:focus',
+        purchase: 'flurry-of-blows',
+      }),
+    );
+
+    expect(budgetOf(t, 'bram').bonusAction).toBe(false);
+    expect(sheetOf(t, 'bram').pool('focus-points')!.left).toBe(before - 1);
+    // SRD: "two Unarmed Strikes", and no weapon takes one of them.
+    expect(budgetOf(t, 'bram').grantedAttacks).toEqual({ remaining: 2, unarmedOnly: true });
+  });
+
+  /**
+   * And outside a fight it refuses rather than quietly succeeding, which is
+   * the engine's own ruling passed through: an additional action does not
+   * exist where there is no turn order, so a use spent there would be a use
+   * spent on nothing.
+   */
+  it('refuses outside a fight, where there is no turn to add to', () => {
+    const t = table('no-fight');
+    expectOk(t.call('create_character', { id: 'bram', choices: character('fighter', 5) }));
+
+    const refused = expectRefused(
+      t.call('use_budget_purchase', {
+        who: 'bram',
+        feature: 'fighter:action-surge',
+        purchase: 'action-surge',
+      }),
+    );
+    expect(refused.code).toBe('not_in_combat');
+    expect(sheetOf(t, 'bram').pool('action-surge')!.left).toBe(1);
+  });
+
+  /** A purchase the feature does not sell says what it does sell. */
+  it('refuses a purchase the feature does not print, and names the ones it does', () => {
+    const t = fight('fighter', 'no-such');
+    const refused = expectRefused(
+      t.call('use_budget_purchase', {
+        who: 'bram',
+        feature: 'fighter:action-surge',
+        purchase: 'flurry-of-blows',
+      }),
+    );
+    expect(refused.code).toBe('no_such_purchase');
+    expect(refused.reason).toContain('action-surge');
+  });
+});
