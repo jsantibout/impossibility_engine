@@ -96,8 +96,10 @@ const swept = (): { file: string; text: string }[] =>
  * roller somebody exports fails this file instead of slipping past it. What
  * the derivation cannot reach is written out: `resolveStatedD20` and
  * `resolveDeathSave` take a stated face and no generator at all, groups 1 and
- * 2 take a number rather than dice, and group 5 *makes* a generator rather
- * than being handed one.
+ * 2 are handed no bare `Rng` — `resolveDamage` takes a whole `Supply` and
+ * rolls a Concentration save through it, which the second derivation beside
+ * the first does reach — and group 5 *makes* a generator rather than being
+ * handed one.
  */
 const FORBIDDEN = [
   // — the external-roll functions, which are the rule ————————————————————————
@@ -717,8 +719,9 @@ describe('the surface cannot reach the external-roll functions', () => {
 
     // A type annotation naming the field is not a binding — `doors.test.ts`
     // quotes one inside a string fixture, and a guard that fired on it would
-    // be a guard somebody deletes. The rename target is lower case and a type
-    // is not, which is the whole of the difference.
+    // be a guard somebody deletes. What tells them apart is the type named:
+    // an annotation of this field names the type this field has, and the two
+    // fixtures above show a rename naming anything else, in either case.
     expect(caught('const declare = (supply: { readonly rng: Rng }): void => undefined;\n')).toEqual(
       [],
     );
@@ -727,7 +730,7 @@ describe('the surface cannot reach the external-roll functions', () => {
     // with it, is not a breach.
     expect(caught('resolveAttack(state, campaign.supply(), identity(context));\n')).toEqual([]);
     // Nor is the word arriving inside a longer one.
-    expect(caught('const spent = state.rollsIssued;\nconst n = z.int().min(1);\n')).toEqual([]);
+    expect(caught('const spent = state.rollsIssued;\n')).toEqual([]);
 
     // The exempt file may build both and hand them over, and may not read a
     // face off one.
@@ -739,6 +742,14 @@ describe('the surface cannot reach the external-roll functions', () => {
       `${REBUILDS_THE_SUPPLY.file} reads a face off the generator it may hold`,
     ]);
     expect(exempt("const face = createRng(seed)['int'](20);\n")).toEqual([
+      `${REBUILDS_THE_SUPPLY.file} reads a face off the generator it may hold`,
+    ]);
+    // And this is why the `int` detectors run *only* there: `z.int()` is all
+    // over the schemas and would read as a die everywhere else. The exempt
+    // file holds no Zod, so inside it the reading is unambiguous — and the
+    // fixture says so rather than leaving the confinement looking arbitrary.
+    expect(caught('const n = z.int().min(1);\n')).toEqual([]);
+    expect(exempt('const n = z.int().min(1);\n')).toEqual([
       `${REBUILDS_THE_SUPPLY.file} reads a face off the generator it may hold`,
     ]);
     // And it is not exempt from the mint: nothing above the engine stamps.

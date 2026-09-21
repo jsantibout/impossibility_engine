@@ -520,6 +520,9 @@ describe('the DM surface cannot reach the external-roll functions either', () =>
     expect(caught('const { rng: generator } = campaign.supply();\ngenerator.int(20);')).toEqual(
       generator,
     );
+    expect(caught('const { rng: Generator } = campaign.supply();\nGenerator.int(20);')).toEqual(
+      generator,
+    );
     // The issuer, through a property, a destructure, a rename or a bound name.
     expect(caught("campaign.supply().issuer.issue('engine');")).toEqual(mint);
     expect(caught("const { issue } = issuer;\nissue('engine');")).toEqual(mint);
@@ -541,8 +544,11 @@ describe('the DM surface cannot reach the external-roll functions either', () =>
     // change. `BOUND_AS` is not that: it was wrong once already, in both
     // copies, and a fix applied to one is the drift arriving rather than being
     // predicted. So the two are held equal by their own source.
-    // Read with the line endings normalised: a checkout with `autocrlf` on
-    // would otherwise fail this for a difference nobody wrote.
+    // Read with the line endings normalised. `.gitattributes` says `eol=lf`,
+    // so a checkout cannot produce CRLF — but an editor on Windows can, and
+    // one did, which is how this test came to fail on two byte-identical
+    // declarations. A guard that reports a difference nobody wrote is a guard
+    // somebody stops believing.
     const read = (path: string): string => readFileSync(path, 'utf8').replace(/\r\n/g, '\n');
     const declaration = /const BOUND_AS = [\s\S]*?\n\];/;
     const ours = declaration.exec(read(`${HERE}${GUARD_FILE}`));
