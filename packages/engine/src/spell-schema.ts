@@ -154,6 +154,29 @@ const DIE_RULE_CAPS: ReadonlySet<string> = new Set(['spellcasting-modifier']);
  * them here the day its resolver carries the effects through.
  */
 const ROLLS_ITS_OWN_DAMAGE: ReadonlySet<string> = new Set(['attack', 'save-damage']);
+
+/**
+ * Whether a casting of this definition rolls its damage **more than once**.
+ *
+ * `DieRule`'s cap is a budget for the whole casting — SRD caps "the maximum
+ * number of these d8s you can add to **the spell's damage**" — and `roll()`
+ * counts an effect's bonus dice against the call it is in. So a definition that
+ * throws its damage twice would be allowed the cap twice, and four shapes throw
+ * twice: two damaging effects, a payload printed in a second damage type
+ * (`plus`, which `resolveSaveDamageEffect` rolls part by part), more than one
+ * target, and an area, which resolves per creature caught.
+ *
+ * Refused rather than answered wrongly, and the refusal is the honest form of
+ * the limit: the day the budget is carried across the rolls of one casting,
+ * this function is what goes so that they can be admitted.
+ */
+function rollsDamageTwice(definition: SpellDefinition): boolean {
+  const rollers = definition.effects.filter((effect) => ROLLS_ITS_OWN_DAMAGE.has(effect.kind));
+  if (rollers.length > 1) return true;
+  if (definition.targets.count > 1) return true;
+  if (definition.area !== undefined || definition.targetsWithin !== undefined) return true;
+  return rollers.some((effect) => 'plus' in effect && (effect.plus ?? []).length > 0);
+}
 const ABILITY_NAMES_SET: ReadonlySet<Ability> = new Set(ABILITIES);
 const SKILL_NAMES: ReadonlySet<Skill> = new Set(SKILLS);
 /**
@@ -2240,6 +2263,13 @@ export function checkSpellDefinition(
         code: 'die_rule_rolls_nothing',
         reason:
           'a die rule is about the dice this spell rolls for damage, and this spell rolls none: give it an attack or a damaging save, or drop the rule',
+      });
+    } else if (rollsDamageTwice(definition)) {
+      found.push({
+        field: 'dieRule',
+        code: 'die_rule_rolls_more_than_once',
+        reason:
+          "the cap is a budget for the whole casting and is spent per damage roll, so a spell that rolls its damage more than once — several targets, an area, two damaging effects, or a payload printed in a second damage type — would be allowed it once per roll",
       });
     }
   }

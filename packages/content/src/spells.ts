@@ -7719,7 +7719,7 @@ export const CHROMATIC_ORB: SpellDefinition = {
     },
   ],
   unmodelled: [
-    'the orb does not leap, because the trigger reads the individual dice of a damage roll: "If you roll the same number on two or more of the d8s" asks which faces came up, and a damage roll comes back as a total',
+    'the orb does not leap, because the trigger reads the individual dice of a damage roll two at a time: "If you roll the same number on two or more of the d8s" asks whether a pair matched, and a `DieRule` — which Sorcerous Burst writes — judges one die at a time and is never handed the roll it is part of',
     'nor is the leap resolved: hurling the orb at a second creature is a second attack roll and a second damage roll out of one casting, and an effect rolls one attack per target',
     'the bounds on the leaping are not applied either: a maximum number of times equal to the level of the slot expended, and a creature targeted only once by each casting, both count something that never happens',
   ],

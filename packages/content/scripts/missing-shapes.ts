@@ -552,7 +552,7 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
     {
       clause: 'reads the individual dice of a damage roll',
       why: 'a-die-behaviour-a-spell-asks-for',
-      note: 'the leap fires on "If you roll the same number on two or more of the d8s", which asks which faces a damage roll showed. A damage roll comes back as a total, and no effect kind asks the generator about the dice inside one.',
+      note: 'the leap fires on "If you roll the same number on two or more of the d8s", which asks about a **pair** of faces. A definition can ask about a face now — `dieRule`, which Sorcerous Burst writes — and this is the reading it cannot make: a `DieEffect` judges one die at a time, `substitute` and `bonusOn` are both `(rolled, sides)`, and neither is handed the roll its die is part of. A predicate over a whole roll is a fourth kind, and it would fire at nothing on its own — the leap beneath it is the blocker below.',
     },
     {
       clause: 'a second attack roll and a second damage roll out of one casting',

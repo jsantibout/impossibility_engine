@@ -291,8 +291,7 @@ export function alteredCastingDice(
  * exists to prevent, arriving on a cap instead of on an id.
  *
  * A modifier of zero or less caps the rule at nothing, which is the arithmetic
- * and not a special case: a Sorcerer with a Charisma of 10 adds no dice, and
- * the effect still goes in so the roll records that the rule was in play.
+ * and not a special case: a Sorcerer with a Charisma of 10 adds no dice.
  *
  * Absent rule, empty list, and the roll is thrown exactly as it was before this
  * field existed — which is what keeps every log written until now folding

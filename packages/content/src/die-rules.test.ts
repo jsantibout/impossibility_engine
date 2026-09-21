@@ -191,6 +191,26 @@ describe('SRD Chromatic Orb is not this shape, and says so', () => {
     expect(CHROMATIC_ORB.unmodelled?.length).toBe(3);
   });
 
+  /**
+   * **And the written reason says the true one.**
+   *
+   * The note this entry carried said "a damage roll comes back as a total, and
+   * no effect kind asks the generator about the dice inside one" — which is the
+   * sentence Sorcerous Burst's own debt was deleted for being. A map that
+   * states and denies the same fact is worse than one that is merely behind,
+   * because the coverage report publishes the note and nothing read it. So the
+   * note is asserted rather than the id alone: the trigger's blocker is that a
+   * rule is handed one die at a time, not that faces are unreadable.
+   */
+  it('says why the trigger cannot be written, in the map the report prints', () => {
+    const note = (ADJUDICATED['chromatic-orb'] ?? []).find(
+      (entry) => entry.why === 'a-die-behaviour-a-spell-asks-for',
+    )?.note;
+    expect(note).toBeDefined();
+    expect(note).toContain('one die at a time');
+    expect(note).not.toContain('comes back as a total');
+  });
+
   /** The engine's own vocabulary is what says the trigger cannot be written. */
   it('has no way to ask a question about two dice at once', () => {
     const dice = readFileSync(

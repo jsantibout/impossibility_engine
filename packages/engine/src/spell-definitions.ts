@@ -1960,6 +1960,15 @@ export interface SpellDefinition {
    * (`die_rule_rolls_nothing`), for the reason every other reachability rule in
    * the validator exists: a rule about dice nothing throws is a line in the
    * book that quietly does nothing.
+   *
+   * **And refused on one that rolls its damage more than once**
+   * (`die_rule_rolls_more_than_once`), which is the honest form of a limit
+   * rather than a rule about spells. A cap is a budget for the whole casting
+   * and the generator counts bonus dice against the roll it is in, so a spell
+   * that throws its damage at three creatures would be allowed the cap three
+   * times. The day something carries one budget across the rolls of a casting
+   * — the shape `CastingAlterations.addend` already has, for the same reason —
+   * that refusal goes and an area may declare one.
    */
   readonly dieRule?: DieRule;
   /**

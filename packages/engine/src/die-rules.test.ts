@@ -228,6 +228,50 @@ describe('the validator judges a die rule like every other member', () => {
     expect(checkSpellDefinitionValue(tracked).map((p) => p.code)).toContain('die_rule_rolls_nothing');
   });
 
+  /**
+   * **The cap is per casting, and the engine spends it per damage roll.**
+   *
+   * SRD caps "the maximum number of these d8s you can add to **the spell's
+   * damage**", which is one budget for the whole casting. `roll()` keys its own
+   * per-effect counter to the call it is in, so a casting that rolls its damage
+   * more than once — several targets, an area, a payload printed in two damage
+   * types — would be allowed the cap once per roll and deal more than the book
+   * permits. Refused at the door rather than answered wrongly: the shapes that
+   * roll twice are named, and the day the budget is carried across them this
+   * rule is what has to be deleted for them to be admitted.
+   */
+  it('refuses a rule on a spell that rolls its damage more than once', () => {
+    const several = { ...JSON.parse(EMBER_CASCADE), targets: { count: 3 } };
+    expect(checkSpellDefinitionValue(several).map((p) => p.code)).toContain(
+      'die_rule_rolls_more_than_once',
+    );
+
+    const twoTypes = {
+      ...JSON.parse(EMBER_CASCADE),
+      effects: [
+        {
+          kind: 'save-damage',
+          ability: 'dex',
+          damage: { dice: '2d6' },
+          damageType: 'fire',
+          onSuccess: 'half',
+          plus: [{ damage: { dice: '1d6' }, damageType: 'cold' }],
+        },
+      ],
+    };
+    expect(checkSpellDefinitionValue(twoTypes).map((p) => p.code)).toContain(
+      'die_rule_rolls_more_than_once',
+    );
+
+    const spread = {
+      ...JSON.parse(EMBER_CASCADE),
+      area: { kind: 'sphere', radiusFeet: 20, origin: 'point' },
+    };
+    expect(checkSpellDefinitionValue(spread).map((p) => p.code)).toContain(
+      'die_rule_rolls_more_than_once',
+    );
+  });
+
   it('is content with the rule on a spell whose save deals damage', () => {
     const saving = {
       ...JSON.parse(EMBER_CASCADE),
