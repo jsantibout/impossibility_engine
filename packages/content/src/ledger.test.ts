@@ -29,10 +29,13 @@ import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
 import type { ClassDefinition } from '@ie/engine';
 import {
+  LEGENDARY_ECONOMY,
   MONSTER_LINE_SHAPES,
   auditPlayableLevels,
+  isReadLine,
   reachOf,
   spellsInReach,
+  statBlockLines,
   withinReach,
   type ParsedSpell,
 } from '../scripts/coverage-data.js';
@@ -225,6 +228,51 @@ describe('the ledger measures the three populations of the roadmap', () => {
       expect(line.monster.length).toBeGreaterThan(0);
       expect(line.line.length).toBeGreaterThan(0);
     }
+  });
+
+  /**
+   * **Every handed-over line is accounted for exactly once**, by a shape or
+   * by the residue, and the two together are the whole of it.
+   *
+   * The rule the residue's own prose claims, asserted rather than left to a
+   * byte comparison with the committed file. A reviewer found the first
+   * version excluding legendary lines from the residue on the grounds that
+   * the economy row named them — which took a Unicorn's Shimmering Shield
+   * off the ledger altogether, because the economy row is a debt the
+   * *block* owes and says nothing about what the line does.
+   */
+  it('accounts for every handed-over line, by a shape or by the residue', () => {
+    const listed = new Set(
+      ledger.monsters.residue.map((one) => `${one.monster}/${one.line}`),
+    );
+    let handed = 0;
+    let lost = 0;
+    for (const monster of SRD_CONTENT.monsters) {
+      if (monster.cr > 5) continue;
+      for (const line of statBlockLines(monster)) {
+        if (isReadLine(line)) continue;
+        handed += 1;
+        if (MONSTER_LINE_SHAPES.some(([, matches]) => matches(line))) continue;
+        if (listed.has(`${monster.name}/${line.name}`)) continue;
+        lost += 1;
+      }
+    }
+    expect(handed).toBe(ledger.monsters.handedOver);
+    expect(lost).toBe(0);
+  });
+
+  /**
+   * And the legendary lines are in both, because they are two debts: that
+   * nothing spends a legendary action, and that nothing applies what the
+   * line says. Pinned by name so an exclusion has to come here and argue.
+   */
+  it('keeps a legendary line in the residue as well as in the economy row', () => {
+    const legendary = ledger.monsters.shapes.find((one) => one.shape === LEGENDARY_ECONOMY);
+    expect(legendary?.lines).toBeGreaterThan(0);
+    const inResidue = ledger.monsters.residue.filter(
+      (one) => one.section === 'legendary action',
+    );
+    expect(inResidue.length).toBe(legendary?.lines);
   });
 });
 

@@ -295,15 +295,20 @@ const auditMonsters = (maxCr: number): LedgerMonsters => {
   });
   shapes.sort((a, b) => b.lines - a.lines || b.blocks - a.blocks || a.shape.localeCompare(b.shape));
 
-  const named = (line: StatBlockLine, section: string): boolean =>
-    section === 'legendary action' ||
+  // **The legendary economy is not one of these**, and excluding its lines
+  // here would take them off the ledger entirely. `LEGENDARY_ECONOMY` is a
+  // debt the *block* owes — an action economy nothing spends — and what a
+  // legendary line then *does* is a second debt that no line predicate
+  // reaches. A Unicorn's Shimmering Shield is both, so it is counted in both,
+  // exactly as a line that forces a save and recharges is.
+  const named = (line: StatBlockLine): boolean =>
     MONSTER_LINE_SHAPES.some(([shape, matches]) => accountsFor(shape, matches, line));
 
   const residue: LedgerResidueLine[] = [];
   for (const monster of low) {
     for (const [section, line] of sectionsOf(monster)) {
       if (isReadLine(line)) continue;
-      if (named(line, section)) continue;
+      if (named(line)) continue;
       residue.push({ monster: monster.name, cr: monster.cr, section, line: line.name });
     }
   }
@@ -571,6 +576,11 @@ export function renderLedger(ledger: Ledger = auditLedger()): string {
     'predicate reaches them and why classifying them is a reading of English',
     'rather than a derivation — the roadmap keeps that reading in prose, and the',
     'ledger keeps the list.',
+    '',
+    'A legendary action is in both this list and the economy row above, because',
+    'they are two debts: that nothing spends a legendary action, and that',
+    'nothing applies what the line says. Leaving it out of one would take half',
+    'of it off the ledger.',
     '',
   );
   for (const one of monsters.residue) {

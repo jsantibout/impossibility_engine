@@ -822,13 +822,18 @@ line, carried onto the sheet, asked at the turn boundary and spent by
 `takeStatedAction`; what is unapplied on such a line is what it *does*.
 A brief quoting those rows should say so.
 
-### Handed-over lines matching no enumerated shape — 225
+### Handed-over lines matching no enumerated shape — 227
 
 A debt nobody has given an id to is still a debt, so these are named here
 rather than dropped. They carry no parsed structure at all, which is why no
 predicate reaches them and why classifying them is a reading of English
 rather than a derivation — the roadmap keeps that reading in prose, and the
 ledger keeps the list.
+
+A legendary action is in both this list and the economy row above, because
+they are two debts: that nothing spends a legendary action, and that
+nothing applies what the line says. Leaving it out of one would take half
+of it off the ledger.
 
 - Air Elemental (CR 5) [trait] Air Form
 - Ankheg (CR 2) [trait] Tunneler
@@ -1023,7 +1028,9 @@ ledger keeps the list.
 - Troll (CR 5) [trait] Regeneration
 - Troll Limb (CR 0.5) [trait] Regeneration
 - Troll Limb (CR 0.5) [trait] Troll Spawn
+- Unicorn (CR 5) [legendary action] Charging Horn
 - Unicorn (CR 5) [trait] Magic Resistance
+- Unicorn (CR 5) [legendary action] Shimmering Shield
 - Vampire Familiar (CR 3) [bonus action] Deathless Agility
 - Vampire Familiar (CR 3) [trait] Vampiric Connection
 - Vampire Spawn (CR 5) [bonus action] Deathless Agility
