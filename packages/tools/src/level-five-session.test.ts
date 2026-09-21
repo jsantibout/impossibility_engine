@@ -374,9 +374,10 @@ interface Clause {
  * sites that write one — a printed Actions line, a printed Bonus Actions line,
  * a Multiattack's spare sentence and an attack's rider — each end the line
  * with this clause and there is no constant for it. So the count either copies
- * the sentence or misses four fifths of what a monster hands over, and copying
- * it with the reason written down is the honest of the two. Exporting it
- * beside `DM_DECIDES` is a one-line engine change this track does not own.
+ * the sentence or misses every handover a monster makes — which in this
+ * session is all three of them — and copying it with the reason written down
+ * is the honest of the two. Exporting it beside `DM_DECIDES` is a one-line
+ * engine change this track does not own.
  */
 const BLOCK_HANDOVER = 'the engine does not apply that; a DM does';
 
@@ -1309,9 +1310,11 @@ describe('a level 5 party plays a session', () => {
    * the one string this file typed out instead of importing.
    */
   it('reads the same handover mark the engine writes', () => {
-    // Counted, not merely found. One site of four reworded is one fifth of
-    // count 2 gone in silence, and a `toContain` over a file holding three
-    // more would not notice — which is the silence this guard exists for.
+    // Counted, not merely found. Reword one of the four sites and the clauses
+    // it writes leave count 2 without anything failing — and a `toContain`
+    // over a file that still holds the other one would not notice. How many
+    // clauses that is depends on the encounter, which is the point: the guard
+    // holds the mark rather than the number.
     for (const [where, sites] of WRITES_THE_HANDOVER) {
       const text = readFileSync(fileURLToPath(new URL(where, import.meta.url)), 'utf8');
       expect(text.split(BLOCK_HANDOVER)).toHaveLength(sites + 1);
