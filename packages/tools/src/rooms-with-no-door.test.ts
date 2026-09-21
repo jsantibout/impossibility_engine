@@ -243,6 +243,16 @@ describe('the one object interaction a turn', () => {
   });
 });
 
+/**
+ * And the ally has to have agreed, which is the half of SRD Alert the engine
+ * kept: "swap your Initiative with the Initiative of one **willing** ally".
+ *
+ * Consent is three answers and not two, so the field is optional and every
+ * one of the three is driven below: stated and true is a swap, stated and
+ * false is an ordinary refusal, and *unstated* is a question — because "the
+ * ally said no" and "nobody has said" are different facts, and defaulting
+ * either way would have the surface decide one of them on the table's behalf.
+ */
 describe('two combatants trade places in the order', () => {
   it('swaps them, and the order is the engine’s afterwards', () => {
     const t = fight('swap');
@@ -250,7 +260,7 @@ describe('two combatants trade places in the order', () => {
     expect(before).toHaveLength(2);
 
     const swapped = expectOk(
-      t.call('swap_initiative', { combatant: before[0]!, ally: before[1]! }),
+      t.call('swap_initiative', { combatant: before[0]!, ally: before[1]!, willing: true }),
     );
     expect(swapped.events.some((event) => event.type === 'initiative-swapped')).toBe(true);
 
@@ -259,10 +269,55 @@ describe('two combatants trade places in the order', () => {
     expect(swapped.resolution['order']).toEqual([...after]);
   });
 
+  /**
+   * Unstated consent is homework, and the homework names the door it is
+   * handed in at: **this tool, re-sent with `willing` filled in.**
+   *
+   * The engine tags the request `route`, which is this vocabulary's kind for
+   * "re-send the same call with a field on it" — `move.route` and
+   * `activate_spell.via` are the other two. The kind-to-tools mapping is
+   * global, so left alone it would answer a consent question with the two
+   * doors that happen to establish a *path through a room*: a caller told to
+   * cast a spell in order to say whether its friend agreed is a caller being
+   * sent somewhere else entirely.
+   */
+  it('asks whether the ally agreed when nobody has said, and names itself as the door', () => {
+    const t = fight('consent');
+    const before = t.surface.observe().initiativeOrder!;
+
+    const asked = t.call('swap_initiative', { combatant: before[0]!, ally: before[1]! });
+    expect(asked.status).toBe('needs-context');
+    if (asked.status !== 'needs-context') return;
+    expect(asked.code).toBe('consent_not_stated');
+    expect(asked.establish[0]!.tools).toEqual(['swap_initiative']);
+    expect(asked.establish[0]!.tools).not.toContain('activate_spell');
+    expect(asked.establish[0]!.tools).not.toContain('move');
+
+    // Nothing was spent asking, so the answer is the same call again with the
+    // field on it — which is the whole of what a `needs-context` means.
+    expect(t.surface.observe().initiativeOrder).toEqual(before);
+    expectOk(
+      t.call('swap_initiative', { combatant: before[0]!, ally: before[1]!, willing: true }),
+    );
+    expect(t.surface.observe().initiativeOrder).toEqual([before[1], before[0]]);
+  });
+
+  /** And a stated refusal is a refusal, not a question asked twice. */
+  it('refuses a swap the ally has said no to', () => {
+    const t = fight('unwilling');
+    const before = t.surface.observe().initiativeOrder!;
+
+    const refused = expectRefused(
+      t.call('swap_initiative', { combatant: before[0]!, ally: before[1]!, willing: false }),
+    );
+    expect(refused.code).toBe('ally_unwilling');
+    expect(t.surface.observe().initiativeOrder).toEqual(before);
+  });
+
   it('refuses a swap where there is no order to swap in', () => {
     const t = stables('no-order');
     const refused = expectRefused(
-      t.call('swap_initiative', { combatant: 'bram', ally: 'hoof' }),
+      t.call('swap_initiative', { combatant: 'bram', ally: 'hoof', willing: true }),
     );
     expect(refused.code).toBe('not_in_combat');
   });
@@ -278,11 +333,20 @@ describe('two combatants trade places in the order', () => {
     expectOk(t.call('create_character', { id: 'watcher', choices: fighter('Watcher') }));
 
     const refused = expectRefused(
-      t.call('swap_initiative', { combatant: inOrder, ally: 'watcher' }),
+      t.call('swap_initiative', { combatant: inOrder, ally: 'watcher', willing: true }),
     );
     expect(refused.code).toBe('unknown_combatant');
 
-    const asked = t.call('swap_initiative', { combatant: inOrder, ally: 'nobody-at-all' });
+    const asked = t.call('swap_initiative', {
+      combatant: inOrder,
+      ally: 'nobody-at-all',
+      willing: true,
+    });
     expect(asked.status).toBe('needs-context');
+    // And *this* one is a creature nobody has created, so it goes to the doors
+    // that create one rather than back here.
+    if (asked.status !== 'needs-context') return;
+    expect(asked.establish[0]!.kind).toBe('creature');
+    expect(asked.establish[0]!.tools).toContain('create_character');
   });
 });

@@ -98,6 +98,25 @@
  * to a tool that declares it — a kind with no door is the failure to test
  * for." So the mapping is a field on the definition rather than a paragraph,
  * and `boundary.test.ts` asserts that every kind the engine has is covered.
+ *
+ * ## And why a few of them answer their own questions
+ *
+ * That mapping is global — a kind goes in and the tools that declare it come
+ * out — which is the right shape for a fact one call establishes and another
+ * call then uses. It is the wrong shape for the other kind of question: the
+ * one a caller answers by **re-sending the very call that asked**, with a
+ * field filled in. `route` is already that kind by convention, which
+ * `doors.test.ts` says in as many words beside `move.route` and
+ * `activate_spell.via`: "established by re-sending the *same* call with a
+ * field filled in rather than by a declaration of its own".
+ *
+ * `swap_initiative` raises one, and the global mapping answered it with
+ * `activate_spell` and `move` — a caller asked whether its friend agreed to
+ * trade Initiative, and told to cast a spell. So a tool may name the kinds it
+ * answers *on itself*, and for those the door it is handed the answer through
+ * is the tool the caller is already holding. It is a narrowing and never a
+ * widening: nothing else's `doorsFor` changes, so a `route_required` from
+ * `move` still names `move`.
  */
 
 import type { CharacterId, ConditionName, Result } from '@ie/shared';
@@ -263,6 +282,15 @@ export interface ToolDefinition {
   readonly mutates: boolean;
   /** Which `ContextRequest.kind`s a successful call establishes. */
   readonly establishes: readonly ContextRequestKind[];
+  /**
+   * Which kinds this tool answers **on itself** — a field of its own schema,
+   * filled in and the same call re-sent.
+   *
+   * A request of one of these kinds raised by this tool names *this* tool as
+   * its door, in place of whatever the surface-wide mapping would have said.
+   * `doors.test.ts` holds each one to having a field that really carries it.
+   */
+  readonly selfAnswers: readonly ContextRequestKind[];
   /** The Zod schema, for a caller that wants to publish it as JSON Schema. */
   readonly schema: z.ZodType;
   /** Validate, then run. Never throws for anything a caller could have sent. */
@@ -274,6 +302,7 @@ export interface ToolSpec<S extends z.ZodType> {
   readonly description: string;
   readonly mutates: boolean;
   readonly establishes?: readonly ContextRequestKind[];
+  readonly selfAnswers?: readonly ContextRequestKind[];
   readonly input: S;
   readonly run: (context: ToolContext, args: z.infer<S>) => ToolOutcome;
 }
@@ -291,11 +320,13 @@ const issuesOf = (error: z.ZodError): readonly ArgumentIssue[] =>
   }));
 
 export function tool<S extends z.ZodType>(spec: ToolSpec<S>): ToolDefinition {
+  const selfAnswers = spec.selfAnswers ?? [];
   return {
     name: spec.name,
     description: spec.description,
     mutates: spec.mutates,
     establishes: spec.establishes ?? [],
+    selfAnswers,
     schema: spec.input,
     invoke(context, raw): ToolOutcome {
       const parsed = spec.input.safeParse(raw);
@@ -308,7 +339,21 @@ export function tool<S extends z.ZodType>(spec: ToolSpec<S>): ToolDefinition {
           issues,
         );
       }
-      return spec.run(context, parsed.data as z.infer<S>);
+      // The one place a tool's own name gets into the answer: a kind it says
+      // it answers on itself is answered *here*, and every other kind is the
+      // surface's to route. Wrapped once, around `run`, so that every path out
+      // of this tool — `settle`, a hand-built `establish`, a second command —
+      // gets the same door without each remembering to.
+      return spec.run(
+        selfAnswers.length === 0
+          ? context
+          : {
+              ...context,
+              doorsFor: (kind) =>
+                selfAnswers.includes(kind) ? [spec.name] : context.doorsFor(kind),
+            },
+        parsed.data as z.infer<S>,
+      );
     },
   };
 }
@@ -1181,26 +1226,43 @@ const DISMOUNT = tool({
  * SRD Alert: "Immediately after you roll Initiative, you can swap your
  * Initiative with the Initiative of one willing ally in the same combat."
  *
- * **This is the event the table declares, not the feat's offer**, which is the
- * engine's own reading one layer down: nothing checks that either creature has
- * Alert, that the moment is immediately after the roll, or that the ally is
- * willing. The first two need a feature that offers a choice at a moment the
- * engine does not hold, and willingness is fiction. What the engine owns is
- * the arithmetic and the Incapacitated clause — a creature that cannot act
- * cannot be swapped into acting — and it has owned both since `swapInitiative`
- * was written, reachable from the reducer alone.
+ * **Three of the sentence's clauses are the engine's now** — the feat, the
+ * moment and the ally's consent — and the arithmetic and the Incapacitated
+ * clause have been since `swapInitiative` was written. What is left to the
+ * table is `willing` itself, which is fiction the engine cannot see: whether
+ * the ally agreed is something only a caller watching the scene knows.
+ *
+ * **So consent is three answers and not two.** `true` swaps, `false` is an
+ * ordinary refusal, and *leaving the field out* is a question — the engine
+ * answers `consent_not_stated` rather than assuming either way, because "the
+ * ally refused" and "nobody has said" are different facts and a default here
+ * would be this surface deciding one of them on the table's behalf. That is
+ * why the field is optional: a required one would turn the question into
+ * `invalid`, which is Zod's verdict on malformed arguments and not a thing
+ * the rules ever say. `selfAnswers` is the other half — the request is the
+ * re-send kind, so the door it names is this tool.
  *
  * It carries no number: the two Initiative totals are the ones the engine
- * rolled, and this says only which pair to exchange.
+ * rolled, and this says only which pair to exchange, and whether they agreed.
  */
 const SWAP_INITIATIVE = tool({
   name: 'swap_initiative',
   description:
-    'Swap two combatants’ places in the Initiative order. SRD Alert lets a character trade Initiative with one willing ally in the same fight immediately after rolling; whether the feat offers it here is the table’s ruling, and this records the trade. Neither number is yours — the engine rolled both and simply exchanges them. A creature that is Incapacitated cannot be swapped, and one who is not in the order is refused rather than added to it.',
+    'Swap two combatants’ places in the Initiative order. SRD Alert lets a character trade Initiative with one willing ally in the same fight immediately after rolling, and the engine checks all three: the feat, the moment, and that you have said whether the ally agreed. Neither number is yours — the engine rolled both and simply exchanges them. A creature that is Incapacitated cannot be swapped, and one who is not in the order is refused rather than added to it.',
   mutates: true,
+  // The consent question is answered by sending this same call again with
+  // `willing` on it, so this tool is its own door. Without this the surface's
+  // kind-wide mapping would send a caller to `move` and `activate_spell`.
+  selfAnswers: ['route'],
   input: z.object({
     combatant: creatureId.describe('One of the two, usually the one making the offer.'),
     ally: creatureId.describe('The other, who is trading places with them.'),
+    willing: z
+      .boolean()
+      .optional()
+      .describe(
+        'Whether the ally agreed to trade places. SRD swaps with “one willing ally”, and only you can see whether they did. Leave it out and the swap is not refused but asked about: say so and send the same call again. False is a refusal, and is not the same answer as saying nothing.',
+      ),
   }),
   run: (context, args) =>
     settle(
@@ -1209,7 +1271,10 @@ const SWAP_INITIATIVE = tool({
         context.campaign.state(),
         who(args.combatant),
         who(args.ally),
-        identity(context),
+        {
+          ...(args.willing === undefined ? {} : { willing: args.willing }),
+          ...identity(context),
+        },
       ),
       (events) => events,
       // Read after the append, so it is the order the swap left behind rather
