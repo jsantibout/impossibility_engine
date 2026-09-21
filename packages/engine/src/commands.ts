@@ -86,6 +86,7 @@ export {
   attuneItem,
   attunedItems,
   carrying,
+  changeCoins,
   chargesLeft,
   coinsOf,
   endAttunement,

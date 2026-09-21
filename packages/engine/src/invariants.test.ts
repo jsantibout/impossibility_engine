@@ -80,6 +80,7 @@ import {
   equipItem,
   extendFeature,
   healCreature,
+  changeCoins,
   purchaseItem,
   relocateCreature,
   releaseReady,
@@ -1859,6 +1860,17 @@ const GUARDED: readonly Guarded[] = [
       declareSpellcasting(s, B, declaredCasting({ ability: 'wis', prepared: ['bless'] }), {
         commandId,
       }),
+  },
+  {
+    /**
+     * The retry that pays a party twice. Its stamp has nowhere to ride —
+     * the whole batch is one `coins-changed` — so this is the entry that
+     * would have caught a coin command written before that event declared a
+     * stamp of its own.
+     */
+    name: 'changeCoins',
+    log: SETUP,
+    run: (s, commandId) => changeCoins(s, A, 5_000, 'the reward for the caravan', commandId),
   },
   { name: 'purchaseItem', log: SETUP, run: (s, commandId) => purchaseItem(s, SRD_CONTENT, A, 'rope', 1, commandId) },
   { name: 'equipItem', log: SETUP, run: (s, commandId) => equipItem(s, SRD_CONTENT, A, 'chain-shirt', commandId) },

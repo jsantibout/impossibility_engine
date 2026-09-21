@@ -696,6 +696,16 @@ export type GameEvent =
       readonly id: CharacterId;
       readonly copper: number;
       readonly source: string;
+      /**
+       * Added when `changeCoins` arrived, because a coin command's whole batch
+       * is this one event and there is no sibling to carry the stamp — a
+       * purchase stamps its `items-gained` and lets the coin ride along
+       * unstamped, which is why the field was not needed before.
+       *
+       * Additive rather than a migration: both frozen logs' unstamped
+       * `coins-changed` events stay exactly as valid as they were.
+       */
+      readonly command?: CommandStamp;
     }
   /**
    * Something worn or wielded, or put away.

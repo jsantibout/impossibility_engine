@@ -163,6 +163,80 @@ const issueCopies = (
 ): IssuedCopies => issueItemCopies(state.itemsIssued, content, requested);
 
 /**
+ * Money in or out, for a reason that is not a purchase.
+ *
+ * **The other direction of `purchaseItem`**, and until this existed there was
+ * none: `coins-changed` has always been signed and the fold has always taken
+ * a delta either way, but the only two things that ever wrote one were
+ * `createCharacter` and a purchase, and a purchase only ever wrote a negative
+ * one. A party's money was therefore whatever it was born with and could only
+ * go down — so the shops this engine prices in full were reachable exactly
+ * once, by whoever started rich.
+ *
+ * **One command rather than two, because the log has one signed event.** A
+ * grant and a levy are the same fact with the sign flipped, and splitting them
+ * here would invent an asymmetry `coins-changed` does not have. The two doors
+ * a DM sees are a surface's business, the way `awardItems` and `loseItems`
+ * are two doors onto two genuinely different events.
+ *
+ * And a purchase cannot stand in for the negative direction: a toll buys no
+ * item, a bribe has no catalogue row and a thief leaves no receipt, while
+ * `purchaseItem` refuses an id the catalogue does not hold. There is no
+ * fiction to buy.
+ *
+ * **The overdraw is refused here and never by the fold.** The reducer throws
+ * `CorruptLogError` on a purse below zero, which is the right answer to a log
+ * that has been corrupted and the wrong answer to a DM who named a bigger
+ * bribe than the party can pay. That is `cannot_afford`'s argument exactly,
+ * one command along.
+ *
+ * Copper, because that is what the purse is counted in and what a price is
+ * quoted in. A caller who thinks in gold converts at its own door, where
+ * `COPPER_PER` names every coin the book prints.
+ */
+export function changeCoins(
+  state: GameState,
+  id: CharacterId,
+  copper: number,
+  source: string,
+  commandId?: string,
+): Result<GameEvent[]> {
+  const inputs: { commandId?: string; copper: number; source: string } =
+    commandId === undefined ? { copper, source } : { commandId, copper, source };
+  return once(state, `change-coins:${id}`, inputs, () => [], (stamp) => {
+    const creature = creatureOf(state, id);
+    if (creature === null) return unknownCreature(id);
+
+    // Zero is refused rather than accepted as a no-op: money that did not move
+    // should not be a line in the log, and a caller who sent it meant
+    // something it did not say.
+    if (!Number.isInteger(copper) || copper === 0) {
+      return err(
+        'bad_amount',
+        `coin moves by a whole number of copper pieces, one way or the other, got ${copper}`,
+      );
+    }
+
+    if (creature.coins + copper < 0) {
+      return err(
+        'not_enough_coin',
+        `${source} would take ${-copper} copper and ${id} has ${creature.coins}`,
+      );
+    }
+
+    return ok([
+      {
+        type: 'coins-changed',
+        id,
+        copper,
+        source,
+        ...(stamp === null ? {} : { command: stamp }),
+      },
+    ]);
+  });
+}
+
+/**
  * Buy something, at the price the SRD prints.
  *
  * Atomic on purpose: the items and the coin move in one batch, so there is no
