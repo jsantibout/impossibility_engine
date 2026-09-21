@@ -21,6 +21,7 @@ import type {
 // data: a value imported from the barrel loads the whole parsed SRD into every
 // process that imports the engine, which `srd-barrel.test.ts` is the guard for.
 import { entriesOfBranch, gateOfBranch } from '@ie/srd/schemas';
+import { STATED_BONUS_ACTION_LEDGER } from './combat.js';
 import type { DamageDefenses } from './attack.js';
 import type {
   CharacterSheet,
@@ -596,9 +597,12 @@ export function statedBonusActionOf(
  * same question.
  *
  * The prefix is a constant and the name in the key comes out of the creature's
- * own block, so nothing here names a line.
+ * own block, so nothing here names a line. **It is declared where the ledger
+ * is** and reserved there against content: a feature id is a key in the same
+ * map, so a write-side convention alone would let a homebrew feature called
+ * `stated-bonus-action:something` be read back as a line this creature took.
  */
-const STATED_BONUS_ACTION = 'stated-bonus-action:';
+const STATED_BONUS_ACTION = STATED_BONUS_ACTION_LEDGER;
 
 /** The ledger key one printed Bonus Action line is spent under. */
 export const statedBonusActionSlot = (line: string): string =>

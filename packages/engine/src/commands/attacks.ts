@@ -38,7 +38,13 @@ import {
 } from '../attack.js';
 import { type Bonus, bonusesFor, flatBonusTotal, type ModeSource } from '../bonuses.js';
 import { type Content } from '../content.js';
-import { canUseFeatureThisTurn, spendAttack, spendBonusAction } from '../combat.js';
+import {
+  canUseFeatureThisTurn,
+  spendAttack,
+  spendBonusAction,
+  MULTIATTACK_LEDGER,
+  WEAPON_MASTERY_LEDGER,
+} from '../combat.js';
 import { applyEvent, type CreatureState, type GameEvent, type GameState } from '../events.js';
 import { modifierFor, type CharacterSheet, type StatedAttack } from '../character.js';
 import {
@@ -126,7 +132,7 @@ const inPlay = (style: StrikeStyle): StrikeStyleInPlay => ({
  * namespace every mastery source uses, and it is a constant because nothing in
  * any catalogue names it.
  */
-const CLEAVE = 'weapon-mastery:cleave';
+const CLEAVE = `${WEAPON_MASTERY_LEDGER}cleave`;
 
 /**
  * Where a swing inside the Attack action is counted, when the creature's block
@@ -146,7 +152,7 @@ const CLEAVE = 'weapon-mastery:cleave';
  * constant, and the name in the key came out of the creature's own block —
  * nothing in this file names an attack.
  */
-const SEQUENCE = 'multiattack:';
+const SEQUENCE = MULTIATTACK_LEDGER;
 
 const sequenceSlot = (name: string, ordinal: number): string =>
   `${SEQUENCE}${name}#${ordinal}`;

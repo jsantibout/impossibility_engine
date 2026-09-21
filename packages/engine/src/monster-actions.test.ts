@@ -1469,6 +1469,65 @@ describe('a Multiattack branch gated on a printed Bonus Action', () => {
   });
 
   /**
+   * **And the gate shuts when the turn it was opened on ends.**
+   *
+   * The ledger records the *turn* each key was spent on, because "once per
+   * turn" is a question about a turn rather than a flag anybody clears. Two
+   * things shut the gate afterwards and they are not the same thing: the
+   * creature's budget is replaced when its own next turn begins, and the reader
+   * asks which turn the key belongs to — which is what covers the window where
+   * the budget has *not* been replaced, because it is somebody else's turn.
+   * This is the end-to-end half; the reader's own half is below it.
+   */
+  it('shuts again once the turn the line was taken on is over', () => {
+    const table = inTheWoods('clay-golem', GOLEM);
+    hasten(table);
+    expect(
+      statedBonusActionsUsed(
+        table.state.combat?.budgets[GOLEM]?.featureUsedOnTurn ?? {},
+        table.state.combat?.turnsTaken ?? 0,
+      ),
+    ).toEqual([HASTEN]);
+
+    table.did('the golem ends its turn', (s) =>
+      resolveTurn(s, supply('clay'), { commandId: 'golem-ends' }),
+    );
+    table.did('Bren ends his', (s) => resolveTurn(s, supply('clay'), { commandId: 'bren-ends' }));
+    expect(table.state.combat?.order[table.state.combat.turnIndex]?.id).toBe(GOLEM);
+
+    expect(
+      statedBonusActionsUsed(
+        table.state.combat?.budgets[GOLEM]?.featureUsedOnTurn ?? {},
+        table.state.combat?.turnsTaken ?? 0,
+      ),
+    ).toEqual([]);
+
+    const slam = swinging(table, GOLEM);
+    slam('Slam', 'one');
+    slam('Slam', 'two');
+    expect(refused(table, GOLEM, 'Slam')).toBe('not_in_multiattack');
+  });
+
+  /**
+   * **And the reader asks which turn, rather than whether.**
+   *
+   * A creature's budget is replaced at the start of its *own* next turn, so
+   * between those two moments its ledger still holds the keys it spent — that
+   * is exactly why `featureUsedOnTurn` stores a turn rather than a flag, and
+   * why a Rogue may Sneak Attack again on somebody else's turn. A reader that
+   * took a key's presence for an answer would report a line taken two rounds
+   * ago as taken now.
+   */
+  it('reads the ledger for this turn and not for any turn', () => {
+    const ledger = { [`stated-bonus-action:${HASTEN}`]: 4 };
+    expect(statedBonusActionsUsed(ledger, 4)).toEqual([HASTEN]);
+    expect(statedBonusActionsUsed(ledger, 5)).toEqual([]);
+    // And a key that is somebody else's — a feature's own once-per-turn mark —
+    // is none of this reader's business whichever turn it was spent on.
+    expect(statedBonusActionsUsed({ 'rogue:sneak-attack': 4 }, 4)).toEqual([]);
+  });
+
+  /**
    * And the gate reads the line's own name off the ledger. A creature that
    * spent its Bonus Action on something else has not opened it — which is what
    * makes this a gate rather than a second reading of the Bonus Action budget.

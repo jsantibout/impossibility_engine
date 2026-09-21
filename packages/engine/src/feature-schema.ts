@@ -1,6 +1,7 @@
 import { ABILITIES, err, ok, type Ability, type Result } from '@ie/shared';
 import { WEAPON_PROPERTIES } from '@ie/srd/schemas';
 import { WEAPON_CATEGORIES, WEAPON_KINDS, type WeaponSelector } from './attack.js';
+import { RESERVED_LEDGER_NAMESPACES } from './combat.js';
 import { ABILITY_SCORE_MAXIMUM } from './character.js';
 import { parseNotation } from './dice.js';
 import {
@@ -417,6 +418,21 @@ export function checkFeatureDefinition(
       field: 'id',
       code: 'bad_feature_id',
       reason: `"${feature.id}" is not a namespaced id: lower-case hyphenated words either side of one colon, as in "source:feature-name"`,
+    });
+  }
+
+  // **And not one of the namespaces the engine writes into the turn ledger.**
+  // A feature id is a key in `featureUsedOnTurn` the moment something spends it
+  // once per turn, and the engine's own entries live in that same map behind a
+  // prefix. A content id inside one of those prefixes is a key the engine's
+  // readers would pick up as theirs — `stated-bonus-action:` is read by a gated
+  // Multiattack, which would then be opened by a class feature rather than by
+  // the printed line the book names.
+  if (RESERVED_LEDGER_NAMESPACES.some((namespace) => feature.id.startsWith(namespace))) {
+    found.push({
+      field: 'id',
+      code: 'reserved_feature_namespace',
+      reason: `"${feature.id}" is in a namespace the engine keeps for its own turn ledger (${RESERVED_LEDGER_NAMESPACES.join(', ')}); pick another`,
     });
   }
 
