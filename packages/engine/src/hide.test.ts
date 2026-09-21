@@ -9,6 +9,7 @@ import {
   type CharacterId,
 } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
+import type { SenseName } from './positioning.js';
 import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent } from './events.js';
@@ -759,5 +760,173 @@ describe('the senses, and the ruling that parts the two sight questions', () => 
 
     expect(out.attack?.roll.mode).toBe('normal');
     expect(out.unverified.some((line) => line.includes('Invisible'))).toBe(false);
+  });
+});
+
+/**
+ * **The ruling on the roll**, which is where it was always going.
+ *
+ * `canSomehowSee` landed beside `canSee` first and reached nothing: the swing
+ * computed its own sight value out of the declaration alone, so a watcher
+ * with Truesight was no better off than one with its eyes shut. This is the
+ * seam, and these are the cases that prove it carries the ruling rather than
+ * merely a sense.
+ *
+ * Both ends of SRD Invisible are exercised on one fixture, because they are
+ * one sentence read from two sides and one closure answers both:
+ *
+ * | End | SRD | Whose sight |
+ * |---|---|---|
+ * | the Invisible **attacker** | "If a creature can somehow see you, you don't gain this benefit against that creature" | the target's, of the attacker |
+ * | the Invisible **target** | "Attack rolls against you have Disadvantage" | the attacker's, of the target |
+ *
+ * And the third row of every table is Darkvision, which is the ruling: it
+ * reaches, it is a form of sight, and it answers neither question.
+ */
+describe('SRD Invisible: the senses reach the attack roll', () => {
+  const WATCHER = id('watcher');
+
+  /**
+   * The Rogue Invisible, a watcher five feet away with exactly one sense, and
+   * nobody having declared anything about anybody. The sense is the only fact
+   * in the fixture that could move a mode.
+   */
+  const watched = (sense: SenseName): readonly GameEvent[] => [
+    ...(unwrap(createCharacter(SRD_CONTENT, rogueChoices, ROGUE), 'the rogue') as GameEvent[]),
+    { type: 'creature-side-declared', id: ROGUE, side: 'party' },
+    {
+      type: 'creature-added',
+      id: WATCHER,
+      name: 'watcher',
+      sheet: {
+        ...plain(),
+        standing: [
+          {
+            feature: 'a-species:a-trait',
+            name: 'A Sense',
+            reach: { kind: 'self' },
+            grant: { kind: 'sense', sense, feet: 60 },
+          },
+        ],
+      },
+      maxHp: 200,
+      diesAtZero: false,
+      creatureType: 'Humanoid',
+      side: 'goblins',
+    },
+    { type: 'scene-set', extent: { width: 400, depth: 400, height: 40 } },
+    { type: 'landmark-added', name: 'the deep', at: { x: 100, y: 100, z: 0 } },
+    { type: 'creature-placed', id: ROGUE, placement: { from: { landmark: 'the deep' }, feet: 0 } },
+    {
+      type: 'creature-placed',
+      id: WATCHER,
+      placement: { from: { creature: ROGUE }, feet: 5, bearing: 0 },
+    },
+    { type: 'condition-applied', id: ROGUE, condition: 'invisible', source: 'casting:greater' },
+  ];
+
+  const swing = (log: readonly GameEvent[], attacker: CharacterId, target: CharacterId) =>
+    unwrap(
+      resolveAttack(
+        fold('seed', log),
+        attacker,
+        { target, weapon: null, attackBonuses: [{ source: 'forced', flat: 40 }] },
+        supply('deep'),
+      ),
+      'the swing',
+    );
+
+  /**
+   * SRD Invisible: "If a creature can somehow see you, you don't gain this
+   * benefit against that creature." Truesight and Blindsight are creatures
+   * that can; Darkvision is not, and the swing keeps its Advantage and says
+   * out loud that nobody declared otherwise.
+   */
+  it.each([
+    ['truesight', 'normal', false],
+    ['blindsight', 'normal', false],
+    ['darkvision', 'advantage', true],
+  ] as const)('gives an Invisible attacker %s: %s', (sense, mode, reported) => {
+    const out = swing(watched(sense), ROGUE, WATCHER);
+    expect(out.attack?.roll.mode).toBe(mode);
+    expect(out.unverified.some((line) => line.includes('Invisible'))).toBe(reported);
+  });
+
+  /**
+   * The same sentence from the other end — "Attack rolls against you have
+   * Disadvantage" — and the watcher swinging rather than swung at. A sense
+   * that finds the Rogue lifts the penalty; Darkvision leaves it, because
+   * seeing in the dark is not seeing the unseen.
+   */
+  it.each([
+    ['truesight', 'normal', false],
+    ['blindsight', 'normal', false],
+    ['darkvision', 'disadvantage', true],
+  ] as const)('gives a swing at an Invisible target %s: %s', (sense, mode, reported) => {
+    const out = swing(watched(sense), WATCHER, ROGUE);
+    expect(out.attack?.roll.mode).toBe(mode);
+    expect(out.unverified.some((line) => line.includes('Invisible'))).toBe(reported);
+  });
+
+  /**
+   * **A declaration still outranks a sense, in the direction that matters
+   * most.** The table saying the Truesighted watcher cannot see the Rogue is
+   * obeyed — a lead sheet, a closed door, whatever the table is modelling —
+   * and the Advantage comes back. This is `sightBetween`'s precedence
+   * arriving intact through the new seam rather than being re-decided in it.
+   */
+  it('obeys a declared no over Truesight', () => {
+    const blinded: readonly GameEvent[] = [
+      ...watched('truesight'),
+      { type: 'sight-declared', from: WATCHER, to: ROGUE, seen: false },
+    ];
+    expect(swing(blinded, ROGUE, WATCHER).attack?.roll.mode).toBe('advantage');
+  });
+
+  /**
+   * And declared Total Cover silences the sense here too, falling back to the
+   * question rather than to a no — so the swing keeps the benefit and reports
+   * the silence, which is exactly the undeclared case.
+   */
+  it('falls back to asking when Total Cover silences the Truesight', () => {
+    const behind: readonly GameEvent[] = [
+      ...watched('truesight'),
+      { type: 'cover-declared', from: WATCHER, to: ROGUE, degree: 'total' },
+    ];
+    const out = swing(behind, ROGUE, WATCHER);
+    expect(out.attack?.roll.mode).toBe('advantage');
+    expect(out.unverified.some((line) => line.includes('Invisible'))).toBe(true);
+  });
+
+  /**
+   * **A sense beyond its range answers nothing**, which is the case that
+   * separates "the seam asks the sight question" from "the seam checks
+   * whether the watcher owns a sense". A wiring that read `sensesOf` and
+   * looked for a name would pass every test above and fail this one.
+   *
+   * Seventy feet of hall: past the watcher's sixty feet of Truesight, inside
+   * the shortbow's eighty feet of normal range, so nothing but the sense has
+   * changed and no second Disadvantage creeps in to cancel the Advantage.
+   */
+  it('asks again where the Truesight does not reach', () => {
+    const distant: readonly GameEvent[] = watched('truesight').map((event) =>
+      event.type === 'creature-placed' && event.id === WATCHER
+        ? ({
+            ...event,
+            placement: { from: { creature: ROGUE }, feet: 70, bearing: 0 },
+          } as GameEvent)
+        : event,
+    );
+    const out = unwrap(
+      resolveAttack(
+        fold('seed', distant),
+        ROGUE,
+        { target: WATCHER, weapon: 'shortbow', attackBonuses: [{ source: 'forced', flat: 40 }] },
+        supply('deep'),
+      ),
+      'the bowshot',
+    );
+    expect(out.attack?.roll.mode).toBe('advantage');
+    expect(out.unverified.some((line) => line.includes('Invisible'))).toBe(true);
   });
 });

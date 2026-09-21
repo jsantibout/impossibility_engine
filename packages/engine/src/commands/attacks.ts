@@ -65,13 +65,13 @@ import {
   coverBetween,
   distanceBetween,
   positionOf,
-  sightBetween,
 } from '../positioning.js';
 import { type ReactionOffer } from '../reactions.js';
 import { isCreatureType, scaledDiceFor, scaledFlatFor } from '../spell-definitions.js';
 import {
   actionRulesOn,
   armorClassOf,
+  canSomehowSee,
   checkFeatureDamageTypes,
   effectiveConditions,
   sheetAsItStands,
@@ -923,31 +923,32 @@ export function resolveAttack(
     // rather than asked about. A `needs-context` here would stop a fight to
     // settle a sight line on every swing, which is a rule nobody has ruled on.
     //
-    // **The declaration alone, and deliberately not `canSee`.** This is the
-    // one sight question in the engine that `canSee` answers wrongly, and the
-    // difference is the senses: `sightBetween` reports `true` from any member
-    // of `SIGHT_SENSES`, and Darkvision is in it — five SRD species carry it
-    // as a standing grant. SRD Darkvision lets you see in Darkness; it does
-    // **not** let you see a creature with the Invisible condition. Asking
-    // `canSee` here would therefore take Hide's and Greater Invisibility's
+    // **`canSomehowSee`, and deliberately not `canSee`.** This is the one
+    // sight question in the engine that `canSee` answers wrongly, and the
+    // difference is a single sense: `sightBetween` reports `true` from any
+    // member of `SIGHT_SENSES`, and Darkvision is in it — five SRD species
+    // carry it as a standing grant. SRD Darkvision lets you see in Darkness;
+    // it does **not** let you see a creature with the Invisible condition.
+    // Asking `canSee` here would take Hide's and Greater Invisibility's
     // Advantage away from every elf, dwarf, gnome, orc and dragonborn in
     // range, silently, because a sense answers `true` rather than `null` and
-    // the clause below would have nothing to report.
+    // the clause below would then have nothing to report. That is the thing a
+    // future reader will be tempted to undo, and the reason not to.
     //
-    // Truesight *does* see the Invisible and Blindsight arguably does, so the
-    // right answer is a narrower set of senses than `SIGHT_SENSES` — and that
-    // set is a ruling nobody has made and lives beside `canSee` rather than
-    // here. Until it exists this reads what the table declared and nothing
-    // else, which changes no behaviour that was not already declared. The
-    // sibling clause `defendingModes` asks is a different sentence — Dodge's
-    // "if you can see the attacker", which Darkvision genuinely satisfies —
-    // so it rightly keeps `canSee`.
+    // Owner's ruling, 2026-09-20: **Truesight and Blindsight satisfy "if a
+    // creature can somehow see you"; Darkvision does not.** The ruling is a
+    // set — `SENSES_THAT_SOMEHOW_SEE`, a narrowing of `SIGHT_SENSES` — and it
+    // lives beside `canSee` in `standing.ts` rather than here, so this route
+    // reads a question and never a list of sense names.
+    //
+    // The sibling clause `defendingModes` asks is a different sentence —
+    // Dodge's "if you can see the attacker", which Darkvision genuinely
+    // satisfies — so it rightly keeps `canSee`. One sense, two sentences, two
+    // answers; `hide.test.ts` asserts both on one dwarf.
     const attackerConditions = effectiveConditions(state, id);
     const targetConditions = effectiveConditions(state, command.target);
-    const declaredSight = (from: CharacterId, to: CharacterId): boolean | null =>
-      state.scene === null ? null : sightBetween(state.scene, from, to);
-    const targetCanSeeAttacker = declaredSight(command.target, id);
-    const attackerCanSeeTarget = declaredSight(id, command.target);
+    const targetCanSeeAttacker = canSomehowSee(state, command.target, id);
+    const attackerCanSeeTarget = canSomehowSee(state, id, command.target);
 
     if (targetCanSeeAttacker === null && hasCondition(attackerConditions, 'invisible')) {
       unverified.push(
