@@ -518,7 +518,7 @@ engine could take it today — is recorded as such rather than omitted.
 
 | Classes | Subclasses | Features | Executed by the engine |
 |---|---|---|---|
-| 12 / 12 | 12 / 12 | 269 | 178 |
+| 12 / 12 | 12 / 12 | 269 | 179 |
 
 A feature declares its own automation, so this column is read rather than
 guessed. **Manual is not failure**: several features are judgement the
@@ -536,7 +536,7 @@ believe it has twelve working classes when it has twelve validated ones.
 | Monk | none | 29 | 19 |
 | Paladin | prepared-from-list | 25 | 19 |
 | Ranger | known | 25 | 16 |
-| Rogue | none | 28 | 15 |
+| Rogue | none | 28 | 16 |
 | Sorcerer | known | 18 | 11 |
 | Warlock | known | 17 | 10 |
 | Wizard | spellbook | 18 | 13 |
@@ -575,7 +575,6 @@ be the second spelling of one derivation.
 | `a-feature-that-changes-who-a-casting-catches` | 4 | 2 |
 | `a-spell-a-source-that-does-not-cast-grants` | 4 | 2 |
 | `movement-modes` | 4 | 2 |
-| `a-one-shot-roll-modifier` | 3 | 2 |
 | `a-hit-point-maximum-a-spell-moves` | 2 | 2 |
 | `a-pool-refilled-to-a-floor` | 2 | 2 |
 | `a-spell-list-that-is-not-your-class-list` | 2 | 2 |
@@ -591,6 +590,7 @@ be the second spelling of one derivation.
 | `a-condition-a-feature-ends` | 2 | 1 |
 | `a-creature-fact-an-effect-overrides` | 2 | 1 |
 | `a-die-behaviour-a-spell-asks-for` | 2 | 1 |
+| `a-one-shot-roll-modifier` | 2 | 1 |
 | `a-reaction-effect-the-vocabulary-lacks` | 2 | 1 |
 | `a-stat-block-created-mid-fight` | 2 | 1 |
 | `an-area-an-item-creates` | 2 | 1 |
@@ -1063,24 +1063,24 @@ never added.
 |---|---|---|---|---|---|
 | 1 | 32 | 24 | 211 | 121 | 85 |
 | 2 | 53 | 39 | 211 | 121 | 85 |
-| 3 | 91 | 68 | 345 | 207 | 127 |
-| 4 | 104 | 80 | 345 | 207 | 127 |
-| 5 | 120 | 91 | 481 | 291 | 173 |
-| 6 | 132 | 98 | 481 | 291 | 173 |
-| 7 | 144 | 104 | 562 | 334 | 211 |
-| 8 | 156 | 116 | 562 | 334 | 211 |
-| 9 | 165 | 120 | 668 | 414 | 235 |
-| 10 | 176 | 124 | 668 | 414 | 235 |
-| 11 | 183 | 126 | 727 | 450 | 256 |
-| 12 | 195 | 138 | 727 | 450 | 256 |
-| 13 | 200 | 139 | 784 | 496 | 267 |
-| 14 | 211 | 145 | 784 | 496 | 267 |
-| 15 | 218 | 148 | 821 | 517 | 282 |
-| 16 | 230 | 160 | 821 | 517 | 282 |
-| 17 | 235 | 160 | 859 | 552 | 283 |
-| 18 | 245 | 162 | 859 | 552 | 283 |
-| 19 | 257 | 174 | 859 | 552 | 283 |
-| 20 | 269 | 178 | 859 | 552 | 283 |
+| 3 | 91 | 69 | 345 | 207 | 127 |
+| 4 | 104 | 81 | 345 | 207 | 127 |
+| 5 | 120 | 92 | 481 | 291 | 173 |
+| 6 | 132 | 99 | 481 | 291 | 173 |
+| 7 | 144 | 105 | 562 | 334 | 211 |
+| 8 | 156 | 117 | 562 | 334 | 211 |
+| 9 | 165 | 121 | 668 | 414 | 235 |
+| 10 | 176 | 125 | 668 | 414 | 235 |
+| 11 | 183 | 127 | 727 | 450 | 256 |
+| 12 | 195 | 139 | 727 | 450 | 256 |
+| 13 | 200 | 140 | 784 | 496 | 267 |
+| 14 | 211 | 146 | 784 | 496 | 267 |
+| 15 | 218 | 149 | 821 | 517 | 282 |
+| 16 | 230 | 161 | 821 | 517 | 282 |
+| 17 | 235 | 161 | 859 | 552 | 283 |
+| 18 | 245 | 163 | 859 | 552 | 283 |
+| 19 | 257 | 175 | 859 | 552 | 283 |
+| 20 | 269 | 179 | 859 | 552 | 283 |
 
 The totals are every path added together, so a spell on two class lists is
 counted once for each path that can reach it — the row is the book at that
@@ -1117,7 +1117,7 @@ which the table will.
 | Monk (Warrior of the Open Hand) | 2/2 | 5/5 | 7/8 | 8/10 | 10/12 | 11/14 | 12/15 | 13/16 | 13/17 | 13/19 | 13/20 | 14/21 | 15/22 | 16/23 | 16/24 | 17/25 | 17/26 | 17/27 | 18/28 | 19/29 |
 | Paladin (Oath of Devotion) | 3/3 | 3/5 | 6/9 | 7/10 | 9/12 | 10/13 | 11/14 | 12/15 | 12/16 | 13/17 | 14/18 | 15/19 | 15/19 | 16/20 | 16/21 | 17/22 | 17/22 | 18/23 | 19/24 | 19/25 |
 | Ranger (Hunter) | 3/3 | 4/5 | 6/8 | 7/9 | 8/10 | 9/11 | 9/12 | 10/13 | 11/14 | 11/15 | 11/16 | 12/17 | 12/18 | 12/19 | 12/20 | 13/21 | 13/22 | 14/23 | 15/24 | 16/25 |
-| Rogue (Thief) | 3/4 | 4/5 | 5/9 | 6/10 | 7/12 | 8/13 | 9/15 | 10/16 | 10/17 | 11/18 | 11/19 | 12/20 | 12/21 | 12/22 | 13/23 | 14/24 | 14/25 | 14/26 | 15/27 | 15/28 |
+| Rogue (Thief) | 3/4 | 4/5 | 6/9 | 7/10 | 8/12 | 9/13 | 10/15 | 11/16 | 11/17 | 12/18 | 12/19 | 13/20 | 13/21 | 13/22 | 14/23 | 15/24 | 15/25 | 15/26 | 16/27 | 16/28 |
 | Sorcerer (Draconic Sorcery) | 1/2 | 2/4 | 4/7 | 5/8 | 6/9 | 7/10 | 7/11 | 8/12 | 8/12 | 8/12 | 8/12 | 9/13 | 9/13 | 9/14 | 9/14 | 10/15 | 10/15 | 10/16 | 11/17 | 11/18 |
 | Warlock (Fiend Patron) | 1/2 | 2/3 | 4/6 | 5/7 | 5/7 | 6/8 | 6/8 | 7/9 | 7/10 | 7/11 | 7/12 | 8/13 | 8/13 | 8/14 | 8/14 | 9/15 | 9/15 | 9/15 | 10/16 | 10/17 |
 | Wizard (Evoker) | 2/3 | 3/4 | 6/7 | 7/8 | 7/9 | 7/10 | 7/10 | 8/11 | 8/11 | 9/12 | 9/12 | 10/13 | 10/13 | 11/14 | 11/14 | 12/15 | 12/15 | 12/16 | 13/17 | 13/18 |

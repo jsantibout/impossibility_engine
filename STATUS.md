@@ -34,6 +34,21 @@ to homebrew.
   cannot make two Claws; and an opportunity attack that reaches for the
   highest-damage printed melee attack that does not recharge, instead of
   fabricating an Unarmed Strike. A caller may still name a different one.
+- **A feature that holds an action rule.** A feature may say a price its holder
+  pays for a named action, derived at every spend rather than stored, so a log
+  frozen before the rule existed still folds to what it always folded to. SRD
+  Cunning Action buys Dash, Disengage and Hide with a Bonus Action, and Hide is
+  the engine's verb end to end: the watchers it must be out of sight of, the
+  cover or obscurement it needs, a DC 15 Dexterity (Stealth) check, and the
+  Invisible condition it buys. Where nobody has said what can see the hider,
+  the engine asks rather than guessing.
+- **A use that hangs something a roll can spend.** A derived grant says what a
+  feature permits and can never be consumed; a *hung* grant is stored at the
+  moment the price is paid and is spent once. SRD Steady Aim gives Advantage on
+  the next attack and a Speed of 0 until the turn ends, each clause under its
+  own source — because everything one source granted is released together, and
+  sharing one would have handed the Speed back on the swing that spent the
+  Advantage.
 - **The defender answers first, on both paths.** A rider elected on a swing is
   pinned on the pending record and resolved after the damage lands, so a target
   Stunned by the same hit still answers the window it was offered — held swings
@@ -416,21 +431,19 @@ one, three spells were two, four features were one, 177 Multiattack blocks were
 about the corpus rather than a law. Every one was caught by a builder, in
 minutes, after the brief was written. `WORKFLOW.md` rule 1 says to check first.
 
-1. **A feature that holds an action rule, and the two things that make it
-   finish something.** The architect's decision is in hand: a derived
-   `StandingGrant` member plus `actionRulesOn(state, id)` merged with the stored
-   rules at every `Spend`, **not** a grant stored at creation, which would put a
-   permanent unconditional row into every Rogue's state and silently miss the
-   Rogue frozen in `golden-log-2.json`. Measured footprint: 18 files, plus
-   `standing.ts`.
-
-   **The door alone finishes nothing.** With a `from` on `takeDash` it reaches
-   two of Cunning Action's three verbs and Adrenaline Rush's Dash, and Cunning
-   Action stays `manual` until **Hide** is built — ruled the engine's verb, and
-   waiting on a spender rather than on a decision. **Steady Aim** is the third
-   piece and cannot ride the same derivation: a `oneShot` on a *derived*
-   standing grant is never spent, because `consumedRollModifiers` reads stored
-   state. Brief the three together or none.
+1. **Bonus actions, and the clay golem that waits on them.** The 75 printed
+   bonus-action lines are **already parsed** — `parseFeatures` runs every
+   detector over every section and none of the 75 prints an attack roll. They
+   are seven mechanisms under one heading: ~16 cast a spell, 15 force a save,
+   12 take another action, 12 move, 10 shape-shift, 5 teleport, 5 prose. So
+   what is left is not parsing. It is carrying the lines onto the sheet and
+   **spending** one, which needs a command, a `GameEvent` member and a fold
+   region. **A decision first:** does a monster's Bonus Action get a spend of
+   its own, and does `MonsterMultiattack` gain a branch gate the engine can
+   evaluate against it? Until both exist the clay golem has nothing to stand
+   on — reading its gated branch with nothing able to evaluate the gate would
+   hand it three Slams unconditionally, because `sequenceTotal` is `Math.max`
+   over branches.
 
 2. **What the bestiary still does not read.** 75 printed bonus-action lines read
    as 0, which is also what leaves the clay golem's gated alternative prose. And
