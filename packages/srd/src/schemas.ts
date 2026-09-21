@@ -131,18 +131,25 @@ export const MonsterDamageSchema = z.object({
 export type MonsterDamage = z.infer<typeof MonsterDamageSchema>;
 
 /**
- * What has to happen before an attack that is not available every round is
+ * What has to happen before a line that is not available every round is
  * available again.
  *
- * The book prints it **inside the action's name** — "Whirlwind (Recharge 4–6)",
+ * The book prints it **inside the line's name** — "Whirlwind (Recharge 4–6)",
  * "Rock (Recharge 6)", "(Recharge after a Short or Long Rest)" — and a name is
  * exactly what nothing downstream may branch on. So it is read here, once, and
  * whatever has to tell a Bite from a breath weapon reads a field.
  *
+ * **The two arms are not "a die" against "a rest".** SRD *Monsters*: "Recharge
+ * X–Y ... at the start of each of the monster's turns, roll 1d6. If the roll is
+ * within the number range given ... the monster regains the use of that part,
+ * **which also recharges when the monster finishes a Short or Long Rest**." So
+ * the die arm has two ways back and the rest is one of them. The other notation
+ * is the rest *alone*: "Recharge after a Short or Long Rest. This notation means
+ * the monster can use the stat block part once and must then finish a Short or
+ * Long Rest to use it again" — no die, and no turn-start roll.
+ *
  * `low` is the lowest face of the d6 that brings it back: 4 for "4–6", 6 for
- * "6". Nothing rolls that die yet, and this does not claim anybody does — what
- * it states is the fact that the line is *not* the creature's every-round
- * attack, which is the whole of what a reader needs to leave it out of one.
+ * "6".
  */
 export const MonsterRechargeSchema = z.union([
   z.object({ kind: z.literal('die'), low: z.number().int().min(1).max(6) }),
@@ -191,15 +198,6 @@ export const MonsterAttackSchema = z.object({
   qualification: z.string().min(1).nullable(),
   /** Everything the line says after the damage, verbatim. Null where it says nothing. */
   rider: z.string().min(1).nullable(),
-  /**
-   * Present exactly where the line's name prints a recharge — see
-   * {@link MonsterRechargeSchema}.
-   *
-   * On the attack rather than on the line because it is a fact about *this
-   * attack's* availability, and the readers that have to leave a breath weapon
-   * out of a choice hold an attack rather than the section it came from.
-   */
-  recharge: MonsterRechargeSchema.optional(),
 });
 export type MonsterAttack = z.infer<typeof MonsterAttackSchema>;
 
@@ -365,6 +363,20 @@ export const FeatureSchema = z.object({
   text: z.string().min(1),
   /** The numbers of a printed attack line, where this line is one. */
   attack: MonsterAttackSchema.optional(),
+  /**
+   * What brings this line back once it has been used, where the name prints
+   * one — see {@link MonsterRechargeSchema}.
+   *
+   * **Here rather than on the attack, because here is where the book prints
+   * it.** It sat on `attack` while its only reader was the one that leaves a
+   * breath weapon out of an Opportunity Attack, and that reader holds an
+   * attack; but the book writes the notation on eighty-seven lines and only
+   * two of them print an attack roll. The other eighty-five are a saving
+   * throw, a spell, a teleport or a shape-shift, and on the old shape they
+   * carried no recharge at all — including the one line in the SRD that prints
+   * the rest form, which is why nothing had ever produced that arm.
+   */
+  recharge: MonsterRechargeSchema.optional(),
   /** The mechanic this trait's sentence states, where the parser knows it. */
   trait: MonsterTraitSchema.optional(),
   /** The sequence this line's sentence states, where it states one. */

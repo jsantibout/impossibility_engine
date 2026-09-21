@@ -16,6 +16,7 @@ import type {
   Armor,
   MonsterAttack,
   MonsterMultiattack,
+  MonsterRecharge,
   MonsterTrait,
   WeaponMastery,
 } from '@ie/srd';
@@ -81,6 +82,19 @@ export interface ArmorTraining {
  */
 export interface StatedAttack extends MonsterAttack {
   readonly name: string;
+  /**
+   * What brings this attack back once it has been used, where its heading
+   * prints a recharge.
+   *
+   * **Carried from the line onto the attack**, because the two readers of it
+   * want different things in the same breath: the default Opportunity Attack
+   * has an attack in its hand and must leave a breath weapon out of the
+   * choice, and the swing that spends one has to know what it would take to
+   * get it back. The book prints it on the heading, which is why `Feature`
+   * owns it in `@ie/srd` and this is a copy the adapter makes rather than a
+   * second place it could be written.
+   */
+  readonly recharge?: MonsterRecharge;
 }
 
 /**
@@ -95,6 +109,15 @@ export interface StatedBonusAction {
   readonly name: string;
   /** The book's sentence, verbatim, because a spend reports it. */
   readonly text: string;
+  /**
+   * What brings this line back once it has been taken, where its heading
+   * prints a recharge — see {@link StatedAttack.recharge}.
+   *
+   * Thirteen of the SRD's Bonus Action lines print one, including the only
+   * line in the book that prints the rest form. Absent on the rest, which is a
+   * line a creature may take every turn.
+   */
+  readonly recharge?: MonsterRecharge;
 }
 
 /**

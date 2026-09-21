@@ -51,6 +51,7 @@ import {
   attacksInAction,
   hasPrintedTrait,
   describeMultiattack,
+  describeRecharge,
   multiattackAllows,
   multiattackOf,
   printedAttackOf,
@@ -184,11 +185,15 @@ function attacksMadeThisTurn(
  * Everything wrong with a swing that names an attack its creature prints, or
  * null.
  *
- * All three refusals are answerable before anything is spent, which is where
+ * All four refusals are answerable before anything is spent, which is where
  * this is asked from — a swing refused after the Attack action is gone is a
  * refusal with a footprint.
  */
-function printedAttackProblem(sheet: CharacterSheet, command: AttackCommand): Err | null {
+function printedAttackProblem(
+  sheet: CharacterSheet,
+  expended: readonly string[],
+  command: AttackCommand,
+): Err | null {
   if (command.action === undefined) return null;
 
   if (command.weapon !== null) {
@@ -203,6 +208,19 @@ function printedAttackProblem(sheet: CharacterSheet, command: AttackCommand): Er
     return err(
       'unknown_action',
       `no attack called ${command.action} is printed on this creature's stat block`,
+    );
+  }
+
+  // **A line already used and not yet back.** SRD *Monsters*: "a monster can
+  // use the stat block part once" — the Minotaur's Gore and the Ape's Rock are
+  // the two the book prints an attack roll on, and a second swing of one is
+  // refused here with the Attack action still in hand.
+  if (expended.includes(printed.name)) {
+    return err(
+      'line_expended',
+      `${printed.name} is a line this creature has used and not got back${
+        printed.recharge === undefined ? '' : `: ${describeRecharge(printed.recharge)}`
+      }`,
     );
   }
 
@@ -507,7 +525,7 @@ export function resolveAttack(
     //
     // Before the weapon, because a swing that names both is refused rather
     // than resolved in whichever order this function happens to read them.
-    const printedProblem = printedAttackProblem(sheet, command);
+    const printedProblem = printedAttackProblem(sheet, attacker.expendedLines, command);
     if (printedProblem !== null) return printedProblem;
     const printed =
       command.action === undefined ? null : printedAttackOf(sheet, command.action);
@@ -787,6 +805,16 @@ export function resolveAttack(
     // answer Cleave, Slow, Sap and Vex all give to the same absence.
     if (slot !== null && state.combat !== null) {
       events.push({ type: 'feature-used', id, feature: slot, turn: state.combat.turnsTaken });
+    }
+
+    // **The line is used up by the swing, hit or miss.** SRD *Monsters*: "a
+    // monster can use the stat block part once" — what is allowed once is the
+    // attack, not its landing, which is the same reading Cleave's once-per-turn
+    // allowance takes two blocks above. And unlike that one it is *not* counted
+    // against a turn: a line comes back on a die or a rest, so it is spent here
+    // whether or not there is a fight running.
+    if (printed?.recharge !== undefined) {
+      events.push({ type: 'printed-line-expended', id, line: printed.name });
     }
 
     // — the roll ———————————————————————————————————————————————————————————

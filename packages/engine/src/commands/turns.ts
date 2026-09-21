@@ -35,6 +35,8 @@ import {
 } from '../timers.js';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
+import { RECHARGE_DIE, rechargeMade, rechargeOfLine } from '../monster.js';
+import { rollRecorded } from '../rolls.js';
 import { needsCasterSheet, statedDamageType } from '../spell-definitions.js';
 import {
   type AreaMoment,
@@ -341,6 +343,89 @@ export function settleBoundaryPayouts(
   }
 
   return settleTurnPayouts(state, supply, due);
+}
+
+/**
+ * The d6 the start of a creature's turn owes each of its expended lines.
+ *
+ * SRD *Monsters*: "Recharge X–Y ... At the start of each of the monster's
+ * turns, roll 1d6. If the roll is within the number range given in the
+ * notation, the monster regains the use of that part." So the die belongs to
+ * the *line*, one per expended line, and a creature holding two rolls twice.
+ *
+ * **The order is the expended list's, which is sorted**, so two replays of one
+ * log throw the same dice in the same order at the same creature.
+ *
+ * **Nothing is rolled for a line whose notation names no die.** The book's
+ * other notation is a rest and only a rest; a boundary that threw a die for it
+ * would move the generator for a recovery that could not happen, which is the
+ * quiet way a replay stops matching — the same rule `declareDawn` states about
+ * a pool with nothing spent.
+ *
+ * A line the sheet no longer prints is skipped rather than refused: the
+ * expended state is a list of names and a sheet can be restated, and a
+ * boundary is the wrong place to stop a fight over one.
+ *
+ * **Exported for the two boundaries that raise a turn's beginning** —
+ * `resolveTurn` and the fight opening in `beginCombat` — so a creature whose
+ * breath weapon is spent gets its die at both rather than only at the one
+ * somebody remembered. That is the argument `settleBoundaryPayouts` makes about
+ * itself, and this is the same moment by the same two doors.
+ */
+export function settleStartOfTurnRecharges(
+  state: GameState,
+  supply: Supply | undefined,
+  begun: CharacterId | undefined,
+): Result<readonly GameEvent[]> {
+  if (begun === undefined) return ok([]);
+  const creature = state.creatures[begun];
+  if (creature === undefined || creature.vitals.dead) return ok([]);
+
+  const due = creature.expendedLines.filter((line) => {
+    const recharge = rechargeOfLine(creature.sheet, line);
+    return recharge !== null && recharge.kind === 'die';
+  });
+  if (due.length === 0) return ok([]);
+
+  if (supply === undefined) {
+    return err(
+      'recharge_owed',
+      `${begun} starts its turn owing ${due.length} recharge roll(s); advancing needs a generator to throw them`,
+    );
+  }
+
+  const events: GameEvent[] = [];
+  for (const line of due) {
+    const recharge = rechargeOfLine(creature.sheet, line);
+    if (recharge === null) continue;
+    const issuedBefore = supply.issuer.count;
+    const rolled = rollRecorded(supply.issuer, supply.rng, RECHARGE_DIE);
+    if (!rolled.ok) return rolled;
+    const made = rechargeMade(recharge, rolled.value.total);
+    events.push(
+      {
+        type: 'roll-recorded',
+        who: begun,
+        // The line's own heading, which is the string the block prints and the
+        // one the refusal and the log already use.
+        label: `${line} recharge (${RECHARGE_DIE})`,
+        natural: rolled.value.total,
+        total: rolled.value.total,
+        contributions: [],
+        outcome: made ? 'back' : 'still spent',
+      },
+      {
+        type: 'rolls-issued',
+        count: supply.issuer.count - issuedBefore,
+        rng: supply.rng.snapshot(),
+      },
+      // A die that missed is a roll and nothing else: the line is where it
+      // was, and the log holds the throw that left it there.
+      ...(made ? [{ type: 'printed-line-recharged' as const, id: begun, line }] : []),
+    );
+  }
+
+  return ok(events);
 }
 
 /** Every turn-boundary save still owed, in a stable order. */
@@ -1092,6 +1177,18 @@ export function resolveTurn(
     if (!paid.ok) return paid;
     advanced.push(...paid.value);
     after = paid.value.reduce(applyEvent, after);
+
+    // SRD *Monsters*: "At the start of each of the monster's turns, roll 1d6."
+    // Beside the payouts because it is the same half of the boundary — what
+    // the creature whose turn is beginning is owed — and after them rather
+    // than before for no reason the rules give: a recharge touches no hit
+    // points, so it cannot move the death save below it or be moved by the
+    // healing above it, and the position is free. Beside the payouts is where
+    // a reader will look for it.
+    const recharged = settleStartOfTurnRecharges(after, supply, beginning);
+    if (!recharged.ok) return recharged;
+    advanced.push(...recharged.value);
+    after = recharged.value.reduce(applyEvent, after);
 
     // SRD: "Whenever you start your turn with 0 Hit Points, you must make a
     // Death Saving Throw." Whenever — nobody decides it, so the turn owes it the

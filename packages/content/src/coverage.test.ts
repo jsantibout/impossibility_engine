@@ -447,10 +447,16 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
 
   /**
    * The claim the row would be dishonest without, in both directions. A
-   * printed line is a name and the book's sentence, **plus** at most the two
-   * fields a parser fills when it read that sentence — an attack's numbers or
-   * a trait's mechanic. A third field would be a population the row is not
-   * counting, so it fails here rather than quietly joining the *read* column.
+   * printed line is a name and the book's sentence, **plus** at most the
+   * fields a parser fills when it read that sentence — an attack's numbers, a
+   * trait's mechanic, a Multiattack's sequence, and what the heading says
+   * brings the line back. A field beyond them would be a population the row is
+   * not counting, so it fails here rather than quietly joining the *read*
+   * column.
+   *
+   * `recharge` is read off the **name** rather than the sentence, which is why
+   * it changes nothing about what "read" counts: a line whose prose the parser
+   * got nothing out of is still unread with a recharge on it.
    */
   it('finds nothing in a printed line but a name, prose, and what was read out of it', () => {
     const keys = new Set<string>();
@@ -466,7 +472,14 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
       }
     }
 
-    expect([...keys].sort()).toEqual(['attack', 'multiattack', 'name', 'text', 'trait']);
+    expect([...keys].sort()).toEqual([
+      'attack',
+      'multiattack',
+      'name',
+      'recharge',
+      'text',
+      'trait',
+    ]);
   });
 
   /**

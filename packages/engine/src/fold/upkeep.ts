@@ -33,6 +33,8 @@ export const UPKEEP_EVENTS = [
   'resource-regained',
   'resource-pool-resized',
   'resources-restored',
+  'printed-line-expended',
+  'printed-line-recharged',
   'time-advanced',
   'rest-begun',
   'rest-ended',
@@ -90,7 +92,52 @@ export function applyUpkeep({ state, next }: Applying, event: UpkeepEvent): Game
       return withCreature(
         next,
         event.id,
-        { resources: restoreOn(creature.resources, event.recovers) },
+        {
+          resources: restoreOn(creature.resources, event.recovers),
+          // **A rest brings back every recharging line, both notations.** SRD
+          // *Monsters* says it of the die form in the same sentence as the die
+          // — "which also recharges when the monster finishes a Short or Long
+          // Rest" — and the other notation is that clause with the die taken
+          // away. So it is one answer for both arms and it is answered here,
+          // on the event a rest already emits, rather than by a second event a
+          // caller could forget: a creature's rest is exactly this event with
+          // a rest's tag on it, and `endRest` emits both tags for a Long Rest.
+          //
+          // The other two tags are left alone. Dawn is not a rest, and
+          // `special` is a recovery a feature spelled out for itself.
+          ...(event.recovers === 'short-rest' || event.recovers === 'long-rest'
+            ? { expendedLines: [] }
+            : {}),
+        },
+        creature,
+      );
+    }
+
+    case 'printed-line-expended': {
+      const creature = creatureOf(state, event, event.id);
+      if (creature.expendedLines.includes(event.line)) {
+        throw new CorruptLogError(event, `${event.id} has already spent ${event.line}`);
+      }
+      return withCreature(
+        next,
+        event.id,
+        { expendedLines: [...creature.expendedLines, event.line].sort() },
+        creature,
+      );
+    }
+
+    case 'printed-line-recharged': {
+      const creature = creatureOf(state, event, event.id);
+      // A line nobody spent cannot come back, and a log that says it did is
+      // describing a creature that used something twice — the loudest way this
+      // rule could go wrong, so it stops rather than being absorbed.
+      if (!creature.expendedLines.includes(event.line)) {
+        throw new CorruptLogError(event, `${event.id} has not spent ${event.line}`);
+      }
+      return withCreature(
+        next,
+        event.id,
+        { expendedLines: creature.expendedLines.filter((line) => line !== event.line) },
         creature,
       );
     }

@@ -292,6 +292,29 @@ export interface CreatureState {
    */
   readonly activeFeatures: readonly string[];
   /**
+   * The lines this creature's stat block prints a **recharge** on that it has
+   * used and not got back, by the heading the block prints them under.
+   *
+   * SRD *Monsters*: "Recharge X–Y. This notation means a monster can use the
+   * stat block part once. At the start of each of the monster's turns, roll
+   * 1d6 ... which also recharges when the monster finishes a Short or Long
+   * Rest." A line used is spent until one of those two happens, and that is a
+   * fact about the creature rather than about the turn — so it lives here and
+   * not in the combat ledger beside `featureUsedOnTurn`, which is emptied
+   * every turn and gone when the fight ends. A breath weapon does not come
+   * back because everybody stopped fighting.
+   *
+   * **Names, because a line's identity is its heading.** That is what a caller
+   * spends it by, what the log records, and what the sheet carries the
+   * recharge on; nothing branches on one.
+   *
+   * Sorted, so state serialises identically however they were spent. Empty for
+   * every character, for every creature whose block prints no recharge, and
+   * for every log written before this existed — so both frozen fixtures fold
+   * unchanged.
+   */
+  readonly expendedLines: readonly string[];
+  /**
    * The action this creature is holding for a trigger, or null.
    *
    * Paired with the `action:ready` feature rather than standing alone: that is

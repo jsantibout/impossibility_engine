@@ -15,6 +15,7 @@ import type {
   MonsterMultiattackBranch,
   MonsterMultiattackEntry,
   MonsterMultiattackGate,
+  MonsterRecharge,
   MonsterTrait,
 } from '@ie/srd';
 // The two readers of the branch shape, from the subpath that is schemas and no
@@ -224,7 +225,19 @@ const ABILITIES_IN_ORDER: readonly Ability[] = ['str', 'dex', 'con', 'int', 'wis
  */
 function printedAttacks(monster: Monster): readonly StatedAttack[] {
   return monster.actions.flatMap((line) =>
-    line.attack === undefined ? [] : [{ name: line.name, ...line.attack }],
+    line.attack === undefined
+      ? []
+      : [
+          {
+            name: line.name,
+            ...line.attack,
+            // The recharge is the **line's**, because that is where the book
+            // prints it; it is copied onto the attack so that the two readers
+            // that hold an attack — the default Opportunity Attack and the
+            // swing that spends one — ask the object they already have.
+            ...(line.recharge === undefined ? {} : { recharge: line.recharge }),
+          },
+        ],
   );
 }
 
@@ -625,6 +638,61 @@ export const statedBonusActionsUsed = (
     .filter(([key, on]) => on === turn && key.startsWith(STATED_BONUS_ACTION))
     .map(([key]) => key.slice(STATED_BONUS_ACTION.length));
 
+/**
+ * What a stat block's line has to wait for before it can be used again, or
+ * null where the block prints nothing.
+ *
+ * **One reader for both sections a caller can spend**, because the rule is
+ * about a *line* and the heading it was printed under decides what it costs
+ * rather than how often it comes back. A block that printed the same heading
+ * twice would answer from the attacks first, which is where the swing that
+ * asks is standing; nothing in the SRD does.
+ *
+ * Case-insensitive for the reason {@link printedAttackOf} is: the heading is
+ * something a caller types.
+ */
+export function rechargeOfLine(sheet: CharacterSheet, line: string): MonsterRecharge | null {
+  const wanted = line.trim().toLowerCase();
+  const attack = sheet.stated?.attacks?.find((one) => one.name.toLowerCase() === wanted);
+  if (attack !== undefined) return attack.recharge ?? null;
+  const bonus = sheet.stated?.bonusActions?.find((one) => one.name.toLowerCase() === wanted);
+  return bonus?.recharge ?? null;
+}
+
+/**
+ * The die a recharge is rolled on, in the book's own notation.
+ *
+ * SRD *Monsters*: "At the start of each of the monster's turns, roll 1d6." One
+ * constant, because the roll and the refusal that quotes it must agree.
+ */
+export const RECHARGE_DIE = '1d6';
+
+/**
+ * Whether a face of that die brings the line back.
+ *
+ * `low` is the bottom of the printed range and 6 is always the top, so "within
+ * the number range given" is a comparison rather than a set. The rest arm
+ * answers no to every face: a turn is not a rest, which is exactly the
+ * difference the book's second notation draws.
+ */
+export const rechargeMade = (recharge: MonsterRecharge, face: number): boolean =>
+  recharge.kind === 'die' && face >= recharge.low;
+
+/**
+ * What the book printed, in words, for a refusal to quote back.
+ *
+ * Built out of the recharge's own number; nothing here is a string this file
+ * chose about a particular creature. **A refusal says what would end it**,
+ * because a caller told only that a line is gone cannot tell whether to wait a
+ * turn or to call a rest — and for the die form the answer is both.
+ */
+export const describeRecharge = (recharge: MonsterRecharge): string =>
+  recharge.kind === 'die'
+    ? `a ${RECHARGE_DIE} at the start of its turn brings it back on a ${recharge.low}${
+        recharge.low === 6 ? '' : `–6`
+      }, and so does finishing a Short or Long Rest`
+    : 'finishing a Short or Long Rest brings it back';
+
 /** Whether this creature's stat block states a trait of the given shape. */
 export const hasPrintedTrait = (sheet: CharacterSheet, kind: MonsterTrait['kind']): boolean =>
   sheet.stated?.traits?.some((trait) => trait.kind === kind) === true;
@@ -667,6 +735,11 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
   const bonusActions: readonly StatedBonusAction[] = monster.bonusActions.map((line) => ({
     name: line.name,
     text: line.text,
+    // And what brings it back, where the heading prints one. The engine
+    // executes none of these lines and still owes the rule about *how often*:
+    // thirteen of them are printed on a recharge, which is a fact about the
+    // economy rather than about the sentence.
+    ...(line.recharge === undefined ? {} : { recharge: line.recharge }),
   }));
 
   const stated: StatedValues = {

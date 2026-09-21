@@ -262,6 +262,8 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'movement-declared',
   'movement-spent',
   'opportunity-answered',
+  'printed-line-expended',
+  'printed-line-recharged',
   'reaction-grant-consumed',
   'reaction-granted',
   'reaction-spent',
