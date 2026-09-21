@@ -61,22 +61,33 @@ const swept = (): { file: string; text: string }[] =>
 /**
  * The names no file under `dm/` may import from the engine.
  *
- * **Step one's list, minus exactly one name, plus exactly one.** The first
- * two are the rule both surfaces keep — `recordExternalD20` and
- * `recordExternalDamage` stamp a roll as the engine's own, and a DM stating
- * a number is not the same act. The rest are step one's, and they stay
- * forbidden here because they state an **outcome the rules decide**, which is
- * nobody's to state: `recordD20Test` and `setExhaustionLevel` are named in
- * `dm/definitions.ts`'s own "no" column, `damageCreature` skips the
- * Concentration save that `resolveDamage` settles, and healing and Temporary
- * Hit Points are simply not in this slice and should have to be argued for.
+ * **Step one's list, minus exactly one name.** The two surfaces are
+ * partitioned by *authority*, and authority runs one way: a DM decides what
+ * the rules leave open, and a model running the table holds that door as a
+ * human does. So everything a model may not import, a DM may not import
+ * either, except where a DM's authority buys it back — which is
+ * {@link ALLOWED_A_DM}, and is one name.
  *
- * `rollAttackDamage` is the addition, and it is not on step one's list
- * because step one had no reason to want it. It is the engine's one damage
- * roller and it is *public*, so a DM tool that wanted dice for a chandelier
- * could reach it — and would advance a generator whose `rolls-issued` event
- * only a command emits, leaving the campaign's dice out of step with its log.
- * That is the gap this batch reports rather than the hole it digs.
+ * The reason for each is step one's and is written beside it there, in
+ * `FORBIDDEN_BECAUSE`. What *this* list says is only which of them a DM's
+ * authority does not reach, and the answer for four groups out of four is all
+ * of them:
+ *
+ * - The external-roll functions stamp a roll as the engine's own, and a DM
+ *   stating a number is not the same act. `recordD20Test` and
+ *   `setExhaustionLevel` are named in `dm/definitions.ts`'s own "no" column.
+ * - **The stated-face seam is not a DM door either.** `resolveStatedD20` and
+ *   the four that carry a face into a check, a save, an attack or a death save
+ *   all end at `recordExternalD20`, which this list has always forbidden.
+ *   Forbidding the callee and permitting the callers is the hole rather than
+ *   the guard. `CLAUDE.md` says the face a table throws reaches the engine
+ *   "only through a door built for one", in "its own directory with its own
+ *   sweep" — and `dm/` is not that directory.
+ * - The rollers that are not commands advance a generator whose `rolls-issued`
+ *   event only a command emits, leaving the campaign's dice out of step with
+ *   its log. `rollAttackDamage` is where that reason was first written down,
+ *   and it is on step one's list now too: a name forbidden the wider surface
+ *   and allowed the narrower one was a hole, not an asymmetry.
  */
 const FORBIDDEN_HERE = [
   'recordExternalD20',
@@ -86,7 +97,24 @@ const FORBIDDEN_HERE = [
   'grantTemporaryHpTo',
   'setExhaustionLevel',
   'recordD20Test',
+  'resolveStatedD20',
+  'rollD20Test',
+  'rollAbilityCheck',
+  'rollSavingThrow',
+  'rollAttack',
+  'resolveDeathSave',
+  'roll',
+  'rollD20',
+  'rerollDice',
+  'rollD20Recorded',
+  'rollRecorded',
+  'rollBonusDice',
+  'rerollTest',
+  'interveneAfterRoll',
+  'reduceDamage',
   'rollAttackDamage',
+  'rollInitiative',
+  'rollDeathSave',
 ];
 
 /**
@@ -354,19 +382,20 @@ describe('the DM surface cannot reach the external-roll functions either', () =>
       engineImports(text).some((name) => FORBIDDEN_HERE.includes(name)) ||
       ENGINE_FORMS.some(({ pattern }) => pattern.test(text));
 
-    expect(caught("import { recordExternalD20 } from '@ie/engine';")).toBe(true);
-    expect(caught("import { recordExternalD20 as roll } from '@ie/engine';")).toBe(true);
-    expect(caught("import type { recordExternalDamage } from '@ie/engine';")).toBe(true);
+    // Every name, not a sample: two of the forms are caught by the shape of
+    // the import rather than by the name inside it, so a sample would pass for
+    // a name the name sweep could not read at all.
+    for (const name of FORBIDDEN_HERE) {
+      expect(caught(`import { ${name} } from '@ie/engine';`), name).toBe(true);
+      expect(caught(`import { ${name} as alias } from '@ie/engine';`), name).toBe(true);
+      expect(caught(`import type { ${name} } from '@ie/engine';`), name).toBe(true);
+      expect(caught(`export { ${name} } from '@ie/engine';`), name).toBe(true);
+      expect(caught(`const { ${name} } = await import('@ie/engine');`), name).toBe(true);
+    }
+    // And the two forms that name nothing at all, which no loop over names
+    // would produce.
     expect(caught("import * as anything from '@ie/engine';")).toBe(true);
     expect(caught("export * from '@ie/engine';")).toBe(true);
-    expect(caught("export { recordExternalD20 } from '@ie/engine';")).toBe(true);
-    expect(caught("const { recordExternalDamage } = await import('@ie/engine');")).toBe(true);
-    // And the four this list adds to the pair, each of which states an
-    // outcome rather than a decision.
-    expect(caught("import { recordD20Test } from '@ie/engine';")).toBe(true);
-    expect(caught("import { setExhaustionLevel } from '@ie/engine';")).toBe(true);
-    expect(caught("import { damageCreature } from '@ie/engine';")).toBe(true);
-    expect(caught("import { rollAttackDamage } from '@ie/engine';")).toBe(true);
     // The DM surface *does* import the command that takes an amount, which is
     // the whole difference between the two surfaces — and is not a breach.
     expect(caught("import { resolveDamage, resolveTest } from '@ie/engine';")).toBe(false);
@@ -390,6 +419,14 @@ describe('the DM surface cannot reach the external-roll functions either', () =>
     // And an exemption is not a note: a name excused here must really be one
     // step one forbade, or it is a sentence about nothing.
     expect(Object.keys(ALLOWED_A_DM).filter((name) => !theirs.includes(name))).toEqual([]);
+
+    // **And the difference runs one way only.** The clause above catches this
+    // list shrinking; this one catches step one's. Authority is a containment:
+    // a DM decides what the rules leave open and a model does not, so a name
+    // forbidden here and allowed there would be a hole in the *stricter*
+    // surface — which is what `rollAttackDamage` was for one batch, sitting on
+    // this list alone because step one had had no reason to want it.
+    expect(FORBIDDEN_HERE.filter((name) => !theirs.includes(name))).toEqual([]);
   });
 
   it('and the ones that are forbidden here are really reachable', () => {
@@ -397,6 +434,21 @@ describe('the DM surface cannot reach the external-roll functions either', () =>
     for (const name of FORBIDDEN_HERE) {
       expect(typeof (engine as Record<string, unknown>)[name], name).toBe('function');
     }
+  });
+
+  it('and mints no roll of its own out of the supply it is handed', () => {
+    // The same text sweep step one makes, over the files step one cannot
+    // reach. `campaign.supply()` hands back a live `RollIssuer` and a live
+    // `Rng`, and neither `issuer.issue('engine')` nor `rng.int(20)` names a
+    // forbidden import — so the import sweep above cannot see either. No file
+    // under `dm/` rebuilds a generator at all: `supply()` is passed whole to
+    // the command that rolls, which is the only thing that should hold it.
+    const breaches: string[] = [];
+    for (const { file, text } of swept()) {
+      if (/\.issue\(/.test(text)) breaches.push(`${file} mints a roll provenance`);
+      if (/\.rng\b/.test(text)) breaches.push(`${file} reaches for a generator`);
+    }
+    expect(breaches).toEqual([]);
   });
 
   it('sweeps something: the DM files do import the engine', () => {

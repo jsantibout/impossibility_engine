@@ -56,21 +56,151 @@ const swept = (): { file: string; text: string }[] =>
 /**
  * The names this package may not import from the engine.
  *
- * The first two are the rule: `recordExternalD20` and `recordExternalDamage`
- * are the human-DM override path, and `CLAUDE.md` says they are "never
- * exposed to an AI one". The rest all take a mechanically authoritative
- * number from their caller, which is the same rule one step further out.
+ * `CLAUDE.md` rule 1 rests on **reachability, not a handshake**: every door an
+ * AI holds reaches only commands that roll. This list is what makes that
+ * sentence true, so it is four groups rather than two names, and the reason
+ * for each name is beside it in {@link FORBIDDEN_BECAUSE} rather than in a
+ * paragraph that goes stale the first time somebody adds to the list.
+ *
+ * 1. **The external-roll functions.** `recordExternalD20` and
+ *    `recordExternalDamage` are for a table whose people roll their own dice,
+ *    and reach one only through a door built for one — never a model.
+ * 2. **The commands that state an outcome the rules decide**: hit points lost
+ *    or restored, a level of Exhaustion, a completed D20 Test.
+ * 3. **The stated-face seam.** A `StatedD20` is a caller reading dice out to
+ *    the engine, and three functions carry one on an *options field* where the
+ *    name `resolveStatedD20` never appears — a file importing `rollAttack` and
+ *    filling in `statedRoll` would have passed this sweep. No command carries
+ *    the field, so nothing such a file produced could reach the log today;
+ *    this is the guard arriving before the command surface makes it live.
+ * 4. **The rollers that are not commands.** A command emits `rolls-issued`,
+ *    which is the only event that moves the generator in the log. A roller
+ *    called directly moves a generator, emits nothing, and hands the face to
+ *    its caller. `rollAttackDamage` was on the DM list alone for this reason
+ *    and is on both now: a name forbidden the wider surface and allowed the
+ *    narrower one is a hole rather than an asymmetry.
+ *
+ * The fourth group is **derived** below rather than trusted — every public
+ * engine function outside `commands/` that takes an `Rng` must be on this
+ * list, so the next roller somebody exports fails this file instead of
+ * slipping past it. The first three take no generator and cannot be derived,
+ * which is why they are written out and why the derivation is not the whole
+ * guard.
  */
 const FORBIDDEN = [
+  // — the external-roll functions, which are the rule ————————————————————————
   'recordExternalD20',
   'recordExternalDamage',
+  // — outcomes the rules decide, stated as a number —————————————————————————
   'damageCreature',
   'healCreature',
   'grantTemporaryHpTo',
   'setExhaustionLevel',
   'recordD20Test',
   'resolveDamage',
+  // — the stated-face seam: a face the caller produced, taken as a real roll —
+  'resolveStatedD20',
+  'rollD20Test',
+  'rollAbilityCheck',
+  'rollSavingThrow',
+  'rollAttack',
+  'resolveDeathSave',
+  // — rollers that are not commands: dice thrown outside the log ————————————
+  'roll',
+  'rollD20',
+  'rerollDice',
+  'rollD20Recorded',
+  'rollRecorded',
+  'rollBonusDice',
+  'rerollTest',
+  'interveneAfterRoll',
+  'reduceDamage',
+  'rollAttackDamage',
+  'rollInitiative',
+  'rollDeathSave',
 ];
+
+/**
+ * Why each of them is on the list.
+ *
+ * A name on a guard with no reason beside it is a name the next reader has to
+ * either take on trust or delete, and a name on that list that does not belong
+ * is its own kind of lie. So the sentence travels with the name, and a test
+ * below holds the two lists to each other.
+ */
+const FORBIDDEN_BECAUSE: Readonly<Record<string, string>> = {
+  recordExternalD20:
+    'takes the face a die showed and stamps it into a roll the engine will honour; the human-DM path, never a model one',
+  recordExternalDamage:
+    'the same door for damage, and the one that is not bounds-checked at all when a DM calls the number a ruling',
+  damageCreature:
+    'states the hit points lost as a number, and skips the Concentration save that resolveDamage settles',
+  healCreature: 'states the hit points restored, which is a number the rules reach on their own',
+  grantTemporaryHpTo: 'states the Temporary Hit Points, likewise',
+  setExhaustionLevel: 'states a level the rules arrive at by their own arithmetic',
+  recordD20Test:
+    'builds the roll-recorded event out of a D20TestResult handed to it, so a hand-written literal is a forged roll with nothing left to check it',
+  resolveDamage:
+    'takes an amount, which is a decision the rules leave to a DM and to nobody else — see dm/boundary.test.ts, where it is the one name excused',
+  resolveStatedD20:
+    'the whole seam in one function: faces and a source in, a RecordedD20 the engine treats as its own out',
+  rollD20Test:
+    'its sixth parameter is a StatedD20, so the seam is reachable without the word resolveStatedD20 appearing anywhere',
+  rollAbilityCheck: 'D20TestOptions.statedRoll carries the same faces into an ability check',
+  rollSavingThrow: 'the same field on the same options, for a save',
+  rollAttack:
+    'AttackOptions.statedRoll is the third door onto the seam, and the one that decides whether a blow lands',
+  resolveDeathSave:
+    'takes a natural and a total the caller states and answers whether a creature lives; it writes no event, but it is the one place a stated face decides a life outside the seam above',
+  roll: 'the raw roller — notation in, faces out, and no event anywhere',
+  rollD20: 'the raw d20, for the same reason',
+  rerollDice: 'rerolls faces that were never in a log to begin with',
+  rollD20Recorded:
+    'one of the two functions in rolls.ts that stamp a roll engine, which CLAUDE.md says only rolls.ts does',
+  rollRecorded: 'the other one, and the half of it that rolls damage',
+  rollBonusDice: 'throws Bless and Guidance apart from the roll they belong to',
+  rerollTest: 'throws the Indomitable die with no command behind it',
+  interveneAfterRoll:
+    'adds a Bardic Inspiration die after a roll, which is a second number on a settled one',
+  reduceDamage: 'rolls Cutting Words against a damage total',
+  rollAttackDamage:
+    'the engine one damage roller, and the name the DM list carried alone until now',
+  rollInitiative:
+    'the primitive under rollInitiativeAndBeginCombat, which is the command a caller may have instead',
+  rollDeathSave: 'throws a death save with no command to put it in the log',
+};
+
+/** The engine's own source, for the one guard that asks what it exports. */
+const ENGINE = fileURLToPath(new URL('../../engine/src/', import.meta.url));
+
+/**
+ * Every public engine function that takes an `Rng` and is not a command.
+ *
+ * The fourth group of {@link FORBIDDEN} written down by hand would be a list
+ * that stops guarding the day somebody adds to it — which is exactly how
+ * `resolveStatedD20` came to sit on the engine's surface and on neither sweep.
+ * So it is read out of the engine instead, on the one criterion that separates
+ * a roller from a command: a command lives under `commands/` and is handed a
+ * `Supply`, while the primitives it is built from take a bare `Rng` and live
+ * in the modules above. `readdirSync` is not recursive and the directory entry
+ * for `commands/` is skipped, so this walk sees the primitives and nothing
+ * else.
+ *
+ * Comments are stripped first: the engine's prose names its own rollers
+ * constantly, and a sweep that read `rollAttackDamage` out of a sentence about
+ * `rollAttackDamage` would find functions that do not exist.
+ */
+function rollersOutsideACommand(): string[] {
+  const found: string[] = [];
+  for (const entry of readdirSync(ENGINE, { withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith('.ts') || entry.name.includes('.test.')) continue;
+    const text = readFileSync(ENGINE + entry.name, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    for (const match of text.matchAll(/export function (\w+)\(([\s\S]*?)\)\s*:/g)) {
+      if (/\brng\s*:\s*Rng\b/.test(match[2]!)) found.push(match[1]!);
+    }
+  }
+  return found.sort();
+}
 
 /** Every identifier this package imports from `@ie/engine`, file by file. */
 function engineImports(text: string): string[] {
@@ -136,19 +266,83 @@ describe('the surface cannot reach the external-roll functions', () => {
     // A detector nobody tested is a guard nobody tested. These are the forms
     // a breach could actually take, written out and fed to the detectors
     // rather than trusted to a reading of the regex.
+    //
+    // **Every name, not a sample.** Two of the forms below are caught by the
+    // shape of the import rather than by the name inside it, so a sample would
+    // pass for a name the name sweep could not actually read. The loop is what
+    // makes "in every import form" a claim about the list and not about the
+    // two entries somebody happened to write out.
     const caught = (text: string) =>
       engineImports(text).some((name) => FORBIDDEN.includes(name)) ||
       OPAQUE_IMPORT_FORMS.some(({ pattern }) => pattern.test(text));
 
-    expect(caught("import { recordExternalD20 } from '@ie/engine';")).toBe(true);
-    expect(caught("import { recordExternalD20 as roll } from '@ie/engine';")).toBe(true);
-    expect(caught("import type { recordExternalDamage } from '@ie/engine';")).toBe(true);
+    for (const name of FORBIDDEN) {
+      expect(caught(`import { ${name} } from '@ie/engine';`), name).toBe(true);
+      expect(caught(`import { ${name} as alias } from '@ie/engine';`), name).toBe(true);
+      expect(caught(`import type { ${name} } from '@ie/engine';`), name).toBe(true);
+      expect(caught(`export { ${name} } from '@ie/engine';`), name).toBe(true);
+      expect(caught(`const { ${name} } = await import('@ie/engine');`), name).toBe(true);
+    }
+    // And the two forms that name nothing at all, which no loop over names
+    // would ever produce.
     expect(caught("import * as anything from '@ie/engine';")).toBe(true);
     expect(caught("export * from '@ie/engine';")).toBe(true);
-    expect(caught("export { recordExternalD20 } from '@ie/engine';")).toBe(true);
-    expect(caught("const { recordExternalDamage } = await import('@ie/engine');")).toBe(true);
     // And it does not cry wolf at the imports this package actually makes.
     expect(caught("import { resolveAttack, resolveSpell } from '@ie/engine';")).toBe(false);
+    expect(caught("import { resolveAttackDamage, settleDamage } from '@ie/engine';")).toBe(false);
+  });
+
+  it('and every name on it says why, in a sentence', () => {
+    // `FORBIDDEN_BECAUSE` is the reason and `FORBIDDEN` is the guard; two
+    // lists that can drift are one list with a lie in it, so they are held
+    // to each other rather than read side by side.
+    expect(Object.keys(FORBIDDEN_BECAUSE).sort()).toEqual([...FORBIDDEN].sort());
+    expect(Object.values(FORBIDDEN_BECAUSE).filter((why) => why.length <= 20)).toEqual([]);
+  });
+
+  it('and every one of them is really on the engine’s surface', () => {
+    // A guard aimed at a name the engine does not export is not a guard — the
+    // claim `dm/boundary.test.ts` has always made about its own list, and the
+    // one this file was missing while it had only two names to make it about.
+    for (const name of FORBIDDEN) {
+      expect(typeof (engine as Record<string, unknown>)[name], name).toBe('function');
+    }
+  });
+
+  it('and the list keeps up with the engine: every roller outside a command is on it', () => {
+    // The half of the list that can be derived, derived. A new primitive that
+    // throws dice arrives on the engine's surface and fails here, rather than
+    // waiting for somebody to notice it — which is the failure this whole
+    // addition is a repair of.
+    const rollers = rollersOutsideACommand();
+    // Non-vacuous: the walk really does read the engine and find its rollers.
+    expect(rollers).toContain('rollD20Recorded');
+    expect(rollers).toContain('rollAttackDamage');
+    expect(rollers.length).toBeGreaterThan(10);
+    expect(rollers.filter((name) => !FORBIDDEN.includes(name))).toEqual([]);
+  });
+
+  it('and mints no roll of its own out of the supply it is handed', () => {
+    // The sweeps above read import lines, and this route needs none.
+    // `campaign.supply()` hands back a live `RollIssuer` and a live `Rng`, so
+    // `supply().issuer.issue('engine')` forges the stamp `CLAUDE.md` says only
+    // `rolls.ts` applies, and `supply().rng.int(20)` is a face — with no
+    // forbidden name anywhere in the file.
+    //
+    // Nothing either produced could reach the log: `Campaign.append` has two
+    // call sites and both pass a command result's own events, which is the
+    // claim below this one. But a guard that stops at the import line is a
+    // guard with a door in it, so the text is swept too. `campaign.ts` is the
+    // one file that may name a generator, because rebuilding one per call from
+    // `state.rng` is what it is for.
+    const breaches: string[] = [];
+    for (const { file, text } of swept()) {
+      if (/\.issue\(/.test(text)) breaches.push(`${file} mints a roll provenance`);
+      if (file !== 'campaign.ts' && /\.rng\b/.test(text)) {
+        breaches.push(`${file} reaches for a generator`);
+      }
+    }
+    expect(breaches).toEqual([]);
   });
 
   it('publishes neither of them on its own surface', () => {
