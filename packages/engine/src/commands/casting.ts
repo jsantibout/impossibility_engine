@@ -65,8 +65,14 @@ import {
 } from '../spells.js';
 import { actionRulesOn, armorClassOf, sheetAsItStands } from '../standing.js';
 import { concentrationSaveDc } from '../vitals.js';
+// The Hide action's source string, read-only, so that `hidingEndedBy` below
+// ends the Invisible a Hide bought and no other. A value import of one
+// constant, used inside a function body and never at module scope, so the
+// import cycle it closes (`actions.ts` reaches for `castSpell` here) resolves
+// either way round.
+import { HIDE } from './actions.js';
 import { creatureOf, turnContextFor, unknownCreature } from './command.js';
-import { applyConditionTo, schedule } from './conditions.js';
+import { applyConditionTo, endConditionsOn, schedule } from './conditions.js';
 import { type DamageCommand, damageCreature } from './creatures.js';
 import { mayAct, pendingCastingsOf } from './holds.js';
 import { recordD20Test, savingSupport } from './rolls.js';
@@ -954,6 +960,12 @@ function castSpellWith(
     events.push(timer.value);
   }
 
+  // SRD Hide, on the branch where the spell is cast outright rather than held
+  // open — see {@link hidingEndedBy}. The declaration above returns before
+  // this on purpose: a rite the caster is still muttering over has not been
+  // cast, and `settlementEvents` ends the hiding when it finally is.
+  events.push(...hidingEndedBy(state, id));
+
   return ok(events);
 }
 
@@ -1052,7 +1064,51 @@ export function settlementEvents(
     });
   }
 
+  // SRD Hide: the Invisible condition "ends on you immediately after … you
+  // cast a spell". Here rather than at the declaration, because a rite the
+  // caster is still muttering over has not been cast — and it is the *settled*
+  // casting for the same reason `target-casts` reads `spell-cast`: a
+  // declaration Counterspell dissipates is not a spell anybody cast.
+  events.push(...hidingEndedBy(state, pending.caster));
+
   return events;
+}
+
+/**
+ * The hiding this creature is doing, ended — and nothing else about them.
+ *
+ * SRD Hide: "The condition ends on you immediately after any of the following
+ * occurs: you make a sound louder than a whisper, an enemy finds you, you make
+ * an attack roll, or you cast a spell with a Verbal component." Two of those
+ * four are moments the engine holds — the attack roll and the casting — and
+ * this is what both of them emit.
+ *
+ * **The source is the whole of the precision.** `takeHide` files its Invisible
+ * under `action:hide` and a spell files its own under the casting, which is
+ * exactly so that this can end one and leave the other: a Rogue standing in
+ * somebody's Greater Invisibility who swings stops being *hidden* and does not
+ * stop being invisible, because that spell says nothing about attacking.
+ *
+ * **Nothing at all where they were not hiding**, rather than a removal the
+ * fold would happily apply to a creature that has no such condition: a
+ * `condition-removed` on every swing in the game is noise in a log somebody
+ * has to read.
+ *
+ * **What it does not carry is the Verbal narrowing**, and that is a gap rather
+ * than a reading: the engine models no spell components, so "a spell with a
+ * Verbal component" is executed as "a spell". It errs towards ending the Hide,
+ * which is the conservative direction — the hider gets less than the book
+ * gives them, never more.
+ *
+ * One builder, called from the two commands, so the two cannot come to
+ * disagree about which instance goes.
+ */
+export function hidingEndedBy(state: GameState, who: CharacterId): readonly GameEvent[] {
+  const standing = state.creatures[who]?.conditions.instances ?? [];
+  const hiding = standing.some(
+    (instance) => instance.condition === 'invisible' && instance.source === HIDE,
+  );
+  return hiding ? endConditionsOn(who, ['invisible'], HIDE) : [];
 }
 
 /**

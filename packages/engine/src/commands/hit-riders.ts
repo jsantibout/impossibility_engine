@@ -37,7 +37,7 @@ import {
 } from '../character.js';
 import { canUseFeatureThisTurn } from '../combat.js';
 import { conditionInstanceId } from '../conditions.js';
-import { applyEvent, type GameEvent, type GameState, grantSourcesOf } from '../events.js';
+import { type GameEvent, type GameState, grantSourcesOf } from '../events.js';
 import { featureSource } from '../progression.js';
 import { remaining } from '../resources.js';
 import { sheetAsItStands, type HitOption } from '../standing.js';
@@ -166,6 +166,24 @@ function describeWeapons(option: HitOption): string {
  *
  * The cost goes first and the effects follow, so a log read forwards never
  * shows what a Focus Point bought before it shows the point being spent.
+ *
+ * **And a price that can no longer be paid drops the rider rather than
+ * throwing.** `hitRiderAsked` checked the pool at the *swing*, which is where
+ * every other refusal on a swing belongs — a rules refusal arriving after the
+ * blow has landed is a refusal with a footprint. But a held swing settles a
+ * command later and `mayAct` deliberately lets its holder act in between: SRD
+ * Divine Smite is cast into that very window, and a use of the same pool is
+ * just as legal there. So the pool can be empty by the time this runs, and
+ * what used to happen then was a `resource-spent` the fold refuses — a
+ * `CorruptLogError` out of three legal commands.
+ *
+ * Dropped unspent and reported, which is the answer the owner has already
+ * ruled for the other two endings of a pinned rider — Shield turning the
+ * triggering hit into a miss, and a creature leaving mid-hold — and the answer
+ * `settleDamage` gives for a rider that will not resolve. **A refusal is not
+ * available here**: the settlement is the only door out of the hold, so a
+ * refusal would wedge the fight and every retry would wedge it again. Nothing
+ * is refunded because nothing was charged.
  */
 export function applyHitRider(
   state: GameState,
@@ -179,6 +197,15 @@ export function applyHitRider(
   const events: GameEvent[] = [];
 
   if (option.pool !== null) {
+    const left = remaining(attacker.resources, option.pool);
+    if (left < option.costs) {
+      return ok({
+        events: [],
+        unverified: [
+          `${option.featureName} rode on this hit and was dropped unspent: it costs ${option.costs} of ${hit.attacker}'s ${option.pool} and there ${left === 1 ? 'is 1' : `are ${left}`} left by the time the blow landed`,
+        ],
+      });
+    }
     events.push({ type: 'resource-spent', id: hit.attacker, key: option.pool, amount: option.costs });
   }
   // The allowance, marked where the swing spent it. Outside combat there is no
@@ -199,8 +226,13 @@ export function applyHitRider(
   const sheet = sheetAsItStands(state, hit.attacker) ?? attacker.sheet;
   const ability = option.ability;
   const unverified: string[] = [];
-  const world = events.reduce(applyEvent, state);
-  const resolved = runEffects(world, hit.attacker, attacker, {
+  // **The world before what this rider has just written down**, because
+  // `runEffects` folds `events` onto whatever state it is handed. Passing it
+  // the already-folded world applied the cost twice — invisible while a pool
+  // was big enough to take it, and a `CorruptLogError` on a pool of one — and
+  // it is the shape `usePoolOption` has always had: the state, and the events
+  // beside it.
+  const resolved = runEffects(state, hit.attacker, attacker, {
     origin: { kind: 'feature', feature: option.feature, name: option.name },
     effects: option.effects,
     route: null,
