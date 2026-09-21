@@ -143,6 +143,25 @@ describe('a DM can pay a party', () => {
     }
   });
 
+  /**
+   * And it says both numbers with the unit of each. A DM who typed `50` and
+   * was answered `paid: 5000` would read the surface as having invented a
+   * number, which is the one thing a door on this side must never look like
+   * it did.
+   */
+  it('echoes what was asked for and what the catalogue made of it', () => {
+    const t = party();
+    const paid = expectOk(
+      t.rule('award_coin', { who: 'bram', amount: 50, coin: 'gp', because: 'the reward' }),
+    );
+    expect(paid.resolution).toMatchObject({ paid: 50, coin: 'gp', copper: 5_000, to: 'bram' });
+
+    const taken = expectOk(
+      t.rule('take_coin', { who: 'bram', amount: 2, coin: 'sp', because: 'the toll' }),
+    );
+    expect(taken.resolution).toMatchObject({ taken: 2, coin: 'sp', copper: 20, from: 'bram' });
+  });
+
   it('says gold when nobody says which coin', () => {
     const t = party();
     const before = coins(t, 'bram');

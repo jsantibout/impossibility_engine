@@ -821,7 +821,17 @@ const AWARD_COIN = tool({
         args.because,
         identity(context).commandId,
       ),
-      { paid: copperOf(args.amount, args.coin), to: args.who, because: args.because },
+      // **Both numbers, and the unit of each.** The purse is counted in copper
+      // and the DM spoke in gold, so an echo that said `paid: 5000` to
+      // somebody who typed `50` would read as the surface having invented a
+      // number. It says what was asked for and what the catalogue made of it.
+      {
+        paid: args.amount,
+        coin: args.coin,
+        copper: copperOf(args.amount, args.coin),
+        to: args.who,
+        because: args.because,
+      },
     ),
 });
 
@@ -875,7 +885,14 @@ const TAKE_COIN = tool({
         args.because,
         identity(context).commandId,
       ),
-      { taken: copperOf(args.amount, args.coin), from: args.who, because: args.because },
+      // The same two numbers and the same two units; see {@link AWARD_COIN}.
+      {
+        taken: args.amount,
+        coin: args.coin,
+        copper: copperOf(args.amount, args.coin),
+        from: args.who,
+        because: args.because,
+      },
     ),
 });
 
