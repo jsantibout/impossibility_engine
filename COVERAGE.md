@@ -518,7 +518,7 @@ engine could take it today — is recorded as such rather than omitted.
 
 | Classes | Subclasses | Features | Executed by the engine |
 |---|---|---|---|
-| 12 / 12 | 12 / 12 | 269 | 179 |
+| 12 / 12 | 12 / 12 | 269 | 180 |
 
 A feature declares its own automation, so this column is read rather than
 guessed. **Manual is not failure**: several features are judgement the
@@ -529,7 +529,7 @@ believe it has twelve working classes when it has twelve validated ones.
 | Class | Casting | Features | Executed |
 |---|---|---|---|
 | Barbarian | none | 27 | 18 |
-| Bard | known | 20 | 13 |
+| Bard | known | 20 | 14 |
 | Cleric | prepared-from-list | 19 | 13 |
 | Druid | prepared-from-list | 17 | 11 |
 | Fighter | none | 26 | 20 |
@@ -564,7 +564,7 @@ be the second spelling of one derivation.
 
 | Shape | Blocks | Finishes |
 |---|---|---|
-| `a-feature-that-rewrites-another-features-rule` | 10 | 6 |
+| `a-feature-that-rewrites-another-features-rule` | 9 | 5 |
 | `a-roll-result-an-effect-replaces` | 5 | 4 |
 | `a-casting-paid-for-out-of-a-feature-pool` | 8 | 3 |
 | `a-save-keyed-to-a-condition` | 4 | 3 |
@@ -1065,22 +1065,22 @@ never added.
 | 2 | 53 | 39 | 211 | 121 | 85 |
 | 3 | 91 | 69 | 345 | 207 | 127 |
 | 4 | 104 | 81 | 345 | 207 | 127 |
-| 5 | 120 | 92 | 481 | 291 | 173 |
-| 6 | 132 | 99 | 481 | 291 | 173 |
-| 7 | 144 | 105 | 562 | 334 | 211 |
-| 8 | 156 | 117 | 562 | 334 | 211 |
-| 9 | 165 | 121 | 668 | 414 | 235 |
-| 10 | 176 | 125 | 668 | 414 | 235 |
-| 11 | 183 | 127 | 727 | 450 | 256 |
-| 12 | 195 | 139 | 727 | 450 | 256 |
-| 13 | 200 | 140 | 784 | 496 | 267 |
-| 14 | 211 | 146 | 784 | 496 | 267 |
-| 15 | 218 | 149 | 821 | 517 | 282 |
-| 16 | 230 | 161 | 821 | 517 | 282 |
-| 17 | 235 | 161 | 859 | 552 | 283 |
-| 18 | 245 | 163 | 859 | 552 | 283 |
-| 19 | 257 | 175 | 859 | 552 | 283 |
-| 20 | 269 | 179 | 859 | 552 | 283 |
+| 5 | 120 | 93 | 481 | 291 | 173 |
+| 6 | 132 | 100 | 481 | 291 | 173 |
+| 7 | 144 | 106 | 562 | 334 | 211 |
+| 8 | 156 | 118 | 562 | 334 | 211 |
+| 9 | 165 | 122 | 668 | 414 | 235 |
+| 10 | 176 | 126 | 668 | 414 | 235 |
+| 11 | 183 | 128 | 727 | 450 | 256 |
+| 12 | 195 | 140 | 727 | 450 | 256 |
+| 13 | 200 | 141 | 784 | 496 | 267 |
+| 14 | 211 | 147 | 784 | 496 | 267 |
+| 15 | 218 | 150 | 821 | 517 | 282 |
+| 16 | 230 | 162 | 821 | 517 | 282 |
+| 17 | 235 | 162 | 859 | 552 | 283 |
+| 18 | 245 | 164 | 859 | 552 | 283 |
+| 19 | 257 | 176 | 859 | 552 | 283 |
+| 20 | 269 | 180 | 859 | 552 | 283 |
 
 The totals are every path added together, so a spell on two class lists is
 counted once for each path that can reach it — the row is the book at that
@@ -1110,7 +1110,7 @@ which the table will.
 | Path | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | Barbarian (Path of the Berserker) | 3/3 | 5/5 | 8/8 | 9/9 | 11/11 | 11/12 | 12/14 | 13/15 | 13/16 | 14/17 | 14/18 | 15/19 | 15/20 | 15/21 | 15/22 | 16/23 | 16/24 | 16/25 | 17/26 | 18/27 |
-| Bard (College of Lore) | 2/2 | 3/4 | 6/7 | 7/8 | 7/9 | 7/10 | 7/11 | 8/12 | 9/13 | 9/14 | 9/14 | 10/15 | 10/15 | 11/16 | 11/16 | 12/17 | 12/17 | 12/18 | 13/19 | 13/20 |
+| Bard (College of Lore) | 2/2 | 3/4 | 6/7 | 7/8 | 8/9 | 8/10 | 8/11 | 9/12 | 10/13 | 10/14 | 10/14 | 11/15 | 11/15 | 12/16 | 12/16 | 13/17 | 13/17 | 13/18 | 14/19 | 14/20 |
 | Cleric (Life Domain) | 1/2 | 2/3 | 6/7 | 7/8 | 7/9 | 7/10 | 8/11 | 9/12 | 9/12 | 9/13 | 9/13 | 10/14 | 10/14 | 11/15 | 11/15 | 12/16 | 12/17 | 12/17 | 13/18 | 13/19 |
 | Druid (Circle of the Land) | 1/3 | 2/5 | 3/7 | 4/8 | 5/9 | 5/9 | 6/10 | 7/11 | 7/11 | 7/11 | 7/11 | 8/12 | 8/12 | 8/12 | 9/13 | 10/14 | 10/14 | 10/15 | 11/16 | 11/17 |
 | Fighter (Champion) | 2/3 | 4/5 | 7/8 | 8/9 | 9/11 | 10/12 | 10/13 | 11/14 | 13/16 | 13/17 | 14/18 | 15/19 | 15/20 | 16/21 | 17/22 | 18/23 | 18/23 | 18/24 | 19/25 | 20/26 |
