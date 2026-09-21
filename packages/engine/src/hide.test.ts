@@ -17,12 +17,14 @@ import {
   resolveAttack,
   resolveDeclaredCast,
   resolveSpell,
+  resolveTurn,
+  takeDodge,
   takeHide,
   HIDE_DC,
 } from './commands.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
 import { spellSlotKey } from './resources.js';
-import { canSee } from './standing.js';
+import { canSee, canSomehowSee } from './standing.js';
 import { declaredCasting } from './spellcasting.js';
 
 /**
@@ -589,8 +591,7 @@ describe('SRD Hide: a casting declared on one command and settled on another', (
 });
 
 /**
- * **The decision this wiring stops just short of**, pinned so that nobody
- * makes it by accident.
+ * **The ruling this clause was waiting on, and the asymmetry it creates.**
  *
  * `canSee` is the seam every other sight rule in the engine comes through, and
  * for this one sentence it answers the wrong question: `sightBetween` reports
@@ -600,18 +601,25 @@ describe('SRD Hide: a casting declared on one command and settled on another', (
  * Advantage away from most of the party — silently, because a sense answers
  * `true` rather than `null` and the report below only fires on `null`.
  *
- * SRD Darkvision lets you see in Dim Light and Darkness; it says nothing about
- * the Invisible condition. Truesight *does* say so, and Blindsight arguably
- * does, so the rule this clause actually wants is a narrower set of senses
- * than `SIGHT_SENSES` — which is a ruling nobody has made, and which belongs
- * beside `canSee` rather than on the attack command. Until it exists, the
- * clause reads the declaration and nothing else.
+ * **Owner, 2026-09-20: Truesight and Blindsight satisfy "if a creature can
+ * somehow see you". Darkvision does not.** That ruling is
+ * `SENSES_THAT_SOMEHOW_SEE` and `canSomehowSee`, beside `canSee` in
+ * `standing.ts`, and `senses.test.ts` holds it sense by sense.
  *
- * So this test asserts the *absence*: a dwarf whose Darkvision reaches the
- * Rogue, with nobody having declared a thing, does not take the Advantage
- * away — and the swing says out loud that nobody declared it.
+ * What this file pins is the **pair of answers on one creature**, because the
+ * two questions disagree about her and a refactor that merged them would
+ * silently pick a side:
+ *
+ * | Sentence | Question | The dwarf in the dark |
+ * |---|---|---|
+ * | Invisible's "if a creature can somehow see you" | `canSomehowSee` | `null` — nobody has said, and Darkvision does not answer |
+ * | Dodge's "if you can see the attacker" | `canSee` | `true` — Darkvision genuinely satisfies it |
+ *
+ * So the hidden Rogue keeps their Advantage against her, *and* she keeps her
+ * Dodge against the Rogue, out of the same sense in the same hall. Both are
+ * asserted below.
  */
-describe('the senses, and the ruling this clause is waiting on', () => {
+describe('the senses, and the ruling that parts the two sight questions', () => {
   const DWARF = id('dwarf');
 
   const dwarfChoices: CharacterChoices = {
@@ -662,6 +670,15 @@ describe('the senses, and the ruling this clause is waiting on', () => {
     expect(canSee(fold('seed', unlit()), DWARF, ROGUE)).toBe(true);
   });
 
+  /**
+   * **And the ruling, on the same dwarf in the same breath.** The whole point
+   * of the owner's decision is that these two lines disagree; asserting them
+   * together is what stops a later refactor from quietly making them agree.
+   */
+  it('has her not somehow seeing them, which is the ruling', () => {
+    expect(canSomehowSee(fold('seed', unlit()), DWARF, ROGUE)).toBeNull();
+  });
+
   it('does not let Darkvision alone take the Invisible attacker’s Advantage', () => {
     const out = unwrap(
       resolveAttack(
@@ -675,6 +692,53 @@ describe('the senses, and the ruling this clause is waiting on', () => {
 
     expect(out.attack?.roll.mode).toBe('advantage');
     expect(out.unverified.some((line) => line.includes('Invisible'))).toBe(true);
+  });
+
+  /**
+   * **The other half of the asymmetry, and the reason `defendingModes` was
+   * left alone.** SRD Dodge: "any attack roll made against you has
+   * Disadvantage **if you can see the attacker**." That is a sentence about
+   * ordinary sight in a dark hall, and Darkvision satisfies it — so the same
+   * sense that says nothing about the Invisible Rogue keeps the dwarf's Dodge
+   * whole, with nobody having declared a thing.
+   *
+   * The silence is asserted too: `rollModesFor` reports an unverified line
+   * whenever an `ifSeen` grant had to apply on a `null`, and there is no
+   * `null` here — the sense answered.
+   */
+  it('keeps the dwarf’s Dodge against an attacker her Darkvision reaches', () => {
+    const seen: readonly GameEvent[] = [
+      // No Invisible on anybody: this is the plain sight question, not the clause.
+      ...unlit().filter((event) => event.type !== 'condition-applied'),
+      {
+        type: 'combat-started',
+        combatants: [
+          { id: DWARF, initiative: 20, speed: 30 },
+          { id: ROGUE, initiative: 10, speed: 30 },
+        ],
+      },
+    ];
+    const dodged = [...seen, ...unwrap(takeDodge(fold('seed', seen), DWARF, {}), 'the Dodge')];
+    // Play passes to the Rogue, which is the only order in which they can swing.
+    const passed = [
+      ...dodged,
+      ...unwrap(resolveTurn(fold('seed', dodged), supply('turn')), 'the turn').events,
+    ];
+
+    expect(canSee(fold('seed', passed), DWARF, ROGUE)).toBe(true);
+
+    const out = unwrap(
+      resolveAttack(
+        fold('seed', passed),
+        ROGUE,
+        { target: DWARF, weapon: null, attackBonuses: [{ source: 'forced', flat: 40 }] },
+        supply('deep'),
+      ),
+      'the swing',
+    );
+
+    expect(out.attack?.roll.mode).toBe('disadvantage');
+    expect(out.unverified.some((line) => line.includes('can see'))).toBe(false);
   });
 
   /** And a declaration still outranks everything, which is the rule that did land. */
