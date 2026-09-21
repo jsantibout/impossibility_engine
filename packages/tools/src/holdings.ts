@@ -66,6 +66,23 @@ export const SPENT_BY = {
   'hit-rider': 'attack',
   /** Elected on a casting rather than spent on its own — `usingFeatures`. */
   'casting-election': 'cast_spell',
+  /**
+   * Invoked as a cheaper price on a named action: SRD Cunning Action, SRD
+   * Adrenaline Rush.
+   *
+   * `casting-election`'s exact shape one door along. The feature is a standing
+   * grant holding an `allows` rule, so there is nothing to switch on and no
+   * pool to draw down — what it buys is the right to *state* a slot, and the
+   * whole of spending it is `take_action.from`. It was filed under `passive`
+   * until this entry existed, which told a caller holding the SRD's most
+   * famous Bonus Action that nothing spent it.
+   *
+   * **Only the widening rule is listed.** `forbids` and `permits-only` are the
+   * other two members of the same union and they narrow what is legal rather
+   * than offering anything, so a creature caught by one holds a fact about its
+   * turn and not a door — which is what `passive` has always meant here.
+   */
+  'action-price': 'take_action',
 } as const;
 
 export type SpendableKind = keyof typeof SPENT_BY;
@@ -96,6 +113,12 @@ export const TAKEN_BY: Readonly<Record<FeatureReactionWindow, string>> = {
  * `reaction` and `passive` have no door and say so: a Reaction a feature
  * offers is reported by `options` when a window opens for it, and a passive
  * benefit is never anybody's to spend.
+ *
+ * **`passive` used to swallow a standing grant that *is* spendable.** Every
+ * standing effect that was not an optional casting-damage election landed
+ * there, which was right while the only other thing on a sheet was a bonus or
+ * a mode; a grant holding an `allows` action rule is neither, and SRD Cunning
+ * Action is one. It is `action-price` now and names `take_action`.
  */
 export type HeldFeatureKind = SpendableKind | 'reaction' | 'passive';
 
@@ -719,8 +742,15 @@ export function holdingsOf(state: GameState, id: CharacterId): Holdings | null {
   }
 
   /**
-   * The standing effects, split by whether the casting they reach has to name
-   * them.
+   * The standing effects, split three ways by what the holder has to say to
+   * get the benefit: name it on a casting, name it as a price, or nothing.
+   *
+   * **It used to be a split two ways**, and the question it asked was only
+   * whether the casting that reaches an effect has to name it. Everything else
+   * fell to `passive`, which was right while a standing grant was a bonus, a
+   * mode or a sense — and wrong the day one of them became an `allows` action
+   * rule, because SRD Cunning Action is elected on `take_action` in precisely
+   * the way Elemental Affinity is elected on `cast_spell`.
    *
    * SRD writes an elective feature as "you can" — Elemental Affinity,
    * Empowered Evocation, Overchannel — and the engine adds nothing unless the
@@ -750,11 +780,18 @@ export function holdingsOf(state: GameState, id: CharacterId): Holdings | null {
    */
   for (const effect of sheet.standing ?? []) {
     const elective = effect.grant.kind === 'casting-damage' && effect.grant.optional === true;
+    // The third shape, and the one this split used to drop into `passive`: a
+    // named action offered at a cheaper price, which is invoked through
+    // `take_action.from` and is therefore a door rather than a benefit. Only
+    // the widening rule counts — `forbids` and `permits-only` narrow what is
+    // legal and offer the holder nothing to state.
+    const priced = effect.grant.kind === 'action-rule' && effect.grant.rule.kind === 'allows';
+    const kind = elective ? 'casting-election' : priced ? 'action-price' : 'passive';
     add({
       feature: effect.feature,
       name: effect.name,
-      kind: elective ? 'casting-election' : 'passive',
-      spentBy: elective ? SPENT_BY['casting-election'] : null,
+      kind,
+      spentBy: kind === 'passive' ? null : SPENT_BY[kind],
       action: null,
       pool: null,
       left: null,

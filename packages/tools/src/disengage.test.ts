@@ -9,26 +9,34 @@
  * which of the three, so the allowance was unreachable from any caller:
  * whatever granted it, the only call that could invoke it charged an Action.
  *
- * **What grants one is content, and the SRD's own entry does not.** Conjure
- * Woodland Beings is recorded as adjudicated in `@ie/content` — its other half
- * is a creature the engine does not summon — so nothing in the book hands this
- * rule out today, and a file that claimed otherwise would be describing a
- * spell that does not do it. So the granting half here is **homebrew**, built
- * through `extendContent` with no engine change at all, which is the claim
- * worth making anyway: a definition granting `{ kind: 'allows', action:
- * 'disengage', from: 'bonus-action' }` reaches this field and works.
+ * **What grants a Disengage one is still homebrew, and this file is still the
+ * only thing that reaches it.** Conjure Woodland Beings is recorded as
+ * adjudicated in `@ie/content` — its other half is a creature the engine does
+ * not summon — so no *spell* in the book hands this rule out, and the granting
+ * half here is built through `extendContent` with no engine change at all: a
+ * definition granting `{ kind: 'allows', action: 'disengage', from:
+ * 'bonus-action' }` reaches this field and works.
+ *
+ * **This file used to say nothing in the book handed the rule out at all, and
+ * that is no longer true.** `rogue:cunning-action` holds three `allows` rules
+ * of its own — Dash, Disengage and Hide, the three clauses of the sentence —
+ * and `orc:adrenaline-rush` holds the Dash. The catalogue half of the claim is
+ * `cunning-action.test.ts`, which drives all four through this same field with
+ * a character out of the book; the homebrew half is here, and it is the one
+ * that proves *content alone* is what a new allowance takes.
  *
  * **The caller names a slot and the engine rules on it.** A `from` nothing
  * granted is refused `action_not_allowed` rather than quietly charging the
  * ordinary price — a caller asking for the Bonus Action wanted to keep the
  * Action, and spending it anyway would be the wrong answer told quietly.
  *
- * **`from` is refused for a Dodge or a Dash here, in the schema.** That is
- * `placementSchema`'s rule and not a rules judgement: `takeDodge` and
- * `takeDash` have no such parameter, so a slot sent with either would be a key
- * Zod strips and a caller acting on an answer it never got — which is what the
- * fourth outcome exists to prevent. The Dash half is an engine gap and is
- * reported as one rather than papered over here.
+ * **`from` is refused for a Dodge here, in the schema**, and for a Dodge only.
+ * That is `placementSchema`'s rule and not a rules judgement: `takeDodge` has
+ * no such parameter, so a slot sent with it would be a key Zod strips and a
+ * caller acting on an answer it never got — which is what the fourth outcome
+ * exists to prevent. This comment used to say the same of a Dash and call that
+ * "an engine gap"; `takeDash` takes a slot now, `STATABLE_PRICES` holds `dash`,
+ * and the schema admits it.
  *
  * It imports the engine once, for `extendContent`. That is not a rule reached
  * past the door: it is the door content comes through, and the point of the
@@ -227,11 +235,16 @@ describe('a Disengage costs what the book charges unless something says otherwis
   });
 
   /**
-   * And the accepting path, which nothing in the SRD catalogue can reach: a
-   * homebrew spell grants the allowance, the caller invokes it, and the
-   * Disengage comes out of the Bonus Action with the Action still in hand.
+   * And the accepting path, reached from content that is nobody's but this
+   * file's: a homebrew spell grants the allowance, the caller invokes it, and
+   * the Disengage comes out of the Bonus Action with the Action still in hand.
    * **No engine change anywhere in it** — the rule, the grant and the price
-   * were all already there, and the field is what let somebody ask.
+   * were all already there, and the field is what let somebody ask. It used to
+   * say "which nothing in the SRD catalogue can reach", which was true of the
+   * whole allowance and is now true only of the *spell*: a Rogue reaches the
+   * same field off `rogue:cunning-action`, and `cunning-action.test.ts` drives
+   * that. What is proved here and nowhere else is that a catalogue this
+   * repository does not ship gets in through the same door.
    */
   it('takes the cheaper slot when something running on the creature grants it', () => {
     const t = table('nimble', withHomebrew());
@@ -300,17 +313,28 @@ describe('a Disengage costs what the book charges unless something says otherwis
    * a key stripped in silence — the failure the fourth outcome exists to
    * prevent. It is an argument mistake rather than a rules refusal, so it is
    * answered as one, at the field that caused it.
+   *
+   * **A Dash used to be in this loop and is not.** It was here because
+   * `takeDash` really had no slot parameter; it has one now, so a Dash sent a
+   * slot is a rules question the engine answers rather than an argument the
+   * schema turns away, and `cunning-action.test.ts` holds it to both answers.
+   * A Dodge is the only one of the four left that takes none.
    */
   it('refuses a slot named for an action that takes none', () => {
     const t = brawl();
     const first = t.surface.observe().turnOf!;
-    for (const kind of ['dodge', 'dash']) {
-      const out = t.call('take_action', { who: first, kind, from: 'bonus-action' });
-      expect(out.status).toBe('invalid');
-      if (out.status !== 'invalid') continue;
+    const out = t.call('take_action', { who: first, kind: 'dodge', from: 'bonus-action' });
+    expect(out.status).toBe('invalid');
+    if (out.status === 'invalid') {
       expect(out.issues.map((issue) => issue.path)).toContain('from');
     }
-    // And nothing was spent finding that out.
+    // And a Dash sent the same slot is *not* turned away here: it reaches the
+    // engine, which refuses it by name because nothing granted this Fighter
+    // the price. The difference between the two answers is the whole point.
+    const dashed = t.call('take_action', { who: first, kind: 'dash', from: 'bonus-action' });
+    expect(dashed.status).toBe('refused');
+    if (dashed.status === 'refused') expect(dashed.code).toBe('action_not_allowed');
+    // And nothing was spent finding either of those out.
     expect(budget(t, first).action).toBe(true);
     expect(budget(t, first).bonusAction).toBe(true);
   });
