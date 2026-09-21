@@ -723,11 +723,19 @@ describe('an item may not promise a one-shot nothing spends either', () => {
       fileURLToPath(new URL('./roll-modifiers.ts', import.meta.url)),
       'utf8',
     );
-    const declared = /export type RollFamily =([\s\S]*?);\n/.exec(source);
-    expect(declared).not.toBeNull();
-    const members = [...declared![1]!.matchAll(/'([a-z-]+)'/g)].map((match) => match[1]!);
+    // The `\r?` is load-bearing: the declaration is found by the `;` and the
+    // newline after it, and on a working tree that has picked up CRLF that is
+    // `;\r\n`. Without it this reads no union at all on such a tree — and the
+    // last line of this test is what says so, rather than a comment.
+    const DECLARATION = /export type RollFamily =([\s\S]*?);\r?\n/;
+    const membersFrom = (text: string): readonly string[] => {
+      const declared = DECLARATION.exec(text);
+      return declared === null ? [] : [...declared[1]!.matchAll(/'([a-z-]+)'/g)].map((m) => m[1]!);
+    };
+    const members = membersFrom(source);
     expect(members.length).toBeGreaterThan(1);
     expect([...members].sort()).toEqual([...ROLL_FAMILIES].sort());
+    expect(membersFrom(source.replace(/\r?\n/g, '\r\n'))).toEqual(members);
   });
 
   /** And the refusal is the flag's, not the family's: without it, the same item loads. */
