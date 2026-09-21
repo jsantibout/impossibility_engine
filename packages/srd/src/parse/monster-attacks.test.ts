@@ -717,3 +717,457 @@ describe('parseMultiattack reads the rest of the sentence', () => {
     expect(alternations).toBe(10);
   });
 });
+
+/**
+ * **A use is handed over for what it *names*, not for how the sentence reads.**
+ *
+ * The clause is the book's way of saying "and then it does the other thing on
+ * its sheet", and in the SRD the other thing is always a save or a prose
+ * action — which is why the two patterns that recognise it could decide the
+ * hand-over from the wording alone and be right in every block the book
+ * prints. That is a fact about this corpus, though, and not a rule about the
+ * world: a block printing "makes one Claw attack and uses Bite", where `Bite`
+ * is a line with an attack roll on it, is printing a swing. So the grammar is
+ * told the names the same block prints an attack for, and a use that names one
+ * joins the sequence instead of being handed to the DM.
+ *
+ * Told, rather than guessing: a use naming anything else is exactly as much of
+ * a hand-over as it was, and the default — a block whose attacks nobody passed
+ * — is the reading the parser has always given.
+ */
+describe('a use that names an attack the block prints', () => {
+  const TRAILING = 'The chimera makes one Claw attack and uses Bite.';
+
+  it('stays a hand-over while nothing binds', () => {
+    expect(parseMultiattack(TRAILING)).toEqual({
+      entries: [{ count: 1, attack: 'Claw' }],
+      handOver: 'and uses Bite',
+    });
+    expect(parseMultiattack(TRAILING, ['Claw', 'Horns'])).toEqual({
+      entries: [{ count: 1, attack: 'Claw' }],
+      handOver: 'and uses Bite',
+    });
+  });
+
+  it('is a swing where the block prints an attack by that name', () => {
+    expect(parseMultiattack(TRAILING, ['Claw', 'Bite'])).toEqual({
+      entries: [
+        { count: 1, attack: 'Claw' },
+        { count: 1, attack: 'Bite' },
+      ],
+    });
+  });
+
+  /**
+   * The name a caller spends is the **heading's**, so the heading's spelling is
+   * what comes back — not the sentence's, which is the same word typed in a
+   * second place.
+   *
+   * The sentence's word still has to be capitalised, because a lower-cased word
+   * is this grammar's one tell that a clause says more than a name: "uses Bite
+   * **twice**" and "uses Charm **or** Draining Kiss" are both caught by it, and
+   * a use matched case-insensitively would read the first of those as a swing.
+   */
+  it('carries the heading’s spelling, and still requires the sentence to capitalise', () => {
+    expect(
+      parseMultiattack('The thing makes one Claw attack and uses Bite.', ['Claw', 'bite']),
+    ).toEqual({
+      entries: [
+        { count: 1, attack: 'Claw' },
+        { count: 1, attack: 'bite' },
+      ],
+    });
+    expect(
+      parseMultiattack('The thing makes one Claw attack and uses bite.', ['Claw', 'Bite']),
+    ).toEqual({
+      entries: [{ count: 1, attack: 'Claw' }],
+      handOver: 'and uses bite',
+    });
+  });
+
+  it('reads the same clause in the book’s other wording', () => {
+    expect(
+      parseMultiattack('The thing makes one Claw attack and it can use Bite.', ['Bite']),
+    ).toEqual({
+      entries: [
+        { count: 1, attack: 'Claw' },
+        { count: 1, attack: 'Bite' },
+      ],
+    });
+  });
+
+  /**
+   * A second sentence says the same thing the other way up, and the same rule
+   * decides it: a use of a printed attack is a swing traded for a swing.
+   */
+  it('reads a replacement whose use names a printed attack', () => {
+    const text =
+      'The thing makes three Claw attacks. It can replace one attack with a use of Bite.';
+    expect(parseMultiattack(text)).toEqual({
+      entries: [{ count: 3, attack: 'Claw' }],
+      handOver: 'It can replace one attack with a use of Bite.',
+    });
+    expect(parseMultiattack(text, ['Claw', 'Bite'])).toEqual({
+      alternatives: [
+        [{ count: 3, attack: 'Claw' }],
+        [
+          { count: 2, attack: 'Claw' },
+          { count: 1, attack: 'Bite' },
+        ],
+      ],
+    });
+  });
+
+  /**
+   * Shapes that name a printed attack and are still not one swing of it. Each
+   * stays exactly the hand-over it was, because reading it would be the grammar
+   * deciding something the sentence does not say.
+   */
+  it('hands over every use it cannot read as one swing', () => {
+    for (const text of [
+      // A count the clause states and this grammar does not read.
+      'The thing makes one Claw attack and uses Bite twice.',
+      // "or" offers the use instead of the swings, not beside them.
+      'The thing makes one Claw attack or uses Bite.',
+      // A qualification on the use.
+      'The thing makes one Claw attack and uses Bite if available.',
+    ]) {
+      const parsed = parseMultiattack(text, ['Claw', 'Bite']);
+      expect(parsed?.entries, text).toEqual([{ count: 1, attack: 'Claw' }]);
+      expect(parsed?.handOver, text).toBeDefined();
+    }
+    // A choice of sequences: nothing says which of them the use belongs to.
+    const choice = parseMultiattack(
+      'The thing makes two Claw attacks, or it makes one Horn attack and uses Bite.',
+      ['Claw', 'Horn', 'Bite'],
+    );
+    expect(choice?.alternatives).toEqual([
+      [{ count: 2, attack: 'Claw' }],
+      [{ count: 1, attack: 'Horn' }],
+    ]);
+    expect(choice?.handOver).toBe('and uses Bite');
+  });
+
+  /**
+   * And a name already spent in the sequence stays prose, because the engine's
+   * assignment is a single pass over entries no name appears in twice.
+   */
+  it('hands over a use of an attack the sequence already names', () => {
+    expect(parseMultiattack('The thing makes two Bite attacks and uses Bite.', ['Bite'])).toEqual({
+      entries: [{ count: 2, attack: 'Bite' }],
+      handOver: 'and uses Bite',
+    });
+  });
+
+  /**
+   * Whole block, end to end: the names are the ones the block itself prints,
+   * found by the parser rather than handed to it by a test.
+   */
+  it('binds a homebrew block’s own use clause to its own attack line', () => {
+    const { items, problems } = parseMonsters(CLAWED_HORROR, 'homebrew.md');
+    expect(problems).toEqual([]);
+    expect(items[0]!.actions.find((a) => a.name === 'Multiattack')?.multiattack).toEqual({
+      entries: [
+        { count: 1, attack: 'Claw' },
+        { count: 1, attack: 'Bite' },
+      ],
+    });
+  });
+
+  /**
+   * **And the SRD does not move.** The rule above changes a block only where a
+   * use names a line with an attack roll on it, and across the whole bestiary
+   * that happens no times at all — every use clause the book prints names a
+   * save, a spellcasting or a prose action. This is the measurement the change
+   * rests on, kept as a number so that a block that started binding is a
+   * failure here rather than a silent re-reading of the book.
+   */
+  it('finds no use clause in the book that names a printed attack', () => {
+    let clauses = 0;
+    const binding: string[] = [];
+    for (const monster of bestiary) {
+      const attacks = monster.actions
+        .filter((a) => a.attack !== undefined)
+        .map((a) => a.name.toLowerCase());
+      for (const line of monster.actions) {
+        const handOver = line.multiattack?.handOver;
+        if (handOver === undefined) continue;
+        clauses += 1;
+        for (const name of attacks) {
+          if (new RegExp(`\\buse(?:s|d)? (?:of )?${name}\\b`, 'i').test(handOver)) {
+            binding.push(`${monster.id}: ${handOver}`);
+          }
+        }
+      }
+    }
+    expect(binding).toEqual([]);
+    expect(clauses).toBe(55);
+  });
+});
+
+/** A block that prints the sentence the SRD never does. */
+const CLAWED_HORROR = `### Clawed Horror
+
+_Large Monstrosity, Chaotic Evil_
+
+**AC** 14 **Initiative** +2 (12) <br>
+**HP** 30 (4d10 + 8) <br>
+**Speed** 30 ft. <br>
+
+<table>
+  <tbody>
+    <tr>
+      <td><strong>STR</strong></td>
+      <td>16</td>
+      <td>+3</td>
+      <td>+3</td>
+      <td><strong>DEX</strong></td>
+      <td>14</td>
+      <td>+2</td>
+      <td>+2</td>
+      <td><strong>CON</strong></td>
+      <td>14</td>
+      <td>+2</td>
+      <td>+2</td>
+      <td><strong>INT</strong></td>
+      <td>6</td>
+      <td>−2</td>
+      <td>−2</td>
+      <td><strong>WIS</strong></td>
+      <td>10</td>
+      <td>+0</td>
+      <td>+0</td>
+      <td><strong>CHA</strong></td>
+      <td>6</td>
+      <td>−2</td>
+      <td>−2</td>
+    </tr>
+  </tbody>
+</table>
+
+**Senses** Darkvision 60 ft.; Passive Perception 10<br>
+**Languages** None<br>
+**CR** 2 (XP 450; PB +2)
+
+#### Actions
+
+<hr>
+
+**_Multiattack._** The horror makes one Claw attack and uses Bite.
+
+**_Claw._** _Melee Attack Roll:_ +5, reach 5 ft. _Hit:_ 7 (1d8 + 3) Slashing damage.
+
+**_Bite._** _Melee Attack Roll:_ +5, reach 5 ft. _Hit:_ 6 (1d6 + 3) Piercing damage.
+`;
+
+/**
+ * **What the parser reads, counted per section, so a silent loss is a failing
+ * number.**
+ *
+ * A parser that quietly stopped reading something reports no problems at all,
+ * which is why `animals.md` yielded zero creatures for a fortnight. These are
+ * the same counts `COVERAGE.md` prints — printed lines against the ones a
+ * detector got structure out of — pinned here where a change that moves them
+ * fails rather than merely showing up in a regenerated table.
+ *
+ * **The reading of a line is not a property of its heading.** Every detector
+ * runs over every section, so what separates the sections below is what the
+ * book *writes* under them and nothing else: a Bonus Action that printed an
+ * attack roll would be read exactly as an Action's is, and the test below this
+ * one proves it on a block that prints one.
+ */
+describe('what a stat block’s sections print, and what is read', () => {
+  const sections = [
+    'traits',
+    'actions',
+    'bonusActions',
+    'reactions',
+    'legendaryActions',
+  ] as const;
+
+  const census = () => {
+    const counted: Record<string, { printed: number; read: number }> = {};
+    for (const section of sections) {
+      let printed = 0;
+      let read = 0;
+      for (const monster of bestiary) {
+        for (const line of monster[section]) {
+          printed += 1;
+          if (
+            line.attack !== undefined ||
+            line.trait !== undefined ||
+            line.multiattack !== undefined
+          ) {
+            read += 1;
+          }
+        }
+      }
+      counted[section] = { printed, read };
+    }
+    return counted;
+  };
+
+  it('counts the printed lines and the read ones, section by section', () => {
+    expect(census()).toEqual({
+      traits: { printed: 337, read: 18 },
+      actions: { printed: 811, read: 596 },
+      // **Nothing here is a number waiting to be parsed.** All seventy-five are
+      // read by every detector the Actions section gets and none of them yields
+      // anything, because not one prints an attack roll: they are a saving
+      // throw, a spell the creature casts, another action it takes (Dash,
+      // Disengage, Hide), a teleport, a movement, a shape-shift, or prose. What
+      // a Bonus Action line needs is an economy to be spent against, which is a
+      // different thing from a sentence to be read.
+      bonusActions: { printed: 75, read: 0 },
+      reactions: { printed: 24, read: 0 },
+      legendaryActions: { printed: 82, read: 0 },
+    });
+  });
+
+  /**
+   * And the zero above is the book's, not the parser's.
+   *
+   * A block printing an attack roll under **Bonus Actions** has it read, with
+   * its bonus, its reach and its dice, exactly as an Action's line is — so the
+   * count is a statement about what the SRD writes under that heading and a
+   * regression in it is a regression in the book's transcription rather than in
+   * this grammar.
+   */
+  it('reads an attack roll printed under Bonus Actions', () => {
+    const { items, problems } = parseMonsters(HOOKED_STALKER, 'homebrew.md');
+    expect(problems).toEqual([]);
+    const stalker = items[0]!;
+    expect(stalker.bonusActions.map((line) => line.name)).toEqual(['Hook']);
+    expect(stalker.bonusActions[0]!.attack).toEqual({
+      kind: 'melee',
+      modifier: 5,
+      reach: 10,
+      range: null,
+      damage: [{ dice: '1d6', flat: 3, type: 'piercing', average: 6 }],
+      qualification: null,
+      rider: null,
+    });
+  });
+
+  /**
+   * **And nothing carries it onto a creature.** `adaptMonster` takes the
+   * Actions section and only that section, because a heading in a stat block
+   * says what the line under it *costs* and a Bonus Action swung as part of the
+   * Attack action is a swing the book did not print. So the line above is read
+   * and not spendable, and this records the gap rather than leaving it to be
+   * rediscovered: what is missing is a Bonus Action to spend it against, not a
+   * sentence to read.
+   */
+  it('finds no block in the book whose Bonus Action prints an attack roll', () => {
+    const printing = bestiary
+      .filter((monster) => monster.bonusActions.some((line) => line.attack !== undefined))
+      .map((monster) => monster.id);
+    expect(printing).toEqual([]);
+  });
+});
+
+/** A block that prints under Bonus Actions what the SRD never does. */
+const HOOKED_STALKER = `### Hooked Stalker
+
+_Medium Aberration, Neutral Evil_
+
+**AC** 14 **Initiative** +2 (12) <br>
+**HP** 22 (4d8 + 4) <br>
+**Speed** 30 ft. <br>
+
+<table>
+  <tbody>
+    <tr>
+      <td><strong>STR</strong></td>
+      <td>16</td>
+      <td>+3</td>
+      <td>+3</td>
+      <td><strong>DEX</strong></td>
+      <td>14</td>
+      <td>+2</td>
+      <td>+2</td>
+      <td><strong>CON</strong></td>
+      <td>12</td>
+      <td>+1</td>
+      <td>+1</td>
+      <td><strong>INT</strong></td>
+      <td>8</td>
+      <td>−1</td>
+      <td>−1</td>
+      <td><strong>WIS</strong></td>
+      <td>10</td>
+      <td>+0</td>
+      <td>+0</td>
+      <td><strong>CHA</strong></td>
+      <td>6</td>
+      <td>−2</td>
+      <td>−2</td>
+    </tr>
+  </tbody>
+</table>
+
+**Senses** Darkvision 60 ft.; Passive Perception 10<br>
+**Languages** Deep Speech<br>
+**CR** 1 (XP 200; PB +2)
+
+#### Actions
+
+<hr>
+
+**_Claw._** _Melee Attack Roll:_ +5, reach 5 ft. _Hit:_ 7 (1d8 + 3) Slashing damage.
+
+#### Bonus Actions
+
+<hr>
+
+**_Hook._** _Melee Attack Roll:_ +5, reach 10 ft. _Hit:_ 6 (1d6 + 3) Piercing damage.
+`;
+
+/**
+ * **Knowing more about the block may never make the grammar read less.**
+ *
+ * The names are passed in to turn a hand-over into a swing where one is
+ * printed. A block that gained nothing by them has to come out exactly where
+ * it was — never worse, and least of all with the sequence its first sentence
+ * plainly states taken away from it for a clause about a second thing.
+ */
+describe('a use that names a printed attack and is still not a swap', () => {
+  it('keeps the sequence and hands the clause over when the swap cannot be written', () => {
+    // Two entries in the base, so the sentence does not say which of them the
+    // replaced swing came out of.
+    const text =
+      'The thing makes one Claw attack and one Tail attack. It can replace one attack with a use of Bite.';
+    const unbound = parseMultiattack(text, ['Claw', 'Tail']);
+    expect(unbound).toEqual({
+      entries: [
+        { count: 1, attack: 'Claw' },
+        { count: 1, attack: 'Tail' },
+      ],
+      handOver: 'It can replace one attack with a use of Bite.',
+    });
+    expect(parseMultiattack(text, ['Claw', 'Tail', 'Bite'])).toEqual(unbound);
+  });
+
+  /**
+   * And a replacement may not put one name in two entries of a sequence any
+   * more than a trailing use may: the engine assigns a turn's swings in a
+   * single pass, and a guard on one clause is worth nothing while the sentence
+   * beside it can write the same thing.
+   */
+  it('refuses a replacement that would name one attack in two entries', () => {
+    expect(
+      parseMultiattack(
+        'The thing makes two Bite attacks. It can replace one attack with a use of Bite.',
+        ['Bite'],
+      ),
+    ).toEqual({
+      entries: [{ count: 2, attack: 'Bite' }],
+      handOver: 'It can replace one attack with a use of Bite.',
+    });
+    // The same sequence, in the wording the book prints for a printed line —
+    // where there is no hand-over to fall back to, so the line stays prose.
+    expect(
+      parseMultiattack('The thing makes two Bite attacks. It can replace one attack with a Bite attack.'),
+    ).toBeNull();
+  });
+});
