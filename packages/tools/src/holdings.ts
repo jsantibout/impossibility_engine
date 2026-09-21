@@ -51,6 +51,18 @@ export const SPENT_BY = {
   'self-heal': 'heal_with_feature',
   'healing-touch': 'draw_on_healing_pool',
   recovery: 'regain_uses',
+  /**
+   * One resource paid for with another: SRD Font of Inspiration, SRD Wild
+   * Resurgence.
+   *
+   * `recovery` one door along, and the pair is the SRD's own split: that one
+   * gives a pool's uses **back** for free at a moment the feature names, and
+   * this one *buys* them out of something else. The engine has run both ends
+   * since `tradeResource` landed — two refusals, a once-a-turn ledger key and
+   * a once-a-day pool — and nothing above it could ask, so two level 5
+   * features were stopped at a door that was not there.
+   */
+  trade: 'trade_resource',
   /** A pool with a menu: SRD Channel Divinity's Turn Undead, Divine Spark. */
   'pool-option': 'use_pool_option',
   /** A use spent to put a Reaction in somebody else's hands: Bardic Inspiration. */
@@ -187,6 +199,62 @@ export interface HeldHitOption {
   readonly unarmedStrike?: boolean;
 }
 
+/**
+ * One bargain a feature offers, named by the call that strikes it.
+ *
+ * {@link HeldPoolOption}'s shape for a feature whose menu is a list of prices
+ * rather than a list of effects: `trade_resource` is asked for the feature
+ * *and* which of its trades, so a caller shown the feature and not the list
+ * has been told half of what it needs to type the call. SRD Wild Resurgence
+ * prints two in one sentence, in opposite directions, with different limits.
+ *
+ * **Both ends are named as pool keys and neither carries a number that is
+ * left of them.** What is left of a pool is on `pools`, once, under the same
+ * key — and a second copy here is a second answer to drift from. What this
+ * adds is the three things a caller cannot work out from a pool line: which
+ * two pools the trade runs between, which of them this call has to *choose*,
+ * and what limits how often it may be struck.
+ *
+ * **It is the record and not a verdict**, like every other line in this file.
+ * Whether the trade may be struck right now — whether the pool it would fill
+ * has anything expended in it, whether the clause it prints holds, whether
+ * the day's one use is gone — is `tradeResource`'s answer, asked at the
+ * moment of the trade.
+ */
+export interface HeldTrade {
+  /** The id `trade_resource.trade` takes — SRD's `slot-for-inspiration`. */
+  readonly trade: string;
+  /** What the log calls it: SRD's "Wild Resurgence (a use for a slot)". */
+  readonly name: string;
+  /** SRD's "(no action required)" is `none`. */
+  readonly action: 'none' | 'action' | 'bonus-action';
+  /**
+   * What it costs, by pool key — **null where the caller chooses**.
+   *
+   * SRD writes "expend a spell slot" and leaves the level to the caster, so
+   * there is no key until they say which. {@link slotLevelRequired} is that
+   * same fact stated as the thing a caller acts on, because a null in a field
+   * is a thing to reason about and a flag beside it is not.
+   */
+  readonly spends: { readonly pool: string | null; readonly uses: number };
+  /** Whether `trade_resource.slotLevel` has to be sent, which nothing else says. */
+  readonly slotLevelRequired: boolean;
+  /** What it buys, by pool key. A spell slot's key carries its level. */
+  readonly gains: { readonly pool: string; readonly uses: number };
+  /** The clause that limits it, **including the one that says there is none**. */
+  readonly limit: 'once-per-turn' | 'once-per-long-rest' | 'unlimited';
+  /**
+   * The pool of one the trade declares, where it declares one.
+   *
+   * Read two ways and `limit` says which: the day's single use where the
+   * limit is `once-per-long-rest`, and the feature's own use that an
+   * `unlimited` trade exists to buy back. What is left of it is on `pools`.
+   */
+  readonly limitPool?: string;
+  /** SRD Wild Resurgence: "if you have no uses of Wild Shape left". */
+  readonly onlyIfEmpty?: string;
+}
+
 export interface HeldFeature {
   readonly feature: string;
   readonly name: string;
@@ -250,6 +318,16 @@ export interface HeldFeature {
    * be handed a menu for the wrong door.
    */
   readonly onHit?: readonly HeldHitOption[];
+  /**
+   * The bargains a feature offers, for a feature whose use is a purchase.
+   *
+   * `options` and `onHit` a third trigger along, and kept apart from both for
+   * the same reason they are kept apart from each other: the call is a
+   * different one. These are struck through `trade_resource`, and a caller
+   * dispatching on `spentBy` would otherwise be handed a menu for a door that
+   * does not take it.
+   */
+  readonly trades?: readonly HeldTrade[];
   /** A healing touch's conditions, and what each one costs out of the pool. */
   readonly lifts?: readonly string[];
   readonly costPerCondition?: number;
@@ -449,7 +527,11 @@ const slotAt = (
 function alsoHolding(first: HeldFeature, second: HeldFeature): HeldFeature {
   const options = first.options ?? second.options;
   const onHit = first.onHit ?? second.onHit;
-  if (options === first.options && onHit === first.onHit) return first;
+  // A third menu, carried on the same terms as the other two: a feature whose
+  // uses are bought rather than spent states which bargain on the call, so a
+  // trade dropped by a merge is a trade nothing could name.
+  const trades = first.trades ?? second.trades;
+  if (options === first.options && onHit === first.onHit && trades === first.trades) return first;
 
   const doors = [...(first.alsoSpentBy ?? [])];
   if (second.spentBy !== null && second.spentBy !== first.spentBy && !doors.includes(second.spentBy)) {
@@ -460,6 +542,7 @@ function alsoHolding(first: HeldFeature, second: HeldFeature): HeldFeature {
     ...first,
     ...(options === undefined ? {} : { options }),
     ...(onHit === undefined ? {} : { onHit }),
+    ...(trades === undefined ? {} : { trades }),
     ...(doors.length === 0 ? {} : { alsoSpentBy: doors }),
   };
 }
@@ -596,6 +679,72 @@ export function holdingsOf(state: GameState, id: CharacterId): Holdings | null {
       active: false,
       restores: one.restores,
       moment: one.moment,
+    });
+  }
+
+  /**
+   * A feature that pays for one resource with another, reported once per
+   * **feature** with its bargains — the shape a pool's menu takes, one kind of
+   * purchase along.
+   *
+   * SRD Wild Resurgence is one feature printing two trades in opposite
+   * directions with different limits, so two lines would tell a Druid it held
+   * two features; and `trade_resource` is asked for the feature *and* which of
+   * its trades, which is the same argument `use_pool_option` makes about a
+   * menu. The trades ride on the single line.
+   *
+   * **This is `spentBy`'s own gap, and it was the widest one left.** The
+   * engine has run both ends of a trade since `tradeResource` landed and this
+   * file named no door for either, so a Bard was shown an empty Bardic
+   * Inspiration pool and nothing that refills it, and a Druid was shown Wild
+   * Shape and Wild Resurgence's pool of one with no way to spend either.
+   *
+   * **The price is the trade's rather than the feature's**, for the reason a
+   * pool option's is: the SRD prints one per clause. The feature reports one
+   * only where every trade agrees, which today is both of them at `none`.
+   *
+   * **The line's name is the first trade's**, which is the feature's own
+   * wherever the grant names no trade — the SRD's commoner case, and Font of
+   * Inspiration's. A feature printing two differently-named trades has no
+   * feature name to report: `TradeFeature` carries the trade's name and not
+   * the feature's, unlike the `featureName` a pool option and a hit rider each
+   * carry, and inventing one here would be this layer deriving a fact the
+   * sheet does not hold.
+   */
+  const bargains = new Map<string, HeldTrade[]>();
+  for (const one of sheet.trades ?? []) {
+    const entry: HeldTrade = {
+      trade: one.trade,
+      name: one.name,
+      action: one.action,
+      spends: { pool: one.spends.key, uses: one.spends.uses },
+      // The same fact as `spends.pool === null`, said as the thing a caller
+      // does about it. SRD leaves "a spell slot" to the caster and the engine
+      // refuses `slot_level_required` rather than choosing between candidates.
+      slotLevelRequired: one.spends.key === null,
+      gains: { pool: one.gains.key, uses: one.gains.uses },
+      limit: one.limit,
+      ...(one.pool === undefined ? {} : { limitPool: one.pool }),
+      ...(one.onlyIfEmpty === undefined ? {} : { onlyIfEmpty: one.onlyIfEmpty }),
+    };
+    const found = bargains.get(one.feature);
+    if (found === undefined) bargains.set(one.feature, [entry]);
+    else found.push(entry);
+  }
+  for (const [feature, trades] of bargains) {
+    add({
+      feature,
+      name: trades[0]!.name,
+      kind: 'trade',
+      spentBy: SPENT_BY.trade,
+      action: trades.every((one) => one.action === trades[0]!.action) ? trades[0]!.action : null,
+      // Two pools and one field: a trade runs *between* them, so neither end
+      // is "the pool it draws on" and the menu names both. What is left of
+      // each is on `pools`, under the key each entry gives.
+      pool: null,
+      left: null,
+      active: false,
+      trades,
     });
   }
 
