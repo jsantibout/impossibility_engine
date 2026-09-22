@@ -168,6 +168,26 @@ describe('the corpus, so a format change is a failing test rather than a smaller
     expect(saves.filter((line) => line.attack !== undefined)).toEqual([]);
   });
 
+  /**
+   * **The engine's door searches two sections and Actions wins**, so a
+   * heading printed under both would be a Bonus Action line the door refused
+   * `line_states_no_save` while its twin sat one section up. It is a fact
+   * about this transcription rather than a rule of the book, which is exactly
+   * the sort of thing that changes under a re-vendor.
+   */
+  it('prints no heading under both Actions and Bonus Actions', () => {
+    const collisions = bestiary.flatMap((monster) => {
+      const bonus = new Set(monster.bonusActions.map((line) => line.name.toLowerCase()));
+      return monster.actions
+        .filter((line) => bonus.has(line.name.toLowerCase()))
+        .map((line) => `${monster.name} / ${line.name}`);
+    });
+    expect(collisions).toEqual([]);
+    // Not vacuous: there are blocks with lines under both headings to collide.
+    expect(bestiary.filter((m) => m.actions.length > 0 && m.bonusActions.length > 0).length)
+      .toBeGreaterThan(20);
+  });
+
   it('gives every save it read a die to roll and a type to roll it in', () => {
     for (const line of saves) {
       expect(line.save?.damage.dice).toMatch(/^\d+d\d+$/);

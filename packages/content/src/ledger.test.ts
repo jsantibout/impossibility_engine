@@ -215,6 +215,11 @@ describe('the ledger measures the three populations of the roadmap', () => {
     expect(ledger.monsters.items).toBe(
       ledger.monsters.handedOver + ledger.monsters.riders + ledger.monsters.inertTraits,
     );
+    // And both of those families are populated, so the identity above is not
+    // holding at zero — which is what it would do if either predicate stopped
+    // matching and the debt it names quietly left the ledger.
+    expect(ledger.monsters.riders).toBeGreaterThan(0);
+    expect(ledger.monsters.inertTraits).toBeGreaterThan(0);
     expect(ledger.monsters.clean + ledger.monsters.unfinished).toBe(ledger.monsters.blocks);
   });
 

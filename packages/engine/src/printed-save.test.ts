@@ -376,14 +376,30 @@ describe('a printed save, forced', () => {
     expect(table.state.combat?.budgets[gorgon]?.action).toBe(true);
     expect(out.events.some((event) => event.type === 'bonus-action-spent')).toBe(true);
     expect(out.events.some((event) => event.type === 'action-spent')).toBe(false);
-    // And the event is the one that section's own door writes, so a gated
-    // Multiattack reads one answer about what was taken this turn.
-    expect(out.events.some((event) => event.type === 'stated-bonus-action-taken')).toBe(true);
+    // And the event is the one that section's own door writes, **with the
+    // turn on it**: a gated Multiattack asks which line was taken *this turn*,
+    // and the answer is that field rather than the event's existence.
+    const taken = out.events.filter((event) => event.type === 'stated-bonus-action-taken');
+    expect(taken).toHaveLength(1);
+    expect(taken[0]?.type === 'stated-bonus-action-taken' ? taken[0].line : null).toBe('Trample');
+    expect(taken[0]?.type === 'stated-bonus-action-taken' ? taken[0].turn : null).toBe(
+      table.state.combat?.turnsTaken,
+    );
 
-    // The line's printed addend is part of the damage: "16 (2d10 + 5)".
-    const faces = dieFaces(out.events, BREN);
-    expect(faces?.type).toBe('bludgeoning');
+    // **The addend the book prints inside the parenthesis lands**, which is
+    // the Gorgon's "16 (2d10 + 5)" and the one block in this file that carries
+    // one: the dice are two d10s and the component is five more than they
+    // came to. The same trap Finger of Death fell into, on the other path.
     expect(out.outcomes).toHaveLength(1);
+    const recorded = out.events.find((event) => event.type === 'damage-dice-recorded');
+    const component =
+      recorded?.type === 'damage-dice-recorded' ? recorded.components[0]! : null;
+    expect(component?.type).toBe('bludgeoning');
+    expect(component?.dice).toHaveLength(2);
+    expect(component?.flat).toBe(5);
+    const thrown = (component?.dice ?? []).reduce((sum, die) => sum + die.value, 0);
+    const success = out.outcomes[0]!.save.success;
+    expect(component?.total).toBe(success ? Math.floor((thrown + 5) / 2) : thrown + 5);
   });
 
   it('hands back the clause it did not read, and claims nothing about it', () => {

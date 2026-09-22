@@ -853,6 +853,13 @@ export interface BestiaryCoverage {
    * against the catalogue, and a shape that stopped matching shrinks here
    * rather than going quiet.
    *
+   * **One row is checkable against the catalogue *and* against a list**, and
+   * it is worth saying which: {@link UNEXECUTED_TRAIT_SHAPE} asks the line for
+   * its trait kind and then asks {@link TRAIT_KINDS_WITH_A_READER} whether
+   * anything spends it. The second half is written down rather than derived,
+   * because there is nothing to derive it from, so the row goes stale in a way
+   * no other row can — in both directions, and `coverage.test.ts` holds both.
+   *
    * The piles **overlap**: one block prints a Multiattack and a breath weapon
    * and a bite whose hit buys a save, so the column does not sum to anything.
    */
@@ -952,6 +959,15 @@ export const hasUnappliedRider = (line: StatBlockLine): boolean => {
  * name written down the day a reader lands, beside the name of what reads it.
  * It grows and the row below shrinks; a kind that is never on it is a kind
  * the ledger goes on naming as a debt.
+ *
+ * **It can go stale in both directions and the dangerous one is the second.**
+ * A name the schema no longer admits is loud the moment anybody looks; a name
+ * whose *reader* has been deleted is silent, and it would drop real debt off
+ * the ledger with every test green. So `coverage.test.ts` asks both: that
+ * every name here is a kind the schema still has, and that every name here is
+ * still written somewhere in `packages/engine/src`. The second is the same
+ * question `spell-schema.test.ts` asks of the engine's sources, pointed the
+ * other way round.
  *
  * Today: SRD Pack Tactics, read by `resolveAttack`'s roll-mode gathering.
  */

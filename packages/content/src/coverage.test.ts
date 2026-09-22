@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { SPELL_DEFINITIONS, SRD_CONTENT, SRD_MAGIC_ITEMS } from '@ie/content';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -497,21 +497,60 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
    * A trait kind reaches `CharacterSheet.stated.traits` the moment the parser
    * matches its sentence; whether anything *asks* for it is a call site, and
    * `TRAIT_KINDS_WITH_A_READER` is where that is written down. The default is
-   * the conservative one — a kind nobody has listed is a debt — so the only
-   * way this list can lie is by naming a kind the schema no longer admits,
-   * which is what this holds.
+   * the conservative one — a kind nobody has listed is a debt — so the list
+   * can only lie by holding a name it should not, and it can do that two ways.
+   *
+   * **A name the schema no longer admits** is the loud one. **A name whose
+   * reader has been deleted** is the dangerous one: nothing would fail, and
+   * eighteen lines of real debt would leave the ledger with every test green.
+   * So both are asked, and the second is asked of the engine's own sources —
+   * the question `spell-schema.test.ts` asks of them, pointed the other way.
    */
   it('names only trait kinds the schema admits, as the kinds with a reader', () => {
     const kinds: readonly string[] = MonsterTraitSchema.options.map(
       (option) => option.shape.kind.value,
     );
     expect(kinds.length).toBeGreaterThan(1);
+    expect(TRAIT_KINDS_WITH_A_READER.length).toBeGreaterThan(0);
     expect(TRAIT_KINDS_WITH_A_READER.filter((kind) => !kinds.includes(kind))).toEqual([]);
-    // And the predicate is not vacuous in either direction.
+
+    // **And the predicate answers both ways**, asked of a kind on the list and
+    // of one that is not. A guard that only ever expected `false` would pass
+    // against `() => false`, which is the answer that quietly retires the row.
+    const spent = TRAIT_KINDS_WITH_A_READER[0]!;
+    const inert = kinds.find((kind) => !TRAIT_KINDS_WITH_A_READER.includes(kind));
+    expect(inert).toBeDefined();
     expect(hasUnexecutedTrait({ name: 'x', text: 'y' })).toBe(false);
-    expect(hasUnexecutedTrait({ name: 'x', text: 'y', trait: { kind: kinds[0] } })).toBe(
-      !TRAIT_KINDS_WITH_A_READER.includes(kinds[0]!),
-    );
+    expect(hasUnexecutedTrait({ name: 'x', text: 'y', trait: { kind: spent } })).toBe(false);
+    expect(hasUnexecutedTrait({ name: 'x', text: 'y', trait: { kind: inert } })).toBe(true);
+  });
+
+  /**
+   * And the other direction: a kind is on the list because something reads it,
+   * so the reader has to still be there.
+   *
+   * Asked of the engine's sources rather than of a second list, because a
+   * second list is the thing that goes stale. A kind named nowhere in
+   * `packages/engine/src` is a kind nothing can be spending.
+   */
+  it('names no trait kind the engine has stopped reading', () => {
+    const here = fileURLToPath(new URL('.', import.meta.url));
+    const root = `${here}../../engine/src/`;
+    const sources: string[] = [];
+    const walk = (dir: string): void => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        if (entry.isDirectory()) walk(`${dir}${entry.name}/`);
+        else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts')) {
+          sources.push(readFileSync(`${dir}${entry.name}`, 'utf8'));
+        }
+      }
+    };
+    walk(root);
+    // Not vacuous: the walk found the engine rather than an empty directory.
+    expect(sources.length).toBeGreaterThan(40);
+
+    const text = sources.join('\n');
+    expect(TRAIT_KINDS_WITH_A_READER.filter((kind) => !text.includes(`'${kind}'`))).toEqual([]);
   });
 
   /**

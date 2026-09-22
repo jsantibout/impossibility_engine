@@ -699,7 +699,9 @@ export function forcePrintedSave(
       const creature = creatureOf(state, id);
       if (creature === null) return unknownCreature(id, 'has no record here yet; add it first');
       if (state.combat === null) {
-        return err('not_in_combat', 'there is no Action to spend outside combat');
+        // Which slot the line costs is the heading's answer and the heading
+        // has not been read yet, so the refusal names neither.
+        return err('not_in_combat', 'there is no turn to spend a printed line from outside combat');
       }
 
       // Read off the sheet, where `creature-added` pinned the block's own
@@ -709,7 +711,11 @@ export function forcePrintedSave(
       // The Gorgon's Trample is a Bonus Action and the Winter Wolf's breath is
       // an Action, and what the heading changes is what the line *costs* —
       // which is exactly what is read off it below and nothing else. Actions
-      // first, and no SRD block prints one heading under both.
+      // first, and no SRD block prints one heading under both — which is a
+      // fact about the transcription and is asserted over the corpus in
+      // `packages/srd/src/parse/monster-saves.test.ts` rather than assumed
+      // here, because Actions winning a collision silently would refuse a
+      // savable Bonus Action line with `line_states_no_save`.
       const action = statedActionOf(creature.sheet, command.line);
       const bonus = action === null ? statedBonusActionOf(creature.sheet, command.line) : null;
       const line: StatedAction | StatedBonusAction | null = action ?? bonus;
