@@ -193,6 +193,7 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'fireball',
   'flame-blade',
   'flame-strike',
+  'goodberry',
   'grease',
   'greater-invisibility',
   'guidance',
