@@ -56,12 +56,11 @@ homebrew.
   a shield refuse each other, and a conjured thing occupies one for as long as
   its casting runs.
 - **Content** — `createContent` / `loadContent` validate a catalogue from JSON
-  text; homebrew goes through the same door the SRD does, and adding content
-  that uses mechanics the engine already has touches no engine file.
+  text; homebrew goes through the same door the SRD does, and content using
+  mechanics the engine has touches no engine file.
 - **Two doors above the engine** (`@ie/tools`) — the player's and, under `dm/`,
   the DM's, partitioned by **authority** rather than by species of caller: a
-  DM's door takes a decision the rules leave open, and neither door takes a die
-  face. A `Campaign` holds the seed, the content and the log; state is a cache.
+  DM's door takes a decision the rules leave open, and neither takes a die face.
 - **Measurement, as tests rather than claims** — `COVERAGE.md` and `LEDGER.md`
   are generated and go stale loudly; `reachability.test.ts` builds a level 5
   character of every path and fails on an engine feature no door reaches; and
@@ -86,12 +85,15 @@ homebrew.
 - **Nothing reduces damage an effect has rolled**, which is why Feather Fall
   and a Monk's Slow Fall do not work and why `FeatureReactionWindow` still
   excludes `creature-falling`.
-- **Movement has four modes and nothing that grants one.** Fly, Climb, Swim
-  and Burrow are on the sheet and come off a stat block's printed line, a move
-  names its mode, the surcharge for going without the Speed is charged, and a
-  flier who is stopped falls. What is missing is the other end: no spell, no
-  feature and no monster trait can *give* a creature a mode, so Spider Climb,
-  Fly, Jump and Second-Story Work all still wait.
+- **Movement modes are built, and jumping is half.** The four Speeds are on
+  the sheet and off a stat block, a move names its mode, going without the
+  Speed costs double, a stopped flier falls, and a spell or feature can grant
+  a mode. A granted Speed reaches the mode granted; an unqualified increase
+  reaches walking alone and an unqualified slowing reaches every mode. The
+  longer running jump is missing, so Second-Story Work stays manual.
+- **Eighteen printed saving throws execute and no caller can reach them.**
+  `forcePrintedSave` is on the barrel and in no tool — a door the mechanism
+  shipped without.
 - **A printed stat-block rider that deals extra damage is still prose.** The
   condition families execute — gated on the target's size or on a creature
   type the block names, anchored on either creature's next turn, and a grapple
@@ -185,6 +187,11 @@ features (done).
   appends a new one.
 
 ## Traps in a worktree, not in the code
+
+**Editing source with Python on Windows rewrites it CRLF**, which silently
+breaks the guards that parse source line by line and presents as a content
+defect rather than a line-ending one. It cost two builders a cycle each in
+one batch.
 
 A worktree is not a clone. An empty `node_modules` makes `tsc -b` resolve
 `@ie/engine` through the main checkout's `dist`, silently, while the two agree;

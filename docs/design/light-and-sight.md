@@ -16,9 +16,20 @@ Sight is a pairwise declared fact (`sight-declared`, three-valued: seen,
 unseen, nobody has said). A creature may hold a sense — the glossary's four,
 as `{ sense, feet }` — and `sightBetween` consults it only where nobody has
 declared anything: self → declaration → declared Total Cover silences →
-a sight-sense in range → `null`. Two questions sit on it: `canSee` (every
-"a creature you can see") and `canSomehowSee` (Invisible's clause; Truesight
-and Blindsight answer it, Darkvision does not — owner, 2026-09-20). The
+a sight-sense in range → `null`. **Three** questions sit on it: `canSee`
+(every "a creature you can see"); `canSomehowSee` (Invisible's clause;
+Truesight and Blindsight answer it, Darkvision does not — owner, 2026-09-20);
+and `sensesPerceiving`, added by P2-T16, which answers *with which senses*
+rather than yes or no.
+
+**The third one matters to this design more than its size suggests.** It was
+written because Blur is defeated by a sense and not by seeing, and routing it
+through `canSomehowSee` would have let a *declared* sight line undo the spell
+— the declaration outranks the senses in `sightBetween`, which is right for
+"can you see her" and wrong for "does anything of yours pierce this". Light
+and obscurement are the same class of question: the step added below reads the
+looker's senses against the target's space, so it belongs beside
+`sensesPerceiving`'s reading and not inside the declaration's. The
 engine holds no Bright, Dim or Darkness, which `senses.test.ts` says outright,
 so Darkvision has never had the thing it is a rule *about*.
 

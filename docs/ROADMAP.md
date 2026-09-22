@@ -414,14 +414,14 @@ Three claims checked, then the order.
 | # | Track | Finishes / moves | Fence (by reader) and sequencing |
 |---|---|---|---|
 | 0 | **P2-T0 The ledger made honest** — `[x]` merged 2026-09-21 | the 89 rises; Shocking Grasp and Speak with Animals re-filed; the light shape id; `SPLIT_BUNDLES` for P3-A; the third column; the feats row; the glossary table | `packages/content/scripts/**`, `spells.ts` notes. **First, alone, before any other brief cites a number** |
-| 1 | **P2-T12 A casting writes a lattice patch** | Grease, Plant Growth, Entangle, Web's and Spike Growth's clauses — **and it is the seam the sight model reuses**, so design `LightPatch` as its second consumer | readers of `DifficultPatch`/`livePatches`: `positioning.ts`, `commands/movement.ts`, `fold/scene.ts`; writer in `commands/casting.ts` |
-| 2 | **P2-T18+ the ingest track** — a save a printed line forces, plus the movement and amphibious trait kinds | 14 blocks + 73 lines; 26 blocks | `packages/srd/**` alone, `monster.ts`, `commands/actions.ts`; runs ingest then index and commits the index |
+| 1 | **P2-T12 A casting writes a lattice patch** — `[x]` | Grease, Plant Growth, Entangle, Web's and Spike Growth's clauses — **and it is the seam the sight model reuses**, so design `LightPatch` as its second consumer | readers of `DifficultPatch`/`livePatches`: `positioning.ts`, `commands/movement.ts`, `fold/scene.ts`; writer in `commands/casting.ts` |
+| 2 | **P2-T18+ the ingest track** — `[x]` — a save a printed line forces, plus the movement and amphibious trait kinds | 14 blocks + 73 lines; 26 blocks | `packages/srd/**` alone, `monster.ts`, `commands/actions.ts`; runs ingest then index and commits the index |
 | 3 | **P2-T13′ Movement modes' writers** | Spider Climb, Fly, Second-Story Work; Alter Self one short | `GrantedSpeed.mode`: readers of `speedOf`; `climb-speed` `FeatureGrant` |
-| 4 | **P2-S1 `save.condition` optional** | Slow's four clauses, Faerie Fire, **Zone of Truth** — three consumers | `spell-schema.ts` `case 'save'`, `spell-effect-conditions.ts`, `spell-effect-riders.ts` |
+| 4 | **P2-S1 `save.condition` optional** — `[x]` | Slow's four clauses, Faerie Fire, **Zone of Truth** — three consumers | `spell-schema.ts` `case 'save'`, `spell-effect-conditions.ts`, `spell-effect-riders.ts` |
 | 5 | **P2-T15 Rider on a later weapon attack** | Shillelagh, True Strike, Magic Weapon, Sacred Weapon | `standing.ts` attack-rider family, `attack.ts` |
 | 6 | **P2-T14 Magic Missile and Shield** | Shield; Magic Missile | **decide `cannot_hold` on stat-block attacks first**, or the Wizard's Shield stays unreachable |
 | 7 | **P2-T16 Senses on the attacker's side** | Mirror Image, Blur | `standing.ts`, `attack.ts`, `attacks.ts` |
-| 8 | **P2-F1 species-trait cluster** | Dwarven Resilience, Fey Ancestry, Brave, Protection from Poison | `roll-modifiers.ts`, `conditions.ts` |
+| 8 | **P2-F1 species-trait cluster** — `[x]` | Dwarven Resilience, Fey Ancestry, Brave, Protection from Poison | `roll-modifiers.ts`, `conditions.ts` |
 | 9 | **P2-T11 Summon** | Find Steed, Phantom Steed; needed by P3-W | as written; owner-ruled |
 | 10 | **P2-T17 Non-d20 outcome** | Augury. **Blink is not this anchor** — its end-of-turn roll is a turn-boundary payout | split before briefing |
 | 11 | P2-T21, then P2-T19, then P2-T20 | 5 blocks; 2 features | as written |
@@ -462,6 +462,58 @@ ranked first among the builders.
   where it is.
 - **The lopsided split of several attack rolls stays the owner's.** For the
   record: the sayable form is `targets: [{ id, count }]`.
+
+### Phase 2, first batch — merged 2026-09-21
+
+Five tracks. **Spells in reach not executed 129 → 124, waiting on a shape
+96 → 91** (Fly, Spider Climb, Slow, Faerie Fire, Blur, Plant Growth, Spike
+Growth). Features manual 58 → 55, origin features executed 14 → 17. CR ≤ 5
+lines 400 → 382, clean blocks 56 → 60. Rule 8's debt is discharged: the
+movement mechanism built for nothing last batch now pays.
+
+**Rule 9 earned its place on the first day.** Two of G1's own fences were
+wrong — `DifficultPatch` has three readers and not the four it named, and
+fencing P2-T13′ on `speedOf` (eighteen readers) instead of `GrantedSpeed`
+(four) would have swallowed the batch. Every brief printed its grep.
+
+**Three briefs still named movers that were not there**, all from the gate's
+list taken at face value: `sacred-weapon` is filed under a different shape
+entirely; P2-T18's "40 blocks" was P1-T13's *execution* promise read onto a
+parser track; and P2-T16's Mirror Image needs a condition axis a sense axis
+cannot express. The lesson is not new, it is rule 3, and it now applies to a
+gate's output as much as to a blocker map.
+
+Follow-ups this batch created, in the order I would take them:
+
+- **`forcePrintedSave` reaches no caller.** It is on the engine barrel and in
+  no tool, and `ObservedBlock.actions` carries no flag saying the engine could
+  roll a line's save, so none of the 18 executable lines is reachable from
+  above. Rule 2, and the brief failed to name why the door would stay shut.
+- **Zone of Truth needs its own brief, and the gate's premise for it was
+  false.** `OngoingSpell.aimed` is written once at the cast and only ever
+  shrinks; `aimedAt` returns empty for an area, because standing in an area is
+  not being cast on; and `observe()` publishes no ongoing casting at all. The
+  doctrine ruling stands — the engine may hold a fact only the table reads
+  when it is the outcome of a roll the engine made and a door publishes it —
+  but the door does not exist. A new `GameEvent` variant, a fold-seam write
+  and a new `Observation` field.
+- **Powerful Build is cheaper than its new entry implies.** Two ability-check
+  rollers already hold the timer that names the condition instance
+  (`resolveEffectCheck`, `escapeGrapple`), and `conditionEndedBy` is the whole
+  derivation. One argument in each, plus relaxing `condition_off_a_saving_
+  throw`.
+- **Entangle** stays blocked on an area that excludes its caster — without it
+  the spell Restrains the druid who cast it.
+- **P2-T15 lost three of its four movers** to verification; only Magic Weapon
+  is real, and it needs "the weapon *this casting* was aimed at", which
+  `onlyWithItem` (the granting item's id) and `onlyWithWeapon` (a kind, not a
+  copy) cannot say.
+- **Dead patches accumulate in `scene.terrain`** — filtered by `livePatchesOf`,
+  never swept, now reachable once per area casting.
+- **`LEDGER.md`'s `clean` column changed meaning**, and `LedgerMonsters` gained
+  a public field: a block is clean when its lines are read *and* spent, not
+  merely parsed. Any track quoting the old number is quoting a different
+  question.
 
 ### P2-T0's result, and the three things it could not do
 
