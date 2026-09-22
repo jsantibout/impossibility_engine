@@ -112,6 +112,21 @@ const HOMEBREW = {
       conjures: { item: BERRY, count: 10, hands: 1 },
     },
     {
+      // The one that says nothing about hands, which is where the default is
+      // read — and where it used to be read twice.
+      id: 'test-bare-handful',
+      name: 'Test Bare Handful',
+      level: 1,
+      school: 'conjuration',
+      castingTime: 'action',
+      concentration: false,
+      range: { kind: 'self' },
+      targets: { count: 0 },
+      effects: [],
+      durationSeconds: 600,
+      conjures: { item: BERRY, count: 3 },
+    },
+    {
       id: 'test-evoke-blade',
       name: 'Test Evoke Blade',
       level: 2,
@@ -166,7 +181,7 @@ const TABLE: readonly GameEvent[] = [
           classId: 'druid',
           ability: 'wis',
           cantrips: [],
-          prepared: ['test-berries', 'test-evoke-blade'],
+          prepared: ['test-berries', 'test-bare-handful', 'test-evoke-blade'],
           slotKind: 'spell',
         },
       ],
@@ -321,6 +336,24 @@ describe('a conjured thing occupies a hand for as long as its casting runs', () 
     const line = carrying(state, CASTER).find((held) => held.id === BERRY);
     expect(line?.quantity).toBe(9);
     expect(line?.casting).toBe('cast:1');
+    // **And the handful is still a handful.** What holding it costs was pinned
+    // when it was conjured, and a loss says which line it came off rather than
+    // restating it — so a berry eaten must not leave the hand empty.
+    expect(line?.hands).toBe(1);
+    expect(handsInUse(state, content, CASTER)).toBe(1);
+  });
+
+  /**
+   * SRD puts every conjured thing in *a* hand, so a definition that says
+   * nothing says one. Read twice, the two readings drifted: the casting asked
+   * for a free hand and the line then filled none.
+   */
+  it('takes one hand for a spell that never mentions hands', () => {
+    const bare = cast([...TABLE], 'test-bare-handful');
+    const state = fold('seed', bare);
+    expect(carrying(state, CASTER).find((held) => held.id === BERRY)?.hands).toBe(1);
+    expect(handsInUse(state, content, CASTER)).toBe(1);
+    expect(freeHands(state, content, CASTER)).toBe(1);
   });
 
   it('never merges a conjured stack with an ordinary one', () => {

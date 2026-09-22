@@ -457,11 +457,19 @@ export interface HeldGrantedSpell {
  * the others — a wand whose charges are its own — and it is reported because
  * every inventory call takes it: a caller holding two wands and shown one
  * line cannot say which one the thief took.
+ *
+ * `conjured` is the casting that put the line in this creature's hand, and it
+ * is reported for the same reason: ten Goodberries and ten berries out of a
+ * pack look identical, and only one of the two disappears when a spell ends,
+ * occupies a hand, or answers `let_go_of_conjured`. A surface that showed a
+ * caller a tool it could not tell when to call would be handing it a guess.
  */
 export interface HeldItem {
   readonly id: string;
   readonly quantity: number;
   readonly instance?: string;
+  /** The casting holding this line, where a spell conjured it. */
+  readonly conjured?: string;
 }
 
 /** One thing worn or wielded, and which copy of it where that is told apart. */
@@ -1111,6 +1119,7 @@ export function holdingsOf(state: GameState, id: CharacterId): Holdings | null {
       id: line.id,
       quantity: line.quantity,
       ...(line.instance === undefined ? {} : { instance: line.instance }),
+      ...(line.casting === undefined ? {} : { conjured: line.casting }),
     })),
     equipped: creature.equipped.map((worn) => ({
       id: worn.id,

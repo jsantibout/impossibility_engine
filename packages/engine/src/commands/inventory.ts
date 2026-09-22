@@ -461,11 +461,12 @@ export function equipItem(
       }
     }
 
-    // **And whether there is a hand for it**, which is the rule
-    // `docs/design/characters-and-equipment.md` recorded as missing: a
-    // creature could wield a Greatsword, a Longsword and a Shield at once.
-    // SRD Two-Handed: "this weapon requires two hands"; a Shield is "wielded
-    // in one hand"; what a spell put in a hand is in that hand too.
+    // **And whether there is a hand for it**, which nothing asked until now:
+    // a creature could wield a Greatsword, a Longsword and a Shield at once.
+    // The equipment architecture recorded the gap in as many words —
+    // "Nothing checks that two hands are free, either." — and this is the
+    // check. SRD Two-Handed: "this weapon requires two hands"; a Shield is
+    // wielded in one; and what a spell put in a hand is in that hand too.
     const wants = handsFor(item);
     const free = freeHands(state, content, id);
     if (wants > free) {
@@ -676,7 +677,7 @@ export function evokeConjured(
       );
     }
 
-    const hands = from.conjures.hands ?? 1;
+    const hands = conjuredHands(from.conjures);
     const free = freeHands(state, content, id);
     if (hands > free) {
       return err(
@@ -705,12 +706,26 @@ export function evokeConjured(
 }
 
 /**
+ * How many hands a conjuring takes up, read from the definition.
+ *
+ * **One reading, in one place.** SRD puts every conjured thing in *a* hand —
+ * Goodberry's handful, Flame Blade's blade — so a definition that says nothing
+ * says one, and the free hand this asks for at the casting is the hand the
+ * line goes on to fill. Written twice, the two would drift: a spell checked
+ * against one free hand and then occupying none can be cast with both hands
+ * full but for one, twice over, and letting go frees nothing.
+ */
+export const conjuredHands = (conjures: ConjuredItems): number => conjures.hands ?? 1;
+
+/**
  * The line a conjuring puts in a hand, pinned from the definition that printed
  * it.
  *
  * One spelling, because two doors write it — the casting and the re-evocation
  * — and a second copy would be two places for the count and the hands to
- * disagree. Rule 5: what the command read from content travels with the event.
+ * disagree. Rule 5: what the command read from content travels with the event,
+ * **the default included**: a line that left the hands off would be a line
+ * whose cost the fold had to go and look up.
  */
 export function conjuredLine(
   itemId: string,
@@ -721,7 +736,7 @@ export function conjuredLine(
     id: itemId,
     quantity: conjures.count,
     ...(castingId === undefined ? {} : { casting: castingId }),
-    ...(conjures.hands === undefined ? {} : { hands: conjures.hands }),
+    hands: conjuredHands(conjures),
   };
 }
 

@@ -44,7 +44,7 @@ import {
   itemSource,
 } from '../catalogue.js';
 import { featureSource } from '../progression.js';
-import { conjuredLine, freeHands } from './inventory.js';
+import { conjuredHands, conjuredLine, freeHands } from './inventory.js';
 import { spendAction, spendBonusAction, spendReaction } from '../combat.js';
 import { rollRecorded } from '../rolls.js';
 import { type CommandIdentity, commandOutcome, once } from '../idempotency.js';
@@ -549,7 +549,7 @@ export function castOrRelease(
     // the slot, the action and the first die — is what makes a caster with
     // both hands full pay nothing for finding out. See `ConjuredItems`.
     if (definition.conjures !== undefined) {
-      const wants = definition.conjures.hands ?? 1;
+      const wants = conjuredHands(definition.conjures);
       const free = freeHands(state, supply.content, casterId);
       if (wants > free) {
         return err(
