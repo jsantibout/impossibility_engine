@@ -137,7 +137,11 @@ const SETUP: readonly GameEvent[] = [
   {
     type: 'spellcasting-declared',
     id: CLERIC,
-    spellcasting: declaredCasting({ ability: 'wis', cantrips: [], prepared: ['sanctuary'] }),
+    spellcasting: declaredCasting({
+      ability: 'wis',
+      cantrips: ['fire-bolt'],
+      prepared: ['sanctuary'],
+    }),
   },
 ];
 
@@ -454,5 +458,243 @@ describe('a ward turns an attacker away before the roll', () => {
     const out = hit(log, OGRE, { target: CLERIC, weapon: 'greatclub' }, scripted([20]));
     expect(out.warded).toBeUndefined();
     expect(out.attack!.hit).toBe(true);
+  });
+});
+
+// — the other attack path, and the casting's own side of the ward ————————————
+
+describe('a spell attack meets the same defences a club does', () => {
+  const IN_COMBAT = (log: readonly GameEvent[]): readonly GameEvent[] => [
+    ...log,
+    {
+      type: 'combat-started',
+      combatants: [
+        { id: CLERIC, initiative: 20, speed: 30 },
+        { id: WIZARD, initiative: 10, speed: 30 },
+      ],
+    },
+  ];
+
+  const bolt = (
+    log: readonly GameEvent[],
+    caster: CharacterId,
+    target: CharacterId,
+    rng: Rng,
+  ) => resolveSpell(fold('seed', log), caster, { spellId: 'fire-bolt', targets: [target] }, supply(rng));
+
+  /**
+   * SRD Mirror Image says "a creature hits you with an attack roll" and names
+   * no weapon, so a Fire Bolt meets a duplicate exactly as a greatclub does.
+   * The gatherer is shared between the two paths rather than copied, which is
+   * the lesson Dodge and Blur taught this file's neighbours.
+   */
+  it('sends a Fire Bolt to a duplicate', () => {
+    const log = mirrored([
+      ...SETUP,
+      { type: 'sight-declared', from: CLERIC, to: WIZARD, seen: true },
+    ]);
+    const before = hpOf(fold('seed', log), WIZARD);
+    const out = unwrap(bolt(log, CLERIC, WIZARD, scripted([20, 6])), 'bolt');
+
+    expect(out.outcomes[0]?.attack?.hit).toBe(true);
+    expect(out.outcomes[0]?.affected).toBe(false);
+    expect(hpOf(fold('seed', [...log, ...out.events]), WIZARD)).toBe(before);
+    expect(out.events.some((e) => e.type === 'decoy-destroyed')).toBe(true);
+  });
+
+  /**
+   * **The ward is asked at the declaration, not per roll.** SRD Sanctuary
+   * turns a creature away when it *targets* the warded one, and for a casting
+   * that moment is before the slot, the action and the first die — so a caster
+   * who fails it has spent nothing and may aim elsewhere.
+   */
+  it('loses a damaging casting to a ward, with the slot unspent', () => {
+    const log = IN_COMBAT(warded());
+    const slot = fold('seed', log).creatures[CLERIC]!.resources;
+    const out = unwrap(bolt(log, CLERIC, WIZARD, scripted([1])), 'bolt');
+
+    expect(out.warded).toBe(true);
+    expect(out.castingId).toBeNull();
+    expect(out.outcomes).toEqual([]);
+    expect(fold('seed', [...log, ...out.events]).creatures[CLERIC]!.resources).toEqual(slot);
+    expect(hpOf(fold('seed', [...log, ...out.events]), WIZARD)).toBe(
+      hpOf(fold('seed', log), WIZARD),
+    );
+  });
+
+  /**
+   * "any creature who targets the warded creature with an attack roll **or a
+   * damaging spell**" — and no other spell. A ward that turned away a Cure
+   * Wounds would be the opposite of what it is for.
+   */
+  it('does not reach a casting that harms nobody', () => {
+    const log = IN_COMBAT(warded());
+    const out = resolveSpell(
+      fold('seed', log),
+      CLERIC,
+      { spellId: 'bless', targets: [WIZARD], slotLevel: 1 },
+      supply(scripted([1])),
+    );
+    // Whether the cleric has Bless prepared is beside the point: what matters
+    // is that no ward save was rolled on the way to finding out.
+    if (out.ok) expect(out.value.warded).toBeUndefined();
+    else expect(out.code).not.toBe('warded');
+  });
+});
+
+// — the one thing the ward may not reach ——————————————————————————————————————
+
+describe('a ward is not a shield against an area', () => {
+  /**
+   * SRD Sanctuary, in so many words: "This spell doesn't protect the warded
+   * creature from areas of effect."
+   *
+   * The sentence is a real fence rather than a free one, because a casting's
+   * targets are settled the same way whichever branch filled them: an area
+   * spell resolves its own catch into the very list a Fire Bolt names one
+   * creature in. A ward read off that list without asking which branch wrote
+   * it turns a Fireball away from everybody standing in it.
+   */
+  const wardedOgre = (log: readonly GameEvent[] = SETUP): readonly GameEvent[] =>
+    cast(log, CLERIC, { spellId: 'sanctuary', targets: [OGRE], slotLevel: 1 });
+
+  const WITH_FIREBALL: readonly GameEvent[] = SETUP.map((e) =>
+    e.type === 'spellcasting-declared' && e.id === WIZARD
+      ? {
+          ...e,
+          spellcasting: declaredCasting({
+            ability: 'int',
+            cantrips: ['fire-bolt'],
+            prepared: ['mirror-image', 'fire-shield', 'fireball'],
+          }),
+        }
+      : e,
+  );
+
+  it('catches a warded creature in a Fireball without asking it to save', () => {
+    const log = wardedOgre(WITH_FIREBALL);
+    const before = hpOf(fold('seed', log), OGRE);
+    const at = fold('seed', log).scene!.positions[OGRE]!;
+    const out = unwrap(
+      resolveSpell(
+        fold('seed', log),
+        WIZARD,
+        { spellId: 'fireball', targets: [], at, slotLevel: 3 },
+        supply(scripted([1])),
+      ),
+      'fireball',
+    );
+
+    expect(out.warded).toBeUndefined();
+    expect(out.castingId).not.toBeNull();
+    expect(hpOf(fold('seed', [...log, ...out.events]), OGRE)).toBeLessThan(before);
+  });
+
+  /** And the ward still answers a damaging spell that names the creature. */
+  it('still turns away a spell that names the warded creature', () => {
+    const log = [
+      ...wardedOgre(WITH_FIREBALL),
+      {
+        type: 'combat-started',
+        combatants: [
+          { id: WIZARD, initiative: 20, speed: 30 },
+          { id: OGRE, initiative: 10, speed: 30 },
+        ],
+      } as GameEvent,
+    ];
+    const out = unwrap(
+      resolveSpell(
+        fold('seed', log),
+        WIZARD,
+        { spellId: 'fire-bolt', targets: [OGRE] },
+        supply(scripted([1])),
+      ),
+      'bolt',
+    );
+    expect(out.warded).toBe(true);
+    expect(out.castingId).toBeNull();
+  });
+});
+
+// — the three claims this design rests on ————————————————————————————————————
+
+describe('a passive defence changes nothing for anybody who has none', () => {
+  /**
+   * **A door is a creature on the roster**, which is the measurement track 9's
+   * `objects.ts` rests on: an object arrives through `creature-added` with a
+   * sheet, a hit point maximum and `diesAtZero`, and `resolveAttack` needed no
+   * change to break one. So every consult added here runs over a door too, and
+   * the question is whether it can *misfire* on one — a door carries no
+   * casting, so its `passiveDefenses` is the empty list `creature-added`
+   * starts every creature with, and both consults return before they read
+   * anything.
+   */
+  const DOOR = asCharacterId('door');
+  const withDoor: readonly GameEvent[] = [
+    ...SETUP,
+    {
+      type: 'creature-added',
+      id: DOOR,
+      name: 'an oak door',
+      sheet: sheet({ baseSpeed: 0 }),
+      maxHp: 27,
+      diesAtZero: true,
+      side: 'the-hall',
+    },
+    {
+      type: 'creature-placed',
+      id: DOOR,
+      placement: { from: { creature: OGRE }, feet: 5, bearing: 270 },
+    },
+  ];
+
+  it('breaks a door exactly as it did before any of this existed', () => {
+    const before = hpOf(fold('seed', withDoor), DOOR);
+    const out = hit(withDoor, OGRE, { target: DOOR, weapon: 'greatclub' }, scripted([20]));
+
+    expect(out.deflected).toBeUndefined();
+    expect(out.warded).toBeUndefined();
+    expect(hpOf(fold('seed', [...withDoor, ...out.events]), DOOR)).toBeLessThan(before);
+    expect(
+      out.events.some((e) => e.type === 'passive-defense-granted' || e.type === 'decoy-destroyed'),
+    ).toBe(false);
+  });
+
+  /**
+   * And a door standing next to a Fire Shield is not burned by hitting the
+   * wizard's neighbour: the defences are read off the creature the blow was
+   * aimed at, never off the room.
+   */
+  it('leaves a swing at a door alone while a shield burns beside it', () => {
+    const log = shielded(withDoor);
+    const out = hit(log, OGRE, { target: DOOR, weapon: 'greatclub' }, scripted([20]));
+    expect(hpOf(fold('seed', [...log, ...out.events]), OGRE)).toBe(hpOf(fold('seed', log), OGRE));
+  });
+
+  /**
+   * **No window is opened, closed or reordered.** The owner's ruling of
+   * 2026-09-20 — the defender answers first — is pinned by four tests against
+   * Uncanny Dodge, and a passive defence must not touch it. What it decides is
+   * whether the hit that *would* open a window happened at all.
+   *
+   * So an ordinary hold is built on an ordinary swing at a creature carrying a
+   * passive defence that did not answer, and the swing that a duplicate took
+   * builds none — which is the pair of assertions that tells "the window moved"
+   * apart from "there was no hit".
+   */
+  it('still builds the hold on a blow no duplicate answered', () => {
+    const log = mirrored();
+    const out = hit(log, OGRE, { ...CLUB, hold: true }, scripted([20, 1, 1, 1]));
+
+    expect(out.deflected).toBeUndefined();
+    expect(out.events.some((e) => e.type === 'attack-landed')).toBe(true);
+    expect(fold('seed', [...log, ...out.events]).pendingAttack).not.toBeNull();
+  });
+
+  /** And a creature with no passive defence at all is untouched, hold and all. */
+  it('builds the ordinary hold for a creature carrying nothing', () => {
+    const out = hit(SETUP, OGRE, { ...CLUB, hold: true }, scripted([20]));
+    expect(out.events.some((e) => e.type === 'attack-landed')).toBe(true);
+    expect(fold('seed', [...SETUP, ...out.events]).pendingAttack).not.toBeNull();
   });
 });

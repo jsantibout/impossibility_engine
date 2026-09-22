@@ -178,6 +178,8 @@ import {
   resolveSaveDamageEffect,
   resolveSaveEffect,
 } from './spell-effect-rolls.js';
+import { aimsHarmAtATarget } from '../spell-definitions.js';
+import { wardAgainst } from './passive-defenses.js';
 import { resolveTeleportEffect } from './spell-effect-teleport.js';
 import { resolveSummonEffect } from './spell-effect-summon.js';
 import { bindSummonsToCasting } from './creatures.js';
@@ -972,7 +974,85 @@ export function castOrRelease(
       );
     }
 
-    return resolveOnTargets(state, casterId, caster, definition, request, {
+    // — the wards the targets are standing behind ————————————————————————
+    //
+    // SRD Sanctuary: "any creature who **targets** the warded creature with an
+    // attack roll **or a damaging spell** must succeed on a Wisdom saving
+    // throw or either choose a new target or lose the attack or spell."
+    //
+    // **Last of all the pre-flight**, after the `needs-context` gate above it,
+    // because this is the only check here that throws a die: a request for a
+    // missing fact made *after* the save had been rolled would lose the roll,
+    // and a refusal carries no events to record that the generator moved.
+    // Everything before this line is pure.
+    //
+    // **Before the slot, the action and the first die of the spell itself**,
+    // which is what keeps both of the book's branches reachable: a caster
+    // turned away has spent nothing and may aim the same spell at a creature
+    // nobody warded, or take the other branch by not casting it at all. The
+    // weapon path reads the identical rule one line before its own economy —
+    // see `wardAgainst`, which is shared rather than copied.
+    //
+    // Only where the casting **aims harm at a creature it named**, which is two
+    // narrowings and both are the book's:
+    //
+    // - a Cure Wounds on the warded creature is not what a ward is for, so the
+    //   effects have to reach a creature with an attack roll or with damage;
+    // - **"This spell doesn't protect the warded creature from areas of
+    //   effect"**, so a casting with an area of its own is passed over
+    //   entirely.
+    //
+    // The second is a real fence rather than a free one, and it is the reason
+    // this asks `definition.area` rather than reading the list: the two
+    // branches above fill the *same* `targets`, so an area's catch and a Fire
+    // Bolt's named creature are indistinguishable by the time they get here. A
+    // ward read off the list alone turns a Fireball away from everybody
+    // standing in it — which is the sentence the SRD wrote to forbid.
+    const wardEvents: GameEvent[] = [];
+    if (definition.area === undefined && aimsHarmAtATarget(definition.effects)) {
+      const issuedBeforeWards = supply.issuer.count;
+      let warded = state;
+      for (const target of targets) {
+        const ward = wardAgainst(warded, casterId, target, supply);
+        if (!ward.ok) return ward;
+        wardEvents.push(...ward.value.events);
+        warded = ward.value.events.reduce(applyEvent, warded);
+        unverified.push(...ward.value.unverified);
+        if (!ward.value.barred) continue;
+
+        // The dice this threw, recorded before anything returns: the generator
+        // has moved whether the ward let the casting through or not, and only
+        // this event says so.
+        wardEvents.push({
+          type: 'rolls-issued',
+          count: supply.issuer.count - issuedBeforeWards,
+          rng: supply.rng.snapshot(),
+        });
+        return ok({
+          events: wardEvents,
+          // Nothing was cast, which is the shape SRD Wind Fan's failed use
+          // already has: the engine could do what it was asked, and what it
+          // was asked came to nothing. See {@link SpellResolution.castingId}.
+          castingId: null,
+          outcomes: [],
+          warded: true,
+          unverified,
+        });
+      }
+      if (supply.issuer.count > issuedBeforeWards) {
+        wardEvents.push({
+          type: 'rolls-issued',
+          count: supply.issuer.count - issuedBeforeWards,
+          rng: supply.rng.snapshot(),
+        });
+      }
+    }
+
+    // The saves the wards took are in front of the casting's own batch. The
+    // state handed on is the one before them on purpose: a `roll-recorded`
+    // writes nothing, and the ledger slot beside it is read by no rule the
+    // resolution below asks.
+    const resolved = resolveOnTargets(state, casterId, caster, definition, request, {
       castLevel,
       route,
       targets,
@@ -991,6 +1071,8 @@ export function castOrRelease(
       altered: altered.value,
       ...(answering !== null && answering.ok ? { answers: answering.value.castingId } : {}),
     });
+    if (!resolved.ok || wardEvents.length === 0) return resolved;
+    return ok({ ...resolved.value, events: [...wardEvents, ...resolved.value.events] });
   });
 }
 

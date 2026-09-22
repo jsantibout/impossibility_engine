@@ -4512,6 +4512,28 @@ export function attackRollsFor(
  * saying every spell in the book throws an attack. A caller wanting a floor
  * says so where it wants it.
  */
+/**
+ * Does this casting **aim an attack roll or damage at a creature it names**?
+ *
+ * SRD Sanctuary wards against "an attack roll **or a damaging spell**", and
+ * the two halves of that sentence are the two ways a casting reaches a
+ * creature to hurt it: a roll to hit (`attack`) and a save that deals damage
+ * on a failure (`save-damage`). A ward that read "any spell at all" would turn
+ * away a Cure Wounds aimed at the creature it protects, which is the opposite
+ * of what it is for.
+ *
+ * **`attack-damage` is not here** and its absence is the rule rather than an
+ * omission: SRD Divine Smite rides an attack roll somebody has already made,
+ * so the ward answered that swing at the swing and has nothing left to answer.
+ *
+ * **Nor is an area.** This reads the targets a casting *names*; a Fireball
+ * catches whoever is standing in it, and "This spell doesn't protect the
+ * warded creature from areas of effect" is the book saying so.
+ */
+export function aimsHarmAtATarget(effects: readonly SpellEffect[]): boolean {
+  return effects.some((effect) => effect.kind === 'attack' || effect.kind === 'save-damage');
+}
+
 export function attackRollsIn(
   effects: readonly SpellEffect[],
   spellLevel: number,

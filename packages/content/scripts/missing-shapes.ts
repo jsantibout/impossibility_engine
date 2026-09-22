@@ -1098,11 +1098,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   ],
   sanctuary: [
     {
-      clause: 'or a damaging spell',
-      why: 'a-spell-that-answers-a-later-attack',
-      note: 'the ward answers an attack roll — a weapon swing or a spell attack — and not yet a damaging spell that rolls nothing to hit. The moment is different and so is the price: an attack meets the ward before the Attack action is spent, so the attacker keeps both of the book’s branches, where a casting has already paid its slot by the time an effect resolves. What a failed ward should cost a casting is a question nobody has ruled on, and guessing it would either refund a slot the rules spend or burn one the rules may not.',
-    },
-    {
       clause: 'choose a new target',
       why: 'table',
       note: 'the branch is the **attacker’s** and the engine aims nothing on a caller’s behalf, which is `eligibleTargets`’ own rule. So the book’s two branches are two commands rather than one: a failed ward loses the swing and spends nothing, and redirecting is a second swing at a creature nobody warded. Declining to make one is the other branch, which is what losing the attack looks like at a table.',

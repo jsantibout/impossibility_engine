@@ -181,6 +181,20 @@ export interface SpellResolution {
    */
   readonly castingId: string | null;
   readonly outcomes: readonly SpellTargetOutcome[];
+  /**
+   * A ward turned this casting away before anything was spent.
+   *
+   * SRD Sanctuary, on the casting's side of "an attack roll or a damaging
+   * spell". `castingId` is null and `events` holds the save the caster failed
+   * — nothing else happened, because the ward is asked with the targets
+   * settled and before the slot, the action and the first die.
+   *
+   * Absent rather than false, so a reader asks one question and a log written
+   * before wards existed reads back unchanged. It is not a fourth outcome
+   * beside `ok`, `err` and `needs-context`, for the reason `castingId`'s own
+   * note gives: the engine could do what it was asked, and the dice said no.
+   */
+  readonly warded?: true;
   /** Checks the rules call for that the engine still cannot make. */
   readonly unverified: readonly string[];
 }

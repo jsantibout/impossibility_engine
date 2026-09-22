@@ -16,7 +16,7 @@ import { rollSavingThrow } from '../checks.js';
 import { applyEvent, type CreatureState, type GameEvent, type GameState } from '../events.js';
 import { apartFromSource } from '../positioning.js';
 import { consumedRollModifiers } from '../roll-modifiers.js';
-import { answerTheBlow, wardAgainst } from './passive-defenses.js';
+import { answerTheBlow } from './passive-defenses.js';
 import {
   attackRollsFor,
   conditionRiderOf,
@@ -192,31 +192,14 @@ function resolveOneAttackRoll(
   // narrows a mode by "attack rolls using Strength" and a Fire Bolt is not one,
   // so the answer is the caster's spellcasting ability and `null` where an item
   // printed the bonus instead of a caster deriving it.
-  // **A spell attack is an attack roll here too.** SRD Sanctuary wards against
-  // "an attack roll" and says nothing about what it is made with, so a Fire
-  // Bolt is turned away exactly as a club is. Asked before the roll, which is
-  // where "targets" puts it.
   //
-  // **What it cannot do on this path is give the casting back.** A weapon
-  // swing meets its ward before the Attack action is spent, so the attacker
-  // keeps both of the book's branches; a casting has already paid its slot by
-  // the time an effect resolves, and what a failure should cost *there* is a
-  // question nobody has ruled on. So the roll is lost and the casting is not,
-  // and the clause says which — a ward that silently did nothing here would
-  // be the worse of the two wrong answers.
-  const ward = wardAgainst(current, casterId, target, supply);
-  if (!ward.ok) return ward;
-  events.push(...ward.value.events);
-  current = ward.value.events.reduce(applyEvent, current);
-  unverified.push(...ward.value.unverified);
-  if (ward.value.barred) {
-    unverified.push(
-      `${casterId} failed to get past the ward on ${target}, so this attack roll of ${label} was lost; the slot it came out of was spent before the ward could be asked, and what a ward costs a casting is not ruled on`,
-    );
-    outcomes.push({ target, affected: false });
-    return ok(current);
-  }
-
+  // **A ward is deliberately not asked here**, and where it *is* asked is the
+  // point: SRD Sanctuary turns a creature away the moment it **targets** the
+  // warded one, and for a casting that moment is the declaration —
+  // `resolveSpell`, with the targets settled and before the slot, the action
+  // and the first die. Asking again per roll would roll a second save for one
+  // targeting, and outside combat, where there is no turn to hold an attacker
+  // to one save, it would roll one for every beam of a Scorching Ray.
   const defending = defendingModes(current, casterId, target, ability);
   unverified.push(...defending.unverified);
 

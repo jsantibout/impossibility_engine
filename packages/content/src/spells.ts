@@ -8367,6 +8367,13 @@ export const ICE_KNIFE: SpellDefinition = {
  * the swing is lost, **nothing is spent**, and redirecting is a second
  * command against a creature nobody warded.
  *
+ * **Both halves of "an attack roll or a damaging spell" are answered, and at
+ * the moment each of them targets.** A weapon swing meets the ward inside
+ * `resolveAttack`, before the Attack action; a casting meets it inside
+ * `resolveSpell`, with the targets settled and before the slot, the action
+ * and the first die. So the price is the same on both paths — nothing —
+ * and what the caster does next is theirs.
+ *
  * The one place this is narrower than the book is deliberate and the owner
  * accepted it: an attacker gets **one save per ward per turn** rather than one
  * per targeting. Without that a failure costs nothing and can be re-declared
@@ -8401,7 +8408,6 @@ export const SANCTUARY: SpellDefinition = {
     { on: 'target-deals-damage', ends: 'casting' },
   ],
   unmodelled: [
-    'the ward answers an attack roll and not yet "or a damaging spell": a spell that targets the warded creature and damages it without rolling to hit is aimed at declaration, and what a failed save would cost there is the slot rather than the attack — a second question nobody has ruled on',
     'the branch the save buys is offered as two commands rather than one: "choose a new target" is a second swing at a creature nobody warded, because the engine aims nothing on a caller’s behalf, and "lose the attack" is declining to make one',
     'an attacker gets one save per ward per turn rather than one each time they target, which is a limit the book does not print — owner’s ruling, 2026-09-22, in exchange for a failure that costs nothing not being re-rollable until it passes',
     '"This spell doesn’t protect the warded creature from areas of effect" names a thing the ward never reaches anyway: an area is not a creature targeting another, and nothing consults a ward when one settles',
