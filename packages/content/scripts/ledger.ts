@@ -69,7 +69,9 @@ import {
   PARTIAL_SPELLS,
   RIDER_SHAPE,
   TRACKED_IDS,
+  UNEXECUTED_TRAIT_SHAPE,
   hasUnappliedRider,
+  hasUnexecutedTrait,
   isReadLine,
   spellsInReach,
   statBlockLines,
@@ -169,7 +171,12 @@ export interface LedgerMonsters {
   readonly handedOver: number;
   /** Read attack lines whose printed rider nothing applies. */
   readonly riders: number;
-  /** The population: handed-over lines plus unapplied riders. */
+  /** Read trait lines whose mechanic no engine reader asks for. */
+  readonly inertTraits: number;
+  /**
+   * The population: handed-over lines, plus the two families the parser read
+   * and the engine does not spend.
+   */
   readonly items: number;
   /** Blocks carrying none of them. */
   readonly clean: number;
@@ -430,20 +437,27 @@ const sectionsOf = (
 ];
 
 /**
- * Whether a shape accounts for a line.
+ * The two shapes that run over a line the parser **read**.
  *
- * The rider shape is the only one that runs over a line the parser **read**:
- * the other five ask about a sentence nothing got structure out of, and a
+ * Everything else asks about a sentence nothing got structure out of, and a
  * recharge on a line whose attack is parsed is an economy the engine already
  * spends rather than a debt. That gate is the difference between the whole
  * bestiary's table in `COVERAGE.md`, which counts a shape wherever it is
  * printed, and this one, which counts what is *unapplied*.
+ *
+ * **Read is not paid**, which is the whole reason there are two of them: a
+ * rider parsed and unapplied and a trait kind nobody asks for are both lines
+ * the parser understood and the engine does nothing with.
  */
+const OVER_READ_LINES: ReadonlySet<string> = new Set([RIDER_SHAPE, UNEXECUTED_TRAIT_SHAPE]);
+
+/** Whether a shape accounts for a line. */
 const accountsFor = (
   shape: string,
   matches: (line: StatBlockLine) => boolean,
   line: StatBlockLine,
-): boolean => (shape === RIDER_SHAPE ? matches(line) : !isReadLine(line) && matches(line));
+): boolean =>
+  OVER_READ_LINES.has(shape) ? matches(line) : !isReadLine(line) && matches(line);
 
 const auditMonsters = (maxCr: number): LedgerMonsters => {
   const low = SRD_CONTENT.monsters.filter((monster) => monster.cr <= maxCr);
@@ -451,13 +465,21 @@ const auditMonsters = (maxCr: number): LedgerMonsters => {
   let printed = 0;
   let read = 0;
   let riders = 0;
+  let inertTraits = 0;
   let clean = 0;
+  // A line is settled when the parser read it *and* the engine spends what it
+  // read. The two `read but not spent` families are counted beside the
+  // handed-over lines rather than inside `read`, so learning to recognise a
+  // sentence can never retire a debt on its own.
+  const unpaid = (line: StatBlockLine): boolean =>
+    !isReadLine(line) || hasUnappliedRider(line) || hasUnexecutedTrait(line);
   for (const monster of low) {
     const lines = statBlockLines(monster);
     printed += lines.length;
     read += lines.filter(isReadLine).length;
     riders += lines.filter(hasUnappliedRider).length;
-    if (lines.every((line) => isReadLine(line) && !hasUnappliedRider(line))) clean += 1;
+    inertTraits += lines.filter(hasUnexecutedTrait).length;
+    if (!lines.some(unpaid)) clean += 1;
   }
 
   const shapes: LedgerMonsterShape[] = [];
@@ -513,7 +535,8 @@ const auditMonsters = (maxCr: number): LedgerMonsters => {
     read,
     handedOver,
     riders,
-    items: handedOver + riders,
+    inertTraits,
+    items: handedOver + riders + inertTraits,
     clean,
     unfinished: low.length - clean,
     shapes,
@@ -853,7 +876,7 @@ export function renderLedger(ledger: Ledger = auditLedger()): string {
     '',
     '## 5. CR ≤ 5 stat-block lines handed over or unapplied',
     '',
-    `${monsters.blocks} of the ${SRD_CONTENT.monsters.length} carried stat blocks are CR ≤ 5. They print ${monsters.printed} lines, of which the parser reads ${monsters.read} and hands over ${monsters.handedOver}. A further ${monsters.riders} of the read attack lines carry a printed rider nothing applies, so the population is ${monsters.items} items over ${monsters.blocks} blocks — ${monsters.clean} of which already carry none of them.`,
+    `${monsters.blocks} of the ${SRD_CONTENT.monsters.length} carried stat blocks are CR ≤ 5. They print ${monsters.printed} lines, of which the parser reads ${monsters.read} and hands over ${monsters.handedOver}. Reading is not spending: a further ${monsters.riders} of the read attack lines carry a printed rider nothing applies, and ${monsters.inertTraits} read trait lines state a mechanic no engine reader asks for. So the population is ${monsters.items} items over ${monsters.blocks} blocks — ${monsters.clean} of which already carry none of them.`,
     '',
     '**A block is the unit that matters and a line is the unit that is counted.**',
     'A block with four unapplied lines is one fight that does not run, not four,',

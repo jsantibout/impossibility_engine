@@ -5,6 +5,7 @@ import {
   type CharacterId,
   contextRequestsOf,
   isErr,
+  ok,
   expect as unwrap,
   type Result,
 } from '@ie/shared';
@@ -225,7 +226,18 @@ describe('the block carries the save onto the sheet', () => {
   });
 
   it('leaves a line whose sentence is not the template without one', () => {
-    // SRD Wolf prints a Bite and a Multiattack and forces no save at all.
+    // SRD Harpy's Luring Song *does* force a save, and says four more things
+    // about it — a Concentration, a repeat, a movement, a 24-hour immunity.
+    // It is under Actions, it reached `unreadActions`, and it carries none of
+    // this: a line asserted on the block that prints no unread Action at all
+    // would pass however wide the reader became.
+    const harpy = adaptMonster(statBlock('harpy'), id('harpy'));
+    const song = statedActionOf(harpy.sheet, 'Luring Song');
+    expect(song?.text).toContain('Saving Throw:_');
+    expect(song?.save).toBeUndefined();
+
+    // And SRD Wolf, which forces no save at all, reaches the sheet with no
+    // unread Actions to carry one on.
     const plain = adaptMonster(statBlock('wolf'), WOLF);
     expect(plain.sheet.stated?.unreadActions).toBeUndefined();
   });
@@ -243,7 +255,7 @@ describe('a printed save, forced', () => {
       ),
       'the wolf breathes',
     );
-    for (const event of out.events) (table as unknown as { log: GameEvent[] }).log.push(event);
+    table.did('the wolf breathes', () => ok(out));
 
     // The Action is gone, and the log says which line took it.
     expect(table.state.combat?.budgets[WINTER]?.action).toBe(false);
@@ -333,6 +345,45 @@ describe('a printed save, forced', () => {
         event.type === 'roll-recorded' ? event.who : null,
       ),
     ).toEqual([BREN, NYX]);
+  });
+
+  /**
+   * A heading in a stat block says what the line under it **costs**, and the
+   * book writes the save template under both headings: the Gorgon's Trample
+   * is a Bonus Action and the Winter Wolf's breath is an Action. So the same
+   * door takes both and spends what the heading names — which is the reason
+   * the parser reads every detector over every section in the first place.
+   */
+  it('spends a Bonus Action for a line the block prints under that heading', () => {
+    const gorgon = id('gorgon');
+    const table = inTheWoods('gorgon', gorgon);
+    const before = table.state.combat?.budgets[gorgon]?.action;
+    expect(before).toBe(true);
+
+    const out = unwrap(
+      forcePrintedSave(
+        table.state,
+        gorgon,
+        { line: 'Trample', targets: [BREN] },
+        supply('trample'),
+      ),
+      'the gorgon tramples',
+    );
+    table.did('the gorgon tramples', () => ok(out));
+
+    // The Bonus Action went and the Action did not.
+    expect(table.state.combat?.budgets[gorgon]?.bonusAction).toBe(false);
+    expect(table.state.combat?.budgets[gorgon]?.action).toBe(true);
+    expect(out.events.some((event) => event.type === 'bonus-action-spent')).toBe(true);
+    expect(out.events.some((event) => event.type === 'action-spent')).toBe(false);
+    // And the event is the one that section's own door writes, so a gated
+    // Multiattack reads one answer about what was taken this turn.
+    expect(out.events.some((event) => event.type === 'stated-bonus-action-taken')).toBe(true);
+
+    // The line's printed addend is part of the damage: "16 (2d10 + 5)".
+    const faces = dieFaces(out.events, BREN);
+    expect(faces?.type).toBe('bludgeoning');
+    expect(out.outcomes).toHaveLength(1);
   });
 
   it('hands back the clause it did not read, and claims nothing about it', () => {

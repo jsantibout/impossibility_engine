@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { SPELL_DEFINITIONS, SRD_CONTENT, SRD_MAGIC_ITEMS } from '@ie/content';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { SPELL_INDEX, spellById } from '@ie/srd';
+import { MonsterTraitSchema, SPELL_INDEX, spellById } from '@ie/srd';
 import { adaptMonster } from '@ie/engine';
 import { asCharacterId } from '@ie/shared';
 import {
@@ -17,7 +17,9 @@ import {
   isExecuted,
   isExecutedFeature,
   isReadLine,
+  hasUnexecutedTrait,
   statBlockLines,
+  TRAIT_KINDS_WITH_A_READER,
 } from '../scripts/coverage-data.js';
 import { entryFor, isCompleteItem, magicItemEntries } from '../scripts/magic-items.js';
 import { bestiaryRow, renderReport } from '../scripts/coverage.js';
@@ -486,6 +488,30 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
       'text',
       'trait',
     ]);
+  });
+
+  /**
+   * **Reading a sentence is not spending what it says**, and the two columns
+   * must not be allowed to collapse into one.
+   *
+   * A trait kind reaches `CharacterSheet.stated.traits` the moment the parser
+   * matches its sentence; whether anything *asks* for it is a call site, and
+   * `TRAIT_KINDS_WITH_A_READER` is where that is written down. The default is
+   * the conservative one — a kind nobody has listed is a debt — so the only
+   * way this list can lie is by naming a kind the schema no longer admits,
+   * which is what this holds.
+   */
+  it('names only trait kinds the schema admits, as the kinds with a reader', () => {
+    const kinds: readonly string[] = MonsterTraitSchema.options.map(
+      (option) => option.shape.kind.value,
+    );
+    expect(kinds.length).toBeGreaterThan(1);
+    expect(TRAIT_KINDS_WITH_A_READER.filter((kind) => !kinds.includes(kind))).toEqual([]);
+    // And the predicate is not vacuous in either direction.
+    expect(hasUnexecutedTrait({ name: 'x', text: 'y' })).toBe(false);
+    expect(hasUnexecutedTrait({ name: 'x', text: 'y', trait: { kind: kinds[0] } })).toBe(
+      !TRAIT_KINDS_WITH_A_READER.includes(kinds[0]!),
+    );
   });
 
   /**

@@ -905,6 +905,10 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
     // And twelve of them are printed on a per-day limit, which is more than
     // any other section a caller can spend from.
     ...(line.perDay === undefined ? {} : { perDay: line.perDay }),
+    // And the save, where the sentence is the book's other template — three
+    // Trample lines write it under this heading, and a heading says what a
+    // line costs rather than what it does.
+    ...(line.save === undefined ? {} : { save: line.save }),
   }));
 
   const stated: StatedValues = {

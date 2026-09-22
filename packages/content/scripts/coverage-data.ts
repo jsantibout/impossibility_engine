@@ -944,11 +944,48 @@ export const hasUnappliedRider = (line: StatBlockLine): boolean => {
 };
 
 /**
- * The one shape that runs over a line the parser **read**.
+ * The trait kinds something in the engine actually spends.
  *
- * Named, because the ledger gates the other five on a line nothing was read
- * from and needs to say which one is the exception rather than match a
- * string.
+ * **A list rather than a derivation, because there is nothing to derive it
+ * from.** `hasPrintedTrait` answers "does this block state that kind" and not
+ * "does anybody ask" — the asking is a call site — so the honest form is a
+ * name written down the day a reader lands, beside the name of what reads it.
+ * It grows and the row below shrinks; a kind that is never on it is a kind
+ * the ledger goes on naming as a debt.
+ *
+ * Today: SRD Pack Tactics, read by `resolveAttack`'s roll-mode gathering.
+ */
+export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
+  'advantage-when-ally-is-within-5-feet-of-the-target',
+];
+
+/**
+ * A trait line the parser read a mechanic out of that nothing spends.
+ *
+ * **The same claim {@link hasUnappliedRider} makes, about the other half of
+ * the sheet.** A read line is not a paid debt: a rider parsed and unapplied
+ * keeps its block out of *clean*, and a trait kind that reaches
+ * `CharacterSheet.stated.traits` with no reader asking for it is in exactly
+ * that position — a Spider Climb that costs no check still costs a check,
+ * an Amphibious that says the creature breathes water is read by nobody.
+ * Without this the parser could retire a whole column of the ledger by
+ * learning to recognise sentences, which is the one thing a generated report
+ * exists to make impossible.
+ */
+export const hasUnexecutedTrait = (line: StatBlockLine): boolean => {
+  if (line.trait === undefined) return false;
+  const { kind } = line.trait as { readonly kind: string };
+  return !TRAIT_KINDS_WITH_A_READER.includes(kind);
+};
+
+/** What that row is called, so the ledger names it rather than matching a string. */
+export const UNEXECUTED_TRAIT_SHAPE = 'A trait shape nothing spends';
+
+/**
+ * The shapes that run over a line the parser **read**.
+ *
+ * Named, because the ledger gates the others on a line nothing was read from
+ * and needs to say which are the exceptions rather than match a string.
  */
 export const RIDER_SHAPE = 'An effect a hit buys';
 
@@ -981,6 +1018,7 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
   ],
   ['A save a line forces', (line) => line.attack === undefined && /Saving Throw:_/.test(line.text)],
   [RIDER_SHAPE, hasUnappliedRider],
+  [UNEXECUTED_TRAIT_SHAPE, hasUnexecutedTrait],
   ['A recharge', (line) => /\(Recharge/.test(line.name)],
   ['A use the block limits per day', (line) => /\(\d+\/Day/.test(line.name)],
   ['A creature that casts', (line) => /^Spellcasting/.test(line.name)],

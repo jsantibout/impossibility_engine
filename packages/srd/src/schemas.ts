@@ -337,10 +337,13 @@ export type MonsterMultiattack = z.infer<typeof MonsterMultiattackSchema>;
  *
  * `_Dexterity Saving Throw:_ DC 12, each creature in a 15-foot Cone.
  * _Failure:_ 17 (5d6) Fire damage. _Success:_ Half damage.` is as regular a
- * sentence as `_Melee Attack Roll:_` is, printed on seventy-odd lines below
- * CR 5 alone — every dragon wyrmling's breath, the Hell Hound's, the Winter
- * Wolf's — and it carries the two numbers the Engine must supply itself
- * rather than ask a caller for: the DC and the dice.
+ * sentence as `_Melee Attack Roll:_` is — every dragon wyrmling's breath, the
+ * Hell Hound's, the Winter Wolf's — and it carries the two numbers the Engine
+ * must supply itself rather than ask a caller for: the DC and the dice.
+ *
+ * How many lines that is, is `COVERAGE.md`'s to say, and the gap between the
+ * lines that force *a* save and the lines that write *this sentence* is wide:
+ * most of the book's saves say something this shape cannot hold.
  *
  * **Who it catches is not read.** "Each creature in a 15-foot Cone" needs an
  * origin and a facing nobody has declared, and a Cone measured out of a

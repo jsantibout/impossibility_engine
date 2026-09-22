@@ -38,6 +38,7 @@ import {
   type ActionSlot,
 } from '../combat.js';
 import { type Bonus, type ModeSource } from '../bonuses.js';
+import { type StatedAction, type StatedBonusAction } from '../character.js';
 import { rollAbilityCheck, rollSavingThrow, type D20TestResult } from '../checks.js';
 import { isDown } from '../vitals.js';
 import {
@@ -431,10 +432,19 @@ export interface StatedActionOutcome {
    * of.
    *
    * **Always, and that is the whole report.** Two hundred-odd of these lines
-   * are printed across a third of the SRD's bestiary and the engine executes
-   * none of them: they force a saving throw, cast a spell, shape-shift,
-   * swallow, teleport, or are prose. A spend that said only "the Action is
-   * gone" would leave a caller believing the creature had done something.
+   * are printed across a third of the SRD's bestiary and *this command*
+   * executes no part of any of them: they cast a spell, shape-shift, swallow,
+   * teleport, force a saving throw, or are prose. A spend that said only "the
+   * Action is gone" would leave a caller believing the creature had done
+   * something.
+   *
+   * **The last of those is no longer only handed over**, which is the one
+   * qualification this paragraph owes: a line whose sentence is the book's
+   * save template carries a DC and dice the engine can roll, and
+   * {@link forcePrintedSave} is the door that rolls them. This command is
+   * still the door that does not, for every line including that one — a DM
+   * who would rather adjudicate the breath has lost nothing — so what comes
+   * back here is still the whole sentence and still a claim about nothing.
    */
   readonly unverified: readonly string[];
   readonly duplicate: boolean;
@@ -640,16 +650,24 @@ export interface PrintedSaveOutcome {
  * come out of the block and out of `rolls.ts` respectively.
  *
  * **It is the second door on one line, not a replacement for the first.**
- * {@link takeStatedAction} spends the Action and hands the sentence back, for
- * every line including this one, and it still does — a DM who would rather
- * adjudicate the breath themselves has lost nothing. This door is for the
- * caller that wants the engine to roll, and it refuses `line_states_no_save`
- * for a line whose sentence says something the reader could not structure.
+ * {@link takeStatedAction} and {@link takeStatedBonusAction} spend the slot
+ * and hand the sentence back, for every line including this one, and they
+ * still do — a DM who would rather adjudicate the breath themselves has lost
+ * nothing. This door is for the caller that wants the engine to roll, and it
+ * refuses `line_states_no_save` for a line whose sentence says something the
+ * reader could not structure.
  *
- * **The economy is the one {@link takeStatedAction} already spends**, in the
- * same order and for the same reason: the recharge and the day's uses are
- * checked *before* the Action, so a refusal leaves no footprint, and the same
- * `stated-action-taken` goes into the log, because the same line was taken.
+ * **The economy is the one the hand-over door already spends**, in the same
+ * order and for the same reason: the recharge and the day's uses are checked
+ * *before* the slot, so a refusal leaves no footprint, and the same event goes
+ * into the log, because the same line was taken.
+ *
+ * **Which slot is the heading's answer, not this command's.** The book writes
+ * the template under **Actions** and under **Bonus Actions** — the Gorgon's
+ * Trample, the Elephant's, the Mammoth's — and a heading in a stat block says
+ * what the line under it costs. So both sections are searched, Actions first,
+ * and the spend and the event follow the section the line was found in:
+ * `takeStatedAction`'s pair for one, `takeStatedBonusAction`'s for the other.
  *
  * **No Reaction window opens**, which is the stated limit every spell's
  * damage already records: `dealSpellDamage` is the path, Uncanny Dodge
@@ -686,11 +704,19 @@ export function forcePrintedSave(
 
       // Read off the sheet, where `creature-added` pinned the block's own
       // lines; nothing here opens a catalogue and nothing branches on a name.
-      const line = statedActionOf(creature.sheet, command.line);
+      //
+      // **Two sections, because the book writes the template under both.**
+      // The Gorgon's Trample is a Bonus Action and the Winter Wolf's breath is
+      // an Action, and what the heading changes is what the line *costs* —
+      // which is exactly what is read off it below and nothing else. Actions
+      // first, and no SRD block prints one heading under both.
+      const action = statedActionOf(creature.sheet, command.line);
+      const bonus = action === null ? statedBonusActionOf(creature.sheet, command.line) : null;
+      const line: StatedAction | StatedBonusAction | null = action ?? bonus;
       if (line === null) {
         return err(
           'no_such_line',
-          `no line called ${command.line} is printed under this creature's Actions with nothing the engine could read beneath it; a heading the parser did read, and a heading printed under another section, are each taken by the command that owns them`,
+          `no line called ${command.line} is printed under this creature's Actions or Bonus Actions with nothing the engine could read beneath it; a heading the parser did read as an attack, and a heading printed under another section, are each taken by the command that owns them`,
         );
       }
 
@@ -747,13 +773,22 @@ export function forcePrintedSave(
         );
       }
 
-      const spent = spendAction(state.combat, id, creature.conditions, {
-        rules: actionRulesOn(state, id),
-      });
+      // The slot the **heading** names: one Action on a turn, or the one
+      // Bonus Action, each refused by the primitive that owns its rule.
+      const spent =
+        action !== null
+          ? spendAction(state.combat, id, creature.conditions, {
+              rules: actionRulesOn(state, id),
+            })
+          : spendBonusAction(state.combat, id, creature.conditions, {
+              rules: actionRulesOn(state, id),
+            });
       if (!spent.ok) return spent;
 
       const events: GameEvent[] = [
-        { type: 'action-spent', id },
+        action !== null
+          ? { type: 'action-spent', id }
+          : { type: 'bonus-action-spent' as const, id },
         // SRD *Monsters*: "a monster can use the stat block part once."
         ...(recharge === null
           ? []
@@ -769,13 +804,24 @@ export function forcePrintedSave(
                 tally: 'dawn' as const,
               },
             ]),
-        {
-          type: 'stated-action-taken' as const,
-          id,
-          // The **printed** heading rather than what the caller typed.
-          line: line.name,
-          ...(stamp === null ? {} : { command: stamp }),
-        },
+        // The same event the door that hands the sentence over writes, because
+        // the same line was taken — including the turn a Bonus Action line is
+        // written down against, which is what a gated Multiattack reads.
+        action !== null
+          ? {
+              type: 'stated-action-taken' as const,
+              id,
+              // The **printed** heading rather than what the caller typed.
+              line: line.name,
+              ...(stamp === null ? {} : { command: stamp }),
+            }
+          : {
+              type: 'stated-bonus-action-taken' as const,
+              id,
+              line: line.name,
+              turn: state.combat.turnsTaken,
+              ...(stamp === null ? {} : { command: stamp }),
+            },
       ];
 
       const ability: Ability = printed.ability;

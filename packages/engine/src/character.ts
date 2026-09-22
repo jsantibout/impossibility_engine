@@ -141,6 +141,18 @@ export interface StatedBonusAction {
    * Spiritual Weapon, Rampage, a Unicorn's Blessing.
    */
   readonly perDay?: number;
+  /**
+   * The saving throw this line forces, where its sentence is the book's save
+   * template — see {@link StatedAction.save}, which this is the same field as
+   * and for the same reason.
+   *
+   * **It is here because the book prints it here.** Three Trample lines — the
+   * Gorgon's, the Elephant's and the Mammoth's — write the template under
+   * **Bonus Actions**, and what a heading changes is what the line *costs*
+   * and nothing else the engine can see. So the field is on both sections and
+   * `forcePrintedSave` spends whichever slot the heading names.
+   */
+  readonly save?: MonsterSave;
 }
 
 /**

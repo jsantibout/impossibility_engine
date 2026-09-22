@@ -210,7 +210,11 @@ describe('the ledger measures the three populations of the roadmap', () => {
   it('holds only the stat blocks a level 5 party is pointed at', () => {
     expect(ledger.monsters.blocks).toBeGreaterThan(0);
     expect(ledger.monsters.blocks).toBeLessThan(SRD_CONTENT.monsters.length);
-    expect(ledger.monsters.items).toBe(ledger.monsters.handedOver + ledger.monsters.riders);
+    // Handed over, plus the two families the parser read and the engine does
+    // not spend: a rider nothing applies and a trait kind nobody asks for.
+    expect(ledger.monsters.items).toBe(
+      ledger.monsters.handedOver + ledger.monsters.riders + ledger.monsters.inertTraits,
+    );
     expect(ledger.monsters.clean + ledger.monsters.unfinished).toBe(ledger.monsters.blocks);
   });
 

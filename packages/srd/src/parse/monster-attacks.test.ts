@@ -1111,9 +1111,9 @@ describe('what a stat block’s sections print, and what is read', () => {
       // is unread for its own reason.
       actions: { printed: 811, read: 650 },
       // **Not one prints an attack roll**, which is what the zero here used
-      // to say. Three print the save template — the Gorgon's and the
-      // Elephant's Trample, the Bulette's Deadly Leap is not among them — and
-      // those three are read for the same reason a trait's sentence is:
+      // to say. Three print the save template — the Trample of the Gorgon,
+      // the Elephant and the Mammoth, the last of which is CR 6 — and those
+      // three are read for the same reason a trait's sentence is:
       // every detector runs over every section, because what a line says is
       // not a property of the heading it is printed under. The other
       // seventy-two are a spell, another action, a teleport, a movement, a
