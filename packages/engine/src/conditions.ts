@@ -94,6 +94,25 @@ export interface ConditionState {
   readonly conditions: readonly ConditionName[];
   /** 0 to 6. Exhaustion is a level, not a flag. */
   readonly exhaustion: number;
+  /**
+   * Conditions the creature **has** and can no longer benefit from.
+   *
+   * SRD Starry Wisp: "it … can't benefit from the Invisible condition." That
+   * is not the condition ending and not the condition being suppressed: the
+   * creature is still Invisible for everything that reads the fact, and what
+   * it has lost is what the condition would otherwise have bought it. So this
+   * sits beside the condition set rather than filtering it, and the readers
+   * that hand a condition its benefits ask {@link benefitsFrom} instead of
+   * {@link hasCondition}.
+   *
+   * **Derived rather than folded, and absent on the stored record.** The
+   * `conditions` stored on a creature is the record of what is on them; this
+   * is filled by `effectiveConditions`, the one gatherer every reader of
+   * condition *effects* goes through, out of the sourced grants the creature
+   * is carrying. Absent and empty mean the same thing, which is what every
+   * log ever written folds to.
+   */
+  readonly withoutBenefit?: readonly ConditionName[];
 }
 
 /** Deterministic identity: the same condition from the same source is one instance. */
@@ -260,6 +279,20 @@ export function hasCondition(state: ConditionState, name: ConditionName): boolea
   return state.conditions.includes(name);
 }
 
+/**
+ * Whether a condition is doing for this creature what the book says it does.
+ *
+ * {@link hasCondition} asks whether the condition is *there*; this asks
+ * whether it is *working*, and they are two questions because the SRD writes
+ * a clause that separates them — Starry Wisp's "can't benefit from the
+ * Invisible condition", Faerie Fire's and Mind Spike's. Every reader that
+ * hands a condition an Advantage, a Disadvantage or any other good thing asks
+ * this one; every reader of the fact itself asks the other.
+ */
+export function benefitsFrom(state: ConditionState, name: ConditionName): boolean {
+  return hasCondition(state, name) && !(state.withoutBenefit ?? []).includes(name);
+}
+
 const disadvantage = (condition: ConditionName): ModeSource => ({
   source: LABEL[condition],
   mode: 'disadvantage',
@@ -327,8 +360,11 @@ export function attackerConditionModes(
   }
 
   // SRD Invisible: "If a creature can somehow see you, you don't gain this
-  // benefit against that creature."
-  if (hasCondition(state, 'invisible') && context.targetCanSeeAttacker !== true) {
+  // benefit against that creature." **And `benefitsFrom` rather than
+  // `hasCondition`**, because a second sentence takes the same benefit away
+  // without taking the condition: SRD Starry Wisp's "can't benefit from the
+  // Invisible condition".
+  if (benefitsFrom(state, 'invisible') && context.targetCanSeeAttacker !== true) {
     modes.push(advantage('invisible'));
   }
 
@@ -368,7 +404,9 @@ export function targetConditionModes(
     if (hasCondition(state, condition)) modes.push(advantage(condition));
   }
 
-  if (hasCondition(state, 'invisible') && context.attackerCanSeeTarget !== true) {
+  // The same benefit read from the other end, and the same two questions: a
+  // creature that cannot benefit from being Invisible is no harder to hit.
+  if (benefitsFrom(state, 'invisible') && context.attackerCanSeeTarget !== true) {
     modes.push(disadvantage('invisible'));
   }
 
@@ -504,7 +542,9 @@ export function isIncapacitated(state: ConditionState): boolean {
  */
 export function initiativeConditionModes(state: ConditionState): ModeSource[] {
   const modes: ModeSource[] = [];
-  if (hasCondition(state, 'invisible')) modes.push(advantage('invisible'));
+  // The third of the three sentences Invisible buys, and the third reader
+  // that asks whether this creature may still have it.
+  if (benefitsFrom(state, 'invisible')) modes.push(advantage('invisible'));
   if (isIncapacitated(state)) modes.push(disadvantage('incapacitated'));
   return modes;
 }
@@ -563,4 +603,55 @@ export interface GrantedConditionImmunity {
   readonly source: string;
   /** The conditions the sentence names, sorted so state serialises identically. */
   readonly conditions: readonly ConditionName[];
+}
+
+/**
+ * A benefit an ongoing effect has taken away without taking the condition.
+ *
+ * > SRD Starry Wisp: "until the end of your next turn, it … **can't benefit
+ * > from the Invisible condition**."
+ *
+ * The thirteenth member of the family `grantsOf` enumerates, and it needed no
+ * lifecycle of its own for the reason {@link GrantedConditionImmunity} needed
+ * none: the source is the whole of the link, so `releaseCasting`,
+ * `releaseOnTarget` and a `grants` deadline all end it through the door the
+ * other twelve already use.
+ *
+ * **It is neither of the two things it resembles**, and that is the whole
+ * reason it is a family rather than a spelling of one of them:
+ *
+ * - it is not the condition **ending** — the creature is still Invisible for
+ *   every reader of the fact, a Lesser Restoration would still find something
+ *   to cure, and whatever caused it is still what ends it;
+ * - it is not {@link GrantedConditionImmunity} — that refuses a condition
+ *   *arriving*, and this one has already arrived and stays.
+ *
+ * The nearest neighbour is `suppressedConditions`, SRD Aura of Courage's "has
+ * no effect on that ally while there", and even that differs in the direction
+ * that matters: suppression takes the condition's *whole* effect away, good
+ * and bad alike, and is derived from where somebody is standing. This takes
+ * only the benefits, and it is hung.
+ *
+ * **One condition per grant.** The three SRD sentences each name one, and a
+ * plural field would have to decide whether two spells denying the same
+ * benefit are one grant or two — a question the `source` already answers for
+ * a singular one.
+ */
+export interface DeniedBenefit {
+  /** The casting (`Starry Wisp#cast:0`) or the feature that denied it. */
+  readonly source: string;
+  /** The condition whose benefits this grant withholds. */
+  readonly condition: ConditionName;
+}
+
+/**
+ * Every condition whose benefit something is currently withholding, sorted.
+ *
+ * One gatherer, so a reader asks the question once — the reading
+ * `conditionImmunitiesOf` already takes of the neighbouring family — and
+ * `effectiveConditions` is the one caller, because it is the one door every
+ * reader of condition *effects* goes through.
+ */
+export function deniedBenefitsOf(denied: readonly DeniedBenefit[]): readonly ConditionName[] {
+  return [...new Set(denied.map((one) => one.condition))].sort();
 }

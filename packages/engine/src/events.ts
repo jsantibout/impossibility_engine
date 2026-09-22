@@ -31,7 +31,7 @@ import type { DieRoll, RngState } from './dice.js';
 import { type PoolDeclaration, type Recovery } from './resources.js';
 import type { CharacterRecord } from './creation.js';
 import type { DamageDefenses, DamageReduction, GrantedDefense } from './attack.js';
-import type { GrantedConditionImmunity } from './conditions.js';
+import type { DeniedBenefit, GrantedConditionImmunity } from './conditions.js';
 import type { D20TestResult } from './checks.js';
 import type { GrantedReaction, ReactionWindow } from './reactions.js';
 import type { ActiveBonus, ModeSource } from './bonuses.js';
@@ -522,6 +522,24 @@ export type GameEvent =
       readonly type: 'healing-rule-granted';
       readonly id: CharacterId;
       readonly rule: GrantedHealingRule;
+    }
+
+  /**
+   * A condition's **benefits** withheld from a creature that still has it —
+   * the thirteenth sourced grant.
+   *
+   * SRD Starry Wisp: on a hit "until the end of your next turn, it … can't
+   * benefit from the Invisible condition." Not the condition ending and not
+   * an Immunity to it arriving; see {@link DeniedBenefit}, where the three
+   * are told apart.
+   *
+   * Ended by the source it carries, exactly as the other twelve are, so there
+   * is no removal event.
+   */
+  | {
+      readonly type: 'benefit-denied';
+      readonly id: CharacterId;
+      readonly denial: DeniedBenefit;
     }
 
   /**

@@ -85,7 +85,8 @@ import {
   type HitOption,
   type StrikeStyle,
 } from '../standing.js';
-import { hasCondition } from '../conditions.js';
+import { benefitsFrom } from '../conditions.js';
+import { resolveDuration, timeView, turnAnchored } from '../time.js';
 import {
   chooseRoute,
   type ConcentrationConsequence,
@@ -356,20 +357,111 @@ function printedRiderOnASwing(
     }
   }
 
+  if (read.kind === 'grapple') {
+    // SRD Giant Scorpion's "from one of two claws": how many creatures the
+    // block can hold at once. The engine holds no record of limbs, so the
+    // clause is handed back exactly as `grappleTarget` hands back the free
+    // hand SRD asks it for — the grapple is made and the limit is the DM's.
+    if (read.withLimbs !== undefined) {
+      unverified.push(
+        `${printed.name} grapples ${target} from ${read.withLimbs}, and the engine holds no record of limbs; how many creatures ${attacker} can hold at once is the table's`,
+      );
+    }
+    return {
+      option: {
+        feature: `${attacker}:${printed.name}`,
+        featureName: printed.name,
+        option: printed.name,
+        name: printed.name,
+        pool: null,
+        costs: 0,
+        // Nothing an effect list can express: a grapple is a relation, and
+        // `HitOption.grapples` is the clause that makes one.
+        effects: [],
+        ability: null,
+        grapples: {
+          escapeDc: read.escapeDc,
+          ...(read.withLimbs === undefined ? {} : { withLimbs: read.withLimbs }),
+        },
+      },
+      unverified,
+    };
+  }
+
+  // SRD Ghast's "If the target is a non-Undead creature", the other gate the
+  // engine holds the fact for — read off the creature rather than the map,
+  // because `creatureType` is what a stat block pinned into `creature-added`.
+  if (read.unlessType !== undefined) {
+    const creatureType = state.creatures[target]?.creatureType ?? null;
+    if (isCreatureType(creatureType, read.unlessType)) {
+      return {
+        option: null,
+        unverified: [
+          `${target} is ${creatureType}, and ${printed.name}'s line excepts one — nothing was applied`,
+        ],
+      };
+    }
+    if (creatureType === null) {
+      unverified.push(
+        `nobody has said what kind of creature ${target} is, so ${printed.name}'s line took them for one it reaches; a ${read.unlessType} would have been left alone`,
+      );
+    }
+  }
+  // SRD Ghoul's "or elf": the other half of the same gate, and a species
+  // rather than a creature type. **Read off the record creation kept**, which
+  // is a fact the engine does hold for exactly the population a Ghoul claws:
+  // the choices are the character and they are stored on the creature. The
+  // word compared is the *line's*, so no species id is written down here.
+  //
+  // A creature with no record — a monster, somebody a DM simply added — has no
+  // species the engine can answer for, and the absent fact is reported rather
+  // than read as a denial: the reading the size gate above already takes of
+  // the same silence.
+  if (read.alsoExcepts !== undefined) {
+    const species = state.creatures[target]?.character?.speciesId ?? null;
+    if (species !== null && species.toLowerCase() === read.alsoExcepts.toLowerCase()) {
+      return {
+        option: null,
+        unverified: [
+          `${target} is a ${species}, and ${printed.name}'s line excepts one — nothing was applied`,
+        ],
+      };
+    }
+    if (species === null) {
+      unverified.push(
+        `${printed.name}'s line also excepts an ${read.alsoExcepts}, and nothing on ${target} says what they are; it was applied regardless`,
+      );
+    }
+  }
+
   // A deadline the clock cannot reach is a condition that would never lift, so
   // it is left to the table rather than hung on somebody for ever — the answer
   // `hitRiderAsked` gives the same absence, minus the refusal, because nobody
   // asked for this rider and a swing must not be refused for taking it.
-  if (read.lasts !== undefined && state.combat === null) {
-    return {
-      option: null,
-      unverified: [
-        handOver,
-        `${printed.name}'s clause lasts until a turn boundary, and there are no turns here for it to end at`,
-      ],
-    };
+  //
+  // **The converter is asked rather than the combat**, because two different
+  // absences make the moment unreachable and only one of them is "no fight":
+  // a clause anchored on the *target's* next turn also has nowhere to go when
+  // the creature that was hit has no place in the order, which is an ordinary
+  // thing — a DM adds an ogre mid-fight and nobody has rolled for it. Asking
+  // `resolveDuration` here is asking the one function that will be asked again
+  // by `fileDeadlines`, so the two cannot come to disagree, and it is asked
+  // *before* the swing commits rather than after the blow has landed.
+  if (read.lasts !== undefined) {
+    const anchor = read.lastsOn === 'target' ? target : attacker;
+    const pinned = resolveDuration(timeView(state), turnAnchored(read.lasts, anchor));
+    if (!pinned.ok) {
+      return {
+        option: null,
+        unverified: [
+          handOver,
+          `${printed.name}'s clause lasts until a turn boundary of ${anchor}'s, and ${pinned.reason}`,
+        ],
+      };
+    }
   }
 
+  const save = read.save;
   return {
     option: {
       feature: `${attacker}:${printed.name}`,
@@ -378,15 +470,31 @@ function printedRiderOnASwing(
       name: printed.name,
       pool: null,
       costs: 0,
-      effects: read.conditions.map((name) => ({
-        kind: 'condition' as const,
-        condition: { name },
-      })),
-      // The block prints no ability behind this clause and nothing here reads
-      // a DC: a printed saving throw is exactly the sentence `readPrintedRider`
-      // refuses, because the DC it states has nowhere on a `HitOption` to ride.
+      // **One save for every condition the failure imposes**, which is the
+      // shape `save` already has: a second `save` effect would roll a second
+      // saving throw and a creature could fail one and make the other, which
+      // is not the line. A line that prints no save simply imposes them.
+      effects:
+        save === undefined
+          ? read.conditions.map((name) => ({ kind: 'condition' as const, condition: { name } }))
+          : [
+              {
+                kind: 'save' as const,
+                ability: save.ability,
+                condition: read.conditions[0]!,
+                ...(read.conditions.length > 1
+                  ? { conditions: read.conditions.slice(1).map((name) => ({ name })) }
+                  : {}),
+              },
+            ],
+      // The block prints no ability behind this clause — there is no sheet for
+      // "your spell save DC" to be read off — and where it prints a number it
+      // is stated instead. `8 + Proficiency Bonus` is what remains, and it is
+      // the fallback an item's casting already falls to.
       ability: null,
+      ...(save === undefined ? {} : { saveDc: save.dc }),
       ...(read.lasts === undefined ? {} : { lasts: read.lasts }),
+      ...(read.lastsOn === undefined ? {} : { lastsOn: read.lastsOn }),
     },
     unverified,
   };
@@ -1094,12 +1202,18 @@ export function resolveAttack(
     const targetCanSeeAttacker = canSomehowSee(state, command.target, id);
     const attackerCanSeeTarget = canSomehowSee(state, id, command.target);
 
-    if (targetCanSeeAttacker === null && hasCondition(attackerConditions, 'invisible')) {
+    // **`benefitsFrom` rather than `hasCondition`, because the note claims the
+    // swing kept something.** The readers below hand Invisible its Advantage
+    // and its Disadvantage only while the creature may still benefit from the
+    // condition — SRD Starry Wisp takes that away and leaves the condition —
+    // so asking the wider question here would tell the table the swing kept a
+    // mode it did not have.
+    if (targetCanSeeAttacker === null && benefitsFrom(attackerConditions, 'invisible')) {
       unverified.push(
         `${id} is Invisible and nobody has said whether ${command.target} can see them; SRD takes that Advantage away only against a creature that can, so the swing kept it`,
       );
     }
-    if (attackerCanSeeTarget === null && hasCondition(targetConditions, 'invisible')) {
+    if (attackerCanSeeTarget === null && benefitsFrom(targetConditions, 'invisible')) {
       unverified.push(
         `${command.target} is Invisible and nobody has said whether ${id} can see them; SRD lifts that Disadvantage only for an attacker who can, so the swing kept it`,
       );
@@ -1241,9 +1355,11 @@ export function resolveAttack(
     }
 
     // **What the block says a hit does**, reported the moment the hit is known:
-    // the clauses `printedRiderOnASwing` could not execute, and the Ghoul's
-    // Constitution save at DC 10 among them. What it *could* execute is riding
-    // on `riding` and is applied below with everything else a hit bought.
+    // the clauses `printedRiderOnASwing` could not execute — the Mummy's curse,
+    // a charge nobody has declared, an extra die a Bloodied swarm rolls — and
+    // the parts of a clause it executed and could not check. What it *could*
+    // execute is riding on `riding` and is applied below with everything else
+    // a hit bought.
     unverified.push(...fromTheBlock.unverified);
     // And the printed line where the swing also bought one of its own — the
     // purchase wins and this goes back to the table, said out loud rather than

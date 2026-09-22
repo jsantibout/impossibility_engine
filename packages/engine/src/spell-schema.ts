@@ -1115,10 +1115,22 @@ function checkModifierRider(
     checkRiderDuration(rider.lasts, path, found);
     return;
   }
+  if (rider?.kind === 'benefit') {
+    // The same fifteen words a condition rider and a removal are held to, so
+    // Starry Wisp and Lesser Restoration are refused in one wording for one
+    // mistake.
+    checkCondition(String(rider.denies), `${path}.denies`, found);
+    // The fifth rider that may carry a deadline of its own, and its only
+    // writer is a cantrip too: SRD Starry Wisp denies the benefit "until the
+    // end of your next turn" off an Instantaneous host, and without the
+    // rider's own deadline nothing could ever hand it back.
+    checkRiderDuration(rider.lasts, path, found);
+    return;
+  }
   found.push({
     field: `${path}.kind`,
     code: 'unknown_modifier_rider',
-    reason: `"${String((rider as { kind?: unknown } | undefined)?.kind)}" is not a grant a rider carries; a rider adds a bonus, grants a mode, changes a Speed, changes what a turn permits, or changes what healing does`,
+    reason: `"${String((rider as { kind?: unknown } | undefined)?.kind)}" is not a grant a rider carries; a rider adds a bonus, grants a mode, changes a Speed, changes what a turn permits, changes what healing does, or denies a condition's benefit`,
   });
 }
 
@@ -2344,6 +2356,13 @@ function grantCarried(effect: SpellEffect): string | null {
             // next turn", and without the rider's own deadline nothing could
             // ever let them regain any again.
             if (rider.lasts === undefined) return 'a rule standing in front of healing';
+            break;
+          case 'benefit':
+            // The fifth, and a cantrip's again: SRD Starry Wisp denies the
+            // Invisible condition's benefit "until the end of your next turn"
+            // off an Instantaneous host, so nothing but the rider's own
+            // deadline could ever hand it back.
+            if (rider.lasts === undefined) return 'a benefit taken off a condition';
             break;
           default:
             break;
@@ -3696,6 +3715,7 @@ export const RIDER_KINDS: ReadonlySet<string> = new Set([
   'speed-change',
   'action',
   'healing',
+  'benefit',
 ]);
 
 /**

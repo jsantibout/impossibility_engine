@@ -263,6 +263,12 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'sorcerous-burst',
   'spirit-guardians',
   'spiritual-weapon',
+  // Driven end to end by `denied-benefits.test.ts`: cast through `resolveSpell`
+  // at a creature made Invisible by something else, the three readers that
+  // hand that condition its benefits asked before and after the hit, the
+  // condition still standing on the creature underneath, and the benefit
+  // handed back at the rider's own deadline a round later.
+  'starry-wisp',
   // Driven end to end in `area-triggers.test.ts`: conjured at a point, a
   // creature starting its turn in the Sphere, the Constitution save rolled at
   // the boundary, the Poisoned landing, and the condition gone when that same

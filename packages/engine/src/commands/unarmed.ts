@@ -54,7 +54,7 @@ import {
   sizeOf,
 } from '../positioning.js';
 import { actionRulesOn, effectiveConditions, rollModesFor, sheetAsItStands } from '../standing.js';
-import { timerKey } from '../timers.js';
+import { timerKey, type EffectCheck } from '../timers.js';
 import { type Supply } from './casting.js';
 import { creatureOf, reachedBy, unknownCreature } from './command.js';
 import { applyConditionTo } from './conditions.js';
@@ -112,6 +112,30 @@ export const grappleSource = (grappler: CharacterId): string => `grapple:${grapp
 /** Who is doing the grappling, read back out of the source. Null for any other cause. */
 export const grapplerOf = (source: string): CharacterId | null =>
   source.startsWith('grapple:') ? (source.slice('grapple:'.length) as CharacterId) : null;
+
+/**
+ * The escape a grapple offers, as the {@link EffectCheck} it is pinned as.
+ *
+ * **The DC is the caller's and every other field is the book's.** SRD makes
+ * the grapple's DC and the escape's one number, and the grapple is where it is
+ * settled: an Unarmed Strike derives it from the grappler's sheet and a stat
+ * block prints it, and after that an escape attempted an hour later is against
+ * the number the grapple was made at.
+ *
+ * Filed as the **Strength** half of SRD's pair, so the generic door
+ * (`availableChecks` / `resolveEffectCheck`) answers truthfully; the Dexterity
+ * half is {@link escapeGrapple}'s, because `EffectCheck` holds one ability and
+ * the book offers two. Two doors make a grapple now — an Unarmed Strike and a
+ * printed rider — so the shape is written once rather than twice and drifting
+ * the first time either is touched.
+ */
+export const escapeCheck = (grappler: CharacterId, dc: number): EffectCheck => ({
+  ability: 'str',
+  skill: ESCAPE_SKILL.str,
+  dc,
+  onSuccess: 'end-on-target',
+  label: `check to escape ${grappler}'s grapple`,
+});
 
 /** SRD Shove: "you either push it 5 feet away **or** cause it to have the Prone condition". */
 export type ShoveOutcome = 'prone' | 'push';
@@ -439,13 +463,7 @@ export function grappleTarget(
       undefined,
       undefined,
       {},
-      {
-        ability: 'str',
-        skill: ESCAPE_SKILL.str,
-        dc: rolled.value.dc,
-        onSuccess: 'end-on-target',
-        label: `check to escape ${grappler}'s grapple`,
-      },
+      escapeCheck(grappler, rolled.value.dc),
     );
     // A creature immune to Grappled is not grabbed, and the Attack action was
     // still spent on the attempt — the reading `topple` takes of the same case.

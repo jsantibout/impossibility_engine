@@ -37,7 +37,7 @@ import {
 } from '../character.js';
 import { canUseFeatureThisTurn } from '../combat.js';
 import { conditionInstanceId } from '../conditions.js';
-import { type GameEvent, type GameState, grantSourcesOf } from '../events.js';
+import { applyEvent, type GameEvent, type GameState, grantSourcesOf } from '../events.js';
 import { featureSource } from '../progression.js';
 import { remaining } from '../resources.js';
 import { sheetAsItStands, type HitOption } from '../standing.js';
@@ -45,8 +45,10 @@ import { type EffectTarget, timerKey } from '../timers.js';
 import { turnAnchored, type Duration } from '../time.js';
 import { type Supply } from './casting.js';
 import { creatureOf } from './command.js';
-import { schedule } from './conditions.js';
+import { applyConditionTo, schedule } from './conditions.js';
+import { conditionLanding } from './spell-effect-riders.js';
 import { runEffects } from './spell-resolution.js';
+import { escapeCheck, grappleSource } from './unarmed.js';
 import { type SpellTargetOutcome } from './targeting.js';
 
 /** What a swing says it is buying: one option of one feature. */
@@ -225,6 +227,14 @@ export function applyHitRider(
   // feature's own where it prints one, the granting class's otherwise.
   const sheet = sheetAsItStands(state, hit.attacker) ?? attacker.sheet;
   const ability = option.ability;
+  // **A number the line states beats a number a sheet derives.** Derivation is
+  // right for a class feature — SRD Stunning Strike is "your spell save DC" —
+  // and wrong for a DC the book prints, and the two are indistinguishable
+  // afterwards: `8 + Proficiency Bonus` equals the Ghoul's printed 10 by
+  // coincidence and does not equal the Death Dog's 12.
+  const saveDc =
+    option.saveDc ??
+    (ability === null ? 8 + proficiencyBonus(sheet) : spellSaveDcWith(sheet, ability));
   const unverified: string[] = [];
   // **The world before what this rider has just written down**, because
   // `runEffects` folds `events` onto whatever state it is handed. Passing it
@@ -241,7 +251,7 @@ export function applyHitRider(
     numbers: {
       attackModifier:
         ability === null ? proficiencyBonus(sheet) : spellAttackModifierWith(sheet, ability),
-      saveDc: ability === null ? 8 + proficiencyBonus(sheet) : spellSaveDcWith(sheet, ability),
+      saveDc,
       spellcastingModifier: ability === null ? 0 : modifierFor(sheet, ability),
       casterLevel: sheet.level,
     },
@@ -254,13 +264,70 @@ export function applyHitRider(
   });
   if (!resolved.ok) return resolved;
 
-  const timed = fileDeadlines(resolved.value.state, resolved.value.outcomes, resolved.value.held, {
-    attacker: hit.attacker,
-    option,
-  });
+  // **The grapple, after the effect list and before the deadlines**, because
+  // it is neither: it hangs no condition the option's own span is about — SRD
+  // ends a grapple on facts about the grappler and never on the clock — and it
+  // must see the world the effects left.
+  const grabbed = makeTheGrapple(resolved.value.state, hit, option, unverified);
+  if (!grabbed.ok) return grabbed;
+  events.push(...grabbed.value);
+
+  const timed = fileDeadlines(
+    grabbed.value.reduce(applyEvent, resolved.value.state),
+    resolved.value.outcomes,
+    resolved.value.held,
+    { attacker: hit.attacker, option },
+  );
   if (!timed.ok) return timed;
 
   return ok({ events: [...events, ...timed.value], unverified });
+}
+
+/**
+ * SRD Ankheg: "it has the Grappled condition (escape DC 13)."
+ *
+ * **Made the way the Attack action's own grapple is made**, and that is the
+ * whole of why it is here rather than in the effect list: the condition is
+ * filed under {@link grappleSource}, so `grapplesOn` can find it, SRD's two
+ * automatic endings can lapse it and `escapeGrapple` can be attempted against
+ * it. The escape check is pinned at the moment the grapple is made, because
+ * the book makes the grapple's DC and the escape's one number and an escape
+ * attempted an hour later is against the number it was made at.
+ *
+ * **A creature immune to Grappled is unaffected, not an error** — the blow
+ * still landed and still dealt its damage, which is the reading
+ * `conditionLanding` holds at every other door a condition arrives through.
+ */
+function makeTheGrapple(
+  world: GameState,
+  hit: { readonly attacker: CharacterId; readonly target: CharacterId },
+  option: HitOption,
+  unverified: string[],
+): Result<readonly GameEvent[]> {
+  const grapple = option.grapples;
+  if (grapple === undefined) return ok([]);
+
+  const landed = conditionLanding(
+    applyConditionTo(
+      world,
+      hit.target,
+      'grappled',
+      grappleSource(hit.attacker),
+      [],
+      undefined,
+      undefined,
+      {},
+      escapeCheck(hit.attacker, grapple.escapeDc),
+    ),
+  );
+  if (!landed.ok) return landed;
+  if (!landed.value.landed) {
+    unverified.push(
+      `${option.featureName} grapples, and ${hit.target} cannot be given the Grappled condition at all`,
+    );
+    return ok([]);
+  }
+  return ok(landed.value.events);
 }
 
 /**
@@ -278,13 +345,21 @@ function fileDeadlines(
   held: ReadonlySet<CharacterId>,
   hit: { readonly attacker: CharacterId; readonly option: HitOption },
 ): Result<readonly GameEvent[]> {
-  const span = spanOf(hit.option, hit.attacker);
-  if (span === null) return ok([]);
+  if (hit.option.lasts === undefined && hit.option.durationSeconds === undefined) return ok([]);
 
   const events: GameEvent[] = [];
   const source = featureSource(hit.option.feature);
+  // **Whose next turn, decided per creature rather than once.** A span
+  // anchored on the target is anchored on the creature the deadline is being
+  // filed for, and one anchored on the attacker is the same creature every
+  // time; a hit has one target, so the two agree everywhere but in what they
+  // would mean if it ever had two.
+  const spanFor = (holder: CharacterId): Duration | null =>
+    spanOf(hit.option, hit.option.lastsOn === 'target' ? holder : hit.attacker);
 
   for (const { target, condition } of outcomeConditions(outcomes)) {
+    const span = spanFor(target);
+    if (span === null) continue;
     const on: EffectTarget = {
       kind: 'condition',
       on: target,
@@ -308,6 +383,8 @@ function fileDeadlines(
   for (const on of [...held].sort()) {
     const holder = world.creatures[on];
     if (holder === undefined || !grantSourcesOf(holder).includes(source)) continue;
+    const span = spanFor(on);
+    if (span === null) continue;
     const timer = schedule(world, { kind: 'grants', on, source }, span);
     if (!timer.ok) return timer;
     events.push(timer.value);
@@ -329,11 +406,16 @@ function outcomeConditions(
  * How long what this rider hung lasts, as the clock's own vocabulary.
  *
  * Exactly one of the two, which `checkContent` holds the definition to: a
- * moment in the turn order anchored on the holder — "until the start of **your**
- * next turn" — or a printed number of seconds.
+ * moment in the turn order — "until the start of **your** next turn" — or a
+ * printed number of seconds.
+ *
+ * **Whose turn is the caller's to decide and not this function's**, which is
+ * why the anchor arrives as a creature rather than being read off the option:
+ * `HitOption.lastsOn` names a role and only the hit knows who is standing in
+ * it.
  */
-function spanOf(option: HitOption, holder: CharacterId): Duration | null {
-  if (option.lasts !== undefined) return turnAnchored(option.lasts, holder);
+function spanOf(option: HitOption, anchor: CharacterId): Duration | null {
+  if (option.lasts !== undefined) return turnAnchored(option.lasts, anchor);
   if (option.durationSeconds !== undefined) {
     return { kind: 'seconds', seconds: option.durationSeconds };
   }

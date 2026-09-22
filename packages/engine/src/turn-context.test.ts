@@ -484,8 +484,9 @@ describe('a turn-anchored rider outside combat asks for a turn order', () => {
  * list in this repository takes. Each must name a site that still exists, so a
  * converted one fails as a stale licence; and each must name the **fact** that
  * ends it rather than an opinion, so the two whose duration is a span are
- * checked against the argument the source passes and the one that reports
- * instead of refusing is checked against what it actually does.
+ * checked against the argument the source passes and each of the two that
+ * report instead of refusing is checked against what it actually does — one
+ * here, and the printed rider's in `printed-riders.test.ts`.
  */
 describe('no command-layer duration site is left refusing', () => {
   const SRC = fileURLToPath(new URL('.', import.meta.url));
@@ -532,10 +533,19 @@ describe('no command-layer duration site is left refusing', () => {
       .sort();
 
   /**
-   * The two whose duration is a **span** and the one that reports rather than
-   * refusing. Each says the fact that ends it, and each fact is checked below.
+   * The two whose duration is a **span** and the two that report rather than
+   * refusing. Each says the fact that ends it, and each fact is checked: the
+   * spans against the argument the source passes and the delayed hit against
+   * what it does, both below; the printed rider in `printed-riders.test.ts`,
+   * where both of its branches are driven — a swing with no fight at all, and
+   * a swing at a creature nobody has rolled Initiative for — each asserting
+   * that the attack lands and the clause goes back to the DM with the reason.
+   * It is checked there rather than here because the fact is about a stat
+   * block's line, and the fixture that has one is that file's.
    */
   const EXEMPT: Readonly<Record<string, string>> = {
+    'commands/attacks.ts: const pinned = resolveDuration(timeView(state), turnAnchored(read.lasts, anchor));':
+      'a stat block printed this clause and nobody asked for it, so a swing must not be refused for a sentence its own line carries: the question is asked before the attack rather than after the blow, and a moment that cannot be pinned — no fight, or a creature nobody has rolled Initiative for — sends the clause back to the DM verbatim beside the reason, which is the whole of what the honest half of a printed rider is for',
     'commands/casting.ts: const done = resolveDuration(timeView(state), forSeconds(command.castingSeconds!));':
       'a casting time is a span of seconds and never a moment in the turn order, so no turn-anchored refusal can arrive; the argument itself says so, which is what the assertion below reads',
     'commands/casting.ts: const pinned = resolveDuration(timeView(state), duration);':

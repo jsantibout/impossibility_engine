@@ -436,6 +436,18 @@ export function applyRiders(
                 // what ends it on a cantrip that never becomes an ongoing.
                 rule: { source, rule: modifier.rule },
               }
+            : modifier.kind === 'benefit'
+              ? {
+                  type: 'benefit-denied',
+                  id: target,
+                  // SRD Starry Wisp: "it … can't benefit from the Invisible
+                  // condition." The condition is not touched and is not this
+                  // casting's to touch — it may have come out of a potion —
+                  // so what is hung is the denial, under the casting's own
+                  // source, and the deadline below is what hands the benefit
+                  // back on a cantrip that never becomes an ongoing.
+                  denial: { source, condition: modifier.denies },
+                }
             : {
                 type: 'speed-modifier-granted',
                 id: target,
@@ -458,13 +470,14 @@ export function applyRiders(
     // Scheduled after the grant, because the deadline is only meaningful once
     // there is something to end; and the duration is `resolveDuration`'s to
     // refuse, which `riderDurations` has already asked before a die was thrown.
-    // The three riders that may end sooner than the casting — see
+    // The five riders that may end sooner than the casting — see
     // {@link ModifierRider}, where each is argued from its Instantaneous host.
     const lasts =
       modifier.kind === 'speed-change' ||
       modifier.kind === 'action' ||
       modifier.kind === 'mode' ||
-      modifier.kind === 'healing'
+      modifier.kind === 'healing' ||
+      modifier.kind === 'benefit'
         ? modifier.lasts
         : undefined;
     // **The target as well as the caster**, because SRD Vicious Mockery
