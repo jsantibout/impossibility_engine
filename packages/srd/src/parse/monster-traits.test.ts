@@ -261,6 +261,65 @@ describe('a Bonus Action that says what the dark buys', () => {
       kind: 'hides-in-dim-light-or-darkness',
     });
   });
+
+  /**
+   * SRD prints one rule under three headings — Nimble Escape, Cunning Action
+   * and Deathless Agility — and the rule is the sentence rather than any of
+   * the names: a named action paid for out of a Bonus Action.
+   */
+  it('reads SRD Nimble Escape as the two actions the goblin may buy', () => {
+    expect(bonusActionTraitOf('goblin-minion', 'Nimble Escape')).toEqual({
+      kind: 'takes-a-named-action-as-a-bonus-action',
+      actions: ['disengage', 'hide'],
+    });
+  });
+
+  it('reads the same rule under two other headings, with their own menus', () => {
+    expect(bonusActionTraitOf('spy', 'Cunning Action')).toEqual({
+      kind: 'takes-a-named-action-as-a-bonus-action',
+      actions: ['dash', 'disengage', 'hide'],
+    });
+    expect(bonusActionTraitOf('vampire-spawn', 'Deathless Agility')).toEqual({
+      kind: 'takes-a-named-action-as-a-bonus-action',
+      actions: ['dash', 'disengage'],
+    });
+  });
+
+  it('reads the menu off the sentence, whatever noun the block uses', () => {
+    expect(bonusActionTraitOf('tiger', 'Nimble Escape')).toEqual({
+      kind: 'takes-a-named-action-as-a-bonus-action',
+      actions: ['disengage', 'hide'],
+    });
+  });
+});
+
+describe('a trait that says what being Bloodied buys', () => {
+  /**
+   * SRD Bloodied Fury: "While Bloodied, the boar has Advantage on attack
+   * rolls." The glossary settles Bloodied at half Hit Points or fewer.
+   */
+  it('reads SRD Bloodied Fury as Advantage on the one roll it names', () => {
+    expect(traitOf('boar', 'Bloodied Fury')).toEqual({
+      kind: 'advantage-while-bloodied',
+      rolls: ['attack-roll'],
+    });
+  });
+
+  it('reads SRD Bloodied Frenzy as the wider list its sentence prints', () => {
+    expect(traitOf('berserker', 'Bloodied Frenzy')).toEqual({
+      kind: 'advantage-while-bloodied',
+      rolls: ['attack-roll', 'saving-throw'],
+    });
+  });
+
+  /**
+   * The Giant Boar prints the same heading over a different rule — "melee
+   * attack rolls", and the clause the other way round. A narrowing the kind
+   * carries no field for is a rule nobody printed, so the line stays prose.
+   */
+  it('refuses the Giant Boar, whose sentence narrows the rolls', () => {
+    expect(traitOf('giant-boar', 'Bloodied Fury')).toBeNull();
+  });
 });
 
 describe('the reader is a list of matched sentences and not an interpreter', () => {
@@ -289,6 +348,28 @@ describe('the reader is a list of matched sentences and not an interpreter', () 
     expect(
       parseTraitShape(
         'While ablaze, the magmin sheds Bright Light in a 10-foot radius and Dim Light for an additional 10 feet.',
+      ),
+    ).toBeNull();
+  });
+
+  /**
+   * The Clay Golem's Hasten: "The golem takes the Dash and Disengage
+   * actions." **And**, not **or** — it takes both, and on a recharge — which
+   * is two rules the kind carries no field for. A menu read out of a
+   * conjunction is a choice nobody printed.
+   */
+  it('refuses a bonus-action sentence that conjoins rather than offers', () => {
+    expect(parseTraitShape('The golem takes the Dash and Disengage actions.')).toBeNull();
+  });
+
+  it('refuses a bonus-action sentence naming an action outside the menu', () => {
+    expect(parseTraitShape('The scout takes the Search or Hide action.')).toBeNull();
+  });
+
+  it('refuses a Bloodied sentence that says one thing more', () => {
+    expect(
+      parseTraitShape(
+        'While Bloodied, the boar has Advantage on attack rolls and moves at double its Speed.',
       ),
     ).toBeNull();
   });

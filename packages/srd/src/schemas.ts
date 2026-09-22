@@ -512,6 +512,53 @@ export const MonsterTraitSchema = z.discriminatedUnion('kind', [
      */
     kind: z.literal('hides-in-dim-light-or-darkness'),
   }),
+  z.object({
+    /**
+     * SRD Nimble Escape, printed under **Bonus Actions**: "The goblin takes
+     * the Disengage or Hide action." SRD Cunning Action on the Spy and the
+     * Assassin, and SRD Deathless Agility on the two vampiric servants, are
+     * the same sentence over a different menu.
+     *
+     * Named for the rule and not for any of those three headings, which is
+     * what lets one kind carry all four: what the sentence says is that a
+     * named action may be paid for out of a Bonus Action, which is the
+     * `allows` action rule the Rogue's own Cunning Action is already written
+     * as.
+     *
+     * **The menu is part of the shape**, for {@link MonsterTraitSchema}'s
+     * stated reason: a goblin that could Dash as a Bonus Action is a rule
+     * nobody printed, and a kind that dropped the list would give every
+     * holder the widest menu any of them prints.
+     */
+    kind: z.literal('takes-a-named-action-as-a-bonus-action'),
+    /**
+     * Which actions, in the order the line prints them.
+     *
+     * The engine's `NamedAction` vocabulary is wider than this and the two
+     * packages may not import each other's, so these are the three the book
+     * actually prints in this sentence — the same reason `disadvantage-in-
+     * sunlight` names three rolls rather than five families.
+     */
+    actions: z.array(z.enum(['dash', 'disengage', 'hide'])).min(1),
+  }),
+  z.object({
+    /**
+     * SRD Bloodied Fury: "While Bloodied, the boar has Advantage on attack
+     * rolls." SRD Bloodied Frenzy is the same sentence over a wider list.
+     *
+     * The rules glossary settles what Bloodied is — "A creature is Bloodied
+     * while it has half its Hit Points or fewer remaining" — so this is a
+     * condition of the holder's own and not a fact about its target.
+     *
+     * `rolls` for the reason `disadvantage-in-sunlight` carries one: the two
+     * printed sentences differ only in breadth, and a kind per breadth would
+     * put one rule in two places.
+     */
+    kind: z.literal('advantage-while-bloodied'),
+    rolls: z
+      .array(z.enum(['ability-check', 'attack-roll', 'saving-throw']))
+      .min(1),
+  }),
 ]);
 export type MonsterTrait = z.infer<typeof MonsterTraitSchema>;
 

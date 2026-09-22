@@ -1106,7 +1106,10 @@ describe('what a stat block’s sections print, and what is read', () => {
       // Spider Climb, a Flyby, a Standing Leap, and the four sentences that
       // say what a creature breathes. Eleven more again with the light: five
       // Sunlight Sensitivities, one Sunlight Weakness and five Illuminations.
-      traits: { printed: 337, read: 99 },
+      // Two more again with Bloodied: the Boar's Bloodied Fury and the
+      // Berserker's Bloodied Frenzy. The Giant Boar prints the same heading
+      // over a narrower rule and is refused, which is the count saying so.
+      traits: { printed: 337, read: 101 },
       // Fifty-three more than before the save template was read, and the
       // Clay Golem's Multiattack before them — every other unread line here
       // is unread for its own reason.
@@ -1121,8 +1124,12 @@ describe('what a stat block’s sections print, and what is read', () => {
       // shape-shift or prose, and what they need is an economy rather than a
       // reading. The fourth is the Shadow's Shadow Stealth, read for that
       // same reason: the heading says what the line costs and the sentence
-      // says what it is.
-      bonusActions: { printed: 75, read: 4 },
+      // says what it is. And ten more are that same sentence under three
+      // headings — six Nimble Escapes, two Cunning Actions and two Deathless
+      // Agilities — each naming which actions a Bonus Action buys. The Clay
+      // Golem's Hasten is not among them: it conjoins rather than offers,
+      // and it recharges.
+      bonusActions: { printed: 75, read: 14 },
       reactions: { printed: 24, read: 0 },
       legendaryActions: { printed: 82, read: 0 },
     });
