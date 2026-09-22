@@ -138,7 +138,7 @@ export const MISSING_SHAPES = {
   'a-speed-an-effect-multiplies':
     'a Speed **doubled**. `docs/design/spell-definitions.md` fixes both the operations a Speed is composed from and the order they compose in: "Halving is presence rather than count — the reading Resistance and Advantage already take. Zero is last and **wins**". SRD Haste prints the one operation that is neither — "the target’s Speed is doubled" — and is the only sentence in the book that does; the book gives no order for a doubling against a halving, so the member arrives with the rule that settles it. A two-member union missing its third is the shape `an-automatic-success-by-creature-type` already takes, on the other axis.',
   'a-standing-effect-derived-from-where-a-creature-stands':
-    'a value derived from current state *and* current geometry rather than from a pair of enter-and-leave events that have to stay matched. `docs/design/casting.md`: "A standing effect derived from where a creature is standing | Spirit Guardians’ halved Speed, every Paladin aura"; PROGRESS.md ranks it above automatic drift.',
+    'a value derived from current state *and* current geometry rather than from a pair of enter-and-leave events that have to stay matched. `docs/design/casting.md`: "A standing effect derived from where a creature is standing | Spirit Guardians’ halved Speed, every Paladin aura"; PROGRESS.md ranks it above automatic drift. **The derivation is built and the vocabulary is one member wide.** P1-T9 added `AreaStanding`: a casting pins what its area does to whoever stands in it, `creaturesStandingInCastingArea` answers who that is from the scene on every read, and `speedOf` folds the answer in beside a condition’s — which is Spirit Guardians’ halved Emanation, whole. The member it holds is a Speed. Every claimant below wants a different one — Advantage on a save, Resistance, an Immunity, a flat bonus, a condition a creature cannot gain while in the area — and each of those is a second reader rather than a second geometry: the thing still missing is `standingFor`’s grant vocabulary reachable from a casting’s area, not the area.',
   'healing-modified-by-an-effect':
     '`healCreature` rolls its dice and caps at the maximum, and nothing stands beside it to forbid the healing or to maximise it. The audit (§3.5) reads Chill Touch’s "can’t regain Hit Points" as a rule the engine owns; Beacon of Hope is the same sentence pushing the other way.',
   'a-flat-amount-with-no-dice':
@@ -1031,13 +1031,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'cannot make Opportunity Attacks',
       why: 'an-action-a-spell-compels-or-forbids',
       note: 'SRD: the target "can’t make Opportunity Attacks until the start of its next turn". **The rule is writable and the deadline is not.** `forbids` takes a named action away and leaves the rest of the budget alone — `NAMED_ACTIONS` lists `opportunity-attack` against this spell by name, and Stinking Cloud, Fear, Wind Walk and Magic Jar all write the vocabulary now. What stops this one is that a cantrip is Instantaneous, so the rider must carry a `lasts` of its own, and `RiderDuration` declares the start of the **caster’s** next turn and the end of the **target’s**, with no member for the start of the target’s. `Duration` beneath it has one — `start-of-next-turn` names any creature — so what is absent is a member of the content-facing vocabulary and the readers that expand it, which is engine work rather than a definition.',
-    },
-  ],
-  'spirit-guardians': [
-    {
-      clause: 'halved Speed',
-      why: 'a-standing-effect-derived-from-where-a-creature-stands',
-      note: 'SRD halves the Speed of every affected creature inside the Emanation. Mutating a base Speed as creatures enter and leave is correct only while every pair of events stays matched, and nothing derives a value from where a creature is standing.',
     },
   ],
   'starry-wisp': [
@@ -2091,7 +2084,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause:
         "a creature that enters the spell's area for the first time on a turn or starts its turn there makes a Charisma saving throw",
       why: 'a-standing-effect-derived-from-where-a-creature-stands',
-      note: 'both moments are `AreaTrigger` members and the save itself is ordinary; what a failure buys is not. "On a failed save, a creature can’t speak a deliberate lie while in the radius" is a silence that holds for as long as the creature is in the Sphere and lifts when it steps out — a standing effect derived from where it is standing, with no condition and no state to carry it. A trigger that rolled the save and imposed nothing would be dice thrown for no reason.',
+      note: 'both moments are `AreaTrigger` members and the save itself is ordinary; what a failure buys is not. "On a failed save, a creature can’t speak a deliberate lie while in the radius" is a silence that holds for as long as the creature is in the Sphere and lifts when it steps out — a standing effect derived from where it is standing, with no condition and no state to carry it. A trigger that rolled the save and imposed nothing would be dice thrown for no reason. **The derivation itself is no longer what blocks it**: P1-T9 built `AreaStanding`, so a casting’s area now moves a value that is asked of the scene on every read — and what Zone of Truth needs from that vocabulary is a member the *rules* never read, because the engine holds no speech. Whether the engine may hold a fact only the table reads, and on which door it would be published, is a decision nobody has taken; until it is, a member added here would be a state written by a save and consulted by nothing.',
     },
   ],
   teleport: [

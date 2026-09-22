@@ -47,6 +47,18 @@ import type { OngoingSpell, WrittenOngoing } from './spells.js';
  * was already there. So absence on a version 2 record means the spell prints
  * no such sentence.
  *
+ * **`areaStanding` arrived after version 3 and did not bump it either**, by
+ * the same rule and with one consequence worth stating outright. A Spirit
+ * Guardians still running in a log written before the field existed is a
+ * version 3 record: `isCurrent` hands it back untouched, the catalogue fill is
+ * keyed on `version === undefined` and does not reach it, so that casting's
+ * Emanation halves nobody until it is recast. That is the behaviour a bump
+ * would have to be justified by changing — and it does not justify one:
+ * replaying such a log stays byte-identical, which is the promise, where
+ * routing version 3 records through the fill would open the book for a record
+ * that already pinned its own area. A *new* casting of the same spell writes
+ * the field and halves from its first read.
+ *
  * **What made a bump safe is the line below it**, and it had to be fixed
  * first. The catalogue fill was keyed on `!== ONGOING_RECORD_VERSION`, so
  * *any* bump routed every version 2 record through it and overwrote an area
@@ -116,6 +128,10 @@ export function upgradeOngoing(
   }
   const area = casting.area ?? definition?.area;
   const areaTrigger = casting.areaTrigger ?? definition?.areaTrigger;
+  // What the area does to whoever stands in it, read off the record first and
+  // out of the legacy book only for a record written before the field existed
+  // — the rule the area and the trigger above already follow.
+  const areaStanding = casting.areaStanding ?? definition?.areaStanding;
   const endsEarly = casting.endsEarly ?? definition?.endsEarly;
   return {
     version: ONGOING_RECORD_VERSION,
@@ -128,6 +144,7 @@ export function upgradeOngoing(
     aimed: casting.aimed ?? (casting.on ?? []).filter(holdsNothingOf),
     ...(area === undefined ? {} : { area }),
     ...(areaTrigger === undefined ? {} : { areaTrigger }),
+    ...(areaStanding === undefined ? {} : { areaStanding }),
     // And what ends the casting early, for the same reason and by the same
     // rule: a pre-versioned record never wrote it down, so the catalogue is
     // the only place it was ever recorded. A version 2 record with no

@@ -1,7 +1,16 @@
-import { err, ok, type Result } from '@ie/shared';
+import { err, ok, type CharacterId, type Result } from '@ie/shared';
 import type { TurnMoment } from './time.js';
-import type { Point, PointAnchoring } from './positioning.js';
+import {
+  areaPointAt,
+  creaturesInArea,
+  type AreaOrigin,
+  type AreaShape,
+  type Point,
+  type PointAnchoring,
+  type PositionState,
+} from './positioning.js';
 import type { AreaTrigger, CastingEndTrigger, SpellArea } from './spell-definitions.js';
+import type { AreaStanding } from './standing.js';
 
 /**
  * Casting: what a spell costs, who is concentrating on what, and which effects
@@ -385,6 +394,128 @@ export interface OngoingSpell {
    * or asked for, never guessed.
    */
   readonly damageType?: string;
+  /**
+   * What {@link area} does to whoever is standing in it — **as cast**.
+   *
+   * Pinned beside the area it is measured over, for the reason the area and
+   * the trigger clauses are: the fold does not open the catalogue, and a
+   * halving derived from this week's definitions would reach a casting made
+   * before somebody wrote them. See {@link AreaStanding}, which is derived on
+   * every read and stored on nobody.
+   *
+   * Absent means the area does nothing to a creature merely for standing in
+   * it, which is every persistent area but one — **and also means it on a
+   * record written before the field existed**, which is a casting that was
+   * running when this engine gained it. See `ONGOING_RECORD_VERSION`: that
+   * casting is left as it was rather than re-read out of the book, because a
+   * replay that changed is the one thing the pinning was for.
+   */
+  readonly areaStanding?: AreaStanding;
+}
+
+/**
+ * Which placed creatures a persistent casting's area currently holds.
+ *
+ * The geometry is `positioning.ts`'s and is not reimplemented: the shape and
+ * its dimensions come off the record's pinned area, the point and the
+ * direction off the record. There is one area function in this engine and this
+ * is a caller of it, not a second one.
+ *
+ * **Two origins, both read off facts the engine already had.** SRD's glossary
+ * decides it and says so in one sentence: "An Emanation **moves with the
+ * creature or object that is its origin** unless it is an instantaneous or a
+ * stationary effect." So a casting's area sits at a point *or* on a creature,
+ * and which it is was settled at the casting by the definition:
+ *
+ * | | `area.origin` | Read from | Spells |
+ * |---|---|---|---|
+ * | A point the casting keeps | `point` | `record.origin` | Web, Grease, Insect Plague, Black Tentacles, Moonbeam |
+ * | The caster, wherever they now are | `self` | `record.caster` | Spirit Guardians |
+ *
+ * **Nothing is stored and nothing is synchronised.** A copied point would be a
+ * second answer to "where is the aura", kept in step by remembering to update
+ * it — and the first time anything moved the caster by a route that forgot,
+ * the aura would be frozen where it was. Deriving it is not an optimisation:
+ * it is the difference between one fact and two facts that can disagree.
+ *
+ * An Emanation measures from the origin creature's **whole occupied volume**
+ * and excludes that creature, both of which `creaturesInArea` has always done.
+ * A Gargantuan carrier's 15-foot Emanation covers vastly more ground than a
+ * Medium one's, and neither includes the carrier.
+ *
+ * **It lives here rather than in the fold** because it reads state rather than
+ * folding it, and it has two readers of different kinds: the fold's entry and
+ * arrival detectors, which ask who is caught at a moment, and `speedOf`, which
+ * asks who is standing in it *now*. One answer to one question.
+ *
+ * Null when the casting has no area to ask about — no area pinned, or a
+ * point-origin area with no point recorded — which is every casting but a
+ * handful.
+ */
+export function creaturesStandingInCastingArea(
+  scene: PositionState,
+  record: OngoingSpell,
+): ReadonlySet<CharacterId> | null {
+  if (record.area === undefined) return null;
+
+  const origin = originOfCastingArea(record.area, record);
+  if (origin === null) return null;
+
+  const shape = areaShapeOf(record.area, record.towards, record.anchoring ?? 'space');
+  if (shape === null) return null;
+
+  const caught = creaturesInArea(scene, origin, shape);
+  if (!caught.ok) return null;
+
+  // SRD Spirit Guardians: "When you cast this spell, you can designate
+  // creatures to be unaffected by it." Filtered here rather than at each
+  // clause, so the one decision reaches every sentence that reads the area —
+  // the damage, and the halved Speed beside it.
+  const spared = record.unaffected;
+  return new Set(
+    spared === undefined ? caught.value : caught.value.filter((id) => !spared.includes(id)),
+  );
+}
+
+/** Where this casting's area sits: a point it keeps, or the creature carrying it. */
+function originOfCastingArea(area: SpellArea, record: OngoingSpell): AreaOrigin | null {
+  if (area.origin === 'self') return { creature: record.caster as CharacterId };
+  return record.origin === undefined
+    ? null
+    : areaPointAt(record.origin, record.anchoring ?? 'space');
+}
+
+/**
+ * Turn a pinned area into the geometric template, with its direction.
+ *
+ * The direction is the half that had to be stored: everything else is a
+ * printed dimension and reconstructs itself. A directional shape with no
+ * recorded direction answers null rather than pointing somewhere plausible.
+ */
+function areaShapeOf(
+  area: SpellArea,
+  towards: Point | undefined,
+  anchoring: PointAnchoring,
+): AreaShape | null {
+  // The direction is read under the casting's own anchoring, the same one its
+  // origin was written with, so the axis between them stays in one frame.
+  const aim = towards === undefined ? null : areaPointAt(towards, anchoring);
+  switch (area.kind) {
+    case 'sphere':
+      return { kind: 'sphere', radius: area.radius };
+    case 'cylinder':
+      return { kind: 'cylinder', radius: area.radius, height: area.height };
+    case 'emanation':
+      return { kind: 'emanation', distance: area.distance };
+    case 'cone':
+      return aim === null ? null : { kind: 'cone', length: area.length, towards: aim };
+    case 'cube':
+      return aim === null ? null : { kind: 'cube', size: area.size, towards: aim };
+    case 'line':
+      return aim === null
+        ? null
+        : { kind: 'line', length: area.length, width: area.width, towards: aim };
+  }
 }
 
 /**

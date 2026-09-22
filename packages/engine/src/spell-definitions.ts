@@ -11,7 +11,7 @@ import { type EffectEndCause, type PayoutKind } from './timers.js';
 import type { DefenseKind } from './attack.js';
 import type { Bonus, BonusApplies } from './bonuses.js';
 import type { RollModifier } from './roll-modifiers.js';
-import type { SpeedChange } from './standing.js';
+import type { AreaStanding, SpeedChange } from './standing.js';
 import type { ActionRule } from './combat.js';
 import type { PointAnchoring } from './positioning.js';
 import type { CastingTime } from './spells.js';
@@ -1900,6 +1900,18 @@ export interface SpellDefinition {
    * leaves that absent.
    */
   readonly areaTrigger?: AreaTrigger;
+  /**
+   * What the area does to a creature for as long as it stands in it — see
+   * {@link AreaStanding}.
+   *
+   * Set only alongside `area`, and **not a trigger**: nothing fires, nothing
+   * is rolled and no moment is named, because there is no moment. SRD Spirit
+   * Guardians writes both sentences about one Emanation — "whenever a creature
+   * enters the Emanation or ends its turn there, the creature must make a
+   * Wisdom saving throw" is {@link areaTrigger}, and "Any other creature's
+   * Speed is halved in the Emanation" is this.
+   */
+  readonly areaStanding?: AreaStanding;
   /**
    * SRD "you can designate creatures to be unaffected by it".
    *

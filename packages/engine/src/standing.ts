@@ -33,7 +33,7 @@ import {
   type SenseName,
 } from './positioning.js';
 import type { CreatureState, GameState } from './events.js';
-import { spellOfSource, type CastingTime } from './spells.js';
+import { creaturesStandingInCastingArea, spellOfSource, type CastingTime } from './spells.js';
 import type { SpellArea, SpellEffect } from './spell-definitions.js';
 import type { EffectEndCause } from './timers.js';
 import type { Recovery } from './resources.js';
@@ -94,6 +94,57 @@ export type StandingReach =
    * its own origin.
    */
   | { readonly kind: 'aura'; readonly feet: number };
+
+/**
+ * What a casting's persistent area does to whoever is standing in it, for as
+ * long as they stand in it.
+ *
+ * SRD Spirit Guardians: "Any other creature's Speed is **halved in the
+ * Emanation**." The same argument this file opens with, arriving at a casting
+ * instead of a class feature: which creatures that sentence reaches is a fact
+ * about where two creatures are standing, it changes every time either of them
+ * moves, and nothing happens that a log could record. So it is **derived on
+ * every read** from the scene and the record, and nothing is stored on the
+ * creature it reaches. A stored halving would be a pair of events that had to
+ * stay matched — granted on the way in, released on the way out — and the
+ * first route that moved a creature without remembering would leave a goblin
+ * walking at half Speed a hundred feet from the cleric.
+ *
+ * **Not {@link StandingReach}'s `aura`, and the three differences are each a
+ * rule.** That reach is a *feature's*, held on a creature's own sheet or a
+ * worn item, radiating from the holder to "you and your allies"; this is a
+ * *casting's*, measured over the area the casting pinned — which may be a
+ * Sphere centred on a point nobody is standing on — and it reaches whoever the
+ * geometry catches, ally or not, minus the list the caster designated at the
+ * cast. Nothing in the SRD writes both halves of one sentence, so they are two
+ * vocabularies rather than one with a flag.
+ *
+ * **Not {@link HungGrant} or a `speed` effect either**: both of those are
+ * stored against a source and released when it ends, which is right for
+ * Longstrider — touched at a moment, ended at a moment — and wrong for a
+ * volume a creature can walk out of.
+ *
+ * One member, because the SRD writes one sentence of this shape that the
+ * engine can execute. A second sentence adds a member; it does not add a
+ * second way of saying this one.
+ */
+export type AreaStanding = {
+  /**
+   * SRD Spirit Guardians' "Speed is halved in the Emanation", read through the
+   * one composer — {@link combineSpeed} — so the halving meets Exhaustion's
+   * flat reduction and a Grappled creature's zero in the order the architect
+   * fixed, rather than in a second arithmetic of its own.
+   *
+   * `change` is {@link SpeedChange} whole, so a Speed a casting's area moves
+   * is spelled the way every other Speed a spell moves already is. `feet` is
+   * required by `add` and refused by the other two, exactly as the `speed`
+   * effect's is.
+   */
+  readonly kind: 'speed';
+  readonly change: SpeedChange;
+  /** Signed feet, required by `add` and refused by the other two. */
+  readonly feet?: number;
+};
 
 /**
  * Which castings a `casting-damage` grant reaches.
@@ -2747,6 +2798,41 @@ export function combineSpeed(
 }
 
 /**
+ * What every persistent area this creature is standing in is doing to it.
+ *
+ * The casting's half of {@link standingFor}, and the same discipline: a
+ * casting's area reaches whoever the geometry catches *right now*, so it is
+ * asked of the scene on every read and stored on nobody. See
+ * {@link AreaStanding} for why a stored copy would be two facts that can
+ * disagree.
+ *
+ * Read in casting-id order, which is the order `Object.keys` gives a record
+ * the fold sorts, so two readers of one state agree. Nothing here depends on
+ * the order today — halving is presence and a flat change is addition — and it
+ * is fixed anyway, because a reader that reports *which* casting is slowing a
+ * creature would.
+ *
+ * Empty when there is no scene: where a creature is standing has no right
+ * answer until somebody says, and inventing one to halve a Speed is the wrong
+ * direction to guess in — the reading an aura already takes for an unplaced
+ * creature.
+ */
+function areaStandingOn(state: GameState, who: CharacterId): readonly AreaStanding[] {
+  const scene = state.scene;
+  if (scene === null) return [];
+
+  const found: AreaStanding[] = [];
+  for (const castingId of Object.keys(state.ongoing).sort()) {
+    const record = state.ongoing[castingId];
+    if (record?.areaStanding === undefined) continue;
+    const inside = creaturesStandingInCastingArea(scene, record);
+    if (inside === null || !inside.has(who)) continue;
+    found.push(record.areaStanding);
+  }
+  return found;
+}
+
+/**
  * A creature's Speed, with whatever is currently moving it.
  *
  * **The one reader.** `spendMovement`'s cap, a Dash's increase, a mounting cost
@@ -2782,6 +2868,14 @@ export function combineSpeed(
  * over, and Hypnotic Pattern's Speed of 0 arrives at the same comparison
  * Grappled already arrives at.
  *
+ * **An area a spell filled moves a Speed through here too, and is the one
+ * input that is neither on the sheet nor on the creature.** SRD Spirit
+ * Guardians halves a Speed *in the Emanation*, and which creatures that is
+ * changes every time anybody walks — so it is derived from the scene on every
+ * read rather than granted and released. See {@link areaStandingOn}, and
+ * {@link AreaStanding} for why the pair of events the other spelling would
+ * need is the wrong shape.
+ *
  * **An item's grant is not read here, and that is a decision rather than an
  * omission.** `standingFor` gathers what a magic item grants; this function
  * deliberately reads the creature's own sheet alone, because it is the
@@ -2815,6 +2909,12 @@ export function speedOf(state: GameState, who: CharacterId): number {
   for (const granted of creature.speedModifiers) {
     if (granted.change === 'add') flat += granted.feet ?? 0;
     else if (granted.change === 'halve') halvings += 1;
+    else zeroed = true;
+  }
+
+  for (const standing of areaStandingOn(state, who)) {
+    if (standing.change === 'add') flat += standing.feet ?? 0;
+    else if (standing.change === 'halve') halvings += 1;
     else zeroed = true;
   }
 
