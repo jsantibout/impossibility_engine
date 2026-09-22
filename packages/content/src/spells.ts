@@ -8374,6 +8374,14 @@ export const ICE_KNIFE: SpellDefinition = {
  * and the first die. So the price is the same on both paths — nothing —
  * and what the caster does next is theirs.
  *
+ * **"This spell doesn't protect the warded creature from areas of effect" is
+ * executed, and it costs a guard rather than being free.** Both branches of
+ * `resolveSpell` fill one `targets` list, so an area's catch and a Fire
+ * Bolt's named creature are indistinguishable by the time a ward reads it;
+ * the check asks whether the definition *has* an area, and without that a
+ * Fireball is turned away from everybody standing in it. It is not in
+ * `unmodelled` because the engine keeps the sentence.
+ *
  * The one place this is narrower than the book is deliberate and the owner
  * accepted it: an attacker gets **one save per ward per turn** rather than one
  * per targeting. Without that a failure costs nothing and can be re-declared
@@ -8410,7 +8418,6 @@ export const SANCTUARY: SpellDefinition = {
   unmodelled: [
     'the branch the save buys is offered as two commands rather than one: "choose a new target" is a second swing at a creature nobody warded, because the engine aims nothing on a caller’s behalf, and "lose the attack" is declining to make one',
     'an attacker gets one save per ward per turn rather than one each time they target, which is a limit the book does not print — owner’s ruling, 2026-09-22, in exchange for a failure that costs nothing not being re-rollable until it passes',
-    '"This spell doesn’t protect the warded creature from areas of effect" names a thing the ward never reaches anyway: an area is not a creature targeting another, and nothing consults a ward when one settles',
     'an attack roll that costs no Attack action — an Opportunity Attack, or any swing outside combat — ends this spell only if it hits: the attack roll itself is recorded on `roll-recorded`, which changes no state by rule, so nothing may hang the ending on it',
   ],
 };

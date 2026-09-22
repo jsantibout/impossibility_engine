@@ -134,6 +134,14 @@ const SETUP: readonly GameEvent[] = [
       prepared: ['mirror-image', 'fire-shield'],
     }),
   },
+  // The ogre casts nothing of its own; the cantrip is here so the casting side
+  // of a ward can be driven by the same creature the weapon side uses, which
+  // is what makes the two counts comparable.
+  {
+    type: 'spellcasting-declared',
+    id: OGRE,
+    spellcasting: declaredCasting({ ability: 'int', cantrips: ['fire-bolt'], prepared: [] }),
+  },
   {
     type: 'spellcasting-declared',
     id: CLERIC,
@@ -696,5 +704,87 @@ describe('a passive defence changes nothing for anybody who has none', () => {
     const out = hit(SETUP, OGRE, { ...CLUB, hold: true }, scripted([20]));
     expect(out.events.some((e) => e.type === 'attack-landed')).toBe(true);
     expect(fold('seed', [...SETUP, ...out.events]).pendingAttack).not.toBeNull();
+  });
+});
+
+// — every die the command threw is counted ————————————————————————————————————
+
+describe('a ward throws a d20, and the log says so', () => {
+  const IN_COMBAT = (log: readonly GameEvent[]): readonly GameEvent[] => [
+    ...log,
+    {
+      type: 'combat-started',
+      combatants: [
+        { id: OGRE, initiative: 20, speed: 30 },
+        { id: WIZARD, initiative: 10, speed: 30 },
+      ],
+    },
+  ];
+
+  /**
+   * **`rollsIssued` is the determinism contract, not an audit nicety.**
+   * `rolls-issued` carries a delta, `fold/rolls.ts` accumulates it, and the
+   * layer above builds the next command's issuer from the total — so a die
+   * thrown and left out of the count is a `RollId` re-issued over one already
+   * in the log.
+   *
+   * A ward's save is thrown before the attack roll and before anything is
+   * spent, which makes it the easiest die in the engine to forget: it is on
+   * the other side of every mark a reader would naturally put beside "the
+   * roll". Both branches are asserted, because they are two returns.
+   */
+  const issued = (log: readonly GameEvent[], events: readonly GameEvent[]): number =>
+    fold('seed', [...log, ...events]).rollsIssued - fold('seed', log).rollsIssued;
+
+  /** A save that failed: one die, and the swing never happened. */
+  it('counts the die a barred ward threw', () => {
+    const log = IN_COMBAT(warded());
+    const rng = scripted([1]);
+    const issuer = createRollIssuer('r');
+    const out = unwrap(
+      resolveAttack(fold('seed', log), OGRE, CLUB, { issuer, rng, content: SRD_CONTENT }),
+      'attack',
+    );
+
+    expect(out.warded).toBe(true);
+    expect(issued(log, out.events)).toBe(issuer.count);
+  });
+
+  /** And a save that passed: its die plus every die the swing went on to throw. */
+  it('counts the die a cleared ward threw beside the swing that followed', () => {
+    const log = IN_COMBAT(warded());
+    const rng = scripted([20]);
+    const issuer = createRollIssuer('r');
+    const out = unwrap(
+      resolveAttack(fold('seed', log), OGRE, CLUB, { issuer, rng, content: SRD_CONTENT }),
+      'attack',
+    );
+
+    expect(out.warded).toBeUndefined();
+    expect(out.attack!.hit).toBe(true);
+    expect(issuer.count).toBeGreaterThan(1);
+    expect(issued(log, out.events)).toBe(issuer.count);
+  });
+
+  /** The casting's side of the same rule, on both of its returns. */
+  it('counts the dice a ward threw in front of a casting', () => {
+    const log = IN_COMBAT(warded());
+    for (const [face, warded_] of [
+      [1, true],
+      [20, false],
+    ] as const) {
+      const issuer = createRollIssuer('r');
+      const out = unwrap(
+        resolveSpell(
+          fold('seed', log),
+          OGRE,
+          { spellId: 'fire-bolt', targets: [WIZARD] },
+          { issuer, rng: scripted([face]), content: SRD_CONTENT },
+        ),
+        'bolt',
+      );
+      expect(out.warded ?? false, `d20 ${face}`).toBe(warded_);
+      expect(issued(log, out.events), `d20 ${face}`).toBe(issuer.count);
+    }
   });
 });

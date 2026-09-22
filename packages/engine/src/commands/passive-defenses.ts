@@ -29,7 +29,7 @@
  * being attacked at all is what this settles.
  */
 
-import { type Ability, type CharacterId, err, ok, type Result } from '@ie/shared';
+import { type CharacterId, err, ok, type Result } from '@ie/shared';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import { PASSIVE_DEFENSE_LEDGER } from '../combat.js';
 import { rollSavingThrow } from '../checks.js';
@@ -178,8 +178,15 @@ export function wardAgainst(
     });
     if (!rolled.ok) return rolled;
 
+    // **This iteration's own events**, kept apart from the batch rather than
+    // recovered from the end of it: the ledger write below happens only in
+    // combat, so a fixed slice off the tail folds the *previous* ward's roll a
+    // second time whenever a creature stands behind two wards outside a fight.
+    // Inert today, because a `roll-recorded` writes no state — and a line that
+    // claims to apply what it just pushed has to be true rather than harmless.
+    const mine: GameEvent[] = [];
     const label = `${spellOfSource(ward.source) ?? 'a ward'} (${ward.defense.ability.toUpperCase()} save)`;
-    events.push(
+    mine.push(
       recordD20Test(attacker, label, rolled.value, rolled.value.success ? 'success' : 'failure'),
     );
 
@@ -192,14 +199,15 @@ export function wardAgainst(
         `${attacker} saved against the ward on ${target}, and there are no turns here to hold them to one save — a re-declared swing will be asked again`,
       );
     } else {
-      events.push({
+      mine.push({
         type: 'feature-used',
         id: attacker,
         feature: wardSlot(ward.source, rolled.value.success ? 'cleared' : 'barred'),
         turn: current.combat.turnsTaken,
       });
     }
-    current = events.slice(-2).reduce(applyEvent, current);
+    events.push(...mine);
+    current = mine.reduce(applyEvent, current);
 
     // **The first ward that bars the swing ends it**, and no later ward is
     // asked: the attack is already lost, so a second save would be a die
@@ -373,12 +381,4 @@ export function answerTheBlow(
   }
 
   return ok({ events, deflected: false, unverified });
-}
-
-/** The abilities a ward may ask for, re-exported so a caller need not reach past this. */
-export type WardAbility = Ability;
-
-/** Whether anything at all is standing on this creature that an attack must consult. */
-export function hasPassiveDefense(state: GameState, who: CharacterId): boolean {
-  return (state.creatures[who]?.passiveDefenses ?? []).length > 0;
 }

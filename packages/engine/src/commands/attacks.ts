@@ -923,6 +923,16 @@ export function resolveAttack(
     // `rolls-issued` records that it did. A refusal carries no events, so
     // refusing here would lose the die and a replay would diverge. A
     // re-declaration the same turn *is* refused, and that one throws nothing.
+    //
+    // **Every die this command throws is counted from here**, the ward's
+    // included. `rolls-issued` carries a *delta*, `fold/rolls.ts` accumulates
+    // it into `state.rollsIssued`, and the layer above builds the next
+    // command's issuer from that number — so a ward's d20 left out of the
+    // count is a `RollId` re-issued over one already in the log. The mark is
+    // above the ward rather than beside the attack roll for exactly that
+    // reason, and both branches below subtract it.
+    const issuedBefore = supply.issuer.count;
+
     const ward = wardAgainst(state, id, command.target, supply);
     if (!ward.ok) return ward;
     if (ward.value.barred) {
@@ -931,7 +941,7 @@ export function resolveAttack(
           ...ward.value.events,
           {
             type: 'rolls-issued',
-            count: supply.issuer.count,
+            count: supply.issuer.count - issuedBefore,
             rng: supply.rng.snapshot(),
           },
         ],
@@ -1136,7 +1146,9 @@ export function resolveAttack(
     }
 
     // — the roll ———————————————————————————————————————————————————————————
-    const issuedBefore = supply.issuer.count;
+    //
+    // `issuedBefore` was taken above the ward, because the ward throws a d20
+    // of its own and every one of them has to be counted.
 
     // Absent, not false: see `TargetContext.withinFiveFeet`.
     const withinFiveFeet = reach.value.apart === null ? undefined : reach.value.apart <= 5;
