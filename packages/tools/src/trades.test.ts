@@ -327,6 +327,7 @@ describe('the sheet reports a trade as a thing this surface can spend', () => {
         spends: { pool: null, uses: 1 },
         slotLevelRequired: true,
         gains: { pool: 'bardic-inspiration', uses: 1 },
+        gainedSlotLevelsRequired: false,
         limit: 'unlimited',
       },
     ]);
@@ -356,6 +357,7 @@ describe('the sheet reports a trade as a thing this surface can spend', () => {
         spends: { pool: null, uses: 1 },
         slotLevelRequired: true,
         gains: { pool: 'wild-shape', uses: 1 },
+        gainedSlotLevelsRequired: false,
         limit: 'once-per-turn',
         // SRD: "if you have no uses of Wild Shape left".
         onlyIfEmpty: 'wild-shape',
@@ -367,6 +369,7 @@ describe('the sheet reports a trade as a thing this surface can spend', () => {
         spends: { pool: 'wild-shape', uses: 1 },
         slotLevelRequired: false,
         gains: { pool: 'spell-slot:1', uses: 1 },
+        gainedSlotLevelsRequired: false,
         limit: 'once-per-long-rest',
         // "you can't do so again until you finish a Long Rest": a pool of one,
         // which is on `pools` under this key with what is left of it.
@@ -384,10 +387,15 @@ describe('the sheet reports a trade as a thing this surface can spend', () => {
    * party, and writing the derivation is what found the other two: a Bard 5
    * and a Druid 5 are not the whole of the shape.
    *
-   * Where each of the four is covered, so that no reader has to guess:
+   * Where each of the six is covered, so that no reader has to guess:
    *
    * - **Font of Inspiration** (Bard 5) and **Wild Resurgence** (Druid 5) are
    *   driven end to end through the door in this file.
+   * - **Font of Magic** (Sorcerer 2) and **Arcane Recovery** (Wizard 1) are
+   *   driven end to end against the engine command in
+   *   `packages/content/src/slot-trades.test.ts`, which is where the two
+   *   shapes that leave the *bought* slot to the caller live — a price table
+   *   and a combined-level budget.
    * - **Sorcery Incarnate** (Sorcerer 7) is inside the level 10 catalogue
    *   sweep in `holdings.test.ts` — which proves less than it sounds like: it
    *   is the Sorcerer 10 sheet that keeps this file's new `SPENT_BY` key
@@ -419,7 +427,9 @@ describe('the sheet reports a trade as a thing this surface can spend', () => {
       'bard:font-of-inspiration',
       'druid:wild-resurgence',
       'oath-of-devotion:holy-nimbus',
+      'sorcerer:font-of-magic',
       'sorcerer:sorcery-incarnate',
+      'wizard:arcane-recovery',
     ]);
 
     const lines = [

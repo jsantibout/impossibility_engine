@@ -181,6 +181,14 @@ const poolKeysOf = (feature: FeatureDefinition): readonly string[] => {
   if (grant.kind === 'spells' && grant.freeCasting?.declares !== undefined) {
     return [grant.freeCasting.pool];
   }
+  // The pool a feature's trades run between, where the feature holds it. SRD
+  // Font of Magic is the whole of this arm: the Sorcery Points and both
+  // conversions are one printed feature, so Metamagic spends a key this grant
+  // declares. A trade's *own* `pool` is the pool of one its daily limit lives
+  // in, which no other feature has ever named and so is not membership here.
+  if (grant.kind === 'trade' && grant.pool !== undefined && grant.declares !== undefined) {
+    return [grant.pool];
+  }
   return [];
 };
 
@@ -3461,6 +3469,25 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
             reason: `${feature.id} trades nothing for anything, so nothing would ever read it`,
           });
         }
+        // The pool the feature itself declares, which is a key and a sizing or
+        // neither: a key with no sizing is a pool nothing gives a maximum, and
+        // a sizing with no key is a maximum on nothing.
+        const declaring = feature.grants.pool !== undefined;
+        const sizing = feature.grants.declares !== undefined;
+        if (declaring !== sizing) {
+          problems.push({
+            field: declaring ? `${where}.grants.declares` : `${where}.grants.pool`,
+            code: 'half_a_declared_pool',
+            reason: `${feature.id} declares ${declaring ? 'a pool with no sizing' : 'a sizing with no pool key'}, and a pool is both`,
+          });
+        }
+        if (declaring && feature.grants.pool!.trim() === '') {
+          problems.push({
+            field: `${where}.grants.pool`,
+            code: 'bad_trade_pool',
+            reason: 'a pool is found by its key, and a blank one names nothing',
+          });
+        }
         const seen = new Set<string>();
         trades.forEach((trade, position) => {
           const at = `${where}.grants.trades[${position}]`;
@@ -3484,6 +3511,10 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
             ['spends', trade?.spends],
             ['gains', trade?.gains],
           ] as const) {
+            // The other end, which is what a `the-slot-level` amount reads and
+            // what a price table is indexed by.
+            const other = side === 'spends' ? trade?.gains : trade?.spends;
+            const readsASlot = end?.kind === 'spell-slot' || other?.kind === 'spell-slot';
             if (end?.kind === 'pool') {
               if (typeof end.key !== 'string' || end.key.trim() === '') {
                 problems.push({
@@ -3492,7 +3523,51 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
                   reason: 'a pool is found by its key, and a blank one names nothing',
                 });
               }
-              if (!Number.isInteger(end.uses) || end.uses < 1) {
+              // SRD Font of Magic: "a number of Sorcery Points equal to the
+              // slot's level". There must *be* a slot in the trade for it to
+              // read, and on a trade of two pools it would read nothing.
+              if (end.uses === 'the-slot-level') {
+                if (!readsASlot) {
+                  problems.push({
+                    field: `${at}.${side}.uses`,
+                    code: 'no_slot_level_to_read',
+                    reason: `${feature.id} sizes ${side} by a slot's level and trades no spell slot, so there is no level to read`,
+                  });
+                }
+              } else if (typeof end.uses === 'object' && end.uses !== null) {
+                // The Created Spell Slots table prices a slot that is bought
+                // at a level the caller names. On the gained end it would be a
+                // price nobody paid; against a slot the *grant* levels it
+                // would be a table with one readable row and no choice.
+                const costs = (end.uses as { byBoughtSlotLevel?: unknown }).byBoughtSlotLevel;
+                if (side === 'gains') {
+                  problems.push({
+                    field: `${at}.gains.uses`,
+                    code: 'price_table_on_what_is_bought',
+                    reason:
+                      'a price table is what an end pays, and on the end that is gained it would be a price nothing charged',
+                  });
+                } else if (!(other?.kind === 'spell-slot' && other.level === undefined)) {
+                  problems.push({
+                    field: `${at}.spends.uses`,
+                    code: 'price_table_without_a_choice',
+                    reason: `${feature.id} prices a slot by the level bought, and this trade buys no slot whose level the caller names`,
+                  });
+                }
+                if (!Array.isArray(costs) || costs.length === 0 || costs.length > 9) {
+                  problems.push({
+                    field: `${at}.${side}.uses.byBoughtSlotLevel`,
+                    code: 'bad_slot_price_table',
+                    reason: `a price table has a row for each slot level it creates, from one to nine, not ${JSON.stringify(costs)}`,
+                  });
+                } else if (costs.some((cost) => !Number.isInteger(cost) || cost < 1)) {
+                  problems.push({
+                    field: `${at}.${side}.uses.byBoughtSlotLevel`,
+                    code: 'bad_slot_price',
+                    reason: `a slot costs a whole number of at least one, and ${JSON.stringify(costs)} has a row that is not`,
+                  });
+                }
+              } else if (!Number.isInteger(end.uses) || end.uses < 1) {
                 problems.push({
                   field: `${at}.${side}.uses`,
                   code: 'bad_trade_amount',
@@ -3500,15 +3575,19 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
                 });
               }
             } else if (end?.kind === 'spell-slot') {
-              // The level is the caster's where a slot is *spent* and the
-              // grant's where one is bought: "give yourself **a level 1** spell
-              // slot" names it, and nothing else could.
-              if (side === 'gains' && end.level === undefined) {
+              // The level is the caster's where a slot is *spent*, and where
+              // one is bought it is either the grant's — "give yourself **a
+              // level 1** spell slot" — or the caller's, which is what the
+              // other end's price table makes it. A bought slot with neither
+              // is a level nothing supplies.
+              const pricedByTheOtherEnd =
+                other?.kind === 'pool' && typeof other.uses === 'object' && other.uses !== null;
+              if (side === 'gains' && end.level === undefined && !pricedByTheOtherEnd) {
                 problems.push({
                   field: `${at}.gains.level`,
                   code: 'slot_without_a_level',
                   reason:
-                    'a slot given back is of a level the feature names; the caster chooses only which they spend',
+                    'a slot given back is of a level the feature names, or of one the caller names and the other end prices; this one has neither',
                 });
               }
               if (end.level !== undefined && (!Number.isInteger(end.level) || end.level < 1 || end.level > 9)) {
@@ -3518,13 +3597,47 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
                   reason: `spell slots run from level 1 to 9, not ${JSON.stringify(end.level)}`,
                 });
               }
+            } else if (end?.kind === 'spell-slots') {
+              // SRD Arcane Recovery is the one sentence of this shape and it
+              // is on the bought end. Nothing in the book burns a handful of
+              // slots at once, and `tradeResource` spends exactly one key.
+              if (side === 'spends') {
+                problems.push({
+                  field: `${at}.spends`,
+                  code: 'slots_spent_together',
+                  reason:
+                    'a budget of combined slot levels is what a trade buys; nothing in the book expends several slots in one act',
+                });
+              }
+              if (end.combinedLevel !== 'half-class-level-round-up') {
+                problems.push({
+                  field: `${at}.${side}.combinedLevel`,
+                  code: 'bad_combined_level',
+                  reason: `the one budget the SRD prints is half the class level rounded up, and "${String((end as { combinedLevel?: unknown }).combinedLevel)}" is not it`,
+                });
+              }
+              if (!Number.isInteger(end.maxLevel) || end.maxLevel < 1 || end.maxLevel > 9) {
+                problems.push({
+                  field: `${at}.${side}.maxLevel`,
+                  code: 'bad_slot_level',
+                  reason: `spell slots run from level 1 to 9, not ${JSON.stringify(end.maxLevel)}`,
+                });
+              }
             } else {
               problems.push({
                 field: `${at}.${side}`,
                 code: 'bad_trade_resource',
-                reason: `"${String((end as { kind?: unknown })?.kind)}" is not something this engine trades: a pool, or a spell slot`,
+                reason: `"${String((end as { kind?: unknown })?.kind)}" is not something this engine trades: a pool, a spell slot, or slots inside a combined-level budget`,
               });
             }
+          }
+
+          if (trade?.moment !== undefined && trade.moment !== 'short-rest') {
+            problems.push({
+              field: `${at}.moment`,
+              code: 'bad_trade_moment',
+              reason: `the one moment the SRD hangs a trade on is the end of a Short Rest, and "${String((trade as { moment?: unknown }).moment)}" is not it`,
+            });
           }
 
           if (trade?.limit === 'once-per-long-rest' && trade.pool === undefined) {

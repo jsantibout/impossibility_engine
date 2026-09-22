@@ -3047,6 +3047,16 @@ const USE_BUDGET_PURCHASE = tool({
  * what no class table printed, and a caster holding all of theirs is refused
  * `nothing_to_regain` with nothing spent at either end.
  *
+ * **`gainedSlotLevels` is `slotLevel`'s mirror and arrived for the mirror
+ * reason.** SRD Font of Magic creates "one spell slot" at a level the Sorcerer
+ * picks off a printed price table, and SRD Arcane Recovery recovers slots the
+ * Wizard names inside a combined-level budget: which slot is *bought* is no
+ * more this engine's to guess than which slot is burnt. It is a list because
+ * one of those two sentences names several at once; a trade that buys one
+ * refuses a list of two rather than reading its first entry. What each costs
+ * is still not here — `sheet` publishes the table and the budget, and the
+ * engine charges off them.
+ *
  * ## `advance_character`
  *
  * **Levels, not experience points.** Owner ruling, 2026-09-20: XP is not state
@@ -3096,6 +3106,12 @@ const TRADE_RESOURCE = tool({
       .describe(
         'Which slot to expend, for a trade that spends one and leaves the level to the caster — SRD’s "expending a spell slot". The trade’s `slotLevelRequired` on `sheet` says whether this one does; sending it for a trade that spends a named pool instead is simply ignored, and leaving it out where it is wanted is refused rather than guessed at.',
       ),
+    gainedSlotLevels: z
+      .array(z.int().min(1).max(9))
+      .optional()
+      .describe(
+        'Which spell slots to buy back, for a trade that leaves that to the caster — SRD Font of Magic creates one slot at a level you pick, and SRD Arcane Recovery recovers several inside a combined-level budget. The trade’s `gainedSlotLevelsRequired` on `sheet` says whether this one wants it, and `priceBySlotLevel`, `combinedSlotLevels` and `maxSlotLevel` beside it say what you may ask for. This is which rung, never how much: the price is the engine’s, off the printed table, and a slot you have not expended is refused rather than minted.',
+      ),
   }),
   run: (context, args) =>
     settle(
@@ -3104,6 +3120,7 @@ const TRADE_RESOURCE = tool({
         feature: args.feature,
         trade: args.trade,
         ...(args.slotLevel === undefined ? {} : { slotLevel: args.slotLevel }),
+        ...(args.gainedSlotLevels === undefined ? {} : { gainedSlotLevels: args.gainedSlotLevels }),
         ...identity(context),
       }),
       (events) => events,

@@ -8,7 +8,7 @@
 
 import { type CharacterId, err, ok, type Result } from '@ie/shared';
 import { canUseFeatureThisTurn } from '../combat.js';
-import { type GameEvent, type GameState } from '../events.js';
+import { type CreatureState, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import {
   hasPool,
@@ -17,6 +17,8 @@ import {
   type PoolDeclaration,
   type Recovery,
 } from '../resources.js';
+import type { TradedAmount } from '../progression.js';
+import type { TradeFeature } from '../standing.js';
 import { creatureOf, spendFor, unknownCreature } from './command.js';
 import { mayAct } from './holds.js';
 
@@ -63,6 +65,21 @@ export interface TradeResourceCommand extends CommandIdentity {
    * between candidates nowhere else either.
    */
   readonly slotLevel?: number;
+  /**
+   * The levels of the slots to buy, where the trade lets the caller choose.
+   *
+   * {@link slotLevel}'s mirror and it arrived for the mirror reason. SRD Font
+   * of Magic creates "one spell slot" at a level the Sorcerer picks off the
+   * Created Spell Slots table, and SRD Arcane Recovery recovers slots the
+   * Wizard chooses inside a combined-level budget: which slot is bought is no
+   * more the engine's to guess than which slot is burnt.
+   *
+   * **A list rather than a number**, because one of the two SRD sentences
+   * names several at once and a field that held one would make the other
+   * unsayable. A trade that buys a single slot refuses a list of two by name
+   * rather than quietly taking the first.
+   */
+  readonly gainedSlotLevels?: readonly number[];
 }
 
 /**
@@ -159,6 +176,16 @@ export function tradeResource(
       );
     }
 
+    // "When you finish a Short Rest", which the clock answers exactly as it
+    // answers `useRecovery`'s: the rest earned its benefits and nothing has
+    // happened since.
+    if (trade.moment === 'short-rest' && creature.lastShortRestAt !== state.elapsed) {
+      return err(
+        'not_the_moment',
+        `${trade.name} happens when a Short Rest finishes, and ${id} has not just finished one`,
+      );
+    }
+
     // The slot the caller named, where the trade leaves the level to them.
     const spending = trade.spends.key ?? slotNamed(command.slotLevel);
     if (spending === null) {
@@ -167,25 +194,20 @@ export function tradeResource(
         `${trade.name} expends a spell slot and nothing says which level; the caster chooses`,
       );
     }
+    // The one level in this trade, which is what `the-slot-level` reads.
+    const slotLevel = trade.spends.key === null ? (command.slotLevel ?? 0) : 0;
 
-    if (remaining(creature.resources, spending) < trade.spends.uses) {
+    // What is actually bought, and where the caller has a say in it. Three
+    // shapes, and every refusal below lands before anything is spent.
+    const buying = slotsBought(creature.resources, trade, command.gainedSlotLevels, slotLevel);
+    if (!buying.ok) return buying;
+
+    const price = costOf(trade, buying.value, slotLevel);
+    if (remaining(creature.resources, spending) < price) {
       const pool = creature.resources.pools[spending];
       return err(
         'exhausted',
-        `${id} has ${remaining(creature.resources, spending)} ${pool?.label ?? spending} left, and ${trade.name} costs ${trade.spends.uses}`,
-      );
-    }
-
-    // What is actually bought. A pool at its maximum has nothing to give back,
-    // and a trade that paid for nothing is a refusal rather than a silence.
-    const gained = creature.resources.pools[trade.gains.key];
-    if (gained === undefined) {
-      return err('unknown_pool', `${id} has no ${trade.gains.key} for ${trade.name} to fill`);
-    }
-    if (gained.spent < 1) {
-      return err(
-        'nothing_to_regain',
-        `${id} has spent no ${gained.label}, and a trade gives back what was spent rather than minting more`,
+        `${id} has ${remaining(creature.resources, spending)} ${pool?.label ?? spending} left, and ${trade.name} costs ${price}`,
       );
     }
 
@@ -200,7 +222,7 @@ export function tradeResource(
       events.push(spent.value);
     }
 
-    events.push({ type: 'resource-spent', id, key: spending, amount: trade.spends.uses });
+    events.push({ type: 'resource-spent', id, key: spending, amount: price });
 
     // The daily limit, spent — and only where the limit is what the pool is.
     if (trade.limit === 'once-per-long-rest' && trade.pool !== undefined) {
@@ -216,20 +238,176 @@ export function tradeResource(
       });
     }
 
-    events.push({
-      type: 'resource-regained',
-      id,
-      key: trade.gains.key,
-      // Never more than was spent, because `restore` caps at the maximum and a
-      // trade that asked for more would be paid for in full and refunded in
-      // part.
-      amount: Math.min(trade.gains.uses, gained.spent),
-      ...(stamp === null ? {} : { command: stamp }),
+    // **The stamp goes on the first thing bought**, because a trade that buys
+    // several slots is still one command: `once` fingerprints the call and the
+    // fold reads one stamp, so a second copy would be the same command
+    // claiming to have landed twice.
+    buying.value.forEach((bought, position) => {
+      events.push({
+        type: 'resource-regained',
+        id,
+        key: bought.key,
+        amount: bought.amount,
+        ...(stamp === null || position > 0 ? {} : { command: stamp }),
+      });
     });
 
     return ok(events);
   });
 }
+
+/** One pool a trade fills, and how much of it. */
+interface Bought {
+  readonly key: string;
+  readonly amount: number;
+}
+
+/**
+ * What this trade buys, with every refusal the gained end can raise.
+ *
+ * Three shapes, and the trade says which by what it carries: a pool named by
+ * the feature, a single slot priced off SRD Font of Magic's Created Spell
+ * Slots table, or SRD Arcane Recovery's handful inside a combined-level
+ * budget. The last two leave the level to the caller, which is `slotLevel`'s
+ * own argument read at the other end of the same trade.
+ *
+ * **`nothing_to_regain` is unchanged and is the whole of the minting rule.**
+ * `restore` never takes a pool above its maximum, so what a trade gives back
+ * is what was expended; a Sorcerer holding every level 1 slot is refused here
+ * rather than handed a slot their class table never printed. SRD Arcane
+ * Recovery says "choose **expended** spell slots" and asks for nothing more.
+ * Whether SRD Font of Magic's create may go further is a rules question that
+ * has not been answered, and this is the conservative reading until it is.
+ */
+function slotsBought(
+  resources: CreatureState['resources'],
+  trade: TradeFeature,
+  asked: readonly number[] | undefined,
+  slotLevel: number,
+): Result<readonly Bought[]> {
+  /**
+   * `exact` is the difference between a feature that names its own amount and
+   * a caller who named theirs.
+   *
+   * SRD Wild Resurgence gives "a level 1 spell slot" whatever is expended, so
+   * the trade takes what there is and is capped — that is `restore`'s own rule
+   * written at the door. A Wizard who asks for two level 1 slots and has spent
+   * one is a different thing: they would pay the day's single use in full and
+   * be refunded in part, which is the quiet loss `useRecovery` refuses by name.
+   */
+  const fill = (key: string, want: number, exact = false): Result<readonly Bought[]> => {
+    const pool = resources.pools[key];
+    if (pool === undefined) {
+      return err('unknown_pool', `there is no ${key} for ${trade.name} to fill`);
+    }
+    if (pool.spent < 1) {
+      return err(
+        'nothing_to_regain',
+        `no ${pool.label} has been spent, and a trade gives back what was spent rather than minting more`,
+      );
+    }
+    if (exact && pool.spent < want) {
+      return err(
+        'nothing_to_regain',
+        `${trade.name} was asked for ${want} ${pool.label}, and ${pool.spent} of them has been spent`,
+      );
+    }
+    // Never more than was spent, because `restore` caps at the maximum and a
+    // trade that asked for more would be paid for in full and refunded in part.
+    return ok([{ key, amount: Math.min(want, pool.spent) }]);
+  };
+
+  if (trade.gains.key !== null) {
+    return fill(trade.gains.key, amountOf(trade.gains.uses, slotLevel));
+  }
+
+  const levels = asked ?? [];
+  if (levels.length === 0) {
+    return err(
+      'slot_level_required',
+      `${trade.name} buys a spell slot and nothing says which level; the caster chooses`,
+    );
+  }
+  for (const level of levels) {
+    if (!Number.isInteger(level) || level < 1 || level > 9) {
+      return err('bad_slot_level', `${level} is not a spell slot level`);
+    }
+  }
+
+  // SRD Font of Magic: "one spell slot", at the table's price. A list of two
+  // is refused rather than read as its first entry.
+  const priced = priceTableOf(trade);
+  if (priced !== null) {
+    if (levels.length > 1) {
+      return err(
+        'one_slot_only',
+        `${trade.name} creates one spell slot, and ${levels.length} were named`,
+      );
+    }
+    const level = levels[0]!;
+    if (level > priced.length) {
+      return err('slot_level_too_high', `${trade.name} creates no slot above level ${priced.length}`);
+    }
+    return fill(spellSlotKey(level), 1);
+  }
+
+  // SRD Arcane Recovery: "a combined level equal to no more than half your
+  // Wizard level (round up), and none of them can be level 6+".
+  const max = trade.maxSlotLevel ?? 9;
+  const tooHigh = levels.find((level) => level > max);
+  if (tooHigh !== undefined) {
+    return err('slot_level_too_high', `${trade.name} recovers no slot above level ${max}`);
+  }
+  const combined = levels.reduce((sum, level) => sum + level, 0);
+  const budget = trade.combinedLevel ?? 0;
+  if (combined > budget) {
+    return err(
+      'over_budget',
+      `${trade.name} recovers ${budget} combined levels of spell slots, and ${levels.join(' + ')} is ${combined}`,
+    );
+  }
+
+  // One entry per level, so two level 1 slots are one event for two uses —
+  // and so a caller naming a level they have not spent is refused rather than
+  // quietly given fewer than they asked for.
+  const wanted = new Map<number, number>();
+  for (const level of levels) wanted.set(level, (wanted.get(level) ?? 0) + 1);
+  const bought: Bought[] = [];
+  for (const [level, count] of [...wanted].sort(([a], [b]) => a - b)) {
+    const one = fill(spellSlotKey(level), count, true);
+    if (!one.ok) return one;
+    bought.push(...one.value);
+  }
+  return ok(bought);
+}
+
+/**
+ * What the spent end pays.
+ *
+ * A flat number on every trade the SRD prints one on; the Created Spell Slots
+ * table's row where the feature carries one, because there the price is a
+ * function of the rung the caller chose to buy.
+ */
+function costOf(trade: TradeFeature, bought: readonly Bought[], slotLevel: number): number {
+  const table = priceTableOf(trade);
+  if (table === null) return amountOf(trade.spends.uses, slotLevel);
+  // The slot just bought, read back off its own key: `slotsBought` has already
+  // refused a level this table has no row for.
+  const level = Number(bought[0]?.key.split(':')[1] ?? 0);
+  return table[level - 1] ?? Number.POSITIVE_INFINITY;
+}
+
+/** SRD Font of Magic's Created Spell Slots table, where this trade prints one. */
+const priceTableOf = (trade: TradeFeature): readonly number[] | null =>
+  typeof trade.spends.uses === 'object' ? trade.spends.uses.byBoughtSlotLevel : null;
+
+/** SRD Font of Magic: "a number of Sorcery Points equal to the slot's level". */
+const amountOf = (uses: TradedAmount, slotLevel: number): number => {
+  if (uses === 'the-slot-level') return slotLevel;
+  // A price table is never what an end *gains*, and where it is what an end
+  // spends the caller has already been charged off it.
+  return typeof uses === 'object' ? 0 : uses;
+};
 
 /** The key of the slot level a caller named, or null where they named none. */
 const slotNamed = (level: number | undefined): string | null =>

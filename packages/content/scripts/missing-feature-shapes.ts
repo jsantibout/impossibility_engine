@@ -99,7 +99,7 @@ export const FEATURE_SHAPES = {
   'a-pool-refilled-to-a-floor':
     'a recovery that tops a pool up to a number rather than giving back a share of it. `Recovery`\'s `upTo` in packages/engine/src/progression.ts is half the class level, half the maximum, or all, and the SRD prints a fourth shape twice — "until you have two", "until you have 4 if you have 3 or fewer" — where what is regained depends on what is left rather than on the pool\'s size.',
   'a-resource-traded-for-another':
-    'one resource spent to buy another. The conversion between two **pools** is built: the `trade` grant in packages/engine/src/progression.ts is "One resource spent to buy another", a list because "a feature carries one grant and the SRD prints two directions in one feature", and Wild Resurgence spends a Wild Shape use for a level 1 slot and a slot for a use. What is still unsaid is everything either end of which is not a pool — Sneak Attack dice forgone to buy an effect, a mode given up for a harder hit, a Channel Divinity use minting hit points to divide — and the trades the grant\'s own closed vocabulary cannot yet write: "a trade can never mint a use above a pool\'s maximum", so a slot a class table never printed is refused rather than given. The limit is no longer one of them: `ResourceTradeGrant.limit` carries an `unlimited` member, and Font of Inspiration, Sorcery Incarnate and Holy Nimbus each spend through it.',
+    'one resource spent to buy another. The conversion between two **pools** is built: the `trade` grant in packages/engine/src/progression.ts is "One resource spent to buy another", a list because "a feature carries one grant and the SRD prints two directions in one feature", and Wild Resurgence spends a Wild Shape use for a level 1 slot and a slot for a use. Spell slots on the **bought** end are built too, in both shapes the book prints: a slot whose level the caller names off a printed price table, and several inside a budget on their combined level, which are Font of Magic\'s Created Spell Slots and Arcane Recovery. What is still unsaid is everything either end of which is not a pool or a slot — Sneak Attack dice forgone to buy an effect, a mode given up for a harder hit, a cheaper action bought with a Focus Point — and the one trade the grant\'s own closed vocabulary still refuses: "a trade can never mint a use above a pool\'s maximum", so a slot a class table never printed is refused rather than given, which is the half of Font of Magic\'s create that waits on a ruling. The limit is no longer one of them: `ResourceTradeGrant.limit` carries an `unlimited` member, and Font of Inspiration, Sorcery Incarnate and Holy Nimbus each spend through it.',
   'a-creature-swapped-for-another-stat-block':
     'a creature whose game statistics are **replaced** by another block\'s, for as long as it holds the form. The neighbouring shape is a summons and this is not one: `a-stat-block-created-mid-fight` puts a second combatant on the field, while SRD Wild Shape leaves one creature standing under two sheets and names the half that survives line by line — "Your game statistics are replaced by the Beast\'s stat block, but you retain your creature type; Hit Points; Hit Point Dice; Intelligence, Wisdom, and Charisma scores; class features; languages; and feats". `docs/design/characters-and-equipment.md` holds the one direction that exists, which "turns a parsed stat block into a fightable creature" that had no sheet before; nothing lays a block over a character who already has one, and nothing takes it off again. The owner\'s ruling of 2026-09-20 settled the four questions the swap raises — gear merges, the block\'s Armour Class always wins, an oversized form is the forced-movement rule, and forms are chosen at the start of a Long Rest — so what is left here is the mechanism rather than the judgement.',
   'a-casting-paid-for-out-of-a-feature-pool':
@@ -1060,13 +1060,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
 
   // — Sorcerer —
-  'sorcerer:font-of-magic': [
-    {
-      clause: 'Converting them into spell slots and back is not modelled',
-      why: 'a-resource-traded-for-another',
-      note: 'the half of the trade the grant refuses by rule: a slot bought with points is a use above a maximum the class table never printed, and the direction that already works — a slot spent for points — is the one where both ends are known.',
-    },
-  ],
   'sorcerer:innate-sorcery': [
     {
       clause: 'the +1 to spell save DC and Advantage on spell attacks',
@@ -1229,18 +1222,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
 
   // — Wizard —
-  'wizard:arcane-recovery': [
-    {
-      clause: 'Choosing which slots to recover',
-      why: 'a-resource-traded-for-another',
-      note: 'Font of Magic’s gap arriving at a second door: one use of a pool spent to give back spell slots the caller names, where what is gained is not a pool.',
-    },
-    {
-      clause: 'the half-level cap on their total',
-      why: 'a-resource-traded-for-another',
-      note: 'and the same trade needs a limit the vocabulary has no member for — a ceiling on the combined **level** of what is bought, rather than on how often the trade may be made.',
-    },
-  ],
   'wizard:ritual-adept': [
     {
       clause: 'the engine does not check that the spell has the Ritual tag or that the book is in hand',
@@ -1630,10 +1611,17 @@ export const isBarePool = (feature: FeatureDefinition): boolean => {
  * **The map could not see these and their whole point is unbuilt.** Each
  * declares `engine` truthfully — the uses are counted, sized off the class
  * table and refilled by the right rest — and each is a feature whose *effect*
- * nobody has written: Wild Shape's Beast form, Font of Magic's conversion,
- * Arcane Recovery's chosen slots, a Paladin's Divine Sense. Selecting the map
- * by `automation === 'manual'` hid all four, because the flag answers "does
- * the engine apply what this declares" and these declare only a pool.
+ * nobody has written: Wild Shape's Beast form, a Paladin's Divine Sense.
+ * Selecting the map by `automation === 'manual'` hid all four, because the
+ * flag answers "does the engine apply what this declares" and these declare
+ * only a pool.
+ *
+ * **Two of the original four have left, and the way they left is the check
+ * working.** Font of Magic's conversion and Arcane Recovery's chosen slots
+ * were built as `trade` grants, and a trade is not a `pool` grant — so the
+ * derivation drops them with nothing to delete here, which is what a derived
+ * population is for. The blocked-on entries they carried had to go by hand,
+ * and {@link featureCoverageGaps} named both as `stale` until they did.
  *
  * Manual features are excluded: one of those is already in the first
  * population, and a feature counted twice would be a second answer to one

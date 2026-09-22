@@ -52,6 +52,7 @@ import { creaturesStandingInCastingArea, spellOfSource, type CastingTime } from 
 import type { SpellArea, SpellEffect } from './spell-definitions.js';
 import type { EffectEndCause } from './timers.js';
 import type { Recovery } from './resources.js';
+import type { TradedAmount } from './progression.js';
 import {
   weaponInSet,
   weaponNarrowingHolds,
@@ -1718,8 +1719,27 @@ export interface TradeFeature {
    * cannot be resolved until they say — which is the one thing about a trade
    * that cannot be settled at creation.
    */
-  readonly spends: { readonly key: string | null; readonly uses: number };
-  readonly gains: { readonly key: string; readonly uses: number };
+  readonly spends: { readonly key: string | null; readonly uses: TradedAmount };
+  /**
+   * The pool bought, or **null** where the caller names the slot levels.
+   *
+   * The mirror of {@link spends}, and it arrived for the mirror reason: SRD
+   * Font of Magic creates "one spell slot" of a level the Sorcerer picks off
+   * the Created Spell Slots table, and SRD Arcane Recovery recovers slots the
+   * Wizard chooses. Which slot is bought is no more the engine's to guess than
+   * which slot is burnt, so the key waits for the caller in both directions.
+   */
+  readonly gains: { readonly key: string | null; readonly uses: TradedAmount };
+  /**
+   * SRD Arcane Recovery's "combined level equal to no more than half your
+   * Wizard level (round up)", read at the granting class's own level — the
+   * same moment and the same rule as `RecoveryFeature.classLevel`.
+   */
+  readonly combinedLevel?: number;
+  /** SRD Arcane Recovery: "none of them can be level 6+." */
+  readonly maxSlotLevel?: number;
+  /** SRD Arcane Recovery: "When you finish a Short Rest." */
+  readonly moment?: 'short-rest';
   readonly limit: 'once-per-turn' | 'once-per-long-rest' | 'unlimited';
   /**
    * The pool of one the trade declares — the daily limit it lives in where

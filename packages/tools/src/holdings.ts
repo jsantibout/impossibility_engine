@@ -278,11 +278,34 @@ export interface HeldTrade {
    * same fact stated as the thing a caller acts on, because a null in a field
    * is a thing to reason about and a flag beside it is not.
    */
-  readonly spends: { readonly pool: string | null; readonly uses: number };
+  readonly spends: { readonly pool: string | null; readonly uses: number | null };
   /** Whether `trade_resource.slotLevel` has to be sent, which nothing else says. */
   readonly slotLevelRequired: boolean;
-  /** What it buys, by pool key. A spell slot's key carries its level. */
-  readonly gains: { readonly pool: string; readonly uses: number };
+  /**
+   * What it buys, by pool key — **null where the caller chooses**, exactly as
+   * {@link spends} is.
+   *
+   * SRD Font of Magic creates a slot at a level the Sorcerer picks and SRD
+   * Arcane Recovery recovers slots the Wizard names, so which slot is bought
+   * has no key until they say. {@link gainedSlotLevelsRequired} is the same
+   * fact as the thing a caller acts on.
+   */
+  readonly gains: { readonly pool: string | null; readonly uses: number };
+  /** Whether `trade_resource.gainedSlotLevels` has to be sent. */
+  readonly gainedSlotLevelsRequired: boolean;
+  /**
+   * SRD Font of Magic's Created Spell Slots table: what a slot of each level
+   * costs, index 0 a level 1 slot, in whatever {@link spends} names. Its
+   * length is the highest slot this trade creates, and it is what makes
+   * {@link spends}`.uses` null — the price is the rung the caller picks.
+   */
+  readonly priceBySlotLevel?: readonly number[];
+  /** SRD Arcane Recovery: the combined level of the slots that may be named. */
+  readonly combinedSlotLevels?: number;
+  /** SRD Arcane Recovery: "none of them can be level 6+." */
+  readonly maxSlotLevel?: number;
+  /** SRD Arcane Recovery: "When you finish a Short Rest." */
+  readonly moment?: 'short-rest';
   /** The clause that limits it, **including the one that says there is none**. */
   readonly limit: 'once-per-turn' | 'once-per-long-rest' | 'unlimited';
   /**
@@ -810,16 +833,37 @@ export function holdingsOf(state: GameState, id: CharacterId): Holdings | null {
    */
   const bargains = new Map<string, HeldTrade[]>();
   for (const one of sheet.trades ?? []) {
+    // The price, where the SRD prints a table rather than a number: what is
+    // spent is a function of the rung bought, so there is no flat `uses` to
+    // report and the table is reported instead.
+    const priced = typeof one.spends.uses === 'object' ? one.spends.uses.byBoughtSlotLevel : null;
     const entry: HeldTrade = {
       trade: one.trade,
       name: one.name,
       action: one.action,
-      spends: { pool: one.spends.key, uses: one.spends.uses },
+      spends: {
+        pool: one.spends.key,
+        // `the-slot-level` never appears on the end that is spent, and a price
+        // table is a row per rung rather than one number.
+        uses: typeof one.spends.uses === 'number' ? one.spends.uses : null,
+      },
       // The same fact as `spends.pool === null`, said as the thing a caller
       // does about it. SRD leaves "a spell slot" to the caster and the engine
       // refuses `slot_level_required` rather than choosing between candidates.
       slotLevelRequired: one.spends.key === null,
-      gains: { pool: one.gains.key, uses: one.gains.uses },
+      gains: {
+        pool: one.gains.key,
+        // "A number of Sorcery Points equal to the slot's level" is not a
+        // number until the caller has named the slot, and a zero would read as
+        // a trade that buys nothing — so it is reported as the one use of the
+        // slot that sizes it.
+        uses: typeof one.gains.uses === 'number' ? one.gains.uses : 1,
+      },
+      gainedSlotLevelsRequired: one.gains.key === null,
+      ...(priced === null ? {} : { priceBySlotLevel: priced }),
+      ...(one.combinedLevel === undefined ? {} : { combinedSlotLevels: one.combinedLevel }),
+      ...(one.maxSlotLevel === undefined ? {} : { maxSlotLevel: one.maxSlotLevel }),
+      ...(one.moment === undefined ? {} : { moment: one.moment }),
       limit: one.limit,
       ...(one.pool === undefined ? {} : { limitPool: one.pool }),
       ...(one.onlyIfEmpty === undefined ? {} : { onlyIfEmpty: one.onlyIfEmpty }),
