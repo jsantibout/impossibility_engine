@@ -10,6 +10,7 @@ import {
   type Citation,
   type CitedSource,
 } from '../scripts/citations.js';
+import { FEATURE_SHAPES } from '../scripts/missing-feature-shapes.js';
 import {
   ADJUDICATED,
   BLOCKED_ON,
@@ -1707,7 +1708,7 @@ describe('a shape says where this repository already described it', () => {
   });
 
   /**
-   * And nothing claims a shape **either** vocabulary has dropped.
+   * And nothing claims a shape **any** vocabulary has dropped.
    *
    * The item half is here because gate G1 widened `TrackedAdjudication.why` to
    * `ItemBlockerId`: Remove Curse's Attunement clause is a debt whose shape is
@@ -1716,9 +1717,21 @@ describe('a shape says where this repository already described it', () => {
    * the duplication the item vocabulary was split out to avoid, so a claim may
    * name either list and this guard reads both. What it still refuses is a
    * claim naming neither, which is the drift it was written for.
+   *
+   * **The feature half is the third and the last**, taken by the owner on
+   * 2026-09-21 as the general form rather than a fourth enumeration: `why`
+   * names a shape in any of the three maps. Speak with Animals, Gaseous Form
+   * and Haste's narrowed action are all blocked on
+   * `an-action-the-engine-has-no-spender-for`, which the feature book
+   * describes because `NAMED_ACTIONS` leaves Influence and Utilize out for a
+   * reason that has nothing to do with spells.
    */
   it('has a vocabulary that covers every claim', () => {
-    const known = new Set<string>([...Object.keys(MISSING_SHAPES), ...Object.keys(ITEM_SHAPES)]);
+    const known = new Set<string>([
+      ...Object.keys(MISSING_SHAPES),
+      ...Object.keys(ITEM_SHAPES),
+      ...Object.keys(FEATURE_SHAPES),
+    ]);
     expect([...claimedShapes()].filter((shape) => !known.has(shape))).toEqual([]);
   });
 });
@@ -1939,8 +1952,14 @@ describe('the split bundles add back up', () => {
     // The tracked map is keyed by *marker*, a closed union, so the lookup goes
     // through its entries rather than by index: a recorded triple is history
     // and may name a marker the vocabulary has since dropped.
+    //
+    // **Or by the clause, where the entry carries no marker.** `null` is not a
+    // key, so a marker-less entry cannot be recorded under one — and a lookup
+    // that missed it would fall through to the branch that forgives a clause
+    // whose spell has since been written, which is a silent pass on a
+    // re-filing that never happened. Speak with Animals is the first of these.
     const tracked = (TRACKED_ADJUDICATED[spellId] ?? []).find(
-      (entry) => entry.marker === clause,
+      (entry) => entry.marker === clause || (entry.marker === null && entry.clause === clause),
     );
     if (tracked !== undefined) return tracked.why;
     // An undefined spell's entry is a bare shape id, so the question it can
@@ -2404,7 +2423,19 @@ describe('a consumer count is a query', () => {
    */
   it('names the largest blocker in the undefined population', () => {
     const ranked = [...allShapeConsumers()].sort((a, b) => b.blocks.length - a.blocks.length);
-    expect(ranked[0]!.shape).toBe('an-action-a-spell-compels-or-forbids');
+    // **Two shapes are tied at the top now and the tie is the finding.**
+    // Gate G1 read `an-action-a-spell-compels-or-forbids` as five mechanisms
+    // rather than one, and P2-A moved three of its adjudications out — Speak
+    // with Animals, Gaseous Form and Haste's narrowed action, all to
+    // `an-action-the-engine-has-no-spender-for` — which took it down to a tie
+    // with a shape that never was a bundle. So the claim is what it always
+    // was, and is now asserted over both: what sits at the top of this
+    // ranking is a mechanism nobody has built, not a bucket.
+    expect(ranked.slice(0, 2).map((one) => one.shape).sort()).toEqual([
+      'a-random-outcome-that-is-not-a-d20',
+      'an-action-a-spell-compels-or-forbids',
+    ]);
+    expect(ranked[0]!.blocks.length).toBe(ranked[1]!.blocks.length);
     // **Moved from 20 to 15 by the third catalogue pass, and the total fell
     // further than the tracked column rose.** Twelve undefined spells named
     // this shape; ten of them were written, and only two carry the claim into

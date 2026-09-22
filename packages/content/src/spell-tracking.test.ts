@@ -19,6 +19,7 @@ import {
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { isExecuted } from '../scripts/coverage-data.js';
+import { FEATURE_SHAPES } from '../scripts/missing-feature-shapes.js';
 import {
   ITEM_SHAPES,
   MISSING_SHAPES,
@@ -664,7 +665,9 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
    *
    * What is asserted here is that the form is in use and that it is a **claim
    * or a handover** rather than a comment: each one names a shape one of the
-   * two vocabularies has, or says `'table'`. Its two refusals — a sentence a
+   * three vocabularies has, or says `'table'`. Speak with Animals is the
+   * first to reach past the spell book: what blocks it is the Influence
+   * action, which is a gap the **feature** vocabulary already describes. Its two refusals — a sentence a
    * marker can see, and an `'engine'` or `'expressible'` claim nobody can
    * re-run — are held by `misanchoredAdjudications` above and driven with
    * synthetics in `marker-less-blockers.test.ts`.
@@ -683,6 +686,7 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
     const known = new Set<string>([
       ...Object.keys(MISSING_SHAPES),
       ...Object.keys(ITEM_SHAPES),
+      ...Object.keys(FEATURE_SHAPES),
       'table',
     ]);
     for (const [spellId, entry] of markerLess) {
@@ -742,7 +746,11 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
    * vocabulary was split out to avoid.
    */
   it('names an enumerated shape for every clause that is not the table’s', () => {
-    const known = [...Object.keys(MISSING_SHAPES), ...Object.keys(ITEM_SHAPES)];
+    const known = [
+      ...Object.keys(MISSING_SHAPES),
+      ...Object.keys(ITEM_SHAPES),
+      ...Object.keys(FEATURE_SHAPES),
+    ];
     for (const [spellId, written] of Object.entries(ADJUDICATED)) {
       for (const entry of written) {
         if (entry.why === 'table' || entry.why === 'engine') continue;
@@ -804,7 +812,11 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
    * vocabulary has.
    */
   it('names no shape the vocabulary does not have', () => {
-    const known = new Set<string>([...Object.keys(MISSING_SHAPES), ...Object.keys(ITEM_SHAPES)]);
+    const known = new Set<string>([
+      ...Object.keys(MISSING_SHAPES),
+      ...Object.keys(ITEM_SHAPES),
+      ...Object.keys(FEATURE_SHAPES),
+    ]);
     for (const [spellId, written] of Object.entries(ADJUDICATED)) {
       for (const entry of written) {
         if (entry.why === 'table' || entry.why === 'engine') continue;

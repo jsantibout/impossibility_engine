@@ -6411,7 +6411,8 @@ export const HASTE: SpellDefinition = {
   durationSeconds: 60,
   unmodelled: [
     'the doubled Speed: "the target’s Speed is doubled" is the only sentence in SRD that multiplies one, and a Speed is composed from a halving, which is presence rather than count, and a zero, which is last and wins — there is no third operation and no rule saying how a doubling meets a halving',
-    'the extra action and the five it may be spent on: "it gains an additional action on each of its turns. That action can be used to take only the Attack (one attack only), Dash, Disengage, Hide, or Utilize action" — the action economy counts what a turn holds and nothing an effect writes adds to that count',
+    'the extra action: "it gains an additional action on each of its turns" — a turn holds an Action, a Bonus Action and a Reaction, the economy counts exactly those three, and nothing an effect writes creates a fourth',
+    'the five that extra action may be spent on: "That action can be used to take only the Attack (one attack only), Dash, Disengage, Hide, or Utilize action" — a narrowing of one slot to a named few, which `ActionRule`’s `permits-only` says exactly, over a list the engine cannot finish naming: nothing spends a Utilize',
     'the lethargy: "When the spell ends, the target is Incapacitated and has a Speed of 0 until the end of its next turn" fires at the moment the casting runs out, and expiry is derived rather than recorded, so nothing hangs a consequence on it',
   ],
 };

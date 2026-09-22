@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { FEATURE_SHAPES } from '../scripts/missing-feature-shapes.js';
 import { SRD_CONTENT, SPELL_DEFINITIONS } from '@ie/content';
 import { asCharacterId, expect as unwrap, isErr, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from '@ie/engine';
@@ -85,7 +86,13 @@ const FILED: Readonly<Record<string, readonly string[]>> = {
     'a-standing-effect-derived-from-where-a-creature-stands',
   ],
   prestidigitation: ['a-cap-on-how-many-castings-run-at-once'],
-  'speak-with-animals': ['an-action-a-spell-compels-or-forbids'],
+  // **The one entry whose shape is not in the spell book**, and it is the
+  // gate-G1 re-filing the `why` widening released: what blocks this spell is
+  // the Influence action, which `NAMED_ACTIONS` leaves out because no spender
+  // could be told apart as having taken one. That gap is the feature
+  // vocabulary's `an-action-the-engine-has-no-spender-for`, and a second id
+  // over here for it is the duplication the three books were split to avoid.
+  'speak-with-animals': ['an-action-the-engine-has-no-spender-for'],
   'speak-with-plants': ['difficult-terrain-an-area-creates'],
   'tiny-hut': [
     'a-barrier-that-blocks-passage',
@@ -233,7 +240,8 @@ describe('the forty-five unadjudicated spells are read', () => {
     expect(entries.length, `${spellId} has no adjudication`).toBeGreaterThan(0);
     expect([...new Set(entries.map((entry) => entry.why))].sort(), spellId).toEqual([...shapes]);
     expect(misanchoredAdjudications(spellId), spellId).toEqual([]);
-    for (const shape of shapes) expect(Object.keys(MISSING_SHAPES), spellId).toContain(shape);
+    const known = [...Object.keys(MISSING_SHAPES), ...Object.keys(FEATURE_SHAPES)];
+    for (const shape of shapes) expect(known, spellId).toContain(shape);
   });
 
   /**

@@ -67,6 +67,10 @@ import { fileURLToPath } from 'node:url';
 // does: an entry is transcribed when a record resolves to it, and a second
 // spelling of that join would be the second place to get it wrong.
 import { magicItemEntries, transcribedItems } from './magic-items.js';
+// **Type-only, and that is load-bearing.** `missing-feature-shapes.ts` imports
+// values from this file, so a value import back would close a runtime cycle;
+// a type import is erased under `verbatimModuleSyntax` and closes nothing.
+import type { FeatureShapeId } from './missing-feature-shapes.js';
 
 /**
  * The mechanical shapes that stand between an SRD spell and a finished one.
@@ -310,6 +314,13 @@ export interface SplitBundle {
    * reach the executed population would count a bundle spanning all three
    * short, which is the error this file exists to end.
    *
+   * **A tracked entry with no marker is found by its clause instead**, which
+   * is the marker-less form arriving here: `marker` is the key a tracked
+   * entry is looked up by and `null` is not a key. Without that the lookup
+   * would miss the entry entirely and fall through to the branch that
+   * forgives a clause whose *spell* has since been written — which would be a
+   * silent pass on a re-filing that had quietly not happened.
+   *
    * **A clause may leave the map, and there is exactly one honest reason.**
    * IE-019 executed Shatter, so `['shatter', 'a Construct has Disadvantage']`
    * is no longer an adjudication at all — and that is not a lost fact, it is
@@ -442,6 +453,59 @@ export const SPLIT_BUNDLES: Readonly<Record<string, SplitBundle>> = {
       ['haste', 'speed-and-movement-modes', 'a-speed-an-effect-multiplies'],
     ],
   },
+  /**
+   * The bundle gate G1 read as five mechanisms, recorded once it had somewhere
+   * to send more than one of them.
+   *
+   * **P2-T0 could not write this and said so in as many words**: the split
+   * needed a second destination and the only one it had was
+   * `a-rider-that-lasts-until-the-start-of-the-targets-next-turn`, where
+   * Shocking Grasp had already gone. The second is a **feature** shape, and
+   * filing a spell against one is the widening of `TrackedAdjudication.why`
+   * the owner took rather than enumerate the field a fourth time — so the
+   * record and the type landed together, which is why they are one commit.
+   *
+   * **Four adjudications over four spells, and the id survives.** That is
+   * `a-mode-on-the-save-a-spell-forces`' precedent rather than
+   * `speed-and-movement-modes`': what the reading found is that the
+   * description claimed arms the vocabulary had grown into, not that the
+   * mechanism was imaginary. What is left under the id is the three arms
+   * nobody has built — an extra action **created** (Expeditious Retreat,
+   * Haste), a compelled action spending somebody else's budget (Dissonant
+   * Whispers, Command, the three Dominates, Compulsion), and a lifetime an
+   * Instantaneous casting cannot hang (Befuddlement) — and the `held` list
+   * below holds only what moved, which is what the guard over these records
+   * demands.
+   */
+  'an-action-a-spell-compels-or-forbids': {
+    adjudications: 4,
+    spells: 4,
+    held: [
+      // The arm that left first, at gate G1: what Shocking Grasp lacks is one
+      // word of a duration vocabulary and not a rule about the economy.
+      [
+        'shocking-grasp',
+        'cannot make Opportunity Attacks',
+        'a-rider-that-lasts-until-the-start-of-the-targets-next-turn',
+      ],
+      // And the three the widening released, all to one destination: an
+      // action the book prints that no command takes.
+      [
+        'gaseous-form',
+        'the things the cloud cannot do are not forbidden',
+        'an-action-the-engine-has-no-spender-for',
+      ],
+      [
+        'haste',
+        'the five that extra action may be spent on',
+        'an-action-the-engine-has-no-spender-for',
+      ],
+      // The tracked population's slot is a **marker** key — except where the
+      // entry has no marker, which is this one and is why the lookup takes
+      // the clause as well. See `SplitBundle.held`.
+      ['speak-with-animals', 'skill options with them', 'an-action-the-engine-has-no-spender-for'],
+    ],
+  },
 };
 
 // — the executed population ——————————————————————————————————————————————————
@@ -462,8 +526,15 @@ export interface Adjudication {
    * the test asserts in both directions.
    */
   readonly clause: string;
-  /** Fiction the engine should never decide, or the shape that blocks it. */
-  readonly why: 'table' | ShapeId;
+  /**
+   * Fiction the engine should never decide, or the shape that blocks it.
+   *
+   * The shape may belong to any of the three books — see {@link BlockerId}.
+   * Two executed spells need it and both are gate G1's re-filings: Gaseous
+   * Form's forbidden talking and Haste's five narrowed actions are blocked on
+   * `an-action-the-engine-has-no-spender-for`, which is a feature shape.
+   */
+  readonly why: 'table' | BlockerId;
   readonly note: string;
 }
 
@@ -780,8 +851,8 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
     },
     {
       clause: 'the things the cloud cannot do are not forbidden',
-      why: 'an-action-a-spell-compels-or-forbids',
-      note: 'SRD: "The target can’t talk or manipulate objects, and any objects it was carrying or holding can’t be dropped, used, or otherwise interacted with." The action economy is the engine’s and the only lever a spell has on it is a condition the engine names; forbidding two actions and leaving the rest is a rider nothing expresses, and what is in a creature’s hands is not a fact the engine holds either.',
+      why: 'an-action-the-engine-has-no-spender-for',
+      note: 'SRD: "The target can’t talk or manipulate objects, and any objects it was carrying or holding can’t be dropped, used, or otherwise interacted with." Forbidding a named action is `ActionRule`’s `forbids` and four definitions write it; what this sentence forbids is **talking** and **handling an object**, and no command takes either — the second is the Utilize action, which `NAMED_ACTIONS` leaves out because no spender could be told apart as having taken one. Gate G1 read it as mis-filed for that reason, and the gap it names is the feature book’s.',
     },
   ],
   harm: [
@@ -798,9 +869,14 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: "the target’s Speed is doubled, it gains a +2 bonus to Armor Class". A Speed is composed from a halving, which is presence rather than count, and a zero, which is last and wins; a doubling is neither, and the book gives no order for one against a halving — so the member arrives with the rule that settles it or not at all.',
     },
     {
-      clause: 'the extra action and the five it may be spent on',
+      clause: 'the extra action',
       why: 'an-action-a-spell-compels-or-forbids',
-      note: 'SRD: "it gains an additional action on each of its turns. That action can be used to take only the Attack (one attack only), Dash, Disengage, Hide, or Utilize action." Granting an extra action is named in that shape’s own description beside forbidding one, and the narrowing is a second rider on a thing the first cannot create.',
+      note: 'SRD: "it gains an additional action on each of its turns." An extra action **granted** rather than an existing one governed, which is the arm of that shape with no member at all: `ActionRule` forbids a slot, narrows one and pays for a named action out of a cheaper slot, and none of the three creates one. Gate G1 counted this arm as its own and it is the half of Haste’s sentence that still has nowhere to go.',
+    },
+    {
+      clause: 'the five that extra action may be spent on',
+      why: 'an-action-the-engine-has-no-spender-for',
+      note: 'SRD: "That action can be used to take only the Attack (one attack only), Dash, Disengage, Hide, or Utilize action." The narrowing itself is `permits-only` and is written by four definitions; what it cannot name is **Utilize**, which `NAMED_ACTIONS` leaves out because no spender could be told apart as having taken one, so a rule listing it would read as enforced and would not be. Filed apart from the sentence above it because the two are different gaps and a single entry hid which of them is which.',
     },
     {
       clause: 'the lethargy',
@@ -1270,8 +1346,20 @@ export interface TrackedAdjudication {
    * **item** vocabulary and finishes on the very sentence. Minting a second id
    * over here for one gap is the duplication that vocabulary was split out to
    * avoid, so the field takes the union that {@link ItemBlockerId} already is.
+   *
+   * ### And the third, which is why the field stopped being enumerated
+   *
+   * `FeatureShapeId` is the same argument from the third book, and the point
+   * at which the owner took the general form instead of a fourth list: Speak
+   * with Animals widens the Influence action, Gaseous Form forbids talking
+   * and handling objects, and Haste's extra action may be spent on a Utilize
+   * — and every one of those is `an-action-the-engine-has-no-spender-for`,
+   * which `NAMED_ACTIONS` describes from the feature side because no spender
+   * could be told apart as having taken one. So the field is
+   * {@link BlockerId}, which is a shape in any of the three maps, and the
+   * disjointness that makes that unambiguous is asserted rather than assumed.
    */
-  readonly why: 'table' | 'engine' | 'expressible' | ShapeId | ItemShapeId;
+  readonly why: 'table' | 'engine' | 'expressible' | BlockerId;
   readonly note: string;
 }
 
@@ -3585,8 +3673,8 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
     {
       marker: null,
       clause: 'skill options with them',
-      why: 'an-action-a-spell-compels-or-forbids',
-      note: 'the spell widens what may be attempted against a Beast, which is `ActionRule`’s `allows` polarity — and the action it widens is the Influence action, which `NAMED_ACTIONS` leaves out because no spender can be told apart as having taken one. That is the residue this shape records by name, beside Wind Walk’s Magic action and every Hide, Search and Study left out for the same reason.',
+      why: 'an-action-the-engine-has-no-spender-for',
+      note: 'the spell widens what may be attempted against a Beast, which is `ActionRule`’s `allows` polarity and is sayable — what is not is the **action** it widens. That is the Influence action, and `NAMED_ACTIONS` leaves it out because no spender could be told apart as having taken one: a rule naming it would read as enforced and would not be. Gate G1 read this as mis-filed under `an-action-a-spell-compels-or-forbids`, whose vocabulary is built; the gap is the feature book’s and is the same one Utilize sits in.',
     },
   ],
   darkvision: [
@@ -5378,6 +5466,29 @@ export type ItemShapeId = keyof typeof ITEM_SHAPES;
 
 /** Every shape an item entry may name: the spell vocabulary, and the item one. */
 export type ItemBlockerId = ShapeId | ItemShapeId;
+
+/**
+ * Every shape **any** entry, in any of the three books, may name.
+ *
+ * The owner's disposition of 2026-09-21, taken after the third time
+ * `TrackedAdjudication.why` was too narrow: rather than a fourth enumeration,
+ * `why` names a shape in any of the three maps. The three widenings it
+ * replaces were all the same discovery arriving from a different book —
+ * Remove Curse's attunement is an item's gap finished on a spell's sentence,
+ * Hex is a definition nobody wrote, and the action nobody can spend is a
+ * **feature** shape three spells are blocked on.
+ *
+ * **It rests on the three id spaces being disjoint**, which is asserted
+ * rather than left to the naming convention: a string that named a shape in
+ * two maps would make every `why` ambiguous, and each consumer would resolve
+ * it by whichever map it looked in first. See `why-names-any-shape.test.ts`.
+ *
+ * `FeatureBlockerId` in `missing-feature-shapes.ts` is this same union and
+ * predates it by one book; the declaration lives there because that is the
+ * file that can see all three. The type import here is erased, so the value
+ * cycle between the two files stays one-way.
+ */
+export type BlockerId = ShapeId | ItemShapeId | FeatureShapeId;
 
 /**
  * One sentence of an untranscribed item's printed entry, and what stands in
