@@ -378,10 +378,17 @@ describe('a monster swings with a line its own block prints', () => {
     expect(swung.events.some((event) => event.type === 'roll-recorded')).toBe(true);
     // And the line that landed is the Bite rather than an Unarmed Strike,
     // said by the engine rather than inferred: the Wolf's printed line ends
-    // "it has the Prone condition", which is a sentence the engine hands back
-    // as unverified rather than applying. An Unarmed Strike has no such line.
-    expect(swung.unverified.join(' ')).toContain('Bite');
-    expect(swung.unverified.join(' ')).toContain('Prone');
+    // "If the target is a Medium or smaller creature, it has the Prone
+    // condition", and the engine executes that sentence. An Unarmed Strike has
+    // no such line, so a goblin left standing would mean the wrong line was
+    // swung. (It used to read as an `unverified` clause instead, which is
+    // where the same sentence went before the engine could apply it.)
+    expect(
+      swung.events.some(
+        (event) =>
+          event.type === 'condition-applied' && event.id === 'grish' && event.condition === 'prone',
+      ),
+    ).toBe(true);
   });
 
   it('refuses a line the block does not print, which is the field arriving', () => {

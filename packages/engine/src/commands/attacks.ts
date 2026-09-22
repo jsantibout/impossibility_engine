@@ -55,6 +55,7 @@ import {
   multiattackAllows,
   multiattackOf,
   printedAttackOf,
+  readPrintedRider,
   statedBonusActionsUsed,
   unreadActionsOf,
 } from '../monster.js';
@@ -65,6 +66,8 @@ import {
   coverBetween,
   distanceBetween,
   positionOf,
+  sizeAtMost,
+  sizeOf,
 } from '../positioning.js';
 import { type ReactionOffer } from '../reactions.js';
 import { isCreatureType, scaledDiceFor, scaledFlatFor } from '../spell-definitions.js';
@@ -79,6 +82,7 @@ import {
   standingBonuses,
   standingDamageEffects,
   strikeStyleFor,
+  type HitOption,
   type StrikeStyle,
 } from '../standing.js';
 import { hasCondition } from '../conditions.js';
@@ -267,6 +271,124 @@ function statedInPlay(
       flat: part.flat,
       type: part.type,
     })),
+  };
+}
+
+/** What a stat block's own line buys on a hit, and what it could not. */
+interface PrintedRiderOnASwing {
+  /** The effect list the hit buys, or null where the line is still prose. */
+  readonly option: HitOption | null;
+  /** Everything about this line the swing owes the table, reported on a hit. */
+  readonly unverified: readonly string[];
+}
+
+const NO_PRINTED_RIDER: PrintedRiderOnASwing = { option: null, unverified: [] };
+
+/**
+ * **What a stat block says a hit does**, as the effect list a hit already buys.
+ *
+ * SRD Wolf: "_Hit:_ 5 (1d6 + 2) Piercing damage. If the target is a Medium or
+ * smaller creature, it has the Prone condition." The numbers before the rider
+ * have been the engine's since the bestiary landed and the sentence after it
+ * was handed to the DM, which is honest and makes the creature weaker than the
+ * book prints it.
+ *
+ * **Not a second path.** What a hit buys is {@link HitOption}, the effect list
+ * SRD Stunning Strike rides on; this builds one off the printed line instead of
+ * off a sheet, and everything after it — `runEffects`, the deadline
+ * `fileDeadlines` files, and the hold the defender answers in — is the path
+ * that already existed. The three fields a feature's rider has and this one
+ * does not are the three the book does not print here: there is no pool, no
+ * price and no allowance, because a stat block's rider is **not asked for**.
+ * SRD writes "you can" on every feature that buys one and writes this one as
+ * part of the Hit.
+ *
+ * The source the condition is filed under carries the attacker's id as well as
+ * the line's name — `grappleSource`'s construction — so two wolves biting one
+ * creature leave two instances with two deadlines rather than one whose
+ * deadline the second bite moved.
+ *
+ * **Everything the engine did not do is said out loud**, in the channel the
+ * verbatim clause was already reported in: a line the reader cannot read, a
+ * size the sentence does not reach, a size nobody has stated, and a deadline
+ * anchored on a turn order there is none of.
+ */
+function printedRiderOnASwing(
+  state: GameState,
+  attacker: CharacterId,
+  target: CharacterId,
+  printed: StatedAttack | null,
+): PrintedRiderOnASwing {
+  if (printed?.rider == null) return NO_PRINTED_RIDER;
+
+  // The clause the swing has reported since the bestiary landed, for every
+  // line this cannot execute. A printed rider silently dropped is a creature
+  // made weaker than the book, which is the failure the honest half of the
+  // shape exists to prevent.
+  const handOver = `${printed.name} hit ${target}, and its line reads "${printed.rider}" — the engine does not apply that; a DM does`;
+
+  const read = readPrintedRider(printed.rider);
+  if (read === null) return { option: null, unverified: [handOver] };
+
+  const unverified: string[] = [];
+
+  // SRD's "If the target is a Medium or smaller creature", evaluated rather
+  // than assumed — and **what somebody said before what the map assumed**,
+  // which is the reading `push` takes of the same sentence: a stat block pins
+  // a size into `creature-added` and the map defaults an unplaced one to
+  // Medium, so asking the map first would answer Medium for a Gargantuan
+  // creature nobody re-stated when they placed it.
+  if (read.ifNoLargerThan !== undefined) {
+    const size =
+      state.creatures[target]?.size ?? (state.scene === null ? null : sizeOf(state.scene, target));
+    if (size !== null && !sizeAtMost(size, read.ifNoLargerThan)) {
+      return {
+        option: null,
+        unverified: [
+          `${target} is ${size}, and ${printed.name}'s line reaches a creature that is ${read.ifNoLargerThan} or smaller — nothing was applied`,
+        ],
+      };
+    }
+    if (size === null) {
+      unverified.push(
+        `nobody has said how big ${target} is, so ${printed.name}'s line took them for Medium; a creature larger than ${read.ifNoLargerThan} would have been left alone`,
+      );
+    }
+  }
+
+  // A deadline the clock cannot reach is a condition that would never lift, so
+  // it is left to the table rather than hung on somebody for ever — the answer
+  // `hitRiderAsked` gives the same absence, minus the refusal, because nobody
+  // asked for this rider and a swing must not be refused for taking it.
+  if (read.lasts !== undefined && state.combat === null) {
+    return {
+      option: null,
+      unverified: [
+        handOver,
+        `${printed.name}'s clause lasts until a turn boundary, and there are no turns here for it to end at`,
+      ],
+    };
+  }
+
+  return {
+    option: {
+      feature: `${attacker}:${printed.name}`,
+      featureName: printed.name,
+      option: printed.name,
+      name: printed.name,
+      pool: null,
+      costs: 0,
+      effects: read.conditions.map((name) => ({
+        kind: 'condition' as const,
+        condition: { name },
+      })),
+      // The block prints no ability behind this clause and nothing here reads
+      // a DC: a printed saving throw is exactly the sentence `readPrintedRider`
+      // refuses, because the DC it states has nowhere on a `HitOption` to ride.
+      ability: null,
+      ...(read.lasts === undefined ? {} : { lasts: read.lasts }),
+    },
+    unverified,
   };
 }
 
@@ -622,6 +744,20 @@ export function resolveAttack(
     // unspent and no die thrown. What it costs is spent on the hit, below.
     const rider = hitRiderAsked(state, id, sheet, weapon, command.onHit);
     if (!rider.ok) return rider;
+
+    // **And the rider this creature's own block prints**, which nobody asks
+    // for: SRD writes "you can" on every feature that buys one and writes a
+    // stat block's as part of the Hit. Read here rather than at the landing
+    // for the same reason the asked-for one is — what rides on the blow has to
+    // be settled before the blow, because the hold pins it — and it refuses
+    // nothing, because a swing the book permits must not be turned away for
+    // carrying a sentence the engine could not read.
+    const fromTheBlock = printedRiderOnASwing(state, id, command.target, printed);
+    // **One rider, and the one somebody paid for wins.** The field a hold pins
+    // holds a single option, no SRD creature both prints a rider and holds a
+    // feature that buys one, and a printed clause is free — so where both turn
+    // up, the purchase is honoured and the printed line goes back to the DM.
+    const riding = rider.value ?? fromTheBlock.option;
 
     // — what the class says this attack is ————————————————————————————————
     //
@@ -1104,17 +1240,17 @@ export function resolveAttack(
       return ok({ events, attack: attack.value, unverified, duplicate: false });
     }
 
-    // **What the block says a hit does that the engine does not.** The Wolf's
-    // "If the target is a Medium or smaller creature, it has the Prone
-    // condition", the Ghoul's Constitution save at DC 10, and every other
-    // clause the parser deliberately left as prose. Reported the moment the
-    // hit is known, in the channel a caller already reads for rules that went
-    // unapplied — a printed rider silently dropped is a creature made weaker
-    // than the book, which is the failure the honest half of the shape exists
-    // to prevent.
-    if (printed?.rider != null) {
+    // **What the block says a hit does**, reported the moment the hit is known:
+    // the clauses `printedRiderOnASwing` could not execute, and the Ghoul's
+    // Constitution save at DC 10 among them. What it *could* execute is riding
+    // on `riding` and is applied below with everything else a hit bought.
+    unverified.push(...fromTheBlock.unverified);
+    // And the printed line where the swing also bought one of its own — the
+    // purchase wins and this goes back to the table, said out loud rather than
+    // dropped.
+    if (rider.value !== null && fromTheBlock.option !== null) {
       unverified.push(
-        `${attackName} hit ${command.target}, and its line reads "${printed.rider}" — the engine does not apply that; a DM does`,
+        `${attackName} hit ${command.target}, and its line reads "${printed?.rider}" — ${rider.value.featureName} rode on this blow instead; a DM applies the rest`,
       );
     }
 
@@ -1160,7 +1296,7 @@ export function resolveAttack(
           // settles it, which is also where the SRD's own order puts it — the
           // save is rolled after the blow rather than before damage nobody has
           // rolled. See {@link PendingAttack.rider}.
-          ...(rider.value === null ? {} : { rider: rider.value }),
+          ...(riding === null ? {} : { rider: riding }),
         },
       });
 
@@ -1265,7 +1401,7 @@ export function resolveAttack(
         // rides on the hold and resolves with the damage; where it opens none,
         // the field is ignored and the rider fires below exactly as it always
         // has. See {@link PendingDamage.rider}.
-        ...(rider.value === null ? {} : { rider: { attacker: id, option: rider.value } }),
+        ...(riding === null ? {} : { rider: { attacker: id, option: riding } }),
       },
     );
     if (!hurt.ok) return hurt;
@@ -1300,12 +1436,12 @@ export function resolveAttack(
     // which is the one ordering the book does fix: the rider went onto the
     // hold above and `settleDamage` resolves it once the defender has spoken.
     const riderEvents: GameEvent[] = [];
-    if (rider.value !== null && hurt.value.offers.length === 0) {
+    if (riding !== null && hurt.value.offers.length === 0) {
       const bought = applyHitRider(
         [...landed, ...mastered.value.events].reduce(applyEvent, state),
         supply,
         { attacker: id, target: command.target },
-        rider.value,
+        riding,
       );
       if (!bought.ok) return bought;
       riderEvents.push(...bought.value.events);

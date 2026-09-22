@@ -68,6 +68,7 @@ import { readFileSync } from 'node:fs';
 import { SPELL_DEFINITIONS, SRD_CONTENT, SRD_MAGIC_ITEMS } from '@ie/content';
 import {
   adaptMonster,
+  readPrintedRider,
   type ClassDefinition,
   type FeatureDefinition,
   type SpellDefinition,
@@ -891,9 +892,22 @@ export const statBlockLines = (
 export const isReadLine = (line: StatBlockLine): boolean =>
   line.attack !== undefined || line.trait !== undefined || line.multiattack !== undefined;
 
-/** A read attack line whose printed rider nothing applies. */
-export const hasUnappliedRider = (line: StatBlockLine): boolean =>
-  line.attack !== undefined && (line.attack as { rider: string | null }).rider !== null;
+/**
+ * A read attack line whose printed rider nothing applies.
+ *
+ * **Asked of the engine's own reader**, never of the string. `readPrintedRider`
+ * is what the swing itself calls, so a sentence it can turn into an effect list
+ * is one the hit now executes and is not a debt — and a sentence it refuses is
+ * still handed to the DM and still counted here. A predicate that only asked
+ * whether a rider was printed would have gone on counting the Wolf's Prone
+ * after the engine started applying it, which is the one failure a generated
+ * report exists to make impossible.
+ */
+export const hasUnappliedRider = (line: StatBlockLine): boolean => {
+  const rider =
+    line.attack === undefined ? null : (line.attack as { rider: string | null }).rider;
+  return rider !== null && readPrintedRider(rider) === null;
+};
 
 /**
  * The one shape that runs over a line the parser **read**.

@@ -319,19 +319,25 @@ describe('a monster attacks with what its block prints', () => {
   });
 
   /**
-   * The Wolf's Bite prints "If the target is a Medium or smaller creature, it
-   * has the Prone condition", and the engine does not apply it. Saying so is
-   * the difference between a shape that is honest about its edges and one that
-   * quietly makes the Wolf weaker than the book.
+   * A printed rider the engine cannot read is still carried whole and still
+   * handed back. Saying so is the difference between a shape that is honest
+   * about its edges and one that quietly makes a creature weaker than the book.
+   *
+   * The Ghoul's Claw, because it prints the one thing `HitOption` has nowhere
+   * to put: "_Constitution Saving Throw:_ DC 10" — a DC the book states rather
+   * than one derived from a sheet. The Wolf's Prone was this example until
+   * `printed-riders.test.ts` started executing it; the two files are the two
+   * halves of one claim, and this is the half that must not shrink to nothing.
    */
   it('reports the rider the block prints and the engine does not apply', () => {
-    const table = inTheWoods('wolf', WOLF);
-    const bite = unwrap(
-      resolveAttack(table.state, WOLF, { target: BREN, weapon: null, action: 'Bite' }, supply()),
-      'the bite',
+    const table = inTheWoods('ghoul', GHOUL);
+    const claw = unwrap(
+      resolveAttack(table.state, GHOUL, { target: BREN, weapon: null, action: 'Claw' }, supply()),
+      'the claw',
     );
 
-    expect(bite.unverified.join(' ')).toContain('Prone condition');
+    expect(claw.unverified.join(' ')).toContain('Paralyzed condition');
+    expect(claw.unverified.join(' ')).toContain('the engine does not apply that');
   });
 
   /**
