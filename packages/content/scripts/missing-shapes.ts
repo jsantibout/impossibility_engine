@@ -764,7 +764,7 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
     {
       clause: 'holding the globe back',
       why: 'what-a-creature-is-holding',
-      note: 'SRD lets the caster keep the globe in hand to be thrown or slung later, or left to detonate on its own. Nothing tracks what a creature is holding, so there is nowhere for an undetonated globe to sit.',
+      note: 'SRD lets the caster keep the globe in hand to be thrown or slung later, or left to detonate on its own. A hand is a fact now and a casting may put a thing in one, but what sits there is an ordinary catalogue item with no state of its own \u2014 and this globe is a held *casting*, which detonates on a later action, may be thrown, and goes off by itself if it is not. Holding it is the half that is built; the rest of the sentence is not.',
     },
   ],
   'gaseous-form': [
@@ -1763,13 +1763,13 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: 'saving-throw',
       clause: 'the creature must succeed on a Constitution saving throw or drop the object if it can',
       why: 'what-a-creature-is-holding',
-      note: '`inventory` and `equipped` are real and only armour and weapons have a slot, so what is in a creature\u2019s hands is not a fact the engine keeps and a rule that makes it let go has nothing to call.',
+      note: 'what a creature holds is a fact now \u2014 hands are counted and a casting may fill one \u2014 but nothing takes a thing **out** of a hand against its holder\u2019s will. `dropConjured` ends a conjured thing, which ceases to exist; a hot Longsword let go of would land on a floor this engine does not keep, and no effect kind can make its holder do it.',
     },
     {
       marker: 'roll-mode',
       clause: 'it has Disadvantage on attack rolls and ability checks until the start of your next turn',
       why: 'what-a-creature-is-holding',
-      note: 'the mode and the deadline are both ordinary; what they hang on is a creature choosing to keep hold of an object the engine does not know it is holding.',
+      note: 'the mode and the deadline are both ordinary; what they hang on is a creature **choosing** to keep hold of the object rather than drop it, which is the branch the clause above has no writer for.',
     },
   ],
   'flaming-sphere': [
