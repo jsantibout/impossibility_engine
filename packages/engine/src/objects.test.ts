@@ -5,6 +5,7 @@ import { armorClass, type CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { creaturesInArea } from './positioning.js';
+import { NO_ABILITY_SCORES, rollSavingThrow } from './checks.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import {
   applyConditionTo,
@@ -281,6 +282,54 @@ describe('a damage threshold is Immunity until the blow is big enough', () => {
   it('leaves a creature with no threshold exactly where it was', () => {
     const out = unwrap(damageCreature(base(), GOBLIN, { amount: 1, source: 'the dagger' }), 'scratch');
     expect(fold('seed', [...SETUP, ...out]).creatures[GOBLIN]!.vitals.hp).toBe(6);
+  });
+});
+
+describe('a thing with no ability scores fails every saving throw', () => {
+  /**
+   * SRD "Breaking Objects": "An object lacks ability scores unless a rule
+   * assigns scores to the object. Without ability scores, an object can't make
+   * ability checks, and it fails all saving throws."
+   *
+   * The half that bites is the save, and it bites because an area catches a
+   * door: a Fireball centred on the room asks the door for a Dexterity save,
+   * and six zeroes are a modifier of −5 rather than a refusal to roll. So
+   * the sheet says it has no scores and `checks.ts` reads that where the die
+   * is thrown — once, for all ten call sites that throw one.
+   */
+  const door = () => fold('seed', [...SETUP, ...declare()]).creatures[DOOR]!;
+
+  it('says so on the sheet rather than leaving six zeroes to speak for it', () => {
+    expect(door().sheet.stated?.noAbilityScores).toBe(true);
+    expect(door().sheet.abilities).toEqual({ str: 0, dex: 0, con: 0, int: 0, wis: 0, cha: 0 });
+  });
+
+  it('fails the save whatever the die shows, and the die is still recorded', () => {
+    // A DC of 1 is a save nothing could miss on the arithmetic — even
+    // −5 plus a natural 1 would be beaten by a DC of −5, and 1 is the
+    // lowest the tools allow — so a success here would be the modifier
+    // talking rather than the rule.
+    const rolled = unwrap(
+      rollSavingThrow(createRollIssuer('r'), createRng('save') as Rng, door().sheet, 'dex', {
+        dc: 1,
+      }),
+      'save',
+    );
+    expect(rolled.success).toBe(false);
+    expect(rolled.autoFailed).toBe(NO_ABILITY_SCORES);
+    expect(rolled.natural).toBeGreaterThan(0);
+  });
+
+  it('leaves a creature that has ability scores exactly where it was', () => {
+    const goblin = base().creatures[GOBLIN]!;
+    const rolled = unwrap(
+      rollSavingThrow(createRollIssuer('r'), createRng('save') as Rng, goblin.sheet, 'dex', {
+        dc: 1,
+      }),
+      'save',
+    );
+    expect(rolled.autoFailed).toBeNull();
+    expect(rolled.success).toBe(true);
   });
 });
 

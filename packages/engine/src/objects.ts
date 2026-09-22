@@ -164,14 +164,18 @@ export function objectDefenses(
 /**
  * The sheet a declared object is written onto.
  *
- * **Every ability score is 0**, and that is the honest transcription rather
- * than a placeholder: SRD says an object has no ability scores, and the
- * nearest thing the sheet can say is the lowest score there is. What it does
- * *not* yet say is the other half of that sentence — "without ability scores,
- * an object can't make ability checks, and it fails all saving throws" — which
- * is a rule in the D20 pipeline and not on this sheet. A door rolls a saving
- * throw at −5 today instead of failing it outright, and that gap is named
- * here rather than papered over.
+ * **Every ability score is 0 and the sheet says so out loud.** The zeroes are
+ * the nearest the scores can come to saying nothing; `noAbilityScores` is the
+ * absence itself, and it is what `checks.ts` reads to fail every saving throw
+ * this thing is ever asked for. Both are needed, because a modifier of −5 is
+ * still a modifier: a door caught in a Fireball would otherwise make its
+ * Dexterity save about a third of the time and take half the damage.
+ *
+ * The other half of the SRD's sentence — "an object can't make ability checks"
+ * — is deliberately not here. That is a *refusal* rather than a failure, which
+ * is a different shape and a different door; nothing in the engine asks a door
+ * for a check today, and picking one of the two readings by accident is worse
+ * than naming the gap.
  *
  * The Armour Class is **stated**, exactly as a monster's is: it is read off a
  * table rather than derived from armour and a Dexterity the thing has not got.
@@ -194,6 +198,7 @@ export function objectSheet(
     spellcastingAbility: null,
     stated: {
       armorClass,
+      noAbilityScores: true,
       ...(damageThreshold === undefined ? {} : { damageThreshold }),
     },
   };

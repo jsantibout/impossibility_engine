@@ -128,7 +128,7 @@ describe('a DM puts a breakable thing in the room by describing it', () => {
     expect(t.campaign.state().creatures['castle-wall']!.vitals.hp).toBe(27);
     // And the report says what landed rather than what was ruled, so nobody
     // narrates nine damage to a wall that did not feel it.
-    expect((glanced as { resolution: { amount: number } }).resolution.amount).toBe(0);
+    expect(glanced.resolution['amount']).toBe(0);
 
     expectOk(t.call('improvised_damage', { target: 'castle-wall', amount: 11, ruling: 'the ram' }));
     expect(t.campaign.state().creatures['castle-wall']!.vitals.hp).toBe(16);

@@ -119,7 +119,15 @@ function endingFactsOf(state: GameState, event: GameEvent): readonly EndingFact[
     case 'damage-taken':
       // A trap names nobody, and that is a real answer rather than a gap:
       // there is no creature that dealt it, so neither cause can fire.
-      return event.by === undefined
+      //
+      // And neither can fire on nothing. An amount of 0 is a blow a damage
+      // threshold turned aside — SRD calls it "superficial" and says it
+      // "doesn't reduce Hit Points", which is Immunity and therefore damage
+      // *not taken* — so a spell that ends when its target takes damage does
+      // not end on it. That is the reading `resolveDamage` already gives the
+      // Concentration save the same blow did not put at risk, and the two
+      // seams that read this event have to agree about what it means.
+      return event.by === undefined || event.amount === 0
         ? []
         : [
             { cause: 'target-deals-damage', who: event.by },

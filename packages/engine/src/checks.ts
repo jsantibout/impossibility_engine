@@ -413,6 +413,12 @@ export interface D20TestResult {
   readonly supersedes?: { readonly natural: number; readonly total: number };
 }
 
+/**
+ * Why a thing with no ability scores failed: SRD's own sentence, so a log
+ * reads the rule rather than a shrug.
+ */
+export const NO_ABILITY_SCORES = 'it has no ability scores, and so fails all saving throws';
+
 function resolve(
   issuer: RollIssuer,
   rng: Rng,
@@ -460,7 +466,19 @@ function resolve(
   // A condition's own automatic failure first, because that is the one the
   // creature is carrying and the one a reader will expect to see named; the
   // outcome is identical either way, since there is nothing to combine.
-  const autoFailed = conditionEffect.autoFail ?? options.autoFail ?? null;
+  //
+  // And a thing with no ability scores last, because it is the most general of
+  // the three and the least informative to read: SRD says an object "fails all
+  // saving throws", and a Stunned door should still be told it was the stun.
+  // Saving throws only - "can't make ability checks" is the other half of that
+  // sentence and it is a refusal rather than a failure, which is not this
+  // function's to invent. See `StatedValues.noAbilityScores`.
+  const autoFailed =
+    conditionEffect.autoFail ??
+    options.autoFail ??
+    (kind === 'saving-throw' && sheet.stated?.noAbilityScores === true
+      ? NO_ABILITY_SCORES
+      : null);
 
   return ok({
     kind,

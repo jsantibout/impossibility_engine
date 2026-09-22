@@ -1287,7 +1287,7 @@ const DECLARE_OBJECT = tool({
       .string()
       .min(1)
       .describe(
-        'What it is made of, by the book’s substances: cloth, crystal, wood, stone, iron, mithral, adamantine. The Armour Class follows from it.',
+        'What it is made of, by its id in this world’s table — e.g. wood, or stone. The Armour Class follows from it, and a world may hold substances the book never printed.',
       ),
     size: sizeSchema.describe(
       'How big. The hit points follow from it, and the book’s table stops at Large — break anything bigger into sections and declare each one.',
