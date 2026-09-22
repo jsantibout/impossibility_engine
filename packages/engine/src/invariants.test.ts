@@ -62,9 +62,11 @@ import {
   declareFalling,
   declareDifficultTerrain,
   declineOpportunity,
+  dropConjured,
   endConcentration,
   endOngoingSpell,
   escapeGrapple,
+  evokeConjured,
   grappleSource,
   grappleTarget,
   shoveTarget,
@@ -1001,6 +1003,78 @@ const draining = (): readonly GameEvent[] => {
 };
 
 /**
+ * A holding a conjured thing, and a hand that can let go of it.
+ *
+ * Goodberry, because it is the smallest of the shape: the casting puts ten
+ * berries in A's hand and they are there until the spell ends. Letting go of
+ * them is a command that emits a loss, and a retry that got past the guard
+ * would drop a second handful nobody has.
+ */
+const berried = (): readonly GameEvent[] => {
+  const armed: readonly GameEvent[] = [
+    ...SETUP,
+    {
+      type: 'spellcasting-declared',
+      id: A,
+      spellcasting: declaredCasting({
+        ability: 'int',
+        prepared: ['inflict-wounds', 'disguise-self', 'goodberry'],
+      }),
+    },
+  ];
+  return [
+    ...armed,
+    ...unwrap(
+      resolveSpell(fold('s', armed), A, { spellId: 'goodberry', targets: [], slotLevel: 1 }, supply()),
+      'goodberry',
+    ).events,
+  ];
+};
+
+/**
+ * The same, with Flame Blade let go of — so the blade can be evoked again.
+ *
+ * SRD: "If you let go of the blade, it disappears, but you can evoke the blade
+ * again as a Bonus Action." A retry of the evocation that got past the guard
+ * would conjure a second blade and spend a second Bonus Action.
+ */
+const blademless = (): readonly GameEvent[] => {
+  const armed: readonly GameEvent[] = [
+    ...SETUP,
+    {
+      type: 'spellcasting-declared',
+      id: A,
+      spellcasting: declaredCasting({
+        ability: 'int',
+        prepared: ['inflict-wounds', 'disguise-self', 'flame-blade'],
+      }),
+    },
+    {
+      type: 'resource-pool-declared',
+      id: A,
+      pool: { key: spellSlotKey(2), label: 'level 2 spell slot', max: 2, recovers: 'long-rest' },
+    },
+  ];
+  const cast = [
+    ...armed,
+    ...unwrap(
+      resolveSpell(fold('s', armed), A, { spellId: 'flame-blade', targets: [], slotLevel: 2 }, supply()),
+      'flame-blade',
+    ).events,
+  ];
+  // The casting was A's Bonus Action; the turn has to come round before the
+  // blade can be evoked again, exactly as `draining` waits for the Action.
+  let log: readonly GameEvent[] = [
+    ...cast,
+    ...unwrap(dropConjured(fold('s', cast), SRD_CONTENT, A, 'flame-blade'), 'let go'),
+  ];
+  for (let n = 0; n < 2; n += 1) {
+    log = [...log, ...unwrap(resolveTurn(fold('s', log), supply()), 'turn').events];
+  }
+  return log;
+};
+
+/**
  * A holding a Heroism on itself, which owes it Temporary Hit Points at the
  * start of each of its turns.
  *
@@ -1360,6 +1434,21 @@ const GUARDED: readonly Guarded[] = [
     name: 'continueCasting',
     log: RECITING,
     run: (s, commandId) => continueCasting(s, A, RITE, { commandId }),
+  },
+  /**
+   * Letting go of a conjured thing, and evoking it again. Each emits an
+   * inventory event of its own — a handful that disappears, a blade that comes
+   * back — and the second spends a Bonus Action with it.
+   */
+  {
+    name: 'dropConjured',
+    log: berried(),
+    run: (s, commandId) => dropConjured(s, SRD_CONTENT, A, 'goodberry', commandId),
+  },
+  {
+    name: 'evokeConjured',
+    log: blademless(),
+    run: (s, commandId) => evokeConjured(s, A, { item: 'flame-blade', commandId }, supply()),
   },
   /**
    * The Unarmed Strike's other two options. Each throws the target's save, so
@@ -2574,6 +2663,16 @@ const SPENDERS: readonly Spender[] = [
   {
     name: 'useBudgetPurchase',
     run: (s) => useBudgetPurchase(s, B, { feature: 'test:channelling', purchase: 'surge' }),
+  },
+  /**
+   * Evoking a conjured thing again. It spends the Bonus Action the spell
+   * prints, and a creature owing a mandatory area effect may not spend one.
+   * Nothing need have been conjured: `mayAct` is asked immediately after the
+   * creature is found and before any casting is looked for.
+   */
+  {
+    name: 'evokeConjured',
+    run: (s) => evokeConjured(s, B, { item: 'flame-blade' }, supply()),
   },
 ];
 

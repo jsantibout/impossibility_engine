@@ -5163,6 +5163,12 @@ export const FLAME_BLADE: SpellDefinition = {
   targets: { count: 0 },
   effects: [],
   durationSeconds: 600,
+  // SRD: "You evoke a fiery blade in your **free hand** ... If you let go of
+  // the blade, it disappears, but you can evoke the blade again as a Bonus
+  // Action." The hand, the letting go and the taking up again are all one
+  // fact — a conjured thing the casting holds — and `dropConjured` and
+  // `evokeConjured` are the two halves of the sentence.
+  conjures: { item: 'flame-blade', count: 1, hands: 1, retake: 'bonus-action' },
   activation: {
     action: 'action',
     range: { kind: 'touch' },
@@ -5178,7 +5184,6 @@ export const FLAME_BLADE: SpellDefinition = {
     ],
   },
   unmodelled: [
-    'letting go of the blade and evoking it again as a Bonus Action is not modelled: what is in a creature\u2019s hands is not tracked',
     'the Bright Light in a 10-foot radius and the Dim Light beyond it are the DM\u2019s; light is not modelled',
   ],
 };
@@ -7919,11 +7924,15 @@ export const EXPEDITIOUS_RETREAT: SpellDefinition = {
  * > sustain a creature for one day. Uneaten berries disappear when the spell
  * > ends."
  *
- * The healing is one hit point and the engine restores hit points all day;
- * what it cannot do is hold **ten berries in somebody's hand**. `inventory`
- * and `equipped` are real and only armour and weapons have a slot, so the
- * berry that would be eaten has nowhere to sit between the casting and the
- * Bonus Action that eats it.
+ * **The berries are the spell**, and they are a thing a creature is holding:
+ * `conjures` puts ten of them in the caster's hand, `goodberry` is the
+ * catalogue item they are, and eating one is that item's conferral — a Bonus
+ * Action for a hit point, run by the command that already drinks potions.
+ * Uneaten berries disappear when the spell ends without anything having to
+ * take them away, because a conjured line lives exactly as long as its
+ * casting.
+ *
+ * What is left is the day's nourishment, and the engine tracks no hunger.
  */
 export const GOODBERRY: SpellDefinition = {
   id: 'goodberry',
@@ -7936,9 +7945,8 @@ export const GOODBERRY: SpellDefinition = {
   targets: { count: 0 },
   effects: [],
   durationSeconds: 86_400,
+  conjures: { item: 'goodberry', count: 10, hands: 1 },
   unmodelled: [
-    'the berries are not in anybody’s hand: ten of them appearing, being eaten one at a time on a Bonus Action, and disappearing uneaten when the spell ends are all the DM’s, because what a creature is holding is not a fact the engine keeps',
-    'the healing is not applied: "Eating a berry restores 1 Hit Point" is arithmetic the engine does readily, and there is no berry for it to follow from',
     'the day’s nourishment one berry provides is the DM’s; the engine tracks no hunger',
   ],
 };

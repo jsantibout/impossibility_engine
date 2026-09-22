@@ -196,7 +196,7 @@ export const MISSING_SHAPES = {
   'senses-beyond-declared-sight':
     'sight is a pairwise declaration and there is nothing else — `docs/design/rolls-and-damage.md` names the missing piece as "A sight clause read from the **attacker’s** side | Faerie Fire". Blindsight and Truesight are the attacker’s senses, so a spell that excuses them cannot be written.',
   'what-a-creature-is-holding':
-    '`inventory` and `equipped` are real and only armour and weapons have a slot; `docs/design/characters-and-equipment.md`: "Nothing checks that two hands are free, either." So a spell that makes a creature drop what it holds, or that hands one a globe to throw later, has nothing authoritative to call.',
+    '**Half of this is built, and the name now means the other half.** What `docs/design/characters-and-equipment.md` recorded — "Nothing checks that two hands are free, either." — is checked now: hands are a count on the sheet, what an item takes up is read off its printed record, a third thing in two hands is refused, and a casting may put a thing *into* a hand and hold it there for as long as it runs, which is what Goodberry’s ten berries and Flame Blade’s blade were waiting on. What is still missing is the verb that takes something **out** of a hand against its holder’s will: SRD Fear’s "drop whatever it is holding" and SRD Heat Metal’s save-or-drop are an effect no definition can write, and an ordinary thing let go of would land on a floor this engine does not keep. `dropConjured` is the door for a conjured thing, which simply ceases to exist, and it refuses everything else by name.',
   'targeting-rules-that-differ-within-one-casting':
     'one range and one sight requirement are checked against every named target. The SRD sometimes measures a later target from an earlier one, requires sight of only the first, or prints a reach for the attack that is not the spell’s Range — a third measurement beside the caster and the area point `docs/design/spell-definitions.md` added for Mass Cure Wounds ("The range then belongs to the point rather than to each target"). `spell-definitions.ts` records the reach half on Vampiric Touch, whose clause says the initial attack’s "within reach" goes unchecked.',
   'a-condition-that-ends-when-its-holder-leaves-an-area':
@@ -753,13 +753,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'the dice are ordinary and so is the rule that picks their type \u2014 Fire from a warm shield, Cold from a chill one \u2014 and both hang on the eruption above, which has no moment to happen at.',
     },
   ],
-  'flame-blade': [
-    {
-      clause: 'letting go of the blade',
-      why: 'what-a-creature-is-holding',
-      note: 'SRD lets the caster drop the blade and evoke it again as a Bonus Action. Whether a hand is free, and what is in it, is not tracked — so there is no state the dropping and re-evoking could change.',
-    },
-  ],
   'freezing-sphere': [
     {
       clause: 'freezing a body of water',
@@ -769,7 +762,7 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
     {
       clause: 'holding the globe back',
       why: 'what-a-creature-is-holding',
-      note: 'SRD lets the caster keep the globe in hand to be thrown or slung later, or left to detonate on its own. Nothing tracks what a creature is holding, so there is nowhere for an undetonated globe to sit.',
+      note: 'SRD lets the caster keep the globe in hand to be thrown or slung later, or left to detonate on its own. A hand is a fact now and a casting may put a thing in one, but what sits there is an ordinary catalogue item with no state of its own \u2014 and this globe is a held *casting*, which detonates on a later action, may be thrown, and goes off by itself if it is not. Holding it is the half that is built; the rest of the sentence is not.',
     },
   ],
   'gaseous-form': [
@@ -1745,13 +1738,13 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: 'saving-throw',
       clause: 'the creature must succeed on a Constitution saving throw or drop the object if it can',
       why: 'what-a-creature-is-holding',
-      note: '`inventory` and `equipped` are real and only armour and weapons have a slot, so what is in a creature\u2019s hands is not a fact the engine keeps and a rule that makes it let go has nothing to call.',
+      note: 'what a creature holds is a fact now \u2014 hands are counted and a casting may fill one \u2014 but nothing takes a thing **out** of a hand against its holder\u2019s will. `dropConjured` ends a conjured thing, which ceases to exist; a hot Longsword let go of would land on a floor this engine does not keep, and no effect kind can make its holder do it.',
     },
     {
       marker: 'roll-mode',
       clause: 'it has Disadvantage on attack rolls and ability checks until the start of your next turn',
       why: 'what-a-creature-is-holding',
-      note: 'the mode and the deadline are both ordinary; what they hang on is a creature choosing to keep hold of an object the engine does not know it is holding.',
+      note: 'the mode and the deadline are both ordinary; what they hang on is a creature **choosing** to keep hold of the object rather than drop it, which is the branch the clause above has no writer for.',
     },
   ],
   'flaming-sphere': [
@@ -1954,14 +1947,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'the attack deals extra Radiant damage',
       why: 'a-rider-on-a-later-weapon-attack',
       note: 'extra damage of a stated type on somebody’s weapon swing is the attack-rider grant, which hangs a notation and a damage type together and which no spell definition can write. The same sentence, and the other mechanic in it.',
-    },
-  ],
-  goodberry: [
-    {
-      marker: 'hit-points',
-      clause: 'Eating a berry restores 1 Hit Point',
-      why: 'what-a-creature-is-holding',
-      note: 'the hit point is arithmetic `healCreature` does all day; what has no representation is the berry. An inventory and an equipped set are held and only armour and weapons have a slot, so ten berries in a hand are nowhere and nothing can be eaten out of them.',
     },
   ],
   'ice-knife': [

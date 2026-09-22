@@ -1495,6 +1495,39 @@ export interface InventoryLine {
    * catalogue to second-guess it.
    */
   readonly instance?: string;
+  /**
+   * The casting that conjured this line, where a spell put it in a hand.
+   *
+   * SRD Goodberry: "Ten berries appear in your hand and are infused with magic
+   * **for the duration**"; Flame Blade: "You evoke a fiery blade in your free
+   * hand." What such a line is, is a thing that exists because a casting does
+   * — so its lifetime is **derived from the casting** rather than ended by an
+   * event, on exactly the reading a patch of Difficult Terrain naming a
+   * casting already takes: "derived at read time so there is no window in
+   * which the webs are gone and the ground still costs double." A casting that
+   * simply runs out of time writes nothing at all — expiry is derived
+   * everywhere in this engine — so an event that took the berries away could
+   * not have been written for the commonest way a spell ends.
+   *
+   * Absent on everything bought, found, awarded and carried, which is
+   * everything the log held before a spell could conjure one. A conjured line
+   * never merges with an ordinary one, and two castings never share a line:
+   * two Goodberries are two handfuls with two lifetimes.
+   */
+  readonly casting?: string;
+  /**
+   * How many hands holding this line takes up, pinned where it was conjured.
+   *
+   * On the line rather than read off the item, because the sentence is about
+   * the *handful* and not about the berry: ten berries appear in one hand and
+   * a blade in another, and `handsFor` — which answers for a thing you can
+   * pick up — would charge a hand for every berry. Rule 5: what the command
+   * read from the definition travels with the event it emitted.
+   *
+   * Absent on an ordinary line, whose hands are the item's own and are read
+   * off the catalogue by the command that asks.
+   */
+  readonly hands?: number;
 }
 
 /** What every item instance id begins with. One spelling, read and written here. */

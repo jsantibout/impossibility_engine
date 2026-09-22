@@ -2806,6 +2806,84 @@ export function checkSpellDefinition(
     }
   }
 
+  const conjures = definition.conjures;
+  if (
+    conjures !== undefined &&
+    readsAsObject(
+      conjures,
+      'conjures',
+      'what a spell puts in a hand is an object naming the item and how many',
+      found,
+    )
+  ) {
+    if (typeof conjures.item !== 'string' || conjures.item.trim().length === 0) {
+      found.push({
+        field: 'conjures.item',
+        code: 'bad_conjured_item',
+        reason: 'what appears is a catalogue id; the engine holds no thing of its own to conjure',
+      });
+    }
+    if (!Number.isInteger(conjures.count) || conjures.count < 1) {
+      found.push({
+        field: 'conjures.count',
+        code: 'bad_conjured_count',
+        reason: 'a conjuring that produces nothing is a sentence the book does not print',
+      });
+    }
+    if (
+      conjures.hands !== undefined &&
+      (!Number.isInteger(conjures.hands) || conjures.hands < 0)
+    ) {
+      found.push({
+        field: 'conjures.hands',
+        code: 'bad_conjured_hands',
+        reason: 'hands are a whole number of them, and never fewer than none',
+      });
+    }
+    /**
+     * **A conjuring happens when the spell takes effect, and this engine has
+     * one moment for that.** A casting of a minute or more is declared and
+     * settled later, and the settlement takes no fresh look at the definition
+     * — so a handful conjured there would appear at the declaration or not at
+     * all. No SRD spell of this shape takes longer than a Bonus Action, so the
+     * refusal costs the book nothing and says plainly what would have to be
+     * built first.
+     */
+    if (definition.castingTime === 'long' || definition.castingSeconds !== undefined) {
+      found.push({
+        field: 'conjures',
+        code: 'conjured_by_a_long_casting',
+        reason:
+          'a spell of a minute or more is declared now and settled later, and what it conjures would have nowhere to appear',
+      });
+    }
+    /**
+     * **And it needs a duration, because the thing's lifetime is the
+     * casting's.** An Instantaneous casting is over the moment it resolves, so
+     * everything it conjured would vanish in the same breath — the reading
+     * `checkGrantLifetimes` already applies to every grant a casting hangs.
+     */
+    if (!lasts && !definition.concentration) {
+      found.push({
+        field: 'conjures',
+        code: 'conjured_without_duration',
+        reason:
+          'what a casting conjures lasts as long as the casting, so an Instantaneous spell would conjure something that is already gone',
+      });
+    }
+    if (
+      conjures.retake !== undefined &&
+      conjures.retake !== 'action' &&
+      conjures.retake !== 'bonus-action'
+    ) {
+      found.push({
+        field: 'conjures.retake',
+        code: 'bad_retake_action',
+        reason: 'taking a conjured thing up again costs an Action or a Bonus Action',
+      });
+    }
+  }
+
   if (
     definition.origin !== undefined &&
     readsAsObject(
@@ -2897,6 +2975,7 @@ export function checkSpellDefinition(
     definition.effects.length === 0 &&
     definition.activation === undefined &&
     definition.areaTrigger === undefined &&
+    definition.conjures === undefined &&
     notes.length === 0 &&
     handovers.length === 0
   ) {

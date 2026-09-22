@@ -388,7 +388,7 @@ export function loseItems(
        */
       const named =
         line.instance === undefined
-          ? copyNamed(creature, line.id)
+          ? copyNamed(state, creature, line.id)
           : ok(creature.inventory.find((owned) => owned.instance === line.instance) ?? null);
       if (!named.ok) return named;
       const copy = named.value;
@@ -478,7 +478,7 @@ export function transferItem(
         return err('bad_quantity', `a transfer moves a positive whole number, got ${quantity}`);
       }
 
-      const named = copyNamed(giver, itemId);
+      const named = copyNamed(state, giver, itemId);
       if (!named.ok) return named;
       const copy = named.value;
       if (copy === null) return err('not_owned', `${from} does not have ${itemId}`);

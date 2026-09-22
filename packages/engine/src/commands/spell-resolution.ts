@@ -44,6 +44,7 @@ import {
   itemSource,
 } from '../catalogue.js';
 import { featureSource } from '../progression.js';
+import { conjuredHands, conjuredLine, freeHands } from './inventory.js';
 import { spendAction, spendBonusAction, spendReaction } from '../combat.js';
 import { rollRecorded } from '../rolls.js';
 import { type CommandIdentity, commandOutcome, once } from '../idempotency.js';
@@ -543,6 +544,21 @@ export function castOrRelease(
       const wants = riderDuration(lasts, casterId) as Duration;
       const pinned = resolveDuration({ elapsed: state.elapsed, combat: state.combat }, wants);
       if (!pinned.ok) return turnContextFor(pinned, wants, casterId);
+    }
+
+    // SRD Flame Blade: "You evoke a fiery blade in your **free hand**." A
+    // spell that puts something in a hand needs one, and asking here — before
+    // the slot, the action and the first die — is what makes a caster with
+    // both hands full pay nothing for finding out. See `ConjuredItems`.
+    if (definition.conjures !== undefined) {
+      const wants = conjuredHands(definition.conjures);
+      const free = freeHands(state, supply.content, casterId);
+      if (wants > free) {
+        return err(
+          'no_free_hand',
+          `${definition.name} puts ${supply.content.item(definition.conjures.item)?.name ?? definition.conjures.item} in ${casterId}'s hand${wants === 1 ? '' : 's'}, and ${free === 0 ? 'both are' : 'not enough is'} full`,
+        );
+      }
     }
 
     // SRD Divine Smite is cast "immediately after hitting a target", so the
@@ -1647,6 +1663,26 @@ function resolveOnTargets(
   // of the rule that a retry must never look at the world it made.
   events.push(...replacedCastings(state, casterId, definition));
   events.push(...cast.value);
+
+  // **What the spell puts in its caster's hand**, after the casting itself so
+  // the line names a casting the log has already opened. SRD Goodberry's ten
+  // berries and Flame Blade's blade: pinned from the definition, held for as
+  // long as the casting runs, and taken away by nothing — see
+  // `InventoryLine.casting`, whose lifetime is derived because a casting that
+  // runs out of time writes no event to hang a removal on.
+  //
+  // The free hand was checked before anything was spent; the validator has
+  // already refused a conjuring with no duration to hold it, and one on a
+  // casting of a minute or more, which is why this sits on the atomic path and
+  // the declaration below does not repeat it.
+  if (definition.conjures !== undefined && !declaring) {
+    events.push({
+      type: 'items-gained',
+      id: casterId,
+      items: [conjuredLine(definition.conjures.item, definition.conjures, castingId)],
+      source: `${definition.name}, conjured`,
+    });
+  }
 
   // Declared and held open. The action is spent, any Concentration the caster
   // was holding is gone, and the slot is not — which is exactly the state SRD

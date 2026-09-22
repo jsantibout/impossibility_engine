@@ -3817,6 +3817,49 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
       poolKeys.set(pool.key, item.id);
     }
   }
+  /**
+   * What a spell conjures has to be a thing this catalogue holds, and has to
+   * be a thing with **nothing to remember**.
+   *
+   * The first half is the rule `contents` already keeps one loop down: an id
+   * that names nothing would be a spell that puts nothing in a hand.
+   *
+   * The second is the one gain semantics, kept. A copy whose record has state
+   * of its own — today, a charge pool — is labelled at the door it is gained
+   * through and its pool declared beside it (`issueItemCopies`). A conjured
+   * handful is a **stack** by construction: ten berries appear as ten of one
+   * line, and labelling them would be ten copies and ten pools for one
+   * sentence. So rather than a fourth labelling door, a thing that lasts only
+   * as long as a casting may not have charges to keep — which is also what it
+   * means for a thing that disappears when the spell ends.
+   *
+   * A catalogue with no items at all judges nothing, on the rule `byClass`
+   * above already follows: a fixture that holds only spells is not a catalogue
+   * whose conjurings are broken.
+   */
+  if (items.length > 0) {
+    for (const spell of spells) {
+      const conjures = spell.conjures;
+      if (conjures === undefined) continue;
+      const conjured = itemOf.get(conjures.item);
+      if (conjured === undefined) {
+        problems.push({
+          field: `spells[${spell.id}].conjures.item`,
+          code: 'unknown_item',
+          reason: `${spell.id} conjures ${conjures.item}, which this content does not hold`,
+        });
+        continue;
+      }
+      if (itemChargePool(conjured) !== null) {
+        problems.push({
+          field: `spells[${spell.id}].conjures.item`,
+          code: 'conjured_item_has_charges',
+          reason: `${conjures.item} keeps charges of its own, and a conjured handful is one line rather than one copy per thing; a thing that lasts as long as a casting has nothing to remember`,
+        });
+      }
+    }
+  }
+
   for (const item of items) {
     for (const line of item.contents) {
       if (!itemOf.has(line.id)) {

@@ -16,6 +16,7 @@ import {
 } from '@ie/engine';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { isExecuted } from '../scripts/coverage-data.js';
 import {
   MISSING_SHAPES,
   TRACKED_ADJUDICATED as ADJUDICATED,
@@ -95,10 +96,14 @@ const added = (who: CharacterId, creatureType = 'Humanoid'): GameEvent => ({
  * with, so the list under test and the number in `COVERAGE.md` cannot disagree.
  */
 const TRACKED: readonly string[] = SPELL_DEFINITIONS.filter(
-  // A spell whose *activation* the engine resolves is executed, not tracked:
+  // **Asked of the one predicate**, rather than written out a fourth time. A
+  // spell whose *activation* the engine resolves is executed, not tracked —
   // Flame Blade's casting evokes a blade and does nothing else, and every blow
-  // it strikes comes through machinery the engine owns.
-  (d) => d.effects.length === 0 && d.activation === undefined && d.areaTrigger === undefined,
+  // it strikes comes through machinery the engine owns — and so is one whose
+  // whole effect is what it conjures. A copy of that reading here is a copy
+  // that stops covering a spell the day an arm is added to it, which is
+  // exactly what `isExecuted`'s own docstring records happening before.
+  (d) => !isExecuted(d),
 )
   .map((d) => d.id)
   .sort();
@@ -1286,27 +1291,36 @@ describe('every spell this batch added is cast for real', () => {
    * recorded here instead, which is the same move `SPLIT_BUNDLES` makes for a
    * clause whose shape was built: the row stays and says where it went.
    *
-   * **Four went out, by two different doors.** Three of them went the same
-   * way: `ActionRule` was derived from four SRD sentences and no definition
-   * wrote one; these three write all four — Wind Walk's "The only actions a
-   * target can take in this form", Magic Jar's "You can't move or take
-   * Reactions" beside "The only action you can take", and Expeditious
+   * **Five went out, by three different doors**, which is why the test below
+   * asks `isExecuted` rather than counting effects: a departure is "no longer
+   * tracked", and there are three ways to stop being tracked now rather than
+   * one.
+   *
+   * Three went the same way. `ActionRule` was derived from four SRD sentences
+   * and no definition wrote one; these three write all four — Wind Walk's "The
+   * only actions a target can take in this form", Magic Jar's "You can't move
+   * or take Reactions" beside "The only action you can take", and Expeditious
    * Retreat's "you can take that action again as a Bonus Action", which is the
    * `allows` polarity and the last of the four. So the engine resolves
    * something on each casting, which is the whole of what separates the two
    * buckets, and everything else each spell prints is an executed definition's
    * debt in `ADJUDICATED`.
    *
-   * **Aid is the fourth, and it left through a different door.** Its whole
-   * text is twenty-two words about a hit point maximum, so a pass that could
-   * not move one had nothing to write and tracked it; the `hit-point-maximum`
-   * effect is that writer, and the spell is now executed end to end with no
-   * sentence left over — which is why it is also the first of these to leave
-   * `ADJUDICATED` entirely rather than move a clause into it.
+   * **Aid is the fourth.** Its whole text is twenty-two words about a hit
+   * point maximum, so a pass that could not move one had nothing to write and
+   * tracked it; the `hit-point-maximum` effect is that writer, and the spell is
+   * now executed end to end with no sentence left over — which is why it is
+   * also the first of these to leave `ADJUDICATED` entirely rather than move a
+   * clause into it.
+   *
+   * **Goodberry is the fifth**, and its effect list is still empty and always
+   * will be: what the spell does is put ten berries in a hand, which is
+   * `conjures`, and eating one is the berry's own conferral.
    */
   const EXECUTED_SINCE: readonly string[] = [
     'aid',
     'expeditious-retreat',
+    'goodberry',
     'magic-jar',
     'wind-walk',
   ];
@@ -1322,7 +1336,7 @@ describe('every spell this batch added is cast for real', () => {
     const definition = SRD_CONTENT.spell(spellId);
     expect(definition, `${spellId} has no definition`).not.toBeNull();
     if (EXECUTED_SINCE.includes(spellId)) {
-      expect(definition?.effects, spellId).not.toEqual([]);
+      expect(isExecuted(definition!), spellId).toBe(true);
       expect(TRACKED, spellId).not.toContain(spellId);
       return;
     }

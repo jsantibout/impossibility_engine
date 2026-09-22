@@ -19,6 +19,7 @@ import { CREATURE_SIZES, type CreatureSize } from '@ie/srd/schemas';
 import { proficientWithCategories } from './attack.js';
 import {
   ABILITY_SCORE_MAXIMUM,
+  DEFAULT_HANDS,
   MAX_ABILITY_SCORE,
   abilityModifier,
   proficiencyBonusForLevel,
@@ -48,7 +49,7 @@ import type {
   ReactionEffect,
   ReactionFeature,
 } from './reactions.js';
-import { goldToCopper, itemStandingEffects } from './catalogue.js';
+import { goldToCopper, handsFor, itemStandingEffects, type CatalogueItem } from './catalogue.js';
 import { issueItemCopies } from './commands/inventory.js';
 import type { Content } from './content.js';
 import { mergeItems } from './events.js';
@@ -2161,6 +2162,33 @@ function checkEquipped(
         problem('slot_taken', 'equipped', `${taken} and ${itemId} cannot both be worn as ${slot}`),
       );
     }
+  }
+
+  /**
+   * **And a character is born with two hands like everybody else.** SRD
+   * Two-Handed: "this weapon requires two hands"; a Shield is wielded in one.
+   * `equipItem` refuses a third thing in two hands, and creation must refuse
+   * it too — for the reason the slot rule above gives, one paragraph along:
+   * otherwise a character can be born holding a Greatsword, a Longsword and a
+   * Shield, and every reader of `equipped` has to decide which two are real.
+   *
+   * The count is {@link DEFAULT_HANDS} rather than the sheet's, because there
+   * is no sheet yet where this runs and nothing creation builds writes
+   * `CharacterSheet.hands`: a creature with more of them is content declaring
+   * a stat block, which arrives through `adaptMonster` and not through here.
+   */
+  const wielded = choices.equipped
+    .map((itemId) => content.item(itemId))
+    .filter((item): item is CatalogueItem => item !== null)
+    .reduce((total, item) => total + handsFor(item), 0);
+  if (wielded > DEFAULT_HANDS) {
+    problems.push(
+      problem(
+        'no_free_hand',
+        'equipped',
+        `what this character starts with in hand takes ${wielded} hands, and they have ${DEFAULT_HANDS}`,
+      ),
+    );
   }
   return problems;
 }

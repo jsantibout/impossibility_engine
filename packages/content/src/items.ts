@@ -50,6 +50,75 @@ const CLASS_ITEMS: readonly CatalogueItem[] = [
 ];
 
 /**
+ * Things no shop sells, because a spell makes them.
+ *
+ * SRD Goodberry's berries and Flame Blade's blade are objects a casting puts
+ * in a hand for as long as it lasts — `SpellDefinition.conjures` is how a
+ * definition says so, and what appears is an ordinary catalogue item, because
+ * the engine holds no things of its own. That is the same argument a magic
+ * item makes about not being a population of its own, one step further along:
+ * what eating a berry does is the item's `confers` grant, run by the command
+ * that already drinks potions.
+ *
+ * **No price, and that is the entry saying what it is.** `purchaseItem`
+ * refuses a row the book gives no cost for, so a berry cannot be bought and a
+ * blade cannot be sold. Neither can be equipped either: `gear` is not among
+ * the kinds `equipItem` accepts, so the only way either reaches a hand is the
+ * casting that conjures it.
+ */
+const CONJURED_ITEMS: readonly CatalogueItem[] = [
+  {
+    /**
+     * SRD Goodberry: "Ten berries appear in your hand ... A creature can take
+     * a Bonus Action to eat one berry. Eating a berry restores 1 Hit Point."
+     *
+     * The Bonus Action and the hit point are the conferral; the ten and the
+     * hand are the spell's. The nourishment is the spell's `unmodelled` line,
+     * because the engine tracks no hunger.
+     */
+    id: 'goodberry',
+    name: 'Goodberry',
+    kind: 'gear',
+    weightLb: 0,
+    costCp: null,
+    armor: null,
+    weapon: null,
+    contents: [],
+    grants: [
+      {
+        kind: 'confers',
+        action: 'bonus-action',
+        effects: [{ kind: 'heal', healing: { flat: 1 }, addSpellcastingModifier: false }],
+      },
+    ],
+  },
+  {
+    /**
+     * SRD Flame Blade: "You evoke a fiery blade in your free hand. The blade
+     * is similar in size and shape to a Scimitar."
+     *
+     * **Not a weapon record**, though it is shaped like one: the spell's own
+     * Magic action is "a melee **spell** attack" for 3d6 plus the caster's
+     * spellcasting modifier, which is the activation the definition already
+     * writes. A weapon record here would offer a second, ordinary attack with
+     * a Scimitar's die and a Strength modifier, which is a swing the book does
+     * not print.
+     *
+     * So what the catalogue holds is the object: a thing that takes a hand.
+     */
+    id: 'flame-blade',
+    name: 'Flame Blade',
+    kind: 'gear',
+    weightLb: 0,
+    costCp: null,
+    armor: null,
+    weapon: null,
+    contents: [],
+    hands: 1,
+  },
+];
+
+/**
  * Magic items, transcribed from `packages/srd/raw/magic-items.md` sentence by
  * sentence.
  *
@@ -2752,6 +2821,7 @@ function build(): readonly CatalogueItem[] {
   const items = new Map<string, CatalogueItem>();
 
   for (const item of CLASS_ITEMS) items.set(item.id, item);
+  for (const item of CONJURED_ITEMS) items.set(item.id, item);
   for (const item of MAGIC_ITEMS) items.set(item.id, item);
 
   for (const entry of GEAR) {

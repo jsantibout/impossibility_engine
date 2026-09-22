@@ -481,15 +481,66 @@ describe('the doors a copy is gained through are the doors that label it', () =>
     .filter((file) => readFileSync(`${SRC}${file}`, 'utf8').includes("type: 'items-gained'"))
     .sort();
 
+  /**
+   * **A conjuring hands over nothing that could carry a record**, which is why
+   * it is excused rather than labelling.
+   *
+   * A casting that conjures something puts a *handful* in a hand — SRD
+   * Goodberry's ten berries are ten of one line — so there is no copy for an
+   * id to belong to, and labelling them would be ten records and ten pools for
+   * one sentence. What keeps that from being a hole is `checkContent`, which
+   * refuses a spell that conjures an item with charges of its own: a thing
+   * that lasts exactly as long as a casting has nothing to remember. So the
+   * claim is unchanged — **every copy with a record is labelled where it is
+   * gained** — and the population that can produce one is still three.
+   *
+   * **There are two conjuring emissions and they are in two files**, one of
+   * which also labels: the casting's, in `spell-resolution.ts`, and the
+   * re-evocation's, in `inventory.ts` beside `equipItem`'s. So the emissions
+   * are counted per *call* rather than per file — a file-granular excuse would
+   * have let `inventory.ts` sit in the labelling list on the strength of a
+   * compiler it calls somewhere else, which is exactly the hole this sweep
+   * exists to keep shut. `conjuredLine` is the marker, because it is the one
+   * spelling both conjurings write.
+   */
+  const conjurings = (source: string): number =>
+    (source.match(/items: \[conjuredLine\(/g) ?? []).length;
+
+  /** Every `items-gained` written in a file, however it is laid out. */
+  const emissions = (source: string): number =>
+    (source.match(/type: 'items-gained'/g) ?? []).length;
+
   it('is three of them, and every one labels what it hands over', () => {
-    expect(emitters).toEqual(['commands/declarations.ts', 'commands/inventory.ts', 'creation.ts']);
+    const labelling = emitters.filter(
+      (file) => emissions(readFileSync(`${SRC}${file}`, 'utf8')) > conjurings(readFileSync(`${SRC}${file}`, 'utf8')),
+    );
+    expect(labelling).toEqual([
+      'commands/declarations.ts',
+      'commands/inventory.ts',
+      'creation.ts',
+    ]);
   });
 
-  /** And both of them label through the one compiler, rather than each deciding. */
+  /** And all of them label through the one compiler, rather than each deciding. */
   it('both label through the same compiler', () => {
     for (const file of emitters) {
-      expect(readFileSync(`${SRC}${file}`, 'utf8')).toContain('issueItemCopies');
+      const source = readFileSync(`${SRC}${file}`, 'utf8');
+      if (emissions(source) > conjurings(source)) expect(source).toContain('issueItemCopies');
     }
+  });
+
+  /**
+   * And the emissions that do **not** label are pinned by count, so a fourth
+   * cannot arrive quietly by sitting next to a conjuring.
+   */
+  it('has two emissions that hand over a stack, and both conjure it', () => {
+    const conjured = emitters
+      .map((file) => [file, conjurings(readFileSync(`${SRC}${file}`, 'utf8'))] as const)
+      .filter(([, count]) => count > 0);
+    expect(conjured).toEqual([
+      ['commands/inventory.ts', 1],
+      ['commands/spell-resolution.ts', 1],
+    ]);
   });
 });
 

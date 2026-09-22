@@ -2450,6 +2450,15 @@ export interface SpellDefinition {
    */
   readonly activation?: SpellActivation;
   /**
+   * What this spell puts in its caster's hand — see {@link ConjuredItems}.
+   *
+   * Beside `activation` because the two are the same kind of field: a fact
+   * about the spell that outlives the moment it was cast. A definition that
+   * conjures something **resolves something**, so it needs no `unmodelled`
+   * line to be honest with an empty effect list — the berries are the spell.
+   */
+  readonly conjures?: ConjuredItems;
+  /**
    * SRD Mage Hand: "The hand vanishes ... **if you cast this spell again**";
    * Minor Illusion: "The illusion ends if you cast this spell again."
    *
@@ -2553,6 +2562,51 @@ export interface CastingEndTrigger {
    * existed — this is the field that says which one a sentence means.
    */
   readonly ends: 'casting' | 'target';
+}
+
+/**
+ * Something a spell puts in its caster's hand for as long as it lasts.
+ *
+ * SRD Goodberry: "Ten berries appear in your hand and are infused with magic
+ * for the duration." SRD Flame Blade: "You evoke a fiery blade in your free
+ * hand." Two spells, one sentence shape, and what it needs is what a creature
+ * is **holding** — which is why this is a field on the definition rather than
+ * a member of the effect union: the effects are what a spell does to its
+ * targets, and every sentence of this shape in the book puts the thing in the
+ * caster's own hand whoever else the spell is aimed at.
+ *
+ * **What appears is content.** The berry and the blade are catalogue items,
+ * validated by the same door every other item goes through, so what eating one
+ * does is the item's `confers` grant and what swinging one does is its weapon
+ * record. The engine learns no berry's name: it reads an id off a definition
+ * and hands the line to the inventory it already keeps.
+ *
+ * The lifetime is the casting's, derived rather than folded — see
+ * {@link InventoryLine.casting}.
+ */
+export interface ConjuredItems {
+  /** The catalogue id of the thing that appears. */
+  readonly item: string;
+  /** How many of it. Ten berries, one blade. */
+  readonly count: number;
+  /**
+   * How many hands the whole handful takes up. Absent is one.
+   *
+   * Of the handful and not of each: ten berries appear in *a* hand, and the
+   * count is what the spell prints rather than what the hand can hold. Zero is
+   * a legitimate answer for a conjured thing that is worn or that follows the
+   * caster around, and the reason this is a number rather than a flag.
+   */
+  readonly hands?: number;
+  /**
+   * The action that evokes it again once it has been let go of.
+   *
+   * SRD Flame Blade: "If you let go of the blade, it disappears, but you can
+   * evoke the blade again as a Bonus Action." Absent for a spell that prints
+   * no such clause — Goodberry's berries, once dropped, are dropped — and
+   * `evokeConjured` refuses rather than inventing the sentence.
+   */
+  readonly retake?: 'action' | 'bonus-action';
 }
 
 /** What an ongoing spell lets its caster do again. */
