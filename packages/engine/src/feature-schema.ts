@@ -244,9 +244,10 @@ const isCount = (value: unknown): boolean =>
 /**
  * The sizing a grant declares, wherever it declares one.
  *
- * Four grant kinds carry one and `poolsFor` reads all four, so a rule that
+ * Five grant kinds carry one and `poolsFor` reads all five, so a rule that
  * looked only at `pool` would leave Rage's column and Indomitable's unchecked
- * — and Favored Enemy's, whose free castings are a column of the same table.
+ * — and Favored Enemy's, whose free castings are a column of the same table,
+ * and Font of Magic's Sorcery Points, which a trade declares.
  */
 const poolSizingOf = (
   grant: FeatureDefinition['grants'],
@@ -259,6 +260,13 @@ const poolSizingOf = (
   }
   if (grant.kind === 'spells' && grant.freeCasting?.declares !== undefined) {
     return { at: 'grants.freeCasting.declares', sizing: grant.freeCasting.declares };
+  }
+  // The fifth, and the one this list has been wrong about before: a `trade`
+  // may declare the pool its own conversions run between, which is SRD Font of
+  // Magic. A sizing site `poolsFor` reads and this does not is a column
+  // nothing checks.
+  if (grant.kind === 'trade' && grant.declares !== undefined) {
+    return { at: 'grants.declares', sizing: grant.declares };
   }
   return null;
 };

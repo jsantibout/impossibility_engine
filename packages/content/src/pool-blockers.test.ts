@@ -34,14 +34,12 @@ import {
   unanchoredFeatureClauses,
 } from '../scripts/missing-feature-shapes.js';
 
-/** The five the owner's ruling of 2026-09-21 named, in id order. */
-const WIDENED = [
-  'druid:wild-shape',
-  'monk:focus',
-  'paladin:channel-divinity',
-  'sorcerer:font-of-magic',
-  'wizard:arcane-recovery',
-];
+/**
+ * The five the owner's ruling of 2026-09-21 named, less the two that were
+ * built: Font of Magic and Arcane Recovery are `trade` grants now, so the
+ * derivation below no longer finds them and their blocked-on lines are gone.
+ */
+const WIDENED = ['druid:wild-shape', 'monk:focus', 'paladin:channel-divinity'];
 
 /** A pool grant with only the fields that say how big it is and when it refills. */
 const barePool = (id: string, automation: 'engine' | 'manual' = 'engine') =>
@@ -101,17 +99,18 @@ describe('a pool with nothing to buy is a shape, so it is derived', () => {
   });
 
   /**
-   * And over the catalogue it finds exactly the four the audit found by hand.
-   * Pinned by name rather than by size: a fifth would be a real finding and
-   * has to be adjudicated here rather than quietly joining a count.
+   * And over the catalogue it finds exactly what is still bare. Pinned by name
+   * rather than by size: a new one would be a real finding and has to be
+   * adjudicated here rather than quietly joining a count.
+   *
+   * **It found four and finds two**, which is the derivation doing its job:
+   * Font of Magic and Arcane Recovery were built as `trade` grants, and a
+   * trade is not a bare pool, so they left this list without anybody editing
+   * it. The lines they held in the blocked-on map were hand work, and the
+   * coverage guard named both `stale` until that hand work was done.
    */
-  it('finds the four pools the catalogue really holds', () => {
-    expect(barePoolFeatureIds()).toEqual([
-      'druid:wild-shape',
-      'paladin:channel-divinity',
-      'sorcerer:font-of-magic',
-      'wizard:arcane-recovery',
-    ]);
+  it('finds the pools the catalogue really holds', () => {
+    expect(barePoolFeatureIds()).toEqual(['druid:wild-shape', 'paladin:channel-divinity']);
   });
 
   /** None of them is manual, or the first population would already hold it. */
@@ -241,7 +240,7 @@ describe('the ledger population is the four arms together', () => {
     ]);
   });
 
-  it('holds the five the map could not see', () => {
+  it('holds the ones the map could not see', () => {
     for (const id of WIDENED) expect(ledgerFeatureIds(), id).toContain(id);
   });
 
@@ -262,15 +261,15 @@ describe('the ledger population is the four arms together', () => {
 });
 
 /**
- * What each of the five waits on, pinned by name.
+ * What each of the remaining ones waits on, pinned by name.
  *
  * A builder who thinks one of these is cheaper than it reads has to come here
- * and say so. Three of them are the same gap in the `trade` grant, which is
- * the finding this widening produced: the shape's own description already
- * said "a slot a class table never printed is refused rather than given", and
- * until now the only thing claiming it was a manual feature.
+ * and say so. Three of them were the same gap in the `trade` grant, which is
+ * the finding this widening produced; two of those three are built, and what
+ * is left of the gap is Monk's Focus buying an action rule — a price on an
+ * allowance, which is neither a pool nor a slot at either end.
  */
-describe('what the five wait on', () => {
+describe('what the rest wait on', () => {
   it('files Wild Shape under the swap and the span it prints', () => {
     expect(featureBlockersOf('druid:wild-shape')).toEqual([
       'a-benefit-that-runs-for-a-printed-span',
@@ -278,9 +277,13 @@ describe('what the five wait on', () => {
     ]);
   });
 
-  it('files the three slot-minting pools under one trade gap', () => {
-    for (const id of ['sorcerer:font-of-magic', 'wizard:arcane-recovery', 'monk:focus']) {
-      expect(featureBlockersOf(id), id).toContain('a-resource-traded-for-another');
+  it('files what is left of the trade gap under the pool that still waits', () => {
+    expect(featureBlockersOf('monk:focus')).toContain('a-resource-traded-for-another');
+    // And the two that were built are off the map entirely, in both
+    // directions: no blockers, and nothing claiming they have any.
+    for (const id of ['sorcerer:font-of-magic', 'wizard:arcane-recovery']) {
+      expect(featureBlockersOf(id), id).toEqual([]);
+      expect(ledgerFeatureIds(), id).not.toContain(id);
     }
   });
 

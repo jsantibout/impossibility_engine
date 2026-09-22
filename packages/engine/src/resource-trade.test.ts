@@ -309,3 +309,243 @@ describe('a resource traded for another', () => {
     expect(codesOf((trades) => (trades[1]!['id'] = 'slot-for-tide'))).toContain('duplicate_trade');
   });
 });
+
+/**
+ * The two shapes a trade takes when what it buys is a **spell slot** whose
+ * level the caller names, and every refusal the catalogue can earn writing one.
+ *
+ * SRD writes them once each. Font of Magic creates "one spell slot" priced off
+ * the Created Spell Slots table; Arcane Recovery recovers slots inside "a
+ * combined level equal to no more than half your Wizard level (round up)".
+ * Neither is this class — it is loaded from JSON text through the public door,
+ * and nothing in the engine names a Sorcerer or a Wizard.
+ *
+ * **Every one of these refusals is a rule with a reader.** The one that went
+ * missing first was `the-slot-level` on an end where no level can be read: the
+ * command has a slot level in hand only where the spent end is a slot the
+ * grant left unlevelled, and a grant that sizes itself from a level nobody
+ * named runs for zero. `checkContent` refuses all of them by name, which is
+ * what keeps a homebrew catalogue from writing itself a free spell slot.
+ */
+describe('a trade whose bought end is a spell slot the caller levels', () => {
+  const RIVERWARDEN = {
+    ...EBBWARDEN,
+    id: 'riverwarden',
+    name: 'Riverwarden',
+    features: [
+      {
+        id: 'riverwarden:current',
+        name: 'Current',
+        level: 1,
+        automation: 'engine',
+        note: 'The pool the conversions run between, and both directions of the conversion.',
+        grants: {
+          kind: 'trade',
+          pool: 'current',
+          poolLabel: 'Current',
+          declares: {
+            usesByLevel: Array.from({ length: 20 }, (_, index) => index + 1),
+            recovers: 'long-rest',
+          },
+          trades: [
+            {
+              id: 'slot-for-current',
+              action: 'none',
+              spends: { kind: 'spell-slot' },
+              gains: { kind: 'pool', key: 'current', uses: 'the-slot-level' },
+              limit: 'unlimited',
+            },
+            {
+              id: 'current-for-slot',
+              action: 'bonus-action',
+              spends: { kind: 'pool', key: 'current', uses: { byBoughtSlotLevel: [2, 3, 5] } },
+              gains: { kind: 'spell-slot' },
+              limit: 'unlimited',
+            },
+          ],
+        },
+      },
+      {
+        id: 'riverwarden:wellspring',
+        name: 'Wellspring',
+        level: 1,
+        automation: 'engine',
+        note: 'Once a day, when a Short Rest finishes, slots inside a combined-level budget.',
+        grants: {
+          kind: 'trade',
+          pool: 'riverwarden:wellspring',
+          poolLabel: 'Wellspring',
+          declares: { minimum: 1, recovers: 'long-rest' },
+          trades: [
+            {
+              id: 'recover-slots',
+              action: 'none',
+              moment: 'short-rest',
+              spends: { kind: 'pool', key: 'riverwarden:wellspring', uses: 1 },
+              gains: {
+                kind: 'spell-slots',
+                combinedLevel: 'half-class-level-round-up',
+                maxLevel: 5,
+              },
+              limit: 'unlimited',
+            },
+          ],
+        },
+      },
+    ],
+  };
+
+  it('accepts the class as written', () => {
+    expect(checkContent({ classes: [RIVERWARDEN as never] })).toEqual([]);
+  });
+
+  /** Both features declare the pool their own trades run between. */
+  it('declares the pool the grant names, sized off the class table', () => {
+    const parsedRiver = unwrap(
+      parseClassDefinition(JSON.parse(JSON.stringify(RIVERWARDEN))),
+      'parse',
+    );
+    const river = unwrap(extendContent(SRD_CONTENT, { classes: [parsedRiver] }), 'extend');
+    // Level 2, which is under this class's subclass level and is still two
+    // rows into the column the pool is sized from.
+    const choices = {
+      ...ebbwarden(),
+      classId: 'riverwarden',
+      level: 2,
+      dmGrants: { items: [], goldPieces: 0, magicItems: [], note: 'standard' },
+    };
+    const state = fold(
+      'seed',
+      unwrap(createCharacter(river, choices, EBB), 'create') as GameEvent[],
+    );
+    const pools = state.creatures[EBB]!.resources.pools;
+    // The column, read at this class's own level, and the pool of one.
+    expect(pools['current']?.max).toBe(2);
+    expect(pools['current']?.label).toBe('Current');
+    expect(pools['riverwarden:wellspring']?.max).toBe(1);
+  });
+
+  const codesOf = (mutate: (grants: Record<string, unknown>[]) => void): readonly string[] => {
+    const written = JSON.parse(JSON.stringify(RIVERWARDEN)) as typeof RIVERWARDEN;
+    mutate(written.features.map((one) => one.grants as Record<string, unknown>));
+    return checkContent({ classes: [written as never] }).map((problem) => problem.code);
+  };
+  const tradesOf = (grants: Record<string, unknown>[], at: number): Record<string, unknown>[] =>
+    grants[at]!['trades'] as Record<string, unknown>[];
+
+  it('refuses a declared pool that is half a declaration, either half', () => {
+    expect(codesOf((grants) => delete grants[0]!['declares'])).toContain('half_a_declared_pool');
+    expect(codesOf((grants) => delete grants[0]!['pool'])).toContain('half_a_declared_pool');
+    expect(codesOf((grants) => (grants[0]!['pool'] = '  '))).toContain('bad_trade_pool');
+  });
+
+  /**
+   * The sizing a trade declares goes through the same checker every other
+   * declaration does. A fifth site `poolsFor` read and `poolSizingOf` did not
+   * was a column nothing checked.
+   */
+  it('checks the sizing a trade declares as it checks every other', () => {
+    const codes = codesOf(
+      (grants) =>
+        (grants[0]!['declares'] = {
+          usesByLevel: [1, 2, 3],
+          fromAbilityModifier: 'wis',
+          recovers: 'long-rest',
+        }),
+    );
+    expect(codes).toContain('not_a_table_column');
+    expect(codes).toContain('ambiguous_pool_sizing');
+  });
+
+  /**
+   * "A number of Sorcery Points equal to the slot's level" needs a slot whose
+   * level the caster names, and the three ways a catalogue can write it
+   * without one are all the same fault.
+   */
+  it('refuses a slot-level amount with no caller-named slot to read it from', () => {
+    // On the end that is spent, which the command never reads a level for.
+    expect(
+      codesOf((grants) => {
+        const trades = tradesOf(grants, 0);
+        trades[1]!['spends'] = { kind: 'pool', key: 'current', uses: 'the-slot-level' };
+        trades[1]!['gains'] = { kind: 'spell-slot', level: 1 };
+      }),
+    ).toContain('no_slot_level_to_read');
+    // Against a slot the *grant* levelled, where there is no choice to read.
+    expect(
+      codesOf((grants) => (tradesOf(grants, 0)[0]!['spends'] = { kind: 'spell-slot', level: 3 })),
+    ).toContain('no_slot_level_to_read');
+    // And between two pools, where there is no slot at all.
+    expect(
+      codesOf(
+        (grants) => (tradesOf(grants, 0)[0]!['spends'] = { kind: 'pool', key: 'current', uses: 1 }),
+      ),
+    ).toContain('no_slot_level_to_read');
+  });
+
+  /** A price table prices what is bought and is paid by what is spent. */
+  it('refuses a price table on the wrong end, or with no rung to price', () => {
+    expect(
+      codesOf((grants) => {
+        const trades = tradesOf(grants, 0);
+        trades[1]!['spends'] = { kind: 'pool', key: 'current', uses: 1 };
+        trades[1]!['gains'] = { kind: 'pool', key: 'current', uses: { byBoughtSlotLevel: [2] } };
+      }),
+    ).toContain('price_table_on_what_is_bought');
+    expect(
+      codesOf((grants) => (tradesOf(grants, 0)[1]!['gains'] = { kind: 'spell-slot', level: 2 })),
+    ).toContain('price_table_without_a_choice');
+  });
+
+  it('refuses a price table with no rows, too many, or a row that is not a price', () => {
+    const priced = (table: unknown) => (grants: Record<string, unknown>[]) => {
+      tradesOf(grants, 0)[1]!['spends'] = {
+        kind: 'pool',
+        key: 'current',
+        uses: { byBoughtSlotLevel: table },
+      };
+    };
+    expect(codesOf(priced([]))).toContain('bad_slot_price_table');
+    expect(codesOf(priced([1, 1, 1, 1, 1, 1, 1, 1, 1, 1]))).toContain('bad_slot_price_table');
+    expect(codesOf(priced([2, 0, 5]))).toContain('bad_slot_price');
+  });
+
+  /** And the budget's own three, on the one sentence that prints it. */
+  it('refuses a budget spent, a budget that is not the printed one, and a bad ceiling', () => {
+    expect(
+      codesOf((grants) => {
+        tradesOf(grants, 1)[0]!['spends'] = {
+          kind: 'spell-slots',
+          combinedLevel: 'half-class-level-round-up',
+          maxLevel: 5,
+        };
+      }),
+    ).toContain('slots_spent_together');
+    expect(
+      codesOf(
+        (grants) =>
+          (tradesOf(grants, 1)[0]!['gains'] = {
+            kind: 'spell-slots',
+            combinedLevel: 'the-whole-class-level',
+            maxLevel: 5,
+          }),
+      ),
+    ).toContain('bad_combined_level');
+    expect(
+      codesOf(
+        (grants) =>
+          (tradesOf(grants, 1)[0]!['gains'] = {
+            kind: 'spell-slots',
+            combinedLevel: 'half-class-level-round-up',
+            maxLevel: 0,
+          }),
+      ),
+    ).toContain('bad_slot_level');
+  });
+
+  it('refuses a moment the engine has no window for', () => {
+    expect(codesOf((grants) => (tradesOf(grants, 1)[0]!['moment'] = 'dawn'))).toContain(
+      'bad_trade_moment',
+    );
+  });
+});

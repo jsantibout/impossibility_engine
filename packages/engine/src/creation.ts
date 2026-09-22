@@ -81,6 +81,8 @@ import {
   type SubclassDefinition,
   type ReactionGrantAmount,
   type ReactionGrantEffect,
+  type TradedAmount,
+  type TradedResource,
 } from './progression.js';
 import {
   pactSlotKey,
@@ -3012,14 +3014,27 @@ export function planCharacter(
           one.spends.kind === 'pool'
             ? { key: one.spends.key, uses: one.spends.uses }
             : {
-                key: one.spends.level === undefined ? null : spellSlotKey(one.spends.level),
+                // `spell-slots` never appears on the end that is spent —
+                // nothing in the book burns a handful at once — so the only
+                // level-less slot here is the one SRD leaves to the caster.
+                key:
+                  one.spends.kind === 'spell-slot' && one.spends.level !== undefined
+                    ? spellSlotKey(one.spends.level)
+                    : null,
                 uses: 1,
               },
-        gains:
-          one.gains.kind === 'pool'
-            ? { key: one.gains.key, uses: one.gains.uses }
-            : { key: spellSlotKey(one.gains.level ?? 1), uses: 1 },
+        gains: gainedBy(one.gains),
+        // "Half your Wizard level (round up)", read at *that* class's level
+        // for the reason every pool's size is: a Wizard 1 / Fighter 4 recovers
+        // one level of slots and not three.
+        ...(one.gains.kind === 'spell-slots'
+          ? {
+              combinedLevel: Math.ceil(classLevelFor(choices, feature.id) / 2),
+              maxSlotLevel: one.gains.maxLevel,
+            }
+          : {}),
         limit: one.limit,
+        ...(one.moment === undefined ? {} : { moment: one.moment }),
         ...(one.pool === undefined ? {} : { pool: one.pool }),
         ...(one.onlyIfEmpty === undefined ? {} : { onlyIfEmpty: one.onlyIfEmpty }),
       });
@@ -3536,6 +3551,23 @@ function classLevelFor(choices: CharacterChoices, featureId: string): number {
 }
 
 /**
+ * What a trade buys, with the key resolved where the feature names a level.
+ *
+ * The mirror of what the spent end does two dozen lines above, and it says the
+ * same thing: a slot's key carries a level, `spellSlotKey` is the engine's
+ * derivation rather than a word a class file spells out, and a level the
+ * **caller** picks cannot be resolved until they have. SRD Wild Resurgence
+ * gives "a level 1 spell slot" and resolves here; SRD Font of Magic creates a
+ * slot off a table and SRD Arcane Recovery a handful inside a budget, and both
+ * wait.
+ */
+function gainedBy(gains: TradedResource): { readonly key: string | null; readonly uses: TradedAmount } {
+  if (gains.kind === 'pool') return { key: gains.key, uses: gains.uses };
+  if (gains.kind === 'spell-slots') return { key: null, uses: 1 };
+  return { key: gains.level === undefined ? null : spellSlotKey(gains.level), uses: 1 };
+}
+
+/**
  * One amount's dice, with the count read off a class table.
  *
  * SRD Divine Spark: "Roll 1d8 ... This feature's die changes when you reach
@@ -3890,6 +3922,19 @@ function poolsFor(
   for (const feature of features) {
     const grant = feature.grants;
     if (grant?.kind !== 'trade') continue;
+    // The pool the *feature* declares, which is the one its trades run
+    // between — Cutting Words's `declares` one grant kind over, and here for
+    // the reason it is there: `FeatureGrant` is singular and SRD Font of Magic
+    // is one feature that both holds the Sorcery Points and prints the two
+    // conversions. Sized off the class table like any other.
+    if (grant.pool !== undefined && grant.declares !== undefined) {
+      pools.push({
+        key: grant.pool,
+        label: grant.poolLabel ?? feature.name,
+        max: poolSizeOf(content, choices, features, feature.id, grant.declares),
+        recovers: grant.declares.recovers,
+      });
+    }
     for (const one of grant.trades) {
       if (one.pool === undefined) continue;
       pools.push({

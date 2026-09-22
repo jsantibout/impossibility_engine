@@ -1762,6 +1762,25 @@ export type FeatureGrant =
       readonly kind: 'trade';
       /** At least one, each with an id the command names. */
       readonly trades: readonly ResourceTradeGrant[];
+      /**
+       * The pool this feature's trades run between, where *this* feature is
+       * also the one that declares it.
+       *
+       * The move `reaction`'s own `declares` already makes, for the same
+       * reason and with the same words: a feature carries one grant, and SRD
+       * Font of Magic is one feature that both declares the Sorcery Points and
+       * prints the two conversions they run through. Splitting it would put a
+       * printed feature's name on two ids, and leaving the declaration out
+       * would take the pool off every Sorcerer's sheet.
+       *
+       * Absent where the pool belongs to another feature, which is the
+       * commoner case — SRD Wild Resurgence trades Wild Shape's uses and
+       * declares none of them.
+       */
+      readonly pool?: string;
+      readonly poolLabel?: string;
+      /** Set where *this* feature is the one that declares {@link pool}. */
+      readonly declares?: PoolSizing & { readonly recovers: Recovery };
     }
   | {
       readonly kind: 'unarmored-defense';
@@ -1839,7 +1858,7 @@ export type FeatureGrant =
  */
 export type TradedResource =
   /** A named pool — the feature's own, or another feature's. */
-  | { readonly kind: 'pool'; readonly key: string; readonly uses: number }
+  | { readonly kind: 'pool'; readonly key: string; readonly uses: TradedAmount }
   /**
    * A spell slot.
    *
@@ -1847,8 +1866,69 @@ export type TradedResource =
    * spent: SRD gives "a level 1 spell slot" and takes "a spell slot", so the
    * caller says which they are burning and the engine never picks between
    * candidates the caller could have named.
+   *
+   * A **bought** slot with no level is the third answer and the mirror of the
+   * second: SRD Font of Magic creates a slot at a level the Sorcerer picks,
+   * and what tells the engine so is the price — the other end pays by the
+   * table in {@link TradedAmount}, which is indexed by the level bought and
+   * could not be read if nobody chose one.
    */
-  | { readonly kind: 'spell-slot'; readonly level?: number };
+  | { readonly kind: 'spell-slot'; readonly level?: number }
+  /**
+   * Several spell slots at once, the caller naming their levels, bounded by
+   * their **combined** level rather than priced one at a time.
+   *
+   * SRD Arcane Recovery: "you can choose expended spell slots to recover. The
+   * spell slots can have a combined level equal to no more than half your
+   * Wizard level (round up), and none of them can be level 6+."
+   *
+   * A member of its own rather than a field on the one above, because it is a
+   * different sentence with a different bound: the slot above is bought and
+   * priced, and these are chosen inside an allowance and cost nothing each.
+   * It only ever appears as what a trade **gains** — nothing in the book
+   * spends a handful of slots at once.
+   */
+  | {
+      readonly kind: 'spell-slots';
+      /**
+       * The allowance, resolved at the granting class's own level at creation.
+       *
+       * One member, because the SRD prints one sentence of this shape. Named
+       * rather than computed here for `RecoveryFeature.upTo`'s reason: the
+       * word carries which way it rounds, and "half your Sorcerer level (round
+       * down)" is already a different word one file over.
+       */
+      readonly combinedLevel: 'half-class-level-round-up';
+      /** SRD: "none of them can be level 6+", which is a maximum of 5. */
+      readonly maxLevel: number;
+    };
+
+/**
+ * How many uses one end of a trade moves.
+ *
+ * A flat number for every trade the SRD prints one on, and one derivation the
+ * engine owns rather than letting a class file spell out: SRD Font of Magic,
+ * "you can expend a spell slot to gain a number of Sorcery Points **equal to
+ * the slot's level**". The level it reads is the one in this same trade —
+ * there is exactly one slot in a trade and the caller has just named it — so
+ * `checkContent` refuses it on a trade whose other end is not a slot the
+ * caller levels.
+ */
+export type TradedAmount =
+  | number
+  | 'the-slot-level'
+  /**
+   * SRD Font of Magic's Created Spell Slots table: what one slot costs, by the
+   * level of the slot being bought. Index 0 is a level 1 slot.
+   *
+   * It sits on the end that **pays**, because that is what it is — the number
+   * of Sorcery Points expended — and a table beside the thing bought would be
+   * a price nothing charged, with a flat `uses` next to it that no reader
+   * reads. Its length is also the cap the SRD prints in the same breath: "You
+   * can create a spell slot no higher than level 5" is five rows, not a sixth
+   * field that can disagree with them.
+   */
+  | { readonly byBoughtSlotLevel: readonly number[] };
 
 /**
  * One direction of a trade, with the clause that limits it.
@@ -1891,6 +1971,19 @@ export interface ResourceTradeGrant {
    * more than was spent is `nothing_to_regain` whatever its limit says.
    */
   readonly limit: 'once-per-turn' | 'once-per-long-rest' | 'unlimited';
+  /**
+   * The moment the trade may be made at, where the SRD names one.
+   *
+   * SRD Arcane Recovery: "**When you finish a Short Rest**, you can choose
+   * expended spell slots to recover." The same word `recovery`'s own `moment`
+   * carries and read the same way — `lastShortRestAt` against the clock —
+   * because it is the same sentence with the free half made expensive.
+   *
+   * Absent on a trade the book lets its holder make whenever they like, which
+   * is every other one: {@link limit} bounds how often and this bounds when,
+   * and only Arcane Recovery prints both.
+   */
+  readonly moment?: 'short-rest';
   /**
    * A pool of one this trade **declares**, because a feature carries one grant
    * and neither of the two sentences that need it has another to declare it

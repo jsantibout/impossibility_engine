@@ -105,13 +105,29 @@ export const WIZARD: ClassDefinition = {
       name: 'Arcane Recovery',
       level: 1,
       automation: 'engine',
-      note: 'Declared as a pool of one use refilling on a Long Rest — the same grant every other class resource now uses, rather than the one feature matched by id. Choosing which slots to recover, and the half-level cap on their total, are the caller’s.',
+      note: 'SRD: "When you finish a Short Rest, you can choose expended spell slots to recover. The spell slots can have a combined level equal to no more than half your Wizard level (round up), and none of them can be level 6+. Once you use this feature, you can’t do so again until you finish a Long Rest." Executed as a trade: the daily use is a pool of one refilling on a Long Rest, the moment is the end of a Short Rest, and the caller names the slots inside a budget of half the Wizard level rounded up. The slots recovered are ones the Wizard has expended, which is the sentence’s own word and what the engine gives back in any case.',
       grants: {
-        kind: 'pool',
-        key: 'wizard:arcane-recovery',
-        label: 'Arcane Recovery',
-        minimum: 1,
-        recovers: 'long-rest',
+        kind: 'trade',
+        // "Once you use this feature, you can't do so again until you finish a
+        // Long Rest" is a pool of one — the reading `recovery` takes of the
+        // same sentence — and here it is what the trade **spends**, so the
+        // daily limit is the price rather than a second clause beside it. The
+        // feature declares it because it is the only feature that holds it.
+        pool: 'wizard:arcane-recovery',
+        poolLabel: 'Arcane Recovery',
+        declares: { minimum: 1, recovers: 'long-rest' },
+        trades: [
+          {
+            id: 'recover-slots',
+            action: 'none',
+            moment: 'short-rest',
+            spends: { kind: 'pool', key: 'wizard:arcane-recovery', uses: 1 },
+            gains: { kind: 'spell-slots', combinedLevel: 'half-class-level-round-up', maxLevel: 5 },
+            // No further limit: what bounds this is the single use it spends,
+            // which is the whole of the printed sentence.
+            limit: 'unlimited',
+          },
+        ],
       },
     },
     {

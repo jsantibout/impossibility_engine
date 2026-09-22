@@ -415,10 +415,6 @@ const NOTHING_TO_BUY: Readonly<Record<string, string>> = {
     'the pool is sized and recovers, and the shapes it buys are not built: nothing in the engine turns a Druid into a beast, so a use spent here would be a use gone for no effect.',
   'paladin:channel-divinity':
     'the pool is real and prints no option this engine executes — SRD Divine Sense and Vow of Enmity are not built — which is the same argument that kept the Cleric’s shut until Turn Undead ran.',
-  'sorcerer:font-of-magic':
-    'Sorcery Points exist and the two ends of the exchange do not: converting points into a slot and a slot into points is a `trade` nothing has written, so the pool is a counter with no purchase.',
-  'wizard:arcane-recovery':
-    'a recovery of spell slots on a Short Rest, which `useRecovery` cannot express: it gives a *pool* back its uses, and slots are a pool per level, so the sentence has no shape here yet.',
 };
 
 // — the sweep ——————————————————————————————————————————————————————————————

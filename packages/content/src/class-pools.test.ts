@@ -304,11 +304,16 @@ describe('a feature that claims a pool declares one', () => {
       // Dark One's Own Luck — or spends one another feature declared, as
       // Cutting Words spends Bardic Inspiration.
       (grant?.kind === 'reaction' && grant.pool !== undefined) ||
-      // And `trade`, which declares a pool of one for either of the two
-      // sentences that need one and have no second grant to say it with: Wild
-      // Resurgence's own daily limit, and the single use of Holy Nimbus that
-      // an unlimited trade exists to buy back.
-      (grant?.kind === 'trade' && grant.trades.some((one) => one.pool !== undefined));
+      // And `trade`, in either of two places. Each *trade* may declare a pool
+      // of one for either of the two sentences that need one and have no
+      // second grant to say it with: Wild Resurgence's own daily limit, and
+      // the single use of Holy Nimbus that an unlimited trade exists to buy
+      // back. And the **grant** may declare the pool its trades run between,
+      // which is Font of Magic's Sorcery Points and Arcane Recovery's one
+      // daily use — one printed feature that both holds a resource and prints
+      // what converts it.
+      (grant?.kind === 'trade' &&
+        (grant.pool !== undefined || grant.trades.some((one) => one.pool !== undefined)));
     expect(declares).toBe(true);
   });
 
@@ -336,7 +341,15 @@ describe('a feature that claims a pool declares one', () => {
    */
   it('declares a pool for every class resource the notes name', () => {
     const keys = everyFeature()
-      .map((f) => (f.grants?.kind === 'pool' ? f.grants.key : null))
+      .map((f) => {
+        const grant = f.grants;
+        if (grant?.kind === 'pool') return grant.key;
+        // The second door onto the same declaration, which arrived with SRD
+        // Font of Magic: a feature that holds a resource *and* prints what
+        // converts it carries one grant, so the key is on the trade.
+        if (grant?.kind === 'trade' && grant.pool !== undefined) return grant.pool;
+        return null;
+      })
       .filter((k): k is string => k !== null)
       .sort();
     expect(keys).toEqual([

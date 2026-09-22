@@ -186,13 +186,38 @@ export const SORCERER: ClassDefinition = {
       name: 'Font of Magic',
       level: 2,
       automation: 'engine',
-      note: 'Sorcery Points are declared as a pool sized by the class table, refilling on a Long Rest — SRD: "You regain all expended Sorcery Points when you finish a Long Rest." Converting them into spell slots and back is not modelled: it would mint a slot the class table never printed.',
+      note: 'Sorcery Points are declared as a pool sized by the class table, refilling on a Long Rest — SRD: "You regain all expended Sorcery Points when you finish a Long Rest." Both conversions run: "You can expend a spell slot to gain a number of Sorcery Points equal to the slot’s level (no action required)", and "You can transform unexpended Sorcery Points into one spell slot as a Bonus Action", priced off the Created Spell Slots table. What is **not** applied is the clause that would mint: a created slot is one the Sorcerer has expended, because a trade gives back what was spent and never takes a pool above the maximum its class table printed, so a Sorcerer holding every slot of that level is refused `nothing_to_regain`. The minimum Sorcerer level column needs no separate check — a slot level this Sorcerer’s table has not reached is a pool they do not have — and "any spell slot you create with this feature vanishes when you finish a Long Rest" has nothing to remove under that reading, since a Long Rest restores every slot in any case.',
       grants: {
-        kind: 'pool',
-        key: 'sorcery-points',
-        label: 'Sorcery Points',
-        usesByLevel: SORCERY_POINTS,
-        recovers: 'long-rest',
+        kind: 'trade',
+        // The feature holds the pool its own conversions run between, which
+        // `reaction` already does with the same two words: SRD prints one
+        // feature and `FeatureGrant` carries one grant.
+        pool: 'sorcery-points',
+        poolLabel: 'Sorcery Points',
+        declares: { usesByLevel: SORCERY_POINTS, recovers: 'long-rest' },
+        trades: [
+          {
+            id: 'slot-for-points',
+            name: 'Converting Spell Slots to Sorcery Points',
+            action: 'none',
+            spends: { kind: 'spell-slot' },
+            gains: { kind: 'pool', key: 'sorcery-points', uses: 'the-slot-level' },
+            limit: 'unlimited',
+          },
+          {
+            id: 'points-for-slot',
+            name: 'Creating Spell Slots',
+            action: 'bonus-action',
+            // SRD's Created Spell Slots table — 2 points for a level 1 slot up
+            // to 7 for a level 5 — and its fifth row is the printed cap in the
+            // same sentence: "You can create a spell slot no higher than level
+            // 5." The minimum Sorcerer level column needs no row here: a slot
+            // level this Sorcerer has not reached is a pool they do not hold.
+            spends: { kind: 'pool', key: 'sorcery-points', uses: { byBoughtSlotLevel: [2, 3, 5, 6, 7] } },
+            gains: { kind: 'spell-slot' },
+            limit: 'unlimited',
+          },
+        ],
       },
     },
     {
