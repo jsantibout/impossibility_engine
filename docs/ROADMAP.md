@@ -242,7 +242,7 @@ no two hunks are adjacent. Line numbers are as of `f163717`; re-read them.
   Enhance Ability, Lesser Restoration, Guidance, Thaumaturgy;
   `bard:jack-of-all-trades`; a clause each on Enlarge/Reduce, Glyph of
   Warding, Hex, Enthrall, Slow, Pass without Trace.
-- `[!]` **P1-T4 A condition benefit an effect takes away.** Union anchor
+- `[x]` **P1-T4 A condition benefit an effect takes away.** Union anchor
   after `end-condition` (`spell-definitions.ts:1081`); dispatch after
   `case 'end-condition'` (`spell-resolution.ts:1785`); validator after the
   same case (`spell-schema.ts:1387`). The readers that grant the Invisible
@@ -305,7 +305,7 @@ no two hunks are adjacent. Line numbers are as of `f163717`; re-read them.
   the generated JSON and the committed index; CI regenerates and diffs) or at
   `adaptMonster` (engine side, no re-ingest). Moves: 31 CR ≤ 5 blocks freed
   outright, 104 lines on 93 blocks; the Ghoul's paralysis, the Wolf's Prone.
-- `[!]` **P1-T13 Movement modes and jumping** (owner ruling 1, 2026-09-21:
+- `[x]` **P1-T13 Movement modes and jumping** (owner ruling 1, 2026-09-21:
   build them). Fly, Climb, Swim, Burrow as speeds on the sheet and on a stat
   block's printed speeds; a move names its mode; climbing or swimming
   without the speed costs double, difficult terrain stacks; a flier that is
@@ -846,6 +846,42 @@ Appended after Phase 1 (2026-09-21):
 - `missing-shapes.ts` files `animated-shield` under `what-a-creature-is-
   holding`, whose name now means the drop verb; a shield that protects while
   leaving hands free is not that blocker.
+Appended after wave 1.5 (2026-09-21), which closed P1-T4, P1-T13 and the rest
+of P1-T10. Ledger after it: **129 spells in reach not executed, 89 waiting on
+a shape; 400 CR ≤ 5 items, 186 of 242 blocks waiting, 56 clean.**
+
+- **Movement modes are half a mechanism and moved no number**, which is worth
+  recording rather than glossing. The reader half is built — four Speeds on
+  the sheet and off a stat block's printed line, a move that names its mode,
+  the surcharge for going without the Speed, a flier who is stopped falling
+  through P1-T5's rule, both jumps, and `cannot_rise` on a move that ends
+  higher. **Nothing grants a mode**, so all three spells, the feature and the
+  26 blocks still wait. Three separate follow-ups, none of them large:
+  `GrantedSpeed` needs a mode (it crosses `standing.ts:2653`,
+  `spell-definitions.ts`, `spell-schema.ts`, `commands/spell-effect-grants.ts`);
+  Second-Story Work needs a `climb-speed` `FeatureGrant`; and the 26 blocks
+  need new `MonsterTraitSchema` kinds, a parser change **and a regeneration of
+  `monsters.json`, which cannot happen in a worktree** — that one belongs to a
+  track run in the main checkout, or to a deliberate re-ingest.
+- **A sentence about movement modes is stale in ten places** and the report
+  desyncs if they move apart: `spells.ts:3265, 3349, 7633`, `items.ts:2804`,
+  `missing-shapes.ts:1300, 1324`, `classes/monk.ts:316`, `ranger.ts:185`,
+  `rogue.ts:388`, `sorcerer.ts:377`, `missing-feature-shapes.ts:642, 1014`.
+  Each says the engine tracks one Speed and no modes; each is now false as a
+  *reason* even though the entry it justifies is still blocked. One content
+  track, with the generators in the same hand.
+- **Nothing brings a jumper down.** A High Jump leaves the creature at the
+  elevation it reached. Strictly narrower than before — elevation was wholly
+  unguarded until this — but a creature can end its turn in the air.
+- **The log does not record which Speed a move used.** `fold/combat.ts` now
+  validates `movement-spent` against the maximum over every mode, because the
+  exact per-mode check is only knowable in the command. Written in the comment
+  there; a replay cannot tell a 40-foot flight from a 40-foot walk.
+- **Faerie Fire, Mind Spike and Shining Smite** all still want the benefit
+  denial that Starry Wisp now has: Faerie Fire needs optional `save.condition`
+  and its Cube as an area, Mind Spike and Shining Smite need
+  `the-effects-source-as-a-participant`.
+
 - **For the owner: may the engine hold a fact that only the table reads, and
   on which door is it published?** Zone of Truth's failed save buys "can't
   speak a deliberate lie while in the radius". The engine holds no speech, no

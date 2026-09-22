@@ -26,8 +26,10 @@ homebrew.
   `sheetAsItStands`, so a substitution reaches all of them.
 - **Space** — a cube lattice, distance between volumes, declared sight and
   cover, six area shapes, persistent and carried areas, teleportation,
-  mounting, the glossary's four senses. A spell can push a creature, and a
-  fall the table declares has a landing: 1d6 per ten feet to 20d6, and Prone.
+  mounting, the glossary's four senses. A spell can push a creature; a fall has
+  a landing (1d6 per ten feet to 20d6, and Prone); and **going up needs a way
+  up** — a move that ends higher is refused unless it flew, climbed, burrowed
+  or jumped.
 - **Combat and time** — Initiative and Alert's swap within its window, the
   action budget, joining a running fight, the clock, spans and turn-anchored
   deadlines, repeat saves and delayed damage raised at the boundary, Short and
@@ -85,14 +87,23 @@ homebrew.
 - **Nothing reduces damage an effect has rolled**, which is why Feather Fall
   and a Monk's Slow Fall do not work and why `FeatureReactionWindow` still
   excludes `creature-falling`.
-- **Movement has one speed and no modes.** Fly, Climb, Swim and Burrow are
-  ruled to be built and are not; the readers they need span three files.
-- **A printed stat-block rider executes only where it imposes a condition** —
-  gated on the target's size, or on the attacker's next turn. A printed saving
-  throw, a grapple with its escape DC, and a span anchored on the *target*
-  each wait on one field apiece.
+- **Movement has four modes and nothing that grants one.** Fly, Climb, Swim
+  and Burrow are on the sheet and come off a stat block's printed line, a move
+  names its mode, the surcharge for going without the Speed is charged, and a
+  flier who is stopped falls. What is missing is the other end: no spell, no
+  feature and no monster trait can *give* a creature a mode, so Spider Climb,
+  Fly, Jump and Second-Story Work all still wait.
+- **A printed stat-block rider that deals extra damage is still prose.** The
+  condition families execute — gated on the target's size or on a creature
+  type the block names, anchored on either creature's next turn, and a grapple
+  with the printed escape DC that `escapeGrapple` can answer. Extra damage is
+  the family left, and it is a damage-roll mechanism rather than an effect
+  list: doubled by a crit, meeting the target's defences with the blow.
 - **A stat block's attack refuses `hold`**, so a party fighting monsters is
   never offered the window SRD *Shield* answers.
+- **Nothing brings a jumper down.** A High Jump leaves the creature at the
+  elevation it reached and no rule ends that. Narrower than it was — elevation
+  was wholly unguarded until `cannot_rise` — but still open.
 - No carried weight, no ammunition spent, no objects that are not creatures.
 - A conferral refuses by name what it cannot do: bonuses to spell attack rolls,
   ability scores an item sets, curses, Speed from an item.

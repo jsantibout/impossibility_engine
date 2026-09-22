@@ -119,10 +119,11 @@ six conflicts on the way in, and seven computations of an answer that is only
 true once, at the end.
 
 **The cost of that, so nobody reads it as a defect:** a track that moves a
-number will see `playable-levels.test.ts` fail on its own branch after the
-revert, because that test asserts the committed report matches the code. That
-one failure is expected, is the only one allowed, and clears when the
-coordinator regenerates after the merge. Say so in the digest; do not chase it,
+number will see the freshness guards fail on its own branch after the revert,
+because they assert the committed reports match the code. Those are
+`coverage.test.ts` and `ledger.test.ts`, and sometimes `playable-levels.test.ts`
+depending on which numbers moved. They are expected, are the only failures
+allowed, and clear when the coordinator regenerates after the merge. Say so in the digest; do not chase it,
 and do not commit the report to silence it.
 CI runs the same on Node 22 and 24.
 
