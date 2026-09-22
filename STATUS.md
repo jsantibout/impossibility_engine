@@ -37,13 +37,12 @@ homebrew.
 - **Monsters that fight from their own printed lines** — Multiattack as a named
   sequence, an opportunity attack reaching for the best printed melee attack,
   recharge enforced and returned on a rest, spendable Bonus Actions, daily
-  limits cleared at a declared dawn, a printed line the parser could not read
-  spendable through the DM's door, and a count the table keeps for the Hydra.
-- **Features that do something** — a feature that holds an action rule, a use
-  that hangs something a later roll spends, a pool use that buys room in the
-  turn budget, the Unarmed Strike's three options, fighting styles, weapon
-  masteries, and the defender answering first on both the ordinary and the held
-  path.
+  limits cleared at a declared dawn, an unparsed line spendable through the
+  DM's door, and a count the table keeps for the Hydra.
+- **Features that do something** — an action rule a feature holds, a use that
+  hangs something a later roll spends, a pool use that buys room in the turn
+  budget, the Unarmed Strike's three options, fighting styles, weapon
+  masteries, and the defender answering first on both paths.
 - **Casting and spells** — slots and Pact slots as pools, castings with
   identities, Concentration, ongoing spells, the effect kinds and three rider
   kinds, dice that behave the way their spell says, and printed sentences
