@@ -552,54 +552,59 @@ export interface CastSpellRequest extends CommandIdentity {
  * identity that told them apart would refuse an honest retry that spelled the
  * default out.
  *
- * **`rollsAt` is the same sentence twice more.** A split is a *mapping* from
- * creature to share, so the order the pairs were written in says nothing about
- * the casting — and a split that spells out the deal says nothing at all. Both
- * are normalised away here, and `rollsAimedAt` drops the second from what a
- * declaration pins, so the fingerprint and the record agree about which
- * castings are one casting.
+ * **`rollsAt` is the same sentence one level down**, and only that far. A split
+ * is a *mapping* from creature to share, so the order the pairs were written in
+ * says nothing about the casting and is sorted away ({@link aimedIdentity}).
+ * What is **not** normalised is a split that spells out the deal, and the
+ * difference is the whole rule this function obeys: a fingerprint may
+ * canonicalise what makes two requests the same *request*, and may not decide
+ * what makes two requests resolve the same way. `anchoring: 'space'` is the
+ * first; whether a split is this casting's default is the second, because it
+ * depends on how many rolls the casting makes and the definition is fetched on
+ * the far side of the duplicate check. Guessing it would hand a caller `ok` for
+ * a casting the engine would have refused — the id already landed, so the body
+ * that does the refusing never runs.
+ *
+ * The cost is stated rather than hidden: a caller who lands a casting and then
+ * retries it under the same id with the deal spelled out is told
+ * `command_id_reused`. That is the conservative answer — the fingerprint never
+ * says "the same" of two requests that are not — and `rollsAimedAt` still drops
+ * the spelled-out deal from what a **declaration pins**, which is what
+ * byte-identity of the log actually needs.
  */
 export const castingIdentity = ({
   anchoring,
   rollsAt,
   ...rest
-}: CastSpellRequest): CastSpellRequest => {
-  const aimed = aimedIdentity(rest.targets, rollsAt);
-  return {
-    ...rest,
-    ...(anchoring === undefined || anchoring === 'space' ? {} : { anchoring }),
-    ...(aimed === undefined ? {} : { rollsAt: aimed }),
-  };
-};
+}: CastSpellRequest): CastSpellRequest => ({
+  ...rest,
+  ...(anchoring === undefined || anchoring === 'space' ? {} : { anchoring }),
+  ...(rollsAt === undefined ? {} : { rollsAt: aimedIdentity(rollsAt)! }),
+});
 
 /**
- * A stated split as the fingerprint should see it: sorted, or gone.
+ * A stated split as a fingerprint should see it: the same mapping, one way up.
  *
- * Both normalisations are decidable from the request alone, which is what lets
- * this run before any definition is fetched. The total is the sum the caller
- * stated — `rollsAimedAt` refuses any sum but the casting's own, so a split
- * that survives validation states its own total — and the deal is read off the
- * order the creatures were named, which is on the request too.
+ * Sorting is sound where dropping is not, and that is the only reason this does
+ * one and not the other: two lists of the same pairs **are** the same mapping,
+ * whatever spell they are aimed at and whatever the definition says, so
+ * canonicalising the order cannot make two different requests look alike. See
+ * {@link castingIdentity} for the half that is deliberately not done.
  *
- * An ill-formed split is sorted and kept rather than judged. It is about to be
- * refused, and a fingerprint's job is to be stable, not to have opinions.
+ * An ill-formed split is sorted like any other rather than judged. It is about
+ * to be refused by `rollsAimedAt`, and a fingerprint's job is to be stable, not
+ * to have opinions.
+ *
+ * Exported because a **release** states its own split — a readied casting
+ * chooses its creatures when it is let go — and `releaseReady` fingerprints its
+ * command exactly as this one does. One normalisation, two doors.
  */
-function aimedIdentity(
-  targets: readonly CharacterId[],
+export const aimedIdentity = (
   rollsAt: readonly AimedRolls[] | undefined,
-): readonly AimedRolls[] | undefined {
-  if (rollsAt === undefined) return undefined;
-  const share = new Map(rollsAt.map((aim) => [aim.target, aim.count]));
-  const covers = share.size === rollsAt.length && targets.every((target) => share.has(target));
-  if (covers && targets.length === rollsAt.length) {
-    const total = rollsAt.reduce((sum, aim) => sum + aim.count, 0);
-    const deal = targets.every(
-      (target, index) => share.get(target) === rollsDealtTo(total, targets.length, index),
-    );
-    if (deal) return undefined;
-  }
-  return [...rollsAt].sort((a, b) => (a.target < b.target ? -1 : a.target > b.target ? 1 : 0));
-}
+): readonly AimedRolls[] | undefined =>
+  rollsAt === undefined
+    ? undefined
+    : [...rollsAt].sort((a, b) => (a.target < b.target ? -1 : a.target > b.target ? 1 : 0));
 
 /**
  * The creatures a casting said it was fighting, normalised once.

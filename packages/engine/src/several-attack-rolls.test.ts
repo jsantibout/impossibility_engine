@@ -914,6 +914,126 @@ describe('an uneven split of the rolls', () => {
     expect(retry.value.castingId).toBe(first.castingId);
   });
 
+  /**
+   * **And the same of the other door.** A release states its own split,
+   * because it chooses its own creatures, so it owes the same normalisation:
+   * `releaseReady` fingerprints its command too, and a re-ordered mapping is
+   * the same release.
+   */
+  it('takes a re-ordered split as the same release', () => {
+    const log = [
+      ...raying(),
+      {
+        type: 'combat-started',
+        combatants: [
+          { id: KESSA, initiative: 20, speed: 30 },
+          { id: GOBLIN, initiative: 10, speed: 30 },
+          { id: OGRE, initiative: 5, speed: 30 },
+        ],
+      } satisfies GameEvent,
+    ];
+    const readied = [
+      ...log,
+      ...unwrap(
+        takeReady(
+          fold('seed', log),
+          KESSA,
+          {
+            trigger: 'if the goblin breaks cover',
+            response: { kind: 'spell', spellId: 'scorching-ray', slotLevel: 3 },
+          },
+          SRD_CONTENT,
+        ),
+        'ready',
+      ),
+    ];
+    const open = fold('seed', readied);
+    const released = unwrap(
+      releaseReady(
+        open,
+        KESSA,
+        {
+          targets: [GOBLIN, OGRE],
+          commandId: 'let-it-go',
+          rollsAt: [
+            { target: GOBLIN, count: 3 },
+            { target: OGRE, count: 1 },
+          ],
+        },
+        supply(open, CERTAIN),
+      ),
+      'release',
+    );
+    const after = fold('seed', [...readied, ...released.events]);
+    const retry = releaseReady(
+      after,
+      KESSA,
+      {
+        targets: [GOBLIN, OGRE],
+        commandId: 'let-it-go',
+        rollsAt: [
+          { target: OGRE, count: 1 },
+          { target: GOBLIN, count: 3 },
+        ],
+      },
+      supply(after, CERTAIN),
+    );
+    expect(isErr(retry)).toBe(false);
+    if (!retry.ok) return;
+    expect(retry.value.events).toEqual([]);
+  });
+
+  /**
+   * **What a fingerprint may normalise, and what it may not.** Two spellings of
+   * one mapping are one command, because that is true of the request alone.
+   * Whether a split is *this casting's* default is not: it depends on how many
+   * rolls the casting makes, which the fingerprint cannot see and which is
+   * looked up on the far side of the duplicate check. A fingerprint that
+   * guessed would hand a caller `ok` for a casting the engine would have
+   * refused — the id already landed, so the body that does the refusing never
+   * runs.
+   */
+  it('does not take an illegal split as the casting that stated none', () => {
+    const log = raying();
+    const state = fold('seed', log);
+    const landed = unwrap(
+      resolveSpell(
+        state,
+        KESSA,
+        {
+          spellId: 'scorching-ray',
+          targets: [GOBLIN, OGRE],
+          slotLevel: 3,
+          commandId: 'once-only',
+        },
+        supply(state, CERTAIN),
+      ),
+      'cast',
+    );
+    const after = fold('seed', [...log, ...landed.events]);
+    // Three rays' worth of split on a four-ray casting — `wrong_roll_count`
+    // when it is validated, and it must not slip past as a retry of the
+    // casting that named the same creatures and stated nothing.
+    const smuggled = resolveSpell(
+      after,
+      KESSA,
+      {
+        spellId: 'scorching-ray',
+        targets: [GOBLIN, OGRE],
+        slotLevel: 3,
+        commandId: 'once-only',
+        rollsAt: [
+          { target: GOBLIN, count: 2 },
+          { target: OGRE, count: 1 },
+        ],
+      },
+      supply(after, CERTAIN),
+    );
+    expect(isErr(smuggled)).toBe(true);
+    if (!isErr(smuggled)) return;
+    expect(smuggled.code).toBe('command_id_reused');
+  });
+
   /** And the deal, spelled out, is the casting that said nothing. */
   it('takes a split that is only the deal as the casting that stated none', () => {
     const log = raying();

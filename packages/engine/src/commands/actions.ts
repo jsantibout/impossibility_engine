@@ -98,7 +98,12 @@ import { featureTimer } from './features.js';
 import { mayAct } from './holds.js';
 import { type MoveResolution, moveWithin } from './movement.js';
 import { castOrRelease } from './spell-resolution.js';
-import { type AimedRolls, declaredFacts, type SpellResolution } from './targeting.js';
+import {
+  aimedIdentity,
+  type AimedRolls,
+  declaredFacts,
+  type SpellResolution,
+} from './targeting.js';
 
 /**
  * Which slot the caller is offering to pay a Dash out of.
@@ -1754,7 +1759,15 @@ export function releaseReady(
   // the caller the hold never existed when in fact their first call consumed
   // it. A retry that reads as a rules problem is worse than one that doubles,
   // because the DM narrates the lie.
-  return once(state, `release:${id}`, command, () => ({ events: [], took: true }), (stamp) => {
+  // The split is a mapping and the order its pairs were written in says
+  // nothing, exactly as it says nothing on a casting — `castingIdentity` makes
+  // the same normalisation through the same call, so the two doors cannot
+  // disagree about which releases are one release.
+  const identity: ReleaseCommand = {
+    ...command,
+    ...(command.rollsAt === undefined ? {} : { rollsAt: aimedIdentity(command.rollsAt)! }),
+  };
+  return once(state, `release:${id}`, identity, () => ({ events: [], took: true }), (stamp) => {
     const creature = creatureOf(state, id);
     if (creature === null) return unknownCreature(id, 'has no record here yet; add it first');
 
