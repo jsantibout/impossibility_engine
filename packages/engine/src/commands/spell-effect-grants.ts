@@ -83,6 +83,10 @@ export function resolveBuffEffect(
       bonus: { ...effect.bonus, source: name },
       applies: effect.applies,
       direction: effect.direction,
+      // Pinned, like every other number on a casting: the narrowing carried
+      // here is the one the *casting* ended up with, which for a spell that
+      // chose a skill at the cast is not the one the definition prints.
+      ...(effect.only === undefined ? {} : { only: effect.only }),
     },
   });
   current = events.slice(-1).reduce(applyEvent, current);

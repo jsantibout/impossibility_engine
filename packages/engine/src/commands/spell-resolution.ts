@@ -81,6 +81,7 @@ import {
   type SpellDefinition,
   type SpellEffect,
   teleportOf,
+  statedChoice,
   statedDamageType,
   damageTypesDealt,
 } from '../spell-definitions.js';
@@ -302,7 +303,11 @@ export function resolveDeclaredCast(
     // declaration rather than dropping it. What reaches here is every feature
     // that needs no election — Foe Slayer's die, Potent Cantrip's floor — which
     // is the whole of what a long casting could have wanted.
-    const running = statedDamageType(definition.effects, pending.damageType);
+    const running = statedChoice(
+      statedDamageType(definition.effects, pending.damageType),
+      definition.choiceStated?.of,
+      pending.choice,
+    );
     const damage = castingDamageOf(state, pending.caster, caster, {
       definition,
       effects: running,
@@ -1294,15 +1299,20 @@ function resolveOnTargets(
     ...(origin === null && area === null ? {} : { origin: origin ?? area!.at }),
     ...(area?.towards === undefined ? {} : { towards: area.towards }),
     ...(area?.anchoring === undefined ? {} : { anchoring: area.anchoring }),
-    // Two facts the caster stated at the casting, kept because every later
-    // sentence of the spell reads them and neither can be recovered from
+    // The facts the caster stated at the casting, kept because every later
+    // sentence of the spell reads them and none can be recovered from
     // anything else. **A carried area records no position**: `caster` and the
     // definition's `origin: 'self'` already say where it is.
     ...stated,
   });
 
   /**
-   * The effects, using the type this casting named.
+   * The effects, using the type and the value this casting named.
+   *
+   * Two substitutions, composed in one place so that a spell could in
+   * principle do both and neither reader has to know about the other:
+   * {@link statedDamageType} replaces a damage type and {@link statedChoice}
+   * replaces the condition, ability or skill the caster chose.
    *
    * Spirit Guardians' stated type reached only the *area trigger*, because
    * that is where its damage is and its own `effects` list is empty. SRD
@@ -1313,7 +1323,11 @@ function resolveOnTargets(
    *
    * Identity when nothing was stated, which is every other spell in the book.
    */
-  const running = statedDamageType(definition.effects, request.damageType);
+  const running = statedChoice(
+    statedDamageType(definition.effects, request.damageType),
+    definition.choiceStated?.of,
+    request.choice,
+  );
 
   // The numbers this casting is made with, worked out once and read by
   // everything below: the DC a later examiner rolls against, the DC and the
@@ -1593,7 +1607,7 @@ function resolveOnTargets(
               unverified,
               ...(origin === null ? {} : { origin }),
               ...(area === null ? {} : { area }),
-              // The same three stated facts, from the same normalisation the
+              // The same stated facts, from the same normalisation the
               // atomic path uses. A casting held open for a Counterspell is
               // still the casting its caster described, and the settlement has
               // no request to read them off.
@@ -2015,6 +2029,7 @@ export function resolveEffects(
         ...(becomes.anchoring === undefined ? {} : { anchoring: becomes.anchoring }),
         ...(becomes.unaffected === undefined ? {} : { unaffected: becomes.unaffected }),
         ...(becomes.damageType === undefined ? {} : { damageType: becomes.damageType }),
+        ...(becomes.choice === undefined ? {} : { choice: becomes.choice }),
       },
     });
   }
@@ -2378,10 +2393,12 @@ interface OngoingRecordPlan {
   readonly unaffected?: readonly string[];
   /** The damage type the casting was declared with, where the spell prints two. */
   readonly damageType?: string;
+  /** The value the caster chose, where the spell prints a choice. */
+  readonly choice?: string;
 }
 
 /**
- * The two facts a caster states at the casting, normalised once.
+ * The facts a caster states at the casting, normalised once.
  *
  * SRD Spirit Guardians asks for both in one paragraph — "3d8 Radiant damage
  * (if you are good or neutral) or 3d8 Necrotic damage (if you are evil)", and
@@ -2405,9 +2422,11 @@ interface OngoingRecordPlan {
  */
 function statedFacts(stated: {
   readonly damageType?: string;
+  readonly choice?: string;
   readonly unaffected?: readonly CharacterId[];
 }): {
   readonly damageType?: string;
+  readonly choice?: string;
   readonly unaffected?: readonly CharacterId[];
 } {
   return {
@@ -2415,6 +2434,7 @@ function statedFacts(stated: {
       ? {}
       : { unaffected: [...stated.unaffected].sort() }),
     ...(stated.damageType === undefined ? {} : { damageType: stated.damageType }),
+    ...(stated.choice === undefined ? {} : { choice: stated.choice }),
   };
 }
 

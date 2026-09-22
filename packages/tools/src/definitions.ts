@@ -2028,6 +2028,13 @@ const CAST_SPELL = tool({
       .describe(
         'Which of the types a spell prints this casting uses, for the few that print a list and leave the choice to the caster or to what the caster is — Spirit Guardians’ Radiant or Necrotic, Chromatic Orb’s whole list, Protection from Energy’s. Leaving it out for one of those is refused, and so is naming one for a spell that prints a single type.',
       ),
+    choice: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        'Which of the values a spell prints this casting chose, for the spells that print a list and leave the pick to the caster — Blindness/Deafness’ "the Blinded or Deafened condition (your choice)", Lesser Restoration’s one condition of four, Enhance Ability’s five abilities, Guidance’s "choose a skill". Leaving it out for one of those is refused, and so is naming one for a spell that prints no choice.',
+      ),
     fought: z
       .array(creatureId)
       .optional()
@@ -2090,6 +2097,7 @@ const CAST_SPELL = tool({
       ...(args.anchoring === undefined ? {} : { anchoring: args.anchoring }),
       ...(args.slotLevel === undefined ? {} : { slotLevel: args.slotLevel }),
       ...(args.damageType === undefined ? {} : { damageType: args.damageType }),
+      ...(args.choice === undefined ? {} : { choice: args.choice }),
       // **An empty `fought` is an answer and is never elided.** "We are
       // fighting none of them" is a fact the caster stated; absence is a
       // caller who has not read the spell, and the engine tells the two
@@ -4120,6 +4128,7 @@ const TAKE_READY = tool({
         slotKind: z.enum(['spell', 'pact']).optional(),
         source: z.string().min(1).optional(),
         damageType: damageTypeSchema.optional(),
+        choice: z.string().min(1).optional(),
         fought: z.array(creatureId).optional(),
         unaffected: z.array(creatureId).optional(),
         teleportTo: placementSchema.optional(),
@@ -4144,6 +4153,7 @@ const TAKE_READY = tool({
                   ...(response.slotKind === undefined ? {} : { slotKind: response.slotKind }),
                   ...(response.source === undefined ? {} : { source: response.source }),
                   ...(response.damageType === undefined ? {} : { damageType: response.damageType }),
+                  ...(response.choice === undefined ? {} : { choice: response.choice }),
                   ...(response.fought === undefined ? {} : { fought: response.fought.map(who) }),
                   ...(response.unaffected === undefined
                     ? {}

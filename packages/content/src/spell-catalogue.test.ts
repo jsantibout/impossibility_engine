@@ -285,6 +285,15 @@ const castAt = (
     ...(teleportOf(definition) === null
       ? {}
       : { teleportTo: { from: { landmark: 'here' }, feet: 10, bearing: 180 } }),
+    // The fifth, and the same shape a fourth time: a spell that prints a
+    // choice is refused until the caster makes it, and one that prints none is
+    // refused for making one. The sweep answers with the **first** printed
+    // value, because the point here is that every definition casts rather than
+    // which condition, ability or skill this casting picked — the reason the
+    // stated damage type above takes the same answer.
+    ...(definition.choiceStated === undefined
+      ? {}
+      : { choice: definition.choiceStated.options[0]! }),
   };
   // The caster's own square. Deliberate: a Cube or Cone excludes its point of
   // origin, so an area placed *on* the target would leave them out of it —

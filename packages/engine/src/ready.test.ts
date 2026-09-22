@@ -483,7 +483,15 @@ describe('the hold ends but the spell does not', () => {
       },
     ];
 
-    const log = nextTurn(ready({ kind: 'spell', spellId: 'blindness-deafness', slotLevel: 2 }, caster));
+    // "(your choice)" is stated at the **Ready**, which is where SRD spends
+    // the slot and so where every other stated fact is said too: a release
+    // takes no fresh request about what the spell is.
+    const log = nextTurn(
+      ready(
+        { kind: 'spell', spellId: 'blindness-deafness', slotLevel: 2, choice: 'blinded' },
+        caster,
+      ),
+    );
     const out = unwrap(
       releaseReady(fold('seed', log), ARCHER, { targets: [CULTIST] }, supply('blind')),
       'release',

@@ -385,6 +385,18 @@ export interface OngoingSpell {
    * or asked for, never guessed.
    */
   readonly damageType?: string;
+  /**
+   * The value this casting chose, for a spell that prints a choice.
+   *
+   * SRD Blindness/Deafness's "(your choice)", Guidance's "choose a skill",
+   * Enhance Ability's five abilities, Lesser Restoration's one condition of
+   * four. Pinned here for the reason `damageType` is: a casting already made
+   * does not change when the book does, and a record whose effects are read
+   * again later — an area trigger's, an activation's — has to read them with
+   * the answer the caster gave, not the value the definition was written
+   * around.
+   */
+  readonly choice?: string;
 }
 
 /**

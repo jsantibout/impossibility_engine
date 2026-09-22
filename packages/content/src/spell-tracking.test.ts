@@ -196,6 +196,13 @@ const cast = (
       spellId,
       targets,
       ...(definition.level === 0 ? {} : { slotLevel: definition.level }),
+      // A spell that prints a choice is refused until the caster makes it, and
+      // the first printed value is the answer here for the reason the executed
+      // sweep gives: what this file claims is that every one of these is cast
+      // rather than refused, not which of the printed values it chose.
+      ...(definition.choiceStated === undefined
+        ? {}
+        : { choice: definition.choiceStated.options[0]! }),
       ...over,
     },
     supply(),
@@ -1253,7 +1260,7 @@ describe('every spell this batch added is cast for real', () => {
    * separates the two buckets, and everything else each spell prints is an
    * executed definition's debt in `ADJUDICATED`.
    */
-  const EXECUTED_SINCE: readonly string[] = ['magic-jar', 'wind-walk'];
+  const EXECUTED_SINCE: readonly string[] = ['enhance-ability', 'magic-jar', 'wind-walk'];
 
   it('records the departures rather than deleting the rows', () => {
     expect(EXECUTED_SINCE).toEqual([...EXECUTED_SINCE].sort());

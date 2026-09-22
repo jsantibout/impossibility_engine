@@ -132,6 +132,9 @@ const AUDIT: readonly {
       ),
       unaffected: because('Spirit Guardians and Alarm print the clause; neither is castable by anyone here'),
       damageType: because('Spirit Guardians reads the caster alignment; same, nobody can cast it'),
+      choice: because(
+        'the one value a spell asks its caster to pick — Blindness/Deafness’ Blinded or Deafened, Lesser Restoration’s one condition of four, Enhance Ability’s five abilities, Guidance’s eighteen skills. The engine refuses a casting of one of those that names none, so this is required rather than optional the day any of them is castable here; no benchmark character has one prepared',
+      ),
       fought: because(
         'SRD Charm Person: "It does so with Advantage if you or your allies are fighting it." Five spells print the clause, the engine refuses a casting of one that does not answer it, and the answer is a list because an upcast casting names several targets — so this is required rather than optional the day any of them is castable here, and no benchmark character has one prepared',
       ),

@@ -788,6 +788,10 @@ const ANSWERS: Readonly<Record<string, Answer>> = {
   damage_type_required: {
     fields: ['cast_spell.damageType', 'use_pool_option.damageType', 'take_ready.response.damageType'],
   },
+  // The fifth stated fact, and the same two callers: a casting that prints a
+  // choice — a condition, an ability, a skill — and a readied one, which
+  // states it at the Ready because that is where SRD spends the slot.
+  choice_required: { fields: ['cast_spell.choice', 'take_ready.response.choice'] },
   fought_fact_required: { fields: ['cast_spell.fought', 'take_ready.response.fought'] },
   destination_required: {
     fields: ['activate_spell.to', 'cast_spell.teleportTo', 'take_ready.response.teleportTo'],

@@ -37,7 +37,7 @@ import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import { RECHARGE_DIE, rechargeMade, rechargeOfLine } from '../monster.js';
 import { rollRecorded } from '../rolls.js';
-import { needsCasterSheet, statedDamageType } from '../spell-definitions.js';
+import { needsCasterSheet, statedChoice, statedDamageType } from '../spell-definitions.js';
 import {
   type AreaMoment,
   castingIdOf,
@@ -816,7 +816,11 @@ export function settleAreaEffects(
         supply,
         castingId: record.castingId,
         events: [discharge],
-        effects: statedDamageType(trigger.effects, record.damageType),
+        effects: statedChoice(
+          statedDamageType(trigger.effects, record.damageType),
+          definition.choiceStated?.of,
+          record.choice,
+        ),
         label: trigger.label,
       });
       if (!resolved.ok) return resolved;
