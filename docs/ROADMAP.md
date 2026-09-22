@@ -206,7 +206,7 @@ touches from conflicting: the `SpellEffect` union
 `packages/content/src/spells.ts` each track inserts after the named export so
 no two hunks are adjacent. Line numbers are as of `f163717`; re-read them.
 
-- `[ ]` **P1-T0 Triage the 45 unadjudicated tracked spells in reach.**
+- `[x]` **P1-T0 Triage the 45 unadjudicated tracked spells in reach.**
   Content only. The list is in the ledger §1(a). For each: read the SRD
   paragraph; write the definition if every mechanical clause fits an existing
   effect kind or grant (Expeditious Retreat's Bonus Action Dash is an
@@ -223,13 +223,13 @@ no two hunks are adjacent. Line numbers are as of `f163717`; re-read them.
   member after `'action-price'` in `holdings.ts`, the `budgetPurchases`
   branch in `holdingsOf`, and the reachability test (P0-T2). Moves: Action
   Surge, Flurry of Blows.
-- `[ ]` **P1-T2 Darkness, tracked.** Its `BLOCKED_ON` entry is four
+- `[x]` **P1-T2 Darkness, tracked.** Its `BLOCKED_ON` entry is four
   handovers and one expressible clause: a 15-foot Sphere at a point
   (`SpellArea`, `spell-definitions.ts:1558`). Write it after `DAYLIGHT` in
   `spells.ts`, delete the `BLOCKED_ON` entry, let `coverageGaps().stale`
   confirm. It executes only when the sight model lands (P3-S). Moves: 1 of
   7 undefined.
-- `[ ]` **P1-T3 A choice made at the casting, and a bonus narrowed to a
+- `[x]` **P1-T3 A choice made at the casting, and a bonus narrowed to a
   skill.** One track because Guidance needs both. The pattern is
   `damageTypeStated`: a second stated field on `SpellDefinition`, carried
   by `cast_spell`, pinned at the cast. `BonusApplies`
@@ -241,7 +241,7 @@ no two hunks are adjacent. Line numbers are as of `f163717`; re-read them.
   Enhance Ability, Lesser Restoration, Guidance, Thaumaturgy;
   `bard:jack-of-all-trades`; a clause each on Enlarge/Reduce, Glyph of
   Warding, Hex, Enthrall, Slow, Pass without Trace.
-- `[ ]` **P1-T4 A condition benefit an effect takes away.** Union anchor
+- `[!]` **P1-T4 A condition benefit an effect takes away.** Union anchor
   after `end-condition` (`spell-definitions.ts:1081`); dispatch after
   `case 'end-condition'` (`spell-resolution.ts:1785`); validator after the
   same case (`spell-schema.ts:1387`). The readers that grant the Invisible
@@ -250,7 +250,7 @@ no two hunks are adjacent. Line numbers are as of `f163717`; re-read them.
   `conditionApplicability` in `monster.ts` as the map says. Files:
   `conditions.ts`, `commands/spell-effect-conditions.ts`, `spells.ts` after
   `FAERIE_FIRE`. Moves: Starry Wisp, Faerie Fire, Mind Spike.
-- `[ ]` **P1-T5 Forced movement, and what is left of falling.** Union anchor
+- `[x]` **P1-T5 Forced movement, and what is left of falling.** Union anchor
   after `teleport` (`spell-definitions.ts:1522`, the last member); dispatch
   after `case 'teleport'` (`spell-resolution.ts:1791`); validator after it
   (`spell-schema.ts:1537`). `MoveCommand.forced`
@@ -263,14 +263,14 @@ no two hunks are adjacent. Line numbers are as of `f163717`; re-read them.
   `FEATHER_FALL`. Moves: Thunderwave, Levitate, Feather Fall;
   `monk:slow-fall`; the push half of Open Hand Technique and the monster
   push riders.
-- `[ ]` **P1-T6 Several attack rolls from one casting.** A count on the
+- `[x]` **P1-T6 Several attack rolls from one casting.** A count on the
   existing `attack` member (`spell-definitions.ts:761`), each roll able to
   take its own target, scaled by slot or by cantrip level; validator inside
   `case 'attack'` (`spell-schema.ts:1263`). Files:
   `commands/spell-effect-rolls.ts`, `spell-definitions.ts`, `spell-schema.ts`,
   `spells.ts` after `ELDRITCH_BLAST`. Moves: Eldritch Blast's beams at level
   5, Scorching Ray. Chromatic Orb is left one blocker short.
-- `[ ]` **P1-T7 Healing modified by an effect, and a hit point maximum a
+- `[x]` **P1-T7 Healing modified by an effect, and a hit point maximum a
   spell moves.** Union anchor after `turn-payout` (`spell-definitions.ts:964`);
   dispatch after `case 'turn-payout'` (`spell-resolution.ts:1777`); validator
   after it (`spell-schema.ts:1447`). `heal` (`vitals.ts:210`) and
@@ -279,20 +279,20 @@ no two hunks are adjacent. Line numbers are as of `f163717`; re-read them.
   `vitals.ts`, `commands/spell-effect-hit-points.ts`, `commands/creatures.ts`,
   `spells.ts` after `BEACON_OF_HOPE` and after `AID`. Moves: Beacon of Hope,
   Chill Touch, Aid; `draconic-sorcery:draconic-resilience`.
-- `[ ]` **P1-T8 What a creature is holding.** Hands, and a conjured thing
+- `[x]` **P1-T8 What a creature is holding.** Hands, and a conjured thing
   that occupies one. `docs/design/characters-and-equipment.md` says nothing
   checks two hands are free. Files: `commands/inventory.ts`, `character.ts`
   (the equipped set), `spells.ts` after `GOODBERRY`. Moves: Goodberry, Flame
   Blade; Heat Metal and Fear each one short. *Sequence:* P1-T13 also edits
   `character.ts`; give the file to one of them and queue the other.
-- `[ ]` **P1-T9 A standing effect derived from where a creature stands.**
+- `[x]` **P1-T9 A standing effect derived from where a creature stands.**
   `StandingScope` already has `{ kind: 'aura'; feet }`
   (`packages/engine/src/standing.ts:96`). *Verify first:* establish what an
   aura does not reach today before writing the brief; the shape's prose
   predates the scope. Files: `standing.ts`, `commands/spell-effect-grants.ts`,
   `spells.ts` after `SPIRIT_GUARDIANS`. Moves: Zone of Truth, Spirit
   Guardians; the Fire Aura and Stench stat blocks.
-- `[ ]` **P1-T10 An effect a hit buys, for stat blocks.** The largest single
+- `[x]` **P1-T10 An effect a hit buys, for stat blocks.** The largest single
   mover in the ledger. The rider is already carried verbatim as a string on
   every parsed attack line; parse it into a structure (a save with DC,
   ability and outcome; a condition; extra damage; a grapple with escape DC)
@@ -304,7 +304,7 @@ no two hunks are adjacent. Line numbers are as of `f163717`; re-read them.
   the generated JSON and the committed index; CI regenerates and diffs) or at
   `adaptMonster` (engine side, no re-ingest). Moves: 31 CR ≤ 5 blocks freed
   outright, 104 lines on 93 blocks; the Ghoul's paralysis, the Wolf's Prone.
-- `[ ]` **P1-T13 Movement modes and jumping** (owner ruling 1, 2026-09-21:
+- `[!]` **P1-T13 Movement modes and jumping** (owner ruling 1, 2026-09-21:
   build them). Fly, Climb, Swim, Burrow as speeds on the sheet and on a stat
   block's printed speeds; a move names its mode; climbing or swimming
   without the speed costs double, difficult terrain stacks; a flier that is
@@ -319,6 +319,16 @@ no two hunks are adjacent. Line numbers are as of `f163717`; re-read them.
 Expected at G1: 20 or more of the 89 spells finished, 4 of the 21 features,
 2 made reachable, 1 definition written, clean CR ≤ 5 blocks from 44 to about
 100, P1-T0's triage recorded.
+
+**Actual, after the batch merged (2026-09-21).** Spells executed 113 → 118;
+spells in level-5 reach not executed 141 → 130. **Waiting on a shape went 89
+→ 90, upward**, and that is the batch's most useful number: P1-T0 read
+forty-five spells nobody had ever read and found twelve debts among them,
+while eleven spells were finished elsewhere in the same batch. The old 89 was
+not a measurement, it was an absence of one. CR ≤ 5: unapplied lines 434 →
+416, clean blocks 44 → 50. Two of the eleven tracks did not build: P1-T4 and
+P1-T13, both for reasons in §10 rather than for want of trying, and P1-T10
+delivered about half of its 31 blocks with the rest behind one field.
 
 ## 5. Phase 2: batch 2
 
@@ -768,3 +778,77 @@ Appended after Phase 0 (2026-09-21):
 - `ALSO_VOCABULARY` in the origin sweep excuses a word across all eight
   populations rather than the one it was argued for. Tightening it to
   `${Kind} ${string}` is a one-line change nobody has needed yet.
+
+Appended after Phase 1 (2026-09-21):
+
+- **The Phase 1 prescription "add a member to the `SpellEffect` union" is
+  wrong for a whole class of clauses, and three tracks found it separately.**
+  A clause that is a *consequence of a settled outcome* — "on a hit", "on a
+  failed save" — belongs in `ModifierRider`/`OutcomeRiders`, not `SpellEffect`.
+  A standalone effect fires on a miss too, and beside Thunderwave's
+  `save-damage` it would roll a **second** save, letting a creature take the
+  2d8 and stand still. `spell-schema.test.ts:2669` already pins the two
+  vocabularies as disjoint, so a kind at the effect anchor cannot be reused as
+  a rider even by name. P1-T4 stopped on this, P1-T5 declined its three
+  assigned anchors over it, P1-T7 put `healing` in one union and its two
+  effects in the other. **Every remaining Phase 2/3 track that names a
+  `SpellEffect` anchor must be re-read against this before it is briefed.**
+- **P1-T4 is to be reissued**, corrected: the `ModifierRider` union
+  (`spell-definitions.ts:519`), `checkModifierRider` (`spell-schema.ts:927`)
+  plus `RIDER_KINDS` (`:3129`), the chain in `spell-effect-riders.ts:360`. It
+  needs `conditions.ts`, `commands/attacks.ts` and `standing.ts` — the last
+  two were P1-T10's and P1-T9's and are now free. **Scope is Starry Wisp
+  alone.** Faerie Fire additionally needs `save.condition` made optional and
+  its Cube resolved as an area; Mind Spike's denial is narrowed to the caster,
+  which is `the-effects-source-as-a-participant`.
+- **P1-T13 is to be re-scoped, not re-run.** Every reader a movement mode
+  needs lives in a file its brief forbade it: `MoveCommand` and `chargeTerrain`
+  (`commands/movement.ts`), `speedOf` (`standing.ts`), the Prone hook
+  (`conditions.ts`). What was buildable inside its fence was the dead half.
+  The wiring is small: a `mode` field on `MoveCommand` beside `forced`, the
+  surcharge at `movement.ts:250`, the mode's speed at `movement.ts:279`.
+- **P1-T10's other half** wants three things, all in `standing.ts`, which is
+  now free: `HitOption.saveDc?: number` (the derived `8 + PB` equals the
+  Ghoul's 10 by coincidence and not the Death Dog's 12), a grapple filed under
+  `grapple:<who>` so `escapeGrapple` can see it, and a target-anchored span.
+  Extra-damage riders are a fourth and are a damage-roll mechanism, not an
+  effect list.
+- **`rider_deals_damage` does not cover printed riders.** It is a
+  `checkContent` rule over an *authored* grant; a printed rider is minted in
+  engine code and never passes through `checkContent`. Harmless only while the
+  reader emits one effect kind that rolls nothing. **If the extra-damage
+  family is built, the guard must be carried across**, or a rider's damage
+  roll will meet a `damage-rolled` the fold is already holding.
+- **`TrackedAdjudication.why` is too narrow, found twice in one batch.**
+  Remove Curse needs it to name an item shape (`what-ends-attunement-besides-
+  a-command` is an `ItemShapeId`); Hex needs it to say "nothing blocks this
+  and nobody has written the definition", which `BlockedClause.why` expresses
+  as `expressible` and this type cannot. Widening it reaches both generators
+  and four guards. One decision, not two.
+- **`FeatureDefinition.grants` is singular, and that now blocks printed
+  features.** Draconic Resilience needs a hit point maximum grant kind *and*
+  already spends its one slot on `unarmored-defense`; `sorcerer.ts` records
+  the same wall for Innate Sorcery. The choice is to make `grants` plural or
+  composite, or to licence splitting one printed SRD feature into two ids.
+  `dwarf:dwarven-toughness` waits on the first half.
+- **When falling gets a tool it must be DM-only.** `FallCommand.feet` is a
+  fact about the room, the same class as `declare_heads`; a model stating a
+  height converts directly into 20d6. `resolveFall` is unreachable from
+  `packages/tools` today, which is acceptable debt only until that tool exists.
+- **An uneven split of several attack rolls is not sayable.** Four rays at two
+  creatures go two and two. Saying otherwise needs duplicates allowed in the
+  request's target list, which would apply every other effect kind twice. The
+  engine deals round-robin from the caller's own ordered list and the caller
+  picks who takes the surplus by naming them first. **If the owner wants the
+  lopsided split, it is a request-shape change.** Chromatic Orb still waits on
+  the whole shape.
+- `missing-shapes.ts` files `animated-shield` under `what-a-creature-is-
+  holding`, whose name now means the drop verb; a shield that protects while
+  leaving hands free is not that blocker.
+- **For the owner: may the engine hold a fact that only the table reads, and
+  on which door is it published?** Zone of Truth's failed save buys "can't
+  speak a deliberate lie while in the radius". The engine holds no speech, no
+  rule would read the flag, and no door publishes one — so building it writes
+  a state a save sets and nothing consults, which is the die-thrown-for-no-
+  reason defect under another name. The geometry it was thought to need is
+  built (P1-T9). This is doctrine rather than rules, and is a good G1 item.

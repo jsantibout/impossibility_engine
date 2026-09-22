@@ -95,6 +95,15 @@ so this one is open because somebody at the table said a fall happened,
 exactly as they say where the cover is. It is still a *window* rather than a
 trigger bus because it closes on the same two facts as the rest — the turn in
 combat, the clock outside one — and holds nothing open. The fact is
-`CreatureState.falling`, `lastDamage`'s twin with the dealer dropped, and it
-carries no height, no rate and no landing: those are the table's numbers, and
-a window that recorded one would be the engine inventing it.
+`CreatureState.falling`, `lastDamage`'s twin with the dealer dropped.
+
+**The height is still the table's; the landing is now the engine's.**
+`resolveFall` (`commands/movement.ts`) takes a height somebody states and
+deals 1d6 Bludgeoning per ten feet to a maximum of 20d6, through the damage
+path a Fire Bolt already takes, with the Prone condition on landing unless the
+drop cost nothing. What has not changed is who says how far: a height is a
+fact about the room, the same class as the Hydra's active head count, so when
+the fall gets a tool that tool is **DM-only** — a model stating a height
+converts directly into 20d6. What is still missing is a *reduction* applied to
+damage, which is why Feather Fall and a Monk's Slow Fall do not work yet and
+why `FeatureReactionWindow` still excludes `creature-falling`.

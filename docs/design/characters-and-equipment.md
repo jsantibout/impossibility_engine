@@ -105,6 +105,23 @@ Inventory is owned, `equipped` is worn or held, and the sheet's armour is a
 equip event pinned. Purchases price the bundle the SRD prints; packs open
 into their contents.
 
+**Hands are a count, not a pair of slots.** `CharacterSheet.hands` is absent
+for two, which is the only number the SRD ever assumes; `handsFor(item)` reads
+the printed record rather than a list — Two-Handed is two, a Shield one, body
+armour none, and Versatile one, because what Versatile changes is the damage.
+`equipItem` refuses `no_free_hand` for the same reason it already refuses a
+second shield.
+
+**A conjured thing is an inventory line with a casting on it.** A definition's
+`conjures` names an item, a count and the hands the handful takes; the
+resolution refuses `no_free_hand` before any slot, action or die, and pins the
+line into `items-gained`. **Its lifetime is derived rather than folded**: a
+casting that runs out of time writes no event a removal could hang on, so
+`carrying` filters a lapsed line exactly as a lapsed patch of Difficult
+Terrain is filtered. Goodberry's ten berries and Flame Blade's blade are the
+two the SRD prints, and `let_go_of_conjured` / `evoke_conjured` are the two
+halves of Flame Blade's own sentence.
+
 ## Monsters
 
 `adaptMonster(monster, id)` turns a parsed stat block into a fightable

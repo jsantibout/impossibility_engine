@@ -26,7 +26,8 @@ homebrew.
   `sheetAsItStands`, so a substitution reaches all of them.
 - **Space** — a cube lattice, distance between volumes, declared sight and
   cover, six area shapes, persistent and carried areas, teleportation,
-  mounting, the glossary's four senses.
+  mounting, the glossary's four senses. A spell can push a creature, and a
+  fall the table declares has a landing: 1d6 per ten feet to 20d6, and Prone.
 - **Combat and time** — Initiative and Alert's swap within its window, the
   action budget, joining a running fight, the clock, spans and turn-anchored
   deadlines, repeat saves and delayed damage raised at the boundary, Short and
@@ -50,7 +51,9 @@ homebrew.
   species, backgrounds, feats, multiclassing, creation and advancement.
 - **Items** — grants live while worn or wielded, attunement, charges, a copy
   told apart from its twin, an item that moves between people, a purse in the
-  denomination the DM names.
+  denomination the DM names. **Hands are a count**, so a Two-Handed weapon and
+  a shield refuse each other, and a conjured thing occupies one for as long as
+  its casting runs.
 - **Content** — `createContent` / `loadContent` validate a catalogue from JSON
   text; homebrew goes through the same door the SRD does, and adding content
   that uses mechanics the engine already has touches no engine file.
@@ -79,6 +82,15 @@ homebrew.
   one that opens deletes its line in the same commit.
 - **A casting cannot summon.** The door is built and the effect kind is not, so
   a caller must cast, read the `castingId` back and summon by hand.
+- **Nothing reduces damage an effect has rolled**, which is why Feather Fall
+  and a Monk's Slow Fall do not work and why `FeatureReactionWindow` still
+  excludes `creature-falling`.
+- **Movement has one speed and no modes.** Fly, Climb, Swim and Burrow are
+  ruled to be built and are not; the readers they need span three files.
+- **A printed stat-block rider executes only where it imposes a condition** —
+  gated on the target's size, or on the attacker's next turn. A printed saving
+  throw, a grapple with its escape DC, and a span anchored on the *target*
+  each wait on one field apiece.
 - **A stat block's attack refuses `hold`**, so a party fighting monsters is
   never offered the window SRD *Shield* answers.
 - No carried weight, no ammunition spent, no objects that are not creatures.
@@ -122,6 +134,13 @@ forced-movement rule, known forms are chosen at the start of a Long Rest, and a
 Wild Companion familiar goes away when one completes · Nimbus Quill's table
 rolls physical dice, so the third door is the answer — its own swept directory,
 never stamped `engine`, never on an AI DM's surface.
+
+**Taken by a builder and recorded here rather than drifted into.** A creature
+at 0 hit points, or dead, keeps its hit points when a maximum rises: raising
+them would lift the Unconscious that having none caused, and the SRD lifts that
+"until you regain any Hit Points", which a maximum does not do. It is a reading
+rather than a printed sentence, argued in `vitals.ts` and pinned by two
+fixtures, so changing it is a decision rather than a drift.
 
 **Owner, 2026-09-21.** Infinite Realms is the AI-DM product and Nimbus Quill the
 human DM's companion · **"playable to level 5" means everything a level 1–5
