@@ -1038,10 +1038,16 @@ export const hasUnappliedRider = (line: StatBlockLine): boolean => {
  * question `spell-schema.test.ts` asks of the engine's sources, pointed the
  * other way round.
  *
- * Today: SRD Pack Tactics, read by `resolveAttack`'s roll-mode gathering.
+ * Today: SRD Pack Tactics, read by `resolveAttack`'s roll-mode gathering; and
+ * the two sunlight sentences, compiled onto the sheet by `adaptMonster` as
+ * standing effects the `in-sunlight` requirement gates. The light model's own
+ * three other kinds are **not** here — a creature that sheds Bright Light
+ * lights nothing, because a patch is declared and never derived, and Shadow
+ * Stealth's Hide costs an action nothing has made free.
  */
 export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
   'advantage-when-ally-is-within-5-feet-of-the-target',
+  'disadvantage-in-sunlight',
 ];
 
 /**
