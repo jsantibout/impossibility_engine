@@ -218,6 +218,24 @@ describe('a casting the SRD ends on a blow nobody had to deal', () => {
     expect(game.conditions(MOB)).toContain('charmed');
   });
 
+  /**
+   * **A hit for no damage is not damage**, which is a distinction this engine
+   * already draws in the pass next door: `breakLostConcentration` reads
+   * `event.amount > 0` off the same event, because a blow a Resistance took
+   * down to nothing raises no Concentration save. Two passes in one fold
+   * disagreeing about whether a `damage-taken` was damage is the defect, and
+   * "if it takes **any** damage" is the sentence that would have hidden it.
+   */
+  it('is not pulled by a hit that dealt nothing', () => {
+    const game = new Game(field());
+    const casting = game.cast('hypnotic-pattern', [], { at: ON_THE_MOUND, towards: AWAY });
+    game.hit(FOE, WIZ, 0);
+
+    expect(game.running(casting)).toBe(true);
+    expect(game.on(casting)).toEqual([FOE, MOB]);
+    expect(game.conditions(FOE)).toContain('charmed');
+  });
+
   /** And a blow somebody did deal ends it on that creature by the same words. */
   it('releases the creature an enemy hurt, and leaves the rest charmed', () => {
     const game = new Game(field());
@@ -338,6 +356,14 @@ describe('a casting ended by a blow on the creature it is sustaining', () => {
   it('is untouched by a blow on its own caster', () => {
     const { game, casting } = rideOut();
     game.hit(WIZ, FOE, 3);
+
+    expect(game.running(casting)).toBe(true);
+  });
+
+  /** And a swing at the steed that got through its hide ends nothing. */
+  it('is untouched by a hit on the steed that dealt nothing', () => {
+    const { game, casting, steed } = rideOut();
+    game.hit(steed, FOE, 0);
 
     expect(game.running(casting)).toBe(true);
   });

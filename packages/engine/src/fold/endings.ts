@@ -135,16 +135,32 @@ function endingFactsOf(state: GameState, event: GameEvent): readonly EndingFact[
       return isBodyArmor(state, event) ? [{ cause: 'target-dons-armor', who: event.id }] : [];
     case 'damage-taken':
       return [
-        // The three that read the creature the blow *landed on*, so a trap
-        // naming nobody still pulls them. `drops-to-0` is the state the event
-        // left behind — this pass runs after the fold applied it — and it is
-        // the transition rather than the total: a creature already at 0 is not
-        // dropping to it, and a casting this could end would have ended at the
-        // first drop.
-        { cause: 'target-takes-damage', to: event.id },
-        { cause: 'summon-takes-damage', summon: event.id },
-        ...(state.creatures[event.id]?.vitals.hp === 0
-          ? [{ cause: 'target-drops-to-0', to: event.id } as const]
+        // **The three that read the creature the blow landed on**, so a trap
+        // naming nobody still pulls them — and none of them fires on a hit
+        // that dealt nothing. "If it takes **any** damage" is the widest
+        // sentence in the vocabulary and a blow a Resistance took down to zero
+        // is still not damage taken: `breakLostConcentration` reads
+        // `amount > 0` off this same event for that reason, and two passes in
+        // one fold disagreeing about whether a `damage-taken` was damage is a
+        // defect rather than a nuance.
+        ...(event.amount > 0
+          ? [
+              { cause: 'target-takes-damage', to: event.id } as const,
+              { cause: 'summon-takes-damage', summon: event.id } as const,
+              // `drops-to-0` is the state the event left behind, which is the
+              // reading `target-dons-armor` already takes: this pass runs
+              // after the fold applied the event. **It is the total and not
+              // the transition**, so a creature already at 0 taking another
+              // blow pulls it too. That costs nothing for the castings in the
+              // book, whose first drop ended them — but a casting laid on a
+              // creature that was *already* down would end on the next blow
+              // rather than on a fall, and the honest name for that is a
+              // residue and not a rule. A maximum lowered onto 0 is no blow
+              // at all and reaches this nowhere.
+              ...(state.creatures[event.id]?.vitals.hp === 0
+                ? [{ cause: 'target-drops-to-0', to: event.id } as const]
+                : []),
+            ]
           : []),
         // And the two that read the other end of it. A trap names nobody, and
         // that is a real answer rather than a gap: there is no creature that

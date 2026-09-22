@@ -3142,6 +3142,12 @@ export type CastingEndCause =
    * victim on every blow it records, dealer or no dealer, so this is the
    * cheapest fact in the list and the one the four dealer-shaped causes walk
    * straight past.
+   *
+   * **Any damage is still damage and not a hit.** A blow a Resistance or an
+   * Immunity took down to nothing writes a `damage-taken` for zero, and this
+   * does not fire on it — the reading `breakLostConcentration` already takes
+   * off the same event, because a Concentration save is not owed for a blow
+   * that did nothing either.
    */
   | 'target-takes-damage'
   /**
@@ -3152,10 +3158,14 @@ export type CastingEndCause =
    * reason this is a second member rather than a scope on the one above. It is
    * read off a `damage-taken` that leaves the creature at 0, which is the same
    * "ask the state the event left behind" that `target-dons-armor` already
-   * takes. Two things it therefore does not catch, said plainly: a Hit Point
-   * maximum lowered onto 0 is no blow, and a creature already at 0 taking
-   * another blow is not *dropping* to it — which costs nothing here, because a
-   * casting this cause could end is one that ended at the first drop.
+   * takes. What it reads is therefore the **total** and not the transition,
+   * and two residues follow, said plainly rather than argued away. A Hit Point
+   * maximum lowered onto 0 is no blow and reaches this nowhere. And a creature
+   * already at 0 taking another blow pulls it, which costs nothing for the
+   * spells in the book — their first drop ended them — but would end a casting
+   * laid on a creature that was already down at the next blow rather than at a
+   * fall. A blow that dealt nothing is not one of them: this fires only where
+   * `target-takes-damage` does.
    */
   | 'target-drops-to-0'
   /**
