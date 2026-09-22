@@ -409,6 +409,28 @@ function printedBlock(
   };
 }
 
+/**
+ * Two casting ids in the order they were cast.
+ *
+ * `cast:N` is sequential, so the number *is* the order — but it is a number
+ * inside a string, and `Array.prototype.sort`'s default is lexical. See
+ * `OngoingSpell`'s own note on it. A key that is not `cast:N` yields `NaN`,
+ * which every comparison is false for, so those fall to the end and keep a
+ * stable order among themselves.
+ */
+const castingNumber = (key: string): number => Number(key.slice('cast:'.length));
+
+const castingOrder = (a: string, b: string): number => {
+  const left = castingNumber(a);
+  const right = castingNumber(b);
+  if (Number.isNaN(left) || Number.isNaN(right)) {
+    if (!Number.isNaN(left)) return -1;
+    if (!Number.isNaN(right)) return 1;
+    return a < b ? -1 : a > b ? 1 : 0;
+  }
+  return left - right;
+};
+
 const feet = (state: GameState, a: CharacterId, b: CharacterId): number | null => {
   if (state.scene === null) return null;
   const apart = distanceBetween(state.scene, a, b);
@@ -471,10 +493,16 @@ export function observe(state: GameState): Observation {
         ? null
         : { extent: state.scene.extent, landmarks: Object.keys(state.scene.landmarks).sort() },
     creatures,
-    // Sorted by casting id, which is the order the fold already keeps them in
-    // and is the order they were cast in.
+    // **In the order they were cast, which is numeric and not lexical.** A
+    // casting id is `cast:N` and `spells.ts` states the hazard in this
+    // repository's own words — "`cast:2` runs before `cast:10`, and a string
+    // sort disagrees" — so a party eleven castings into a session would be
+    // shown its second Web after its tenth. The number is what is sorted on;
+    // anything that is not a `cast:N` sorts last and by its own string, which
+    // is a record shape this engine does not write and reports honestly rather
+    // than dropping.
     ongoing: Object.keys(state.ongoing)
-      .sort()
+      .sort(castingOrder)
       .map((key): ObservedOngoingSpell => {
         const record = state.ongoing[key]!;
         return {

@@ -141,4 +141,63 @@ describe('`look` reports the spells still running', () => {
       'saves',
     ]);
   });
+
+  /**
+   * **The half of gate G1's ruling this file exists for**, asserted rather than
+   * documented: the verdict the engine recorded comes out of the door with a
+   * creature's name and an answer on it. A report that only ever said `[]`
+   * would satisfy every other test here and would publish nothing, which is
+   * the state the engine was in before this batch and is precisely what makes
+   * a bare save "a die thrown for nothing".
+   */
+  it('publishes the verdict the zone recorded, with the creature it asked', () => {
+    const t = table('somebody-walks-in');
+    expectOk(t.call('create_character', { id: 'ulfa', choices: cleric('Ulfa') }));
+    expectOk(t.call('declare_side', { who: 'ulfa', side: 'party' }));
+    expectOk(t.call('add_creature', { id: 'grish', monsterId: 'goblin-warrior' }));
+    expectOk(t.call('declare_side', { who: 'grish', side: 'goblins' }));
+    expectOk(t.call('set_scene', { width: 200, depth: 200, height: 20 }));
+    expectOk(t.call('add_landmark', { name: 'the shrine', at: { x: 20, y: 20 } }));
+    expectOk(t.call('add_landmark', { name: 'the zone', at: { x: 20, y: 60 } }));
+    expectOk(t.call('place_creature', { who: 'ulfa', fromLandmark: 'the shrine', feet: 0 }));
+    // Thirty feet from the centre of a fifteen-foot radius, so outside it.
+    expectOk(t.call('place_creature', { who: 'grish', fromLandmark: 'the zone', feet: 30 }));
+    expectOk(
+      t.call('roll_initiative', { combatants: [{ who: 'ulfa' }, { who: 'grish' }] }),
+    );
+    for (let guard = 0; guard < 6; guard += 1) {
+      if (t.surface.observe().turnOf === 'ulfa') break;
+      expectOk(t.call('end_turn', {}));
+    }
+    expectOk(
+      t.call('cast_spell', {
+        caster: 'ulfa',
+        spellId: 'zone-of-truth',
+        targets: [],
+        at: { x: 20, y: 60 },
+      }),
+    );
+    expect(t.surface.observe().ongoing[0]!.saves).toEqual([]);
+
+    // Round to the goblin and walk it into the Sphere. The entry raises the
+    // debt; settling it is what throws the Charisma save.
+    for (let guard = 0; guard < 6; guard += 1) {
+      if (t.surface.observe().turnOf === 'grish') break;
+      expectOk(t.call('end_turn', {}));
+    }
+    expectOk(t.call('move', { who: 'grish', fromLandmark: 'the zone', feet: 0 }));
+    expectOk(t.call('settle_area_effects', {}));
+
+    const saves = t.surface.observe().ongoing[0]!.saves;
+    expect(saves).toHaveLength(1);
+    expect(saves[0]!.who).toBe('grish');
+    // The engine threw the die, so which way it went is the engine's answer and
+    // not this test's; what is asserted is that there *is* one.
+    expect(typeof saves[0]!.failed).toBe('boolean');
+
+    // And the verdict is the only thing the zone left behind: the failure
+    // imposes nothing, because the engine holds no speech.
+    const goblin = t.surface.observe().creatures.find((one) => one.id === 'grish')!;
+    expect(goblin.conditions).toEqual([]);
+  });
 });

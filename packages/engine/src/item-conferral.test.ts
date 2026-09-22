@@ -1207,6 +1207,22 @@ describe('what a conferral may not say yet', () => {
     ).toContain('conferral_scales_with_a_casting');
   });
 
+  /**
+   * A verdict is written onto the casting that threw the save, and a bottle
+   * casts nothing — see `RECORDED_VERDICT`, and the feature's own half of this
+   * rule in `feature-conferral-schema.test.ts`.
+   */
+  it('refuses a recorded verdict, which has no casting to be recorded on', () => {
+    expect(
+      problems({
+        kind: 'confers',
+        action: 'action',
+        saveDc: 13,
+        effects: [{ kind: 'save', ability: 'cha', condition: 'frightened', recordsOutcome: true }],
+      }),
+    ).toContain('conferral_verdict_needs_a_casting');
+  });
+
   it('refuses a conferral on a class feature, which spends no item', () => {
     const codes = checkContent({
       classes: [

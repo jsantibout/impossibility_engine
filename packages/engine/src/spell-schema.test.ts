@@ -4219,6 +4219,80 @@ describe('the fought clause is refused everywhere it could not be read', () => {
   });
 
   /**
+   * A recorded verdict is the same shape of rule with the sides swapped, which
+   * is why it is tested against the same three lists.
+   *
+   * SRD Zone of Truth's "You know whether a creature succeeds or fails on this
+   * save" is written onto the **ongoing record**, and the casting's own effect
+   * list resolves before that record exists — `runEffects` runs and *then*
+   * `spell-resolution.ts` pushes `spell-ongoing`. So a `recordsOutcome` in
+   * `effects` would emit `casting-save-recorded` for a casting the fold has
+   * never heard of, and `fold/ongoing.ts` throws `CorruptLogError` on it. That
+   * is a homebrew definition that validates clean and then takes the campaign
+   * down, which is exactly the class of failure the fourth outcome and this
+   * validator exist to make impossible.
+   */
+  /**
+   * A trigger needs an area to fire in, which is a different rule and would
+   * drown this one out — the same reason `SAVE` above carries
+   * `outlivesCasting`.
+   */
+  const inTrigger = (effect: unknown) =>
+    codes(
+      checkSpellDefinitionValue({
+        ...FIRE_DART,
+        area: { kind: 'sphere', radius: 15, origin: 'point' },
+        areaTrigger: { at: 'start-of-turn', effects: [effect] },
+      }),
+    );
+
+  it('refuses a recorded verdict in the casting’s own list, where there is no record yet', () => {
+    expect(inList('effects', { ...SAVE, recordsOutcome: true })).toEqual([
+      'verdict_before_the_record',
+    ]);
+  });
+
+  it('accepts one in either list that fires off a record the cast already wrote', () => {
+    expect(inTrigger({ ...SAVE, recordsOutcome: true })).toEqual([]);
+    // An activation has preconditions of its own that `FIRE_DART` does not
+    // meet, so what is claimed here is the narrow thing: whatever else that
+    // definition is wrong about, the verdict is not one of them.
+    expect(
+      inList('activation', { ...SAVE, recordsOutcome: true }).filter((code) =>
+        code.startsWith('verdict_'),
+      ),
+    ).toEqual([]);
+  });
+
+  it('refuses a recorded verdict on a host that rolls no saving throw', () => {
+    expect(
+      inTrigger({
+        kind: 'attack',
+        damage: { dice: '1d10' },
+        damageType: 'fire',
+        recordsOutcome: true,
+      }),
+    ).toEqual(['verdict_without_save']);
+  });
+
+  /** Absence is how a definition says it keeps nothing — see above. */
+  it('refuses any value but true for a recorded verdict', () => {
+    expect(inTrigger({ ...SAVE, recordsOutcome: false })).toEqual(['malformed_field']);
+    expect(inTrigger({ ...SAVE, recordsOutcome: 'yes' })).toEqual(['malformed_field']);
+  });
+
+  /**
+   * And the rule it lifts, in both directions. A bare save is still a die
+   * thrown for nothing; a bare save whose answer somebody keeps is the spell
+   * gate G1 ruled on.
+   */
+  it('lifts save_imposes_nothing only for a save that keeps its answer', () => {
+    const BARE = { kind: 'save', ability: 'cha' };
+    expect(inTrigger(BARE)).toEqual(['save_imposes_nothing']);
+    expect(inTrigger({ ...BARE, recordsOutcome: true })).toEqual([]);
+  });
+
+  /**
    * A teleport has exactly one home for the same reason and by the same rule:
    * **where the creature goes is stated at the casting**, through
    * `CastSpellRequest.teleportTo`, and pinned on a declaration so a settlement

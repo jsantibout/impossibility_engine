@@ -277,6 +277,29 @@ describe('what a feature’s option may not say', () => {
     ]);
   });
 
+  /**
+   * A verdict is written onto the casting that threw the save, and a pool use
+   * casts nothing.
+   *
+   * `save.recordsOutcome` is the third thing a save may do beside imposing a
+   * condition and hanging a rider — SRD Zone of Truth's "You know whether a
+   * creature succeeds or fails on this save" — and what it writes is
+   * `OngoingSpell.saves`, the record of a *running casting*. A feature's use
+   * has no casting id and no ongoing record, so the field would be set and
+   * read by nobody: the quiet wrong answer this file exists to refuse.
+   */
+  it('refuses a recorded verdict, because a feature keeps one on nothing', () => {
+    expect(
+      codesFor(
+        withOption({
+          effects: [{ kind: 'save', ability: 'cha', condition: 'frightened', recordsOutcome: true }],
+        }),
+      ).filter((code) => code.startsWith('feature_verdict_needs_a_casting')),
+    ).toEqual([
+      'feature_verdict_needs_a_casting @ classes[warden].features[0].grants.options[0].effects[0].recordsOutcome',
+    ]);
+  });
+
   /** A slot level and a caster level are both things a feature has none of. */
   it('refuses scaling that reads a level nothing here has', () => {
     expect(

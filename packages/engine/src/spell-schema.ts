@@ -3625,7 +3625,7 @@ function checkShape(value: unknown): readonly SpellDefinitionProblem[] {
       // The two clause rules a *definition's* list has and a list hosted
       // anywhere else does not: both ask which of the lists the effect is in.
       checkFoughtClause(effect as object, entry.kind, where, at, found);
-      checkRecordedVerdict(effect as object, entry.kind, at, found);
+      checkRecordedVerdict(effect as object, entry.kind, where, at, found);
       checkTeleportPlacement(entry.kind, where, at, found);
       checkNoNestedEffect(effect, at, found);
     });
@@ -3766,16 +3766,26 @@ function checkFoughtClause(
 /**
  * Where a save's verdict may be said to be kept.
  *
- * **On a host that rolls a saving throw, and in any of a definition's lists.**
- * The first half is {@link checkFoughtClause}'s reason word for word — a
- * `heal` or an `attack` has no save whose answer there would be anything to
- * keep, and a field quietly ignored is an author who thinks they said
- * something. The second half is where the two rules part: the fought clause is
- * refused outside the casting's own list because the *fact it reads* is stated
- * at the casting, and this reads no fact at all. It writes one — onto the
- * ongoing record, which every list but the casting's own already has in hand.
- * SRD Zone of Truth writes it in `areaTrigger.effects` and nowhere else, which
- * is the only list the two moments its sentence names can fire from.
+ * **On a host that rolls a saving throw**, which is {@link checkFoughtClause}'s
+ * first reason word for word: a `heal` or an `attack` has no save whose answer
+ * there would be anything to keep, and a field quietly ignored is an author who
+ * thinks they said something.
+ *
+ * **And in a list that fires off a record that already exists**, which is the
+ * fought clause's rule with the sides swapped. That one is refused *outside*
+ * the casting's own list because the fact it reads is stated at the casting;
+ * this is refused *inside* it, because the verdict is written onto the ongoing
+ * record and at that moment there is not one. The order is load-bearing and is
+ * not a preference: `runEffects` resolves the whole list before
+ * `spell-resolution.ts` pushes `spell-ongoing`, so a `recordsOutcome` in
+ * `effects` would emit `casting-save-recorded` for a casting the fold has
+ * never heard of — and `fold/ongoing.ts` throws `CorruptLogError` on it, which
+ * is a homebrew definition that validates clean and then takes the campaign
+ * down. A refusal at authoring is the only honest place for that.
+ *
+ * `areaTrigger.effects` and `activation.effects` both fire later, off a record
+ * the cast has already written. SRD Zone of Truth is the first of them, and
+ * both moments its sentence names are area triggers.
  *
  * The value is `true` and nothing else, for {@link checkFoughtClause}'s
  * reason: absence is how a definition says it keeps nothing, and `false` would
@@ -3784,6 +3794,7 @@ function checkFoughtClause(
 function checkRecordedVerdict(
   effect: object,
   kind: unknown,
+  where: string,
   path: string,
   found: SpellDefinitionProblem[],
 ): void {
@@ -3796,6 +3807,15 @@ function checkRecordedVerdict(
       code: 'verdict_without_save',
       reason:
         'a recorded verdict is the answer to a saving throw, and this effect rolls none; a save-damage effect reports its own damage instead',
+    });
+    return;
+  }
+  if (where === 'effects') {
+    found.push({
+      field: `${path}.recordsOutcome`,
+      code: 'verdict_before_the_record',
+      reason:
+        'the verdict is written onto the running casting, and the casting\'s own effect list resolves before the record exists; write it in areaTrigger.effects or activation.effects, which fire off a record the cast has already written',
     });
     return;
   }

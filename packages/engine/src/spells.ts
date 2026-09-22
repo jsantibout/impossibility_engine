@@ -143,6 +143,24 @@ export interface Concentration {
 }
 
 /**
+ * What one creature's saving throw against a running casting came to.
+ *
+ * A verdict and nothing else. Not the die, not the total and not the DC — the
+ * roll has its own `roll-recorded` in the log, where every other roll's
+ * numbers are, and a second copy here would be two answers to one question.
+ * What this is for is the sentence SRD Zone of Truth prints: somebody at the
+ * table knows whether the creature made it.
+ *
+ * `failed` rather than `succeeded`, because a failure is what the book's
+ * sentence is about and a field named for the thing that happens reads the way
+ * the rule does.
+ */
+export interface CastingSaveOutcome {
+  readonly who: string;
+  readonly failed: boolean;
+}
+
+/**
  * A casting that is still mechanically running.
  *
  * **This is not the casting; it is what the casting left behind.** The casting
@@ -186,24 +204,6 @@ export interface Concentration {
  * they were named, anything a narrator would like. Those are history, the log
  * has them, and duplicating them here would make two answers to one question.
  */
-/**
- * What one creature's saving throw against a running casting came to.
- *
- * A verdict and nothing else. Not the die, not the total and not the DC — the
- * roll has its own `roll-recorded` in the log, where every other roll's
- * numbers are, and a second copy here would be two answers to one question.
- * What this is for is the sentence SRD Zone of Truth prints: somebody at the
- * table knows whether the creature made it.
- *
- * `failed` rather than `succeeded`, because a failure is what the book's
- * sentence is about and a field named for the thing that happens reads the way
- * the rule does.
- */
-export interface CastingSaveOutcome {
-  readonly who: string;
-  readonly failed: boolean;
-}
-
 export interface OngoingSpell {
   /** The casting that created it — the same id every effect already carries. */
   readonly castingId: string;
