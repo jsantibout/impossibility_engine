@@ -18,6 +18,7 @@ import type {
   MonsterAttack,
   MonsterMultiattack,
   MonsterRecharge,
+  MonsterSave,
   MonsterTrait,
   WeaponMastery,
 } from '@ie/srd';
@@ -140,6 +141,18 @@ export interface StatedBonusAction {
    * Spiritual Weapon, Rampage, a Unicorn's Blessing.
    */
   readonly perDay?: number;
+  /**
+   * The saving throw this line forces, where its sentence is the book's save
+   * template — see {@link StatedAction.save}, which this is the same field as
+   * and for the same reason.
+   *
+   * **It is here because the book prints it here.** Three Trample lines — the
+   * Gorgon's, the Elephant's and the Mammoth's — write the template under
+   * **Bonus Actions**, and what a heading changes is what the line *costs*
+   * and nothing else the engine can see. So the field is on both sections and
+   * `forcePrintedSave` spends whichever slot the heading names.
+   */
+  readonly save?: MonsterSave;
 }
 
 /**
@@ -185,6 +198,23 @@ export interface StatedAction {
    * Absent on the rest, which is a line a creature may take every turn.
    */
   readonly perDay?: number;
+  /**
+   * The saving throw this line forces, where its sentence is the book's other
+   * template — see `MonsterSaveSchema`.
+   *
+   * **It is on one of *these* lines rather than beside the attacks**, and the
+   * reason is what a heading costs rather than what it says: a line that
+   * forces a save prints no attack roll, so it was never an attack and has
+   * always come down this road. What changes is only that a caller now has
+   * two things it can do with it — `takeStatedAction` spends the Action and
+   * hands the sentence over, as it does for every line; `forcePrintedSave`
+   * spends the same Action and rolls the save.
+   *
+   * Absent on every line whose sentence says anything else, which is most of
+   * them: a condition after the damage, a second rung of failure, a trigger
+   * before the save. Those are still handed over whole.
+   */
+  readonly save?: MonsterSave;
 }
 
 /**

@@ -115,6 +115,7 @@ import {
   takeDamageResponse,
   takeOpportunityAttack,
   takeReady,
+  forcePrintedSave,
   takeStatedAction,
   takeStatedBonusAction,
   takeTestReaction,
@@ -359,6 +360,31 @@ const LINED: readonly GameEvent[] = SETUP.map((event) =>
 const UNREAD: readonly GameEvent[] = SETUP.map((event) =>
   event.type === 'creature-added' && event.id === A
     ? { ...event, sheet: sheet({ stated: { unreadActions: [PRINTED_LINE] } }) }
+    : event,
+);
+
+/**
+ * The same invented line with the book's save template read off it.
+ *
+ * Invented here for the reason the line above is: the sweep is about the
+ * command's identity, not about any block — and the numbers are small so a
+ * second run under one id is cheap to tell apart from a first.
+ */
+const SAVING_LINE = {
+  ...PRINTED_LINE,
+  save: {
+    ability: 'con' as const,
+    dc: 12,
+    targets: 'each creature in a 15-foot Cone',
+    damage: { dice: '2d6', flat: 0, type: 'fire', average: 7 },
+    onSuccess: 'half' as const,
+  },
+} as const;
+
+/** The same world again, with that line under Actions. */
+const FORCED: readonly GameEvent[] = SETUP.map((event) =>
+  event.type === 'creature-added' && event.id === A
+    ? { ...event, sheet: sheet({ stated: { unreadActions: [SAVING_LINE] } }) }
     : event,
 );
 
@@ -1491,6 +1517,12 @@ const GUARDED: readonly Guarded[] = [
     log: UNREAD,
     run: (s, commandId) => takeStatedAction(s, A, { line: PRINTED_LINE.name, commandId }),
   },
+  {
+    name: 'forcePrintedSave',
+    log: FORCED,
+    run: (s, commandId) =>
+      forcePrintedSave(s, A, { line: SAVING_LINE.name, targets: [B], commandId }, supply()),
+  },
   { name: 'takeDash', log: SETUP, run: (s, commandId) => takeDash(s, A, { commandId }) },
   { name: 'takeDisengage', log: SETUP, run: (s, commandId) => takeDisengage(s, A, { commandId }) },
   { name: 'takeDodge', log: SETUP, run: (s, commandId) => takeDodge(s, A, { commandId }) },
@@ -2604,6 +2636,15 @@ const SPENDERS: readonly Spender[] = [
   {
     name: 'takeStatedAction',
     run: (s) => takeStatedAction(s, B, { line: 'A Printed Line' }),
+  },
+  /**
+   * The same line, taken through the door that rolls the save it prints. It
+   * spends the same Action and is refused for the same debt — and, like its
+   * sibling, before the line, the save or the targets are looked at.
+   */
+  {
+    name: 'forcePrintedSave',
+    run: (s) => forcePrintedSave(s, B, { line: 'A Printed Line', targets: [A] }, supply()),
   },
   /**
    * A wand's charge. It spends no Action here — what a charge *buys* is not

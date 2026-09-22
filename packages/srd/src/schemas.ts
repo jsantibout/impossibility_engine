@@ -332,22 +332,134 @@ export const MonsterMultiattackSchema = z
 export type MonsterMultiattack = z.infer<typeof MonsterMultiattackSchema>;
 
 /**
+ * The saving throw a printed line forces, read out of the book's other
+ * template.
+ *
+ * `_Dexterity Saving Throw:_ DC 12, each creature in a 15-foot Cone.
+ * _Failure:_ 17 (5d6) Fire damage. _Success:_ Half damage.` is as regular a
+ * sentence as `_Melee Attack Roll:_` is — every dragon wyrmling's breath, the
+ * Hell Hound's, the Winter Wolf's — and it carries the two numbers the Engine
+ * must supply itself rather than ask a caller for: the DC and the dice.
+ *
+ * How many lines that is, is `COVERAGE.md`'s to say, and the gap between the
+ * lines that force *a* save and the lines that write *this sentence* is wide:
+ * most of the book's saves say something this shape cannot hold.
+ *
+ * **Who it catches is not read.** "Each creature in a 15-foot Cone" needs an
+ * origin and a facing nobody has declared, and a Cone measured out of a
+ * sentence would be the engine inventing a fact. So the clause is carried
+ * verbatim, the table says who is in it, and the engine does the part a table
+ * may not: the save, the dice, and the half.
+ *
+ * **Only the template.** Anything the sentence says besides damage — a
+ * condition after it, a second rung of failure, a trigger before it, a type
+ * another trait chooses — leaves this absent and the line prose, which is
+ * where it already was. A save read down to the part that fits is a rule
+ * nobody printed.
+ */
+export const MonsterSaveSchema = z.object({
+  /** Which save, by the engine's own key: `con` for "Constitution". */
+  ability: z.enum(['str', 'dex', 'con', 'int', 'wis', 'cha']),
+  /** The DC the block prints, used whole, exactly as a printed AC is. */
+  dc: z.number().int().min(1),
+  /** Who the line catches, verbatim: "each creature in a 15-foot Cone". */
+  targets: z.string().min(1),
+  /** What a failure costs. The same four fields a printed attack's damage has. */
+  damage: MonsterDamageSchema,
+  /**
+   * What a success buys — "Half damage", or nothing where the line prints no
+   * `_Success:_` clause at all.
+   *
+   * Two members rather than an optional boolean, because the absent case is a
+   * rule and not a gap: SRD Satyr's Mockery gives a success nothing, and a
+   * success that bought half anyway would be a line the book did not print.
+   */
+  onSuccess: z.enum(['half', 'none']),
+});
+export type MonsterSave = z.infer<typeof MonsterSaveSchema>;
+
+/**
  * A trait whose sentence the parser recognised as a mechanic the engine has.
  *
- * One member today, and it is named for what it *does* rather than for the
- * trait that prints it: the engine may not branch on a catalogue's names, and
- * a second block printing the same rule under another name would then reach
- * the same mechanic for free. The kinds grow one at a time, each one a
- * sentence somebody read and matched — there is no interpreter here.
+ * Every member is named for what it *does* rather than for the trait that
+ * prints it: the engine may not branch on a catalogue's names, and a second
+ * block printing the same rule under another name would then reach the same
+ * mechanic for free. The kinds grow one at a time, each one a sentence
+ * somebody read and matched — there is no interpreter here.
+ *
+ * **A union rather than an enum, because two of the sentences carry numbers.**
+ * A leap of "up to 20 feet" and a breath held "for 1 hour" are not the same
+ * rule at different creatures; a kind that dropped the feet would be a jump of
+ * nothing and a limit dropped at the door is a limit that silently becomes
+ * none. The members that state a bare rule are still objects of one field, so
+ * a trait pinned before any of this — `{ kind: 'advantage-when-…' }` — is
+ * still a trait this reads.
+ *
+ * **Reading a sentence is not executing it**, and the ledger counts the two
+ * separately. What a kind buys is a place for `hasPrintedTrait` to find the
+ * rule; the readers that spend one are elsewhere.
  */
-export const MonsterTraitSchema = z.object({
-  /**
-   * SRD Pack Tactics: "has Advantage on an attack roll against a creature if
-   * at least one of its allies is within 5 feet of the creature and the ally
-   * doesn't have the Incapacitated condition."
-   */
-  kind: z.enum(['advantage-when-ally-is-within-5-feet-of-the-target']),
-});
+export const MonsterTraitSchema = z.discriminatedUnion('kind', [
+  z.object({
+    /**
+     * SRD Pack Tactics: "has Advantage on an attack roll against a creature if
+     * at least one of its allies is within 5 feet of the creature and the ally
+     * doesn't have the Incapacitated condition."
+     */
+    kind: z.literal('advantage-when-ally-is-within-5-feet-of-the-target'),
+  }),
+  z.object({
+    /**
+     * SRD Spider Climb: "can climb difficult surfaces, including along
+     * ceilings, without needing to make an ability check."
+     */
+    kind: z.literal('climbs-without-a-check'),
+  }),
+  z.object({
+    /**
+     * SRD Flyby: "doesn't provoke an Opportunity Attack when it flies out of
+     * an enemy's reach."
+     */
+    kind: z.literal('does-not-provoke-when-flying-out-of-reach'),
+  }),
+  z.object({
+    /**
+     * SRD Standing Leap: "the frog's Long Jump is up to 10 feet and its High
+     * Jump is up to 5 feet with or without a running start."
+     */
+    kind: z.literal('jumps-without-a-running-start'),
+    longJumpFeet: z.number().int().min(0),
+    highJumpFeet: z.number().int().min(0),
+  }),
+  z.object({
+    /** SRD Amphibious: "can breathe air and water." */
+    kind: z.literal('breathes-air-and-water'),
+    /**
+     * SRD Limited Amphibiousness: "but it must be submerged at least once
+     * every 4 hours to avoid suffocating outside water."
+     *
+     * A field on the same kind rather than a kind of its own, because the
+     * first clause is the same sentence and the second is a *limit* on it —
+     * absent is the unlimited case the book prints everywhere else.
+     */
+    mustSubmergeWithinHours: z.number().int().min(1).optional(),
+  }),
+  z.object({
+    /** SRD Water Breathing: "can breathe only underwater." */
+    kind: z.literal('breathes-only-water'),
+    /** SRD Giant Octopus: "It can hold its breath for 1 hour outside water." */
+    holdsBreathMinutes: z.number().int().min(1).optional(),
+  }),
+  z.object({
+    /**
+     * SRD Hold Breath: "can hold its breath for 1 hour" — a creature that
+     * breathes air and can stop, which is the other half of the pair above.
+     */
+    kind: z.literal('holds-its-breath'),
+    /** Always in minutes, whichever unit the block prints. */
+    minutes: z.number().int().min(1),
+  }),
+]);
 export type MonsterTrait = z.infer<typeof MonsterTraitSchema>;
 
 /**
@@ -409,6 +521,21 @@ export const FeatureSchema = z.object({
   perDay: z.number().int().min(1).optional(),
   /** The mechanic this trait's sentence states, where the parser knows it. */
   trait: MonsterTraitSchema.optional(),
+  /**
+   * The saving throw this line forces, where its sentence is the template —
+   * see {@link MonsterSaveSchema}.
+   *
+   * **Beside `attack` rather than inside it**, because the two are the book's
+   * two openings and a line writes one or the other: `_Melee Attack Roll:_`
+   * or `_Dexterity Saving Throw:_`. A save printed *after* a hit is the
+   * attack's rider and belongs to it — SRD Ghoul's Bite — and is read there,
+   * once, by the reader the swing already calls.
+   *
+   * Read on every section, because what a line says is not a property of the
+   * heading it is printed under: the Gorgon's Trample is a Bonus Action and
+   * the Magma Mephit's Death Burst is a trait, and both write the template.
+   */
+  save: MonsterSaveSchema.optional(),
   /** The sequence this line's sentence states, where it states one. */
   multiattack: MonsterMultiattackSchema.optional(),
 });

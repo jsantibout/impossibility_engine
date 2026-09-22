@@ -1,6 +1,7 @@
 import {
   CreatureSizeSchema,
   MonsterAttackSchema,
+  MonsterSaveSchema,
   MonsterSchema,
   slugify,
   type Feature,
@@ -10,6 +11,7 @@ import {
   type MonsterMultiattack,
   type MonsterMultiattackEntry,
   type MonsterRecharge,
+  type MonsterSave,
   type MonsterTrait,
   type ParseOutput,
   type ParseProblem,
@@ -391,16 +393,192 @@ const PACK_TACTICS =
   /has Advantage on (?:an attack roll|attack rolls) against a creature if at least one of the .+?'s allies is within 5 feet of the creature and the ally doesn't have the Incapacitated condition/i;
 
 /**
+ * The book's other opening, matched end to end.
+ *
+ * `_Dexterity Saving Throw:_ DC 12, each creature in a 15-foot Cone.
+ * _Failure:_ 17 (5d6) Fire damage. _Success:_ Half damage.`
+ *
+ * The anchors are the whole of the discipline here. Every clause the SRD adds
+ * to this sentence is a mechanism of its own — a condition after the damage,
+ * a second rung of failure, a trigger before the save, a `_Failure or
+ * Success:_` coda — and the `^`/`$` refuse each of them whole rather than
+ * reading the line down to the part that fits. Those lines stay prose, which
+ * is where they already were.
+ */
+const PRINTED_SAVE_LINE =
+  /^_([A-Za-z]+) Saving Throw:_ DC (\d+), (.+?)\. _Failure:_ (\d+) \((\d+)d(\d+)(?:\s*([+−–-])\s*(\d+))?\) ([A-Za-z]+) damage\.( _Success:_ Half damage(?: only)?\.)?$/;
+
+/** The book writes the ability out; the engine keys it in three letters. */
+const ABILITY_KEYS: Readonly<Record<string, MonsterSave['ability']>> = {
+  Strength: 'str',
+  Dexterity: 'dex',
+  Constitution: 'con',
+  Intelligence: 'int',
+  Wisdom: 'wis',
+  Charisma: 'cha',
+};
+
+/**
+ * The save a line forces, where its sentence is the template and nothing more.
+ *
+ * Null for every other line, including the ones that force a save in a shape
+ * this cannot hold — those are still carried verbatim and still handed to a
+ * DM, exactly as an unread rider is.
+ *
+ * **Never asked of a line that prints an attack roll**, and that is
+ * structural rather than incidental: a save printed after a hit is the
+ * attack's rider, and `readPrintedRider` is the one reader of it. Two readers
+ * for one clause would be two answers to it.
+ */
+export function parseSaveLine(text: string): MonsterSave | null {
+  const match = PRINTED_SAVE_LINE.exec(text);
+  if (match === null) return null;
+
+  const ability = ABILITY_KEYS[match[1]!];
+  if (ability === undefined) return null;
+
+  const type = match[9]!.toLowerCase();
+  // The same guard the attack chain uses: a word in the damage slot that is
+  // not a damage type is a sentence this did not understand.
+  if (!DAMAGE_TYPES.some((known) => known === type)) return null;
+
+  const sign = match[7] === undefined ? 1 : match[7] === '+' ? 1 : -1;
+  const save = {
+    ability,
+    dc: Number(match[2]),
+    targets: match[3]!,
+    damage: {
+      dice: `${match[5]}d${match[6]}`,
+      flat: match[8] === undefined ? 0 : sign * Number(match[8]),
+      type,
+      average: Number(match[4]),
+    },
+    onSuccess: match[10] === undefined ? ('none' as const) : ('half' as const),
+  };
+
+  // Validated rather than trusted, for the reason `parseAttackLine` validates
+  // its own: a shape that does not satisfy its schema leaves the line prose
+  // rather than reaching the catalogue.
+  const checked = MonsterSaveSchema.safeParse(save);
+  return checked.success ? checked.data : null;
+}
+
+/**
+ * The subject a stat block writes its own traits about: "The pudding", "the
+ * giant crab", "The frog's".
+ *
+ * A noun and never a name. Every one of the sentences below is printed about
+ * forty different creatures and the only thing that changes between them is
+ * this phrase, so it is the one part matched loosely — and matching it at all
+ * is what keeps the rest of each regex anchored end to end.
+ */
+const SUBJECT = "[A-Za-z' -]+";
+
+/**
+ * SRD Spider Climb: "The pudding can climb difficult surfaces, including along
+ * ceilings, without needing to make an ability check."
+ *
+ * Anchored, which is what refuses the Swarm of Insects: its sentence gates the
+ * same rule on "If the swarm has a Climb Speed", and the kind carries no field
+ * for a gate. A gate read away is a rule nobody printed.
+ */
+const SPIDER_CLIMB = new RegExp(
+  `^${SUBJECT} can climb difficult surfaces, including along ceilings, without needing to make an ability check\\.$`,
+);
+
+/**
+ * SRD Flyby: "The gargoyle doesn't provoke an Opportunity Attack when it flies
+ * out of an enemy's reach."
+ */
+const FLYBY = new RegExp(
+  `^${SUBJECT} doesn['’]t provoke an Opportunity Attack when it flies out of an enemy['’]s reach\\.$`,
+);
+
+/**
+ * SRD Standing Leap: "The frog's Long Jump is up to 10 feet and its High Jump
+ * is up to 5 feet with or without a running start."
+ */
+const STANDING_LEAP = new RegExp(
+  `^${SUBJECT}['’]s Long Jump is up to (\\d+) feet and its High Jump is up to (\\d+) feet with or without a running start\\.$`,
+);
+
+/**
+ * SRD Amphibious: "The chuul can breathe air and water." — and SRD Limited
+ * Amphibiousness, which is the same first clause with a limit after it.
+ */
+const AMPHIBIOUS = new RegExp(
+  `^${SUBJECT} can breathe air and water(?:, but it must be submerged at least once every (\\d+) hours to avoid suffocating outside water)?\\.$`,
+);
+
+/**
+ * SRD Water Breathing: "The seahorse can breathe only underwater." The
+ * octopus's second sentence — "It can hold its breath for 1 hour outside
+ * water" — is the optional half.
+ */
+const WATER_BREATHING = new RegExp(
+  `^${SUBJECT} can breathe only underwater\\.(?: It can hold its breath for (\\d+) (hour|hours|minute|minutes) outside water\\.)?$`,
+);
+
+/** SRD Hold Breath: "The crocodile can hold its breath for 1 hour." */
+const HOLD_BREATH = new RegExp(
+  `^${SUBJECT} can hold its breath for (\\d+) (hour|hours|minute|minutes)\\.$`,
+);
+
+/** A printed span, always in minutes — the book writes both units. */
+const inMinutes = (count: string, unit: string): number =>
+  Number(count) * (unit.startsWith('hour') ? 60 : 1);
+
+/**
  * The mechanic a trait's sentence states, where the parser knows one.
  *
  * Null for all but a handful, and that is the honest answer: a stat block's
  * traits are English, and what is read here is one sentence somebody matched
  * by hand, not an interpreter.
+ *
+ * **Matched on the sentence and never on the heading**, which is the rule
+ * `PACK_TACTICS` set and every addition follows: a block printing the same
+ * rule under another name gets the same mechanic, and one printing something
+ * else under a name quoted in a comment here gets nothing.
  */
 export function parseTraitShape(text: string): MonsterTrait | null {
   if (PACK_TACTICS.test(text)) {
     return { kind: 'advantage-when-ally-is-within-5-feet-of-the-target' };
   }
+  if (SPIDER_CLIMB.test(text)) return { kind: 'climbs-without-a-check' };
+  if (FLYBY.test(text)) return { kind: 'does-not-provoke-when-flying-out-of-reach' };
+
+  const leap = STANDING_LEAP.exec(text);
+  if (leap !== null) {
+    return {
+      kind: 'jumps-without-a-running-start',
+      longJumpFeet: Number(leap[1]),
+      highJumpFeet: Number(leap[2]),
+    };
+  }
+
+  const amphibious = AMPHIBIOUS.exec(text);
+  if (amphibious !== null) {
+    return {
+      kind: 'breathes-air-and-water',
+      ...(amphibious[1] === undefined
+        ? {}
+        : { mustSubmergeWithinHours: Number(amphibious[1]) }),
+    };
+  }
+
+  const water = WATER_BREATHING.exec(text);
+  if (water !== null) {
+    return {
+      kind: 'breathes-only-water',
+      ...(water[1] === undefined
+        ? {}
+        : { holdsBreathMinutes: inMinutes(water[1], water[2]!) }),
+    };
+  }
+
+  const held = HOLD_BREATH.exec(text);
+  if (held !== null) return { kind: 'holds-its-breath', minutes: inMinutes(held[1]!, held[2]!) };
+
   return null;
 }
 
@@ -843,6 +1021,10 @@ function parseFeatures(
     if (text !== '') {
       const attack = parseAttackLine(text);
       const trait = parseTraitShape(text);
+      // **Only where the line prints no attack roll.** A save printed after a
+      // hit is that attack's rider, and the swing's own reader is the one
+      // reader of it; a second here would be two answers to one clause.
+      const save = attack === null ? parseSaveLine(text) : null;
       // **The one detector the heading is part of.** A sequence is the
       // composition of *the Attack action*, and the only line that says so is
       // the one the book prints it under: three legendary actions write the
@@ -869,6 +1051,7 @@ function parseFeatures(
         text,
         ...(attack === null ? {} : { attack }),
         ...(trait === null ? {} : { trait }),
+        ...(save === null ? {} : { save }),
         ...(multiattack === null ? {} : { multiattack }),
         ...(recharge === null ? {} : { recharge }),
         ...(perDay === null ? {} : { perDay }),

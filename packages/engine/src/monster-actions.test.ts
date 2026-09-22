@@ -201,11 +201,16 @@ describe('the adapter carries what a block says it does', () => {
   it('carries the trait shapes the parser read and no others', () => {
     const wolf = adaptMonster(statBlock('wolf'), WOLF);
     const spider = adaptMonster(statBlock('giant-spider'), id('spider'));
+    // A block whose every trait is still English, which is most of them.
+    const azer = adaptMonster(statBlock('azer-sentinel'), id('azer'));
 
     expect(wolf.sheet.stated?.traits).toEqual([
       { kind: 'advantage-when-ally-is-within-5-feet-of-the-target' },
     ]);
-    expect(spider.sheet.stated?.traits ?? []).toEqual([]);
+    // The spider prints two, and one of them is a sentence the parser now
+    // reads: Web Walker is still prose and Spider Climb is not.
+    expect(spider.sheet.stated?.traits).toEqual([{ kind: 'climbs-without-a-check' }]);
+    expect(azer.sheet.stated?.traits ?? []).toEqual([]);
   });
 
   /**
@@ -1446,7 +1451,15 @@ describe('an Actions line the parser read nothing out of', () => {
     const wolf = adaptMonster(statBlock('winter-wolf'), WINTER);
     const printed = statBlock('winter-wolf').actions[1]!;
     expect(wolf.sheet.stated?.unreadActions).toEqual([
-      { name: printed.name, text: printed.text, recharge: { kind: 'die', low: 5 } },
+      {
+        name: printed.name,
+        text: printed.text,
+        recharge: { kind: 'die', low: 5 },
+        // The line prints the save template, so the sheet carries what the
+        // parser read of it beside the sentence it still hands over. What the
+        // section *is* has not changed: no attack could be read out of this.
+        save: printed.save,
+      },
     ]);
 
     // And the report is still a report: the names alone, which is what the

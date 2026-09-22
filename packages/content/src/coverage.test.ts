@@ -1,8 +1,8 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { SPELL_DEFINITIONS, SRD_CONTENT, SRD_MAGIC_ITEMS } from '@ie/content';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { SPELL_INDEX, spellById } from '@ie/srd';
+import { MonsterTraitSchema, SPELL_INDEX, spellById } from '@ie/srd';
 import { adaptMonster } from '@ie/engine';
 import { asCharacterId } from '@ie/shared';
 import {
@@ -16,6 +16,10 @@ import {
   inconsistencies,
   isExecuted,
   isExecutedFeature,
+  isReadLine,
+  hasUnexecutedTrait,
+  statBlockLines,
+  TRAIT_KINDS_WITH_A_READER,
 } from '../scripts/coverage-data.js';
 import { entryFor, isCompleteItem, magicItemEntries } from '../scripts/magic-items.js';
 import { bestiaryRow, renderReport } from '../scripts/coverage.js';
@@ -449,10 +453,10 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
    * The claim the row would be dishonest without, in both directions. A
    * printed line is a name and the book's sentence, **plus** at most the
    * fields a parser fills when it read that sentence — an attack's numbers, a
-   * trait's mechanic, a Multiattack's sequence, and what the heading says
-   * brings the line back. A field beyond them would be a population the row is
-   * not counting, so it fails here rather than quietly joining the *read*
-   * column.
+   * trait's mechanic, the DC and dice of a save the line forces, a
+   * Multiattack's sequence, and what the heading says brings the line back. A
+   * field beyond them would be a population the row is not counting, so it
+   * fails here rather than quietly joining the *read* column.
    *
    * `recharge` and `perDay` are read off the **name** rather than the
    * sentence, which is why they change nothing about what "read" counts: a
@@ -480,9 +484,73 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
       'name',
       'perDay',
       'recharge',
+      'save',
       'text',
       'trait',
     ]);
+  });
+
+  /**
+   * **Reading a sentence is not spending what it says**, and the two columns
+   * must not be allowed to collapse into one.
+   *
+   * A trait kind reaches `CharacterSheet.stated.traits` the moment the parser
+   * matches its sentence; whether anything *asks* for it is a call site, and
+   * `TRAIT_KINDS_WITH_A_READER` is where that is written down. The default is
+   * the conservative one — a kind nobody has listed is a debt — so the list
+   * can only lie by holding a name it should not, and it can do that two ways.
+   *
+   * **A name the schema no longer admits** is the loud one. **A name whose
+   * reader has been deleted** is the dangerous one: nothing would fail, and
+   * eighteen lines of real debt would leave the ledger with every test green.
+   * So both are asked, and the second is asked of the engine's own sources —
+   * the question `spell-schema.test.ts` asks of them, pointed the other way.
+   */
+  it('names only trait kinds the schema admits, as the kinds with a reader', () => {
+    const kinds: readonly string[] = MonsterTraitSchema.options.map(
+      (option) => option.shape.kind.value,
+    );
+    expect(kinds.length).toBeGreaterThan(1);
+    expect(TRAIT_KINDS_WITH_A_READER.length).toBeGreaterThan(0);
+    expect(TRAIT_KINDS_WITH_A_READER.filter((kind) => !kinds.includes(kind))).toEqual([]);
+
+    // **And the predicate answers both ways**, asked of a kind on the list and
+    // of one that is not. A guard that only ever expected `false` would pass
+    // against `() => false`, which is the answer that quietly retires the row.
+    const spent = TRAIT_KINDS_WITH_A_READER[0]!;
+    const inert = kinds.find((kind) => !TRAIT_KINDS_WITH_A_READER.includes(kind));
+    expect(inert).toBeDefined();
+    expect(hasUnexecutedTrait({ name: 'x', text: 'y' })).toBe(false);
+    expect(hasUnexecutedTrait({ name: 'x', text: 'y', trait: { kind: spent } })).toBe(false);
+    expect(hasUnexecutedTrait({ name: 'x', text: 'y', trait: { kind: inert } })).toBe(true);
+  });
+
+  /**
+   * And the other direction: a kind is on the list because something reads it,
+   * so the reader has to still be there.
+   *
+   * Asked of the engine's sources rather than of a second list, because a
+   * second list is the thing that goes stale. A kind named nowhere in
+   * `packages/engine/src` is a kind nothing can be spending.
+   */
+  it('names no trait kind the engine has stopped reading', () => {
+    const here = fileURLToPath(new URL('.', import.meta.url));
+    const root = `${here}../../engine/src/`;
+    const sources: string[] = [];
+    const walk = (dir: string): void => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        if (entry.isDirectory()) walk(`${dir}${entry.name}/`);
+        else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts')) {
+          sources.push(readFileSync(`${dir}${entry.name}`, 'utf8'));
+        }
+      }
+    };
+    walk(root);
+    // Not vacuous: the walk found the engine rather than an empty directory.
+    expect(sources.length).toBeGreaterThan(40);
+
+    const text = sources.join('\n');
+    expect(TRAIT_KINDS_WITH_A_READER.filter((kind) => !text.includes(`'${kind}'`))).toEqual([]);
   });
 
   /**
@@ -491,15 +559,10 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
    * more read lines than printed ones would be counting something else.
    */
   it('counts the read lines as a part of the printed ones', () => {
+    // Asked of the generator's own predicate rather than of a third copy of
+    // the rule: two copies had already come to disagree once.
     const read = SRD_CONTENT.monsters.reduce(
-      (sum, m) =>
-        sum +
-        [...m.traits, ...m.actions, ...m.bonusActions, ...m.reactions, ...m.legendaryActions].filter(
-          (line) =>
-            line.attack !== undefined ||
-            line.trait !== undefined ||
-            line.multiattack !== undefined,
-        ).length,
+      (sum, m) => sum + statBlockLines(m).filter(isReadLine).length,
       0,
     );
 

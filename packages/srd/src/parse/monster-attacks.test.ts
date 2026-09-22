@@ -185,7 +185,10 @@ describe('parseTraitShape', () => {
   });
 
   it('is null for a trait whose sentence nothing reads', () => {
-    expect(parseTraitShape(trait('giant-spider', 'Spider Climb').text)).toBeNull();
+    // A trait with a mechanic somebody has matched is `monster-traits.test.ts`'s
+    // subject; this is the other half, and Fire Aura is one of the many the
+    // reader still says nothing about.
+    expect(parseTraitShape(trait('azer-sentinel', 'Fire Aura').text)).toBeNull();
   });
 });
 
@@ -1085,6 +1088,7 @@ describe('what a stat block’s sections print, and what is read', () => {
           if (
             line.attack !== undefined ||
             line.trait !== undefined ||
+            line.save !== undefined ||
             line.multiattack !== undefined
           ) {
             read += 1;
@@ -1098,19 +1102,24 @@ describe('what a stat block’s sections print, and what is read', () => {
 
   it('counts the printed lines and the read ones, section by section', () => {
     expect(census()).toEqual({
-      traits: { printed: 337, read: 18 },
-      // One more than before the gate: the Clay Golem's Multiattack is read
-      // now that its "if it used Hasten this turn" has a Bonus Action spend to
-      // read, and every other unread line here is unread for its own reason.
-      actions: { printed: 811, read: 597 },
-      // **Nothing here is a number waiting to be parsed.** All seventy-five are
-      // read by every detector the Actions section gets and none of them yields
-      // anything, because not one prints an attack roll: they are a saving
-      // throw, a spell the creature casts, another action it takes (Dash,
-      // Disengage, Hide), a teleport, a movement, a shape-shift, or prose. What
-      // a Bonus Action line needs is an economy to be spent against, which is a
-      // different thing from a sentence to be read.
-      bonusActions: { printed: 75, read: 0 },
+      // Seventy more than before the movement and breathing kinds landed: a
+      // Spider Climb, a Flyby, a Standing Leap, and the four sentences that
+      // say what a creature breathes.
+      traits: { printed: 337, read: 88 },
+      // Fifty-three more than before the save template was read, and the
+      // Clay Golem's Multiattack before them — every other unread line here
+      // is unread for its own reason.
+      actions: { printed: 811, read: 650 },
+      // **Not one prints an attack roll**, which is what the zero here used
+      // to say. Three print the save template — the Trample of the Gorgon,
+      // the Elephant and the Mammoth, the last of which is CR 6 — and those
+      // three are read for the same reason a trait's sentence is:
+      // every detector runs over every section, because what a line says is
+      // not a property of the heading it is printed under. The other
+      // seventy-two are a spell, another action, a teleport, a movement, a
+      // shape-shift or prose, and what they need is an economy rather than a
+      // reading.
+      bonusActions: { printed: 75, read: 3 },
       reactions: { printed: 24, read: 0 },
       legendaryActions: { printed: 82, read: 0 },
     });
