@@ -206,6 +206,7 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'bonus-applied',
   'bonus-removed',
   'casting-continued',
+  'casting-save-recorded',
   'character-advanced',
   'character-created',
   'coins-changed',

@@ -23,7 +23,7 @@
 
 import type { CharacterId } from '@ie/shared';
 import { asCharacterId } from '@ie/shared';
-import type { CharacterSheet, GameState, StatedAttack } from '@ie/engine';
+import type { CharacterSheet, GameState, StatedAction, StatedAttack } from '@ie/engine';
 import {
   armorClassOf,
   carrying,
@@ -94,6 +94,32 @@ export interface ObservedPrintedLine {
   /** See {@link ObservedPrintedAttack.recharge}. */
   readonly recharge: string | null;
   readonly expended: boolean;
+  /**
+   * Whether the engine will throw this line's saving throw, or the sentence is
+   * the caller's to adjudicate.
+   *
+   * **A claim about the engine, never about the English.** Two hundred-odd of
+   * these lines are printed across a third of the bestiary and fifty-five of
+   * the CR ≤ 5 ones force a save somewhere in their prose; eighteen write the
+   * book's template plainly enough that the parser structured an ability, a
+   * DC, dice and a `_Success:_` clause out of it, and those eighteen are the
+   * ones this is true of. SRD Gorgon's Petrifying Breath says
+   * `_Constitution Saving Throw:_` and reads `false` here, because it prints a
+   * second rung of failure the reader is anchored against — a flag that said
+   * `true` on the strength of the words would send a caller to a door that
+   * refuses it.
+   *
+   * It is reported because without it the two doors over one line are a guess.
+   * `take_printed_action` spends the slot and hands the sentence back
+   * unapplied, for every line including this one; `force_printed_save` spends
+   * the same slot and rolls. Which to call is a question about what the engine
+   * can do, and until this field existed the answer was nowhere on the wire.
+   *
+   * **The DC and the dice stay off**, for {@link ObservedPrintedAttack}'s
+   * reason: they are the block's numbers and the outcome's to report. What is
+   * here is one boolean, and `text` is still the book's own sentence.
+   */
+  readonly engineRollsTheSave: boolean;
 }
 
 /**
@@ -200,6 +226,51 @@ export interface ObservedCreature {
   readonly budget: ObservedBudget | null;
 }
 
+/**
+ * One spell still running, and what it has written down.
+ *
+ * **The half of the table that was nowhere on the wire.** `look` has always
+ * said which creature is *concentrating* on what, which is one creature's view
+ * of one casting and misses every running spell nobody is concentrating on —
+ * a Web, a Grease, a Zone of Truth. `castingId` is the string half this
+ * package's tools already take (`end_ongoing_spell`, `activate_spell`,
+ * `dispel`), and until now a caller had to have remembered it from the
+ * `cast_spell` that returned it.
+ *
+ * **What is deliberately absent is what a spell *is*.** The area, the origin,
+ * the save DC and the attack modifier are pinned on the record and are not
+ * reported: the geometry is measured by the engine and a DC decides a roll the
+ * engine throws, so a caller told either would be a caller one step from
+ * narrating against a number nobody rolled. That is
+ * {@link ObservedPrintedAttack}'s rule, one subsystem along.
+ */
+export interface ObservedOngoingSpell {
+  /** The id every tool that addresses a running casting takes. */
+  readonly castingId: string;
+  readonly spellId: string;
+  /** The display name, so a caller narrating needs no lookup. */
+  readonly spell: string;
+  readonly caster: string;
+  /** The slot it went off at, which is what an upcast spell's numbers came from. */
+  readonly level: number;
+  /**
+   * What this casting's saving throw came to, per creature it has asked.
+   *
+   * **This is the door the gate's ruling required.** SRD Zone of Truth's "You
+   * know whether a creature succeeds or fails on this save" is a fact with no
+   * other consequence the rules can see — the failure imposes no condition,
+   * because the engine holds no speech — so the verdict is the whole of the
+   * spell's effect and it reaches nobody unless something publishes it. The
+   * engine may hold a fact only the table reads when the fact is the recorded
+   * outcome of a roll the engine made **and a door publishes it**; this is
+   * that door, and `save.recordsOutcome` is what asks for the fact to be kept.
+   *
+   * Empty for every casting that records none, which is every casting but one
+   * spell's.
+   */
+  readonly saves: readonly { readonly who: string; readonly failed: boolean }[];
+}
+
 export interface ObservedDebts {
   readonly pendingSaves: number;
   readonly pendingAttack: string | null;
@@ -239,6 +310,8 @@ export interface Observation {
     readonly landmarks: readonly string[];
   } | null;
   readonly creatures: readonly ObservedCreature[];
+  /** Every spell still running, by casting id. See {@link ObservedOngoingSpell}. */
+  readonly ongoing: readonly ObservedOngoingSpell[];
   readonly owed: ObservedDebts;
 }
 
@@ -299,11 +372,17 @@ function printedBlock(
     readonly name: string;
     readonly text: string;
     readonly recharge?: StatedAttack['recharge'];
+    readonly save?: StatedAction['save'];
   }): ObservedPrintedLine => ({
     name: one.name,
     text: one.text,
     recharge: rechargeSaid(one.recharge),
     expended: expendedLines.includes(one.name),
+    // The pinned record and nothing read out of the sentence: a line the
+    // parser structured a save out of carries one, and `forcePrintedSave`
+    // reads the same field to decide whether it will roll. One source, so the
+    // report and the refusal cannot disagree.
+    engineRollsTheSave: one.save !== undefined,
   });
 
   return {
@@ -329,6 +408,28 @@ function printedBlock(
     expendedLines,
   };
 }
+
+/**
+ * Two casting ids in the order they were cast.
+ *
+ * `cast:N` is sequential, so the number *is* the order — but it is a number
+ * inside a string, and `Array.prototype.sort`'s default is lexical. See
+ * `OngoingSpell`'s own note on it. A key that is not `cast:N` yields `NaN`,
+ * which every comparison is false for, so those fall to the end and keep a
+ * stable order among themselves.
+ */
+const castingNumber = (key: string): number => Number(key.slice('cast:'.length));
+
+const castingOrder = (a: string, b: string): number => {
+  const left = castingNumber(a);
+  const right = castingNumber(b);
+  if (Number.isNaN(left) || Number.isNaN(right)) {
+    if (!Number.isNaN(left)) return -1;
+    if (!Number.isNaN(right)) return 1;
+    return a < b ? -1 : a > b ? 1 : 0;
+  }
+  return left - right;
+};
 
 const feet = (state: GameState, a: CharacterId, b: CharacterId): number | null => {
   if (state.scene === null) return null;
@@ -392,6 +493,27 @@ export function observe(state: GameState): Observation {
         ? null
         : { extent: state.scene.extent, landmarks: Object.keys(state.scene.landmarks).sort() },
     creatures,
+    // **In the order they were cast, which is numeric and not lexical.** A
+    // casting id is `cast:N` and `spells.ts` states the hazard in this
+    // repository's own words — "`cast:2` runs before `cast:10`, and a string
+    // sort disagrees" — so a party eleven castings into a session would be
+    // shown its second Web after its tenth. The number is what is sorted on;
+    // anything that is not a `cast:N` sorts last and by its own string, which
+    // is a record shape this engine does not write and reports honestly rather
+    // than dropping.
+    ongoing: Object.keys(state.ongoing)
+      .sort(castingOrder)
+      .map((key): ObservedOngoingSpell => {
+        const record = state.ongoing[key]!;
+        return {
+          castingId: record.castingId,
+          spellId: record.spellId,
+          spell: record.spell,
+          caster: record.caster,
+          level: record.level,
+          saves: (record.saves ?? []).map((one) => ({ who: one.who, failed: one.failed })),
+        };
+      }),
     owed: {
       pendingSaves: state.pendingSaves === undefined ? 0 : Object.keys(state.pendingSaves).length,
       pendingAttack: state.pendingAttack?.attacker ?? null,

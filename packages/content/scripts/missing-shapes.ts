@@ -1187,6 +1187,13 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: "Reverting takes 1 minute, during which the target has the Stunned condition." The Magic action that begins it is taken by the target rather than by the caster, so the minute of Stunned hangs off an activation belonging to somebody the casting reached rather than to whoever cast it.',
     },
   ],
+  'zone-of-truth': [
+    {
+      clause: 'the engine holds no speech',
+      why: 'table',
+      note: 'SRD: "On a failed save, a creature can’t speak a deliberate lie while in the radius." The save is rolled — both moments the sentence names are `AreaTrigger` members and the Charisma save is ordinary — and the *verdict* is kept, which is the other thing the spell prints: "You know whether a creature succeeds or fails on this save." What is not executed is the silence itself, and it is the table’s rather than a shape’s: the engine has no speech, so there is nothing for a condition to forbid and no sentence for it to inspect. A DM reads the verdict off `look` and decides whether what was said was a deliberate lie. This is the one clause here, because the spell stopped being tracked: the publication it was blocked on — an event that records the outcome on the casting and a field on the door that reports it — is built.',
+    },
+  ],
 };
 
 // — the tracked population ———————————————————————————————————————————————————
@@ -2118,15 +2125,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'The spell ends early on the target if it has no Temporary Hit Points left',
       why: 'a-casting-ended-by-a-trigger',
       note: 'a Temporary Hit Point total running out is one of the causes that shape names this spell for by name: the five transcribed causes are the target attacking, dealing damage, casting, donning armour, and the caster or an ally damaging it, and this is none of them.',
-    },
-  ],
-  'zone-of-truth': [
-    {
-      marker: 'saving-throw',
-      clause:
-        "a creature that enters the spell's area for the first time on a turn or starts its turn there makes a Charisma saving throw",
-      why: 'a-standing-effect-derived-from-where-a-creature-stands',
-      note: 'both moments are `AreaTrigger` members and the save itself is ordinary; what a failure buys is not. "On a failed save, a creature can’t speak a deliberate lie while in the radius" is a silence that holds for as long as the creature is in the Sphere and lifts when it steps out — a standing effect derived from where it is standing, with no condition and no state to carry it. A trigger that rolled the save and imposed nothing would be dice thrown for no reason. **Two of the three halves are built and the third is not.** The save is ordinary and `save.condition` is optional now, so a trigger could roll it and impose nothing; both moments are `AreaTrigger` members already. What is missing is the *publication*. Gate G1 ruled the general question — the engine may hold a fact only the table reads when the fact is the recorded outcome of a roll it made and a door publishes it — and this spell clears that bar on its own text, "You know whether each creature succeeds or fails on this save". Neither half of the publication exists. `OngoingSpell.aimed` is written once, by the `spell-ongoing` event at the cast, and thereafter only ever shrinks in `fold/release.ts`; a casting whose targets came from its geometry stores nobody at all, by the rule `aimedAt` states — "Standing in an area is not being cast on" — so an area trigger firing a minute later has nothing to add a creature to. And `observe()` in `@ie/tools` publishes no ongoing casting whatever: its `Observation` carries the round, the clock, the scene, the creatures and the engine’s debts, and a creature’s own conditions are the nearest thing to this. So what is left is a way for a settled area trigger to record its affected creature on the record, and a field on the door that reports them — which is a new event and a widened observation, not a reading.',
     },
   ],
   teleport: [

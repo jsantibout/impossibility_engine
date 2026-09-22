@@ -63,6 +63,14 @@
  *   whole result is the spend and the block's own sentence handed back
  *   unapplied, and adjudicating that sentence is the DM's in the same way the
  *   DC in `saving_throw` is. See {@link TAKE_PRINTED_ACTION}.
+ * - `force_printed_save` — the eighteen CR ≤ 5 lines whose sentence the
+ *   parser structured into an ability, a DC, dice and a `_Success:_` clause,
+ *   which `forcePrintedSave` has rolled correctly since the batch that read
+ *   them and which **no tool on either surface imported**. It is the same
+ *   debt one door along and it is here for a narrower reason than its two
+ *   neighbours: the engine executes nearly all of this line, and what is left
+ *   over — who the Cone caught — is a decision the rules leave open exactly as
+ *   a DC is. See {@link FORCE_PRINTED_SAVE}.
  *
  * And `advantage` / `disadvantage` on both of the D20 tools, which is not a
  * tool but is the third thing step one wanted: `TestCommand.modes` existed
@@ -76,14 +84,15 @@
  * them. That is a claim a directory can carry and a boolean cannot.
  */
 
-import type { ConditionName } from '@ie/shared';
-import type { Duration, ModeSource, TestResolution } from '@ie/engine';
+import type { CharacterId, ConditionName } from '@ie/shared';
+import type { D20TestResult, Duration, ModeSource, TestResolution } from '@ie/engine';
 import {
   applyConditionTo,
   awardItems,
   changeCoins,
   COPPER_PER,
   declareCreatureHeads,
+  forcePrintedSave,
   liftConditionFrom,
   loseItems,
   resolveDamage,
@@ -897,8 +906,15 @@ const TAKE_COIN = tool({
 });
 
 /**
- * What a spend of a printed line answers with, for both of the tools that
- * take one.
+ * What a spend of a printed line answers with, for each of the three tools
+ * that take one.
+ *
+ * **A list of event types rather than one**, because the third caller does
+ * not know which it wrote: `force_printed_save` spends whichever slot the
+ * *heading* names, and the heading is something the engine read off the
+ * creature after the call was made. Widening the search is the same answer as
+ * the note below gives for reading the log instead of the batch — one path,
+ * and no branch here that could disagree with the engine's.
  *
  * **The name is read back out of the event rather than echoed from the
  * call.** The engine matches a heading without regard to case and writes the
@@ -929,7 +945,7 @@ const TAKE_COIN = tool({
  */
 const lineTaken = (
   context: ToolContext,
-  type: 'stated-action-taken' | 'stated-bonus-action-taken',
+  types: readonly ('stated-action-taken' | 'stated-bonus-action-taken')[],
   duplicate: boolean,
   id: string,
 ): Readonly<Record<string, unknown>> => {
@@ -937,7 +953,7 @@ const lineTaken = (
     .log()
     .findLast(
       (event) =>
-        event.type === type &&
+        (types as readonly string[]).includes(event.type) &&
         (event as { command?: { id: string } }).command?.id === context.commandId,
     ) as { line: string } | undefined;
 
@@ -997,7 +1013,7 @@ const TAKE_PRINTED_ACTION = tool({
         ...identity(context),
       }),
       (value) => value.events,
-      (value) => lineTaken(context, 'stated-action-taken', value.duplicate, args.who),
+      (value) => lineTaken(context, ['stated-action-taken'], value.duplicate, args.who),
       (value) => value.unverified,
     ),
 });
@@ -1034,7 +1050,138 @@ const TAKE_PRINTED_BONUS_ACTION = tool({
         ...identity(context),
       }),
       (value) => value.events,
-      (value) => lineTaken(context, 'stated-bonus-action-taken', value.duplicate, args.who),
+      (value) => lineTaken(context, ['stated-bonus-action-taken'], value.duplicate, args.who),
+      (value) => value.unverified,
+    ),
+});
+
+/**
+ * The saving throws one printed line forced, in the order the caller named
+ * them.
+ *
+ * Every number here is a number the engine produced: the die that counted,
+ * the total, whether it beat the DC the *block* printed, and what landed
+ * after the target's own Resistance. None of them came in through this call
+ * and none could — see {@link FORCE_PRINTED_SAVE}'s schema, which takes a
+ * list of ids and nothing else.
+ *
+ * `dc` is reported beside each because a caller that cannot see it cannot
+ * narrate a save that was made by one. It is the block's, read off the line,
+ * and it arrives here having already decided the outcome rather than waiting
+ * to.
+ */
+const printedSaveOutcomes = (
+  outcomes: readonly {
+    readonly target: CharacterId;
+    readonly save: D20TestResult;
+    readonly damage: number;
+    readonly concentration: unknown;
+  }[],
+): readonly Readonly<Record<string, unknown>>[] =>
+  outcomes.map((one) => ({
+    target: String(one.target),
+    natural: one.save.natural,
+    total: one.save.total,
+    success: one.save.success,
+    dc: one.save.dc,
+    mode: one.save.mode,
+    damage: one.damage,
+    concentration: one.concentration,
+  }));
+
+/**
+ * Force the saving throw a creature's stat block prints, at the DC and dice
+ * the block prints.
+ *
+ * `_Dexterity Saving Throw:_ DC 12, each creature in a 15-foot Cone.
+ * _Failure:_ 17 (5d6) Fire damage. _Success:_ Half damage.` is a template as
+ * regular as `_Melee Attack Roll:_`, and eighteen CR ≤ 5 lines write it
+ * plainly enough that the parser structured an ability, a DC, dice and a
+ * `_Success:_` clause out of every one. `forcePrintedSave` has rolled them
+ * correctly since the batch that read them and **no tool on either surface
+ * imported it**, so the whole of that work was unreachable from a session:
+ * the only thing a caller could do with a Winter Wolf's breath was spend the
+ * Action and read the sentence out.
+ *
+ * **It is here and not on the model's surface, and for a narrower reason than
+ * its two neighbours.** They are here because the engine executes no part of
+ * the line and somebody must adjudicate it; this one executes nearly all of
+ * it. What is left over is the one thing the call takes — *who the line
+ * caught* — and that is a decision the rules leave open in exactly the way a
+ * DC is: "each creature in a 15-foot Cone" wants an origin and a facing
+ * nobody has declared, so measuring one out of a sentence would be the Engine
+ * inventing a fact. A model naming its own head count would be a model
+ * choosing how many creatures its breath weapon hit, which is `declare_heads`'
+ * objection one line along.
+ *
+ * **It states no number and takes none.** The ability, the DC, the dice, the
+ * damage type, what a success buys, the recharge and the day's uses are all
+ * the block's, pinned into the creature at `add_creature`; the schema has
+ * nowhere to put any of them and `boundary.test.ts` beside this file holds the
+ * external-roll functions unreachable from here as it does from every other
+ * door.
+ *
+ * **The other door over the same line is untouched.** `take_printed_action`
+ * and `take_printed_bonus_action` still spend the slot and hand the sentence
+ * back for every line including these eighteen, so a DM who would rather
+ * adjudicate the breath themselves has lost nothing. Which of the two a line
+ * admits is reported on `look`, as `printed.actions[].engineRollsTheSave`,
+ * because two doors over one line with no way to tell them apart is a guess
+ * over English.
+ *
+ * **Whichever slot the heading names.** Sixteen of the eighteen are printed
+ * under Actions and two — the Gorgon's Trample and the Elephant's — under
+ * Bonus Actions, and a heading in a stat block says what the line under it
+ * costs. The engine searches both and spends the one it found, which is why
+ * this is one tool where the hand-over is two: there, the caller chooses what
+ * to spend; here, the block already did.
+ */
+const FORCE_PRINTED_SAVE = tool({
+  name: 'force_printed_save',
+  description:
+    'Have the engine roll the saving throw a creature’s stat block prints — a breath weapon, a Trample, a Mockery. Name the heading as the block prints it and say which creatures the line caught; the engine reads the ability, the DC, the dice and what a success buys off the block, throws one save per creature, halves or zeroes the damage the way the line says, applies each target’s own Resistance and Evasion, and spends whichever slot the heading names. You state no DC and no dice — only who it caught, because an area is measured from an origin and a facing nobody has declared. Only some printed lines can be rolled this way: `look` says which, under `printed.actions[].engineRollsTheSave`. For any other line — and for this one, if you would rather adjudicate it yourself — use `take_printed_action` or `take_printed_bonus_action`, which spend the slot and hand you the sentence unapplied.',
+  mutates: true,
+  // The head count is answered by re-sending *this* call with `targets`
+  // filled in, so the door the refusal names is this tool. The surface-wide
+  // answer for a `creature` request is `add_creature`, which is no help at
+  // all to a caller being asked who the breath caught.
+  selfAnswers: ['creature'],
+  input: z.strictObject({
+    who: creatureId.describe('Which creature is forcing the line.'),
+    line: printedLineName,
+    targets: z
+      .array(creatureId)
+      .min(1)
+      .optional()
+      .describe(
+        'The creatures the line caught, which is the one fact you supply. An area is measured from an origin and a facing the engine has not been told, so the head count is yours; every number that follows from it is the engine’s. Leave it out and you will be asked for it, with the line’s own targeting clause quoted back.',
+      ),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      forcePrintedSave(
+        context.campaign.state(),
+        who(args.who),
+        {
+          line: args.line,
+          ...(args.targets === undefined ? {} : { targets: args.targets.map(who) }),
+          ...identity(context),
+        },
+        context.campaign.supply(),
+      ),
+      (value) => value.events,
+      (value) => ({
+        // Which slot was spent is the heading's answer and the caller does not
+        // know it, so both events are searched — see {@link lineTaken}.
+        ...lineTaken(
+          context,
+          ['stated-action-taken', 'stated-bonus-action-taken'],
+          value.duplicate,
+          args.who,
+        ),
+        outcomes: printedSaveOutcomes(value.outcomes),
+      }),
       (value) => value.unverified,
     ),
 });
@@ -1101,6 +1248,7 @@ export const DM_ONLY_TOOLS: readonly ToolDefinition[] = [
   AWARD_ITEMS,
   DECLARE_HEADS,
   END_CONDITION,
+  FORCE_PRINTED_SAVE,
   IMPROVISED_DAMAGE,
   LOSE_ITEMS,
   ROLL_IMPROVISED_DAMAGE,

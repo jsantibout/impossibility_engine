@@ -1407,6 +1407,42 @@ export type SpellEffect =
        */
       readonly advantageIfFought?: true;
       /**
+       * Write the verdict onto the casting, because the sentence says somebody
+       * knows it.
+       *
+       * SRD Zone of Truth: "On a failed save, a creature can't speak a
+       * deliberate lie while in the radius. **You know whether a creature
+       * succeeds or fails on this save.**" Not being able to speak a
+       * deliberate lie is not a condition, is not a grant, and is not any
+       * other state this engine holds — the engine has no speech — so the
+       * failure imposes nothing at all and the second sentence is the whole
+       * of what the spell does that the rules can see.
+       *
+       * **This is the third thing a save may do**, beside imposing a
+       * condition and hanging a rider, and it is what lifts
+       * `save_imposes_nothing` for a definition that does neither. The gate
+       * that ruled it put the condition plainly: the engine may hold a fact
+       * only the table reads **when the fact is the recorded outcome of a
+       * roll the engine made and a door publishes it**. Both halves are
+       * load-bearing. A flag a definition set for its own reasons would be
+       * the engine keeping a secret; this is a die `rolls.ts` stamped, filed
+       * against the casting that threw it, and reported by `observe()`.
+       *
+       * **The record is the casting's and not the creature's.** A creature
+       * that walks out of the Sphere and back in is asked again, and two
+       * Zones over one room are two questions about one creature — so the
+       * answer hangs on `OngoingSpell.saves`, keyed by who, replaced when the
+       * same casting asks again. `casting-save-recorded` is the event; there
+       * is no derived pass, because nobody decides this and the roll already
+       * happened.
+       *
+       * **A casting and nothing else.** An item or a feature that confers an
+       * effect list has no casting id to file a verdict against, so
+       * `checkContent` refuses the field on both hosts — the same answer it
+       * gives every other field on this effect that needs one.
+       */
+      readonly recordsOutcome?: true;
+      /**
        * The condition the failure imposes, where it imposes one.
        *
        * **Optional, and the docstring it replaces said exactly why it could
@@ -1428,11 +1464,10 @@ export type SpellEffect =
        *
        * **What the old requirement was standing in for is still enforced,
        * one field along**: `checkSpellDefinition` refuses a `save` that
-       * imposes no condition *and* hangs no rider (`save_imposes_nothing`),
-       * because that really is a die thrown for nothing. Lifting that needs a
-       * door which publishes the outcome — SRD Zone of Truth's "You know
-       * whether each creature succeeds or fails" is the sentence waiting on
-       * one — and no such door exists.
+       * imposes no condition, hangs no rider *and* records no outcome
+       * (`save_imposes_nothing`), because that really is a die thrown for
+       * nothing. {@link save.recordsOutcome} is the third of those three and
+       * is what SRD Zone of Truth was waiting on.
        *
        * **{@link save.repeats} goes with it.** A repeat is filed on the
        * condition instance the failure created, so a failure that created

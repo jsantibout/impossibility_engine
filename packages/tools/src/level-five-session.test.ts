@@ -581,6 +581,28 @@ function armUp(t: Table): void {
 // — the debts a turn leaves behind ————————————————————————————————————————————
 
 /**
+ * Which Reaction, if any, `options` is offering this creature at this window.
+ *
+ * **Read rather than guessed**, which is the rule this whole file is written
+ * to: a script that knew Uncanny Dodge answers a damage roll and Shield
+ * answers a hit would be asserting the party sheet twice, and the point of
+ * `options` is that the engine says. Two callers now — the damage window
+ * `settleDebts` pays and the held hit a monster's swing opens — so the lookup
+ * has one spelling.
+ */
+function offeredReaction(
+  t: Table,
+  who: string,
+  window: string,
+): { readonly id: string; readonly window: string } | undefined {
+  const offers = t.call('options', { who });
+  if (offers.status !== 'ok') return undefined;
+  return (offers.resolution['reactions'] as readonly { id: string; window: string }[]).find(
+    (one) => one.window === window,
+  );
+}
+
+/**
  * Settle whatever the engine is owed, answering each window through the door
  * that closes it.
  *
@@ -599,13 +621,7 @@ function settleDebts(t: Table): void {
       // The window is read rather than guessed: `options` says which Reaction
       // is offered to the creature the blow is aimed at, and Uncanny Dodge is
       // the one this party holds.
-      const offers = t.call('options', { who: owed.pendingDamage });
-      const answer =
-        offers.status === 'ok'
-          ? (offers.resolution['reactions'] as readonly { id: string; window: string }[]).find(
-              (one) => one.window === 'damage-rolled',
-            )
-          : undefined;
+      const answer = offeredReaction(t, owed.pendingDamage, 'damage-rolled');
       // Taken the first time and waved off after that. **The decline branch
       // is written and this session never reaches it**, and the report says
       // so — `decline_damage_reaction` is on its never-used list — because a
@@ -878,13 +894,41 @@ function hostileTurn(t: Table, who: string, round: number): void {
   const printed = block?.attacks.filter((one) => !one.expended) ?? [];
   if (printed.length === 0) return;
 
-  // **No hold here, and the reason is a finding rather than a choice.** A
-  // stat block's attack refuses `hold` outright — `attack-landed` pins a
-  // weapon's catalogue id and a printed line has nowhere to go in it — so a
-  // party fighting monsters is never offered the window SRD Shield answers.
-  // The Wizard's Shield is reachable in this session only off a character's
-  // swing, and there is no character swinging at her.
-  t.call('attack', { attacker: who, target: foe, action: printed[0]!.name });
+  // **The swing is held when somebody can answer it, and that is new.** This
+  // comment said the opposite for a batch — "a stat block's attack refuses
+  // `hold` outright" — and it was the finding that made this file worth
+  // writing: a party fighting monsters was never offered the window SRD Shield
+  // answers, because `attack-landed` pinned a weapon's catalogue id and a
+  // printed line had nowhere to go in it. `PendingAttack.action` pins the line
+  // now, the `cannot_hold` refusal is gone, and the door was already forwarding
+  // `hold` regardless of `action` — so the only thing between the two was this
+  // call.
+  //
+  // Held only for the creature this round aimed at, because a hold is a debt:
+  // every other swing settles where it lands, and the one window this party
+  // holds a door for is the Wizard's.
+  t.call('attack', {
+    attacker: who,
+    target: foe,
+    action: printed[0]!.name,
+    ...(round === 2 && foe === 'kessa' ? { hold: true } : {}),
+  });
+
+  // SRD Shield: "+5 bonus to AC, including against the triggering attack." The
+  // offer is read rather than guessed — `options` says which Reaction is open
+  // to the creature the blow is aimed at — and the cast re-measures the hit
+  // against the raised number, which is what makes the held swing worth
+  // holding. `settleDebts` pays whatever is left either way.
+  const shield = offeredReaction(t, foe, 'hit-by-attack');
+  if (shield !== undefined && shield.id === 'shield' && t.memo['shielded'] === undefined) {
+    const cast = t.call('cast_spell', {
+      caster: foe,
+      spellId: 'shield',
+      targets: [foe],
+      slotLevel: 1,
+    });
+    if (cast.status === 'ok') t.memo['shielded'] = 'yes';
+  }
   settleDebts(t);
 }
 

@@ -1322,6 +1322,21 @@ const rollsASave = (record: Record<string, unknown>): boolean =>
 const RIDER_FIELDS: readonly string[] = ['conditions', 'modifiers', 'delayed', 'movement'];
 
 /**
+ * The field that says a save's verdict is kept, which needs a casting to keep
+ * it on.
+ *
+ * `save.recordsOutcome` writes the answer onto `OngoingSpell.saves` — the
+ * record of a *running casting*. An item's conferral and a feature's pool use
+ * have no casting id, no ongoing record and nothing for `observe()` to publish
+ * the verdict from, so the field would be set and read by nobody: the silent
+ * wrong answer this file exists to refuse.
+ *
+ * Named rather than inlined so the two hosts refuse one spelling, in the shape
+ * {@link RIDER_FIELDS} already uses beside it.
+ */
+const RECORDED_VERDICT = 'recordsOutcome';
+
+/**
  * The admitted kinds whose `conditions` is **their own required list**.
  *
  * Two rules met here and contradicted each other. `CONFERRED_EFFECT_KINDS`
@@ -1700,6 +1715,14 @@ function featureOptionProblems(
           `${on}.${rider}`,
         );
       }
+    }
+    // The verdict is filed **against a casting** — see {@link RECORDED_VERDICT}.
+    if (record[RECORDED_VERDICT] !== undefined) {
+      say(
+        'feature_verdict_needs_a_casting',
+        `a recorded verdict is written onto the casting that threw the save, and ${featureId} casts nothing`,
+        `${on}.${RECORDED_VERDICT}`,
+      );
     }
 
     // **The scaling fields, and only the ones that read a casting.** A feature's
@@ -2533,6 +2556,14 @@ function itemConfersProblems(
           `${on}.${rider}`,
         );
       }
+    }
+    // The verdict is filed **against a casting** — see {@link RECORDED_VERDICT}.
+    if (record[RECORDED_VERDICT] !== undefined) {
+      say(
+        'conferral_verdict_needs_a_casting',
+        `a recorded verdict is written onto the casting that threw the save, and ${item.id} casts nothing`,
+        `${on}.${RECORDED_VERDICT}`,
+      );
     }
     for (const [where, scaling] of scalingsOf(record, on)) {
       for (const scaled of SCALES_WITH_A_CASTING) {

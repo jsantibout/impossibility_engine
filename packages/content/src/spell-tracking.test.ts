@@ -1472,6 +1472,13 @@ describe('every spell this batch added is cast for real', () => {
     'plant-growth',
     'spike-growth',
     'wind-walk',
+    // The last of the tracked spells to be blocked on a *publication* rather
+    // than on a mechanic. The Charisma save was always ordinary and both
+    // moments it fires at were `AreaTrigger` members; what it had nowhere to
+    // put was the answer, because the failure imposes nothing this engine
+    // holds. `save.recordsOutcome` writes the verdict onto the casting and
+    // `look` reports it, which is the door gate G1's ruling required.
+    'zone-of-truth',
   ];
 
   it('records the departures rather than deleting the rows', () => {

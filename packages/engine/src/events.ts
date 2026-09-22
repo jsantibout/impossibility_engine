@@ -2010,6 +2010,36 @@ export type GameEvent =
       readonly seen: boolean;
       readonly command?: CommandStamp;
     }
+  /**
+   * What a running casting's saving throw came to, for one creature it asked.
+   *
+   * SRD Zone of Truth: "a creature that enters the spell's area for the first
+   * time on a turn or starts its turn there makes a Charisma saving throw ...
+   * You know whether a creature succeeds or fails on this save." What the
+   * failure buys is not a condition and not any other state the engine holds,
+   * so the verdict *is* the effect — and it is written down as an event for
+   * the reason every other change to state is: nothing else may write
+   * `state.ongoing`, and a fact the fold could not replay is a fact that does
+   * not survive a reload.
+   *
+   * **A record, in a region a seam owns, and not a derived pass.** Nobody
+   * decides this and the die has already been thrown; what a derived pass
+   * could not do is *know*, because the roll is over by the time the fold sees
+   * it. `fold/ongoing.ts` upserts it onto the casting keyed by `target`, so a
+   * creature asked twice has one answer and it is the newer one.
+   *
+   * **It is filed here, beside the declarations, for no reason but where the
+   * union had room** — it is the `ongoing` seam's and says so, and the
+   * `*_EVENTS` list is what decides that rather than the neighbours.
+   */
+  | {
+      readonly type: 'casting-save-recorded';
+      readonly castingId: string;
+      readonly target: CharacterId;
+      /** True when the creature failed, which is the half the book's sentence acts on. */
+      readonly failed: boolean;
+      readonly command?: CommandStamp;
+    }
   | {
       readonly type: 'cover-declared';
       readonly from: CharacterId;

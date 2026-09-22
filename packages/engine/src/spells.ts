@@ -143,6 +143,24 @@ export interface Concentration {
 }
 
 /**
+ * What one creature's saving throw against a running casting came to.
+ *
+ * A verdict and nothing else. Not the die, not the total and not the DC — the
+ * roll has its own `roll-recorded` in the log, where every other roll's
+ * numbers are, and a second copy here would be two answers to one question.
+ * What this is for is the sentence SRD Zone of Truth prints: somebody at the
+ * table knows whether the creature made it.
+ *
+ * `failed` rather than `succeeded`, because a failure is what the book's
+ * sentence is about and a field named for the thing that happens reads the way
+ * the rule does.
+ */
+export interface CastingSaveOutcome {
+  readonly who: string;
+  readonly failed: boolean;
+}
+
+/**
  * A casting that is still mechanically running.
  *
  * **This is not the casting; it is what the casting left behind.** The casting
@@ -312,6 +330,36 @@ export interface OngoingSpell {
    * rather than a creature.
    */
   readonly aimed: readonly string[];
+  /**
+   * What this casting's saving throw came to, per creature it asked, sorted
+   * by who.
+   *
+   * SRD Zone of Truth: "a creature that enters the spell's area for the first
+   * time on a turn or starts its turn there makes a Charisma saving throw ...
+   * **You know whether a creature succeeds or fails on this save.**" What a
+   * failure buys is not a condition and not any other state this engine holds,
+   * so the verdict is the whole of what the spell leaves behind that the rules
+   * can see. `save.recordsOutcome` is what asks for it to be kept.
+   *
+   * **Not `aimed`, and the reason is the shape of that field rather than a
+   * preference.** `aimed` is written once at the cast and thereafter only ever
+   * *shrinks* — `withoutTarget` is a filter — and `aimedAt` returns nothing at
+   * all for an area, because standing in an area is not being cast on. A
+   * trigger firing ten minutes later has nothing there to add a creature to.
+   * This grows, at a moment the cast could not know about.
+   *
+   * **One answer per creature, replaced.** A creature that walks out of the
+   * Sphere and back in is asked again, and the book asks again rather than
+   * remembering — so `casting-save-recorded` is an upsert keyed by `who`, and
+   * the list stays sorted so two logs that asked in different orders fold to
+   * one state. Both verdicts are kept and not only the failures: the sentence
+   * says the caster knows whether a creature succeeds **or** fails, and a list
+   * of failures alone would answer "has this one been asked yet" with silence.
+   *
+   * Absent on every casting that records none, which is every casting but the
+   * one spell — the reading every optional field on this record takes.
+   */
+  readonly saves?: readonly CastingSaveOutcome[];
   /**
    * Where this casting is, for a spell that holds a point in the scene.
    *
