@@ -120,16 +120,22 @@ export type StandingBonusApplies = BonusApplies | 'damage';
  * > saves, whose penalty would otherwise land on every save the target ever
  * > makes, including the one the spell itself calls for.
  *
- * **What it is deliberately not offered on**, because there would be nobody to
- * read it: an attack roll, whose gatherer is handed no ability at all, and an
- * Armour Class, which is not a roll and is made with nothing. The validator
- * refuses both rather than letting a definition carry a filter that would
- * silently widen back to the whole family.
+ * **One readable pairing per filter, and the validator holds them to it**: a
+ * skill on an ability check, an ability on a saving throw, and nothing else.
+ * That is not a taste — it is which gatherer is handed which fact.
+ * {@link bonusesFor}'s `of` comes from `checkBonuses`, which is told the skill
+ * and not the ability, and from `savingSupport`, which is told the ability and
+ * has no skill to be told; the attack gatherer is told neither. So a skill
+ * named on a save reaches nothing, an ability named on an attack widens back
+ * to every swing, an ability named on an *ability check* withholds the bonus
+ * from every check there is, and an Armour Class is not a roll and is made
+ * with nothing. "Dexterity (Stealth)" is written `{ skill: 'stealth' }` and
+ * loses nothing, because a skill names its own governing ability.
  */
 export interface BonusNarrowing {
-  /** The ability the roll is made with. Not offered on an attack roll or an AC. */
+  /** The ability the roll is made with. Readable on a saving throw alone. */
   readonly ability?: Ability;
-  /** The skill the check uses. Only meaningful on an ability check. */
+  /** The skill the check uses. Readable on an ability check alone. */
   readonly skill?: Skill;
 }
 

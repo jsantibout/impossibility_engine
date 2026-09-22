@@ -18,6 +18,7 @@ import {
   CREATURE_TYPES,
   DM_DECIDES,
   modifierRidersOf,
+  statedChoiceCollides,
   statedChoiceReaches,
 } from './spell-definitions.js';
 import type {
@@ -1218,13 +1219,25 @@ function checkBonusGrant(
  *
  * **The fourth is this engine's rather than the book's, and is worth the
  * refusal for exactly that reason.** A narrowing is only ever *read* where a
- * gatherer is told the fact: `checkBonuses` takes a skill and `savingSupport`
- * takes the ability the save is made with, and the attack gatherer takes
- * neither. So an ability named on an `attack` would compile, land, and then
- * widen silently back to every swing its holder made — and an Armour Class is
- * not a roll at all and is made with nothing. Both are refused here, and the
- * day the attack path passes what it already knows (`RollQuery.ability` holds
- * it) this is the one place that stops refusing.
+ * gatherer is told the fact, and the two gatherers are told **one fact each**:
+ * `checkBonuses` takes a skill and `savingSupport` takes the ability the save
+ * is made with. So the readable pairings are the two the SRD writes — a skill
+ * on an ability check (Guidance, Pass without Trace, Enthrall) and an ability
+ * on a saving throw (Slow's "−2 penalty to … Dexterity saving throws") — and
+ * every other pairing is refused rather than left to land and reach nothing.
+ *
+ * Three of the refusals are worth naming. An ability on an **attack** would
+ * widen silently back to every swing its holder made, because that gatherer is
+ * told nothing at all; an **Armour Class** is not a roll and is made with
+ * nothing; and an ability on an **ability check** is refused even though the
+ * roll knows one, because `checkBonuses` is not handed it — a filter nothing
+ * answers withholds the bonus from every check there is, which is the *quiet*
+ * direction of the same failure. A skill names its own governing ability, so
+ * "Dexterity (Stealth)" is `{ skill: 'stealth' }` and loses nothing.
+ *
+ * Each of those lifts the day the gatherer passes what it already knows —
+ * `RollQuery.ability` holds it for an attack, and the four check callers all
+ * have one — and this is the single place that would stop refusing.
  */
 function checkBonusNarrowing(
   only: BonusNarrowing,
@@ -1271,19 +1284,23 @@ function checkBonusNarrowing(
     }
   }
 
-  const unreadable = applies.filter((kind) =>
-    only.skill === undefined ? kind === 'attack' || kind === 'ac' : kind !== 'ability-check',
-  );
-  if (unreadable.length > 0) {
+  // One readable family per filter, and the filters are asked separately so a
+  // narrowing that names both draws the problem each half has.
+  const unreadable = (filter: 'skill' | 'ability', reads: BonusApplies): void => {
+    if (only[filter] === undefined) return;
+    const wrong = applies.filter((kind) => kind !== reads);
+    if (wrong.length === 0) return;
     found.push({
-      field: `${path}.only`,
+      field: `${path}.only.${filter}`,
       code: 'narrowing_unreadable',
       reason:
-        only.skill === undefined
-          ? `nothing narrows a bonus on ${unreadable.join(' or ')} by an ability: an Armour Class is not a roll, and the attack gatherer is told no ability`
-          : `a ${unreadable.join(' or ')} uses no skill`,
+        filter === 'skill'
+          ? `a ${wrong.join(' or ')} uses no skill`
+          : `nothing narrows a bonus on ${wrong.join(' or ')} by an ability: only the saving throw gatherer is told which ability the roll was made with`,
     });
-  }
+  };
+  unreadable('skill', 'ability-check');
+  unreadable('ability', 'save');
 }
 
 /** The `roll-mode` rules, shared with the `mode` rider that is that kind minus its save. */
@@ -2462,6 +2479,20 @@ export function checkSpellDefinition(
         field: 'choiceStated',
         code: 'stated_choice_reaches_nothing',
         reason: `nothing in this spell's effects holds a ${choice.of} for the casting's choice to replace`,
+      });
+    }
+
+    // **And it may not be printed against a pinned sibling.** An ability and a
+    // skill agree or they describe a roll nobody makes, and a substitution
+    // replaces one of the two — so a definition that writes both and offers
+    // one of them to the caster validates here and then contradicts itself at
+    // the table, which is the one way "the definition declares the slot and
+    // the casting fills it" could still land a selector nothing matches.
+    if (known && statedChoiceCollides(definition.effects, choice.of)) {
+      found.push({
+        field: 'choiceStated',
+        code: 'stated_choice_collides',
+        reason: `this spell pins the ${choice.of === 'ability' ? 'skill' : 'ability'} beside the ${choice.of} the casting chooses, and the two would have to agree; drop the pinned one`,
       });
     }
   }

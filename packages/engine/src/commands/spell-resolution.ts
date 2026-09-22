@@ -86,7 +86,12 @@ import {
   damageTypesDealt,
 } from '../spell-definitions.js';
 import { type CastingRoute } from '../spellcasting.js';
-import { castingSource, type CastingNumbers, type CastingTime } from '../spells.js';
+import {
+  castingSource,
+  type CastingNumbers,
+  type CastingTime,
+  type StatedChoicePin,
+} from '../spells.js';
 import {
   actionRulesOn,
   castingDamageFeatures,
@@ -291,6 +296,9 @@ export function resolveDeclaredCast(
     // normalised it, and it is idempotent precisely so that the settlement
     // does not have to spell the copy out a second time.
     const stated = statedFacts(pending);
+    // And the choice, in the record's shape: the declaration kept the bare
+    // value and this is where it becomes a pair. See `choicePinned`.
+    const settledChoice = choicePinned(definition, pending);
 
     // **And what their own features do to the damage, asked again here.** The
     // route was re-derived just above for the reason this is: both are facts
@@ -368,6 +376,10 @@ export function resolveDeclaredCast(
               ...(pending.area?.anchoring === undefined
                 ? {}
                 : { anchoring: pending.area.anchoring }),
+              // The pair, built here for the reason the atomic path builds it:
+              // a record is read again on a turn boundary and may not ask the
+              // book how to apply an answer it already holds.
+              ...(settledChoice === undefined ? {} : { choice: settledChoice }),
               // The designation and the stated type reach the record the area
               // detectors read, exactly as they do on the atomic path: without
               // them a held Spirit Guardians catches a creature its caster
@@ -1289,6 +1301,10 @@ function resolveOnTargets(
   // empty list, which this must never do: see `foughtFor`.
   const fought = foughtFor(request);
 
+  // The fifth stated fact, in the shape the record wants rather than the one
+  // the declaration wants. See `choicePinned`.
+  const pinned = choicePinned(definition, request);
+
   const ongoingWith = (): OngoingRecordPlan => ({
     spellId: definition.id,
     // **Three answers, stated rather than inferred.** A Range: Self spell is
@@ -1304,6 +1320,8 @@ function resolveOnTargets(
     // anything else. **A carried area records no position**: `caster` and the
     // definition's `origin: 'self'` already say where it is.
     ...stated,
+    // And the choice as the pair a record keeps — see `choicePinned`.
+    ...(pinned === undefined ? {} : { choice: pinned }),
   });
 
   /**
@@ -1616,6 +1634,10 @@ function resolveOnTargets(
               // `statedFacts` — see where it is bound above.
               ...stated,
               ...(fought === undefined ? {} : { fought }),
+              // The bare value, not the pair: a settlement re-reads the whole
+              // definition anyway, so the half it cannot work out again is the
+              // caster's answer and nothing else.
+              ...(request.choice === undefined ? {} : { choice: request.choice }),
               // The fourth, and the one settlement could not possibly work
               // out again: where the caster said they were going.
               ...(request.teleportTo === undefined ? {} : { teleportTo: request.teleportTo }),
@@ -2393,12 +2415,17 @@ interface OngoingRecordPlan {
   readonly unaffected?: readonly string[];
   /** The damage type the casting was declared with, where the spell prints two. */
   readonly damageType?: string;
-  /** The value the caster chose, where the spell prints a choice. */
-  readonly choice?: string;
+  /** The choice the caster made, where the spell prints one. */
+  readonly choice?: StatedChoicePin;
 }
 
 /**
- * The facts a caster states at the casting, normalised once.
+ * The two facts a caster states at the casting whose shape both readers share,
+ * normalised once.
+ *
+ * The other two are bound beside it: `fought` because it must not elide an
+ * empty list, and the choice because the declaration wants the bare value and
+ * the record wants the pair — see {@link choicePinned}.
  *
  * SRD Spirit Guardians asks for both in one paragraph — "3d8 Radiant damage
  * (if you are good or neutral) or 3d8 Necrotic damage (if you are evil)", and
@@ -2422,11 +2449,9 @@ interface OngoingRecordPlan {
  */
 function statedFacts(stated: {
   readonly damageType?: string;
-  readonly choice?: string;
   readonly unaffected?: readonly CharacterId[];
 }): {
   readonly damageType?: string;
-  readonly choice?: string;
   readonly unaffected?: readonly CharacterId[];
 } {
   return {
@@ -2434,7 +2459,29 @@ function statedFacts(stated: {
       ? {}
       : { unaffected: [...stated.unaffected].sort() }),
     ...(stated.damageType === undefined ? {} : { damageType: stated.damageType }),
-    ...(stated.choice === undefined ? {} : { choice: stated.choice }),
   };
+}
+
+/**
+ * The caster's choice as the **record** keeps it, which is not how the
+ * declaration keeps it.
+ *
+ * A held casting re-reads the whole definition at settlement — the effects,
+ * the area, the route — so carrying the bare value there is carrying the only
+ * half a settlement cannot work out again. An ongoing record is the other
+ * thing: its trigger fires on a turn boundary long afterwards, and
+ * `settleAreaEffects` is written on the rule that "the clause is the record's,
+ * not the book's". So the record takes the pair, and the catalogue is not
+ * asked again how to apply an answer already written down.
+ *
+ * Bound beside {@link statedFacts} rather than through it, exactly as `fought`
+ * is, and for the same kind of reason: the two readers want two shapes.
+ */
+function choicePinned(
+  definition: SpellDefinition,
+  stated: { readonly choice?: string },
+): StatedChoicePin | undefined {
+  if (definition.choiceStated === undefined || stated.choice === undefined) return undefined;
+  return { of: definition.choiceStated.of, value: stated.choice };
 }
 

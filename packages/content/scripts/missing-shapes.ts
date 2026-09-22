@@ -2710,16 +2710,16 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'the die joins every attack the caster lands on this target for the hour, where the extra dice a spell hangs belong to the one attack its casting was declared on — Divine Smite settles at the hit and this waits for the next one.',
     },
     {
+      marker: 'roll-mode',
+      clause: 'The target has Disadvantage on ability checks made with the chosen ability',
+      why: 'a-choice-made-at-the-casting',
+      note: 'the shape is built and this entry is the conservative half of what is left. `choiceStated` records the ability the caster names and `statedChoice` puts it on the selector, which is Enhance Ability sentence with the mode reversed — so nothing blocks the clause and the only reason it is unwritten is that nobody has written this definition. There is no value here for that: `engine` says the engine executes it and `table` says it is fiction, and both would be false of a definition whose effects are empty. So it stays counted until the definition is written, which is the direction that over-reports a debt rather than losing one.',
+    },
+    {
       marker: 'extra-damage',
       clause: 'whenever you hit it with an attack roll',
       why: 'a-rider-on-a-later-weapon-attack',
       note: 'the trigger half of the same sentence, and the half that makes it a standing rider rather than a settlement: there is no later attack for a finished casting to read.',
-    },
-    {
-      marker: 'roll-mode',
-      clause: 'The target has Disadvantage on ability checks made with the chosen ability',
-      why: 'a-choice-made-at-the-casting',
-      note: 'the ability is chosen when the spell is cast and the modifier selects by it, so the modifier cannot be written until a per-casting choice has somewhere to be recorded — the clause the roll-modifier vocabulary names Hex for by name.',
     },
     {
       marker: 'hit-points',

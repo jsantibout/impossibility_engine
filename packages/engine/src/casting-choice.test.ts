@@ -201,7 +201,10 @@ describe('the chosen value is what lands, and it is pinned', () => {
       'fails-the-save',
     );
     const running = Object.values(state.ongoing).find((one) => one.spellId === 'blindness-deafness');
-    expect(running?.choice).toBe('deafened');
+    // The pair, not the value: which field the answer replaces is a fact about
+    // the definition, and a record that kept only the value would ask the
+    // catalogue for the other half every time a later trigger fired.
+    expect(running?.choice).toEqual({ of: 'condition', value: 'deafened' });
   });
 
   /**
@@ -375,6 +378,48 @@ describe('the validator refuses a choice nothing could read', () => {
       codes({ ...base, choiceStated: { of: 'condition', options: ['blinded', 'deafened'] } }),
     ).toEqual([]);
   });
+
+  /**
+   * An ability and a skill are a pair and must agree, and a substitution
+   * replaces one of the two. A definition that prints both and offers one to
+   * the caster validates and then contradicts itself at the table — a
+   * selector matching nothing for ever, silently.
+   */
+  it('refuses a choice printed against a pinned sibling', () => {
+    const insight: SpellDefinition = {
+      ...base,
+      effects: [
+        {
+          kind: 'roll-mode',
+          modifier: {
+            mode: 'advantage',
+            selector: { roll: 'ability-check', relation: 'roller', ability: 'wis', skill: 'insight' },
+          },
+        },
+      ],
+      durationSeconds: 60,
+      choiceStated: { of: 'skill', options: ['insight', 'stealth'] },
+    };
+    expect(codes(insight)).toContain('stated_choice_collides');
+  });
+
+  it('accepts the same choice once the sibling is dropped', () => {
+    const free: SpellDefinition = {
+      ...base,
+      effects: [
+        {
+          kind: 'roll-mode',
+          modifier: {
+            mode: 'advantage',
+            selector: { roll: 'ability-check', relation: 'roller', skill: 'insight' },
+          },
+        },
+      ],
+      durationSeconds: 60,
+      choiceStated: { of: 'skill', options: ['insight', 'stealth'] },
+    };
+    expect(codes(free)).toEqual([]);
+  });
 });
 
 describe('the validator keeps a bonus narrowing where it can be read', () => {
@@ -411,8 +456,24 @@ describe('the validator keeps a bonus narrowing where it can be read', () => {
     expect(codes(buff({ skill: 'religion' }, ['save']))).toContain('narrowing_unreadable');
   });
 
+  /** SRD Slow: "a -2 penalty to ... Dexterity saving throws". */
+  it('accepts an ability on a saving throw, which is told one', () => {
+    expect(codes(buff({ ability: 'dex' }, ['save']))).toEqual([]);
+  });
+
+  /**
+   * One readable pairing per filter. An ability check is made *with* an
+   * ability and `checkBonuses` is not handed it, so the filter would withhold
+   * the bonus from every check there is — the quiet direction of the same
+   * failure the attack roll fails in the loud one.
+   */
+  it('refuses an ability on an ability check, whose gatherer is told no ability', () => {
+    expect(codes(buff({ ability: 'str' }, ['ability-check']))).toContain('narrowing_unreadable');
+  });
+
   it('refuses a narrowing on an attack roll, which gathers none', () => {
     expect(codes(buff({ ability: 'str' }, ['attack']))).toContain('narrowing_unreadable');
+    expect(codes(buff({ skill: 'religion' }, ['attack']))).toContain('narrowing_unreadable');
   });
 
   it('refuses a skill and an ability that disagree', () => {

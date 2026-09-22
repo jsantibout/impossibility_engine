@@ -2620,11 +2620,19 @@ export function statedDamageType(
  * **The definition declares the slot and the casting fills it.** A `save` with
  * no condition, a selector that names no skill, a bonus with no narrowing at
  * all: every one of them is returned untouched, so a choice never *creates* a
- * field. That is what keeps the validator honest in both directions — the
- * selector and narrowing rules it already runs over the definition are the
- * same rules the substituted value satisfies, because the value replaces one
- * of the same kind; and a choice that would have landed nowhere is a
- * reachability refusal at authoring rather than a clause silently dropped.
+ * field. One half of that keeps the validator honest without further help — a
+ * choice that would have landed nowhere is `stated_choice_reaches_nothing` at
+ * authoring rather than a clause silently dropped.
+ *
+ * **The other half needs a rule, because a replaced value can disagree with a
+ * neighbour that was not replaced.** A {@link RollSelector} may name an
+ * ability *and* a skill and they must agree; so the definition that prints
+ * `{ ability: 'wis', skill: 'insight' }` and offers a *skill* to choose would
+ * validate, then produce `{ ability: 'wis', skill: 'stealth' }` at the table —
+ * a selector describing a roll nobody makes, which matches nothing for ever
+ * and says nothing about it. So the validator refuses a choice printed against
+ * a pinned sibling (`stated_choice_collides`), and what is left really is
+ * "one field of the same kind replaced by another".
  *
  * Absent for every spell that prints no choice, where this is the identity
  * function.
@@ -2662,6 +2670,40 @@ export function statedChoice(
       return { ...effect, only: { ...effect.only, [key]: chosen } } as SpellEffect;
     }
     return effect;
+  });
+}
+
+/**
+ * A sibling field a substitution would leave disagreeing with what it wrote.
+ *
+ * An ability and a skill are a **pair** wherever either is written: a
+ * {@link RollSelector} that names both must have them agree, and so must a
+ * {@link BonusNarrowing}. {@link statedChoice} replaces one of the two and
+ * leaves the other alone, so a definition that pins the sibling has printed a
+ * value the casting is about to contradict — and the contradiction is exactly
+ * the one the validator already refuses when an author writes it by hand.
+ *
+ * Asked of the effects rather than of the chosen value, because it is true or
+ * false before anybody chooses anything: it is a property of the definition.
+ *
+ * Nothing to ask for `of: 'condition'`, which has no sibling — a condition
+ * name stands alone wherever it is written.
+ */
+export function statedChoiceCollides(
+  effects: readonly SpellEffect[],
+  of: StatedChoiceOf,
+): boolean {
+  if (of === 'condition') return false;
+  const sibling = of === 'ability' ? 'skill' : 'ability';
+  return effects.some((effect) => {
+    if (effect.kind === 'roll-mode') {
+      const selector = effect.modifier.selector;
+      return selector[of] !== undefined && selector[sibling] !== undefined;
+    }
+    if (effect.kind === 'buff' && effect.only !== undefined) {
+      return effect.only[of] !== undefined && effect.only[sibling] !== undefined;
+    }
+    return false;
   });
 }
 

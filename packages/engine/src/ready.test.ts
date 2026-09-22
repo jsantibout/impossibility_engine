@@ -485,10 +485,12 @@ describe('the hold ends but the spell does not', () => {
 
     // "(your choice)" is stated at the **Ready**, which is where SRD spends
     // the slot and so where every other stated fact is said too: a release
-    // takes no fresh request about what the spell is.
+    // takes no fresh request about what the spell is. **Deafened**, which is
+    // not the value the definition prints — so a release that dropped the
+    // readied answer would blind the cultist and be caught below.
     const log = nextTurn(
       ready(
-        { kind: 'spell', spellId: 'blindness-deafness', slotLevel: 2, choice: 'blinded' },
+        { kind: 'spell', spellId: 'blindness-deafness', slotLevel: 2, choice: 'deafened' },
         caster,
       ),
     );
@@ -500,7 +502,7 @@ describe('the hold ends but the spell does not', () => {
     expect(out.spell.outcomes[0]?.affected).toBe(true);
 
     const after = fold('seed', [...log, ...out.events]);
-    expect(after.creatures.cultist!.conditions.conditions).toContain('blinded');
+    expect(after.creatures.cultist!.conditions.conditions).toEqual(['deafened']);
     expect(after.creatures.archer!.concentration).toBeNull();
   });
 });
