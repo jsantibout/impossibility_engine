@@ -881,6 +881,11 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
       // And the per-day limit beside it, which ten of these lines print: a
       // Dretch's Fetid Cloud, a Treant's Animate Trees, a Sphinx's Roar.
       ...(line.perDay === undefined ? {} : { perDay: line.perDay }),
+      // And the save, where the sentence is the book's other template. The
+      // line is still one no attack could be read out of, which is why it is
+      // here and not among the attacks; what the save adds is a second thing
+      // a caller may do with it besides quote it.
+      ...(line.save === undefined ? {} : { save: line.save }),
     }));
 
   // **The Bonus Actions section, carried whole and executed not at all.** A

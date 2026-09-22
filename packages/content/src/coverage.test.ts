@@ -16,6 +16,8 @@ import {
   inconsistencies,
   isExecuted,
   isExecutedFeature,
+  isReadLine,
+  statBlockLines,
 } from '../scripts/coverage-data.js';
 import { entryFor, isCompleteItem, magicItemEntries } from '../scripts/magic-items.js';
 import { bestiaryRow, renderReport } from '../scripts/coverage.js';
@@ -449,10 +451,10 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
    * The claim the row would be dishonest without, in both directions. A
    * printed line is a name and the book's sentence, **plus** at most the
    * fields a parser fills when it read that sentence — an attack's numbers, a
-   * trait's mechanic, a Multiattack's sequence, and what the heading says
-   * brings the line back. A field beyond them would be a population the row is
-   * not counting, so it fails here rather than quietly joining the *read*
-   * column.
+   * trait's mechanic, the DC and dice of a save the line forces, a
+   * Multiattack's sequence, and what the heading says brings the line back. A
+   * field beyond them would be a population the row is not counting, so it
+   * fails here rather than quietly joining the *read* column.
    *
    * `recharge` and `perDay` are read off the **name** rather than the
    * sentence, which is why they change nothing about what "read" counts: a
@@ -480,6 +482,7 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
       'name',
       'perDay',
       'recharge',
+      'save',
       'text',
       'trait',
     ]);
@@ -491,15 +494,10 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
    * more read lines than printed ones would be counting something else.
    */
   it('counts the read lines as a part of the printed ones', () => {
+    // Asked of the generator's own predicate rather than of a third copy of
+    // the rule: two copies had already come to disagree once.
     const read = SRD_CONTENT.monsters.reduce(
-      (sum, m) =>
-        sum +
-        [...m.traits, ...m.actions, ...m.bonusActions, ...m.reactions, ...m.legendaryActions].filter(
-          (line) =>
-            line.attack !== undefined ||
-            line.trait !== undefined ||
-            line.multiattack !== undefined,
-        ).length,
+      (sum, m) => sum + statBlockLines(m).filter(isReadLine).length,
       0,
     );
 

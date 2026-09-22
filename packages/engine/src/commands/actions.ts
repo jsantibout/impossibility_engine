@@ -15,6 +15,8 @@
 
 import { type CommandIdentity, once } from '../idempotency.js';
 import {
+  ABILITY_NAMES,
+  type Ability,
   type CharacterId,
   type ContextRequest,
   err,
@@ -36,18 +38,26 @@ import {
   type ActionSlot,
 } from '../combat.js';
 import { type Bonus, type ModeSource } from '../bonuses.js';
-import { rollAbilityCheck, type D20TestResult } from '../checks.js';
+import { rollAbilityCheck, rollSavingThrow, type D20TestResult } from '../checks.js';
 import { isDown } from '../vitals.js';
 import {
   actionRulesOn,
   canSee,
   conditionImmunitiesOf,
   effectiveConditions,
+  evadesHalfDamage,
   rollModesFor,
   sheetAsItStands,
   speedOf,
 } from '../standing.js';
-import { checkBonuses, recordD20Test } from './rolls.js';
+import {
+  checkBonuses,
+  recordD20Test,
+  rollSpellDice,
+  savingSupport,
+  withFlatAddend,
+} from './rolls.js';
+import { dealSpellDamage } from './damage.js';
 import {
   applyEvent,
   type GameEvent,
@@ -71,7 +81,13 @@ import {
 import { tallied, type SlotKind } from '../resources.js';
 import { type Content } from '../content.js';
 import { durationSecondsAt } from '../spell-definitions.js';
-import { castSpell, chooseRoute, type Supply, nextCastingId } from './casting.js';
+import {
+  castSpell,
+  chooseRoute,
+  type ConcentrationConsequence,
+  type Supply,
+  nextCastingId,
+} from './casting.js';
 import { creatureOf, unknownCreature } from './command.js';
 import { routeLabel } from './item-casting.js';
 import { schedule } from './conditions.js';
@@ -566,6 +582,295 @@ export function takeStatedAction(
         ],
         unverified: [
           `${id}'s block prints "${line.name}: ${line.text}" — the engine does not apply that; a DM does`,
+        ],
+        duplicate: false,
+      });
+    },
+  );
+}
+
+/** Which line the caller is forcing, and who it caught. */
+export interface PrintedSaveCommand extends CommandIdentity {
+  readonly line: string;
+  /**
+   * The creatures the line reached, named by the caller.
+   *
+   * **The one fact the table supplies, and it is not a number the engine
+   * owns.** "Each creature in a 15-foot Cone" wants an origin and a facing
+   * nobody has declared, and a Cone measured out of a sentence would be the
+   * Engine inventing a fact rather than adjudicating one. So the head count
+   * is the DM's decision — the kind their door is *for* — and everything a
+   * die decides stays here. Absent or empty is asked about rather than
+   * refused, because a missing fact is not a wrong one.
+   */
+  readonly targets?: readonly CharacterId[];
+}
+
+/** What the line did to one creature standing in it. */
+export interface PrintedSaveOnACreature {
+  readonly target: CharacterId;
+  readonly save: D20TestResult;
+  /** What landed, after the target's own Resistance and the rest. */
+  readonly damage: number;
+  readonly concentration: ConcentrationConsequence;
+}
+
+export interface PrintedSaveOutcome {
+  readonly events: readonly GameEvent[];
+  /** One entry per creature named, in the order the caller named them. */
+  readonly outcomes: readonly PrintedSaveOnACreature[];
+  /**
+   * The part of the line the engine did not settle — always the targeting
+   * clause, because who stands in a Cone is the table's answer and the
+   * caller's list is what it said.
+   */
+  readonly unverified: readonly string[];
+  readonly duplicate: boolean;
+}
+
+/**
+ * Force the saving throw a creature's stat block prints, at the DC and dice
+ * the block prints.
+ *
+ * `_Dexterity Saving Throw:_ DC 12, each creature in a 15-foot Cone.
+ * _Failure:_ 17 (5d6) Fire damage. _Success:_ Half damage.` is a template as
+ * regular as `_Melee Attack Roll:_`, printed on a third of the bestiary, and
+ * every number in it is the book's. A DC the caller stated would be a caller
+ * stating the rules, and a die face the caller stated would be worse; both
+ * come out of the block and out of `rolls.ts` respectively.
+ *
+ * **It is the second door on one line, not a replacement for the first.**
+ * {@link takeStatedAction} spends the Action and hands the sentence back, for
+ * every line including this one, and it still does — a DM who would rather
+ * adjudicate the breath themselves has lost nothing. This door is for the
+ * caller that wants the engine to roll, and it refuses `line_states_no_save`
+ * for a line whose sentence says something the reader could not structure.
+ *
+ * **The economy is the one {@link takeStatedAction} already spends**, in the
+ * same order and for the same reason: the recharge and the day's uses are
+ * checked *before* the Action, so a refusal leaves no footprint, and the same
+ * `stated-action-taken` goes into the log, because the same line was taken.
+ *
+ * **No Reaction window opens**, which is the stated limit every spell's
+ * damage already records: `dealSpellDamage` is the path, Uncanny Dodge
+ * answers a sword, and a breath weapon is not one. So nothing here can close
+ * a `damage-rolled` a defender was offered — there is none to close, and the
+ * fold's one-held-roll rule is never asked to hold a Cone's worth.
+ *
+ * SRD Evasion is read off each **target**, because it is a defence: the
+ * Rogue standing in the Cone is the one who evades it, exactly as they evade
+ * a Fireball.
+ */
+export function forcePrintedSave(
+  state: GameState,
+  id: CharacterId,
+  command: PrintedSaveCommand,
+  supply: Supply,
+): Result<PrintedSaveOutcome> {
+  return once(
+    state,
+    `printed-save:${id}`,
+    command,
+    () => ({ events: [], outcomes: [], unverified: [], duplicate: true }),
+    (stamp) => {
+      // A mandatory effect this creature has been caught by, or a turn whose
+      // start has not arrived. **After the duplicate check, never before it.**
+      const owedHere = mayAct(state, id);
+      if (owedHere !== null) return owedHere;
+
+      const creature = creatureOf(state, id);
+      if (creature === null) return unknownCreature(id, 'has no record here yet; add it first');
+      if (state.combat === null) {
+        return err('not_in_combat', 'there is no Action to spend outside combat');
+      }
+
+      // Read off the sheet, where `creature-added` pinned the block's own
+      // lines; nothing here opens a catalogue and nothing branches on a name.
+      const line = statedActionOf(creature.sheet, command.line);
+      if (line === null) {
+        return err(
+          'no_such_line',
+          `no line called ${command.line} is printed under this creature's Actions with nothing the engine could read beneath it; a heading the parser did read, and a heading printed under another section, are each taken by the command that owns them`,
+        );
+      }
+
+      const printed = line.save;
+      if (printed === undefined) {
+        return err(
+          'line_states_no_save',
+          `${line.name} states no saving throw this engine could read; take it with the door that hands the sentence over, and a DM applies what it says`,
+        );
+      }
+
+      // Who it caught, which is the table's to say. Asked for rather than
+      // refused: a head count nobody has stated is a fact that is missing
+      // rather than a call that is wrong.
+      const targets = command.targets ?? [];
+      if (targets.length === 0) {
+        return needsContext(
+          'undeclared_targets',
+          `${line.name} reads "${printed.targets}", and nobody has said which creatures that is`,
+          [
+            {
+              kind: 'creature',
+              subject: id,
+              need: `the creatures ${line.name} caught — the line reads "${printed.targets}"`,
+              because:
+                'an area is measured from an origin and a facing the engine has not been told; the saving throws are its own',
+              satisfyWith: 'forcePrintedSave again with its targets filled in',
+            },
+          ],
+        );
+      }
+      for (const target of targets) {
+        if (state.creatures[target] === undefined) return unknownCreature(target);
+      }
+
+      // **A line already used and not yet back**, and **a line whose day's
+      // worth is gone** — both before the economy, because a refusal after
+      // the Action is gone is a refusal with a footprint.
+      const recharge = line.recharge ?? null;
+      if (creature.expendedLines.includes(line.name)) {
+        return err(
+          'line_expended',
+          `${id} has used ${line.name} and not got it back${
+            recharge === null ? '' : `: ${describeRecharge(recharge)}`
+          }`,
+        );
+      }
+      const perDay = line.perDay ?? null;
+      const usedToday = tallied(creature.resources, perDayTallyKey(line.name));
+      if (perDay !== null && usedToday >= perDay) {
+        return err(
+          'daily_limit_reached',
+          `${id} has used ${line.name} ${usedToday} times today: ${describePerDay(perDay)}`,
+        );
+      }
+
+      const spent = spendAction(state.combat, id, creature.conditions, {
+        rules: actionRulesOn(state, id),
+      });
+      if (!spent.ok) return spent;
+
+      const events: GameEvent[] = [
+        { type: 'action-spent', id },
+        // SRD *Monsters*: "a monster can use the stat block part once."
+        ...(recharge === null
+          ? []
+          : [{ type: 'printed-line-expended' as const, id, line: line.name }]),
+        ...(perDay === null
+          ? []
+          : [
+              {
+                type: 'resource-spent' as const,
+                id,
+                key: perDayTallyKey(line.name),
+                amount: 1,
+                tally: 'dawn' as const,
+              },
+            ]),
+        {
+          type: 'stated-action-taken' as const,
+          id,
+          // The **printed** heading rather than what the caller typed.
+          line: line.name,
+          ...(stamp === null ? {} : { command: stamp }),
+        },
+      ];
+
+      const ability: Ability = printed.ability;
+      const outcomes: PrintedSaveOnACreature[] = [];
+      let current = events.reduce(applyEvent, state);
+
+      for (const target of targets) {
+        const victim = current.creatures[target];
+        if (victim === undefined) return unknownCreature(target);
+
+        const support = savingSupport(current, target, victim, ability, {});
+        // The sheet as it stands, so an item that sets the ability this save
+        // is made with reaches the save rather than stopping at the page —
+        // the reading a spell's save already takes.
+        const sheet = sheetAsItStands(current, target) ?? victim.sheet;
+        const save = rollSavingThrow(supply.issuer, supply.rng, sheet, ability, {
+          dc: printed.dc,
+          conditions: support.conditions,
+          modes: support.modes,
+          bonuses: support.bonuses,
+        });
+        if (!save.ok) return save;
+
+        events.push(
+          recordD20Test(
+            target,
+            `${ABILITY_NAMES[ability]} save vs ${line.name}`,
+            save.value,
+            save.value.success ? 'resisted' : 'affected',
+          ),
+        );
+
+        // SRD Evasion, read off the creature standing in it and off the
+        // *line's* own sentence: it triggers on an effect that offers half on
+        // a made Dexterity save, which is a fact about what was printed.
+        const evading = evadesHalfDamage(current, target, ability, printed.onSuccess === 'half');
+
+        // Nothing at all on a success means no damage roll either: the line
+        // did nothing, and rolling would move the generator for no reason.
+        if (save.value.success && (printed.onSuccess === 'none' || evading)) {
+          outcomes.push({
+            target,
+            save: save.value,
+            damage: 0,
+            concentration: { kind: 'none' },
+          });
+          continue;
+        }
+
+        const rolled = rollSpellDice(
+          supply,
+          creature.sheet,
+          line.name,
+          printed.damage.type,
+          printed.damage.dice ?? undefined,
+        );
+        if (!rolled.ok) return rolled;
+        // The addend the book prints inside the parenthesis — "16 (2d10 + 5)"
+        // — which is part of the damage and not a separate effect.
+        const parts = withFlatAddend(rolled.value, printed.damage.flat);
+
+        // SRD: "The halved damage is equal to half the damage that would be
+        // dealt on a failed save" — half of what the line deals, and therefore
+        // *before* the target's own Resistance, which then halves again. With
+        // Evasion it is the failure that is halved; the success took nothing
+        // above.
+        const halve = evading ? !save.value.success : save.value.success;
+        const components = halve
+          ? parts.map((component) => ({
+              ...component,
+              total: Math.floor(component.total / 2),
+            }))
+          : parts;
+
+        const hurt = dealSpellDamage(current, target, components, line.name, supply, { by: id });
+        if (!hurt.ok) return hurt;
+        events.push(...hurt.value.events);
+        current = hurt.value.events.reduce(applyEvent, current);
+
+        outcomes.push({
+          target,
+          save: save.value,
+          damage: hurt.value.amount,
+          concentration: hurt.value.concentration,
+        });
+      }
+
+      return ok({
+        events,
+        outcomes,
+        // The clause the engine did not settle, said out loud in the channel
+        // the whole sentence used to come back in. The caller named who was
+        // caught; nothing here checked that answer against a map.
+        unverified: [
+          `${line.name} reads "${printed.targets}" — the engine rolled the save for the creatures named and measured no area; who stands in it is the table's`,
         ],
         duplicate: false,
       });

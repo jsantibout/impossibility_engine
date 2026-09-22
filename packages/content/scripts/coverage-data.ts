@@ -895,6 +895,7 @@ export interface StatBlockLine {
   readonly text: string;
   readonly attack?: unknown;
   readonly trait?: unknown;
+  readonly save?: unknown;
   readonly multiattack?: unknown;
 }
 
@@ -909,9 +910,15 @@ export const statBlockLines = (
   ...monster.legendaryActions,
 ];
 
-/** A line the parser got structure out of: an attack's numbers, a trait's mechanic. */
+/**
+ * A line the parser got structure out of: an attack's numbers, a trait's
+ * mechanic, the DC and dice of a save a line forces.
+ */
 export const isReadLine = (line: StatBlockLine): boolean =>
-  line.attack !== undefined || line.trait !== undefined || line.multiattack !== undefined;
+  line.attack !== undefined ||
+  line.trait !== undefined ||
+  line.save !== undefined ||
+  line.multiattack !== undefined;
 
 /**
  * A read attack line whose printed rider nothing applies.
@@ -998,19 +1005,15 @@ export function auditBestiary(): BestiaryCoverage {
   const rows = kinds.map(([kind, field]) => ({
     kind,
     printed: SRD_CONTENT.monsters.reduce((sum, monster) => sum + monster[field].length, 0),
-    // A line is *read* when the parser got structure out of its sentence — an
-    // attack's numbers, a trait's mechanic. Counted off the catalogue's own
-    // lines rather than off a list of names, so a shape that stopped matching
-    // shows up as a smaller number rather than as nothing at all.
+    // A line is *read* when the parser got structure out of its sentence, and
+    // {@link isReadLine} is the one place that says so — a second copy of the
+    // rule here was a second answer to one question, and the two came to
+    // disagree the day a save's DC and dice joined the fields a line can
+    // carry. Counted off the catalogue's own lines rather than off a list of
+    // names, so a shape that stopped matching shows up as a smaller number
+    // rather than as nothing at all.
     read: SRD_CONTENT.monsters.reduce(
-      (sum, monster) =>
-        sum +
-        monster[field].filter(
-          (line) =>
-            line.attack !== undefined ||
-            line.trait !== undefined ||
-            line.multiattack !== undefined,
-        ).length,
+      (sum, monster) => sum + monster[field].filter(isReadLine).length,
       0,
     ),
   }));
