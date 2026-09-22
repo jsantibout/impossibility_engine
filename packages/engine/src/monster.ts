@@ -25,7 +25,8 @@ import type {
 import { CREATURE_SIZES, entriesOfBranch, gateOfBranch } from '@ie/srd/schemas';
 import { STATED_BONUS_ACTION_LEDGER } from './combat.js';
 import type { TurnAnchor } from './time.js';
-import type { HitRiderAnchor } from './standing.js';
+import type { HitRiderAnchor, StandingEffect } from './standing.js';
+import type { RollFamily } from './roll-modifiers.js';
 import type { DamageDefenses } from './attack.js';
 import type {
   CharacterSheet,
@@ -839,6 +840,91 @@ function printedSpeeds(speed: Monster['speed']): { readonly speeds?: OtherSpeeds
   return Object.keys(speeds).length === 0 ? {} : { speeds };
 }
 
+/**
+ * The rolls the book's words name, in the engine's own families.
+ *
+ * Two vocabularies rather than one shared string, because they are two
+ * packages' and neither may import the other's: `@ie/srd` types a sentence in
+ * the nouns the book prints, and `RollFamily` is the engine's five.
+ *
+ * **Three of the five, and the other two are a gap rather than a reading.**
+ * In the book Initiative *is* a Dexterity check and a death save *is* a saving
+ * throw, so the SRD's own "it affects all three of these rolls" reaches both;
+ * `roll-modifiers.ts` says as much in as many words. The engine keeps them as
+ * families of their own by convention — "Initiative is granted by that name
+ * rather than as a Dexterity check" — and every definition in `@ie/content`
+ * follows it, naming Initiative where it means Initiative. Fanning one
+ * monster's trait out to five selectors would make Sunlight Sensitivity reach
+ * an Initiative roll that Enhance Ability's "ability checks" does not, which
+ * is one rule written two ways. So the convention is kept and the cost is
+ * recorded: a Shadow in sunlight rolls Initiative and a death save without
+ * the Disadvantage the book gives it. Changing that is a decision about the
+ * `ability-check` family and not about this stat block.
+ */
+const SUNLIT_ROLL: Readonly<Record<'ability-check' | 'attack-roll' | 'saving-throw', RollFamily>> =
+  {
+    'ability-check': 'ability-check',
+    'attack-roll': 'attack',
+    'saving-throw': 'saving-throw',
+  };
+
+/**
+ * A key for one printed line's grant, built out of the block's own id.
+ *
+ * Nothing in the engine may name a catalogue entry, so this is derived from
+ * the two strings the stat block supplied. It is a label rather than a lookup:
+ * only `while-worn` and `while-attuned` read `StandingEffect.feature` as an
+ * item's id, and neither is a requirement any of these carries.
+ */
+const printedTraitKey = (monsterId: string, name: string): string =>
+  `${monsterId}:${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`;
+
+/**
+ * SRD Sunlight Sensitivity and Sunlight Weakness, onto the sheet as the
+ * standing effects they are.
+ *
+ * The rule was built with the sight model and proved on a creature this
+ * repository constructed: an `in-sunlight` {@link StandingRequirement} reading
+ * `lightAt` at the **holder's** own space. What was missing was the creature
+ * carrying it, because the sentence was untyped SRD text — so this is the last
+ * step of that build and not a new mechanic.
+ *
+ * **One effect per roll the sentence names**, because a `roll-mode` grant
+ * carries one selector and the two sentences name two lists: the glossary
+ * settles the wider one at three rolls, and Initiative and the death save are
+ * families of this engine's own rather than members of it. They share a
+ * `name`, which is what a roll reports as its source, so a query that reaches
+ * two of them still reports one Disadvantage — and Advantage is presence, so
+ * counting was never what any of this did.
+ *
+ * Read from the **Traits** section alone, which is where the book prints both.
+ */
+function printedSunlight(monster: Monster): { readonly standing?: readonly StandingEffect[] } {
+  const standing = monster.traits.flatMap((line) =>
+    line.trait === undefined || line.trait.kind !== 'disadvantage-in-sunlight'
+      ? []
+      : line.trait.rolls.map(
+          (roll): StandingEffect => ({
+            feature: printedTraitKey(monster.id, line.name),
+            // The block's own heading, so a refusal or a log names the rule the
+            // book printed rather than a string this file chose.
+            name: line.name,
+            reach: { kind: 'self' },
+            grant: {
+              kind: 'roll-mode',
+              modifier: {
+                mode: 'disadvantage',
+                selector: { roll: SUNLIT_ROLL[roll], relation: 'roller' },
+              },
+            },
+            requires: [{ kind: 'in-sunlight' }],
+          }),
+        ),
+  );
+
+  return standing.length === 0 ? {} : { standing };
+}
+
 export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster {
   const { defenses, caveats } = buildDefenses(monster);
 
@@ -956,6 +1042,10 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
     armorTraining: { light: true, medium: true, heavy: true, shields: true },
     baseSpeed: monster.speed.walk,
     ...printedSpeeds(monster.speed),
+    // The one printed trait an engine rule already spends — see
+    // {@link printedSunlight}. Omitted for every block that prints neither, so
+    // a sheet gains no field it was not given.
+    ...printedSunlight(monster),
     spellcastingAbility: null,
     // Omitted at one, which is the sheet's own reading of the field: "one,
     // unless a feature says otherwise", and an explicit 1 on every stat block

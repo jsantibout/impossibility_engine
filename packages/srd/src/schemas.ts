@@ -459,6 +459,59 @@ export const MonsterTraitSchema = z.discriminatedUnion('kind', [
     /** Always in minutes, whichever unit the block prints. */
     minutes: z.number().int().min(1),
   }),
+  z.object({
+    /**
+     * SRD Sunlight Sensitivity, on five blocks in one sentence: "While in
+     * sunlight, the kobold has Disadvantage on ability checks and attack
+     * rolls." SRD Sunlight Weakness is the same rule over a wider list.
+     *
+     * **The holder, not the target.** The sentence says what happens to the
+     * creature whose block it is, so the rolls named are the ones *it* makes
+     * and the light read is the light where *it* stands.
+     */
+    kind: z.literal('disadvantage-in-sunlight'),
+    /**
+     * Which of its rolls the sentence names, in the order the glossary lists
+     * them.
+     *
+     * **A list rather than two kinds**, because the two sentences differ only
+     * in breadth and one is a subset of the other: Sunlight Sensitivity names
+     * two rolls and Sunlight Weakness says "D20 Tests", which the rules
+     * glossary settles — "D20 Tests encompass the three main d20 rolls of the
+     * game: ability checks, attack rolls, and saving throws." A kind per
+     * breadth would make a homebrew block that names one roll inexpressible
+     * and would put the same rule in two places.
+     */
+    rolls: z
+      .array(z.enum(['ability-check', 'attack-roll', 'saving-throw']))
+      .min(1),
+  }),
+  z.object({
+    /**
+     * SRD Illumination, on five blocks: "The azer sheds Bright Light in a
+     * 10-foot radius and Dim Light for an additional 10 feet."
+     *
+     * The radii differ between blocks — the azer's 10, the will-o'-wisp's 20,
+     * the Fire Elemental's 30 — so they are part of the shape rather than
+     * prose beside it, for {@link MonsterTraitSchema}'s stated reason.
+     */
+    kind: z.literal('sheds-light'),
+    /** The radius of Bright Light, in feet. */
+    brightRadiusFeet: z.number().int().min(0),
+    /** The Dim Light **beyond** that radius, in feet, as the book adds it. */
+    dimBeyondFeet: z.number().int().min(0),
+  }),
+  z.object({
+    /**
+     * SRD Shadow Stealth, printed under **Bonus Actions**: "While in Dim Light
+     * or Darkness, the shadow takes the Hide action."
+     *
+     * Read off the sentence like every other kind, and the heading it is
+     * printed under says what it *costs* rather than what it is — which is why
+     * this reaches the same field a trait does.
+     */
+    kind: z.literal('hides-in-dim-light-or-darkness'),
+  }),
 ]);
 export type MonsterTrait = z.infer<typeof MonsterTraitSchema>;
 

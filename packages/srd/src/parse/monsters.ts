@@ -524,6 +524,53 @@ const HOLD_BREATH = new RegExp(
   `^${SUBJECT} can hold its breath for (\\d+) (hour|hours|minute|minutes)\\.$`,
 );
 
+/**
+ * SRD Sunlight Sensitivity: "While in sunlight, the kobold has Disadvantage on
+ * ability checks and attack rolls." Five blocks print it word for word.
+ *
+ * Anchored end to end, which is what refuses the vampires: their Sunlight
+ * prints this sentence *after* "The vampire takes 20 Radiant damage if it
+ * starts its turn in sunlight", and the burning is a rule nothing here can
+ * carry. A clause read away is a rule nobody printed, so the line stays prose
+ * and the ledger goes on naming it.
+ */
+const SUNLIGHT_SENSITIVITY = new RegExp(
+  `^While in sunlight, ${SUBJECT} has Disadvantage on ability checks and attack rolls\\.$`,
+);
+
+/**
+ * SRD Sunlight Weakness: "While in sunlight, the shadow has Disadvantage on
+ * D20 Tests."
+ *
+ * The same rule over the wider list the rules glossary defines: "D20 Tests
+ * encompass the three main d20 rolls of the game: ability checks, attack
+ * rolls, and saving throws. If something in the game affects D20 Tests, it
+ * affects all three of these rolls."
+ */
+const SUNLIGHT_WEAKNESS = new RegExp(
+  `^While in sunlight, ${SUBJECT} has Disadvantage on D20 Tests\\.$`,
+);
+
+/**
+ * SRD Illumination: "The azer sheds Bright Light in a 10-foot radius and Dim
+ * Light for an additional 10 feet."
+ *
+ * Anchored for the reason every regex here is: the magmin's Ignited
+ * Illumination prints the same clause behind "While ablaze", and a magmin read
+ * as an unconditional lamp is a rule nobody printed.
+ */
+const ILLUMINATION = new RegExp(
+  `^${SUBJECT} sheds Bright Light in a (\\d+)-foot radius and Dim Light for an additional (\\d+) feet\\.$`,
+);
+
+/**
+ * SRD Shadow Stealth: "While in Dim Light or Darkness, the shadow takes the
+ * Hide action."
+ */
+const SHADOW_STEALTH = new RegExp(
+  `^While in Dim Light or Darkness, ${SUBJECT} takes the Hide action\\.$`,
+);
+
 /** A printed span, always in minutes — the book writes both units. */
 const inMinutes = (count: string, unit: string): number =>
   Number(count) * (unit.startsWith('hour') ? 60 : 1);
@@ -578,6 +625,30 @@ export function parseTraitShape(text: string): MonsterTrait | null {
 
   const held = HOLD_BREATH.exec(text);
   if (held !== null) return { kind: 'holds-its-breath', minutes: inMinutes(held[1]!, held[2]!) };
+
+  // The two sunlight sentences, which are one kind at two breadths. The
+  // wider one is the glossary's three rolls rather than an interpretation:
+  // "If something in the game affects D20 Tests, it affects all three."
+  if (SUNLIGHT_SENSITIVITY.test(text)) {
+    return { kind: 'disadvantage-in-sunlight', rolls: ['ability-check', 'attack-roll'] };
+  }
+  if (SUNLIGHT_WEAKNESS.test(text)) {
+    return {
+      kind: 'disadvantage-in-sunlight',
+      rolls: ['ability-check', 'attack-roll', 'saving-throw'],
+    };
+  }
+
+  const lit = ILLUMINATION.exec(text);
+  if (lit !== null) {
+    return {
+      kind: 'sheds-light',
+      brightRadiusFeet: Number(lit[1]),
+      dimBeyondFeet: Number(lit[2]),
+    };
+  }
+
+  if (SHADOW_STEALTH.test(text)) return { kind: 'hides-in-dim-light-or-darkness' };
 
   return null;
 }

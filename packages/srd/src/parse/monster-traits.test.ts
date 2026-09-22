@@ -43,6 +43,20 @@ const traitOf = (id: string, name: string): MonsterTrait | null => {
   return line.trait ?? null;
 };
 
+/**
+ * The same, for a line the book prints under **Bonus Actions**.
+ *
+ * The parser runs every detector over every section, because what a line says
+ * is not a property of the heading it is printed under — so a mechanic printed
+ * as a Bonus Action is read exactly as one printed as a trait, and the heading
+ * is left to say what the line *costs*.
+ */
+const bonusActionTraitOf = (id: string, name: string): MonsterTrait | null => {
+  const line = find(id).bonusActions.find((entry) => entry.name === name);
+  if (line === undefined) throw new Error(`${id} prints no Bonus Action called ${name}`);
+  return line.trait ?? null;
+};
+
 describe('a trait that says how a creature moves', () => {
   it('reads SRD Spider Climb as climbing that costs no check', () => {
     expect(traitOf('giant-spider', 'Spider Climb')).toEqual({ kind: 'climbs-without-a-check' });
@@ -130,6 +144,125 @@ describe('a trait that says what a creature breathes', () => {
   });
 });
 
+describe('a trait that says what the light does to a creature', () => {
+  /**
+   * SRD Sunlight Sensitivity, printed identically on five blocks: "While in
+   * sunlight, the kobold has Disadvantage on ability checks and attack rolls."
+   *
+   * **The holder, not the target.** Every one of these sentences says what
+   * happens to the creature whose block it is, so the shape names the rolls
+   * *it* makes and the requirement the engine reads is about where *it*
+   * stands.
+   */
+  it('reads SRD Sunlight Sensitivity as the two rolls the sentence names', () => {
+    expect(traitOf('kobold-warrior', 'Sunlight Sensitivity')).toEqual({
+      kind: 'disadvantage-in-sunlight',
+      rolls: ['ability-check', 'attack-roll'],
+    });
+  });
+
+  it('reads it off the sentence, on every block that prints it', () => {
+    for (const block of ['drider', 'specter', 'wight', 'wraith']) {
+      expect(traitOf(block, 'Sunlight Sensitivity')).toEqual({
+        kind: 'disadvantage-in-sunlight',
+        rolls: ['ability-check', 'attack-roll'],
+      });
+    }
+  });
+
+  /**
+   * SRD Sunlight Weakness: "While in sunlight, the shadow has Disadvantage on
+   * D20 Tests." The same kind with a wider list, because the glossary settles
+   * what the phrase covers: "D20 Tests encompass the three main d20 rolls of
+   * the game: ability checks, attack rolls, and saving throws."
+   */
+  it('reads SRD Sunlight Weakness as the three rolls a D20 Test is', () => {
+    expect(traitOf('shadow', 'Sunlight Weakness')).toEqual({
+      kind: 'disadvantage-in-sunlight',
+      rolls: ['ability-check', 'attack-roll', 'saving-throw'],
+    });
+  });
+
+  /**
+   * SRD Sunlight, on both vampires: "The vampire takes 20 Radiant damage if it
+   * starts its turn in sunlight. While in sunlight, it has Disadvantage on
+   * attack rolls and ability checks."
+   *
+   * Refused whole, for the swarm's reason: the second sentence is Sunlight
+   * Sensitivity and the first is damage dealt at a turn boundary, which
+   * nothing here can carry. Reading the sentence down to the half that fits
+   * would take the burning off a vampire silently.
+   */
+  it('refuses the vampires’ Sunlight, whose first clause is damage', () => {
+    expect(traitOf('vampire-spawn', 'Sunlight')).toBeNull();
+    expect(traitOf('vampire', 'Sunlight')).toBeNull();
+  });
+});
+
+describe('a trait that says a creature sheds light', () => {
+  /**
+   * SRD Illumination: "The azer sheds Bright Light in a 10-foot radius and Dim
+   * Light for an additional 10 feet." Five blocks print it and the radii
+   * differ, so the feet are part of the shape rather than prose beside it.
+   */
+  it('reads SRD Illumination with both of its radii', () => {
+    expect(traitOf('azer-sentinel', 'Illumination')).toEqual({
+      kind: 'sheds-light',
+      brightRadiusFeet: 10,
+      dimBeyondFeet: 10,
+    });
+    expect(traitOf('fire-elemental', 'Illumination')).toEqual({
+      kind: 'sheds-light',
+      brightRadiusFeet: 30,
+      dimBeyondFeet: 30,
+    });
+    expect(traitOf('will-o-wisp', 'Illumination')).toEqual({
+      kind: 'sheds-light',
+      brightRadiusFeet: 20,
+      dimBeyondFeet: 20,
+    });
+  });
+
+  it('reads the nightmare’s and the fire beetle’s too', () => {
+    expect(traitOf('nightmare', 'Illumination')).toEqual({
+      kind: 'sheds-light',
+      brightRadiusFeet: 10,
+      dimBeyondFeet: 10,
+    });
+    expect(traitOf('giant-fire-beetle', 'Illumination')).toEqual({
+      kind: 'sheds-light',
+      brightRadiusFeet: 10,
+      dimBeyondFeet: 10,
+    });
+  });
+
+  /**
+   * SRD Ignited Illumination: "The magmin sets itself ablaze or extinguishes
+   * its flames. While ablaze, the magmin sheds Bright Light in a 10-foot
+   * radius and Dim Light for an additional 10 feet."
+   *
+   * Refused, for the swarm's reason again: the light is gated on a state
+   * nobody holds and the kind carries no field for it. A magmin read as an
+   * unconditional lamp is a rule nobody printed.
+   */
+  it('refuses the magmin’s, whose light is gated on a state nobody holds', () => {
+    expect(bonusActionTraitOf('magmin', 'Ignited Illumination')).toBeNull();
+  });
+});
+
+describe('a Bonus Action that says what the dark buys', () => {
+  /**
+   * SRD Shadow Stealth, printed under **Bonus Actions**: "While in Dim Light
+   * or Darkness, the shadow takes the Hide action." The heading says what it
+   * costs; the sentence says what it is, and the sentence is what is read.
+   */
+  it('reads SRD Shadow Stealth off a line printed under Bonus Actions', () => {
+    expect(bonusActionTraitOf('shadow', 'Shadow Stealth')).toEqual({
+      kind: 'hides-in-dim-light-or-darkness',
+    });
+  });
+});
+
 describe('the reader is a list of matched sentences and not an interpreter', () => {
   it('reads nothing out of a trait nobody has matched', () => {
     expect(parseTraitShape('The elemental can move through a space as narrow as 1 inch.')).toBeNull();
@@ -138,6 +271,26 @@ describe('the reader is a list of matched sentences and not an interpreter', () 
 
   it('refuses a climb sentence that stops short of the printed rule', () => {
     expect(parseTraitShape('The spider can climb difficult surfaces.')).toBeNull();
+  });
+
+  it('refuses a sunlight sentence that says one thing more', () => {
+    // The vampires' Sunlight in the words Sunlight Sensitivity is printed in:
+    // the rule this file reads, behind a clause that deals damage. Anchored,
+    // so the Disadvantage is not read out from under the burning.
+    expect(
+      parseTraitShape(
+        'The kobold takes 20 Radiant damage if it starts its turn in sunlight. While in sunlight, the kobold has Disadvantage on ability checks and attack rolls.',
+      ),
+    ).toBeNull();
+  });
+
+  it('refuses a shed-light sentence that is gated on something', () => {
+    // The magmin's own, in the words the other five are printed in.
+    expect(
+      parseTraitShape(
+        'While ablaze, the magmin sheds Bright Light in a 10-foot radius and Dim Light for an additional 10 feet.',
+      ),
+    ).toBeNull();
   });
 
   it('refuses a leap sentence whose distances it cannot read', () => {

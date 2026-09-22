@@ -202,6 +202,9 @@ describe('the adapter carries what a block says it does', () => {
     const wolf = adaptMonster(statBlock('wolf'), WOLF);
     const spider = adaptMonster(statBlock('giant-spider'), id('spider'));
     // A block whose every trait is still English, which is most of them.
+    const ogre = adaptMonster(statBlock('ogre'), id('ogre'));
+    // And one whose two traits are both read now: Heated Body is prose and
+    // Illumination is the sentence the light model added.
     const azer = adaptMonster(statBlock('azer-sentinel'), id('azer'));
 
     expect(wolf.sheet.stated?.traits).toEqual([
@@ -210,7 +213,10 @@ describe('the adapter carries what a block says it does', () => {
     // The spider prints two, and one of them is a sentence the parser now
     // reads: Web Walker is still prose and Spider Climb is not.
     expect(spider.sheet.stated?.traits).toEqual([{ kind: 'climbs-without-a-check' }]);
-    expect(azer.sheet.stated?.traits ?? []).toEqual([]);
+    expect(ogre.sheet.stated?.traits ?? []).toEqual([]);
+    expect(azer.sheet.stated?.traits).toEqual([
+      { kind: 'sheds-light', brightRadiusFeet: 10, dimBeyondFeet: 10 },
+    ]);
   });
 
   /**
