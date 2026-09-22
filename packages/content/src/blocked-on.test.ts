@@ -242,11 +242,11 @@ describe('the blocked-on map covers the undefined population', () => {
     const free = Object.entries(BLOCKED_ON)
       .filter(([, entry]) => blockersIn(entry).length === 0)
       .map(([id]) => id);
-    expect(free).toEqual(['darkness', 'programmed-illusion']);
+    expect(free).toEqual(['programmed-illusion']);
   });
 
   /**
-   * And the nine that left it are **collected**, not lost.
+   * And the ten that left it are **collected**, not lost.
    *
    * "The engine could take this spell today" is a claim with a shelf life: the
    * honest end of it is a definition, and eight of the eleven got one in a
@@ -255,22 +255,26 @@ describe('the blocked-on map covers the undefined population', () => {
    * in this file — each is out of the undefined population *and* in the
    * catalogue, which is the pair of facts a stale entry could not satisfy.
    *
-   * The two still standing are the two that are not free after all, and both
-   * say why in one word. **Darkness** would make Sunburst's "dispels magical
-   * Darkness" reachable, and `spell-honesty.test.ts` pins that clause as the
-   * table's on exactly the grounds that no Darkness casting exists — so
-   * writing it is a decision about what a dispel narrowed to one named spell
-   * and a level cap is called, rather than a transcription. **Programmed
-   * Illusion** is refused its Investigation check by `check_without_duration`,
-   * which reads `durationSeconds` and `durationUntil` and not
-   * `untilDispelled`; the casting it would hang on is ongoing and has no
-   * deadline, and widening that rule is engine work.
+   * **Darkness was the ninth, and the decision it was waiting on was taken.**
+   * The worry was that writing it would make Sunburst's "dispels Darkness in
+   * its area" reachable and turn a clause filed as fiction into a debt. It does
+   * not: the definition is tracked and carries no `SpellArea`, for the reason
+   * Daylight and Fog Cloud carry none, so the casting exists and holds no place
+   * for sixty feet of sunlight to overlap. The clause stays the table's and
+   * `spell-honesty.test.ts` pins the new reason where it pinned the old one.
+   *
+   * **Programmed Illusion** is the one still standing. It is refused its
+   * Investigation check by `check_without_duration`, which reads
+   * `durationSeconds` and `durationUntil` and not `untilDispelled`; the casting
+   * it would hang on is ongoing and has no deadline, and widening that rule is
+   * engine work.
    */
-  it('collected the eight that were written, and says why two are left', () => {
+  it('collected the nine that were written, and says why one is left', () => {
     for (const spellId of [
       'conjure-fey',
       'create-or-destroy-water',
       'dancing-lights',
+      'darkness',
       'daylight',
       'druidcraft',
       'elementalism',
@@ -281,7 +285,7 @@ describe('the blocked-on map covers the undefined population', () => {
       expect(BLOCKED_ON[spellId], spellId).toBeUndefined();
       expect(SRD_CONTENT.spell(spellId), spellId).not.toBeNull();
     }
-    for (const spellId of ['darkness', 'programmed-illusion']) {
+    for (const spellId of ['programmed-illusion']) {
       expect(SRD_CONTENT.spell(spellId), spellId).toBeNull();
     }
   });
@@ -2066,6 +2070,13 @@ describe('the fought fact is a second build that corrected the query', () => {
    * match "checks" — so the penalty is the marker-less entry, and without it
    * `a-bonus-narrowed-to-a-skill` would have had no claimant left in any
    * population the day this spell was written.
+   *
+   * **Pass without Trace is the second claimant, and it arrived by reading.**
+   * "a +10 bonus to Dexterity (Stealth) checks" is the same gap in the same
+   * words and trips nothing for the same reason, so it sat in the ledger's
+   * *waits on none* column looking finished until somebody read the paragraph.
+   * Two spells for one shape is the difference between a gap one reading found
+   * and a gap the book prints twice.
    */
   it('leaves Enthrall blocked, on the outcome and on the penalty', () => {
     expect(BLOCKED_ON['enthrall']).toBeUndefined();
@@ -2074,7 +2085,10 @@ describe('the fought fact is a second build that corrected the query', () => {
       'a-fact-only-the-table-can-declare',
       'a-bonus-narrowed-to-a-skill',
     ]);
-    expect(consumersOf('a-bonus-narrowed-to-a-skill').unseen).toEqual(['enthrall']);
+    expect(consumersOf('a-bonus-narrowed-to-a-skill').unseen).toEqual([
+      'enthrall',
+      'pass-without-trace',
+    ]);
     expect(consumersOf('a-fact-only-the-table-can-declare').unblocks).toEqual([]);
   });
 

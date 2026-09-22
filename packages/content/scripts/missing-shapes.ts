@@ -714,6 +714,18 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD adds a beam at levels 5, 11 and 17, each its own attack roll and each able to take a different target. One casting rolls one attack per target here, so the cantrip is a third of itself at level 17.',
     },
   ],
+  // **The Bonus Action Dash is written now**, which is what moved this spell
+  // out of the tracked bucket on no engine change at all: `allows` puts a named
+  // action in a cheaper slot and `STATABLE_PRICES` holds `dash` out of a Bonus
+  // Action. What is left is the other half of the same sentence, and it was
+  // never the same gap.
+  'expeditious-retreat': [
+    {
+      clause: 'an extra action the spell grants',
+      why: 'an-action-a-spell-compels-or-forbids',
+      note: 'SRD: "You take the Dash action, and until the spell ends, you can take that action again as a Bonus Action." The second clause is a price and is enforced; the first is an **extra** action handed out at the casting rather than an existing one governed, which is the residue this shape records for Haste. `ActionRule` forbids, narrows and re-prices, and creates nothing — and an engine that took the Dash itself would be writing fiction into the log.',
+    },
+  ],
   fear: [
     {
       clause: 'drops whatever it is holding',
@@ -1046,7 +1058,7 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
     {
       clause: 'dispelling magical Darkness',
       why: 'table',
-      note: 'Ending a casting is a real operation — `spell-ended` and Dispel Magic both use it — and there is no Darkness casting for it to reach, because light is not modelled and the spell compiles into no definition. A clause with no reachable case is documented rather than modelled, exactly as Counterspell’s components qualifier is — and, like that one, the fact that makes it safe is pinned by a test below rather than trusted.',
+      note: 'Ending a casting is a real operation — `spell-ended` and Dispel Magic both use it — and the Darkness casting it would reach sits nowhere. **The reason moved when Darkness was written and the reading did not**: it used to be that no Darkness definition compiled in, and it is now that the definition is tracked and carries no `SpellArea`, because a template no effect resolves over is a radius with no place attached. So "in its area" has no area to test against, light is not modelled at either end, and the clause is documented rather than modelled exactly as Counterspell’s components qualifier is — with the fact that makes it safe pinned by a test below rather than trusted.',
     },
   ],
   thunderwave: [
@@ -3598,6 +3610,134 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'sight is a pairwise declaration between two creatures and there is nothing else, so a sense that excuses its holder from an illusion has no state to sit in and nothing to be read off.',
     },
   ],
+
+  // — the forty-five the ledger called finished ————————————————————————————
+  //
+  // `LEDGER.md`'s *waits on none* column reads a spell with no entry in this
+  // map as finished business, and a spell with no entry in this map is also a
+  // spell **nobody has read**. Forty-five tracked spells inside level 1–5 reach
+  // were in that state and the audit of 2026-09-21 counted every one of them as
+  // done. `unadjudicated-triage.test.ts` is the reading; the eleven spells below
+  // are the debts it found, thirty-three more are handovers with no reader in
+  // this engine — objects, light, languages, corpses, and things somebody learns
+  // — and the forty-fifth named a shape that had since been built and is
+  // executed now.
+  //
+  // Every clause here is marker-less, because every one of them is: the
+  // mechanical markers read English and not one of these sentences is phrased
+  // in their words, which is the hole the `null` form exists to fill.
+  prestidigitation: [
+    {
+      marker: null,
+      clause: 'up to three of its non-instantaneous effects active at a time',
+      why: 'a-cap-on-how-many-castings-run-at-once',
+      note: 'the cap this shape is named for, with a number in it rather than the implicit one: `replacesPriorCasting` ends the prior casting and is therefore a cap of exactly one, and `state.ongoing` holds everything needed to count three. Nothing counts them, so a fourth casting runs beside the first three.',
+    },
+  ],
+  'speak-with-animals': [
+    {
+      marker: null,
+      clause: 'skill options with them',
+      why: 'an-action-a-spell-compels-or-forbids',
+      note: 'the spell widens what may be attempted against a Beast, which is `ActionRule`’s `allows` polarity — and the action it widens is the Influence action, which `NAMED_ACTIONS` leaves out because no spender can be told apart as having taken one. That is the residue this shape records by name, beside Wind Walk’s Magic action and every Hide, Search and Study left out for the same reason.',
+    },
+  ],
+  darkvision: [
+    {
+      marker: null,
+      clause: 'has Darkvision with a range of 150 feet',
+      why: 'senses-beyond-declared-sight',
+      note: 'the whole spell is one sense conferred on one creature, and a sense is the one thing this engine has no state for: sight is a pairwise declaration and there is nothing beside it, so the hundred and fifty feet reach no reader. Mirage Arcane’s Truesight clause is the same gap read from the other end.',
+    },
+  ],
+  knock: [
+    {
+      marker: null,
+      clause: 'that spell is suppressed for 10 minutes',
+      why: 'an-effect-that-suppresses-other-magic',
+      note: 'Arcane Lock is a casting this engine really holds — it runs until dispelled and sits in `state.ongoing` — so this is not a clause with no reachable case. What is missing is the state a suppressed casting sits in: a spell that does not function while its time goes on running, which is the half of this shape `spell-ended` did not build.',
+    },
+  ],
+  'magic-weapon': [
+    {
+      marker: null,
+      clause: 'a +1 bonus to attack rolls and damage rolls',
+      why: 'a-rider-on-a-later-weapon-attack',
+      note: 'the shape names this spell in its own description: a flat bonus of the weapon’s own type that reaches the attack roll as well. `attack-rider` hangs a notation and a damage type on the caster and `BonusApplies` reaches an attack roll but never damage, so neither half of the sentence has a home — and the weapon the bonus is hung on is not a fact the engine keeps either.',
+    },
+  ],
+  'pass-without-trace': [
+    {
+      marker: null,
+      clause: 'While in the aura',
+      why: 'a-standing-effect-derived-from-where-a-creature-stands',
+      note: 'the bonus holds only while a creature stands inside a 30-foot Emanation that travels with the caster, which is a value derived from current geometry rather than from a pair of enter-and-leave events. Spirit Guardians’ halved Speed is the same sentence on a different quantity.',
+    },
+    {
+      marker: null,
+      clause: 'a +10 bonus to Dexterity (Stealth) checks',
+      why: 'a-bonus-narrowed-to-a-skill',
+      note: 'and the bonus itself is narrowed to one skill. `ActiveBonus` carries a `BonusApplies` list and nothing else, so a bonus stored against `ability-check` would land on every ability check the beneficiary ever made — which is why this shape exists rather than the spell simply being written.',
+    },
+  ],
+  'arcanists-magic-aura': [
+    {
+      marker: null,
+      clause: 'Spells and other magical effects treat the target as if it were a creature of the chosen type',
+      why: 'a-creature-fact-an-effect-overrides',
+      note: 'the sentence this shape was named for, quoted in its own description. A creature’s type is a fact the engine holds authoritatively and `mustBeType` reads it on every casting; nothing writes over one for a duration, so the Mask changes what no rule believes.',
+    },
+  ],
+  'speak-with-plants': [
+    {
+      marker: null,
+      clause: 'turn Difficult Terrain caused by plant growth',
+      why: 'difficult-terrain-an-area-creates',
+      note: 'and the same sentence goes the other way a clause later, turning ordinary ground into Difficult Terrain. Both are invisible to the ruler for one reason: Difficult Terrain is charged by the foot on the move that crosses it and declared by the caller, so ground that holds a property of its own has nobody to tell.',
+    },
+  ],
+  'tiny-hut': [
+    {
+      marker: null,
+      clause: 'All other creatures and objects are barred from passing through it',
+      why: 'a-barrier-that-blocks-passage',
+      note: 'the dome stops a creature crossing it, and movement consults no walls — which `docs/design/space-and-areas.md` keeps out on purpose, because ray-casting a barrier is where a rules engine becomes a VTT. The template that describes the Emanation is a different thing from a surface that refuses a mover.',
+    },
+    {
+      marker: null,
+      clause: "Spells of level 3 or lower can't be cast through it",
+      why: 'an-effect-that-suppresses-other-magic',
+      note: 'an area that refuses another casting rather than ending one. `spell-ended` built the ending half and this is the half it did not: no state says a casting is being refused, and a level cap read off the dome has nowhere to be checked.',
+    },
+    {
+      marker: null,
+      clause: 'The spell ends early if you leave the Emanation',
+      why: 'a-casting-ended-by-a-trigger',
+      note: 'this spell is the shape’s own example of leaving an area, named in its description. The other half of the same sentence — casting it again — is `replacesPriorCasting` and is applied; what has no cause the log holds is the caster stepping out of their own dome.',
+    },
+  ],
+  'animate-dead': [
+    {
+      marker: null,
+      clause: 'a corpse of a Medium or Small Humanoid within range',
+      why: 'a-target-rule-the-format-cannot-state',
+      note: '`TargetRule` selects by creature type and by whether armour is worn. A pile of bones is neither a creature nor a type, and the size band beside it is a fact the format cannot state about a target at all — so there is nothing for the casting to be aimed at before the question of what appears even arises.',
+    },
+    {
+      marker: null,
+      clause: 'The target becomes an Undead creature',
+      why: 'a-stat-block-created-mid-fight',
+      note: 'a Skeleton or a Zombie out of the bestiary is still a creature added to the scene in the middle of a fight, which no casting does. Everything the spell prints afterwards — the Bonus Action that commands them, the 24 hours of control, the two more per slot level — hangs on a creature that never arrived.',
+    },
+  ],
+  nondetection: [
+    {
+      marker: null,
+      clause: 'targeted by any Divination spell',
+      why: 'an-effect-that-suppresses-other-magic',
+      note: 'a creature that refuses a casting rather than an area that does, which is the same missing state arriving at a different holder — the reading this shape already records for Freedom of Movement’s refusal of a Speed reduction. Every Divination this catalogue defines happens to be cast at Self or at no creature, so the rule has no reachable case *today*; the state it would need does not exist either way.',
+    },
+  ],
 };
 
 // — the undefined population —————————————————————————————————————————————————
@@ -3773,37 +3913,6 @@ export type BlockedEntry = ShapeId | BlockedClause;
  *   than a declared placeholder.
  */
 export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
-  // **Blocked on nothing, and now read.** The entry was empty, which said the
-  // right thing and recorded no reading; these five clauses say the same thing
-  // and show the paragraph was gone through. Every mechanical word in it is
-  // light, and light is the one subject `CLAUSE_MARKERS` leaves alone by name.
-  darkness: [
-    {
-      clause: 'magical Darkness spreads from a point within range and fills a 15-foot-radius Sphere',
-      why: 'expressible',
-      note: 'A Sphere of a fixed radius at a point chosen within the spell’s range is `SpellArea` verbatim, checked against `range` like any other point. What the Sphere then does is light, which is nobody’s arithmetic here.',
-    },
-    {
-      clause: 'Darkvision can’t see through it',
-      why: 'table',
-      note: 'Sight is a pairwise declaration and obscurement is not modelled at all, so who can see whom through the Darkness is the DM’s to declare exactly as cover already is.',
-    },
-    {
-      clause: 'causing the Darkness to fill a 15-foot Emanation originating from that object',
-      why: 'table',
-      note: 'An Emanation whose origin is an object rather than a creature, which `SpellArea` cannot state — and it carries no effect for the engine to resolve anywhere, so where the dark sits is narration rather than debt.',
-    },
-    {
-      clause: 'Covering that object with something opaque',
-      why: 'table',
-      note: 'Putting a bowl over the object is a thing that happens in the world and changes no authoritative state the engine holds, which is the same reading Gaseous Form’s dropped gear already has.',
-    },
-    {
-      clause: 'that other spell is dispelled',
-      why: 'table',
-      note: 'The trigger is two areas of light overlapping, and the engine holds no light to overlap. `spell-honesty.test.ts` already pins Sunburst’s mirror-image clause as the table’s on exactly these grounds, so this is the same line drawn from the other side.',
-    },
-  ],
   entangle: [
     {
       clause: 'Grasping plants sprout from the ground in a 20-foot square within range',

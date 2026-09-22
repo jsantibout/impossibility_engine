@@ -242,23 +242,38 @@ describe('an executed spell may not file a rule the engine owns as fiction', () 
   });
 
   /**
-   * The one adjudication that is true only while another spell is uncastable.
+   * The one adjudication that is true only while another spell has no place.
    *
-   * Sunburst "dispels magical Darkness in the area", and ending a casting is an
+   * Sunburst "dispels Darkness in its area", and ending a casting is an
    * operation the engine really has — `spell-ended`, and Dispel Magic through
-   * it. What makes that clause the table's is not the rule but the population:
-   * no Darkness definition compiles in, so there is no casting for it to reach.
-   * That is exactly Counterspell's components qualifier, and that one is safe
-   * because `counterspell.test.ts` pins the count that makes it so. This is the
-   * same pin. The day Darkness gets a definition — tracked or executed — it
-   * becomes an ongoing casting the engine can end, the clause becomes debt, and
-   * this fails rather than going quietly on calling a rule fiction.
+   * it. What makes that clause the table's is not the rule but the geometry,
+   * and **which** absent fact it is has moved once already.
+   *
+   * It used to be the population: no Darkness definition compiled in, so there
+   * was no casting to reach. Darkness is written now, and this test was built
+   * to fail on exactly that day rather than go quietly on calling a rule
+   * fiction. It does not fail, and the reason is one field: the definition is
+   * tracked and carries **no `SpellArea`**, for the reason Daylight and Fog
+   * Cloud carry none — a template no effect resolves over is a radius with no
+   * place attached, and a casting records where its area sits only alongside an
+   * `areaTrigger`. So the casting exists, holds no light and holds no point,
+   * and "in its area" has nothing to be measured against.
+   *
+   * Both halves are pinned, because only the pair is the argument. The day
+   * Darkness grows an area — which is what the sight model in Phase 3 will want
+   * — this fails again and the clause becomes debt, which is the whole point of
+   * pinning a reason rather than an outcome.
    */
   it('pins the fact that makes Sunburst’s dispel clause the table’s', () => {
-    const dispelled = SPELL_DEFINITIONS.filter((d) => d.id === 'darkness');
+    const darkness = SPELL_DEFINITIONS.filter((d) => d.id === 'darkness');
+    expect(darkness, 'Darkness has no definition at all').toHaveLength(1);
     expect(
-      dispelled,
-      'Darkness now has a definition, so Sunburst dispelling it is a casting the engine could end',
+      darkness[0]?.area,
+      'Darkness now holds an area, so Sunburst has a place to overlap and a casting to end',
+    ).toBeUndefined();
+    expect(
+      darkness[0]?.effects,
+      'Darkness resolves something now, so it is no longer only a casting on the clock',
     ).toEqual([]);
     expect(
       ADJUDICATED['sunburst']?.find((entry) => entry.clause === 'dispelling magical Darkness')?.why,

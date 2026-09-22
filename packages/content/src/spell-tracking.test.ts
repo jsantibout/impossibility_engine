@@ -508,18 +508,36 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
 
   /**
    * The fact that makes the bound above the right one, pinned rather than
-   * asserted in prose: **an executed spell never has a clean paragraph.**
+   * asserted in prose: **an executed spell has a clean paragraph only where
+   * this list has no pattern for the mechanic it executes.**
    *
-   * If this ever fails, the re-pointing above was wrong — the tracked share
-   * would then be a quantity that could recover rather than one that only
-   * falls, and a floor over the tracked bucket would mean something again.
+   * It read "never", and one spell now says otherwise. Expeditious Retreat's
+   * whole printed text is the action economy — "You take the Dash action, and
+   * until the spell ends, you can take that action again as a Bonus Action" —
+   * and {@link MECHANICAL_MARKERS} holds no action-economy pattern, because it
+   * was derived from the mechanics a *tracked* spell hides and a spell that
+   * hides the action economy behind a condition was not one of them. So the
+   * paragraph reads clean to this list and is executed by an `action-rule`
+   * grant all the same. `CLAUSE_MARKERS`, the executed population's own list,
+   * fires on it through `action-economy`, which is why the honesty guard over
+   * there is not fooled and the exemption is safe.
+   *
+   * **The re-pointing above is unaffected**, which is the thing worth checking
+   * rather than the wording. That bound is taken over the whole parsed book,
+   * which no definition can move; what this supports is the narrower claim that
+   * a clean paragraph is usually a spell with nothing to execute, and the
+   * exception is named rather than the rule loosened.
    */
+  const CLEAN_AND_EXECUTED: readonly string[] = ['expeditious-retreat'];
+
   it('finds every clean paragraph outside the executed bucket', () => {
     const executed = SPELL_DEFINITIONS.filter(
       (d) => !TRACKED.includes(d.id) && PROSE.has(d.id),
     ).map((d) => d.id);
     expect(executed.length).toBeGreaterThan(100);
-    expect(executed.filter((spellId) => markersIn(spellId).length === 0)).toEqual([]);
+    expect(executed.filter((spellId) => markersIn(spellId).length === 0)).toEqual([
+      ...CLEAN_AND_EXECUTED,
+    ]);
   });
 
   /** And the tracked bucket is neither all clean nor all mechanical. */
@@ -1036,11 +1054,12 @@ const ADDED_SECOND: readonly string[] = [
  *
  * `ADDED_SECOND` said its ground was "the tail"; this is the end of it. Every
  * spell here was in `BLOCKED_ON` naming at least one shape the engine really
- * does not have — **the set blocked on nothing is empty of writable spells
- * now**, and the two entries still in it are held back by decisions rather
- * than by transcription: Darkness, whose definition makes Sunburst's dispel
- * clause reachable, and Programmed Illusion, whose `untilDispelled` no
- * `SpellCheck` can hang a duration on.
+ * does not have — **the set blocked on nothing was empty of writable spells
+ * after this pass**, and the two entries still in it were held back by
+ * decisions rather than by transcription: Darkness, whose definition was
+ * thought to make Sunburst's dispel clause reachable, and Programmed Illusion,
+ * whose `untilDispelled` no `SpellCheck` can hang a duration on. Darkness is
+ * `ADDED_SEVENTH` now and says there how the decision went.
  *
  * So the ordering was derived rather than chosen. Nothing in the undefined
  * population is waited on by an item or a feature, no pocket of expressible
@@ -1147,6 +1166,24 @@ const ADDED_FIFTH: readonly string[] = ['calm-emotions', 'hallow'];
  */
 const ADDED_SIXTH: readonly string[] = ['dream', 'mirage-arcane'];
 
+/**
+ * The seventh pass is one spell, and it is the one the third pass set aside.
+ *
+ * `ADDED_THIRD` said the set blocked on nothing was "empty of writable spells"
+ * and named the two held back by a decision rather than by transcription.
+ * Darkness was the first of them: writing it would make Sunburst's "dispels
+ * Darkness in its area" reachable, and `spell-honesty.test.ts` pinned that
+ * clause as the table's on the grounds that no Darkness casting existed.
+ *
+ * The decision went to the geometry. A `SpellArea` is what an effect is
+ * resolved over and there is no effect here, so the fifteen-foot Sphere is
+ * quoted to the table exactly as Daylight's sixty and Fog Cloud's twenty are —
+ * which leaves Sunburst's clause the table's for a **different** absent fact,
+ * and that test now pins the new one. Programmed Illusion is still waiting, on
+ * `check_without_duration`, which is engine work.
+ */
+const ADDED_SEVENTH: readonly string[] = ['darkness'];
+
 const ADDED: readonly string[] = [
   ...ADDED_FIRST,
   ...ADDED_SECOND,
@@ -1154,6 +1191,7 @@ const ADDED: readonly string[] = [
   ...ADDED_FOURTH,
   ...ADDED_FIFTH,
   ...ADDED_SIXTH,
+  ...ADDED_SEVENTH,
 ].sort();
 
 describe('every spell this batch added is cast for real', () => {
@@ -1164,6 +1202,7 @@ describe('every spell this batch added is cast for real', () => {
     expect(ADDED_FOURTH).toEqual([...ADDED_FOURTH].sort());
     expect(ADDED_FIFTH).toEqual([...ADDED_FIFTH].sort());
     expect(ADDED_SIXTH).toEqual([...ADDED_SIXTH].sort());
+    expect(ADDED_SEVENTH).toEqual([...ADDED_SEVENTH].sort());
   });
 
   /** And the six batches are six batches: nothing is claimed by two. */
@@ -1175,6 +1214,7 @@ describe('every spell this batch added is cast for real', () => {
       ADDED_FOURTH,
       ADDED_FIFTH,
       ADDED_SIXTH,
+      ADDED_SEVENTH,
     ];
     for (const [at, pass] of passes.entries()) {
       expect(pass.length, `pass ${at + 1}`).toBeGreaterThan(0);
@@ -1237,7 +1277,8 @@ describe('every spell this batch added is cast for real', () => {
   });
 
   /**
-   * **Two of these are executed now, and leaving by that door is not leaving.**
+   * **Three of these are executed now, and leaving by that door is not
+   * leaving.**
    *
    * A pass list is a record of what was written and when, so a spell that has
    * since grown an effect may not simply be deleted from one — the list would
@@ -1245,15 +1286,17 @@ describe('every spell this batch added is cast for real', () => {
    * recorded here instead, which is the same move `SPLIT_BUNDLES` makes for a
    * clause whose shape was built: the row stays and says where it went.
    *
-   * Both went the same way. `ActionRule` was derived from four SRD sentences
-   * and no definition wrote one; these two write three of them — Wind Walk's
-   * "The only actions a target can take in this form", and Magic Jar's "You
-   * can't move or take Reactions" beside "The only action you can take". So
-   * the engine resolves something on each casting, which is the whole of what
-   * separates the two buckets, and everything else each spell prints is an
-   * executed definition's debt in `ADJUDICATED`.
+   * All three went the same way. `ActionRule` was derived from four SRD
+   * sentences and no definition wrote one; these three write all four — Wind
+   * Walk's "The only actions a target can take in this form", Magic Jar's "You
+   * can't move or take Reactions" beside "The only action you can take", and
+   * Expeditious Retreat's "you can take that action again as a Bonus Action",
+   * which is the `allows` polarity and the last of the four. So the engine
+   * resolves something on each casting, which is the whole of what separates
+   * the two buckets, and everything else each spell prints is an executed
+   * definition's debt in `ADJUDICATED`.
    */
-  const EXECUTED_SINCE: readonly string[] = ['magic-jar', 'wind-walk'];
+  const EXECUTED_SINCE: readonly string[] = ['expeditious-retreat', 'magic-jar', 'wind-walk'];
 
   it('records the departures rather than deleting the rows', () => {
     expect(EXECUTED_SINCE).toEqual([...EXECUTED_SINCE].sort());

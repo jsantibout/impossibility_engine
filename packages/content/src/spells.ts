@@ -6911,7 +6911,64 @@ export const DAYLIGHT: SpellDefinition = {
   unmodelled: [
     'the light is not modelled: a 60-foot-radius Sphere of Bright Light, and Dim Light for an additional 60 feet, are the DM’s — the engine has no lighting and nothing reads whether a square is lit',
     'the object the spell may be cast on instead, the 60-foot Emanation it carries, and covering it with a bowl or a helm are the DM’s; objects are not modelled',
-    'the dispel is not performed: "If any of this spell’s area overlaps with an area of Darkness created by a spell of level 3 or lower, that other spell is dispelled" — ending a casting is an operation the engine has, and no Darkness definition compiles in for it to reach',
+    'the dispel is not performed: "If any of this spell’s area overlaps with an area of Darkness created by a spell of level 3 or lower, that other spell is dispelled" — ending a casting is an operation the engine has, and the Darkness casting it would reach holds no place in the scene for these sixty feet to overlap',
+  ],
+};
+
+/**
+ * SRD Darkness:
+ *
+ * > _Level 2 Evocation (Sorcerer, Warlock, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 60 feet. **Duration:** Concentration, up to 10 minutes.
+ * > "For the duration, magical Darkness spreads from a point within range and
+ * > fills a 15-foot-radius Sphere. Darkvision can't see through it, and
+ * > nonmagical light can't illuminate it."
+ * > "Alternatively, you cast the spell on an object that isn't being worn or
+ * > carried, causing the Darkness to fill a 15-foot Emanation originating from
+ * > that object. Covering that object with something opaque, such as a bowl or
+ * > helm, blocks the Darkness."
+ * > "If any of this spell's area overlaps with an area of Bright Light or Dim
+ * > Light created by a spell of level 2 or lower, that other spell is
+ * > dispelled."
+ *
+ * **The last spell in `BLOCKED_ON` held back by a decision rather than by a
+ * transcription**, and the decision was about the Sphere. Its entry filed the
+ * fifteen feet as expressible and the other four clauses as the table's, which
+ * is the reading this definition keeps — and the Sphere is still quoted rather
+ * than pinned, for the reason Daylight gives three definitions above and Fog
+ * Cloud gives one below.
+ *
+ * A `SpellArea` is what an effect is **resolved over**, and there is no effect
+ * here: darkness reaches nothing the engine holds until the sight model does.
+ * Written as an area it would do three things and none of them is wanted — it
+ * would demand a point at every casting, report every creature standing in the
+ * Sphere as a target of a spell that does nothing to them, and pin a radius
+ * with no place attached, because a casting records **where** its area sits
+ * only alongside an `areaTrigger`. A template nobody reads is a second place
+ * to get the radius wrong, which is Daylight's sentence exactly.
+ *
+ * That is also what keeps Sunburst's "This spell dispels Darkness in its area"
+ * the table's, and the reason has moved rather than gone: it used to be that
+ * no Darkness casting existed, and it is now that the casting exists and holds
+ * no light and no place for a Sphere to overlap. `spell-honesty.test.ts` pins
+ * the new fact where it pinned the old one.
+ */
+export const DARKNESS: SpellDefinition = {
+  id: 'darkness',
+  name: 'Darkness',
+  level: 2,
+  school: 'evocation',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 600,
+  unmodelled: [
+    'the dark is not in the scene: a 15-foot-radius Sphere of magical Darkness spreading from a point within range is quoted rather than drawn, because nothing is resolved over it and the engine has no lighting',
+    'who can see through it is the DM’s: "Darkvision can’t see through it, and nonmagical light can’t illuminate it" asks about obscurement, and sight here is a pairwise declaration between two creatures exactly as cover is',
+    'the object the spell may be cast on instead, the 15-foot Emanation originating from it, and covering it with a bowl or a helm are the DM’s — an Emanation whose origin is an object is not a template the format can state, and it carries no effect to resolve anywhere',
+    'the dispel is not performed: "If any of this spell’s area overlaps with an area of Bright Light or Dim Light created by a spell of level 2 or lower, that other spell is dispelled" triggers on two areas of light overlapping, and the engine holds no light to overlap',
   ],
 };
 
@@ -7731,14 +7788,31 @@ export const CHROMATIC_ORB: SpellDefinition = {
  * > _Level 1 Transmutation (Sorcerer, Warlock, Wizard)._
  * > **Casting Time:** Bonus Action. **Range:** Self.
  * > **Duration:** Concentration, up to 10 minutes.
- * > "This spell lets you move at an incredible pace. When you cast this spell
- * > and as a Bonus Action on each of your turns until the spell ends, you can
- * > take the Dash action."
+ * > "You take the Dash action, and until the spell ends, you can take that
+ * > action again as a Bonus Action."
  *
- * Twenty words, and both halves are the action economy: the spell hands the
- * caster a **use of the Dash action** at the casting and again every turn.
- * The only lever a spell has on the economy is a condition the engine names,
- * so the ten minutes of Concentration run and the Dash is the table's.
+ * Nineteen words, and both halves are the action economy — which is why this
+ * spell was tracked, and why it is not any more. Its own `unmodelled` said
+ * "nothing lets a spell reach the action economy except by naming a
+ * condition", and that stopped being true when `ActionRule` became the ninth
+ * sourced grant: `allows` moves a named action to a cheaper slot,
+ * `STATABLE_PRICES` holds `dash` out of a Bonus Action, and `takeDash` takes
+ * the price and refuses one that map does not hold. The second half is
+ * therefore transcription, and the engine changed for none of it.
+ *
+ * **The first half is still debt, and it is a different one.** "You take the
+ * Dash action" is an *extra* action the casting hands out rather than an
+ * existing one governed, which no member of `ActionRule` creates — Haste's
+ * residue, filed under the same shape and recorded in `ADJUDICATED`. The
+ * engine adjudicates reality and does not play creatures, so a free Dash it
+ * spent for the caster would be fiction written into the log.
+ *
+ * **The doc comment it replaces quoted the 2014 wording.** "This spell lets
+ * you move at an incredible pace. When you cast this spell and as a Bonus
+ * Action on each of your turns until the spell ends" is not a sentence SRD
+ * 5.2.1 prints, and the `unmodelled` line built on it quoted the same absent
+ * text back. Corrected here rather than noted, because a transcription nobody
+ * can check against the book is how the next reading goes wrong too.
  */
 export const EXPEDITIOUS_RETREAT: SpellDefinition = {
   id: 'expeditious-retreat',
@@ -7748,12 +7822,20 @@ export const EXPEDITIOUS_RETREAT: SpellDefinition = {
   castingTime: 'bonus-action',
   concentration: true,
   range: { kind: 'self' },
-  targets: { count: 0 },
-  effects: [],
+  // Range: Self, so the grant lands on the caster — and a caster may not name
+  // themselves unless the target rule says so, which is Magic Jar's shape
+  // exactly.
+  targets: { count: 1, self: true },
+  // Nothing is rolled and nothing is resisted, so the rule stands on its own
+  // rather than riding an outcome. The ten minutes are the casting's own
+  // deadline, so the grant needs no `lasts`: `releaseCasting` lifts it when
+  // the Concentration goes.
+  effects: [
+    { kind: 'action-rule', rule: { kind: 'allows', action: 'dash', from: 'bonus-action' } },
+  ],
   durationSeconds: 600,
   unmodelled: [
-    'the Dash at the casting is not taken: "When you cast this spell and as a Bonus Action on each of your turns until the spell ends, you can take the Dash action" grants an action rather than compelling one, and nothing lets a spell reach the action economy except by naming a condition',
-    'nor is the Bonus Action on each later turn offered, for the same reason and out of the same sentence',
+    'the free Dash at the casting is not taken: "You take the Dash action" is an extra action the spell grants rather than an existing one it governs, which no ActionRule member creates — and an engine that spent it would be playing the caster',
   ],
 };
 
@@ -12961,6 +13043,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   CREATION,
   CURE_WOUNDS,
   DANCING_LIGHTS,
+  DARKNESS,
   DARKVISION,
   DAYLIGHT,
   DEATH_WARD,
