@@ -23,7 +23,7 @@
 
 import type { CharacterId } from '@ie/shared';
 import { asCharacterId } from '@ie/shared';
-import type { CharacterSheet, GameState, StatedAttack } from '@ie/engine';
+import type { CharacterSheet, GameState, StatedAction, StatedAttack } from '@ie/engine';
 import {
   armorClassOf,
   carrying,
@@ -94,6 +94,32 @@ export interface ObservedPrintedLine {
   /** See {@link ObservedPrintedAttack.recharge}. */
   readonly recharge: string | null;
   readonly expended: boolean;
+  /**
+   * Whether the engine will throw this line's saving throw, or the sentence is
+   * the caller's to adjudicate.
+   *
+   * **A claim about the engine, never about the English.** Two hundred-odd of
+   * these lines are printed across a third of the bestiary and fifty-five of
+   * the CR ≤ 5 ones force a save somewhere in their prose; eighteen write the
+   * book's template plainly enough that the parser structured an ability, a
+   * DC, dice and a `_Success:_` clause out of it, and those eighteen are the
+   * ones this is true of. SRD Gorgon's Petrifying Breath says
+   * `_Constitution Saving Throw:_` and reads `false` here, because it prints a
+   * second rung of failure the reader is anchored against — a flag that said
+   * `true` on the strength of the words would send a caller to a door that
+   * refuses it.
+   *
+   * It is reported because without it the two doors over one line are a guess.
+   * `take_printed_action` spends the slot and hands the sentence back
+   * unapplied, for every line including this one; `force_printed_save` spends
+   * the same slot and rolls. Which to call is a question about what the engine
+   * can do, and until this field existed the answer was nowhere on the wire.
+   *
+   * **The DC and the dice stay off**, for {@link ObservedPrintedAttack}'s
+   * reason: they are the block's numbers and the outcome's to report. What is
+   * here is one boolean, and `text` is still the book's own sentence.
+   */
+  readonly engineRollsTheSave: boolean;
 }
 
 /**
@@ -299,11 +325,17 @@ function printedBlock(
     readonly name: string;
     readonly text: string;
     readonly recharge?: StatedAttack['recharge'];
+    readonly save?: StatedAction['save'];
   }): ObservedPrintedLine => ({
     name: one.name,
     text: one.text,
     recharge: rechargeSaid(one.recharge),
     expended: expendedLines.includes(one.name),
+    // The pinned record and nothing read out of the sentence: a line the
+    // parser structured a save out of carries one, and `forcePrintedSave`
+    // reads the same field to decide whether it will roll. One source, so the
+    // report and the refusal cannot disagree.
+    engineRollsTheSave: one.save !== undefined,
   });
 
   return {
