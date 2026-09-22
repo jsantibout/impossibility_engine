@@ -1263,15 +1263,24 @@ export interface FallCommand extends CommandIdentity {
    * surface for — a number the table *states* is a fact, and a number the
    * engine produced would be a fabrication.
    *
-   * **Absent is the one case where the engine already knows**, and it is
-   * narrow on purpose: a creature that was *aloft* has nothing underneath it,
-   * so its height above the floor is its fall — see {@link altitudeOf}, which
-   * is the only place `z` is read as a distance to the ground. A creature
-   * standing at the same coordinate is standing on something the engine
-   * cannot see, and is asked. So this is not a second door for a caller to
-   * state a height through: omitting it does not mean "you decide", it means
-   * "read the one you already have", and every case where there is no such
-   * number is a refusal rather than a guess. See {@link flightLost}.
+   * **Absent reads the lattice, and only for a flier the air has stopped
+   * holding up.** The height is then `z`, which positioning defines as the
+   * distance up from the floor — see {@link altitudeOf} — and the assumption
+   * that goes with it is *reported*: nothing in state can tell a Cockatrice
+   * holding station at thirty feet from one perched on a ledge at thirty
+   * feet, because a ledge is fiction and the lattice holds none. What the
+   * lattice does hold is thirty feet of air, which is the same model that
+   * decides whether Fireball catches two goblins or three, and it is answered
+   * the same way rather than judged. A table that meant the ledge states the
+   * height, which always wins, and the note in
+   * {@link FallResolution.unverified} is how it learns it needed to.
+   *
+   * So omitting it is not a second door for a caller to state a height
+   * through: it means "read the one the scene already holds", it is available
+   * for exactly the one rule that cannot ask — SRD's flier, which is stopped
+   * by something that happened rather than by anybody's command — and every
+   * other case is a refusal or a question rather than a guess. See
+   * {@link flightLost}.
    */
   readonly feet?: number;
 }
@@ -1340,13 +1349,19 @@ export interface FallResolution {
   /** Whether the landing left them Prone. */
   readonly prone: boolean;
   /**
-   * Why the landing left them standing, when it did.
+   * What the engine could not check, and why the landing left them standing.
    *
    * A creature immune to Prone hits the ground just as hard and stays on its
    * feet, which is an answer rather than an error — and an answer the caller
    * cannot work out from {@link FallResolution.prone} alone, because `false`
    * is also what a five-foot drop returns. The Shove and the Topple mastery
    * both hand the same reason back rather than swallowing it.
+   *
+   * **And, for a height the engine read rather than was told, what it read it
+   * from.** The lattice holds no ledges, so a flier stopped at thirty feet
+   * fell thirty feet as far as this model goes; the note says so, names the
+   * number and names the override, which is what keeps a derived figure from
+   * passing as a stated one. See {@link FallCommand.feet}.
    */
   readonly unverified: readonly string[];
   readonly concentration: ConcentrationConsequence;
@@ -1396,10 +1411,17 @@ export interface FallResolution {
  * Two doors to one number, and they are not symmetrical. A height the table
  * states is taken as stated and **moves nobody**: the engine does not know
  * where the bottom of that pit is, and placing a creature it cannot see the
- * floor under would be inventing a coordinate. A height the engine read off
- * the lattice is a flier coming down through air it can see, so the landing
- * is an ordinary `creature-moved` — forced, because falling is not the
- * creature's movement, and straight down, because nothing pushed it sideways.
+ * floor under would be inventing a coordinate. A height read off the lattice
+ * is a drop through the only air this engine has, so the landing is an
+ * ordinary `creature-moved` — forced, because falling is not the creature's
+ * movement, and straight down, because nothing pushed it sideways.
+ *
+ * **The second door reports what it assumed.** Nothing in state tells a flier
+ * holding station at thirty feet from one perched on something at thirty
+ * feet, so the note goes back with the result rather than the question going
+ * back instead of it: the rule this serves is the one SRD fires without
+ * anybody's command, and a fall that has to be asked about twice is a rule
+ * the table has to remember. See {@link FallResolution.unverified}.
  *
  * The four refusals are {@link FlightLoss}'s four other answers, each in its
  * own words: two are verdicts on established facts and two are homework.
@@ -1408,10 +1430,14 @@ function heightFallen(
   state: GameState,
   id: CharacterId,
   command: FallCommand,
-): Result<{ readonly feet: number; readonly descends: boolean }> {
+): Result<{
+  readonly feet: number;
+  readonly descends: boolean;
+  readonly unverified: readonly string[];
+}> {
   if (command.feet !== undefined) {
     return Number.isInteger(command.feet) && command.feet >= 0
-      ? ok({ feet: command.feet, descends: false })
+      ? ok({ feet: command.feet, descends: false, unverified: [] })
       : err(
           'bad_fall_distance',
           `${String(command.feet)} is not a height anybody fell from; a fall is a whole number of feet`,
@@ -1442,12 +1468,38 @@ function heightFallen(
         ],
       );
     case 'no-flight':
+      // **A question rather than a verdict, and it names the field that
+      // answers it.** The kind is `position` because the missing fact is
+      // geometric and about this creature, and the vocabulary of kinds is a
+      // closed union in `@ie/shared` with no member for a height; adding one
+      // is a decision about that package rather than about this rule. As
+      // everywhere, `satisfyWith` is the authority on what to send — the
+      // pairing `route_required` already relies on.
       return needsContext(
         'no_fall_height',
-        `nobody has said how far ${id} fell, and ${id} was not flying, so the engine has no height of its own: how far it is to the bottom is a fact about the room`,
+        `nobody has said how far ${id} fell, and nothing has dropped ${id} out of the air, so the engine has no height of its own: how far it is to the bottom is a fact about the room`,
+        [
+          {
+            kind: 'position',
+            subject: id,
+            need: `how far ${id} fell, in feet`,
+            because:
+              'a fall is 1d6 per ten feet, and what is underneath a creature is fiction the engine does not hold',
+            satisfyWith: `the same resolveFall command for ${id} with feet filled in`,
+          },
+        ],
       );
     default:
-      return ok({ feet: flight.feet, descends: flight.feet > 0 });
+      return ok({
+        feet: flight.feet,
+        descends: flight.feet > 0,
+        unverified:
+          flight.feet === 0
+            ? []
+            : [
+                `nobody has said whether ${id} was in the air or standing on something ${flight.feet} feet up, and the lattice holds no ledges; the fall was measured as the ${flight.feet} feet of air the scene says are under it, which a stated height would have overridden`,
+              ],
+      });
   }
 }
 
@@ -1498,7 +1550,9 @@ export function resolveFall(
     // there is nothing to record and a retry recomputes the same nothing —
     // except that a flier who came down from four feet is on the ground now,
     // and the descent says so.
-    if (count === 0) return ok({ ...nothing(false), events: descent });
+    if (count === 0) {
+      return ok({ ...nothing(false), events: descent, unverified: dropped.value.unverified });
+    }
 
     const dice = `${count}d6`;
     const source = `a ${feet}-foot fall`;
@@ -1548,7 +1602,7 @@ export function resolveFall(
       dice,
       damage: hurt.value.amount,
       prone: floored.ok,
-      unverified: floored.ok ? [] : [floored.reason],
+      unverified: [...dropped.value.unverified, ...(floored.ok ? [] : [floored.reason])],
       concentration: hurt.value.concentration,
       duplicate: false,
     });

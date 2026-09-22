@@ -153,6 +153,46 @@ describe('the four Speeds beside walking', () => {
     expect(speedOf(state, id('chuul'), 'fly')).toBe(0);
   });
 
+  it('reduces every mode and increases only the walking one', () => {
+    const log = withMonster('cockatrice', 'cockatrice', { feet: 0 }, 20);
+    const faster = [
+      ...log,
+      {
+        type: 'speed-modifier-granted',
+        id: id('cockatrice'),
+        modifier: { source: 'a hurrying spell', change: 'add', feet: 10 },
+      },
+    ] as readonly GameEvent[];
+    const iced = [
+      ...log,
+      {
+        type: 'speed-modifier-granted',
+        id: id('cockatrice'),
+        modifier: { source: 'a chilling spell', change: 'add', feet: -10 },
+      },
+    ] as readonly GameEvent[];
+
+    // "Your Speed increases by 10 feet" is the walking one; the flight is
+    // untouched.
+    expect(speedOf(fold(SEED, faster), id('cockatrice'))).toBe(30);
+    expect(speedOf(fold(SEED, faster), id('cockatrice'), 'fly')).toBe(40);
+    // A reduction is about the creature, and reaches the air with it.
+    expect(speedOf(fold(SEED, iced), id('cockatrice'))).toBe(10);
+    expect(speedOf(fold(SEED, iced), id('cockatrice'), 'fly')).toBe(30);
+  });
+
+  it('halves every mode, as Slow does', () => {
+    const log = [
+      ...withMonster('cockatrice', 'cockatrice', { feet: 0 }, 20),
+      {
+        type: 'speed-modifier-granted',
+        id: id('cockatrice'),
+        modifier: { source: 'a slowing spell', change: 'halve' },
+      },
+    ] as readonly GameEvent[];
+    expect(speedOf(fold(SEED, log), id('cockatrice'), 'fly')).toBe(20);
+  });
+
   it('takes a Speed of 0 away in every mode at once', () => {
     const log = [
       ...withMonster('chuul', 'chuul', { feet: 0 }, 30),
@@ -310,6 +350,18 @@ describe('the two jumps', () => {
     expect(isErr(both) && both.code).toBe('bad_jump');
   });
 
+  it('takes a running start on trust outside a fight, and says it did', () => {
+    // No budget, so nothing counts the ten feet. The claim is taken and
+    // reported rather than refused — the reading the ground already takes of
+    // a cost nothing is being spent from.
+    const idle = ALONE.filter((event) => event.type !== 'combat-started');
+    const jumped = unwrap(
+      move(idle, 'walker', { ...east(15), jump: { kind: 'long', running: true } }),
+      'jump',
+    );
+    expect(jumped.unverified.join(' ')).toContain('running start');
+  });
+
   it('refuses a running start nobody ran up to', () => {
     const jumped = move(ALONE, 'walker', { ...east(15), jump: { kind: 'long', running: true } });
     expect(isErr(jumped) && jumped.code).toBe('no_running_start');
@@ -396,10 +448,23 @@ describe('a flier that stops flying falls', () => {
     expect(isErr(fell) && fell.code).toBe('still_aloft');
   });
 
-  it('asks for the height of anybody else’s fall', () => {
+  it('asks for the height of anybody else’s fall, naming the field', () => {
     const fell = resolveFall(fold(SEED, ALONE), WALKER, {}, supply());
     expect(isErr(fell) && fell.kind).toBe('needs-context');
     expect(isErr(fell) && fell.code).toBe('no_fall_height');
+    // A question a caller cannot act on is the same defect as a rule nobody
+    // can invoke: the request says which command and which field.
+    expect(isErr(fell) && fell.requests?.[0]?.satisfyWith).toContain('resolveFall');
+    expect(isErr(fell) && fell.requests?.[0]?.satisfyWith).toContain('feet');
+  });
+
+  it('reports what it assumed about the air under a derived fall', () => {
+    // The lattice holds no ledges, so the figure is the scene's own thirty
+    // feet — said out loud rather than passed off as a stated height.
+    const log = proned('cockatrice', aloft('cockatrice', 'cockatrice', 30));
+    const fell = unwrap(resolveFall(fold(SEED, log), id('cockatrice'), {}, supply()), 'fall');
+    expect(fell.unverified.join(' ')).toContain('30 feet');
+    expect(fell.unverified.join(' ')).toContain('standing on something');
   });
 
   it('leaves a stated height exactly as it was', () => {

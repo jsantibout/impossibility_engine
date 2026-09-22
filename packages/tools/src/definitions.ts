@@ -1842,7 +1842,7 @@ const MOVE = tool({
             .boolean()
             .optional()
             .describe(
-              'True if they moved at least 10 feet immediately before jumping, which doubles both distances. The engine checks it against the movement already spent this turn.',
+              'True if they moved at least 10 feet immediately before jumping; a standing jump covers half as far. In a fight the engine checks it against the movement already spent this turn and refuses a run nobody made; outside one there is no budget to check it against, so it is taken as declared and reported back as unverified.',
             ),
         })
         .optional()
