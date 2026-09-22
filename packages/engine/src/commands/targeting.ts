@@ -1545,8 +1545,15 @@ export function rollsAimedAt(
   // **A split that spells out the deal is a casting that said nothing**, and
   // must fold to the same bytes as one: the record reaches a declaration, and
   // two `spell-declared` events meaning one casting would be two states for
-  // one log. The fingerprint drops it for the same reason — see
-  // `castingIdentity`.
+  // one log.
+  //
+  // **The fingerprint deliberately does not do this, and the asymmetry is the
+  // point** — do not make it symmetric. This is downstream of the definition
+  // and knows the casting's own `total`, so it can tell the deal from a split
+  // that merely divides its own sum evenly. `castingIdentity` runs before any
+  // definition is fetched and cannot, so it sorts and drops nothing; its
+  // docstring says why, and dropping there let an illegal split replay as a
+  // casting that had already landed.
   const aimed = targets.map((target) => share.get(target)!);
   const deal = aimed.every((count, index) => count === rollsDealtTo(total, targets.length, index));
   return ok(deal ? undefined : aimed);

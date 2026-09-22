@@ -858,15 +858,15 @@ describe('an uneven split of the rolls', () => {
   });
 
   /**
-   * **Two spellings of one casting are one casting**, which is the rule
-   * `castingIdentity` already keeps for `anchoring`: "`space` **is** the
-   * absence ... an identity that told them apart would refuse an honest retry
-   * that spelled the default out."
+   * **Two spellings of one request are one command.** A split is a *mapping*
+   * from creature to share, so the order the caller happened to write the
+   * pairs in says nothing about the casting, and `castingIdentity` sorts it
+   * away — which is sound for any definition, because two lists of the same
+   * pairs are the same mapping whatever spell they are aimed at.
    *
-   * A split is a *mapping* from creature to share, so the order the caller
-   * happened to write the pairs in says nothing — and a split that spells out
-   * the deal says nothing either. Both normalise, in the fingerprint and in
-   * what a declaration pins.
+   * **A split that spells out the deal is a different question**, and the
+   * fingerprint deliberately declines it: see the two tests below, and
+   * `castingIdentity`'s own docstring for why the line falls there.
    */
   it('takes a re-ordered split as the same command', () => {
     const log = raying();
@@ -1032,6 +1032,57 @@ describe('an uneven split of the rolls', () => {
     expect(isErr(smuggled)).toBe(true);
     if (!isErr(smuggled)) return;
     expect(smuggled.code).toBe('command_id_reused');
+  });
+
+  /**
+   * **And the price of that, pinned rather than left to be discovered.**
+   *
+   * The refusal above is the same refusal a caller gets for spelling out the
+   * split the engine would have dealt anyway: the fingerprint cannot tell the
+   * two apart without the definition, so it tells neither apart and says no to
+   * both. That is the conservative direction — a retry refused is a caller
+   * told, where a retry wrongly accepted is a caster silently charged nothing
+   * for a casting they did not make — and it is here so that anybody making
+   * this symmetric with the record has to delete a test to do it.
+   */
+  it('refuses a retry that spells out the deal, because it cannot know it is the deal', () => {
+    const log = raying();
+    const state = fold('seed', log);
+    const landed = unwrap(
+      resolveSpell(
+        state,
+        KESSA,
+        {
+          spellId: 'scorching-ray',
+          targets: [GOBLIN, OGRE],
+          slotLevel: 3,
+          commandId: 'spelled-out',
+        },
+        supply(state, CERTAIN),
+      ),
+      'cast',
+    );
+    const after = fold('seed', [...log, ...landed.events]);
+    const retry = resolveSpell(
+      after,
+      KESSA,
+      {
+        spellId: 'scorching-ray',
+        targets: [GOBLIN, OGRE],
+        slotLevel: 3,
+        commandId: 'spelled-out',
+        // Exactly what the deal would have thrown, and the fingerprint has no
+        // way to know it: how many rays there are is the definition's answer.
+        rollsAt: [
+          { target: GOBLIN, count: 2 },
+          { target: OGRE, count: 2 },
+        ],
+      },
+      supply(after, CERTAIN),
+    );
+    expect(isErr(retry)).toBe(true);
+    if (!isErr(retry)) return;
+    expect(retry.code).toBe('command_id_reused');
   });
 
   /** And the deal, spelled out, is the casting that said nothing. */
