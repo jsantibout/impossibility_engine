@@ -3428,6 +3428,17 @@ describe('every branch judges untyped input rather than throwing on it', () => {
     readonly kind: string;
     readonly base: Record<string, unknown>;
     readonly fields: Readonly<Record<string, readonly unknown[]>>;
+    /**
+     * What the host definition has to say for this kind to be legal in it.
+     *
+     * Empty for every kind but one. `summon` carries a rule about the
+     * *definition* rather than about the effect — it is on its caster, so
+     * `targets` is `{ count: 1, self: true }` — and Fire Dart throws a dart at
+     * somebody else. Without this the base-validity row below would fail for a
+     * reason that has nothing to do with the effect it is checking, and the
+     * junk sweep would pass for it.
+     */
+    readonly host?: Record<string, unknown>;
   }[] = [
     {
       kind: 'attack',
@@ -3627,6 +3638,26 @@ describe('every branch judges untyped input rather than throwing on it', () => {
       // the pairing rule below asserts by name rather than sweeping as junk.
       fields: { feet: required(NUMBER_JUNK) },
     },
+    {
+      kind: 'summon',
+      base: {
+        kind: 'summon',
+        monster: 'otherworldly-steed',
+        armorClass: { base: 10, perSpellLevel: 1 },
+        hitPoints: { base: 5, perSpellLevel: 10 },
+        sharesCastersInitiative: true,
+      },
+      // The stat block's id is required and the two numbers a spell may print
+      // over its own block are not — absent is every summons whose block is
+      // the whole truth. `sharesCastersInitiative` is a clause the book either
+      // prints or does not, which is the pairing `requiresSight` above takes.
+      fields: {
+        monster: required(STRING_JUNK),
+        armorClass: OBJECT_JUNK,
+        hitPoints: OBJECT_JUNK,
+      },
+      host: { targets: { count: 1, self: true } },
+    },
   ];
 
   /**
@@ -3635,11 +3666,16 @@ describe('every branch judges untyped input rather than throwing on it', () => {
    * A base that was itself malformed would make the sweep pass for the wrong
    * reason: every row would refuse, and none of them because of the junk.
    */
-  it.each(BRANCHES.map((b) => [b.kind, b.base] as const))(
+  it.each(BRANCHES.map((b) => [b.kind, b.base, b.host ?? {}] as const))(
     'starts from a %s the validator accepts',
-    (_kind, base) => {
+    (_kind, base, host) => {
       expect(
-        checkSpellDefinitionValue({ ...FIRE_DART, durationSeconds: 60, effects: [base] }),
+        checkSpellDefinitionValue({
+          ...FIRE_DART,
+          durationSeconds: 60,
+          ...host,
+          effects: [base],
+        }),
       ).toEqual([]);
     },
   );
@@ -3678,21 +3714,37 @@ describe('every branch judges untyped input rather than throwing on it', () => {
     for (const kind of READ_NO_FIELD) expect(covered.has(kind)).toBe(false);
   });
 
-  const rows = BRANCHES.flatMap(({ kind, base, fields }) =>
+  const rows = BRANCHES.flatMap(({ kind, base, fields, host }) =>
     Object.entries(fields).flatMap(([field, junk]) =>
       junk.map(
         (value) =>
-          [`${kind}.${field} = ${JSON.stringify(value) ?? 'undefined'}`, base, field, value] as const,
+          [
+            `${kind}.${field} = ${JSON.stringify(value) ?? 'undefined'}`,
+            base,
+            field,
+            value,
+            host ?? {},
+          ] as const,
       ),
     ),
   );
 
-  it.each(rows)('answers with a refusal for %s', (_label, base, field, value) => {
+  // **The host travels with the row**, for the reason it travels with the
+  // base-validity check above: a row whose *definition* is illegal refuses
+  // before the junk is read, and `isErr` cannot tell the two apart — the
+  // sweep would go on passing while testing nothing. `summon` is the one kind
+  // with a rule about its host, and Fire Dart throws its dart at somebody else.
+  it.each(rows)('answers with a refusal for %s', (_label, base, field, value, host) => {
     // Both lifetimes, because the rule that reads a rider a second time
     // returns early the moment a casting persists — which is exactly what kept
     // `grantCarried`'s unguarded walk out of reach of the case that found it.
     for (const lifetime of [{ durationSeconds: 60 }, {}]) {
-      const definition = { ...FIRE_DART, ...lifetime, effects: [{ ...base, [field]: value }] };
+      const definition = {
+        ...FIRE_DART,
+        ...lifetime,
+        ...host,
+        effects: [{ ...base, [field]: value }],
+      };
       let parsed: ReturnType<typeof parseSpellDefinition> | undefined;
       expect(() => {
         parsed = parseSpellDefinition(definition);

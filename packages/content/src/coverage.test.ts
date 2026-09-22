@@ -1,5 +1,5 @@
 import { readFileSync, readdirSync } from 'node:fs';
-import { SPELL_DEFINITIONS, SRD_CONTENT, SRD_MAGIC_ITEMS } from '@ie/content';
+import { SPELL_DEFINITIONS, SPELL_STAT_BLOCKS, SRD_CONTENT, SRD_MAGIC_ITEMS } from '@ie/content';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { MonsterTraitSchema, SPELL_INDEX, spellById } from '@ie/srd';
@@ -421,15 +421,27 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
    * on the way in, so a block the schema refused would be parsed and absent.
    * The ids are compared rather than the two lengths, which would agree by
    * accident if one block were swapped for another.
+   *
+   * **And the catalogue is parsed *plus* the blocks the book prints inside a
+   * spell's own entry**, which is the one way the two sets differ and the
+   * reason they are unioned rather than compared. The SRD prints the
+   * Otherworldly Steed's whole stat block in Find Steed's entry and names a
+   * Riding Horse with one number changed in Phantom Steed's; the parser reads
+   * the Monsters chapter and never sees either. The owner's ruling of
+   * 2026-09-21 files both as bestiary entries, so they are transcribed by hand
+   * in `bestiary.ts` and validated by the schema every parsed block is
+   * validated by. `SPELL_STAT_BLOCKS` is named here rather than subtracted by
+   * a difference, so a block that appeared in the catalogue from anywhere else
+   * still fails.
    */
-  it('carries every parsed block into the catalogue, by id', () => {
+  it('carries every parsed block, and the blocks a spell prints, by id', () => {
     const parsed = JSON.parse(
       readFileSync('packages/srd/src/generated/monsters.json', 'utf8'),
     ) as readonly { readonly id: string }[];
 
     expect(bestiary.carried).toBe(SRD_CONTENT.monsters.length);
     expect(SRD_CONTENT.monsters.map((m) => m.id).sort()).toEqual(
-      parsed.map((m) => m.id).sort(),
+      [...parsed.map((m) => m.id), ...SPELL_STAT_BLOCKS.map((m) => m.id)].sort(),
     );
   });
 

@@ -1405,10 +1405,12 @@ describe('every spell this batch added is cast for real', () => {
    * recorded here instead, which is the same move `SPLIT_BUNDLES` makes for a
    * clause whose shape was built: the row stays and says where it went.
    *
-   * **Nine went out, by six different doors**, which is why the test below
-   * asks `isExecuted` rather than counting effects: a departure is "no longer
-   * tracked", and there are six ways to stop being tracked now rather than
-   * one.
+   * **Fifteen have gone out, by nine different doors**, which is why the test
+   * below asks `isExecuted` rather than counting effects: a departure is "no
+   * longer tracked", and there are nine ways to stop being tracked now rather
+   * than one. The ordinals this list used to carry are gone deliberately —
+   * they numbered the order spells left in, which no reader can check and
+   * every batch renumbered.
    *
    * Three went the same way. `ActionRule` was derived from four SRD sentences
    * and no definition wrote one; these three write all four — Wind Walk's "The
@@ -1450,14 +1452,25 @@ describe('every spell this batch added is cast for real', () => {
    * a spell whose only printed mechanic the engine now resolves is not one
    * the engine resolves nothing of.
    *
-   * **Darkness, Daylight and Fog Cloud are the tenth, eleventh and twelfth,
-   * and they leave by the same door with a different noun.** P3-S put light
+   * **Darkness, Daylight and Fog Cloud leave by the same door with a
+   * different noun.** P3-S put light
    * and obscurement on the lattice beside the ground, so a Sphere of magical
    * darkness, sixty feet of sunlight with sixty more of dim around it, and a
    * bank of fog that grows with the slot are all patches a casting lays,
    * keeps alive and has read at every question about who can see whom.
    * `isExecuted` reads `areaLight` and `areaObscurement` for the reason it
    * reads `areaTerrain`, and all three are argued in `coverage-data.ts`.
+   *
+   * **Find Steed and Phantom Steed leave
+   * by the door P2-T11 built.** Each is one sentence long — a creature with a
+   * stat block appears — and what that sentence needed was two things at once:
+   * a `summon` effect kind, so a casting derives its creature from the spell
+   * rather than a caller reading the casting id back and summoning by hand;
+   * and somewhere for a stat block the book prints *inside a spell entry* to
+   * live, which the owner's ruling of 2026-09-21 settled as the bestiary. The
+   * Phantom Steed is held here by its casting and goes when the hour is up;
+   * the Otherworldly Steed is Instantaneous, is bound to nothing, and carries
+   * the two numbers SRD prints over its own block as arithmetic on the slot.
    */
   const EXECUTED_SINCE: readonly string[] = [
     'aid',
@@ -1466,9 +1479,11 @@ describe('every spell this batch added is cast for real', () => {
     'enhance-ability',
     'expeditious-retreat',
     'faerie-fire',
+    'find-steed',
     'fog-cloud',
     'goodberry',
     'magic-jar',
+    'phantom-steed',
     'plant-growth',
     'spike-growth',
     'wind-walk',

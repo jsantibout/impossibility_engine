@@ -244,6 +244,21 @@ export interface EffectContext {
   readonly outcomes: SpellTargetOutcome[];
   /** Whom this casting has left something of its own on — see `landedOn`. */
   readonly held: Set<CharacterId>;
+  /**
+   * The creatures this run put into the world, in the order it raised them.
+   *
+   * The fifth mutable member, and it is mutable for a reason none of the other
+   * four share: what goes in it is not written down until *after* the run is
+   * over. A `creature-summoned` naming a casting that is not in `state.ongoing`
+   * is a log the fold refuses, and a casting writes its `spell-ongoing` record
+   * after its effects resolve — so `resolveSummonEffect` raises the creature
+   * and leaves its name here, and `resolveEffects` binds whatever is in it
+   * once the record exists. A casting that leaves nothing running binds
+   * nothing, which is SRD Find Steed's Instantaneous steed.
+   *
+   * Empty for every casting that summons nothing, which is nearly all of them.
+   */
+  readonly summoned: CharacterId[];
 }
 
 /** One arm of the effect union, by its `kind`. */

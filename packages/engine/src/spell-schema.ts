@@ -32,6 +32,7 @@ import type {
   SpellDefinition,
   SpellEffect,
   StatedChoiceOf,
+  SummonedNumber,
 } from './spell-definitions.js';
 import { TURN_MOMENTS } from './time.js';
 import { type PayoutKind } from './timers.js';
@@ -2092,6 +2093,55 @@ function checkEffect(
       return;
     }
 
+    /**
+     * A stat block by its id, and the two numbers a spell may print over it.
+     *
+     * The id is checked for *shape* here and for *existence* nowhere: this
+     * validator judges a definition on its own, and whether a world holds the
+     * block is a question about the world. `summonCreature` answers it with
+     * `unknown_monster` at the cast, which is the same refusal `addCreature`
+     * has always made and the same reading `conjures.item` takes — its
+     * catalogue check lives in `checkContent`, where both halves are present.
+     */
+    case 'summon': {
+      if (typeof effect.monster !== 'string' || effect.monster.trim().length === 0) {
+        found.push({
+          field: `${path}.monster`,
+          code: 'unknown_monster',
+          reason: 'a summons names the stat block it raises, by its id in content',
+        });
+      }
+      for (const field of ['armorClass', 'hitPoints'] as const) {
+        const scaled = effect[field];
+        if (scaled === undefined) continue;
+        if (
+          typeof scaled !== 'object' ||
+          scaled === null ||
+          !Number.isInteger((scaled as SummonedNumber).base) ||
+          (scaled as SummonedNumber).base < 1 ||
+          !Number.isInteger((scaled as SummonedNumber).perSpellLevel) ||
+          (scaled as SummonedNumber).perSpellLevel < 0
+        ) {
+          found.push({
+            field: `${path}.${field}`,
+            code: 'bad_summon_scaling',
+            reason:
+              'a number a spell prints over its own stat block is a whole base of at least 1 and a whole amount per spell level; SRD Find Steed writes "10 + 1 per spell level"',
+          });
+        }
+      }
+      const shares = (effect as { sharesCastersInitiative?: unknown }).sharesCastersInitiative;
+      if (shares !== undefined && shares !== true) {
+        found.push({
+          field: `${path}.sharesCastersInitiative`,
+          code: 'malformed_field',
+          reason:
+            'a spell either prints "it shares your Initiative count" or does not; the only value is true',
+        });
+      }
+      return;
+    }
+
     case 'armor-class':
       if (!Number.isInteger(effect.base) || effect.base < 1) {
         found.push({
@@ -3480,6 +3530,8 @@ export function checkSpellDefinition(
     checkEffect(effect, definition.level, `effects[${i}]`, found),
   );
 
+  checkSummonTargets(definition, found);
+
   const activation = definition.activation;
   if (
     activation !== undefined &&
@@ -3893,6 +3945,7 @@ function checkShape(value: unknown): readonly SpellDefinitionProblem[] {
       checkFoughtClause(effect as object, entry.kind, where, at, found);
       checkRecordedVerdict(effect as object, entry.kind, where, at, found);
       checkTeleportPlacement(entry.kind, where, at, found);
+      checkSummonPlacement(entry.kind, where, at, found);
       checkNoNestedEffect(effect, at, found);
     });
   }
@@ -4122,6 +4175,91 @@ function checkTeleportPlacement(
 }
 
 /**
+ * A summons is on its caster, and on nobody else.
+ *
+ * **The rule the effect loop makes necessary.** `runEffects` is `for (target)
+ * for (effect)`, and `summonedId` is derived from the casting rather than from
+ * the target — because a creature this casting raised is a fact about the
+ * casting. Written against two targets, the summons would therefore be
+ * resolved twice under one id, and the second run would refuse
+ * `already_present` and take the whole casting with it — a refusal naming a
+ * creature the author never wrote, met at the table rather than at authoring.
+ *
+ * Keying the id by target was the other way out and is the wrong one: it would
+ * make "who did you aim it at" decide how many steeds appear, and SRD prints
+ * no spell of this shape. The book's summoning spells are all "**you** summon"
+ * — the spell is on its caster and the creature is the consequence, which is
+ * the target shape `teleport` already takes and the one Dimension Door writes.
+ *
+ * So one target, and it is the caster: the two halves of `{ count: 1, self:
+ * true }`, refused separately so an author is told which one is wrong. A
+ * definition that names a wider count is refused rather than resolved, and
+ * the day a spell summons two creatures this refusal is where the design
+ * conversation starts.
+ */
+function checkSummonTargets(
+  definition: SpellDefinition,
+  found: SpellDefinitionProblem[],
+): void {
+  if (!definition.effects.some((effect) => effect.kind === 'summon')) return;
+
+  if (definition.targets.count !== 1) {
+    found.push({
+      field: 'targets.count',
+      code: 'summon_over_several_targets',
+      reason:
+        'a summons is on its caster and the creature it raises is named for the casting, so a second target would resolve one creature twice',
+    });
+  }
+  if (definition.targets.self !== true) {
+    found.push({
+      field: 'targets.self',
+      code: 'summon_not_on_its_caster',
+      reason:
+        'SRD writes "you summon": the spell is on the creature casting it and the creature raised is the consequence',
+    });
+  }
+}
+
+/**
+ * Where a summons may be written, which is the casting's own list and nowhere
+ * else.
+ *
+ * {@link checkTeleportPlacement}'s rule for a different reason, and the reason
+ * is the bond. A creature a casting is holding is bound by a
+ * `creature-summoned` written immediately after the casting's `spell-ongoing`
+ * record, and only the casting writes one: an area trigger fires a minute
+ * later off a record that already exists and an activation acts through one,
+ * so neither has a record to write the bond after. A summons in either list
+ * would raise a creature that nothing holds there — the spell would end and
+ * the creature would stand, silently, which is the class of failure this
+ * repository calls its worst.
+ *
+ * Refused at authoring rather than met at the table, and refused **beside**
+ * {@link checkTeleportPlacement} rather than anywhere else: both ask which
+ * list an effect sits in, which is a question `checkEffect` cannot answer
+ * because it is handed one effect. That puts both on the untyped walk, so a
+ * definition loaded from JSON meets them and one written in TypeScript is held
+ * to its own compiler — the asymmetry teleport already carries, and one this
+ * change deliberately does not widen by guarding one kind in two places and
+ * its neighbour in one.
+ */
+function checkSummonPlacement(
+  kind: unknown,
+  where: string,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  if (kind !== 'summon' || where === 'effects') return;
+  found.push({
+    field: `${path}.kind`,
+    code: 'summon_outside_the_casting',
+    reason:
+      'a creature a casting holds is bound to the casting’s own record, which only the casting’s own effect list is resolved in time to write',
+  });
+}
+
+/**
  * Every effect list a definition carries, as one enumeration.
  *
  * **`checkEffect` is one function reached from three lists**, so the guarantee
@@ -4301,6 +4439,7 @@ export const EFFECT_KINDS: ReadonlySet<string> = new Set([
   'attack-rider',
   'weapon-rider',
   'teleport',
+  'summon',
   'turn-payout',
   'action-rule',
   'healing-rule',

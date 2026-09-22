@@ -1047,13 +1047,24 @@ describe('the four highest-leverage families are read sentence by sentence', () 
     // any clause — so no read count could ever have been planned from them,
     // and the third catalogue pass wrote all three as tracked definitions
     // instead. A family that could not be read can still be written.
+    //
+    // **And Find Steed has since been resolved rather than merely written**,
+    // which is the second half of the same lesson: P2-T11 built the `summon`
+    // effect kind, the owner's ruling put the Otherworldly Steed in the
+    // bestiary, and the spell raises it. It is an executed definition now —
+    // so what is asserted of it here is that it left the undefined population
+    // and did *not* leave this shape, because the clause it still carries is
+    // the steed's lifetime rather than the steed's existence.
     const statBlock = consumersOf('a-stat-block-created-mid-fight');
     expect(statBlock.unblocksRead).toEqual([]);
     expect(statBlock.unblocksUnread).toEqual([]);
     for (const id of ['find-steed', 'giant-insect', 'summon-dragon']) {
       expect(BLOCKED_ON[id], id).toBeUndefined();
+    }
+    for (const id of ['giant-insect', 'summon-dragon']) {
       expect(SRD_CONTENT.spell(id)?.effects, id).toEqual([]);
     }
+    expect(SRD_CONTENT.spell('find-steed')?.effects.map((e) => e.kind)).toEqual(['summon']);
   });
 });
 
@@ -2447,12 +2458,22 @@ describe('a consumer count is a query', () => {
     // leader is a mechanism nobody built but that **a leader which is a bundle
     // is declared as one**: nobody may brief it as a unit while it sits here.
     //
-    // The tie a single batch briefly created is gone, and `slice(0, 2)` was
-    // never stable across one — two shapes of equal size have no defined
-    // order. So this asserts the leader by name and the runners-up as a set.
-    expect(ranked[0]!.shape).toBe('an-action-a-spell-compels-or-forbids');
-    expect(Object.keys(SPLIT_BUNDLES)).toContain(ranked[0]!.shape);
-    expect(ranked[0]!.blocks.length).toBeGreaterThan(ranked[1]!.blocks.length);
+    // **The tie is back, and it is asserted as one rather than as a leader.**
+    // P2-T11 gave Phantom Steed a definition, which moved its "ends early if
+    // the steed takes any damage" out of the tracked map and into an executed
+    // spell's debt under `a-casting-ended-by-a-trigger` — and that shape now
+    // ties the bundle at the top. `ranked[0]` is meaningless across a tie, so
+    // what is named is the whole of the leading band, sorted; the bundle claim
+    // is made about the bundle by name.
+    const leaders = ranked
+      .filter((one) => one.blocks.length === ranked[0]!.blocks.length)
+      .map((one) => one.shape)
+      .sort();
+    expect(leaders).toEqual([
+      'a-casting-ended-by-a-trigger',
+      'an-action-a-spell-compels-or-forbids',
+    ]);
+    expect(Object.keys(SPLIT_BUNDLES)).toContain('an-action-a-spell-compels-or-forbids');
     // The largest shapes that are *not* bundles, as a set because they tie.
     expect(
       ranked

@@ -482,7 +482,7 @@ function renderBestiary(coverage: BestiaryCoverage): readonly string[] {
     '| | Means |',
     '|---|---|',
     '| **Parsed** | `@ie/srd` has the stat block: size, type, Armour Class, Initiative, hit points, speeds, abilities with their saves, skills, the defence runs, senses, languages, CR and XP |',
-    '| **Carried** | `SRD_CONTENT` holds that block and `checkContent` validated it, so `addCreature` puts the creature into a game by its id and every number in the event is the block’s |',
+    '| **Carried** | `SRD_CONTENT` holds that block and `checkContent` validated it, so `addCreature` puts the creature into a game by its id and every number in the event is the block’s. **Carried exceeds parsed**, and the difference is the stat blocks the book prints inside a *spell’s* own entry rather than in the Monsters chapter — the Otherworldly Steed and the Phantom Steed, transcribed by hand in `packages/content/src/bestiary.ts` on the owner’s ruling of 2026-09-21 and validated by the same schema |',
     '| **Qualified** | a printed defence the engine recognises and cannot evaluate — _Piercing (from weapons wielded by creatures under a Bless spell)_ — recorded and handed to the DM rather than enforced or dropped |',
     '| **Unread** | a defence entry in neither the damage nor the condition vocabulary, kept verbatim for the same reason |',
     '| **Attacking** | blocks whose own printed attack the engine can roll: a Wolf bites at the +4 and the 1d6 + 2 its line states, with no catalogue weapon in its mouth |',

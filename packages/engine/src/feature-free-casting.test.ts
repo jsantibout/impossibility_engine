@@ -338,7 +338,9 @@ describe("a Paladin's Faithful Steed casts Find Steed once between rests", () =>
     const out = unwrap(
       cast(state, AELRIC, {
         spellId: 'find-steed',
-        targets: [],
+        // The spell is on its caster and the steed is what it makes, which is
+        // the shape Dimension Door already takes — see the `summon` effect.
+        targets: [AELRIC],
         source: 'paladin:faithful-steed',
       }),
       'the steed',
@@ -353,8 +355,16 @@ describe("a Paladin's Faithful Steed casts Find Steed once between rests", () =>
       route: 'paladin:faithful-steed',
     });
 
-    // And the steed itself is the clause the engine still does not have.
-    expect(out.unverified.join(' ')).toContain('no steed appears');
+    // And the steed itself is there now: the pool paid for a casting that
+    // raised a creature out of the bestiary, which is what the `summon`
+    // effect kind buys a feature's free casting as well as a slot's.
+    expect(after.creatures[asCharacterId(`${out.castingId!}:otherworldly-steed`)]?.name).toBe(
+      'Otherworldly Steed',
+    );
+    // What is left of the spell is the steed's lifetime rather than its
+    // existence: nothing binds it, because an Instantaneous casting leaves no
+    // record to bind it to.
+    expect(out.unverified.join(' ')).toContain('leaving when its summoner dies');
   });
 });
 

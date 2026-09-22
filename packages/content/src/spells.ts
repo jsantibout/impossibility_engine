@@ -10078,8 +10078,17 @@ export const BLINK: SpellDefinition = {
  * > can travel 13 miles in an hour. ... The spell ends early if the steed takes
  * > any damage."
  *
- * A stat block with one number changed, and a casting that ends when a creature
- * the engine never made takes damage.
+ * A stat block with one number changed, which is now a stat block: the owner's
+ * ruling of 2026-09-21 files a spell-internal block as a catalogue entry, so
+ * the steed is `phantom-steed` in the bestiary — the parsed Riding Horse with
+ * the Speed the spell prints — and the casting raises it through the `summon`
+ * effect kind.
+ *
+ * **The hour holds it here.** The casting leaves an ongoing record, the steed
+ * is bound to it, and when the hour is up `strandedSummons` says the steed is
+ * owed a departure and `dismissStrandedSummons` performs it. That is the whole
+ * of "when the spell ends, the steed gradually fades"; the minute the rider
+ * has to dismount is narration over it.
  */
 export const PHANTOM_STEED: SpellDefinition = {
   id: 'phantom-steed',
@@ -10091,13 +10100,16 @@ export const PHANTOM_STEED: SpellDefinition = {
   ritual: true,
   concentration: false,
   range: { kind: 'ranged', feet: 30 },
-  targets: { count: 0 },
-  effects: [],
+  // The spell is on its caster and what it makes is a second creature, which
+  // is the shape Dimension Door already takes: the printed Range is the reach
+  // the steed appears within rather than a reach to a target.
+  targets: { count: 1, self: true },
+  effects: [{ kind: 'summon', monster: 'phantom-steed' }],
   durationSeconds: 3600,
   unmodelled: [
-    'no steed appears: a Riding Horse with its Speed overridden to 100 feet is a stat block created mid-fight, and nothing a casting does adds one to the scene',
-    'so "the spell ends early if the steed takes any damage" is not watched either — the fact it reads is damage to a creature that is not there',
+    'the casting does not stop early when the steed takes any damage: the causes a casting may end on name facts about a **target**, and the steed is not one — no cause names the creature a casting sustains',
     'the saddle, bit and bridle, their puff of smoke ten feet from the steed, the thirteen miles in an hour and the minute the rider has to dismount are the DM’s',
+    'who sits on it — "you or a creature you choose can ride the steed" — is the table’s; the engine seats nobody on a mount',
   ],
 };
 
@@ -11732,11 +11744,23 @@ export const HEX: SpellDefinition = {
  * > _Disappearance of the Steed._ The steed disappears if it drops to 0 Hit
  * > Points or if you die."
  *
- * The SRD prints the stat block **inside the spell**, which is what makes this
- * spell one sentence long and unwritable: an Armour Class and a hit point
- * maximum that scale with the slot, on a creature a casting would have to add
- * to the scene. `a-stat-block-created-mid-fight` is its only recorded blocker
- * and reading the paragraph found no second one.
+ * The SRD prints the stat block **inside the spell**, and the owner's ruling of
+ * 2026-09-21 says what that is: a catalogue entry like any other. So the block
+ * is `otherworldly-steed` in the bestiary and the casting raises it — and the
+ * two numbers the book writes as formulae rather than as numbers, "AC 10 + 1
+ * per spell level" and "HP 5 + 10 per spell level", are the spell's to print
+ * over its own block. They are worked out once, at the cast, from the level
+ * the slot paid for, and the answers are what reach the log.
+ *
+ * **Instantaneous, so the steed is not on loan.** The casting leaves no record
+ * running, nothing binds the creature, and it stands there afterwards — which
+ * is what the book means by a steed you summon rather than one you sustain.
+ *
+ * **It shares its rider's Initiative count**, read off the order rather than
+ * stated by anybody. Where it falls *within* that count, and who decides what
+ * it does with the turn, are the two halves of the Combat paragraph the engine
+ * does not answer — recorded below rather than approximated with a tiebreak
+ * the SRD leaves to the GM.
  */
 export const FIND_STEED: SpellDefinition = {
   id: 'find-steed',
@@ -11746,13 +11770,24 @@ export const FIND_STEED: SpellDefinition = {
   castingTime: 'action',
   concentration: false,
   range: { kind: 'ranged', feet: 30 },
-  targets: { count: 0 },
-  effects: [],
+  targets: { count: 1, self: true },
+  effects: [
+    {
+      kind: 'summon',
+      monster: 'otherworldly-steed',
+      armorClass: { base: 10, perSpellLevel: 1 },
+      hitPoints: { base: 5, perSpellLevel: 10 },
+      sharesCastersInitiative: true,
+    },
+  ],
   unmodelled: [
-    'no steed appears: the spell is a stat block printed inside its own entry, and a casting adds no creature to a scene',
-    'so its Armour Class of 10 + 1 per spell level and its 5 + 10 Hit Points per spell level are not computed, and the slot that would scale them reaches damage dice, a target count and a duration',
-    'its Speed of 60 feet on the ground and 60 in the air is nobody’s, and neither is the Initiative it shares with its rider nor the turn it takes alone when the rider is Incapacitated',
-    'the mounted combat it is controlled through, the Celestial, Fey or Fiend it is, and the gear it leaves behind when it goes are the DM’s',
+    'the steed leaving when its summoner dies is not watched: an Instantaneous casting leaves no record to bind the creature to, and a summons whose lifetime hangs on another creature rather than on a spell has nothing to hang it on',
+    'its Fly Speed of 60 feet is not granted at any level: the block prints it gated — "requires level 4+ spell" — and a Speed that appears at a level is a third number the spell prints over its own block, beside the Armour Class and the Hit Points that are computed; withheld rather than given, because a limit enforced is never more permissive than the book',
+    'the steed resembling a Large rideable animal, and the Celestial, Fey or Fiend chosen when it is called, are the caster’s — the block the book prints beneath that choice has no line that differs between the three, so the catalogue holds the type exactly as printed',
+    'the steed shares its rider’s Initiative count and its turn is not **pinned** immediately after theirs when the rider has the Incapacitated condition: a joiner is seated after everyone it exactly ties with, so today it does land there — and it lands behind a third creature the DM put on that count at the rider’s own tiebreak, because a rung is a number and settling the tie with one of the engine’s own would invent a decision the SRD leaves to the GM',
+    'and what the steed does with the turn when its rider has the Incapacitated condition — "acts independently, focusing on protecting you" — is the table’s, the same question left open for every creature in the scene',
+    'the mounted combat it is controlled through, the telepathy it speaks over a mile, and the gear it leaves behind when it goes are the DM’s',
+    'a second casting replacing the steed already called is not performed: nothing holds the first one here, so there is no record to end and no creature the engine can tell from any other',
   ],
 };
 

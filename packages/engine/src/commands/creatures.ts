@@ -230,6 +230,28 @@ export interface Summons {
   readonly initiative?: number;
   /** Ties, as `beginCombat` and `joinCombat` take them. */
   readonly tiebreak?: number;
+  /**
+   * The Armour Class this creature arrives with, where the **spell** prints
+   * one over the stat block's own.
+   *
+   * SRD Find Steed prints its steed's block inside the spell's entry and
+   * writes the Armour Class as a formula: "**AC** 10 + 1 per spell level". So
+   * one number in that block belongs to the casting rather than to the
+   * bestiary, and there is nowhere else it could be pinned from.
+   *
+   * **A whole number, and nothing derived here.** This command still computes
+   * nothing: the caller states the answer and it is written into
+   * `creature-added` beside every other number the arrival pins, so the fold
+   * raising the creature reads one Armour Class and never a formula. What
+   * works the formula out is `resolveSummonEffect`, once, at the cast, from
+   * the level the slot paid for.
+   *
+   * Absent is every summons whose block is the whole truth — SRD Phantom
+   * Steed's Riding Horse — and then the printed Armour Class stands.
+   */
+  readonly armorClass?: number;
+  /** The same, for SRD Find Steed's "**HP** 5 + 10 per spell level". */
+  readonly hitPointMaximum?: number;
 }
 
 /**
@@ -262,9 +284,25 @@ export interface Summons {
  * **Three things it deliberately does not do.** It does not roll Initiative,
  * for the reason `joinCombat` does not. It does not decide what the creature
  * can cast — `declareSpellcasting` is that, exactly as it is for any monster.
- * And it does not derive a statistic from the summoner: a stat block whose
- * numbers come from a caster's level or a spell's slot is a different
- * mechanic, and `Summons` has nowhere to put one on purpose.
+ * And it **derives no statistic of its own**: SRD Find Steed does print two
+ * numbers over its steed's block — "AC 10 + 1 per spell level", "HP 5 + 10 per
+ * spell level" — and {@link Summons.armorClass} and
+ * {@link Summons.hitPointMaximum} carry the *answers* rather than the
+ * formulae. The arithmetic belongs to whoever knows what level the casting was
+ * made at, which is `resolveSummonEffect`; what happens here is that the
+ * stated number is written into the arrival instead of the printed one, so the
+ * log pins exactly one Armour Class per creature.
+ *
+ * **That last paragraph reverses one this file used to carry**, and the
+ * reversal is recorded rather than quietly performed. It read: "a stat block
+ * whose numbers come from a caster's level or a spell's slot is a different
+ * mechanic, and `Summons` has nowhere to put one on purpose". It was written
+ * when the only caller was a DM naming a monster, and what it was guarding
+ * against — a number arriving here that somebody made up — is still guarded:
+ * the two fields take a whole number and this command computes neither, so
+ * what changed is that the *engine* now has a place to work one out from a
+ * printed formula and a slot level. A model still cannot reach either field;
+ * a `summon` effect is the only thing in the tree that writes them.
  */
 export function summonCreature(
   state: GameState,
@@ -317,10 +355,14 @@ export function summonCreature(
       if (!arrival.ok) return arrival;
 
       // The one event this command always emits, so the stamp rides it rather
-      // than a placement or a rung in the order that a summons may not have.
-      const events: GameEvent[] = arrival.value.events.map((event, index) =>
-        index === 0 && stamp !== null ? { ...event, command: stamp } : event,
-      );
+      // than a placement or a rung in the order that a summons may not have —
+      // and the one the spell's own numbers are written into, because a second
+      // event carrying an Armour Class would be a second place to read one.
+      const events: GameEvent[] = arrival.value.events.map((event, index) => {
+        if (index !== 0) return event;
+        const pinned = printedOver(event, summons);
+        return stamp === null ? pinned : { ...pinned, command: stamp };
+      });
 
       // SRD summons are the summoner's. Declared rather than derived even
       // here: if nobody has said whose side the caster is on, nobody has said
@@ -377,6 +419,67 @@ export function summonCreature(
       return ok({ events, unverified: arrival.value.unverified, duplicate: false });
     },
   );
+}
+
+/**
+ * The arrival, with whatever the **spell** printed over the stat block.
+ *
+ * SRD Find Steed writes its steed's Armour Class and hit points as formulae in
+ * the spell's own entry, so for that one summons two of the numbers the block
+ * would otherwise settle are the casting's. They are written *into the
+ * arrival* rather than emitted beside it: `creature-added` is where every
+ * number a creature has is pinned, and a second event carrying an Armour Class
+ * would give the fold two answers to one question.
+ *
+ * Nothing here computes; the caller has already worked the formula out. An
+ * event of any other type is handed back untouched, which is the honest answer
+ * for a batch whose shape this function does not get to assume.
+ */
+function printedOver(event: GameEvent, summons: Summons): GameEvent {
+  if (event.type !== 'creature-added') return event;
+  if (summons.armorClass === undefined && summons.hitPointMaximum === undefined) return event;
+  return {
+    ...event,
+    ...(summons.hitPointMaximum === undefined ? {} : { maxHp: summons.hitPointMaximum }),
+    ...(summons.armorClass === undefined
+      ? {}
+      : {
+          sheet: {
+            ...event.sheet,
+            stated: { ...event.sheet.stated, armorClass: summons.armorClass },
+          },
+        }),
+  };
+}
+
+/**
+ * The link that says a casting is what holds a creature here.
+ *
+ * **Its own function, and the only other place `creature-summoned` is
+ * written**, because a casting cannot bind its creature at the moment it
+ * raises it. The fold refuses a bond naming a casting that is not in
+ * `state.ongoing` — the link would be born already broken — and a casting's
+ * `spell-ongoing` record is written *after* its effects have resolved. So a
+ * `summon` effect raises the creature inside the effect loop and the bond is
+ * written here, by `resolveEffects`, immediately after the record it depends
+ * on. Two facts with two moments, which is what the event's own docstring says
+ * they are.
+ *
+ * {@link summonCreature}'s two refusals are the same two facts, checked
+ * against a world that already holds the record: this is reached only with the
+ * casting the caster is making now, so "is it running" is answered by the
+ * event one line above and "is it theirs" by the caster being the summoner.
+ * A DM binding a creature to some other casting still goes through the command
+ * and still meets both.
+ *
+ * An empty list is a real answer — most castings summon nothing.
+ */
+export function bindSummonsToCasting(
+  summoned: readonly CharacterId[],
+  by: CharacterId,
+  castingId: string,
+): readonly GameEvent[] {
+  return summoned.map((id) => ({ type: 'creature-summoned', id, by, castingId }));
 }
 
 /**
