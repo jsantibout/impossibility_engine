@@ -463,6 +463,80 @@ ranked first among the builders.
 - **The lopsided split of several attack rolls stays the owner's.** For the
   record: the sayable form is `targets: [{ id, count }]`.
 
+### The objects batch — merged 2026-09-22
+
+Nine tracks. **Spells in reach not executed 118 → 111, waiting on a shape
+85 → 78.** Features 55 → 53. Two of the four dead pools — Font of Magic and
+Arcane Recovery — left `NOTHING_TO_BUY`. `a-spell-that-answers-a-later-attack`
+**retired entirely**. Objects, dropped items and carrying capacity arrived on
+the owner's ask.
+
+**Three defects of one class in one batch, and the guard for them now exists.**
+`forcePrintedSave` rolled dice and emitted no `rolls-issued` (found last
+batch); `settleTurnPayouts` does the same and is **still open**, reported
+rather than fixed because it sat in another track's fence; and a ward's die
+went uncounted in `resolveAttack` because `issuedBefore` was marked below it,
+which made the *next* command re-issue a `RollId` already in the log. The new
+sweeps in `invariants.test.ts` catch the class without an allow-list — a
+counting `Rng` per command plus a call graph seeded on `rng.int` and the
+`'rolls-issued'` literal. **Neither sweep caught `settleTurnPayouts`**, and
+the builder said why: the corpus drives it down a payout with no dice, and the
+reachability half is an over-approximation that its own test names. That gap
+is the follow-up.
+
+**The `SpellEffect`-versus-rider lesson generalised.** Three shapes this batch
+turned out to be mis-described rather than missing: `CastingEndTrigger` had two
+readers because the grep searched the *type* and the mechanism's name is the
+*field* (`endsEarly`, read in `fold/endings.ts`); `an-effect-that-suppresses-
+other-magic` is three mechanisms; and `an-action-a-spell-compels-or-forbids`
+was five, now split into three new ids with the bundle narrowed from twenty
+spells to seven.
+
+**Mirror Image fires on a hit, not on targeting** — SRD 5.2.1, *"Each time a
+creature hits you with an attack roll."* Every prose note on the spell said
+targeting, each inheriting it from the last, and **three tracks failed on that
+one word** before a builder read the book. Worth remembering when a claim is
+repeated in several places: agreement between notes is not evidence, because
+notes copy each other.
+
+Follow-ups this batch created:
+
+- **`settleTurnPayouts` emits no `rolls-issued`** (`commands/turns.ts:248`,
+  reached from `scene.ts:338` and `turns.ts:1040`). Latent under SRD — no
+  catalogue `turn-payout` carries dice — but reachable through `createContent`,
+  which rule 4 makes a supported door. One-line fix plus a corpus fixture whose
+  payout carries dice; they belong in the same change. **And widen the sweep
+  so it would have caught it.**
+- **An object cannot make an ability check.** A door asked for a Strength check
+  rolls at −5 and can succeed. A *refusal* is a different shape from a
+  failure and changes what ten call sites see — a decision, not a defect.
+- **Nothing stops an object entering the turn order**, and then `endCombat`
+  answers `undeclared_side` and the fight cannot close. Refusing an Object in
+  Initiative looks right (an Animated Object is a Construct, not an Object).
+- **The tool surface cannot tell a warded swing from a refusal**: a warded
+  attack returns `hit: null` and a deflected one `hit: true` with no damage,
+  both recoverable from the log but not from the door's own summary.
+- **`item-transferred` has the conjured-line hole `item-dropped` closed** — a
+  transfer naming a conjured kind removes nothing and gives the taker the
+  difference.
+- **A `scene-set` clears the floor**, so a sword left in the last room ceases
+  to exist. Consistent with the scene unplacing everybody, tested, flagged.
+- **Light from an object** still waits: an object can be broken and cannot yet
+  carry a light patch. Light, Continual Flame and Dancing Lights.
+- **Shatter needs one shape**: an area effect that also damages objects caught
+  in it with no save. `CREATURE_TYPES` does not contain `Object`, correctly.
+  Its Construct clause is buildable today.
+- **The Speed-5 consequence of over-capacity** is unbuilt; `carryingCapacity`
+  returns both figures so the rule is one read away. Coins have no weight.
+- Confusion's and Tsunami's notes still say the economy has no lever for a
+  spell to forbid an action, which `ActionRule` made false two batches ago.
+
+**A process note worth keeping.** Two tracks each rewrote the same ranking
+guard in `blocked-on.test.ts` for the ranking *their own branch* produced, and
+neither assertion survived the merge of both — the true leader was a third
+shape. A guard that names a number from one branch's view is a guard that
+breaks when batches land together; assert the measurement, not the name.
+
 ### The sight batch — merged 2026-09-21
 
 Six tracks. **Spells in reach not executed 124 → 118, waiting on a shape
