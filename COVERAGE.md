@@ -173,7 +173,7 @@ A handover never will be — Commune asks a question of a god — so counting it
 as a gap would put work on a list nobody may do. Both reach the table on
 every casting; only one of them is waiting for anything.
 
-- **Alarm** (level 1) — 4 noted
+- **Alarm** (level 1) — 4 noted, 1 read
 - **Alter Self** (level 2) — 4 noted
 - **Animal Messenger** (level 2) — 2 noted
 - **Animal Shapes** (level 8) — 5 noted
@@ -184,7 +184,7 @@ every casting; only one of them is waiting for anything.
 - **Antipathy/Sympathy** (level 8) — 5 noted
 - **Arcane Eye** (level 4) — 2 noted
 - **Arcane Hand** (level 5) — 6 noted
-- **Arcane Lock** (level 2) — 2 noted
+- **Arcane Lock** (level 2) — 2 noted, 1 read
 - **Arcanist's Magic Aura** (level 2) — 3 noted, 1 read
 - **Astral Projection** (level 9) — 5 noted
 - **Augury** (level 2) — 1 noted, 3 handed to the DM
@@ -196,12 +196,12 @@ every casting; only one of them is waiting for anything.
 - **Blink** (level 3) — 3 noted
 - **Call Lightning** (level 3) — 4 noted
 - **Calm Emotions** (level 2) — 5 noted, 1 read
-- **Clairvoyance** (level 3) — 3 noted
+- **Clairvoyance** (level 3) — 3 noted, 1 read
 - **Clone** (level 8) — 3 noted
 - **Command** (level 1) — 6 noted
 - **Commune** (level 5) — 1 noted, 4 handed to the DM
 - **Commune with Nature** (level 5) — 1 noted, 7 handed to the DM
-- **Comprehend Languages** (level 1) — 1 noted
+- **Comprehend Languages** (level 1) — 1 noted, 1 read
 - **Confusion** (level 4) — 4 noted
 - **Conjure Animals** (level 3) — 4 noted
 - **Conjure Celestial** (level 7) — 5 noted
@@ -209,23 +209,23 @@ every casting; only one of them is waiting for anything.
 - **Conjure Minor Elementals** (level 4) — 4 noted
 - **Contact Other Plane** (level 5) — 3 noted, 4 handed to the DM
 - **Contingency** (level 6) — 3 noted
-- **Continual Flame** (level 2) — 3 noted
+- **Continual Flame** (level 2) — 3 noted, 2 read
 - **Control Water** (level 4) — 5 noted
 - **Control Weather** (level 8) — 3 noted, 4 handed to the DM
-- **Create Food and Water** (level 3) — 1 noted
-- **Create or Destroy Water** (level 1) — 3 noted
+- **Create Food and Water** (level 3) — 1 noted, 1 read
+- **Create or Destroy Water** (level 1) — 3 noted, 1 read
 - **Create Undead** (level 6) — 4 noted
 - **Creation** (level 5) — 3 noted
-- **Dancing Lights** (cantrip) — 3 noted
-- **Darkness** (level 2) — 4 noted
+- **Dancing Lights** (cantrip) — 3 noted, 2 read
+- **Darkness** (level 2) — 4 noted, 4 read
 - **Darkvision** (level 2) — 1 noted, 1 read
-- **Daylight** (level 3) — 3 noted
+- **Daylight** (level 3) — 3 noted, 3 read
 - **Death Ward** (level 4) — 3 noted
 - **Delayed Blast Fireball** (level 7) — 5 noted
 - **Demiplane** (level 8) — 3 noted
-- **Detect Evil and Good** (level 1) — 3 noted
-- **Detect Magic** (level 1) — 2 noted
-- **Detect Poison and Disease** (level 1) — 2 noted
+- **Detect Evil and Good** (level 1) — 3 noted, 1 read
+- **Detect Magic** (level 1) — 2 noted, 1 read
+- **Detect Poison and Disease** (level 1) — 2 noted, 1 read
 - **Detect Thoughts** (level 2) — 4 noted
 - **Disguise Self** (level 1) — 2 noted
 - **Dispel Evil and Good** (level 5) — 4 noted
@@ -233,9 +233,9 @@ every casting; only one of them is waiting for anything.
 - **Divine Word** (level 7) — 4 noted
 - **Dragon's Breath** (level 2) — 3 noted
 - **Dream** (level 5) — 4 noted, 2 read, 5 handed to the DM
-- **Druidcraft** (cantrip) — 2 noted
+- **Druidcraft** (cantrip) — 2 noted, 1 read
 - **Earthquake** (level 8) — 7 noted
-- **Elementalism** (cantrip) — 3 noted
+- **Elementalism** (cantrip) — 3 noted, 1 read
 - **Enlarge/Reduce** (level 2) — 5 noted
 - **Ensnaring Strike** (level 1) — 5 noted
 - **Enthrall** (level 2) — 4 noted, 1 read
@@ -247,20 +247,20 @@ every casting; only one of them is waiting for anything.
 - **Feather Fall** (level 1) — 3 noted, 2 read
 - **Find Steed** (level 2) — 4 noted
 - **Find the Path** (level 6) — 2 noted
-- **Find Traps** (level 2) — 1 noted
+- **Find Traps** (level 2) — 1 noted, 1 read
 - **Fire Storm** (level 7) — 2 noted
 - **Flaming Sphere** (level 2) — 3 noted
 - **Flesh to Stone** (level 6) — 5 noted, 1 read
-- **Floating Disk** (level 1) — 2 noted
+- **Floating Disk** (level 1) — 2 noted, 1 read
 - **Fly** (level 3) — 2 noted
-- **Fog Cloud** (level 1) — 3 noted
+- **Fog Cloud** (level 1) — 3 noted, 2 read
 - **Forbiddance** (level 6) — 3 noted
 - **Forcecage** (level 7) — 4 noted
 - **Foresight** (level 9) — 3 noted
 - **Freedom of Movement** (level 4) — 6 noted
 - **Gate** (level 9) — 3 noted, 1 handed to the DM
 - **Geas** (level 5) — 4 noted
-- **Gentle Repose** (level 2) — 2 noted
+- **Gentle Repose** (level 2) — 2 noted, 1 read
 - **Giant Insect** (level 4) — 4 noted
 - **Glibness** (level 8) — 2 noted
 - **Globe of Invulnerability** (level 6) — 4 noted
@@ -276,8 +276,8 @@ every casting; only one of them is waiting for anything.
 - **Hex** (level 1) — 4 noted
 - **Holy Aura** (level 8) — 3 noted
 - **Ice Knife** (level 1) — 3 noted
-- **Identify** (level 1) — 2 noted
-- **Illusory Script** (level 1) — 3 noted
+- **Identify** (level 1) — 2 noted, 1 read
+- **Illusory Script** (level 1) — 3 noted, 1 read
 - **Imprisonment** (level 9) — 5 noted
 - **Instant Summons** (level 6) — 3 noted
 - **Irresistible Dance** (level 6) — 4 noted
@@ -285,11 +285,11 @@ every casting; only one of them is waiting for anything.
 - **Knock** (level 2) — 3 noted, 1 read
 - **Legend Lore** (level 5) — 0 noted, 6 handed to the DM
 - **Levitate** (level 2) — 5 noted
-- **Light** (cantrip) — 3 noted
-- **Locate Animals or Plants** (level 2) — 1 noted
+- **Light** (cantrip) — 3 noted, 2 read
+- **Locate Animals or Plants** (level 2) — 1 noted, 1 read
 - **Locate Creature** (level 4) — 2 noted
-- **Locate Object** (level 2) — 2 noted
-- **Mage Hand** (cantrip) — 3 noted
+- **Locate Object** (level 2) — 2 noted, 1 read
+- **Mage Hand** (cantrip) — 3 noted, 1 read
 - **Magic Circle** (level 3) — 5 noted
 - **Magic Mouth** (level 2) — 3 noted
 - **Magic Weapon** (level 2) — 2 noted, 1 read
@@ -297,8 +297,8 @@ every casting; only one of them is waiting for anything.
 - **Major Image** (level 3) — 4 noted
 - **Mass Heal** (level 9) — 2 noted
 - **Meld into Stone** (level 3) — 4 noted
-- **Mending** (cantrip) — 2 noted
-- **Message** (cantrip) — 3 noted
+- **Mending** (cantrip) — 2 noted, 1 read
+- **Message** (cantrip) — 3 noted, 1 read
 - **Meteor Swarm** (level 9) — 3 noted
 - **Minor Illusion** (cantrip) — 3 noted
 - **Mirage Arcane** (level 7) — 3 noted, 3 read, 5 handed to the DM
@@ -323,17 +323,17 @@ every casting; only one of them is waiting for anything.
 - **Private Sanctum** (level 4) — 4 noted
 - **Project Image** (level 7) — 4 noted
 - **Protection from Evil and Good** (level 1) — 4 noted
-- **Purify Food and Drink** (level 1) — 2 noted
+- **Purify Food and Drink** (level 1) — 2 noted, 1 read
 - **Raise Dead** (level 5) — 4 noted
 - **Ray of Enfeeblement** (level 2) — 5 noted
 - **Reincarnate** (level 5) — 3 noted
-- **Remove Curse** (level 3) — 2 noted
+- **Remove Curse** (level 3) — 2 noted, 2 read
 - **Resilient Sphere** (level 4) — 5 noted
 - **Resistance** (cantrip) — 4 noted
 - **Resurrection** (level 7) — 5 noted
 - **Reverse Gravity** (level 7) — 3 noted
 - **Revivify** (level 3) — 2 noted
-- **Rope Trick** (level 2) — 2 noted
+- **Rope Trick** (level 2) — 2 noted, 1 read
 - **Sanctuary** (level 1) — 4 noted
 - **Scrying** (level 5) — 4 noted
 - **Secret Chest** (level 4) — 3 noted
@@ -349,7 +349,7 @@ every casting; only one of them is waiting for anything.
 - **Sleet Storm** (level 3) — 3 noted
 - **Spare the Dying** (cantrip) — 4 noted, 2 read
 - **Speak with Animals** (level 1) — 2 noted, 1 read
-- **Speak with Dead** (level 3) — 2 noted
+- **Speak with Dead** (level 3) — 2 noted, 1 read
 - **Speak with Plants** (level 3) — 2 noted, 1 read
 - **Spider Climb** (level 2) — 1 noted
 - **Spike Growth** (level 2) — 3 noted
@@ -364,7 +364,7 @@ every casting; only one of them is waiting for anything.
 - **Thaumaturgy** (cantrip) — 3 noted
 - **Time Stop** (level 9) — 2 noted
 - **Tiny Hut** (level 3) — 5 noted, 3 read
-- **Tongues** (level 3) — 1 noted
+- **Tongues** (level 3) — 1 noted, 1 read
 - **Transport via Plants** (level 6) — 2 noted
 - **Tree Stride** (level 5) — 2 noted
 - **True Polymorph** (level 9) — 7 noted
@@ -379,8 +379,8 @@ every casting; only one of them is waiting for anything.
 - **Wall of Stone** (level 5) — 4 noted
 - **Wall of Thorns** (level 6) — 4 noted
 - **Warding Bond** (level 2) — 4 noted
-- **Water Breathing** (level 3) — 1 noted
-- **Water Walk** (level 3) — 2 noted
+- **Water Breathing** (level 3) — 1 noted, 1 read
+- **Water Walk** (level 3) — 2 noted, 1 read
 - **Wind Wall** (level 3) — 3 noted
 - **Word of Recall** (level 6) — 2 noted
 - **Zone of Truth** (level 2) — 3 noted
@@ -427,11 +427,11 @@ of *Tracked* and is never added to it.
 | Shape | Blocks | Finishes (read) | Finishes (unread) | Executed | Tracked | of which unseen | Undefined |
 |---|---|---|---|---|---|---|---|
 | `a-casting-ended-by-a-trigger` | 16 | 1 | 0 | 3 | 10 | 1 | 3 |
-| `an-action-a-spell-compels-or-forbids` | 20 | 0 | 0 | 12 | 7 | 1 | 1 |
+| `an-action-a-spell-compels-or-forbids` | 19 | 0 | 0 | 11 | 7 | 1 | 1 |
 | `a-random-outcome-that-is-not-a-d20` | 17 | 0 | 0 | 0 | 14 | 0 | 3 |
 | `a-stat-block-created-mid-fight` | 15 | 0 | 0 | 1 | 13 | 1 | 1 |
-| `a-choice-made-at-the-casting` | 13 | 0 | 0 | 1 | 12 | 2 | 0 |
 | `an-effect-that-suppresses-other-magic` | 13 | 0 | 0 | 0 | 12 | 3 | 1 |
+| `a-choice-made-at-the-casting` | 12 | 0 | 0 | 1 | 11 | 2 | 0 |
 | `a-second-place-to-put-a-creature` | 12 | 0 | 0 | 2 | 7 | 0 | 3 |
 | `difficult-terrain-an-area-creates` | 11 | 0 | 0 | 5 | 5 | 2 | 1 |
 | `a-spells-effects-applied-to-different-targets` | 10 | 0 | 0 | 3 | 6 | 0 | 1 |
@@ -443,6 +443,7 @@ of *Tracked* and is never added to it.
 | `damage-with-neither-an-attack-roll-nor-a-save` | 7 | 0 | 0 | 2 | 4 | 0 | 1 |
 | `a-target-rule-the-format-cannot-state` | 6 | 0 | 0 | 0 | 6 | 1 | 0 |
 | `an-outcome-that-reads-the-targets-hit-points` | 6 | 0 | 0 | 1 | 5 | 0 | 0 |
+| `light-and-obscurement-the-scene-holds` | 6 | 0 | 0 | 0 | 6 | 6 | 0 |
 | `movement-modes` | 6 | 0 | 0 | 2 | 4 | 0 | 0 |
 | `a-barrier-that-blocks-passage` | 5 | 0 | 0 | 0 | 5 | 1 | 0 |
 | `a-creature-fact-an-effect-overrides` | 5 | 0 | 0 | 0 | 5 | 1 | 0 |
@@ -495,6 +496,7 @@ of *Tracked* and is never added to it.
 | `a-reduction-an-effect-applies-to-damage` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `a-repeat-save-on-the-clock` | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `a-rest-an-effect-gives-or-denies` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
+| `a-rider-that-lasts-until-the-start-of-the-targets-next-turn` | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `a-save-keyed-to-a-condition` | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `a-save-whose-failure-imposes-no-condition` | 1 | 0 | 0 | 0 | 0 | 0 | 1 |
 | `a-second-roll-sequenced-after-the-first` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
@@ -587,6 +589,7 @@ be the second spelling of one derivation.
 | `a-feature-that-changes-who-a-casting-catches` | 4 | 2 |
 | `a-spell-a-source-that-does-not-cast-grants` | 4 | 2 |
 | `movement-modes` | 4 | 2 |
+| `a-die-behaviour-a-spell-asks-for` | 3 | 2 |
 | `a-declared-fact-a-feature-sets` | 2 | 2 |
 | `a-hit-point-maximum-a-spell-moves` | 2 | 2 |
 | `a-pool-refilled-to-a-floor` | 2 | 2 |
@@ -601,7 +604,6 @@ be the second spelling of one derivation.
 | `a-spell-an-item-casts-that-nothing-executes` | 3 | 1 |
 | `a-condition-a-feature-ends` | 2 | 1 |
 | `a-creature-fact-an-effect-overrides` | 2 | 1 |
-| `a-die-behaviour-a-spell-asks-for` | 2 | 1 |
 | `a-one-shot-roll-modifier` | 2 | 1 |
 | `a-reaction-effect-the-vocabulary-lacks` | 2 | 1 |
 | `a-stat-block-created-mid-fight` | 2 | 1 |
@@ -609,6 +611,8 @@ be the second spelling of one derivation.
 | `a-bonus-an-ability-modifier-sizes` | 1 | 1 |
 | `a-bonus-narrowed-to-a-skill` | 1 | 1 |
 | `a-concentration-rule-that-names-its-casting` | 1 | 1 |
+| `a-hand-an-attack-came-from` | 1 | 1 |
+| `a-requirement-on-the-armour-its-holder-is-wearing` | 1 | 1 |
 | `a-roll-mode-a-feature-takes-away` | 1 | 1 |
 | `a-turn-a-spell-inserts-into-the-order` | 1 | 1 |
 | `an-action-the-engine-has-no-spender-for` | 1 | 1 |

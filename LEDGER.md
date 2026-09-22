@@ -21,13 +21,23 @@ An item in the *waits on none* column is finished business, and it is listed
 rather than omitted because an entry silently missing from a ledger looks
 exactly like an entry nobody read.
 
-## The three populations
+**And there is a third column, because that last sentence used to be false.**
+Gate G1 found *waits on none* holding three different claims — nobody has
+read it, it is expressible and nobody wrote the definition, and it is handed
+over — of which only the third is finished. *Waits on a definition* is the
+first two. The point of splitting them out: a measurement over adjudications
+has to **rise** when somebody reads the book, and it cannot while the unread
+state is displayed as zero.
 
-| Ledger | Size | Waits on an engine shape | Waits on none |
-|---|---|---|---|
-| Spells in reach, not executed | 129 spells | 89 | 40 |
-| Features manual, or a pool with nothing to buy | 55 features | 49 | 6 |
-| CR ≤ 5 stat-block items handed over or unapplied | 400 items | on 186 of 242 blocks | 56 blocks already clean |
+## The five populations
+
+| Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none |
+|---|---|---|---|---|
+| Spells in reach, not executed | 129 spells | 96 | 0 | 33 |
+| Features manual, or a pool with nothing to buy | 58 features | 52 | 0 | 6 |
+| Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 |
+| Glossary general rules nothing executes | 22 rules | 7 | 0 | 15 |
+| CR ≤ 5 stat-block items handed over or unapplied | 400 items | on 186 of 242 blocks | 0 | 56 blocks already clean |
 
 ## 1. Spells in reach the engine does not resolve
 
@@ -39,7 +49,8 @@ hold at all. An executed spell with nothing left is not here.
 
 | Shape | Blocks | Finishes |
 |---|---|---|
-| `an-action-a-spell-compels-or-forbids` | 9 | 5 |
+| `light-and-obscurement-the-scene-holds` | 6 | 6 |
+| `an-action-a-spell-compels-or-forbids` | 8 | 4 |
 | `a-rider-on-a-later-weapon-attack` | 7 | 3 |
 | `difficult-terrain-an-area-creates` | 6 | 3 |
 | `senses-beyond-declared-sight` | 4 | 3 |
@@ -51,8 +62,8 @@ hold at all. An executed spell with nothing left is not here.
 | `several-attack-rolls-from-one-casting` | 3 | 2 |
 | `a-casting-ended-by-a-trigger` | 7 | 1 |
 | `a-standing-effect-derived-from-where-a-creature-stands` | 5 | 1 |
-| `a-choice-made-at-the-casting` | 4 | 1 |
 | `a-repeat-save-that-does-something-on-a-failure` | 4 | 1 |
+| `a-choice-made-at-the-casting` | 3 | 1 |
 | `a-target-rule-the-format-cannot-state` | 3 | 1 |
 | `damage-with-neither-an-attack-roll-nor-a-save` | 3 | 1 |
 | `a-creature-fact-an-effect-overrides` | 2 | 1 |
@@ -60,6 +71,7 @@ hold at all. An executed spell with nothing left is not here.
 | `forced-movement-a-spell-causes` | 2 | 1 |
 | `a-cap-on-how-many-castings-run-at-once` | 1 | 1 |
 | `a-reduction-an-effect-applies-to-damage` | 1 | 1 |
+| `a-rider-that-lasts-until-the-start-of-the-targets-next-turn` | 1 | 1 |
 | `a-save-keyed-to-a-condition` | 1 | 1 |
 | `a-second-roll-sequenced-after-the-first` | 1 | 1 |
 | `a-spell-that-answers-a-later-attack` | 1 | 1 |
@@ -71,6 +83,7 @@ hold at all. An executed spell with nothing left is not here.
 | `healing-that-raises-the-dead` | 1 | 1 |
 | `jumping` | 1 | 1 |
 | `targeting-rules-that-differ-within-one-casting` | 1 | 1 |
+| `what-ends-attunement-besides-a-command` | 1 | 1 |
 | `a-bonus-narrowed-to-a-skill` | 3 | 0 |
 | `a-check-another-creature-may-attempt` | 3 | 0 |
 | `a-fact-only-the-table-can-declare` | 3 | 0 |
@@ -111,9 +124,17 @@ hold at all. An executed spell with nothing left is not here.
 is planned from. A spell can need more than one shape, so neither column
 sums to the population.
 
-#### `an-action-a-spell-compels-or-forbids` — blocks 9, finishes 5
+#### `light-and-obscurement-the-scene-holds` — blocks 6, finishes 6
 
-- **Shocking Grasp** (level 0) — executed-partial
+- **Dancing Lights** (level 0) — tracked
+- **Light** (level 0) — tracked
+- **Fog Cloud** (level 1) — tracked
+- **Continual Flame** (level 2) — tracked
+- **Darkness** (level 2) — tracked
+- **Daylight** (level 3) — tracked
+
+#### `an-action-a-spell-compels-or-forbids` — blocks 8, finishes 4
+
 - **Command** (level 1) — tracked
 - **Dissonant Whispers** (level 1) — executed-partial
 - **Expeditious Retreat** (level 1) — executed-partial
@@ -127,7 +148,7 @@ sums to the population.
 
 - **Shillelagh** (level 0) — tracked
 - **True Strike** (level 0) — tracked
-- **Hex** (level 1) — tracked — also waits on 2
+- **Hex** (level 1) — tracked — also waits on 1
 - **Alter Self** (level 2) — tracked — also waits on 1
 - **Enlarge/Reduce** (level 2) — tracked — also waits on 3
 - **Magic Weapon** (level 2) — tracked
@@ -210,19 +231,18 @@ sums to the population.
 - **Zone of Truth** (level 2) — tracked
 - **Conjure Animals** (level 3) — tracked — also waits on 1
 
-#### `a-choice-made-at-the-casting` — blocks 4, finishes 1
-
-- **Thaumaturgy** (level 0) — tracked
-- **Hex** (level 1) — tracked — also waits on 2
-- **Enlarge/Reduce** (level 2) — tracked — also waits on 3
-- **Glyph of Warding** (level 3) — tracked — also waits on 1
-
 #### `a-repeat-save-that-does-something-on-a-failure` — blocks 4, finishes 1
 
 - **Ensnaring Strike** (level 1) — tracked — also waits on 2
 - **Searing Smite** (level 1) — executed-partial
 - **Sleep** (level 1) — tracked — also waits on 1
 - **Bestow Curse** (level 3) — tracked — also waits on 2
+
+#### `a-choice-made-at-the-casting` — blocks 3, finishes 1
+
+- **Thaumaturgy** (level 0) — tracked
+- **Enlarge/Reduce** (level 2) — tracked — also waits on 3
+- **Glyph of Warding** (level 3) — tracked — also waits on 1
 
 #### `a-target-rule-the-format-cannot-state` — blocks 3, finishes 1
 
@@ -258,6 +278,10 @@ sums to the population.
 #### `a-reduction-an-effect-applies-to-damage` — blocks 1, finishes 1
 
 - **Resistance** (level 0) — tracked
+
+#### `a-rider-that-lasts-until-the-start-of-the-targets-next-turn` — blocks 1, finishes 1
+
+- **Shocking Grasp** (level 0) — executed-partial
 
 #### `a-save-keyed-to-a-condition` — blocks 1, finishes 1
 
@@ -302,6 +326,10 @@ sums to the population.
 #### `targeting-rules-that-differ-within-one-casting` — blocks 1, finishes 1
 
 - **Vampiric Touch** (level 3) — executed-partial
+
+#### `what-ends-attunement-besides-a-command` — blocks 1, finishes 1
+
+- **Remove Curse** (level 3) — tracked
 
 #### `a-bonus-narrowed-to-a-skill` — blocks 3, finishes 0
 
@@ -374,7 +402,7 @@ sums to the population.
 
 #### `an-outcome-that-reads-the-targets-hit-points` — blocks 2, finishes 0
 
-- **Hex** (level 1) — tracked — also waits on 2
+- **Hex** (level 1) — tracked — also waits on 1
 - **Hunter's Mark** (level 1) — executed-partial — also waits on 1
 
 #### `what-a-creature-is-holding` — blocks 2, finishes 0
@@ -458,12 +486,17 @@ sums to the population.
 
 - **Bestow Curse** (level 3) — tracked — also waits on 2
 
-#### Waiting on no shape — 40
+#### Waiting on a definition — 0
 
-- **Dancing Lights** (level 0) — tracked
+Nothing here is blocked. Each is either a paragraph nobody has recorded
+reading, or one the existing kinds already say and nobody has written — and
+both are work, which is why they are no longer printed as finished business.
+
+
+#### Waiting on no shape — 33
+
 - **Druidcraft** (level 0) — tracked
 - **Elementalism** (level 0) — tracked
-- **Light** (level 0) — tracked
 - **Mage Hand** (level 0) — tracked
 - **Mending** (level 0) — tracked
 - **Message** (level 0) — tracked
@@ -476,14 +509,11 @@ sums to the population.
 - **Detect Poison and Disease** (level 1) — tracked
 - **Disguise Self** (level 1) — tracked
 - **Floating Disk** (level 1) — tracked
-- **Fog Cloud** (level 1) — tracked
 - **Identify** (level 1) — tracked
 - **Illusory Script** (level 1) — tracked
 - **Purify Food and Drink** (level 1) — tracked
 - **Silent Image** (level 1) — tracked
 - **Arcane Lock** (level 2) — tracked
-- **Continual Flame** (level 2) — tracked
-- **Darkness** (level 2) — tracked
 - **Find Traps** (level 2) — tracked
 - **Gentle Repose** (level 2) — tracked
 - **Locate Animals or Plants** (level 2) — tracked
@@ -493,9 +523,7 @@ sums to the population.
 - **See Invisibility** (level 2) — tracked
 - **Clairvoyance** (level 3) — tracked
 - **Create Food and Water** (level 3) — tracked
-- **Daylight** (level 3) — tracked
 - **Major Image** (level 3) — tracked
-- **Remove Curse** (level 3) — tracked
 - **Speak with Dead** (level 3) — tracked
 - **Tongues** (level 3) — tracked
 - **Water Breathing** (level 3) — tracked
@@ -512,7 +540,16 @@ what its page prints. Species and background traits are counted, because a
 species trait is the same `FeatureDefinition` a class feature is and a
 level 5 character holds one.
 
-Of the 55, 32 are class or subclass features printed at level 5 or below and 23 are species or background traits.
+**Feats are counted too, and until gate G1 they were in no population at**
+**all** — not this one, not the blocker map, not a guard. A `FeatDefinition`
+carries no `automation` flag to select on, so the arm that answers for them
+is `FEATS_ANSWERED_FOR`, a declared list held down at both ends by
+`pool-blockers.test.ts` exactly as `POOLS_ONLY_PARTLY_BOUGHT` is — the
+entries in it, and the complement pinned by name. Its bracket is the level:
+an Origin feat and a Fighting Style print none and are taken at 1, so nine
+of the sixteen are in a level 1–5 character's reach.
+
+Of the 58, 32 are class or subclass features printed at level 5 or below, 23 are species or background traits and 3 are feats.
 The snapshot of 2026-09-21 in `docs/dev/roadmap-ledger-2026-09-21.md`
 counted the first group only, and did not see the pools; the traits are in
 reach of a level 5 character too, which is where the difference in the size
@@ -525,15 +562,17 @@ comes from.
 | `a-feature-that-changes-what-a-casting-costs` | 4 | 2 |
 | `a-rule-the-engine-fixes-for-everybody` | 4 | 2 |
 | `a-spell-a-source-that-does-not-cast-grants` | 4 | 2 |
+| `a-die-behaviour-a-spell-asks-for` | 3 | 2 |
 | `a-hit-point-maximum-a-spell-moves` | 2 | 2 |
 | `an-option-re-chosen-on-a-rest` | 2 | 2 |
 | `a-grant-gated-on-one-option-of-a-choice` | 4 | 1 |
 | `a-move-a-feature-hands-its-holder` | 3 | 1 |
-| `a-die-behaviour-a-spell-asks-for` | 2 | 1 |
 | `a-bonus-an-ability-modifier-sizes` | 1 | 1 |
 | `a-bonus-narrowed-to-a-skill` | 1 | 1 |
 | `a-declared-fact-a-feature-sets` | 1 | 1 |
 | `a-feature-that-rewrites-another-features-rule` | 1 | 1 |
+| `a-hand-an-attack-came-from` | 1 | 1 |
+| `a-requirement-on-the-armour-its-holder-is-wearing` | 1 | 1 |
 | `a-roll-result-an-effect-replaces` | 1 | 1 |
 | `an-action-the-engine-has-no-spender-for` | 1 | 1 |
 | `an-effect-that-intercepts-dropping-to-0` | 1 | 1 |
@@ -603,6 +642,12 @@ sums to the population.
 - `tiefling:fiendish-legacy` — Fiendish Legacy (level 1, species, manual)
 - `tiefling:otherworldly-presence` — Otherworldly Presence (level 1, species, manual)
 
+#### `a-die-behaviour-a-spell-asks-for` — blocks 3, finishes 2
+
+- `savage-attacker` — Savage Attacker (level 1, feat, origin)
+- `soldier:savage-attacker` — Savage Attacker (level 1, background, manual)
+- `sorcerer:metamagic` — Metamagic (level 2, class, manual) — also waits on 3
+
 #### `a-hit-point-maximum-a-spell-moves` — blocks 2, finishes 2
 
 - `dwarf:dwarven-toughness` — Dwarven Toughness (level 1, species, manual)
@@ -626,11 +671,6 @@ sums to the population.
 - `fighter:tactical-shift` — Tactical Shift (level 5, class, manual)
 - `rogue:cunning-strike` — Cunning Strike (level 5, class, manual) — also waits on 1
 
-#### `a-die-behaviour-a-spell-asks-for` — blocks 2, finishes 1
-
-- `soldier:savage-attacker` — Savage Attacker (level 1, background, manual)
-- `sorcerer:metamagic` — Metamagic (level 2, class, manual) — also waits on 3
-
 #### `a-bonus-an-ability-modifier-sizes` — blocks 1, finishes 1
 
 - `oath-of-devotion:sacred-weapon` — Sacred Weapon (level 3, subclass, manual)
@@ -646,6 +686,14 @@ sums to the population.
 #### `a-feature-that-rewrites-another-features-rule` — blocks 1, finishes 1
 
 - `cleric:sear-undead` — Sear Undead (level 5, class, manual)
+
+#### `a-hand-an-attack-came-from` — blocks 1, finishes 1
+
+- `two-weapon-fighting` — Two-Weapon Fighting (level 1, feat, fighting-style)
+
+#### `a-requirement-on-the-armour-its-holder-is-wearing` — blocks 1, finishes 1
+
+- `defense` — Defense (level 1, feat, fighting-style)
 
 #### `a-roll-result-an-effect-replaces` — blocks 1, finishes 1
 
@@ -774,6 +822,13 @@ sums to the population.
 
 - `thief:second-story-work` — Second-Story Work (level 3, subclass, manual) — also waits on 1
 
+#### Waiting on a definition — 0
+
+Nothing here is blocked. Each is either a paragraph nobody has recorded
+reading, or one the existing kinds already say and nobody has written — and
+both are work, which is why they are no longer printed as finished business.
+
+
 #### Waiting on no shape — 6
 
 - `druid:druidic` — Druidic (level 1, class, manual)
@@ -785,7 +840,48 @@ sums to the population.
 
 Listed by level, then id.
 
-## 3. CR ≤ 5 stat-block lines handed over or unapplied
+## 3. Items a level 1–5 party can buy
+
+**The reach rule is a price.** The SRD prints one for the equipment tables
+and for exactly one magic item — the Potion of Healing, at 50 GP — and
+everything else under *Magic Items A–Z* arrives because a DM put it in a
+hoard, which is a decision no ledger can predict and no ship criterion can
+require. So this row is what a party can walk into a shop and buy.
+
+Of the 157, 0 wait on a shape the engine does not have.
+The untranscribed tail of the magic-item book is a real population and it is
+`ITEM_BLOCKED_ON`'s, measured by `itemCoverageGaps` and reported in
+`COVERAGE.md`; what it is not is something a level 5 party is owed, which is
+why the two reports count it in different places.
+
+*Nothing. Every priced item the catalogue holds carries a record.*
+
+## 4. The glossary’s general rules
+
+The population gate G1 found had **no home at all**: not a map, not a row,
+not a guard. Spells, features and items each have a blocker map because
+each is a record in the catalogue; a glossary rule is a heading in
+`packages/srd/raw/rules.md` that nothing parses, so this one is hand-listed
+in `packages/content/scripts/glossary-rules.ts` and held down at both ends
+by its own test — a row claiming to be built names something `@ie/engine`
+really exports or a `NAMED_ACTIONS` member, and a row claiming nothing runs
+it is quoted as a value in no engine source file: no switch arm, no union
+member, no lookup. Five of the seven are named in the engine’s prose and
+are still unbuilt, which is why the guard asks for a literal rather than
+for the word.
+
+These are the rules a level 1–5 character reaches whatever they are playing,
+so none of them waits on reach: every one is in it.
+
+- **Help** (action) — the action is not a command. Its stabilisation half is reachable — `declarations.ts` names the Help action as what a stabilisation is the payout of — but the two things the book prints first, Advantage on an ally’s next ability check and Advantage on their next attack against a creature within 5 feet of you, have no door and no standing grant that says who gave them.
+- **Influence** (action) — one of the four `combat.ts` names as the book’s and leaves to the table: a Charisma check against a DC the DM sets, with the attitude of the creature deciding which skill and whether it is possible at all. Nothing spends the action and nothing records the attitude.
+- **Search** (action) — a Wisdom check — Insight, Medicine, Perception or Survival — to find something. `combat.ts` names it as the book’s and `permits-only` can narrow a slot down to it, which is the one place the engine says the word; no command spends it and nothing reads what was found.
+- **Study** (action) — an Intelligence check to recall or work something out. Three definitions print it — Minor Illusion, Disguise Self and Hallucinatory Terrain all say a creature must take the Study action before the Investigation check the engine then rolls — so the check is executed and the action that buys it is not, which is the gap in the middle of a rule that otherwise runs.
+- **Utilize** (action) — the second object interaction of a turn. The **first** is built — `combat.ts` counts one free interaction per turn and `actions.ts` quotes the sentence — and the action that buys any after it is not, so the count is enforced and the way past it is missing.
+- **Nick** (mastery) — the mastery that makes the Light property’s extra attack part of the Attack action instead of a Bonus Action. **It is quoted as a value in no engine source file** — the word is written twice, in two comments of `mastery.ts` saying it is unbuilt, and nowhere a switch arm or a union member could read it — and a level 1 Rogue with a Scimitar reaches it — as does any level 1 character with a Dagger, a Light Hammer or a Sickle. It waits on the same thing Two-Weapon Fighting does: nothing records which hand an attack came from.
+- **Two-Weapon Fighting** (rule) — the extra attack a Light weapon in the other hand buys as a Bonus Action, with no ability modifier on the damage unless the Fighting Style feat is held. The Two-Weapon Fighting feat’s own note says it outright: the engine does not model which hand an attack came from, so neither half of this rule has anywhere to read the fact it turns on.
+
+## 5. CR ≤ 5 stat-block lines handed over or unapplied
 
 242 of the 330 carried stat blocks are CR ≤ 5. They print 737 lines, of which the parser reads 407 and hands over 330. A further 70 of the read attack lines carry a printed rider nothing applies, so the population is 400 items over 242 blocks — 56 of which already carry none of them.
 
