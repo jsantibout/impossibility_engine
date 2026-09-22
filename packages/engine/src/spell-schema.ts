@@ -321,6 +321,84 @@ function nameOf(value: unknown): string {
  * catch that, and it is the same `validateBonusDice` discipline: parse
  * everything before anything is thrown.
  */
+function checkScaling(
+  scaling: DiceScaling,
+  level: number,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  if (!readsAsObject(scaling, path, 'a dice scaling is an object naming the dice it rolls', found)) {
+    return;
+  }
+
+  for (const [key, notation] of [
+    ['dice', scaling.dice],
+    ['perSlotLevelAbove', scaling.perSlotLevelAbove],
+  ] as const) {
+    if (notation === undefined) continue;
+    if (typeof notation !== 'string' || !parseNotation(notation).ok) {
+      found.push({
+        field: `${path}.${key}`,
+        code: 'bad_dice',
+        reason: `"${String(notation)}" is not dice notation`,
+      });
+    }
+  }
+
+  // **An amount may roll nothing, and may not be nothing.** SRD Potion of
+  // Heroism's "10 Temporary Hit Points" is a `flat` with no notation beside
+  // it; an amount carrying neither would resolve, silently, to a zero that
+  // every reader would hand over as if the line had printed it.
+  if (scaling.dice === undefined) {
+    if (typeof scaling.flat !== 'number') {
+      found.push({
+        field: path,
+        code: 'amounts_to_nothing',
+        reason:
+          'an amount rolls dice, states a flat number, or both; this states neither, and nothing is not an amount',
+      });
+    }
+    // The two fields that add dice **to the base notation**, on an amount that
+    // has none: `scaledDiceFor` would have to invent the die they are counted
+    // in, so the upcast would silently come to nothing. `flatPerSlotLevelAbove`
+    // is deliberately not here — `scaledFlatFor` never reads a notation, so a
+    // printed number that grows flatly with the slot is perfectly sayable.
+    for (const key of ['perSlotLevelAbove', 'cantripUpgradesAt'] as const) {
+      if (scaling[key] !== undefined) {
+        found.push({
+          field: `${path}.${key}`,
+          code: 'scaling_without_dice',
+          reason: `${key} adds dice to the amount's own notation, and this amount rolls none`,
+        });
+      }
+    }
+  }
+
+  // A cantrip has no slot, so nothing about it can grow with one: SRD gives it
+  // a Cantrip Upgrade read off the *caster*. `scaledDiceFor` takes the cantrip
+  // branch and never looks at a per-slot field, so the number would simply be
+  // ignored — the quietest possible way to be wrong.
+  if (level === 0) {
+    for (const key of ['perSlotLevelAbove', 'flatPerSlotLevelAbove'] as const) {
+      if (scaling[key] !== undefined) {
+        found.push({
+          field: `${path}.${key}`,
+          code: 'slot_scaling_on_cantrip',
+          reason: 'a cantrip is cast with no spell slot, so nothing about it scales with one',
+        });
+      }
+    }
+  } else if (scaling.cantripUpgradesAt !== undefined) {
+    // And the mirror, which is the exact confusion that had a level 3 Wizard
+    // throwing Fire Bolt for 2d10: a levelled spell scales with its slot.
+    found.push({
+      field: `${path}.cantripUpgradesAt`,
+      code: 'cantrip_scaling_on_spell',
+      reason: 'the Cantrip Upgrade applies to cantrips; a levelled spell scales with its slot',
+    });
+  }
+}
+
 /**
  * How many attack rolls an effect makes, held to the same two rules the dice
  * beside it are held to.
@@ -398,84 +476,6 @@ function checkRollCount(
         }
       });
     }
-  }
-}
-
-function checkScaling(
-  scaling: DiceScaling,
-  level: number,
-  path: string,
-  found: SpellDefinitionProblem[],
-): void {
-  if (!readsAsObject(scaling, path, 'a dice scaling is an object naming the dice it rolls', found)) {
-    return;
-  }
-
-  for (const [key, notation] of [
-    ['dice', scaling.dice],
-    ['perSlotLevelAbove', scaling.perSlotLevelAbove],
-  ] as const) {
-    if (notation === undefined) continue;
-    if (typeof notation !== 'string' || !parseNotation(notation).ok) {
-      found.push({
-        field: `${path}.${key}`,
-        code: 'bad_dice',
-        reason: `"${String(notation)}" is not dice notation`,
-      });
-    }
-  }
-
-  // **An amount may roll nothing, and may not be nothing.** SRD Potion of
-  // Heroism's "10 Temporary Hit Points" is a `flat` with no notation beside
-  // it; an amount carrying neither would resolve, silently, to a zero that
-  // every reader would hand over as if the line had printed it.
-  if (scaling.dice === undefined) {
-    if (typeof scaling.flat !== 'number') {
-      found.push({
-        field: path,
-        code: 'amounts_to_nothing',
-        reason:
-          'an amount rolls dice, states a flat number, or both; this states neither, and nothing is not an amount',
-      });
-    }
-    // The two fields that add dice **to the base notation**, on an amount that
-    // has none: `scaledDiceFor` would have to invent the die they are counted
-    // in, so the upcast would silently come to nothing. `flatPerSlotLevelAbove`
-    // is deliberately not here — `scaledFlatFor` never reads a notation, so a
-    // printed number that grows flatly with the slot is perfectly sayable.
-    for (const key of ['perSlotLevelAbove', 'cantripUpgradesAt'] as const) {
-      if (scaling[key] !== undefined) {
-        found.push({
-          field: `${path}.${key}`,
-          code: 'scaling_without_dice',
-          reason: `${key} adds dice to the amount's own notation, and this amount rolls none`,
-        });
-      }
-    }
-  }
-
-  // A cantrip has no slot, so nothing about it can grow with one: SRD gives it
-  // a Cantrip Upgrade read off the *caster*. `scaledDiceFor` takes the cantrip
-  // branch and never looks at a per-slot field, so the number would simply be
-  // ignored — the quietest possible way to be wrong.
-  if (level === 0) {
-    for (const key of ['perSlotLevelAbove', 'flatPerSlotLevelAbove'] as const) {
-      if (scaling[key] !== undefined) {
-        found.push({
-          field: `${path}.${key}`,
-          code: 'slot_scaling_on_cantrip',
-          reason: 'a cantrip is cast with no spell slot, so nothing about it scales with one',
-        });
-      }
-    }
-  } else if (scaling.cantripUpgradesAt !== undefined) {
-    // And the mirror, which is the exact confusion that had a level 3 Wizard
-    // throwing Fire Bolt for 2d10: a levelled spell scales with its slot.
-    found.push({
-      field: `${path}.cantripUpgradesAt`,
-      code: 'cantrip_scaling_on_spell',
-      reason: 'the Cantrip Upgrade applies to cantrips; a levelled spell scales with its slot',
-    });
   }
 }
 

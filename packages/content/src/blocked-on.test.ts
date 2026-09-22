@@ -2481,10 +2481,10 @@ describe('a spell with one blocker is the leverage the map is for', () => {
       'several-attack-rolls-from-one-casting',
     ]);
 
-    // And a third departure the same way, which is what makes Barkskin's
-    // a class rather than an exception: Barkskin is tracked, the floor on an
-    // Armour Class is still missing, and the shape keeps the spell as a
-    // tracked claimant instead of an undefined one. What changes is which
+    // And a third departure the way Revivify went, which is what makes
+    // Revivify's a class rather than an exception: Barkskin is tracked, the
+    // floor on an Armour Class is still missing, and the shape keeps the spell
+    // as a tracked claimant instead of an undefined one. What changes is which
     // population holds it, not whether the debt is owed.
     expect(BLOCKED_ON['barkskin']).toBeUndefined();
     expect(claimedShapes().has('an-armor-class-a-spell-floors')).toBe(true);

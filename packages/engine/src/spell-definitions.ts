@@ -3265,6 +3265,12 @@ export function attackRollsFor(
  * roll. The maximum rather than a sum: two attack effects in one list are two
  * things that each happen to every target, not a pool of rolls to divide, and
  * the target list has to be long enough for the longest of them.
+ *
+ * **Zero for a list with no attack in it**, which is the honest answer and not
+ * the useful one: a Detect Magic makes no attack rolls, and seeding at one so
+ * that the number could be used as a bound unexamined would have this function
+ * saying every spell in the book throws an attack. A caller wanting a floor
+ * says so where it wants it.
  */
 export function attackRollsIn(
   effects: readonly SpellEffect[],
@@ -3277,7 +3283,7 @@ export function attackRollsIn(
       effect.kind === 'attack'
         ? Math.max(most, attackRollsFor(effect.rolls, spellLevel, casterLevel, slotLevel))
         : most,
-    1,
+    0,
   );
 }
 

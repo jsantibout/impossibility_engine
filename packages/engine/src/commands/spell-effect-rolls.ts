@@ -103,10 +103,18 @@ export function resolveAttackEffect(
     ctx.numbers.casterLevel,
     ctx.castLevel,
   );
-  // The creature's place in the list the caster named. A resolution running
-  // over nobody at all cannot get here — the outer loop is what calls this —
-  // so an index of -1 would be a programmer error rather than a rules one.
-  const mine = rollsDealtTo(total, ctx.targets.length, ctx.targets.indexOf(target));
+  // The creature's place in the list the caster named. Every caller iterates
+  // the very list it put on the context, so a target that is not in it is a
+  // programmer error and gets the exception rule 6 reserves for one: a
+  // negative index deals `rollsDealtTo` one roll too many, which is a casting
+  // that throws a ray nobody asked for and refuses nothing while doing it.
+  const where = ctx.targets.indexOf(target);
+  if (where < 0) {
+    throw new Error(
+      `${ctx.label} is resolving an attack on ${target}, who is not among the targets it was given`,
+    );
+  }
+  const mine = rollsDealtTo(total, ctx.targets.length, where);
 
   let current = world;
   for (let thrown = 0; thrown < mine; thrown += 1) {

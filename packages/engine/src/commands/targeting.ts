@@ -1018,15 +1018,18 @@ export function namedTargets(
   // the target rule still speaks for every spell that rolls one attack or
   // none, and a spell whose rolls outnumber its printed targets is saying that
   // each roll picks its own.
-  const allowed = Math.max(
-    targetCountFor(definition.targets, definition.level, castLevel),
-    // A spell that aims at nobody keeps aiming at nobody: `attackRollsIn`
-    // answers one for a list with no attack in it, and raising a count of zero
-    // to one would make Detect Magic take a target.
+  //
+  // **A spell that aims at nobody keeps aiming at nobody.** A `count` of zero
+  // is Detect Magic and the object spells, and one of them rolling an attack —
+  // SRD Fire Bolt hits "a creature **or object**" — must not become a spell
+  // that takes a creature because it has a roll to spend on one.
+  const allowed =
     definition.targets.count === 0
       ? 0
-      : attackRollsIn(definition.effects, definition.level, casterLevel, castLevel),
-  );
+      : Math.max(
+          targetCountFor(definition.targets, definition.level, castLevel),
+          attackRollsIn(definition.effects, definition.level, casterLevel, castLevel),
+        );
 
   // A spell that aims at nobody. SRD's "Range: Self" utility spells — Detect
   // Magic, Disguise Self — and the ones that act on an object or a point, like
