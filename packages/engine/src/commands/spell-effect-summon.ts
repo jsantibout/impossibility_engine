@@ -75,10 +75,12 @@ const scaled = (number: SummonedNumber, level: number): number =>
  * and it would silently reorder the creatures whose tiebreak a DM *had* stated
  * — which is the one thing that field exists to stop.
  *
- * **It is not that an invented one would rank the steed badly.** Ranking is
- * `b.tiebreak - a.tiebreak`, highest first, so one below the rider would in
- * fact put the steed ahead of most of the count; the argument against it is
- * whose decision it is, and that argument does not need a second one.
+ * **And that is the whole of the argument**, deliberately. Two earlier
+ * attempts to add a second one — that an invented rung would rank the steed
+ * badly — were each wrong about `byInitiative` in a different direction, which
+ * is the argument for not making a claim a rule does not need: whose decision
+ * a tie is settles this on its own, at every board, without anybody having to
+ * work out where the steed would have landed.
  *
  * What is left undelivered is therefore the **guarantee** rather than the
  * behaviour. `addCombatant` seats a joiner after everyone it exactly ties
