@@ -784,13 +784,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: "The target can’t talk or manipulate objects, and any objects it was carrying or holding can’t be dropped, used, or otherwise interacted with." The action economy is the engine’s and the only lever a spell has on it is a condition the engine names; forbidding two actions and leaving the rest is a rider nothing expresses, and what is in a creature’s hands is not a fact the engine holds either.',
     },
   ],
-  grease: [
-    {
-      clause: 'becoming Difficult Terrain',
-      why: 'difficult-terrain-an-area-creates',
-      note: 'The ruler charges Difficult Terrain by the declared foot and reads no area, so a creature walks across the grease at open-floor cost while the spell’s save is resolved exactly.',
-    },
-  ],
   harm: [
     {
       clause: 'Hit Point maximum reduction',
@@ -943,6 +936,13 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'The ending itself is expressible — `onSuccess: end-casting` exists — and it has no save to ride on, because the repeat save that would carry it deals damage the hook cannot roll.',
     },
   ],
+  'plant-growth': [
+    {
+      clause: 'the Enrichment branch is not castable at all',
+      why: 'a-choice-made-at-the-casting',
+      note: 'SRD prints one spell with two effects and lets the **casting time** choose between them, Action for the Overgrowth and eight hours for the Enrichment — "This spell channels vitality into plants. The casting time you use determines whether the spell has the Overgrowth or the Enrichment effect below." That is the second arm of this shape exactly as its description states it — a choice of which effects run rather than which value one of them carries, which is Enlarge/Reduce’s two halves and Glyph of Warding’s two glyphs — with the extra turn of the screw that the two branches do not even share a casting time, and a definition carries one. The Overgrowth is what is written, and its four feet per foot are charged.',
+    },
+  ],
   'prayer-of-healing': [
     {
       clause: 'remain within range for the spell',
@@ -1002,6 +1002,18 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: the target "can’t make Opportunity Attacks until the start of its next turn". **The rule is writable and the deadline is not**, and gate G1 re-filed this entry because the id it carried said the opposite. `forbids` takes a named action away and leaves the rest of the budget alone — `NAMED_ACTIONS` lists `opportunity-attack` against this spell by name, and Stinking Cloud, Fear, Wind Walk and Magic Jar all write the vocabulary now. What stops this one is that a cantrip is Instantaneous, so the rider must carry a `lasts` of its own, and `RiderDuration` declares the start of the **caster’s** next turn and the end of the **target’s**, with no member for the start of the target’s. `Duration` beneath it has one — `start-of-next-turn` names any creature — so what is absent is a member of the content-facing vocabulary and the readers that expand it, which is engine work rather than a definition.',
     },
   ],
+  'spike-growth': [
+    {
+      clause: 'the spikes deal nothing',
+      why: 'a-distance-a-creature-travels-inside-an-area',
+      note: 'SRD: "it takes 2d4 Piercing damage for every 5 feet it travels". The dice are multiplied by a distance travelled **inside** the area, and a move is charged by the foot without anybody asking which of those feet were where — so there is no number for the dice to be multiplied by. The sentence before it is executed now: the ground is Difficult Terrain, laid as a patch the casting keeps.',
+    },
+    {
+      clause: 'the Wisdom (Perception or Survival) check that spots the hazard is not offered',
+      why: 'a-check-another-creature-may-attempt',
+      note: 'the check belongs to a creature that is about to walk in rather than to one the casting caught, and who may attempt a check is derived from what its timer sits on — an effect on a creature is that creature’s, a casting with no victim is anybody’s, and this is neither.',
+    },
+  ],
   sunbeam: [
     {
       clause: 'creates a new Line on a later turn',
@@ -1030,9 +1042,9 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD Restrains a creature "while in the webs". A condition ends with its casting, on a deadline, or on a save; ending because its holder walked out of an area is a lifetime nothing expresses, so it runs until the casting ends or the creature breaks free.',
     },
     {
-      clause: 'the webs are Difficult Terrain',
-      why: 'difficult-terrain-an-area-creates',
-      note: 'Every save the webs call for is raised and resolved; crossing them costs the same as crossing an empty floor, because Difficult Terrain reaches the ruler only as declared feet on a move.',
+      clause: 'the area within the webs being Lightly Obscured',
+      why: 'light-and-obscurement-the-scene-holds',
+      note: 'SRD writes two facts about the Cube in one sentence and the engine now holds one of them: the webs are Difficult Terrain, laid as a patch the casting keeps and charged at every space a move crosses. The other half has nothing to be written on — no square is lit, dim or obscured — which is the shape `docs/design/light-and-sight.md` is the design for and P3-S builds.',
     },
     {
       clause: 'flammable',
@@ -1696,20 +1708,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'the Prone half is an ordinary condition rider and is welded to the half that is not: one failed save imposes both, and no outcome of a saving throw asks for somebody’s Concentration to break.',
     },
   ],
-  'spike-growth': [
-    {
-      marker: 'dice',
-      clause: 'it takes 2d4 Piercing damage for every 5 feet it travels',
-      why: 'a-distance-a-creature-travels-inside-an-area',
-      note: 'the dice are multiplied by a distance travelled **inside** the area, and a move is charged by the foot without anybody asking which of those feet were where — so there is no number for the dice to be multiplied by.',
-    },
-    {
-      marker: 'ability-check',
-      clause: 'succeed on a Wisdom (Perception or Survival) check against your spell save DC',
-      why: 'a-check-another-creature-may-attempt',
-      note: 'the check belongs to a creature that is about to walk in rather than to one the casting caught, and who may attempt a check is derived from what its timer sits on — an effect on a creature is that creature’s, a casting with no victim is anybody’s, and this is neither.',
-    },
-  ],
   'warding-bond': [
     {
       marker: 'armor-class',
@@ -2174,14 +2172,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'it has a Speed of 100 feet',
       why: 'a-stat-block-created-mid-fight',
       note: 'the Speed is an override on a stat block out of the monster list, and the thing it overrides is a creature no casting can put in the scene — so the number has nobody to belong to.',
-    },
-  ],
-  'plant-growth': [
-    {
-      marker: 'movement-cost',
-      clause: 'must spend 4 feet of movement for every 1 foot it moves',
-      why: 'difficult-terrain-an-area-creates',
-      note: 'Difficult Terrain is charged exactly and declared by the foot on the move that crosses it, and deriving it from a spell’s area needs the path a move does not record. Four feet per foot is twice the printed rate besides, which nothing expresses either.',
     },
   ],
   revivify: [

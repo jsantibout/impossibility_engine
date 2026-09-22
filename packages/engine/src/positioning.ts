@@ -1452,21 +1452,48 @@ export interface TerrainRegion {
   readonly shape: AreaShape;
 }
 
-/** A patch of expensive ground, as the table declared it. */
-export interface DifficultPatch {
+/**
+ * A fact hung on a region of the lattice, and the lifetime it hangs for.
+ *
+ * **The half of a patch that is not about terrain at all**, factored out
+ * because Difficult Terrain is the precedent the sight model generalises
+ * from: `docs/design/light-and-sight.md` puts light on the lattice "exactly
+ * as Difficult Terrain is" — a region, a value, an optional `source` that
+ * lapses with its casting, derived at read time. So the two questions that
+ * are the same question for every patch there will ever be — *where* and
+ * *for how long* — are declared once here, and each record adds the value
+ * that makes it the patch it is.
+ *
+ * **The second consumer is `LightPatch`** (`{ region, level, source?,
+ * magical?, sunlight? }`) with `ObscuringPatch` beside it, both of them
+ * records on `PositionState` next to `terrain` and both read through
+ * {@link livePatchesOf}. Written down rather than left to be discovered,
+ * because the whole point of the shape is that P3-S does not have to
+ * re-derive the lifetime.
+ */
+export interface LatticePatch {
   readonly region: TerrainRegion;
-  /** Feet of movement spent per foot of ground. At least {@link DIFFICULT_TERRAIN}. */
-  readonly costPerFoot: number;
   /**
-   * The casting that made this ground expensive, if one did.
+   * The casting that made this fact true, if one did.
    *
-   * A patch hung on a casting stops charging the moment that casting leaves
+   * A patch hung on a casting stops applying the moment that casting leaves
    * `state.ongoing` — dispelled, expired, Concentration broken, however it
    * went. That is derived at the moment the question is asked rather than
    * swept up by a pass of its own, so there is no window in which the webs
    * are gone and the ground still costs double.
+   *
+   * **Absent is not "forever by accident".** SRD Plant Growth's overgrowth is
+   * Instantaneous and the book prints no ending for it, and the table's own
+   * rubble was never anybody's casting, so a patch with no source is the
+   * ordinary case and not a missing link.
    */
   readonly source?: string;
+}
+
+/** A patch of expensive ground, as the table or a casting declared it. */
+export interface DifficultPatch extends LatticePatch {
+  /** Feet of movement spent per foot of ground. At least {@link DIFFICULT_TERRAIN}. */
+  readonly costPerFoot: number;
 }
 
 /**
@@ -1548,25 +1575,38 @@ export interface TerrainCharge {
 const OPEN_FLOOR: TerrainCharge = { costPerFoot: ORDINARY_GROUND, patches: [] };
 
 /**
- * The patches still charging, in a fixed order.
+ * The patches of one record still in force, in a fixed order.
  *
  * A patch a casting made lapses when that casting does, and this is where it
  * lapses: read from `state.ongoing` at the moment the question is asked,
  * rather than dropped by a pass that has to be remembered. Nothing can then
  * be stale, and a log folded a second time answers the same way because it
  * reads the same two facts.
+ *
+ * **Parameterised over the record rather than written into the terrain
+ * reader**, which is the whole of what {@link LatticePatch} is for: P3-S adds
+ * `light` and `obscurement` beside `terrain` and asks this same question of
+ * them, and a second copy of the liveness rule is a second place for a
+ * dispelled Darkness to go on darkening the room.
  */
-function livePatches(state: GameState): readonly (readonly [string, DifficultPatch])[] {
-  const scene = state.scene;
-  if (scene === null) return [];
-  return Object.keys(scene.terrain)
+export function livePatchesOf<T extends LatticePatch>(
+  state: GameState,
+  patches: Readonly<Record<string, T>>,
+): readonly (readonly [string, T])[] {
+  return Object.keys(patches)
     .sort()
     .flatMap((name) => {
-      const patch = scene.terrain[name];
+      const patch = patches[name];
       if (patch === undefined) return [];
       if (patch.source !== undefined && state.ongoing[patch.source] === undefined) return [];
       return [[name, patch] as const];
     });
+}
+
+/** The expensive ground still charging, in a fixed order. */
+function livePatches(state: GameState): readonly (readonly [string, DifficultPatch])[] {
+  const scene = state.scene;
+  return scene === null ? [] : livePatchesOf(state, scene.terrain);
 }
 
 /**

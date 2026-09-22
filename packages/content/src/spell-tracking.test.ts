@@ -9,7 +9,9 @@ import { remaining, spellSlotKey } from '@ie/engine';
 import { declaredCasting } from '@ie/engine';
 import {
   advanceTime,
+  DIRECTIONAL_AREAS,
   pendingCastingsOf,
+  type Point,
   resolveDamage,
   resolveDeclaredCast,
   resolveSpell,
@@ -123,6 +125,17 @@ const TRACKED: readonly string[] = SPELL_DEFINITIONS.filter(
  */
 const TYPED: Readonly<Record<string, CharacterId>> = { Humanoid: ALLY, Beast: BEAST };
 
+/**
+ * Where an area spell puts its template: a point 50 feet from the door, and a
+ * direction for the shapes that need one.
+ *
+ * Inside the scene, inside every printed Range this table casts, and far
+ * enough from the creatures that nothing here turns on who is caught — these
+ * sweeps are about a spell being *cast* rather than refused.
+ */
+const AREA_AT: Point = { x: 100, y: 100, z: 0 };
+const AREA_TOWARDS: Point = { x: 150, y: 100, z: 0 };
+
 const SETUP: readonly GameEvent[] = [
   added(WIZARD),
   added(ALLY),
@@ -209,6 +222,17 @@ const cast = (
       ...(definition.choiceStated === undefined
         ? {}
         : { choice: definition.choiceStated.options[0]! }),
+      // **An area needs a point, and a directional one a direction**: the two
+      // facts `resolveTargets` demands of any spell with a volume. Derived
+      // from the definition rather than listed by spell id, so the next
+      // definition that grows an area needs no line here. The point is inside
+      // the scene and within every Range this table's spells print.
+      ...(definition.area === undefined
+        ? {}
+        : {
+            at: AREA_AT,
+            ...(DIRECTIONAL_AREAS.has(definition.area.kind) ? { towards: AREA_TOWARDS } : {}),
+          }),
       ...over,
     },
     supply(),
@@ -1354,6 +1378,14 @@ describe('every spell this batch added is cast for real', () => {
    * **Enhance Ability is the sixth.** Its six named blessings are one effect
    * with the ability named at the casting rather than six definitions, so
    * `choiceStated` is what it was waiting for.
+   *
+   * **Plant Growth and Spike Growth are the seventh and eighth, and they
+   * leave by a fifth door.** Neither rolls anything and neither catches
+   * anybody: what each does is make the ground expensive, which is a patch on
+   * the lattice the casting keeps and the ruler charges for at every space a
+   * move crosses. `isExecuted` reads `areaTerrain` for exactly that reason —
+   * a spell whose only printed mechanic the engine now resolves is not one
+   * the engine resolves nothing of.
    */
   const EXECUTED_SINCE: readonly string[] = [
     'aid',
@@ -1361,6 +1393,8 @@ describe('every spell this batch added is cast for real', () => {
     'expeditious-retreat',
     'goodberry',
     'magic-jar',
+    'plant-growth',
+    'spike-growth',
     'wind-walk',
   ];
 

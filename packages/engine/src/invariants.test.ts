@@ -1201,7 +1201,27 @@ const greased = (): readonly GameEvent[] => {
       resolveMove(
         fold('s', turned),
         B,
-        { placement: { from: { landmark: 'the slick' }, feet: 5, bearing: 90 } },
+        {
+          placement: { from: { landmark: 'the slick' }, feet: 5, bearing: 0 },
+          // **The grease is Difficult Terrain now**, which changes two things
+          // about this walk and neither is the fixture's subject.
+          //
+          // The ruler will not guess which spaces a move crossed when they
+          // charge different rates, so the route is stated: four steps from
+          // (100, 105) to (120, 105), of which only the last is on the slick.
+          //
+          // And it goes **north** of the point rather than east of it,
+          // because five feet east is a second space of grease and a
+          // 25-foot walk with two of them costs 35 — more than a Speed of
+          // 30. One space in is still in, which is all the entry clause
+          // asks, and the origin space itself is still excluded.
+          route: [
+            { x: 105, y: 105, z: 0 },
+            { x: 110, y: 105, z: 0 },
+            { x: 115, y: 105, z: 0 },
+            { x: 120, y: 105, z: 0 },
+          ],
+        },
         supply(),
       ),
       'walking in',
@@ -1268,7 +1288,19 @@ const webbed = (): readonly GameEvent[] => {
       resolveMove(
         fold('s', turned),
         B,
-        { placement: { from: { landmark: 'the webs' }, feet: 5, bearing: 90 } },
+        {
+          // The same walk `greased()` makes, and the same two reasons for its
+          // shape: the webs are Difficult Terrain, so the route is stated
+          // rather than guessed, and it goes north of the point rather than
+          // east so that one space of webbing is crossed instead of two.
+          placement: { from: { landmark: 'the webs' }, feet: 5, bearing: 0 },
+          route: [
+            { x: 105, y: 105, z: 0 },
+            { x: 110, y: 105, z: 0 },
+            { x: 115, y: 105, z: 0 },
+            { x: 120, y: 105, z: 0 },
+          ],
+        },
         supply(),
       ),
       'walking in',

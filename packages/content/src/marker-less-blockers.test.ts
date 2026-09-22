@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
 import { renderReport } from '../scripts/coverage.js';
 import {
+  ADJUDICATED as ADJUDICATED_EXECUTED,
   BLOCKED_ON,
   MISSING_SHAPES,
   TRACKED_ADJUDICATED,
@@ -175,17 +176,23 @@ describe('a blocker no mechanical marker can see survives the spell being writte
         // the form saved here was a shape from being retired on the strength
         // of a claim from the wrong edition of the book.
         'an-exhaustion-level-a-spell-changes',
-        // **The seventh, and the largest single claim the form has carried.**
-        // Six spells in level-5 reach print a light level — Dancing Lights,
-        // Darkness, Daylight, Continual Flame, Light and Fog Cloud — and not
-        // one sentence of any of them trips a `MECHANICAL_MARKERS` pattern:
-        // the list knows dice, saves, checks, Armour Class, Hit Points,
-        // defences, conditions, roll modes, Speed, chance, movement cost,
-        // teleportation and extra damage, and the book writes Bright Light,
-        // Dim Light, Darkness and Heavily Obscured in none of those words. So
-        // the whole of this shape would vanish under the old rule, which is
-        // the failure the form was built for arriving at its largest scale.
-        'light-and-obscurement-the-scene-holds',
+        // **`light-and-obscurement-the-scene-holds` was the seventh and is
+        // the second to leave by gaining a claimant the form does not carry**
+        // — the one exit that makes a gap *more* claimed rather than less,
+        // and the reason the list is derived instead of frozen.
+        //
+        // It was the largest single claim the form had: six spells in level-5
+        // reach print a light level — Dancing Lights, Darkness, Daylight,
+        // Continual Flame, Light and Fog Cloud — and not one sentence of any
+        // of them trips a `MECHANICAL_MARKERS` pattern, because the list
+        // knows dice, saves, checks, Armour Class, Hit Points, defences,
+        // conditions, roll modes, Speed, chance, movement cost, teleportation
+        // and extra damage, and the book writes Bright Light, Dim Light,
+        // Darkness and Heavily Obscured in none of those words. What changed
+        // is Web: the Difficult Terrain half of "The webs are Difficult
+        // Terrain, and the area within them is Lightly Obscured" is executed
+        // now, and the half that is left is an **executed** spell's
+        // adjudication, which carries no marker to be stripped of.
       ].sort(),
     );
     // Two of the three the form landed with are still in it, so the list grew
@@ -199,6 +206,12 @@ describe('a blocker no mechanical marker can see survives the spell being writte
     }
     expect(blockersOf('slow')).toContain('a-bonus-narrowed-to-a-skill');
     expect(retired).not.toContain('a-choice-made-at-the-casting');
+    // And the second departure, held down the same way: the shape is still
+    // missing and it is Web's executed clause that now holds it up.
+    expect(claimedShapes().has('light-and-obscurement-the-scene-holds')).toBe(true);
+    expect(
+      (ADJUDICATED_EXECUTED['web'] ?? []).map((entry) => entry.why),
+    ).toContain('light-and-obscurement-the-scene-holds');
   });
 
   /** And under the rule as it stands, nothing is unclaimed at all. */

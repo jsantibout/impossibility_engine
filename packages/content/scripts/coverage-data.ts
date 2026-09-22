@@ -312,6 +312,15 @@ export interface SpellCoverage {
  * point each and disappear when the spell ends — all of it the engine's, and
  * the spell's own effect list empty because the berries are what it does.
  *
+ * **The fifth arm is the ground an area makes expensive**, and it is the
+ * fourth's argument about a different noun: SRD Spike Growth's casting rolls
+ * nothing and catches nobody, and the whole of what it does — "The area
+ * becomes Difficult Terrain for the duration" — is a patch the engine lays on
+ * the lattice, keeps alive against the casting and charges the ruler for at
+ * every space a move crosses. Counting that as tracked would say the engine
+ * resolves nothing of the spell while it is doing the only thing the spell
+ * does.
+ *
  * **Exported because three other places had written it out**, and one of the
  * copies had already lost the `areaTrigger` arm. The honesty guard's whole
  * population is this predicate, so a drifting copy would silently stop
@@ -321,6 +330,7 @@ export const isExecuted = (definition: SpellDefinition): boolean =>
   definition.effects.length > 0 ||
   definition.activation !== undefined ||
   definition.areaTrigger !== undefined ||
+  definition.areaTerrain !== undefined ||
   definition.conjures !== undefined;
 
 /** Every definition the engine resolves something of, by id. */

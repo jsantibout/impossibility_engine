@@ -95,6 +95,9 @@ const PREPARED = [
   // SRD Continual Flame: "Until dispelled" — neither a time span nor a
   // Concentration, so the book prints its caster no way out at all.
   'continual-flame',
+  // SRD Light: "The spell ends if you cast it again." Mage Hand's and Minor
+  // Illusion's sentence on a third spell, which is what made it a rule.
+  'light',
 ];
 
 const added = (who: CharacterId, side: string, over: Partial<CharacterSheet> = {}): GameEvent => ({
@@ -953,6 +956,29 @@ describe('a spell whose text says a second casting ends the first', () => {
     const g = new Game();
     const first = g.cast(WIZ, 'minor-illusion', [], undefined, 'first');
     const second = g.cast(WIZ, 'minor-illusion', [], undefined, 'second');
+
+    expect(ongoingSpellOf(g.state, first)).toBeNull();
+    expect(ongoingSpellOf(g.state, second)).not.toBeNull();
+    expect(
+      g.log.some(
+        (e) => e.type === 'spell-ended' && e.castingId === first && e.reason === 'recast',
+      ),
+    ).toBe(true);
+  });
+
+  /**
+   * SRD Light: "The spell ends if you cast it again."
+   *
+   * The third spell to print the sentence, and the one that carried its own
+   * absence in writing: the definition's `unmodelled` said the recast "is not
+   * done either" while the field it needed had existed since Mage Hand was
+   * written. Driven here rather than taken on trust, because what the note
+   * claimed was that nothing ended the first casting.
+   */
+  it('ends a prior Light the same caster is running', () => {
+    const g = new Game();
+    const first = g.cast(WIZ, 'light', [], undefined, 'first');
+    const second = g.cast(WIZ, 'light', [], undefined, 'second');
 
     expect(ongoingSpellOf(g.state, first)).toBeNull();
     expect(ongoingSpellOf(g.state, second)).not.toBeNull();

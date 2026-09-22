@@ -8,7 +8,7 @@ import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { declaredCasting } from './spellcasting.js';
-import type { Point } from './positioning.js';
+import { moveCreature, type Point } from './positioning.js';
 import type { AreaMoment } from './spells.js';
 import {
   activateFeature,
@@ -167,6 +167,24 @@ const CLOUD: Point = { x: 275, y: 200, z: 0 };
 
 const spot = (name: string, at: Point): GameEvent => ({ type: 'landmark-added', name, at });
 
+/**
+ * The spaces a straight walk enters, one space at a time.
+ *
+ * Every axis steps towards the destination together, which is a shortest
+ * Chebyshev route and so one `checkRoute` accepts. The starting space is not
+ * among them: it is the space being left.
+ */
+const straightRoute = (from: Point, to: Point): readonly Point[] => {
+  const step = (a: number, b: number) => (a === b ? a : a < b ? a + 5 : a - 5);
+  const spaces: Point[] = [];
+  let at = from;
+  while (at.x !== to.x || at.y !== to.y || at.z !== to.z) {
+    at = { x: step(at.x, to.x), y: step(at.y, to.y), z: step(at.z, to.z) };
+    spaces.push(at);
+  }
+  return spaces;
+};
+
 const place = (who: CharacterId, name: string): GameEvent => ({
   type: 'creature-placed',
   id: who,
@@ -301,22 +319,46 @@ class Game {
     throw new Error(`never reached ${who}'s turn`);
   }
 
-  /** Walk a creature to a named spot on its own turn, settling nothing after. */
+  /**
+   * Walk a creature to a named spot on its own turn, settling nothing after.
+   *
+   * **The route is supplied, and that is not decoration.** Web's Cube and
+   * Grease's square are Difficult Terrain now, so a walk from open floor into
+   * one crosses ground that charges two different rates and the ruler refuses
+   * to guess which spaces were crossed — `route_required`, which is the
+   * engine being right. What this file is about is who the area catches and
+   * when, so the route is the straight one and is computed rather than
+   * written down twenty times.
+   */
   walk(who: CharacterId, to: string, commandId?: string): void {
     this.to(who);
     const out = unwrap(
-      resolveMove(
-        this.state,
-        who,
-        {
-          placement: { from: { landmark: to }, feet: 0 },
-          ...(commandId === undefined ? {} : { commandId }),
-        },
-        supply('move'),
-      ),
+      resolveMove(this.state, who, this.moveRequest(who, to, commandId), supply('move')),
       `${who} walking to ${to}`,
     );
     this.push(out.events);
+  }
+
+  /**
+   * The request a walk sends, so a caller that drives `resolveMove` itself —
+   * a declared move, a retry under the same command id — sends the same one.
+   *
+   * **Where the move actually ends, not where the landmark is.** A space
+   * somebody is already standing in pushes the arrival one space over, and a
+   * route that stopped at the landmark would then be a route to the wrong
+   * square.
+   */
+  moveRequest(who: CharacterId, to: string, commandId?: string) {
+    const scene = this.state.scene!;
+    const from = scene.positions[who]!;
+    const placement = { from: { landmark: to }, feet: 0 } as const;
+    const at = unwrap(moveCreature(scene, who, placement), `${who} reaching ${to}`).state
+      .positions[who]!;
+    return {
+      placement,
+      route: straightRoute(from, at),
+      ...(commandId === undefined ? {} : { commandId }),
+    };
   }
 
   /** Settle everything the areas owe, rolling their saves. */
@@ -1115,12 +1157,7 @@ describe('only a position that actually changed is entry', () => {
     g.conjure('grease', CUBE, { towards: TOWARDS, slotLevel: 1 });
     g.walk(MOVER, 'beside threat');
     const declared = unwrap(
-      resolveMove(
-        g.state,
-        MOVER,
-        { placement: { from: { landmark: 'inside cube' }, feet: 0 } },
-        supply('provoke'),
-      ),
+      resolveMove(g.state, MOVER, g.moveRequest(MOVER, 'inside cube'), supply('provoke')),
       'declaring the move',
     );
     g.push(declared.events);
@@ -1328,18 +1365,13 @@ describe('a retry changes nothing the first run did not', () => {
   it('does not raise a second debt for a retried move', () => {
     const g = new Game();
     g.conjure('grease', CUBE, { towards: TOWARDS, slotLevel: 1 });
-    g.walk(MOVER, 'inside cube', 'm1');
+    // The same request, twice, which is what a retry is: a command id names
+    // one command, and the route is part of what that command said.
+    const request = g.moveRequest(MOVER, 'inside cube', 'm1');
+    g.push(unwrap(resolveMove(g.state, MOVER, request, supply('move')), 'the move').events);
     const after = g.state;
 
-    const retry = unwrap(
-      resolveMove(
-        g.state,
-        MOVER,
-        { placement: { from: { landmark: 'inside cube' }, feet: 0 }, commandId: 'm1' },
-        supply('move'),
-      ),
-      'retrying the move',
-    );
+    const retry = unwrap(resolveMove(g.state, MOVER, request, supply('move')), 'retrying the move');
     expect(retry.events).toEqual([]);
     expect(fold('seed', [...g.log, ...retry.events])).toEqual(after);
     expect(g.owed()).toHaveLength(1);
@@ -2134,12 +2166,7 @@ describe('no ordinary voluntary action crosses an outstanding area effect', () =
     g.conjure('grease', CUBE, { towards: TOWARDS, slotLevel: 1 });
     g.walk(MOVER, 'beside threat');
     const declared = unwrap(
-      resolveMove(
-        g.state,
-        MOVER,
-        { placement: { from: { landmark: 'inside cube' }, feet: 0 } },
-        supply('provoke'),
-      ),
+      resolveMove(g.state, MOVER, g.moveRequest(MOVER, 'inside cube'), supply('provoke')),
       'declaring',
     );
     g.push(declared.events);

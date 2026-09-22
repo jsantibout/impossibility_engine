@@ -45,7 +45,12 @@ import {
   type GameState,
   type PendingCasting,
 } from '../events.js';
-import { type Placement, type Point, type PointAnchoring } from '../positioning.js';
+import {
+  type Placement,
+  type Point,
+  type PointAnchoring,
+  type TerrainRegion,
+} from '../positioning.js';
 import { damageWindowOpen, fallingNow } from '../reactions.js';
 import { remaining, slotKeyOf, type SlotKind } from '../resources.js';
 import { type RollIssuer } from '../rolls.js';
@@ -1118,6 +1123,64 @@ export function hidingEndedBy(state: GameState, who: CharacterId): readonly Game
     (instance) => instance.condition === 'invisible' && instance.source === HIDE,
   );
   return hiding ? endConditionsOn(who, ['invisible'], HIDE) : [];
+}
+
+/**
+ * The patch of expensive ground a casting lays down, if its spell makes any.
+ *
+ * SRD Grease "turns it into Difficult Terrain for the duration"; Web "the
+ * webs are Difficult Terrain"; Spike Growth "the area becomes Difficult
+ * Terrain for the duration"; Plant Growth "must spend 4 feet of movement for
+ * every 1 foot it moves". Four sentences and one mechanism, and the mechanism
+ * was three-quarters built before any of them: the lattice has held a patch —
+ * a region, a rate, and the casting that made it — since positioning landed,
+ * and the only thing missing was something other than a DM to write one.
+ *
+ * **The same event a table's declaration writes**, deliberately, rather than
+ * a second kind of patch a casting owns. `difficult-terrain-declared` already
+ * carries every field this needs including the `source`, the fold already
+ * reduces it through `declareDifficultPatch`, and `livePatches` already drops
+ * a patch whose casting has gone. A second event would have been a second
+ * record of one fact, and the ruler would have had to ask both.
+ *
+ * **The region is pinned, not looked up.** It comes off the area *this*
+ * casting resolved — the point the caster named, the direction they aimed —
+ * and goes into the event, so a replay charges what was charged at the table
+ * however the catalogue is corrected afterwards. That is rule 5, and it is
+ * the reason this takes a region rather than a definition and a request.
+ *
+ * **`source` is set exactly when there is a casting to hang it on.** A spell
+ * with a duration leaves a record, and the ground stops costing double the
+ * instant that record goes — dispelled, expired, Concentration broken. SRD
+ * Plant Growth's overgrowth is Instantaneous, leaves no record, and is given
+ * no ending by the book either; the plants are simply thick now, and a patch
+ * with no source says exactly that.
+ *
+ * Null region, no patch: an area the casting could not place caught nobody
+ * either, which is `creaturesStandingInCastingArea`'s own answer to the same
+ * missing fact. By the time a casting reaches here `resolveTargets` has
+ * already demanded the point and the direction that would be missing.
+ */
+export function terrainPatchOf(
+  definition: SpellDefinition,
+  castingId: string,
+  region: TerrainRegion | null,
+  lastsWithTheCasting: boolean,
+): readonly GameEvent[] {
+  const terrain = definition.areaTerrain;
+  if (terrain === undefined || region === null) return [];
+
+  return [
+    {
+      type: 'difficult-terrain-declared',
+      // Named for the casting that made it, so two Greases are two patches
+      // and a refusal can say which ground slowed the mover.
+      patch: `${definition.name} (${castingId})`,
+      region,
+      costPerFoot: terrain.costPerFoot,
+      ...(lastsWithTheCasting ? { source: castingId } : {}),
+    },
+  ];
 }
 
 /**

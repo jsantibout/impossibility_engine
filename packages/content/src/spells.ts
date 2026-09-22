@@ -3037,6 +3037,9 @@ export const GREASE: SpellDefinition = {
   range: { kind: 'ranged', feet: 60 },
   targets: { count: 0 },
   area: { kind: 'cube', size: 10, origin: 'point' },
+  // "turns it into Difficult Terrain for the duration" — the glossary's own
+  // rate, on the square the casting pinned, lapsing with the casting.
+  areaTerrain: { costPerFoot: 2 },
   // SRD says "or have the Prone condition" and stops there. Prone ends when
   // the creature stands up, not when the grease does — so the casting caused
   // it and does not keep it.
@@ -3052,9 +3055,6 @@ export const GREASE: SpellDefinition = {
     label: 'Grease (the slick)',
     effects: [{ kind: 'save', ability: 'dex', condition: 'prone', outlivesCasting: true }],
   },
-  unmodelled: [
-    'the area becoming Difficult Terrain for the duration',
-  ],
 };
 
 /**
@@ -3236,10 +3236,14 @@ export const LIGHT: SpellDefinition = {
   targets: { count: 0 },
   effects: [],
   durationSeconds: 3600,
+  // "The spell ends if you cast it again." Mage Hand's sentence word for
+  // word, and the field that reads it has existed since Mage Hand was
+  // written; this definition simply never carried it.
+  replacesPriorCasting: true,
   unmodelled: [
     'the spell targets an object, and objects are not modelled — which object was touched, and whether it is worn or carried by someone else, are the DM’s',
     'Bright Light in a 20-foot radius and Dim Light beyond it are not modelled; the engine has no lighting',
-    'covering the object is the DM’s; a second casting ending the first is not the DM’s and is not done either — the engine holds every casting by caster and spell and nothing ends one on that basis',
+    'covering the object with something opaque is the DM’s, because what is over an object is a fact about an object',
   ],
 };
 
@@ -3560,6 +3564,9 @@ export const WEB: SpellDefinition = {
   range: { kind: 'ranged', feet: 60 },
   targets: { count: 0 },
   area: { kind: 'cube', size: 20, origin: 'point' },
+  // "The webs are Difficult Terrain" — one of the three sentences the spell
+  // writes about one Cube, beside the save its trigger rolls.
+  areaTerrain: { costPerFoot: 2 },
   effects: [],
   areaTrigger: {
     at: 'start-of-turn',
@@ -3577,7 +3584,7 @@ export const WEB: SpellDefinition = {
   durationSeconds: 3600,
   unmodelled: [
     'Restrained by the webs lasts "while in the webs", and a condition that ends when its holder walks out of an area has no shape here: it runs until the casting ends or the creature breaks free',
-    'the webs are Difficult Terrain and the area within them Lightly Obscured',
+    'the area within the webs being Lightly Obscured is not held: the engine has no obscurement, and the Difficult Terrain half of the same sentence is charged',
     'the webs collapsing when they are not anchored between two solid masses, which is a fact about the room',
     'the webs being flammable, and the 2d4 Fire damage a burning cube deals',
   ],
@@ -8474,10 +8481,14 @@ export const SPIKE_GROWTH: SpellDefinition = {
   concentration: true,
   range: { kind: 'ranged', feet: 150 },
   targets: { count: 0 },
+  area: { kind: 'sphere', radius: 20, origin: 'point' },
+  // "The area becomes Difficult Terrain for the duration." The whole of what
+  // the casting itself does: the spikes' damage is the sentence after it and
+  // is still blocked on the distance a move does not record.
+  areaTerrain: { costPerFoot: 2 },
   effects: [],
   durationSeconds: 600,
   unmodelled: [
-    'the ground is not changed: "The area becomes Difficult Terrain for the duration" is terrain an area creates, and Difficult Terrain is declared by the foot on the move that crosses it rather than held by the ground',
     'the spikes deal nothing: "it takes 2d4 Piercing damage for every 5 feet it travels" multiplies the dice by a distance travelled **inside** the area, and a move is charged by the foot without anybody asking which feet were where',
     'the Wisdom (Perception or Survival) check that spots the hazard is not offered: it belongs to a creature that is about to walk in rather than to one the casting caught, and who may attempt a check is derived from what its timer sits on',
   ],
@@ -9846,10 +9857,15 @@ export const PLANT_GROWTH: SpellDefinition = {
   concentration: false,
   range: { kind: 'ranged', feet: 150 },
   targets: { count: 0 },
+  area: { kind: 'sphere', radius: 100, origin: 'point' },
+  // "must spend 4 feet of movement for every 1 foot it moves" — the rate the
+  // book prints for itself, which is why the field is a number and not a
+  // flag. **Instantaneous**, so the casting leaves no record and the patch
+  // names none: the plants are thick now and SRD gives them no ending.
+  areaTerrain: { costPerFoot: 4 },
   effects: [],
   unmodelled: [
     'the Enrichment branch is not castable at all: it takes eight hours where the Overgrowth takes an Action, and a definition carries one casting time — the year of doubled harvests was never arithmetic anyway',
-    'the four feet of movement per foot are not charged: Difficult Terrain is declared by the foot on the move that crosses it, and deriving it from an area needs the path a move does not record',
     'the areas the caster excludes from the Sphere are the DM’s, and so is every word about what the plants look like',
   ],
 };
