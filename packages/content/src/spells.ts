@@ -622,8 +622,8 @@ export const BURNING_HANDS: SpellDefinition = {
  * > _Using a Higher-Level Spell Slot._ "The damage increases by 1d8 for each
  * > spell slot level above 1."
  *
- * **The spell the forced-movement rider was built for**, and every clause of
- * it now executes. The push is a rider on the failed save rather than an
+ * **The spell the forced-movement rider was built for**, and every clause the
+ * engine owns now executes. The push is a rider on the failed save rather than an
  * effect of its own, because one sentence is one saving throw: a second effect
  * would roll a second Constitution save, and a creature could then take the
  * 2d8 and stand exactly where it was. Ten feet straight away from the caster,

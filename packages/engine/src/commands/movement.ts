@@ -976,6 +976,16 @@ export interface FallResolution {
   readonly damage: number;
   /** Whether the landing left them Prone. */
   readonly prone: boolean;
+  /**
+   * Why the landing left them standing, when it did.
+   *
+   * A creature immune to Prone hits the ground just as hard and stays on its
+   * feet, which is an answer rather than an error — and an answer the caller
+   * cannot work out from {@link FallResolution.prone} alone, because `false`
+   * is also what a five-foot drop returns. The Shove and the Topple mastery
+   * both hand the same reason back rather than swallowing it.
+   */
+  readonly unverified: readonly string[];
   readonly concentration: ConcentrationConsequence;
   readonly duplicate: boolean;
 }
@@ -1028,6 +1038,7 @@ export function resolveFall(
     dice: null,
     damage: 0,
     prone: false,
+    unverified: [],
     concentration: { kind: 'none' },
     duplicate,
   });
@@ -1080,7 +1091,9 @@ export function resolveFall(
 
     // "You then have the Prone condition", and a creature immune to Prone
     // stays standing while the fall still hurt — the reading the Shove already
-    // takes of the same pairing.
+    // takes of the same pairing, **including handing the reason back**: a
+    // caller told only `prone: false` cannot tell an immunity from a drop too
+    // short to have cost a die.
     const floored = applyConditionTo(events.reduce(applyEvent, state), id, 'prone', source);
     if (floored.ok) events.push(...floored.value);
 
@@ -1089,6 +1102,7 @@ export function resolveFall(
       dice,
       damage: hurt.value.amount,
       prone: floored.ok,
+      unverified: floored.ok ? [] : [floored.reason],
       concentration: hurt.value.concentration,
       duplicate: false,
     });

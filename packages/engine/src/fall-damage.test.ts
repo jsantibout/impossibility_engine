@@ -126,6 +126,24 @@ describe('landing', () => {
     expect(out.events).toEqual([]);
   });
 
+  /**
+   * "You **then** have the Prone condition" — and a creature that cannot be
+   * Prone hits the ground just as hard and stays on its feet. The immunity is
+   * an answer rather than an error, and it is handed back rather than
+   * swallowed: `prone: false` alone is also what a five-foot drop returns, so
+   * a caller could not tell the two apart without the reason.
+   */
+  it('hurts a creature immune to Prone and leaves it standing, saying so', () => {
+    const upright: readonly GameEvent[] = [
+      { ...SETUP[0]!, conditionImmunities: ['prone'] } as GameEvent,
+    ];
+    const out = fell(30, 'upright', upright);
+    expect(out.damage).toBeGreaterThan(0);
+    expect(out.prone).toBe(false);
+    expect(out.unverified.join(' ')).toMatch(/immune to the prone condition/);
+    expect(conditionsOf(fold('seed', [...upright, ...out.events]), CLIMBER)).not.toContain('prone');
+  });
+
   /** The height is the table's, and a height that is not one is refused. */
   it('refuses a height that is not a whole number of feet', () => {
     const out = resolveFall(fold('seed', SETUP), CLIMBER, { feet: -10 }, supply('backwards'));
