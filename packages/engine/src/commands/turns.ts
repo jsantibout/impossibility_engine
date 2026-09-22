@@ -25,7 +25,7 @@ import {
 } from '@ie/shared';
 import { type Bonus, type ModeSource } from '../bonuses.js';
 import { type D20TestResult, rollAbilityCheck, rollSavingThrow } from '../checks.js';
-import { currentCombatant, spendAction } from '../combat.js';
+import { currentCombatant, extraActionsOwedAtTurnStart, spendAction } from '../combat.js';
 import { type CheckContext } from '../conditions.js';
 import { isDue, timeView, type TurnMoment } from '../time.js';
 import {
@@ -437,6 +437,53 @@ export function settleStartOfTurnRecharges(
   }
 
   return ok(events);
+}
+
+/**
+ * The extra actions the start of a creature's turn is owed by a running
+ * effect.
+ *
+ * SRD Haste: "it gains an additional action **on each of its turns**." The
+ * rule stands on the creature — the ninth sourced grant, hung and released
+ * like every other — and the budget it feeds is the turn's, which only a
+ * combat event writes. So this is the seam where the two meet, and it is a
+ * command's rather than the fold's for that reason alone: `fold/combat.ts`
+ * folds a budget through `must(event, grantTurnBudget(...))`, and a derived
+ * pass that wrote one would be writing the event rather than applying it.
+ *
+ * **One a turn and never two.** `beginTurn` hands the creature a fresh budget,
+ * so an extra action nobody spent goes with the turn it was granted for; there
+ * is nothing to de-duplicate against and nothing accumulates.
+ *
+ * **Nothing is rolled and nothing can refuse**, which is why it takes no
+ * `Supply` and returns no debt: the only refusal `grantTurnBudget` has is
+ * about whose turn it is, and this is called with the creature whose turn has
+ * just begun. A dead creature is skipped rather than refused, on
+ * {@link settleStartOfTurnRecharges}' rule about a sheet that has moved on.
+ *
+ * **Exported for the two boundaries that raise a turn's beginning** —
+ * `resolveTurn` and the fight opening in `beginCombat` — so a hasted creature
+ * that a fight starts on gets its action at both rather than only at the one
+ * somebody remembered. That is the argument `settleBoundaryPayouts` and
+ * `settleStartOfTurnRecharges` both make about themselves.
+ */
+export function settleStartOfTurnGrants(
+  state: GameState,
+  begun: CharacterId | undefined,
+): readonly GameEvent[] {
+  if (begun === undefined) return [];
+  const creature = state.creatures[begun];
+  if (creature === undefined || creature.vitals.dead) return [];
+
+  return extraActionsOwedAtTurnStart(actionRulesOn(state, begun)).map((action) => ({
+    type: 'turn-budget-granted',
+    id: begun,
+    source: action.source,
+    action: {
+      ...(action.except === undefined ? {} : { except: action.except }),
+      ...(action.only === undefined ? {} : { only: action.only }),
+    },
+  }));
 }
 
 /** Every turn-boundary save still owed, in a stable order. */
@@ -1252,6 +1299,15 @@ export function resolveTurn(
     if (!recharged.ok) return recharged;
     advanced.push(...recharged.value);
     after = recharged.value.reduce(applyEvent, after);
+
+    // SRD Haste: "it gains an additional action on each of its turns." The
+    // third thing this half of the boundary hands the creature whose turn is
+    // beginning, beside the payouts and the recharge — and the only one that
+    // throws nothing and can refuse nothing, so it needs neither the generator
+    // nor a debt of its own.
+    const granted = settleStartOfTurnGrants(after, beginning);
+    advanced.push(...granted);
+    after = granted.reduce(applyEvent, after);
 
     // SRD: "Whenever you start your turn with 0 Hit Points, you must make a
     // Death Saving Throw." Whenever — nobody decides it, so the turn owes it the

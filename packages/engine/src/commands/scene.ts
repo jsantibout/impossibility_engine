@@ -109,7 +109,11 @@ import { isDown } from '../vitals.js';
 import { type SpellcastingState } from '../spellcasting.js';
 import { type Supply } from './casting.js';
 import { creatureOf, sceneFor, unknownCreature } from './command.js';
-import { settleBoundaryPayouts, settleStartOfTurnRecharges } from './turns.js';
+import {
+  settleBoundaryPayouts,
+  settleStartOfTurnGrants,
+  settleStartOfTurnRecharges,
+} from './turns.js';
 
 /**
  * Set the scene, and with it what the room can contain.
@@ -372,7 +376,16 @@ export function beginCombat(
     );
     if (!recharged.ok) return recharged;
 
-    return ok([opened, ...paid.value, ...recharged.value]);
+    // And the extra action a running effect owes that same beginning. SRD
+    // Haste: "on each of its turns" — a fight that opens on a hasted
+    // creature's turn is one of those, by the same second door the recharge
+    // above arrives through.
+    const granted = settleStartOfTurnGrants(
+      [...paid.value, ...recharged.value].reduce(applyEvent, after),
+      beginning,
+    );
+
+    return ok([opened, ...paid.value, ...recharged.value, ...granted]);
   });
 }
 

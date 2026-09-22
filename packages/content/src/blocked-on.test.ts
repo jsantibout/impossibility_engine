@@ -2469,11 +2469,20 @@ describe('a consumer count is a query', () => {
       .filter((one) => one.blocks.length === ranked[0]!.blocks.length)
       .map((one) => one.shape)
       .sort();
-    expect(leaders).toEqual([
-      'a-casting-ended-by-a-trigger',
-      'an-action-a-spell-compels-or-forbids',
-    ]);
+    // **The tie is over and the bundle is not in it**, which is what happens
+    // when a bundle is actually split. The batch that built `grants` and
+    // `OutcomeRiders.spends` paid two of the five arms and sent three more to
+    // ids of their own, and the bundle went from twenty spells to seven — so
+    // the leader is a single shape again, and it is one nobody has built.
+    expect(leaders).toEqual(['a-casting-ended-by-a-trigger']);
     expect(Object.keys(SPLIT_BUNDLES)).toContain('an-action-a-spell-compels-or-forbids');
+    // And the split is visible from here rather than only in the record: the
+    // largest piece to come out of it stands on its own, well below the
+    // leader, and the bundle stands below that.
+    const sizeOf = (shape: string) =>
+      ranked.find((one) => one.shape === shape)?.blocks.length ?? 0;
+    expect(sizeOf('an-action-a-spell-compels-or-forbids')).toBeLessThan(ranked[0]!.blocks.length);
+    expect(sizeOf('a-creature-somebody-else-is-playing')).toBeGreaterThan(1);
     // The largest shapes that are *not* bundles, as a set because they tie.
     expect(
       ranked
@@ -2492,9 +2501,11 @@ describe('a consumer count is a query', () => {
     // `unmodelled`, which no consumer count reads. So `blocks` went 28 to 20
     // while `tracked` went 4 to 6, and the eight-spell difference is the
     // asymmetry between the two maps rather than eight gaps being closed.
-    // The ranking is unchanged, which is the point: a shape nobody has built
-    // is still the heaviest thing in the book.
-    expect(ranked[0]!.blocks.length).toBeGreaterThan(15);
+    // The ranking moved, which is the point: the bundle that used to sit at
+    // the top of it was a bundle, and reading it apart took thirteen of its
+    // twenty spells off it in one batch. The floor still sits below the
+    // leader rather than on it, for the reason this paragraph records.
+    expect(ranked[0]!.blocks.length).toBeGreaterThan(12);
   });
 });
 

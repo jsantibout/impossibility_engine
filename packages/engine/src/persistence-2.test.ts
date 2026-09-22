@@ -495,6 +495,18 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // condition still standing on the creature underneath, and the benefit
   // handed back at the rider's own deadline.
   'benefit-denied',
+  // A slot of somebody's turn a spell used up. Neither log was written when a
+  // spell could reach the action economy at all — `ActionRule` did not exist,
+  // and the sentences that spend another creature's budget were refused by
+  // name in `combat.ts` until the owner ruled on 2026-09-22 — so both fixtures
+  // fold to exactly the states they always folded to, with every budget spent
+  // by the creature whose budget it was.
+  // `compelled-and-granted-actions.test.ts` folds it and drives it end to end:
+  // the Reaction taken and the phrase the book puts beside it, the readied
+  // response that can no longer be released, the "if available" silence when
+  // the slot has already gone, the rule that had forbidden the slot winning,
+  // the fight nobody is in, and the fact that nothing moves anybody.
+  'budget-compelled',
   'casting-continued',
   // What a running casting's saving throw came to, per creature it asked.
   // Neither log was written when a save could record anything but what it

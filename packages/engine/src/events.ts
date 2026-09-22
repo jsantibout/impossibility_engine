@@ -1528,6 +1528,41 @@ export type GameEvent =
   | { readonly type: 'reaction-spent'; readonly id: CharacterId }
   | { readonly type: 'movement-spent'; readonly id: CharacterId; readonly feet: number }
   /**
+   * A slot of somebody's turn that a **spell** used up.
+   *
+   * SRD Dissonant Whispers: "it must immediately use its Reaction, if
+   * available, to move as far away from you as it can." The owner ruled on
+   * 2026-09-22 that a spell may spend another creature's budget; the three
+   * events above are how a *caller* spends one, through a command that acts on
+   * the creature that is acting, and this is the door a casting's resolver
+   * uses. Keeping them apart is the whole of the distinction that ruling left
+   * standing — see {@link ActionRule} in `combat.ts`.
+   *
+   * **It charges and never performs.** Nothing here moves anybody: the slot
+   * goes, {@link on} says what the book says it went on, and the table
+   * narrates from that. An engine that took the movement would be writing
+   * fiction into the log and calling it a rule.
+   *
+   * Folded through the same `spendAction` / `spendBonusAction` /
+   * `spendReaction` the caller's own events are, so a rule already standing on
+   * the creature — SRD Slow's "it can't take Reactions" — refuses this spend
+   * exactly as it refuses a voluntary one. The command asks first and emits
+   * nothing where the answer is no, which is the book's "if available".
+   */
+  | {
+      readonly type: 'budget-compelled';
+      readonly id: CharacterId;
+      /**
+       * Which slot went. Never `movement`: movement is measured in feet and
+       * spent by the foot, and a spell that takes it away changes a Speed.
+       */
+      readonly slot: 'action' | 'bonus-action' | 'reaction';
+      /** The book's own phrase, pinned from the definition at the cast. */
+      readonly on: string;
+      /** `Dissonant Whispers#cast:3` — what spent it, for the log to name. */
+      readonly source: string;
+    }
+  /**
    * One attack of an Attack action.
    *
    * Not `action-spent`, because the action is taken once and holds however
@@ -1604,8 +1639,16 @@ export type GameEvent =
       readonly id: CharacterId;
       /** What the log calls whatever bought it: SRD's "Action Surge". */
       readonly source: string;
-      /** SRD Action Surge: "one additional action, except the Magic action". */
-      readonly action?: { readonly except?: readonly NamedAction[] };
+      /**
+       * SRD Action Surge: "one additional action, except the Magic action" —
+       * and SRD Expeditious Retreat's Dash, which is the same fact with the
+       * polarity the other way up. See {@link GrantedAction}, where the two
+       * narrowings are argued from the sentences that print them.
+       */
+      readonly action?: {
+        readonly except?: readonly NamedAction[];
+        readonly only?: readonly NamedAction[];
+      };
       /** SRD Flurry of Blows: "two Unarmed Strikes". */
       readonly attacks?: { readonly remaining: number; readonly unarmedOnly: boolean };
       readonly command?: CommandStamp;

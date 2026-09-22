@@ -1647,13 +1647,18 @@ describe('every spell this batch added is cast for real', () => {
   /**
    * And every one of them tells the table what it is being left, verbatim.
    *
-   * **Except the one that is now left with nothing**, which is the honest end
-   * of a row rather than a hole in the sweep: every sentence Aid prints is
-   * executed, so it has no `unmodelled` to hand over and this assertion would
-   * demand one exist. `EXECUTED_SINCE` is where that is recorded and why, and
-   * the assertion below is the positive form of it.
+   * **Except the ones now left with nothing**, which is the honest end of a
+   * row rather than a hole in the sweep: every sentence they print is
+   * executed, so there is no `unmodelled` to hand over and this assertion
+   * would demand one exist. `EXECUTED_SINCE` is where that is recorded and
+   * why, and the assertion below is the positive form of it. Aid was the
+   * first; Expeditious Retreat is the second, once `ActionRule` grew the
+   * member that hands a turn an extra action and its nineteen words became
+   * two effects.
    */
-  it.each(ADDED.filter((s) => s !== 'aid').map((s) => [s] as const))(
+  const FINISHED_OUTRIGHT: readonly string[] = ['aid', 'expeditious-retreat'];
+
+  it.each(ADDED.filter((s) => !FINISHED_OUTRIGHT.includes(s)).map((s) => [s] as const))(
     'hands %s’s own sentences to the table',
     (spellId) => {
       const definition = SRD_CONTENT.spell(spellId)!;
@@ -1665,10 +1670,10 @@ describe('every spell this batch added is cast for real', () => {
     },
   );
 
-  /** And Aid is left with nothing to hand over, which is what finished means. */
-  it('leaves the table nothing of Aid', () => {
-    expect(SRD_CONTENT.spell('aid')!.unmodelled ?? []).toEqual([]);
-    expect(driven('aid').unverified).toEqual([]);
+  /** And the two left with nothing to hand over, which is what finished means. */
+  it.each(FINISHED_OUTRIGHT.map((s) => [s] as const))('leaves the table nothing of %s', (spellId) => {
+    expect(SRD_CONTENT.spell(spellId)!.unmodelled ?? []).toEqual([]);
+    expect(driven(spellId).unverified).toEqual([]);
   });
 
   /**

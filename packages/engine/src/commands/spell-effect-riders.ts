@@ -35,6 +35,8 @@ import {
   scaledDiceFor,
   type SpellDefinition,
 } from '../spell-definitions.js';
+import { type ActionSlot, canSpendSlot } from '../combat.js';
+import { actionRulesOn } from '../standing.js';
 import { castingSource } from '../spells.js';
 import { applySpellEffect, type SpellEffectOptions } from './casting.js';
 import { schedule } from './conditions.js';
@@ -522,5 +524,51 @@ export function applyRiders(
     context.unverified.push(...shoved.unverified);
   }
 
+  // **A slot of the target's own turn, used up.** SRD Dissonant Whispers, and
+  // the fifth rider — see {@link SpentBudget}, where the owner's ruling and
+  // the line it left standing are both written down.
+  //
+  // **After the grants, because "if available" is asked of the world this
+  // failure leaves.** A rule the same save just hung could be the very thing
+  // that makes the slot unavailable, and asking first would spend a Reaction
+  // the spell had already taken away.
+  if (riders.spends !== undefined) {
+    for (const slot of riders.spends.slots) {
+      const spent = compelBudget(current, target, slot, riders.spends.on, source);
+      if (spent === null) continue;
+      events.push(spent);
+      current = applyEvent(current, spent);
+    }
+  }
+
   return ok({ events, conditions });
+}
+
+/**
+ * The event that charges one slot, or nothing at all.
+ *
+ * **The command's own check with the command's own inputs**, which is what the
+ * fold's backstop will ask again: the primitive that would refuse this spend
+ * is asked here, and a refusal becomes silence rather than an event the
+ * reducer would call corrupt. SRD's "if available" is exactly that silence —
+ * a slot already gone, a creature not in the fight, an Incapacitated target,
+ * or a rule that had already forbidden the slot.
+ *
+ * `movement` is not reachable: `checkBudgetSpend` refuses it at authoring, and
+ * the event's own type has only the three.
+ */
+function compelBudget(
+  state: GameState,
+  target: CharacterId,
+  slot: ActionSlot,
+  on: string,
+  source: string,
+): GameEvent | null {
+  const combat = state.combat;
+  if (combat === null || slot === 'movement') return null;
+  const allowed = canSpendSlot(combat, target, slot, state.creatures[target]?.conditions, {
+    rules: actionRulesOn(state, target),
+  });
+  if (!allowed.ok) return null;
+  return { type: 'budget-compelled', id: target, slot, on, source };
 }

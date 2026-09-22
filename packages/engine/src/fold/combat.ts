@@ -37,7 +37,7 @@ import {
  * the fence `upgradeOngoing` stands behind is intact and a future correction
  * to the Monk table changes future sheets rather than historical folds.
  */
-import { speedOf } from '../standing.js';
+import { actionRulesOn, speedOf } from '../standing.js';
 import { MOVEMENT_MODES } from '../character.js';
 import type { CharacterId } from '@ie/shared';
 import { attacksInAction, statedBonusActionSlot, statedBonusActionsUsed } from '../monster.js';
@@ -72,6 +72,7 @@ export const COMBAT_EVENTS = [
   'dash-taken',
   'disengage-taken',
   'reaction-spent',
+  'budget-compelled',
   'movement-spent',
   'free-interaction-used',
   'combatant-joined',
@@ -257,6 +258,33 @@ export function applyCombat({ state, next }: Applying, event: CombatEvent): Game
     case 'reaction-spent':
       return withCombat(next, state, must(event, spendReaction(combatOf(state, event), event.id)));
 
+    // **A spell spending somebody's slot, and the backstop asks with the
+    // command's own inputs.** Unlike `action-spent` above, this event names no
+    // action at all — the spender is a casting and there is nothing for it to
+    // name — so the rules standing on the creature *can* be passed here: a
+    // `permits-only` refuses an unnamed spend, and the command that emitted
+    // this asked the same primitive the same question and emitted nothing
+    // where the answer was no. Passing them is therefore a guard rather than
+    // the fork `action-spent` records; leaving them out would let a compelled
+    // Reaction through a Slow that had forbidden Reactions.
+    case 'budget-compelled': {
+      const creature = creatureOf(state, event, event.id);
+      const spend = { rules: actionRulesOn(state, event.id) };
+      const combat = combatOf(state, event);
+      return withCombat(
+        next,
+        state,
+        must(
+          event,
+          event.slot === 'action'
+            ? spendAction(combat, event.id, creature.conditions, spend)
+            : event.slot === 'bonus-action'
+              ? spendBonusAction(combat, event.id, creature.conditions, spend)
+              : spendReaction(combat, event.id, creature.conditions, spend),
+        ),
+      );
+    }
+
     // The allowance is `speedOf`'s, here as in `resolveMove`. This call used to
     // pass no Speed at all and fell back to the pinned one, so the fold
     // measured the very event the command had emitted against a different
@@ -322,7 +350,13 @@ export function applyCombat({ state, next }: Applying, event: CombatEvent): Game
           grantTurnBudget(combatOf(state, event), event.id, {
             ...(event.action === undefined
               ? {}
-              : { action: { source: event.source, ...(event.action.except === undefined ? {} : { except: event.action.except }) } }),
+              : {
+                  action: {
+                    source: event.source,
+                    ...(event.action.except === undefined ? {} : { except: event.action.except }),
+                    ...(event.action.only === undefined ? {} : { only: event.action.only }),
+                  },
+                }),
             ...(event.attacks === undefined ? {} : { attacks: event.attacks }),
           }),
         ),
