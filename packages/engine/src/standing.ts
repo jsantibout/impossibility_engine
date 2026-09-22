@@ -1439,9 +1439,84 @@ export interface HitOption {
    * `8 + Proficiency Bonus`, the rule an item already falls back to.
    */
   readonly ability: Ability | null;
+  /**
+   * The DC a **printed** line states, in place of the one {@link ability}
+   * derives.
+   *
+   * `CastsSpellGrant.saveDc` exactly, on the other host that has a number of
+   * its own: an item prints its DC and is the same in an archmage's hand, and
+   * so does a stat block. Derivation is the right answer for a class feature —
+   * SRD Stunning Strike is "your spell save DC" — and the wrong one for a
+   * number the book states, and the two are not distinguishable after the
+   * fact: `8 + Proficiency Bonus` happens to equal the Ghoul's printed 10 and
+   * does not equal the Death Dog's 12.
+   *
+   * It is one field for the one number the line prints, whichever sentence
+   * asks for it: the save an effect forces and — where the rider is a grapple
+   * — nothing, because SRD prints the escape DC inside that clause instead.
+   * See {@link grapples}.
+   */
+  readonly saveDc?: number;
   readonly lasts?: TurnAnchor;
+  /**
+   * Whose next turn {@link lasts} is anchored on.
+   *
+   * Omitted, the **holder's**, which is what every feature that buys a rider
+   * writes: SRD Stunning Strike's "until the start of your next turn". A
+   * printed stat-block line writes the other one as readily — the Giant
+   * Vulture's "until the end of **its** next turn" — and the two are a round
+   * apart in the order. Filing one on the other is a wrong rule rather than a
+   * refusal, which is what a named anchor exists to make impossible.
+   */
+  readonly lastsOn?: HitRiderAnchor;
   readonly durationSeconds?: number;
   readonly endsEarly?: readonly EffectEndCause[];
+  /**
+   * A **grapple** the blow makes, with the escape DC the line prints.
+   *
+   * Beside {@link effects} rather than inside it, because a grapple is not a
+   * condition in this engine: it is a relation, found by the `grapple:<who>`
+   * source its instance is filed under and ended on facts about the grappler.
+   * An effect list files what it hangs under the source of whatever ran it, so
+   * a Grappled that rode on one would be a grapple `grapplesOn` could not see,
+   * `lapsedGrapples` could not end and `escapeGrapple` could not be attempted
+   * against — strictly worse than the prose it replaced. This says *grapple*,
+   * and the grapple is made exactly as the Attack action's own is.
+   */
+  readonly grapples?: HitGrapple;
+}
+
+/**
+ * Which of the two creatures in a hit a turn-anchored span hangs on.
+ *
+ * A hit's world has two creatures in it and no more, which is why this is a
+ * pair rather than a `CharacterId`: a `HitOption` is written once — compiled
+ * off a sheet or minted off a printed line — and bound to whoever is standing
+ * there when the blow lands. {@link CounterpartRole} makes the same argument
+ * for the same reason on the spell side.
+ */
+export type HitRiderAnchor = 'attacker' | 'target';
+
+/** The grapple a hit makes, as the line that prints one states it. */
+export interface HitGrapple {
+  /**
+   * SRD's "(escape DC 13)", pinned on the timer the grapple files.
+   *
+   * The grapple's DC and the escape's are one number in the book, and an
+   * escape attempted an hour later is against the number the grapple was made
+   * at — the rule `grappleTarget` already writes for the Unarmed Strike's own.
+   */
+  readonly escapeDc: number;
+  /**
+   * What the line says the creature holds on **with**, where it says.
+   *
+   * SRD Giant Scorpion: "from one of two claws"; the Griffon: "from both of
+   * the griffon's front claws". It is a count of how many creatures the block
+   * can hold at once and the engine counts no limbs, so it is carried to be
+   * *reported* rather than enforced — the reading `grappleTarget` already
+   * takes of the free hand SRD asks it for.
+   */
+  readonly withLimbs?: string;
 }
 
 /**

@@ -356,6 +356,66 @@ function printedRiderOnASwing(
     }
   }
 
+  if (read.kind === 'grapple') {
+    // SRD Giant Scorpion's "from one of two claws": how many creatures the
+    // block can hold at once. The engine holds no record of limbs, so the
+    // clause is handed back exactly as `grappleTarget` hands back the free
+    // hand SRD asks it for — the grapple is made and the limit is the DM's.
+    if (read.withLimbs !== undefined) {
+      unverified.push(
+        `${printed.name} grapples ${target} from ${read.withLimbs}, and the engine holds no record of limbs; how many creatures ${attacker} can hold at once is the table's`,
+      );
+    }
+    return {
+      option: {
+        feature: `${attacker}:${printed.name}`,
+        featureName: printed.name,
+        option: printed.name,
+        name: printed.name,
+        pool: null,
+        costs: 0,
+        // Nothing an effect list can express: a grapple is a relation, and
+        // `HitOption.grapples` is the clause that makes one.
+        effects: [],
+        ability: null,
+        grapples: {
+          escapeDc: read.escapeDc,
+          ...(read.withLimbs === undefined ? {} : { withLimbs: read.withLimbs }),
+        },
+      },
+      unverified,
+    };
+  }
+
+  // SRD Ghast's "If the target is a non-Undead creature", the other gate the
+  // engine holds the fact for — read off the creature rather than the map,
+  // because `creatureType` is what a stat block pinned into `creature-added`.
+  if (read.unlessType !== undefined) {
+    const creatureType = state.creatures[target]?.creatureType ?? null;
+    if (isCreatureType(creatureType, read.unlessType)) {
+      return {
+        option: null,
+        unverified: [
+          `${target} is ${creatureType}, and ${printed.name}'s line excepts one — nothing was applied`,
+        ],
+      };
+    }
+    if (creatureType === null) {
+      unverified.push(
+        `nobody has said what kind of creature ${target} is, so ${printed.name}'s line took them for one it reaches; a ${read.unlessType} would have been left alone`,
+      );
+    }
+  }
+  // The half of the same sentence the engine cannot answer. Lineage is a
+  // creation choice and not a fact this engine holds about a creature in play,
+  // so it is said out loud rather than quietly skipped: an unfired rule and a
+  // rule that checked and found nothing look identical from outside.
+  if (read.alsoExcepts !== undefined) {
+    unverified.push(
+      `${printed.name}'s line also excepts an ${read.alsoExcepts}, and the engine holds no such fact about ${target}; it was applied regardless`,
+    );
+  }
+
   // A deadline the clock cannot reach is a condition that would never lift, so
   // it is left to the table rather than hung on somebody for ever — the answer
   // `hitRiderAsked` gives the same absence, minus the refusal, because nobody
@@ -370,6 +430,7 @@ function printedRiderOnASwing(
     };
   }
 
+  const save = read.save;
   return {
     option: {
       feature: `${attacker}:${printed.name}`,
@@ -378,15 +439,31 @@ function printedRiderOnASwing(
       name: printed.name,
       pool: null,
       costs: 0,
-      effects: read.conditions.map((name) => ({
-        kind: 'condition' as const,
-        condition: { name },
-      })),
-      // The block prints no ability behind this clause and nothing here reads
-      // a DC: a printed saving throw is exactly the sentence `readPrintedRider`
-      // refuses, because the DC it states has nowhere on a `HitOption` to ride.
+      // **One save for every condition the failure imposes**, which is the
+      // shape `save` already has: a second `save` effect would roll a second
+      // saving throw and a creature could fail one and make the other, which
+      // is not the line. A line that prints no save simply imposes them.
+      effects:
+        save === undefined
+          ? read.conditions.map((name) => ({ kind: 'condition' as const, condition: { name } }))
+          : [
+              {
+                kind: 'save' as const,
+                ability: save.ability,
+                condition: read.conditions[0]!,
+                ...(read.conditions.length > 1
+                  ? { conditions: read.conditions.slice(1).map((name) => ({ name })) }
+                  : {}),
+              },
+            ],
+      // The block prints no ability behind this clause — there is no sheet for
+      // "your spell save DC" to be read off — and where it prints a number it
+      // is stated instead. `8 + Proficiency Bonus` is what remains, and it is
+      // the fallback an item's casting already falls to.
       ability: null,
+      ...(save === undefined ? {} : { saveDc: save.dc }),
       ...(read.lasts === undefined ? {} : { lasts: read.lasts }),
+      ...(read.lastsOn === undefined ? {} : { lastsOn: read.lastsOn }),
     },
     unverified,
   };

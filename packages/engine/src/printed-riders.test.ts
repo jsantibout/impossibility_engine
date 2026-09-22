@@ -5,6 +5,9 @@ import {
   addCreature,
   beginCombat,
   declareCreatureSide,
+  escapeGrapple,
+  grapplesOn,
+  lapsedGrapples,
   placeCreatureInScene,
   resolveAttack,
   resolveTurn,
@@ -31,19 +34,28 @@ import { createCharacter, type CharacterChoices } from './creation.js';
  * carried verbatim and handed to the DM, which is honest and makes every
  * creature that prints one weaker than the book.
  *
- * Two shapes are read here, and they are read because the engine already has
- * every part of what they ask for:
+ * The shapes read here are read because the engine already has every part of
+ * what they ask for:
  *
  * - **a condition the hit imposes**, gated on the target's size where the book
  *   gates it — the Wolf's Prone, the Earth Elemental's, the Tiger's;
  * - **a condition that lasts until a moment in the attacker's next turn** —
- *   the Ettercap's Poisoned, the Sprite's Charmed.
+ *   the Ettercap's Poisoned, the Sprite's Charmed;
+ * - **the same sentence about the target's own next turn** — the Giant
+ *   Vulture's Poisoned, the Hill Giant's — which is a different deadline and
+ *   not a different wording;
+ * - **a saving throw the block prints, at the DC the block prints**, gated on
+ *   what kind of creature was hit — the Ghoul's paralysis, the Ghast's;
+ * - **a grapple, with the escape DC beside it** — the Giant Frog's, the
+ *   Ankheg's, the Griffon's.
  *
  * Nothing new executes them. What a hit buys is `HitOption`, the effect list
  * SRD Stunning Strike already rides on, and a printed rider is one built off
  * the line rather than off a sheet: the same `runEffects`, the same deadline
  * filed by `fileDeadlines`, and — the rule the owner fixed on 2026-09-20 — the
- * same hold, so **the defender answers first**.
+ * same hold, so **the defender answers first**. The grapple is the one clause
+ * that is not an effect, because a grapple is a relation: it is made where
+ * `grappleTarget` makes one, under the source the escape can find.
  *
  * Every other rider in the book is still prose, still reported, and still the
  * DM's. `readPrintedRider` returns null for it rather than guessing, which is
@@ -56,6 +68,10 @@ const WOLF = id('wolf');
 const ETTERCAP = id('ettercap');
 const GHOUL = id('ghoul');
 const OGRE = id('ogre');
+const VULTURE = id('vulture');
+const ZOMBIE = id('zombie');
+const FROG = id('frog');
+const GRIFFON = id('griffon');
 
 const supply = (seed = 'fangs') => ({
   issuer: createRollIssuer('r'),
@@ -468,33 +484,241 @@ describe('a swing that both buys a rider and prints one', () => {
   });
 });
 
-// — what is still the DM's ————————————————————————————————————————————————————
+// — a deadline anchored on the creature that was hit —————————————————————————
 
-describe('every other rider is still prose, and still reported', () => {
+describe('a condition that lasts until a moment in the target’s own next turn', () => {
+  /**
+   * SRD Giant Vulture, Gouge: "…and the target has the Poisoned condition
+   * until the end of **its** next turn."
+   *
+   * The same sentence the Ettercap writes with the possessive the other way
+   * round, and a round apart from it: a hit rider's span used to be filed on
+   * the holder whatever the sentence said, so this was refused rather than
+   * filed on the wrong creature. `lastsOn` is which of the two creatures in a
+   * hit's world the anchor names, and the reader answers it from the words.
+   */
+  const poisoned = () => bite(inTheWoods('giant-vulture', VULTURE), VULTURE, 'Gouge');
+
+  it('poisons the target', () => {
+    expect(conditionsOn(poisoned().state, BREN)).toContain('poisoned');
+  });
+
+  /**
+   * The discriminator, and the whole reason the field exists: the vulture goes
+   * first, so the end of **Bren's** next turn is two boundaries away and the
+   * end of the **vulture's** next turn is three. A deadline filed on the
+   * attacker would still be standing here.
+   */
+  it('lifts it at the end of the target’s next turn, not the attacker’s', () => {
+    const out = poisoned();
+    const log = [...out.log];
+    const turn = (step: string) => {
+      const done = unwrap(resolveTurn(fold('fangs', log), supply(), { commandId: step }), step);
+      log.push(...done.events);
+    };
+    turn('the vulture’s turn ends');
+    expect(conditionsOn(fold('fangs', log), BREN)).toContain('poisoned');
+    turn('Bren’s turn ends');
+
+    expect(conditionsOn(fold('fangs', log), BREN)).not.toContain('poisoned');
+  });
+});
+
+// — a saving throw the line prints, at the DC the line prints ————————————————
+
+describe('a printed saving throw, rolled at the number the block states', () => {
   /**
    * SRD Ghoul, Claw: "If the target is a creature that isn't an Undead or elf,
    * it is subjected to the following effect. _Constitution Saving Throw:_ DC
    * 10. _Failure:_ The target has the Paralyzed condition until the end of its
    * next turn."
    *
-   * A printed saving throw with a printed DC, and the DC has nowhere to ride:
-   * `HitOption` derives its save DC from the holder's sheet, which is the
-   * right answer for a class feature and the wrong one for a number the book
-   * states. So the line is left where it was — carried whole, reported at the
-   * hit, and applied by a DM — rather than executed at a DC the engine made up.
+   * Three things at once, and `HitOption` had none of them: a DC the book
+   * states rather than a sheet derives, a gate on what kind of creature was
+   * hit, and a deadline on the target's own next turn. `saveDc` is the first —
+   * the field `CastsSpellGrant.saveDc` already is for a magic item.
    */
-  it('hands the Ghoul’s printed saving throw to the DM, unchanged', () => {
-    const out = bite(inTheWoods('ghoul', GHOUL), GHOUL, 'Claw');
+  it('paralyses a creature the claw’s save catches', () => {
+    const out = bite(inTheWoods('ghoul', GHOUL), GHOUL, 'Claw', BREN, 'n');
 
-    expect(conditionsOn(out.state, BREN)).not.toContain('paralyzed');
-    expect(out.unverified.join(' ')).toContain('the engine does not apply that');
+    expect(out.attack?.hit).toBe(true);
+    expect(conditionsOn(out.state, BREN)).toContain('paralyzed');
+  });
+
+  /**
+   * The gate is the book's and the engine holds the fact: a Zombie is Undead
+   * and the Ghoul's sentence stops at one. Nothing is refused — the Claw
+   * landed and dealt its damage — and the clause that did not fire says so.
+   */
+  it('leaves an Undead alone, because the line excepts one', () => {
+    const table = inTheWoods('ghoul', GHOUL);
+    table.did('a zombie shuffles in', (s) => addCreature(s, SRD_CONTENT, ZOMBIE, 'zombie'));
+    table.do('the zombie beside the ghoul', (s) =>
+      placeCreatureInScene(s, ZOMBIE, { from: { creature: GHOUL }, feet: 5, bearing: 0 }),
+    );
+
+    const out = bite(table, GHOUL, 'Claw', ZOMBIE, 'n');
+
+    expect(out.attack?.hit).toBe(true);
+    expect(conditionsOn(out.state, ZOMBIE)).not.toContain('paralyzed');
+    expect(out.unverified.join(' ')).toContain('Undead');
+  });
+
+  /**
+   * And the half of the same gate the engine cannot answer is said out loud
+   * rather than silently ignored: the book excepts an elf, lineage is not a
+   * fact this engine holds about a creature in play, and an unfired rule and a
+   * rule that checked and found nothing look identical from outside.
+   */
+  it('says out loud that it did not check for an elf', () => {
+    const out = bite(inTheWoods('ghoul', GHOUL), GHOUL, 'Claw', BREN, 'n');
+
+    expect(out.unverified.join(' ')).toContain('elf');
+  });
+
+  /**
+   * **The number is the block's, not the holder's** — which is the whole of
+   * what `saveDc` buys, and it cannot be shown on a Ghoul: the Ghoul's
+   * Proficiency Bonus makes `8 + PB` equal 10 by coincidence. A homebrew
+   * option through the sheet states 17, and the die is thrown against 17.
+   */
+  it('rolls against a stated DC in place of the one the sheet derives', () => {
+    /** The Wolf's own sheet would derive `8 + 2`; this states its own number. */
+    const stating = (saveDc: number): HitOption => ({
+      feature: 'homebrew:basilisk-gaze',
+      featureName: 'Basilisk Gaze',
+      option: 'petrify',
+      name: 'Basilisk Gaze',
+      pool: null,
+      costs: 0,
+      saveDc,
+      effects: [{ kind: 'save', ability: 'con', condition: 'restrained' }],
+      ability: null,
+    });
+    const gazed = (option: HitOption): GameState => {
+      const table = inTheWoods('wolf', WOLF);
+      const at = table.log.findIndex(
+        (event) => event.type === 'creature-added' && event.id === WOLF,
+      );
+      const arrival = table.log[at] as Extract<GameEvent, { type: 'creature-added' }>;
+      table.log[at] = { ...arrival, sheet: { ...arrival.sheet, hitOptions: [option] } };
+      const out = unwrap(
+        resolveAttack(
+          table.state,
+          WOLF,
+          {
+            target: BREN,
+            weapon: null,
+            action: 'Bite',
+            attackBonuses: [{ source: 'forced', flat: 40 }],
+            onHit: { feature: option.feature, option: option.option },
+          },
+          supply(),
+        ),
+        'the bite',
+      );
+      return fold('fangs', [...table.log, ...out.events]);
+    };
+
+    // One seed, one target, one effect list: the only difference between the
+    // two swings is the number the line states, and it is the difference
+    // between a save nobody makes and a save nobody fails.
+    expect(conditionsOn(gazed(stating(30)), BREN)).toContain('restrained');
+    expect(conditionsOn(gazed(stating(1)), BREN)).not.toContain('restrained');
+  });
+});
+
+// — a grapple, with the escape the line prints ————————————————————————————————
+
+describe('a grapple the line prints, escapable at the DC it prints', () => {
+  /**
+   * SRD Giant Frog, Bite: "…If the target is a Medium or smaller creature, it
+   * has the Grappled condition (escape DC 11)."
+   *
+   * **A grapple is a relation, not a condition**, which is why this could not
+   * ride on the effect list the other printed riders do: `grapplesOn`,
+   * `lapsedGrapples` and `escapeGrapple` all find one by the `grapple:<who>`
+   * source it is filed under, and a Grappled filed under a rider's own source
+   * would be a grapple nothing could escape and nothing could lapse — strictly
+   * worse than the prose it replaced. So the rider says *grapple*, and the
+   * grapple is made the way the Attack action's own already is.
+   */
+  const grabbed = () => bite(inTheWoods('giant-frog', FROG), FROG, 'Bite');
+
+  it('grapples the target', () => {
+    expect(conditionsOn(grabbed().state, BREN)).toContain('grappled');
+  });
+
+  it('files it under the attacker, so the grapple has a grappler', () => {
+    const held = grapplesOn(grabbed().state, BREN);
+
+    expect(held).toHaveLength(1);
+    expect(held[0]!.grappler).toBe(FROG);
+  });
+
+  /**
+   * The point of the whole shape: **a grapple nobody can escape is worse than
+   * the prose**, so the escape DC the line prints is pinned on the timer the
+   * grapple files, and `escapeGrapple` reads it off exactly as it reads the
+   * one an Unarmed Strike pinned.
+   */
+  it('offers the escape, at the DC the line printed', () => {
+    const out = grabbed();
+    const held = grapplesOn(out.state, BREN);
+
+    expect(out.state.timers[held[0]!.effectKey]?.check?.dc).toBe(11);
+
+    // SRD: "A Grappled creature can use its action to make a check" — so the
+    // frog's turn ends first and Bren answers on his own.
+    const ended = unwrap(
+      resolveTurn(out.state, supply(), { commandId: 'the frog’s turn ends' }),
+      'the turn',
+    );
+    const onHisTurn = fold('fangs', [...out.log, ...ended.events]);
+    const escaped = unwrap(
+      escapeGrapple(onHisTurn, BREN, { ability: 'str' }, supply('wriggle')),
+      'the escape',
+    );
+    expect(escaped.check?.dc).toBe(11);
+  });
+
+  /**
+   * The rules-legal ending it also has to have: SRD ends a grapple when the
+   * grappler is Incapacitated or too far away, and `lapsedGrapples` is the
+   * question the layer above asks. A grapple nothing could lapse would answer
+   * nothing here.
+   */
+  it('lapses when the grappler is no longer able to hold on', () => {
+    const out = grabbed();
+    const log = [
+      ...out.log,
+      { type: 'condition-applied', id: FROG, condition: 'stunned', source: 'a DM said so' },
+    ] as GameEvent[];
+
+    expect(lapsedGrapples(fold('fangs', log))).toEqual([
+      { grappler: FROG, target: BREN, source: `grapple:${FROG}`, reason: 'incapacitated' },
+    ]);
+  });
+
+  /**
+   * And the one thing a printed grapple says that the engine cannot hold: the
+   * limbs. "From one of two claws" is a count of how many creatures the block
+   * can hold at once, and the engine counts no limbs — the same silence
+   * `grappleTarget` already reports about a free hand, reported the same way.
+   */
+  it('hands the limb count back to the table', () => {
+    const table = inTheWoods('griffon', GRIFFON);
+    const out = bite(table, GRIFFON, 'Rend');
+
+    expect(conditionsOn(out.state, BREN)).toContain('grappled');
+    expect(out.unverified.join(' ')).toContain('front claws');
   });
 });
 
 // — the parser, over the book ————————————————————————————————————————————————
 
 describe('the reader claims only the sentences it can execute', () => {
-  it('reads the two shapes, in the book’s own words', () => {
+  it('reads the five shapes, in the book’s own words', () => {
     expect(
       readPrintedRider('If the target is a Medium or smaller creature, it has the Prone condition.'),
     ).toEqual({ kind: 'condition', conditions: ['prone'], ifNoLargerThan: 'medium' });
@@ -503,7 +727,12 @@ describe('the reader claims only the sentences it can execute', () => {
       readPrintedRider(
         'and the target has the Poisoned condition until the start of the ettercap’s next turn.',
       ),
-    ).toEqual({ kind: 'condition', conditions: ['poisoned'], lasts: 'start-of-next-turn' });
+    ).toEqual({
+      kind: 'condition',
+      conditions: ['poisoned'],
+      lasts: 'start-of-next-turn',
+      lastsOn: 'attacker',
+    });
 
     expect(
       readPrintedRider(
@@ -513,6 +742,67 @@ describe('the reader claims only the sentences it can execute', () => {
       kind: 'condition',
       conditions: ['blinded', 'deafened'],
       lasts: 'end-of-next-turn',
+      lastsOn: 'attacker',
+    });
+
+    // SRD Giant Vulture and Hill Giant: the same sentence about the other
+    // creature, which is a different deadline and not a wording.
+    expect(
+      readPrintedRider('and the target has the Poisoned condition until the end of its next turn.'),
+    ).toEqual({
+      kind: 'condition',
+      conditions: ['poisoned'],
+      lasts: 'end-of-next-turn',
+      lastsOn: 'target',
+    });
+
+    // SRD Ghoul: a gate on two facts, a printed DC, and the target's own next
+    // turn — every part of it read, and the part nobody can check named.
+    expect(
+      readPrintedRider(
+        'If the target is a creature that isn’t an Undead or elf, it is subjected to the following effect. _Constitution Saving Throw:_ DC 10. _Failure:_ The target has the Paralyzed condition until the end of its next turn.',
+      ),
+    ).toEqual({
+      kind: 'condition',
+      conditions: ['paralyzed'],
+      unlessType: 'Undead',
+      alsoExcepts: 'elf',
+      save: { ability: 'con', dc: 10 },
+      lasts: 'end-of-next-turn',
+      lastsOn: 'target',
+    });
+
+    // SRD Ghast: the same sentence with the exception the engine can answer
+    // in full.
+    expect(
+      readPrintedRider(
+        'If the target is a non-Undead creature, it is subjected to the following effect. _Constitution Saving Throw:_ DC 10. _Failure:_ The target has the Paralyzed condition until the end of its next turn.',
+      ),
+    ).toEqual({
+      kind: 'condition',
+      conditions: ['paralyzed'],
+      unlessType: 'Undead',
+      save: { ability: 'con', dc: 10 },
+      lasts: 'end-of-next-turn',
+      lastsOn: 'target',
+    });
+
+    // SRD Ankheg, and the Giant Scorpion's limb clause beside it.
+    expect(
+      readPrintedRider(
+        'If the target is a Large or smaller creature, it has the Grappled condition (escape DC 13).',
+      ),
+    ).toEqual({ kind: 'grapple', ifNoLargerThan: 'large', escapeDc: 13 });
+
+    expect(
+      readPrintedRider(
+        'If the target is a Medium or smaller creature, it has the Grappled condition (escape DC 11) from one of two claws.',
+      ),
+    ).toEqual({
+      kind: 'grapple',
+      ifNoLargerThan: 'medium',
+      escapeDc: 11,
+      withLimbs: 'one of two claws',
     });
   });
 
@@ -520,24 +810,30 @@ describe('the reader claims only the sentences it can execute', () => {
    * **Null is the answer to everything else**, and that is the guard rather
    * than a gap. A near-miss on one of these sentences is a creature given a
    * rule the book did not print — the failure the verbatim string was carried
-   * to avoid — so the four below are refused by name: a save whose DC has
-   * nowhere to ride, a grapple whose escape DC the escape command could not
-   * find, a deadline anchored on the *target's* turn, and a clause gated on a
-   * movement nobody has declared.
+   * to avoid — so each below is refused by name: a possessive that names
+   * neither creature in the hit, a clause gated on a movement nobody has
+   * declared, an extra damage die, a grapple with a second sentence on it, a
+   * failure that imposes something that is not a condition, and a save with
+   * two rungs of failure.
    */
   it('refuses the sentences whose mechanism it does not have', () => {
     for (const text of [
-      'If the target is a creature that isn’t an Undead or elf, it is subjected to the following effect. _Constitution Saving Throw:_ DC 10. _Failure:_ The target has the Paralyzed condition until the end of its next turn.',
-      'If the target is a Large or smaller creature, it has the Grappled condition (escape DC 13).',
-      'and the target has the Poisoned condition until the end of its next turn.',
-      // The same deadline written the other way round: a possessive the
-      // pattern matches and the check refuses, because a hit rider's span is
-      // filed on the holder whatever the sentence said.
-      'and the target has the Poisoned condition until the end of the target’s next turn.',
       'and the target has the Poisoned condition until the start of the Grappled creature’s next turn.',
       'If the target is a Large or smaller creature and the elk moved 20+ feet straight toward it immediately before the hit, the target has the Prone condition.',
       'or 2 (1d4) Piercing damage if the swarm is Bloodied.',
       'Being underwater doesn’t grant Resistance to this Fire damage.',
+      // SRD Crocodile: the Restrained travels with the grapple and ends with
+      // it, and one condition ending another is a lifetime the engine has not
+      // got.
+      'If the target is a Medium or smaller creature, it has the Grappled condition (escape DC 12). While Grappled, the target has the Restrained condition.',
+      // SRD Mimic: a Disadvantage narrowed to the escape check, which is a
+      // second mechanism on top of the grapple.
+      'If the target is a Large or smaller creature, it has the Grappled condition (escape DC 13). Ability checks made to escape this grapple have Disadvantage.',
+      // SRD Werewolf: a printed save whose failure is a curse rather than a
+      // condition — the DC is readable and what it buys is not.
+      'If the target is a Humanoid, it is subjected to the following effect. _Constitution Saving Throw:_ DC 12. _Failure:_ The target is cursed. If the cursed target drops to 0 Hit Points, it instead becomes a **Werewolf** under the GM’s control and has 10 Hit Points. _Success:_ The target is immune to this werewolf’s curse for 24 hours.',
+      // SRD Cockatrice: two rungs of failure, and the engine's save has one.
+      'If the target is a creature, it is subjected to the following effect. _Constitution Saving Throw:_ DC 11. _First Failure:_ The target has the Restrained condition. The target repeats the save at the end of its next turn if it is still Restrained, ending the effect on itself on a success. _Second Failure:_ The target has the Petrified condition, instead of the Restrained condition, for 24 hours.',
     ]) {
       expect(readPrintedRider(text), text).toBeNull();
     }
@@ -562,6 +858,6 @@ describe('the reader claims only the sentences it can execute', () => {
     }
 
     expect(carried).toBeGreaterThan(100);
-    expect(read).toBeGreaterThanOrEqual(29);
+    expect(read).toBeGreaterThanOrEqual(45);
   });
 });

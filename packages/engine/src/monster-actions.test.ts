@@ -323,21 +323,29 @@ describe('a monster attacks with what its block prints', () => {
    * handed back. Saying so is the difference between a shape that is honest
    * about its edges and one that quietly makes a creature weaker than the book.
    *
-   * The Ghoul's Claw, because it prints the one thing `HitOption` has nowhere
-   * to put: "_Constitution Saving Throw:_ DC 10" — a DC the book states rather
-   * than one derived from a sheet. The Wolf's Prone was this example until
-   * `printed-riders.test.ts` started executing it; the two files are the two
-   * halves of one claim, and this is the half that must not shrink to nothing.
+   * The Mummy's Rotting Fist, because what its line imposes is not a
+   * condition at all: "the target can't regain Hit Points, its Hit Point
+   * maximum doesn't return to normal when finishing a Long Rest, and its Hit
+   * Point maximum decreases by 10 (3d6) every 24 hours that elapse." The
+   * Wolf's Prone was this example until `printed-riders.test.ts` started
+   * executing it, and the Ghoul's printed save was until the reader learned
+   * to read one; the two files are the two halves of one claim, and this is
+   * the half that must not shrink to nothing.
    */
   it('reports the rider the block prints and the engine does not apply', () => {
-    const table = inTheWoods('ghoul', GHOUL);
-    const claw = unwrap(
-      resolveAttack(table.state, GHOUL, { target: BREN, weapon: null, action: 'Claw' }, supply()),
-      'the claw',
+    const table = inTheWoods('mummy', MUMMY);
+    const fist = unwrap(
+      resolveAttack(
+        table.state,
+        MUMMY,
+        { target: BREN, weapon: null, action: 'Rotting Fist' },
+        supply(),
+      ),
+      'the fist',
     );
 
-    expect(claw.unverified.join(' ')).toContain('Paralyzed condition');
-    expect(claw.unverified.join(' ')).toContain('the engine does not apply that');
+    expect(fist.unverified.join(' ')).toContain('it is cursed');
+    expect(fist.unverified.join(' ')).toContain('the engine does not apply that');
   });
 
   /**
