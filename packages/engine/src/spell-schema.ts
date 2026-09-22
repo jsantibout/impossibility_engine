@@ -715,7 +715,7 @@ function checkSpellCheck(
  * the check is shared rather than spelled twice.
  *
  * **`typeof lasts === 'object'` is true of `null` as well**, so a rider that
- * carried one reached `.seconds` and threw. `RiderDuration` is three named
+ * carried one reached `.seconds` and threw. `RiderDuration` is five named
  * moments or a span of seconds, and anything else is a value no reader of this
  * field can do anything with.
  *
@@ -743,6 +743,7 @@ function checkRiderDuration(
   } else if (
     lasts !== 'start-of-casters-next-turn' &&
     lasts !== 'end-of-casters-next-turn' &&
+    lasts !== 'start-of-targets-next-turn' &&
     lasts !== 'end-of-targets-next-turn' &&
     lasts !== 'end-of-current-turn'
   ) {
@@ -3027,17 +3028,29 @@ export function checkSpellDefinition(
   // **A casting's own deadline may not be anchored on a target**, because a
   // casting has as many targets as it caught and one duration. `RiderDuration`
   // is shared with the riders, where a deadline *is* about one creature —
-  // SRD Vicious Mockery's "the end of **its** next turn" — and the member
-  // that says so means nothing in this position: there is no "it". Refused
-  // here rather than left to bind to whoever, which is the same argument
-  // `anchoredOnTarget` makes at the pre-flight, and it is what keeps
-  // `riderDuration`'s one throw out of a content author's reach.
-  if (definition.durationUntil === 'end-of-targets-next-turn') {
+  // SRD Vicious Mockery's "the end of **its** next turn", SRD Shocking Grasp's
+  // "the start of **its** next turn" — and the members that say so mean
+  // nothing in this position: there is no "it". Refused here rather than left
+  // to bind to whoever, which is the same argument `anchoredOnTarget` makes at
+  // the pre-flight, and it is what keeps `riderDuration`'s one throw out of a
+  // content author's reach.
+  //
+  // **Both are spelled by name rather than asked of `anchoredOnTarget`**,
+  // because this field is never put through `checkRiderDuration` and what
+  // arrives here may be any string at all: the reader throws on a member it
+  // has not heard of, and a validator that threw at untyped input would refuse
+  // nothing and crash the loader instead. `rider-duration-readers.test.ts`
+  // derives the list from the reader and holds every target-anchored member to
+  // being refused here, so a third one cannot be left out quietly.
+  if (
+    definition.durationUntil === 'end-of-targets-next-turn' ||
+    definition.durationUntil === 'start-of-targets-next-turn'
+  ) {
     found.push({
       field: 'durationUntil',
       code: 'casting_duration_without_a_target',
       reason:
-        'a casting runs for one duration and may have caught several creatures, so its own deadline cannot be the end of "its" next turn; put the moment on the rider that is about one creature',
+        'a casting runs for one duration and may have caught several creatures, so its own deadline cannot be the start or the end of "its" next turn; put the moment on the rider that is about one creature',
     });
   }
 

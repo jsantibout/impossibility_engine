@@ -4,6 +4,7 @@ import {
   endOfNextTurn,
   forSeconds,
   startOfNextTurn,
+  turnAnchored,
   type Duration,
   type TurnMoment,
 } from './time.js';
@@ -324,9 +325,32 @@ export type DieRule = {
  * already encodes the asymmetry that makes it right. What was missing was a
  * word a rider could say it with.
  */
+/**
+ * **A sixth member, and it is the word the vocabulary was one short of.**
+ *
+ * SRD Shocking Grasp: "it can't make Opportunity Attacks **until the start of
+ * its next turn**." Every other member is a moment that sentence does not
+ * mean — the start of the *caster's* next turn is a round out when the caster
+ * went first, the end of the target's is one turn-ending too late, and the
+ * current turn's end is the caster's own. So the clause had no spelling at
+ * all, on an Instantaneous cantrip where a rider with no deadline is refused
+ * outright, and the spell sat filed as a missing *mechanism* for two batches
+ * while the mechanism was already built: `ActionRule`'s `forbids` takes a
+ * named action away and `NAMED_ACTIONS` has listed the Opportunity Attack
+ * since IE-046.
+ *
+ * **The moment already existed**, which is why this is a spelling rather than
+ * a primitive, exactly as the member above it was: `Duration`'s
+ * `start-of-next-turn` names any creature, and `turnAnchored` is the
+ * constructor a printed stat-block rider's span already reaches it through in
+ * `hit-riders.ts`. Resolved through that same call rather than a second
+ * `startOfNextTurn` written here, because two spellings of one deadline is how
+ * this engine has twice grown a second answer to one question.
+ */
 export type RiderDuration =
   | 'start-of-casters-next-turn'
   | 'end-of-casters-next-turn'
+  | 'start-of-targets-next-turn'
   | 'end-of-targets-next-turn'
   | 'end-of-current-turn'
   | { readonly seconds: number };
@@ -3209,6 +3233,8 @@ export function riderDurationPhrase(lasts: RiderDuration | undefined): string {
       return 'the end of the current turn';
     case 'end-of-targets-next-turn':
       return "the end of the target's next turn";
+    case 'start-of-targets-next-turn':
+      return "the start of the target's next turn";
     case 'end-of-casters-next-turn':
       return "the end of the caster's next turn";
     case 'start-of-casters-next-turn':
@@ -3223,16 +3249,16 @@ export function riderDurationPhrase(lasts: RiderDuration | undefined): string {
 /**
  * The deadline a rider clause names.
  *
- * Two of the five members are anchored to the caster's own turn; one to the
+ * Two of the six members are anchored to the caster's own turn; two to the
  * creature the rider is being hung on; one is a span on the clock; and one —
  * the turn in progress ending — is anchored to nobody, so it ignores both and
  * is resolved against whoever is taking the turn. The whole reason they are
  * separate members is that none of them is interchangeable with another — see
  * {@link RiderDuration}.
  *
- * **`targetId` is optional and the target-anchored member requires it**, which
+ * **`targetId` is optional and the target-anchored members require it**, which
  * is not a contradiction: the two callers that pass none are the two that
- * cannot reach that member. The pre-flight asks the caster-anchored deadlines
+ * cannot reach those members. The pre-flight asks the caster-anchored deadlines
  * once and the target-anchored ones per target, splitting on
  * {@link anchoredOnTarget}; and a definition's own `durationUntil` is one
  * casting's duration rather than one creature's, which the validator refuses
@@ -3254,17 +3280,27 @@ export function riderDuration(
 ): Duration | undefined {
   if (lasts === undefined) return undefined;
   if (typeof lasts === 'object') return forSeconds(lasts.seconds);
+  // **Asked once, of the one reader of which members anchor where**, rather
+  // than written again inside each arm that needs it. A second target-anchored
+  // member arriving without its own copy of the guard would bind to
+  // `undefined` and pin a deadline onto nobody — the silent wrong answer the
+  // paragraph above says is impossible here — and there is now a second such
+  // member for it to happen to.
+  if (anchoredOnTarget(lasts) && targetId === undefined) {
+    throw new Error(
+      'a deadline anchored on the target needs the target; ask it per target, as the pre-flight and the rider resolvers do',
+    );
+  }
   switch (lasts) {
     case 'end-of-current-turn':
       return endOfCurrentTurn;
-    case 'end-of-targets-next-turn': {
-      if (targetId === undefined) {
-        throw new Error(
-          'a deadline anchored on the target needs the target; ask it per target, as the pre-flight and the rider resolvers do',
-        );
-      }
-      return endOfNextTurn(targetId);
-    }
+    // Both through `turnAnchored`, which is the constructor `hit-riders.ts`
+    // already resolves a printed rider's target-anchored span with: the two
+    // moments differ by a word and by a `TurnAnchor`, and nothing else.
+    case 'end-of-targets-next-turn':
+      return turnAnchored('end-of-next-turn', targetId!);
+    case 'start-of-targets-next-turn':
+      return turnAnchored('start-of-next-turn', targetId!);
     case 'end-of-casters-next-turn':
       return endOfNextTurn(casterId);
     case 'start-of-casters-next-turn':
@@ -3294,11 +3330,18 @@ export function riderDuration(
  * new target-anchored member would be asked in the wrong place and pinned to
  * the wrong creature, silently. A span is the one member that is genuinely not
  * a name, and it anchors on nobody.
+ *
+ * **And the exhaustive `switch` is what made the second target-anchored member
+ * cheap**: SRD Shocking Grasp's "until the start of **its** next turn" was
+ * three compiler errors before it was three edits, and one of the three was
+ * here. {@link riderDuration} now asks this rather than repeating the list, so
+ * a third such member cannot arrive with its guard missing.
  */
 export function anchoredOnTarget(lasts: RiderDuration): boolean {
   if (typeof lasts === 'object') return false;
   switch (lasts) {
     case 'end-of-targets-next-turn':
+    case 'start-of-targets-next-turn':
       return true;
     case 'end-of-current-turn':
     case 'end-of-casters-next-turn':

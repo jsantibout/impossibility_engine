@@ -824,6 +824,20 @@ export const RAY_OF_FROST = attackCantrip({
  * > "Make a melee spell attack against the target. On a hit, the target takes
  * > 1d8 Lightning damage, and it can't make Opportunity Attacks until the
  * > start of its next turn."
+ *
+ * One sentence, two consequences, one attack roll — so the refusal is a rider
+ * on the hit rather than a second effect that would roll a second attack for
+ * the same touch, which is Chill Touch's argument two spells down.
+ *
+ * **What kept this filed as debt for two batches was neither half of it.**
+ * `forbids` takes a named action away and leaves the rest of the budget
+ * alone, and `NAMED_ACTIONS` has listed the Opportunity Attack — against this
+ * spell by name — since IE-046. It was the *deadline*: a cantrip is
+ * Instantaneous, so the casting is over the instant it resolves and could
+ * never hand the Reaction back, and `RiderDuration` had a word for the start
+ * of the **caster's** next turn and the end of the **target's** and none for
+ * the start of the target's. That is a round out from what the book says when
+ * the caster acted first.
  */
 export const SHOCKING_GRASP = attackCantrip({
   id: 'shocking-grasp',
@@ -833,7 +847,15 @@ export const SHOCKING_GRASP = attackCantrip({
   attack: 'melee',
   dice: '1d8',
   damageType: 'lightning',
-  unmodelled: ['the target cannot make Opportunity Attacks until the start of its next turn'],
+  // "until the start of **its** next turn" — the target's, which is the anchor
+  // `start-of-targets-next-turn` names and a round from the caster's own.
+  modifiers: [
+    {
+      kind: 'action',
+      rule: { kind: 'forbids', actions: ['opportunity-attack'] },
+      lasts: 'start-of-targets-next-turn',
+    },
+  ],
 });
 
 /**

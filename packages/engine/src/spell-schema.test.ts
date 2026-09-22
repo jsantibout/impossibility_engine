@@ -2122,11 +2122,17 @@ describe('every member of the definition format has a user or a written exemptio
    * it can see `RiderDuration` at all. Before the arm-at-a-time read that type
    * contributed no members whatever, so a fourth one could have been added
    * with no writer and nothing would have reported it.
+   *
+   * The start of the target's next turn is the sixth, and SRD Shocking Grasp
+   * is its writer — which is the half this list holds and
+   * `rider-duration-readers.test.ts` does not: that sweep asks whether every
+   * *reader* answers the member, and this asks whether any definition says it.
    */
   it('sees every named moment a rider may last until', () => {
     expect(membersOf(source, 'RiderDuration').map((m) => m.label)).toEqual([
       "RiderDuration='start-of-casters-next-turn'",
       "RiderDuration='end-of-casters-next-turn'",
+      "RiderDuration='start-of-targets-next-turn'",
       "RiderDuration='end-of-targets-next-turn'",
       "RiderDuration='end-of-current-turn'",
     ]);

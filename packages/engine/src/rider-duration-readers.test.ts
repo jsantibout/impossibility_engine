@@ -2,13 +2,21 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { linesOf } from '../../../test-support/lines.js';
+import { SRD_CONTENT } from '@ie/content';
 import { asCharacterId } from '@ie/shared';
-import { anchoredOnTarget, riderDuration, riderDurationPhrase } from './spell-definitions.js';
+import {
+  anchoredOnTarget,
+  riderDuration,
+  riderDurationPhrase,
+  type SpellDefinition,
+} from './spell-definitions.js';
+import { checkSpellDefinition } from './spell-schema.js';
+import { startOfNextTurn } from './time.js';
 
 /**
  * Every reader of `RiderDuration` names every member of it.
  *
- * The union is four named moments and a span of seconds, and none of them is
+ * The union is five named moments and a span of seconds, and none of them is
  * interchangeable with another — that sentence is the whole reason they are
  * separate members. But two of its readers ended in a **ternary**:
  *
@@ -124,6 +132,7 @@ describe('every reader of a rider’s deadline names every member of it', () => 
     expect(MEMBERS).toEqual([
       'start-of-casters-next-turn',
       'end-of-casters-next-turn',
+      'start-of-targets-next-turn',
       'end-of-targets-next-turn',
       'end-of-current-turn',
     ]);
@@ -242,9 +251,68 @@ describe('each member resolves to the moment it names', () => {
     expect(riderDurationPhrase({ seconds: 60 })).toContain('60');
   });
 
-  it('anchors exactly one of them on the creature the rider lands on', () => {
+  it('anchors exactly the two of them that say "its" on the creature the rider lands on', () => {
     const anchored = MEMBERS.filter((member) => anchoredOnTarget(member as never));
-    expect(anchored).toEqual(['end-of-targets-next-turn']);
+    expect(anchored).toEqual(['start-of-targets-next-turn', 'end-of-targets-next-turn']);
     expect(anchoredOnTarget({ seconds: 60 })).toBe(false);
+  });
+
+  /**
+   * SRD Shocking Grasp: "can't make Opportunity Attacks **until the start of
+   * its next turn**" — the target's turn, and a whole round before the
+   * caster's if the caster went first.
+   *
+   * Built through `turnAnchored`'s own constructor rather than a second
+   * spelling of `{ kind: 'start-of-next-turn' }`: `hit-riders.ts` already
+   * resolves a printed stat-block rider's span that way, and two spellings of
+   * one deadline is how this engine has twice grown a second answer to one
+   * question.
+   */
+  it('binds the start of the target’s next turn to the target, a round from the caster’s', () => {
+    expect(riderDuration('start-of-targets-next-turn', CASTER, TARGET)).toEqual(
+      startOfNextTurn(TARGET),
+    );
+    expect(riderDuration('start-of-casters-next-turn', CASTER, TARGET)).toEqual(
+      startOfNextTurn(CASTER),
+    );
+  });
+
+  /**
+   * And with no target it is programmer error rather than a fallback to the
+   * caster, which is the rule {@link riderDuration} states and the older
+   * target-anchored member already obeyed: a fallback there would be a *wrong
+   * deadline* instead of a refusal.
+   */
+  it('refuses to guess whose turn it is when nobody passed a target', () => {
+    for (const member of MEMBERS.filter((one) => anchoredOnTarget(one as never))) {
+      expect(() => riderDuration(member as never, CASTER)).toThrow(/target/);
+    }
+  });
+});
+
+/**
+ * A casting's own deadline may not be anchored on a target, for every member
+ * that is — derived, so a sixth member arrives guarded.
+ *
+ * A casting has as many targets as it caught and one duration, so the moment
+ * that says "its" means nothing in that position; and `resolveSpell` pins
+ * `durationUntil` by calling `riderDuration` with **no** target, so a member
+ * that slipped past this check would reach the one throw the validator exists
+ * to keep out of a content author's reach.
+ */
+describe('a casting’s own deadline is refused every target-anchored member', () => {
+  it('refuses each of them by name', () => {
+    const anchored = MEMBERS.filter((member) => anchoredOnTarget(member as never));
+    expect(anchored.length).toBeGreaterThan(1);
+    for (const member of anchored) {
+      const definition = {
+        ...SRD_CONTENT.spell('guiding-bolt')!,
+        durationUntil: member,
+      } as unknown as SpellDefinition;
+      expect(
+        checkSpellDefinition(definition).map((problem) => problem.code),
+        member,
+      ).toContain('casting_duration_without_a_target');
+    }
   });
 });

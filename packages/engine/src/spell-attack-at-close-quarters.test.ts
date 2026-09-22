@@ -96,6 +96,26 @@ const scene = (extra: readonly GameEvent[] = [], bruteFeet = 5): readonly GameEv
   ...extra,
 ];
 
+/**
+ * An Initiative order, which Shocking Grasp now needs and Fire Bolt does not.
+ *
+ * Its clause ends "until the start of **its** next turn", so the casting pins
+ * a turn-anchored deadline — and a moment in the turn order means nothing
+ * before there is one. That is the refusal SRD Ray of Frost has always come
+ * back with out of combat, arriving on the second cantrip to carry a rider's
+ * own deadline; nothing about the rule this file is testing changed.
+ */
+const IN_INITIATIVE: readonly GameEvent[] = [
+  {
+    type: 'combat-started',
+    combatants: [
+      { id: CASTER, initiative: 20, speed: 30 },
+      { id: BRUTE, initiative: 10, speed: 30 },
+      { id: VICTIM, initiative: 5, speed: 30 },
+    ],
+  },
+];
+
 /** The brute, declared unable to see the creature at its elbow. */
 const BLIND: readonly GameEvent[] = [
   { type: 'sight-declared', from: BRUTE, to: CASTER, seen: false },
@@ -172,7 +192,7 @@ describe('a ranged spell attack with an enemy at the caster’s elbow', () => {
    * has nothing to say about it.
    */
   it('does not hamper a melee spell attack from the same square', () => {
-    expect(modeOf(scene(), 'shocking-grasp', BRUTE)).toBe('normal');
+    expect(modeOf(scene(IN_INITIATIVE), 'shocking-grasp', BRUTE)).toBe('normal');
   });
 });
 

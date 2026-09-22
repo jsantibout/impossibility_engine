@@ -136,7 +136,7 @@ const PLACED: readonly GameEvent[] = [
     spellcasting: declaredCasting({
       ability: 'int',
       classId: 'wizard',
-      cantrips: [],
+      cantrips: ['shocking-grasp'],
       prepared: ['fear', 'stinking-cloud', 'wind-walk', 'magic-jar'],
     }),
   },
@@ -592,6 +592,110 @@ describe('Wind Walk narrows a cloud to the two actions the book leaves it', () =
 
   it('replays prefix by prefix', () => {
     replaysPrefixByPrefix(walking());
+  });
+});
+
+// — Shocking Grasp ————————————————————————————————————————————————————————
+
+/**
+ * SRD Shocking Grasp:
+ *
+ * > "Make a melee spell attack against the target. On a hit, the target takes
+ * > 1d8 Lightning damage, **and it can't make Opportunity Attacks until the
+ * > start of its next turn**."
+ *
+ * One attack roll, two consequences, so the refusal is a **rider** on the hit
+ * rather than a second effect that would roll a second attack for one touch —
+ * the argument Stinking Cloud's gag makes off a save. What kept this sentence
+ * out of the catalogue for two batches was neither half of it: `forbids`
+ * takes a named action away and `NAMED_ACTIONS` has listed the Opportunity
+ * Attack since IE-046. It was the **deadline**. A cantrip is Instantaneous, so
+ * the casting is over the instant it resolves and could never hand the
+ * Reaction back; the rider's own `lasts` is the only thing that can, and
+ * `RiderDuration` had no word for the start of the *target's* next turn.
+ *
+ * It is a different moment from every member that was there, which is why it
+ * is a member rather than a spelling: the wizard goes first here, so the start
+ * of *his* next turn is two turns after the start of the foe's.
+ */
+describe('Shocking Grasp takes the Opportunity Attack until the target’s own turn', () => {
+  /** The touch lands by construction: the flat rides the attack roll. */
+  const shocked = (): readonly GameEvent[] => [
+    ...FIGHTING,
+    ...castFrom(FIGHTING, 'shocking-grasp', { targets: [FOE] }, 40),
+  ];
+
+  it('writes the rider the book prints, and files nothing as unmodelled', () => {
+    const grasp = defined('shocking-grasp');
+    const hit = grasp.effects[0];
+    expect(hit?.kind).toBe('attack');
+    expect(hit?.kind === 'attack' ? hit.modifiers : undefined).toEqual([
+      {
+        kind: 'action',
+        rule: { kind: 'forbids', actions: ['opportunity-attack'] },
+        lasts: 'start-of-targets-next-turn',
+      },
+    ]);
+    expect(grasp.unmodelled ?? []).toEqual([]);
+  });
+
+  it('lands the rule on the creature it touched, with the moment pinned into it', () => {
+    const rules = rulesOn(state(shocked()), FOE);
+    expect(rules).toHaveLength(1);
+    expect(rules[0]?.source).toMatch(/^Shocking Grasp#cast:/);
+    expect(rules[0]?.rule).toEqual({ kind: 'forbids', actions: ['opportunity-attack'] });
+    expect(rules[0]?.until).toBe("the start of the target's next turn");
+  });
+
+  /**
+   * And it is a refusal a caller can see, at the one place this engine names
+   * the swing: the wizard steps out of the foe's reach and the Reaction the
+   * leaving offers is not one the foe may take.
+   */
+  it('refuses the swing a leaving move offers', () => {
+    const log = shocked();
+    const leaving = must(
+      resolveMove(
+        state(log),
+        WIZARD,
+        { placement: { from: { landmark: 'the arch' }, feet: 0 } },
+        supply('leave'),
+      ),
+    );
+    const said = refusal(
+      takeOpportunityAttack(state([...log, ...leaving.events]), FOE, {}, supply('swing')),
+    );
+    expect(said).toContain('Shocking Grasp forbids it');
+    expect(said).toContain("the start of the target's next turn");
+  });
+
+  /**
+   * **The deadline is the clause, so the deadline is driven** — and it is the
+   * target's own turn rather than the caster's, which is the whole of what the
+   * new member says. The wizard acts first, so a rider that had borrowed
+   * `start-of-casters-next-turn` would still be gagging the foe here, two
+   * turns from being lifted.
+   */
+  it('hands the Reaction back at the start of the target’s next turn', () => {
+    const log = shocked();
+    expect(rulesOn(state(log), FOE)).toHaveLength(1);
+
+    const later = turnOf(log, FOE);
+    expect(rulesOn(state(later), FOE)).toEqual([]);
+    // And the caster's next turn is still to come, which is what makes the two
+    // members different moments rather than two names for one.
+    expect(whoseTurn(state(later))).toBe(FOE);
+  });
+
+  /** A creature the touch never reached keeps its Reaction. */
+  it('leaves everybody else alone', () => {
+    const world = state(shocked());
+    expect(rulesOn(world, OGRE)).toEqual([]);
+    expect(rulesOn(world, ALLY)).toEqual([]);
+  });
+
+  it('replays prefix by prefix', () => {
+    replaysPrefixByPrefix(shocked());
   });
 });
 
