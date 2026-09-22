@@ -1189,6 +1189,33 @@ function playTheSession(seed?: string): Table {
 // — the report ————————————————————————————————————————————————————————————————
 
 /**
+ * A refusal that is the **engine being right**, not a call that failed.
+ *
+ * Gate G1, job 1, finding 4: the session drives Turn Undead late in round 4,
+ * and the transcript then shows two attacks refused with `incapacitated`
+ * because their target — a Ghast and a Skeleton — is Frightened off its feet
+ * and cannot act. A monster that cannot act is the rule working. Counting it
+ * under *calls the session could not complete* put the engine's own
+ * correctness on the same line as a tool that did not do its job, which is
+ * the kind of miscount that makes a criterion unreadable.
+ *
+ * Narrow on purpose, and in two ways. It is `incapacitated` alone — the one
+ * code the reading was taken of — and it is only ever a **hostile**: a party
+ * member refused for the same reason is a turn the session planned and could
+ * not take, which is a finding and stays in the first list. `end_combat`
+ * refused with `hostiles_remain` is likewise a call that did not complete and
+ * is not here.
+ */
+const HOSTILE_IDS: ReadonlySet<string> = new Set(HOSTILES.map((one) => one.id));
+
+const isEngineCorrect = (one: Sent): boolean => {
+  if (one.outcome.status !== 'refused') return false;
+  if (!('code' in one.outcome) || one.outcome.code !== 'incapacitated') return false;
+  const reason = 'reason' in one.outcome ? one.outcome.reason : '';
+  return [...HOSTILE_IDS].some((id) => reason.startsWith(`${id} `));
+};
+
+/**
  * The three counts, as the run's own transcript reports them.
  *
  * **The pool census goes first, and that ordering is load-bearing.** It reads
@@ -1243,16 +1270,20 @@ function report(t: Table): string {
   lines.push(`for the record — tools on the two surfaces this session never used: ${never.length}`);
   lines.push(`   ${never.join(', ')}`);
 
+  const why = (one: Sent): string =>
+    one.outcome.status === 'ok'
+      ? ''
+      : `${one.outcome.status}/${'code' in one.outcome ? one.outcome.code : ''}: ${'reason' in one.outcome ? one.outcome.reason : ''}`;
+
   const refused = t.sent.filter((one) => one.outcome.status !== 'ok');
+  const correct = refused.filter(isEngineCorrect);
+  const incomplete = refused.filter((one) => !isEngineCorrect(one));
   lines.push('');
-  lines.push(`for the record — calls the session could not complete: ${refused.length}`);
-  for (const one of refused) {
-    const why =
-      one.outcome.status === 'ok'
-        ? ''
-        : `${one.outcome.status}/${'code' in one.outcome ? one.outcome.code : ''}: ${'reason' in one.outcome ? one.outcome.reason : ''}`;
-    lines.push(`   ${one.door}:${one.tool} — ${why.slice(0, 220)}`);
-  }
+  lines.push(`for the record — calls the session could not complete: ${incomplete.length}`);
+  for (const one of incomplete) lines.push(`   ${one.door}:${one.tool} — ${why(one).slice(0, 220)}`);
+  lines.push('');
+  lines.push(`for the record — refusals that are the engine being right: ${correct.length}`);
+  for (const one of correct) lines.push(`   ${one.door}:${one.tool} — ${why(one).slice(0, 220)}`);
   lines.push('');
   return lines.join('\n');
 }
@@ -1301,6 +1332,48 @@ describe('a level 5 party plays a session', () => {
       expect(sheet.resolution['level']).toBe(6);
     }
     expect(t.campaign.log().length).toBeGreaterThan(50);
+  });
+
+  /**
+   * A monster that cannot act is the rule, not a call the session fumbled.
+   *
+   * Gate G1 checked the transcript and found criterion 3's last count
+   * carrying two refusals the engine was **right** to make: the session drives
+   * Turn Undead late in round 4 and then swings at what it Frightened, and the
+   * engine says a Ghast and a Skeleton are Incapacitated. Asserted in both
+   * directions, because a classifier that only ever says yes is not one: the
+   * same code against a party member stays in the first list, and so does
+   * `end_combat` refused while the fight is still on.
+   */
+  it('counts an Incapacitated monster as the engine being right', () => {
+    const t = playTheSession();
+    const refused = t.sent.filter((one) => one.outcome.status !== 'ok');
+    const correct = refused.filter(isEngineCorrect);
+
+    expect(correct.length).toBeGreaterThan(0);
+    for (const one of correct) {
+      expect('code' in one.outcome ? one.outcome.code : '').toBe('incapacitated');
+      const reason = 'reason' in one.outcome ? one.outcome.reason : '';
+      expect([...HOSTILE_IDS].some((id) => reason.startsWith(`${id} `)), reason).toBe(true);
+    }
+
+    // The party's half of the same code is a finding and stays one.
+    const mine = PARTY[0]!.id;
+    expect(
+      isEngineCorrect({
+        door: 'player',
+        tool: 'attack',
+        input: {},
+        outcome: {
+          status: 'refused',
+          code: 'incapacitated',
+          reason: `${mine} is Incapacitated and can't act`,
+        } as never,
+      }),
+    ).toBe(false);
+
+    // And a refusal with any other code is not reclassified by proximity.
+    expect(refused.filter((one) => !isEngineCorrect(one)).length).toBeGreaterThan(0);
   });
 
   /**

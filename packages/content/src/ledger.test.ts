@@ -42,8 +42,10 @@ import {
 import {
   LEDGER_LEVEL,
   auditLedger,
+  itemsInReach,
   ledgerTotals,
   renderLedger,
+  spellWaitOf,
   type Ledger,
 } from '../scripts/ledger.js';
 
@@ -280,27 +282,110 @@ describe('the three totals are the three populations added up', () => {
   const ledger = auditLedger();
   const totals = ledgerTotals(ledger);
 
-  it('gives one row per population, and three of them', () => {
-    expect(totals).toHaveLength(3);
+  /**
+   * **Five rows, and two of them are gate G1's.** Items had a blocker map and
+   * no row; the glossary's general rules had neither. Both were invisible on
+   * the one report the roadmap ranks by.
+   */
+  it('gives one row per population, and five of them', () => {
+    expect(totals).toHaveLength(5);
     expect(totals.map((one) => one.name)).toEqual([
       'Spells in reach, not executed',
       'Features manual, or a pool with nothing to buy',
+      'Items a level 1–5 party can buy',
+      'Glossary general rules nothing executes',
       'CR ≤ 5 stat-block items handed over or unapplied',
     ]);
+  });
+
+  /**
+   * The item reach rule is a price, and it can fail: a priced item the map
+   * blocks lands in the blocked column, which is the case the row is empty of
+   * today and would otherwise be unfalsifiable.
+   */
+  it('reaches a priced item and refuses one the book charges nothing for', () => {
+    const priced = { id: 'a-torch', name: 'A Torch', kind: 'gear', costCp: 1 };
+    const granted = { id: 'a-hoard-sword', name: 'A Hoard Sword', kind: 'weapon', costCp: null };
+    expect(itemsInReach([priced, granted], {}).map((one) => one.id)).toEqual(['a-torch']);
+    expect(
+      itemsInReach([priced], { 'a-torch': ['what-ends-attunement-besides-a-command'] })[0],
+    ).toMatchObject({ wait: 'shape', shapes: ['what-ends-attunement-besides-a-command'] });
+  });
+
+  it('counts the Potion of Healing as the one magic item a party can buy', () => {
+    const potions = ledger.items.filter((one) => one.kind === 'potion');
+    expect(potions.map((one) => one.id)).toEqual(['potion-of-healing']);
+  });
+
+  /** And feats are in the feature walk, which they were not before G1. */
+  it('walks the feats as well as the four books of features', () => {
+    const sources = new Set(ledger.features.map((one) => one.source));
+    expect([...sources].every((source) =>
+      ['class', 'subclass', 'species', 'background', 'feat'].includes(source),
+    )).toBe(true);
+    // Nine of the sixteen are in a level 1–5 character's reach, and the walk
+    // reaches every one of them — whether or not the blocker map answers for
+    // any yet, which today it does not.
+    const inReach = SRD_CONTENT.feats.filter((one) => (one.minimumLevel ?? 1) <= LEDGER_LEVEL);
+    expect(inReach.length).toBeGreaterThan(0);
+    expect(SRD_CONTENT.feats.length).toBeGreaterThan(inReach.length);
   });
 
   it('splits each population into what waits on a shape and what does not', () => {
     const [spells, features] = totals;
     expect(spells?.size).toBe(ledger.spells.length);
-    expect(spells?.blocked).toBe(ledger.spells.filter((one) => one.shapes.length > 0).length);
-    expect(spells?.free).toBe(ledger.spells.filter((one) => one.shapes.length === 0).length);
+    expect(spells?.blocked).toBe(ledger.spells.filter((one) => one.wait === 'shape').length);
+    expect(spells?.free).toBe(ledger.spells.filter((one) => one.wait === 'none').length);
     expect(features?.size).toBe(ledger.features.length);
-    expect(features?.blocked).toBe(ledger.features.filter((one) => one.shapes.length > 0).length);
+    expect(features?.blocked).toBe(ledger.features.filter((one) => one.wait === 'shape').length);
   });
 
-  /** Every row's two halves add to the population they split, or one is lost. */
+  /** Every row's three parts add to the population they split, or one is lost. */
   it('loses nothing between the split and the population it splits', () => {
-    for (const row of totals) expect(row.blocked + row.free, row.name).toBe(row.split);
+    for (const row of totals) {
+      expect(row.blocked + row.pending + row.free, row.name).toBe(row.split);
+    }
+  });
+
+  /**
+   * **Waiting on a shape is not the same claim as waiting on a definition**,
+   * and the second column exists because the report used to print the second
+   * as the third.
+   *
+   * Gate G1: *waits on none* held three claims — nobody has read it, it is
+   * expressible and nobody wrote it, and it is handed over — and only the
+   * third is finished business. The classifier is driven with one of each
+   * before it is believed about the catalogue, because a column that can only
+   * be computed over data it already agrees with is not a measurement.
+   */
+  it('tells an unread spell from a handed-over one', () => {
+    // Nobody has read it: no map holds an entry for this id at all.
+    expect(spellWaitOf('a-spell-nobody-read', 'tracked', [])).toBe('definition');
+    // No definition at all is always a definition short, whatever its clauses
+    // say — an entry naming only handovers records a reading, not a spell.
+    expect(spellWaitOf('a-spell-nobody-wrote', 'no-definition', [])).toBe('definition');
+    // A shape outranks both.
+    expect(spellWaitOf('a-spell-nobody-read', 'tracked', ['movement-modes'])).toBe('shape');
+    // And a spell whose every clause is the table's is finished business.
+    expect(spellWaitOf('water-walk', 'tracked', [])).toBe('none');
+  });
+
+  /**
+   * And the column is not decoration: a spell nobody has read lands in it,
+   * which is the state that used to be printed as zero.
+   */
+  it('counts an unread spell as waiting on a definition, not on nothing', () => {
+    const unread: (typeof ledger.spells)[number] = {
+      id: 'a-spell-nobody-read',
+      name: 'A Spell Nobody Read',
+      level: 1,
+      status: 'tracked',
+      shapes: [],
+      wait: spellWaitOf('a-spell-nobody-read', 'tracked', []),
+    };
+    const [spells] = ledgerTotals({ ...ledger, spells: [unread] });
+    expect(spells?.pending).toBe(1);
+    expect(spells?.free).toBe(0);
   });
 
   /**
@@ -308,7 +393,7 @@ describe('the three totals are the three populations added up', () => {
    * blocks. A block with four unapplied lines is one fight that does not run.
    */
   it('names both units where a population has two', () => {
-    const [spells, features, monsters] = totals;
+    const [spells, features, , , monsters] = totals;
     for (const row of [spells, features]) {
       expect(row?.splitUnit).toBe(row?.unit);
       expect(row?.split).toBe(row?.size);
@@ -334,6 +419,7 @@ describe('the three totals are the three populations added up', () => {
         size: 0,
         unit: 'spells',
         blocked: 0,
+        pending: 0,
         free: 0,
         split: 0,
         splitUnit: 'spells',
@@ -343,6 +429,7 @@ describe('the three totals are the three populations added up', () => {
         size: 0,
         unit: 'features',
         blocked: 0,
+        pending: 0,
         free: 0,
         split: 0,
         splitUnit: 'features',
@@ -369,9 +456,15 @@ describe('everything is grouped by the shape it waits on', () => {
 
   /** And a spell waiting on no shape is listed too, rather than dropped. */
   it('lists what waits on nothing rather than omitting it', () => {
-    const free = auditLedger().spells.filter((one) => one.shapes.length === 0);
+    const free = auditLedger().spells.filter((one) => one.wait === 'none');
     expect(free.length).toBeGreaterThan(0);
     for (const one of free.slice(0, 20)) expect(report, one.id).toContain(one.name);
+  });
+
+  /** And the third column has a heading of its own, listed the same way. */
+  it('prints the waits-on-a-definition list as a section rather than a number', () => {
+    expect(report).toContain('#### Waiting on a definition');
+    expect(report).toContain('| Ledger | Size | Waits on an engine shape | Waits on a definition |');
   });
 });
 

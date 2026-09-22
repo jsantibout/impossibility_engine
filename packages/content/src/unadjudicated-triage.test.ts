@@ -33,24 +33,30 @@ import {
  * finished business. Forty-five of the fifty-two spells in that column had no
  * entry at all, which is why the audit before this one called them done.
  *
- * So this file is the reading, written down where the report can count it. Four
- * lists, because conflating any two of these outcomes is the defect being
- * closed:
+ * So this file is the reading. **Gate G1 found it written in the wrong place**
+ * — a test file no generator imports — and the reading is now in
+ * `TRACKED_ADJUDICATED`, where `spellShapesOf` counts it; what stays here is
+ * the four-way sort, held against the map entry by entry. Five lists, because
+ * conflating any two of these outcomes is the defect being closed:
  *
  * | | |
  * |---|---|
  * | {@link FILED} | a sentence that is a **debt** — a mechanism over state the engine authoritatively holds, filed against the shape that blocks it |
- * | {@link HANDOVERS} | a paragraph whose every mechanical word is about something the engine holds nothing of — an object, a light, a language, a thing somebody learns |
+ * | {@link HANDOVERS} | a paragraph whose every mechanical word is about something the engine holds nothing of — an object, a language, a thing somebody learns |
+ * | {@link LIGHT} | the six this pass filed as handovers and G1 re-filed as debts, because there had been no id for light to file them against |
  * | {@link EXECUTES} | a spell whose debt turned out to be **stale**: the shape it named has since been built, and the definition writes it |
- * | {@link NEEDS_A_DECISION} | a debt whose shape exists in the **item** vocabulary and cannot be named from this one without widening a type |
+ * | {@link NEEDS_A_DECISION} | a debt whose shape exists in the **item** vocabulary and could not be named from this one without widening a type |
  *
  * `docs/design/content.md` is where that line is drawn and it is drawn by the
  * reader rather than by a marker: *a table fact that a rule then reads is a
- * debt; a table fact nothing reads afterwards is a handover.* Objects, light,
+ * debt; a table fact nothing reads afterwards is a handover.* Objects,
  * corpses, extradimensional spaces and knowledge have no reader in this engine
  * and will not grow one by being listed; a creature's type, an ongoing casting,
  * Difficult Terrain, the action economy and a bonus on a roll all have one
- * today.
+ * today. **Light was on the first list and belongs on the second**, which is
+ * the sort this pass got wrong: the glossary maps Dim Light to Lightly
+ * Obscured and Darkness to Heavily Obscured, and every sight question in the
+ * book reads it afterwards.
  *
  * **Not one shape id below is new.** Each is already in {@link MISSING_SHAPES}
  * with a citation, and three of them name the very spell filed against them —
@@ -89,25 +95,28 @@ const FILED: Readonly<Record<string, readonly string[]>> = {
 };
 
 /**
- * And the spells the same reading finished: every mechanical word in them is
- * about something outside this engine, and no shape is waiting to be built.
+ * And the spells the same reading found nothing but fiction in.
  *
- * These are the honest occupants of the ledger's fourth column. What records
- * the reading for one of them is its definition's own `unmodelled` list, which
- * is why that is asserted here rather than taken on trust — an empty one would
- * be a spell nobody read wearing the same face as a spell somebody finished,
- * which is the whole complaint this file answers.
+ * These are the honest occupants of the ledger's last column. What records
+ * the reading is now **two** things and it used to be one: the definition's
+ * own `unmodelled` list, and — since gate G1 — a `TRACKED_ADJUDICATED` entry
+ * saying `'table'`, anchored to a sentence of the book.
+ *
+ * **The second is the whole of what G1 changed and why this list shrank.**
+ * While the reading lived only here, `spellShapesOf` read
+ * `TRACKED_ADJUDICATED[id] ?? []` and saw nothing, so the report printed
+ * thirty-four spells as finished business on the strength of a test file no
+ * generator imports. A reading nothing measures is indistinguishable from a
+ * paragraph nobody opened, which is the defect this file was opened to close
+ * and did not — because it closed it in the wrong place.
  */
 const HANDOVERS: readonly string[] = [
   'alarm',
   'arcane-lock',
   'clairvoyance',
   'comprehend-languages',
-  'continual-flame',
   'create-food-and-water',
   'create-or-destroy-water',
-  'dancing-lights',
-  'daylight',
   'detect-evil-and-good',
   'detect-magic',
   'detect-poison-and-disease',
@@ -115,11 +124,9 @@ const HANDOVERS: readonly string[] = [
   'elementalism',
   'find-traps',
   'floating-disk',
-  'fog-cloud',
   'gentle-repose',
   'identify',
   'illusory-script',
-  'light',
   'locate-animals-or-plants',
   'locate-object',
   'mage-hand',
@@ -131,6 +138,30 @@ const HANDOVERS: readonly string[] = [
   'tongues',
   'water-breathing',
   'water-walk',
+];
+
+/**
+ * The six this reading got wrong, and the id that did not exist to file them.
+ *
+ * Every one of them was in {@link HANDOVERS}. Each prints a light level or a
+ * degree of obscurement, which is a rule the glossary states and the engine
+ * has no room for at all — `senses.test.ts` says outright that it holds no
+ * Bright, Dim or Darkness — so each is a **debt** and not a handover. What
+ * made the mistake easy to commit is that there was nowhere to record the
+ * truth: a case-insensitive search of `missing-shapes.ts` for *light* or
+ * *obscur* returned notes and no shape id, so the only filing available said
+ * the table owns it.
+ *
+ * `light-and-obscurement-the-scene-holds` is that id, and
+ * `docs/design/light-and-sight.md` is the design behind it.
+ */
+const LIGHT: readonly string[] = [
+  'continual-flame',
+  'dancing-lights',
+  'darkness',
+  'daylight',
+  'fog-cloud',
+  'light',
 ];
 
 /**
@@ -157,14 +188,15 @@ const EXECUTES: readonly string[] = ['expeditious-retreat'];
  * finishes on "armour that cannot be doffed until a Remove Curse lands". Four
  * cursed items already sit on it.
  *
- * **It cannot be filed from here, and inventing a way is not a reading.**
- * `TrackedAdjudication.why` takes `'table' | 'engine' | ShapeId`, and that id is
- * an `ItemShapeId`. Filing it means widening the field to `ItemBlockerId` — one
- * union of two vocabularies that every guard over both maps would then have to
- * be re-read against — or minting a second id in `MISSING_SHAPES` for one gap,
- * which is the duplication the item vocabulary was split out to avoid. Either
- * is a decision about the shape of the record rather than a reading of a
- * paragraph, so the finding is written down and the decision is left.
+ * **Gate G1 took the decision this list was left waiting for.**
+ * `TrackedAdjudication.why` took `'table' | 'engine' | ShapeId`, and that id is
+ * an `ItemShapeId`. Filing it meant widening the field to `ItemBlockerId` — one
+ * union of two vocabularies that every guard over both maps then has to be
+ * re-read against — or minting a second id in `MISSING_SHAPES` for one gap,
+ * which is the duplication the item vocabulary was split out to avoid. The
+ * first was taken and the guards were re-read; what stays here is the record
+ * that it was a decision about the shape of the record and not a reading of a
+ * paragraph.
  *
  * A list of one rather than a comment, because a comment is what the ledger
  * already could not count.
@@ -173,14 +205,27 @@ const NEEDS_A_DECISION: readonly string[] = ['remove-curse'];
 
 describe('the forty-five unadjudicated spells are read', () => {
   it('accounts for every one of them exactly once', () => {
-    const read = [...Object.keys(FILED), ...HANDOVERS, ...EXECUTES, ...NEEDS_A_DECISION];
-    expect(read).toHaveLength(45);
-    expect(new Set(read).size).toBe(45);
+    const read = [
+      ...Object.keys(FILED),
+      ...HANDOVERS,
+      ...LIGHT,
+      ...EXECUTES,
+      ...NEEDS_A_DECISION,
+    ];
+    // **Forty-six, and the extra one is Darkness.** The forty-five were the
+    // tracked spells nobody had read; Darkness arrived out of `BLOCKED_ON` in
+    // the same pass, was filed as a handover on the same wrong reading, and is
+    // the spell the light shape was found on. Counting it out to keep the
+    // round number would be the omission this file exists to end.
+    expect(read).toHaveLength(46);
+    expect(new Set(read).size).toBe(46);
+    expect(LIGHT).toContain('darkness');
   });
 
   it('names them in an order two branches can both append to', () => {
     expect(Object.keys(FILED)).toEqual([...Object.keys(FILED)].sort());
     expect(HANDOVERS).toEqual([...HANDOVERS].sort());
+    expect(LIGHT).toEqual([...LIGHT].sort());
   });
 
   it.each(Object.entries(FILED))('files %s against the shapes it waits on', (spellId, shapes) => {
@@ -191,24 +236,63 @@ describe('the forty-five unadjudicated spells are read', () => {
     for (const shape of shapes) expect(Object.keys(MISSING_SHAPES), spellId).toContain(shape);
   });
 
-  it.each(HANDOVERS.map((s) => [s] as const))('leaves %s waiting on nothing', (spellId) => {
-    expect(TRACKED_ADJUDICATED[spellId], `${spellId} is filed after all`).toBeUndefined();
+  /**
+   * The reading, written where a generator reads it rather than where a
+   * reviewer does.
+   *
+   * Three claims per spell, and the third is the one that was missing: the
+   * definition prints an `unmodelled` line, the map carries an entry, and
+   * every clause of that entry says the table owns it. A spell that turns out
+   * to carry a debt has to come here and leave this list.
+   */
+  it.each(HANDOVERS.map((s) => [s] as const))('records %s as read and handed over', (spellId) => {
     const definition = SPELL_DEFINITIONS.find((d) => d.id === spellId);
     expect(definition, `${spellId} has no definition`).toBeDefined();
     expect((definition?.unmodelled ?? []).length, spellId).toBeGreaterThan(0);
+
+    const entries = TRACKED_ADJUDICATED[spellId] ?? [];
+    expect(entries.length, `${spellId} is unread after all`).toBeGreaterThan(0);
+    expect([...new Set(entries.map((entry) => entry.why))], spellId).toEqual(['table']);
+    expect(misanchoredAdjudications(spellId), spellId).toEqual([]);
   });
 
   /**
-   * And the finding that is left for somebody with the authority to take it.
-   *
-   * Asserted as facts rather than as prose: the shape is real and belongs to
-   * the other vocabulary, this one does not hold it, and the spell is filed
-   * against nothing in the meantime. All three have to change together on the
-   * day the decision is taken, which is what keeps this from being a note.
+   * And the six the first reading filed wrong, each with a clause naming the
+   * shape that did not exist on the day it was read.
    */
-  it('leaves Remove Curse read, unfiled, and said so', () => {
+  it.each(LIGHT.map((s) => [s] as const))('files %s against the light shape', (spellId) => {
+    const entries = TRACKED_ADJUDICATED[spellId] ?? [];
+    expect(
+      entries.map((entry) => entry.why),
+      spellId,
+    ).toContain('light-and-obscurement-the-scene-holds');
+    expect(misanchoredAdjudications(spellId), spellId).toEqual([]);
+  });
+
+  /** And there is exactly one id for it, which is what there was none of. */
+  it('gives light and obscurement one id in the spell vocabulary', () => {
+    expect(Object.keys(MISSING_SHAPES).filter((shape) => /light|obscur/i.test(shape))).toEqual([
+      'light-and-obscurement-the-scene-holds',
+    ]);
+  });
+
+  /**
+   * And the finding that was left for somebody with the authority to take it,
+   * now taken.
+   *
+   * Asserted as facts rather than as prose: the shape is real, it belongs to
+   * the other vocabulary, this one still does not hold it, and the spell names
+   * it from here. All four stay true together, which is what keeps the
+   * widening from quietly becoming a second copy of the id.
+   */
+  it('files Remove Curse against the item vocabulary’s own shape', () => {
     for (const spellId of NEEDS_A_DECISION) {
-      expect(TRACKED_ADJUDICATED[spellId], spellId).toBeUndefined();
+      const entries = TRACKED_ADJUDICATED[spellId] ?? [];
+      expect(
+        entries.map((entry) => entry.why),
+        spellId,
+      ).toContain('what-ends-attunement-besides-a-command');
+      expect(misanchoredAdjudications(spellId), spellId).toEqual([]);
     }
     expect(Object.keys(ITEM_SHAPES)).toContain('what-ends-attunement-besides-a-command');
     expect(Object.keys(MISSING_SHAPES)).not.toContain('what-ends-attunement-besides-a-command');
@@ -219,10 +303,11 @@ describe('the forty-five unadjudicated spells are read', () => {
  * Darkness, tracked — the last spell in `BLOCKED_ON` held back by a decision
  * rather than by a transcription.
  *
- * Four of its five clauses are handovers the map already recorded, and the
- * fifth was filed `expressible`. `packages/content/src/spells.ts` says why the
- * Sphere is still quoted to the table rather than pinned as a `SpellArea`, and
- * it is the argument Daylight and Fog Cloud already make one spell along.
+ * One of its five clauses is a handover the map records and three are debts
+ * filed against `light-and-obscurement-the-scene-holds`.
+ * `packages/content/src/spells.ts` says why the Sphere is still quoted to the
+ * table rather than pinned as a `SpellArea`, and it is the argument Daylight
+ * and Fog Cloud already make one spell along.
  */
 describe('Darkness is cast rather than refused', () => {
   const definition = SRD_CONTENT.spell('darkness');

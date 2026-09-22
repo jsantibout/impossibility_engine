@@ -18,6 +18,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { isExecuted } from '../scripts/coverage-data.js';
 import {
+  ITEM_SHAPES,
   MISSING_SHAPES,
   TRACKED_ADJUDICATED as ADJUDICATED,
   mechanicalMarkersIn,
@@ -637,20 +638,37 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
    * definitions were reverted over that rather than shipped and all three are
    * in the catalogue now.
    *
-   * What is asserted here is that the form is in use and that it is a **claim**
-   * rather than a comment: each one names a shape the vocabulary has. Its two
-   * refusals — a sentence a marker can see, and a `why` that is not a shape —
-   * are held by `misanchoredAdjudications` above and driven with synthetics in
-   * `marker-less-blockers.test.ts`.
+   * What is asserted here is that the form is in use and that it is a **claim
+   * or a handover** rather than a comment: each one names a shape one of the
+   * two vocabularies has, or says `'table'`. Its two refusals — a sentence a
+   * marker can see, and an `'engine'` or `'expressible'` claim nobody can
+   * re-run — are held by `misanchoredAdjudications` above and driven with
+   * synthetics in `marker-less-blockers.test.ts`.
+   *
+   * **`'table'` was refused here until gate G1**, and the thirty-four spells
+   * below are why it is not: they are the tracked spells in level-5 reach
+   * whose prose trips no marker anywhere, so a marker-less entry is the only
+   * entry any of them can have — and `trackedAdjudicationGaps` now demands one
+   * of every tracked definition that prints an `unmodelled` line.
    */
   it('records the blockers no marker could have demanded', () => {
     const markerLess = Object.entries(ADJUDICATED).flatMap(([spellId, written]) =>
       written.filter((entry) => entry.marker === null).map((entry) => [spellId, entry] as const),
     );
     expect(markerLess.length).toBeGreaterThan(0);
+    const known = new Set<string>([
+      ...Object.keys(MISSING_SHAPES),
+      ...Object.keys(ITEM_SHAPES),
+      'table',
+    ]);
     for (const [spellId, entry] of markerLess) {
-      expect(Object.keys(MISSING_SHAPES), `${spellId}: "${entry.clause}"`).toContain(entry.why);
+      expect([...known], `${spellId}: "${entry.clause}"`).toContain(entry.why);
     }
+    // And the form still carries readings a marker could never have demanded,
+    // which is the reason it exists rather than a by-product of the widening.
+    expect(
+      markerLess.filter(([, entry]) => entry.why !== 'table').length,
+    ).toBeGreaterThan(0);
   });
 
   /**
@@ -690,14 +708,22 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
 
   /**
    * The half that makes this more than a comment box: a clause that is *not*
-   * the table's must name an enumerated missing shape. Adding one means adding
-   * to a list, which is the visible act this test exists to force.
+   * the table's, the engine's or expressible must name an enumerated missing
+   * shape. Adding one means adding to a list, which is the visible act this
+   * test exists to force.
+   *
+   * **Either list**, since gate G1: Remove Curse's Attunement clause is a debt
+   * whose shape is the item vocabulary's and finishes on that very sentence,
+   * and minting a second id here for one gap is the duplication that
+   * vocabulary was split out to avoid.
    */
   it('names an enumerated shape for every clause that is not the table’s', () => {
+    const known = [...Object.keys(MISSING_SHAPES), ...Object.keys(ITEM_SHAPES)];
     for (const [spellId, written] of Object.entries(ADJUDICATED)) {
       for (const entry of written) {
         if (entry.why === 'table' || entry.why === 'engine') continue;
-        expect(Object.keys(MISSING_SHAPES), `${spellId}/${entry.marker}`).toContain(entry.why);
+        if (entry.why === 'expressible') continue;
+        expect(known, `${spellId}/${entry.marker}`).toContain(entry.why);
       }
     }
   });
@@ -754,10 +780,11 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
    * vocabulary has.
    */
   it('names no shape the vocabulary does not have', () => {
-    const known = new Set<string>(Object.keys(MISSING_SHAPES));
+    const known = new Set<string>([...Object.keys(MISSING_SHAPES), ...Object.keys(ITEM_SHAPES)]);
     for (const [spellId, written] of Object.entries(ADJUDICATED)) {
       for (const entry of written) {
         if (entry.why === 'table' || entry.why === 'engine') continue;
+        if (entry.why === 'expressible') continue;
         expect(known.has(entry.why), `${spellId}/${entry.marker}`).toBe(true);
       }
     }

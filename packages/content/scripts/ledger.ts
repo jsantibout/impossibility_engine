@@ -10,12 +10,15 @@
  * `npm ci`. The number the whole plan is aimed at could not be recomputed by
  * a second person, which is the failure this file exists to end.
  *
- * Three populations, the three the roadmap's §0 table names:
+ * Five populations — the three the roadmap's §0 table names, and the two gate
+ * G1 found had none:
  *
  * | | Restricted to |
  * |---|---|
  * | Spells the engine does not resolve | a level 5 character of some class can cast it |
- * | Features the blocker map answers for | a character of level 1–5 holds it |
+ * | Features the blocker map answers for | a character of level 1–5 holds it, feats included |
+ * | Items the item map answers for | the SRD prints a price, so a party can buy it |
+ * | The glossary's general rules | every one: a level 1 character reaches them all |
  * | Stat-block lines nothing applies | the block is CR ≤ 5 |
  *
  * **The reach rule is the report's, not a second one.** `reachOf` and
@@ -46,13 +49,19 @@ import { SRD_CONTENT } from '@ie/content';
 import { dryBuild, refuseStaleBuild } from './build-freshness.js';
 import {
   ADJUDICATED,
+  ITEM_BLOCKED_ON,
   TRACKED_ADJUDICATED,
   blockersOf,
+  itemBlockersIn,
+  trackedAdjudicationGaps,
+  type ItemEntry,
+  type TrackedDefinition,
 } from './missing-shapes.js';
 import {
   featureBlockersOf,
   ledgerFeatureIds,
 } from './missing-feature-shapes.js';
+import { GLOSSARY_RULES, type GlossaryRule } from './glossary-rules.js';
 import {
   EXECUTED_SPELL_IDS,
   LEGENDARY_ECONOMY,
@@ -81,6 +90,29 @@ export const LEDGER_MAX_CR = 5;
 /** The four claims `COVERAGE.md` keeps apart, read here rather than restated. */
 export type SpellStatus = 'executed' | 'executed-partial' | 'tracked' | 'no-definition';
 
+/**
+ * What one item of a population is actually waiting for — three claims, not two.
+ *
+ * Gate G1's second finding: *waits on none* conflated **nobody has read it**,
+ * **it is expressible and nobody wrote it** and **it is handed over**, and only
+ * the third is finished business. The first two are work somebody still has to
+ * do, and printing them in the finished column is how a plan believes it is
+ * nearer the end than it is.
+ *
+ * | | |
+ * |---|---|
+ * | `'shape'` | at least one clause names a shape the engine does not have |
+ * | `'definition'` | nothing blocks it: either nobody has read it, or the kinds already say it and nobody wrote it |
+ * | `'none'` | somebody read every sentence and every one left is the table's or the engine's |
+ *
+ * The point of the middle column, and the reason it is a column rather than a
+ * different metric: **a measurement over adjudications must rise when somebody
+ * reads the book.** It cannot do that while the unread state is displayed as
+ * zero, and the 89 → 90 → 89 movement that prompted the gate was the
+ * instrument working with nowhere to put the reading.
+ */
+export type LedgerWait = 'shape' | 'definition' | 'none';
+
 export interface LedgerSpell {
   readonly id: string;
   readonly name: string;
@@ -88,6 +120,7 @@ export interface LedgerSpell {
   readonly status: SpellStatus;
   /** The shapes its unfinished clauses name, deduplicated and sorted. */
   readonly shapes: readonly string[];
+  readonly wait: LedgerWait;
 }
 
 export interface LedgerFeature {
@@ -95,9 +128,19 @@ export interface LedgerFeature {
   readonly name: string;
   readonly level: number;
   /** Which book it is printed in, so a reader knows whose brief it is. */
-  readonly source: 'class' | 'subclass' | 'species' | 'background';
+  readonly source: 'class' | 'subclass' | 'species' | 'background' | 'feat';
   readonly automation: string;
   readonly shapes: readonly string[];
+  readonly wait: LedgerWait;
+}
+
+/** One item a level 1–5 party can obtain, and what stands behind it. */
+export interface LedgerItem {
+  readonly id: string;
+  readonly name: string;
+  readonly kind: string;
+  readonly shapes: readonly string[];
+  readonly wait: LedgerWait;
 }
 
 export interface LedgerMonsterShape {
@@ -140,6 +183,9 @@ export interface Ledger {
   readonly level: number;
   readonly spells: readonly LedgerSpell[];
   readonly features: readonly LedgerFeature[];
+  readonly items: readonly LedgerItem[];
+  /** The glossary's general rules — see `glossary-rules.ts`. */
+  readonly rules: readonly GlossaryRule[];
   readonly monsters: LedgerMonsters;
 }
 
@@ -151,9 +197,18 @@ export interface LedgerRow {
   readonly unit: string;
   /** Of {@link split}, what names at least one shape. */
   readonly blocked: number;
+  /**
+   * Of {@link split}, what waits on a **definition** — see {@link LedgerWait}.
+   *
+   * Zero on two of the three rows and that is a fact about the populations
+   * rather than a placeholder: a feature is written or it is not, and a
+   * stat-block line is parsed or it is not, so neither has an unread state to
+   * report. The spells do, and it was being printed as finished business.
+   */
+  readonly pending: number;
   readonly free: number;
   /**
-   * The size in {@link splitUnit}, which is always `blocked + free`.
+   * The size in {@link splitUnit}, which is always `blocked + pending + free`.
    *
    * It differs from {@link size} on exactly one row. The bestiary's
    * population is *lines* and the question "does this wait on anything" is
@@ -177,6 +232,17 @@ export const spellStatusOf = (id: string, defined: ReadonlySet<string>): SpellSt
 
 const PARTIAL = new Set(PARTIAL_SPELLS);
 
+/** The clauses somebody wrote about this spell, whichever map holds them. */
+const clausesOf = (
+  id: string,
+  status: SpellStatus,
+): readonly { readonly why: string }[] | undefined =>
+  status === 'no-definition'
+    ? undefined
+    : status === 'executed-partial'
+      ? ADJUDICATED[id]
+      : TRACKED_ADJUDICATED[id];
+
 /**
  * The shapes one spell's unfinished clauses name.
  *
@@ -184,20 +250,87 @@ const PARTIAL = new Set(PARTIAL_SPELLS);
  * whichever of the three maps its state puts it in: `BLOCKED_ON` for a spell
  * with no definition, `ADJUDICATED` for an executed one with a clause left,
  * `TRACKED_ADJUDICATED` for one the engine casts and does not resolve.
- * `'table'` is a handover and `'engine'` says the clause *is* executed, so
- * neither is a shape and neither is counted.
+ *
+ * **Three values are not shapes and all three are dropped here.** `'table'` is
+ * a handover, `'engine'` says the clause *is* executed, and `'expressible'` —
+ * gate G1's widening — says the existing kinds already reach it and nobody
+ * wrote the definition. The last is the one that had to be named: without this
+ * line it would print as a heading in the report's shape table, which is the
+ * failure the disposition that widened the field names by hand.
  */
 export const spellShapesOf = (id: string, status: SpellStatus): readonly string[] => {
   if (status === 'no-definition') return [...blockersOf(id)];
-  const clauses = status === 'executed-partial' ? ADJUDICATED[id] : TRACKED_ADJUDICATED[id];
   return sorted(
-    (clauses ?? [])
+    (clausesOf(id, status) ?? [])
       .map((clause) => clause.why)
-      .filter((why) => why !== 'table' && why !== 'engine'),
+      .filter((why) => why !== 'table' && why !== 'engine' && why !== 'expressible'),
   );
 };
 
-/** Every feature a character of level 1–5 holds, with where it is printed. */
+/**
+ * Which of the three things one spell is waiting for.
+ *
+ * A spell with no definition at all always waits on one, whatever its clauses
+ * say: an entry naming only handovers records that somebody read the book, not
+ * that the catalogue holds the spell. Otherwise the reading decides — no entry
+ * is **unread**, an `'expressible'` clause is a definition nobody wrote, and
+ * anything else left is the table's or the engine's and is finished business.
+ */
+export const spellWaitOf = (
+  id: string,
+  status: SpellStatus,
+  shapes: readonly string[],
+): LedgerWait => {
+  if (shapes.length > 0) return 'shape';
+  if (status === 'no-definition') return 'definition';
+  const clauses = clausesOf(id, status);
+  if (clauses === undefined) return 'definition';
+  return clauses.some((clause) => clause.why === 'expressible') ? 'definition' : 'none';
+};
+
+/** The parsed SRD spell index, which is where reach is measured against. */
+const parsedSpells = (): readonly ParsedSpell[] =>
+  JSON.parse(readFileSync('packages/srd/src/generated/spells.json', 'utf8')) as ParsedSpell[];
+
+/**
+ * Every tracked definition a level 1–5 character can cast, with its debts.
+ *
+ * The population {@link trackedAdjudicationGaps} is asked of, restricted by
+ * the report's own reach rule rather than by a second one.
+ */
+export const trackedInReach = (level: number = LEDGER_LEVEL): readonly TrackedDefinition[] =>
+  spellsInReach(SRD_CONTENT.classes, parsedSpells(), level)
+    .filter((one) => TRACKED_IDS.has(one.id))
+    .map((one) => ({ id: one.id, unmodelled: SRD_CONTENT.spell(one.id)?.unmodelled ?? [] }));
+
+/**
+ * Tracked spells in reach that print a debt the map has no reading of.
+ *
+ * The gate G1 finding, as a query: thirty-four of the forty spells the report
+ * filed under *waits on no shape* carried no {@link TRACKED_ADJUDICATED} entry
+ * at all, so the report called them finished business while their own
+ * definitions recorded debts.
+ */
+export const unreadTracked = (level: number = LEDGER_LEVEL): readonly string[] =>
+  trackedAdjudicationGaps(trackedInReach(level)).unrecorded;
+
+/**
+ * Every feature a character of level 1–5 holds, with where it is printed.
+ *
+ * **Feats are one of the five books, and gate G1 is why.** This walked
+ * classes, subclasses, species and backgrounds and never `SRD_CONTENT.feats`
+ * — sixteen feats, nine of them a level 1–5 character can take, none of which
+ * the ledger could see. It costs a row only for a feat the map answers for,
+ * which is what makes the omission the dangerous kind: silent while the
+ * catalogue happens to agree with it.
+ *
+ * A feat has no `level` of its own and no `automation`. Its **bracket** is
+ * the level, which is exactly what `FeatDefinition.minimumLevel` holds — an
+ * Origin feat and a Fighting Style print none and are taken at 1 — and
+ * `automation` is reported as its category, because the flag a feature
+ * declares does not exist over here and reporting a made-up one would be
+ * worse than reporting what the book prints.
+ */
 const featuresHeld = (level: number): readonly LedgerFeature[] => {
   const population = new Set(ledgerFeatureIds());
   const books = [
@@ -208,23 +341,82 @@ const featuresHeld = (level: number): readonly LedgerFeature[] => {
   ] as const;
 
   const found = new Map<string, LedgerFeature>();
+  const take = (
+    one: { readonly id: string; readonly name: string },
+    at: number,
+    source: LedgerFeature['source'],
+    automation: string,
+  ) => {
+    if (at > level) return;
+    if (!population.has(one.id)) return;
+    if (found.has(one.id)) return;
+    const shapes = [...featureBlockersOf(one.id)];
+    found.set(one.id, {
+      id: one.id,
+      name: one.name,
+      level: at,
+      source,
+      automation,
+      shapes,
+      wait: shapes.length > 0 ? 'shape' : 'none',
+    });
+  };
+
   for (const [source, features] of books) {
-    for (const feature of features) {
-      if (feature.level > level) continue;
-      if (!population.has(feature.id)) continue;
-      if (found.has(feature.id)) continue;
-      found.set(feature.id, {
-        id: feature.id,
-        name: feature.name,
-        level: feature.level,
-        source,
-        automation: feature.automation,
-        shapes: [...featureBlockersOf(feature.id)],
-      });
-    }
+    for (const feature of features) take(feature, feature.level, source, feature.automation);
+  }
+  for (const feat of SRD_CONTENT.feats) {
+    take(feat, feat.minimumLevel ?? 1, 'feat', feat.category);
   }
   return [...found.values()].sort((a, b) => a.level - b.level || a.id.localeCompare(b.id));
 };
+
+/**
+ * What a level 1–5 party can put its hands on without the DM handing it over.
+ *
+ * **The fourth population, and gate G1 found it had no row at all.**
+ * `ITEM_BLOCKED_ON` and `itemCoverageGaps` had been measuring the item half of
+ * the book for a while, and neither the ledger nor its reach rule knew about
+ * them — so a debt on something a party can *buy* was invisible on the one
+ * report the roadmap ranks by.
+ *
+ * **The reach rule is a price.** The SRD prints one for the equipment tables
+ * and for exactly one magic item, the Potion of Healing at 50 GP; everything
+ * else under "Magic Items A–Z" arrives because a DM put it in a hoard, which
+ * is a decision no ledger can predict and no criterion can require. So
+ * `costCp !== null` is the whole of the rule, and it is the catalogue's own
+ * field rather than a second list to keep.
+ *
+ * Parameterised over both sides for {@link coverageGaps}' reason: the row is
+ * empty today and a row that can only be computed over data it agrees with is
+ * not a measurement, so the test drives it with a priced item the map blocks.
+ */
+export const itemsInReach = (
+  items: readonly {
+    readonly id: string;
+    readonly name: string;
+    readonly kind: string;
+    readonly costCp: number | null;
+  }[] = SRD_CONTENT.items,
+  blockedOn: Readonly<Record<string, ItemEntry>> = ITEM_BLOCKED_ON,
+): readonly LedgerItem[] =>
+  items
+    .filter((one) => one.costCp !== null)
+    .map((one) => {
+      const entry = blockedOn[one.id];
+      const shapes = entry === undefined ? [] : [...itemBlockersIn(entry)];
+      return {
+        id: one.id,
+        name: one.name,
+        kind: one.kind,
+        shapes,
+        // An item has no unread state of its own: the entry either names a
+        // shape or the catalogue holds the record, and `itemCoverageGaps`
+        // owns the question of whether somebody read the untranscribed tail.
+        wait: (shapes.length > 0 ? 'shape' : 'none') as LedgerWait,
+      };
+    })
+    .sort((a, b) => a.id.localeCompare(b.id));
 
 /** The section a line is printed under, which is what a reader looks it up by. */
 const sectionsOf = (
@@ -344,12 +536,14 @@ export function auditLedger(level: number = LEDGER_LEVEL): Ledger {
   for (const one of spellsInReach(SRD_CONTENT.classes, parsed, level)) {
     const status = spellStatusOf(one.id, defined);
     if (status === 'executed') continue;
+    const shapes = spellShapesOf(one.id, status);
     spells.push({
       id: one.id,
       name: one.name,
       level: one.level,
       status,
-      shapes: spellShapesOf(one.id, status),
+      shapes,
+      wait: spellWaitOf(one.id, status, shapes),
     });
   }
 
@@ -357,18 +551,28 @@ export function auditLedger(level: number = LEDGER_LEVEL): Ledger {
     level,
     spells,
     features: featuresHeld(level),
+    items: itemsInReach(),
+    rules: GLOSSARY_RULES,
     monsters: auditMonsters(LEDGER_MAX_CR),
   };
 }
 
-/** The summary table: three populations, each split by what it waits on. */
+/**
+ * The summary table: three populations, each split by what it waits on.
+ *
+ * **Three columns, not two**, which is gate G1's second finding. The middle
+ * one is empty on two rows and that is a statement about those populations
+ * rather than a placeholder — see {@link LedgerRow.pending}.
+ */
 export function ledgerTotals(ledger: Ledger): readonly LedgerRow[] {
-  const split = (items: readonly { readonly shapes: readonly string[] }[]) => ({
-    blocked: items.filter((one) => one.shapes.length > 0).length,
-    free: items.filter((one) => one.shapes.length === 0).length,
+  const split = (items: readonly { readonly wait: LedgerWait }[]) => ({
+    blocked: items.filter((one) => one.wait === 'shape').length,
+    pending: items.filter((one) => one.wait === 'definition').length,
+    free: items.filter((one) => one.wait === 'none').length,
   });
   const spells = split(ledger.spells);
   const features = split(ledger.features);
+  const items = split(ledger.items);
 
   return [
     {
@@ -388,10 +592,34 @@ export function ledgerTotals(ledger: Ledger): readonly LedgerRow[] {
       splitUnit: 'features',
     },
     {
+      name: 'Items a level 1–5 party can buy',
+      size: ledger.items.length,
+      unit: 'items',
+      ...items,
+      split: ledger.items.length,
+      splitUnit: 'items',
+    },
+    {
+      name: 'Glossary general rules nothing executes',
+      size: ledger.rules.length,
+      unit: 'rules',
+      blocked: ledger.rules.filter((one) => one.built === null).length,
+      // A glossary rule is built or it is not: there is no definition waiting
+      // to be written, because the rule is the book's and not the
+      // catalogue's.
+      pending: 0,
+      free: ledger.rules.filter((one) => one.built !== null).length,
+      split: ledger.rules.length,
+      splitUnit: 'rules',
+    },
+    {
       name: 'CR ≤ 5 stat-block items handed over or unapplied',
       size: ledger.monsters.items,
       unit: 'items',
       blocked: ledger.monsters.unfinished,
+      // A parsed line is read or it is handed over, and a block carrying one
+      // handed-over line is unfinished. There is no third state to report.
+      pending: 0,
       free: ledger.monsters.clean,
       split: ledger.monsters.blocks,
       splitUnit: 'blocks',
@@ -423,17 +651,26 @@ const HEADER = [
   'rather than omitted because an entry silently missing from a ledger looks',
   'exactly like an entry nobody read.',
   '',
+  '**And there is a third column, because that last sentence used to be false.**',
+  'Gate G1 found *waits on none* holding three different claims — nobody has',
+  'read it, it is expressible and nobody wrote the definition, and it is handed',
+  'over — of which only the third is finished. *Waits on a definition* is the',
+  'first two. The point of splitting them out: a measurement over adjudications',
+  'has to **rise** when somebody reads the book, and it cannot while the unread',
+  'state is displayed as zero.',
+  '',
 ];
 
 const line = (row: LedgerRow): string => {
   const split =
     row.splitUnit === row.unit
-      ? [`${row.blocked}`, `${row.free}`]
+      ? [`${row.blocked}`, `${row.pending}`, `${row.free}`]
       : [
           `on ${row.blocked} of ${row.split} ${row.splitUnit}`,
+          `${row.pending}`,
           `${row.free} ${row.splitUnit} already clean`,
         ];
-  return `| ${row.name} | ${row.size} ${row.unit} | ${split[0]} | ${split[1]} |`;
+  return `| ${row.name} | ${row.size} ${row.unit} | ${split[0]} | ${split[1]} | ${split[2]} |`;
 };
 
 const spellLine = (one: LedgerSpell): string =>
@@ -443,7 +680,7 @@ const featureLine = (one: LedgerFeature): string =>
   `- \`${one.id}\` — ${one.name} (level ${one.level}, ${one.source}, ${one.automation})`;
 
 /** Everything of a population that waits on one shape, under that shape. */
-function groupByShape<T extends { readonly shapes: readonly string[] }>(
+function groupByShape<T extends { readonly shapes: readonly string[]; readonly wait: LedgerWait }>(
   items: readonly T[],
   render: (one: T) => string,
   noun: string,
@@ -487,8 +724,19 @@ function groupByShape<T extends { readonly shapes: readonly string[] }>(
     lines.push('');
   }
 
-  const free = items.filter((one) => one.shapes.length === 0);
-  lines.push(`#### Waiting on no shape — ${free.length}`, '');
+  const pending = items.filter((one) => one.wait === 'definition');
+  lines.push(
+    `#### Waiting on a definition — ${pending.length}`,
+    '',
+    'Nothing here is blocked. Each is either a paragraph nobody has recorded',
+    'reading, or one the existing kinds already say and nobody has written — and',
+    'both are work, which is why they are no longer printed as finished business.',
+    '',
+  );
+  for (const one of pending) lines.push(render(one));
+
+  const free = items.filter((one) => one.wait === 'none');
+  lines.push('', `#### Waiting on no shape — ${free.length}`, '');
   for (const one of free) lines.push(render(one));
   lines.push('', `Listed by ${order}.`);
   return lines;
@@ -499,10 +747,10 @@ export function renderLedger(ledger: Ledger = auditLedger()): string {
   const lines = [...HEADER];
 
   lines.push(
-    '## The three populations',
+    '## The five populations',
     '',
-    '| Ledger | Size | Waits on an engine shape | Waits on none |',
-    '|---|---|---|---|',
+    '| Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none |',
+    '|---|---|---|---|---|',
   );
   for (const row of ledgerTotals(ledger)) lines.push(line(row));
 
@@ -527,13 +775,15 @@ export function renderLedger(ledger: Ledger = auditLedger()): string {
     'with nothing to spend a use on, plus the one pool whose uses buy some of',
     'what its page prints. Species and background traits are counted, because a',
     'species trait is the same `FeatureDefinition` a class feature is and a',
-    'level 5 character holds one.',
+    'level 5 character holds one. **Feats are counted too**, which they were not',
+    'until gate G1: nine of the sixteen are in a level 1–5 character\'s reach and',
+    'the walk went past all of them.',
   );
   const bySource = (source: string) =>
     ledger.features.filter((one) => one.source === source).length;
   lines.push(
     '',
-    `Of the ${ledger.features.length}, ${bySource('class') + bySource('subclass')} are class or subclass features printed at level ${ledger.level} or below and ${bySource('species') + bySource('background')} are species or background traits.`,
+    `Of the ${ledger.features.length}, ${bySource('class') + bySource('subclass')} are class or subclass features printed at level ${ledger.level} or below, ${bySource('species') + bySource('background')} are species or background traits and ${bySource('feat')} are feats.`,
     'The snapshot of 2026-09-21 in `docs/dev/roadmap-ledger-2026-09-21.md`',
     'counted the first group only, and did not see the pools; the traits are in',
     'reach of a level 5 character too, which is where the difference in the size',
@@ -541,10 +791,57 @@ export function renderLedger(ledger: Ledger = auditLedger()): string {
   );
   lines.push(...groupByShape(ledger.features, featureLine, 'feature', 'level, then id'));
 
+  const blockedItems = ledger.items.filter((one) => one.wait === 'shape');
+  lines.push(
+    '',
+    '## 3. Items a level 1–5 party can buy',
+    '',
+    '**The reach rule is a price.** The SRD prints one for the equipment tables',
+    'and for exactly one magic item — the Potion of Healing, at 50 GP — and',
+    'everything else under *Magic Items A–Z* arrives because a DM put it in a',
+    'hoard, which is a decision no ledger can predict and no ship criterion can',
+    'require. So this row is what a party can walk into a shop and buy.',
+    '',
+    `Of the ${ledger.items.length}, ${blockedItems.length} wait on a shape the engine does not have.`,
+    'The untranscribed tail of the magic-item book is a real population and it is',
+    '`ITEM_BLOCKED_ON`\'s, measured by `itemCoverageGaps` and reported in',
+    '`COVERAGE.md`; what it is not is something a level 5 party is owed, which is',
+    'why the two reports count it in different places.',
+    '',
+  );
+  for (const one of blockedItems) {
+    lines.push(`- \`${one.id}\` — ${one.name} (${one.kind}) — ${one.shapes.join(', ')}`);
+  }
+  if (blockedItems.length === 0) {
+    lines.push('*Nothing. Every priced item the catalogue holds carries a record.*');
+  }
+
+  const unbuilt = ledger.rules.filter((one) => one.built === null);
+  lines.push(
+    '',
+    '## 4. The glossary’s general rules',
+    '',
+    'The population gate G1 found had **no home at all**: not a map, not a row,',
+    'not a guard. Spells, features and items each have a blocker map because',
+    'each is a record in the catalogue; a glossary rule is a heading in',
+    '`packages/srd/raw/rules.md` that nothing parses, so this one is hand-listed',
+    'in `packages/content/scripts/glossary-rules.ts` and held down at both ends',
+    'by its own test — a row claiming to be built names something `@ie/engine`',
+    'really exports or a `NAMED_ACTIONS` member, and a row claiming nothing runs',
+    'it names something quoted in no engine source file.',
+    '',
+    'These are the rules a level 1–5 character reaches whatever they are playing,',
+    'so none of them waits on reach: every one is in it.',
+    '',
+  );
+  for (const one of unbuilt) {
+    lines.push(`- **${one.name}** (${one.kind}) — ${one.note}`);
+  }
+
   const monsters = ledger.monsters;
   lines.push(
     '',
-    '## 3. CR ≤ 5 stat-block lines handed over or unapplied',
+    '## 5. CR ≤ 5 stat-block lines handed over or unapplied',
     '',
     `${monsters.blocks} of the ${SRD_CONTENT.monsters.length} carried stat blocks are CR ≤ 5. They print ${monsters.printed} lines, of which the parser reads ${monsters.read} and hands over ${monsters.handedOver}. A further ${monsters.riders} of the read attack lines carry a printed rider nothing applies, so the population is ${monsters.items} items over ${monsters.blocks} blocks — ${monsters.clean} of which already carry none of them.`,
     '',

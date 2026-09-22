@@ -166,7 +166,7 @@ export const MISSING_SHAPES = {
   'a-damage-penalty-a-spell-grants':
     '`docs/design/rolls-and-damage.md`: "`BonusApplies` covers attacks, saves and ability checks — all rolls — and now `ac`". Damage is not a member, and a spell that makes a creature subtract from **its own** damage rolls has nowhere to say so; `damageBonuses` is the feature-side twin that exists.',
   'an-action-a-spell-compels-or-forbids':
-    '**The catalogue writes this shape now, and what is left of it is a shorter list than the id.** `ActionRule` in `combat.ts` is the ninth sourced grant, reached by the `action-rule` effect kind and by the `action` rider kind, and it says three of the four things this id was named for: a slot or a named action **taken away** (`forbids`), one slot **narrowed** to a named few and failing closed (`permits-only`), and a named action **paid for out of a cheaper slot** (`allows`). The description before this one said "not one definition in the catalogue writes one", and the tranche it asked for wrote four: Stinking Cloud’s "can’t take an action or a Bonus Action" and Fear’s Dash as riders on their own saves, Wind Walk’s "The only actions a target can take in this form" and Magic Jar’s two sentences as standalone effects. So an entry still filed here is one of five things rather than a spell nobody got round to. **Two are lifetimes rather than rules**: Shocking Grasp’s clause ends at the start of the *target’s* next turn and `RiderDuration` has no such member, and Befuddlement’s never ends at all, which an Instantaneous casting may not hang. **One is a name the engine cannot tell apart** — Wind Walk’s Magic action "to begin reverting", and every Hide, Search and Study `NAMED_ACTIONS` leaves out for the same reason. **One is a host**: Slow’s "it can’t take Reactions" is `forbids` exactly and rides a failed save that can carry no riders, which is `a-save-whose-failure-imposes-no-condition`. And the fourth thing the id was named for is still missing outright: **spending somebody else’s budget**, which `combat.ts` refuses to be stretched to because it has to decide who is playing the creature — Dissonant Whispers, Compulsion and the three Dominates; an **extra action** granted rather than an existing one governed, which no member creates (Haste); and a rule that **couples two slots**, or counts the attacks inside one, which neither polarity can state (Slow again). `docs/design/characters-and-equipment.md` names that last one from the feature side: "Extra attacks inside the Attack action. The economy counts one Attack action, not the attacks in it".',
+    '**The catalogue writes this shape now, and what is left of it is a shorter list than the id.** `ActionRule` in `combat.ts` is the ninth sourced grant, reached by the `action-rule` effect kind and by the `action` rider kind, and it says three of the four things this id was named for: a slot or a named action **taken away** (`forbids`), one slot **narrowed** to a named few and failing closed (`permits-only`), and a named action **paid for out of a cheaper slot** (`allows`). The description before this one said "not one definition in the catalogue writes one", and the tranche it asked for wrote four: Stinking Cloud’s "can’t take an action or a Bonus Action" and Fear’s Dash as riders on their own saves, Wind Walk’s "The only actions a target can take in this form" and Magic Jar’s two sentences as standalone effects. So an entry still filed here is one of five things rather than a spell nobody got round to. **Two are lifetimes rather than rules**: Shocking Grasp’s clause ends at the start of the *target’s* next turn and `RiderDuration` has no such member, and Befuddlement’s never ends at all, which an Instantaneous casting may not hang. **One is a name the engine cannot tell apart** — Wind Walk’s Magic action "to begin reverting", and every Hide, Search and Study `NAMED_ACTIONS` leaves out for the same reason. **One is a host**: Slow’s "it can’t take Reactions" is `forbids` exactly and rides a failed save that can carry no riders, which is `a-save-whose-failure-imposes-no-condition`. And the fourth thing the id was named for is still missing outright: **spending somebody else’s budget**, which `combat.ts` refuses to be stretched to because it has to decide who is playing the creature — Dissonant Whispers, Compulsion and the three Dominates; an **extra action** granted rather than an existing one governed, which no member creates (Haste); and a rule that **couples two slots**, or counts the attacks inside one, which neither polarity can state (Slow again). `docs/design/characters-and-equipment.md` names that last one from the feature side: "Extra attacks inside the Attack action. The economy counts one Attack action, not the attacks in it". **Gate G1 read the five as five and this id is a bundle**, which is recorded here rather than acted on: the five arms read about 1/1, 2/1, 2/0, 3/0 and 1/0 and the largest of them finishes one spell, so nobody should brief the id as a unit. One arm has already left — Shocking Grasp went to `a-rider-that-lasts-until-the-start-of-the-targets-next-turn`, because what it lacks is one word of a duration vocabulary and not a rule. Two more are mis-filings whose destination is in the **feature** vocabulary rather than this one — Speak with Animals, Gaseous Form and Haste’s Utilize belong under an action with no spender — and moving them is a third widening of the `why` field that G1 did not take.',
   'a-save-whose-failure-imposes-no-condition':
     'a saving throw whose failure hands out **grants** and nothing else, which no host can carry. `spell-definitions.ts` names the spell in the very field that cannot hold it: `save.modifiers` is documented as "one Wisdom save, a condition-less penalty beside it", and the arm those riders hang on requires a `condition: ConditionName` out of the SRD’s fifteen. `save` and `save-damage` are the only kinds that roll a saving throw and settle an outcome; one demands a condition and the other demands damage, and a failure that imposes neither has nowhere to live. Written as standalone effects instead, a halved Speed, a penalty and a slot taken away would land on every target whether it saved or not, which is the confident wrong answer rather than the missing one.',
   'a-turn-a-spell-inserts-into-the-order':
@@ -259,6 +259,10 @@ export const MISSING_SHAPES = {
     '`PROGRESS.md`: "**Every one of the event types the union declares is now emitted by a command**", and `stabilised` is one of the nine a DM declares. The command exists, the event exists, and no `SpellEffect` reaches either — the recurring finding in this repository that a pure function nothing calls is a rule nothing enforces, arriving on the cantrip whose whole content is that one word.',
   'a-distance-a-creature-travels-inside-an-area':
     '`docs/design/space-and-areas.md`, on what a persistent area cannot see: "**The path.** Movement records where a move started and where it ended and nothing in between", and `docs/design/casting.md`: "Distance travelled inside an area, which no move records | Spike Growth". Inferring the crossing from a straight line would be the engine inventing a route nobody took.',
+  'a-rider-that-lasts-until-the-start-of-the-targets-next-turn':
+    '**one word of a vocabulary that is otherwise built**, and the narrowest entry in this map. `RiderDuration` in spell-definitions.ts declares `start-of-casters-next-turn`, `end-of-casters-next-turn`, `end-of-targets-next-turn` and `end-of-current-turn`, and no member for the start of the **target’s** next turn — while `Duration` beneath it has the moment already, and the docstring of the member that reaches the target says the anchor was added the day a cantrip needed it: "A fifth member, and it is the first anchored to the creature the rider is on." So what is absent is a word the content-facing vocabulary cannot say and the two or three readers that would expand it, which is engine work of about the size of the sentence. Gate G1 re-filed Shocking Grasp here out of `an-action-a-spell-compels-or-forbids`, where its entry had been recording as missing a rule `ActionRule` has written since IE-046: `forbids` takes a named action away, `NAMED_ACTIONS` lists the Opportunity Attack, and four definitions write it.',
+  'light-and-obscurement-the-scene-holds':
+    'light and obscurement as facts the scene holds, which nothing in state does today: sight is a pairwise declaration, no square is lit or unlit, and so Darkvision has never had the rule it is a rule about and no casting can shed, quench or obscure anything. **A reader who wanted to record the debt could not**, which is the gate-G1 finding this id closes — the spell map had no id for light at all while six definitions in level-5 reach printed one. `docs/design/light-and-sight.md` is the design the owner ruled on: "Declare it on the lattice", exactly as Difficult Terrain already is, with an ambient level on the scene, patches carrying a region and the `source` casting that made them, and one step added between the declaration and the sense. Three of its sentences are what a definition cannot state without it — "magical darkness is not lit by nonmagical light", "Sunlight is Bright Light with a flag", and "No default ambient" — and the same note lists what the shape reaches beyond the spells: the Illumination traits, Sunlight Sensitivity, Shadow Stealth and Sunlight Weakness.',
   'a-world-fact-nothing-can-represent':
     'PROGRESS.md’s category C, named spell by spell: "**Meld into Stone** (every mechanical clause it has — 6d6 Force, 50 Force, Disadvantage on Perception, Prone on expulsion — hangs off “you are inside a rock”, which is a state nothing can hold)". Not a mechanism that is missing; a fact the world model has no room for, and inventing one is not on.',
 } as const;
@@ -994,8 +998,8 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   'shocking-grasp': [
     {
       clause: 'cannot make Opportunity Attacks',
-      why: 'an-action-a-spell-compels-or-forbids',
-      note: 'SRD: the target "can’t make Opportunity Attacks until the start of its next turn". **The rule is writable and the deadline is not.** `forbids` takes a named action away and leaves the rest of the budget alone — `NAMED_ACTIONS` lists `opportunity-attack` against this spell by name, and Stinking Cloud, Fear, Wind Walk and Magic Jar all write the vocabulary now. What stops this one is that a cantrip is Instantaneous, so the rider must carry a `lasts` of its own, and `RiderDuration` declares the start of the **caster’s** next turn and the end of the **target’s**, with no member for the start of the target’s. `Duration` beneath it has one — `start-of-next-turn` names any creature — so what is absent is a member of the content-facing vocabulary and the readers that expand it, which is engine work rather than a definition.',
+      why: 'a-rider-that-lasts-until-the-start-of-the-targets-next-turn',
+      note: 'SRD: the target "can’t make Opportunity Attacks until the start of its next turn". **The rule is writable and the deadline is not**, and gate G1 re-filed this entry because the id it carried said the opposite. `forbids` takes a named action away and leaves the rest of the budget alone — `NAMED_ACTIONS` lists `opportunity-attack` against this spell by name, and Stinking Cloud, Fear, Wind Walk and Magic Jar all write the vocabulary now. What stops this one is that a cantrip is Instantaneous, so the rider must carry a `lasts` of its own, and `RiderDuration` declares the start of the **caster’s** next turn and the end of the **target’s**, with no member for the start of the target’s. `Duration` beneath it has one — `start-of-next-turn` names any creature — so what is absent is a member of the content-facing vocabulary and the readers that expand it, which is engine work rather than a definition.',
     },
   ],
   sunbeam: [
@@ -1180,11 +1184,31 @@ export interface TrackedAdjudication {
    * So `null` says the thing a marker cannot: *the markers see nothing in this
    * sentence, and somebody read the paragraph.* It is not a way out of the
    * anchoring rule, and two rules keep it from becoming one — the unit it
-   * names must trip **no** marker at all, and its {@link why} must be a
-   * {@link MISSING_SHAPES} id, because a sentence the markers cannot see that
-   * blocks nobody is narration and a tracked definition's own `unmodelled` is
-   * where narration already goes. Both are enforced by
-   * {@link misanchoredAdjudications}.
+   * names must trip **no** marker at all, and its {@link why} may not be a
+   * claim about the engine that nothing can check: `'engine'` and
+   * `'expressible'` are both refused, because each says the resolution path
+   * reaches a sentence no marker can see and neither is a reading anybody can
+   * re-run. Both are enforced by {@link misanchoredAdjudications}.
+   *
+   * ### `'table'` was refused here too, and gate G1 is why it is not
+   *
+   * The refusal read: *a sentence the markers cannot see that blocks nobody is
+   * narration, and a tracked definition's own `unmodelled` is where narration
+   * already goes.* `docs/design/content.md` says the opposite and says it as
+   * the distinction the two lists exist for — "A handover is not `unmodelled`,
+   * and the difference is the point. An `unmodelled` line is a **debt**" —
+   * and `dmDecides` is where a handover goes. So the second half of that
+   * justification was false, and it was load-bearing: while it stood, a
+   * tracked spell whose paragraph trips no marker at all and whose every line
+   * is fiction had **no legal way to record that somebody had read it**, and
+   * thirty-four such spells sat in `LEDGER.md`'s *waits on none* column
+   * looking exactly like finished business.
+   *
+   * {@link trackedAdjudicationGaps} now demands an entry from every tracked
+   * definition that prints an `unmodelled` line, so the refusal would make
+   * that demand unanswerable. And a `'table'` entry claims no shape, so it
+   * cannot do the thing the marker-less rule was written against: keep a shape
+   * alive in the vocabulary that nothing is blocked on.
    */
   readonly marker: MarkerId | null;
   /**
@@ -1199,13 +1223,15 @@ export interface TrackedAdjudication {
    */
   readonly clause: string;
   /**
-   * Which of three things this clause is.
+   * Which of five things this clause is.
    *
    * | | |
    * |---|---|
    * | `'table'` | fiction; the engine should never decide it |
    * | `'engine'` | the engine **does** execute it, and nothing is delegated |
-   * | a shape id | mechanical, and this names the shape that blocks it |
+   * | `'expressible'` | the existing kinds already say it and nobody wrote it |
+   * | a {@link ShapeId} | mechanical, and this names the shape that blocks it |
+   * | an {@link ItemShapeId} | the same, where the shape belongs to the item vocabulary |
    *
    * `'engine'` arrived when ability checks became reachable from a spell, and
    * it is the half that keeps this honest in the other direction. A tracked
@@ -1213,8 +1239,27 @@ export interface TrackedAdjudication {
    * tracked because a disguise is not arithmetic, and the Investigation check
    * that sees through it *is*, and is rolled. Without this value the only way
    * to record a solved clause would be to go on calling it missing.
+   *
+   * ### The two gate G1 added, and why each is a different claim
+   *
+   * `'expressible'` is {@link BlockedClause}'s value under the same name, and
+   * it is **not** `'engine'`: that one says the resolution path arrives and
+   * this one says it could and nobody has written the definition. Conflating
+   * them is what made `LEDGER.md`'s *waits on none* column three claims in one
+   * cell, and it is the column {@link ledgerTotals} now splits out — a
+   * measurement over adjudications must rise when somebody reads the book,
+   * and the fault was displaying the unread state as zero. Hex is the spell
+   * that needs it: nothing blocks it and nobody wrote the definition.
+   *
+   * `ItemShapeId` is the widening the last pass wrote down and left. Remove
+   * Curse's "the spell breaks its owner's Attunement to the object" is a debt
+   * — `CreatureState.attuned` holds it and `attuneItem` writes it — and the
+   * shape that names it, `what-ends-attunement-besides-a-command`, is in the
+   * **item** vocabulary and finishes on the very sentence. Minting a second id
+   * over here for one gap is the duplication that vocabulary was split out to
+   * avoid, so the field takes the union that {@link ItemBlockerId} already is.
    */
-  readonly why: 'table' | 'engine' | ShapeId;
+  readonly why: 'table' | 'engine' | 'expressible' | ShapeId | ItemShapeId;
   readonly note: string;
 }
 
@@ -2665,8 +2710,8 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
     {
       marker: 'roll-mode',
       clause: 'The target has Disadvantage on ability checks made with the chosen ability',
-      why: 'a-choice-made-at-the-casting',
-      note: 'the shape is built and this entry is a deliberate over-count of what is left. `choiceStated` records the ability the caster names and `statedChoice` puts it on the selector, which is Enhance Ability sentence with the mode reversed — so nothing blocks the clause, and the only reason it is unwritten is that nobody has written this definition. **The value that says exactly that exists and is one type over**: `BlockedClause.why` carries `expressible` — "the existing kinds already express it; it blocks nothing" — and `TrackedAdjudication.why` does not, because it was written for a population whose definitions execute something. Neither of the two values it does carry is true here: `engine` says the engine executes the clause and `table` says the clause is fiction. Widening this type to admit `expressible` reaches the coverage and ledger generators and every guard over this map, so it is a decision rather than a note. Until somebody takes it, or writes this definition, the shape id stays — the direction that over-reports a debt rather than losing one.',
+      why: 'expressible',
+      note: 'the over-count this entry used to be, corrected. `choiceStated` records the ability the caster names and `statedChoice` puts it on the selector, which is Enhance Ability sentence with the mode reversed — so nothing blocks the clause, and the only reason it is unwritten is that nobody has written this definition. The entry said so at length and filed itself under `a-choice-made-at-the-casting` anyway, because the value that means it lived on `BlockedClause` and not here, and widening this type reaches both generators and every guard over this map. Gate G1 took that decision.',
     },
     {
       marker: 'extra-damage',
@@ -3650,6 +3695,361 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'a creature that refuses a casting rather than an area that does, which is the same missing state arriving at a different holder — the reading this shape already records for Freedom of Movement’s refusal of a Speed reduction. Every Divination this catalogue defines happens to be cast at Self or at no creature, so the rule has no reachable case *today*; the state it would need does not exist either way.',
     },
   ],
+
+  // — the thirty-four the ledger called finished business ————————————————————
+  //
+  // **Gate G1's serious finding, recorded where the report can count it.**
+  // `spellShapesOf` reads this map and never opens a definition's own
+  // `unmodelled`, and of the forty spells `LEDGER.md` filed under *waits on no
+  // shape*, thirty-four had no entry here at all — so the report read a
+  // missing entry as no debt. Every paragraph below had in fact been read, in
+  // `unadjudicated-triage.test.ts`; what it had not been is **written
+  // anywhere a generator reads**, which is the difference between a reading
+  // and a measurement.
+  //
+  // Three things about the shape of the block. Every entry is marker-less,
+  // because these thirty-four are exactly the tracked spells in level-5 reach
+  // whose prose trips no `MECHANICAL_MARKERS` pattern anywhere — that is why
+  // no guard had ever demanded one of them, and it is the hole
+  // {@link trackedAdjudicationGaps} closes. Most say `'table'`, which is the
+  // change {@link TrackedAdjudication.marker} argues for and the reason the
+  // number below rises by six rather than by thirty-four. And six of them —
+  // Dancing Lights, Darkness, Daylight, Continual Flame, Light and Fog Cloud
+  // — name `light-and-obscurement-the-scene-holds`, which did not exist when
+  // they were read: a case-insensitive search of this file for *light* or
+  // *obscur* returned notes and no id, so the debt could not be filed.
+  alarm: [
+    {
+      marker: null,
+      clause: 'an alarm alerts you whenever a creature touches or enters the warded area',
+      why: 'table',
+      note: 'nothing mechanically authoritative changes when the alarm fires — no roll, no resource, no condition, nothing about any creature — so the warning is the DM’s to give and the exemption the caster designates is an exemption from it. The Cube the ward fills is a ceiling the caster picks rather than a spell’s one fixed area, which is why the definition quotes it instead of pinning it.',
+    },
+  ],
+  'arcane-lock': [
+    {
+      marker: null,
+      clause: 'You touch a closed door, window, gate, container, or hatch and magically lock it',
+      why: 'table',
+      note: 'the whole spell is about an object, and objects are not modelled: which door was touched, who may open it despite the lock and what the password is have nowhere in state to live. Dispel Magic executes and cannot reach this casting, because it ends an ongoing spell **on a target** and this one is on a door.',
+    },
+  ],
+  clairvoyance: [
+    {
+      marker: null,
+      clause: 'The intangible, invulnerable sensor remains in place for the duration',
+      why: 'table',
+      note: 'nothing is measured from the sensor and nothing is resolved at it: what it buys is that the caster perceives a place, and sight in this engine is a declared pairwise fact between two creatures rather than a derived one. The Bonus Action that switches seeing for hearing is a cost of operating a thing the engine does not hold.',
+    },
+  ],
+  'comprehend-languages': [
+    {
+      marker: null,
+      clause: 'you understand the literal meaning of any language that you hear or see signed',
+      why: 'table',
+      note: 'the sheet records which languages a character knows and nothing in play reads them, so understanding one more is a fact with no reader — the test `docs/design/content.md` draws, applied: a table fact that a rule then reads is a debt, and this one nothing reads afterwards.',
+    },
+  ],
+  'continual-flame': [
+    {
+      marker: null,
+      clause: 'A flame springs from an object that you touch',
+      why: 'table',
+      note: 'which object was touched is the DM’s, because objects are not modelled; and a duration of until dispelled is no deadline at all, so no timer is scheduled and the casting simply runs.',
+    },
+    {
+      marker: null,
+      clause: 'The effect casts Bright Light in a 20-foot radius and Dim Light for an additional 20 feet',
+      why: 'light-and-obscurement-the-scene-holds',
+      note: 'the same two radii Light prints, on a casting that never ends — so the flame is the one permanent light in level-5 reach and there is nothing in the scene for it to light.',
+    },
+  ],
+  'create-food-and-water': [
+    {
+      marker: null,
+      clause: 'You create 45 pounds of food and 30 gallons of fresh water',
+      why: 'table',
+      note: 'the food and the water are objects, and objects are not modelled; malnutrition, dehydration and the 24 hours after which the food spoils have no reader either.',
+    },
+  ],
+  'create-or-destroy-water': [
+    {
+      marker: null,
+      clause: 'You create up to 10 gallons of clean water within range in an open container',
+      why: 'table',
+      note: 'ten gallons in a container, rain in a Cube, exposed flames put out and fog destroyed are four facts about a world the engine holds none of — fog is not a state it keeps even where another spell made it. The higher slot buys gallons and feet, and neither is a number any effect of this definition reads.',
+    },
+  ],
+  'dancing-lights': [
+    {
+      marker: null,
+      clause: 'You create up to four torch-size lights within range',
+      why: 'table',
+      note: 'the lights have no positions, so the Bonus Action that moves them 60 feet, the 20-foot tether between two of them and a light vanishing outside the spell’s range are all measurements of things that are not in the scene.',
+    },
+    {
+      marker: null,
+      clause: 'each light sheds Dim Light in a 10-foot radius',
+      why: 'light-and-obscurement-the-scene-holds',
+      note: 'the cantrip a level 1 Bard, Druid, Sorcerer or Wizard can take that does exactly one mechanical thing, and the engine has nowhere to put it.',
+    },
+  ],
+  darkness: [
+    {
+      marker: null,
+      clause: 'magical Darkness spreads from a point within range and fills a 15-foot-radius Sphere',
+      why: 'light-and-obscurement-the-scene-holds',
+      note: 'the spell this whole id was found on. The Sphere is quoted to the table rather than pinned as an area, because pinning an area whose only content is a light level would assert a template nothing resolves over.',
+    },
+    {
+      marker: null,
+      clause: "Darkvision can't see through it, and nonmagical light can't illuminate it",
+      why: 'light-and-obscurement-the-scene-holds',
+      note: 'the obscurement half, and the sentence `docs/design/light-and-sight.md` turns into a rule: magical darkness defeats Darkvision and nonmagical light, Devil’s Sight defeats it, and nonmagical darkness is dim to Darkvision.',
+    },
+    {
+      marker: null,
+      clause: 'that other spell is dispelled',
+      why: 'light-and-obscurement-the-scene-holds',
+      note: 'the mutual dispel against Bright or Dim Light of level 2 or lower. Ending a casting is an operation the engine has; what it lacks is two areas of light to overlap, which is why this is the same debt rather than a second one.',
+    },
+    {
+      marker: null,
+      clause: 'causing the Darkness to fill a 15-foot Emanation originating from that object',
+      why: 'table',
+      note: 'an Emanation whose origin is an object is not a template the format can state, and covering the object with a bowl or a helm is a fact about a thing state does not hold.',
+    },
+  ],
+  daylight: [
+    {
+      marker: null,
+      clause: "The sunlight's area is Bright Light and sheds Dim Light for an additional 60 feet",
+      why: 'light-and-obscurement-the-scene-holds',
+      note: 'sixty feet of Bright Light and sixty more of Dim, which `docs/design/light-and-sight.md` models as a patch on the lattice carrying a level and the casting that made it.',
+    },
+    {
+      marker: null,
+      clause: 'causing the sunlight to fill a 60-foot Emanation originating from that object',
+      why: 'table',
+      note: 'the object half, as Darkness prints it: an Emanation originating from a thing state does not hold, and a bowl or a helm over it.',
+    },
+    {
+      marker: null,
+      clause: 'overlaps with an area of Darkness created by a spell of level 3 or lower',
+      why: 'light-and-obscurement-the-scene-holds',
+      note: 'the other side of Darkness’s dispel, and the pair is why the sight note calls the mutual dispel a second step rather than a separate shape.',
+    },
+  ],
+  'detect-evil-and-good': [
+    {
+      marker: null,
+      clause: 'you sense the location of any Aberration, Celestial, Elemental, Fey, Fiend, or Undead',
+      why: 'table',
+      note: 'the engine knows a creature’s type and reports nothing, and a creature nobody has typed has nothing to report; sensing whether Hallow is active, and the foot of stone or inch of metal that blocks the sense, are facts about a world that is declared rather than modelled.',
+    },
+  ],
+  'detect-magic': [
+    {
+      marker: null,
+      clause: 'you sense the presence of magical effects within 30 feet of yourself',
+      why: 'table',
+      note: 'knowing something changes no authoritative state, which is the line this spell and Identify are both on: the Magic action that sees an aura and the school it reports are narration, and the blocking rule is a wall nobody has modelled.',
+    },
+  ],
+  'detect-poison-and-disease': [
+    {
+      marker: null,
+      clause: 'you sense the location of poisons, poisonous or venomous creatures, and magical contagions',
+      why: 'table',
+      note: 'poisons, venomous creatures and magical contagions are not modelled, so what the caster senses is narration and the blocking rule is the same declared wall the other two Detects print.',
+    },
+  ],
+  druidcraft: [
+    {
+      marker: null,
+      clause: 'you create one of the following effects within range',
+      why: 'table',
+      note: 'not one of the four branches is arithmetic, which is why the choice needs nowhere to be recorded — the line `blocked-on.test.ts` draws against Thaumaturgy, whose sixth branch grants Advantage on a check and so does decide something.',
+    },
+  ],
+  elementalism: [
+    {
+      marker: null,
+      clause: 'You exert control over the elements',
+      why: 'table',
+      note: 'five branches and no arithmetic in any of them; the 5-foot Cube each fits in is quoted rather than pinned because nothing is resolved over it, and the minute of scent, the minute of evaporation and the hour a sculpted shape holds run no clock on an Instantaneous casting.',
+    },
+  ],
+  'find-traps': [
+    {
+      marker: null,
+      clause: 'You sense any trap within range that is within line of sight',
+      why: 'table',
+      note: 'neither a mechanism nor a Glyph of Warding is a thing in state, so whether one is in range and the general nature of the danger are the DM’s to answer.',
+    },
+  ],
+  'floating-disk': [
+    {
+      marker: null,
+      clause: 'This spell creates a circular, horizontal plane of force',
+      why: 'table',
+      note: 'the disk is an object: where it is, the 500 pounds it holds, what rides on it, the 20 feet it follows within, the elevation change it refuses and the 100 feet that end the spell are all measured against a thing that is not in the scene.',
+    },
+  ],
+  'fog-cloud': [
+    {
+      marker: null,
+      clause: 'The Sphere is Heavily Obscured',
+      why: 'light-and-obscurement-the-scene-holds',
+      note: 'the one spell of the six whose debt is obscurement without a light level, which is why `docs/design/light-and-sight.md` keeps obscurement as a record of its own beside light rather than deriving it wholly from the level.',
+    },
+    {
+      marker: null,
+      clause: "The fog's radius increases by 20 feet for each spell slot level above 1",
+      why: 'table',
+      note: 'filed here under protest, exactly as Confusion’s Sphere is and for the same reason: a slot reaches damage dice, a target count and a duration and never an area, and inventing a shape id is a decision rather than a reading. The protest is the entry, so the next reader finds it.',
+    },
+  ],
+  'gentle-repose': [
+    {
+      marker: null,
+      clause: 'You touch a corpse or other remains',
+      why: 'table',
+      note: 'a corpse is an object rather than a creature in state, and decay, becoming Undead and the time limit this extends on raising the dead are all outside what the engine holds — no spell it executes raises anybody.',
+    },
+  ],
+  identify: [
+    {
+      marker: null,
+      clause: 'you learn its properties and how to use them, whether it requires Attunement',
+      why: 'table',
+      note: 'what is learned about an object is a fact about a magic item, and what is learned about a creature the engine already answers as a query; no effect kind reports knowledge, because knowing something changes no authoritative state.',
+    },
+  ],
+  'illusory-script': [
+    {
+      marker: null,
+      clause: 'imbue it with an illusion that lasts for the duration',
+      why: 'table',
+      note: 'what the text says, what the illusion makes it say and the altered meaning, handwriting and language are fiction, and so is the parchment; what being designated buys is the ability to read, and reading is the DM’s.',
+    },
+  ],
+  light: [
+    {
+      marker: null,
+      clause: "You touch one Large or smaller object that isn't being worn or carried by someone else",
+      why: 'table',
+      note: 'which object was touched, whether somebody else is carrying it, and covering it are all facts about an object, and objects are not modelled.',
+    },
+    {
+      marker: null,
+      clause: 'the object sheds Bright Light in a 20-foot radius and Dim Light for an additional 20 feet',
+      why: 'light-and-obscurement-the-scene-holds',
+      note: 'the cantrip every class on the list takes for this one sentence. `docs/design/light-and-sight.md` puts it on the lattice as a patch carried by whatever holds the object.',
+    },
+  ],
+  'locate-animals-or-plants': [
+    {
+      marker: null,
+      clause: 'You learn the direction and distance to the closest creature or plant of that kind',
+      why: 'table',
+      note: 'the engine holds one scene, and a creature five miles off it is not a creature at a distance — there is nothing to measure a direction to.',
+    },
+  ],
+  'locate-object': [
+    {
+      marker: null,
+      clause: "You sense the direction to the object's location",
+      why: 'table',
+      note: 'objects have no position, so where the object is and whether it is moving have nothing to read; the thickness of lead that blocks it is the same declared wall the Detect spells print.',
+    },
+  ],
+  'mage-hand': [
+    {
+      marker: null,
+      clause: 'A spectral, floating hand appears at a point you choose within range',
+      why: 'table',
+      note: 'the hand is not a thing in the world: manipulating an object, the 30 feet it moves, the 10-pound limit and the ban on attacking or activating magic items are all about a hand with no position. **The recast is the exception and it is executed** — `replacesPriorCasting` is on the definition, which is why no clause here names it.',
+    },
+  ],
+  mending: [
+    {
+      marker: null,
+      clause: 'This spell repairs a single break or tear in an object you touch',
+      why: 'table',
+      note: 'which break was mended and the 1 foot it may not exceed are facts about an object’s condition, and the engine tracks what a creature owns and wears and nothing about the state of it; the ban on restoring magic forbids undoing something it never did.',
+    },
+  ],
+  message: [
+    {
+      marker: null,
+      clause: 'The target (and only the target) hears the message',
+      why: 'table',
+      note: 'what is said and what is whispered back are the DM’s. The one clause that is not — SRD lets this spell alone be cast through a solid object at a familiar target — is a refusal the engine makes for every spell and an exception the format cannot state, and it is fiction on both sides of the wall.',
+    },
+  ],
+  'purify-food-and-drink': [
+    {
+      marker: null,
+      clause: 'You remove poison and rot from nonmagical food and drink',
+      why: 'table',
+      note: 'the food and drink are objects; the Poisoned condition belongs to a creature and is untouched by this spell, and a definition that cured one would be inventing a rule the sentence does not print.',
+    },
+  ],
+  'remove-curse': [
+    {
+      marker: null,
+      clause: 'all curses affecting one creature or object end',
+      why: 'table',
+      note: 'nothing the engine applies is a curse, so which curses end is the DM’s.',
+    },
+    {
+      marker: null,
+      clause: "the spell breaks its owner's Attunement to the object",
+      why: 'what-ends-attunement-besides-a-command',
+      note: 'the finding the last pass wrote down and could not file. Attunement is a fact the engine holds authoritatively — `attuned` on the sheet, written by `attuneItem` and ended by `attunement-ended` — so this is a table fact a rule then reads, which is a debt. The shape is the item vocabulary’s and its own description finishes on armour that cannot be doffed until a Remove Curse lands; gate G1 widened this field to reach it rather than mint a second id for one gap.',
+    },
+  ],
+  'rope-trick': [
+    {
+      marker: null,
+      clause: 'an Invisible 3-foot-by-5-foot portal opens to an extradimensional space',
+      why: 'table',
+      note: 'the engine holds one scene, so a second place is not somewhere a creature can be: who has climbed in, the eight Medium creatures it holds and the rule that attacks and spells cannot cross are all about a space that does not exist in state.',
+    },
+  ],
+  'speak-with-dead': [
+    {
+      marker: null,
+      clause: 'you can ask the corpse up to five questions',
+      why: 'table',
+      note: 'the corpse is an object rather than a creature in state, so the mouth it must have, the Undead it must not have been and the 10 days since the last casting have nothing to read; the five answers and their truthfulness are the DM’s.',
+    },
+  ],
+  tongues: [
+    {
+      marker: null,
+      clause: 'the ability to understand any spoken or signed language that it hears or sees',
+      why: 'table',
+      note: 'the same reading as Comprehend Languages: the sheet records the languages a character knows and nothing in play reads them, so understanding and being understood have no reader.',
+    },
+  ],
+  'water-breathing': [
+    {
+      marker: null,
+      clause: 'the ability to breathe underwater until the spell ends',
+      why: 'table',
+      note: 'suffocation is not modelled, so breathing underwater lifts a rule the engine does not apply.',
+    },
+  ],
+  'water-walk': [
+    {
+      marker: null,
+      clause: 'This spell grants the ability to move across any liquid surface',
+      why: 'table',
+      note: 'nothing in state says there is water, acid, mud or lava under the party, so what the surface is and what the heat of lava does are the DM’s — and the Bonus Action a target spends to drop through it is charged by the DM for the same reason.',
+    },
+  ],
 };
 
 // — the undefined population —————————————————————————————————————————————————
@@ -4580,7 +4980,11 @@ export interface MisanchoredAdjudication {
  * an entry names one **sentence** of the spell's prose, and it says truthfully
  * whether the markers can see that sentence. A marker entry must sit in a
  * sentence tripping its own marker; a marker-less one must sit in a sentence
- * tripping none, and must name a shape that is actually missing.
+ * tripping none, and must claim either a missing shape or the table —
+ * `'engine'` and `'expressible'` are both refused there, because each asserts
+ * that the resolution path reaches a sentence no marker can see, which is the
+ * one claim nobody can re-run. {@link TrackedAdjudication.marker} records what
+ * gate G1 changed about `'table'` and why the change is not a hole.
  *
  * ### A printed field is not an anchor here, and that is the whole of why
  *
@@ -4639,10 +5043,10 @@ export const misanchoredAdjudications = (
           `it is filed with no marker and the markers see ${named.join(', ')} in the unit it names`,
         );
       }
-      if (entry.why === 'table' || entry.why === 'engine') {
+      if (entry.why === 'engine' || entry.why === 'expressible') {
         complain(
           entry.clause,
-          `a marker-less entry records a blocker, so it must name a missing shape rather than "${entry.why}"`,
+          `a marker-less entry may not claim the engine reaches a sentence no marker can see, so it must name a missing shape or the table rather than "${entry.why}"`,
         );
       }
     } else if (!named.includes(entry.marker)) {
@@ -4741,6 +5145,43 @@ export const coverageGaps = (
       .sort(),
   };
 };
+
+/** A tracked definition, as much of one as the gap below needs to read. */
+export interface TrackedDefinition {
+  readonly id: string;
+  /** The definition's own `unmodelled` list, which is a list of **debts**. */
+  readonly unmodelled: readonly string[];
+}
+
+/**
+ * The tracked definitions whose own `unmodelled` nobody has read.
+ *
+ * {@link coverageGaps}' rule pointed at the second population, and it is the
+ * same rule: **an entry missing from a map says nothing**, and a report that
+ * reads a missing entry as "no debt" is reporting the unread state as zero.
+ * `docs/design/content.md` is where the difference is drawn — "An `unmodelled`
+ * line is a **debt**: the blocker map ranks it, and one day somebody pays it by
+ * building the shape" — so a tracked definition that prints one and carries no
+ * {@link TRACKED_ADJUDICATED} entry is a debt no map ranks.
+ *
+ * `stale` has no counterpart here: a tracked spell whose entry outlived it is
+ * already caught by `blocked-on.test.ts`, which asserts every key of the map is
+ * a definition the catalogue holds.
+ *
+ * Parameterised over the population for the reason {@link coverageGaps} is —
+ * the caller restricts it, and only the caller knows to what. The ledger asks
+ * it of the tracked spells in level-5 reach; a test drives it with a synthetic
+ * definition built to be caught.
+ */
+export const trackedAdjudicationGaps = (
+  tracked: readonly TrackedDefinition[],
+  adjudicated: Readonly<Record<string, readonly unknown[]>> = TRACKED_ADJUDICATED,
+): { readonly unrecorded: readonly string[] } => ({
+  unrecorded: tracked
+    .filter((one) => one.unmodelled.length > 0 && adjudicated[one.id] === undefined)
+    .map((one) => one.id)
+    .sort(),
+});
 
 export interface ShapeConsumers {
   readonly shape: ShapeId;

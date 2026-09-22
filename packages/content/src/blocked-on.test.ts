@@ -1562,6 +1562,15 @@ const CITED_SOURCES: readonly CitedSource[] = [
   // validator that refuses an item's grant by name, and the catalogue file that
   // states the three rules deciding what is transcribed.
   { name: 'content.md', label: 'docs/design/content.md', files: ['docs/design/content.md'] },
+  // Registered with its first citation, which is the rule the note below
+  // states: `light-and-obscurement-the-scene-holds` is the first shape to
+  // quote the sight model, and it is the first thing in this table to name a
+  // document written for a shape rather than the other way round.
+  {
+    name: 'light-and-sight.md',
+    label: 'docs/design/light-and-sight.md',
+    files: ['docs/design/light-and-sight.md'],
+  },
   {
     name: 'content.ts',
     label: 'packages/engine/src/content.ts',
@@ -1697,9 +1706,19 @@ describe('a shape says where this repository already described it', () => {
     expect(Object.keys(MISSING_SHAPES).filter((shape) => !claimed.has(shape))).toEqual([]);
   });
 
-  /** And nothing claims a shape the vocabulary has dropped. */
+  /**
+   * And nothing claims a shape **either** vocabulary has dropped.
+   *
+   * The item half is here because gate G1 widened `TrackedAdjudication.why` to
+   * `ItemBlockerId`: Remove Curse's Attunement clause is a debt whose shape is
+   * `what-ends-attunement-besides-a-command`, which lives over there and
+   * finishes on that very sentence. Minting a second id here for one gap is
+   * the duplication the item vocabulary was split out to avoid, so a claim may
+   * name either list and this guard reads both. What it still refuses is a
+   * claim naming neither, which is the drift it was written for.
+   */
   it('has a vocabulary that covers every claim', () => {
-    const known = new Set<string>(Object.keys(MISSING_SHAPES));
+    const known = new Set<string>([...Object.keys(MISSING_SHAPES), ...Object.keys(ITEM_SHAPES)]);
     expect([...claimedShapes()].filter((shape) => !known.has(shape))).toEqual([]);
   });
 });
@@ -2846,16 +2865,34 @@ describe('the shape that was built three tranches before its entries were re-rea
   });
 
   /**
-   * And the two of the twelve that carry a mechanical clause are in the
-   * **tracked** map, which is where a tracked spell's debt belongs — the other
-   * ten name nothing the markers can see, which is what "tracked" is supposed
-   * to mean and is the measure of how well the twelve fitted the bucket.
+   * And the two of the twelve that carry a clause a **marker** can see are in
+   * the tracked map under that marker — the other ten name nothing the markers
+   * can see, which is what "tracked" is supposed to mean and is the measure of
+   * how well the twelve fitted the bucket.
+   *
+   * **The other ten are in the map too now, and that is gate G1.** While they
+   * were absent the report read the absence as "no debt" and printed them as
+   * finished business; each carries a marker-less entry saying the table owns
+   * its paragraph, which is the same claim written where a generator can count
+   * it. The distinction this assertion still makes is the one that matters:
+   * which of them a marker could have demanded an entry of.
    */
-  it('files the two clauses the twelve carry in the tracked map', () => {
+  it('files the two clauses the twelve carry under a marker', () => {
     expect(TRACKED_ADJUDICATED['hallucinatory-terrain']?.map((e) => e.why)).toEqual(['engine']);
     expect(TRACKED_ADJUDICATED['magic-mouth']?.map((e) => e.why)).toEqual(['table']);
+    for (const id of ['hallucinatory-terrain', 'magic-mouth']) {
+      expect(
+        (TRACKED_ADJUDICATED[id] ?? []).every((entry) => entry.marker !== null),
+        id,
+      ).toBe(true);
+    }
     for (const id of ['alarm', 'clairvoyance', 'identify', 'mending']) {
-      expect(TRACKED_ADJUDICATED[id], id).toBeUndefined();
+      const entries = TRACKED_ADJUDICATED[id] ?? [];
+      expect(entries.length, id).toBeGreaterThan(0);
+      expect(
+        entries.every((entry) => entry.marker === null && entry.why === 'table'),
+        id,
+      ).toBe(true);
     }
   });
 });

@@ -175,7 +175,18 @@ describe('a blocker no mechanical marker can see survives the spell being writte
         // the form saved here was a shape from being retired on the strength
         // of a claim from the wrong edition of the book.
         'an-exhaustion-level-a-spell-changes',
-      ],
+        // **The seventh, and the largest single claim the form has carried.**
+        // Six spells in level-5 reach print a light level — Dancing Lights,
+        // Darkness, Daylight, Continual Flame, Light and Fog Cloud — and not
+        // one sentence of any of them trips a `MECHANICAL_MARKERS` pattern:
+        // the list knows dice, saves, checks, Armour Class, Hit Points,
+        // defences, conditions, roll modes, Speed, chance, movement cost,
+        // teleportation and extra damage, and the book writes Bright Light,
+        // Dim Light, Darkness and Heavily Obscured in none of those words. So
+        // the whole of this shape would vanish under the old rule, which is
+        // the failure the form was built for arriving at its largest scale.
+        'light-and-obscurement-the-scene-holds',
+      ].sort(),
     );
     // Two of the three the form landed with are still in it, so the list grew
     // rather than drifted. The third — Enthrall's narrowed bonus — left by
@@ -236,17 +247,39 @@ describe('the marker-less form cannot silence the rule beside it', () => {
   });
 
   /**
-   * And a marker-less entry must name a **missing shape**. A sentence the
-   * markers cannot see that blocks nobody is narration, and a tracked
-   * definition already has somewhere to put narration — its own `unmodelled`,
-   * which is handed to the table on every casting.
+   * And a marker-less entry may not claim the engine reaches a sentence no
+   * marker can see — `'engine'` says the resolution path arrives and
+   * `'expressible'` says it could, and neither is a reading anybody can
+   * re-run against the book.
+   *
+   * **`'table'` was on this list and gate G1 took it off.** The refusal read:
+   * a sentence the markers cannot see that blocks nobody is narration, and a
+   * tracked definition already has somewhere to put narration — its own
+   * `unmodelled`. `docs/design/content.md` says the opposite and says it as
+   * the distinction the two lists exist for: an `unmodelled` line is a
+   * **debt** and `dmDecides` is the handover. So the second half of that
+   * justification was false, and while it stood a tracked spell whose
+   * paragraph trips no marker at all and whose every line is fiction had no
+   * legal way to record that somebody had read it — which is thirty-four
+   * spells in level-5 reach, every one of them printed as finished business.
+   * The case below is the other half of the change, asserted rather than
+   * described: `'table'` claims no shape, so it cannot keep one alive, which
+   * is the rot this rule was written against.
    */
-  it('refuses a marker-less entry that records no blocker', () => {
-    for (const why of ['table', 'engine'] as const) {
+  it('refuses a marker-less entry that claims the engine reaches it', () => {
+    for (const why of ['engine', 'expressible'] as const) {
       const found = misanchoredAdjudications('flesh-to-stone', synthetic({ why }));
       expect(found, why).toHaveLength(1);
-      expect(found[0]?.complaint, why).toContain('missing shape');
+      expect(found[0]?.complaint, why).toContain('missing shape or the table');
     }
+  });
+
+  it('accepts a marker-less handover, which claims no shape at all', () => {
+    expect(misanchoredAdjudications('flesh-to-stone', synthetic({ why: 'table' }))).toEqual([]);
+    // And it adds nothing to the claimed set, which is the reason it is safe:
+    // the rot this rule guards against is a shape kept alive by an entry
+    // nobody read, and a handover keeps none.
+    expect(claimedShapes({ synthetic: synthetic({ why: 'table' }) })).toEqual(claimedShapes({}));
   });
 
   /**
@@ -347,12 +380,12 @@ describe('the readings this pass added are held to the same two rules', () => {
     expect(found[0]?.complaint).toContain(marker);
   });
 
-  /** And relabelled as narration, which a tracked definition already has a home for. */
+  /** And relabelled as a claim about the engine that no marker can check. */
   it.each(SINCE)('refuses %s’s reading of %s when it records no blocker', (spellId, _shape, phrase) => {
-    for (const why of ['table', 'engine'] as const) {
+    for (const why of ['engine', 'expressible'] as const) {
       const found = misanchoredAdjudications(spellId, [{ ...entry(spellId, phrase), why }]);
       expect(found, why).toHaveLength(1);
-      expect(found[0]?.complaint, why).toContain('missing shape');
+      expect(found[0]?.complaint, why).toContain('missing shape or the table');
     }
   });
 
