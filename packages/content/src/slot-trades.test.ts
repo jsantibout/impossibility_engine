@@ -322,6 +322,39 @@ describe('SRD Font of Magic: a slot for points, and points for a slot', () => {
     expect(isErr(refused) && refused.code).toBe('nothing_to_regain');
   });
 
+  /**
+   * `slotLevel`'s refusal and its mirror. SRD leaves both ends' levels to the
+   * caster on this one feature — which slot is burnt and which is created —
+   * and the engine picks between candidates at neither.
+   */
+  it('asks which slot, at both ends, rather than guessing', () => {
+    const state = built(sorcerer(), [spend('sorcery-points', 3), spend(spellSlotKey(1), 1)]);
+    const burnt = tradeResource(state, WHO, {
+      feature: 'sorcerer:font-of-magic',
+      trade: 'slot-for-points',
+    });
+    expect(isErr(burnt) && burnt.code).toBe('slot_level_required');
+
+    const created = tradeResource(state, WHO, {
+      feature: 'sorcerer:font-of-magic',
+      trade: 'points-for-slot',
+    });
+    expect(isErr(created) && created.code).toBe('slot_level_required');
+  });
+
+  /**
+   * The door's own Zod clamps a slot level to 1–9, so this refusal is only
+   * reachable from the command — which is exactly why it is asserted here.
+   */
+  it('refuses a level that is not a spell slot level at all', () => {
+    const refused = tradeResource(built(sorcerer()), WHO, {
+      feature: 'sorcerer:font-of-magic',
+      trade: 'points-for-slot',
+      gainedSlotLevels: [0],
+    });
+    expect(isErr(refused) && refused.code).toBe('bad_slot_level');
+  });
+
   it('creates one slot, and refuses a caller who named two', () => {
     const log = [...made(sorcerer()), spend(spellSlotKey(1), 2)];
     const refused = tradeResource(fold('seed', log), WHO, {
@@ -415,6 +448,22 @@ describe('SRD Arcane Recovery: slots the Wizard names, inside a level budget', (
       gainedSlotLevels: [2, 2],
     });
     expect(isErr(refused) && refused.code).toBe('over_budget');
+  });
+
+  it('asks which slots rather than guessing, and refuses a level that is none', () => {
+    const log = [...made(wizard()), spend(spellSlotKey(1), 1), ...RESTED];
+    const unnamed = tradeResource(fold('seed', log), WHO, {
+      feature: 'wizard:arcane-recovery',
+      trade: 'recover-slots',
+    });
+    expect(isErr(unnamed) && unnamed.code).toBe('slot_level_required');
+
+    const nonsense = tradeResource(fold('seed', log), WHO, {
+      feature: 'wizard:arcane-recovery',
+      trade: 'recover-slots',
+      gainedSlotLevels: [1.5],
+    });
+    expect(isErr(nonsense) && nonsense.code).toBe('bad_slot_level');
   });
 
   it('happens when a Short Rest finishes and not otherwise', () => {
