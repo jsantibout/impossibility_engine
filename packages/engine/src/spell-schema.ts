@@ -1369,6 +1369,22 @@ function checkModifierRider(
   }
   if (rider?.kind === 'action') {
     checkActionRule(rider.rule, `${path}.rule`, found);
+    // **And the one member of that vocabulary a rider may not carry.** A rider
+    // hangs a *standing* rule: `applyRiders` writes `action-rule-granted` and
+    // nothing else, so a `grants` arriving here would be stored on the
+    // creature and then read by nobody — `refuseSpend` never consults it and
+    // the turn boundary only mints the `each-turn` arm off a standalone
+    // effect. That is the silence `ActionRule.at` says must not be possible,
+    // arriving by the other door; the standalone `action-rule` kind is where
+    // an extra action is written.
+    if (rider.rule?.kind === 'grants') {
+      found.push({
+        field: `${path}.rule`,
+        code: 'bad_action_rule',
+        reason:
+          'an extra action is handed to a turn and not hung on a creature, so it cannot ride an outcome; write it as an "action-rule" effect, whose resolver puts it in the budget',
+      });
+    }
     // The second rider that may carry a deadline of its own. Whether it
     // *must* is {@link checkGrantLifetimes}', exactly as for `speed-change`.
     checkRiderDuration(rider.lasts, path, found);

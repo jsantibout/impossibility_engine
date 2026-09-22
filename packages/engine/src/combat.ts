@@ -246,7 +246,7 @@ export const SLOTS_WITH_NAMED_ACTIONS: readonly ActionSlot[] = [
  * `releaseOnTarget`, by a dispel, by a broken Concentration and by a `grants`
  * timer, through exactly the doors the other eight already use.
  *
- * ### Three members, because the SRD writes three sentences
+ * ### Four members, because the SRD writes four sentences
  *
  * | | SRD | |
  * |---|---|---|

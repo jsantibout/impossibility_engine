@@ -484,10 +484,10 @@ export const SPLIT_BUNDLES: Readonly<Record<string, SplitBundle>> = {
    * spells with an id of their own now; the self-cure and the coupled slots
    * are one apiece.
    *
-   * What is left under the id is two sentences — a lifetime an Instantaneous
-   * casting cannot hang (Befuddlement) and the attacks counted inside one
-   * Attack action (Slow) — and the `held` list below holds only what moved,
-   * which is what the guard over these records demands.
+   * What is left under the id is seven spells and two items, reading as four
+   * things — the id's own description is where they are enumerated, and it is
+   * the one place that count belongs. The `held` list below holds only what
+   * moved, which is what the guard over these records demands.
    */
   'an-action-a-spell-compels-or-forbids': {
     adjudications: 13,

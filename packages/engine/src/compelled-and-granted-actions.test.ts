@@ -10,10 +10,12 @@ import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { applyEvent, fold, type GameEvent, type GameState } from './events.js';
+import { CorruptLogError } from './fold/common.js';
 import { spellSlotKey } from './resources.js';
 import { declaredCasting } from './spellcasting.js';
 import { loadContent, type Content } from './content.js';
 import { checkSpellDefinitionValue } from './spell-schema.js';
+import { beginCombat } from './commands/scene.js';
 import {
   endConcentration,
   releaseReady,
@@ -548,13 +550,102 @@ describe('a spell spends the target’s own budget', () => {
   it('makes nobody move', () => {
     const log = whispered();
     expect(log.filter((e) => e.type === 'movement-spent')).toEqual([]);
-    expect(log.filter((e) => e.type === 'ready-taken')).toEqual([]);
+    expect(log.filter((e) => e.type === 'readied-declared')).toEqual([]);
+    expect(log.filter((e) => e.type === 'movement-completed')).toEqual([]);
   });
 
   /** The casting is in the source, so a log can say which spell took the slot. */
   it('names the casting that spent it', () => {
     const compelled = whispered().filter((e) => e.type === 'budget-compelled');
     expect(compelled[0]).toMatchObject({ source: expect.stringMatching(/^Cruel Whisper#cast:/) });
+  });
+});
+
+// — the two doors the budget is written through ————————————————————————————
+
+/**
+ * **A budget is written by a combat event and by nothing else**, which is the
+ * whole reason the grant lives where it does — so the two events this batch
+ * puts through that door are held to what the reducer will accept, and the
+ * reducer is asked with the inputs the command asked with.
+ */
+describe('the fold refuses what the command would not have written', () => {
+  /**
+   * A hand-built `budget-compelled` against a creature a rule had already
+   * forbidden Reactions to. The command never writes one — `compelBudget` asks
+   * `canSpendSlot` first and falls silent — so a log holding one is a log that
+   * contradicts the rules standing in it, and the backstop has to say so with
+   * the same inputs: the conditions, and the rules on the creature.
+   */
+  it('throws on a compelled spend a standing rule had forbidden', () => {
+    const casting = turnOf(SETUP, CASTER);
+    const stilled = [...casting, ...castAt(casting, 'stilling-word', [TARGET], 1)];
+    expect(fold('seed', stilled).creatures[TARGET]?.actionRules ?? []).toHaveLength(1);
+
+    const forged: GameEvent = {
+      type: 'budget-compelled',
+      id: TARGET,
+      slot: 'reaction',
+      on: 'fleeing',
+      source: 'a forgery',
+    };
+    expect(() => fold('seed', [...stilled, forged])).toThrow(CorruptLogError);
+
+    // And the same event is perfectly good where no rule stands, so what the
+    // throw above is about is the rule rather than the event.
+    expect(() => fold('seed', [...casting, forged])).not.toThrow();
+  });
+
+  /**
+   * **A grant handed over at the casting is not owed again**, and the filter
+   * that says so is only reachable from a log: the resolver never hangs an
+   * `at: 'casting'` rule, so this is the reducer's half of the same rule,
+   * driven through the event the fold actually reads.
+   */
+  it('mints nothing at a boundary for a grant that was handed over once', () => {
+    const onTheirTurn = turnOf(SETUP, TARGET);
+    const hung: GameEvent = {
+      type: 'action-rule-granted',
+      id: TARGET,
+      rule: {
+        source: 'a forgery#cast:1',
+        rule: { kind: 'grants', at: 'casting', only: ['dash'] },
+        label: 'A Forgery',
+        until: 'the spell ends',
+      },
+    };
+    const log = [...onTheirTurn, hung];
+    expect(fold('seed', log).creatures[TARGET]?.actionRules ?? []).toHaveLength(1);
+
+    const later = turnOf(nextTurn(log), TARGET);
+    expect(budgetOf(fold('seed', later), TARGET)?.extraActions ?? []).toEqual([]);
+  });
+});
+
+/**
+ * SRD Haste: "on each of its turns" — and a fight that opens on a hasted
+ * creature's turn is one of those, reached by the second door.
+ */
+describe('the door that opens a fight raises the same start', () => {
+  it('mints the extra action for the first combatant', () => {
+    const hastened = [...PLACED, ...castAt(PLACED, 'quickening', [TARGET], 3)];
+    const opened = [
+      ...hastened,
+      ...must(
+        beginCombat(
+          fold('seed', hastened),
+          [
+            { id: TARGET, initiative: 20, speed: 30 },
+            { id: CASTER, initiative: 10, speed: 30 },
+          ],
+          {},
+          supply('open'),
+        ),
+      ),
+    ];
+    const state = fold('seed', opened);
+    expect(whoseTurn(state)).toBe(TARGET);
+    expect(budgetOf(state, TARGET)?.extraActions).toEqual([{ source: 'Quickening' }]);
   });
 });
 
@@ -592,6 +683,40 @@ describe('the vocabulary is held at authoring', () => {
       { kind: 'action-rule', rule: { kind: 'grants', at: 'casting', only: ['utilize'] } },
     ]);
     expect(found.some((p) => p.code === 'bad_action_rule')).toBe(true);
+  });
+
+  /**
+   * **And the rider door refuses the member the effect door carries**, which
+   * is the one way an extra action could have been written and then read by
+   * nobody: a rider hangs a standing rule, and an extra action is not one.
+   */
+  it('refuses an extra action hung as a rider on an outcome', () => {
+    const found = problems([
+      {
+        kind: 'save-damage',
+        ability: 'wis',
+        damage: { dice: '1d6' },
+        damageType: 'psychic',
+        onSuccess: 'none',
+        modifiers: [{ kind: 'action', rule: { kind: 'grants', at: 'casting', only: ['dash'] } }],
+      },
+    ]);
+    expect(found.some((p) => p.code === 'bad_action_rule')).toBe(true);
+
+    // And the neighbouring members still ride, so what is refused is the
+    // member rather than the door.
+    expect(
+      problems([
+        {
+          kind: 'save-damage',
+          ability: 'wis',
+          damage: { dice: '1d6' },
+          damageType: 'psychic',
+          onSuccess: 'none',
+          modifiers: [{ kind: 'action', rule: { kind: 'forbids', slots: ['reaction'] } }],
+        },
+      ]),
+    ).toEqual([]);
   });
 
   it('refuses a spend of movement, which is measured in feet and not in slots', () => {
