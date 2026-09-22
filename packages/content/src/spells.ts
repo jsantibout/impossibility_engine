@@ -8683,7 +8683,7 @@ export const SPEAK_WITH_PLANTS: SpellDefinition = {
   effects: [],
   durationSeconds: 600,
   unmodelled: [
-    'the terrain is not changed in either direction, and the two halves are blocked on different things. Turning ordinary ground into Difficult Terrain is writable — `areaTerrain` says it and four definitions write it — and this spell has no area to write it on: its Range is Self and what it reaches is "plants within 30 feet", which is not a template. Turning plant-grown Difficult Terrain **back** into ordinary ground is writable nowhere: the lattice takes the dearest rate lying over a space, by the book’s own rule that Difficult Terrain is not cumulative, and nothing in it subtracts',
+    'the terrain is not changed in either direction, and the two halves are blocked on different things. Turning ordinary ground into Difficult Terrain is writable — `areaTerrain` says it and four definitions write it — and two things stand between this spell and it. The definition carries no `area`, and terrain without one is refused at authoring; and the area the book prints is "an immobile 30-foot Emanation", where an Emanation is stored as the creature it comes from and re-read against where that creature is now, so a patch written on one would walk away with the druid. Turning plant-grown Difficult Terrain **back** into ordinary ground is writable nowhere: the lattice takes the dearest rate lying over a space, by the book’s own rule that Difficult Terrain is not cumulative, and nothing in it subtracts',
     'the conversation is the DM’s: questioning plants about the past day, giving them simple commands, and talking to a Plant creature as if you shared a language are all narration',
   ],
 };
