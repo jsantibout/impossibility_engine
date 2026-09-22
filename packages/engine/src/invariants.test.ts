@@ -60,6 +60,7 @@ import {
   damageCreature,
   declareCreatureType,
   declareFalling,
+  declareObject,
   declareDifficultTerrain,
   declareLight,
   declareObscurement,
@@ -1797,6 +1798,23 @@ const GUARDED: readonly Guarded[] = [
   },
   {
     /**
+     * A door into the room, which is a creature on the roster and therefore
+     * exactly the retry question `addCreature` asks: the same id twice is one
+     * door, and a second under a new id would be a second thing in the world.
+     */
+    name: 'declareObject',
+    log: SETUP,
+    run: (s, commandId) =>
+      declareObject(
+        s,
+        SRD_CONTENT,
+        id('the-oak-door'),
+        { name: 'the oak door', material: 'wood', size: 'medium', build: 'resilient' },
+        { commandId },
+      ),
+  },
+  {
+    /**
      * A momentary fact, so the retry question is the sharper one: declaring a
      * fall again under a *new* id is a second fall and must land, while the
      * same id twice is one fall however many times it is sent.
@@ -3251,6 +3269,10 @@ const DECLARING_MODULES = [
   'commands/scene.ts',
   'commands/declarations.ts',
   'commands/creatures.ts',
+  // The fourth, and it joined on the same rule the third did: the one public
+  // command in it declares that a thing is in the room, which is as pure a
+  // declaration as this list holds.
+  'commands/objects.ts',
 ];
 
 const DECLARED_NOT_ACTED: Readonly<Record<string, string>> = {
@@ -3310,6 +3332,8 @@ const DECLARED_NOT_ACTED: Readonly<Record<string, string>> = {
     'not an action in the turn economy: whatever granted them spent its own cost, and receiving Temporary Hit Points costs the receiver nothing',
   removeCreatureEverywhere:
     'not an action in the turn economy: a creature leaving the game is bookkeeping about the cast, and nobody spends a turn’s budget to have somebody gone',
+  declareObject:
+    'not an action in the turn economy: that there is a barred oak door in the room is a fact the DM declares, it was true before anybody’s turn began, and SRD prices nothing for the world containing something — what a creature then does to the door is the swing that takes it, through its own command',
 };
 
 describe('the DM-declared commands declare facts rather than taking actions', () => {
@@ -3432,6 +3456,16 @@ describe('the DM-declared commands declare facts rather than taking actions', ()
     { name: 'setExhaustionLevel', run: (s) => setExhaustionLevel(s, A, 2) },
     { name: 'grantTemporaryHpTo', run: (s) => grantTemporaryHpTo(s, A, 4) },
     { name: 'removeCreatureEverywhere', run: (s) => removeCreatureEverywhere(s, C) },
+    {
+      name: 'declareObject',
+      run: (s) =>
+        declareObject(s, SRD_CONTENT, id('a-barred-door'), {
+          name: 'a barred door',
+          material: 'wood',
+          size: 'medium',
+          build: 'resilient',
+        }),
+    },
   ];
 
   /**

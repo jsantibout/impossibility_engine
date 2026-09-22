@@ -28,6 +28,7 @@ import { WARLOCK, WARLOCK_SUBCLASSES } from './classes/warlock.js';
 import { WIZARD, WIZARD_SUBCLASSES } from './classes/wizard.js';
 import { SPELL_STAT_BLOCKS } from './bestiary.js';
 import { SRD_ITEMS } from './items.js';
+import { SRD_OBJECT_MATERIALS, SRD_OBJECT_SIZES } from './objects.js';
 import {
   ALIGNMENTS,
   BACKGROUNDS,
@@ -44,6 +45,7 @@ export * from './spells.js';
 export * from './bestiary.js';
 export * from './origins.js';
 export * from './items.js';
+export * from './objects.js';
 export * from './classes/barbarian.js';
 export * from './classes/bard.js';
 export * from './classes/cleric.js';
@@ -106,6 +108,11 @@ export const SRD_CONTENT_INPUT = {
   // names a stat block by id and nothing downstream knows which chapter it was
   // read out of.
   monsters: [...MONSTERS, ...SPELL_STAT_BLOCKS],
+  // The two tables under "Breaking Objects". A catalogue in exactly the sense
+  // the bestiary is: `declareObject` names a substance and a size, reads the
+  // numbers out of here and pins them into the arrival.
+  objectMaterials: SRD_OBJECT_MATERIALS,
+  objectSizes: SRD_OBJECT_SIZES,
 } as const;
 
 /** The SRD 5.2.1 catalogue, validated. */

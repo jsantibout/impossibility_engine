@@ -514,6 +514,22 @@ const DECLARATIONS: Readonly<
   // door safe to open.
   declareCreatureHeads: { tool: 'declare_heads', dmOnly: true },
   /**
+   * **The second door on the DM's surface alone, and the widest fact either
+   * of them states: that a thing is in the room.** "There is a barred oak
+   * door here" is precisely what this table is for — something the engine
+   * cannot work out and has to be told — and it is on this surface for the
+   * reason `award_items` is: what is in the room is the DM's to say, and a
+   * model that could declare an adamantine wall between itself and the party
+   * would be writing the world rather than playing in it.
+   *
+   * It takes one mechanical number and that is what the `dmOnly` is really
+   * about: a damage threshold, which the SRD names ("often have extra
+   * resilience represented by a damage threshold") and prints no table for.
+   * Everything else the call carries is fiction, and the Armour Class and the
+   * hit points come back out of the book.
+   */
+  declareObject: { tool: 'declare_object', dmOnly: true },
+  /**
    * **Withheld until this batch, and the reason it gave has stopped being
    * true.** The line here read "the clock and what a morning refills, which is
    * the rest slice `definitions.ts` says is left for a later batch. It also
@@ -987,6 +1003,11 @@ const KIND_SETTLED_BY: Readonly<Record<string, ContextRequestKind | null>> = {
   declareResourcePool: null,
   declareSpellcasting: null,
   declareDawn: null,
+  // Nothing asks to be told a door exists: a command that needed one would be
+  // a command that knew what it was missing, and "there might be something
+  // here worth hitting" is not a fact with a shape. So it settles no kind, in
+  // the reading `declareLight` above already takes.
+  declareObject: null,
 };
 
 /**

@@ -236,6 +236,28 @@ export interface StatedAction {
  */
 export interface StatedValues {
   readonly armorClass?: number;
+  /**
+   * SRD "Damage Threshold": "A creature or an object that has a damage
+   * threshold has Immunity to all damage unless it takes an amount of damage
+   * from a single attack or effect equal to or greater than its damage
+   * threshold, in which case it takes that entire instance of damage."
+   *
+   * **A printed defensive number, so it sits beside the printed Armour
+   * Class.** That is not tidiness; it is what keeps the frozen fixtures
+   * frozen. The sheet is already pinned whole into `creature-added`, so a
+   * threshold reaches state, the fold and a reload with no new event field, no
+   * new region of `CreatureState` and no migration — where a field on the
+   * event or on `Vitals` would have needed all three.
+   *
+   * **Not expressible as a `DamageDefenses`**, which was the first thing
+   * checked: that record is three booleans per damage *type*, and a threshold
+   * is a comparison against the *size* of one instance across every type at
+   * once. Immunity to everything below ten is not immunity to anything.
+   *
+   * Absent for every character and every stat block the SRD prints, and absent
+   * means there is no threshold rather than a threshold of zero.
+   */
+  readonly damageThreshold?: number;
   readonly proficiencyBonus?: number;
   /**
    * The Initiative modifier a stat block prints, which need not equal the

@@ -37,6 +37,32 @@ import { actionRulesOn } from '../standing.js';
 export const ZERO_HIT_POINTS = 'zero hit points';
 
 /**
+ * How much damage a batch actually recorded, out of what was asked for.
+ *
+ * **One reader, because there is one reduction and several reports.**
+ * `damageCreature` is the single place damage becomes hit points lost, and
+ * therefore the single place a damage threshold can turn a blow aside — and
+ * every caller above it has already computed a number it is about to hand back
+ * to whoever asked. A report built from that number says "eleven" about a wall
+ * that did not feel it. So the reports read the event instead, through this,
+ * and a future reduction made in the same place is honest in all of them at
+ * once rather than in whichever one somebody remembered.
+ *
+ * It is here rather than beside `damageCreature` for the reason everything in
+ * this module is: three domains ask it — the Concentration save, a spell's
+ * report of what it dealt, and the tool surface's — and a helper filed in any
+ * one of them would make that domain a dependency of the other two.
+ *
+ * The fallback is what the caller asked for, which is the answer when no
+ * `damage-taken` was emitted at all: a duplicate command, or a refusal that
+ * never got here.
+ */
+export function damageTakenIn(events: readonly GameEvent[], asked: number): number {
+  const taken = events.find((event) => event.type === 'damage-taken');
+  return taken === undefined ? asked : taken.amount;
+}
+
+/**
  * Two questions about the spaces something crossed, and the values that tell
  * them apart.
  *
