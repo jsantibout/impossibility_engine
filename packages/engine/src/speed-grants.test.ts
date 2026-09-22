@@ -764,8 +764,8 @@ describe('every member of the change vocabulary has a user or a written reason',
     return found;
   };
 
-  it('declares the three the SRD writes and no more', () => {
-    expect(declared()).toEqual(['add', 'halve', 'zero']);
+  it('declares the four the SRD writes and no more', () => {
+    expect(declared()).toEqual(['add', 'halve', 'zero', 'match-walk']);
   });
 
   it('writes every member from some definition, or says why not', () => {
@@ -810,8 +810,15 @@ describe('every member of the change vocabulary has a user or a written reason',
         JSON.stringify(definition).includes(`"change":"${member}"`),
       ).map((definition) => definition.id);
 
-    expect(usedBy('add')).toEqual(['longstrider', 'ray-of-frost']);
+    // SRD Fly, "a Fly Speed of 60 feet", joined the two the walking Speed
+    // already had: a mode-named addition is the same operation, in one of the
+    // other four Speeds.
+    expect(usedBy('add')).toEqual(['fly', 'longstrider', 'ray-of-frost']);
     expect(usedBy('zero')).toEqual(['hypnotic-pattern']);
+    // SRD Spider Climb, "a Climb Speed equal to its Speed" — the member that
+    // exists because the number is the target's own and no definition could
+    // print it.
+    expect(usedBy('match-walk')).toEqual(['spider-climb']);
     // SRD Spirit Guardians, "Any other creature's Speed is halved in the
     // Emanation" — written as `areaStanding` rather than as an effect, because
     // it is derived from where a creature stands and granted to nobody.

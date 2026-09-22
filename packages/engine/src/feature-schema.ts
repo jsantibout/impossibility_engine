@@ -2,7 +2,7 @@ import { ABILITIES, err, ok, type Ability, type Result } from '@ie/shared';
 import { WEAPON_PROPERTIES } from '@ie/srd/schemas';
 import { WEAPON_CATEGORIES, WEAPON_KINDS, type WeaponSelector } from './attack.js';
 import { RESERVED_LEDGER_NAMESPACES } from './combat.js';
-import { ABILITY_SCORE_MAXIMUM } from './character.js';
+import { ABILITY_SCORE_MAXIMUM, MOVEMENT_MODES, type MovementMode } from './character.js';
 import { parseNotation } from './dice.js';
 import {
   MAX_LEVEL,
@@ -57,6 +57,86 @@ export interface FeatureDefinitionProblem {
   readonly field: string;
   readonly code: string;
   readonly reason: string;
+}
+
+/**
+ * The Speed a feature grants, held to the pairing a spell's is.
+ *
+ * SRD prints four features of this shape and they split two ways: three add
+ * feet to the walking Speed unqualified — Fast Movement, Roving, Unarmored
+ * Movement — and Second-Story Work gives a Climb Speed equal to the holder's
+ * Speed. One vocabulary says both, the same vocabulary a `speed` *effect*
+ * says SRD Fly and Spider Climb in, so there is one set of rules about it
+ * rather than two that will drift.
+ *
+ * Three refusals, each of them a reader that would otherwise never match:
+ *
+ * - **An operation that takes Speed away.** `speedOf` gathers a feature's
+ *   grant only under `add`, and {@link StandingGrant}'s own note says why —
+ *   "Speed reductions are not this member's business". A feature written
+ *   `halve` would compile onto the sheet and slow nobody.
+ * - **A match with no mode, or matching walking to itself.** The number would
+ *   be the number it already was.
+ * - **Feet beside a match.** Two numbers for one Speed, and the reader takes
+ *   neither.
+ *
+ * Exported because a feat's grant reaches the same union through
+ * `ownedStandingEffectProblems`, and a rule enforced on one of two doors is a
+ * rule with a hole in it.
+ */
+export function speedGrantProblems(
+  effect: { readonly change?: unknown; readonly feet?: unknown; readonly mode?: unknown },
+  at: string,
+): readonly FeatureDefinitionProblem[] {
+  const found: FeatureDefinitionProblem[] = [];
+  const change = effect.change ?? 'add';
+  const { feet, mode } = effect;
+
+  if (change !== 'add' && change !== 'match-walk') {
+    found.push({
+      field: `${at}.change`,
+      code: 'bad_speed_change',
+      reason: `a feature gives a Speed and does not take one away: "${String(change)}" is read by nothing, because \`speedOf\` gathers a feature's grant under "add" alone`,
+    });
+    return found;
+  }
+
+  if (mode !== undefined && !MOVEMENT_MODES.includes(mode as MovementMode)) {
+    found.push({
+      field: `${at}.mode`,
+      code: 'bad_speed_change',
+      reason: `"${String(mode)}" is not one of the five Speeds the SRD prints: ${MOVEMENT_MODES.join(', ')}`,
+    });
+  }
+
+  if (change === 'match-walk') {
+    if (mode === undefined || mode === 'walk') {
+      found.push({
+        field: `${at}.mode`,
+        code: 'bad_speed_change',
+        reason:
+          '"a Climb Speed equal to your Speed" names the mode it gives; matching the walking Speed to itself changes nothing',
+      });
+    }
+    if (feet !== undefined) {
+      found.push({
+        field: `${at}.feet`,
+        code: 'bad_speed_change',
+        reason:
+          'a matched Speed is the walking one, so these feet are a second number for one Speed and the reader takes neither',
+      });
+    }
+    return found;
+  }
+
+  if (!Number.isInteger(feet) || feet === 0) {
+    found.push({
+      field: `${at}.feet`,
+      code: 'bad_speed_change',
+      reason: `a Speed a feature adds to needs the number of feet, and a change of no feet is no change; this is ${String(feet)}`,
+    });
+  }
+  return found;
 }
 
 /**
@@ -891,13 +971,26 @@ export function checkFeatureDefinition(
   // `standing.effects` and `activated.whileActive` are both `StandingGrant[]`
   // and creation compiles both onto the sheet, so a guard on one of them is a
   // rule enforced on whichever spelling the author happened not to use.
+  // **And the Speed a feature grants, on both spellings for the same
+  // reason.** SRD Second-Story Work's "a Climb Speed equal to your Speed" is
+  // spelled exactly as SRD Spider Climb's is, so the pairing is held to the
+  // same rule: a mode only beside an operation that *gives* a Speed, a match
+  // only with a mode to give, and feet only with an `add`. A feature that
+  // halved one mode would be a sentence the book does not print, and one that
+  // matched the walking Speed to itself would compile onto a sheet and change
+  // nothing.
   for (const [at, effects] of [
     ['grants.effects', grant?.kind === 'standing' ? grant.effects : undefined],
     ['grants.whileActive', grant?.kind === 'activated' ? grant.whileActive : undefined],
   ] as const) {
     (effects ?? []).forEach((effect, index) => {
-      if (effect.kind !== 'action-rule') return;
-      checkActionRule(effect.rule, `${at}[${index}].rule`, found);
+      if (effect.kind === 'action-rule') {
+        checkActionRule(effect.rule, `${at}[${index}].rule`, found);
+        return;
+      }
+      if (effect.kind === 'speed') {
+        found.push(...speedGrantProblems(effect, `${at}[${index}]`));
+      }
     });
   }
 

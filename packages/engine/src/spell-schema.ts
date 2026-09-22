@@ -37,6 +37,7 @@ import { TURN_MOMENTS } from './time.js';
 import { type PayoutKind } from './timers.js';
 import type { DefenseKind } from './attack.js';
 import type { SpeedChange } from './standing.js';
+import { MOVEMENT_MODES, type MovementMode } from './character.js';
 import {
   ACTION_SLOTS,
   isStatablePrice,
@@ -123,7 +124,12 @@ const DEFENSE_KINDS: ReadonlySet<string> = new Set<DefenseKind>([
   'vulnerable',
 ]);
 /** The three operations {@link SpeedChange} names, as data, for untyped input. */
-const SPEED_CHANGES: ReadonlySet<string> = new Set<SpeedChange>(['add', 'halve', 'zero']);
+const SPEED_CHANGES: ReadonlySet<string> = new Set<SpeedChange>([
+  'add',
+  'halve',
+  'zero',
+  'match-walk',
+]);
 /** The three things {@link PayoutKind} hands over, as data, for untyped input. */
 const PAYOUT_KINDS: ReadonlySet<string> = new Set<PayoutKind>([
   'temporary-hit-points',
@@ -765,16 +771,19 @@ function checkSpeedChange(
   value: { readonly change?: unknown; readonly feet?: unknown },
   path: string,
   found: SpellDefinitionProblem[],
+  carries: SpeedModes = 'no-modes',
 ): void {
   const { change, feet } = value;
   if (typeof change !== 'string' || !SPEED_CHANGES.has(change)) {
     found.push({
       field: `${path}.change`,
       code: 'bad_speed_change',
-      reason: `"${String(change)}" is not something an effect does to a Speed; the SRD adds feet to one, halves one, or sets one to 0`,
+      reason: `"${String(change)}" is not something an effect does to a Speed; the SRD adds feet to one, halves one, sets one to 0, or gives one in a mode equal to the walking Speed`,
     });
     return;
   }
+
+  checkSpeedMode(value, change, path, found, carries);
 
   if (change === 'add') {
     if (!Number.isInteger(feet) || feet === 0) {
@@ -793,6 +802,90 @@ function checkSpeedChange(
       field: `${path}.feet`,
       code: 'bad_speed_change',
       reason: `"${change}" names the whole operation and the SRD prints no number beside it, so these feet are read by nothing`,
+    });
+  }
+}
+
+/**
+ * Whether the thing carrying a Speed change may also name a mode.
+ *
+ * Three carriers and only one of them may: the standalone `speed` effect is
+ * what SRD Fly and Spider Climb are written as, while the `speed-change`
+ * rider and `areaStanding` hold no `mode` field at all — a rider says "its
+ * Speed is reduced by 10 feet" and an area says "Speed is halved in the
+ * Emanation", and neither sentence is about a mode. Untyped JSON reaches all
+ * three, so the two that cannot read the field say so rather than dropping
+ * it.
+ */
+type SpeedModes = 'modes' | 'no-modes';
+
+function checkSpeedMode(
+  value: { readonly change?: unknown; readonly feet?: unknown },
+  change: string,
+  path: string,
+  found: SpellDefinitionProblem[],
+  carries: SpeedModes,
+): void {
+  const { mode, hover } = value as { readonly mode?: unknown; readonly hover?: unknown };
+
+  if (carries === 'no-modes') {
+    for (const [field, present] of [
+      ['mode', mode !== undefined],
+      ['hover', hover !== undefined],
+    ] as const) {
+      if (!present) continue;
+      found.push({
+        field: `${path}.${field}`,
+        code: 'bad_speed_change',
+        reason: `only the standalone \`speed\` effect names a mode; a rider and an area both say "its Speed" and nothing reads a ${field} here`,
+      });
+    }
+    if (change === 'match-walk') {
+      found.push({
+        field: `${path}.change`,
+        code: 'bad_speed_change',
+        reason:
+          '"match-walk" gives a Speed in a mode, and a rider and an area have no mode to give it in',
+      });
+    }
+    return;
+  }
+
+  // **A mode is legal on what gives a Speed and refused on what takes one
+  // away**, which is `speedOf`'s own ruling read back at the door: SRD writes
+  // Grappled's 0, Slow's halving and Ray of Frost's ten feet about the
+  // creature rather than about a mode, so a `halve` naming one would promise
+  // a narrowing no reader performs.
+  const gives = change === 'add' || change === 'match-walk';
+  if (mode !== undefined && !gives) {
+    found.push({
+      field: `${path}.mode`,
+      code: 'bad_speed_change',
+      reason: `"${change}" takes Speed away, and the SRD prints no sentence that takes it away in one mode and not another, so this mode is read by nothing`,
+    });
+  } else if (mode !== undefined && !MOVEMENT_MODES.includes(mode as MovementMode)) {
+    found.push({
+      field: `${path}.mode`,
+      code: 'bad_speed_change',
+      reason: `"${String(mode)}" is not one of the five Speeds the SRD prints: ${MOVEMENT_MODES.join(', ')}`,
+    });
+  }
+
+  if (change === 'match-walk' && (mode === undefined || mode === 'walk')) {
+    found.push({
+      field: `${path}.mode`,
+      code: 'bad_speed_change',
+      reason:
+        '"a Climb Speed equal to its Speed" names the mode it gives; matching the walking Speed to itself changes nothing',
+    });
+  }
+
+  if (hover !== undefined && (hover !== true || mode !== 'fly')) {
+    found.push({
+      field: `${path}.hover`,
+      code: 'bad_speed_change',
+      reason:
+        'hovering is the Fly Speed\'s exception to the fall and means nothing without one; the only value is true, beside a granted Fly Speed',
     });
   }
 }
@@ -1886,7 +1979,7 @@ function checkEffect(
     // escape and asks for no roll, so the pairing is the whole rule — shared
     // with the `speed-change` rider, which says the same sentence.
     case 'speed':
-      checkSpeedChange(effect, path, found);
+      checkSpeedChange(effect, path, found, 'modes');
       return;
 
     case 'action-rule':

@@ -1015,14 +1015,9 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
   'thief:second-story-work': [
     {
-      clause: 'movement has one speed and no modes',
-      why: 'movement-modes',
-      note: 'the Climb Speed half, refused outright because no rule asks about a mode.',
-    },
-    {
       clause: 'the longer running jump',
       why: 'jumping',
-      note: 'the spell map’s own id: jumping is not modelled, so a distance has nothing to be measured against.',
+      note: 'the spell map’s own id, and the whole of what is left now that the Climb Speed is granted: `longJumpDistance` prints the glossary’s distance off a Strength score and no grant adds feet to it.',
     },
   ],
   'thief:supreme-sneak': [

@@ -1002,6 +1002,13 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: the target "can’t make Opportunity Attacks until the start of its next turn". **The rule is writable and the deadline is not**, and gate G1 re-filed this entry because the id it carried said the opposite. `forbids` takes a named action away and leaves the rest of the budget alone — `NAMED_ACTIONS` lists `opportunity-attack` against this spell by name, and Stinking Cloud, Fear, Wind Walk and Magic Jar all write the vocabulary now. What stops this one is that a cantrip is Instantaneous, so the rider must carry a `lasts` of its own, and `RiderDuration` declares the start of the **caster’s** next turn and the end of the **target’s**, with no member for the start of the target’s. `Duration` beneath it has one — `start-of-next-turn` names any creature — so what is absent is a member of the content-facing vocabulary and the readers that expand it, which is engine work rather than a definition.',
     },
   ],
+  'spider-climb': [
+    {
+      clause: 'across vertical surfaces and along ceilings',
+      why: 'table',
+      note: 'SRD: "gains the ability to move up, down, and across vertical surfaces and along ceilings, while leaving its hands free". **The Climb Speed in the next sentence is executed and this is what is left.** A scene is a lattice of 5-foot cubes with landmarks and elevation, and no surfaces at all — there is no wall for the engine to say a creature may walk on, and inventing one would be the engine deciding where the room’s walls are. So the same line declared cover and declared sight already draw: the DM says which surface the spider took, and the engine charges the climb at the Climb Speed the spell gave it.',
+    },
+  ],
   sunbeam: [
     {
       clause: 'creates a new Line on a later turn',
@@ -1330,14 +1337,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'condition here means circumstance rather than any of the fifteen the engine applies: "it must be based on visual or audible conditions that occur within 30 feet of the object" is something the DM watches for, and whether a silver bell has rung is not a fact the engine holds.',
     },
   ],
-  fly: [
-    {
-      marker: 'speed',
-      clause: 'a Fly Speed of 60 feet and can hover',
-      why: 'movement-modes',
-      note: 'a Fly Speed of 60 feet and hovering: the engine tracks one Speed and no movement modes.',
-    },
-  ],
   jump: [
     {
       marker: 'movement-cost',
@@ -1352,14 +1351,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'creatures and objects that have the Invisible condition as if they were visible',
       why: 'table',
       note: 'seeing through the Invisible condition is declared, not derived: sight is a pairwise declaration and the condition’s own effects already read it, so the table declares the sight this spell grants.',
-    },
-  ],
-  'spider-climb': [
-    {
-      marker: 'speed',
-      clause: 'a Climb Speed equal to its Speed',
-      why: 'movement-modes',
-      note: 'a Climb Speed equal to its Speed, and walls and ceilings: the engine tracks one Speed and no movement modes.',
     },
   ],
   'plane-shift': [

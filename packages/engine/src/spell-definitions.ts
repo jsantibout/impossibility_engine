@@ -12,6 +12,7 @@ import type { DefenseKind } from './attack.js';
 import type { Bonus, BonusApplies, BonusNarrowing } from './bonuses.js';
 import type { RollModifier } from './roll-modifiers.js';
 import type { AreaStanding, SpeedChange } from './standing.js';
+import type { MovementMode } from './character.js';
 import type { ActionRule } from './combat.js';
 import type { PointAnchoring } from './positioning.js';
 import type { CastingTime } from './spells.js';
@@ -1663,8 +1664,27 @@ export type SpellEffect =
   | {
       readonly kind: 'speed';
       readonly change: SpeedChange;
-      /** Signed feet, required by `add` and refused by the other two. */
+      /** Signed feet, required by `add` and refused by the other three. */
       readonly feet?: number;
+      /**
+       * Which of the five Speeds the sentence is about. Absent is walking.
+       *
+       * SRD Fly, "a Fly Speed of 60 feet"; SRD Spider Climb, "a Climb Speed
+       * equal to its Speed". Legal beside the two operations that *give* a
+       * Speed and refused beside the two that take one away, because the book
+       * prints no sentence halving one mode and not another —
+       * {@link SpeedChange} is where that ruling is written down and
+       * `checkSpellDefinition` is where it is held.
+       */
+      readonly mode?: MovementMode;
+      /**
+       * SRD Fly's "and can hover".
+       *
+       * Only beside a granted Fly Speed, for the reason `OtherSpeeds.hover`
+       * is only beside a printed one: a creature that cannot fly cannot hover
+       * either, and the pair is what the fall reads.
+       */
+      readonly hover?: true;
     }
   /**
    * What the spell changes about how its target may spend a turn.
