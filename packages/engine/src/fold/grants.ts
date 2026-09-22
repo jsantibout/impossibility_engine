@@ -1,9 +1,11 @@
 /**
- * The ten families of granted modifier, and the one rule they share.
+ * The thirteen families of granted modifier, and the one rule they share.
  *
  * A bonus, an Armour Class, a roll modifier, a damage defence, a Speed, an
- * attack rider, a condition Immunity, a payout at a turn boundary and a rule
- * about what a turn may be spent on. **Re-granting from the same source
+ * attack rider, a condition Immunity, a payout at a turn boundary, a rule
+ * about what a turn may be spent on, a Reaction put in somebody's hands, a
+ * rule about regaining hit points, a hit point maximum held up, and a
+ * condition's benefit withheld. **Re-granting from the same source
  * replaces rather than stacks** in every one of them; what differs is only what
  * counts as the source's identity, which each case states where it departs.
  *
@@ -273,7 +275,7 @@ export function applyGrants({ state, next }: Applying, event: GrantsEvent): Game
           `an effect holds a hit point maximum up by a positive whole number, got ${event.adjustment.amount}`,
         );
       }
-      // Source-keyed like the ten above, so a re-cast replaces rather than
+      // Source-keyed like the eleven above, so a re-cast replaces rather than
       // stacks. **Nothing here touches the vitals**: the maximum is settled by
       // `settleHitPointMaximum` in the derived pass, which is the only place
       // that reads this list — because the *removals* are derived too, and one
