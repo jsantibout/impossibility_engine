@@ -198,7 +198,7 @@ export const MISSING_SHAPES = {
   'an-effect-that-fires-when-the-casting-ends':
     '`docs/design/time-and-turns.md`: "**Expiry is derived, like Concentration breaking** ... The log records the effect being scheduled, not expiring." Nothing hangs a consequence on the moment a casting runs out, so a spell that punishes its target when it lapses, or rewards a caster who held Concentration to the end, has no hook.',
   'senses-beyond-declared-sight':
-    'sight is a pairwise declaration and there is nothing else — `docs/design/rolls-and-damage.md` names the missing piece as "A sight clause read from the **attacker’s** side | Faerie Fire". Blindsight and Truesight are the attacker’s senses, so a spell that excuses them cannot be written.',
+    '**the attacker-side half is built and this is what is left.** `docs/design/light-and-sight.md` draws the line where it now falls: "the attacker-side sense reading (P2-T16), not this". A creature has held senses since `sensesOf` and `SENSES_THAT_SOMEHOW_SEE` landed; what a `RollSelector` had no room for was the *exception* — `unlessPerceivedWith` is that axis, `sensesPerceiving` is the reader, and Blur’s sentence excusing an attacker who perceives you with Blindsight or Truesight is finished by them. What is left is every sense clause that is not a modifier on a roll: a casting that **confers** a sense on a creature (the Darkvision spell, Gem of Seeing), one creature **borrowing** another’s (Find Familiar), and a sense that excuses its holder from an illusion or an area rather than from a die (Mirage Arcane). None of those is an attacker reading a sense off a roll, and none has state to sit in.',
   'what-a-creature-is-holding':
     '**Half of this is built, and the name now means the other half.** What `docs/design/characters-and-equipment.md` recorded — "Nothing checks that two hands are free, either." — is checked now: hands are a count on the sheet, what an item takes up is read off its printed record, a third thing in two hands is refused, and a casting may put a thing *into* a hand and hold it there for as long as it runs, which is what Goodberry’s ten berries and Flame Blade’s blade were waiting on. What is still missing is the verb that takes something **out** of a hand against its holder’s will: SRD Fear’s "drop whatever it is holding" and SRD Heat Metal’s save-or-drop are an effect no definition can write, and an ordinary thing let go of would land on a floor this engine does not keep. `dropConjured` is the door for a conjured thing, which simply ceases to exist, and it refuses everything else by name.',
   'targeting-rules-that-differ-within-one-casting':
@@ -237,8 +237,6 @@ export const MISSING_SHAPES = {
     'the **exceptions** to the general dismissal, which is built: `endOngoingSpell` ends a casting of the caster’s own by id and spends nothing, which is what SRD prints for a **Time Span** duration. What is left is what each claimant prints instead — `docs/design/casting.md`: "every one of those three prints an exception to it". Animal Shapes and Gaseous Form are ended by the **target** rather than by the caster; all three cost an action the book names where a dismissal costs none; and a casting that runs "Until dispelled" is refused outright, because the book gives its caster no ending at all.',
   'a-dc-the-caster-does-not-set':
     'every saving throw a spell forces is measured against the casting’s pinned `saveDc`. The audit names the asymmetry from the other side — "**Three members of the definition format have zero catalogue users**, not one: `roll-mode.save` ..., `SpellCheck.dc` ..., and `’end-casting’` as a `save.repeats.onSuccess` value" — so an *ability check* may already name a printed DC and a *saving throw* may not.',
-  'a-save-keyed-to-a-condition':
-    'a save selected by what it is *against* rather than by the ability that rolls it. `docs/design/rolls-and-damage.md` names it and names this spell: "A save keyed to a named **condition** rather than an ability | Protection from Poison", in the table of what the roll-modifier vocabulary deliberately does not reach. Distinct from `a-mode-on-the-save-a-spell-forces`, which is the caster’s own save seen from the other end — this one modifies a save some *other* effect will call for.',
   'a-condition-benefit-an-effect-takes-away':
     'a benefit the condition layer derives, switched off while the condition itself stays. Three SRD spells print the sentence — Faerie Fire, Starry Wisp, and Mind Spike’s "against you" — and PROGRESS.md already lists Faerie Fire among the clauses the roll vocabulary cannot reach. **The shape itself is built now**: the `benefit` rider hangs a denial off a settled outcome, and `benefitsFrom` is what all three readers of the Invisible condition’s benefits ask — including the Initiative Advantage, which nothing used to reach. What is left is one further shape each. Faerie Fire is finished — `save.condition` is optional, so its Dexterity save hangs this rider, and its 20-foot Cube is an ordinary `area` picking its own targets; Mind Spike narrows the denial to the caster alone, which is a-condition-benefit-an-effect-takes-away meeting the-effects-source-as-a-participant, and a blanket denial would be wrong for it rather than merely coarse; Shining Smite hangs the same sentence on an ongoing casting whose beneficiaries are everybody the casting did not target.',
   'a-random-outcome-that-is-not-a-d20':
@@ -581,13 +579,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'the area is Difficult Terrain',
       why: 'difficult-terrain-an-area-creates',
       note: 'SRD: "these tentacles turn the ground in that area into Difficult Terrain". The writer exists — `areaTerrain` on the definition pins the region the casting resolved and the ruler charges for it — and this definition does not carry it: the spell is level 4 and out of level-5 reach, so nobody has read it since. A reading, not a gap, and the shape’s own description says so.',
-    },
-  ],
-  blur: [
-    {
-      clause: 'Blindsight or Truesight',
-      why: 'senses-beyond-declared-sight',
-      note: 'SRD: "An attacker is immune to this effect if it perceives you with Blindsight or Truesight." Sight is a pairwise declaration and there is nothing else, so every attacker takes the Disadvantage and a Truesight attacker takes it wrongly.',
     },
   ],
   'chain-lightning': [
@@ -1031,13 +1022,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'remain within range for the spell',
       why: 'table',
       note: 'SRD: "Up to five creatures of your choice who remain within range for the spell\'s entire casting gain the benefits of a Short Rest". Range is measured against where the five stand when the rite settles, and nothing records where anybody stood for the ten minutes before it; a position history kept only so that one spell could read it would be a rule nothing else asks for, so whether they stayed is the DM\'s.',
-    },
-  ],
-  'protection-from-poison': [
-    {
-      clause: 'Advantage on saving throws to avoid or end the Poisoned condition',
-      why: 'a-save-keyed-to-a-condition',
-      note: 'SRD: "the target has Advantage on saving throws to avoid or end the Poisoned condition". A `RollModifier` selects a save by ability and by nothing else, so the nearest sayable thing is Advantage on every Constitution save the target ever makes — which is a different and much larger spell. The engine rolls those saves without it.',
     },
   ],
   'scorching-ray': [
@@ -1770,8 +1754,8 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
     {
       marker: 'condition',
       clause: 'if it has the Blinded condition, Blindsight, or Truesight',
-      why: 'senses-beyond-declared-sight',
-      note: 'whether the spell applies at all is decided by what the *attacker* can perceive. Sight here is a pairwise declaration and Blindsight and Truesight are senses no rule reads off an attacker, so the exception has nothing to consult.',
+      why: 'a-spell-that-answers-a-later-attack',
+      note: '**re-filed rather than retired**, and two pieces short rather than one. The sense half of this clause is built: a selector now carries `unlessPerceivedWith` and the attacker’s senses are read at the swing, which finished Blur’s. The Blinded half is not — that axis names senses and a condition is not one, so the first three words of this sentence have no field even now. And neither half has anything to except *from*: the duplicates are the spell, the deflection they perform answers somebody else’s attack after it has landed, and a casting is offered no window on another creature’s attack, which is the same absence Sanctuary, Shield and Fire Shield wait on and the blocker this is charged to. Retiring the entry when the sense axis landed would have read in the ledger as a finished spell.',
     },
   ],
   seeming: [
@@ -5663,12 +5647,15 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
       note: 'the whole of the entry. Rations feed a character in fiction and the engine has no hunger, no day and no nourishment, so there is nothing here the grant vocabulary is short of — and nothing for a record to carry either, which is rule 1 in packages/content/src/items.ts rather than a blocker.',
     },
   ],
+  // One id lighter: the Advantage on saves to avoid or end the Poisoned
+  // condition is writable now, on the same axis three species traits and
+  // Protection from Poison took. Four blockers stand, so the entry stays
+  // blocked and nothing about its pile changes.
   'belt-of-dwarvenkind': [
     'a-language-or-a-proficiency-an-item-grants',
     'a-bonus-narrowed-to-a-skill',
     'an-ability-score-a-spell-changes',
     'senses-beyond-declared-sight',
-    'a-save-keyed-to-a-condition',
   ],
   'belt-of-giant-strength': [
     'an-ability-score-a-spell-changes',
@@ -6034,7 +6021,11 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'a-stat-block-created-mid-fight',
     'a-selector-for-every-d20-test',
   ],
-  'necklace-of-adaptation': ['a-save-keyed-to-a-condition'],
+  // **Back to unread, which is the honest pile rather than a demotion.**
+  'necklace-of-adaptation': {
+    unread:
+      'its one grandfathered blocker was the condition-keyed save, and that axis is built: "Advantage on saving throws made to avoid or end the Poisoned condition" is now a standing roll mode an item grant can carry, on the same axis Fey Ancestry and Protection from Poison took. So nothing mechanical stands between this paragraph and a record — and a bare list of ids was never the reading that would say so. What is left is the other half of the sentence, "you can breathe normally in any environment", which somebody has to weigh against rule 1 in packages/content/src/items.ts before this becomes a record or a piece of fiction. Unread is the honest pile for that, and it is where an entry goes by default rather than by decision.',
+  },
   // **Placed, by the shape the re-derivation had to name anyway** — and then
   // read to the end of the paragraph, which is where the second blocker was.
   // The last reading left this unread because "the blocker it named is gone

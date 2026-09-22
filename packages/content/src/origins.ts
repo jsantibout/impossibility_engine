@@ -160,12 +160,21 @@ export const DWARF: SpeciesDefinition = {
       id: 'dwarf:dwarven-resilience',
       name: 'Dwarven Resilience',
       level: 1,
-      automation: 'manual',
-      note: 'Half of it is applied, which is why it is not marked as executed. "You have Resistance to Poison damage" is a standing grant that every hit is measured against. "Advantage on saving throws you make to avoid or end the Poisoned condition" is not: a roll selector names a family, an ability and a skill, and has no way to say which condition a save is about, so a DM gives that Advantage.',
+      automation: 'engine',
+      note: 'Applied whole, in the two halves the sentence has. "You have Resistance to Poison damage" is a standing grant that every hit is measured against. "Advantage on saving throws you make to avoid or end the Poisoned condition" is a roll mode keyed to the condition the save is about — the axis a selector gained for this trait and its three siblings — so the dwarf rolls two dice against Contagion and one against everything else her Constitution answers for.',
       grants: {
         kind: 'standing',
         reach: 'self',
-        effects: [{ kind: 'damage-resistance', damageTypes: ['poison'] }],
+        effects: [
+          { kind: 'damage-resistance', damageTypes: ['poison'] },
+          {
+            kind: 'roll-mode',
+            modifier: {
+              mode: 'advantage',
+              selector: { roll: 'saving-throw', relation: 'roller', condition: 'poisoned' },
+            },
+          },
+        ],
       },
     },
     {
@@ -225,8 +234,21 @@ export const ELF: SpeciesDefinition = {
       id: 'elf:fey-ancestry',
       name: 'Fey Ancestry',
       level: 1,
-      automation: 'manual',
-      note: 'Not applied: "Advantage on saving throws you make to avoid or end the Charmed condition" names a condition, and a roll selector names a family, an ability and a skill and has no condition axis. A DM gives the Advantage on those saves.',
+      automation: 'engine',
+      note: 'Applied: "Advantage on saving throws you make to avoid or end the Charmed condition" is a roll mode keyed to the condition, on the axis a selector gained for this trait and its three siblings. Both halves of "avoid or end" are the one grant — the save Charm Person forces and the save a turn boundary repeats against a charm already standing are the same sentence at two moments.',
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        effects: [
+          {
+            kind: 'roll-mode',
+            modifier: {
+              mode: 'advantage',
+              selector: { roll: 'saving-throw', relation: 'roller', condition: 'charmed' },
+            },
+          },
+        ],
+      },
     },
     {
       id: 'elf:keen-senses',
@@ -348,7 +370,7 @@ export const GOLIATH: SpeciesDefinition = {
       name: 'Powerful Build',
       level: 1,
       automation: 'manual',
-      note: 'Not applied: "Advantage on any ability check you make to end the Grappled condition" names a condition, and a roll selector names a family, an ability and a skill and has no condition axis. Counting as one size larger for carrying capacity reaches nothing either: the catalogue records a weight for every item and nothing adds them up, so there is no capacity to widen.',
+      note: 'Not applied: "Advantage on any ability check you make to end the Grappled condition" names a condition, and the condition axis a selector now carries is legal on a saving throw and refused on an ability check — no check roller says what it is about, so a grant written there would pick out nothing for ever. This is the trait the refusal names by way of apology. Counting as one size larger for carrying capacity reaches nothing either: the catalogue records a weight for every item and nothing adds them up, so there is no capacity to widen.',
     },
   ],
 };
@@ -364,8 +386,21 @@ export const HALFLING: SpeciesDefinition = {
       id: 'halfling:brave',
       name: 'Brave',
       level: 1,
-      automation: 'manual',
-      note: 'Not applied: "Advantage on saving throws you make to avoid or end the Frightened condition" names a condition, and a roll selector names a family, an ability and a skill and has no condition axis. A DM gives the Advantage on those saves.',
+      automation: 'engine',
+      note: 'Applied: "Advantage on saving throws you make to avoid or end the Frightened condition" is a roll mode keyed to the condition, on the axis a selector gained for this trait and its three siblings. It reaches the save that would frighten the halfling and no other Wisdom save she makes, which is the whole of the narrowing the trait needed.',
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        effects: [
+          {
+            kind: 'roll-mode',
+            modifier: {
+              mode: 'advantage',
+              selector: { roll: 'saving-throw', relation: 'roller', condition: 'frightened' },
+            },
+          },
+        ],
+      },
     },
     {
       id: 'halfling:halfling-nimbleness',

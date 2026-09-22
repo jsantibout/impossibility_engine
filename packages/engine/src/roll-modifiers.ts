@@ -1,6 +1,14 @@
-import type { Ability, CharacterId, RollMode, Skill } from '@ie/shared';
+import {
+  CONDITIONS,
+  type Ability,
+  type CharacterId,
+  type ConditionName,
+  type RollMode,
+  type Skill,
+} from '@ie/shared';
 import type { ModeSource } from './bonuses.js';
 import type { GameState } from './events.js';
+import { SENSE_NAMES, type SenseName } from './positioning.js';
 
 /**
  * Advantage and Disadvantage as a property of a *particular roll under
@@ -184,6 +192,79 @@ export interface RollSelector {
    * `counterpart`.
    */
   readonly counterpart?: CharacterId;
+  /**
+   * The senses that excuse an attacker from this modifier — the sense clause
+   * read on the **attacker's** side.
+   *
+   * SRD Blur: "any creature has Disadvantage on attack rolls against you. **An
+   * attacker is immune to this effect if it perceives you with Blindsight or
+   * Truesight.**" Two sentences, and the second is about what the *other*
+   * participant can perceive. Everything else on this selector narrows by what
+   * the roll *is* — its family, its ability, its skill, who the other creature
+   * is — and none of that could ask what that creature perceives with, so
+   * every attacker took the Disadvantage and a Truesight attacker took it
+   * wrongly.
+   *
+   * **It is not the sight question, and confusing the two would be the whole
+   * bug.** Ordinary sight is precisely what Blur defeats: a goblin staring
+   * straight at the wizard still rolls at Disadvantage, and a declared sight
+   * line must change nothing. So the fact this reads is
+   * `sensesPerceiving` — which senses of the roller actually reach the holder
+   * — and never `canSee` or `canSomehowSee`, both of which answer off a
+   * declaration first and would hand an immunity to every attacker the table
+   * had placed in the wizard's line of sight.
+   *
+   * **Legal only on `against-holder`**, and that is the direction of the one
+   * fact the engine records rather than a simplification: {@link
+   * RollQuery.rollerPerceives} says what the roller perceives the creature
+   * rolled against with, so the holder is the creature perceived and the
+   * counterpart is the perceiver. A `roller` selector would need the other
+   * direction, there is nowhere to read it from, and a modifier that could
+   * never switch off is the silent failure the validator exists to refuse.
+   *
+   * An empty list names no sense and is refused for the same reason: it reads
+   * as an exception and is none.
+   */
+  readonly unlessPerceivedWith?: readonly SenseName[];
+  /**
+   * The condition this saving throw is **about** — what it would avoid or end.
+   *
+   * The axis the SRD writes four times over and the vocabulary had no room
+   * for. Three species traits and one spell say the same sentence:
+   *
+   * > Dwarven Resilience: "You have Advantage on saving throws you make to
+   * > avoid or end the **Poisoned** condition."
+   * > Fey Ancestry, the **Charmed** condition; Brave, the **Frightened**;
+   * > Protection from Poison, the Poisoned again, granted to somebody else.
+   *
+   * A save was selected by its ability and by nothing else, so the nearest
+   * sayable thing was *Advantage on every Constitution saving throw the dwarf
+   * ever makes* — a different and much larger trait, and one that would help
+   * her resist a Disintegrate. This narrows it to the sentence.
+   *
+   * **"Avoid or end" is one field, not two**, because it is one save seen at
+   * two moments: a casting forces the avoiding, and a turn boundary repeats
+   * the ending against a condition already on the creature. Both arrive
+   * through {@link RollQuery.aboutConditions}, and the boundary derives its
+   * answer from the timer that names the condition instance rather than from
+   * a field on the debt, so the two can never disagree.
+   *
+   * **A list on the query and one name here**, because the SRD writes the
+   * imposing sentence plural — Hideous Laughter imposes "the Prone and
+   * Incapacitated conditions" on one Wisdom save — and the granting sentence
+   * singular. A save that is among other things about being Frightened is a
+   * save made to avoid the Frightened condition.
+   *
+   * **Legal only on a saving throw today**, and that is this engine's limit
+   * rather than the book's, so it is worth naming: SRD Powerful Build grants
+   * "Advantage on any ability check you make to end the Grappled condition",
+   * which is the same axis on the other family. No check roller says what it
+   * is about, so a selector naming one there would match nothing for ever —
+   * the silent failure {@link oneShotProblem} refuses for the same reason.
+   * The day an escape check carries its condition, the refusal below is the
+   * single place that stops refusing it.
+   */
+  readonly condition?: ConditionName;
 }
 
 /** A mode, and the rolls it reaches. */
@@ -281,6 +362,11 @@ export function rollModifierKey(source: string, selector: RollSelector): string 
     selector.ability ?? '',
     selector.skill ?? '',
     selector.counterpart ?? '',
+    // Sorted, because a list is a set here: naming Truesight and Blindsight is
+    // the same exception whichever order a definition wrote them in, and two
+    // spellings of one sentence must not become two grants.
+    [...(selector.unlessPerceivedWith ?? [])].sort().join(','),
+    selector.condition ?? '',
   ].join('|');
 }
 
@@ -319,6 +405,44 @@ export interface RollQuery {
    */
   readonly ability?: Ability;
   readonly skill?: Skill;
+  /**
+   * The senses with which the roller perceives the creature the roll is
+   * against — the attacker's side of a sense clause, gathered before the die.
+   *
+   * A fact and not a judgement, in the spirit of the rest of this type: it is
+   * `sensesPerceiving(state, roller, against)`, which is the roller's own
+   * senses filtered to those whose printed range reaches. **Not a sight
+   * answer** — a declared sight line is not in it and must not be, because the
+   * sentence that reads this ({@link RollSelector.unlessPerceivedWith}) is
+   * about a sense defeating an effect and not about seeing.
+   *
+   * Absent or empty means nobody perceives anything by a sense, which is the
+   * behaviour every roll in this engine had before the axis existed: the
+   * modifier applies. There is no third value, because a sense is a fact the
+   * engine holds outright rather than one the table declares.
+   */
+  readonly rollerPerceives?: readonly SenseName[];
+  /**
+   * The conditions this roll would **avoid or end**, where it is about any.
+   *
+   * What {@link RollSelector.condition} matches against, gathered by whoever
+   * rolls the save because only they know what it is for. Three places know:
+   * the resolver for a save whose failure imposes a condition, its sibling
+   * that also deals damage, and the turn boundary repeating a save against a
+   * condition already standing — the last reading the timer that names the
+   * instance, so the answer is derived rather than carried.
+   *
+   * **A list, because one save may impose several.** SRD Hideous Laughter
+   * imposes "the Prone and Incapacitated conditions" on one Wisdom save; a
+   * trait naming either of them reaches that save.
+   *
+   * Absent means nobody said what the roll was about, which a condition-keyed
+   * selector reads as a miss rather than a guess — the reading `against`
+   * already takes of a roll with no recorded target. Most saves the engine
+   * rolls are about nothing in particular, so an unkeyed Wisdom save is not
+   * the elf's sentence.
+   */
+  readonly aboutConditions?: readonly ConditionName[];
 }
 
 /**
@@ -358,6 +482,26 @@ export function selectorMatches(
 
   if (selector.ability !== undefined && selector.ability !== query.ability) return false;
   if (selector.skill !== undefined && selector.skill !== query.skill) return false;
+
+  // SRD Fey Ancestry: "Advantage on saving throws you make to avoid or end the
+  // Charmed condition." A save that is about several is about each of them, so
+  // membership rather than equality; a save nobody keyed is a miss, because an
+  // unkeyed Wisdom save is a different sentence from this one.
+  if (selector.condition !== undefined) {
+    const about = query.aboutConditions;
+    if (about === undefined || !about.includes(selector.condition)) return false;
+  }
+
+  // SRD Blur: "An attacker is immune to this effect if it perceives you with
+  // Blindsight or Truesight." The holder is the creature rolled against — the
+  // validator confines this to `against-holder` for exactly that reason — so
+  // the perceiver is the roller, and `rollerPerceives` is what its senses
+  // reach. A sense nobody has is not in the list, so an absent list applies
+  // the modifier, which is what the roll did before the axis existed.
+  if (selector.unlessPerceivedWith !== undefined) {
+    const perceived = query.rollerPerceives ?? [];
+    if (selector.unlessPerceivedWith.some((sense) => perceived.includes(sense))) return false;
+  }
 
   return true;
 }
@@ -445,6 +589,65 @@ export function rollSelectorProblems(
   if (selector.counterpart !== undefined) {
     const wrong = counterpartProblem(selector.roll);
     if (wrong !== null) found.push(wrong);
+  }
+
+  // The sense clause, and the three ways it describes an exception nothing
+  // could ever take. The vocabulary check is here rather than in the spell
+  // validator because both callers need it and the names are the engine's own
+  // closed list — the same reason `against_holder_without_target` is here.
+  if (selector.unlessPerceivedWith !== undefined) {
+    // **The shape before the vocabulary, because this validator meets
+    // homebrew.** Every field here arrives as `unknown` through
+    // `loadContent`, and inviolable rule 6 says a rules-legal refusal is a
+    // value: walking a number with `for…of` would throw a `TypeError` out of
+    // the one door an author's JSON comes through. A bare string is refused
+    // with the rest rather than iterated, which would report one `bad_sense`
+    // per letter.
+    if (!Array.isArray(selector.unlessPerceivedWith)) {
+      found.push({
+        code: 'perceived_with_is_not_a_list',
+        reason: 'a sense clause is a list of sense names — the senses that excuse an attacker',
+      });
+    } else {
+      for (const sense of selector.unlessPerceivedWith) {
+        if (!SENSE_NAMES.includes(sense)) {
+          found.push({
+            code: 'bad_sense',
+            reason: `"${String(sense)}" is not a sense the rules glossary names`,
+          });
+        }
+      }
+      if (selector.unlessPerceivedWith.length === 0) {
+        found.push({
+          code: 'perceived_with_names_no_sense',
+          reason: 'an exception that names no sense excuses nobody; leave the field off instead',
+        });
+      }
+      if (selector.relation !== 'against-holder') {
+        found.push({
+          code: 'perceived_with_off_against_holder',
+          reason:
+            'the engine records what the roller perceives the creature rolled against with, so a sense clause can only excuse an attacker — on a "roller" selector there is no direction to read and the exception would never apply',
+        });
+      }
+    }
+  }
+
+  // The condition a save is about. Two refusals, and the second is a limit of
+  // this engine rather than of the SRD — see {@link RollSelector.condition}.
+  if (selector.condition !== undefined) {
+    if (!CONDITIONS.includes(selector.condition)) {
+      found.push({
+        code: 'bad_condition',
+        reason: `"${String(selector.condition)}" is not one of the fifteen conditions the rules glossary names`,
+      });
+    }
+    if (selector.roll !== 'saving-throw') {
+      found.push({
+        code: 'condition_off_a_saving_throw',
+        reason: `only a saving throw says what it is about today, so naming a condition on a ${selector.roll} would pick out nothing for ever — the ability check that ends a Grapple is the next roll that will say, and this is the one place that refusal is written`,
+      });
+    }
   }
 
   return found;
@@ -545,6 +748,21 @@ export interface SpentRollModifier {
  *
  * Sorted by holder and then source, because the answer reaches the log and two
  * readers of one state have to agree about the order.
+ *
+ * **A grant whose exception this query did not answer is not spent**, and
+ * that is the one place the two walks are allowed to differ. The rule is "the
+ * roll it reached", and {@link RollSelector.unlessPerceivedWith} is part of
+ * reaching: a spender whose query left {@link RollQuery.rollerPerceives}
+ * unset cannot tell whether the grant applied, and spending on a fact nobody
+ * gathered would use up a sentence that changed nothing. Absence is "nobody
+ * asked" rather than "nobody perceives, so it applied" — the asymmetry is
+ * deliberate, because the conservative direction differs between the two
+ * questions: a gatherer that does not know applies the benefit and says so,
+ * and a spender that does not know spends nothing. No printed effect combines
+ * the two flags today; the day one does, a call site that has not been taught
+ * to gather the fact leaves the grant standing rather than eating it, and
+ * refusing the pairing outright — the move `oneShotProblem` makes for a family
+ * nothing can end on — is the definition validator's to add.
  */
 export function consumedRollModifiers(
   state: GameState,
@@ -559,6 +777,12 @@ export function consumedRollModifiers(
     const sources = new Set<string>();
     for (const held of creature.rollModifiers) {
       if (held.modifier.oneShot !== true) continue;
+      if (
+        held.modifier.selector.unlessPerceivedWith !== undefined &&
+        query.rollerPerceives === undefined
+      ) {
+        continue;
+      }
       if (!selectorMatches(held.modifier.selector, holder as CharacterId, query)) continue;
       sources.add(held.source);
     }

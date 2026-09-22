@@ -12,6 +12,7 @@ import {
   type Ability,
   ABILITY_NAMES,
   type CharacterId,
+  type ConditionName,
   err,
   ok,
   type Result,
@@ -34,6 +35,7 @@ import {
   effectiveConditions,
   electableCastingDamage,
   rollModesFor,
+  sensesPerceiving,
   standingBonuses,
   standingCheckBonuses,
   standingSaveBonuses,
@@ -443,6 +445,16 @@ export function mergedModes(
  * apply it twice. The conditions come back too: a feature can say a condition
  * has no effect on this creature right now, and every roll that reads
  * conditions has to read that instead.
+ *
+ * **And what the save is *about*, where the caller knows.** SRD Fey Ancestry
+ * grants Advantage "on saving throws you make to avoid or end the Charmed
+ * condition", and a gatherer that could not be told which save this is would
+ * hand an elf that Advantage on every Wisdom save she ever made. Only the
+ * caller knows: a casting's resolver reads its own condition riders, and the
+ * turn boundary reads the timer whose condition its repeat would end. A caller
+ * with none says nothing, and a condition-keyed selector reads that as a miss
+ * rather than a guess — which is every Concentration check, every
+ * Counterspell save and every save a DM simply calls for.
  */
 export function savingSupport(
   state: GameState,
@@ -453,6 +465,8 @@ export function savingSupport(
     readonly bonuses?: readonly Bonus[] | undefined;
     readonly modes?: readonly (RollMode | ModeSource)[] | undefined;
   },
+  /** The conditions this save would avoid or end, where it is about any. */
+  about?: readonly ConditionName[],
 ): {
   readonly bonuses: readonly Bonus[];
   readonly modes: readonly (RollMode | ModeSource)[];
@@ -481,7 +495,19 @@ export function savingSupport(
   return {
     bonuses: [...merged.values()],
     modes: mergedModes(
-      rollModesFor(state, { family: 'saving-throw', roller: who, ability }).modes,
+      rollModesFor(state, {
+        family: 'saving-throw',
+        roller: who,
+        ability,
+        // Passed through exactly as the caller answered, empty included — the
+        // rule `rollerPerceives` follows on an attack. Absent is "nobody
+        // asked" and an empty list is "asked, and this save is about no
+        // condition at all", which SRD Slow's failure really is: three grants
+        // and nothing imposed. Both read as a miss on a condition-keyed
+        // selector, and collapsing one into the other here would make that
+        // agreement a coincidence rather than a rule.
+        ...(about === undefined ? {} : { aboutConditions: about }),
+      }).modes,
       supply.modes ?? [],
     ),
     conditions: effectiveConditions(state, who),
@@ -600,6 +626,18 @@ export function defendingModes(
       roller: attacker,
       against: target,
       ...(ability === undefined || ability === null ? {} : { ability }),
+      // SRD Blur: "An attacker is immune to this effect if it perceives you
+      // with Blindsight or Truesight." The **attacker's** senses, read at the
+      // one roll that has two participants, so a selector on the defender can
+      // be switched off by what the creature rolling can perceive.
+      //
+      // `sensesPerceiving`, and deliberately neither `canSee` nor
+      // `canSomehowSee`: both of those answer a sentence about *seeing* and
+      // put the table's declaration first, and ordinary sight is precisely
+      // what Blur defeats. The declared line above is Dodge's clause and
+      // rightly keeps its own reader; this is a different question about the
+      // same pair, asked from the other end.
+      rollerPerceives: sensesPerceiving(state, attacker, target),
     },
     { seenByHolder: canSee(state, target, attacker) },
   );
