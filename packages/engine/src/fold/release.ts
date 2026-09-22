@@ -101,6 +101,8 @@ const grantsOf = (creature: CreatureState): HeldGrants => ({
   payouts: creature.payouts,
   actionRules: creature.actionRules,
   grantedReactions: creature.grantedReactions,
+  healingRules: creature.healingRules,
+  hitPointMaxima: creature.hitPointMaxima,
 });
 
 /** How many grants are in a record of families, which a `filter` can only lower. */

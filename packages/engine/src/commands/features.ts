@@ -39,6 +39,7 @@ import { type CommandIdentity, once } from '../idempotency.js';
 import { conferredSource, featureSource, hungSource } from '../progression.js';
 import { remaining } from '../resources.js';
 import { type RollIssuer, rollRecorded } from '../rolls.js';
+import { healingRuleOf, maximisedHealing } from '../vitals.js';
 import { isCreatureType, statedDamageType, type SpellEffect } from '../spell-definitions.js';
 import {
   type ActivatedFeature,
@@ -464,9 +465,23 @@ export function useSelfHeal(
       events.push(spent.value);
     }
 
-    events.push({ type: 'resource-spent', id, key: definition.pool, amount: 1 });
+    // **The stamp goes on the use, not on the healing** — `useRecovery`'s
+    // shape, one command along, and for a reason that only arrived with a rule
+    // that can forbid healing. A batch's command id is recorded by whichever
+    // event carries it, and the `healed` event is the one event of this batch
+    // that a `prevented` rule can take away: a Fighter under a Chill Touch
+    // spent the use, healed nothing, recorded no id, and was free to spend the
+    // use again. The use is the thing that always happens, so the stamp
+    // belongs on it.
+    events.push({
+      type: 'resource-spent',
+      id,
+      key: definition.pool,
+      amount: 1,
+      ...(stamp === null ? {} : { command: stamp }),
+    });
 
-    const healed = rollAndHeal(state, id, definition, definition.name, supply, stamp);
+    const healed = rollAndHeal(state, id, definition, definition.name, supply);
     if (!healed.ok) return healed;
     events.push(...healed.value);
 
@@ -481,6 +496,13 @@ export function useSelfHeal(
  * the cap at the hit point maximum live in one place. The caller has already
  * refused a dead creature — this rolls, so everything that could say no must
  * have said it.
+ *
+ * **It carries no command stamp, and both callers put theirs on the use.** A
+ * rule standing in front of healing can take the `healed` event away entirely,
+ * and a batch whose only stamped event is the one that may not be emitted
+ * records no id at all — so the stamp belongs on the `resource-spent` that
+ * always happens. `useSelfHeal` says it at the call site; `useRecovery` has
+ * done it that way since it was written.
  */
 function rollAndHeal(
   state: GameState,
@@ -488,13 +510,24 @@ function rollAndHeal(
   heal: HealAmount,
   name: string,
   supply: { readonly issuer: RollIssuer; readonly rng: Rng },
-  stamp: CommandStamp | null,
 ): Result<GameEvent[]> {
   const creature = creatureOf(state, id);
   if (creature === null) return unknownCreature(id);
 
   const issuedBefore = supply.issuer.count;
-  const rolled = rollRecorded(supply.issuer, supply.rng, heal.dice);
+  // **And what this creature's own running effects say about the dice.** SRD
+  // Beacon of Hope maximises "any healing", and a Second Wind spent by a
+  // Fighter standing in one is healing the phrase reaches as squarely as a
+  // Cure Wounds does — the rule is the recipient's, not the caster's, and here
+  // the two are the same creature.
+  const rolled = rollRecorded(
+    supply.issuer,
+    supply.rng,
+    heal.dice,
+    healingRuleOf(creature.healingRules) === 'maximised'
+      ? [maximisedHealing('the maximum possible')]
+      : [],
+  );
   if (!rolled.ok) return rolled;
 
   // The abilities as they stand. `selfHealAddend` says the ability case is
@@ -521,9 +554,7 @@ function rollAndHeal(
       outcome: `${amount} hit points`,
     },
     { type: 'rolls-issued', count: supply.issuer.count - issuedBefore, rng: supply.rng.snapshot() },
-    ...done.value.map((event) =>
-      event.type === 'healed' && stamp !== null ? { ...event, command: stamp } : event,
-    ),
+    ...done.value,
   ]);
 }
 
@@ -633,7 +664,7 @@ export function useRecovery(
     ];
 
     if (definition.heal !== undefined && !creature.vitals.dead) {
-      const healed = rollAndHeal(state, id, definition.heal, definition.name, supply, null);
+      const healed = rollAndHeal(state, id, definition.heal, definition.name, supply);
       if (!healed.ok) return healed;
       events.push(...healed.value);
     }

@@ -4165,7 +4165,17 @@ export function advanceCharacter(
 
   const events: GameEvent[] = [];
 
-  const gained = plan.value.hitPointMaximum - creature.vitals.hpMax;
+  // **The maximum the class table is answerable for, not the one on the
+  // sheet.** A hit point maximum is the single number in `GameState` that is
+  // folded rather than derived, and a running effect may be holding it up —
+  // SRD Aid's five for eight hours. Subtracting the *effective* maximum made
+  // the level's own hit points five short, and the five that were missing went
+  // away with the spell, so a character who levelled during an Aid was
+  // permanently poorer for it. `Vitals.hpMaxAdjustment` is exactly what has to
+  // come off first, and the grant that put it there is untouched by any of
+  // this: the derived pass adds it back on top of the new level.
+  const standing = creature.vitals.hpMax - creature.vitals.hpMaxAdjustment;
+  const gained = plan.value.hitPointMaximum - standing;
   if (gained > 0) events.push({ type: 'hit-point-maximum-raised', id, amount: gained });
 
   // Pools that already exist grow; pools that did not exist are declared; a

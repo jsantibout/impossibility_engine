@@ -1,5 +1,5 @@
 import { err, ok, type Result, type RollMode } from '@ie/shared';
-import type { Rng } from './dice.js';
+import type { DieEffect, Rng } from './dice.js';
 import type { Bonus, ModeSource } from './bonuses.js';
 import { rollD20Test } from './checks.js';
 import { type RecordedD20, type RollIssuer } from './rolls.js';
@@ -14,6 +14,31 @@ import { type RecordedD20, type RollIssuer } from './rolls.js';
 export interface Vitals {
   readonly hp: number;
   readonly hpMax: number;
+  /**
+   * How much of {@link hpMax} a running effect put there.
+   *
+   * SRD Aid: "Each target's Hit Point maximum and current Hit Points increase
+   * by 5 for the duration." The maximum is the one number in `GameState` that
+   * is genuinely **folded rather than derived** — creation states it and
+   * advancement moves it — so a spell that holds it up for eight hours leaves
+   * two facts where there was one, and both are read.
+   *
+   * `hpMax` stays the *effective* maximum, because that is what every rule
+   * already asks it for: the cap on healing, the Massive Damage threshold, the
+   * ceiling a recovery counts against. What this adds is the part of it that
+   * is on loan, so `hpMax - hpMaxAdjustment` is the number the class table
+   * says — which is exactly what `advanceCharacter` has to subtract from the
+   * new level's total. Without it, a level-up taken while Aid was running
+   * granted five hit points fewer than the level was worth, and the five went
+   * away with the spell.
+   *
+   * Nothing writes it directly. `settleHitPointMaximum` is the one mover, run
+   * from the fold's derived pass over the grants a creature is carrying, so
+   * the release path every other grant already has — a dispel, a broken
+   * Concentration, a deadline, the caster leaving — gives the maximum back
+   * without anybody emitting an event to say so.
+   */
+  readonly hpMaxAdjustment: number;
   readonly temporaryHp: number;
   /** 0 to 2; the third converts to Stable and resets. */
   readonly deathSaveSuccesses: number;
@@ -36,6 +61,7 @@ export function vitals(hpMax: number, over: Partial<Vitals> = {}): Vitals {
   return {
     hp: hpMax,
     hpMax,
+    hpMaxAdjustment: 0,
     temporaryHp: 0,
     deathSaveSuccesses: 0,
     deathSaveFailures: 0,
@@ -44,6 +70,113 @@ export function vitals(hpMax: number, over: Partial<Vitals> = {}): Vitals {
     diesAtZero: false,
     ...over,
   };
+}
+
+/**
+ * What a running effect has said about this creature regaining hit points.
+ *
+ * Two sentences, pushing opposite ways, and the SRD writes both about the
+ * same arithmetic:
+ *
+ * > Beacon of Hope: each target "regains the **maximum** number of Hit Points
+ * > possible from any healing."
+ * > Chill Touch: on a hit "it **can't regain Hit Points** until the end of
+ * > your next turn."
+ *
+ * **Two members rather than a number**, because neither sentence is an amount.
+ * `maximised` is about the *dice* — it reaches the roll, through the same
+ * `DieEffect.substitute` that Great Weapon Fighting uses, so the log still
+ * shows what was thrown beside what it counted as — and `prevented` is about
+ * the *event*, so the door emits nothing at all. A scale from "none" to "all"
+ * would make the two one axis, and they are not: a maximised heal that is also
+ * forbidden restores nothing, which is `prevented` winning rather than a
+ * larger number losing.
+ */
+export type HealingRule = 'maximised' | 'prevented';
+
+/** A healing rule a running effect hung on a creature, ended by its source. */
+export interface GrantedHealingRule {
+  readonly source: string;
+  readonly rule: HealingRule;
+}
+
+/** A hit point maximum a running effect is holding up, ended by its source. */
+export interface GrantedHitPointMaximum {
+  readonly source: string;
+  /** Always positive: SRD Aid's five, and the five more each slot level buys. */
+  readonly amount: number;
+}
+
+/**
+ * Which rule stands, out of everything hung on one creature.
+ *
+ * **A refusal beats a maximisation**, because the two sentences are not on one
+ * scale: "can't regain Hit Points" is about whether any are regained at all
+ * and "the maximum possible" is about how many the dice are worth. A creature
+ * under both regains nothing, and nothing is what the larger number would have
+ * been multiplied by.
+ */
+export function healingRuleOf(rules: readonly GrantedHealingRule[]): HealingRule | null {
+  if (rules.some((held) => held.rule === 'prevented')) return 'prevented';
+  return rules.some((held) => held.rule === 'maximised') ? 'maximised' : null;
+}
+
+/**
+ * Every die counts as its own maximum face.
+ *
+ * SRD Beacon of Hope: "regains the maximum number of Hit Points possible from
+ * any healing." The dice are still thrown and still recorded — `DieRoll` keeps
+ * `rolled` beside `value`, and the effect's name is the `cause` — so the log
+ * says what the d8s showed and why they counted for eight. The alternative,
+ * skipping the roll and taking the notation's bound, would be a number with no
+ * provenance in a log whose whole job is provenance.
+ */
+export const maximisedHealing = (name: string): DieEffect => ({
+  name,
+  substitute: (_rolled, sides) => sides,
+});
+
+/**
+ * Bring a creature's maximum in line with what is currently holding it up.
+ *
+ * The one mover of {@link Vitals.hpMaxAdjustment}, run from the fold's derived
+ * pass rather than from an event, because the *endings* are derived too:
+ * `releaseCasting`, `releaseGrants` and the expiry pass all take a grant off by
+ * filtering an array, and none of them emits anything the maximum could hang
+ * on.
+ *
+ * **Up carries the hit points with it; down only clamps them.** SRD Aid says
+ * both halves — "Hit Point maximum **and** current Hit Points increase by 5" —
+ * because the five were never lost. When it ends, a target wounded below the
+ * ordinary maximum keeps what it has and only a total above the new ceiling
+ * comes down, which is the same asymmetry every reading of Aid arrives at.
+ *
+ * **A creature at 0 hit points, or dead, keeps its hit points.** Raising them
+ * would lift the Unconscious that having none caused, and the SRD lifts that
+ * "until you regain any Hit Points" — which a maximum does not do. A creature
+ * carried to 5 by an Aid while still Unconscious from nothing is a state the
+ * rules do not describe, so the maximum rises alone and the dying go on dying.
+ * This is a reading rather than a printed sentence, and it is the one thing in
+ * this function a table might settle the other way; `healing-and-hit-point-maxima.test.ts`
+ * drives both creatures so that changing it is a decision rather than a drift.
+ *
+ * **There is no floor, because nothing can reach one.** `adjustment` is a sum
+ * of raises: the effect kind carries no reduction, `checkSpellDefinition`
+ * refuses a non-positive amount at authoring and the fold refuses one in the
+ * log, so `base + adjustment` can never fall below the maximum the creature
+ * was born with. A `Math.max(1, …)` here would be a guard for the reduction
+ * that is deliberately not built, written before the rule it guards.
+ */
+export function settleHitPointMaximum(v: Vitals, adjustment: number): Vitals {
+  const base = v.hpMax - v.hpMaxAdjustment;
+  const hpMax = base + adjustment;
+  if (hpMax === v.hpMax) return v;
+
+  const gained = hpMax - v.hpMax;
+  const hp =
+    gained > 0 ? (v.dead || v.hp === 0 ? v.hp : v.hp + gained) : Math.min(v.hp, hpMax);
+
+  return { ...v, hpMax, hpMaxAdjustment: adjustment, hp };
 }
 
 /** At 0 hit points and still in the fight — Unconscious, not dead. */

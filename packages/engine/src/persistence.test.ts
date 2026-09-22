@@ -250,6 +250,8 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'feature-used',
   'free-interaction-used',
   'healed',
+  'healing-rule-granted',
+  'hit-point-maximum-adjusted',
   'hit-point-maximum-raised',
   'initiative-swapped',
   'item-equipped',

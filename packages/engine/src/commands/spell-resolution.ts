@@ -147,6 +147,8 @@ import {
 import {
   resolveHealEffect,
   resolveTempHpEffect,
+  resolveHealingRuleEffect,
+  resolveHitPointMaximumEffect,
   resolveTurnPayoutEffect,
 } from './spell-effect-hit-points.js';
 import {
@@ -1776,6 +1778,10 @@ function resolveOneEffect(
       return resolveHealEffect(ctx, effect, target, victim, world);
     case 'turn-payout':
       return resolveTurnPayoutEffect(ctx, effect, target, world);
+    case 'healing-rule':
+      return resolveHealingRuleEffect(ctx, effect, target, world);
+    case 'hit-point-maximum':
+      return resolveHitPointMaximumEffect(ctx, effect, target, world);
     case 'save-damage':
       return resolveSaveDamageEffect(ctx, effect, target, victim, world);
     case 'save':

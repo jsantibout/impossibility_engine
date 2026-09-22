@@ -140,7 +140,7 @@ export const MISSING_SHAPES = {
   'a-standing-effect-derived-from-where-a-creature-stands':
     'a value derived from current state *and* current geometry rather than from a pair of enter-and-leave events that have to stay matched. `docs/design/casting.md`: "A standing effect derived from where a creature is standing | Spirit Guardians’ halved Speed, every Paladin aura"; PROGRESS.md ranks it above automatic drift.',
   'healing-modified-by-an-effect':
-    '`healCreature` rolls its dice and caps at the maximum, and nothing stands beside it to forbid the healing or to maximise it. The audit (§3.5) reads Chill Touch’s "can’t regain Hit Points" as a rule the engine owns; Beacon of Hope is the same sentence pushing the other way.',
+    'the audit (§3.5) read Chill Touch’s "can’t regain Hit Points" as a rule the engine owns, and Beacon of Hope as the same sentence pushing the other way: `healCreature` rolled its dice and capped at the maximum with nothing standing beside it to forbid the healing or to maximise it. **Both halves of that are built**: `HealingRule` is an eleventh sourced grant with two members, `prevented` makes the healing door emit nothing at all, `maximised` reaches the dice through the same substitution Great Weapon Fighting uses, and a casting, a rider’s own deadline and a dispel all end one — which is Beacon of Hope and Chill Touch whole. The phrase **any** healing is read literally rather than narrowed to a spell: `healCreature` is the one door every restoration but a rest goes through, and all three places the engine throws healing dice consult the rule — a `heal` effect, a turn boundary’s payout and a feature’s own self-heal. The one path that does not is `rest.ts`, which writes its `healed` events itself; no sentence of this shape can reach it, because Beacon of Hope runs for a minute and Chill Touch for a turn while the shortest rest is an hour. What is still missing under this name is a rule the engine has no *door* for rather than no vocabulary: an item or a stat block that says what may restore hit points to a thing at all (the Homunculus repaired over a Long Rest), and the item grants that would hang one, since only a spell effect and a rider can write the rule today.',
   'a-flat-amount-with-no-dice':
     '`DiceScaling.dice` **was** required, so a spell that healed or harmed by a printed number — or by the whole of the target’s maximum — rather than by a notation could not say so. The audit names it while re-scoping condition removal: "Heal (needs flat-only healing — `DiceScaling.dice` is required, one-line format question)". **The printed half is built**: the notation is optional, an amount may carry a `flat` alone, and `flatPerSlotLevelAbove` grows it — which is Heal’s seventy and its ten per slot level exactly, so Heal is a content tranche away rather than an engine one. What is still missing under this name is an amount **derived** rather than printed: the whole of a target’s maximum, and a number computed from the feet a creature was moved.',
   'an-exhaustion-level-a-spell-changes':
@@ -148,7 +148,7 @@ export const MISSING_SHAPES = {
   'healing-that-raises-the-dead':
     'PROGRESS.md ranks "Healing that lifts a condition, **raises the dead**, or raises the maximum"; `docs/design/spell-definitions.md` states the refusal it has to get past — "hit points alone will not raise the dead — `healCreature` refuses a corpse, and the refusal costs no slot".',
   'a-hit-point-maximum-a-spell-moves':
-    'the maximum is set when a creature is added and by advancement, and no effect moves it. PROGRESS.md ranks "Healing that lifts a condition, raises the dead, or raises the maximum"; the audit names Harm’s reduction as debt.',
+    'PROGRESS.md ranked "Healing that lifts a condition, raises the dead, or raises the maximum" and the audit named Harm’s reduction as debt: the maximum was set when a creature is added and by advancement, and no effect moved it. **The raise is built**: `hit-point-maximum` is a twelfth sourced grant, `settleHitPointMaximum` reconciles `Vitals.hpMax` in the fold’s derived pass so every ending gives it back, and `advanceCharacter` subtracts the *unadjusted* maximum so a level taken mid-spell is worth the whole of its level — which is Aid and its slot scaling whole. Three things are still missing under this name and each is its own sentence. **A reduction**: Harm’s, the Berserker Axe’s, and Greater Restoration ending one — every SRD sentence that lowers a maximum is fastened to damage already taken, so the clause that makes it mean something is the half that is absent. **A maximum that cannot be reduced**, which is Aura of Life and is a refusal rather than an amount. **And a rolled one**: Heroes’ Feast’s 2d10, refused at authoring (`rolled_hit_point_maximum`) because a die thrown once and then carried for hours is a number the log cannot account for. A *feature* that raises a maximum is a different absence again — see the feature ledger.',
   'difficult-terrain-an-area-creates':
     'Difficult Terrain is charged exactly and **declared by the foot** on the move that crosses it (`MoveCommand.difficultFeet`). Deriving it from a spell’s area needs the path a move does not record — CLAUDE.md’s own named gap — so five executed areas are invisible to the ruler. The audit counts "three Difficult Terrain areas" among the clauses that are rules rather than fiction.',
   'an-area-that-moves-by-itself':
@@ -489,13 +489,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: "If the target is an Aberration, a Celestial, an Elemental, a Fey, or a Fiend, the target doesn’t return if the spell lasts for 1 minute. The target is instead transported to a random location on a plane (GM’s choice) associated with its creature type." The creature type is no longer the blocker — an effect reads one now — and neither half of what is left is about it: nobody was transported to a demiplane, so there is nothing to fail to return from, and the plane it would go to instead is a second place the engine has nowhere to put anybody.',
     },
   ],
-  'beacon-of-hope': [
-    {
-      clause: 'the maximum number of Hit Points',
-      why: 'healing-modified-by-an-effect',
-      note: 'SRD: "regains the maximum number of Hit Points possible from any healing." That is an instruction to the *next* healing roll, and `healCreature` rolls its dice with nothing standing beside it to maximise them.',
-    },
-  ],
   befuddlement: [
     {
       clause: 'stops the target casting spells',
@@ -539,13 +532,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'only the first target must be seen',
       why: 'targeting-rules-that-differ-within-one-casting',
       note: 'SRD requires sight of the first target only. One sight requirement is checked against every target named, so this casting demands four declared sight lines where the book demands one.',
-    },
-  ],
-  'chill-touch': [
-    {
-      clause: 'cannot regain Hit Points',
-      why: 'healing-modified-by-an-effect',
-      note: 'SRD: "it can’t regain Hit Points until the end of your next turn." Healing is the engine’s arithmetic from end to end, and nothing can stand in front of it and refuse — so a Cure Wounds lands that the spell had forbidden.',
     },
   ],
   'chromatic-orb': [
@@ -1591,14 +1577,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'deals 5d8 Fire damage to each creature that ends its turn within 10 feet of that side',
       why: 'damage-with-neither-an-attack-roll-nor-a-save',
       note: 'damage that lands with no attack roll and no saving throw at all, on a turn boundary `AreaTrigger` can already name. Every damage-bearing effect kind the format has hangs off a roll, so this one has nothing to be written as even once the wall exists.',
-    },
-  ],
-  aid: [
-    {
-      marker: 'hit-points',
-      clause: "Each target's Hit Point maximum and current Hit Points increase by 5",
-      why: 'a-hit-point-maximum-a-spell-moves',
-      note: 'the five hit points are ordinary and the maximum is not: `vitals.ts` raises a current total and caps it at the maximum, and nothing moves the maximum itself for a span and then moves it back when the span runs out.',
     },
   ],
   barkskin: [

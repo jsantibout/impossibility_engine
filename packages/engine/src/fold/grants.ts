@@ -17,7 +17,14 @@ import { actionRuleKey } from '../combat.js';
 import { rollModifierKey } from '../roll-modifiers.js';
 import type { GameEvent } from '../events.js';
 import type { GameState } from '../state.js';
-import { creatureOf, withCreature, seamOf, unhandledEvent, type Applying } from './common.js';
+import {
+  CorruptLogError,
+  creatureOf,
+  withCreature,
+  seamOf,
+  unhandledEvent,
+  type Applying,
+} from './common.js';
 import { releaseGrants } from './release.js';
 
 /** The event types this seam owns. Every one of them, and no other seam's. */
@@ -32,6 +39,8 @@ export const GRANTS_EVENTS = [
   'turn-payout-granted',
   'action-rule-granted',
   'reaction-granted',
+  'healing-rule-granted',
+  'hit-point-maximum-adjusted',
   'bonus-removed',
   'roll-modifier-consumed',
   'reaction-grant-consumed',
@@ -220,6 +229,42 @@ export function applyGrants({ state, next }: Applying, event: GrantsEvent): Game
         return left < right ? -1 : left > right ? 1 : 0;
       });
       return withCreature(next, event.id, { actionRules }, creature);
+    }
+
+    case 'healing-rule-granted': {
+      const creature = creatureOf(state, event, event.id);
+      // The source alone is the identity, as it is for a defence, a Speed, a
+      // rider, an Immunity and a payout: a second Beacon of Hope from the same
+      // casting is the same Beacon of Hope, and a casting that both maximised
+      // and forbade would be one sentence contradicting itself rather than two
+      // grants — `healingRuleOf` is where a contradiction between *different*
+      // sources is settled.
+      const healingRules = [
+        ...creature.healingRules.filter((held) => held.source !== event.rule.source),
+        event.rule,
+      ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
+      return withCreature(next, event.id, { healingRules }, creature);
+    }
+
+    case 'hit-point-maximum-adjusted': {
+      const creature = creatureOf(state, event, event.id);
+      if (!Number.isInteger(event.adjustment.amount) || event.adjustment.amount <= 0) {
+        throw new CorruptLogError(
+          event,
+          `an effect holds a hit point maximum up by a positive whole number, got ${event.adjustment.amount}`,
+        );
+      }
+      // Source-keyed like the ten above, so a re-cast replaces rather than
+      // stacks. **Nothing here touches the vitals**: the maximum is settled by
+      // `settleHitPointMaximum` in the derived pass, which is the only place
+      // that reads this list — because the *removals* are derived too, and one
+      // arithmetic on the way in and a different one on the way out is how the
+      // two come to disagree.
+      const hitPointMaxima = [
+        ...creature.hitPointMaxima.filter((held) => held.source !== event.adjustment.source),
+        event.adjustment,
+      ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
+      return withCreature(next, event.id, { hitPointMaxima }, creature);
     }
 
     case 'reaction-granted': {

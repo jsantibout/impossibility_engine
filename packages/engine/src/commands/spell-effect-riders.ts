@@ -421,15 +421,26 @@ export function applyRiders(
                       },
               },
             }
-          : {
-              type: 'speed-modifier-granted',
-              id: target,
-              modifier: {
-                source,
-                change: modifier.change,
-                ...(modifier.feet === undefined ? {} : { feet: modifier.feet }),
-              },
-            };
+          : modifier.kind === 'healing'
+            ? {
+                type: 'healing-rule-granted',
+                id: target,
+                // SRD Chill Touch: "it can't regain Hit Points until the end
+                // of your next turn." Nothing of the casting's is pinned into
+                // the rule itself — it says one word about arithmetic — so the
+                // source is the whole of the link, and the deadline below is
+                // what ends it on a cantrip that never becomes an ongoing.
+                rule: { source, rule: modifier.rule },
+              }
+            : {
+                type: 'speed-modifier-granted',
+                id: target,
+                modifier: {
+                  source,
+                  change: modifier.change,
+                  ...(modifier.feet === undefined ? {} : { feet: modifier.feet }),
+                },
+              };
     events.push(granted);
     current = applyEvent(current, granted);
 
@@ -446,7 +457,10 @@ export function applyRiders(
     // The three riders that may end sooner than the casting — see
     // {@link ModifierRider}, where each is argued from its Instantaneous host.
     const lasts =
-      modifier.kind === 'speed-change' || modifier.kind === 'action' || modifier.kind === 'mode'
+      modifier.kind === 'speed-change' ||
+      modifier.kind === 'action' ||
+      modifier.kind === 'mode' ||
+      modifier.kind === 'healing'
         ? modifier.lasts
         : undefined;
     // **The target as well as the caster**, because SRD Vicious Mockery

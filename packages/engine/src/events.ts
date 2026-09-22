@@ -38,6 +38,7 @@ import type { ActiveBonus, ModeSource } from './bonuses.js';
 import { type SpellcastingState } from './spellcasting.js';
 import type { RestBenefit, RestKind } from './rest.js';
 import { type Deadline } from './time.js';
+import { type GrantedHealingRule, type GrantedHitPointMaximum } from './vitals.js';
 import {
   type EffectEndCause,
   type EffectTarget,
@@ -503,6 +504,45 @@ export type GameEvent =
       readonly type: 'action-rule-granted';
       readonly id: CharacterId;
       readonly rule: GrantedActionRule;
+    }
+
+  /**
+   * What a running effect has said about this creature regaining hit points —
+   * the eleventh sourced grant.
+   *
+   * SRD Beacon of Hope: each target "regains the maximum number of Hit Points
+   * possible from any healing." SRD Chill Touch: on a hit "it can't regain Hit
+   * Points until the end of your next turn." One record for two sentences, and
+   * `HealingRule` is where the pair is argued.
+   *
+   * Ended by the source it carries, exactly as the other ten are, so there is
+   * no removal event.
+   */
+  | {
+      readonly type: 'healing-rule-granted';
+      readonly id: CharacterId;
+      readonly rule: GrantedHealingRule;
+    }
+
+  /**
+   * A hit point maximum a running effect is holding up — the twelfth sourced
+   * grant, and the only one that moves a number the fold already stored.
+   *
+   * SRD Aid: "Each target's Hit Point maximum and current Hit Points increase
+   * by 5 for the duration." The amount is **pinned at the cast** like every
+   * other number a casting reads out of a definition, so a slot's worth of
+   * extra hit points does not change when the book does.
+   *
+   * There is no event that takes it away, for the reason the other eleven have
+   * none: the grant is ended by a source match, and `settleHitPointMaximum` in
+   * the fold's derived pass is what brings `Vitals.hpMax` back down after it.
+   * That is deliberately *not* {@link GameEvent} `hit-point-maximum-raised`,
+   * which is advancement's and permanent and carries no source at all.
+   */
+  | {
+      readonly type: 'hit-point-maximum-adjusted';
+      readonly id: CharacterId;
+      readonly adjustment: GrantedHitPointMaximum;
     }
 
   /**

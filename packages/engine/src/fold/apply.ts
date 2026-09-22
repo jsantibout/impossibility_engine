@@ -21,6 +21,7 @@ import { isIncapacitated } from '../conditions.js';
 import type { Content } from '../content.js';
 import { READY, universalAction } from '../actions.js';
 import { type TimedEffect } from '../timers.js';
+import { settleHitPointMaximum } from '../vitals.js';
 // The one spelling of Initiative's label, from the module that owns
 // Initiative — the fold matches on what `commands/initiative.ts` writes, and
 // neither end may spell it for itself. See `INITIATIVE_LABEL`.
@@ -261,7 +262,13 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
     event.type === 'combat-started'
       ? openTurnStart(applyOne(state, event, legacy))
       : applyOne(state, event, legacy);
-  return reachStartOfTurn(
+  // **Outermost, so it sees every release.** The maximum a spell is holding
+  // up is the one grant the fold has to *reconcile* rather than merely carry,
+  // and every pass below can take one away: a broken Concentration, a
+  // deadline, a dispel, a creature leaving. Settling last means the number is
+  // right whichever of them fired, rather than right for the ones somebody
+  // remembered.
+  return settleHitPointMaxima(reachStartOfTurn(
     // After the drops rather than before them: what ends an attunement is a
     // death or an item gone, and both are facts the event itself left behind.
     endLostAttunements(
@@ -300,7 +307,45 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
         ),
       ),
     ),
-  );
+  ));
+}
+
+/**
+ * A hit point maximum brought back in line with what is holding it up.
+ *
+ * SRD Aid raises a maximum for eight hours; the endings that take it away —
+ * `releaseCasting`, `releaseGrants`, the expiry pass — all work by filtering a
+ * grant out of an array and emit nothing at all. So the subtraction has to be
+ * derived, the way a broken Concentration and a lapsed attunement already are,
+ * and `settleHitPointMaximum` in `vitals.ts` is the arithmetic.
+ *
+ * Nothing is emitted, for the reason `endLostAttunements` emits nothing: a
+ * pass that also wrote an event would be a second authority on a number the
+ * grants already answer for.
+ */
+function settleHitPointMaxima(state: GameState): GameState {
+  // Nobody's maximum has been moved and nobody's is still moved, which is the
+  // state of every fight in the book. The second half of the guard is what
+  // makes the *release* arrive: the grant is already gone by the time this
+  // runs, and only `hpMaxAdjustment` remembers there ever was one.
+  if (!anyCreature(state, (c) => c.hitPointMaxima.length > 0 || c.vitals.hpMaxAdjustment !== 0)) {
+    return state;
+  }
+
+  const creatures: Record<string, CreatureState> = { ...state.creatures };
+  let moved = false;
+
+  for (const key of Object.keys(state.creatures).sort()) {
+    const creature = creatures[key];
+    if (creature === undefined) continue;
+    const held = creature.hitPointMaxima.reduce((sum, one) => sum + one.amount, 0);
+    const vitals = settleHitPointMaximum(creature.vitals, held);
+    if (vitals === creature.vitals) continue;
+    moved = true;
+    creatures[key] = { ...creature, vitals };
+  }
+
+  return moved ? { ...state, creatures } : state;
 }
 
 /**
