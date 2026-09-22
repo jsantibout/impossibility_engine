@@ -22,9 +22,12 @@ homebrew.
   conditions with their sources, hit points, temporary hit points with a
   lifetime, death saves, exhaustion. Every ability a roll reads comes off
   `sheetAsItStands`.
-- **Space** — a cube lattice, distance between volumes, declared sight and
-  cover, six area shapes, persistent and carried areas, teleportation, the
-  glossary's four senses, mounting. A spell can push a creature; a fall has
+- **Space and sight** — a cube lattice, distance between volumes, declared
+  sight and cover, six area shapes, persistent and carried areas,
+  teleportation, the glossary's four senses, mounting. **Light and obscurement
+  are patches on the lattice**, declared by the table or laid by a casting;
+  magical darkness beats Darkvision and nonmagical light, Devil's Sight beats
+  that, and an undeclared scene answers as it always did. A spell can push a creature; a fall has
   a landing (1d6 per ten feet to 20d6, and Prone); and **going up needs a way
   up** — a move that ends higher is refused unless it flew, climbed, burrowed
   or jumped.
@@ -36,8 +39,8 @@ homebrew.
 - **Monsters that fight from their own printed lines** — Multiattack as a named
   sequence, an opportunity attack reaching for the best printed melee attack,
   recharge enforced and returned on a rest, spendable Bonus Actions, daily
-  limits cleared at a declared dawn, an unparsed line spendable through the
-  DM's door, and a count the table keeps for the Hydra.
+  limits cleared at a declared dawn, eighteen printed saving throws rolled
+  through the DM's door, and a count the table keeps for the Hydra.
 - **Features that do something** — an action rule a feature holds, a use that
   hangs something a later roll spends, a pool use that buys room in the turn
   budget, the Unarmed Strike's three options, fighting styles, weapon
@@ -88,9 +91,8 @@ homebrew.
   a mode. A granted Speed reaches the mode granted; an unqualified increase
   reaches walking alone and an unqualified slowing reaches every mode. The
   longer running jump is missing, so Second-Story Work stays manual.
-- **Eighteen printed saving throws execute and no caller can reach them.**
-  `forcePrintedSave` is on the barrel and in no tool — a door the mechanism
-  shipped without.
+- Light shed by an **object** — Light, Continual Flame, Dancing Lights — has
+  nowhere to hang, because the engine holds no objects.
 - **A printed stat-block rider that deals extra damage is still prose.** The
   condition families execute — gated on the target's size or on a creature
   type the block names, anchored on either creature's next turn, and a grapple
@@ -116,24 +118,22 @@ homebrew.
 Each is a decision, not a task; the brief that acts on one cites it here. The
 argument behind each is in `docs/archive/status-2026-09-21.md`.
 
-**Owner, 2026-09-20.** Hide is the engine's verb (cover or obscurement, no line
-of sight, then DC 15 Stealth) · a character's size is a creation choice ·
-Multiattack needs composition, because a count-only version lets a Ghoul make
-two Claws · a monster's opportunity attack is its best printed melee attack
-that does not recharge · "permanent" is a real duration and carries its source ·
-some printed text is the DM's alone and is handed over marked as such · Channel
-Divinity is a shell with one shared pool and each option is a form it takes ·
-the defender answers first · a use may name an attack, so the hand-over should
-be decided by what the named action *is* rather than by how the sentence reads
-(**queued**) · recharge is enforced, and a recharge ability also returns on a
-rest · `alsoHolding` stays although no catalogue can reach it, because a reader
-that drops data when a validator loosens is the coupling that bites · the
-Hydra's head count gets its own event rather than a general shape · *Shield*
-drops a pinned rider unspent · the Hydra's heads are declared and its Bites
-derived from them — the first DM door that takes a number, on the line that a
-number the *engine* produces is a fabrication and a number the *table* states
-is a fact · a fight ends when no hostile remains or they surrender, and a
-flight is a prompt rather than an end.
+**Owner, 2026-09-20.** Hide is the engine's verb (cover or obscurement, no
+line of sight, then DC 15 Stealth) · size is a creation choice · Multiattack
+needs composition, because a count-only version lets a Ghoul make two Claws ·
+a monster's opportunity attack is its best printed melee attack that does not
+recharge · "permanent" is a real duration and carries its source · some printed
+text is the DM's alone · Channel Divinity is a shell with one shared pool · the
+defender answers first · a use may name an attack, so the hand-over should be
+decided by what the named action *is* rather than by how the sentence reads
+(**queued**) · recharge is enforced and also returns on a rest · `alsoHolding`
+stays although no catalogue can reach it, because a reader that drops data
+when a validator loosens is the coupling that bites · the Hydra's head count
+gets its own event · *Shield* drops a pinned rider unspent · the Hydra's heads
+are declared and its Bites derived from them, the first DM door that takes a
+number, on the line that a number the *engine* produces is a fabrication and a
+number the *table* states is a fact · a fight ends when no hostile remains or
+they surrender, and a flight is a prompt rather than an end.
 
 **Ruled after that batch.** Truesight and Blindsight satisfy "if a creature can
 somehow see you"; Darkvision does not · the Initiative swap is Alert's, gated
@@ -143,6 +143,10 @@ forced-movement rule, known forms are chosen at the start of a Long Rest, and a
 Wild Companion familiar goes away when one completes · Nimbus Quill's table
 rolls physical dice, so the third door is the answer — its own swept directory,
 never stamped `engine`, never on an AI DM's surface.
+
+**Owner, 2026-09-21: a monster's attack is holdable**, so a party fighting
+monsters is offered the window *Shield* answers. The refusal was not a rule: a
+hold had nowhere to record which printed line was swung.
 
 **Owner, 2026-09-21, on the sight model** — all five decisions in
 `docs/design/light-and-sight.md`, yes as written. Light is **declared on the
@@ -158,19 +162,18 @@ them would lift the Unconscious that having none caused, and the SRD lifts that
 rather than a printed sentence, argued in `vitals.ts` and pinned by two
 fixtures, so changing it is a decision rather than a drift.
 
-**Owner, 2026-09-21.** Infinite Realms is the AI-DM product and Nimbus Quill the
+**Owner, 2026-09-21.** Infinite Realms is the AI-DM product, Nimbus Quill the
 human DM's companion · **"playable to level 5" means everything a level 1–5
 character can reach is executed**, not the common turn executed and the rest
-narrated · persistence is Supabase, with the event log as the only truth · one
-player per campaign is acceptable for the first release · Infinite Realms calls
-OpenAI and lets it use the engine's tools, so the wire format is OpenAI
-function calling and `docs/design/claude-integration.md` describes a provider
-that is not the product's · movement modes are ordinary spatial dynamics and
-are to be built, reversing an archived refusal · Find Familiar names a bestiary
-id at the casting, and Find Steed's and Phantom Steed's stat blocks become
-catalogue entries · the sight model (light and obscurement) is to be built,
-accepted as complicated · the feature blocker map was widened to pool-only
-features (done).
+narrated · persistence is Supabase with the event log as the only truth · one
+player per campaign for the first release · Infinite Realms calls OpenAI, so
+the wire format is OpenAI function calling and
+`docs/design/claude-integration.md` describes a provider that is not the
+product's · movement modes are ordinary spatial dynamics and are built,
+reversing an archived refusal · Find Familiar names a bestiary id at the
+casting, and Find Steed's and Phantom Steed's stat blocks are catalogue
+entries · the sight model is built · the feature blocker map was widened to
+pool-only features.
 
 ## Decisions genuinely open
 
@@ -185,15 +188,12 @@ features (done).
 
 ## Traps in a worktree, not in the code
 
-**Editing source with Python on Windows rewrites it CRLF**, which silently
-breaks the guards that parse source line by line and presents as a content
-defect rather than a line-ending one. It cost two builders a cycle each in
-one batch.
-
-A worktree is not a clone. An empty `node_modules` makes `tsc -b` resolve
-`@ie/engine` through the main checkout's `dist`, silently, while the two agree;
-`npm install` links them correctly, and `ln -s` under Git Bash makes *copies*
-that go stale. The generated SRD data is gitignored and must be copied in, and
-`npm run srd:index` must never be run in a worktree against it. Do not
-normalise line endings with a script: several source-parsing tests fail on CRLF
-and say nothing about why.
+A worktree is not a clone: an empty `node_modules` makes `tsc -b` resolve
+`@ie/engine` through the main checkout's `dist`, silently, while the two
+agree. `npm install` links them; `ln -s` under Git Bash makes *copies* that go
+stale. The generated SRD data is gitignored and must be copied in, and
+`npm run srd:index` must never run in a worktree against it — re-ingest first
+or leave it alone. And **editing source with Python on Windows rewrites it
+CRLF**, which breaks the guards that parse source line by line and presents as
+a content defect: pass `newline='
+'`.

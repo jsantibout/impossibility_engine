@@ -5,8 +5,15 @@ Read before changing the sight half of `positioning.ts` (`sightBetween`,
 `commands/scene.ts`, the Hide command in `commands/actions.ts`, or any
 definition that prints Bright Light, Dim Light, Darkness or an obscured area.
 
-**Status: ruled by the owner on 2026-09-21, all five decisions, as written.
-Built as P3-S.** This note says what "it" is, what it deliberately is not, and
+**Status: ruled by the owner on 2026-09-21, all five decisions, as written,
+and built the same day (P3-S).** What is described below is the engine's
+behaviour, not a proposal. Three spells named under "What it reaches" did
+**not** land and the reason is one thing: Light, Continual Flame and Dancing
+Lights all shed from *an object* — a touched thing, four floating motes — and
+this engine holds no objects, so a patch has nowhere to hang. The monster
+residue (Sunlight Sensitivity, the six Illumination traits, Shadow Stealth,
+Sunlight Weakness) is untyped SRD text: the *rule* is built and executable,
+and what waits is the parser that puts it on a creature. This note says what "it" is, what it deliberately is not, and
 what it costs. The five decisions are at the end, now as rulings rather than
 questions; a change to any of them is a change to this note first.
 
@@ -151,8 +158,10 @@ cheap; it is not a prerequisite for anything above.
   radius, level and spell level is content, pinned on the cast event by rule
   5. The sweep in `spell-schema.test.ts` is untouched: no spell id enters the
   engine.
-- **Number-free model.** `declare_light` takes a level word and a region;
-  `set_scene` a word. The radius is the room's, the class of number
+- **Number-free model.** `declare_light` takes a level word, a region and —
+  added in the build — the spell level of a magical darkness, which is what
+  lets a Daylight of the right level dispel it. That is a number the *book*
+  prints, on a DM-only door, and never a die face; `set_scene` takes a word. The radius is the room's, the class of number
   `declare_difficult_terrain` already takes on the DM's door.
 - **Determinism.** Derived on every read, as `livePatches` is.
 - **The tests that prove the cost was not paid**, to be written first: (1)

@@ -463,6 +463,60 @@ ranked first among the builders.
 - **The lopsided split of several attack rolls stays the owner's.** For the
   record: the sayable form is `targets: [{ id, count }]`.
 
+### The sight batch — merged 2026-09-21
+
+Six tracks. **Spells in reach not executed 124 → 118, waiting on a shape
+91 → 85.** Darkness, Daylight, Fog Cloud, Shocking Grasp, Magic Weapon, Zone
+of Truth, Find Steed, Phantom Steed; Shield fires in the scripted session for
+the first time. `light-and-obscurement-the-scene-holds` led the ledger at
+7 blocks / 6 finishes and reads **3 / 3**.
+
+**The ledger chose this batch, and the roadmap's phase numbering did not.**
+The sight model is §6's P3-S, and it ran now because P2-T0's honesty pass gave
+light a shape id and the six spells it had been hiding, which put it at the top
+of the ranking. Rule 1 says rank by the ledger; this is the first batch where
+that overrode the written order, and it was right.
+
+**A determinism defect was found and fixed before it could write a log.**
+`forcePrintedSave` rolled four dice per call and emitted no `rolls-issued`, so
+two calls drew the identical stream and minted duplicate roll ids. Track E
+found it by probing rather than reading, stopped rather than cross a live
+fence, and track A fixed it in the file it owned. **No log was ever written
+with the hole in it** — nothing under `packages/tools` named the command until
+this batch — so it is a fix and not a migration.
+
+Follow-ups this batch created:
+
+- **The sweep cannot catch the next one.** `beginning-a-fight.test.ts` catches
+  a non-command that *writes* a `rolls-issued` by hand, and cannot catch a
+  command that rolls and *forgets* one — which is exactly the hole above. The
+  natural home is `invariants.test.ts`, which already walks every command.
+  **This is the highest-value follow-up on the list**: it is the guard the
+  engine's first rule rests on.
+- **`COVERAGE.md` prints `332/330 stat blocks carried`.** The two hand-written
+  spell stat blocks are in the numerator and not the parsed denominator. The
+  guard is honest (`SPELL_STAT_BLOCKS` is named rather than equality asserted)
+  but the printed fraction reads as a bug.
+- **Light from an object** — Light, Continual Flame, Dancing Lights — waits on
+  the engine holding objects at all. Named residue of the light shape.
+- **The light monster residue** (Sunlight Sensitivity ×4, six Illumination
+  traits, Shadow Stealth, Sunlight Weakness) is untyped SRD text and needs
+  `packages/srd/src/parse/monsters.ts` plus a re-ingest. The rule is built;
+  the creature carrying it is what waits. Same track shape as P2-T18.
+- **Find Steed and Phantom Steed execute but neither finishes**: a lifetime
+  that is a *summoner's* life rather than a casting's, a Fly Speed gated on a
+  slot level, a turn inserted at a named position in the order, and a casting
+  ended by damage to the thing it made.
+- **Mirror Image and Sanctuary need a shape nobody has built**: an ongoing
+  effect on the defender that intervenes in somebody else's attack with nobody
+  taking a Reaction. Fire Shield and Holy Aura are the other claimants. This
+  is the third batch in which Mirror Image was claimed as a mover and the
+  third in which it was not one.
+- **Daylight carries `sunlight: true`**, so it gives a Kobold Disadvantage and
+  burns a Vampire Spawn. SRD 5.2.1 prints "sunlight" three times in that
+  paragraph and `srd-policy.md` ranks printed text above the 2014 errata.
+  One word in its docstring overturns it if the owner disagrees.
+
 ### Phase 2, first batch — merged 2026-09-21
 
 Five tracks. **Spells in reach not executed 129 → 124, waiting on a shape
