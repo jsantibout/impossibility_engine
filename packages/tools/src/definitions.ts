@@ -213,12 +213,14 @@ import {
   takeDisengage,
   takeDodge,
   takeHide,
+  takeItemUp,
   takeReady,
   takeOpportunityAttack,
   takeTestReaction,
   tradeResource,
   transferItem,
   dropConjured,
+  dropItem,
   evokeConjured,
   unequipItem,
   useBudgetPurchase,
@@ -4225,6 +4227,74 @@ const LET_GO_OF_CONJURED = tool({
     ),
 });
 
+/**
+ * The two halves of a thing that is on the floor.
+ *
+ * `let_go_of_conjured` above says what it is not: a conjured thing disappears,
+ * and "anything a spell did not conjure is refused: a weapon put down is on the
+ * floor, which is not a place this engine keeps." It is a place this engine
+ * keeps now — a pile with a placement of its own, anchored to a landmark or a
+ * creature exactly as a creature is, so **the model never types coordinates**
+ * here either.
+ *
+ * Which pile is the part a caller has to be able to say, and the engine has an
+ * answer: a dropped thing carries a record of its own, minted at the drop if it
+ * did not already have one, so "my sword on the floor" is tellable from the
+ * identical sword still in the pack. A caller that has only the catalogue id
+ * sends that and is answered, unless two piles of one kind are within reach —
+ * which is a question rather than a guess.
+ */
+const DROP_ITEM = tool({
+  name: 'drop_item',
+  description:
+    'Put something down. It leaves the pack and lies in the room, where anyone standing over it can pick it up with `take_item_up` — and it keeps whatever it had: a wand put down has exactly the charges it had left. Costs nothing. It lands at the dropper’s feet unless a placement says otherwise. Anything worn or wielded is refused until it is taken off with `unequip_item`, and anything a spell conjured is `let_go_of_conjured` instead, because a conjured thing disappears rather than landing.',
+  mutates: true,
+  input: z.object({
+    who: creatureId,
+    item: z.string().min(1).describe('Catalogue id, or a copy’s id.'),
+    quantity: z
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .describe('How many to put down. The whole line if it is left out.'),
+    where: placementSchema
+      .optional()
+      .describe('Where it lands. The dropper’s own square if it is left out.'),
+  }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      dropItem(context.campaign.state(), context.campaign.content, who(args.who), {
+        item: args.item,
+        ...(args.quantity === undefined ? {} : { quantity: args.quantity }),
+        ...(args.where === undefined ? {} : { placement: placementOf(args.where) }),
+        ...identity(context),
+      }),
+      { dropped: args.item, by: args.who },
+    ),
+});
+
+const TAKE_ITEM_UP = tool({
+  name: 'take_item_up',
+  description:
+    'Pick up a pile lying on the floor, whole. The creature has to be within 5 feet of it; walk over first if they are not. Name the pile by its own id, or by the catalogue id where one pile of that kind is within reach. It goes into the pack rather than into a hand — `equip_item` is what puts something in a hand.',
+  mutates: true,
+  input: z.object({
+    who: creatureId,
+    item: z.string().min(1).describe('The pile’s own id, or the catalogue id of what it is.'),
+  }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      takeItemUp(context.campaign.state(), context.campaign.content, who(args.who), {
+        item: args.item,
+        ...identity(context),
+      }),
+      { pickedUp: args.item, by: args.who },
+    ),
+});
+
 const EVOKE_CONJURED = tool({
   name: 'evoke_conjured',
   description:
@@ -4546,6 +4616,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   DECLINE_TEST_REACTION,
   DISMISS_STRANDED_SUMMONS,
   DRAW_ON_HEALING_POOL,
+  DROP_ITEM,
   ELIGIBLE_TARGETS,
   END_COMBAT,
   END_CONCENTRATION,
@@ -4581,6 +4652,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   DISMOUNT,
   MOUNT,
   SWAP_INITIATIVE,
+  TAKE_ITEM_UP,
   USE_FREE_INTERACTION,
   SUMMON_CREATURE,
   TAKE_ACTION,

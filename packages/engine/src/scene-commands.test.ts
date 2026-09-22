@@ -26,7 +26,7 @@ import {
   setScene,
 } from './commands.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
-import { coverBetween, positionOf, sightBetween } from './positioning.js';
+import { coverBetween, type Placement, positionOf, sightBetween } from './positioning.js';
 import { declaredCasting } from './spellcasting.js';
 
 /**
@@ -378,9 +378,26 @@ describe('a scene command refuses exactly what the reducer would call corrupt', 
       }),
     },
     {
+      /**
+       * **Homework, and it used to be a verdict.** The narrator describes a
+       * door, somebody reaches for it, and `err` answered "there is no door in
+       * this scene" — which is the engine denying the fiction, and which
+       * teaches a model to stop narrating detail. Rule 6 says which of the two
+       * it is: an `err` is for something rules-illegal, and an undeclared
+       * landmark is a fact **missing rather than wrong**. `addSceneLandmark`
+       * settles it, and the kind is `scene` because that is the kind that
+       * command settles — `add_landmark` already declares it on the tool
+       * surface beside `set_scene`, so nothing here opens a door that was
+       * shut. The re-send the second kind promises is asserted below.
+       */
       name: 'placing somebody against a landmark nobody has named',
       code: 'unknown_anchor',
-      homework: false,
+      homework: true,
+      wants: {
+        kind: 'scene',
+        subject: 'nowhere',
+        satisfiedBy: /addSceneLandmark command/,
+      },
       log: () => {
         const table = cast();
         table.do('scene', (s) => setScene(s, { width: 300, depth: 300, height: 40 }));
@@ -579,6 +596,32 @@ describe('a scene command refuses exactly what the reducer would call corrupt', 
       expect(wanted!.satisfyWith).toMatch(entry.wants!.satisfiedBy);
     });
   }
+
+  /**
+   * **The promise the second kind makes, kept.** `needs-context` says a fact
+   * is missing rather than wrong, and what makes that worth saying is that
+   * declaring the fact and sending the *same* call again works. A refusal that
+   * merely sounds gentler is a refusal.
+   *
+   * This is the narrated-world case end to end: the door was described, nobody
+   * had told the engine about it, and the answer names the command that would.
+   */
+  it('takes the answer to an undeclared landmark, and the same placement then lands', () => {
+    const table = cast();
+    table.do('the scene', (s) => setScene(s, { width: 300, depth: 300, height: 40 }));
+
+    const placement: Placement = { from: { landmark: 'the door' }, feet: 5, bearing: 0 };
+    const asked = placeCreatureInScene(table.state, BREN, placement);
+    expect(isNeedsContext(asked)).toBe(true);
+    const request = contextRequestsOf(asked)[0]!;
+    expect(request.subject).toBe('the door');
+    expect(request.satisfyWith).toMatch(/addSceneLandmark command for "the door"/);
+
+    // The answer, and then the very call that was refused, unchanged.
+    table.do('the door', (s) => addSceneLandmark(s, 'the door', { x: 50, y: 20, z: 0 }));
+    table.do('Bren at the door', (s) => placeCreatureInScene(s, BREN, placement));
+    expect(positionOf(table.state.scene!, BREN)).toEqual({ x: 50, y: 25, z: 0 });
+  });
 
   /**
    * A scene may be set again — a new room is not a contradiction — and the

@@ -51,6 +51,7 @@ import { rollSpellDice } from './rolls.js';
 import { type Content } from '../content.js';
 import { type ConcentrationConsequence, type Supply } from './casting.js';
 import {
+  anchorNeeded,
   creatureOf,
   ROUTE_REQUIRED,
   sceneFor,
@@ -294,7 +295,16 @@ export function moveWithin(
       command.placement,
       command.forced === true ? { forced: true } : {},
     );
-    if (!moved.ok) return moved;
+    // **With the request the anchor needs**, which is the half this carried
+    // none of. `resolveMove` had answered a bare `needs-context` since
+    // positioning landed — the "what" in a prose string, which is the one
+    // thing a tool surface cannot branch on — and an undeclared landmark now
+    // arrives here too, since it stopped being a verdict. `anchorNeeded` holds
+    // both halves, so a mover measured from a creature nobody has placed and
+    // one measured from a door nobody has described are told the same way.
+    if (!moved.ok) {
+      return anchorNeeded(moved, command.placement.from, `${id} is moving relative to it`);
+    }
     const to = positionOf(moved.value.state, id);
     if (to === null) return needsContext('unplaced', `${id} did not land anywhere`);
 

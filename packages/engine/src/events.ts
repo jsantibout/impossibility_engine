@@ -869,6 +869,64 @@ export type GameEvent =
       readonly source: string;
       readonly command?: CommandStamp;
     }
+  /**
+   * Something put down: it leaves the pack and lies in the room.
+   *
+   * **One event, on `item-transferred`'s rule, because the world has one
+   * fact.** A loss and a placement written back to back would be two, and a
+   * log holding the first without the second is a sword that stopped existing.
+   * The reducer takes the line off the creature and puts the pile on the floor
+   * in one step, and moves the copy's pool records the same way a transfer
+   * does — a wand on the ground is held by nobody, so its charges cannot go on
+   * belonging to the creature that let go of it.
+   *
+   * `instance` is **never absent**, which is the whole of the owner's ruling:
+   * a dropped thing is a thing with a place, and a place needs something to be
+   * the place *of*. A copy that already had a record is named by it; a stack
+   * that had none is named by the next record the engine issues, and the fold
+   * is what says that record is the next one — `items-gained`'s pattern, one
+   * event along.
+   *
+   * `placement` rather than a point, exactly as `creature-placed` carries one:
+   * the model never types coordinates, and the anchor a drop is measured from
+   * is something the fiction established.
+   */
+  | {
+      readonly type: 'item-dropped';
+      readonly id: CharacterId;
+      readonly item: string;
+      readonly quantity: number;
+      /** Which copy is on the floor. Minted by the drop where there was none. */
+      readonly instance: string;
+      readonly placement: Placement;
+      /** The pools going down with it, whole. Absent means none. */
+      readonly pools?: readonly string[];
+      readonly source: string;
+      readonly command?: CommandStamp;
+    }
+  /**
+   * The other direction: a pile off the floor and into a pack.
+   *
+   * Whole, because a pile is whole — SRD prices picking something up as an
+   * interaction with *an object*, and half a pile is not a thing anybody has
+   * described. `item` and `quantity` restate what the floor already holds so
+   * that a hand-written log naming the wrong kind is a contradiction the fold
+   * catches rather than a quiet swap.
+   *
+   * **A minted record is handed back here**, which is the other half of the
+   * ruling: the label existed so that a pile could be told from its twin in
+   * the pack, and back in the pack there is no pile. A copy that brought its
+   * own record keeps it, and its charges with it.
+   */
+  | {
+      readonly type: 'item-taken-up';
+      readonly id: CharacterId;
+      readonly item: string;
+      readonly quantity: number;
+      readonly instance: string;
+      readonly source: string;
+      readonly command?: CommandStamp;
+    }
   /** Money in or out, in copper. Negative spends. */
   | {
       readonly type: 'coins-changed';
