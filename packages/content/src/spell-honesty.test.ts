@@ -269,34 +269,44 @@ describe('an executed spell may not file a rule the engine owns as fiction', () 
    * and **which** absent fact it is has moved once already.
    *
    * It used to be the population: no Darkness definition compiled in, so there
-   * was no casting to reach. Darkness is written now, and this test was built
-   * to fail on exactly that day rather than go quietly on calling a rule
-   * fiction. It does not fail, and the reason is one field: the definition is
-   * tracked and carries **no `SpellArea`**, for the reason Daylight and Fog
-   * Cloud carry none — a template no effect resolves over is a radius with no
-   * place attached, and a casting records where its area sits only alongside an
-   * `areaTrigger`. So the casting exists, holds no light and holds no point,
-   * and "in its area" has nothing to be measured against.
+   * was no casting to reach. Then it was one field — the definition was tracked
+   * and carried no `SpellArea`, so "in its area" had nothing to be measured
+   * against — and this test pinned that field so it would fail on the day the
+   * field changed rather than go quietly on calling a rule fiction.
    *
-   * Both halves are pinned, because only the pair is the argument. The day
-   * Darkness grows an area — which is what the sight model in Phase 3 will want
-   * — this fails again and the clause becomes debt, which is the whole point of
-   * pinning a reason rather than an outcome.
+   * **It failed, on the day it was written for.** P3-S gave Darkness a Sphere
+   * and gave the Sphere magical darkness, so Sunburst's own sixty feet overlap
+   * something real and `lightDispelledBy` is a built operation. The clause is
+   * therefore **debt** rather than the table's, and what it is blocked on is
+   * the trigger: `docs/design/light-and-sight.md` runs the mutual dispel "on
+   * pinning a patch", and Sunburst pins none — it is a flash that leaves no
+   * light behind and so has no route to the operation.
+   *
+   * What is pinned now is that pair, and it is pinned in the same spirit: if
+   * somebody gives a casting that sheds nothing a way to put a Darkness out,
+   * this fails again and the clause stops being debt.
    */
-  it('pins the fact that makes Sunburst’s dispel clause the table’s', () => {
+  it('pins the fact that makes Sunburst’s dispel clause debt rather than fiction', () => {
     const darkness = SPELL_DEFINITIONS.filter((d) => d.id === 'darkness');
     expect(darkness, 'Darkness has no definition at all').toHaveLength(1);
     expect(
       darkness[0]?.area,
-      'Darkness now holds an area, so Sunburst has a place to overlap and a casting to end',
+      'Darkness holds no area again, so Sunburst is back to having no place to overlap',
+    ).toEqual({ kind: 'sphere', radius: 15, origin: 'point' });
+    expect(
+      darkness[0]?.areaLight,
+      'Darkness sheds no darkness, so there is nothing in its Sphere for Sunburst to dispel',
+    ).toEqual({ level: 'darkness' });
+    // And Sunburst's own side of the overlap: a flash that lays no patch, so
+    // nothing it does reaches the dispel the geometry would otherwise allow.
+    const sunburst = SPELL_DEFINITIONS.find((d) => d.id === 'sunburst');
+    expect(
+      sunburst?.areaLight,
+      'Sunburst lays light now, which is the one thing that would reach the dispel',
     ).toBeUndefined();
     expect(
-      darkness[0]?.effects,
-      'Darkness resolves something now, so it is no longer only a casting on the clock',
-    ).toEqual([]);
-    expect(
       ADJUDICATED['sunburst']?.find((entry) => entry.clause === 'dispelling magical Darkness')?.why,
-    ).toBe('table');
+    ).toBe('light-and-obscurement-the-scene-holds');
   });
 
   /**

@@ -189,10 +189,17 @@ describe('a blocker no mechanical marker can see survives the spell being writte
         // conditions, roll modes, Speed, chance, movement cost, teleportation
         // and extra damage, and the book writes Bright Light, Dim Light,
         // Darkness and Heavily Obscured in none of those words. What changed
-        // is Web: the Difficult Terrain half of "The webs are Difficult
-        // Terrain, and the area within them is Lightly Obscured" is executed
-        // now, and the half that is left is an **executed** spell's
+        // was Web: the Difficult Terrain half of "The webs are Difficult
+        // Terrain, and the area within them is Lightly Obscured" was executed
+        // and the half that was left became an **executed** spell's
         // adjudication, which carries no marker to be stripped of.
+        //
+        // **The claimant has moved once more, and Web is not it.** P3-S built
+        // the shape, so Web's second half is executed too and four of the six
+        // spells came off the claim altogether. What holds the id up now is
+        // Sunburst's "This spell dispels any Darkness in its area that was
+        // created by a spell" — an executed spell's adjudication again, and
+        // marker-less again, because a dispel is not a die.
       ].sort(),
     );
     // Two of the three the form landed with are still in it, so the list grew
@@ -211,11 +218,11 @@ describe('a blocker no mechanical marker can see survives the spell being writte
     // narrowing, so the −2 still cannot reach Dexterity saving throws alone.
     expect(consumersOf('a-bonus-narrowed-to-a-skill').executed).toContain('slow');
     expect(retired).not.toContain('a-choice-made-at-the-casting');
-    // And the second departure, held down the same way: the shape is still
-    // missing and it is Web's executed clause that now holds it up.
+    // And the second departure, held down the same way: the shape has residue
+    // and it is Sunburst's executed clause that now holds it up.
     expect(claimedShapes().has('light-and-obscurement-the-scene-holds')).toBe(true);
     expect(
-      (ADJUDICATED_EXECUTED['web'] ?? []).map((entry) => entry.why),
+      (ADJUDICATED_EXECUTED['sunburst'] ?? []).map((entry) => entry.why),
     ).toContain('light-and-obscurement-the-scene-holds');
   });
 

@@ -161,15 +161,28 @@ const HANDOVERS: readonly string[] = [
  *
  * `light-and-obscurement-the-scene-holds` is that id, and
  * `docs/design/light-and-sight.md` is the design behind it.
+ *
+ * **Three of the six have left, and the list records the departure rather
+ * than shrinking quietly** — see {@link LIGHT_EXECUTED}. P3-S built the shape,
+ * so Darkness, Daylight and Fog Cloud each resolve the patch that is the
+ * whole of what they do and are no longer tracked at all. What is left here
+ * is the three whose light comes from a **thing**: a touched object, an
+ * everburning flame on one, four floating motes. The engine holds no objects,
+ * so a patch has nowhere to hang, which is the residue the shape's own
+ * description names.
  */
-const LIGHT: readonly string[] = [
-  'continual-flame',
-  'dancing-lights',
-  'darkness',
-  'daylight',
-  'fog-cloud',
-  'light',
-];
+const LIGHT: readonly string[] = ['continual-flame', 'dancing-lights', 'light'];
+
+/**
+ * The three that left, kept as a list so the arithmetic stays checkable.
+ *
+ * Each is **executed** now rather than handed over or in debt, which is the
+ * third outcome this file already has a shape for in {@link EXECUTES} — and
+ * it is kept separate from that one because the reason differs: Expeditious
+ * Retreat's debt was stale on the day it was written, and these three were
+ * true readings that a later batch made false.
+ */
+const LIGHT_EXECUTED: readonly string[] = ['darkness', 'daylight', 'fog-cloud'];
 
 /**
  * And the one whose debt was stale — see the block below, which drives it.
@@ -216,6 +229,7 @@ describe('the forty-five unadjudicated spells are read', () => {
       ...Object.keys(FILED),
       ...HANDOVERS,
       ...LIGHT,
+      ...LIGHT_EXECUTED,
       ...EXECUTES,
       ...NEEDS_A_DECISION,
     ];
@@ -224,9 +238,15 @@ describe('the forty-five unadjudicated spells are read', () => {
     // the same pass, was filed as a handover on the same wrong reading, and is
     // the spell the light shape was found on. Counting it out to keep the
     // round number would be the omission this file exists to end.
+    //
+    // **The total does not move when a spell is finished**, which is what
+    // {@link LIGHT_EXECUTED} is for: three of the six left `LIGHT` when P3-S
+    // built the shape, and they are added back here rather than subtracted,
+    // because the claim this arithmetic makes is about *readings* and every
+    // one of the forty-six was still read.
     expect(read).toHaveLength(46);
     expect(new Set(read).size).toBe(46);
-    expect(LIGHT).toContain('darkness');
+    expect(LIGHT_EXECUTED).toContain('darkness');
   });
 
   it('names them in an order two branches can both append to', () => {
@@ -277,6 +297,21 @@ describe('the forty-five unadjudicated spells are read', () => {
     expect(misanchoredAdjudications(spellId), spellId).toEqual([]);
   });
 
+  /**
+   * And the three the shape finished, from the other end: each is executed,
+   * each has left the tracked map altogether, and what it hands over is a
+   * thing rather than a light.
+   */
+  it.each(LIGHT_EXECUTED.map((s) => [s] as const))('executes %s rather than tracking it', (spellId) => {
+    const definition = SPELL_DEFINITIONS.find((d) => d.id === spellId);
+    expect(definition, `${spellId} has no definition`).toBeDefined();
+    expect(
+      definition?.areaLight ?? definition?.areaObscurement,
+      `${spellId} lays no patch, so nothing of it is resolved`,
+    ).toBeDefined();
+    expect(TRACKED_ADJUDICATED[spellId], `${spellId} is tracked again`).toBeUndefined();
+  });
+
   /** And there is exactly one id for it, which is what there was none of. */
   it('gives light and obscurement one id in the spell vocabulary', () => {
     expect(Object.keys(MISSING_SHAPES).filter((shape) => /light|obscur/i.test(shape))).toEqual([
@@ -308,14 +343,13 @@ describe('the forty-five unadjudicated spells are read', () => {
 });
 
 /**
- * Darkness, tracked — the last spell in `BLOCKED_ON` held back by a decision
- * rather than by a transcription.
+ * Darkness, executed — and the spell this file used to hold up as the one
+ * held back by a decision rather than by a transcription.
  *
- * One of its five clauses is a handover the map records and three are debts
- * filed against `light-and-obscurement-the-scene-holds`.
- * `packages/content/src/spells.ts` says why the Sphere is still quoted to the
- * table rather than pinned as a `SpellArea`, and it is the argument Daylight
- * and Fog Cloud already make one spell along.
+ * The decision was the Sphere, and P3-S took it: light is on the lattice, so
+ * a template that resolved nothing now resolves a patch of magical darkness
+ * and three of the four quoted clauses go with it. `packages/content/src/
+ * spells.ts` says which and why. One is left, and it is the object.
  */
 describe('Darkness is cast rather than refused', () => {
   const definition = SRD_CONTENT.spell('darkness');
@@ -330,9 +364,19 @@ describe('Darkness is cast rather than refused', () => {
     expect(definition?.range).toEqual({ kind: 'ranged', feet: 60 });
   });
 
-  it('resolves nothing and says so', () => {
+  /**
+   * **It resolves no *effect* and it is no longer silent.** The clause this
+   * file used to assert — that four or more sentences were handed over — is
+   * down to one, and the sentence that replaced them is the Sphere: an area
+   * with a light level over it, which is a thing `lightAt` reads at every
+   * question about who can see whom.
+   */
+  it('darkens its own Sphere, and hands over only the object', () => {
     expect(definition?.effects).toEqual([]);
-    expect((definition?.unmodelled ?? []).length).toBeGreaterThan(3);
+    expect(definition?.area).toEqual({ kind: 'sphere', radius: 15, origin: 'point' });
+    expect(definition?.areaLight).toEqual({ level: 'darkness' });
+    expect(definition?.unmodelled ?? []).toHaveLength(1);
+    expect((definition?.unmodelled ?? [])[0]).toContain('object');
   });
 });
 

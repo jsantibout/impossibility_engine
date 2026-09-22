@@ -584,8 +584,23 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
    * which no definition can move; what this supports is the narrower claim that
    * a clean paragraph is usually a spell with nothing to execute, and the
    * exception is named rather than the rule loosened.
+   *
+   * **Three more say otherwise now, and they say it for one reason.** This
+   * list's neighbour at the top of the file already records it: the book
+   * writes Bright Light, Dim Light, Darkness and Heavily Obscured in none of
+   * the words {@link MECHANICAL_MARKERS} knows, because that list was derived
+   * from the mechanics a *tracked* spell hides and light was not one of them.
+   * So Darkness, Daylight and Fog Cloud read clean to this list and are
+   * executed by a patch on the lattice all the same. `CLAUSE_MARKERS` is not
+   * fooled either, and the honesty guard over there is what actually holds
+   * their paragraphs to account.
    */
-  const CLEAN_AND_EXECUTED: readonly string[] = ['expeditious-retreat'];
+  const CLEAN_AND_EXECUTED: readonly string[] = [
+    'darkness',
+    'daylight',
+    'expeditious-retreat',
+    'fog-cloud',
+  ];
 
   it('finds every clean paragraph outside the executed bucket', () => {
     const executed = SPELL_DEFINITIONS.filter(
@@ -1424,12 +1439,24 @@ describe('every spell this batch added is cast for real', () => {
    * move crosses. `isExecuted` reads `areaTerrain` for exactly that reason —
    * a spell whose only printed mechanic the engine now resolves is not one
    * the engine resolves nothing of.
+   *
+   * **Darkness, Daylight and Fog Cloud are the tenth, eleventh and twelfth,
+   * and they leave by the same door with a different noun.** P3-S put light
+   * and obscurement on the lattice beside the ground, so a Sphere of magical
+   * darkness, sixty feet of sunlight with sixty more of dim around it, and a
+   * bank of fog that grows with the slot are all patches a casting lays,
+   * keeps alive and has read at every question about who can see whom.
+   * `isExecuted` reads `areaLight` and `areaObscurement` for the reason it
+   * reads `areaTerrain`, and all three are argued in `coverage-data.ts`.
    */
   const EXECUTED_SINCE: readonly string[] = [
     'aid',
+    'darkness',
+    'daylight',
     'enhance-ability',
     'expeditious-retreat',
     'faerie-fire',
+    'fog-cloud',
     'goodberry',
     'magic-jar',
     'plant-growth',

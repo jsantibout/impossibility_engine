@@ -84,9 +84,18 @@ describe('every tracked spell in reach has been read', () => {
    * The finding itself. Darkness is the spell it was found on: four
    * `unmodelled` lines, one of them a dispel the book prints in numbers, and
    * no entry anywhere.
+   *
+   * **It is not tracked any more, and that is the finding closing rather than
+   * going stale.** P3-S gave the Sphere a light level to hold, so the engine
+   * resolves the whole of what the spell does and three of those four lines
+   * are gone. What the read has to say now is that the spell left by being
+   * *finished*: an entry in the tracked map would be a claim that the engine
+   * resolves nothing of it, which is no longer true.
    */
-  it('has read Darkness, which is where the hole was found', () => {
-    expect(TRACKED_ADJUDICATED['darkness']).toBeDefined();
+  it('has finished Darkness, which is where the hole was found', () => {
+    expect(SRD_CONTENT.spell('darkness')?.areaLight).toBeDefined();
+    expect(TRACKED_ADJUDICATED['darkness']).toBeUndefined();
+    expect(trackedInReach(LEDGER_LEVEL).map((one) => one.id)).not.toContain('darkness');
     expect(unreadTracked(LEDGER_LEVEL)).not.toContain('darkness');
   });
 

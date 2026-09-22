@@ -5,9 +5,11 @@ import type { CharacterSheet } from './character.js';
 import { fold, type GameEvent } from './events.js';
 import { canSee, canSomehowSee, rollModesFor } from './standing.js';
 import { lightAt, obscurementAt } from './positioning.js';
-import { declareLight, declareObscurement, takeHide } from './commands.js';
+import { declareLight, declareObscurement, resolveSpell, takeHide } from './commands.js';
 import { createRng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
+import { spellSlotKey } from './resources.js';
+import { declaredCasting } from './spellcasting.js';
 
 /**
  * Light, obscurement, and the one step they add to the sight question.
@@ -23,9 +25,8 @@ import { createRollIssuer } from './rolls.js';
  *    her, in a Darkness casting does not, with Devil's Sight does, and with a
  *    declared sight line does regardless;
  * 3. a Rogue in a Fog Cloud Hides with no `obscured: true` on the command;
- * 4. a patch hung on a casting is gone the read after that casting ends —
- *    `light-and-darkness.test.ts` casts the spell; this file breaks the
- *    record directly;
+ * 4. a patch hung on a casting is gone the read after that casting ends,
+ *    both for a record the table wrote and for a Darkness the engine cast;
  * 5. a Disadvantage gated on sunlight bites only where its holder stands in
  *    sunlight;
  * 6. the two frozen fixtures, which are `persistence.test.ts`'s and
@@ -334,6 +335,100 @@ describe('a patch hung on a casting', () => {
     // And the whole of what that costs the sight question: the dwarf sees her
     // again the instant the Concentration goes, through no machinery at all.
     expect(canSee(state, DWARF, ORC)).toBe(true);
+  });
+});
+
+// ─── 4b. the casting that lays its own patch ────────────────────────────────
+
+describe('a Darkness the engine casts', () => {
+  const WIZARD = id('wizard');
+
+  const armed: readonly GameEvent[] = [
+    added(WIZARD, { spellcastingAbility: 'int' }),
+    added(ORC),
+    {
+      type: 'resource-pool-declared',
+      id: WIZARD,
+      pool: { key: spellSlotKey(2), label: 'level 2 spell slot', max: 3, recovers: 'long-rest' },
+    },
+    {
+      type: 'spellcasting-declared',
+      id: WIZARD,
+      spellcasting: declaredCasting({ ability: 'int', prepared: ['darkness'] }),
+    },
+    { type: 'scene-set', extent: { width: 400, depth: 400, height: 40 } },
+    { type: 'landmark-added', name: 'the well', at: { x: 100, y: 100, z: 0 } },
+    { type: 'creature-placed', id: WIZARD, placement: { from: { landmark: 'the well' }, feet: 0 } },
+    {
+      type: 'creature-placed',
+      id: ORC,
+      placement: { from: { creature: WIZARD }, feet: 30, bearing: 90 },
+    },
+  ];
+
+  const supply = () => ({
+    issuer: createRollIssuer(createRng('dark')),
+    rng: createRng('dark'),
+    content: SRD_CONTENT,
+  });
+
+  const cast = (): readonly GameEvent[] => [
+    ...armed,
+    ...unwrap(
+      resolveSpell(
+        fold('light', armed, SRD_CONTENT),
+        WIZARD,
+        { spellId: 'darkness', targets: [], at: { x: 130, y: 100, z: 0 }, slotLevel: 2 },
+        supply(),
+      ),
+      'darkness',
+    ).events,
+  ];
+
+  /**
+   * The casting pins the region it resolved, exactly as an area casting pins
+   * difficult ground — so a replay darkens the square that was darkened at
+   * the table however the catalogue is corrected afterwards.
+   */
+  it('pins the Sphere it resolved as a patch of magical darkness', () => {
+    const state = fold('light', cast(), SRD_CONTENT);
+    const declared = cast().filter((event) => event.type === 'light-declared');
+
+    expect(declared).toHaveLength(1);
+    expect(lightAt(state, { x: 130, y: 100, z: 0 })).toMatchObject({
+      level: 'darkness',
+      magical: true,
+    });
+    // Fifteen feet of radius: the far edge is dark and a space past it is not.
+    expect(lightAt(state, { x: 145, y: 100, z: 0 }).level).toBe('darkness');
+    expect(lightAt(state, { x: 165, y: 100, z: 0 }).level).toBeNull();
+  });
+
+  it('blinds a Darkvision the table has said nothing against', () => {
+    const state = fold(
+      'light',
+      [...cast(), { type: 'creature-added', id: DWARF, name: 'dwarf', sheet: sheet({ standing: [DARKVISION_60] }), maxHp: 20, diesAtZero: false, creatureType: 'Humanoid' },
+        { type: 'creature-placed', id: DWARF, placement: { from: { landmark: 'the well' }, feet: 5, bearing: 180 } }],
+      SRD_CONTENT,
+    );
+
+    expect(canSee(state, DWARF, ORC)).toBe(false);
+  });
+
+  it('is gone the read after the Concentration breaks', () => {
+    const running = cast();
+    const casting = running.find((event) => event.type === 'spell-ongoing');
+    expect(casting?.type).toBe('spell-ongoing');
+    const castingId = casting?.type === 'spell-ongoing' ? casting.casting.castingId : '';
+
+    const state = fold(
+      'light',
+      [...running, { type: 'concentration-ended', id: WIZARD, castingId, reason: 'voluntary' }],
+      SRD_CONTENT,
+    );
+
+    expect(state.ongoing[castingId]).toBeUndefined();
+    expect(lightAt(state, { x: 130, y: 100, z: 0 }).level).toBeNull();
   });
 });
 

@@ -14,7 +14,7 @@ import type { RollModifier } from './roll-modifiers.js';
 import type { AreaStanding, SpeedChange } from './standing.js';
 import type { MovementMode } from './character.js';
 import type { ActionRule } from './combat.js';
-import type { PointAnchoring } from './positioning.js';
+import type { LightLevel, ObscurementDegree, PointAnchoring } from './positioning.js';
 import type { CastingTime } from './spells.js';
 import type { SpellReactionWindow } from './reactions.js';
 import type { HealingRule } from './vitals.js';
@@ -1921,6 +1921,83 @@ export interface AreaTerrain {
   readonly costPerFoot: number;
 }
 
+/**
+ * What a casting's area does to the **light**, for as long as the casting
+ * lasts.
+ *
+ * {@link AreaTerrain}'s sibling, and the second consumer of the same
+ * mechanism: `docs/design/light-and-sight.md` puts light on the lattice
+ * "exactly as Difficult Terrain is", so the region this casting resolved is
+ * pinned into a `light-declared` event beside the cast and the patch lapses
+ * when the casting does. Nothing is looked up afterwards.
+ *
+ * Set only alongside `area`, the rule `areaTerrain` and `areaStanding` follow
+ * and for their reason: the patch lies on the region the area resolved, and a
+ * second geometry for light would be a second place for a radius to be
+ * measured from the wrong point.
+ *
+ * **The magic is not a field.** A patch a spell lays is magical by
+ * construction and carries the spell's *printed* level, because that is the
+ * number SRD Darkness and SRD Daylight compare — "an area of Bright Light or
+ * Dim Light created by a spell of **level 2 or lower**" is a flat threshold
+ * and not the slot that paid for it, so an upcast Darkness dispels exactly
+ * what the printed one does.
+ */
+export interface AreaLight {
+  /** The level over the area itself: SRD Darkness's darkness, Daylight's bright. */
+  readonly level: LightLevel;
+  /**
+   * SRD Daylight: "and sheds Dim Light for an additional 60 feet." SRD Light
+   * and SRD Continual Flame print the same shape at twenty.
+   *
+   * Feet **beyond** the area's own edge, laid as a second patch of Dim Light
+   * with the same origin and a wider radius — so the bright core wins where
+   * they overlap, which is what `lightAt` does with two patches anyway.
+   *
+   * Only on a Sphere, because that is the only shape whose edge is one
+   * number; the validator says so rather than silently laying nothing.
+   */
+  readonly dimBeyond?: number;
+  /**
+   * SRD sunlight, on a light that is the sun rather than merely bright.
+   *
+   * Refused on anything but `bright`, by the same rule `declareLightPatch`
+   * keeps: sunlight is Bright Light with a flag and not a fourth level.
+   */
+  readonly sunlight?: boolean;
+}
+
+/**
+ * What a casting's area does to how far you can **see**, when that is not a
+ * question about the light.
+ *
+ * SRD Fog Cloud: "The Sphere is Heavily Obscured", and the spell says nothing
+ * whatever about how bright it is. That is the whole reason obscurement is a
+ * record of its own beside light on `PositionState`, and it is the reason
+ * this is a field of its own beside {@link AreaLight}.
+ *
+ * What a light level implies — Dim is Lightly Obscured, Darkness is Heavily —
+ * is added by `obscurementAt` at read time, so a definition that writes
+ * `areaLight` must not also write this to say the same thing twice.
+ */
+export interface AreaObscurement {
+  readonly degree: ObscurementDegree;
+  /**
+   * SRD Fog Cloud: "The fog's radius increases by 20 feet for each spell slot
+   * level above 1."
+   *
+   * **Expressible here and not on `area`**, which is the difference between a
+   * template and a patch: an area is one fixed size because the fold reads
+   * the pinned template at every later question, while this region is worked
+   * out once, at the casting, against the slot that paid for it. So a level 5
+   * Fog Cloud lays the hundred-foot bank the book prints rather than the
+   * twenty-foot one.
+   *
+   * Only on a Sphere, for {@link AreaLight.dimBeyond}'s reason.
+   */
+  readonly radiusPerSlotLevelAbove?: number;
+}
+
 /** Shapes that need to be pointed somewhere as well as placed. */
 export const DIRECTIONAL_AREAS: ReadonlySet<SpellArea['kind']> = new Set([
   'cone',
@@ -2298,6 +2375,23 @@ export interface SpellDefinition {
    * overgrown, which is what its paragraph says.
    */
   readonly areaTerrain?: AreaTerrain;
+  /**
+   * What the area does to the **light** — see {@link AreaLight}.
+   *
+   * The fourth of the four, on the same terms as the third: set only
+   * alongside `area`, nothing fires, nothing is rolled, and it is not about a
+   * creature at all. SRD Darkness writes one sentence about one Sphere and
+   * this is the whole of it.
+   */
+  readonly areaLight?: AreaLight;
+  /**
+   * What the area does to **seeing through it**, where that is not the light
+   * — see {@link AreaObscurement}.
+   *
+   * SRD Fog Cloud's "The Sphere is Heavily Obscured", which names no level of
+   * light and could not have been written as one.
+   */
+  readonly areaObscurement?: AreaObscurement;
   /**
    * SRD "you can designate creatures to be unaffected by it".
    *
