@@ -33,11 +33,11 @@ state is displayed as zero.
 
 | Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none |
 |---|---|---|---|---|
-| Spells in reach, not executed | 129 spells | 96 | 0 | 33 |
-| Features manual, or a pool with nothing to buy | 58 features | 52 | 0 | 6 |
+| Spells in reach, not executed | 124 spells | 91 | 0 | 33 |
+| Features manual, or a pool with nothing to buy | 55 features | 49 | 0 | 6 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 |
 | Glossary general rules nothing executes | 22 rules | 7 | 0 | 15 |
-| CR ≤ 5 stat-block items handed over or unapplied | 400 items | on 186 of 242 blocks | 0 | 56 blocks already clean |
+| CR ≤ 5 stat-block items handed over or unapplied | 382 items | on 182 of 242 blocks | 0 | 60 blocks already clean |
 
 ## 1. Spells in reach the engine does not resolve
 
@@ -49,32 +49,32 @@ hold at all. An executed spell with nothing left is not here.
 
 | Shape | Blocks | Finishes |
 |---|---|---|
-| `light-and-obscurement-the-scene-holds` | 6 | 6 |
-| `an-action-a-spell-compels-or-forbids` | 8 | 4 |
+| `light-and-obscurement-the-scene-holds` | 7 | 6 |
 | `a-rider-on-a-later-weapon-attack` | 7 | 3 |
-| `difficult-terrain-an-area-creates` | 6 | 3 |
-| `senses-beyond-declared-sight` | 4 | 3 |
-| `a-random-outcome-that-is-not-a-d20` | 5 | 2 |
+| `an-action-a-spell-compels-or-forbids` | 6 | 3 |
 | `a-stat-block-created-mid-fight` | 5 | 2 |
 | `an-effect-that-suppresses-other-magic` | 5 | 2 |
-| `movement-modes` | 4 | 2 |
-| `a-condition-benefit-an-effect-takes-away` | 3 | 2 |
+| `a-choice-made-at-the-casting` | 4 | 2 |
+| `a-random-outcome-that-is-not-a-d20` | 4 | 2 |
+| `senses-beyond-declared-sight` | 3 | 2 |
 | `several-attack-rolls-from-one-casting` | 3 | 2 |
+| `a-spell-that-answers-a-later-attack` | 2 | 2 |
 | `a-casting-ended-by-a-trigger` | 7 | 1 |
 | `a-standing-effect-derived-from-where-a-creature-stands` | 5 | 1 |
 | `a-repeat-save-that-does-something-on-a-failure` | 4 | 1 |
-| `a-choice-made-at-the-casting` | 3 | 1 |
 | `a-target-rule-the-format-cannot-state` | 3 | 1 |
+| `an-action-the-engine-has-no-spender-for` | 3 | 1 |
 | `damage-with-neither-an-attack-roll-nor-a-save` | 3 | 1 |
+| `a-condition-benefit-an-effect-takes-away` | 2 | 1 |
 | `a-creature-fact-an-effect-overrides` | 2 | 1 |
+| `an-area-that-filters-its-catch` | 2 | 1 |
 | `an-area-trigger-measured-from-a-point` | 2 | 1 |
+| `difficult-terrain-an-area-creates` | 2 | 1 |
 | `forced-movement-a-spell-causes` | 2 | 1 |
 | `a-cap-on-how-many-castings-run-at-once` | 1 | 1 |
 | `a-reduction-an-effect-applies-to-damage` | 1 | 1 |
 | `a-rider-that-lasts-until-the-start-of-the-targets-next-turn` | 1 | 1 |
-| `a-save-keyed-to-a-condition` | 1 | 1 |
 | `a-second-roll-sequenced-after-the-first` | 1 | 1 |
-| `a-spell-that-answers-a-later-attack` | 1 | 1 |
 | `a-wall-or-several-templates-in-one-area` | 1 | 1 |
 | `a-world-fact-nothing-can-represent` | 1 | 1 |
 | `an-armor-class-a-spell-floors` | 1 | 1 |
@@ -96,8 +96,8 @@ hold at all. An executed spell with nothing left is not here.
 | `a-second-place-to-put-a-creature` | 2 | 0 |
 | `an-activation-taken-by-somebody-other-than-the-caster` | 2 | 0 |
 | `an-activation-that-resolves-an-area` | 2 | 0 |
-| `an-area-that-filters-its-catch` | 2 | 0 |
 | `an-outcome-that-reads-the-targets-hit-points` | 2 | 0 |
+| `movement-modes` | 2 | 0 |
 | `what-a-creature-is-holding` | 2 | 0 |
 | `a-casting-dismissed-early` | 1 | 0 |
 | `a-condition-a-spell-suppresses` | 1 | 0 |
@@ -107,7 +107,7 @@ hold at all. An executed spell with nothing left is not here.
 | `a-distance-a-creature-travels-inside-an-area` | 1 | 0 |
 | `a-mode-on-the-save-a-spell-forces` | 1 | 0 |
 | `a-range-that-scales-with-caster-level` | 1 | 0 |
-| `a-save-whose-failure-imposes-no-condition` | 1 | 0 |
+| `a-repeat-save-with-no-condition-to-hang-it-on` | 1 | 0 |
 | `a-selector-for-every-d20-test` | 1 | 0 |
 | `a-speed-an-effect-multiplies` | 1 | 0 |
 | `a-success-branch-that-does-something` | 1 | 0 |
@@ -124,25 +124,15 @@ hold at all. An executed spell with nothing left is not here.
 is planned from. A spell can need more than one shape, so neither column
 sums to the population.
 
-#### `light-and-obscurement-the-scene-holds` — blocks 6, finishes 6
+#### `light-and-obscurement-the-scene-holds` — blocks 7, finishes 6
 
 - **Dancing Lights** (level 0) — tracked
 - **Light** (level 0) — tracked
 - **Fog Cloud** (level 1) — tracked
 - **Continual Flame** (level 2) — tracked
 - **Darkness** (level 2) — tracked
+- **Web** (level 2) — executed-partial — also waits on 1
 - **Daylight** (level 3) — tracked
-
-#### `an-action-a-spell-compels-or-forbids` — blocks 8, finishes 4
-
-- **Command** (level 1) — tracked
-- **Dissonant Whispers** (level 1) — executed-partial
-- **Expeditious Retreat** (level 1) — executed-partial
-- **Hideous Laughter** (level 1) — executed-partial — also waits on 1
-- **Speak with Animals** (level 1) — tracked
-- **Gaseous Form** (level 3) — executed-partial — also waits on 3
-- **Haste** (level 3) — executed-partial — also waits on 2
-- **Slow** (level 3) — no-definition — also waits on 3
 
 #### `a-rider-on-a-later-weapon-attack` — blocks 7, finishes 3
 
@@ -154,29 +144,14 @@ sums to the population.
 - **Magic Weapon** (level 2) — tracked
 - **Bestow Curse** (level 3) — tracked — also waits on 2
 
-#### `difficult-terrain-an-area-creates` — blocks 6, finishes 3
+#### `an-action-a-spell-compels-or-forbids` — blocks 6, finishes 3
 
-- **Entangle** (level 1) — no-definition — also waits on 1
-- **Grease** (level 1) — executed-partial
-- **Gust of Wind** (level 2) — tracked — also waits on 2
-- **Web** (level 2) — executed-partial — also waits on 1
-- **Plant Growth** (level 3) — tracked
-- **Speak with Plants** (level 3) — tracked
-
-#### `senses-beyond-declared-sight` — blocks 4, finishes 3
-
-- **Find Familiar** (level 1) — no-definition — also waits on 3
-- **Blur** (level 2) — executed-partial
-- **Darkvision** (level 2) — tracked
-- **Mirror Image** (level 2) — tracked
-
-#### `a-random-outcome-that-is-not-a-d20` — blocks 5, finishes 2
-
-- **Augury** (level 2) — tracked
-- **Gust of Wind** (level 2) — tracked — also waits on 2
-- **Blink** (level 3) — tracked
-- **Sending** (level 3) — no-definition — also waits on 2
-- **Slow** (level 3) — no-definition — also waits on 3
+- **Command** (level 1) — tracked
+- **Dissonant Whispers** (level 1) — executed-partial
+- **Expeditious Retreat** (level 1) — executed-partial
+- **Hideous Laughter** (level 1) — executed-partial — also waits on 1
+- **Haste** (level 3) — executed-partial — also waits on 3
+- **Slow** (level 3) — executed-partial — also waits on 2
 
 #### `a-stat-block-created-mid-fight` — blocks 5, finishes 2
 
@@ -194,24 +169,36 @@ sums to the population.
 - **Sending** (level 3) — no-definition — also waits on 2
 - **Tiny Hut** (level 3) — tracked — also waits on 2
 
-#### `movement-modes` — blocks 4, finishes 2
+#### `a-choice-made-at-the-casting` — blocks 4, finishes 2
 
-- **Alter Self** (level 2) — tracked — also waits on 1
-- **Spider Climb** (level 2) — tracked
-- **Fly** (level 3) — tracked
-- **Gaseous Form** (level 3) — executed-partial — also waits on 3
+- **Thaumaturgy** (level 0) — tracked
+- **Enlarge/Reduce** (level 2) — tracked — also waits on 3
+- **Glyph of Warding** (level 3) — tracked — also waits on 1
+- **Plant Growth** (level 3) — executed-partial
 
-#### `a-condition-benefit-an-effect-takes-away` — blocks 3, finishes 2
+#### `a-random-outcome-that-is-not-a-d20` — blocks 4, finishes 2
 
-- **Faerie Fire** (level 1) — tracked
-- **Mind Spike** (level 2) — executed-partial
-- **Shining Smite** (level 2) — executed-partial — also waits on 1
+- **Augury** (level 2) — tracked
+- **Gust of Wind** (level 2) — tracked — also waits on 2
+- **Blink** (level 3) — tracked
+- **Sending** (level 3) — no-definition — also waits on 2
+
+#### `senses-beyond-declared-sight` — blocks 3, finishes 2
+
+- **Faerie Fire** (level 1) — executed-partial
+- **Find Familiar** (level 1) — no-definition — also waits on 3
+- **Darkvision** (level 2) — tracked
 
 #### `several-attack-rolls-from-one-casting` — blocks 3, finishes 2
 
 - **Eldritch Blast** (level 0) — executed-partial
 - **Chromatic Orb** (level 1) — executed-partial — also waits on 1
 - **Scorching Ray** (level 2) — executed-partial
+
+#### `a-spell-that-answers-a-later-attack` — blocks 2, finishes 2
+
+- **Sanctuary** (level 1) — tracked
+- **Mirror Image** (level 2) — tracked
 
 #### `a-casting-ended-by-a-trigger` — blocks 7, finishes 1
 
@@ -238,17 +225,17 @@ sums to the population.
 - **Sleep** (level 1) — tracked — also waits on 1
 - **Bestow Curse** (level 3) — tracked — also waits on 2
 
-#### `a-choice-made-at-the-casting` — blocks 3, finishes 1
-
-- **Thaumaturgy** (level 0) — tracked
-- **Enlarge/Reduce** (level 2) — tracked — also waits on 3
-- **Glyph of Warding** (level 3) — tracked — also waits on 1
-
 #### `a-target-rule-the-format-cannot-state` — blocks 3, finishes 1
 
 - **Ensnaring Strike** (level 1) — tracked — also waits on 2
 - **Animal Messenger** (level 2) — tracked
 - **Animate Dead** (level 3) — tracked — also waits on 1
+
+#### `an-action-the-engine-has-no-spender-for` — blocks 3, finishes 1
+
+- **Speak with Animals** (level 1) — tracked
+- **Gaseous Form** (level 3) — executed-partial — also waits on 3
+- **Haste** (level 3) — executed-partial — also waits on 3
 
 #### `damage-with-neither-an-attack-roll-nor-a-save` — blocks 3, finishes 1
 
@@ -256,15 +243,30 @@ sums to the population.
 - **Shield** (level 1) — executed-partial
 - **Heat Metal** (level 2) — tracked — also waits on 1
 
+#### `a-condition-benefit-an-effect-takes-away` — blocks 2, finishes 1
+
+- **Mind Spike** (level 2) — executed-partial
+- **Shining Smite** (level 2) — executed-partial — also waits on 1
+
 #### `a-creature-fact-an-effect-overrides` — blocks 2, finishes 1
 
 - **Arcanist's Magic Aura** (level 2) — tracked
 - **Enlarge/Reduce** (level 2) — tracked — also waits on 3
 
+#### `an-area-that-filters-its-catch` — blocks 2, finishes 1
+
+- **Entangle** (level 1) — no-definition
+- **Hypnotic Pattern** (level 3) — executed-partial — also waits on 1
+
 #### `an-area-trigger-measured-from-a-point` — blocks 2, finishes 1
 
 - **Flaming Sphere** (level 2) — tracked
 - **Phantasmal Force** (level 2) — no-definition — also waits on 2
+
+#### `difficult-terrain-an-area-creates` — blocks 2, finishes 1
+
+- **Gust of Wind** (level 2) — tracked — also waits on 2
+- **Speak with Plants** (level 3) — tracked
 
 #### `forced-movement-a-spell-causes` — blocks 2, finishes 1
 
@@ -283,17 +285,9 @@ sums to the population.
 
 - **Shocking Grasp** (level 0) — executed-partial
 
-#### `a-save-keyed-to-a-condition` — blocks 1, finishes 1
-
-- **Protection from Poison** (level 2) — executed-partial
-
 #### `a-second-roll-sequenced-after-the-first` — blocks 1, finishes 1
 
 - **Ice Knife** (level 1) — tracked
-
-#### `a-spell-that-answers-a-later-attack` — blocks 1, finishes 1
-
-- **Sanctuary** (level 1) — tracked
 
 #### `a-wall-or-several-templates-in-one-area` — blocks 1, finishes 1
 
@@ -335,13 +329,13 @@ sums to the population.
 
 - **Enthrall** (level 2) — tracked — also waits on 1
 - **Pass without Trace** (level 2) — tracked — also waits on 1
-- **Slow** (level 3) — no-definition — also waits on 3
+- **Slow** (level 3) — executed-partial — also waits on 2
 
 #### `a-check-another-creature-may-attempt` — blocks 3, finishes 0
 
 - **Ensnaring Strike** (level 1) — tracked — also waits on 2
 - **Detect Thoughts** (level 2) — tracked — also waits on 1
-- **Spike Growth** (level 2) — tracked — also waits on 1
+- **Spike Growth** (level 2) — executed-partial — also waits on 1
 
 #### `a-fact-only-the-table-can-declare` — blocks 3, finishes 0
 
@@ -395,15 +389,15 @@ sums to the population.
 - **Dragon's Breath** (level 2) — tracked — also waits on 1
 - **Call Lightning** (level 3) — tracked — also waits on 1
 
-#### `an-area-that-filters-its-catch` — blocks 2, finishes 0
-
-- **Entangle** (level 1) — no-definition — also waits on 1
-- **Hypnotic Pattern** (level 3) — executed-partial — also waits on 1
-
 #### `an-outcome-that-reads-the-targets-hit-points` — blocks 2, finishes 0
 
 - **Hex** (level 1) — tracked — also waits on 1
 - **Hunter's Mark** (level 1) — executed-partial — also waits on 1
+
+#### `movement-modes` — blocks 2, finishes 0
+
+- **Alter Self** (level 2) — tracked — also waits on 1
+- **Gaseous Form** (level 3) — executed-partial — also waits on 3
 
 #### `what-a-creature-is-holding` — blocks 2, finishes 0
 
@@ -432,7 +426,7 @@ sums to the population.
 
 #### `a-distance-a-creature-travels-inside-an-area` — blocks 1, finishes 0
 
-- **Spike Growth** (level 2) — tracked — also waits on 1
+- **Spike Growth** (level 2) — executed-partial — also waits on 1
 
 #### `a-mode-on-the-save-a-spell-forces` — blocks 1, finishes 0
 
@@ -442,9 +436,9 @@ sums to the population.
 
 - **Spare the Dying** (level 0) — tracked — also waits on 1
 
-#### `a-save-whose-failure-imposes-no-condition` — blocks 1, finishes 0
+#### `a-repeat-save-with-no-condition-to-hang-it-on` — blocks 1, finishes 0
 
-- **Slow** (level 3) — no-definition — also waits on 3
+- **Slow** (level 3) — executed-partial — also waits on 2
 
 #### `a-selector-for-every-d20-test` — blocks 1, finishes 0
 
@@ -452,7 +446,7 @@ sums to the population.
 
 #### `a-speed-an-effect-multiplies` — blocks 1, finishes 0
 
-- **Haste** (level 3) — executed-partial — also waits on 2
+- **Haste** (level 3) — executed-partial — also waits on 3
 
 #### `a-success-branch-that-does-something` — blocks 1, finishes 0
 
@@ -472,7 +466,7 @@ sums to the population.
 
 #### `an-effect-that-fires-when-the-casting-ends` — blocks 1, finishes 0
 
-- **Haste** (level 3) — executed-partial — also waits on 2
+- **Haste** (level 3) — executed-partial — also waits on 3
 
 #### `an-effect-that-stabilises-a-dying-creature` — blocks 1, finishes 0
 
@@ -549,7 +543,7 @@ entries in it, and the complement pinned by name. Its bracket is the level:
 an Origin feat and a Fighting Style print none and are taken at 1, so nine
 of the sixteen are in a level 1–5 character's reach.
 
-Of the 58, 32 are class or subclass features printed at level 5 or below, 23 are species or background traits and 3 are feats.
+Of the 55, 32 are class or subclass features printed at level 5 or below, 20 are species or background traits and 3 are feats.
 The snapshot of 2026-09-21 in `docs/dev/roadmap-ledger-2026-09-21.md`
 counted the first group only, and did not see the pools; the traits are in
 reach of a level 5 character too, which is where the difference in the size
@@ -558,7 +552,6 @@ comes from.
 | Shape | Blocks | Finishes |
 |---|---|---|
 | `a-resource-traded-for-another` | 4 | 3 |
-| `a-save-keyed-to-a-condition` | 4 | 3 |
 | `a-feature-that-changes-what-a-casting-costs` | 4 | 2 |
 | `a-rule-the-engine-fixes-for-everybody` | 4 | 2 |
 | `a-spell-a-source-that-does-not-cast-grants` | 4 | 2 |
@@ -578,6 +571,7 @@ comes from.
 | `an-effect-that-intercepts-dropping-to-0` | 1 | 1 |
 | `falling` | 1 | 1 |
 | `heroic-inspiration` | 1 | 1 |
+| `jumping` | 1 | 1 |
 | `a-benefit-that-runs-for-a-printed-span` | 5 | 0 |
 | `a-pool-the-proficiency-bonus-sizes` | 5 | 0 |
 | `a-casting-paid-for-out-of-a-feature-pool` | 2 | 0 |
@@ -585,9 +579,9 @@ comes from.
 | `a-language-or-a-proficiency-an-item-grants` | 2 | 0 |
 | `a-world-fact-nothing-can-represent` | 2 | 0 |
 | `an-attack-the-class-redefines` | 2 | 0 |
-| `movement-modes` | 2 | 0 |
 | `temporary-hit-points-a-feature-grants` | 2 | 0 |
 | `a-bonus-to-spell-attack-rolls` | 1 | 0 |
+| `a-check-keyed-to-the-condition-it-would-end` | 1 | 0 |
 | `a-creature-fact-an-effect-overrides` | 1 | 0 |
 | `a-creature-swapped-for-another-stat-block` | 1 | 0 |
 | `a-dc-a-feature-derives-from-its-own-abilities` | 1 | 0 |
@@ -600,7 +594,7 @@ comes from.
 | `an-area-an-item-creates` | 1 | 0 |
 | `an-outcome-of-a-spells-own-damage` | 1 | 0 |
 | `forced-movement-a-spell-causes` | 1 | 0 |
-| `jumping` | 1 | 0 |
+| `movement-modes` | 1 | 0 |
 
 **Blocks** is every feature of this population the shape touches;
 **finishes** is what it is the *only* blocker for — the column a tranche
@@ -613,13 +607,6 @@ sums to the population.
 - `monk:focus` — Monk's Focus (level 2, class, engine)
 - `sorcerer:font-of-magic` — Font of Magic (level 2, class, engine)
 - `rogue:cunning-strike` — Cunning Strike (level 5, class, manual) — also waits on 1
-
-#### `a-save-keyed-to-a-condition` — blocks 4, finishes 3
-
-- `dwarf:dwarven-resilience` — Dwarven Resilience (level 1, species, manual)
-- `elf:fey-ancestry` — Fey Ancestry (level 1, species, manual)
-- `goliath:powerful-build` — Powerful Build (level 1, species, manual) — also waits on 1
-- `halfling:brave` — Brave (level 1, species, manual)
 
 #### `a-feature-that-changes-what-a-casting-costs` — blocks 4, finishes 2
 
@@ -715,6 +702,10 @@ sums to the population.
 
 - `human:resourceful` — Resourceful (level 1, species, manual)
 
+#### `jumping` — blocks 1, finishes 1
+
+- `thief:second-story-work` — Second-Story Work (level 3, subclass, manual)
+
 #### `a-benefit-that-runs-for-a-printed-span` — blocks 5, finishes 0
 
 - `dwarf:stonecunning` — Stonecunning (level 1, species, manual) — also waits on 2
@@ -756,11 +747,6 @@ sums to the population.
 - `dragonborn:breath-weapon` — Breath Weapon (level 1, species, manual) — also waits on 3
 - `open-hand:technique` — Open Hand Technique (level 3, subclass, manual) — also waits on 2
 
-#### `movement-modes` — blocks 2, finishes 0
-
-- `thief:second-story-work` — Second-Story Work (level 3, subclass, manual) — also waits on 1
-- `dragonborn:draconic-flight` — Draconic Flight (level 5, species, manual) — also waits on 1
-
 #### `temporary-hit-points-a-feature-grants` — blocks 2, finishes 0
 
 - `orc:adrenaline-rush` — Adrenaline Rush (level 1, species, manual) — also waits on 1
@@ -769,6 +755,10 @@ sums to the population.
 #### `a-bonus-to-spell-attack-rolls` — blocks 1, finishes 0
 
 - `sorcerer:innate-sorcery` — Innate Sorcery (level 1, class, manual) — also waits on 2
+
+#### `a-check-keyed-to-the-condition-it-would-end` — blocks 1, finishes 0
+
+- `goliath:powerful-build` — Powerful Build (level 1, species, manual) — also waits on 1
 
 #### `a-creature-fact-an-effect-overrides` — blocks 1, finishes 0
 
@@ -818,9 +808,9 @@ sums to the population.
 
 - `open-hand:technique` — Open Hand Technique (level 3, subclass, manual) — also waits on 2
 
-#### `jumping` — blocks 1, finishes 0
+#### `movement-modes` — blocks 1, finishes 0
 
-- `thief:second-story-work` — Second-Story Work (level 3, subclass, manual) — also waits on 1
+- `dragonborn:draconic-flight` — Draconic Flight (level 5, species, manual) — also waits on 1
 
 #### Waiting on a definition — 0
 
@@ -883,7 +873,7 @@ so none of them waits on reach: every one is in it.
 
 ## 5. CR ≤ 5 stat-block lines handed over or unapplied
 
-242 of the 330 carried stat blocks are CR ≤ 5. They print 737 lines, of which the parser reads 407 and hands over 330. A further 70 of the read attack lines carry a printed rider nothing applies, so the population is 400 items over 242 blocks — 56 of which already carry none of them.
+242 of the 330 carried stat blocks are CR ≤ 5. They print 737 lines, of which the parser reads 476 and hands over 261. Reading is not spending: a further 70 of the read attack lines carry a printed rider nothing applies, and 51 read trait lines state a mechanic no engine reader asks for. So the population is 382 items over 242 blocks — 60 of which already carry none of them.
 
 **A block is the unit that matters and a line is the unit that is counted.**
 A block with four unapplied lines is one fight that does not run, not four,
@@ -892,10 +882,11 @@ overlap: one sentence can force a save and recharge.
 
 | Shape | Lines | Blocks | Three example blocks |
 |---|---|---|---|
-| A save a line forces | 73 | 60 | Air Elemental (CR 5) / Whirlwind (Recharge 4–6); Ankheg (CR 2) / Acid Spray (Recharge 6); Basilisk (CR 3) / Petrifying Gaze (Recharge 4–6) |
 | An effect a hit buys | 70 | 65 | Animated Rug of Smothering (CR 2) / Smother; Barbed Devil (CR 5) / Hurl Flame; Bearded Devil (CR 3) / Beard |
-| A recharge | 32 | 32 | Air Elemental (CR 5) / Whirlwind (Recharge 4–6); Ankheg (CR 2) / Acid Spray (Recharge 6); Basilisk (CR 3) / Petrifying Gaze (Recharge 4–6) |
+| A save a line forces | 55 | 50 | Air Elemental (CR 5) / Whirlwind (Recharge 4–6); Basilisk (CR 3) / Petrifying Gaze (Recharge 4–6); Brass Dragon Wyrmling (CR 1) / Sleep Breath |
+| A trait shape nothing spends | 51 | 48 | Black Dragon Wyrmling (CR 2) / Amphibious; Black Pudding (CR 4) / Spider Climb; Bronze Dragon Wyrmling (CR 2) / Amphibious |
 | A use the block limits per day | 18 | 17 | Couatl (CR 4) / Divine Aid (2/Day); Cultist Fanatic (CR 2) / Spiritual Weapon (2/Day); Darkmantle (CR 0.5) / Darkness Aura (1/Day) |
+| A recharge | 17 | 17 | Air Elemental (CR 5) / Whirlwind (Recharge 4–6); Basilisk (CR 3) / Petrifying Gaze (Recharge 4–6); Blink Dog (CR 0.25) / Teleport (Recharge 4–6) |
 | A creature that casts | 12 | 12 | Couatl (CR 4) / Spellcasting; Cultist Fanatic (CR 2) / Spellcasting; Druid (CR 2) / Spellcasting |
 | A legendary action’s own economy | 2 | 1 | Unicorn (CR 5) / Charging Horn |
 | How many attacks the Attack action holds | 1 | 1 | Roper (CR 5) / Multiattack |
@@ -906,7 +897,7 @@ line, carried onto the sheet, asked at the turn boundary and spent by
 `takeStatedAction`; what is unapplied on such a line is what it *does*.
 A brief quoting those rows should say so.
 
-### Handed-over lines matching no enumerated shape — 227
+### Handed-over lines matching no enumerated shape — 176
 
 A debt nobody has given an id to is still a debt, so these are named here
 rather than dropped. They carry no parsed structure at all, which is why no
@@ -921,7 +912,6 @@ of it off the ledger.
 
 - Air Elemental (CR 5) [trait] Air Form
 - Ankheg (CR 2) [trait] Tunneler
-- Archelon (CR 4) [trait] Amphibious
 - Azer Sentinel (CR 2) [trait] Fire Aura
 - Azer Sentinel (CR 2) [trait] Illumination
 - Bandit Captain (CR 2) [reaction] Parry
@@ -930,23 +920,17 @@ of it off the ledger.
 - Barbed Devil (CR 5) [trait] Magic Resistance
 - Bearded Devil (CR 3) [trait] Magic Resistance
 - Berserker (CR 2) [trait] Bloodied Frenzy
-- Black Dragon Wyrmling (CR 2) [trait] Amphibious
 - Black Pudding (CR 4) [trait] Amorphous
 - Black Pudding (CR 4) [trait] Corrosive Form
-- Black Pudding (CR 4) [trait] Spider Climb
 - Black Pudding (CR 4) [reaction] Split
 - Boar (CR 0.25) [trait] Bloodied Fury
-- Bronze Dragon Wyrmling (CR 2) [trait] Amphibious
 - Bugbear Stalker (CR 3) [trait] Abduct
 - Bugbear Warrior (CR 1) [trait] Abduct
 - Bulette (CR 5) [bonus action] Leap
 - Cat (CR 0) [trait] Jumper
-- Chuul (CR 4) [trait] Amphibious
 - Chuul (CR 4) [trait] Sense Magic
 - Commoner (CR 0) [trait] Training
 - Couatl (CR 4) [trait] Shielded Mind
-- Crab (CR 0) [trait] Amphibious
-- Crocodile (CR 0.5) [trait] Hold Breath
 - Deer (CR 0) [trait] Agile
 - Doppelganger (CR 3) [action] Read Thoughts
 - Doppelganger (CR 3) [bonus action] Shape-Shift
@@ -956,7 +940,6 @@ of it off the ledger.
 - Earth Elemental (CR 5) [trait] Earth Glide
 - Earth Elemental (CR 5) [trait] Siege Monster
 - Ettercap (CR 2) [bonus action] Reel
-- Ettercap (CR 2) [trait] Spider Climb
 - Ettercap (CR 2) [trait] Web Walker
 - Fire Elemental (CR 5) [trait] Fire Aura
 - Fire Elemental (CR 5) [trait] Fire Form
@@ -967,69 +950,41 @@ of it off the ledger.
 - Flesh Golem (CR 5) [trait] Immutable Form
 - Flesh Golem (CR 5) [trait] Lightning Absorption
 - Flesh Golem (CR 5) [trait] Magic Resistance
-- Flying Snake (CR 0.125) [trait] Flyby
-- Frog (CR 0) [trait] Amphibious
-- Frog (CR 0) [trait] Standing Leap
-- Gargoyle (CR 2) [trait] Flyby
 - Gelatinous Cube (CR 2) [trait] Ooze Cube
 - Gelatinous Cube (CR 2) [trait] Transparent
 - Ghost (CR 4) [trait] Ethereal Sight
 - Ghost (CR 4) [action] Etherealness
 - Ghost (CR 4) [trait] Incorporeal Movement
 - Giant Boar (CR 2) [trait] Bloodied Fury
-- Giant Crab (CR 0.125) [trait] Amphibious
-- Giant Crocodile (CR 5) [trait] Hold Breath
 - Giant Fire Beetle (CR 0) [trait] Illumination
-- Giant Frog (CR 0.25) [trait] Amphibious
-- Giant Frog (CR 0.25) [trait] Standing Leap
 - Giant Frog (CR 0.25) [action] Swallow
-- Giant Lizard (CR 0.25) [trait] Spider Climb
-- Giant Octopus (CR 1) [trait] Water Breathing
-- Giant Owl (CR 0.25) [trait] Flyby
 - Giant Seahorse (CR 0.5) [bonus action] Bubble Dash
-- Giant Seahorse (CR 0.5) [trait] Water Breathing
-- Giant Shark (CR 5) [trait] Water Breathing
-- Giant Spider (CR 1) [trait] Spider Climb
 - Giant Spider (CR 1) [trait] Web Walker
-- Giant Toad (CR 1) [trait] Amphibious
-- Giant Toad (CR 1) [trait] Standing Leap
 - Giant Toad (CR 1) [action] Swallow
-- Giant Wasp (CR 0.5) [trait] Flyby
-- Giant Wolf Spider (CR 0.25) [trait] Spider Climb
 - Gibbering Mouther (CR 2) [trait] Aberrant Ground
 - Gladiator (CR 5) [reaction] Parry
 - Goblin Boss (CR 1) [bonus action] Nimble Escape
 - Goblin Boss (CR 1) [reaction] Redirect Attack
 - Goblin Minion (CR 0.125) [bonus action] Nimble Escape
 - Goblin Warrior (CR 0.25) [bonus action] Nimble Escape
-- Gold Dragon Wyrmling (CR 3) [trait] Amphibious
 - Gray Ooze (CR 0.5) [trait] Amorphous
 - Gray Ooze (CR 0.5) [trait] Corrosive Form
-- Green Dragon Wyrmling (CR 2) [trait] Amphibious
-- Green Hag (CR 3) [trait] Amphibious
 - Green Hag (CR 3) [trait] Coven Magic
 - Green Hag (CR 3) [trait] Mimicry
 - Half-Dragon (CR 5) [trait] Draconic Origin
 - Half-Dragon (CR 5) [bonus action] Leap
-- Hippogriff (CR 1) [trait] Flyby
-- Hippopotamus (CR 4) [trait] Hold Breath
 - Hobgoblin Captain (CR 3) [trait] Aura of Authority
 - Homunculus (CR 0) [trait] Telepathic Bond
-- Hunter Shark (CR 2) [trait] Water Breathing
 - Imp (CR 1) [action] Invisibility
 - Imp (CR 1) [trait] Magic Resistance
 - Imp (CR 1) [action] Shape-Shift
 - Incubus (CR 4) [trait] Succubus Form
-- Killer Whale (CR 3) [trait] Hold Breath
 - Knight (CR 3) [reaction] Parry
 - Kobold Warrior (CR 0.125) [trait] Sunlight Sensitivity
 - Lamia (CR 4) [bonus action] Leap
 - Lemure (CR 0) [trait] Hellish Restoration
 - Lion (CR 1) [trait] Running Leap
-- Lizard (CR 0) [trait] Spider Climb
 - Magmin (CR 0.5) [bonus action] Ignited Illumination
-- Merfolk Skirmisher (CR 0.125) [trait] Amphibious
-- Merrow (CR 2) [trait] Amphibious
 - Mimic (CR 2) [trait] Adhesive (Object Form Only)
 - Mimic (CR 2) [bonus action] Shape-Shift
 - Mule (CR 0.125) [trait] Beast of Burden
@@ -1042,29 +997,20 @@ of it off the ledger.
 - Nightmare (CR 3) [trait] Illumination
 - Noble (CR 0.125) [reaction] Parry
 - Ochre Jelly (CR 2) [trait] Amorphous
-- Ochre Jelly (CR 2) [trait] Spider Climb
 - Ochre Jelly (CR 2) [reaction] Split
 - Octopus (CR 0) [trait] Compression
-- Octopus (CR 0) [trait] Water Breathing
 - Ogre Zombie (CR 2) [trait] Undead Fortitude
-- Owl (CR 0) [trait] Flyby
 - Panther (CR 0.25) [bonus action] Nimble Escape
 - Phase Spider (CR 3) [bonus action] Ethereal Jaunt
 - Phase Spider (CR 3) [trait] Ethereal Sight
-- Phase Spider (CR 3) [trait] Spider Climb
 - Phase Spider (CR 3) [trait] Web Walker
-- Piranha (CR 0) [trait] Water Breathing
-- Plesiosaurus (CR 2) [trait] Hold Breath
 - Pseudodragon (CR 0.25) [trait] Magic Resistance
-- Pteranodon (CR 0.25) [trait] Flyby
 - Quasit (CR 1) [action] Invisibility
 - Quasit (CR 1) [trait] Magic Resistance
 - Quasit (CR 1) [action] Shape-Shift
 - Rat (CR 0) [trait] Agile
 - Raven (CR 0) [trait] Mimicry
-- Reef Shark (CR 0.5) [trait] Water Breathing
 - Roper (CR 5) [action] Reel
-- Roper (CR 5) [trait] Spider Climb
 - Roper (CR 5) [action] Tentacle
 - Rust Monster (CR 0.5) [action] Destroy Metal
 - Rust Monster (CR 0.5) [trait] Iron Scent
@@ -1073,15 +1019,12 @@ of it off the ledger.
 - Saber-Toothed Tiger (CR 2) [trait] Running Leap
 - Sahuagin Warrior (CR 0.5) [bonus action] Aquatic Charge
 - Sahuagin Warrior (CR 0.5) [trait] Blood Frenzy
-- Sahuagin Warrior (CR 0.5) [trait] Limited Amphibiousness
 - Sahuagin Warrior (CR 0.5) [trait] Shark Telepathy
 - Salamander (CR 5) [trait] Fire Aura
 - Satyr (CR 0.5) [trait] Magic Resistance
-- Sea Hag (CR 2) [trait] Amphibious
 - Sea Hag (CR 2) [trait] Coven Magic
 - Sea Hag (CR 2) [action] Illusory Appearance
 - Seahorse (CR 0) [action] Bubble Dash
-- Seahorse (CR 0) [trait] Water Breathing
 - Shadow (CR 0.5) [trait] Amorphous
 - Shadow (CR 0.5) [bonus action] Shadow Stealth
 - Shadow (CR 0.5) [trait] Sunlight Weakness
@@ -1090,7 +1033,6 @@ of it off the ledger.
 - Specter (CR 1) [trait] Incorporeal Movement
 - Specter (CR 1) [trait] Sunlight Sensitivity
 - Sphinx of Wonder (CR 1) [trait] Magic Resistance
-- Spider (CR 0) [trait] Spider Climb
 - Spider (CR 0) [trait] Web Walker
 - Sprite (CR 0.25) [action] Invisibility
 - Spy (CR 1) [bonus action] Cunning Action
@@ -1103,7 +1045,6 @@ of it off the ledger.
 - Swarm of Insects (CR 0.5) [trait] Spider Climb
 - Swarm of Insects (CR 0.5) [trait] Swarm
 - Swarm of Piranhas (CR 1) [trait] Swarm
-- Swarm of Piranhas (CR 1) [trait] Water Breathing
 - Swarm of Rats (CR 0.25) [trait] Swarm
 - Swarm of Ravens (CR 0.25) [trait] Swarm
 - Swarm of Venomous Snakes (CR 2) [trait] Swarm
@@ -1120,7 +1061,6 @@ of it off the ledger.
 - Vampire Spawn (CR 5) [bonus action] Deathless Agility
 - Vampire Spawn (CR 5) [trait] Forbiddance
 - Vampire Spawn (CR 5) [trait] Running Water
-- Vampire Spawn (CR 5) [trait] Spider Climb
 - Vampire Spawn (CR 5) [trait] Stake to the Heart
 - Vampire Spawn (CR 5) [trait] Sunlight
 - Vampire Spawn (CR 5) [trait] Vampire Weakness
