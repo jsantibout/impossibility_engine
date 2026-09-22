@@ -152,6 +152,7 @@ The load-bearing tests, so you know what a change can break:
 | casting, pending castings, ongoing spells, Concentration, effect resolvers | `docs/design/casting.md` |
 | the event log, the fold, state ownership, conditions | `docs/design/event-log.md` |
 | positioning, areas, teleportation, the combat model | `docs/design/space-and-areas.md` |
+| light, obscurement, the sight question | `docs/design/light-and-sight.md` |
 | durations, turn boundaries, rests, the clock | `docs/design/time-and-turns.md` |
 | the D20 pipeline, modifiers, damage, reaction windows | `docs/design/rolls-and-damage.md` |
 | creation, advancement, features, multiclassing, items, monsters | `docs/design/characters-and-equipment.md` |

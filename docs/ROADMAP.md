@@ -111,6 +111,22 @@ Everything in `CLAUDE.md` and `docs/dev/WORKFLOW.md` holds. These are added.
 6. **Every batch regenerates the two derived files once**, `COVERAGE.md`
    and `LEDGER.md`, by the foreman at merge, exactly as `WORKFLOW.md` says
    for the first.
+8. **A reader ships with its first writer** — the mirror of rule 2, added at
+   G1 after movement modes built a complete mechanism and moved no number.
+   No track is briefed whose ledger delta is zero by construction. If the
+   owner wants a mechanism, the brief pairs it with the cheapest writer that
+   moves a number: `GrantedSpeed.mode` plus Fly would have done it. This is a
+   rule of its own, not an exception to rule 1.
+9. **Fence by reader, and print the grep.** The three fences drawn wrong in
+   Phase 1 all listed the *writers* — definition, schema, resolver — and
+   omitted the *readers*. The one brief fenced right (P1-T5) listed where
+   `forced` is read, with line numbers. So before writing a brief, grep the
+   read sites of the shape's nearest built sibling (`forced`, `speed-change`,
+   `DifficultPatch`, `sense`) and put the grep **and its result** in the
+   brief; every file it returns is in the fence. A builder that finds a
+   reader outside its fence and inside nobody else's claims it in the digest
+   and proceeds; one inside another track's fence stops. That licence is what
+   P1-T3 took without asking and was right to take.
 7. **What not to do.** Do not reorganise the flat engine tree. Do not add a
    generic abstraction ahead of a second concrete consumer. Do not regenerate
    the frozen fixtures. Do not run `srd:index` in a worktree. Do not brief a
@@ -127,7 +143,7 @@ questions, and the session-test handover count.
 | Gate | When | The architect decides |
 |---|---|---|
 | **G0** | now | this roadmap; done |
-| **G1** | Phase 0 and Phase 1 merged | whether the ledger tooling measures what it claims; re-rank Phase 2 from the regenerated ledger; approve the sight-model design note (P2-T22) for the owner's ruling |
+| **G1** — **held 2026-09-21, see §5.0** | Phase 0 and Phase 1 merged | whether the ledger tooling measures what it claims; re-rank Phase 2 from the regenerated ledger; approve the sight-model design note (P2-T22) for the owner's ruling |
 | **G2** | Phase 2 merged, integration milestone I-1 reached | re-rank Phase 3; decide whether any Phase 3 group needs a design note; check the Infinite Realms adapter holds the doctrine's lines |
 | **G3** | Phase 3 at ledger zero, milestone I-2 reached | criteria 1–3; the last shapes that resisted; whether the tail's handovers are honest |
 | **G4** | milestone I-3 | criterion 4; declare levels 1–5 playable; open the level 6+ question |
@@ -330,6 +346,116 @@ not a measurement, it was an absence of one. CR ≤ 5: unapplied lines 434 →
 416, clean blocks 44 → 50. Two of the eleven tracks did not build: P1-T4 and
 P1-T13, both for reasons in §10 rather than for want of trying, and P1-T10
 delivered about half of its 31 blocks with the rest behind one field.
+
+## 5.0 G1, held 2026-09-21
+
+### Job 1 — does the ledger measure what it claims?
+
+**The tooling faithfully measures the populations it encodes, and its guards
+are sound. The claim that those populations are the complete set between here
+and criterion 1 is false in four ways, one serious.**
+
+1. **A tracked spell's `unmodelled` lines are invisible to the ledger.**
+   `spellShapesOf` reads `TRACKED_ADJUDICATED[id] ?? []` and never opens the
+   definition's `unmodelled`. Of the 40 spells the report files under *waits
+   on no shape*, **34 have no `TRACKED_ADJUDICATED` entry at all** — and
+   `docs/design/content.md` is explicit that an `unmodelled` line *is* a debt.
+   Darkness carries four such lines, Daylight three, Light three. **There is
+   no shape id for light or obscurement in `MISSING_SHAPES`**, so a reader who
+   wanted to record the debt could not. The report contradicts P3-S.
+2. **"Waits on none" conflates three claims** — nobody has read it; it is
+   expressible and nobody wrote it; it is handed over. Only the third is
+   finished. The 89 → 90 → 89 movement is the instrument *working*: a
+   measurement over adjudications must rise when somebody reads. The fault is
+   that the unread state is displayed as zero rather than as its own number.
+   **The fix is a third column, not a different metric.**
+3. **Two populations have no row**: feats (16, 9 in reach, 0 manual today —
+   costs nothing now and will cost silently) and items. And the glossary's
+   general rules have no population at all: Search, Study, Influence and
+   Utilize name their own absence, and the mastery property **`nick` occurs in
+   no engine source file**, which a level 1 Rogue with a scimitar reaches.
+4. **The bestiary row is honest**, and the criterion-3 reading was right: a
+   skeleton refused for being Incapacitated is the engine correct and the
+   script miscounting. Reclassify `refused/incapacitated` on a monster.
+
+**Expect the 89 to rise again, by at least six, once this is recorded. That is
+the honest number.** The work is content and generators only, no engine file.
+
+### Job 2 — Phase 2 re-ranked
+
+Three claims checked, then the order.
+
+- **The rider finding holds and is already the codebase's own doctrine**
+  (`OutcomeRiders`' docstring states it; `spell-schema.test.ts` pins the two
+  vocabularies disjoint). Two consequences: **Shocking Grasp is built bar one
+  word** — `RiderDuration` has `end-of-targets-next-turn` and no
+  `start-of-targets-next-turn`; adding it is three switch arms, one validator
+  line and a test, and the `ADJUDICATED` reason is stale. And wave 1.5 spelled
+  a target-anchored span **a second way** (`HitOption.lasts`/`lastsOn` through
+  `turnAnchored`); the Shocking Grasp track resolves the new member through
+  that same `turnAnchored` rather than a fourth `endOfNextTurn` call.
+- **The top shape is not three mechanisms; it is five**, and its largest arm
+  finishes one spell. Shocking Grasp (built bar a word); an extra action a
+  running effect grants each turn (Expeditious Retreat, Haste); a compelled
+  action spending another's budget (Dissonant Whispers, Command — owner's);
+  actions with no spender, which is the existing id
+  `an-action-the-engine-has-no-spender-for`, **mis-filed**; and Hideous
+  Laughter's self-cure-forbidden. After the split it reads about 1/1, 2/1,
+  2/0, 3/0, 1/0 and **drops out of the top of Phase 2**.
+- **The ingest constraint in the G1 packet was overstated, and the foreman's
+  brief to P1-T13 was wrong about it.** `packages/srd/raw/*.md` is tracked;
+  `srd:ingest` reads it and writes both the gitignored JSON and the committed
+  index, and **runs in any worktree**. What is true is the narrower
+  `WORKFLOW.md` rule: `srd:index` must not run on copied, stale JSON. So a
+  parser track ingests *then* indexes in its own worktree and commits the
+  regenerated index, owning `packages/srd/**` alone for the batch; every other
+  live worktree re-ingests after rebasing.
+
+| # | Track | Finishes / moves | Fence (by reader) and sequencing |
+|---|---|---|---|
+| 0 | **P2-T0 The ledger made honest** | the 89 rises; Shocking Grasp and Speak with Animals re-filed; the light shape id; `SPLIT_BUNDLES` for P3-A; the third column; the feats row; the glossary table | `packages/content/scripts/**`, `spells.ts` notes. **First, alone, before any other brief cites a number** |
+| 1 | **P2-T12 A casting writes a lattice patch** | Grease, Plant Growth, Entangle, Web's and Spike Growth's clauses — **and it is the seam the sight model reuses**, so design `LightPatch` as its second consumer | readers of `DifficultPatch`/`livePatches`: `positioning.ts`, `commands/movement.ts`, `fold/scene.ts`; writer in `commands/casting.ts` |
+| 2 | **P2-T18+ the ingest track** — a save a printed line forces, plus the movement and amphibious trait kinds | 14 blocks + 73 lines; 26 blocks | `packages/srd/**` alone, `monster.ts`, `commands/actions.ts`; runs ingest then index and commits the index |
+| 3 | **P2-T13′ Movement modes' writers** | Spider Climb, Fly, Second-Story Work; Alter Self one short | `GrantedSpeed.mode`: readers of `speedOf`; `climb-speed` `FeatureGrant` |
+| 4 | **P2-S1 `save.condition` optional** | Slow's four clauses, Faerie Fire, **Zone of Truth** — three consumers | `spell-schema.ts` `case 'save'`, `spell-effect-conditions.ts`, `spell-effect-riders.ts` |
+| 5 | **P2-T15 Rider on a later weapon attack** | Shillelagh, True Strike, Magic Weapon, Sacred Weapon | `standing.ts` attack-rider family, `attack.ts` |
+| 6 | **P2-T14 Magic Missile and Shield** | Shield; Magic Missile | **decide `cannot_hold` on stat-block attacks first**, or the Wizard's Shield stays unreachable |
+| 7 | **P2-T16 Senses on the attacker's side** | Mirror Image, Blur | `standing.ts`, `attack.ts`, `attacks.ts` |
+| 8 | **P2-F1 species-trait cluster** | Dwarven Resilience, Fey Ancestry, Brave, Protection from Poison | `roll-modifiers.ts`, `conditions.ts` |
+| 9 | **P2-T11 Summon** | Find Steed, Phantom Steed; needed by P3-W | as written; owner-ruled |
+| 10 | **P2-T17 Non-d20 outcome** | Augury. **Blink is not this anchor** — its end-of-turn roll is a turn-boundary payout | split before briefing |
+| 11 | P2-T21, then P2-T19, then P2-T20 | 5 blocks; 2 features | as written |
+| — | P3-A's compelled arm | 2 | **not briefed until the owner rules** |
+
+### Job 3 — the sight-model note
+
+Written: `docs/design/light-and-sight.md`, cited from `CLAUDE.md`. **It carries
+five decisions for the owner** and nothing is built until they are taken.
+
+### §10 dispositions taken at G1
+
+- **`TrackedAdjudication.why`: widen it** to
+  `'table' | 'engine' | 'expressible' | ShapeId | ItemShapeId`. It ships only
+  with `spellShapesOf` treating `'expressible'` as the third column,
+  `misanchoredAdjudications` refusing a marker-less `'expressible'`, and the
+  `unrecorded` guard from job 1 — without the first, Hex's entry prints
+  `expressible` as a shape heading. Part of P2-T0.
+- **`FeatureDefinition.grants`: make it plural**, with one `grantsOf`
+  normaliser and the validator refusing two grants of one kind unless they
+  compose. Five consumers clear the bar. **Splitting a printed feature into
+  two ids is refused**: the ledger population, the origin sweep and
+  `holdingsOf` are keyed by the page's feature, so two ids double-count and
+  put a name in the log the book does not print.
+- **May the engine hold a fact only the table reads? Yes, under one rule** —
+  when the fact is the recorded outcome of a roll the engine made and a door
+  publishes it. Zone of Truth's die is thrown for a printed reason ("You know
+  whether each creature succeeds or fails"), and `observe()` already publishes
+  per-creature conditions. Build it as a save with no condition whose affected
+  creatures the ongoing record keeps and `observe()` lists — no new state
+  kind. Prerequisite: `save.condition` optional, which is why P2-S1 is ranked
+  where it is.
+- **The lopsided split of several attack rolls stays the owner's.** For the
+  record: the sayable form is `targets: [{ id, count }]`.
 
 ## 5. Phase 2: batch 2
 
