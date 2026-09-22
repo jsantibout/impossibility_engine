@@ -226,6 +226,51 @@ export interface ObservedCreature {
   readonly budget: ObservedBudget | null;
 }
 
+/**
+ * One spell still running, and what it has written down.
+ *
+ * **The half of the table that was nowhere on the wire.** `look` has always
+ * said which creature is *concentrating* on what, which is one creature's view
+ * of one casting and misses every running spell nobody is concentrating on —
+ * a Web, a Grease, a Zone of Truth. `castingId` is the string half this
+ * package's tools already take (`end_ongoing_spell`, `activate_spell`,
+ * `dispel`), and until now a caller had to have remembered it from the
+ * `cast_spell` that returned it.
+ *
+ * **What is deliberately absent is what a spell *is*.** The area, the origin,
+ * the save DC and the attack modifier are pinned on the record and are not
+ * reported: the geometry is measured by the engine and a DC decides a roll the
+ * engine throws, so a caller told either would be a caller one step from
+ * narrating against a number nobody rolled. That is
+ * {@link ObservedPrintedAttack}'s rule, one subsystem along.
+ */
+export interface ObservedOngoingSpell {
+  /** The id every tool that addresses a running casting takes. */
+  readonly castingId: string;
+  readonly spellId: string;
+  /** The display name, so a caller narrating needs no lookup. */
+  readonly spell: string;
+  readonly caster: string;
+  /** The slot it went off at, which is what an upcast spell's numbers came from. */
+  readonly level: number;
+  /**
+   * What this casting's saving throw came to, per creature it has asked.
+   *
+   * **This is the door the gate's ruling required.** SRD Zone of Truth's "You
+   * know whether a creature succeeds or fails on this save" is a fact with no
+   * other consequence the rules can see — the failure imposes no condition,
+   * because the engine holds no speech — so the verdict is the whole of the
+   * spell's effect and it reaches nobody unless something publishes it. The
+   * engine may hold a fact only the table reads when the fact is the recorded
+   * outcome of a roll the engine made **and a door publishes it**; this is
+   * that door, and `save.recordsOutcome` is what asks for the fact to be kept.
+   *
+   * Empty for every casting that records none, which is every casting but one
+   * spell's.
+   */
+  readonly saves: readonly { readonly who: string; readonly failed: boolean }[];
+}
+
 export interface ObservedDebts {
   readonly pendingSaves: number;
   readonly pendingAttack: string | null;
@@ -265,6 +310,8 @@ export interface Observation {
     readonly landmarks: readonly string[];
   } | null;
   readonly creatures: readonly ObservedCreature[];
+  /** Every spell still running, by casting id. See {@link ObservedOngoingSpell}. */
+  readonly ongoing: readonly ObservedOngoingSpell[];
   readonly owed: ObservedDebts;
 }
 
@@ -424,6 +471,21 @@ export function observe(state: GameState): Observation {
         ? null
         : { extent: state.scene.extent, landmarks: Object.keys(state.scene.landmarks).sort() },
     creatures,
+    // Sorted by casting id, which is the order the fold already keeps them in
+    // and is the order they were cast in.
+    ongoing: Object.keys(state.ongoing)
+      .sort()
+      .map((key): ObservedOngoingSpell => {
+        const record = state.ongoing[key]!;
+        return {
+          castingId: record.castingId,
+          spellId: record.spellId,
+          spell: record.spell,
+          caster: record.caster,
+          level: record.level,
+          saves: (record.saves ?? []).map((one) => ({ who: one.who, failed: one.failed })),
+        };
+      }),
     owed: {
       pendingSaves: state.pendingSaves === undefined ? 0 : Object.keys(state.pendingSaves).length,
       pendingAttack: state.pendingAttack?.attacker ?? null,

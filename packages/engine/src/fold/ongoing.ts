@@ -27,6 +27,7 @@ export const ONGOING_EVENTS = [
   'spell-ended',
   'spell-activated',
   'area-effect-settled',
+  'casting-save-recorded',
   'spell-origin-moved',
   'concentration-started',
   'concentration-ended',
@@ -129,6 +130,34 @@ export function applyOngoing({ state, next, legacy }: Applying, event: OngoingEv
           ...state.owedAreaEffects.slice(0, at),
           ...state.owedAreaEffects.slice(at + 1),
         ],
+      };
+    }
+
+    // **The one event whose whole consequence is that somebody now knows.**
+    // SRD Zone of Truth's failure imposes nothing this engine holds, so the
+    // verdict is the effect: it is written onto the casting that threw the
+    // save, keyed by who, and `observe()` publishes it. Nothing else in the
+    // fold reads it — no condition, no timer, no grant — which is exactly the
+    // condition the gate put on the engine holding a fact only the table
+    // reads.
+    //
+    // **An upsert, and sorted.** The book asks again rather than remembering,
+    // so a creature that walks out of the Sphere and back in replaces its own
+    // answer and does not accumulate one per visit; and two logs that asked in
+    // different orders have to fold to one state, which a list kept in `who`
+    // order gives for free.
+    case 'casting-save-recorded': {
+      const record = state.ongoing[event.castingId];
+      if (record === undefined) {
+        throw new CorruptLogError(event, `${event.castingId} is not running`);
+      }
+      const kept = [
+        ...(record.saves ?? []).filter((one) => one.who !== event.target),
+        { who: String(event.target), failed: event.failed },
+      ].sort((a, b) => (a.who < b.who ? -1 : a.who > b.who ? 1 : 0));
+      return {
+        ...next,
+        ongoing: { ...next.ongoing, [event.castingId]: { ...record, saves: kept } },
       };
     }
 

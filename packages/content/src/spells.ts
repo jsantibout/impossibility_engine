@@ -7418,12 +7418,27 @@ export const PURIFY_FOOD_AND_DRINK: SpellDefinition = {
  * > questions to which it would normally respond with a lie. Such a creature
  * > can be evasive yet must be truthful."
  *
- * **The save is real and what it gates is not.** `AreaTrigger` would raise the
- * Charisma save on exactly the two moments the sentence names — the engine has
- * had both since Web — and a failure would then have to impose *not being able
- * to lie*, which is neither a condition nor any other state the engine holds.
- * A trigger that rolled a save and did nothing with it would be dice thrown
- * for no reason, so the save goes to the table with the silence it buys.
+ * **The save is real and what it gates is not**, and the second half of that
+ * sentence is why this spell was tracked for the whole of Phase 1.
+ * `AreaTrigger` has raised a save on exactly the two moments this one names
+ * since Web, and the Sphere is an area like any other — but a failure would
+ * then have had to impose *not being able to speak a deliberate lie*, which is
+ * neither a condition nor any other state this engine holds. The engine has no
+ * speech. `save_imposes_nothing` refused the definition for it, and rightly:
+ * a die thrown whose answer reaches nobody is a die thrown for nothing.
+ *
+ * **What the spell prints next is the answer.** "You know whether a creature
+ * succeeds or fails on this save" is not colour — it is the one consequence of
+ * the roll the rules can see, and the gate ruled that the engine may hold a
+ * fact only the table reads when the fact is the recorded outcome of a roll the
+ * engine made and a door publishes it. So the save carries `recordsOutcome`,
+ * the verdict is written onto the running casting, and `observe()` reports it.
+ * Nothing is imposed on anybody, which is the honest reading of a spell whose
+ * whole mechanical effect is that the caster knows something.
+ *
+ * What stays with the DM is what the knowing is *for*: whether a given
+ * sentence was a deliberate lie, whether a creature is being evasive, and
+ * everything the second paragraph prints.
  */
 export const ZONE_OF_TRUTH: SpellDefinition = {
   id: 'zone-of-truth',
@@ -7434,12 +7449,31 @@ export const ZONE_OF_TRUTH: SpellDefinition = {
   concentration: false,
   range: { kind: 'ranged', feet: 60 },
   targets: { count: 0 },
+  area: { kind: 'sphere', radius: 15, origin: 'point' },
+  // Nothing at the cast: SRD gives this spell no cast-time save at all. "A
+  // creature that enters the spell's area for the first time on a turn or
+  // starts its turn there" is the whole of when it asks, so a creature already
+  // standing in the Sphere when it is conjured is asked when its turn begins —
+  // which is what the sentence says and not a compromise with it.
   effects: [],
+  areaTrigger: {
+    at: 'start-of-turn',
+    onEntry: 'first-per-turn',
+    label: 'Zone of Truth',
+    effects: [
+      {
+        kind: 'save',
+        ability: 'cha',
+        // No condition and no rider: the failure imposes nothing the rules can
+        // read, and the verdict is what the spell leaves behind.
+        recordsOutcome: true,
+      },
+    ],
+  },
   durationSeconds: 600,
   unmodelled: [
-    'the Charisma saving throw is not rolled: what a failure buys — "a creature can’t speak a deliberate lie while in the radius" — is not a condition and not any state the engine holds, so the trigger that would raise the save on entering the zone or starting a turn there has nothing to impose and is not registered',
-    'the zone is not in the world: a 15-foot-radius Sphere centred on a point is the DM’s, because nothing is resolved over it',
-    'the caster knowing whether each creature succeeded or failed, a creature being aware of the spell, and its evasions are the DM’s',
+    'what a failed save buys — "a creature can’t speak a deliberate lie while in the radius" — is not imposed: the engine holds no speech, so the verdict is recorded and whether a given sentence was a deliberate lie is the DM’s',
+    'a creature being aware of the spell, and its being evasive yet truthful, are the DM’s',
   ],
 };
 

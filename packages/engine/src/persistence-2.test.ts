@@ -496,6 +496,18 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // handed back at the rider's own deadline.
   'benefit-denied',
   'casting-continued',
+  // What a running casting's saving throw came to, per creature it asked.
+  // Neither log was written when a save could record anything but what it
+  // imposed: `save.recordsOutcome` did not exist, `save_imposes_nothing`
+  // refused every definition that would have set it, and no ongoing record
+  // carried a `saves` list — so both fixtures fold to exactly the states they
+  // always folded to with the field absent on every record, which is what the
+  // seam writes for a casting that records nothing.
+  // `zone-of-truth.test.ts` folds it and drives it end to end: a creature that
+  // walks into the Sphere and fails, one that makes it, the same creature
+  // asked twice and keeping one answer, two creatures kept sorted, and the
+  // failure imposing nothing at all on anybody.
+  'casting-save-recorded',
   'combatant-joined',
   'condition-immunity-granted',
   // How many heads a creature has. Neither log was written when anybody could

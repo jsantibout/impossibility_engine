@@ -985,19 +985,26 @@ function checkConditionRider(
  *
  * | Refused | Why |
  * |---|---|
- * | nothing imposed and nothing hung | the die is thrown and no reader, at the table or in the rules, is told anything |
+ * | nothing imposed, nothing hung and nothing recorded | the die is thrown and no reader, at the table or in the rules, is told anything |
  * | `conditions` with no `condition` | the flat fields are the *first* rider, so a list alone is a second spelling of one sentence |
  * | `repeats` | a repeat is filed on the condition instance the failure created, and there is none |
  * | `lasts`, `check`, `outlivesCasting` | each is a sentence about how long a condition holds or how a creature escapes it |
  *
- * **The first is the one that could go, and what would lift it is a door.**
- * The engine may hold a fact only the table reads when the fact is the
- * recorded outcome of a roll it made *and something publishes it* — SRD Zone
- * of Truth's "You know whether each creature succeeds or fails" is the
- * sentence waiting on that, and no door publishes an ongoing casting's
- * affected creatures today. Until one does, a bare save would be a d20 whose
- * answer reaches nobody, which is the same defect `ends_nothing` refuses one
- * kind along.
+ * **The first has three ways out now rather than two, and the third is the
+ * door this paragraph used to say did not exist.**
+ * {@link save.recordsOutcome} writes the verdict onto the casting and
+ * `observe()` publishes it, which is exactly the condition the gate set: the
+ * engine may hold a fact only the table reads when the fact is the recorded
+ * outcome of a roll it made **and a door publishes it**. SRD Zone of Truth's
+ * "You know whether a creature succeeds or fails" is the sentence that was
+ * waiting, and the reason it was refused was never the bare save — it was
+ * that the answer reached nobody, which is the same defect `ends_nothing`
+ * refuses one kind along. A save that records nothing and imposes nothing is
+ * still that defect and is still refused.
+ *
+ * The other three rows are untouched: `recordsOutcome` says the *verdict* is
+ * kept, not that a condition was imposed, so a `repeats` or a `lasts` beside
+ * it still has no condition instance to hang on.
  */
 function checkSaveWithoutCondition(
   effect: Extract<SpellEffect, { kind: 'save' }>,
@@ -1007,12 +1014,12 @@ function checkSaveWithoutCondition(
   const further = Array.isArray(effect.conditions) ? effect.conditions : [];
   const hangs = further.length > 0 || (effect.modifiers ?? []).length > 0;
 
-  if (!hangs) {
+  if (!hangs && effect.recordsOutcome !== true) {
     found.push({
       field: `${path}.condition`,
       code: 'save_imposes_nothing',
       reason:
-        'a saving throw whose failure imposes no condition and hangs no rider is a die thrown for nothing; name the condition, or the grants the failure hands out',
+        'a saving throw whose failure imposes no condition, hangs no rider and records no outcome is a die thrown for nothing; name the condition, or the grants the failure hands out, or set recordsOutcome where the sentence says somebody knows the answer',
     });
   }
 
@@ -3618,6 +3625,7 @@ function checkShape(value: unknown): readonly SpellDefinitionProblem[] {
       // The two clause rules a *definition's* list has and a list hosted
       // anywhere else does not: both ask which of the lists the effect is in.
       checkFoughtClause(effect as object, entry.kind, where, at, found);
+      checkRecordedVerdict(effect as object, entry.kind, at, found);
       checkTeleportPlacement(entry.kind, where, at, found);
       checkNoNestedEffect(effect, at, found);
     });
@@ -3751,6 +3759,51 @@ function checkFoughtClause(
       field: `${path}.advantageIfFought`,
       code: 'malformed_field',
       reason: 'a spell either prints the clause or does not; the only value is true',
+    });
+  }
+}
+
+/**
+ * Where a save's verdict may be said to be kept.
+ *
+ * **On a host that rolls a saving throw, and in any of a definition's lists.**
+ * The first half is {@link checkFoughtClause}'s reason word for word — a
+ * `heal` or an `attack` has no save whose answer there would be anything to
+ * keep, and a field quietly ignored is an author who thinks they said
+ * something. The second half is where the two rules part: the fought clause is
+ * refused outside the casting's own list because the *fact it reads* is stated
+ * at the casting, and this reads no fact at all. It writes one — onto the
+ * ongoing record, which every list but the casting's own already has in hand.
+ * SRD Zone of Truth writes it in `areaTrigger.effects` and nowhere else, which
+ * is the only list the two moments its sentence names can fire from.
+ *
+ * The value is `true` and nothing else, for {@link checkFoughtClause}'s
+ * reason: absence is how a definition says it keeps nothing, and `false` would
+ * be a second way to say it.
+ */
+function checkRecordedVerdict(
+  effect: object,
+  kind: unknown,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  const stated = (effect as { recordsOutcome?: unknown }).recordsOutcome;
+  if (stated === undefined) return;
+
+  if (kind !== 'save') {
+    found.push({
+      field: `${path}.recordsOutcome`,
+      code: 'verdict_without_save',
+      reason:
+        'a recorded verdict is the answer to a saving throw, and this effect rolls none; a save-damage effect reports its own damage instead',
+    });
+    return;
+  }
+  if (stated !== true) {
+    found.push({
+      field: `${path}.recordsOutcome`,
+      code: 'malformed_field',
+      reason: 'a spell either keeps the answer or does not; the only value is true',
     });
   }
 }

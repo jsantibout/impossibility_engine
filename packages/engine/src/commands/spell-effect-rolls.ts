@@ -806,6 +806,24 @@ export function resolveSaveEffect(
     ),
   );
 
+  // **The verdict, where the sentence says somebody knows it** — SRD Zone of
+  // Truth, "You know whether a creature succeeds or fails on this save."
+  //
+  // Before the branch below, because it is the one thing a *success* leaves
+  // behind: the book's sentence is about both answers, and a record written
+  // only on a failure would answer "has this creature been asked yet" with
+  // silence. `checkContent` refuses the field on an item and on a feature, so
+  // this arm always has a casting; the guard is the accessor's own rule — see
+  // `EffectContext.casting` — rather than a second opinion about it.
+  if (effect.recordsOutcome === true && ctx.origin.kind === 'casting') {
+    events.push({
+      type: 'casting-save-recorded',
+      castingId: ctx.casting().castingId,
+      target,
+      failed: !save.value.success,
+    });
+  }
+
   if (save.value.success) {
     outcomes.push({ target, save: save.value, affected: false });
     return ok(current);
