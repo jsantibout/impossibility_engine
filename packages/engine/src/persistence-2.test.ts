@@ -485,6 +485,16 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   'attack-rider-granted',
   'attuned',
   'attunement-ended',
+  // A condition's benefits withheld from a creature that still has it.
+  // Neither log was written when anything could say so: no creature had a
+  // `deniedBenefits` list, and the three SRD spells that print the clause
+  // carried it as fiction. Both fixtures fold to exactly the states they
+  // always folded to with that list empty on every creature.
+  // `denied-benefits.test.ts` folds it and drives it end to end: the three
+  // readers that hand Invisible its benefits before and after the hit, the
+  // condition still standing on the creature underneath, and the benefit
+  // handed back at the rider's own deadline.
+  'benefit-denied',
   'casting-continued',
   'combatant-joined',
   'condition-immunity-granted',

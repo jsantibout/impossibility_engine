@@ -236,7 +236,7 @@ export const MISSING_SHAPES = {
   'a-save-keyed-to-a-condition':
     'a save selected by what it is *against* rather than by the ability that rolls it. `docs/design/rolls-and-damage.md` names it and names this spell: "A save keyed to a named **condition** rather than an ability | Protection from Poison", in the table of what the roll-modifier vocabulary deliberately does not reach. Distinct from `a-mode-on-the-save-a-spell-forces`, which is the caster’s own save seen from the other end — this one modifies a save some *other* effect will call for.',
   'a-condition-benefit-an-effect-takes-away':
-    'a benefit the condition layer derives, switched off while the condition itself stays. Three SRD spells print the sentence — Faerie Fire, Starry Wisp, and Mind Spike’s "against you" — and PROGRESS.md already lists Faerie Fire among the clauses the roll vocabulary cannot reach. Invisible’s *attack* halves read declared sight, so the table can answer those; `initiativeConditionModes` grants its Initiative Advantage from the condition’s presence alone, and nothing reaches that at all.',
+    'a benefit the condition layer derives, switched off while the condition itself stays. Three SRD spells print the sentence — Faerie Fire, Starry Wisp, and Mind Spike’s "against you" — and PROGRESS.md already lists Faerie Fire among the clauses the roll vocabulary cannot reach. **The shape itself is built now**: the `benefit` rider hangs a denial off a settled outcome, and `benefitsFrom` is what all three readers of the Invisible condition’s benefits ask — including the Initiative Advantage, which nothing used to reach. What is left is one further shape each. Faerie Fire wants `save.condition` made optional, because its failed save imposes no condition and a save with nothing to impose is a die thrown to record nothing, and it wants its Cube resolved as an area besides; Mind Spike narrows the denial to the caster alone, which is a-condition-benefit-an-effect-takes-away meeting the-effects-source-as-a-participant, and a blanket denial would be wrong for it rather than merely coarse; Shining Smite hangs the same sentence on an ongoing casting whose beneficiaries are everybody the casting did not target.',
   'a-random-outcome-that-is-not-a-d20':
     'PROGRESS.md ranks it: "A random outcome that is not a d20 | 1 / 19 | the generator, `parseNotation`". A percentage chance, a 1d10 behaviour table or a 1d100 mishap roll is a die the engine can throw and no `SpellEffect` asks for.',
   'a-rest-an-effect-gives-or-denies':
@@ -996,13 +996,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'cannot make Opportunity Attacks',
       why: 'an-action-a-spell-compels-or-forbids',
       note: 'SRD: the target "can’t make Opportunity Attacks until the start of its next turn". **The rule is writable and the deadline is not.** `forbids` takes a named action away and leaves the rest of the budget alone — `NAMED_ACTIONS` lists `opportunity-attack` against this spell by name, and Stinking Cloud, Fear, Wind Walk and Magic Jar all write the vocabulary now. What stops this one is that a cantrip is Instantaneous, so the rider must carry a `lasts` of its own, and `RiderDuration` declares the start of the **caster’s** next turn and the end of the **target’s**, with no member for the start of the target’s. `Duration` beneath it has one — `start-of-next-turn` names any creature — so what is absent is a member of the content-facing vocabulary and the readers that expand it, which is engine work rather than a definition.',
-    },
-  ],
-  'starry-wisp': [
-    {
-      clause: 'cannot benefit from the Invisible',
-      why: 'a-condition-benefit-an-effect-takes-away',
-      note: 'The Dim Light is the table’s, because light is not modelled. Taking the benefit away is not: the attack halves of Invisible read declared sight and a DM can answer those, while `initiativeConditionModes` grants its Initiative Advantage from the condition’s presence alone — so a creature the wisp has lit still rolls Initiative with Advantage, and no declaration exists that would stop it.',
     },
   ],
   sunbeam: [

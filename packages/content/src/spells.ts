@@ -876,9 +876,13 @@ export const CHILL_TOUCH = attackCantrip({
  * > _Cantrip Upgrade._ "The damage increases by 1d8 when you reach levels 5
  * > (2d8), 11 (3d8), and 17 (4d8)."
  *
- * The rider is not a condition: it is light, and the *loss* of a benefit the
- * target would otherwise have. `attack.condition` names a `ConditionName`, and
- * neither half of this is one.
+ * **Two consequences of one hit, and only one of them is a condition** — which
+ * is neither half of what this sentence says. The first half is light the
+ * target sheds, which the engine has no model of at all; the second is the
+ * *loss* of a benefit it would otherwise have, which is the `benefit` rider:
+ * the creature stays Invisible and stops getting anything for it, and the
+ * deadline is the rider's own because a cantrip's casting is over the instant
+ * it resolves. The same argument Chill Touch's refusal makes one spell up.
  */
 export const STARRY_WISP = attackCantrip({
   id: 'starry-wisp',
@@ -887,8 +891,11 @@ export const STARRY_WISP = attackCantrip({
   feet: 60,
   dice: '1d8',
   damageType: 'radiant',
+  // "until the end of **your** next turn" — the caster's, which is the anchor
+  // `end-of-casters-next-turn` names and a full round from the target's own.
+  modifiers: [{ kind: 'benefit', denies: 'invisible', lasts: 'end-of-casters-next-turn' }],
   unmodelled: [
-    'until the end of your next turn the target emits Dim Light in a 10-foot radius and cannot benefit from the Invisible condition',
+    'until the end of your next turn the target emits Dim Light in a 10-foot radius',
   ],
 });
 

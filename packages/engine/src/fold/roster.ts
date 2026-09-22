@@ -118,6 +118,7 @@ export function applyRoster({ state, next }: Applying, event: RosterEvent): Game
             grantedReactions: [],
             healingRules: [],
             hitPointMaxima: [],
+            deniedBenefits: [],
             initiativeBonuses: [],
             inventory: [],
             equipped: [],

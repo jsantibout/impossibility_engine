@@ -20,6 +20,7 @@ import { UNIVERSAL_ACTION_EFFECTS } from './actions.js';
 import {
   conditionSpeed,
   conditionState,
+  deniedBenefitsOf,
   isIncapacitated,
   withoutConditions,
   type ConditionState,
@@ -3434,5 +3435,14 @@ export function effectiveConditions(state: GameState, who: CharacterId): Conditi
   const creature = state.creatures[who];
   if (creature === undefined) return conditionState([]);
 
-  return withoutConditions(creature.conditions, suppressedConditions(state, who));
+  const effective = withoutConditions(creature.conditions, suppressedConditions(state, who));
+  // **The benefits something has taken away, gathered here and nowhere else.**
+  // SRD Starry Wisp's "can't benefit from the Invisible condition" is not the
+  // condition being suppressed and not the condition ending — the creature is
+  // still Invisible, and only the readers that hand a condition something good
+  // are meant to notice. This is the door every one of those readers already
+  // goes through, so a new one asks the question by construction rather than
+  // by remembering to; `benefitsFrom` is what they ask.
+  const denied = deniedBenefitsOf(creature.deniedBenefits);
+  return denied.length === 0 ? effective : { ...effective, withoutBenefit: denied };
 }

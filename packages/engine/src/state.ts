@@ -18,7 +18,11 @@ import type { Armor, CreatureSize, WeaponMastery } from '@ie/srd';
 import type { CharacterSheet, GrantedArmorClass } from './character.js';
 import { type ActiveRollModifier } from './roll-modifiers.js';
 import type { RngState } from './dice.js';
-import { type ConditionState, type GrantedConditionImmunity } from './conditions.js';
+import {
+  type ConditionState,
+  type DeniedBenefit,
+  type GrantedConditionImmunity,
+} from './conditions.js';
 import { type ResourceState } from './resources.js';
 import type { CharacterRecord } from './creation.js';
 import type { DamageComponent, DamageDefenses, DamageReduction, GrantedDefense } from './attack.js';
@@ -553,6 +557,17 @@ export interface CreatureState {
    * subtraction, because no ending emits anything at all.
    */
   readonly hitPointMaxima: readonly GrantedHitPointMaximum[];
+  /**
+   * Conditions this creature has and can no longer benefit from.
+   *
+   * The thirteenth member of the family the twelve above form. SRD Starry
+   * Wisp: "until the end of your next turn, it … can't benefit from the
+   * Invisible condition" — the condition is still on the creature and what it
+   * buys has been taken away, which is a third thing beside ending a
+   * condition and refusing one. See {@link DeniedBenefit}, where the three
+   * are told apart, and `benefitsFrom`, which is what the readers ask.
+   */
+  readonly deniedBenefits: readonly DeniedBenefit[];
   /**
    * Bonuses this creature's own features add to Initiative.
    *

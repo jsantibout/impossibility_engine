@@ -15,6 +15,7 @@
  */
 import { actionRuleKey } from '../combat.js';
 import { rollModifierKey } from '../roll-modifiers.js';
+import type { DeniedBenefit } from '../conditions.js';
 import type { GameEvent } from '../events.js';
 import type { GameState } from '../state.js';
 import {
@@ -40,6 +41,7 @@ export const GRANTS_EVENTS = [
   'action-rule-granted',
   'reaction-granted',
   'healing-rule-granted',
+  'benefit-denied',
   'hit-point-maximum-adjusted',
   'bonus-removed',
   'roll-modifier-consumed',
@@ -244,6 +246,23 @@ export function applyGrants({ state, next }: Applying, event: GrantsEvent): Game
         event.rule,
       ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
       return withCreature(next, event.id, { healingRules }, creature);
+    }
+
+    case 'benefit-denied': {
+      const creature = creatureOf(state, event, event.id);
+      // **The source and the condition together are the identity**, which is
+      // `action-rule-granted`'s key rather than the plain source every other
+      // grant in the family uses — and for that case's reason. One casting
+      // can deny two benefits: SRD Faerie Fire is one sentence about the
+      // Invisible condition, and a homebrew that named two would lose the
+      // first to the second under a source key, silently. A grant carries
+      // one condition (see `DeniedBenefit`), so the pair is the whole of it.
+      const key = (denial: DeniedBenefit): string => `${denial.source}|${denial.condition}`;
+      const deniedBenefits = [
+        ...creature.deniedBenefits.filter((held) => key(held) !== key(event.denial)),
+        event.denial,
+      ].sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0));
+      return withCreature(next, event.id, { deniedBenefits }, creature);
     }
 
     case 'hit-point-maximum-adjusted': {

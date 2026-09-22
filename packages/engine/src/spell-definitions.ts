@@ -722,6 +722,42 @@ export type ModifierRider =
       readonly rule: HealingRule;
       /** A deadline of the rider's own, shorter than the casting's. */
       readonly lasts?: RiderDuration;
+    }
+  /**
+   * A condition the target keeps and stops getting anything out of.
+   *
+   * SRD Starry Wisp: "On a hit, the target takes 1d8 Radiant damage, and
+   * until the end of your next turn, it … **can't benefit from the Invisible
+   * condition**." SRD Faerie Fire and SRD Mind Spike write the same clause
+   * off a failed saving throw. Every one of the three prints it as a
+   * consequence of a **settled outcome**, which is what makes it a rider: an
+   * effect at the top level would fire on a miss.
+   *
+   * **It denies a benefit and does not end a condition**, which is a third
+   * thing beside the two the engine already had — see `DeniedBenefit`, where
+   * ending, refusing and denying are told apart. Writing it as
+   * `end-condition` would cure the creature of something a second effect may
+   * be relying on and would be undone by nothing; writing it as
+   * `condition-immunity` would refuse an arrival that has already happened.
+   *
+   * **It is `benefit` and not `denied-benefit`, and neither name is an effect
+   * kind**, which is the rule every member of this union follows: `checkShape`
+   * refuses a nested `kind` that is an effect kind, so a name shared between
+   * the two vocabularies would let recursion in through a collision.
+   * `spell-schema.test.ts` asserts the two sets are disjoint.
+   *
+   * **The fifth rider that carries `lasts`**, and for the reason the other
+   * four do: its only writer is a cantrip. Starry Wisp is Instantaneous, so
+   * the casting is over the moment it resolves and nothing it hung could ever
+   * be lifted; `EffectTarget.grants` is the deadline and
+   * `checkGrantLifetimes` is what insists on it.
+   */
+  | {
+      readonly kind: 'benefit';
+      /** The condition whose benefits the outcome withholds. */
+      readonly denies: ConditionName;
+      /** A deadline of the rider's own, shorter than the casting's. */
+      readonly lasts?: RiderDuration;
     };
 
 /**
@@ -3257,14 +3293,15 @@ export function riderDurations(definition: SpellDefinition): readonly RiderDurat
       if (rider.lasts !== undefined) found.push(rider.lasts);
     }
     for (const rider of modifierRidersOf(effect)) {
-      // The four riders that may carry a deadline of their own — see
+      // The five riders that may carry a deadline of their own — see
       // {@link ModifierRider}, where each is argued from an Instantaneous
       // host that could never lift what it hung.
       if (
         (rider.kind === 'speed-change' ||
           rider.kind === 'action' ||
           rider.kind === 'mode' ||
-          rider.kind === 'healing') &&
+          rider.kind === 'healing' ||
+          rider.kind === 'benefit') &&
         rider.lasts !== undefined
       ) {
         found.push(rider.lasts);
