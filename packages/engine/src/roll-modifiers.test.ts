@@ -25,10 +25,12 @@ import { declaredCasting } from './spellcasting.js';
 import { rollModesFor } from './standing.js';
 import {
   grantedRollModes,
+  rollModifierKey,
   selectorMatches,
   rollSelectorProblems,
   type RollSelector,
 } from './roll-modifiers.js';
+import type { SenseName } from './positioning.js';
 import { SKILL_ABILITY } from '@ie/shared';
 import { type SpellDefinition } from './spell-definitions.js';
 import {
@@ -475,7 +477,11 @@ describe('Blur puts Disadvantage on attacks against the creature it is on', () =
     const held = state.creatures.wizard?.rollModifiers ?? [];
     expect(held).toHaveLength(1);
     expect(held[0]?.modifier.mode).toBe('disadvantage');
-    expect(held[0]?.modifier.selector).toEqual({ roll: 'attack', relation: 'against-holder' });
+    expect(held[0]?.modifier.selector).toEqual({
+      roll: 'attack',
+      relation: 'against-holder',
+      unlessPerceivedWith: ['blindsight', 'truesight'],
+    });
     expect(held[0]?.source).toMatch(/^Blur#cast:\d+$/);
 
     expect(state.creatures.ally?.rollModifiers).toEqual([]);
@@ -576,6 +582,218 @@ describe('Blur puts Disadvantage on attacks against the creature it is on', () =
       'flame',
     );
     expect(shot.outcomes[0]?.save?.mode).toBe('normal');
+  });
+});
+
+// — the sense read on the attacker's side ————————————————————————————————————
+
+/**
+ * SRD Blur: "An attacker is immune to this effect if it **perceives you with
+ * Blindsight or Truesight**."
+ *
+ * The sentence the `against-holder` relation could not finish. A modifier
+ * hangs on the blurred creature and every attacker took it, because a
+ * selector named a family, an ability, a skill and the other participant's
+ * *id*, and had no way to ask what that participant can perceive.
+ *
+ * **It is not the sight question, and that is the whole test below.** Ordinary
+ * sight is exactly what Blur defeats: a goblin looking straight at the wizard
+ * still rolls at Disadvantage, and a declared sight line changes nothing. What
+ * excuses an attacker is the *sense* — which is why this reads
+ * `sensesPerceiving` and not `canSomehowSee`, whose declaration-first ordering
+ * would hand every attacker the table had placed in the wizard's line of sight
+ * an immunity the book does not give them.
+ */
+describe('a selector can be switched off by what the attacker perceives with', () => {
+  /** The ogre, re-added with one sense of its own at a stated range. */
+  const ogreSensing = (
+    sense: SenseName,
+    feet: number,
+    log: readonly GameEvent[] = SETUP,
+  ): readonly GameEvent[] =>
+    log.map((event) =>
+      event.type === 'creature-added' && event.id === OGRE
+        ? added(OGRE, 'ogres', {
+            standing: [
+              {
+                feature: 'a-species:a-trait',
+                name: sense,
+                reach: { kind: 'self' },
+                grant: { kind: 'sense', sense, feet },
+              },
+            ],
+          })
+        : event,
+    );
+
+  const blurred = (log: readonly GameEvent[]): readonly GameEvent[] =>
+    cast(log, WIZARD, { spellId: 'blur', targets: [WIZARD], slotLevel: 2 });
+
+  /** The predicate, with nothing else in the way. */
+  it('misses the roll when the roller perceives the holder with a named sense', () => {
+    const selector: RollSelector = {
+      roll: 'attack',
+      relation: 'against-holder',
+      unlessPerceivedWith: ['blindsight', 'truesight'],
+    };
+    const roll = { family: 'attack', roller: OGRE, against: WIZARD } as const;
+
+    // Nobody perceives anything: the modifier is on.
+    expect(selectorMatches(selector, WIZARD, roll)).toBe(true);
+    expect(selectorMatches(selector, WIZARD, { ...roll, rollerPerceives: [] })).toBe(true);
+    // Darkvision is not one of the two the spell excuses, so the modifier stays.
+    expect(
+      selectorMatches(selector, WIZARD, { ...roll, rollerPerceives: ['darkvision'] }),
+    ).toBe(true);
+    expect(
+      selectorMatches(selector, WIZARD, { ...roll, rollerPerceives: ['truesight'] }),
+    ).toBe(false);
+    expect(
+      selectorMatches(selector, WIZARD, { ...roll, rollerPerceives: ['blindsight'] }),
+    ).toBe(false);
+  });
+
+  /** Identity: two grants from one source differing only here are two grants. */
+  it('is part of what makes two grants the same grant', () => {
+    const bare: RollSelector = { roll: 'attack', relation: 'against-holder' };
+    expect(rollModifierKey('Blur#cast:1', bare)).not.toBe(
+      rollModifierKey('Blur#cast:1', { ...bare, unlessPerceivedWith: ['truesight'] }),
+    );
+  });
+
+  /**
+   * The fact the engine records is the **roller's** perception of the creature
+   * the roll is against, so the exception can only be written on the end that
+   * fact speaks about. A `roller` selector would need the other direction and
+   * there is nowhere to read it from, which is a refusal at authoring rather
+   * than a modifier that quietly never switches off.
+   */
+  it('is refused on the relation whose direction nothing records', () => {
+    const problems = (selector: RollSelector) =>
+      rollSelectorProblems(selector, (skill) => SKILL_ABILITY[skill]).map((p) => p.code);
+
+    expect(
+      problems({
+        roll: 'attack',
+        relation: 'roller',
+        unlessPerceivedWith: ['truesight'],
+      }),
+    ).toContain('perceived_with_off_against_holder');
+    expect(
+      problems({ roll: 'attack', relation: 'against-holder', unlessPerceivedWith: [] }),
+    ).toContain('perceived_with_names_no_sense');
+    expect(
+      problems({
+        roll: 'attack',
+        relation: 'against-holder',
+        unlessPerceivedWith: ['x-ray' as SenseName],
+      }),
+    ).toContain('bad_sense');
+    expect(
+      problems({
+        roll: 'attack',
+        relation: 'against-holder',
+        unlessPerceivedWith: ['blindsight', 'truesight'],
+      }),
+    ).toEqual([]);
+  });
+
+  /** The catalogue's own sentence, on the spell the relation was built for. */
+  it('writes Blur’s exception into the definition', () => {
+    const blur = SPELL_DEFINITIONS.find((d) => d.id === 'blur');
+    const effect = blur?.effects[0];
+    expect(effect?.kind).toBe('roll-mode');
+    expect(effect?.kind === 'roll-mode' ? effect.modifier.selector : null).toEqual({
+      roll: 'attack',
+      relation: 'against-holder',
+      unlessPerceivedWith: ['blindsight', 'truesight'],
+    });
+    expect(checkSpellDefinition(blur!)).toEqual([]);
+  });
+
+  /**
+   * The whole point: the die changes. A Truesight ogre rolls one d20 at a
+   * blurred wizard; a Darkvision ogre rolls two.
+   */
+  it('lifts the Disadvantage for a Truesight attacker and for nobody else', () => {
+    const truesighted = ogreSensing('truesight', 60);
+    const blindsighted = ogreSensing('blindsight', 60);
+    const darkvisioned = ogreSensing('darkvision', 120);
+
+    expect(swing(blurred(truesighted), WIZARD).attack!.mode).toBe('normal');
+    expect(swing(blurred(truesighted), WIZARD).attack!.roll.rolls).toHaveLength(1);
+    expect(swing(blurred(blindsighted), WIZARD).attack!.mode).toBe('normal');
+
+    // Darkvision is a rule about light and says nothing about a blurred shape.
+    expect(swing(blurred(darkvisioned), WIZARD).attack!.mode).toBe('disadvantage');
+    // And the plain ogre, which is the behaviour the spell has always had.
+    expect(swing(blurred(SETUP), WIZARD).attack!.mode).toBe('disadvantage');
+  });
+
+  /**
+   * **The sense has a range, and the exception stops where it does.** SRD
+   * writes every sense as "with a range of N feet"; an attacker whose
+   * Truesight falls short perceives nothing and takes the Disadvantage.
+   */
+  it('stops at the range the sense was granted with', () => {
+    /**
+     * Thirty feet, which a Greatclub does not reach — so the swing is the
+     * ogre's Fire Bolt, through the same gatherer. The ally moves with it,
+     * because a ranged attack loosed beside an enemy who can see you is
+     * hampered before Blur says anything.
+     */
+    const atRange = (log: readonly GameEvent[]): readonly GameEvent[] =>
+      log.map((event) =>
+        event.type === 'creature-placed' && (event.id === OGRE || event.id === ALLY)
+          ? {
+              ...event,
+              placement: {
+                from: { creature: WIZARD },
+                feet: event.id === OGRE ? 30 : 5,
+                bearing: event.id === OGRE ? 0 : 90,
+              },
+            }
+          : event,
+      );
+
+    const bolt = (log: readonly GameEvent[]) =>
+      unwrap(
+        resolveSpell(fold('seed', log), OGRE, { spellId: 'fire-bolt', targets: [WIZARD] }, supply('bolt')),
+        'bolt',
+      ).outcomes[0]?.attack?.mode;
+
+    expect(bolt(blurred(atRange(ogreSensing('truesight', 60))))).toBe('normal');
+    expect(bolt(blurred(atRange(ogreSensing('truesight', 10))))).toBe('disadvantage');
+  });
+
+  /**
+   * **A declared sight line is not the exception**, and this is the assertion
+   * that keeps `canSomehowSee` out of the reader. `SETUP` already declares
+   * that the ogre sees the wizard, and Blur is a spell about being hard to see
+   * *clearly*: ordinary sight is precisely what it blurs. An implementation
+   * that asked the Invisible question here would report `true` off the
+   * declaration and hand the whole table an immunity.
+   */
+  it('gives a declared sight line no say in it', () => {
+    expect(
+      fold('seed', SETUP).scene?.sight,
+    ).toEqual(expect.objectContaining({ [['ogre', 'wizard'].join('>')]: true }));
+    expect(swing(blurred(SETUP), WIZARD).attack!.mode).toBe('disadvantage');
+  });
+
+  /**
+   * **The adjacent wrong roll.** The exception excuses the modifier that names
+   * it and nothing else that reaches the same swing: a Truesight ogre that has
+   * been Poisoned still rolls at Disadvantage, because being immune to Blur is
+   * not being immune to its own condition.
+   */
+  it('excuses the modifier that names it and no other', () => {
+    const poisoned: readonly GameEvent[] = [
+      ...ogreSensing('truesight', 60),
+      { type: 'condition-applied', id: OGRE, condition: 'poisoned', source: 'a draught' },
+    ];
+    expect(swing(poisoned, WIZARD).attack!.mode).toBe('disadvantage');
+    expect(swing(blurred(poisoned), WIZARD).attack!.mode).toBe('disadvantage');
   });
 });
 
@@ -910,22 +1128,53 @@ describe('the modifier is event-sourced like everything else', () => {
     expect(once.total).toBe(twice.total);
   });
 
-  /** Re-granting from the same source replaces rather than stacks. */
+  /**
+   * Re-granting from the same source replaces rather than stacks — and the
+   * selector has to be the *same* selector, because identity is the source and
+   * the rolls it reaches. Blur's exception is part of which rolls those are.
+   */
   it('does not stack a second grant from the same casting', () => {
     const log = blurred();
-    const source = fold('seed', log).creatures.wizard!.rollModifiers[0]!.source;
+    const held = fold('seed', log).creatures.wizard!.rollModifiers[0]!;
     const again: readonly GameEvent[] = [
       ...log,
       {
         type: 'roll-modifier-granted',
         id: WIZARD,
         modifier: {
-          source,
-          modifier: { mode: 'disadvantage', selector: { roll: 'attack', relation: 'against-holder' } },
+          source: held.source,
+          modifier: { mode: 'disadvantage', selector: held.modifier.selector },
         },
       },
     ];
     expect(fold('seed', again).creatures.wizard?.rollModifiers).toHaveLength(1);
+  });
+
+  /**
+   * The other half of that rule, which the sense clause is now part of: a
+   * grant from the same source naming a *different* set of rolls is a second
+   * grant. Beacon of Hope proved it with two families; this proves the
+   * exception is identity too, so a re-grant that quietly dropped it could not
+   * evict the one the spell landed.
+   */
+  it('treats a re-grant that drops the exception as a second grant', () => {
+    const log = blurred();
+    const held = fold('seed', log).creatures.wizard!.rollModifiers[0]!;
+    const again: readonly GameEvent[] = [
+      ...log,
+      {
+        type: 'roll-modifier-granted',
+        id: WIZARD,
+        modifier: {
+          source: held.source,
+          modifier: {
+            mode: 'disadvantage',
+            selector: { roll: 'attack', relation: 'against-holder' },
+          },
+        },
+      },
+    ];
+    expect(fold('seed', again).creatures.wizard?.rollModifiers).toHaveLength(2);
   });
 });
 

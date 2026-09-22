@@ -5405,6 +5405,13 @@ export const PRODUCE_FLAME: SpellDefinition = {
  * effect linked to the casting, and one final rule that settles modes. What it
  * had no way to say is that the mode belongs to somebody **else's** roll.
  *
+ * **And the second sentence is the exception, which is now written too.**
+ * `unlessPerceivedWith` names the two senses the book names, and the engine
+ * reads them off the *attacker* at the moment of the swing — the sense clause
+ * on the attacker's side, which nothing could ask before. It is not the sight
+ * question and must not become it: a declared sight line excuses nobody,
+ * because ordinary sight is exactly what a blurred shape defeats.
+ *
  * Note what is *not* here: no number, no target list, no per-attacker
  * bookkeeping. "Any creature" is every creature, which is what a selector with
  * no filter on the roller means.
@@ -5423,14 +5430,15 @@ export const BLUR: SpellDefinition = {
       kind: 'roll-mode',
       modifier: {
         mode: 'disadvantage',
-        selector: { roll: 'attack', relation: 'against-holder' },
+        selector: {
+          roll: 'attack',
+          relation: 'against-holder',
+          unlessPerceivedWith: ['blindsight', 'truesight'],
+        },
       },
     },
   ],
   durationSeconds: 60,
-  unmodelled: [
-    'an attacker that perceives the target with Blindsight or Truesight is immune to the effect; the engine models no senses beyond declared sight, so every attacker rolls at Disadvantage',
-  ],
 };
 
 /**

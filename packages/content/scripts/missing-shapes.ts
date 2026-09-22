@@ -194,7 +194,7 @@ export const MISSING_SHAPES = {
   'an-effect-that-fires-when-the-casting-ends':
     '`docs/design/time-and-turns.md`: "**Expiry is derived, like Concentration breaking** ... The log records the effect being scheduled, not expiring." Nothing hangs a consequence on the moment a casting runs out, so a spell that punishes its target when it lapses, or rewards a caster who held Concentration to the end, has no hook.',
   'senses-beyond-declared-sight':
-    'sight is a pairwise declaration and there is nothing else — `docs/design/rolls-and-damage.md` names the missing piece as "A sight clause read from the **attacker’s** side | Faerie Fire". Blindsight and Truesight are the attacker’s senses, so a spell that excuses them cannot be written.',
+    '**the attacker-side half is built and this is what is left.** `docs/design/rolls-and-damage.md` named the missing piece as "A sight clause read from the **attacker’s** side | Faerie Fire", and a creature has held senses since `sensesOf` and `SENSES_THAT_SOMEHOW_SEE` landed; what a `RollSelector` had no room for was the *exception* — `unlessPerceivedWith` is that axis, `sensesPerceiving` is the reader, and Blur’s sentence excusing an attacker who perceives you with Blindsight or Truesight is finished by them. What is left is every sense clause that is not a modifier on a roll: a casting that **confers** a sense on a creature (the Darkvision spell, Gem of Seeing), one creature **borrowing** another’s (Find Familiar), and a sense that excuses its holder from an illusion or an area rather than from a die (Mirage Arcane). None of those is an attacker reading a sense off a roll, and none has state to sit in.',
   'what-a-creature-is-holding':
     '**Half of this is built, and the name now means the other half.** What `docs/design/characters-and-equipment.md` recorded — "Nothing checks that two hands are free, either." — is checked now: hands are a count on the sheet, what an item takes up is read off its printed record, a third thing in two hands is refused, and a casting may put a thing *into* a hand and hold it there for as long as it runs, which is what Goodberry’s ten berries and Flame Blade’s blade were waiting on. What is still missing is the verb that takes something **out** of a hand against its holder’s will: SRD Fear’s "drop whatever it is holding" and SRD Heat Metal’s save-or-drop are an effect no definition can write, and an ordinary thing let go of would land on a floor this engine does not keep. `dropConjured` is the door for a conjured thing, which simply ceases to exist, and it refuses everything else by name.',
   'targeting-rules-that-differ-within-one-casting':
@@ -510,13 +510,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'the area is Difficult Terrain',
       why: 'difficult-terrain-an-area-creates',
       note: 'The engine charges Difficult Terrain exactly and takes it as declared feet on the move that crosses it, so an area that makes the ground difficult is invisible to the ruler and every move through the tentacles is charged as open floor.',
-    },
-  ],
-  blur: [
-    {
-      clause: 'Blindsight or Truesight',
-      why: 'senses-beyond-declared-sight',
-      note: 'SRD: "An attacker is immune to this effect if it perceives you with Blindsight or Truesight." Sight is a pairwise declaration and there is nothing else, so every attacker takes the Disadvantage and a Truesight attacker takes it wrongly.',
     },
   ],
   'chain-lightning': [
@@ -1679,8 +1672,8 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
     {
       marker: 'condition',
       clause: 'if it has the Blinded condition, Blindsight, or Truesight',
-      why: 'senses-beyond-declared-sight',
-      note: 'whether the spell applies at all is decided by what the *attacker* can perceive. Sight here is a pairwise declaration and Blindsight and Truesight are senses no rule reads off an attacker, so the exception has nothing to consult.',
+      why: 'a-spell-that-answers-a-later-attack',
+      note: '**re-filed rather than retired.** This clause used to be charged to `senses-beyond-declared-sight`, and that shape is built: a selector now carries `unlessPerceivedWith` and the attacker’s senses are read at the swing, which is what finished Blur’s identical sentence. It finishes nothing here, because this exception has nothing to except *from*. The duplicates are the spell, the deflection they perform answers somebody else’s attack after it has landed, and a casting is offered no window on another creature’s attack — the same absence Sanctuary, Shield and Fire Shield wait on. Building the sense axis and retiring this entry would have read as a finished spell in the ledger; the honest move is to charge it to the blocker that is actually left.',
     },
   ],
   seeming: [

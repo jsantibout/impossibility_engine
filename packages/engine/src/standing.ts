@@ -33,7 +33,10 @@ import {
   type MovementMode,
 } from './character.js';
 import {
+  canBeTargeted,
+  coverBetween,
   distanceBetween,
+  sensesReaching,
   sightBetween,
   SIGHT_SENSES,
   type CreatureSense,
@@ -2534,6 +2537,56 @@ export function canSomehowSee(
     to,
     sensesOf(state, from).filter((sense) => SENSES_THAT_SOMEHOW_SEE.has(sense.sense)),
   );
+}
+
+/**
+ * The senses one creature actually perceives another with, and nothing else.
+ *
+ * **The third sight-shaped question, and the one that is not about sight.**
+ * {@link canSee} and {@link canSomehowSee} both answer a *sentence about
+ * seeing*, so both put the table's declaration first: a declared line is the
+ * answer, declared Total Cover silences every sense, and a sense speaks only
+ * where nobody has said anything. That ordering is right for both of them and
+ * wrong for the clause this answers.
+ *
+ * SRD Blur: "An attacker is immune to this effect if it **perceives you with
+ * Blindsight or Truesight**." SRD Mirror Image names the same two. Ordinary
+ * sight is exactly what those spells defeat, so a declared sight line must
+ * not excuse anybody — asking {@link canSomehowSee} here would report `true`
+ * off the declaration and hand an immunity to every attacker the table had
+ * placed in the caster's line of sight, which is the whole spell undone. What
+ * the sentence names is the **sense**, so what comes back is the senses and
+ * not a verdict, and the rule reading it decides which of them it cares
+ * about.
+ *
+ * Two things it keeps from its siblings, because both are facts about the
+ * pair rather than about the sentence:
+ *
+ * - **Range.** Every sense in the glossary is written "with a range of N
+ *   feet", so a sense that does not reach perceives nothing —
+ *   `sensesReaching`, the same filter `sightBetween` applies.
+ * - **Declared Total Cover silences a sense**, which is the glossary's own
+ *   sentence on Blindsight — "you can see anything that isn't behind Total
+ *   Cover" — and no less true of the other three. A creature it is illegal to
+ *   target is not one an attacker is perceiving.
+ *
+ * Every sense, not only the sight ones: Tremorsense "doesn't count as a form
+ * of sight" and is still a way of perceiving somebody, and it is a caller's
+ * clause rather than this function's that decides whether it counts. No
+ * clause names it today.
+ *
+ * Empty outside a scene, where there is no distance for a range to be
+ * measured against — the same answer {@link canSee} gives as `null`, read here
+ * as "no sense reaches", which leaves the effect standing.
+ */
+export function sensesPerceiving(
+  state: GameState,
+  from: CharacterId,
+  to: CharacterId,
+): readonly SenseName[] {
+  if (state.scene === null) return [];
+  if (!canBeTargeted(coverBetween(state.scene, from, to))) return [];
+  return sensesReaching(state.scene, sensesOf(state, from), from, to).map((sense) => sense.sense);
 }
 
 /**

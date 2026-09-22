@@ -1,6 +1,7 @@
 import type { Ability, CharacterId, RollMode, Skill } from '@ie/shared';
 import type { ModeSource } from './bonuses.js';
 import type { GameState } from './events.js';
+import { SENSE_NAMES, type SenseName } from './positioning.js';
 
 /**
  * Advantage and Disadvantage as a property of a *particular roll under
@@ -184,6 +185,40 @@ export interface RollSelector {
    * `counterpart`.
    */
   readonly counterpart?: CharacterId;
+  /**
+   * The senses that excuse an attacker from this modifier — the sense clause
+   * read on the **attacker's** side.
+   *
+   * SRD Blur: "any creature has Disadvantage on attack rolls against you. **An
+   * attacker is immune to this effect if it perceives you with Blindsight or
+   * Truesight.**" Two sentences, and the second is about what the *other*
+   * participant can perceive. Everything else on this selector narrows by what
+   * the roll *is* — its family, its ability, its skill, who the other creature
+   * is — and none of that could ask what that creature perceives with, so
+   * every attacker took the Disadvantage and a Truesight attacker took it
+   * wrongly.
+   *
+   * **It is not the sight question, and confusing the two would be the whole
+   * bug.** Ordinary sight is precisely what Blur defeats: a goblin staring
+   * straight at the wizard still rolls at Disadvantage, and a declared sight
+   * line must change nothing. So the fact this reads is
+   * `sensesPerceiving` — which senses of the roller actually reach the holder
+   * — and never `canSee` or `canSomehowSee`, both of which answer off a
+   * declaration first and would hand an immunity to every attacker the table
+   * had placed in the wizard's line of sight.
+   *
+   * **Legal only on `against-holder`**, and that is the direction of the one
+   * fact the engine records rather than a simplification: {@link
+   * RollQuery.rollerPerceives} says what the roller perceives the creature
+   * rolled against with, so the holder is the creature perceived and the
+   * counterpart is the perceiver. A `roller` selector would need the other
+   * direction, there is nowhere to read it from, and a modifier that could
+   * never switch off is the silent failure the validator exists to refuse.
+   *
+   * An empty list names no sense and is refused for the same reason: it reads
+   * as an exception and is none.
+   */
+  readonly unlessPerceivedWith?: readonly SenseName[];
 }
 
 /** A mode, and the rolls it reaches. */
@@ -281,6 +316,10 @@ export function rollModifierKey(source: string, selector: RollSelector): string 
     selector.ability ?? '',
     selector.skill ?? '',
     selector.counterpart ?? '',
+    // Sorted, because a list is a set here: naming Truesight and Blindsight is
+    // the same exception whichever order a definition wrote them in, and two
+    // spellings of one sentence must not become two grants.
+    [...(selector.unlessPerceivedWith ?? [])].sort().join(','),
   ].join('|');
 }
 
@@ -319,6 +358,23 @@ export interface RollQuery {
    */
   readonly ability?: Ability;
   readonly skill?: Skill;
+  /**
+   * The senses with which the roller perceives the creature the roll is
+   * against — the attacker's side of a sense clause, gathered before the die.
+   *
+   * A fact and not a judgement, in the spirit of the rest of this type: it is
+   * `sensesPerceiving(state, roller, against)`, which is the roller's own
+   * senses filtered to those whose printed range reaches. **Not a sight
+   * answer** — a declared sight line is not in it and must not be, because the
+   * sentence that reads this ({@link RollSelector.unlessPerceivedWith}) is
+   * about a sense defeating an effect and not about seeing.
+   *
+   * Absent or empty means nobody perceives anything by a sense, which is the
+   * behaviour every roll in this engine had before the axis existed: the
+   * modifier applies. There is no third value, because a sense is a fact the
+   * engine holds outright rather than one the table declares.
+   */
+  readonly rollerPerceives?: readonly SenseName[];
 }
 
 /**
@@ -358,6 +414,17 @@ export function selectorMatches(
 
   if (selector.ability !== undefined && selector.ability !== query.ability) return false;
   if (selector.skill !== undefined && selector.skill !== query.skill) return false;
+
+  // SRD Blur: "An attacker is immune to this effect if it perceives you with
+  // Blindsight or Truesight." The holder is the creature rolled against — the
+  // validator confines this to `against-holder` for exactly that reason — so
+  // the perceiver is the roller, and `rollerPerceives` is what its senses
+  // reach. A sense nobody has is not in the list, so an absent list applies
+  // the modifier, which is what the roll did before the axis existed.
+  if (selector.unlessPerceivedWith !== undefined) {
+    const perceived = query.rollerPerceives ?? [];
+    if (selector.unlessPerceivedWith.some((sense) => perceived.includes(sense))) return false;
+  }
 
   return true;
 }
@@ -445,6 +512,34 @@ export function rollSelectorProblems(
   if (selector.counterpart !== undefined) {
     const wrong = counterpartProblem(selector.roll);
     if (wrong !== null) found.push(wrong);
+  }
+
+  // The sense clause, and the three ways it describes an exception nothing
+  // could ever take. The vocabulary check is here rather than in the spell
+  // validator because both callers need it and the names are the engine's own
+  // closed list — the same reason `against_holder_without_target` is here.
+  if (selector.unlessPerceivedWith !== undefined) {
+    for (const sense of selector.unlessPerceivedWith) {
+      if (!SENSE_NAMES.includes(sense)) {
+        found.push({
+          code: 'bad_sense',
+          reason: `"${String(sense)}" is not a sense the rules glossary names`,
+        });
+      }
+    }
+    if (selector.unlessPerceivedWith.length === 0) {
+      found.push({
+        code: 'perceived_with_names_no_sense',
+        reason: 'an exception that names no sense excuses nobody; leave the field off instead',
+      });
+    }
+    if (selector.relation !== 'against-holder') {
+      found.push({
+        code: 'perceived_with_off_against_holder',
+        reason:
+          'the engine records what the roller perceives the creature rolled against with, so a sense clause can only excuse an attacker — on a "roller" selector there is no direction to read and the exception would never apply',
+      });
+    }
   }
 
   return found;

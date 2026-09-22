@@ -34,6 +34,7 @@ import {
   effectiveConditions,
   electableCastingDamage,
   rollModesFor,
+  sensesPerceiving,
   standingBonuses,
   standingCheckBonuses,
   standingSaveBonuses,
@@ -600,6 +601,18 @@ export function defendingModes(
       roller: attacker,
       against: target,
       ...(ability === undefined || ability === null ? {} : { ability }),
+      // SRD Blur: "An attacker is immune to this effect if it perceives you
+      // with Blindsight or Truesight." The **attacker's** senses, read at the
+      // one roll that has two participants, so a selector on the defender can
+      // be switched off by what the creature rolling can perceive.
+      //
+      // `sensesPerceiving`, and deliberately neither `canSee` nor
+      // `canSomehowSee`: both of those answer a sentence about *seeing* and
+      // put the table's declaration first, and ordinary sight is precisely
+      // what Blur defeats. The declared line above is Dodge's clause and
+      // rightly keeps its own reader; this is a different question about the
+      // same pair, asked from the other end.
+      rollerPerceives: sensesPerceiving(state, attacker, target),
     },
     { seenByHolder: canSee(state, target, attacker) },
   );
