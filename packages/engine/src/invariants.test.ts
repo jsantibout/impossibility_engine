@@ -14,8 +14,8 @@ import {
   type Result,
 } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
-import { createRng, type Rng } from './dice.js';
-import { createRollIssuer } from './rolls.js';
+import { createRng, type Rng, type RngState } from './dice.js';
+import { createRollIssuer, type RollIssuer } from './rolls.js';
 import { applyEvent, fold, type GameEvent, type GameState } from './events.js';
 import { remaining, spellSlotKey } from './resources.js';
 import { declaredCasting } from './spellcasting.js';
@@ -455,7 +455,50 @@ const ATTUNING: readonly GameEvent[] = [
   { type: 'rest-begun', id: A, kind: 'short' },
 ];
 
-const supply = (seed = 's') => ({ issuer: createRollIssuer('r'), rng: createRng(seed) as Rng, content: SRD_CONTENT });
+/**
+ * One generator handed to one command, with a count of how far it was turned.
+ *
+ * The engine creates no generator of its own — `createRng` and `restoreRng`
+ * are named nowhere outside `dice.ts` and the tests — so every die the engine
+ * throws comes out of a `Supply`, and a counting wrapper around the one this
+ * file hands over sees all of them. That is what lets the sweep below tell
+ * *rolled and recorded* from *rolled and forgot* from *never rolled* without
+ * anybody writing down which commands roll.
+ */
+interface Probe {
+  readonly issuer: RollIssuer;
+  readonly rng: Rng;
+  /** Dice drawn through this generator. */
+  readonly drawn: () => number;
+}
+
+/**
+ * Every supply made since the last reset, in the order they were made.
+ *
+ * Module-level and mutable, reset by the one sweep that reads it. That is safe
+ * because this file is sequential and nothing configures vitest otherwise, and
+ * it would go silently wrong under `describe.concurrent` — so if that ever
+ * arrives here, the probe moves into the run rather than beside it.
+ */
+const PROBES: Probe[] = [];
+
+const supply = (seed = 's') => {
+  const issuer = createRollIssuer('r');
+  const source = createRng(seed) as Rng;
+  let draws = 0;
+  // Transparent: the same faces in the same order, and `snapshot()` is the
+  // source's own, so a fixture built through this is byte-identical to one
+  // built through a bare `createRng`.
+  const rng: Rng = {
+    int: (sides: number) => {
+      draws += 1;
+      return source.int(sides);
+    },
+    snapshot: () => source.snapshot(),
+  };
+  PROBES.push({ issuer, rng, drawn: () => draws });
+  return { issuer, rng, content: SRD_CONTENT };
+};
 
 /**
  * SETUP, plus a charged wand awarded to A and put in A's hand.
@@ -2398,6 +2441,255 @@ describe('a retried command changes nothing the first one did not', () => {
   });
 });
 
+/**
+ * Every die a command draws is on the log, with the generator's new position.
+ *
+ * **The hole rule 1 fell through.** CLAUDE.md's first rule is enforced by
+ * reachability — only `rolls.ts` stamps a roll `engine`, and every door an AI
+ * holds reaches only commands that roll — and reachability is worth nothing if
+ * the rolls a command makes go unrecorded. `rolls-issued` is the only event
+ * that moves `rng` and `rollsIssued`, so a command that turns the generator
+ * and emits none of it leaves a log that folds to a state whose generator is
+ * standing where it was before the command ran. Resume from that log and the
+ * *next* command rebuilds the same stream from the same position and draws the
+ * very same faces under the very same roll ids — two different events wearing
+ * one `RollId`, which is a corrupt audit trail rather than an unlucky one.
+ * Rule 3 says a seed and a log fold to one state forever; a stream that
+ * silently rewinds is the one way that stops being true.
+ *
+ * `forcePrintedSave` shipped in exactly that state — four dice per call, no
+ * event — and was found by a builder throwing it twice and noticing the
+ * identical numbers, not by any guard. The nearest guard,
+ * `beginning-a-fight.test.ts`, catches the opposite mistake: a *non*-command
+ * writing a `rolls-issued` by hand. It has nothing at all to say about a
+ * command that rolls and forgets one.
+ *
+ * **Measured rather than listed.** The claim is about what a command *did*,
+ * so it is taken from a counting generator rather than from the source: the
+ * three answers — recorded, forgot, never rolled — are told apart by the draw
+ * count and the issuer, and no command has to be remembered as a roller.
+ * There is no allow-list here and there is nothing to keep up to date; a
+ * command added to the corpus above is swept by this the same day.
+ *
+ * What it can and cannot see is worth saying plainly. It sees the branch the
+ * corpus drives, once per command, and a rolling branch the corpus never
+ * reaches is invisible to it — the same bound the idempotency sweep beside it
+ * has, and the reason `GUARDED` is held against the module's own exports
+ * rather than against memory. The companion further down — *every command
+ * that can reach a die can reach the event that records it* — reads every
+ * branch instead and is blunt where this one is exact. Neither is the guard
+ * on its own.
+ *
+ * **That bound cost something the day this was written**, which is the most
+ * useful thing to know about it. `settleTurnPayouts` throws the dice a payout
+ * carries, and the payout in `heroic()` below carries none — SRD Heroism hands
+ * over an ability modifier — so the corpus drove `beginCombat` and `resolveTurn`
+ * down the arm that rolls nothing and this sweep saw a command that never
+ * rolled. Reviewed by hand and reproduced with a homebrew `turn-payout` whose
+ * `dice` is `1d4`: one die drawn, `combat-started` and `temporary-hp-granted`
+ * emitted, no `rolls-issued`. A fixture that carries dice is what closes it,
+ * and it belongs in the same change as the emission.
+ */
+interface Turned {
+  /** Dice drawn through every generator the command was handed. */
+  readonly drawn: number;
+  /** Roll ids issued against them. */
+  readonly issued: number;
+  /** Where the generators stand now, in the order they were handed over. */
+  readonly snapshots: readonly RngState[];
+}
+
+/** What the probes saw, collapsed into the three numbers the rule is about. */
+const turnedBy = (probes: readonly Probe[]): Turned => ({
+  drawn: probes.reduce((n, probe) => n + probe.drawn(), 0),
+  issued: probes.reduce((n, probe) => n + probe.issuer.count, 0),
+  snapshots: probes.map((probe) => probe.rng.snapshot()),
+});
+
+/**
+ * What a batch of events fails to say about a generator that moved. Empty is
+ * a pass.
+ *
+ * Separate from the `it` that drives it so the same judgement can be shown a
+ * batch that was never run — the discipline every sweep in this file follows,
+ * because an analysis that can only be run against source it already agrees
+ * with reports no problems and checks nothing.
+ */
+const unrecordedRolls = (events: readonly GameEvent[], turned: Turned): readonly string[] => {
+  const recorded = events.filter(
+    (event): event is Extract<GameEvent, { type: 'rolls-issued' }> => event.type === 'rolls-issued',
+  );
+
+  // Nothing happened. Nothing to record — and nothing to claim either: a
+  // `rolls-issued` from a command that neither threw a die nor issued an id
+  // would move `rollsIssued` past ids nobody holds.
+  //
+  // **The ids and not the dice**, which is a distinction with no consequence
+  // today and one the physical-dice door arrives on. `resolveStatedD20` in
+  // `checks.ts` records a face somebody at a table read off their own die: an
+  // id issued, the generator untouched. That roll still has to advance
+  // `rollsIssued` or the next command reissues its id, so the question the
+  // whole judgement asks is *did the ledger move*, of which a die drawn is one
+  // way. No command passes a `statedRoll` yet, and keying this on the dice
+  // would have been correct until the first one did.
+  if (turned.drawn === 0 && turned.issued === 0) {
+    return recorded.length === 0
+      ? []
+      : [`drew no dice, issued no ids and emitted ${recorded.length} rolls-issued anyway`];
+  }
+
+  if (recorded.length === 0) {
+    return [
+      `drew ${turned.drawn} ${turned.drawn === 1 ? 'die' : 'dice'} and issued ${turned.issued} roll id(s), and emitted no rolls-issued: the generator rewinds on replay and the next command draws the same faces under the same ids`,
+    ];
+  }
+
+  const complaints: string[] = [];
+
+  // The ids, so a replayed log reproduces every `RollId` it references and the
+  // next command starts where this one stopped.
+  const counted = recorded.reduce((n, event) => n + event.count, 0);
+  if (counted !== turned.issued) {
+    complaints.push(`issued ${turned.issued} roll id(s) and recorded ${counted}`);
+  }
+
+  // The position, so the stream resumes where it stopped. The *last* record,
+  // because a command may write one partway and roll again after it.
+  const last = recorded[recorded.length - 1]!.rng;
+  const now = turned.snapshots[turned.snapshots.length - 1]!;
+  if (last.join() !== now.join()) {
+    complaints.push(`recorded the generator at [${last.join()}] and left it at [${now.join()}]`);
+  }
+
+  return complaints;
+};
+
+describe('a command that turns the generator says so on the log', () => {
+  for (const entry of GUARDED) {
+    it(`${entry.name}: records every die it drew, or drew none`, () => {
+      PROBES.length = 0;
+      const out = entry.run(fold('s', entry.log), 'cmd-rolled');
+      expect(isErr(out) ? `${out.code}: ${out.reason}` : 'ok').toBe('ok');
+      if (isErr(out)) return;
+
+      // One command, one generator: a second supply inside a single run would
+      // make "where the generator stands now" two answers, and the judgement
+      // above reads the last. Nothing does that today, and this is what would
+      // say so rather than letting the reading go quietly wrong.
+      expect(PROBES.length, `${entry.name} was handed ${PROBES.length} generators`).toBeLessThan(2);
+
+      expect(unrecordedRolls(eventsOf(out.value), turnedBy(PROBES))).toEqual([]);
+    });
+  }
+
+  /**
+   * And the corpus really does contain rollers, so the sweep above is not a
+   * row of commands that each drew nothing.
+   *
+   * A floor rather than a list, for the reason the stamp sweep keeps one: a
+   * command that stops rolling is a rules change and not a failure here, and a
+   * derivation that quietly stopped counting is. It sits close under the
+   * measured value — 27 the day it was written — because a floor of ten would
+   * have let two thirds of the rolling corpus stop drawing before it noticed,
+   * which is a guard that passes rather than a guard.
+   */
+  it('drives commands that actually roll', () => {
+    const rollers: string[] = [];
+    for (const entry of GUARDED) {
+      PROBES.length = 0;
+      const out = entry.run(fold('s', entry.log), 'cmd-counted');
+      if (isErr(out)) continue;
+      if (turnedBy(PROBES).drawn > 0) rollers.push(entry.name);
+    }
+    expect(rollers.length).toBeGreaterThan(24);
+    expect(rollers).toContain('forcePrintedSave');
+  });
+
+  /**
+   * The defect itself, rebuilt out of the live command.
+   *
+   * `forcePrintedSave` really is run, really does draw, and the one event that
+   * records it is taken back out of the batch — which is byte for byte the log
+   * the command used to write. The judgement has to complain about it, and its
+   * complaint has to be about the dice rather than about anything else.
+   */
+  it('would catch the forcePrintedSave defect, reconstructed', () => {
+    PROBES.length = 0;
+    const out = forcePrintedSave(
+      fold('s', FORCED),
+      A,
+      { line: SAVING_LINE.name, targets: [B], commandId: 'cmd-reconstructed' },
+      supply(),
+    );
+    expect(isErr(out)).toBe(false);
+    if (isErr(out)) return;
+
+    const turned = turnedBy(PROBES);
+    expect(turned.drawn).toBeGreaterThan(0);
+    expect(turned.issued).toBeGreaterThan(0);
+
+    const written = eventsOf(out.value);
+    expect(written.filter((event) => event.type === 'rolls-issued')).toHaveLength(1);
+    expect(unrecordedRolls(written, turned)).toEqual([]);
+
+    const asItShipped = written.filter((event) => event.type !== 'rolls-issued');
+    expect(unrecordedRolls(asItShipped, turned)).toEqual([
+      `drew ${turned.drawn} dice and issued ${turned.issued} roll id(s), and emitted no rolls-issued: the generator rewinds on replay and the next command draws the same faces under the same ids`,
+    ]);
+  });
+
+  /** And the three other ways a record can be wrong, each shown to it. */
+  it('tells a short count from a stale snapshot from an honest record', () => {
+    const at = (a: number): RngState => [a, 2, 3, 4];
+    const two: Turned = { drawn: 5, issued: 2, snapshots: [at(9)] };
+
+    expect(unrecordedRolls([{ type: 'rolls-issued', count: 2, rng: at(9) }], two)).toEqual([]);
+
+    expect(unrecordedRolls([{ type: 'rolls-issued', count: 1, rng: at(9) }], two)).toEqual([
+      'issued 2 roll id(s) and recorded 1',
+    ]);
+
+    expect(unrecordedRolls([{ type: 'rolls-issued', count: 2, rng: at(1) }], two)).toEqual([
+      'recorded the generator at [1,2,3,4] and left it at [9,2,3,4]',
+    ]);
+
+    // Two records, the second of which is where the generator actually stands:
+    // a command may write one partway and roll again after it.
+    expect(
+      unrecordedRolls(
+        [
+          { type: 'rolls-issued', count: 1, rng: at(1) },
+          { type: 'rolls-issued', count: 1, rng: at(9) },
+        ],
+        two,
+      ),
+    ).toEqual([]);
+
+    // A command that did nothing at all and said it had.
+    expect(
+      unrecordedRolls([{ type: 'rolls-issued', count: 0, rng: at(1) }], {
+        drawn: 0,
+        issued: 0,
+        snapshots: [],
+      }),
+    ).toEqual(['drew no dice, issued no ids and emitted 1 rolls-issued anyway']);
+
+    // And silence from a command that threw nothing is the pass it should be.
+    expect(unrecordedRolls([], { drawn: 0, issued: 0, snapshots: [] })).toEqual([]);
+
+    // **An id with no die behind it is still a ledger that moved.** A face read
+    // off a table's own dice issues an id and leaves the generator exactly
+    // where it was, and a command that recorded nothing would let the next one
+    // reissue that id. Nothing reaches `resolveStatedD20` today, which is why
+    // this arm is synthetic and why it is here rather than waiting.
+    const still: Turned = { drawn: 0, issued: 1, snapshots: [at(4)] };
+    expect(unrecordedRolls([], still)).toEqual([
+      'drew 0 dice and issued 1 roll id(s), and emitted no rolls-issued: the generator rewinds on replay and the next command draws the same faces under the same ids',
+    ]);
+    expect(unrecordedRolls([{ type: 'rolls-issued', count: 1, rng: at(4) }], still)).toEqual([]);
+  });
+});
+
 // — the two sweeps that are derived from the module, not recalled ————————————
 
 /**
@@ -3818,6 +4110,307 @@ describe('the idempotency sweep covers every command that hands back events', ()
       ['doSomethingUntracked', 'Result<GameEvent[]>'],
       ['lookSomethingUp', 'number'],
     ]);
+  });
+});
+
+// — and the same claim again, from the other side ——————————————————————————
+
+/**
+ * Every source file the engine is made of, keyed by its path under `src/`.
+ *
+ * `MODULE_SOURCE` above is the command layer and stops there, which is the
+ * right population for a sweep about commands. The one below is about a path
+ * that *leaves* the command layer — `forcePrintedSave` reaches a die through
+ * `rollSavingThrow` in `checks.ts` and `rollD20` in `dice.ts` — so it needs
+ * the whole tree, and a directory walk rather than a list for the reason the
+ * one above is a directory listing.
+ */
+const sourcesUnder = (dir: string, prefix = ''): Record<string, string> => {
+  const found: Record<string, string> = {};
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isDirectory()) {
+      Object.assign(found, sourcesUnder(`${dir}${entry.name}/`, `${prefix}${entry.name}/`));
+    } else if (entry.name.endsWith('.ts') && !entry.name.includes('.test.')) {
+      found[`${prefix}${entry.name}`] = readFileSync(`${dir}${entry.name}`, 'utf8');
+    }
+  }
+  return found;
+};
+
+const ENGINE_SOURCE: Readonly<Record<string, string>> = sourcesUnder(SRC);
+
+/** `commands/actions.ts` + `../checks.js` → `checks.ts`. */
+const importedFile = (from: string, specifier: string): string => {
+  const parts = from.split('/').slice(0, -1);
+  for (const segment of specifier.replace(/\.js$/, '.ts').split('/')) {
+    if (segment === '.') continue;
+    else if (segment === '..') parts.pop();
+    else parts.push(segment);
+  }
+  return parts.join('/');
+};
+
+interface Reached {
+  /** Every top-level declaration in the tree, keyed `file#name`. */
+  readonly declarations: ReadonlyMap<string, { readonly name: string; readonly exported: boolean }>;
+  /** Those that can reach a die, through any number of modules. */
+  readonly rolls: ReadonlySet<string>;
+  /** Those that can reach a `rolls-issued`, the same way. */
+  readonly records: ReadonlySet<string>;
+}
+
+/**
+ * The engine's call graph, and the two questions asked over it.
+ *
+ * `reachedFrom` above answers the same shape of question **inside one module**,
+ * which is all the two sweeps beside it need: a command spends through a helper
+ * in its own file. This one cannot borrow it, because the only thing in the
+ * engine that physically turns a generator is `rng.int` in `dice.ts` and every
+ * command is three or four modules away from it. So imports are resolved and
+ * the closure crosses files.
+ *
+ * Both seeds are physical facts rather than names anybody has to keep up to
+ * date: a declaration draws if its own text calls `rng.int`, and it records if
+ * its own text writes `'rolls-issued'`. Everything else is reached.
+ */
+const reachedInEngine = (sources: Readonly<Record<string, string>>): Reached => {
+  const declarations = new Map<string, { name: string; exported: boolean; body: string; file: string }>();
+  const declaredIn = new Map<string, ReadonlySet<string>>();
+  const importedInto = new Map<string, ReadonlyMap<string, string>>();
+
+  for (const [file, source] of Object.entries(sources)) {
+    const functions = functionsIn(source);
+    declaredIn.set(file, new Set(functions.map((fn) => fn.name)));
+    for (const fn of functions) declarations.set(`${file}#${fn.name}`, { ...fn, file });
+
+    const named = new Map<string, string>();
+    for (const line of source.matchAll(/import(?: type)?\s*\{([\s\S]*?)\}\s*from\s*'(\.[^']*)'/g)) {
+      const target = importedFile(file, line[2]!);
+      if (sources[target] === undefined) continue;
+      for (const raw of line[1]!.split(',')) {
+        // `type Foo`, `Foo as Bar` — the local name is what a body calls.
+        const name = raw.trim().replace(/^type\s+/, '').split(/\s+as\s+/)[0]!.trim();
+        if (name.length > 0) named.set(name, target);
+      }
+    }
+    importedInto.set(file, named);
+  }
+
+  const edges = new Map<string, ReadonlySet<string>>();
+  for (const [key, declaration] of declarations) {
+    const callees = new Set<string>();
+    for (const call of declaration.body.matchAll(/\b([A-Za-z_]\w*)\s*\(/g)) {
+      const name = call[1]!;
+      if (name === declaration.name) continue;
+      const home = declaredIn.get(declaration.file)!.has(name)
+        ? declaration.file
+        : importedInto.get(declaration.file)!.get(name);
+      if (home !== undefined && declarations.has(`${home}#${name}`)) callees.add(`${home}#${name}`);
+    }
+    edges.set(key, callees);
+  }
+
+  const closure = (seeded: (body: string) => boolean): ReadonlySet<string> => {
+    const reached = new Set(
+      [...declarations].filter(([, entry]) => seeded(entry.body)).map(([key]) => key),
+    );
+    for (let grew = true; grew; ) {
+      grew = false;
+      for (const [key, callees] of edges) {
+        if (reached.has(key)) continue;
+        if ([...callees].some((callee) => reached.has(callee))) {
+          reached.add(key);
+          grew = true;
+        }
+      }
+    }
+    return reached;
+  };
+
+  return {
+    declarations,
+    rolls: closure((body) => /\brng\.int\(/.test(body)),
+    records: closure((body) => body.includes("'rolls-issued'")),
+  };
+};
+
+/**
+ * Commands that can reach a die and can reach no `rolls-issued`, on **any**
+ * branch, with the reason each is allowed to.
+ *
+ * The sweep above measures what a command did on the one path the corpus
+ * drives it down; this one asks what it *could* do down any path, and the two
+ * together are the guard. Neither subsumes the other: this one cannot see a
+ * command that records on one branch and forgets on another, and that one
+ * cannot see a branch the corpus never reaches.
+ */
+const ROLLS_WITHOUT_RECORDING: Readonly<Record<string, string>> = {
+  'commands/initiative.ts#rollInitiativeFor':
+    'the roll and not the record: it hands back a number and emits nothing at all, so there is no batch for a `rolls-issued` to be in. `recordInitiativeRolls` and `rollInitiativeAndBeginCombat` are the two that roll *and* record, and `beginning-a-fight.test.ts` is the guard that a caller keeping a log uses one of them',
+};
+
+describe('every command that can reach a die can reach the event that records it', () => {
+  const { declarations, rolls, records } = reachedInEngine(ENGINE_SOURCE);
+
+  const commands = [...declarations]
+    .filter(([, entry]) => entry.exported && COMMAND_SURFACE.has(entry.name))
+    .map(([key]) => key);
+
+  const unrecording = commands.filter((key) => rolls.has(key) && !records.has(key)).sort();
+
+  /**
+   * The whole point: a command that can reach a die and, down every path it
+   * has, reaches nothing that writes the event recording one. That is the
+   * shape a rolling command arrives in when nobody has thought about the
+   * generator at all, and nothing in the repository asked the question until
+   * now.
+   */
+  it('leaves no rolling command that records nowhere, but the ones named', () => {
+    expect(unrecording).toEqual(Object.keys(ROLLS_WITHOUT_RECORDING).sort());
+    expect(Object.values(ROLLS_WITHOUT_RECORDING).every((why) => why.length > 20)).toBe(true);
+  });
+
+  /**
+   * And the exemption's reason is checked rather than taken on its word: it is
+   * excused because it hands the caller no events, so the day it starts
+   * handing back a batch it needs a `rolls-issued` in it like everything else.
+   */
+  it('and each exemption really does hand back no events at all', () => {
+    for (const key of Object.keys(ROLLS_WITHOUT_RECORDING)) {
+      const [file, name] = key.split('#') as [string, string];
+      const signature = returnTypesIn(ENGINE_SOURCE[file]!).find((entry) => entry.name === name);
+      expect(signature, key).toBeDefined();
+      expect(carriesEvents(signature!.returns), key).toBe(false);
+    }
+  });
+
+  /**
+   * And the graph really did cross a module boundary, which is the whole
+   * reason it exists: nothing under `commands/` calls `rng.int` itself.
+   */
+  it('found the commands that reach a die, three modules away', () => {
+    const rolling = commands.filter((key) => rolls.has(key));
+    expect(rolling.length).toBeGreaterThan(25);
+    for (const name of ['resolveAttack', 'forcePrintedSave', 'takeHide', 'endRest']) {
+      expect(rolling.some((key) => key.endsWith(`#${name}`)), name).toBe(true);
+    }
+    // And a command that reads content and rolls nothing is not on it.
+    for (const name of ['equipItem', 'declareLight', 'takeDodge']) {
+      expect(rolling.some((key) => key.endsWith(`#${name}`)), name).toBe(false);
+    }
+    // No module under `commands/` names the generator's own method, so every
+    // one of those was reached across files.
+    expect(
+      Object.keys(ENGINE_SOURCE).filter(
+        (file) => file.startsWith('commands/') && /\brng\.int\(/.test(ENGINE_SOURCE[file]!),
+      ),
+    ).toEqual([]);
+  });
+
+  /**
+   * **And this one would not have caught `forcePrintedSave`**, measured
+   * against the live source rather than assumed either way.
+   *
+   * `commands/actions.ts` is handed to the analysis with its `'rolls-issued'`
+   * taken back out, which is the file as it shipped. The command still counts
+   * as recording, because it calls `dealSpellDamage` in `commands/damage.ts`,
+   * which calls `resolveDamage` in `commands/casting.ts`, which emits one —
+   * for its own dice, on a branch this command does not take. Reachability is
+   * an over-approximation on the recording side and there is no honest way to
+   * narrow it: restricting the closure to the command's own module puts eight
+   * more commands on the list, every one of them correct and every one of them
+   * needing a written excuse, which is the hand-maintained allow-list this
+   * guard was built to avoid.
+   *
+   * So the net above is the coarse one — a rolling command that can reach no
+   * `rolls-issued` **at all** — and the measured sweep is the one that catches
+   * a command that rolls and forgets. Each says what the other cannot: this
+   * one reads every branch of every command and is blunt; that one is exact
+   * and reads one branch. Believing either is the whole guard is how a third
+   * `forcePrintedSave` ships.
+   */
+  it('cannot see a command that records on one branch and forgets on another', () => {
+    const asItShipped = {
+      ...ENGINE_SOURCE,
+      'commands/actions.ts': ENGINE_SOURCE['commands/actions.ts']!.replaceAll(
+        "type: 'rolls-issued'",
+        "type: 'nothing-at-all'",
+      ),
+    };
+    const shipped = reachedInEngine(asItShipped);
+    expect(shipped.rolls.has('commands/actions.ts#forcePrintedSave')).toBe(true);
+    // The bound, stated as an assertion so that a change which *does* narrow
+    // it fails here and gets this comment rewritten rather than left lying.
+    expect(shipped.records.has('commands/actions.ts#forcePrintedSave')).toBe(true);
+
+    // And the path is the one named above, rather than some other one.
+    expect(ENGINE_SOURCE['commands/actions.ts']!).toMatch(/\bdealSpellDamage\(/);
+    expect(ENGINE_SOURCE['commands/damage.ts']!).toMatch(/\bresolveDamage\(/);
+    expect(ENGINE_SOURCE['commands/casting.ts']!).toContain("type: 'rolls-issued'");
+
+    // The measured sweep, which does catch it, is the one above; this is the
+    // claim that the corpus really runs this command down a rolling branch.
+    expect(GUARDED.some((entry) => entry.name === 'forcePrintedSave')).toBe(true);
+  });
+
+  /**
+   * What the coarse net does catch: a rolling command in a module with no
+   * `rolls-issued` in it and no call into one — the shape a new command in a
+   * new module arrives in, and the one `takeHide` would have had if
+   * `commands/actions.ts` had never emitted one.
+   */
+  it('would catch a rolling command that reaches no rolls-issued at all', () => {
+    const stripped = Object.fromEntries(
+      Object.entries(ENGINE_SOURCE).map(([file, source]) => [
+        file,
+        source.replaceAll("type: 'rolls-issued'", "type: 'nothing-at-all'"),
+      ]),
+    );
+    const blind = reachedInEngine(stripped);
+    const missed = [...blind.declarations]
+      .filter(
+        ([key, entry]) =>
+          entry.exported && COMMAND_SURFACE.has(entry.name) && blind.rolls.has(key) && !blind.records.has(key),
+      )
+      .map(([key]) => key);
+    expect(missed).toContain('commands/actions.ts#forcePrintedSave');
+    expect(missed).toContain('commands/actions.ts#takeHide');
+    expect(missed.length).toBeGreaterThan(25);
+  });
+
+  /**
+   * And the analysis is not vacuous on a tree it has never seen: shown two
+   * commands that reach a die through an imported helper, one of which records
+   * and one of which does not, it tells them apart — and leaves alone the one
+   * that never rolls.
+   */
+  it('tells a roller from a recorder from neither, across modules', () => {
+    const synthetic = {
+      'dice.ts': ['export function rollD20(rng: Rng): number {', '  return rng.int(20);', '}'].join(
+        '\n',
+      ),
+      'commands/chance.ts': [
+        "import { rollD20 } from '../dice.js';",
+        'export function takeAChance(state: GameState, supply: Supply) {',
+        '  const face = rollD20(supply.rng);',
+        "  return ok([{ type: 'roll-recorded', total: face }]);",
+        '}',
+        'export function takeAChanceAndSaySo(state: GameState, supply: Supply) {',
+        '  const face = rollD20(supply.rng);',
+        "  return ok([{ type: 'rolls-issued', count: 1, rng: supply.rng.snapshot() }]);",
+        '}',
+        'export function lookSomethingUp(state: GameState) {',
+        '  return 1;',
+        '}',
+      ].join('\n'),
+    };
+    const { rolls: rolled, records: recorded } = reachedInEngine(synthetic);
+    expect([...rolled].sort()).toEqual([
+      'commands/chance.ts#takeAChance',
+      'commands/chance.ts#takeAChanceAndSaySo',
+      'dice.ts#rollD20',
+    ]);
+    expect([...recorded]).toEqual(['commands/chance.ts#takeAChanceAndSaySo']);
   });
 });
 

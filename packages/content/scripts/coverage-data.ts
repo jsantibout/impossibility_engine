@@ -856,6 +856,27 @@ export interface BestiaryCoverage {
   readonly parsed: number;
   /** Blocks `SRD_CONTENT` holds, validated, reachable by id. */
   readonly carried: number;
+  /**
+   * Of those, the ones the parser produced — the Monsters chapter, carried.
+   *
+   * `carried` over `parsed` is not a fraction and printing it as one said
+   * `332/330`. The catalogue is two piles: the chapter the parser reads, and
+   * the blocks the book prints inside a *spell's* entry. This is the first,
+   * and it is the only one `parsed` is the whole of.
+   */
+  readonly fromParsed: number;
+  /**
+   * The other pile: blocks the catalogue holds that the parser never produced.
+   *
+   * The Otherworldly Steed and the Phantom Steed, printed in Find Steed's and
+   * Phantom Steed's own entries rather than in the Monsters chapter, and
+   * transcribed by hand in `packages/content/src/bestiary.ts` on the owner's
+   * ruling of 2026-09-21. Counted by asking whether the parser produced the id
+   * rather than by subtracting one length from another, so a block that
+   * arrived from a third place is counted here and caught by the id test in
+   * `coverage.test.ts` instead of vanishing into a difference.
+   */
+  readonly transcribed: number;
   /** Entries in the printed vulnerability, resistance and immunity runs. */
   readonly defences: number;
   /** Of those, entries recognised and left to the DM because they are qualified. */
@@ -1094,7 +1115,8 @@ export const LEGENDARY_ECONOMY = 'A legendary action’s own economy';
 export function auditBestiary(): BestiaryCoverage {
   const parsed = JSON.parse(
     readFileSync('packages/srd/src/generated/monsters.json', 'utf8'),
-  ) as readonly unknown[];
+  ) as readonly { readonly id: string }[];
+  const parsedIds = new Set(parsed.map((monster) => monster.id));
 
   const kinds = [
     ['Traits', 'traits'],
@@ -1158,6 +1180,11 @@ export function auditBestiary(): BestiaryCoverage {
   return {
     parsed: parsed.length,
     carried: SRD_CONTENT.monsters.length,
+    // Membership rather than arithmetic: the two piles are counted by asking
+    // the parser whether it produced each id, so they cannot both be right
+    // about a block that came from neither place.
+    fromParsed: SRD_CONTENT.monsters.filter((monster) => parsedIds.has(monster.id)).length,
+    transcribed: SRD_CONTENT.monsters.filter((monster) => !parsedIds.has(monster.id)).length,
     defences,
     qualified,
     unread,

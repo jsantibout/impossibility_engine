@@ -459,6 +459,29 @@ export function bestiaryRow(coverage: BestiaryCoverage): string {
 }
 
 /**
+ * The line the run prints when it has finished, written once and read by the
+ * guard for the same reason the row above is.
+ *
+ * **Two populations, named rather than divided.** This said
+ * `bestiary: 332/330 stat blocks carried`, which is the whole catalogue over
+ * the Monsters chapter — a fraction above 1 standing beside four that are a
+ * part over their whole. The chapter is one pile and the blocks a spell's own
+ * entry prints are another, and a reader who has to work out that the numerator
+ * is the union of both has been told something wrong first. Every fraction
+ * here is now a part over the whole it is part of, and `coverage.test.ts`
+ * holds that: it takes every `a/b` in this line and refuses one where `a`
+ * exceeds `b`.
+ */
+export function bestiarySummary(coverage: BestiaryCoverage): string {
+  return (
+    `bestiary: ${coverage.fromParsed}/${coverage.parsed} parsed stat blocks carried ` +
+    `and ${coverage.transcribed} more transcribed from a spell’s own entry, ` +
+    `${coverage.acting} of the ${coverage.carried} able to attack with what they print, ` +
+    `${coverage.read}/${coverage.printed} printed lines read`
+  );
+}
+
+/**
  * The bestiary, which has two columns that cannot move and two that say how
  * much of the prose has stopped being prose.
  *
@@ -916,11 +939,7 @@ if (isMainModule) {
       `${items.instances} records, ${items.partial} of them partial`,
   );
   const bestiary = auditBestiary();
-  console.log(
-    `bestiary: ${bestiary.carried}/${bestiary.parsed} stat blocks carried, ` +
-      `${bestiary.acting} able to attack with what they print, ` +
-      `${bestiary.read}/${bestiary.printed} printed lines read`,
-  );
+  console.log(bestiarySummary(bestiary));
   const piles = itemPiles(parsedItemIds(), transcribedItemIds());
   console.log(
     `item entries: ${piles.blocked.length} blocked, ${piles.ready.length} ready to transcribe, ` +

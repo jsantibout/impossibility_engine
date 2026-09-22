@@ -448,6 +448,8 @@ describe('nobody writes a rolls-issued event by hand', () => {
       'this file, which assembles the old log by hand at the top precisely so the new one can be proved to fold to the same fight; the forgery is the control in the experiment',
     'packages/engine/src/events.ts':
       'the declaration of the event type itself, which is where its shape is written down rather than a place one is built',
+    'packages/engine/src/invariants.test.ts':
+      'the sweep that catches the opposite mistake — a command that rolls and emits *no* `rolls-issued`, which this file has nothing to say about. Its constructions are arguments to a judgement rather than events: a short count, a stale snapshot and an honest record, each handed to `unrecordedRolls` to prove it tells them apart, plus one inside a synthetic module the static half must classify. None of them is appended to a log or folded',
     'packages/engine/src/events.test.ts':
       'a unit test of the seam that owns the event: it builds a two-event log by hand precisely to prove that this is the only thing that moves the generator',
     'packages/engine/src/scenario.test.ts':

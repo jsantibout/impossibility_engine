@@ -22,7 +22,7 @@ import {
   TRAIT_KINDS_WITH_A_READER,
 } from '../scripts/coverage-data.js';
 import { entryFor, isCompleteItem, magicItemEntries } from '../scripts/magic-items.js';
-import { bestiaryRow, renderReport } from '../scripts/coverage.js';
+import { bestiaryRow, bestiarySummary, renderReport } from '../scripts/coverage.js';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
 
@@ -645,6 +645,61 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
 
     const blocks = bestiary.shapes.map((shape) => shape.blocks);
     expect(blocks).toEqual([...blocks].sort((a, b) => b - a));
+  });
+
+  /**
+   * **The two populations are counted separately, and neither is divided by
+   * the other.**
+   *
+   * The catalogue is the Monsters chapter *plus* the two stat blocks the book
+   * prints inside a spell's own entry, and the run's summary used to put the
+   * whole catalogue over the parsed chapter: `bestiary: 332/330 stat blocks
+   * carried`. Every fraction beside it in that summary is a part over its
+   * whole, so a reader meeting one above 1 has to decide whether this report
+   * is counting something strange or is simply wrong — and either answer costs
+   * more than the number is worth.
+   *
+   * So the fields the summary is built from are the two piles, each derived by
+   * asking whether the parser produced that id rather than by subtracting one
+   * length from another. A block that appeared in the catalogue from neither
+   * source moves `transcribed` and fails the id test above, instead of
+   * disappearing into a difference.
+   */
+  it('counts the parsed chapter and the spell-printed blocks as two piles', () => {
+    expect(bestiary.fromParsed + bestiary.transcribed).toBe(bestiary.carried);
+    expect(bestiary.fromParsed).toBe(bestiary.parsed);
+    expect(bestiary.transcribed).toBe(SPELL_STAT_BLOCKS.length);
+    expect(bestiary.transcribed).toBeGreaterThan(0);
+  });
+
+  /**
+   * And the line the run prints says so. Generated once and read by the guard,
+   * the way `bestiaryRow` is: a second spelling in the test would agree with
+   * itself while the terminal said something else.
+   */
+  it('prints no fraction of one population over a smaller one', () => {
+    /** Every `a/b` where `a` exceeds `b`, which is the shape of the defect. */
+    const aboveOne = (text: string): readonly string[] =>
+      [...text.matchAll(/(\d+)\/(\d+)/g)]
+        .filter((match) => Number(match[1]) > Number(match[2]))
+        .map((match) => match[0]);
+
+    // The predicate is shown the line as it was, so it cannot quietly stop
+    // seeing anything.
+    expect(aboveOne('bestiary: 332/330 stat blocks carried, 329 able to attack')).toEqual([
+      '332/330',
+    ]);
+
+    const summary = bestiarySummary(bestiary);
+    expect(aboveOne(summary)).toEqual([]);
+    expect(summary).toContain(`${bestiary.fromParsed}/${bestiary.parsed} parsed`);
+    // The phrase and not the bare number: `transcribed` is 2, and a `toContain`
+    // of "2" is satisfied by the 2 inside 332, 1330 or 742 — an assertion that
+    // passes whatever the line says.
+    expect(summary).toContain(`and ${bestiary.transcribed} more transcribed`);
+    // And it still says everything it used to.
+    expect(summary).toContain(`${bestiary.acting}`);
+    expect(summary).toContain(`${bestiary.read}/${bestiary.printed}`);
   });
 
   /** Generated, like every other row: the committed report holds this one. */
