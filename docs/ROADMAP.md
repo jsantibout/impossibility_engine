@@ -413,7 +413,7 @@ Three claims checked, then the order.
 
 | # | Track | Finishes / moves | Fence (by reader) and sequencing |
 |---|---|---|---|
-| 0 | **P2-T0 The ledger made honest** | the 89 rises; Shocking Grasp and Speak with Animals re-filed; the light shape id; `SPLIT_BUNDLES` for P3-A; the third column; the feats row; the glossary table | `packages/content/scripts/**`, `spells.ts` notes. **First, alone, before any other brief cites a number** |
+| 0 | **P2-T0 The ledger made honest** — `[x]` merged 2026-09-21 | the 89 rises; Shocking Grasp and Speak with Animals re-filed; the light shape id; `SPLIT_BUNDLES` for P3-A; the third column; the feats row; the glossary table | `packages/content/scripts/**`, `spells.ts` notes. **First, alone, before any other brief cites a number** |
 | 1 | **P2-T12 A casting writes a lattice patch** | Grease, Plant Growth, Entangle, Web's and Spike Growth's clauses — **and it is the seam the sight model reuses**, so design `LightPatch` as its second consumer | readers of `DifficultPatch`/`livePatches`: `positioning.ts`, `commands/movement.ts`, `fold/scene.ts`; writer in `commands/casting.ts` |
 | 2 | **P2-T18+ the ingest track** — a save a printed line forces, plus the movement and amphibious trait kinds | 14 blocks + 73 lines; 26 blocks | `packages/srd/**` alone, `monster.ts`, `commands/actions.ts`; runs ingest then index and commits the index |
 | 3 | **P2-T13′ Movement modes' writers** | Spider Climb, Fly, Second-Story Work; Alter Self one short | `GrantedSpeed.mode`: readers of `speedOf`; `climb-speed` `FeatureGrant` |
@@ -462,6 +462,46 @@ ranked first among the builders.
   where it is.
 - **The lopsided split of several attack rolls stays the owner's.** For the
   record: the sayable form is `targets: [{ id, count }]`.
+
+### P2-T0's result, and the three things it could not do
+
+Merged 2026-09-21. **Spells waiting on a shape 89 → 96**, which is the track
+working: six light spells against the new `light-and-obscurement-the-scene-
+holds`, plus Remove Curse. Thirty-three more now say `'table'` plainly instead
+of reading as no debt. Features 55 → 58 (the feats arm). Two populations get a
+first row: **157 items a party can buy** (0 waiting on a shape) and **22
+glossary general rules, 7 of them waiting**, among them `nick` — a mastery
+property a level 1 Rogue with a scimitar reaches and which occurs in no engine
+source file. Criterion 3's incomplete calls 3 → 1, an engine-correct refusal
+no longer counted as a session failure.
+
+- **`misanchoredAdjudications` no longer refuses a marker-less `'table'`
+  entry** (it still refuses marker-less `'engine'` and `'expressible'`). All
+  34 spells trip zero `MECHANICAL_MARKERS` anywhere in their prose — which is
+  exactly why no guard had ever demanded an entry of them — so a marker-less
+  entry was the only entry any of them could have. The refusal's stated
+  justification was that a tracked definition's own `unmodelled` is where
+  narration already goes, which `docs/design/content.md` contradicts and G1
+  overturned. Accepted by the foreman on the reviewer's reasoning.
+- **`why` wants a third id space, and this is now the third time the field has
+  been too narrow.** `an-action-the-engine-has-no-spender-for` — where G1 said
+  Speak with Animals, Gaseous Form and Haste's Utilize belong — is a
+  **feature** shape in `missing-feature-shapes.ts`, not a spell shape, so
+  filing a tracked spell against it needs `FeatureShapeId` in the union that
+  G1 enumerated without it. Two consequences wait on that one decision: those
+  three spells stay mis-filed, and `SPLIT_BUNDLES` for
+  `an-action-a-spell-compels-or-forbids` cannot be written because the split
+  needs more than one destination. The five arms and their counts are recorded
+  in the bundle's own description meanwhile, so nobody briefs it as a unit.
+  **Held for G2** under rule 4 — it blocks two entries, not two tracks — but
+  it is the same decision taken twice already, and the honest form of it may
+  be "`why` names a shape in any of the three maps".
+- **Light's recast clause is genuinely expressible and nothing records it.**
+  "The spell ends if you cast it again" is `replacesPriorCasting`, which
+  exists and which Mage Hand uses; `LIGHT` lacks the field and its own
+  `unmodelled` says so. `'expressible'` cannot be written marker-less, so the
+  debt is invisible. **One field in `packages/content/src/spells.ts` closes
+  it**, and it was outside P2-T0's fence. Cheapest item on this list.
 
 ## 5. Phase 2: batch 2
 
