@@ -28,7 +28,7 @@ than to the table.
 
 | Parsed | Tracked | Executed | of which partial | Verified |
 |---|---|---|---|---|
-| 339 | 198 (58.4%) | 132 (38.9%) | 51 | 98 (28.9%) |
+| 339 | 198 (58.4%) | 132 (38.9%) | 46 | 98 (28.9%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -72,15 +72,15 @@ a plain statement of what the table decides.
 - **Dimension Door** (level 4) — verified, partial — a clause the engine owns is still unbuilt
 - **Disintegrate** (level 6) — untested, partial — a clause the engine owns is still unbuilt
 - **Dispel Magic** (level 3) — verified
-- **Dissonant Whispers** (level 1) — verified, partial — a clause the engine owns is still unbuilt
+- **Dissonant Whispers** (level 1) — verified
 - **Divine Favor** (level 1) — verified
 - **Divine Smite** (level 1) — verified
 - **Dominate Beast** (level 4) — untested, partial — a clause the engine owns is still unbuilt
 - **Dominate Monster** (level 8) — untested, partial — a clause the engine owns is still unbuilt
 - **Dominate Person** (level 5) — untested, partial — a clause the engine owns is still unbuilt
-- **Eldritch Blast** (cantrip) — verified, partial — a clause the engine owns is still unbuilt
+- **Eldritch Blast** (cantrip) — verified
 - **Enhance Ability** (level 2) — verified
-- **Expeditious Retreat** (level 1) — untested, partial — a clause the engine owns is still unbuilt
+- **Expeditious Retreat** (level 1) — untested
 - **Faerie Fire** (level 1) — verified, partial — a clause the engine owns is still unbuilt
 - **False Life** (level 1) — verified
 - **Fear** (level 3) — verified, partial — a clause the engine owns is still unbuilt
@@ -130,7 +130,7 @@ a plain statement of what the table decides.
 - **Misty Step** (level 2) — verified
 - **Moonbeam** (level 2) — verified
 - **Phantasmal Killer** (level 4) — untested, partial — a clause the engine owns is still unbuilt
-- **Phantom Steed** (level 3) — untested, partial — a clause the engine owns is still unbuilt
+- **Phantom Steed** (level 3) — untested
 - **Plant Growth** (level 3) — verified, partial — a clause the engine owns is still unbuilt
 - **Poison Spray** (cantrip) — verified
 - **Prayer of Healing** (level 2) — verified
@@ -141,7 +141,7 @@ a plain statement of what the table decides.
 - **Ray of Sickness** (level 1) — verified
 - **Regenerate** (level 7) — verified
 - **Sacred Flame** (cantrip) — verified
-- **Scorching Ray** (level 2) — verified, partial — a clause the engine owns is still unbuilt
+- **Scorching Ray** (level 2) — verified
 - **Searing Smite** (level 1) — untested, partial — a clause the engine owns is still unbuilt
 - **Shatter** (level 2) — verified
 - **Shield** (level 1) — untested, partial — a clause the engine owns is still unbuilt
@@ -427,9 +427,8 @@ of *Tracked* and is never added to it.
 
 | Shape | Blocks | Finishes (read) | Finishes (unread) | Executed | Tracked | of which unseen | Undefined |
 |---|---|---|---|---|---|---|---|
-| `a-casting-ended-by-a-trigger` | 17 | 1 | 0 | 4 | 10 | 1 | 3 |
+| `a-casting-ended-by-a-trigger` | 14 | 1 | 0 | 1 | 10 | 1 | 3 |
 | `an-area-that-filters-its-catch` | 3 | 1 | 0 | 1 | 1 | 0 | 1 |
-| `an-action-a-spell-compels-or-forbids` | 17 | 0 | 0 | 11 | 6 | 0 | 0 |
 | `a-random-outcome-that-is-not-a-d20` | 16 | 0 | 0 | 0 | 14 | 0 | 2 |
 | `a-stat-block-created-mid-fight` | 14 | 0 | 0 | 2 | 11 | 1 | 1 |
 | `a-choice-made-at-the-casting` | 13 | 0 | 0 | 2 | 11 | 2 | 0 |
@@ -441,8 +440,10 @@ of *Tracked* and is never added to it.
 | `a-repeat-save-that-does-something-on-a-failure` | 7 | 0 | 0 | 3 | 4 | 0 | 0 |
 | `a-rider-on-a-later-weapon-attack` | 7 | 0 | 0 | 1 | 6 | 0 | 0 |
 | `a-standing-effect-derived-from-where-a-creature-stands` | 7 | 0 | 0 | 0 | 7 | 1 | 0 |
+| `an-action-a-spell-compels-or-forbids` | 7 | 0 | 0 | 3 | 4 | 0 | 0 |
 | `damage-with-neither-an-attack-roll-nor-a-save` | 7 | 0 | 0 | 2 | 4 | 0 | 1 |
 | `difficult-terrain-an-area-creates` | 7 | 0 | 0 | 3 | 4 | 2 | 0 |
+| `a-creature-somebody-else-is-playing` | 6 | 0 | 0 | 4 | 2 | 0 | 0 |
 | `a-target-rule-the-format-cannot-state` | 6 | 0 | 0 | 0 | 6 | 1 | 0 |
 | `an-outcome-that-reads-the-targets-hit-points` | 6 | 0 | 0 | 1 | 5 | 0 | 0 |
 | `a-barrier-that-blocks-passage` | 5 | 0 | 0 | 0 | 5 | 1 | 0 |
@@ -473,7 +474,6 @@ of *Tracked* and is never added to it.
 | `an-area-trigger-measured-from-a-point` | 3 | 0 | 0 | 0 | 2 | 0 | 1 |
 | `an-effect-that-fires-when-the-casting-ends` | 3 | 0 | 0 | 1 | 2 | 0 | 0 |
 | `forced-movement-a-spell-causes` | 3 | 0 | 0 | 0 | 3 | 0 | 0 |
-| `several-attack-rolls-from-one-casting` | 3 | 0 | 0 | 3 | 0 | 0 | 0 |
 | `what-a-creature-is-holding` | 3 | 0 | 0 | 2 | 1 | 0 | 0 |
 | `a-cap-on-how-many-castings-run-at-once` | 2 | 0 | 0 | 0 | 2 | 2 | 0 |
 | `a-condition-benefit-an-effect-takes-away` | 2 | 0 | 0 | 2 | 0 | 0 | 0 |
@@ -499,7 +499,9 @@ of *Tracked* and is never added to it.
 | `a-repeat-save-on-the-clock` | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `a-repeat-save-with-no-condition-to-hang-it-on` | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `a-rest-an-effect-gives-or-denies` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
+| `a-rule-that-couples-two-slots-of-a-turn` | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `a-second-roll-sequenced-after-the-first` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
+| `a-self-cure-a-spell-forbids` | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `a-speed-an-effect-multiplies` | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `an-armor-class-a-spell-floors` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `an-automatic-success-by-creature-type` | 1 | 0 | 0 | 0 | 1 | 1 | 0 |
@@ -510,6 +512,7 @@ of *Tracked* and is never added to it.
 | `an-outcome-that-reads-the-targets-defences` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `healing-modified-by-an-effect` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `jumping` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
+| `several-attack-rolls-from-one-casting` | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `the-effects-source-as-a-participant` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
 
 A spell can need more than one shape, so the columns do not sum to the
@@ -577,10 +580,10 @@ be the second spelling of one derivation.
 | Shape | Blocks | Finishes |
 |---|---|---|
 | `a-feature-that-rewrites-another-features-rule` | 9 | 5 |
-| `a-resource-traded-for-another` | 10 | 4 |
 | `a-roll-result-an-effect-replaces` | 5 | 4 |
 | `a-casting-paid-for-out-of-a-feature-pool` | 8 | 3 |
 | `an-option-re-chosen-on-a-rest` | 4 | 3 |
+| `a-resource-traded-for-another` | 8 | 2 |
 | `a-feature-that-changes-what-a-casting-costs` | 7 | 2 |
 | `a-move-a-feature-hands-its-holder` | 6 | 2 |
 | `a-rule-the-engine-fixes-for-everybody` | 5 | 2 |
@@ -972,7 +975,7 @@ stopped having to be handed:
 
 | Parsed | Carried | Attacking | Defence entries | of which qualified | of which unread | Printed lines | of which read |
 |---|---|---|---|---|---|---|---|
-| 330 | 332 | 329 | 723 | 2 | 2 | 1330 | 742 |
+| 330 | 332 | 329 | 723 | 2 | 2 | 1330 | 754 |
 
 **A stat block used to arrive as a body rather than as an actor.**
 `adaptMonster` has always carried across everything the block states as a
@@ -1021,9 +1024,9 @@ fact the book wrote for a person.
 
 | Line | Printed | Read |
 |---|---|---|
-| Traits | 337 | 88 |
+| Traits | 337 | 99 |
 | Actions | 812 | 651 |
-| Bonus actions | 75 | 3 |
+| Bonus actions | 75 | 4 |
 | Reactions | 24 | 0 |
 | Legendary actions | 82 | 0 |
 
@@ -1043,7 +1046,7 @@ and a bite whose hit buys a save.
 | A save a line forces | 127 | 187 |
 | An effect a hit buys | 88 | 94 |
 | A recharge | 87 | 87 |
-| A trait shape nothing spends | 67 | 70 |
+| A trait shape nothing spends | 73 | 76 |
 | A use the block limits per day | 54 | 60 |
 | A creature that casts | 48 | 48 |
 | A legendary action’s own economy | 30 | 82 |
