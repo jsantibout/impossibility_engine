@@ -46,6 +46,7 @@ import { canSee } from '../standing.js';
 import { type SlotKind } from '../resources.js';
 import {
   attackRollsIn,
+  rollsDealtTo,
   DIRECTIONAL_AREAS,
   isCreatureType,
   type SpellArea,
@@ -550,9 +551,55 @@ export interface CastSpellRequest extends CommandIdentity {
  * that a casting naming it serialises exactly as one that says nothing. An
  * identity that told them apart would refuse an honest retry that spelled the
  * default out.
+ *
+ * **`rollsAt` is the same sentence twice more.** A split is a *mapping* from
+ * creature to share, so the order the pairs were written in says nothing about
+ * the casting — and a split that spells out the deal says nothing at all. Both
+ * are normalised away here, and `rollsAimedAt` drops the second from what a
+ * declaration pins, so the fingerprint and the record agree about which
+ * castings are one casting.
  */
-export const castingIdentity = ({ anchoring, ...rest }: CastSpellRequest): CastSpellRequest =>
-  anchoring === undefined || anchoring === 'space' ? rest : { ...rest, anchoring };
+export const castingIdentity = ({
+  anchoring,
+  rollsAt,
+  ...rest
+}: CastSpellRequest): CastSpellRequest => {
+  const aimed = aimedIdentity(rest.targets, rollsAt);
+  return {
+    ...rest,
+    ...(anchoring === undefined || anchoring === 'space' ? {} : { anchoring }),
+    ...(aimed === undefined ? {} : { rollsAt: aimed }),
+  };
+};
+
+/**
+ * A stated split as the fingerprint should see it: sorted, or gone.
+ *
+ * Both normalisations are decidable from the request alone, which is what lets
+ * this run before any definition is fetched. The total is the sum the caller
+ * stated — `rollsAimedAt` refuses any sum but the casting's own, so a split
+ * that survives validation states its own total — and the deal is read off the
+ * order the creatures were named, which is on the request too.
+ *
+ * An ill-formed split is sorted and kept rather than judged. It is about to be
+ * refused, and a fingerprint's job is to be stable, not to have opinions.
+ */
+function aimedIdentity(
+  targets: readonly CharacterId[],
+  rollsAt: readonly AimedRolls[] | undefined,
+): readonly AimedRolls[] | undefined {
+  if (rollsAt === undefined) return undefined;
+  const share = new Map(rollsAt.map((aim) => [aim.target, aim.count]));
+  const covers = share.size === rollsAt.length && targets.every((target) => share.has(target));
+  if (covers && targets.length === rollsAt.length) {
+    const total = rollsAt.reduce((sum, aim) => sum + aim.count, 0);
+    const deal = targets.every(
+      (target, index) => share.get(target) === rollsDealtTo(total, targets.length, index),
+    );
+    if (deal) return undefined;
+  }
+  return [...rollsAt].sort((a, b) => (a.target < b.target ? -1 : a.target > b.target ? 1 : 0));
+}
 
 /**
  * The creatures a casting said it was fighting, normalised once.
@@ -1419,7 +1466,7 @@ export function namedTargets(
  * | `not_a_roll_count` | a count that is not a whole number of rolls, at least one |
  * | `not_a_target` | rolls aimed at somebody this casting never named |
  * | `duplicate_target` | one creature given two shares |
- * | `unaimed_target` | a named creature left with no roll, having been named for one |
+ * | `missing_roll_count` | a named creature left with no roll, having been named for one |
  * | `wrong_roll_count` | more rays than the casting hurls, or fewer |
  *
  * The count it is measured against is the casting's own — off the slot for a
@@ -1477,7 +1524,7 @@ export function rollsAimedAt(
   const unaimed = targets.filter((target) => !share.has(target));
   if (unaimed.length > 0) {
     return err(
-      'unaimed_target',
+      'missing_roll_count',
       `${definition.name} names ${unaimed.join(', ')} and the split gives ${unaimed.length === 1 ? 'them' : 'each of them'} no roll`,
     );
   }
@@ -1490,7 +1537,14 @@ export function rollsAimedAt(
     );
   }
 
-  return ok(targets.map((target) => share.get(target)!));
+  // **A split that spells out the deal is a casting that said nothing**, and
+  // must fold to the same bytes as one: the record reaches a declaration, and
+  // two `spell-declared` events meaning one casting would be two states for
+  // one log. The fingerprint drops it for the same reason — see
+  // `castingIdentity`.
+  const aimed = targets.map((target) => share.get(target)!);
+  const deal = aimed.every((count, index) => count === rollsDealtTo(total, targets.length, index));
+  return ok(deal ? undefined : aimed);
 }
 
 /** Targets a spell could legally be aimed at, and why the others could not. */
