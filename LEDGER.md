@@ -25,9 +25,9 @@ exactly like an entry nobody read.
 
 | Ledger | Size | Waits on an engine shape | Waits on none |
 |---|---|---|---|
-| Spells in reach, not executed | 141 spells | 89 | 52 |
+| Spells in reach, not executed | 130 spells | 90 | 40 |
 | Features manual, or a pool with nothing to buy | 55 features | 49 | 6 |
-| CR ≤ 5 stat-block items handed over or unapplied | 434 items | on 198 of 242 blocks | 44 blocks already clean |
+| CR ≤ 5 stat-block items handed over or unapplied | 416 items | on 192 of 242 blocks | 50 blocks already clean |
 
 ## 1. Spells in reach the engine does not resolve
 
@@ -39,26 +39,26 @@ hold at all. An executed spell with nothing left is not here.
 
 | Shape | Blocks | Finishes |
 |---|---|---|
-| `a-choice-made-at-the-casting` | 8 | 5 |
-| `an-action-a-spell-compels-or-forbids` | 7 | 3 |
+| `an-action-a-spell-compels-or-forbids` | 9 | 5 |
+| `a-rider-on-a-later-weapon-attack` | 7 | 3 |
+| `difficult-terrain-an-area-creates` | 6 | 3 |
 | `a-condition-benefit-an-effect-takes-away` | 4 | 3 |
-| `a-rider-on-a-later-weapon-attack` | 6 | 2 |
+| `senses-beyond-declared-sight` | 4 | 3 |
 | `a-random-outcome-that-is-not-a-d20` | 5 | 2 |
-| `a-standing-effect-derived-from-where-a-creature-stands` | 5 | 2 |
-| `difficult-terrain-an-area-creates` | 5 | 2 |
-| `a-stat-block-created-mid-fight` | 4 | 2 |
+| `a-stat-block-created-mid-fight` | 5 | 2 |
+| `an-effect-that-suppresses-other-magic` | 5 | 2 |
 | `movement-modes` | 4 | 2 |
-| `what-a-creature-is-holding` | 4 | 2 |
-| `forced-movement-a-spell-causes` | 3 | 2 |
-| `senses-beyond-declared-sight` | 3 | 2 |
 | `several-attack-rolls-from-one-casting` | 3 | 2 |
-| `healing-modified-by-an-effect` | 2 | 2 |
-| `a-casting-ended-by-a-trigger` | 6 | 1 |
+| `a-casting-ended-by-a-trigger` | 7 | 1 |
+| `a-standing-effect-derived-from-where-a-creature-stands` | 5 | 1 |
+| `a-choice-made-at-the-casting` | 4 | 1 |
 | `a-repeat-save-that-does-something-on-a-failure` | 4 | 1 |
+| `a-target-rule-the-format-cannot-state` | 3 | 1 |
 | `damage-with-neither-an-attack-roll-nor-a-save` | 3 | 1 |
-| `a-target-rule-the-format-cannot-state` | 2 | 1 |
+| `a-creature-fact-an-effect-overrides` | 2 | 1 |
 | `an-area-trigger-measured-from-a-point` | 2 | 1 |
-| `a-hit-point-maximum-a-spell-moves` | 1 | 1 |
+| `forced-movement-a-spell-causes` | 2 | 1 |
+| `a-cap-on-how-many-castings-run-at-once` | 1 | 1 |
 | `a-reduction-an-effect-applies-to-damage` | 1 | 1 |
 | `a-save-keyed-to-a-condition` | 1 | 1 |
 | `a-second-roll-sequenced-after-the-first` | 1 | 1 |
@@ -71,10 +71,11 @@ hold at all. An executed spell with nothing left is not here.
 | `healing-that-raises-the-dead` | 1 | 1 |
 | `jumping` | 1 | 1 |
 | `targeting-rules-that-differ-within-one-casting` | 1 | 1 |
+| `a-bonus-narrowed-to-a-skill` | 3 | 0 |
 | `a-check-another-creature-may-attempt` | 3 | 0 |
 | `a-fact-only-the-table-can-declare` | 3 | 0 |
 | `a-spells-effects-applied-to-different-targets` | 3 | 0 |
-| `a-bonus-narrowed-to-a-skill` | 2 | 0 |
+| `a-barrier-that-blocks-passage` | 2 | 0 |
 | `a-condition-that-ends-when-its-holder-leaves-an-area` | 2 | 0 |
 | `a-damage-penalty-a-spell-grants` | 2 | 0 |
 | `a-filter-on-the-attackers-creature-type` | 2 | 0 |
@@ -83,13 +84,11 @@ hold at all. An executed spell with nothing left is not here.
 | `an-activation-taken-by-somebody-other-than-the-caster` | 2 | 0 |
 | `an-activation-that-resolves-an-area` | 2 | 0 |
 | `an-area-that-filters-its-catch` | 2 | 0 |
-| `an-effect-that-suppresses-other-magic` | 2 | 0 |
 | `an-outcome-that-reads-the-targets-hit-points` | 2 | 0 |
-| `a-barrier-that-blocks-passage` | 1 | 0 |
+| `what-a-creature-is-holding` | 2 | 0 |
 | `a-casting-dismissed-early` | 1 | 0 |
 | `a-condition-a-spell-suppresses` | 1 | 0 |
 | `a-condition-immunity-narrowed-to-its-source` | 1 | 0 |
-| `a-creature-fact-an-effect-overrides` | 1 | 0 |
 | `a-creature-type-predicate-an-area-reads` | 1 | 0 |
 | `a-die-behaviour-a-spell-asks-for` | 1 | 0 |
 | `a-distance-a-creature-travels-inside-an-area` | 1 | 0 |
@@ -112,26 +111,36 @@ hold at all. An executed spell with nothing left is not here.
 is planned from. A spell can need more than one shape, so neither column
 sums to the population.
 
-#### `a-choice-made-at-the-casting` — blocks 8, finishes 5
-
-- **Guidance** (level 0) — executed-partial
-- **Thaumaturgy** (level 0) — tracked
-- **Hex** (level 1) — tracked — also waits on 2
-- **Blindness/Deafness** (level 2) — executed-partial
-- **Enhance Ability** (level 2) — tracked
-- **Enlarge/Reduce** (level 2) — tracked — also waits on 3
-- **Lesser Restoration** (level 2) — executed-partial
-- **Glyph of Warding** (level 3) — tracked — also waits on 1
-
-#### `an-action-a-spell-compels-or-forbids` — blocks 7, finishes 3
+#### `an-action-a-spell-compels-or-forbids` — blocks 9, finishes 5
 
 - **Shocking Grasp** (level 0) — executed-partial
 - **Command** (level 1) — tracked
 - **Dissonant Whispers** (level 1) — executed-partial
+- **Expeditious Retreat** (level 1) — executed-partial
 - **Hideous Laughter** (level 1) — executed-partial — also waits on 1
+- **Speak with Animals** (level 1) — tracked
 - **Gaseous Form** (level 3) — executed-partial — also waits on 3
 - **Haste** (level 3) — executed-partial — also waits on 2
 - **Slow** (level 3) — no-definition — also waits on 3
+
+#### `a-rider-on-a-later-weapon-attack` — blocks 7, finishes 3
+
+- **Shillelagh** (level 0) — tracked
+- **True Strike** (level 0) — tracked
+- **Hex** (level 1) — tracked — also waits on 2
+- **Alter Self** (level 2) — tracked — also waits on 1
+- **Enlarge/Reduce** (level 2) — tracked — also waits on 3
+- **Magic Weapon** (level 2) — tracked
+- **Bestow Curse** (level 3) — tracked — also waits on 2
+
+#### `difficult-terrain-an-area-creates` — blocks 6, finishes 3
+
+- **Entangle** (level 1) — no-definition — also waits on 1
+- **Grease** (level 1) — executed-partial
+- **Gust of Wind** (level 2) — tracked — also waits on 2
+- **Web** (level 2) — executed-partial — also waits on 1
+- **Plant Growth** (level 3) — tracked
+- **Speak with Plants** (level 3) — tracked
 
 #### `a-condition-benefit-an-effect-takes-away` — blocks 4, finishes 3
 
@@ -140,14 +149,12 @@ sums to the population.
 - **Mind Spike** (level 2) — executed-partial
 - **Shining Smite** (level 2) — executed-partial — also waits on 1
 
-#### `a-rider-on-a-later-weapon-attack` — blocks 6, finishes 2
+#### `senses-beyond-declared-sight` — blocks 4, finishes 3
 
-- **Shillelagh** (level 0) — tracked
-- **True Strike** (level 0) — tracked
-- **Hex** (level 1) — tracked — also waits on 2
-- **Alter Self** (level 2) — tracked — also waits on 1
-- **Enlarge/Reduce** (level 2) — tracked — also waits on 3
-- **Bestow Curse** (level 3) — tracked — also waits on 2
+- **Find Familiar** (level 1) — no-definition — also waits on 3
+- **Blur** (level 2) — executed-partial
+- **Darkvision** (level 2) — tracked
+- **Mirror Image** (level 2) — tracked
 
 #### `a-random-outcome-that-is-not-a-d20` — blocks 5, finishes 2
 
@@ -157,28 +164,21 @@ sums to the population.
 - **Sending** (level 3) — no-definition — also waits on 2
 - **Slow** (level 3) — no-definition — also waits on 3
 
-#### `a-standing-effect-derived-from-where-a-creature-stands` — blocks 5, finishes 2
-
-- **Silence** (level 2) — tracked — also waits on 1
-- **Warding Bond** (level 2) — tracked — also waits on 1
-- **Zone of Truth** (level 2) — tracked
-- **Conjure Animals** (level 3) — tracked — also waits on 1
-- **Spirit Guardians** (level 3) — executed-partial
-
-#### `difficult-terrain-an-area-creates` — blocks 5, finishes 2
-
-- **Entangle** (level 1) — no-definition — also waits on 1
-- **Grease** (level 1) — executed-partial
-- **Gust of Wind** (level 2) — tracked — also waits on 2
-- **Web** (level 2) — executed-partial — also waits on 1
-- **Plant Growth** (level 3) — tracked
-
-#### `a-stat-block-created-mid-fight` — blocks 4, finishes 2
+#### `a-stat-block-created-mid-fight` — blocks 5, finishes 2
 
 - **Find Familiar** (level 1) — no-definition — also waits on 3
 - **Unseen Servant** (level 1) — tracked — also waits on 1
 - **Find Steed** (level 2) — tracked
+- **Animate Dead** (level 3) — tracked — also waits on 1
 - **Phantom Steed** (level 3) — tracked
+
+#### `an-effect-that-suppresses-other-magic` — blocks 5, finishes 2
+
+- **Knock** (level 2) — tracked
+- **Magic Circle** (level 3) — tracked — also waits on 3
+- **Nondetection** (level 3) — tracked
+- **Sending** (level 3) — no-definition — also waits on 2
+- **Tiny Hut** (level 3) — tracked — also waits on 2
 
 #### `movement-modes` — blocks 4, finishes 2
 
@@ -187,37 +187,13 @@ sums to the population.
 - **Fly** (level 3) — tracked
 - **Gaseous Form** (level 3) — executed-partial — also waits on 3
 
-#### `what-a-creature-is-holding` — blocks 4, finishes 2
-
-- **Goodberry** (level 1) — tracked
-- **Flame Blade** (level 2) — executed-partial
-- **Heat Metal** (level 2) — tracked — also waits on 1
-- **Fear** (level 3) — executed-partial — also waits on 1
-
-#### `forced-movement-a-spell-causes` — blocks 3, finishes 2
-
-- **Thunderwave** (level 1) — executed-partial
-- **Gust of Wind** (level 2) — tracked — also waits on 2
-- **Levitate** (level 2) — tracked
-
-#### `senses-beyond-declared-sight` — blocks 3, finishes 2
-
-- **Find Familiar** (level 1) — no-definition — also waits on 3
-- **Blur** (level 2) — executed-partial
-- **Mirror Image** (level 2) — tracked
-
 #### `several-attack-rolls-from-one-casting` — blocks 3, finishes 2
 
 - **Eldritch Blast** (level 0) — executed-partial
 - **Chromatic Orb** (level 1) — executed-partial — also waits on 1
-- **Scorching Ray** (level 2) — tracked
+- **Scorching Ray** (level 2) — executed-partial
 
-#### `healing-modified-by-an-effect` — blocks 2, finishes 2
-
-- **Chill Touch** (level 0) — executed-partial
-- **Beacon of Hope** (level 3) — executed-partial
-
-#### `a-casting-ended-by-a-trigger` — blocks 6, finishes 1
+#### `a-casting-ended-by-a-trigger` — blocks 7, finishes 1
 
 - **Unseen Servant** (level 1) — tracked — also waits on 1
 - **Invisibility** (level 2) — executed-partial
@@ -225,6 +201,22 @@ sums to the population.
 - **Warding Bond** (level 2) — tracked — also waits on 1
 - **Gaseous Form** (level 3) — executed-partial — also waits on 3
 - **Hypnotic Pattern** (level 3) — executed-partial — also waits on 1
+- **Tiny Hut** (level 3) — tracked — also waits on 2
+
+#### `a-standing-effect-derived-from-where-a-creature-stands` — blocks 5, finishes 1
+
+- **Pass without Trace** (level 2) — tracked — also waits on 1
+- **Silence** (level 2) — tracked — also waits on 1
+- **Warding Bond** (level 2) — tracked — also waits on 1
+- **Zone of Truth** (level 2) — tracked
+- **Conjure Animals** (level 3) — tracked — also waits on 1
+
+#### `a-choice-made-at-the-casting` — blocks 4, finishes 1
+
+- **Thaumaturgy** (level 0) — tracked
+- **Hex** (level 1) — tracked — also waits on 2
+- **Enlarge/Reduce** (level 2) — tracked — also waits on 3
+- **Glyph of Warding** (level 3) — tracked — also waits on 1
 
 #### `a-repeat-save-that-does-something-on-a-failure` — blocks 4, finishes 1
 
@@ -233,25 +225,36 @@ sums to the population.
 - **Sleep** (level 1) — tracked — also waits on 1
 - **Bestow Curse** (level 3) — tracked — also waits on 2
 
+#### `a-target-rule-the-format-cannot-state` — blocks 3, finishes 1
+
+- **Ensnaring Strike** (level 1) — tracked — also waits on 2
+- **Animal Messenger** (level 2) — tracked
+- **Animate Dead** (level 3) — tracked — also waits on 1
+
 #### `damage-with-neither-an-attack-roll-nor-a-save` — blocks 3, finishes 1
 
 - **Magic Missile** (level 1) — no-definition — also waits on 1
 - **Shield** (level 1) — executed-partial
 - **Heat Metal** (level 2) — tracked — also waits on 1
 
-#### `a-target-rule-the-format-cannot-state` — blocks 2, finishes 1
+#### `a-creature-fact-an-effect-overrides` — blocks 2, finishes 1
 
-- **Ensnaring Strike** (level 1) — tracked — also waits on 2
-- **Animal Messenger** (level 2) — tracked
+- **Arcanist's Magic Aura** (level 2) — tracked
+- **Enlarge/Reduce** (level 2) — tracked — also waits on 3
 
 #### `an-area-trigger-measured-from-a-point` — blocks 2, finishes 1
 
 - **Flaming Sphere** (level 2) — tracked
 - **Phantasmal Force** (level 2) — no-definition — also waits on 2
 
-#### `a-hit-point-maximum-a-spell-moves` — blocks 1, finishes 1
+#### `forced-movement-a-spell-causes` — blocks 2, finishes 1
 
-- **Aid** (level 2) — tracked
+- **Gust of Wind** (level 2) — tracked — also waits on 2
+- **Levitate** (level 2) — tracked
+
+#### `a-cap-on-how-many-castings-run-at-once` — blocks 1, finishes 1
+
+- **Prestidigitation** (level 0) — tracked
 
 #### `a-reduction-an-effect-applies-to-damage` — blocks 1, finishes 1
 
@@ -301,6 +304,12 @@ sums to the population.
 
 - **Vampiric Touch** (level 3) — executed-partial
 
+#### `a-bonus-narrowed-to-a-skill` — blocks 3, finishes 0
+
+- **Enthrall** (level 2) — tracked — also waits on 1
+- **Pass without Trace** (level 2) — tracked — also waits on 1
+- **Slow** (level 3) — no-definition — also waits on 3
+
 #### `a-check-another-creature-may-attempt` — blocks 3, finishes 0
 
 - **Ensnaring Strike** (level 1) — tracked — also waits on 2
@@ -319,10 +328,10 @@ sums to the population.
 - **Calm Emotions** (level 2) — tracked — also waits on 1
 - **Shining Smite** (level 2) — executed-partial — also waits on 1
 
-#### `a-bonus-narrowed-to-a-skill` — blocks 2, finishes 0
+#### `a-barrier-that-blocks-passage` — blocks 2, finishes 0
 
-- **Enthrall** (level 2) — tracked — also waits on 1
-- **Slow** (level 3) — no-definition — also waits on 3
+- **Magic Circle** (level 3) — tracked — also waits on 3
+- **Tiny Hut** (level 3) — tracked — also waits on 2
 
 #### `a-condition-that-ends-when-its-holder-leaves-an-area` — blocks 2, finishes 0
 
@@ -364,19 +373,15 @@ sums to the population.
 - **Entangle** (level 1) — no-definition — also waits on 1
 - **Hypnotic Pattern** (level 3) — executed-partial — also waits on 1
 
-#### `an-effect-that-suppresses-other-magic` — blocks 2, finishes 0
-
-- **Magic Circle** (level 3) — tracked — also waits on 3
-- **Sending** (level 3) — no-definition — also waits on 2
-
 #### `an-outcome-that-reads-the-targets-hit-points` — blocks 2, finishes 0
 
 - **Hex** (level 1) — tracked — also waits on 2
 - **Hunter's Mark** (level 1) — executed-partial — also waits on 1
 
-#### `a-barrier-that-blocks-passage` — blocks 1, finishes 0
+#### `what-a-creature-is-holding` — blocks 2, finishes 0
 
-- **Magic Circle** (level 3) — tracked — also waits on 3
+- **Heat Metal** (level 2) — tracked — also waits on 1
+- **Fear** (level 3) — executed-partial — also waits on 1
 
 #### `a-casting-dismissed-early` — blocks 1, finishes 0
 
@@ -389,10 +394,6 @@ sums to the population.
 #### `a-condition-immunity-narrowed-to-its-source` — blocks 1, finishes 0
 
 - **Magic Circle** (level 3) — tracked — also waits on 3
-
-#### `a-creature-fact-an-effect-overrides` — blocks 1, finishes 0
-
-- **Enlarge/Reduce** (level 2) — tracked — also waits on 3
 
 #### `a-creature-type-predicate-an-area-reads` — blocks 1, finishes 0
 
@@ -458,7 +459,7 @@ sums to the population.
 
 - **Bestow Curse** (level 3) — tracked — also waits on 2
 
-#### Waiting on no shape — 52
+#### Waiting on no shape — 40
 
 - **Dancing Lights** (level 0) — tracked
 - **Druidcraft** (level 0) — tracked
@@ -468,7 +469,6 @@ sums to the population.
 - **Mending** (level 0) — tracked
 - **Message** (level 0) — tracked
 - **Minor Illusion** (level 0) — tracked
-- **Prestidigitation** (level 0) — tracked
 - **Alarm** (level 1) — tracked
 - **Comprehend Languages** (level 1) — tracked
 - **Create or Destroy Water** (level 1) — tracked
@@ -476,39 +476,28 @@ sums to the population.
 - **Detect Magic** (level 1) — tracked
 - **Detect Poison and Disease** (level 1) — tracked
 - **Disguise Self** (level 1) — tracked
-- **Expeditious Retreat** (level 1) — tracked
 - **Floating Disk** (level 1) — tracked
 - **Fog Cloud** (level 1) — tracked
 - **Identify** (level 1) — tracked
 - **Illusory Script** (level 1) — tracked
 - **Purify Food and Drink** (level 1) — tracked
 - **Silent Image** (level 1) — tracked
-- **Speak with Animals** (level 1) — tracked
 - **Arcane Lock** (level 2) — tracked
-- **Arcanist's Magic Aura** (level 2) — tracked
 - **Continual Flame** (level 2) — tracked
-- **Darkness** (level 2) — no-definition
-- **Darkvision** (level 2) — tracked
+- **Darkness** (level 2) — tracked
 - **Find Traps** (level 2) — tracked
 - **Gentle Repose** (level 2) — tracked
-- **Knock** (level 2) — tracked
 - **Locate Animals or Plants** (level 2) — tracked
 - **Locate Object** (level 2) — tracked
 - **Magic Mouth** (level 2) — tracked
-- **Magic Weapon** (level 2) — tracked
-- **Pass without Trace** (level 2) — tracked
 - **Rope Trick** (level 2) — tracked
 - **See Invisibility** (level 2) — tracked
-- **Animate Dead** (level 3) — tracked
 - **Clairvoyance** (level 3) — tracked
 - **Create Food and Water** (level 3) — tracked
 - **Daylight** (level 3) — tracked
 - **Major Image** (level 3) — tracked
-- **Nondetection** (level 3) — tracked
 - **Remove Curse** (level 3) — tracked
 - **Speak with Dead** (level 3) — tracked
-- **Speak with Plants** (level 3) — tracked
-- **Tiny Hut** (level 3) — tracked
 - **Tongues** (level 3) — tracked
 - **Water Breathing** (level 3) — tracked
 - **Water Walk** (level 3) — tracked
@@ -799,7 +788,7 @@ Listed by level, then id.
 
 ## 3. CR ≤ 5 stat-block lines handed over or unapplied
 
-242 of the 330 carried stat blocks are CR ≤ 5. They print 737 lines, of which the parser reads 407 and hands over 330. A further 104 of the read attack lines carry a printed rider nothing applies, so the population is 434 items over 242 blocks — 44 of which already carry none of them.
+242 of the 330 carried stat blocks are CR ≤ 5. They print 737 lines, of which the parser reads 407 and hands over 330. A further 86 of the read attack lines carry a printed rider nothing applies, so the population is 416 items over 242 blocks — 50 of which already carry none of them.
 
 **A block is the unit that matters and a line is the unit that is counted.**
 A block with four unapplied lines is one fight that does not run, not four,
@@ -808,7 +797,7 @@ overlap: one sentence can force a save and recharge.
 
 | Shape | Lines | Blocks | Three example blocks |
 |---|---|---|---|
-| An effect a hit buys | 104 | 93 | Animated Rug of Smothering (CR 2) / Smother; Ankheg (CR 2) / Bite; Barbed Devil (CR 5) / Claws |
+| An effect a hit buys | 86 | 79 | Animated Rug of Smothering (CR 2) / Smother; Ankheg (CR 2) / Bite; Barbed Devil (CR 5) / Claws |
 | A save a line forces | 73 | 60 | Air Elemental (CR 5) / Whirlwind (Recharge 4–6); Ankheg (CR 2) / Acid Spray (Recharge 6); Basilisk (CR 3) / Petrifying Gaze (Recharge 4–6) |
 | A recharge | 32 | 32 | Air Elemental (CR 5) / Whirlwind (Recharge 4–6); Ankheg (CR 2) / Acid Spray (Recharge 6); Basilisk (CR 3) / Petrifying Gaze (Recharge 4–6) |
 | A use the block limits per day | 18 | 17 | Couatl (CR 4) / Divine Aid (2/Day); Cultist Fanatic (CR 2) / Spiritual Weapon (2/Day); Darkmantle (CR 0.5) / Darkness Aura (1/Day) |
