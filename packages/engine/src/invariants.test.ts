@@ -91,6 +91,7 @@ import {
   releaseReady,
   resolveAttack,
   resolveAttackDamage,
+  resolveFall,
   resolveMove,
   resolveDamage,
   rollImprovisedDamage,
@@ -1494,6 +1495,16 @@ const GUARDED: readonly Guarded[] = [
         { dice: '2d6', damageType: 'fire', source: 'a falling brazier', commandId },
         supply(),
       ),
+  },
+  /**
+   * And the landing, which is the same shape with the dice derived from a
+   * height rather than stated: a retry that got through is a second 3d6 and a
+   * second Prone.
+   */
+  {
+    name: 'resolveFall',
+    log: SETUP,
+    run: (s, commandId) => resolveFall(s, B, { feet: 30, commandId }, supply()),
   },
   {
     // A hit whose damage is still to be rolled — the second half of a held
@@ -2948,6 +2959,8 @@ const ENDS_A_CASTING_UNGUARDED: Readonly<Record<string, string>> = {
     'the outcome of damage rather than a decision anybody makes: SRD ends the Concentration through the Constitution saving throw this command rolls, and settling the debt is frequently what sent the damage here in the first place',
   rollImprovisedDamage:
     'the same outcome with the dice still to throw, and exempt for the same reason: the falling brazier is not anybody’s action, nobody in the fight spends a thing on it, and the Concentration it can end is ended by the save `resolveDamage` beneath it rolls — a guard would refuse the ceiling coming down because somebody owed a saving throw',
+  resolveFall:
+    'the ground, which is the falling brazier from the other side: nobody in the fight spends anything on a landing, the height is a fact the table states rather than an action anybody takes, and the Concentration it can end is ended by the save `resolveDamage` beneath it rolls — a guard would refuse to let a creature hit the floor because somebody else owed a saving throw',
   settleAreaEffects:
     'the settlement itself, and a guard that refused its own settlement would be a deadlock wearing a rule’s clothes — this is the command that discharges the debt every other one is waiting on',
   // `settleDamage` was here until it began resolving the rider a blow holds

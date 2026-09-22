@@ -38,6 +38,7 @@ import {
 import { castingSource } from '../spells.js';
 import { applySpellEffect, type SpellEffectOptions } from './casting.js';
 import { schedule } from './conditions.js';
+import { shoveAwayFrom } from './spell-effect-movement.js';
 import { effectCheckFrom } from './rolls.js';
 
 /**
@@ -291,9 +292,12 @@ export function conditionLanding(
  * and no predicate. That is the invariant the whole rider design rests on, and
  * what makes it hold is that there is nowhere here for one to be written.
  *
- * **Order is fixed: conditions, then modifiers, then delayed.** It is
- * observable in the log and nowhere else, so it is decided once rather than by
- * whichever branch a reader happens to be looking at.
+ * **Order is fixed: conditions, then modifiers, then delayed, then the
+ * shove.** It is observable in the log and nowhere else, so it is decided once
+ * rather than by whichever branch a reader happens to be looking at — and the
+ * shove is last because it is the only one of the four that moves the
+ * creature, so it is the only one whose position in the order any later reader
+ * of the scene could tell apart.
  *
  * **A rider rolls nothing.** The only die below this line is the delayed hit's,
  * and that one is *scheduled* rather than thrown — the generator does not move.
@@ -478,6 +482,17 @@ export function applyRiders(
       events.push(scheduled);
       current = applyEvent(current, scheduled);
     }
+  }
+
+  // The shove, last, and **asked before it is written**: a push into a wall or
+  // out of the scene is a log the fold could not apply, so what cannot happen
+  // simply does not, and says so on the casting's own `unverified` rather than
+  // refusing a casting whose slot and damage are already spent.
+  if (riders.movement !== undefined) {
+    const shoved = shoveAwayFrom(current, target, casterId, riders.movement, definition.name);
+    events.push(...shoved.events);
+    current = shoved.events.reduce(applyEvent, current);
+    context.unverified.push(...shoved.unverified);
   }
 
   return ok({ events, conditions });

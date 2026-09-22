@@ -156,11 +156,20 @@ export type {
 export {
   declineOpportunity,
   dismountRider,
+  FALL_DICE_CAP,
+  fallDamageDice,
   mountCreature,
+  resolveFall,
   resolveMove,
   takeOpportunityAttack,
 } from './commands/movement.js';
-export type { MoveCommand, MoveResolution, OpportunityCommand } from './commands/movement.js';
+export type {
+  FallCommand,
+  FallResolution,
+  MoveCommand,
+  MoveResolution,
+  OpportunityCommand,
+} from './commands/movement.js';
 export { relocateCreature } from './commands/teleport.js';
 export type { RelocateCommand, RelocateOutcome } from './commands/teleport.js';
 export {

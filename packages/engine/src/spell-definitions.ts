@@ -418,6 +418,41 @@ export interface DelayedDamage {
 }
 
 /**
+ * A shove the same roll delivers: forced movement a spell causes.
+ *
+ * SRD Thunderwave, whole clause: "On a failed save, a creature takes 2d8
+ * Thunder damage **and is pushed 10 feet away from you**." One Constitution
+ * saving throw, two consequences — the argument every member of {@link
+ * OutcomeRiders} makes, and the one that decides this is a rider rather than
+ * an effect: a `forced-movement` effect beside the `save-damage` would roll a
+ * **second** save, and a creature could then take the damage and stand still.
+ *
+ * **It is a leaf like the rest.** `moveCreature` with `forced: true` spends no
+ * Speed, charges no Difficult Terrain, provokes no Opportunity Attack and
+ * opens no window — SRD gives one only against a creature leaving your reach
+ * "using its action, its Bonus Action, its Reaction, or one of its speeds",
+ * and being thrown by a Thunderwave is none of those. So it rolls nothing,
+ * names nobody of its own, and spends nothing, which is exactly what a rider
+ * slot may contain.
+ *
+ * **There is no direction, and that is the finding rather than an omission.**
+ * Every sentence in the book that claims this shape and is in reach says the
+ * same three words: Thunderwave's "pushed 10 feet **away from you**", Gust of
+ * Wind's "pushed 15 feet away from you", the Forceful Hand's shove, Open Hand
+ * Technique's Push, Forceful Blow's, and every monster line that pushes. A
+ * pull — SRD Thorn Whip's "pull the creature up to 10 feet closer to you" — is
+ * a second member, and it arrives with the definition that writes it rather
+ * than ahead of one. The push is measured **from the caster**, along the
+ * bearing from them to the creature they are shoving, which is what "straight
+ * away from yourself" means on this lattice; `bearingBetween` is the one
+ * reader of it, shared with the Shove and the Push mastery.
+ */
+export interface ForcedMovement {
+  /** SRD Thunderwave's "10 feet", straight away from the caster. */
+  readonly feet: number;
+}
+
+/**
  * A condition a spell imposes, and everything the SRD writes about how long it
  * lasts and how a creature gets out of it.
  *
@@ -673,6 +708,17 @@ export interface OutcomeRiders {
   readonly modifiers?: readonly ModifierRider[];
   /** A second, smaller hit at a later moment: see {@link DelayedDamage}. */
   readonly delayed?: DelayedDamage;
+  /**
+   * A shove the same roll delivers: see {@link ForcedMovement}.
+   *
+   * **Last of the four, because it is the only one that moves the creature.**
+   * A condition, a grant and a scheduled hit all leave the target where it
+   * stood, so the order they land in is invisible; a push changes what every
+   * later reader of the scene measures. Applied after them, the conditions a
+   * failed save imposed are on the creature the wave then throws — which is
+   * the order the SRD sentence itself writes.
+   */
+  readonly movement?: ForcedMovement;
 }
 
 /**
@@ -3083,10 +3129,16 @@ export function outcomeRidersOf(effect: SpellEffect): OutcomeRiders {
   const modifiers = modifierRidersOf(effect);
   const delayed =
     effect.kind === 'attack' || effect.kind === 'save-damage' ? effect.delayed : undefined;
+  // The two hosts that carry `& OutcomeRiders` whole, which are the two the
+  // SRD writes a shove on: "On a hit" and "On a failed save". `save` keeps its
+  // flat spelling and has never carried the last two slots.
+  const movement =
+    effect.kind === 'attack' || effect.kind === 'save-damage' ? effect.movement : undefined;
   return {
     ...(conditions.length === 0 ? {} : { conditions }),
     ...(modifiers.length === 0 ? {} : { modifiers }),
     ...(delayed === undefined ? {} : { delayed }),
+    ...(movement === undefined ? {} : { movement }),
   };
 }
 
@@ -3104,7 +3156,8 @@ export function hasOutcomeRiders(riders: OutcomeRiders): boolean {
   return (
     riders.conditions !== undefined ||
     riders.modifiers !== undefined ||
-    riders.delayed !== undefined
+    riders.delayed !== undefined ||
+    riders.movement !== undefined
   );
 }
 

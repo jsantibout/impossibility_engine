@@ -1242,14 +1242,24 @@ const rollsASave = (record: Record<string, unknown>): boolean =>
   (record['kind'] === 'buff' && record['ability'] !== undefined);
 
 /**
- * The three riders, which every one of them needs a casting for.
+ * The four riders, which every one of them needs a casting for.
  *
  * A condition instance is welded to a casting in the fold, a granted modifier
  * carries the casting as its source, and a `damage-scheduled` names the
  * casting that promised it. `applyRiders` reaches for all three through
  * `EffectContext.casting`, which a conferral has none of.
+ *
+ * **The shove is the fourth, and it needs a casting for a different reason
+ * from the other three.** Nothing about a push is welded to a casting id: it
+ * writes one `creature-moved` and is over. What it needs is the road, and the
+ * road is `applyRiders` — which only the casting arm of the two rolling
+ * resolvers takes. Their conferral arms hand back the conditions a failure
+ * imposed and nothing else, so a bottle or a pool use carrying this field
+ * would carry one nothing would read. It lifts on the day a conferral executes
+ * one, and the sentence that will want it is a feature's rather than an
+ * item's: SRD Open Hand Technique pushes a failed saver fifteen feet.
  */
-const RIDER_FIELDS: readonly string[] = ['conditions', 'modifiers', 'delayed'];
+const RIDER_FIELDS: readonly string[] = ['conditions', 'modifiers', 'delayed', 'movement'];
 
 /**
  * The admitted kinds whose `conditions` is **their own required list**.

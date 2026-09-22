@@ -1061,7 +1061,7 @@ describe('what a conferral may not say yet', () => {
    * a condition instance, a granted modifier, a `damage-scheduled` naming the
    * casting. A conferral has none, so an admitted save may carry none.
    */
-  it('refuses a rider on a conferred save, whichever of the three it is', () => {
+  it('refuses a rider on a conferred save, whichever of the four it is', () => {
     const riding = (over: Record<string, unknown>) =>
       problems({
         kind: 'confers',
@@ -1092,6 +1092,11 @@ describe('what a conferral may not say yet', () => {
         ],
       }),
     ).toContain('conferral_rider_needs_a_casting');
+    // The fourth, and the one refused for a different reason from the other
+    // three: nothing about a shove is welded to a casting id, but the only
+    // road to one is `applyRiders`, which the conferral arm never takes — so
+    // an item that wrote it would write a field nothing would read.
+    expect(riding({ movement: { feet: 10 } })).toContain('conferral_rider_needs_a_casting');
   });
 
   /**

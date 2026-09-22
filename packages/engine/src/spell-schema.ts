@@ -1029,6 +1029,7 @@ function checkRiders(
     readonly conditions?: readonly ConditionRider[];
     readonly modifiers?: readonly ModifierRider[];
     readonly delayed?: { readonly damage: DiceScaling; readonly damageType: string };
+    readonly movement?: { readonly feet: number };
   },
   level: number,
   path: string,
@@ -1087,6 +1088,30 @@ function checkRiders(
           code: 'delayed_rolls_nothing',
           reason:
             'a later hit is filed as a notation and rolled when it falls due, so it has to have dice to roll',
+        });
+      }
+    }
+  }
+  // A shove says one thing and there is one way to get it wrong: SRD writes
+  // "pushed 10 feet away from you", and the lattice everything else is
+  // measured on has no spaces smaller than five feet. A push of nought feet is
+  // a sentence the book never prints and an event that would move nobody while
+  // reading as though it had.
+  if (riders.movement !== undefined) {
+    if (
+      readsAsObject(
+        riders.movement,
+        `${path}.movement`,
+        'a shove is an object naming how far the creature is pushed',
+        found,
+      )
+    ) {
+      const { feet } = riders.movement;
+      if (!Number.isInteger(feet) || feet < 5 || feet % 5 !== 0) {
+        found.push({
+          field: `${path}.movement.feet`,
+          code: 'bad_push_distance',
+          reason: `a shove moves a whole number of spaces of the 5-foot lattice everything else is measured on, and "${String(feet)}" is not one`,
         });
       }
     }
