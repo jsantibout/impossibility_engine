@@ -260,6 +260,14 @@ export function tradeResource(
 interface Bought {
   readonly key: string;
   readonly amount: number;
+  /**
+   * The spell slot level, where what was bought is a slot the caller named.
+   *
+   * Carried rather than parsed back out of {@link key}: the level is a fact
+   * this function already had, and `spellSlotKey` is a spelling for a log
+   * line rather than a structure to read numbers out of.
+   */
+  readonly level?: number;
 }
 
 /**
@@ -286,19 +294,37 @@ function slotsBought(
   slotLevel: number,
 ): Result<readonly Bought[]> {
   /**
-   * `exact` is the difference between a feature that names its own amount and
-   * a caller who named theirs.
+   * `exact` is the difference between a **count** the caller chose and one the
+   * rules chose for them, and it is not the same question as whether they
+   * chose the *level*.
    *
-   * SRD Wild Resurgence gives "a level 1 spell slot" whatever is expended, so
-   * the trade takes what there is and is capped — that is `restore`'s own rule
-   * written at the door. A Wizard who asks for two level 1 slots and has spent
-   * one is a different thing: they would pay the day's single use in full and
-   * be refunded in part, which is the quiet loss `useRecovery` refuses by name.
+   * Capped, where the amount is the rules': SRD Wild Resurgence gives "a level
+   * 1 spell slot" whatever is expended, and SRD Font of Magic gives "a number
+   * of Sorcery Points equal to the slot's level" into a pool whose own
+   * sentence is "you can't have more Sorcery Points than the maximum for your
+   * level" — so a Sorcerer with one point spent who burns a level 5 slot gets
+   * one point and the book says so. `restore` would cap it in any case; this
+   * is that rule written where it can be read.
+   *
+   * Exact, where the caller named the count: a Wizard who asks Arcane Recovery
+   * for two level 1 slots and has spent one would pay the day's single use in
+   * full and be refunded in part, which is the quiet loss `useRecovery`
+   * refuses by name. They can ask for one instead, and nothing else can.
    */
-  const fill = (key: string, want: number, exact = false): Result<readonly Bought[]> => {
+  const fill = (
+    key: string,
+    want: number,
+    at: { readonly exact?: true; readonly level?: number } = {},
+  ): Result<readonly Bought[]> => {
     const pool = resources.pools[key];
     if (pool === undefined) {
       return err('unknown_pool', `there is no ${key} for ${trade.name} to fill`);
+    }
+    // A trade that buys nothing is a refusal rather than a `resource-regained`
+    // of zero in the log. `checkContent` refuses every authored grant that
+    // could size itself to nothing, so this is the backstop and not the rule.
+    if (want < 1) {
+      return err('nothing_to_regain', `${trade.name} would give back no ${pool.label}`);
     }
     if (pool.spent < 1) {
       return err(
@@ -306,7 +332,7 @@ function slotsBought(
         `no ${pool.label} has been spent, and a trade gives back what was spent rather than minting more`,
       );
     }
-    if (exact && pool.spent < want) {
+    if (at.exact === true && pool.spent < want) {
       return err(
         'nothing_to_regain',
         `${trade.name} was asked for ${want} ${pool.label}, and ${pool.spent} of them has been spent`,
@@ -314,7 +340,13 @@ function slotsBought(
     }
     // Never more than was spent, because `restore` caps at the maximum and a
     // trade that asked for more would be paid for in full and refunded in part.
-    return ok([{ key, amount: Math.min(want, pool.spent) }]);
+    return ok([
+      {
+        key,
+        amount: Math.min(want, pool.spent),
+        ...(at.level === undefined ? {} : { level: at.level }),
+      },
+    ]);
   };
 
   if (trade.gains.key !== null) {
@@ -348,7 +380,7 @@ function slotsBought(
     if (level > priced.length) {
       return err('slot_level_too_high', `${trade.name} creates no slot above level ${priced.length}`);
     }
-    return fill(spellSlotKey(level), 1);
+    return fill(spellSlotKey(level), 1, { level });
   }
 
   // SRD Arcane Recovery: "a combined level equal to no more than half your
@@ -374,7 +406,7 @@ function slotsBought(
   for (const level of levels) wanted.set(level, (wanted.get(level) ?? 0) + 1);
   const bought: Bought[] = [];
   for (const [level, count] of [...wanted].sort(([a], [b]) => a - b)) {
-    const one = fill(spellSlotKey(level), count, true);
+    const one = fill(spellSlotKey(level), count, { exact: true, level });
     if (!one.ok) return one;
     bought.push(...one.value);
   }
@@ -391,9 +423,10 @@ function slotsBought(
 function costOf(trade: TradeFeature, bought: readonly Bought[], slotLevel: number): number {
   const table = priceTableOf(trade);
   if (table === null) return amountOf(trade.spends.uses, slotLevel);
-  // The slot just bought, read back off its own key: `slotsBought` has already
-  // refused a level this table has no row for.
-  const level = Number(bought[0]?.key.split(':')[1] ?? 0);
+  // The rung just bought. `slotsBought` has already refused a level this table
+  // has no row for, and a table is only ever reached by the branch that buys
+  // one slot and records its level.
+  const level = bought[0]?.level ?? 0;
   return table[level - 1] ?? Number.POSITIVE_INFINITY;
 }
 

@@ -17,6 +17,13 @@
  * is there and names `trade_resource` as the thing that spends it; and a trade
  * with nothing to give back comes back as a value.
  *
+ * **Two more arrived with the slot on the bought end**, and they are the half
+ * a caller could not act on: SRD Font of Magic creates a slot at a level the
+ * Sorcerer picks off a printed price table, and SRD Arcane Recovery recovers
+ * slots the Wizard names inside a budget on their combined level. So `sheet`
+ * publishes the table, the budget, the ceiling and the moment, and
+ * `gainedSlotLevels` is `slotLevel`'s mirror — which rung, never how much.
+ *
  * **One half of one sentence is not reachable from here and says so.** SRD
  * Wild Resurgence's first direction is "if you have no uses of Wild Shape
  * left, you can give yourself one use by expending a spell slot" — and
@@ -392,10 +399,11 @@ describe('the sheet reports a trade as a thing this surface can spend', () => {
    * - **Font of Inspiration** (Bard 5) and **Wild Resurgence** (Druid 5) are
    *   driven end to end through the door in this file.
    * - **Font of Magic** (Sorcerer 2) and **Arcane Recovery** (Wizard 1) are
-   *   driven end to end against the engine command in
-   *   `packages/content/src/slot-trades.test.ts`, which is where the two
-   *   shapes that leave the *bought* slot to the caller live — a price table
-   *   and a combined-level budget.
+   *   driven end to end through the door at the foot of this file — the two
+   *   shapes that leave the *bought* slot to the caller, a price table and a
+   *   combined-level budget — and against the engine command, with every
+   *   refusal either can raise, in
+   *   `packages/content/src/slot-trades.test.ts`.
    * - **Sorcery Incarnate** (Sorcerer 7) is inside the level 10 catalogue
    *   sweep in `holdings.test.ts` — which proves less than it sounds like: it
    *   is the Sorcerer 10 sheet that keeps this file's new `SPENT_BY` key
@@ -662,5 +670,293 @@ describe('a Druid’s Wild Resurgence runs in both directions', () => {
     expect(refused.reason).toContain('Wild Shape');
     expect(poolLeft(t, 'fenn', 'wild-shape')).toBe(2);
     expect(slotsLeft(t, 'fenn', 1)).toBe(4);
+  });
+});
+
+// — the two trades that buy a spell slot the caller names ——————————————————
+
+/**
+ * `slotLevel`'s mirror, driven through the door it ships with.
+ *
+ * SRD Font of Magic and SRD Arcane Recovery are the two sentences that leave
+ * the level of the slot **bought** to the caster, and until `gainedSlotLevels`
+ * existed there was no field for either. What this holds is the half a caller
+ * has to be able to act on: `sheet` publishes the price table, the budget and
+ * the moment, so a model can work out what to send without being told, and
+ * the engine charges off them so no number the caller produced reaches a pool.
+ */
+const casterChoices = (over: Record<string, unknown>) => ({
+  speciesId: 'human',
+  backgroundId: 'acolyte',
+  languages: ['Elvish', 'Dwarvish'],
+  alignment: 'Neutral',
+  classEquipment: 'A',
+  backgroundEquipment: 'A',
+  equipped: [],
+  hitPoints: { method: 'fixed' },
+  dmGrants: { items: [], goldPieces: 0, magicItems: [], note: 'standard package only' },
+  feats: {
+    'acolyte:magic-initiate-cleric': {
+      featId: 'magic-initiate',
+      spellList: 'cleric',
+      spellcastingAbility: 'wis',
+      cantrips: ['guidance', 'sacred-flame'],
+      levelOneSpell: 'bless',
+    },
+    'human:versatile': { featId: 'alert' },
+  },
+  ...over,
+});
+
+/** A level 5 Sorcerer: Font of Magic arrives at 2 and the points are five. */
+const sorcerer = casterChoices({
+  name: 'Veska',
+  classId: 'sorcerer',
+  level: 5,
+  subclassId: 'draconic-sorcery',
+  abilities: {
+    method: 'standard-array',
+    assignment: { str: 8, dex: 14, con: 13, int: 12, wis: 10, cha: 15 },
+  },
+  abilityIncreases: { cha: 2, int: 1 },
+  classSkills: ['arcana', 'persuasion'],
+  cantrips: ['fire-bolt', 'ray-of-frost', 'shocking-grasp', 'acid-splash', 'light'],
+  spellbook: [],
+  preparedSpells: [
+    'burning-hands',
+    'charm-person',
+    'thunderwave',
+    'hold-person',
+    'shatter',
+    'mind-spike',
+    'fly',
+    'sleep',
+    'mage-armor',
+  ],
+  featureChoices: {
+    'human:skillful': ['perception'],
+    'sorcerer:metamagic': ['Empowered Spell', 'Quickened Spell'],
+  },
+  feats: {
+    'acolyte:magic-initiate-cleric': {
+      featId: 'magic-initiate',
+      spellList: 'cleric',
+      spellcastingAbility: 'wis',
+      cantrips: ['guidance', 'sacred-flame'],
+      levelOneSpell: 'bless',
+    },
+    'human:versatile': { featId: 'alert' },
+    'sorcerer:ability-score-improvement': {
+      featId: 'ability-score-improvement',
+      abilities: ['cha', 'cha'],
+    },
+  },
+});
+
+/** A level 5 Wizard: Arcane Recovery arrives at 1 and its budget is three. */
+const wizard = casterChoices({
+  name: 'Ilbert',
+  classId: 'wizard',
+  level: 5,
+  subclassId: 'evoker',
+  abilities: {
+    method: 'standard-array',
+    assignment: { str: 8, dex: 14, con: 13, int: 15, wis: 12, cha: 10 },
+  },
+  abilityIncreases: { int: 2, wis: 1 },
+  classSkills: ['arcana', 'history'],
+  cantrips: ['fire-bolt', 'ray-of-frost', 'shocking-grasp', 'acid-splash'],
+  spellbook: [
+    'mage-armor',
+    'charm-person',
+    'thunderwave',
+    'magic-missile',
+    'shield',
+    'sleep',
+    'hold-person',
+    'shatter',
+    'misty-step',
+    'invisibility',
+    'fireball',
+    'fly',
+    'counterspell',
+    'haste',
+  ].map((spellId, index) => ({
+    spellId,
+    acquiredAt: index < 6 ? 1 : Math.ceil((index - 5) / 2) + 1,
+    origin: 'level',
+  })),
+  preparedSpells: [
+    'mage-armor',
+    'charm-person',
+    'thunderwave',
+    'magic-missile',
+    'shield',
+    'hold-person',
+    'shatter',
+    'fireball',
+    'fly',
+  ],
+  featureChoices: {
+    'human:skillful': ['perception'],
+    'wizard:scholar': ['arcana'],
+    'evoker:evocation-savant': ['chromatic-orb', 'scorching-ray'],
+  },
+  feats: {
+    'acolyte:magic-initiate-cleric': {
+      featId: 'magic-initiate',
+      spellList: 'cleric',
+      spellcastingAbility: 'wis',
+      cantrips: ['guidance', 'sacred-flame'],
+      levelOneSpell: 'bless',
+    },
+    'human:versatile': { featId: 'alert' },
+    'wizard:ability-score-improvement': {
+      featId: 'ability-score-improvement',
+      abilities: ['int', 'int'],
+    },
+  },
+});
+
+/** The two of them in a room, with a slot spent apiece to have one to buy back. */
+const library = (seed = 'library') => {
+  const t = table(seed);
+  expectOk(t.call('create_character', { id: 'veska', choices: sorcerer }));
+  expectOk(t.call('create_character', { id: 'ilbert', choices: wizard }));
+  expectOk(t.call('set_scene', { width: 120, depth: 60, height: 20 }));
+  expectOk(t.call('add_landmark', { name: 'the desk', at: { x: 10, y: 10 } }));
+  expectOk(t.call('place_creature', { who: 'veska', fromLandmark: 'the desk', feet: 0 }));
+  expectOk(t.call('place_creature', { who: 'ilbert', fromCreature: 'veska', feet: 10, bearing: 90 }));
+  return t;
+};
+
+const castOn = (t: ReturnType<typeof table>, who: string, slotLevel: number) =>
+  expectOk(
+    t.call('cast_spell', { caster: who, spellId: 'mage-armor', targets: [who], slotLevel }),
+  );
+
+describe('a trade that buys a spell slot the caller names', () => {
+  /**
+   * What the sheet has to say for a caller to be able to call this at all.
+   * Neither field existed before the two features did, and a door whose input
+   * nobody can derive from `sheet` is a door nothing opens.
+   */
+  it('publishes the price table, the budget and the moment', () => {
+    const t = library();
+
+    const font = featureLine(t, 'veska', 'sorcerer:font-of-magic')!;
+    expect(font.spentBy).toBe('trade_resource');
+    const create = font.trades!.find((one) => one.trade === 'points-for-slot')!;
+    expect(create).toMatchObject({
+      action: 'bonus-action',
+      // The level is the caster's, so there is no key and no flat price.
+      gains: { pool: null, uses: 1 },
+      gainedSlotLevelsRequired: true,
+      slotLevelRequired: false,
+      spends: { pool: 'sorcery-points', uses: null },
+      // SRD's Created Spell Slots table, published rather than derived.
+      priceBySlotLevel: [2, 3, 5, 6, 7],
+    });
+
+    // And the other direction, whose gain is "equal to the slot's level" —
+    // not a number until the caster says which slot, and reported as none.
+    const convert = font.trades!.find((one) => one.trade === 'slot-for-points')!;
+    expect(convert).toMatchObject({
+      slotLevelRequired: true,
+      gainedSlotLevelsRequired: false,
+      gains: { pool: 'sorcery-points', uses: null },
+      spends: { pool: null, uses: 1 },
+    });
+
+    const recovery = featureLine(t, 'ilbert', 'wizard:arcane-recovery')!;
+    expect(recovery.spentBy).toBe('trade_resource');
+    expect(recovery.trades![0]).toMatchObject({
+      trade: 'recover-slots',
+      gainedSlotLevelsRequired: true,
+      // Half a level 5 Wizard, rounded up, and "none of them can be level 6+".
+      combinedSlotLevels: 3,
+      maxSlotLevel: 5,
+      moment: 'short-rest',
+      spends: { pool: 'wizard:arcane-recovery', uses: 1 },
+    });
+  });
+
+  it('creates the slot the Sorcerer named, at the table’s own price', () => {
+    const t = library();
+    expect(poolLeft(t, 'veska', 'sorcery-points')).toBe(5);
+    castOn(t, 'veska', 1);
+    expect(slotsLeft(t, 'veska', 1)).toBe(3);
+
+    const traded = expectOk(
+      t.call('trade_resource', {
+        who: 'veska',
+        feature: 'sorcerer:font-of-magic',
+        trade: 'points-for-slot',
+        gainedSlotLevels: [1],
+      }),
+    );
+    // Both amounts are the engine's: the caller named a rung, not a price.
+    expect(traded.resolution['spent']).toEqual([{ pool: 'sorcery-points', uses: 2 }]);
+    expect(traded.resolution['regained']).toEqual([{ pool: 'spell-slot:1', uses: 1 }]);
+    expect(slotsLeft(t, 'veska', 1)).toBe(4);
+    expect(poolLeft(t, 'veska', 'sorcery-points')).toBe(3);
+  });
+
+  it('recovers the slots the Wizard named when the Short Rest finishes', () => {
+    const t = library();
+    castOn(t, 'ilbert', 1);
+    castOn(t, 'ilbert', 2);
+    expect(slotsLeft(t, 'ilbert', 1)).toBe(3);
+    expect(slotsLeft(t, 'ilbert', 2)).toBe(2);
+
+    // Before the rest it is not the moment, and nothing is spent saying so.
+    const early = t.call('trade_resource', {
+      who: 'ilbert',
+      feature: 'wizard:arcane-recovery',
+      trade: 'recover-slots',
+      gainedSlotLevels: [1, 2],
+    });
+    expect(early.status === 'refused' && early.code).toBe('not_the_moment');
+    expect(poolLeft(t, 'ilbert', 'wizard:arcane-recovery')).toBe(1);
+
+    expectOk(t.call('begin_rest', { who: 'ilbert', kind: 'short' }));
+    expectOk(t.call('advance_time', { hours: 1, because: 'the hour the Short Rest takes' }));
+    expectOk(t.call('end_rest', { who: 'ilbert' }));
+
+    const traded = expectOk(
+      t.call('trade_resource', {
+        who: 'ilbert',
+        feature: 'wizard:arcane-recovery',
+        trade: 'recover-slots',
+        gainedSlotLevels: [1, 2],
+      }),
+    );
+    expect(traded.resolution['regained']).toEqual([
+      { pool: 'spell-slot:1', uses: 1 },
+      { pool: 'spell-slot:2', uses: 1 },
+    ]);
+    expect(slotsLeft(t, 'ilbert', 1)).toBe(4);
+    expect(slotsLeft(t, 'ilbert', 2)).toBe(3);
+    expect(poolLeft(t, 'ilbert', 'wizard:arcane-recovery')).toBe(0);
+  });
+
+  /** And the budget is a refusal at the door, not a silent truncation. */
+  it('refuses a combined level over the budget the sheet published', () => {
+    const t = library();
+    castOn(t, 'ilbert', 2);
+    castOn(t, 'ilbert', 2);
+    expectOk(t.call('begin_rest', { who: 'ilbert', kind: 'short' }));
+    expectOk(t.call('advance_time', { hours: 1, because: 'the hour the Short Rest takes' }));
+    expectOk(t.call('end_rest', { who: 'ilbert' }));
+
+    const refused = t.call('trade_resource', {
+      who: 'ilbert',
+      feature: 'wizard:arcane-recovery',
+      trade: 'recover-slots',
+      gainedSlotLevels: [2, 2],
+    });
+    expect(refused.status === 'refused' && refused.code).toBe('over_budget');
+    expect(slotsLeft(t, 'ilbert', 2)).toBe(1);
+    expect(poolLeft(t, 'ilbert', 'wizard:arcane-recovery')).toBe(1);
   });
 });

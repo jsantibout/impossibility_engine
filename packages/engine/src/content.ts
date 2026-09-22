@@ -3513,8 +3513,17 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
           ] as const) {
             // The other end, which is what a `the-slot-level` amount reads and
             // what a price table is indexed by.
+            //
+            // **The level it reads is the one the *caller* names**, and that
+            // is the whole of the rule rather than a detail of it: the command
+            // has a slot level in hand only where the spent end is a slot the
+            // grant left unlevelled, so `the-slot-level` anywhere else sizes
+            // itself from nothing and the trade runs for a zero it does not
+            // refuse. Exactly the shape of `price_table_without_a_choice`
+            // below, which is the same mistake at the other end.
             const other = side === 'spends' ? trade?.gains : trade?.spends;
-            const readsASlot = end?.kind === 'spell-slot' || other?.kind === 'spell-slot';
+            const readsASlot =
+              side === 'gains' && other?.kind === 'spell-slot' && other.level === undefined;
             if (end?.kind === 'pool') {
               if (typeof end.key !== 'string' || end.key.trim() === '') {
                 problems.push({
@@ -3531,7 +3540,7 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
                   problems.push({
                     field: `${at}.${side}.uses`,
                     code: 'no_slot_level_to_read',
-                    reason: `${feature.id} sizes ${side} by a slot's level and trades no spell slot, so there is no level to read`,
+                    reason: `${feature.id} sizes what it ${side} by a slot's level, and this trade expends no spell slot whose level the caster names, so there is no level to read`,
                   });
                 }
               } else if (typeof end.uses === 'object' && end.uses !== null) {

@@ -283,14 +283,21 @@ export interface HeldTrade {
   readonly slotLevelRequired: boolean;
   /**
    * What it buys, by pool key — **null where the caller chooses**, exactly as
-   * {@link spends} is.
+   * {@link spends} is; and how much, **null where that is not a number until
+   * they have chosen**.
    *
    * SRD Font of Magic creates a slot at a level the Sorcerer picks and SRD
    * Arcane Recovery recovers slots the Wizard names, so which slot is bought
    * has no key until they say. {@link gainedSlotLevelsRequired} is the same
    * fact as the thing a caller acts on.
+   *
+   * And `uses` is null for the same class of reason at the other end: SRD
+   * gives "a number of Sorcery Points **equal to the slot's level**", which is
+   * two for a level 2 slot and five for a level 5 one. Reporting a one there
+   * would be this layer inventing an answer, and a model reading it would
+   * price the exchange wrong in both directions.
    */
-  readonly gains: { readonly pool: string | null; readonly uses: number };
+  readonly gains: { readonly pool: string | null; readonly uses: number | null };
   /** Whether `trade_resource.gainedSlotLevels` has to be sent. */
   readonly gainedSlotLevelsRequired: boolean;
   /**
@@ -843,8 +850,10 @@ export function holdingsOf(state: GameState, id: CharacterId): Holdings | null {
       action: one.action,
       spends: {
         pool: one.spends.key,
-        // `the-slot-level` never appears on the end that is spent, and a price
-        // table is a row per rung rather than one number.
+        // `the-slot-level` is refused on the end that is spent — `checkContent`
+        // names it `no_slot_level_to_read` — and a price table is a row per
+        // rung rather than one number, which is what {@link priceBySlotLevel}
+        // carries.
         uses: typeof one.spends.uses === 'number' ? one.spends.uses : null,
       },
       // The same fact as `spends.pool === null`, said as the thing a caller
@@ -854,10 +863,9 @@ export function holdingsOf(state: GameState, id: CharacterId): Holdings | null {
       gains: {
         pool: one.gains.key,
         // "A number of Sorcery Points equal to the slot's level" is not a
-        // number until the caller has named the slot, and a zero would read as
-        // a trade that buys nothing — so it is reported as the one use of the
-        // slot that sizes it.
-        uses: typeof one.gains.uses === 'number' ? one.gains.uses : 1,
+        // number until the caller has named the slot, so it is null rather
+        // than a figure this layer made up.
+        uses: typeof one.gains.uses === 'number' ? one.gains.uses : null,
       },
       gainedSlotLevelsRequired: one.gains.key === null,
       ...(priced === null ? {} : { priceBySlotLevel: priced }),

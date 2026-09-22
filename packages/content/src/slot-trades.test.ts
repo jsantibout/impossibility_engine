@@ -182,7 +182,63 @@ const spend = (key: string, amount = 1): GameEvent => ({
 const left = (state: GameState, key: string): number =>
   remaining(state.creatures[WHO]!.resources, key);
 
+/**
+ * SRD's **Created Spell Slots** table, transcribed here so the catalogue's
+ * copy is held against a second one rather than against itself.
+ *
+ * | Slot level | Sorcery Point cost |
+ * |---|---|
+ * | 1 | 2 |
+ * | 2 | 3 |
+ * | 3 | 5 |
+ * | 4 | 6 |
+ * | 5 | 7 |
+ *
+ * A level 5 Sorcerer has five points and no slot above level 3, so three of
+ * the five rows are the most any character in this file can spend through —
+ * and a transcribed table is pinned row by row or it is pinned by nothing.
+ */
+const CREATED_SPELL_SLOTS: readonly number[] = [2, 3, 5, 6, 7];
+
 describe('SRD Font of Magic: a slot for points, and points for a slot', () => {
+  it('transcribes the Created Spell Slots table, every row of it', () => {
+    const font = SRD_CONTENT.classById('sorcerer')?.features.find(
+      (one) => one.id === 'sorcerer:font-of-magic',
+    );
+    const grant = font?.grants;
+    if (grant?.kind !== 'trade') throw new Error('Font of Magic is a trade');
+    const create = grant.trades.find((one) => one.id === 'points-for-slot');
+    if (create?.spends.kind !== 'pool') throw new Error('the create spends a pool');
+    expect(create.spends.uses).toEqual({ byBoughtSlotLevel: CREATED_SPELL_SLOTS });
+    // "You can create a spell slot no higher than level 5": the table's last
+    // row is the cap, so the two facts cannot drift apart.
+    expect(CREATED_SPELL_SLOTS.length).toBe(5);
+  });
+
+  /**
+   * Each of the three rows a level 5 Sorcerer can reach, charged. Driven
+   * rather than read: the row is a number in the catalogue until something
+   * spends it.
+   */
+  it.each([
+    [1, 2],
+    [2, 3],
+    [3, 5],
+  ])('charges the table’s own price for a level %i slot', (level, cost) => {
+    expect(CREATED_SPELL_SLOTS[level - 1]).toBe(cost);
+    const log = [...made(sorcerer()), spend(spellSlotKey(level), 1)];
+    const done = unwrap(
+      tradeResource(fold('seed', log), WHO, {
+        feature: 'sorcerer:font-of-magic',
+        trade: 'points-for-slot',
+        gainedSlotLevels: [level],
+      }),
+      `level ${level}`,
+    );
+    const after = fold('seed', [...log, ...done]);
+    expect(left(after, 'sorcery-points')).toBe(SORCERY_POINTS[4]! - cost);
+  });
+
   it('turns an expended spell slot into Sorcery Points equal to its level', () => {
     // Three points already spent, so there is something to give back: a trade
     // gives back what was expended and never mints above a maximum.
@@ -224,6 +280,26 @@ describe('SRD Font of Magic: a slot for points, and points for a slot', () => {
     // SRD's table: a level 1 slot costs 2 Sorcery Points.
     expect(left(after, 'sorcery-points')).toBe(SORCERY_POINTS[4]! - 2);
     expect(left(after, spellSlotKey(1))).toBe(4);
+  });
+
+  /**
+   * "You can't have more Sorcery Points than the maximum for your level", so
+   * the level of the slot is what is offered and the pool's own ceiling is
+   * what is taken. A level 3 slot burnt for one point short of full gives one.
+   */
+  it('gives no more points than the Sorcerer has room for', () => {
+    const log = [...made(sorcerer()), spend('sorcery-points', 1)];
+    const done = unwrap(
+      tradeResource(fold('seed', log), WHO, {
+        feature: 'sorcerer:font-of-magic',
+        trade: 'slot-for-points',
+        slotLevel: 3,
+      }),
+      'slot for points',
+    );
+    const after = fold('seed', [...log, ...done]);
+    expect(left(after, 'sorcery-points')).toBe(SORCERY_POINTS[4]!);
+    expect(left(after, spellSlotKey(3))).toBe(1);
   });
 
   it('refuses a slot it cannot afford, and spends nothing', () => {
