@@ -300,6 +300,10 @@ const castAt = (
   // correct by the rules, and a fixture that looked like a broken spell.
   const at = { x: 100, y: 100, z: 0 };
 
+  /** A shape that has to be pointed somewhere: a Cone, a Cube or a Line. */
+  const directionalShape = (shape: { readonly kind: string } | undefined): boolean =>
+    shape !== undefined && ['cone', 'cube', 'line'].includes(shape.kind);
+
   if (definition.area === undefined) {
     // A spell that aims at nobody gets nobody: Detect Magic has no target and
     // passing one is a refusal, not a courtesy.
@@ -313,8 +317,16 @@ const castAt = (
     // it is what the spell then measures from, not a bound on a choice — but
     // the same square serves: the caster's own is five feet from TARGET, which
     // is the reach Spiritual Weapon's force has.
+    //
+    // **And a bound that is a Cube has to be pointed**, exactly as an `area`
+    // Cube does. SRD Slow is the first of them — "up to six creatures of your
+    // choice in a 40-foot Cube" — and while every bounded list in the
+    // catalogue was a Sphere the two branches could differ without anything
+    // noticing.
     const placed =
-      definition.targetsWithin !== undefined || definition.origin !== undefined ? { at } : {};
+      definition.targetsWithin !== undefined || definition.origin !== undefined
+        ? { at, ...(directionalShape(definition.targetsWithin) ? { towards } : {}) }
+        : {};
     return resolveSpell(
       state,
       CASTER,
@@ -323,7 +335,7 @@ const castAt = (
     );
   }
 
-  const directional = ['cone', 'cube', 'line'].includes(definition.area.kind);
+  const directional = directionalShape(definition.area);
   return resolveSpell(
     state,
     CASTER,

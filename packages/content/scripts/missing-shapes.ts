@@ -166,9 +166,9 @@ export const MISSING_SHAPES = {
   'a-damage-penalty-a-spell-grants':
     '`docs/design/rolls-and-damage.md`: "`BonusApplies` covers attacks, saves and ability checks — all rolls — and now `ac`". Damage is not a member, and a spell that makes a creature subtract from **its own** damage rolls has nowhere to say so; `damageBonuses` is the feature-side twin that exists.',
   'an-action-a-spell-compels-or-forbids':
-    '**The catalogue writes this shape now, and what is left of it is a shorter list than the id.** `ActionRule` in `combat.ts` is the ninth sourced grant, reached by the `action-rule` effect kind and by the `action` rider kind, and it says three of the four things this id was named for: a slot or a named action **taken away** (`forbids`), one slot **narrowed** to a named few and failing closed (`permits-only`), and a named action **paid for out of a cheaper slot** (`allows`). The description before this one said "not one definition in the catalogue writes one", and the tranche it asked for wrote four: Stinking Cloud’s "can’t take an action or a Bonus Action" and Fear’s Dash as riders on their own saves, Wind Walk’s "The only actions a target can take in this form" and Magic Jar’s two sentences as standalone effects. So an entry still filed here is one of five things rather than a spell nobody got round to. **Two are lifetimes rather than rules**: Shocking Grasp’s clause ends at the start of the *target’s* next turn and `RiderDuration` has no such member, and Befuddlement’s never ends at all, which an Instantaneous casting may not hang. **One is a name the engine cannot tell apart** — Wind Walk’s Magic action "to begin reverting", and every Hide, Search and Study `NAMED_ACTIONS` leaves out for the same reason. **One is a host**: Slow’s "it can’t take Reactions" is `forbids` exactly and rides a failed save that can carry no riders, which is `a-save-whose-failure-imposes-no-condition`. And the fourth thing the id was named for is still missing outright: **spending somebody else’s budget**, which `combat.ts` refuses to be stretched to because it has to decide who is playing the creature — Dissonant Whispers, Compulsion and the three Dominates; an **extra action** granted rather than an existing one governed, which no member creates (Haste); and a rule that **couples two slots**, or counts the attacks inside one, which neither polarity can state (Slow again). `docs/design/characters-and-equipment.md` names that last one from the feature side: "Extra attacks inside the Attack action. The economy counts one Attack action, not the attacks in it". **Gate G1 read the five as five and this id is a bundle**, which is recorded here rather than acted on: the five arms read about 1/1, 2/1, 2/0, 3/0 and 1/0 and the largest of them finishes one spell, so nobody should brief the id as a unit. One arm has already left — Shocking Grasp went to `a-rider-that-lasts-until-the-start-of-the-targets-next-turn`, because what it lacks is one word of a duration vocabulary and not a rule. Two more are mis-filings whose destination is in the **feature** vocabulary rather than this one — Speak with Animals, Gaseous Form and Haste’s Utilize belong under an action with no spender — and moving them is a third widening of the `why` field that G1 did not take.',
-  'a-save-whose-failure-imposes-no-condition':
-    'a saving throw whose failure hands out **grants** and nothing else, which no host can carry. `spell-definitions.ts` names the spell in the very field that cannot hold it: `save.modifiers` is documented as "one Wisdom save, a condition-less penalty beside it", and the arm those riders hang on requires a `condition: ConditionName` out of the SRD’s fifteen. `save` and `save-damage` are the only kinds that roll a saving throw and settle an outcome; one demands a condition and the other demands damage, and a failure that imposes neither has nowhere to live. Written as standalone effects instead, a halved Speed, a penalty and a slot taken away would land on every target whether it saved or not, which is the confident wrong answer rather than the missing one.',
+    '**The catalogue writes this shape now, and what is left of it is a shorter list than the id.** `ActionRule` in `combat.ts` is the ninth sourced grant, reached by the `action-rule` effect kind and by the `action` rider kind, and it says three of the four things this id was named for: a slot or a named action **taken away** (`forbids`), one slot **narrowed** to a named few and failing closed (`permits-only`), and a named action **paid for out of a cheaper slot** (`allows`). The description before this one said "not one definition in the catalogue writes one", and the tranche it asked for wrote four: Stinking Cloud’s "can’t take an action or a Bonus Action" and Fear’s Dash as riders on their own saves, Wind Walk’s "The only actions a target can take in this form" and Magic Jar’s two sentences as standalone effects. So an entry still filed here is one of five things rather than a spell nobody got round to. **Two are lifetimes rather than rules**: Shocking Grasp’s clause ends at the start of the *target’s* next turn and `RiderDuration` has no such member, and Befuddlement’s never ends at all, which an Instantaneous casting may not hang. **One is a name the engine cannot tell apart** — Wind Walk’s Magic action "to begin reverting", and every Hide, Search and Study `NAMED_ACTIONS` leaves out for the same reason. **One has since left**: Slow’s "it can’t take Reactions" is `forbids` exactly and had nowhere to ride, because the failed save it hangs on could carry no riders — `save.condition` is optional now, the spell is executed, and the clause is written. And the fourth thing the id was named for is still missing outright: **spending somebody else’s budget**, which `combat.ts` refuses to be stretched to because it has to decide who is playing the creature — Dissonant Whispers, Compulsion and the three Dominates; an **extra action** granted rather than an existing one governed, which no member creates (Haste); and a rule that **couples two slots**, or counts the attacks inside one, which neither polarity can state (Slow again). `docs/design/characters-and-equipment.md` names that last one from the feature side: "Extra attacks inside the Attack action. The economy counts one Attack action, not the attacks in it". **Gate G1 read the five as five and this id is a bundle**, which is recorded here rather than acted on: the five arms read about 1/1, 2/1, 2/0, 3/0 and 1/0 and the largest of them finishes one spell, so nobody should brief the id as a unit. One arm has already left — Shocking Grasp went to `a-rider-that-lasts-until-the-start-of-the-targets-next-turn`, because what it lacks is one word of a duration vocabulary and not a rule. Two more are mis-filings whose destination is in the **feature** vocabulary rather than this one — Speak with Animals, Gaseous Form and Haste’s Utilize belong under an action with no spender — and moving them is a third widening of the `why` field that G1 did not take.',
+  'a-repeat-save-with-no-condition-to-hang-it-on':
+    'a repeat save on a failure that imposed **no condition**. `a-save-whose-failure-imposes-no-condition` is built — `save.condition` is optional and SRD Slow and SRD Faerie Fire are executed off it — and this is the one sentence of Slow it did not finish, recorded rather than inherited by the id that used to hold it. A repeat is filed on the condition instance the failure created: `applyConditionTo` takes the `RepeatSave` beside the condition, the turn boundary raises whatever sits on a creature, and a success releases that instance. A failure that creates none has nothing there, so a repeat beside it would be a debt no boundary could ever see — which is the argument `spell-definitions.ts` makes in the field itself, "a repeat save is filed on the condition instance the failure created, and this failure creates none", and which `repeat_without_condition` refuses at authoring rather than accepting silently. The fifth of the family `a-repeat-save-on-the-clock` and its three siblings already form, and the first whose gap is the **host** rather than the trigger.',
   'a-turn-a-spell-inserts-into-the-order':
     '`docs/design/time-and-turns.md`: "**In combat the clock is derived.** A round ends when the Initiative order wraps, and six seconds have passed; nobody decides that." A spell that hands its caster several turns in a row has no way to say so without a decision somebody makes, which is the one thing the derived clock refuses.',
   'a-choice-made-at-the-casting':
@@ -236,9 +236,9 @@ export const MISSING_SHAPES = {
   'a-save-keyed-to-a-condition':
     'a save selected by what it is *against* rather than by the ability that rolls it. `docs/design/rolls-and-damage.md` names it and names this spell: "A save keyed to a named **condition** rather than an ability | Protection from Poison", in the table of what the roll-modifier vocabulary deliberately does not reach. Distinct from `a-mode-on-the-save-a-spell-forces`, which is the caster’s own save seen from the other end — this one modifies a save some *other* effect will call for.',
   'a-condition-benefit-an-effect-takes-away':
-    'a benefit the condition layer derives, switched off while the condition itself stays. Three SRD spells print the sentence — Faerie Fire, Starry Wisp, and Mind Spike’s "against you" — and PROGRESS.md already lists Faerie Fire among the clauses the roll vocabulary cannot reach. **The shape itself is built now**: the `benefit` rider hangs a denial off a settled outcome, and `benefitsFrom` is what all three readers of the Invisible condition’s benefits ask — including the Initiative Advantage, which nothing used to reach. What is left is one further shape each. Faerie Fire wants `save.condition` made optional, because its failed save imposes no condition and a save with nothing to impose is a die thrown to record nothing, and it wants its Cube resolved as an area besides; Mind Spike narrows the denial to the caster alone, which is a-condition-benefit-an-effect-takes-away meeting the-effects-source-as-a-participant, and a blanket denial would be wrong for it rather than merely coarse; Shining Smite hangs the same sentence on an ongoing casting whose beneficiaries are everybody the casting did not target.',
+    'a benefit the condition layer derives, switched off while the condition itself stays. Three SRD spells print the sentence — Faerie Fire, Starry Wisp, and Mind Spike’s "against you" — and PROGRESS.md already lists Faerie Fire among the clauses the roll vocabulary cannot reach. **The shape itself is built now**: the `benefit` rider hangs a denial off a settled outcome, and `benefitsFrom` is what all three readers of the Invisible condition’s benefits ask — including the Initiative Advantage, which nothing used to reach. What is left is one further shape each. Faerie Fire is finished — `save.condition` is optional, so its Dexterity save hangs this rider, and its 20-foot Cube is an ordinary `area` picking its own targets; Mind Spike narrows the denial to the caster alone, which is a-condition-benefit-an-effect-takes-away meeting the-effects-source-as-a-participant, and a blanket denial would be wrong for it rather than merely coarse; Shining Smite hangs the same sentence on an ongoing casting whose beneficiaries are everybody the casting did not target.',
   'a-random-outcome-that-is-not-a-d20':
-    'PROGRESS.md ranks it: "A random outcome that is not a d20 | 1 / 19 | the generator, `parseNotation`". A percentage chance, a 1d10 behaviour table or a 1d100 mishap roll is a die the engine can throw and no `SpellEffect` asks for.',
+    'PROGRESS.md ranks it: "A random outcome that is not a d20 | 1 / 19 | the generator, `parseNotation`". A percentage chance, a 1d10 behaviour table or a 1d100 mishap roll is a die the engine can throw and no `SpellEffect` asks for. **One consumer left the count without the gap closing, and it is recorded here rather than lost.** Slow prints a 25 percent chance that a casting with a Somatic component fails, and was filed under this id while it had no definition; the spell is executed now, and the executed map has no marker-less entry form — `Adjudication` carries a clause, a shape and a note and `CLAUSE_MARKERS` knows dice, saves, checks and twenty other words but not a percentage, so the reading has nowhere to sit. It is in that spell’s own `unmodelled` list, where `spell-catalogue.test.ts` hands it to the table on every casting, and the day `Adjudication` gains the null marker `TrackedAdjudication` already has is the day it comes back to this count.',
   'a-rest-an-effect-gives-or-denies':
     'a rest is a span the engine measures and its payout is `endRest`’s — `docs/design/time-and-turns.md`, "**A rest is a span, not a button**". No effect confers the benefits of one without the hours, and none takes them away from a rest that was completed.',
   'damage-with-neither-an-attack-roll-nor-a-save':
@@ -709,6 +709,13 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: "You take the Dash action, and until the spell ends, you can take that action again as a Bonus Action." The second clause is a price and is enforced; the first is an **extra** action handed out at the casting rather than an existing one governed, which is the residue this shape records for Haste. `ActionRule` forbids, narrows and re-prices, and creates nothing — and an engine that took the Dash itself would be writing fiction into the log.',
     },
   ],
+  'faerie-fire': [
+    {
+      clause: 'Attack rolls against an affected creature or object have Advantage if the attacker can see it',
+      why: 'senses-beyond-declared-sight',
+      note: 'the whole spell is executed now — `save.condition` became optional, so the Dexterity save hangs the `benefit` rider that denies the Invisible condition its effects, and the 20-foot Cube is an ordinary `area` picking its own targets. What is left is this sentence and the two that are not mechanics at all. The Advantage is ordinary and the gate on it is not: sight is a pairwise declaration between two creatures, and being outlined is not a state an attacker’s roll reads, so a spell that handed every attacker Advantage would hand it to the blindfolded one too.',
+    },
+  ],
   fear: [
     {
       clause: 'drops whatever it is holding',
@@ -1000,6 +1007,28 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'cannot make Opportunity Attacks',
       why: 'a-rider-that-lasts-until-the-start-of-the-targets-next-turn',
       note: 'SRD: the target "can’t make Opportunity Attacks until the start of its next turn". **The rule is writable and the deadline is not**, and gate G1 re-filed this entry because the id it carried said the opposite. `forbids` takes a named action away and leaves the rest of the budget alone — `NAMED_ACTIONS` lists `opportunity-attack` against this spell by name, and Stinking Cloud, Fear, Wind Walk and Magic Jar all write the vocabulary now. What stops this one is that a cantrip is Instantaneous, so the rider must carry a `lasts` of its own, and `RiderDuration` declares the start of the **caster’s** next turn and the end of the **target’s**, with no member for the start of the target’s. `Duration` beneath it has one — `start-of-next-turn` names any creature — so what is absent is a member of the content-facing vocabulary and the readers that expand it, which is engine work rather than a definition.',
+    },
+  ],
+  slow: [
+    {
+      clause: 'Dexterity saving throws',
+      why: 'a-bonus-narrowed-to-a-skill',
+      note: 'the other half of the −2, and the half with no reader. The penalty to Armour Class is written — a `bonus` rider aimed at `ac` with the sign turned round — and this one cannot be, because a rider carries a `BonusApplies` list and nothing narrower: aimed at `save` it would land on every saving throw the target ever makes, including the Wisdom save this spell itself calls for. The ongoing side of the narrowing axis exists and the rider does not carry it.',
+    },
+    {
+      clause: 'it can take either an action or a Bonus Action, not both',
+      why: 'an-action-a-spell-compels-or-forbids',
+      note: 'a rule that spends one of the turn’s two slots when the other is used. `ActionRule` has three members and none of them couples two slots to each other: `forbids` takes a slot away outright, `permits-only` narrows one to named actions, and `allows` widens. This spell is one of the two the id’s description names for exactly that residue.',
+    },
+    {
+      clause: 'it can make only one attack if it takes the Attack action',
+      why: 'an-action-a-spell-compels-or-forbids',
+      note: 'the second half of the same sentence, and a different absence: the economy counts one Attack action and not the attacks inside it, which `docs/design/characters-and-equipment.md` states from the feature side — "Extra attacks inside the Attack action. The economy counts one Attack action, not the attacks in it".',
+    },
+    {
+      clause: 'repeats the save at the end of each of its turns',
+      why: 'a-repeat-save-with-no-condition-to-hang-it-on',
+      note: 'the one clause of this spell the shape it was blocked on does not finish. `save.condition` is optional now and the three grants the failure hands out are written; a repeat is not a grant, it is filed on the **condition instance** the failure created, and this failure creates none. `checkSpellDefinition` refuses the pair by name rather than accepting a repeat no boundary would ever raise.',
     },
   ],
   sunbeam: [
@@ -2000,20 +2029,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'creatures that do not sleep, and creatures immune to Exhaustion, succeed without rolling. `checks.ts` carries an automatic **failure** and no automatic success, and the condition immunity that decides it is read off the target rather than stated by the spell.',
     },
   ],
-  'faerie-fire': [
-    {
-      marker: 'saving-throw',
-      clause: 'Each creature in the Cube is also outlined if it fails a Dexterity saving throw',
-      why: 'a-condition-benefit-an-effect-takes-away',
-      note: 'the save is ordinary and what failing it buys is a subtraction rather than a condition: the creature loses the benefit of one it may already have. A `save` effect with no condition to impose would be a die thrown to record nothing.',
-    },
-    {
-      marker: 'condition',
-      clause: "can't benefit from the Invisible condition",
-      why: 'a-condition-benefit-an-effect-takes-away',
-      note: 'the other end of the same sentence. `conditionApplicability` grants the Invisible condition its effects wholesale and nothing narrows them for one creature, so there is no state in which a creature has the condition and not its benefit.',
-    },
-  ],
   'animal-messenger': [
     {
       marker: 'saving-throw',
@@ -2048,7 +2063,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause:
         "a creature that enters the spell's area for the first time on a turn or starts its turn there makes a Charisma saving throw",
       why: 'a-standing-effect-derived-from-where-a-creature-stands',
-      note: 'both moments are `AreaTrigger` members and the save itself is ordinary; what a failure buys is not. "On a failed save, a creature can’t speak a deliberate lie while in the radius" is a silence that holds for as long as the creature is in the Sphere and lifts when it steps out — a standing effect derived from where it is standing, with no condition and no state to carry it. A trigger that rolled the save and imposed nothing would be dice thrown for no reason. **The derivation itself is no longer what blocks it**: P1-T9 built `AreaStanding`, so a casting’s area now moves a value that is asked of the scene on every read — and what Zone of Truth needs from that vocabulary is a member the *rules* never read, because the engine holds no speech. Whether the engine may hold a fact only the table reads, and on which door it would be published, is a decision nobody has taken; until it is, a member added here would be a state written by a save and consulted by nothing.',
+      note: 'both moments are `AreaTrigger` members and the save itself is ordinary; what a failure buys is not. "On a failed save, a creature can’t speak a deliberate lie while in the radius" is a silence that holds for as long as the creature is in the Sphere and lifts when it steps out — a standing effect derived from where it is standing, with no condition and no state to carry it. A trigger that rolled the save and imposed nothing would be dice thrown for no reason. **Two of the three halves are built and the third is not.** The save is ordinary and `save.condition` is optional now, so a trigger could roll it and impose nothing; both moments are `AreaTrigger` members already. What is missing is the *publication*. Gate G1 ruled the general question — the engine may hold a fact only the table reads when the fact is the recorded outcome of a roll it made and a door publishes it — and this spell clears that bar on its own text, "You know whether each creature succeeds or fails on this save". Neither half of the publication exists. `OngoingSpell.aimed` is written once, by the `spell-ongoing` event at the cast, and thereafter only ever shrinks in `fold/release.ts`; a casting whose targets came from its geometry stores nobody at all, by the rule `aimedAt` states — "Standing in an area is not being cast on" — so an area trigger firing a minute later has nothing to add a creature to. And `observe()` in `@ie/tools` publishes no ongoing casting whatever: its `Observation` carries the round, the clock, the scene, the creatures and the engine’s debts, and a creature’s own conditions are the nearest thing to this. So what is left is a way for a settled area trigger to record its affected creature on the record, and a field on the door that reports them — which is a new event and a widened observation, not a reading.',
     },
   ],
   teleport: [
@@ -4559,53 +4574,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
   // one that forbids casting is the family shape and `CLAUSE_MARKERS` cannot
   // see it, because the book writes "Verbal component" where the list looks
   // for an action it names.
-  slow: [
-    {
-      clause: 'up to six creatures of your choice in a 40-foot Cube within range',
-      why: 'expressible',
-      note: '`targetsWithin` is a target list bounded by a template rather than an area that picks its own targets, which is exactly what Mass Cure Wounds already writes: the point is held to the spell\'s range and every name is held to the shape.',
-    },
-    {
-      clause: 'Each target must succeed on a Wisdom saving throw or be affected',
-      why: 'a-save-whose-failure-imposes-no-condition',
-      note: 'The entry had called this the plainest thing the format does, and the format cannot say it: `save` is the only kind that rolls a saving throw and hangs grants on the failure, and it **requires** a `condition` out of the SRD’s fifteen. This failure imposes none, so every clause below that rides on it has no host — which is the reading nobody had checked, met from the other end of the same sentence as the Dexterity-saves half.',
-    },
-    {
-      clause: "An affected target's Speed is halved",
-      why: 'a-save-whose-failure-imposes-no-condition',
-      note: 'Halving is presence rather than count — the reading Resistance and Advantage already take — so the operation is built and `speed-change` carries it. What it has nowhere to hang is the failed save above: a standalone `speed` effect halves the Speed of every creature the spell named, saved or not.',
-    },
-    {
-      clause: 'a −2 penalty to AC',
-      why: 'a-save-whose-failure-imposes-no-condition',
-      note: '`BonusApplies` covers an Armour Class and a negative bonus is the same field with the sign turned round, which is Bane’s shape and Shield of Faith’s in one clause — and, like the halved Speed above it, it is a rider on a failure that can carry no riders.',
-    },
-    {
-      clause: 'Dexterity saving throws',
-      why: 'a-bonus-narrowed-to-a-skill',
-      note: 'The half of the same sentence that has no reader. `ActiveBonus` carries a `BonusApplies` list and nothing narrower, so a penalty aimed at one ability’s saves would land on every saving throw the target ever makes — including the one this spell itself calls for. The entry had said the whole clause was expressible, which is the narrower reading nobody had checked.',
-    },
-    {
-      clause: "it can't take Reactions",
-      why: 'a-save-whose-failure-imposes-no-condition',
-      note: 'One slot taken away with everything the sentence does not name left alone, which is `ActionRule`’s `forbids` exactly — and Slow is one of the three SRD sentences that member was derived from. Stinking Cloud writes it as a rider on its own save and Magic Jar and Wind Walk as standalone effects; this one can do neither, because the failure it rides on takes no riders and a standalone rule would gag the creatures that made the save.',
-    },
-    {
-      clause: 'it can take either an action or a Bonus Action, not both',
-      why: 'an-action-a-spell-compels-or-forbids',
-      note: 'The residue, and it is the one sentence on this spell the built vocabulary does not reach: a rule that spends one of the turn’s two slots when the other is used, and a cap of one attack inside the Attack action. `forbids` takes a slot away outright, `permits-only` narrows one to named actions, and neither can couple two slots to each other or count the attacks inside an action.',
-    },
-    {
-      clause: 'there is a 25 percent chance the spell fails',
-      why: 'a-random-outcome-that-is-not-a-d20',
-      note: 'A percentage the generator could throw and no `SpellEffect` asks for, deciding whether another casting happens at all. Recorded although the sentence trips no marker.',
-    },
-    {
-      clause: 'repeats the save at the end of each of its turns, ending the spell on itself',
-      why: 'a-save-whose-failure-imposes-no-condition',
-      note: '`RepeatSave` at `end-of-turn` with `onSuccess: "end-on-target"`, which Hold Person already writes and the scenario test already exercises — and which sits on the `save` kind, so there is no save here for it to repeat.',
-    },
-  ],
   // **One shape came off this list because the book does not print it.** SRD
   // 5.2.1 rewrote what the stress of a Wish costs: a Strength score of 3 for
   // 2d4 days, where the previous edition gave an Exhaustion level. Nothing in

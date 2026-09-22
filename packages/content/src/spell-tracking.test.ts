@@ -195,12 +195,31 @@ const cast = (
   // about.
   const mine = definition.range.kind === 'self' && definition.targets.self === true;
   const targets = aimsAtNobody ? [] : [mine ? WIZARD : at];
+  // **A spell that fills an area needs somewhere to put it**, and a Cone, a
+  // Cube or a Line needs somewhere to point it as well. No tracked definition
+  // carries one — a tracked spell resolves nothing, so there is nothing for a
+  // template to catch — and one of the spells this list records did grow
+  // effects and an area on the same commit, so the departed rows go through
+  // the same helper as the rest. The caster's own square, as the executed
+  // sweep uses: a Cube excludes its point of origin, so an area placed on the
+  // target would leave them out of it.
+  const area = definition.area;
+  const placed =
+    area === undefined
+      ? {}
+      : {
+          ...(area.origin === 'point' ? { at: { x: 50, y: 50, z: 0 } } : {}),
+          ...(['cone', 'cube', 'line'].includes(area.kind)
+            ? { towards: { x: 50, y: 150, z: 0 } }
+            : {}),
+        };
   return resolveSpell(
     fold('seed', log),
     WIZARD,
     {
       spellId,
       targets,
+      ...placed,
       ...(definition.level === 0 ? {} : { slotLevel: definition.level }),
       // A spell that prints a choice is refused until the caster makes it, and
       // the first printed value is the answer here for the reason the executed
@@ -1354,11 +1373,19 @@ describe('every spell this batch added is cast for real', () => {
    * **Enhance Ability is the sixth.** Its six named blessings are one effect
    * with the ability named at the casting rather than six definitions, so
    * `choiceStated` is what it was waiting for.
+   *
+   * **Faerie Fire is the seventh**, and it is the first to leave by a door in
+   * the *format*: its failed save imposes no condition, so while
+   * `save.condition` was required the spell had no host for the one thing it
+   * does — take the benefit of the Invisible condition away. The field is
+   * optional now, the Dexterity save hangs the `benefit` rider, and the
+   * 20-foot Cube is an ordinary area picking its own targets.
    */
   const EXECUTED_SINCE: readonly string[] = [
     'aid',
     'enhance-ability',
     'expeditious-retreat',
+    'faerie-fire',
     'goodberry',
     'magic-jar',
     'wind-walk',

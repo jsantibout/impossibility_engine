@@ -187,6 +187,7 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'divine-smite',
   'eldritch-blast',
   'enhance-ability',
+  'faerie-fire',
   'false-life',
   'fear',
   'finger-of-death',
@@ -256,6 +257,13 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // advances the generator, so the same seed no longer rolls the same sword.
   'shining-smite',
   'shocking-grasp',
+  // Driven end to end by `bare-save.test.ts`, with Faerie Fire above it: both
+  // are cast through `resolveSpell` at a placed target, and the grants their
+  // failed saves hand out are read back off the folded state — a halved
+  // Speed, an Armour Class two lower, a Reaction taken away, an Invisible
+  // condition its holder no longer benefits from. Both are partial as well,
+  // which is the other axis.
+  'slow',
   // Driven end to end by `carrier-areas.test.ts`, and partial as well: the two
   // are different axes, and while they were one state this spell could only be
   // recorded as the second. Saying "untested" of a spell with its own suite

@@ -879,6 +879,77 @@ function checkConditionRider(
 }
 
 /**
+ * A `save` whose failure imposes no condition, and the four things it may not
+ * then say.
+ *
+ * SRD Slow and SRD Faerie Fire roll a saving throw whose failure hands out
+ * **grants and nothing else**, which is why {@link save.condition} is
+ * optional — but the sentence its old requirement was standing in for is
+ * still true one field along, and so are three others that only mean
+ * something beside a condition.
+ *
+ * | Refused | Why |
+ * |---|---|
+ * | nothing imposed and nothing hung | the die is thrown and no reader, at the table or in the rules, is told anything |
+ * | `conditions` with no `condition` | the flat fields are the *first* rider, so a list alone is a second spelling of one sentence |
+ * | `repeats` | a repeat is filed on the condition instance the failure created, and there is none |
+ * | `lasts`, `check`, `outlivesCasting` | each is a sentence about how long a condition holds or how a creature escapes it |
+ *
+ * **The first is the one that could go, and what would lift it is a door.**
+ * The engine may hold a fact only the table reads when the fact is the
+ * recorded outcome of a roll it made *and something publishes it* — SRD Zone
+ * of Truth's "You know whether each creature succeeds or fails" is the
+ * sentence waiting on that, and no door publishes an ongoing casting's
+ * affected creatures today. Until one does, a bare save would be a d20 whose
+ * answer reaches nobody, which is the same defect `ends_nothing` refuses one
+ * kind along.
+ */
+function checkSaveWithoutCondition(
+  effect: Extract<SpellEffect, { kind: 'save' }>,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  const further = Array.isArray(effect.conditions) ? effect.conditions : [];
+  const hangs = further.length > 0 || (effect.modifiers ?? []).length > 0;
+
+  if (!hangs) {
+    found.push({
+      field: `${path}.condition`,
+      code: 'save_imposes_nothing',
+      reason:
+        'a saving throw whose failure imposes no condition and hangs no rider is a die thrown for nothing; name the condition, or the grants the failure hands out',
+    });
+  }
+
+  if (further.length > 0) {
+    found.push({
+      field: `${path}.conditions`,
+      code: 'further_conditions_without_a_first',
+      reason:
+        '"conditions" is the rest of what a failure imposes and "condition" is the first of them; a save that imposes one condition writes it flat',
+    });
+  }
+
+  if (effect.repeats !== undefined) {
+    found.push({
+      field: `${path}.repeats`,
+      code: 'repeat_without_condition',
+      reason:
+        'a repeat save is filed on the condition instance the failure created, and this failure creates none, so no turn boundary would ever raise it',
+    });
+  }
+
+  for (const field of ['lasts', 'check', 'outlivesCasting'] as const) {
+    if (effect[field] === undefined) continue;
+    found.push({
+      field: `${path}.${field}`,
+      code: 'condition_field_without_a_condition',
+      reason: `"${field}" says how long the condition this failure imposes lasts or how a creature escapes it, and this failure imposes none`,
+    });
+  }
+}
+
+/**
  * Which host a rider is hanging on, as the one fact a rider rule reads.
  *
  * Not the effect: a rider knows nothing about its host beyond whether there
@@ -1662,13 +1733,16 @@ function checkEffect(
       const extra = (effect as { readonly conditions?: unknown }).conditions;
       if (extra !== undefined) readsAsList(extra, `${path}.conditions`, RIDER_LIST, found);
       const source = withReadableRiders(effect);
-      checkConditionRider(
-        conditionRiderOf(source)[0],
-        `${path}.condition`,
-        path,
-        host(true),
-        found,
-      );
+      if (effect.condition === undefined) checkSaveWithoutCondition(effect, path, found);
+      else {
+        checkConditionRider(
+          conditionRiderOf(source)[0],
+          `${path}.condition`,
+          path,
+          host(true),
+          found,
+        );
+      }
       checkRiders(source, level, path, host(true), found);
       return;
     }

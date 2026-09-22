@@ -786,13 +786,21 @@ describe('every member of the change vocabulary has a user or a written reason',
   /**
    * `halve` was exempt until Spirit Guardians wrote it, on the reason that the
    * spell the SRD prints it in — Slow, "An affected target’s Speed is halved"
-   * — is blocked on two other shapes and has no definition. **The exemption
-   * failed as a stale licence the moment something else wrote the member**,
-   * which is what it was written to do; the pin stays, because the fact it
-   * pins is still true and the day Slow lands is the day this test says so.
+   * — was blocked on other shapes and had no definition. The pin said "the
+   * day Slow lands is the day this test says so", and **this is that day**:
+   * `save.condition` became optional, the failure that halves the Speed found
+   * a host, and the assertion is turned round to hold the arrival rather than
+   * the absence.
    */
-  it('pins that the spell printing a halved Speed has no definition', () => {
-    expect(SPELL_DEFINITIONS.filter((d) => d.id === 'slow')).toEqual([]);
+  it('pins that the spell printing a halved Speed now writes it off its own save', () => {
+    const slow = SPELL_DEFINITIONS.find((d) => d.id === 'slow');
+    expect(slow?.effects).toEqual([
+      expect.objectContaining({
+        kind: 'save',
+        modifiers: expect.arrayContaining([{ kind: 'speed-change', change: 'halve' }]),
+      }),
+    ]);
+    expect(slow?.effects.every((effect) => !('condition' in effect))).toBe(true);
   });
 
   /**
@@ -815,6 +823,9 @@ describe('every member of the change vocabulary has a user or a written reason',
     // SRD Spirit Guardians, "Any other creature's Speed is halved in the
     // Emanation" — written as `areaStanding` rather than as an effect, because
     // it is derived from where a creature stands and granted to nobody.
-    expect(usedBy('halve')).toEqual(['spirit-guardians']);
+    // SRD Slow, "An affected target's Speed is halved" — a rider on a failed
+    // save that imposes no condition, which is the sentence `halve` was
+    // derived from and the last one able to write it.
+    expect(usedBy('halve')).toEqual(['slow', 'spirit-guardians']);
   });
 });

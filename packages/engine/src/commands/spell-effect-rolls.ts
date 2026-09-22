@@ -782,9 +782,13 @@ export function resolveSaveEffect(
   }
 
   // **The arm with no casting behind it, which hangs conditions and asks for
-  // none.** `conditionRiderOf` types the flat fields as a non-empty list, so
-  // the first element is the condition the kind requires rather than a guess,
-  // and the rest of the list is `save.conditions`.
+  // none.** `conditionRiderOf` folds the flat fields in as the first element
+  // and `save.conditions` as the rest. The list may now be **empty** — SRD
+  // Slow's failure hands out grants and imposes nothing — but not here: a
+  // conferral carries no riders at all (`checkContent` refuses them) and a
+  // `save` that imposes nothing and hangs nothing is refused at authoring, so
+  // the two rules between them leave a conferred save exactly one thing it
+  // can be, which is a condition.
   //
   // **Every rider, not just the first.** An item's list is one long —
   // `checkContent` refuses `conditions` on a conferral — but SRD Turn Undead
@@ -855,6 +859,12 @@ export function resolveSaveEffect(
   // condition are reading one shape — including the flat `repeats`,
   // which belongs to the saving throw this host just made rather than to
   // any one of the conditions the failure imposed.
+  //
+  // **And the list may be empty**, which is SRD Slow: one Wisdom save, three
+  // grants, no condition. `applyRiders` walks whichever slots are filled, so
+  // a failure that hangs only `modifiers` needs no branch here — the
+  // creature is `affected`, because the grants landed on it, and `conditions`
+  // is absent rather than empty for the reason every other outcome's is.
   const landed = applyRiders(current, target, outcomeRidersOf(effect), {
     definition,
     castingId,
@@ -873,7 +883,7 @@ export function resolveSaveEffect(
   outcomes.push({
     target,
     save: save.value,
-    conditions: landed.value.conditions,
+    ...(landed.value.conditions.length === 0 ? {} : { conditions: landed.value.conditions }),
     affected: true,
   });
   return ok(current);

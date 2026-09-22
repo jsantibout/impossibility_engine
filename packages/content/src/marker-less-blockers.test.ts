@@ -5,7 +5,6 @@ import {
   BLOCKED_ON,
   MISSING_SHAPES,
   TRACKED_ADJUDICATED,
-  blockersOf,
   claimedShapes,
   consumersOf,
   mechanicalMarkersIn,
@@ -161,8 +160,9 @@ describe('a blocker no mechanical marker can see survives the spell being writte
         // **`a-bonus-narrowed-to-a-skill` came off this list by gaining a
         // second claimant**, which is the honest way an entry leaves it: SRD
         // Slow's −2 to Dexterity saving throws is the same missing selector on
-        // the same stored bonus, read off a paragraph in the undefined
-        // population, and it is a sentence a marker can see. So Enthrall's
+        // the same stored bonus, and it is a sentence a marker can see. It was
+        // read off a paragraph in the undefined population and the spell has
+        // since been written, so the claim is an executed one now. So Enthrall's
         // reading is no longer the only thing holding the shape up — the gap
         // is more claimed than it was, not less, and the counterfactual says
         // so rather than the list staying the size it was written at.
@@ -197,7 +197,12 @@ describe('a blocker no mechanical marker can see survives the spell being writte
       if (shape === 'a-bonus-narrowed-to-a-skill') continue;
       expect(retired, shape).toContain(shape);
     }
-    expect(blockersOf('slow')).toContain('a-bonus-narrowed-to-a-skill');
+    // Slow has since been **written**, so its claim moved from the undefined
+    // population into the executed one — `save.condition` became optional and
+    // the three grants its failed save hands out found a host. The clause
+    // itself is unchanged and so is the gap: a granted bonus still carries no
+    // narrowing, so the −2 still cannot reach Dexterity saving throws alone.
+    expect(consumersOf('a-bonus-narrowed-to-a-skill').executed).toContain('slow');
     expect(retired).not.toContain('a-choice-made-at-the-casting');
   });
 

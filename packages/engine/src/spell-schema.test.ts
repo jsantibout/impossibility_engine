@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { linesOf } from '../../../test-support/lines.js';
 import { isErr } from '@ie/shared';
+import { WEAPON_MASTERIES } from '@ie/srd';
 import { TURN_MOMENTS } from './time.js';
 import { type SpellDefinition } from './spell-definitions.js';
 import {
@@ -2462,6 +2463,16 @@ describe('no spell is special-cased in the runtime', () => {
    * level 4 Divination because the validator has to know what school it is
    * in. Excluded the day the spell catalogue gained the spell.
    *
+   * **`slow` is the tenth, and it is the weapon table colliding with the
+   * spell list**: `WeaponMastery` in `@ie/srd` transcribes the seven mastery
+   * properties the book prints — Cleave, Graze, Nick, Push, Sap, Slow, Topple
+   * — and `commands/mastery.ts` branches on `hit.property === 'slow'` to
+   * reduce a Speed by ten feet after a blow. Not one line of it is about the
+   * level 3 Transmutation, and the test the feat allowance states holds:
+   * delete SRD Slow from the catalogue and a Heavy Crossbow still slows what
+   * it hits. Excluded the day the spell catalogue gained the spell, which is
+   * the day `save.condition` became optional.
+   *
    * Named one word at a time rather than matched loosely, so each exclusion
    * is reviewed instead of being a heuristic that quietly stops catching
    * things.
@@ -2476,6 +2487,7 @@ describe('no spell is special-cased in the runtime', () => {
     'resistance',
     'divination',
     'fly',
+    'slow',
   ]);
 
   /**
@@ -2611,6 +2623,7 @@ describe('no spell is special-cased in the runtime', () => {
       'light',
       'resistance',
       'shield',
+      'slow',
       'teleport',
     ]);
     // `withEquipment` moved with the rest of the reducer in IE-039 and again
@@ -2670,6 +2683,13 @@ describe('no spell is special-cased in the runtime', () => {
       "export type MovementMode = 'walk' | 'fly' | 'climb' | 'swim' | 'burrow';",
     );
     expect(source('commands/movement.ts')).toContain("mode === 'fly'");
+    // And the tenth, which is a weapon mastery property. `WEAPON_MASTERIES`
+    // in `@ie/srd` transcribes the seven the book prints and
+    // `commands/mastery.ts` branches on one of them after a blow lands — a
+    // Speed reduced by ten feet by a Heavy Crossbow, not by a level 3
+    // Transmutation. Both halves pinned, as the Speed above is.
+    expect(WEAPON_MASTERIES).toContain('slow');
+    expect(source('commands/mastery.ts')).toContain("case 'slow':");
   });
 
   it('allows the two data constructs and nothing around them', () => {

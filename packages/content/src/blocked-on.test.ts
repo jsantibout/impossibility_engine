@@ -893,7 +893,15 @@ describe('the four highest-leverage families are read sentence by sentence', () 
     // Conjure Woodland Beings left this list by being **written**, and the
     // reading that had kept it here was wrong about which gap it was: see the
     // block below, and `conjure-woodland-beings.test.ts` for the definition.
-    ['an-action-a-spell-compels-or-forbids', ['slow'], []],
+    //
+    // **And Slow left it the same way**, which empties the family's undefined
+    // column: `save.condition` became optional, so the failed save that its
+    // “can't take Reactions” rides became writable, and the spell is executed
+    // with two clauses of this shape still open — the two slots coupled to
+    // each other, and the attacks counted inside the Attack action. The claim
+    // moved into the adjudicated population rather than going away, exactly
+    // as the wall family's did.
+    ['an-action-a-spell-compels-or-forbids', [], []],
     ['a-second-place-to-put-a-creature', ['find-familiar', 'maze', 'sending'], []],
     ['a-wall-or-several-templates-in-one-area', [], []],
   ];

@@ -1585,10 +1585,20 @@ function featureOptionProblems(
     // layouts are asked the same question. The list itself is admitted, which
     // is the one rule a conferral does not share: a bottle hangs one condition
     // and a feature hangs the two SRD Turn Undead prints.
+    //
+    // **What it hangs is counted only when it hangs one.** `save.condition`
+    // is optional since SRD Slow — a failure may hand out grants and impose
+    // nothing — and a feature's pool use may carry no rider at all, so a
+    // conferred save with no condition confers nothing and must not be
+    // credited with a lifetime it has nothing to spend on.
+    // `save_imposes_nothing` is what refuses the effect itself, at the
+    // authoring door every effect here has already been through.
     if (kind === 'save') {
-      hangs = true;
-      outlasts = true;
-      conditions += 1;
+      if (record['condition'] !== undefined) {
+        hangs = true;
+        outlasts = true;
+        conditions += 1;
+      }
       for (const field of CONFERRED_CONDITION_FIELDS) {
         if (record[field] === undefined) continue;
         say(
@@ -2405,9 +2415,13 @@ function itemConfersProblems(
     // that keeps that layout. So the rule above is asked again of the record
     // itself, at the paths this kind writes them at.
     if (kind === 'save') {
-      hangs = true;
-      outlasts = true;
-      conditions += 1;
+      // Counted only where there is one to count — see the feature side, and
+      // `save.condition`, optional since SRD Slow.
+      if (record['condition'] !== undefined) {
+        hangs = true;
+        outlasts = true;
+        conditions += 1;
+      }
       for (const field of CONFERRED_CONDITION_FIELDS) {
         if (record[field] === undefined) continue;
         say(

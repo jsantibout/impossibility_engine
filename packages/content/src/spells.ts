@@ -2337,6 +2337,88 @@ export const HYPNOTIC_PATTERN: SpellDefinition = {
 };
 
 /**
+ * SRD Slow:
+ *
+ * > _Level 3 Transmutation (Bard, Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 120 feet. **Duration:** Concentration, up to 1 minute.
+ * > "You alter time around up to six creatures of your choice in a 40-foot
+ * > Cube within range. Each target must succeed on a Wisdom saving throw or
+ * > be affected by this spell for the duration."
+ * > "An affected target's Speed is halved, it takes a −2 penalty to AC and
+ * > Dexterity saving throws, and it can't take Reactions. On its turns, it
+ * > can take either an action or a Bonus Action, not both, and it can make
+ * > only one attack if it takes the Attack action. If it casts a spell with a
+ * > Somatic component, there is a 25 percent chance the spell fails as a
+ * > result of the target making the spell's gestures too slowly."
+ * > "An affected target repeats the save at the end of each of its turns,
+ * > ending the spell on itself on a success."
+ *
+ * **The spell `save.condition` was made optional for.** One Wisdom saving
+ * throw, and what a failure buys is a list of *grants*: the Speed halved, the
+ * penalty to Armour Class, the Reaction taken away. Every one of them is a
+ * {@link ModifierRider} the engine already had, and none of them is a
+ * condition — so before the flat field became optional this paragraph had no
+ * host at all. Written as standalone effects instead, all three would have
+ * landed on every creature the caster named whether it saved or not, which is
+ * the confident wrong answer rather than the missing one.
+ *
+ * **The Cube bounds a choice rather than making one**, which is
+ * `targetsWithin` and not `area`: "up to six creatures **of your choice** in
+ * a 40-foot Cube" is Mass Cure Wounds' sentence with a saving throw on the
+ * end, and an `area` would slow every ally standing in it.
+ *
+ * **What is left is four sentences and each is a different absence.** The
+ * −2 reaches Dexterity saving throws as well, and a `bonus` rider carries no
+ * narrowing — aimed at `save` it would land on every save the target ever
+ * makes, including the one this spell itself calls for. The turn's two slots
+ * coupled to each other, and the attacks counted inside the Attack action,
+ * are rules `ActionRule` cannot state in either polarity. The 25 percent is a
+ * die no `SpellEffect` asks for. And the repeat save is filed on the
+ * condition instance a failure created, so a failure that creates none has
+ * nothing to hang it on — the one clause this shape does not finish, and the
+ * reason `repeat_without_condition` exists.
+ */
+export const SLOW: SpellDefinition = {
+  id: 'slow',
+  name: 'Slow',
+  level: 3,
+  school: 'transmutation',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 120 },
+  targets: { count: 6 },
+  targetsWithin: { kind: 'cube', size: 40, origin: 'point' },
+  effects: [
+    {
+      kind: 'save',
+      ability: 'wis',
+      // Three grants and no condition, off one saving throw. A second `save`
+      // effect for any of them would roll a second die, and a creature could
+      // then be slowed and not penalised.
+      modifiers: [
+        // "An affected target's Speed is halved" — presence rather than
+        // count, so two Slows are one halving.
+        { kind: 'speed-change', change: 'halve' },
+        // "it takes a −2 penalty to AC". A flat bonus with the sign turned
+        // round, which is the only kind an Armour Class takes.
+        { kind: 'bonus', bonus: { source: 'Slow', flat: 2 }, applies: ['ac'], direction: 'subtract' },
+        // "and it can't take Reactions" — one slot taken away, with
+        // everything the sentence does not name left alone.
+        { kind: 'action', rule: { kind: 'forbids', slots: ['reaction'] } },
+      ],
+    },
+  ],
+  durationSeconds: 60,
+  unmodelled: [
+    'the −2 penalty does not reach Dexterity saving throws: a granted bonus names the families of roll it applies to and cannot be narrowed to one ability’s saves, so aiming it at saving throws would penalise every save the target makes, including the one this spell calls for',
+    '"it can take either an action or a Bonus Action, not both" is not applied: a rule that spends one of the turn’s two slots when the other is used couples two slots, and an action rule forbids a slot or narrows it',
+    '"it can make only one attack if it takes the Attack action" is not applied: the economy counts one Attack action and not the attacks inside it',
+    'the 25 percent chance a Somatic spell fails is not rolled: it is a percentage no effect asks for, deciding whether another casting happens at all',
+    'an affected target "repeats the save at the end of each of its turns, ending the spell on itself on a success" and this one does not: a repeat save is filed on the condition instance the failure created, and this failure creates none',
+  ],
+};
+
+/**
  * SRD Banishment:
  *
  * > _Level 4 Abjuration (Cleric, Paladin, Sorcerer, Warlock, Wizard)._
@@ -7442,10 +7524,20 @@ export const COMMAND: SpellDefinition = {
  * **The save is ordinary and what it buys is a subtraction.** Failing it does
  * not *give* the target a condition; it takes away the benefit of one it may
  * already have — `conditionApplicability` grants the Invisible its effects
- * and nothing narrows them for a single creature — and hands every attacker
- * who can see it Advantage besides. A `save` effect with no condition to
- * impose would be a die thrown for nothing, so the Cube is not resolved over
- * and the sentence goes to the table whole.
+ * and nothing narrows them for a single creature. The definition had said
+ * "a `save` effect with no condition to impose would be a die thrown for
+ * nothing", which was the format's rule and not the spell's: `save.condition`
+ * is optional now, and the `benefit` rider is what the failure hands out.
+ *
+ * **The Cube picks its own targets**, which is the difference between this
+ * and Slow's: "**each** creature in the Cube" is the geometry choosing, so it
+ * is an `area` and not a `targetsWithin`. Nothing persists in it — the save
+ * is rolled once, at the cast, exactly as Fireball's is — so the Concentration
+ * holds the grant and the Cube is not a place anybody can walk into later.
+ *
+ * **The objects are still the table's**, and so is the Advantage the outline
+ * buys: that sentence is gated on the attacker's sight, which is a pairwise
+ * declaration between two creatures rather than a state on the outlined one.
  */
 export const FAERIE_FIRE: SpellDefinition = {
   id: 'faerie-fire',
@@ -7456,13 +7548,24 @@ export const FAERIE_FIRE: SpellDefinition = {
   concentration: true,
   range: { kind: 'ranged', feet: 60 },
   targets: { count: 0 },
-  effects: [],
+  area: { kind: 'cube', size: 20, origin: 'point' },
+  effects: [
+    {
+      kind: 'save',
+      ability: 'dex',
+      // "affected creatures ... can't benefit from the Invisible condition",
+      // and no condition of its own: the outline is not a state the rules
+      // read, and the one thing the sentence does to the rules is take a
+      // benefit away. No `lasts`, because the casting is a minute of
+      // Concentration and both doors that end it hand the benefit back.
+      modifiers: [{ kind: 'benefit', denies: 'invisible' }],
+    },
+  ],
   durationSeconds: 60,
   unmodelled: [
-    'the Dexterity saving throw is not rolled: what a failure buys is the loss of a condition’s benefit rather than a condition, and nothing narrows what the Invisible condition does to one creature',
-    'the 20-foot Cube is not a template: nothing is resolved over it, so which creatures and objects are inside it is the DM’s',
+    'the objects in the Cube are not outlined: objects are not modelled, so which of them the light picks out is the DM’s',
     'the Dim Light each outlined thing sheds in a 10-foot radius is not applied; the engine has no lighting',
-    '"Attack rolls against an affected creature or object have Advantage if the attacker can see it" is not granted: the Advantage is ordinary and the gate on it is not, because declared sight is a pairwise fact and the outline is not a state anything reads',
+    '"Attack rolls against an affected creature or object have Advantage if the attacker can see it" is not granted: the Advantage is ordinary and the gate on it is not, because declared sight is a pairwise fact between two creatures and the outline is not a state an attacker’s roll reads',
   ],
 };
 
@@ -13409,6 +13512,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   SIMULACRUM,
   SLEEP,
   SLEET_STORM,
+  SLOW,
   SORCEROUS_BURST,
   SPARE_THE_DYING,
   SPEAK_WITH_ANIMALS,

@@ -1334,7 +1334,7 @@ export type SpellEffect =
       readonly conditions: readonly ConditionName[];
     }
   /**
-   * A saving throw; a condition on a failure.
+   * A saving throw, and what its failure imposes.
    *
    * **The one host that keeps its flat spelling.** `condition`, `lasts`,
    * `check`, `outlivesCasting` and `repeats` sit directly on the effect rather
@@ -1375,7 +1375,41 @@ export type SpellEffect =
        * arrives with its primitive and with the spell that writes it.
        */
       readonly advantageIfFought?: true;
-      readonly condition: ConditionName;
+      /**
+       * The condition the failure imposes, where it imposes one.
+       *
+       * **Optional, and the docstring it replaces said exactly why it could
+       * not be.** "A `save` effect with no condition to impose would be a die
+       * thrown for nothing" was true while a failure could carry nothing
+       * *but* a condition. {@link ModifierRider} ended that, and the book
+       * prints the consequence: SRD Slow's "An affected target's Speed is
+       * halved, it takes a −2 penalty to AC ... and it can't take Reactions"
+       * and SRD Faerie Fire's outlining are one saving throw whose failure
+       * hands out **grants and nothing else**. {@link save.modifiers} has
+       * documented Slow by name since it was written, in the field that could
+       * not host it.
+       *
+       * Written as separate effects instead, a halved Speed and a penalty
+       * would land on every target whether it saved or not — the confident
+       * wrong answer rather than the missing one — and a second `save` effect
+       * would roll a second saving throw for one sentence, which is the
+       * argument every rider on this host already makes.
+       *
+       * **What the old requirement was standing in for is still enforced,
+       * one field along**: `checkSpellDefinition` refuses a `save` that
+       * imposes no condition *and* hangs no rider (`save_imposes_nothing`),
+       * because that really is a die thrown for nothing. Lifting that needs a
+       * door which publishes the outcome — SRD Zone of Truth's "You know
+       * whether each creature succeeds or fails" is the sentence waiting on
+       * one — and no such door exists.
+       *
+       * **{@link save.repeats} goes with it.** A repeat is filed on the
+       * condition instance the failure created, so a failure that created
+       * none has nothing to hang one on; `repeat_without_condition` refuses
+       * the pair, which is why Slow's "repeats the save at the end of each of
+       * its turns" is the one clause of that spell still unwritten.
+       */
+      readonly condition?: ConditionName;
       /**
        * Further conditions the **same** failed save imposes.
        *
@@ -1395,6 +1429,13 @@ export type SpellEffect =
        * The flat {@link save.repeats} belongs to the saving throw rather than
        * to any one condition, which is why it stays flat: SRD writes "the
        * target repeats the save", once, whatever the failure imposed.
+       *
+       * **The rest of what, is a question with an answer**, so this needs
+       * {@link save.condition} beside it: a list with the flat slot left
+       * empty would be a second spelling of "one condition", and one
+       * vocabulary with two layouts is exactly what `conditionRiderOf` exists
+       * to stop becoming two. `further_conditions_without_a_first` refuses
+       * it.
        */
       readonly conditions?: readonly ConditionRider[];
       /**
@@ -3351,9 +3392,18 @@ export function teleportOf(
  * condition: SRD writes "the target repeats the save" once, whatever the
  * failure imposed, and a copy on each rider would raise one debt per
  * condition at every turn boundary.
+ *
+ * **`condition` is the one kind whose list is non-empty, and `save` stopped
+ * being the second the day its flat condition became optional.** SRD Slow and
+ * SRD Faerie Fire roll a saving throw whose failure hands out grants and
+ * imposes nothing, so the flat slot may simply be absent and the first
+ * element is then `save.conditions`' first or nothing at all. Every caller
+ * that reached for `[0]` on a `save` is a caller that has to ask whether
+ * there was one — which is a compiler error at each of them rather than an
+ * `undefined` condition name travelling into the fold.
  */
 export function conditionRiderOf(
-  effect: Extract<SpellEffect, { kind: 'save' | 'condition' }>,
+  effect: Extract<SpellEffect, { kind: 'condition' }>,
 ): readonly [ConditionRider, ...ConditionRider[]];
 export function conditionRiderOf(effect: SpellEffect): readonly ConditionRider[];
 export function conditionRiderOf(effect: SpellEffect): readonly ConditionRider[] {
@@ -3365,15 +3415,24 @@ export function conditionRiderOf(effect: SpellEffect): readonly ConditionRider[]
       return effect.conditions ?? [];
     case 'save':
       return [
-        {
-          name: effect.condition,
-          ...(effect.lasts === undefined ? {} : { lasts: effect.lasts }),
-          ...(effect.check === undefined ? {} : { check: effect.check }),
-          ...(effect.outlivesCasting === undefined
-            ? {}
-            : { outlivesCasting: effect.outlivesCasting }),
-          ...(effect.repeats === undefined ? {} : { repeats: effect.repeats }),
-        },
+        // The flat fields are one rider and they are one rider **only when
+        // the condition is there**: `lasts`, `check`, `outlivesCasting` and
+        // `repeats` are all sentences about a condition, and the validator
+        // refuses every one of them beside an absent `condition` rather than
+        // letting this build a nameless rider for them to hang on.
+        ...(effect.condition === undefined
+          ? []
+          : [
+              {
+                name: effect.condition,
+                ...(effect.lasts === undefined ? {} : { lasts: effect.lasts }),
+                ...(effect.check === undefined ? {} : { check: effect.check }),
+                ...(effect.outlivesCasting === undefined
+                  ? {}
+                  : { outlivesCasting: effect.outlivesCasting }),
+                ...(effect.repeats === undefined ? {} : { repeats: effect.repeats }),
+              },
+            ]),
         ...(effect.conditions ?? []),
       ];
     default:
