@@ -101,15 +101,24 @@ describe('a spell may name a shape in any book', () => {
   });
 
   /**
-   * **Haste is two debts in one clause and is filed as two.** The extra action
-   * itself is the arm that has no destination — nothing creates an action —
-   * and the five it may be spent on are a `permits-only` narrowing over names
-   * `NAMED_ACTIONS` does not all carry. Re-filing the whole entry would have
-   * said the spell is blocked on the narrowing, which is the smaller half.
+   * **Haste was two debts in one clause, filed as two — and the split is what
+   * let one of them be paid on its own.**
+   *
+   * The extra action itself was the arm with no destination; `ActionRule`
+   * grew the member that creates one, and the clause is not an adjudication
+   * any more. Had the entry been re-filed whole onto the narrowing, this batch
+   * would have finished the larger half of Haste's sentence and the map would
+   * have gone on saying the spell was blocked on the same thing it had always
+   * been blocked on. What is left is the smaller half, still filed where the
+   * split put it: the five actions the extra one may be spent on, one of which
+   * nothing spends.
    */
-  it('keeps Haste’s extra action on the arm that still has no destination', () => {
-    expect((ADJUDICATED['haste'] ?? []).map((entry) => entry.why)).toContain(
-      'an-action-a-spell-compels-or-forbids',
+  it('paid the arm it had split out, and left the narrowing filed', () => {
+    const filed = (ADJUDICATED['haste'] ?? []).map((entry) => entry.why);
+    expect(filed).not.toContain('an-action-a-spell-compels-or-forbids');
+    expect(filed).toContain('an-action-the-engine-has-no-spender-for');
+    expect((ADJUDICATED['haste'] ?? []).map((entry) => entry.clause)).not.toContain(
+      'the extra action',
     );
   });
 });

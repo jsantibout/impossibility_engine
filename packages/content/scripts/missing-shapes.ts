@@ -170,7 +170,13 @@ export const MISSING_SHAPES = {
   'a-damage-penalty-a-spell-grants':
     '`docs/design/rolls-and-damage.md`: "`BonusApplies` covers attacks, saves and ability checks — all rolls — and now `ac`". Damage is not a member, and a spell that makes a creature subtract from **its own** damage rolls has nowhere to say so; `damageBonuses` is the feature-side twin that exists.',
   'an-action-a-spell-compels-or-forbids':
-    '**The catalogue writes this shape now, and what is left of it is a shorter list than the id.** `ActionRule` in `combat.ts` is the ninth sourced grant, reached by the `action-rule` effect kind and by the `action` rider kind, and it says three of the four things this id was named for: a slot or a named action **taken away** (`forbids`), one slot **narrowed** to a named few and failing closed (`permits-only`), and a named action **paid for out of a cheaper slot** (`allows`). The description before this one said "not one definition in the catalogue writes one", and the tranche it asked for wrote four: Stinking Cloud’s "can’t take an action or a Bonus Action" and Fear’s Dash as riders on their own saves, Wind Walk’s "The only actions a target can take in this form" and Magic Jar’s two sentences as standalone effects. So an entry still filed here is one of five things rather than a spell nobody got round to. **One is a lifetime rather than a rule**: Befuddlement’s clause never ends at all, which an Instantaneous casting may not hang. Shocking Grasp’s was the other and is written — its clause ends at the start of the *target’s* next turn, `RiderDuration` grew the member that says so, and the spell is executed. **One is a name the engine cannot tell apart** — Wind Walk’s Magic action "to begin reverting", and every Hide, Search and Study `NAMED_ACTIONS` leaves out for the same reason. **One has since left**: Slow’s "it can’t take Reactions" is `forbids` exactly and had nowhere to ride, because the failed save it hangs on could carry no riders — `save.condition` is optional now, the spell is executed, and the clause is written. And the fourth thing the id was named for is still missing outright: **spending somebody else’s budget**, which `combat.ts` refuses to be stretched to because it has to decide who is playing the creature — Dissonant Whispers, Compulsion and the three Dominates; an **extra action** granted rather than an existing one governed, which no member creates (Haste); and a rule that **couples two slots**, or counts the attacks inside one, which neither polarity can state (Slow again). `docs/design/characters-and-equipment.md` names that last one from the feature side: "Extra attacks inside the Attack action. The economy counts one Attack action, not the attacks in it". **Gate G1 read the five as five and this id is a bundle**, which is recorded here rather than acted on: the five arms read about 1/1, 2/1, 2/0, 3/0 and 1/0 and the largest of them finishes one spell, so nobody should brief the id as a unit. One arm has already left and has since been paid — Shocking Grasp went to `a-rider-that-lasts-until-the-start-of-the-targets-next-turn`, because what it lacked was one word of a duration vocabulary and not a rule; the word was added, the spell is executed and that id is retired. Two more are mis-filings whose destination is in the **feature** vocabulary rather than this one — Speak with Animals, Gaseous Form and Haste’s Utilize belong under an action with no spender — and moving them is a third widening of the `why` field that G1 did not take.',
+    '**Gate G1 read this id as five mechanisms and it is a bundle no longer: four of the five have left it, two of them built by the batch that read them apart.** The action-rule vocabulary says four things now, and the catalogue writes all four: a slot or a named action **taken away** (`forbids`), one slot **narrowed** to a named few and failing closed (`permits-only`), a named action **paid for out of a cheaper slot** (`allows`), and — the member that creates rather than governs — an **extra action** handed to a turn (`grants`), once as a casting resolves or at the start of every turn the casting sees. SRD Expeditious Retreat’s "You take the Dash action" is the first of those and SRD Haste’s "it gains an additional action on each of its turns" the second, and both spells are executed. **Spending somebody else’s budget left on the owner’s ruling of 2026-09-22**: a spell may and a caller may not, `OutcomeRiders.spends` in packages/engine/src/spell-definitions.ts is the vocabulary that charges a slot and performs nothing, and SRD Dissonant Whispers is executed off it. The self-cure went to `a-self-cure-a-spell-forbids` and the rule coupling two slots to `a-rule-that-couples-two-slots-of-a-turn`; the sentences that need somebody to **play** the creature went to `a-creature-somebody-else-is-playing`; and the two mis-filings G1 found went to `an-action-the-engine-has-no-spender-for` before any of it. **Seven spells and two magic items are left under it, and they are four things.** A **lifetime** rather than a rule: SRD Befuddlement’s clause never ends at all, which an Instantaneous casting may not hang, and `RiderDuration` offers four named moments and a span in seconds with no member for a grant that simply does not end. The **attacks counted inside** one Attack action rather than the actions in a turn — SRD Slow’s "it can make only one attack if it takes the Attack action" — which is the spell-side face of the gap docs/archive/design/characters-and-equipment.md names from the feature side, "Extra attacks inside the Attack action. The economy counts one Attack action, not the attacks in it". A Reaction the spell **hands over** for an errand no spender is told apart by — SRD Wall of Stone’s "it can use its Reaction to move up to its Speed", SRD Power Word Heal’s standing up, and SRD Wind Walk’s Magic action "to begin reverting" — which is `allows` polarity over a name that is not one of the engine’s, and is the same want that sent Speak with Animals to the feature book. And two spells whose definitions execute nothing — SRD Confusion and SRD Tsunami, both tracked, both carrying an empty effect list because the sentence that blocks them is the economy whole — which is where the Mace of Terror and the Ring of Elemental Command sit too, each naming the id as a bare blocker for what a creature it has caught must then do with its turns. Narrowed rather than retired, which is `a-mode-on-the-save-a-spell-forces`’ precedent — and a reader should note the four are still four, so nobody should brief this id as a unit either.',
+  'a-self-cure-a-spell-forbids':
+    'a spell that closes **one** way out of a condition and leaves the condition standing. SRD Hideous Laughter: the target drops with the Prone and Incapacitated conditions and "it can’t end the Prone condition on itself". Three vocabularies sit next to this and none of them says it. A rule about a turn governs a **spend**, and standing up is not one of the named actions a spender can be told apart by — it is movement the ruler charges — so nothing forbids it by name. `condition-immunity` refuses a condition **arriving**, where this one has already arrived and is meant to stay. And `DeniedBenefit` in packages/engine/src/spell-definitions.ts switches off what a condition *confers*, where the Prone confers nothing here and what is denied is the exit. Gate G1 read this as the fifth arm of the bundle above, and it is a different verb from all four members of that vocabulary: three of them govern a spend, the fourth creates one, and this one shuts a door the condition layer holds open for everybody.',
+  'a-rule-that-couples-two-slots-of-a-turn':
+    'a rule about **two** slots at once, where spending either forecloses the other. SRD Slow: "it can take either an action or a Bonus Action, not both". Every member of the action-rule vocabulary judges one slot considered alone — a slot taken away outright, one slot narrowed to a named few, one named action re-priced, one extra action added — so a rule holding the **pair** of them is the thing none of the four can state, and one that forbade both would refuse the turn entirely. What it needs is an input the refusal is not given: the refusal is handed the spend and the rules standing on the creature, and never the budget those two are being judged against, so *has the other one gone yet* is a question nothing at that site can ask. Gate G1 read it as the neighbour of the self-cure above, and this is the filing that reading asked for rather than a member forced into a vocabulary that would then say something narrower than the book. The vocabulary itself is in packages/engine/src/spell-definitions.ts, where the effect that carries a rule is declared.',
+  'a-creature-somebody-else-is-playing':
+    'a sentence that needs somebody to **decide** what another creature does, rather than to charge it for doing something. The owner ruled on 2026-09-22 that a spell may spend another creature’s budget, and `OutcomeRiders.spends` in packages/engine/src/spell-definitions.ts is that ruling built: a slot goes, the phrase the book prints goes into the log beside it, and the table narrates from that. **This is what the ruling did not reach**, and the distinction is one word. SRD Dissonant Whispers says the Reaction is *used*, which is arithmetic; SRD Command says the target must "follow the command on its next turn", the three Dominates hand the caster a telepathic link that issues orders, SRD Compulsion gives the caster a Bonus Action to "designate a direction" for somebody else to walk in, and SRD Irresistible Dance makes a creature "use all its movement to dance in place". Every one of those is a **choice** made for a creature by somebody who is not playing it — which way it runs, which of five commands it obeys, what a whole turn is spent on — and the doctrine that the engine adjudicates reality and does not play creatures is why no vocabulary here answers it. It is a shape rather than a refusal because two people at a table settle it in a sentence: what is missing is somewhere for the engine to record that a turn is being directed by somebody else, and what a turn so directed may legally contain.',
   'a-repeat-save-with-no-condition-to-hang-it-on':
     'a repeat save on a failure that imposed **no condition**. `a-save-whose-failure-imposes-no-condition` is built — `save.condition` is optional and SRD Slow and SRD Faerie Fire are executed off it — and this is the one sentence of Slow it did not finish, recorded rather than inherited by the id that used to hold it. A repeat is filed on the condition instance the failure created: `applyConditionTo` takes the `RepeatSave` beside the condition, the turn boundary raises whatever sits on a creature, and a success releases that instance. A failure that creates none has nothing there, so a repeat beside it would be a debt no boundary could ever see — which is the argument `spell-definitions.ts` makes in the field itself, "a repeat save is filed on the condition instance the failure created, and this failure creates none", and which `repeat_without_condition` refuses at authoring rather than accepting silently. The fifth of the family `a-repeat-save-on-the-clock` and its three siblings already form, and the first whose gap is the **host** rather than the trigger.',
   'a-turn-a-spell-inserts-into-the-order':
@@ -461,21 +467,33 @@ export const SPLIT_BUNDLES: Readonly<Record<string, SplitBundle>> = {
    * the owner took rather than enumerate the field a fourth time — so the
    * record and the type landed together, which is why they are one commit.
    *
-   * **Four adjudications over four spells, and the id survives.** That is
-   * `a-mode-on-the-save-a-spell-forces`' precedent rather than
+   * **Thirteen adjudications over twelve spells, and the id survives.** That
+   * is `a-mode-on-the-save-a-spell-forces`' precedent rather than
    * `speed-and-movement-modes`': what the reading found is that the
    * description claimed arms the vocabulary had grown into, not that the
-   * mechanism was imaginary. What is left under the id is the three arms
-   * nobody has built — an extra action **created** (Expeditious Retreat,
-   * Haste), a compelled action spending somebody else's budget (Dissonant
-   * Whispers, Command, the three Dominates, Compulsion), and a lifetime an
-   * Instantaneous casting cannot hang (Befuddlement) — and the `held` list
-   * below holds only what moved, which is what the guard over these records
-   * demands.
+   * mechanism was imaginary.
+   *
+   * **The batch that read the arms apart then paid two of them and split the
+   * rest.** An extra action **created** is built — `grants` is the fourth
+   * member, Expeditious Retreat and Haste are executed, and neither clause
+   * is an adjudication any more, so neither appears below: nothing moved,
+   * something was finished. The same of Dissonant Whispers, on the owner's
+   * ruling of 2026-09-22 that a spell may spend another creature's budget.
+   * What the ruling did **not** reach is a sentence that needs somebody to
+   * decide what a creature does, and that is six adjudications across six
+   * spells with an id of their own now; the self-cure and the coupled slots
+   * are one apiece.
+   *
+   * What is left under the id is enumerated in the id's own description, and
+   * nowhere else: a second count written here would be a second thing to keep
+   * true, which is exactly how the sentence this one replaces went stale. The
+   * `held` list below holds only what moved, which is what the guard over
+   * these records demands and the only arithmetic this record is answerable
+   * for.
    */
   'an-action-a-spell-compels-or-forbids': {
-    adjudications: 4,
-    spells: 4,
+    adjudications: 13,
+    spells: 12,
     held: [
       // The arm that left first, at gate G1: what Shocking Grasp lacks is one
       // word of a duration vocabulary and not a rule about the economy.
@@ -500,6 +518,39 @@ export const SPLIT_BUNDLES: Readonly<Record<string, SplitBundle>> = {
       // entry has no marker, which is this one and is why the lookup takes
       // the clause as well. See `SplitBundle.held`.
       ['speak-with-animals', 'skill options with them', 'an-action-the-engine-has-no-spender-for'],
+      // Arm five, filed rather than built: a cure closed while the condition
+      // it belongs to stands, which is neither a spend governed nor an
+      // arrival refused.
+      [
+        'hideous-laughter',
+        'unable to end the Prone condition on itself',
+        'a-self-cure-a-spell-forbids',
+      ],
+      // And its neighbour, which the same reading said to file rather than
+      // force: a rule about two slots at once, where every member of the
+      // vocabulary is about one slot considered alone.
+      [
+        'slow',
+        'it can take either an action or a Bonus Action, not both',
+        'a-rule-that-couples-two-slots-of-a-turn',
+      ],
+      // The six that outlived the ruling. A spell may spend another
+      // creature's budget; none of these is a budget, and all six are
+      // somebody deciding what a creature does with a turn.
+      [
+        'compulsion',
+        'the Bonus Action that designates a direction',
+        'a-creature-somebody-else-is-playing',
+      ],
+      ['dominate-beast', 'the telepathic link', 'a-creature-somebody-else-is-playing'],
+      ['dominate-monster', 'the telepathic link', 'a-creature-somebody-else-is-playing'],
+      ['dominate-person', 'the telepathic link', 'a-creature-somebody-else-is-playing'],
+      // The tracked population's slot is a **marker** key — see
+      // `SplitBundle.held`, and the two Command entries, which are why the
+      // key has to tell one clause of a spell from another.
+      ['command', 'saving-throw', 'a-creature-somebody-else-is-playing'],
+      ['command', 'condition', 'a-creature-somebody-else-is-playing'],
+      ['irresistible-dance', 'roll-mode', 'a-creature-somebody-else-is-playing'],
     ],
   },
 };
@@ -623,8 +674,8 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   compulsion: [
     {
       clause: 'the Bonus Action that designates a direction',
-      why: 'an-action-a-spell-compels-or-forbids',
-      note: 'SRD: "you can take a Bonus Action to designate a direction", and "Each Charmed target must use as much of its movement as possible to move in that direction on its next turn". Movement is spent through a command the mover sends, and no effect makes somebody else spend it.',
+      why: 'a-creature-somebody-else-is-playing',
+      note: 'SRD: "you can take a Bonus Action to designate a direction", and "Each Charmed target must use as much of its movement as possible to move in that direction on its next turn". A spell may spend another creature’s budget now, and this is not that: which way somebody walks is a **decision** made for them by the caster, and the engine adjudicates reality rather than playing creatures.',
     },
     {
       clause: 'repeats after moving',
@@ -717,13 +768,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'Not an outcome rider, and the distinction is the whole reason this has a shape of its own: a rider rides the roll its host made, and this fires on a number the engine went on to compute from it — the target reaching 0 Hit Points. The gear turned to dust and the restriction on reviving it ride on the same missing branch.',
     },
   ],
-  'dissonant-whispers': [
-    {
-      clause: 'spends its Reaction fleeing',
-      why: 'an-action-a-spell-compels-or-forbids',
-      note: 'SRD: it "must immediately use its Reaction, if available, to move as far away from you as it can, using the safest route". The Reaction and the movement are both real budgets, and nothing lets a spell spend somebody else’s.',
-    },
-  ],
   'dominate-beast': [
     {
       clause: 'whenever it takes damage',
@@ -732,8 +776,8 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
     },
     {
       clause: 'the telepathic link',
-      why: 'an-action-a-spell-compels-or-forbids',
-      note: 'Issuing commands and spending your Reaction to make the dominated creature act are both somebody else’s action economy, which no effect can spend.',
+      why: 'a-creature-somebody-else-is-playing',
+      note: 'SRD hands the caster a telepathic link that issues orders, and a Reaction the caster spends to make the dominated creature act. The budget is reachable now — a spell may spend one — and what is not is the order itself: what the beast then does with its turn is a choice made for it by somebody who is not playing it.',
     },
   ],
   'dominate-monster': [
@@ -744,8 +788,8 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
     },
     {
       clause: 'the telepathic link',
-      why: 'an-action-a-spell-compels-or-forbids',
-      note: 'Commanding the target, and spending your own Reaction to make it take one of its Reactions, are both somebody else’s budget to spend.',
+      why: 'a-creature-somebody-else-is-playing',
+      note: 'Commanding the target, and spending your own Reaction to make it take one of its Reactions. The second half is a budget and a spell may spend one now; the first is the caster deciding what the target does, which is the half no vocabulary here answers.',
     },
   ],
   'dominate-person': [
@@ -756,8 +800,8 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
     },
     {
       clause: 'the telepathic link',
-      why: 'an-action-a-spell-compels-or-forbids',
-      note: 'The commands the link carries are the target’s actions, and no effect spends another creature’s action economy.',
+      why: 'a-creature-somebody-else-is-playing',
+      note: 'The commands the link carries are the target’s actions — not the slots they come out of, which a spell may now spend, but which action is taken and at what. That is a decision, and it is made by somebody who is not playing the creature.',
     },
   ],
   'eldritch-blast': [
@@ -765,18 +809,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'an uneven split of the beams',
       why: 'several-attack-rolls-from-one-casting',
       note: 'the beams are thrown — a roll each at levels 5, 11 and 17, each its own attack and each able to take its own creature. What the caster cannot say is a split that is not as even as it can be: the rolls are dealt one to each creature named and round again for the rest, so a level 17 Warlock sends two beams at each of two creatures and never three at one and one at the other. Every split the SRD prints is sayable — all of them at one creature, one each at as many creatures as there are beams — and the lopsided middle is not.',
-    },
-  ],
-  // **The Bonus Action Dash is written now**, which is what moved this spell
-  // out of the tracked bucket on no engine change at all: `allows` puts a named
-  // action in a cheaper slot and `STATABLE_PRICES` holds `dash` out of a Bonus
-  // Action. What is left is the other half of the same sentence, and it was
-  // never the same gap.
-  'expeditious-retreat': [
-    {
-      clause: 'an extra action the spell grants',
-      why: 'an-action-a-spell-compels-or-forbids',
-      note: 'SRD: "You take the Dash action, and until the spell ends, you can take that action again as a Bonus Action." The second clause is a price and is enforced; the first is an **extra** action handed out at the casting rather than an existing one governed, which is the residue this shape records for Haste. `ActionRule` forbids, narrows and re-prices, and creates nothing — and an engine that took the Dash itself would be writing fiction into the log.',
     },
   ],
   'faerie-fire': [
@@ -908,14 +940,9 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: "the target’s Speed is doubled, it gains a +2 bonus to Armor Class". A Speed is composed from a halving, which is presence rather than count, and a zero, which is last and wins; a doubling is neither, and the book gives no order for one against a halving — so the member arrives with the rule that settles it or not at all.',
     },
     {
-      clause: 'the extra action',
-      why: 'an-action-a-spell-compels-or-forbids',
-      note: 'SRD: "it gains an additional action on each of its turns." An extra action **granted** rather than an existing one governed, which is the arm of that shape with no member at all: `ActionRule` forbids a slot, narrows one and pays for a named action out of a cheaper slot, and none of the three creates one. Gate G1 counted this arm as its own and it is the half of Haste’s sentence that still has nowhere to go.',
-    },
-    {
       clause: 'the five that extra action may be spent on',
       why: 'an-action-the-engine-has-no-spender-for',
-      note: 'SRD: "That action can be used to take only the Attack (one attack only), Dash, Disengage, Hide, or Utilize action." The narrowing itself is `permits-only` and is written by four definitions; what it cannot name is **Utilize**, which `NAMED_ACTIONS` leaves out because no spender could be told apart as having taken one, so a rule listing it would read as enforced and would not be. Filed apart from the sentence above it because the two are different gaps and a single entry hid which of them is which.',
+      note: 'SRD: "That action can be used to take only the Attack (one attack only), Dash, Disengage, Hide, or Utilize action." **The action itself is granted now** — `grants` mints one into the target’s budget at the start of each of its turns — and this is the sentence after it, which is a narrowing and cannot be written: the allowlist a granted action carries would name four of the five, because **Utilize** is one the engine leaves out of its named actions since no spender could be told apart as having taken one. A rule listing the four would forbid the fifth, which the book allows. Filed apart from the sentence above it because the two were always different gaps and a single entry hid which of them is which.',
     },
     {
       clause: 'the lethargy',
@@ -931,8 +958,8 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
     },
     {
       clause: 'unable to end the Prone condition on itself',
-      why: 'an-action-a-spell-compels-or-forbids',
-      note: 'SRD: "it can’t end the Prone condition on itself." Standing up is something a creature does and the engine does not model it as an action a spell can forbid, so the Prone is lifted by the spell ending and by nothing this clause could stop.',
+      why: 'a-self-cure-a-spell-forbids',
+      note: 'SRD: "it can’t end the Prone condition on itself." Standing up is something a creature does and no rule about a turn can forbid it: it is movement the ruler charges rather than one of the named actions a spender is told apart by. Gate G1 read this as the fifth arm of the bundle it used to sit in, and it is filed under its own id now — a **cure** closed while the condition stands, which is neither a spend governed nor an arrival refused.',
     },
   ],
   'hunters-mark': [
@@ -1129,8 +1156,8 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
     },
     {
       clause: 'it can take either an action or a Bonus Action, not both',
-      why: 'an-action-a-spell-compels-or-forbids',
-      note: 'a rule that spends one of the turn’s two slots when the other is used. `ActionRule` has three members and none of them couples two slots to each other: `forbids` takes a slot away outright, `permits-only` narrows one to named actions, and `allows` widens. This spell is one of the two the id’s description names for exactly that residue.',
+      why: 'a-rule-that-couples-two-slots-of-a-turn',
+      note: 'a rule that closes one of the turn’s two slots when the other is used. The action-rule vocabulary has four members and none of them couples two slots to each other: one takes a slot away outright, one narrows a slot to named actions, one re-prices a named action, and the fourth adds an extra one — every one of them about a single slot considered alone. Filed under its own id rather than forced into a member that would say something narrower than the book.',
     },
     {
       clause: 'it can make only one attack if it takes the Attack action',
@@ -1662,14 +1689,14 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
     {
       marker: 'saving-throw',
       clause: 'follow the command on its next turn',
-      why: 'an-action-a-spell-compels-or-forbids',
-      note: 'the Wisdom save is ordinary and what it gates is a creature’s whole next turn spent doing what somebody else said. The action economy is the engine’s and the only lever a spell has on it is a condition the engine names, so the save would decide nothing that could be applied.',
+      why: 'a-creature-somebody-else-is-playing',
+      note: 'the Wisdom save is ordinary and what it gates is a creature’s whole next turn spent doing what somebody else said. A spell may spend that creature’s slots now, which is not the same thing and does not finish this: what the save would have to produce is one of five orders being **obeyed**, and obedience is a decision the engine has no business taking for anybody.',
     },
     {
       marker: 'condition',
       clause: 'The target has the Prone condition and then ends its turn',
-      why: 'an-action-a-spell-compels-or-forbids',
-      note: 'the Prone half is an ordinary `condition` effect; the clause beside it that ends the creature’s turn is not, and a definition that wrote only the condition would be half a sentence — which is the whole reason all five options are the table’s together.',
+      why: 'a-creature-somebody-else-is-playing',
+      note: 'the Prone half is an ordinary `condition` effect, and the clause beside it is the nearest of the five to sayable: a turn ended is every slot of it gone, which a spell may now spend. What still refuses it is that this is one option of five a creature **chose to obey**, so writing Grovel alone would be a Command that only ever meant one word — which is the whole reason all five options are the table’s together.',
     },
   ],
   'gust-of-wind': [
@@ -2671,8 +2698,8 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
     {
       marker: 'roll-mode',
       clause: 'has Disadvantage on Dexterity saving throws and attack rolls',
-      why: 'an-action-a-spell-compels-or-forbids',
-      note: 'the two modes are ordinary riders; they share a sentence with "must use all its movement to dance in place", which is the action economy and which no spell effect reaches.',
+      why: 'a-creature-somebody-else-is-playing',
+      note: 'the two modes are ordinary riders; they share a sentence with "must use all its movement to dance in place", and that is a creature being danced rather than a slot being charged — where the movement goes is a decision, and the engine plays nobody.',
     },
   ],
   'control-weather': [

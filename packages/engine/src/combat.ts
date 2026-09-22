@@ -246,19 +246,34 @@ export const SLOTS_WITH_NAMED_ACTIONS: readonly ActionSlot[] = [
  * `releaseOnTarget`, by a dispel, by a broken Concentration and by a `grants`
  * timer, through exactly the doors the other eight already use.
  *
- * ### Three members, because the SRD writes three sentences
+ * ### Four members, because the SRD writes four sentences
  *
  * | | SRD | |
  * |---|---|---|
  * | `forbids` | Stinking Cloud: "can't take an action or a Bonus Action" | takes named slots or named actions away |
  * | `permits-only` | Wind Walk: "The only actions a target can take … are the Dash action, the Hide action, and the Search action" | narrows one slot to a named few |
  * | `allows` | Conjure Woodland Beings: "you can take the Disengage action as a Bonus Action" | widens, rather than narrows |
+ * | `grants` | Haste: "it gains an additional action on each of its turns" | **creates** one, rather than governing one |
  *
  * The third has the opposite polarity from the first two and is in the same
  * union because it is the same fact — what this creature's action economy
  * permits *now*, as against what the rules permit in general — read from the
  * other end. A second mechanism for it would be a second place for one
  * sentence to be wrong.
+ *
+ * ### The fourth is a different verb, and says so
+ *
+ * The three above all answer "may this spend happen?". `grants` answers
+ * nothing: it puts a {@link GrantedAction} in a {@link TurnBudget}, which is
+ * the same field SRD Action Surge writes and the only place an extra action
+ * can live — `fold/combat.ts` folds `action-spent` through
+ * `must(event, spendAction(...))` and passes no rules, so an extra action held
+ * on the *creature* would be an event the command legally emitted and the
+ * reducer called corrupt. It is in this union anyway because it is hung,
+ * ended and released exactly as its three neighbours are, and because a
+ * second vocabulary for "what a running effect has done to a turn" is a
+ * second place for one sentence to be wrong. {@link refuseSpend} never reads
+ * it; {@link governs} says so in one line.
  *
  * ### What a compulsion is, and what it is not
  *
@@ -272,14 +287,36 @@ export const SLOTS_WITH_NAMED_ACTIONS: readonly ActionSlot[] = [
  * — where an engine that took the Dash itself would be writing fiction into
  * the log and calling it a rule.
  *
- * **The sentences that go the other way are deliberately still open**, and
- * they are a different shape rather than a gap in this one: Dissonant
- * Whispers' "must immediately use its Reaction … to move as far away from you
- * as it can", Compulsion's Bonus Action designating a direction, and the
- * three Dominates' telepathic link all *spend somebody else's budget*.
- * Nothing here can express that, on purpose. Whoever meets one of those next
- * is looking at a shape that has to decide who is playing the creature, which
- * is a question this union does not answer and must not be stretched to.
+ * **The sentences that go the other way used to be refused here by name**, and
+ * the owner's ruling of 2026-09-22 settled the question they were waiting on:
+ * a spell may spend another creature's budget. What that ruling did *not*
+ * move is the line above it, and the two are told apart by one word.
+ *
+ * | | |
+ * |---|---|
+ * | the engine **charges** a slot | legal: the economy is arithmetic, and a spell that uses up a Reaction has changed a number |
+ * | the engine **performs** the action | never: which way the creature ran, and whether it ran at all, is fiction |
+ *
+ * So Dissonant Whispers' "must immediately use its Reaction … to move as far
+ * away from you as it can" is written as the Reaction going, with the book's
+ * own phrase pinned into the log beside it for the table to narrate from —
+ * `OutcomeRiders.spends` is the vocabulary and `budget-compelled` is the
+ * event. Nothing walks anybody anywhere, exactly as nothing takes Fear's
+ * compelled Dash.
+ *
+ * **And it is not in this union**, which is the second half of the answer. A
+ * rule here stands on a creature and is asked of every later spend; a spend is
+ * a thing that happened once, at a moment, and the only door onto it is a
+ * casting's resolver. A caller still cannot reach another creature's budget:
+ * every command spends through `spendFor`, on the creature that is acting,
+ * gated by whose turn it is — and `budget-compelled` is emitted by no command
+ * a caller names. That is the distinction the old refusal was protecting, and
+ * it survives the ruling intact.
+ *
+ * What is still open is what was always the harder half: Compulsion's Bonus
+ * Action designating a direction and the three Dominates' telepathic link are
+ * a *caller* playing somebody else's creature, which no vocabulary here
+ * answers.
  */
 export type ActionRule =
   /**
@@ -324,6 +361,50 @@ export type ActionRule =
       readonly kind: 'allows';
       readonly action: NamedAction;
       readonly from: ActionSlot;
+    }
+  /**
+   * SRD Haste, SRD Expeditious Retreat: an action added to a turn, rather
+   * than one the turn already had being governed.
+   *
+   * It is the only member that makes a {@link TurnBudget} bigger, and the one
+   * that {@link refuseSpend} never consults — see the union's own note for why
+   * it is here anyway.
+   */
+  | {
+      readonly kind: 'grants';
+      /**
+       * Which moment the turn gets it, and the two are different spells.
+       *
+       * `each-turn` is SRD Haste's "on each of its turns": the rule stands on
+       * the creature and the turn boundary mints one every turn the casting
+       * sees. `casting` is SRD Expeditious Retreat's "You take the Dash
+       * action": once, as the casting resolves, into the turn that is running
+       * — and nothing is left standing afterwards, because a turn either
+       * spends what it was handed or loses it with the turn.
+       *
+       * **Required, with no default**, because the wrong one is silent in
+       * both directions: a per-turn Expeditious Retreat is a free Dash action
+       * every round for ten minutes, and a once-only Haste is a spell that
+       * did nothing after the turn it was cast on.
+       */
+      readonly at: 'casting' | 'each-turn';
+      /**
+       * The only actions the granted one may be spent on — SRD Expeditious
+       * Retreat's Dash.
+       *
+       * An allowlist rather than {@link GrantedAction.except}'s denylist,
+       * because both SRD sentences in *this* position print a list of what is
+       * allowed and Action Surge's prints the one thing that is not. It fails
+       * closed on a spend that does not name itself, for `permits-only`'s
+       * reason: letting an unnamed spend through would silently buy the
+       * caster the very action the sentence withheld.
+       *
+       * Absent is unnarrowed. **Haste's narrowing is absent on purpose**: the
+       * five actions it lists include Utilize, which {@link NAMED_ACTIONS}
+       * leaves out because no spender could be told apart as having taken one,
+       * so a rule naming it would read as enforced and would not be.
+       */
+      readonly only?: readonly NamedAction[];
     };
 
 /**
@@ -389,13 +470,44 @@ export function actionRuleKey(source: string, rule: ActionRule): string {
   ].join('|');
 }
 
-/** Whether a rule reaches this spend at all. */
+/**
+ * Whether a rule reaches this spend at all.
+ *
+ * `grants` answers no, always, and that is the member rather than an omission:
+ * it *creates* an action instead of judging one, so a spend that met it here
+ * would be refused by the very sentence that handed it over.
+ */
 const governs = (rule: ActionRule, slot: ActionSlot, as: NamedAction | undefined): boolean =>
   rule.kind === 'forbids'
     ? (rule.slots?.includes(slot) ?? false) || (as !== undefined && (rule.actions?.includes(as) ?? false))
     : rule.kind === 'permits-only'
       ? rule.slot === slot && !(as !== undefined && rule.actions.includes(as))
       : false;
+
+/**
+ * The extra actions a running effect owes this creature at the start of a turn.
+ *
+ * SRD Haste's "on each of its turns", read off the rules standing on the
+ * creature. **Only `each-turn`**: a grant the casting handed over once is in
+ * the budget already and is not owed again.
+ *
+ * Exported because the boundary that raises a turn's beginning is a command's
+ * — the budget is written by a combat event and nothing else — and because
+ * two boundaries raise one, `resolveTurn` and the opening of a fight.
+ */
+export function extraActionsOwedAtTurnStart(
+  rules: readonly GrantedActionRule[],
+): readonly GrantedAction[] {
+  const owed: GrantedAction[] = [];
+  for (const held of rules) {
+    if (held.rule.kind !== 'grants' || held.rule.at !== 'each-turn') continue;
+    owed.push({
+      source: held.label,
+      ...(held.rule.only === undefined ? {} : { only: held.rule.only }),
+    });
+  }
+  return owed;
+}
 
 /**
  * What one spend is: the slot it comes out of, and what the book calls it.
@@ -544,6 +656,23 @@ export interface CombatantInput {
 export interface GrantedAction {
   readonly source: string;
   readonly except?: readonly NamedAction[];
+  /**
+   * The other polarity, and the one a spell writes: the only actions this
+   * extra may be spent on — SRD Expeditious Retreat's Dash.
+   *
+   * It **fails closed**, where `except` fails open, and each matches the
+   * sentence that prints it: Action Surge names the one thing that is not
+   * allowed and leaves a turn otherwise whole, while Expeditious Retreat names
+   * the one thing that is. A spend that does not name itself therefore passes
+   * an `except` and is refused by an `only`, for `ActionRule`'s
+   * `permits-only` reason — waving an unnamed spend through would buy the
+   * caster the action the sentence withheld.
+   *
+   * The two are never written together by anything in this repository and
+   * nothing forbids it: an extra that said both would simply have to satisfy
+   * both, which is what a reader would expect of a sentence printing both.
+   */
+  readonly only?: readonly NamedAction[];
 }
 
 /**
@@ -923,6 +1052,17 @@ export function spendAction(
  * it, because "you cannot do this" with no reason is the least useful true
  * thing a rules engine can say.
  */
+/**
+ * Whether one extra action will pay for this spend.
+ *
+ * Both narrowings at once, and they fail in opposite directions on the spend
+ * that names nothing: an `except` has nothing to exclude and lets it by, an
+ * `only` has nothing to match and refuses. See {@link GrantedAction.only}.
+ */
+const permitsExtra = (extra: GrantedAction, as: NamedAction | undefined): boolean =>
+  (as === undefined || !(extra.except ?? []).includes(as)) &&
+  (extra.only === undefined || (as !== undefined && extra.only.includes(as)));
+
 function spendExtraAction(
   state: CombatState,
   id: CharacterId,
@@ -933,14 +1073,18 @@ function spendExtraAction(
     return err('no_action', `${id} has already taken an action`);
   }
 
-  const index = budget.extraActions.findIndex(
-    (extra) => as === undefined || !(extra.except ?? []).includes(as),
-  );
+  const index = budget.extraActions.findIndex((extra) => permitsExtra(extra, as));
   if (index === -1) {
     const refusing = budget.extraActions[0]!;
     return err(
       'action_forbidden',
-      `${id} has only the extra action ${refusing.source} bought, and that one is not the ${ACTION_TITLES[as!]} action`,
+      as === undefined
+        ? // An `only` list met by a spend that named nothing. The refusal says
+          // which, because "you cannot do this" with no reason is the least
+          // useful true thing a rules engine can say — and because the fix is
+          // for the caller to take the action the list holds by its own name.
+          `${id} has only the extra action ${refusing.source} bought, and that one is ${listed(refusing.only ?? [])} and nothing that does not say which it is`
+        : `${id} has only the extra action ${refusing.source} bought, and that one is not the ${ACTION_TITLES[as]} action`,
     );
   }
 
@@ -1012,6 +1156,41 @@ export function grantTurnBudget(
       budget.value,
     ),
   );
+}
+
+/**
+ * Whether one slot **could** be spent, without spending it.
+ *
+ * **The question, where its three neighbours are the deed**, and the split is
+ * not cosmetic: a spell that uses up somebody else's Reaction has to know
+ * whether the slot is there before it writes the event, and the fold performs
+ * the spend by applying that event. A resolver that called `spendReaction` and
+ * threw the answer away would be doing the thing in order to ask about it —
+ * which reads to every sweep, and to every reader, as a spend.
+ *
+ * It delegates rather than restating the checks, so the answer a casting gets
+ * and the answer the reducer gets are one function's: the capability, the
+ * rules standing on the creature, whose turn it is, and whether the slot has
+ * already gone are all asked exactly once, in one place.
+ *
+ * `movement` is not a member: movement is measured in feet against an
+ * allowance this module is handed, so "is there any left" is a different
+ * question with a different answer shape.
+ */
+export function canSpendSlot(
+  state: CombatState,
+  id: CharacterId,
+  slot: 'action' | 'bonus-action' | 'reaction',
+  conditions?: ConditionState,
+  spend?: Spend,
+): Result<true> {
+  const after =
+    slot === 'action'
+      ? spendAction(state, id, conditions, spend)
+      : slot === 'bonus-action'
+        ? spendBonusAction(state, id, conditions, spend)
+        : spendReaction(state, id, conditions, spend);
+  return after.ok ? ok(true) : after;
 }
 
 /** SRD: "You can't take more than one Bonus Action on a turn." */

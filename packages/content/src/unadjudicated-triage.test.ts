@@ -463,8 +463,16 @@ const after = (events: readonly GameEvent[]): GameState => fold('seed', events);
 describe('Expeditious Retreat moves the Dash to a Bonus Action', () => {
   const definition = SRD_CONTENT.spell('expeditious-retreat')!;
 
-  it('writes the allowance the SRD prints', () => {
+  /**
+   * **Both clauses of the sentence now, and they are two different members.**
+   * "You take the Dash action" is an extra action handed over once, as the
+   * casting resolves, narrowed to the one action the book names; "you can
+   * take that action again as a Bonus Action" is the standing price. The
+   * first was the residue this spell carried until `grants` existed.
+   */
+  it('writes the allowance the SRD prints, and the free Dash beside it', () => {
     expect(definition.effects).toEqual([
+      { kind: 'action-rule', rule: { kind: 'grants', at: 'casting', only: ['dash'] } },
       { kind: 'action-rule', rule: { kind: 'allows', action: 'dash', from: 'bonus-action' } },
     ]);
   });

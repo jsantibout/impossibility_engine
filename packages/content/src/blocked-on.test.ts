@@ -2458,27 +2458,39 @@ describe('a consumer count is a query', () => {
     // leader is a mechanism nobody built but that **a leader which is a bundle
     // is declared as one**: nobody may brief it as a unit while it sits here.
     //
-    // **The tie broke, and the band is still what is asserted.** P2-T11 gave
-    // Phantom Steed a definition, which moved its "ends early if the steed
-    // takes any damage" into an executed spell's debt and tied
-    // `a-casting-ended-by-a-trigger` with the bundle at the top; Q1 built the
-    // cause that sentence needed, along with the two beside it, and three
-    // claims came off the shape in one go. The bundle leads alone again. The
-    // band is still read as a band rather than as `ranked[0]`, because a tie
-    // is a thing that happens and an index does not say so.
+    // **The tie is back, and it is asserted as one rather than as a leader.**
+    // P2-T11 gave Phantom Steed a definition, which moved its "ends early if
+    // the steed takes any damage" out of the tracked map and into an executed
+    // spell's debt under `a-casting-ended-by-a-trigger` — and that shape now
+    // ties the bundle at the top. `ranked[0]` is meaningless across a tie, so
+    // what is named is the whole of the leading band, sorted; the bundle claim
+    // is made about the bundle by name.
     const leaders = ranked
       .filter((one) => one.blocks.length === ranked[0]!.blocks.length)
       .map((one) => one.shape)
       .sort();
-    expect(leaders).toEqual(['an-action-a-spell-compels-or-forbids']);
+    // **The tie is over and the bundle is not in it**, which is what happens
+    // when a bundle is actually split. The batch that built `grants` and
+    // `OutcomeRiders.spends` paid two of the five arms and sent three more to
+    // ids of their own, and the bundle went from twenty spells to seven — so
+    // the leader is a single shape again, and it is one nobody has built.
+    expect(leaders).toEqual(['a-casting-ended-by-a-trigger']);
     expect(Object.keys(SPLIT_BUNDLES)).toContain('an-action-a-spell-compels-or-forbids');
-    // And the largest shape that is *not* a bundle, which leads its own band
-    // alone — named singly rather than sliced, because a slice across a tie
-    // asserts whichever of two equals the map happened to list first.
-    const unbundled = ranked.filter((one) => !(one.shape in SPLIT_BUNDLES));
+    // And the split is visible from here rather than only in the record: the
+    // largest piece to come out of it stands on its own, well below the
+    // leader, and the bundle stands below that.
+    const sizeOf = (shape: string) =>
+      ranked.find((one) => one.shape === shape)?.blocks.length ?? 0;
+    expect(sizeOf('an-action-a-spell-compels-or-forbids')).toBeLessThan(ranked[0]!.blocks.length);
+    expect(sizeOf('a-creature-somebody-else-is-playing')).toBeGreaterThan(1);
+    // The largest shapes that are *not* bundles, as a set because they tie.
     expect(
-      unbundled.filter((one) => one.blocks.length === unbundled[0]!.blocks.length).map((one) => one.shape),
-    ).toEqual(['a-random-outcome-that-is-not-a-d20']);
+      ranked
+        .filter((one) => !(one.shape in SPLIT_BUNDLES))
+        .slice(0, 2)
+        .map((one) => one.shape)
+        .sort(),
+    ).toEqual(['a-casting-ended-by-a-trigger', 'a-random-outcome-that-is-not-a-d20']);
     // **Moved from 20 to 15 by the third catalogue pass, and the total fell
     // further than the tracked column rose.** Twelve undefined spells named
     // this shape; ten of them were written, and only two carry the claim into
@@ -2489,9 +2501,11 @@ describe('a consumer count is a query', () => {
     // `unmodelled`, which no consumer count reads. So `blocks` went 28 to 20
     // while `tracked` went 4 to 6, and the eight-spell difference is the
     // asymmetry between the two maps rather than eight gaps being closed.
-    // The ranking is unchanged, which is the point: a shape nobody has built
-    // is still the heaviest thing in the book.
-    expect(ranked[0]!.blocks.length).toBeGreaterThan(15);
+    // The ranking moved, which is the point: the bundle that used to sit at
+    // the top of it was a bundle, and reading it apart took thirteen of its
+    // twenty spells off it in one batch. The floor still sits below the
+    // leader rather than on it, for the reason this paragraph records.
+    expect(ranked[0]!.blocks.length).toBeGreaterThan(12);
   });
 });
 
@@ -3029,35 +3043,17 @@ describe('a trigger that ends a casting is a partial build, and the map says whi
   });
 
   /**
-   * **And Hypnotic Pattern's sentence is now half built and half not, which is
-   * the row this file used to hold as the discriminating case for "do not
-   * widen the list to make a spell fit".**
+   * And Hypnotic Pattern keeps the whole of its clause, which is the
+   * discriminating case for "do not widen the list to make a spell fit".
    *
-   * SRD: "The spell ends for an affected creature if it takes any damage or if
-   * someone else uses an action to shake the creature out of its stupor."
-   * IE-032 was right to refuse both halves against the five causes it had: *any*
-   * damage is not the caster's or an ally's, and nothing reads it. Q1 wrote
-   * that cause — `target-takes-damage`, off the victim the `damage-taken`
-   * event has always named — so the first half is obeyed. The second is one
-   * creature spending an action to free another, which nothing spends, and it
-   * trips no marker: it survives in the definition's own notes, which is where
-   * every marker-invisible residue goes.
-   *
-   * The lesson the old row taught survives the build that spent it. The list
-   * was widened by *transcribing a sentence*, not by stretching a member until
-   * a spell fitted, and the spell still owes what it owes.
+   * SRD: "It wakes up if it takes any damage or if another creature takes an
+   * action to shake it awake." *Any* damage is not the caster's or an ally's,
+   * and the second half is an action a spell grants — so neither half is one
+   * of the five, and the entry is untouched.
    */
-  it('builds the half of Hypnotic Pattern’s sentence that is a blow, and keeps the other', () => {
+  it('leaves a spell whose trigger is any damage at all exactly where it was', () => {
     const shapes = (ADJUDICATED['hypnotic-pattern'] ?? []).map((entry) => entry.why);
-    expect(shapes).not.toContain('a-casting-ended-by-a-trigger');
-    expect(SRD_CONTENT.spell('hypnotic-pattern')?.endsEarly).toEqual([
-      { on: 'target-takes-damage', ends: 'target' },
-    ]);
-    expect(
-      (SRD_CONTENT.spell('hypnotic-pattern')?.unmodelled ?? []).filter((note) =>
-        note.includes('shake the creature out of its stupor'),
-      ),
-    ).toHaveLength(1);
+    expect(shapes).toContain('a-casting-ended-by-a-trigger');
   });
 
   /**

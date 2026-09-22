@@ -31,6 +31,7 @@ import type {
   SpellCheck,
   SpellDefinition,
   SpellEffect,
+  SpentBudget,
   StatedChoiceOf,
   SummonedNumber,
 } from './spell-definitions.js';
@@ -1214,9 +1215,102 @@ export function checkActionRule(
     return;
   }
 
+  if (rule.kind === 'grants') {
+    // **The moment is not optional and has no default**, because the wrong one
+    // is silent either way: a per-turn Expeditious Retreat is a free Dash
+    // action every round for ten minutes, and a once-only Haste does nothing
+    // after the turn it landed on.
+    if (rule.at !== 'casting' && rule.at !== 'each-turn') {
+      bad(
+        `"${String(rule.at)}" is not a moment a turn could be handed an action; an extra action arrives at the casting or at the start of each of the creature's turns`,
+      );
+      return;
+    }
+    if (rule.only === undefined) return;
+    if (!Array.isArray(rule.only)) {
+      bad('the actions a granted action may be spent on are a list');
+      return;
+    }
+    const actions = strangers(rule.only, ACTION_NAMES);
+    if (actions.length > 0) {
+      bad(noSuchAction(actions.join('", "')));
+      return;
+    }
+    // **And an empty list is the mistake here, where `permits-only` may write
+    // one.** Narrowing an existing slot to nothing is SRD Confusion's "the
+    // target takes no action" and says something; handing over an extra action
+    // that may be spent on nothing at all hands over nothing, and a sentence
+    // that grants nothing is one somebody meant to finish.
+    if (rule.only.length === 0) {
+      bad(
+        'an extra action that may be spent on no named action at all is an extra action that grants nothing; name what the spell hands over, or leave the narrowing off',
+      );
+    }
+    return;
+  }
+
   bad(
-    `"${String((rule as { readonly kind?: unknown }).kind)}" is not something a spell does to a turn; a spell forbids, permits only, or allows`,
+    `"${String((rule as { readonly kind?: unknown }).kind)}" is not something a spell does to a turn; a spell forbids, permits only, allows, or grants`,
   );
+}
+
+/**
+ * A slot of the target's own turn the outcome spends, held to what a spender
+ * could actually charge.
+ *
+ * {@link checkActionRule}'s neighbour, and the same discipline: the vocabulary
+ * is `combat.ts`'s, read as data, so a rider this accepts is one a primitive
+ * actually spends. Three rules, one per way the sentence can be unfinished.
+ */
+function checkBudgetSpend(
+  spends: SpentBudget | undefined,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  const bad = (reason: string): void => {
+    found.push({ field: path, code: 'bad_budget_spend', reason });
+  };
+
+  if (typeof spends !== 'object' || spends === null || Array.isArray(spends)) {
+    bad(
+      `a spend of somebody's turn is an object naming the slots it takes and what the book says they went on, and this is ${nameOf(spends)}`,
+    );
+    return;
+  }
+
+  if (!Array.isArray(spends.slots)) {
+    bad('the slots a spell spends are a list');
+    return;
+  }
+  // **Movement is the one slot this may not name**, and the refusal is here
+  // rather than in the type because untyped input reaches this function first:
+  // movement is measured in feet and spent by the foot, so a rider naming it
+  // would spend nothing and say it worked. A spell that takes movement away
+  // changes a Speed.
+  const wrong = (spends.slots as readonly unknown[]).filter(
+    (slot) =>
+      typeof slot !== 'string' ||
+      !(SLOTS_WITH_NAMED_ACTIONS as readonly string[]).includes(slot),
+  );
+  if (wrong.length > 0) {
+    bad(
+      `"${wrong.map(String).join('", "')}" is not a slot a spell can use up; the engine spends ${SLOTS_WITH_NAMED_ACTIONS.join(', ')}, and movement is measured in feet rather than in slots`,
+    );
+    return;
+  }
+  if (spends.slots.length === 0) {
+    bad('a spend that takes no slot takes nothing; name what the sentence uses up');
+    return;
+  }
+
+  // The phrase is what the table narrates from, and the engine performs
+  // nothing — so without it the log says a Reaction vanished and nothing says
+  // why. See {@link SpentBudget.on}.
+  if (typeof spends.on !== 'string' || spends.on.trim() === '') {
+    bad(
+      'a spend says what the book says the slot went on; the engine performs none of it, so the phrase is the whole of what a log could tell anybody',
+    );
+  }
 }
 
 /**
@@ -1275,6 +1369,26 @@ function checkModifierRider(
   }
   if (rider?.kind === 'action') {
     checkActionRule(rider.rule, `${path}.rule`, found);
+    // **And one arm of that vocabulary a rider may not carry**, which is one
+    // arm rather than the member because only one of the two is silent here.
+    //
+    // A rider writes `action-rule-granted` and nothing else, so what it hangs
+    // is a rule standing on the creature. `each-turn` is read from there by
+    // `extraActionsOwedAtTurnStart` at every boundary, whichever door hung it,
+    // so a rider carrying one works and is accepted. `casting` is not read
+    // from there by anything: the standalone kind's resolver diverts it into
+    // the budget *instead of* hanging it, and a rider has no such branch — so
+    // one arriving here would stand on the creature for the life of the
+    // casting and be read by nobody. That is the silence {@link ActionRule.at}
+    // says must not be possible, reached by the other door.
+    if (rider.rule?.kind === 'grants' && rider.rule.at === 'casting') {
+      found.push({
+        field: `${path}.rule`,
+        code: 'bad_action_rule',
+        reason:
+          'an extra action handed over at the casting goes into the turn that is running rather than onto the creature, and a rider has nowhere to put it; write it as an "action-rule" effect, whose resolver does, or say "each-turn" if the sentence means every turn',
+      });
+    }
     // The second rider that may carry a deadline of its own. Whether it
     // *must* is {@link checkGrantLifetimes}', exactly as for `speed-change`.
     checkRiderDuration(rider.lasts, path, found);
@@ -1375,6 +1489,7 @@ function checkRiders(
     readonly modifiers?: readonly ModifierRider[];
     readonly delayed?: { readonly damage: DiceScaling; readonly damageType: string };
     readonly movement?: { readonly feet: number };
+    readonly spends?: SpentBudget;
   },
   level: number,
   path: string,
@@ -1460,6 +1575,11 @@ function checkRiders(
         });
       }
     }
+  }
+  // The fifth slot, and the one that reaches the action economy: see
+  // {@link SpentBudget}.
+  if (riders.spends !== undefined) {
+    checkBudgetSpend(riders.spends as SpentBudget | undefined, `${path}.spends`, found);
   }
 }
 
@@ -2681,7 +2801,16 @@ function grantCarried(effect: SpellEffect): string | null {
     // position runs for the spell's own duration, and an Instantaneous
     // casting would forbid a creature an action with nothing able to lift it.
     case 'action-rule':
-      return 'a rule about what a turn may be spent on';
+      // **Except the member that leaves nothing standing.** `grants` at the
+      // casting puts one action in the turn that is running, and a turn either
+      // spends what it was handed or loses it with the turn — so there is
+      // nothing an Instantaneous casting would fail to lift, and requiring a
+      // duration would refuse a sentence the SRD prints on a cantrip's terms.
+      // `each-turn` is the ordinary case and is held to the ordinary rule: it
+      // is read at every boundary for as long as the casting runs.
+      return effect.rule?.kind === 'grants' && effect.rule.at === 'casting'
+        ? null
+        : 'a rule about what a turn may be spent on';
     // The tenth and eleventh, and they carry no deadline of their own for the
     // reason the fifth through ninth do not: SRD Beacon of Hope runs for the
     // minute the spell does and SRD Aid for its eight hours, so the casting is

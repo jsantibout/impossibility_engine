@@ -283,6 +283,39 @@ export function resolveActionRuleEffect(
   const { source, events, outcomes, held, name } = ctx;
   let current = world;
 
+  // **The one member that hands something over rather than standing over
+  // something.** SRD Expeditious Retreat's "You take the Dash action" arrives
+  // once, into the turn that is running, and leaves nothing behind: an extra
+  // action lives in the {@link TurnBudget} because that is the only place one
+  // can live, and a turn either spends what it was handed or loses it with the
+  // turn. So no rule is hung and `releaseCasting` has nothing to release.
+  //
+  // **Silence outside a turn, rather than a refusal.** There are no turns
+  // outside combat and no budget but the current combatant's, so a casting
+  // there adds to nothing — and the rest of the spell must still land, which
+  // is what separates this from `useBudgetPurchase`'s `not_in_combat`: that
+  // command buys an action and nothing else, and this is one clause of a
+  // paragraph.
+  if (effect.rule.kind === 'grants' && effect.rule.at === 'casting') {
+    const combat = current.combat;
+    const theirTurn = combat !== null && combat.order[combat.turnIndex]?.id === target;
+    if (theirTurn) {
+      const only = effect.rule.only;
+      events.push({
+        type: 'turn-budget-granted',
+        id: target,
+        // The label the log calls it, pinned exactly as a rule's is: the
+        // refusal a narrowed extra prints has to name what bought it, and
+        // `combat.ts` can reach no catalogue.
+        source: name,
+        action: only === undefined ? {} : { only },
+      });
+      current = events.slice(-1).reduce(applyEvent, current);
+    }
+    outcomes.push({ target, affected: theirTurn });
+    return ok(current);
+  }
+
   held.add(target);
   events.push({
     type: 'action-rule-granted',

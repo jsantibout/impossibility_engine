@@ -14,7 +14,7 @@ import type { Bonus, BonusApplies, BonusNarrowing } from './bonuses.js';
 import type { RollModifier } from './roll-modifiers.js';
 import type { AreaStanding, SpeedChange } from './standing.js';
 import type { MovementMode } from './character.js';
-import type { ActionRule } from './combat.js';
+import type { ActionRule, ActionSlot } from './combat.js';
 import type { LightLevel, ObscurementDegree, PointAnchoring } from './positioning.js';
 import type { CastingTime } from './spells.js';
 import type { SpellReactionWindow } from './reactions.js';
@@ -848,6 +848,62 @@ export interface OutcomeRiders {
    * the order the SRD sentence itself writes.
    */
   readonly movement?: ForcedMovement;
+  /**
+   * A slot of the target's **own** turn the outcome uses up: see
+   * {@link SpentBudget}.
+   *
+   * Fifth of the five, and last for the reason `movement` is fourth — the
+   * conditions and grants a failure imposes are what the spend is being made
+   * *under*, so SRD Slow's "it can't take Reactions" landing in the same batch
+   * has to be standing before this asks whether the Reaction is available.
+   */
+  readonly spends?: SpentBudget;
+}
+
+/**
+ * Slots of the target's own turn a settled outcome spends, and what the book
+ * says they went on.
+ *
+ * SRD Dissonant Whispers: "On a failed save, it takes 3d6 Psychic damage and
+ * **must immediately use its Reaction, if available**, to move as far away
+ * from you as it can, using the safest route."
+ *
+ * **This is the arm of `an-action-a-spell-compels-or-forbids` the owner
+ * unblocked on 2026-09-22**, and it is a different verb from every member of
+ * {@link ActionRule}: those three say what a spend *may* be, and this makes
+ * one. The doctrine survives it because the engine charges the economy and
+ * performs nothing — see `ActionRule`'s own note in `combat.ts`, where the
+ * line the ruling moved and the line it left alone are set side by side.
+ *
+ * **"If available" is the resolver's silence, not a refusal.** A slot already
+ * gone, a creature not in the fight, a rule that had already taken the slot
+ * away — each of them means nothing is emitted and the rest of the casting
+ * lands untouched. A spell whose rider could refuse the whole outcome would be
+ * a Dissonant Whispers that dealt no damage to a target who had already
+ * reacted.
+ */
+export interface SpentBudget {
+  /**
+   * Which slots go, from the three a named action is ever taken out of.
+   *
+   * **Never `movement`**, which is the one member of `ActionSlot` this list
+   * may not hold: movement is measured in feet and spent by the foot, and a
+   * spell that takes it away changes a Speed. `checkBudgetSpend` refuses it at
+   * authoring rather than leaving a rider that would spend nothing.
+   */
+  readonly slots: readonly ActionSlot[];
+  /**
+   * What the book says the slot went on, pinned into the event.
+   *
+   * **Required, and it is the whole of what makes this honest.** The engine
+   * performs nothing, so without the phrase a log would say a Reaction
+   * vanished and nothing would say why — and the table narrating from the log
+   * would have nothing to narrate. It is prose rather than a vocabulary
+   * because it is not adjudicated: "moving as far away from you as it can,
+   * using the safest route" is a sentence for a person, and every attempt to
+   * make the engine mean it would be the engine playing the creature.
+   */
+  readonly on: string;
 }
 
 /**
@@ -4276,11 +4332,16 @@ export function outcomeRidersOf(effect: SpellEffect): OutcomeRiders {
   // flat spelling and has never carried the last two slots.
   const movement =
     effect.kind === 'attack' || effect.kind === 'save-damage' ? effect.movement : undefined;
+  // The same two hosts, and for the same reason: the SRD writes a spend "on a
+  // hit" and "on a failed save" and nowhere else that a rider hangs.
+  const spends =
+    effect.kind === 'attack' || effect.kind === 'save-damage' ? effect.spends : undefined;
   return {
     ...(conditions.length === 0 ? {} : { conditions }),
     ...(modifiers.length === 0 ? {} : { modifiers }),
     ...(delayed === undefined ? {} : { delayed }),
     ...(movement === undefined ? {} : { movement }),
+    ...(spends === undefined ? {} : { spends }),
   };
 }
 
@@ -4299,7 +4360,8 @@ export function hasOutcomeRiders(riders: OutcomeRiders): boolean {
     riders.conditions !== undefined ||
     riders.modifiers !== undefined ||
     riders.delayed !== undefined ||
-    riders.movement !== undefined
+    riders.movement !== undefined ||
+    riders.spends !== undefined
   );
 }
 

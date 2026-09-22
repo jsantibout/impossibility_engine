@@ -1150,9 +1150,19 @@ export const DISSONANT_WHISPERS: SpellDefinition = {
       damage: { dice: '3d6', perSlotLevelAbove: '1d6' },
       damageType: 'psychic',
       onSuccess: 'half',
+      // "must immediately use its Reaction, if available, to move as far away
+      // from you as it can, using the safest route." The Reaction goes and the
+      // fleeing does not happen: the engine charges the economy and performs
+      // nothing, so the book's own phrase rides along in the log for the table
+      // to narrate from. "If available" is the resolver's silence — a target
+      // that has already reacted, or that a Slow had already forbidden, simply
+      // loses nothing and still takes the damage.
+      spends: {
+        slots: ['reaction'],
+        on: 'moving as far away from the caster as it can, using the safest route',
+      },
     },
   ],
-  unmodelled: ['a creature that fails spends its Reaction fleeing as far as it can'],
 };
 
 /**
@@ -6508,18 +6518,22 @@ export const HEAL: SpellDefinition = {
  * > "When the spell ends, the target is Incapacitated and has a Speed of 0
  * > until the end of its next turn, as a wave of lethargy washes over it."
  *
- * **Two of the four benefits in that run are things the engine owns**, and
- * they are written: the +2 is Shield of Faith's sentence word for word, and
- * the Advantage is a `roll-mode` narrowed to saving throws and to one ability,
- * which Beacon of Hope already writes twice in one definition.
+ * **Three of the four benefits in that run are things the engine owns**, and
+ * they are written: the +2 is Shield of Faith's sentence word for word, the
+ * Advantage is a `roll-mode` narrowed to saving throws and to one ability,
+ * which Beacon of Hope already writes twice in one definition, and the extra
+ * action is `ActionRule`'s fourth member — the one that creates rather than
+ * governs — minted into the budget at the start of each of the target's turns
+ * and never taken by anybody but the table.
  *
- * The other two are not, and each is a named shape rather than a shortcut. A
- * doubled Speed is the one sentence in the book that multiplies one, and
- * `SpeedChange` composes from a halving and a zero and has no third member.
- * An extra action — and then a narrowing of what it may be spent on — is the
- * action economy, which is the engine's outright and which nothing a spell
- * writes may add to. The lethargy fires when the casting *ends*, and expiry is
- * derived rather than recorded, so there is no hook to hang it on.
+ * The fourth is not, and it is a named shape rather than a shortcut: a doubled
+ * Speed is the one sentence in the book that multiplies one, and `SpeedChange`
+ * composes from a halving and a zero and has no third member. **The sentence
+ * after the extra action is a second absence and a narrower one**: the five
+ * actions it may be spent on include Utilize, which nothing spends, so the
+ * list can be said four-fifths or not at all and is left unsaid. The lethargy
+ * fires when the casting *ends*, and expiry is derived rather than recorded,
+ * so there is no hook to hang it on.
  */
 export const HASTE: SpellDefinition = {
   id: 'haste',
@@ -6547,12 +6561,19 @@ export const HASTE: SpellDefinition = {
       kind: 'roll-mode',
       modifier: { mode: 'advantage', selector: { roll: 'saving-throw', relation: 'roller', ability: 'dex' } },
     },
+    // "it gains an additional action on each of its turns" — the rule stands on
+    // the target and the turn boundary mints one every turn the casting sees.
+    // **Unnarrowed on purpose**: the five actions the next sentence lists
+    // include Utilize, which `NAMED_ACTIONS` leaves out because no spender
+    // could be told apart as having taken one, so an `only` naming the other
+    // four would forbid the one the book allows. The narrowing stays in the
+    // notes below.
+    { kind: 'action-rule', rule: { kind: 'grants', at: 'each-turn' } },
   ],
   durationSeconds: 60,
   unmodelled: [
     'the doubled Speed: "the target’s Speed is doubled" is the only sentence in SRD that multiplies one, and a Speed is composed from a halving, which is presence rather than count, and a zero, which is last and wins — there is no third operation and no rule saying how a doubling meets a halving',
-    'the extra action: "it gains an additional action on each of its turns" — a turn holds an Action, a Bonus Action and a Reaction, the economy counts exactly those three, and nothing an effect writes creates a fourth',
-    'the five that extra action may be spent on: "That action can be used to take only the Attack (one attack only), Dash, Disengage, Hide, or Utilize action" — a narrowing of one slot to a named few, which `ActionRule`’s `permits-only` says exactly, over a list the engine cannot finish naming: nothing spends a Utilize',
+    'the five that extra action may be spent on: "That action can be used to take only the Attack (one attack only), Dash, Disengage, Hide, or Utilize action" — the extra action itself is granted now, and what cannot be written is the list it is narrowed to: `GrantedAction.only` would say four of the five and nothing spends a Utilize, so a narrowing here would forbid an action the book allows',
     'the lethargy: "When the spell ends, the target is Incapacitated and has a Speed of 0 until the end of its next turn" fires at the moment the casting runs out, and expiry is derived rather than recorded, so nothing hangs a consequence on it',
   ],
 };
@@ -8190,12 +8211,17 @@ export const CHROMATIC_ORB: SpellDefinition = {
  * the price and refuses one that map does not hold. The second half is
  * therefore transcription, and the engine changed for none of it.
  *
- * **The first half is still debt, and it is a different one.** "You take the
- * Dash action" is an *extra* action the casting hands out rather than an
- * existing one governed, which no member of `ActionRule` creates — Haste's
- * residue, filed under the same shape and recorded in `ADJUDICATED`. The
- * engine adjudicates reality and does not play creatures, so a free Dash it
- * spent for the caster would be fiction written into the log.
+ * **The first half was debt, and it is a different one.** "You take the Dash
+ * action" is an *extra* action the casting hands out rather than an existing
+ * one governed, which no member of `ActionRule` created — Haste's residue,
+ * filed under the same shape. `grants` is that member now, and it arrives
+ * `at: 'casting'` rather than at every boundary, because the book hands this
+ * one over once: a per-turn reading would be a free Dash action every round
+ * for ten minutes, on top of the Bonus Action price the second clause already
+ * writes. **Narrowed to the Dash**, so the caster may not buy an Attack with
+ * it — and still offered rather than taken, because the engine adjudicates
+ * reality and does not play creatures. A free Dash it spent for the caster
+ * would be fiction written into the log.
  *
  * **The doc comment it replaces quoted the 2014 wording.** "This spell lets
  * you move at an incredible pace. When you cast this spell and as a Bonus
@@ -8216,17 +8242,23 @@ export const EXPEDITIOUS_RETREAT: SpellDefinition = {
   // themselves unless the target rule says so, which is Magic Jar's shape
   // exactly.
   targets: { count: 1, self: true },
-  // Nothing is rolled and nothing is resisted, so the rule stands on its own
+  // Nothing is rolled and nothing is resisted, so the rules stand on their own
   // rather than riding an outcome. The ten minutes are the casting's own
-  // deadline, so the grant needs no `lasts`: `releaseCasting` lifts it when
+  // deadline, so the allowance needs no `lasts`: `releaseCasting` lifts it when
   // the Concentration goes.
+  //
+  // **Two clauses, two moments, and that is the whole of the sentence.** "You
+  // take the Dash action" is an action handed over *once*, as the casting
+  // resolves, narrowed to the one action the book names — so the caster may
+  // Dash for free this turn and may not buy an Attack with it. "You can take
+  // that action again as a Bonus Action" is the standing price. The engine
+  // takes neither: it offers the action and the table decides whether the
+  // caster runs.
   effects: [
+    { kind: 'action-rule', rule: { kind: 'grants', at: 'casting', only: ['dash'] } },
     { kind: 'action-rule', rule: { kind: 'allows', action: 'dash', from: 'bonus-action' } },
   ],
   durationSeconds: 600,
-  unmodelled: [
-    'the free Dash at the casting is not taken: "You take the Dash action" is an extra action the spell grants rather than an existing one it governs, which no ActionRule member creates — and an engine that spent it would be playing the caster',
-  ],
 };
 
 /**
