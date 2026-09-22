@@ -1047,11 +1047,29 @@ const ANCHORED_CONDITION = new RegExp(
 );
 
 /**
- * The possessives that are **not** the attacker, and so are not this anchor.
+ * A **denylist**, and it is worth saying which way round it works: a
+ * possessive this does not name is taken for the attacker.
  *
- * SRD's own word for the creature the blow landed on, in the two spellings a
- * sentence could reach for it by. Matched on the last word, because the book
- * writes "the Grappled target" as readily as "the target".
+ * That is the honest reading of the corpus rather than a rule out of the book.
+ * Every anchored line the SRD prints writes the block's own noun and none of
+ * them writes the block's *name*: "the storm giant's", "the giant centipede's"
+ * — so an allowlist of creature names would refuse half of them, and one built
+ * from a creature's in-play name would refuse anything a DM renamed. What can
+ * be listed is the small set of words a sentence would reach for the creature
+ * that was *struck* by, and those are refused; `target` is SRD's own, and
+ * `creature` and `victim` are not — `victim` appears nowhere in the book at
+ * all. They are here because the door is open to homebrew and the cost of the
+ * two readings is not symmetric: a word wrongly refused is a line handed to
+ * the DM, and a word wrongly accepted is a deadline filed on the wrong
+ * creature.
+ *
+ * **It does not close the case.** A homebrew line writing "the defender's next
+ * turn" is still read as the attacker's, and closing that needs the attacker
+ * passed in here — a signature this reader does not have. What is claimed is a
+ * denylist that errs toward the handover, and no more than that.
+ *
+ * Matched on the last word, because the book writes "the Grappled target" as
+ * readily as "the target".
  */
 const NOT_THE_ATTACKER: readonly string[] = ['target', 'creature', 'victim'];
 
