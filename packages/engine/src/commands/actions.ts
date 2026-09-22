@@ -98,7 +98,7 @@ import { featureTimer } from './features.js';
 import { mayAct } from './holds.js';
 import { type MoveResolution, moveWithin } from './movement.js';
 import { castOrRelease } from './spell-resolution.js';
-import { declaredFacts, type SpellResolution } from './targeting.js';
+import { type AimedRolls, declaredFacts, type SpellResolution } from './targeting.js';
 
 /**
  * Which slot the caller is offering to pay a Dash out of.
@@ -1699,6 +1699,16 @@ export interface ReleaseCommand extends CommandIdentity {
   readonly ignore?: boolean;
   /** Who a readied spell lands on. Empty for an area spell, which picks its own. */
   readonly targets?: readonly CharacterId[];
+  /**
+   * How many of a readied casting's attack rolls go at each of those creatures.
+   *
+   * **Stated here rather than at the Ready**, which is where it parts company
+   * with the six facts `statedOf` carries forward: the targets a readied spell
+   * lands on are chosen at the release, and a split is aligned to them. See
+   * `CastSpellRequest.rollsAt`, which validates it through the same call the
+   * atomic casting uses.
+   */
+  readonly rollsAt?: readonly AimedRolls[];
   /** Where a readied area spell's origin goes. */
   readonly at?: Point;
   /** Where a readied move goes, relative to something already established. */
@@ -1893,6 +1903,8 @@ function releaseSpell(
     {
       spellId: response.spellId,
       targets: command.targets ?? [],
+      // Beside the targets, because it is the release that chooses them.
+      ...(command.rollsAt === undefined ? {} : { rollsAt: command.rollsAt }),
       ...(command.at === undefined ? {} : { at: command.at }),
       ...(definition.level === 0 ? {} : { slotLevel: response.castLevel }),
       // What the caster stated at the Ready, put back on the request the

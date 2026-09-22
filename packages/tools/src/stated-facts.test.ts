@@ -70,7 +70,17 @@ const wizard = (name: string): Record<string, unknown> => ({
     acquiredAt: index < 6 ? 1 : Math.ceil((index - 5) / 2) + 1,
     origin: 'level' as const,
   })),
-  preparedSpells: ['magic-missile', 'shield', 'mage-armor', 'charm-person', 'misty-step', 'web'],
+  // Scorching Ray beside them for the sixth question, which is not a fact the
+  // spell insists on but a decision it leaves open: where three rays go. It
+  // reaches the spellbook through Evocation Savant rather than the list above.
+  preparedSpells: [
+    'magic-missile',
+    'shield',
+    'mage-armor',
+    'charm-person',
+    'misty-step',
+    'scorching-ray',
+  ],
   classEquipment: 'A',
   backgroundEquipment: 'A',
   equipped: [],
@@ -295,6 +305,83 @@ describe('`teleportTo` answers the space Misty Step will not choose', () => {
       teleportTo: { fromLandmark: 'the far door', feet: 0 },
     });
     expect(outcome.status).toBe('refused');
+  });
+});
+
+// — where several rolls out of one casting go ——————————————————————————————
+
+/**
+ * **A decision the spell leaves open rather than a fact it insists on**, which
+ * is why it sits beside the five above rather than among them: nothing refuses
+ * a Scorching Ray that says nothing, and the rays are dealt round the creatures
+ * named. What a caller could not do until this field existed was say the
+ * lopsided split the SRD allows — and a decision a surface cannot express is a
+ * decision nobody at the table ever gets to make.
+ */
+describe('`rollsAt` answers where a casting sends the rolls it makes', () => {
+  /** Three rays out of a level 2 slot, at the two people in the room. */
+  const RAYS = {
+    caster: 'mage',
+    spellId: 'scorching-ray',
+    slotLevel: 2,
+    targets: ['brawler', 'bystander'],
+  };
+
+  /** Who each ray of the casting landed on, in the order they were thrown. */
+  const struck = (outcome: OkOutcome): readonly string[] =>
+    ((outcome.resolution as { outcomes?: readonly { target: string }[] }).outcomes ?? []).map(
+      (o) => o.target,
+    );
+
+  it('deals the rays round the creatures named when nothing is said', () => {
+    expect(struck(expectOk(theTavern().call('cast_spell', RAYS)))).toEqual([
+      'brawler',
+      'brawler',
+      'bystander',
+    ]);
+  });
+
+  /** The split the deal cannot produce, reaching the engine through the door. */
+  it('sends two at the second creature when the caller says so', () => {
+    const outcome = expectOk(
+      theTavern().call('cast_spell', {
+        ...RAYS,
+        rollsAt: [
+          { target: 'brawler', count: 1 },
+          { target: 'bystander', count: 2 },
+        ],
+      }),
+    );
+    expect(struck(outcome)).toEqual(['brawler', 'bystander', 'bystander']);
+  });
+
+  /** And the engine's own arithmetic is what refuses a split that is not one. */
+  it('refuses more rays than the casting hurls', () => {
+    const refused = theTavern().call('cast_spell', {
+      ...RAYS,
+      rollsAt: [
+        { target: 'brawler', count: 2 },
+        { target: 'bystander', count: 2 },
+      ],
+    });
+    expect(codeOf(refused)).toBe('wrong_roll_count');
+  });
+
+  /**
+   * A count is a share of the engine's rolls, so a fraction is not one — and
+   * this is the one refusal of the six the **schema** makes rather than the
+   * engine, because a whole number at least one is a shape a Zod type states.
+   * The engine refuses it too, for a caller reaching past the door.
+   */
+  it('refuses a share that is not a whole number of rolls', () => {
+    const refused = theTavern().call('cast_spell', {
+      ...RAYS,
+      rollsAt: [
+        { target: 'brawler', count: 1.5 },
+        { target: 'bystander', count: 1.5 },
+      ],
+    });
+    expect(codeOf(refused)).toBe('invalid');
   });
 });
 

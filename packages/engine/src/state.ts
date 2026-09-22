@@ -884,6 +884,21 @@ export interface PendingCasting {
   /** The targets resolved at declaration, so settlement cannot re-aim it. */
   readonly targets: readonly CharacterId[];
   /**
+   * How many of the casting's attack rolls each of `targets` takes, aligned to
+   * that list by position.
+   *
+   * Beside the targets and for the same reason: settlement takes no fresh
+   * request, so a Scorching Ray declared three rays at the goblin and one at
+   * the ogre must not settle two and two. A vector rather than a second list
+   * of ids, because the ids are already above and a casting may not name a
+   * creature twice.
+   *
+   * Absent for every casting whose caster stated no split — which is every
+   * spell but the two that throw several rolls, and is what makes a
+   * declaration written before this fold to exactly the state it always did.
+   */
+  readonly rollsPerTarget?: readonly number[];
+  /**
    * The space chosen at declaration, for a spell that holds a point.
    *
    * Beside the targets and for the same reason: settlement takes no fresh

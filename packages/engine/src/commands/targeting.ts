@@ -184,6 +184,19 @@ export interface SpellResolution {
   readonly unverified: readonly string[];
 }
 
+/**
+ * One creature a casting named, and how many of its attack rolls go at them.
+ *
+ * The caller's half of {@link CastSpellRequest.rollsAt}. `target` rather than
+ * an anonymous id because that is what every other per-creature record in this
+ * module calls it — see {@link SpellTargetOutcome}.
+ */
+export interface AimedRolls {
+  readonly target: CharacterId;
+  /** A whole number of rolls, at least one. */
+  readonly count: number;
+}
+
 export interface CastSpellRequest extends CommandIdentity {
   readonly spellId: string;
   /**
@@ -193,6 +206,33 @@ export interface CastSpellRequest extends CommandIdentity {
    * engine checks the id it was handed and never substitutes a better one.
    */
   readonly targets: readonly CharacterId[];
+  /**
+   * How many of this casting's attack rolls go at each creature it named.
+   *
+   * SRD Scorching Ray: "You can hurl them at one target within range or at
+   * several"; Eldritch Blast: "you can direct the beams at the same target or
+   * at different ones". Both sentences leave the middle open, and the middle is
+   * the lopsided split — three rays at the ogre and one at the goblin — which
+   * an ordered list alone cannot say, because dealing round it produces every
+   * even split and none of the uneven ones.
+   *
+   * **A count beside each creature rather than a repeat inside `targets`.** A
+   * spell has one effect list applied to every target, so a duplicate in that
+   * list would be a creature every *other* effect kind ran on twice — a second
+   * condition, a second save, a second grant. The list stays a set and the
+   * distribution is stated beside it.
+   *
+   * **A number about targeting, never a die face.** It says where the engine's
+   * rolls go; the engine still throws every one of them and the caller never
+   * states an outcome.
+   *
+   * Absent is the deal `rollsDealtTo` has always made — one each in the order
+   * named, round again for the surplus — which says both ends of the SRD
+   * sentence and is what every casting written before this field folds to.
+   * Present, it must name every creature in `targets` exactly once and sum to
+   * exactly the rolls the casting makes; see `rollsAimedAt`.
+   */
+  readonly rollsAt?: readonly AimedRolls[];
   /**
    * Where an area spell's origin goes — "a point you choose within range".
    *
@@ -1356,6 +1396,101 @@ export function namedTargets(
   }
 
   return ok(request.targets);
+}
+
+/**
+ * The split the caster stated, checked and laid out beside the targets.
+ *
+ * Returns one count per creature of `targets`, **in the order they were
+ * named**, or `undefined` where the caster stated nothing — which is the deal
+ * {@link rollsDealtTo} has always made and is what keeps every casting written
+ * before this field folding exactly as it did.
+ *
+ * A positional vector rather than a second copy of the ids, because `targets`
+ * is already the ordered, deduplicated list a casting pins and everything
+ * downstream indexes into it; two lists of ids would be two places for the
+ * same creature to be named and one place for them to disagree.
+ *
+ * Six refusals, and each is a caller saying something that is not a split:
+ *
+ * | code | what was said |
+ * |---|---|
+ * | `no_rolls_to_aim` | a casting with at most one attack roll has nothing to divide |
+ * | `not_a_roll_count` | a count that is not a whole number of rolls, at least one |
+ * | `not_a_target` | rolls aimed at somebody this casting never named |
+ * | `duplicate_target` | one creature given two shares |
+ * | `unaimed_target` | a named creature left with no roll, having been named for one |
+ * | `wrong_roll_count` | more rays than the casting hurls, or fewer |
+ *
+ * The count it is measured against is the casting's own — off the slot for a
+ * levelled spell and off the caster's level for a cantrip — which is the same
+ * `attackRollsIn` that bounds the target list.
+ */
+export function rollsAimedAt(
+  definition: SpellDefinition,
+  request: CastSpellRequest,
+  targets: readonly CharacterId[],
+  castLevel: number,
+  casterLevel: number,
+): Result<readonly number[] | undefined> {
+  const stated = request.rollsAt;
+  if (stated === undefined) return ok(undefined);
+
+  // A field quietly ignored is a caller who thinks they said something. One
+  // roll has nowhere to go but the one creature it is owed to, and a casting
+  // that rolls no attack at all has nothing to aim.
+  const total = attackRollsIn(definition.effects, definition.level, casterLevel, castLevel);
+  if (total <= 1) {
+    return err(
+      'no_rolls_to_aim',
+      `${definition.name} makes ${total === 0 ? 'no attack roll' : 'one attack roll'} at this level, so there is no split of them to state`,
+    );
+  }
+
+  const named = new Set(targets);
+  const share = new Map<CharacterId, number>();
+  for (const aim of stated) {
+    if (!Number.isInteger(aim.count) || aim.count < 1) {
+      return err(
+        'not_a_roll_count',
+        `${aim.count} is not a number of ${definition.name}'s rolls; a share is a whole number, at least one`,
+      );
+    }
+    if (!named.has(aim.target)) {
+      return err(
+        'not_a_target',
+        `${definition.name} is not aimed at ${aim.target}; its targets are ${targets.join(', ')}`,
+      );
+    }
+    if (share.has(aim.target)) {
+      return err(
+        'duplicate_target',
+        `${definition.name} gives ${aim.target} one share of its rolls, not two`,
+      );
+    }
+    share.set(aim.target, aim.count);
+  }
+
+  // **A creature is named for a roll**, which is the sentence that lets a
+  // spell's targets outnumber its printed `TargetRule` in the first place — so
+  // a target left out of the split was named for nothing.
+  const unaimed = targets.filter((target) => !share.has(target));
+  if (unaimed.length > 0) {
+    return err(
+      'unaimed_target',
+      `${definition.name} names ${unaimed.join(', ')} and the split gives ${unaimed.length === 1 ? 'them' : 'each of them'} no roll`,
+    );
+  }
+
+  const dealt = targets.reduce((sum, target) => sum + share.get(target)!, 0);
+  if (dealt !== total) {
+    return err(
+      'wrong_roll_count',
+      `${definition.name} at level ${castLevel} makes ${total} attack roll(s) and the split spends ${dealt}`,
+    );
+  }
+
+  return ok(targets.map((target) => share.get(target)!));
 }
 
 /** Targets a spell could legally be aimed at, and why the others could not. */

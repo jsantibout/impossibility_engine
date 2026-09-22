@@ -2595,17 +2595,23 @@ describe('a spell with one blocker is the leverage the map is for', () => {
     // Written anyway, and then **built** — the fourth way out, and the one
     // this row was left standing to record. Scorching Ray was written as a
     // tracked definition while `several-attack-rolls-from-one-casting` was
-    // missing entirely; the shape's first half exists now, so the spell hurls
-    // its rays for real. What the departure does *not* do is retire the shape:
-    // the count is built and an uneven split of the rays is not, Chromatic Orb
-    // still waits on the whole of it, and the spell stays a claimant with a
-    // residue instead of leaving the map clean.
+    // missing entirely; the count arrived first and the spell hurled its rays
+    // for real while still owing a line, and the caster's own split of them
+    // arrived second. So the residue is gone too and the spell is clean —
+    // which is the whole of the path this row records: blocked, written,
+    // half-built, built.
+    //
+    // **And the shape does not retire with it.** Chromatic Orb still waits on
+    // the part nobody has built — a roll aimed at a creature the casting never
+    // named — so the id keeps a claimant, and what left is two spells rather
+    // than the debt.
     expect(BLOCKED_ON['scorching-ray']).toBeUndefined();
     expect(claimedShapes().has('several-attack-rolls-from-one-casting')).toBe(true);
     expect(SRD_CONTENT.spell('scorching-ray')?.effects).not.toEqual([]);
-    expect(ADJUDICATED['scorching-ray']?.map((entry) => entry.why)).toEqual([
-      'several-attack-rolls-from-one-casting',
-    ]);
+    expect(ADJUDICATED['scorching-ray']).toBeUndefined();
+    expect(SRD_CONTENT.spell('scorching-ray')?.unmodelled ?? []).toEqual([]);
+    expect(ADJUDICATED['eldritch-blast']).toBeUndefined();
+    expect(SRD_CONTENT.spell('eldritch-blast')?.unmodelled ?? []).toEqual([]);
 
     // And a third departure the way Revivify went, which is what makes
     // Revivify's a class rather than an exception: Barkskin is tracked, the
