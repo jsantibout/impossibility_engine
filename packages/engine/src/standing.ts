@@ -28,6 +28,7 @@ import {
 import {
   abilityModifier,
   armorClass,
+  hasSpeedInMode,
   speedInMode,
   type CharacterSheet,
   type MovementMode,
@@ -142,13 +143,27 @@ export type AreaStanding = {
    * flat reduction and a Grappled creature's zero in the order the architect
    * fixed, rather than in a second arithmetic of its own.
    *
-   * `change` is {@link SpeedChange} whole, so a Speed a casting's area moves
-   * is spelled the way every other Speed a spell moves already is. `feet` is
-   * required by `add` and refused by the other two, exactly as the `speed`
-   * effect's is.
+   * `change` is every operation that *moves* a Speed, so a Speed a casting's
+   * area moves is spelled the way every other Speed a spell moves already is.
+   * `feet` is required by `add` and refused by the other two, exactly as the
+   * `speed` effect's is — and `match-walk`, which gives a Speed in a mode
+   * rather than moving one, is refused outright: an area has no mode to give
+   * one in. See the field below for why that is a narrowing and not a
+   * borrowing.
    */
   readonly kind: 'speed';
-  readonly change: SpeedChange;
+  /**
+   * The three operations that move a Speed the creature already has.
+   *
+   * **Narrowed rather than {@link SpeedChange} whole**, which is the field
+   * that taught the lesson: widening that union for "a Climb Speed equal to
+   * its Speed" widened this one silently, and `speedOf`'s area loop read the
+   * new member as a Speed of 0. An area has no mode to give a Speed in — it
+   * says "Speed is halved in the Emanation" and nothing else — so the type
+   * says so, `checkSpeedChange` says so at the door for untyped input, and
+   * the loop names every member it handles.
+   */
+  readonly change: Exclude<SpeedChange, 'match-walk'>;
   /** Signed feet, required by `add` and refused by the other two. */
   readonly feet?: number;
 };
@@ -614,9 +629,27 @@ export type StandingGrant =
    *
    * Speed *reductions* are not this member's business. Exhaustion's "5 times
    * your Exhaustion level" is `conditionSpeed`'s, and nothing else in the
-   * engine reduces one yet.
+   * engine reduces one yet — so {@link SpeedChange}'s `halve` and `zero` are
+   * refused here, and the member carries the two that give a Speed.
+   *
+   * **And a fourth SRD feature, which is why it names a mode now.** SRD
+   * Second-Story Work: "You gain a Climb Speed equal to your Speed." One
+   * sentence, spelled exactly as SRD Spider Climb's is on a definition —
+   * `change: 'match-walk'` and the mode — because it *is* that sentence, and
+   * two spellings of one rule is two places for it to drift.
    */
-  | { readonly kind: 'speed'; readonly feet: number }
+  | {
+      readonly kind: 'speed';
+      /**
+       * Absent is `add`, which is every feature written before modes existed
+       * and is what keeps those three from having to be rewritten.
+       */
+      readonly change?: SpeedChange;
+      /** Required by `add`, refused by `match-walk`. */
+      readonly feet?: number;
+      /** Absent is the walking Speed. */
+      readonly mode?: MovementMode;
+    }
   /**
    * A sense the holder has, and how far it reaches.
    *
@@ -1015,7 +1048,11 @@ export type HungGrant =
   | {
       /** SRD Steady Aim: "your Speed is 0 until the end of the current turn." */
       readonly kind: 'speed';
-      readonly change: SpeedChange;
+      /**
+       * Narrowed for {@link AreaStanding}'s reason: a hung grant carries no
+       * mode, so it has nowhere to give a Speed in.
+       */
+      readonly change: Exclude<SpeedChange, 'match-walk'>;
       /** Signed feet, for an `add`; absent for the other two — see {@link GrantedSpeed}. */
       readonly feet?: number;
       readonly lasts: HungSpan;
@@ -2709,7 +2746,28 @@ export type SpeedChange =
   /** SRD Slow. Presence and not count, so two halvings are one halving. */
   | 'halve'
   /** SRD Hypnotic Pattern. Last, and it beats every addition. */
-  | 'zero';
+  | 'zero'
+  /**
+   * A Speed in one **mode** equal to the creature's walking Speed.
+   *
+   * SRD Spider Climb prints "a Climb Speed equal to its Speed", SRD Alter
+   * Self and Freedom of Movement say the same of a Swim Speed, and SRD
+   * Second-Story Work says it of a Climb Speed on a class table. Four printed
+   * writers of one sentence, which is why it is a member rather than an
+   * addition whose feet somebody would have to compute at the cast and pin.
+   *
+   * **The walking Speed it matches is the base one**, before a Longstrider
+   * and before a halving, and then everything that reaches the mode reaches
+   * it. The alternative reads the *whole* walking Speed and then halves the
+   * result a second time, so a Slowed spider would climb at a quarter of what
+   * it walks. It is also the reading that agrees with the rule directly above
+   * this family — an increase is the walking Speed's — and there is no
+   * recursion, because a match names a mode and the walking mode is refused.
+   *
+   * Carries no feet. The number is the creature's, and a sentence that
+   * printed one would be an addition.
+   */
+  | 'match-walk';
 
 /**
  * A Speed an ongoing effect has changed.
@@ -2736,8 +2794,33 @@ export interface GrantedSpeed {
   /** The casting (`Longstrider#cast:3`) or the feature that granted it. */
   readonly source: string;
   readonly change: SpeedChange;
-  /** Signed feet, for an `add`; absent for the other two. */
+  /** Signed feet, for an `add`; absent for the other three. */
   readonly feet?: number;
+  /**
+   * Which of the five Speeds this moves. Absent is the walking one.
+   *
+   * **Absent rather than `'walk'`, and that is what keeps the frozen logs
+   * folding unchanged**: every `speed-modifier-granted` written before modes
+   * existed is a walking one, and a reader that defaults the field reads them
+   * exactly as it always did.
+   *
+   * It is meaningful on the two operations that *give* a Speed and refused on
+   * the two that take one away, which is the rule `speedOf` already fixed and
+   * `checkSpeedChange` now enforces at the door: SRD writes "your Speed" for
+   * an increase and means walking, and writes Grappled's 0, Slow's halving
+   * and Exhaustion's five feet a level about the creature rather than about a
+   * mode. A `halve` that named one mode would be a sentence the book does not
+   * print.
+   */
+  readonly mode?: MovementMode;
+  /**
+   * SRD Fly's "and can hover", which is the trait the fall excepts.
+   *
+   * Only ever beside a granted Fly Speed — `fliesWithoutFallingOn` is the
+   * reader, and the pair it reads is the pair `OtherSpeeds` already prints:
+   * a creature that cannot fly cannot hover either.
+   */
+  readonly hover?: true;
 }
 
 /**
@@ -2991,45 +3074,72 @@ export function speedOf(
   // **The walking Speed is the pinned one; the other four are the sheet's.**
   // `Combatant.speed` is what the fight began with and it is a walking Speed —
   // `startCombat` is handed `sheet.baseSpeed` — so reading it for a Fly Speed
-  // would measure a flight against a walk. A mode the creature has no Speed in
-  // is 0, and stays 0 through everything below: nothing adds a Fly Speed to a
-  // creature that has none, and `hasSpeedInMode` is the question a rule asks
-  // when it needs to tell "cannot" from "stopped".
-  const base =
-    mode === 'walk'
-      ? (state.combat?.order.find((c) => c.id === who)?.speed ?? creature.sheet.baseSpeed)
-      : speedInMode(creature.sheet, mode);
-  if (mode !== 'walk' && base === 0) return 0;
+  // would measure a flight against a walk.
+  const walking =
+    state.combat?.order.find((c) => c.id === who)?.speed ?? creature.sheet.baseSpeed;
 
-  // Split by sign as they are gathered rather than netted afterwards: a
-  // Longstrider and a Ray of Frost on one creature are two sentences, and
-  // cancelling them into a net of zero would quietly hand the flier back the
-  // ten feet the ice took. See the note below the loops.
-  let up = 0;
-  let down = 0;
-  const flatten = (feet: number): void => {
-    if (feet >= 0) up += feet;
-    else down += feet;
+  // **A mode nothing gives this creature is 0, and stays 0 through everything
+  // below**: nothing adds a Fly Speed to a creature that has none, and
+  // {@link hasSpeedInModeOn} is the question a rule asks when it needs to tell
+  // "cannot" from "stopped". It is the *state-level* question now, because a
+  // casting can hand one over — a Spider Climb's Climb Speed is not on the
+  // sheet and the sheet is not where it belongs.
+  if (mode !== 'walk' && !hasSpeedInModeOn(state, who, mode)) return 0;
+
+  // A `match-walk` grant supplies the base rather than adding to it, and the
+  // base it supplies is the **walking** one before anything has happened to
+  // it: see {@link SpeedChange}, where the alternative halves a Slowed
+  // spider's climb twice.
+  const matched = matchesWalkingSpeed(state, who, creature, mode);
+  const base = mode === 'walk' ? walking : Math.max(speedInMode(creature.sheet, mode), matched ? walking : 0);
+
+  // **Feet reach the mode they were granted in; an unqualified increase
+  // reaches walking alone and an unqualified reduction reaches every mode.**
+  // Judged grant by grant rather than netted afterwards, which is what the
+  // sign split here is for: a Longstrider and a Ray of Frost on one creature
+  // are two sentences, and cancelling them into a net of zero would quietly
+  // hand a flier back the ten feet the ice took. See the note below the loops
+  // for the ruling the sign carries.
+  let flat = 0;
+  const flattenInMode = (granted: {
+    readonly feet?: number;
+    readonly mode?: MovementMode;
+  }): void => {
+    const feet = granted.feet ?? 0;
+    if ((granted.mode ?? 'walk') === mode) flat += feet;
+    else if (granted.mode === undefined && feet < 0) flat += feet;
   };
 
   for (const effect of creature.sheet.standing ?? []) {
     if (effect.grant.kind !== 'speed') continue;
+    if ((effect.grant.change ?? 'add') !== 'add') continue;
     if (!meetsRequirements(state, who, effect)) continue;
-    flatten(effect.grant.feet);
+    flattenInMode(effect.grant);
   }
 
   let halvings = 0;
   let zeroed = false;
   for (const granted of creature.speedModifiers) {
-    if (granted.change === 'add') flatten(granted.feet ?? 0);
+    if (granted.change === 'add') flattenInMode(granted);
     else if (granted.change === 'halve') halvings += 1;
-    else zeroed = true;
+    else if (granted.change === 'zero') zeroed = true;
   }
 
+  // An area carries no mode — SRD Spirit Guardians halves a Speed rather than
+  // granting one — so its flat changes are read exactly as an unqualified
+  // grant's are.
+  //
+  // **Each member is named**, which is the loop above's discipline and is why
+  // it has it. `AreaStanding.change` used to be {@link SpeedChange} whole, so
+  // widening that union for "a Climb Speed equal to its Speed" widened this
+  // field with it and a trailing `else` here read the new member as a Speed of
+  // 0. The type is narrowed now, so nothing typed can arrive; naming the
+  // members is what makes a *later* widening ignore what it cannot compute
+  // rather than zero somebody's Speed.
   for (const standing of areaStandingOn(state, who)) {
-    if (standing.change === 'add') flatten(standing.feet ?? 0);
+    if (standing.change === 'add') flattenInMode({ feet: standing.feet ?? 0 });
     else if (standing.change === 'halve') halvings += 1;
-    else zeroed = true;
+    else if (standing.change === 'zero') zeroed = true;
   }
 
   // **An increase is the walking Speed's; everything that takes Speed away is
@@ -3050,7 +3160,95 @@ export function speedOf(
   // anybody. Exhaustion already behaved this way through `conditionSpeed`,
   // and this is the rest of the family joining it rather than an exception
   // being carved.
-  return combineSpeed(base, mode === 'walk' ? up + down : down, halvings, zeroed, creature.conditions);
+  //
+  // What a *mode-named* grant does is not that ruling and needs none: SRD Fly
+  // prints "a Fly Speed of 60 feet", so the feet go where the sentence says
+  // and nowhere else.
+  return combineSpeed(base, flat, halvings, zeroed, creature.conditions);
+}
+
+/**
+ * Whether any grant on this creature says its Speed in a mode is its walking
+ * Speed.
+ *
+ * Both doors at once, because SRD writes one sentence and two catalogues
+ * carry it: Spider Climb's casting is a stored {@link GrantedSpeed} and
+ * Second-Story Work's is a derived {@link StandingGrant}, and a reader that
+ * knew only one of them would be right about half the book.
+ */
+function matchesWalkingSpeed(
+  state: GameState,
+  who: CharacterId,
+  creature: CreatureState,
+  mode: MovementMode,
+): boolean {
+  if (mode === 'walk') return false;
+  if (creature.speedModifiers.some((g) => g.change === 'match-walk' && g.mode === mode)) {
+    return true;
+  }
+  return (creature.sheet.standing ?? []).some(
+    (effect) =>
+      effect.grant.kind === 'speed' &&
+      effect.grant.change === 'match-walk' &&
+      effect.grant.mode === mode &&
+      meetsRequirements(state, who, effect),
+  );
+}
+
+/**
+ * Whether this creature has a Speed of this kind **at all**, granted or
+ * printed.
+ *
+ * {@link hasSpeedInMode} is the sheet-level question and it is still the right
+ * one where the sheet is the whole answer — `adaptMonster` puts a Cockatrice's
+ * Fly Speed there. This is the state-level sibling the reader half asked for
+ * when it wrote "a spell cannot grant a mode yet": once one can, "has a Climb
+ * Speed" is a fact about the creature *and everything currently on it*, and a
+ * rule that asked the sheet would charge a Spider Climb's target the climbing
+ * surcharge for a Speed it had just been given.
+ *
+ * **Having and having any left are still two questions**, which is the whole
+ * reason the sheet-level one exists: a Restrained fish has a Swim Speed of 0
+ * without having stopped being a fish, and a Grappled spider under Spider
+ * Climb has a Climb Speed of 0 without the casting having ended. So this asks
+ * what grants *say*, never what {@link speedOf} computes — a zeroing
+ * condition does not take a mode away, it stops it.
+ */
+export function hasSpeedInModeOn(state: GameState, who: CharacterId, mode: MovementMode): boolean {
+  if (mode === 'walk') return true;
+  const creature = state.creatures[who];
+  if (creature === undefined) return false;
+  if (hasSpeedInMode(creature.sheet, mode)) return true;
+  if (matchesWalkingSpeed(state, who, creature, mode)) return true;
+
+  if (creature.speedModifiers.some((g) => g.change === 'add' && g.mode === mode && (g.feet ?? 0) > 0)) {
+    return true;
+  }
+  return (creature.sheet.standing ?? []).some(
+    (effect) =>
+      effect.grant.kind === 'speed' &&
+      (effect.grant.change ?? 'add') === 'add' &&
+      effect.grant.mode === mode &&
+      (effect.grant.feet ?? 0) > 0 &&
+      meetsRequirements(state, who, effect),
+  );
+}
+
+/**
+ * SRD "Flying": "the creature falls unless it has the Hover trait", asked of
+ * the creature rather than of its sheet.
+ *
+ * {@link fliesWithoutFalling}'s state-level sibling, and it exists for the
+ * same reason {@link hasSpeedInModeOn} does: SRD Fly hands over a Fly Speed
+ * **and** the hovering in one sentence, and neither half is on the sheet. A
+ * printed Hover and a granted one are the same trait, so either answers.
+ */
+export function fliesWithoutFallingOn(state: GameState, who: CharacterId): boolean {
+  const creature = state.creatures[who];
+  if (creature === undefined) return false;
+  if (!hasSpeedInModeOn(state, who, 'fly')) return false;
+  if (creature.sheet.speeds?.hover === true) return true;
+  return creature.speedModifiers.some((g) => g.hover === true && g.mode === 'fly');
 }
 
 /**

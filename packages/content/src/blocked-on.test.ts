@@ -2341,7 +2341,14 @@ describe('a consumer count is a query', () => {
     // executed spell's debt. A shape that spanned two populations still spans
     // two, which is the property this test is about.
     expect(modes.executed).toEqual(['gaseous-form', 'wind-walk']);
-    expect(modes.tracked).toEqual(['alter-self', 'fly', 'freedom-of-movement', 'spider-climb']);
+    // **Fly and Spider Climb left the shape rather than moving column**,
+    // which is what building a writer looks like from here: the two are
+    // executed definitions now, and neither has a clause this shape still
+    // holds. Fly's whole printed benefit is one grant and what is left of it
+    // names no mechanic at all; Spider Climb's Climb Speed is granted and
+    // what is left — which walls a creature may walk on — is the table's,
+    // filed against a lattice that holds no surfaces.
+    expect(modes.tracked).toEqual(['alter-self', 'freedom-of-movement']);
     // A floor below the population rather than on it, lowered by the batch
     // that wrote Freedom of Movement — which moved a spell from the third
     // population into the second and so shrank this one by one.

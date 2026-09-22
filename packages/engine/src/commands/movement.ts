@@ -12,10 +12,15 @@ import { spendMovement, spendReaction } from '../combat.js';
 import { deprivedOfFlight, isIncapacitated } from '../conditions.js';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
-import { actionRulesOn, canSee, sheetAsItStands, speedOf } from '../standing.js';
 import {
-  fliesWithoutFalling,
-  hasSpeedInMode,
+  actionRulesOn,
+  canSee,
+  fliesWithoutFallingOn,
+  hasSpeedInModeOn,
+  sheetAsItStands,
+  speedOf,
+} from '../standing.js';
+import {
   highJumpHeight,
   longJumpDistance,
   type CharacterSheet,
@@ -304,7 +309,7 @@ export function moveWithin(
     // flew over.
     const sheet = sheetAsItStands(state, id) ?? mover.sheet;
     const mode = command.mode ?? 'walk';
-    const way = wayOf(state, id, sheet, mode);
+    const way = wayOf(state, id, mode);
     if (!way.ok) return way;
 
     const rise = to.z - from.z;
@@ -518,11 +523,18 @@ type Charging = 'spend' | 'report' | 'none';
  * ordinary ground at 1 becomes 2, and Difficult Terrain at 2 becomes 4, which
  * is 2 extra feet.
  *
- * The question asked of the *sheet* rather than of the live Speed, because
- * "unless the creature has a Climb Speed" is about what the creature is: a
- * Grappled spider still has a Climb Speed, and charging it double for a climb
- * it cannot make anyway would be the wrong answer arrived at by the wrong
- * question.
+ * The question asked of what the creature *has* rather than of the live
+ * Speed, because "unless the creature has a Climb Speed" is about what the
+ * creature is: a Grappled spider still has a Climb Speed, and charging it
+ * double for a climb it cannot make anyway would be the wrong answer arrived
+ * at by the wrong question.
+ *
+ * **And asked of the state rather than of the sheet**, which is the half the
+ * reader wave could not ask: a Spider Climb's Climb Speed is a grant on the
+ * creature and never reaches the sheet, so a sheet-level question would have
+ * charged the spell's target the surcharge the spell exists to lift.
+ * {@link hasSpeedInModeOn} is the sibling, and it still answers "has" rather
+ * than "has any left".
  */
 interface WayOfMoving {
   readonly allowance: number;
@@ -532,10 +544,9 @@ interface WayOfMoving {
 function wayOf(
   state: GameState,
   id: CharacterId,
-  sheet: CharacterSheet,
   mode: MovementMode,
 ): Result<WayOfMoving> {
-  if (mode === 'walk' || hasSpeedInMode(sheet, mode)) {
+  if (hasSpeedInModeOn(state, id, mode)) {
     return ok({ allowance: speedOf(state, id, mode), surcharge: 1 });
   }
 
@@ -1328,9 +1339,8 @@ export function flightLost(state: GameState, id: CharacterId): FlightLoss {
   const creature = state.creatures[id];
   if (creature === undefined) return { kind: 'no-flight' };
 
-  const sheet = sheetAsItStands(state, id) ?? creature.sheet;
-  if (!hasSpeedInMode(sheet, 'fly')) return { kind: 'no-flight' };
-  if (fliesWithoutFalling(sheet)) return { kind: 'hovers' };
+  if (!hasSpeedInModeOn(state, id, 'fly')) return { kind: 'no-flight' };
+  if (fliesWithoutFallingOn(state, id)) return { kind: 'hovers' };
 
   const stopped = deprivedOfFlight(creature.conditions) || speedOf(state, id, 'fly') <= 0;
   if (!stopped) return { kind: 'aloft' };

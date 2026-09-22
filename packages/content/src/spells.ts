@@ -3348,10 +3348,14 @@ export const FLY: SpellDefinition = {
   // the other end too: a Wizard casting Fly on themselves is the most ordinary
   // use the spell has, and without `self` the engine refused it outright.
   targets: { count: 1, extraPerSlotLevelAbove: 1, self: true },
-  effects: [],
+  // The whole of the printed benefit, in one grant: the mode, the number of
+  // feet, and the hovering the same sentence hands over. The ten minutes are
+  // the casting's own deadline, so the grant needs no `lasts` — it ends
+  // through the door `releaseCasting` already opens, and the Concentration is
+  // the other way it ends.
+  effects: [{ kind: 'speed', change: 'add', feet: 60, mode: 'fly', hover: true }],
   durationSeconds: 600,
   unmodelled: [
-    'a Fly Speed of 60 feet and hovering are not applied; the engine tracks one Speed and no movement modes',
     'the fall when the spell ends on a creature still aloft is the DM’s',
   ],
 };
@@ -3432,10 +3436,13 @@ export const SPIDER_CLIMB: SpellDefinition = {
   concentration: true,
   range: { kind: 'touch' },
   targets: { count: 1, extraPerSlotLevelAbove: 1 },
-  effects: [],
+  // "a Climb Speed equal to its Speed", which is the sentence `match-walk`
+  // exists for: the number is the target's own and no definition could print
+  // it.
+  effects: [{ kind: 'speed', change: 'match-walk', mode: 'climb' }],
   durationSeconds: 3600,
   unmodelled: [
-    'climbing walls and ceilings, and the Climb Speed, are not applied; the engine tracks one Speed and no movement modes',
+    'moving up, down and across vertical surfaces and along ceilings is not applied; the lattice holds elevation and no surfaces',
   ],
 };
 

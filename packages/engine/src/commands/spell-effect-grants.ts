@@ -238,6 +238,12 @@ export function resolveSpeedEffect(
       source,
       change: effect.change,
       ...(effect.feet === undefined ? {} : { feet: effect.feet }),
+      // **Absent stays absent**, which is what keeps every log written before
+      // modes existed folding to the state it always folded to: a
+      // `speed-modifier-granted` with no mode is the walking one, then and
+      // now.
+      ...(effect.mode === undefined ? {} : { mode: effect.mode }),
+      ...(effect.hover === undefined ? {} : { hover: effect.hover }),
     },
   });
   current = events.slice(-1).reduce(applyEvent, current);
@@ -245,7 +251,11 @@ export function resolveSpeedEffect(
   // Speed actually *is* — a Longstrider on a Grappled creature adds ten
   // feet to a Speed the rules have already pinned at 0, and the outcome
   // should say 0 rather than what the definition asked for.
-  outcomes.push({ target, speed: speedOf(current, target), affected: true });
+  //
+  // And in the mode the sentence was about, for the same reason: SRD Fly
+  // grants a Fly Speed and the walking Speed it did not touch is not what
+  // the caster wants reported back.
+  outcomes.push({ target, speed: speedOf(current, target, effect.mode), affected: true });
   return ok(current);
 }
 

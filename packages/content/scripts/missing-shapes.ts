@@ -1031,6 +1031,13 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'the one clause of this spell the shape it was blocked on does not finish. `save.condition` is optional now and the three grants the failure hands out are written; a repeat is not a grant, it is filed on the **condition instance** the failure created, and this failure creates none. `checkSpellDefinition` refuses the pair by name rather than accepting a repeat no boundary would ever raise.',
     },
   ],
+  'spider-climb': [
+    {
+      clause: 'across vertical surfaces and along ceilings',
+      why: 'table',
+      note: 'SRD: "gains the ability to move up, down, and across vertical surfaces and along ceilings, while leaving its hands free". **The Climb Speed in the next sentence is executed and this is what is left.** A scene is a lattice of 5-foot cubes with landmarks and elevation, and no surfaces at all — there is no wall for the engine to say a creature may walk on, and inventing one would be the engine deciding where the room’s walls are. So the same line declared cover and declared sight already draw: the DM says which surface the spider took, and the engine charges the climb at the Climb Speed the spell gave it.',
+    },
+  ],
   sunbeam: [
     {
       clause: 'creates a new Line on a later turn',
@@ -1359,14 +1366,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'condition here means circumstance rather than any of the fifteen the engine applies: "it must be based on visual or audible conditions that occur within 30 feet of the object" is something the DM watches for, and whether a silver bell has rung is not a fact the engine holds.',
     },
   ],
-  fly: [
-    {
-      marker: 'speed',
-      clause: 'a Fly Speed of 60 feet and can hover',
-      why: 'movement-modes',
-      note: 'a Fly Speed of 60 feet and hovering: the engine tracks one Speed and no movement modes.',
-    },
-  ],
   jump: [
     {
       marker: 'movement-cost',
@@ -1381,14 +1380,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'creatures and objects that have the Invisible condition as if they were visible',
       why: 'table',
       note: 'seeing through the Invisible condition is declared, not derived: sight is a pairwise declaration and the condition’s own effects already read it, so the table declares the sight this spell grants.',
-    },
-  ],
-  'spider-climb': [
-    {
-      marker: 'speed',
-      clause: 'a Climb Speed equal to its Speed',
-      why: 'movement-modes',
-      note: 'a Climb Speed equal to its Speed, and walls and ceilings: the engine tracks one Speed and no movement modes.',
     },
   ],
   'plane-shift': [

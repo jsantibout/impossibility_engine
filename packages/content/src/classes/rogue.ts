@@ -385,7 +385,12 @@ export const THIEF: SubclassDefinition = {
       name: 'Second-Story Work',
       level: 3,
       automation: 'manual',
-      note: 'Climbing at full Speed and the longer running jump are not modelled; movement has one speed and no modes.',
+      note: 'Half of it is applied, which is why this is not marked as executed. SRD: "You gain a Climb Speed equal to your Speed", which is the standing grant below — the same sentence Spider Climb prints, spelled the same way, so a Thief climbs at full Speed and pays no surcharge for it. The other half is not applied: "when you make a running jump, the distance you cover increases by a number of feet equal to your Dexterity modifier" is the longer running jump, and `longJumpDistance` reads a Strength score off the sheet with nothing able to add feet to what it returns.',
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        effects: [{ kind: 'speed', change: 'match-walk', mode: 'climb' }],
+      },
     },
     {
       id: 'thief:supreme-sneak',

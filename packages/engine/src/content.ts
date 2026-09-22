@@ -11,6 +11,7 @@ import {
   checkFeatureDefinition,
   duplicateFeatureIds,
   parseFeatureDefinition,
+  speedGrantProblems,
   weaponSelectorProblems,
   type FeatureContext,
 } from './feature-schema.js';
@@ -569,6 +570,17 @@ function ownedStandingEffectProblems(
   }
   if (effect.kind === 'ability-score-set') {
     found.push(...abilitySetProblems(effect as unknown as Record<string, unknown>, at));
+  }
+  // **The Speed a grant gives, and the one door that would otherwise miss
+  // it.** `checkFeatureDefinition` holds a class, a subclass, a species and a
+  // background feature to `speedGrantProblems`; a *feat* reaches none of it —
+  // `featStandingProblems` is its whole door — so a feat granting a halved
+  // Climb Speed validated, compiled onto the sheet and was skipped by
+  // `speedOf`, which gathers a grant under `add` and `match-walk` alone. That
+  // is the benefit-nothing-reads failure this validator exists for, arriving
+  // through the third holder rather than the first two.
+  if (effect.kind === 'speed') {
+    found.push(...speedGrantProblems(effect as unknown as Record<string, unknown>, at));
   }
   return found;
 }
@@ -3339,6 +3351,13 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
       });
       if (feature.grants?.kind === 'standing') {
         (feature.grants.effects ?? []).forEach((effect, position) => {
+          // **`checkFeatureDefinition` above already held this one**, at this
+          // very path, and a problem reported twice is a problem an author
+          // fixes once and sees again. It is in the shared function because a
+          // **feat** reaches neither this loop's sibling nor that call — see
+          // `speedGrantProblems` — and it is skipped here because a feature
+          // reaches both.
+          if (effect.kind === 'speed') return;
           for (const problem of ownedStandingEffectProblems(
             effect,
             `${where}.grants.effects[${position}]`,
