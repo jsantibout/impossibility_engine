@@ -25,9 +25,9 @@ exactly like an entry nobody read.
 
 | Ledger | Size | Waits on an engine shape | Waits on none |
 |---|---|---|---|
-| Spells in reach, not executed | 130 spells | 90 | 40 |
+| Spells in reach, not executed | 129 spells | 89 | 40 |
 | Features manual, or a pool with nothing to buy | 55 features | 49 | 6 |
-| CR ≤ 5 stat-block items handed over or unapplied | 416 items | on 192 of 242 blocks | 50 blocks already clean |
+| CR ≤ 5 stat-block items handed over or unapplied | 400 items | on 186 of 242 blocks | 56 blocks already clean |
 
 ## 1. Spells in reach the engine does not resolve
 
@@ -42,12 +42,12 @@ hold at all. An executed spell with nothing left is not here.
 | `an-action-a-spell-compels-or-forbids` | 9 | 5 |
 | `a-rider-on-a-later-weapon-attack` | 7 | 3 |
 | `difficult-terrain-an-area-creates` | 6 | 3 |
-| `a-condition-benefit-an-effect-takes-away` | 4 | 3 |
 | `senses-beyond-declared-sight` | 4 | 3 |
 | `a-random-outcome-that-is-not-a-d20` | 5 | 2 |
 | `a-stat-block-created-mid-fight` | 5 | 2 |
 | `an-effect-that-suppresses-other-magic` | 5 | 2 |
 | `movement-modes` | 4 | 2 |
+| `a-condition-benefit-an-effect-takes-away` | 3 | 2 |
 | `several-attack-rolls-from-one-casting` | 3 | 2 |
 | `a-casting-ended-by-a-trigger` | 7 | 1 |
 | `a-standing-effect-derived-from-where-a-creature-stands` | 5 | 1 |
@@ -142,13 +142,6 @@ sums to the population.
 - **Plant Growth** (level 3) — tracked
 - **Speak with Plants** (level 3) — tracked
 
-#### `a-condition-benefit-an-effect-takes-away` — blocks 4, finishes 3
-
-- **Starry Wisp** (level 0) — executed-partial
-- **Faerie Fire** (level 1) — tracked
-- **Mind Spike** (level 2) — executed-partial
-- **Shining Smite** (level 2) — executed-partial — also waits on 1
-
 #### `senses-beyond-declared-sight` — blocks 4, finishes 3
 
 - **Find Familiar** (level 1) — no-definition — also waits on 3
@@ -186,6 +179,12 @@ sums to the population.
 - **Spider Climb** (level 2) — tracked
 - **Fly** (level 3) — tracked
 - **Gaseous Form** (level 3) — executed-partial — also waits on 3
+
+#### `a-condition-benefit-an-effect-takes-away` — blocks 3, finishes 2
+
+- **Faerie Fire** (level 1) — tracked
+- **Mind Spike** (level 2) — executed-partial
+- **Shining Smite** (level 2) — executed-partial — also waits on 1
 
 #### `several-attack-rolls-from-one-casting` — blocks 3, finishes 2
 
@@ -788,7 +787,7 @@ Listed by level, then id.
 
 ## 3. CR ≤ 5 stat-block lines handed over or unapplied
 
-242 of the 330 carried stat blocks are CR ≤ 5. They print 737 lines, of which the parser reads 407 and hands over 330. A further 86 of the read attack lines carry a printed rider nothing applies, so the population is 416 items over 242 blocks — 50 of which already carry none of them.
+242 of the 330 carried stat blocks are CR ≤ 5. They print 737 lines, of which the parser reads 407 and hands over 330. A further 70 of the read attack lines carry a printed rider nothing applies, so the population is 400 items over 242 blocks — 56 of which already carry none of them.
 
 **A block is the unit that matters and a line is the unit that is counted.**
 A block with four unapplied lines is one fight that does not run, not four,
@@ -797,8 +796,8 @@ overlap: one sentence can force a save and recharge.
 
 | Shape | Lines | Blocks | Three example blocks |
 |---|---|---|---|
-| An effect a hit buys | 86 | 79 | Animated Rug of Smothering (CR 2) / Smother; Ankheg (CR 2) / Bite; Barbed Devil (CR 5) / Claws |
 | A save a line forces | 73 | 60 | Air Elemental (CR 5) / Whirlwind (Recharge 4–6); Ankheg (CR 2) / Acid Spray (Recharge 6); Basilisk (CR 3) / Petrifying Gaze (Recharge 4–6) |
+| An effect a hit buys | 70 | 65 | Animated Rug of Smothering (CR 2) / Smother; Barbed Devil (CR 5) / Hurl Flame; Bearded Devil (CR 3) / Beard |
 | A recharge | 32 | 32 | Air Elemental (CR 5) / Whirlwind (Recharge 4–6); Ankheg (CR 2) / Acid Spray (Recharge 6); Basilisk (CR 3) / Petrifying Gaze (Recharge 4–6) |
 | A use the block limits per day | 18 | 17 | Couatl (CR 4) / Divine Aid (2/Day); Cultist Fanatic (CR 2) / Spiritual Weapon (2/Day); Darkmantle (CR 0.5) / Darkness Aura (1/Day) |
 | A creature that casts | 12 | 12 | Couatl (CR 4) / Spellcasting; Cultist Fanatic (CR 2) / Spellcasting; Druid (CR 2) / Spellcasting |

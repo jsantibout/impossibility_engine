@@ -28,7 +28,7 @@ than to the table.
 
 | Parsed | Tracked | Executed | of which partial | Verified |
 |---|---|---|---|---|
-| 339 | 211 (62.2%) | 118 (34.8%) | 48 | 90 (26.5%) |
+| 339 | 211 (62.2%) | 118 (34.8%) | 47 | 91 (26.8%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -142,7 +142,7 @@ a plain statement of what the table decides.
 - **Sorcerous Burst** (cantrip) — verified
 - **Spirit Guardians** (level 3) — verified
 - **Spiritual Weapon** (level 2) — verified
-- **Starry Wisp** (cantrip) — untested, partial — a clause the engine owns is still unbuilt
+- **Starry Wisp** (cantrip) — verified
 - **Stinking Cloud** (level 3) — verified
 - **Stoneskin** (level 4) — verified
 - **Suggestion** (level 2) — untested
@@ -450,7 +450,6 @@ of *Tracked* and is never added to it.
 | `senses-beyond-declared-sight` | 5 | 0 | 0 | 1 | 3 | 2 | 1 |
 | `a-casting-dismissed-early` | 4 | 0 | 0 | 2 | 2 | 1 | 0 |
 | `a-check-another-creature-may-attempt` | 4 | 0 | 0 | 0 | 4 | 0 | 0 |
-| `a-condition-benefit-an-effect-takes-away` | 4 | 0 | 0 | 3 | 1 | 0 | 0 |
 | `a-creature-type-predicate-an-area-reads` | 4 | 0 | 0 | 0 | 4 | 0 | 0 |
 | `a-fact-only-the-table-can-declare` | 4 | 0 | 0 | 1 | 3 | 0 | 0 |
 | `a-hit-point-maximum-a-spell-moves` | 4 | 0 | 0 | 1 | 3 | 0 | 0 |
@@ -459,6 +458,7 @@ of *Tracked* and is never added to it.
 | `an-activation-that-resolves-an-area` | 4 | 0 | 0 | 1 | 3 | 0 | 0 |
 | `healing-that-raises-the-dead` | 4 | 0 | 0 | 0 | 4 | 0 | 0 |
 | `a-bonus-narrowed-to-a-skill` | 3 | 0 | 0 | 0 | 2 | 2 | 1 |
+| `a-condition-benefit-an-effect-takes-away` | 3 | 0 | 0 | 2 | 1 | 0 | 0 |
 | `a-condition-immunity-narrowed-to-its-source` | 3 | 0 | 0 | 0 | 3 | 0 | 0 |
 | `a-deadline-anchored-to-a-rest` | 3 | 0 | 0 | 0 | 2 | 0 | 1 |
 | `a-filter-on-the-attackers-creature-type` | 3 | 0 | 0 | 0 | 3 | 0 | 0 |
@@ -1036,7 +1036,7 @@ and a bite whose hit buys a save.
 | Shape | Blocks | Lines |
 |---|---|---|
 | A save a line forces | 127 | 187 |
-| An effect a hit buys | 106 | 114 |
+| An effect a hit buys | 88 | 94 |
 | A recharge | 87 | 87 |
 | A use the block limits per day | 54 | 60 |
 | A creature that casts | 48 | 48 |
