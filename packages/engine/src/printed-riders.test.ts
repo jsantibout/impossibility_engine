@@ -424,7 +424,14 @@ describe('a fact nobody has stated is reported, never invented', () => {
 
     expect(conditionsOn(out.state, SHAPE)).not.toContain('poisoned');
     expect(out.unverified.join(' ')).toContain('the engine does not apply that');
-    expect(out.unverified.join(' ')).toContain('no turns here');
+    // **The rider's own reason, in its own words.** A swing outside combat
+    // says several things about turns — the Ettercap's Multiattack sequence
+    // has nothing to count itself against either — so a phrase both could
+    // have written would have passed with this clause deleted.
+    expect(out.unverified.join(' ')).toContain(
+      "Bite's clause lasts until a turn boundary of ettercap's",
+    );
+    expect(out.unverified.join(' ')).toContain('no turns outside combat to anchor a duration to');
   });
 });
 
