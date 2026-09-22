@@ -842,7 +842,18 @@ export type OngoingEndReason =
    * unions keep `dispelled` apart from it: a dispel is somebody else's magic
    * defeating yours, and this is the creator letting go of their own.
    */
-  | 'dismissed';
+  | 'dismissed'
+  /**
+   * The spell used itself up.
+   *
+   * SRD Mirror Image: "The spell ends when all three duplicates are
+   * destroyed." Nobody decides this one, which is the company expiry and a
+   * broken Concentration keep — and unlike those two it is **not** derivable
+   * from the clock or from Concentration, so the command that spent the last
+   * duplicate says so and the log reads as what happened. It is the only
+   * ending whose cause is a blow somebody else struck.
+   */
+  | 'spent';
 
 /**
  * Why a Concentration ended. Every one of these is in the SRD except

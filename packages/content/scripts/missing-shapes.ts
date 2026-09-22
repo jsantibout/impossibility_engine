@@ -867,18 +867,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: "A Humanoid killed by this spell rises at the start of your next turn as a **Zombie**", one "that follows your verbal orders". Nothing creates a creature from a stat block during play, which is the summons seam every Conjure waits on.',
     },
   ],
-  'fire-shield': [
-    {
-      clause: 'the shield erupts with flame',
-      why: 'a-spell-that-answers-a-later-attack',
-      note: 'the eruption fires on somebody else\u2019s melee attack after it has hit, and a casting is offered no window on another creature\u2019s attack \u2014 the same absence Sanctuary and Mirror Image wait on. **Not the absence SRD Shield waited on**, and the difference is the whole of this shape: Shield is a Reaction somebody takes into a hit that is being held, and it became reachable against a monster on 2026-09-21, when a stat block’s line was allowed to take the hold like anybody else’s. Nobody takes this one.',
-    },
-    {
-      clause: 'the 2d8 the attacker takes is not dealt',
-      why: 'a-spell-that-answers-a-later-attack',
-      note: 'the dice are ordinary and so is the rule that picks their type \u2014 Fire from a warm shield, Cold from a chill one \u2014 and both hang on the eruption above, which has no moment to happen at.',
-    },
-  ],
   'fog-cloud': [
     {
       clause: '"until a strong wind (such as one created by Gust of Wind) disperses it"',
@@ -1057,6 +1045,18 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'Knowing where the target is stays the table’s: the engine holds no knowledge model and sight is a declaration, so a DM who declares the sight has said the whole of that half. The rest is not. Invisible’s attack halves read declared sight, but `initiativeConditionModes` grants its Initiative Advantage from the condition’s presence alone, so for an hour a target the spike has found goes on rolling Initiative with an Advantage the SRD took away from it, decided by the engine and reachable by no declaration.',
     },
   ],
+  'mirror-image': [
+    {
+      clause: 'the duplicates are not in the world',
+      why: 'table',
+      note: 'three duplicates appearing in the caster’s space, moving with them and shifting position so it is impossible to track which image is real, is scenery: nothing can be aimed at one, so what the engine holds is the only part any rule reads — how many are left. The deflection itself is executed: each time a creature hits the caster, one d6 per remaining duplicate, a 3 or higher sends the blow to one of them, and the spell ends when the last is destroyed.',
+    },
+    {
+      clause: 'ignore all other damage and effects',
+      why: 'table',
+      note: 'a rule about a thing nothing can aim at. No command targets a duplicate — they are not creatures on the roster — so there is nothing for damage or an effect to bounce off, and the sentence is true for free.',
+    },
+  ],
   moonbeam: [
     {
       clause: 'shape-shifted creature reverting',
@@ -1094,6 +1094,28 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'remain within range for the spell',
       why: 'table',
       note: 'SRD: "Up to five creatures of your choice who remain within range for the spell\'s entire casting gain the benefits of a Short Rest". Range is measured against where the five stand when the rite settles, and nothing records where anybody stood for the ten minutes before it; a position history kept only so that one spell could read it would be a rule nothing else asks for, so whether they stayed is the DM\'s.',
+    },
+  ],
+  sanctuary: [
+    {
+      clause: 'or a damaging spell',
+      why: 'a-spell-that-answers-a-later-attack',
+      note: 'the ward answers an attack roll — a weapon swing or a spell attack — and not yet a damaging spell that rolls nothing to hit. The moment is different and so is the price: an attack meets the ward before the Attack action is spent, so the attacker keeps both of the book’s branches, where a casting has already paid its slot by the time an effect resolves. What a failed ward should cost a casting is a question nobody has ruled on, and guessing it would either refund a slot the rules spend or burn one the rules may not.',
+    },
+    {
+      clause: 'choose a new target',
+      why: 'table',
+      note: 'the branch is the **attacker’s** and the engine aims nothing on a caller’s behalf, which is `eligibleTargets`’ own rule. So the book’s two branches are two commands rather than one: a failed ward loses the swing and spends nothing, and redirecting is a second swing at a creature nobody warded. Declining to make one is the other branch, which is what losing the attack looks like at a table.',
+    },
+    {
+      clause: 'one save per ward per turn',
+      why: 'table',
+      note: 'owner’s ruling, 2026-09-22, and a limit the book does not print: it gives a save each time a creature targets the warded one. A failure here costs nothing, so without the limit an attacker re-declares until the save passes and the spell is undone. The ledger records both outcomes, so an attacker who cleared the ward is through for the turn and one who did not is barred for it.',
+    },
+    {
+      clause: 'costs no Attack action',
+      why: 'table',
+      note: 'SRD ends this spell "if the warded creature makes an attack roll", and an attack roll changes no state by rule — `roll-recorded` is an audit line — so the ending hangs on the swing that spends something or on the blow that lands. An Opportunity Attack that misses, or any swing outside combat, leaves the ward standing where the book would end it.',
     },
   ],
   'searing-smite': [
@@ -1817,14 +1839,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'placing a creature in the nearest unoccupied space and applying Prone are both ordinary; what is missing is the expulsion they follow from, which is the state this whole paragraph hangs on.',
     },
   ],
-  'mirror-image': [
-    {
-      marker: 'condition',
-      clause: 'if it has the Blinded condition, Blindsight, or Truesight',
-      why: 'a-spell-that-answers-a-later-attack',
-      note: '**re-filed rather than retired**, and two pieces short rather than one. The sense half of this clause is built: a selector now carries `unlessPerceivedWith` and the attacker’s senses are read at the swing, which finished Blur’s. The Blinded half is not — that axis names senses and a condition is not one, so the first three words of this sentence have no field even now. And neither half has anything to except *from*: the duplicates are the spell, the deflection they perform answers somebody else’s attack after it has landed, and a casting is offered no window on another creature’s attack, which is the same absence Sanctuary and Fire Shield wait on and the blocker this is charged to. **Not Shield’s**: that one is a Reaction its caster takes into a hit still being held, and holding a monster’s swing — the owner’s ruling of 2026-09-21 — is what made it reachable in a fight against monsters. Nothing here is taken by anybody, so nothing here came with it. Retiring the entry when the sense axis landed would have read in the ledger as a finished spell.',
-    },
-  ],
   seeming: [
     {
       marker: 'saving-throw',
@@ -2119,14 +2133,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'must succeed on a Dexterity saving throw or take 2d6 Cold damage',
       why: 'a-second-roll-sequenced-after-the-first',
       note: 'the burst follows the attack hit or miss, over a Sphere centred on wherever the shard arrived — a second roll sequenced after the first, against a point the casting does not hold.',
-    },
-  ],
-  sanctuary: [
-    {
-      marker: 'saving-throw',
-      clause: 'must succeed on a Wisdom saving throw or either choose a new target or lose the attack or spell',
-      why: 'a-spell-that-answers-a-later-attack',
-      note: 'the save belongs to whoever attacks the warded creature, so the spell has to be offered a window on somebody else’s attack. There is none: the reaction windows a casting answers are the caster’s own, and Mirror Image waits on the same absence. **SRD Shield does not**: it is a Reaction its caster takes into a hit that is still open, and a monster’s swing can be held open since 2026-09-21 — a window somebody steps into, where this is a save the rules make the attacker roll whether anybody is watching or not.',
     },
   ],
   sleep: [

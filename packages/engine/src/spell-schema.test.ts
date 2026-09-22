@@ -3533,6 +3533,19 @@ describe('every branch judges untyped input rather than throwing on it', () => {
       fields: { base: required(NUMBER_JUNK) },
     },
     {
+      // The base is the decoys, because that is the shape with the most to
+      // get wrong: a count, a threshold, a die and two exception lists. The
+      // junk sweep below drives every one of them through the validator, and
+      // the ward and the retaliation are reached by the catalogue sweep, which
+      // casts all three of the SRD spells that write this kind.
+      kind: 'passive-defense',
+      base: {
+        kind: 'passive-defense',
+        defense: { kind: 'decoys', count: 3, die: '1d6', deflectsOn: 3 },
+      },
+      fields: { defense: required(OBJECT_JUNK) },
+    },
+    {
       kind: 'damage-defense',
       base: { kind: 'damage-defense', damageTypes: ['fire'], defense: 'resistant' },
       fields: { damageTypes: required(ARRAY_JUNK), defense: required(STRING_JUNK) },

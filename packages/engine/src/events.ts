@@ -27,6 +27,7 @@ import type { CharacterId, ConditionName, RollId } from '@ie/shared';
 import type { Armor, CreatureSize } from '@ie/srd';
 import type { CharacterSheet, GrantedArmorClass } from './character.js';
 import { type ActiveRollModifier } from './roll-modifiers.js';
+import { type ActivePassiveDefense } from './passive-defenses.js';
 import type { DieRoll, RngState } from './dice.js';
 import { type PoolDeclaration, type Recovery } from './resources.js';
 import type { CharacterRecord } from './creation.js';
@@ -336,6 +337,53 @@ export type GameEvent =
       readonly type: 'roll-modifier-granted';
       readonly id: CharacterId;
       readonly modifier: ActiveRollModifier;
+    }
+
+  /**
+   * An ongoing casting hangs a defence the **attack path** consults.
+   *
+   * Its own event rather than any of the three above it, because what it
+   * carries is not a number, a calculation or a mode: SRD Mirror Image sends a
+   * blow to a duplicate, SRD Fire Shield burns whoever landed one, and SRD
+   * Sanctuary makes the attacker save before they may swing at all. Nobody
+   * takes a Reaction to any of the three — owner's ruling, 2026-09-22 — so
+   * none of them is a window either.
+   *
+   * Ended by the casting in its `source`, exactly as the three above are, so
+   * there is no removal event: `releaseCasting` is the one door.
+   */
+  | {
+      readonly type: 'passive-defense-granted';
+      readonly id: CharacterId;
+      readonly defense: ActivePassiveDefense;
+    }
+
+  /**
+   * One of a creature's decoys has taken a blow and is gone.
+   *
+   * SRD Mirror Image: "one of the duplicates is hit instead of you, and the
+   * duplicate is destroyed."
+   *
+   * **The one event in the engine that edits a grant rather than adding or
+   * dropping one**, and it is worth saying why that is allowed here and
+   * nowhere else. Every other grant is a standing fact that is true until its
+   * source ends — an Armour Class, a Resistance, a mode — so a change to one
+   * is a new grant replacing the old under the same key. A decoy count is not
+   * a fact about the caster at all; it is **how much of the spell is left**,
+   * and re-granting it would mean the deflection that spent one had to restate
+   * every other number on the record to say so.
+   *
+   * It does not end the grant at zero. Where the definition says the casting
+   * ends when the last one goes, the command emits `spell-ended` beside this
+   * and `releaseCasting` takes the grant with it; where it does not, an empty
+   * frame throws no dice and deflects nothing, which is what the count already
+   * means.
+   */
+  | {
+      readonly type: 'decoy-destroyed';
+      readonly id: CharacterId;
+      readonly source: string;
+      readonly command?: CommandStamp;
     }
 
   /**

@@ -110,6 +110,7 @@ import { quantityOf } from './inventory.js';
 import { applyHitRider, hitRiderAsked, type HitRiderRequest } from './hit-riders.js';
 import { allyWithinFiveFeetOf, defendingModes, enemyWithinFiveFeet } from './rolls.js';
 import { consumedRollModifiers } from '../roll-modifiers.js';
+import { answerTheBlow, wardAgainst } from './passive-defenses.js';
 
 /**
  * The weapons this creature currently has in hand, as records.
@@ -675,6 +676,26 @@ export interface AttackResolution {
    * {@link settleDamage} is what deals it.
    */
   readonly reactions?: readonly ReactionOffer[];
+  /**
+   * A ward turned this swing away before it was thrown.
+   *
+   * SRD Sanctuary. `attack` is null and nothing was spent, which is the owner's
+   * ruling of 2026-09-22: the attacker may swing at a creature nobody warded
+   * instead, or take the book's other branch by simply not swinging again.
+   *
+   * Absent rather than false, so a reader asks one question and a log written
+   * before wards existed reads back unchanged.
+   */
+  readonly warded?: true;
+  /**
+   * A duplicate took the blow, so nothing of it reached the target.
+   *
+   * SRD Mirror Image. `attack` is the roll that was made and it *hit* — what
+   * it hit was an illusion. No damage was rolled, no hold was built and
+   * nobody was offered a Reaction, because a hit taken by a duplicate is not
+   * a hit on the creature behind it.
+   */
+  readonly deflected?: true;
   /** True when this command id had already been applied; `events` is empty. */
   readonly duplicate: boolean;
 }
@@ -884,14 +905,55 @@ export function resolveAttack(
       );
     }
 
+    // — the ward the target is standing behind ————————————————————————————
+    //
+    // SRD Sanctuary: "any creature who **targets** the warded creature with an
+    // attack roll ... must succeed on a Wisdom saving throw or either choose a
+    // new target or lose the attack or spell." Targeting, so it is asked
+    // before the roll — and **before the economy**, which is the owner's
+    // ruling of 2026-09-22 and the whole of why both of the book's branches
+    // stay reachable: an attacker turned away still holds the Attack action
+    // and may swing at somebody nobody warded.
+    //
+    // Nothing is a Reaction here and nothing is held: the defender elects
+    // nothing and is not asked. See `commands/passive-defenses.ts`.
+    //
+    // **An `ok` rather than an `err` when the save fails**, because by then a
+    // d20 has been thrown: the generator has moved, and only an emitted
+    // `rolls-issued` records that it did. A refusal carries no events, so
+    // refusing here would lose the die and a replay would diverge. A
+    // re-declaration the same turn *is* refused, and that one throws nothing.
+    const ward = wardAgainst(state, id, command.target, supply);
+    if (!ward.ok) return ward;
+    if (ward.value.barred) {
+      return ok({
+        events: [
+          ...ward.value.events,
+          {
+            type: 'rolls-issued',
+            count: supply.issuer.count,
+            rng: supply.rng.snapshot(),
+          },
+        ],
+        // No roll was made, which is what losing the attack means. Not a miss
+        // — `attack` being null with `duplicate` false is the one other way
+        // this command comes back without one, and `warded` says which.
+        attack: null,
+        warded: true,
+        unverified: [...ward.value.unverified],
+        duplicate: false,
+      });
+    }
+
     // — the action it costs —————————————————————————————————————————————————
     //
     // SRD: an attack with a weapon is the Attack action. Outside combat there is
     // no economy to spend, exactly as `resolveCast` finds.
-    const events: GameEvent[] = [];
+    const events: GameEvent[] = [...ward.value.events];
     // Gathered from here on, because the first thing that cannot be checked is
-    // the once-per-turn clause on a swing outside combat.
-    const unverified: string[] = [];
+    // the once-per-turn clause on a swing outside combat. The ward's clause is
+    // already in it: a save taken outside a fight has no turn to be held to.
+    const unverified: string[] = [...ward.value.unverified];
     // SRD Cleave's swing is a rider on a hit rather than an attack the Attack
     // action holds, so it costs what an Opportunity Attack costs here: nothing.
     const free = command.free === true || cleaving !== undefined;
@@ -1354,6 +1416,45 @@ export function resolveAttack(
       }
 
       return ok({ events, attack: attack.value, unverified, duplicate: false });
+    }
+
+    // — what the defender's passive defences do to a blow that landed ————
+    //
+    // SRD Mirror Image: "Each time a creature **hits** you with an attack roll
+    // ... roll a d6 for each of your remaining duplicates." SRD Fire Shield:
+    // "whenever a creature within 5 feet of you **hits** you with a melee
+    // attack roll, the shield erupts with flame." The hit is known and the
+    // damage is not rolled, which is this line and no other.
+    //
+    // **Before the hold, and that ordering is the rule.** A blow a duplicate
+    // took is not a blow that hit *you*, and SRD Shield is cast "when you are
+    // hit by an attack roll" — so a deflected hit must build no
+    // `attack-landed`, offer nobody anything and carry no rider. That is not a
+    // window being closed: it is the hit that would have opened one never
+    // having happened. Every other swing reaches the hold exactly as it did.
+    const answered = answerTheBlow(events.reduce(applyEvent, state), id, command.target, supply, {
+      // A printed line says which of the two it is and has no weapon behind
+      // it; a weapon with no range is melee. The same question the damage
+      // gatherer below asks, asked once and the same way.
+      melee: stated === undefined ? rangeOf(weapon, command.thrown === true) === null : !stated.ranged,
+    });
+    if (!answered.ok) return answered;
+    unverified.push(...answered.value.unverified);
+    events.push(...answered.value.events);
+
+    if (answered.value.deflected) {
+      events.push({
+        type: 'rolls-issued',
+        count: supply.issuer.count - issuedBefore,
+        rng: supply.rng.snapshot(),
+      });
+      return ok({
+        events,
+        attack: attack.value,
+        deflected: true,
+        unverified,
+        duplicate: false,
+      });
     }
 
     // **What the block says a hit does**, reported the moment the hit is known:

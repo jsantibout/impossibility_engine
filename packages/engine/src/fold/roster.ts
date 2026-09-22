@@ -120,6 +120,7 @@ export function applyRoster({ state, next }: Applying, event: RosterEvent): Game
             healingRules: [],
             hitPointMaxima: [],
             deniedBenefits: [],
+            passiveDefenses: [],
             initiativeBonuses: [],
             inventory: [],
             equipped: [],

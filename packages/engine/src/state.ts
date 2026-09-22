@@ -17,6 +17,7 @@ import type { Ability, CharacterId, ConditionName, RollMode } from '@ie/shared';
 import type { Armor, CreatureSize, WeaponMastery } from '@ie/srd';
 import type { CharacterSheet, GrantedArmorClass } from './character.js';
 import { type ActiveRollModifier } from './roll-modifiers.js';
+import { type ActivePassiveDefense } from './passive-defenses.js';
 import type { RngState } from './dice.js';
 import {
   type ConditionState,
@@ -593,6 +594,24 @@ export interface CreatureState {
    * are told apart, and `benefitsFrom`, which is what the readers ask.
    */
   readonly deniedBenefits: readonly DeniedBenefit[];
+  /**
+   * Defences a running casting has hung on this creature that the **attack
+   * path** consults, with nobody taking a Reaction.
+   *
+   * The fourteenth member of the family the thirteen above form, and the one
+   * the owner's ruling of 2026-09-22 called for: SRD Mirror Image, Sanctuary
+   * and Fire Shield all intervene in an attack *another creature* is making,
+   * and none of them is a Reaction, a mode or a number. See
+   * `passive-defenses.ts`, where the three shapes are told apart.
+   *
+   * **The one family that holds a number which moves.** A decoy count goes
+   * down by one per deflection, through `decoy-destroyed` — the only event in
+   * the engine that edits a grant rather than adding or dropping one. It is
+   * still a grant in every other respect: the `source` carries the casting, so
+   * `releaseCasting` ends it with the spell and `grantsOf` picks it up with
+   * the rest.
+   */
+  readonly passiveDefenses: readonly ActivePassiveDefense[];
   /**
    * Bonuses this creature's own features add to Initiative.
    *

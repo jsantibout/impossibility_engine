@@ -16,6 +16,7 @@ import { rollSavingThrow } from '../checks.js';
 import { applyEvent, type CreatureState, type GameEvent, type GameState } from '../events.js';
 import { apartFromSource } from '../positioning.js';
 import { consumedRollModifiers } from '../roll-modifiers.js';
+import { answerTheBlow, wardAgainst } from './passive-defenses.js';
 import {
   attackRollsFor,
   conditionRiderOf,
@@ -191,6 +192,31 @@ function resolveOneAttackRoll(
   // narrows a mode by "attack rolls using Strength" and a Fire Bolt is not one,
   // so the answer is the caster's spellcasting ability and `null` where an item
   // printed the bonus instead of a caster deriving it.
+  // **A spell attack is an attack roll here too.** SRD Sanctuary wards against
+  // "an attack roll" and says nothing about what it is made with, so a Fire
+  // Bolt is turned away exactly as a club is. Asked before the roll, which is
+  // where "targets" puts it.
+  //
+  // **What it cannot do on this path is give the casting back.** A weapon
+  // swing meets its ward before the Attack action is spent, so the attacker
+  // keeps both of the book's branches; a casting has already paid its slot by
+  // the time an effect resolves, and what a failure should cost *there* is a
+  // question nobody has ruled on. So the roll is lost and the casting is not,
+  // and the clause says which — a ward that silently did nothing here would
+  // be the worse of the two wrong answers.
+  const ward = wardAgainst(current, casterId, target, supply);
+  if (!ward.ok) return ward;
+  events.push(...ward.value.events);
+  current = ward.value.events.reduce(applyEvent, current);
+  unverified.push(...ward.value.unverified);
+  if (ward.value.barred) {
+    unverified.push(
+      `${casterId} failed to get past the ward on ${target}, so this attack roll of ${label} was lost; the slot it came out of was spent before the ward could be asked, and what a ward costs a casting is not ruled on`,
+    );
+    outcomes.push({ target, affected: false });
+    return ok(current);
+  }
+
   const defending = defendingModes(current, casterId, target, ability);
   unverified.push(...defending.unverified);
 
@@ -337,6 +363,26 @@ function resolveOneAttackRoll(
       // took half anyway.
       affected: false,
     });
+    return ok(current);
+  }
+
+  // **And the defender's passive defences, the instant the hit is known.** SRD
+  // Mirror Image says "each time a creature hits you with an attack roll" and
+  // SRD Fire Shield "hits you with a melee attack roll"; neither says "with a
+  // weapon", so a Shocking Grasp meets a duplicate exactly as a club does.
+  // Before the damage is rolled, because a blow a duplicate took deals none.
+  const answered = answerTheBlow(current, casterId, target, supply, {
+    melee: effect.attack !== 'ranged',
+  });
+  if (!answered.ok) return answered;
+  events.push(...answered.value.events);
+  current = answered.value.events.reduce(applyEvent, current);
+  unverified.push(...answered.value.unverified);
+  if (answered.value.deflected) {
+    // The roll is reported because it was made and it hit — what it hit was an
+    // illusion. `affected` is false for the reason a splashed miss is: nothing
+    // of this reached the creature.
+    outcomes.push({ target, attack: attack.value, affected: false });
     return ok(current);
   }
 

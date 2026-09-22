@@ -35,6 +35,8 @@ export const GRANTS_EVENTS = [
   'bonus-applied',
   'armor-class-granted',
   'roll-modifier-granted',
+  'passive-defense-granted',
+  'decoy-destroyed',
   'damage-defense-granted',
   'speed-modifier-granted',
   'attack-rider-granted',
@@ -108,6 +110,39 @@ export function applyGrants({ state, next }: Applying, event: GrantsEvent): Game
         return left < right ? -1 : left > right ? 1 : 0;
       });
       return withCreature(next, event.id, { rollModifiers }, creature);
+    }
+
+    case 'passive-defense-granted': {
+      const creature = creatureOf(state, event, event.id);
+      // Re-granting from the same source replaces it rather than stacking, the
+      // rule every family here follows: casting Mirror Image twice is one hall
+      // of duplicates and not two, and the later casting's count is the one
+      // that stands. The source alone is the identity — unlike a roll
+      // modifier, no SRD casting hangs two passive defences of its own on one
+      // creature, and if one ever does it is two sentences and two sources.
+      const passiveDefenses = [
+        ...creature.passiveDefenses.filter((held) => held.source !== event.defense.source),
+        event.defense,
+      ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
+      return withCreature(next, event.id, { passiveDefenses }, creature);
+    }
+
+    case 'decoy-destroyed': {
+      const creature = creatureOf(state, event, event.id);
+      // **A number moved, not a grant replaced.** The count is how much of the
+      // spell is left rather than a fact about the creature, so it is edited
+      // in place — see the event's own note for why this is the one grant in
+      // the engine that may be.
+      //
+      // Floored at zero rather than refused below it: a log that destroyed a
+      // fourth duplicate is a log nothing in this engine can write, and a
+      // negative count would throw a negative number of dice.
+      const passiveDefenses = creature.passiveDefenses.map((held) =>
+        held.source === event.source && held.defense.kind === 'decoys'
+          ? { ...held, defense: { ...held.defense, remaining: Math.max(0, held.defense.remaining - 1) } }
+          : held,
+      );
+      return withCreature(next, event.id, { passiveDefenses }, creature);
     }
 
     case 'damage-defense-granted': {

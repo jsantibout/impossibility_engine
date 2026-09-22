@@ -21,6 +21,7 @@ import { applyEvent, type CreatureState, type GameState } from '../events.js';
 import { weaponRiderBonusAt, weaponRiderDieAt } from '../spell-definitions.js';
 import { armorClassOf, sheetAsItStands, speedOf } from '../standing.js';
 import { alteredRiderDice, recordD20Test, savingSupport } from './rolls.js';
+import { complementType, type PassiveDefenseState } from '../passive-defenses.js';
 import { type EffectContext, type EffectOfKind } from './spell-effect-context.js';
 
 /**
@@ -135,6 +136,90 @@ export function resolveRollModeEffect(
     },
   });
   current = events.slice(-1).reduce(applyEvent, current);
+  outcomes.push({ target, affected: true });
+  return ok(current);
+}
+
+/**
+ * A defence the attack path consults, for as long as the spell runs.
+ *
+ * Nothing is rolled and nothing is resisted *here* — SRD Mirror Image, Fire
+ * Shield and Sanctuary all land on a willing creature and ask nobody
+ * anything. What each of them rolls, it rolls later, inside somebody else's
+ * attack.
+ *
+ * **Everything the defence will need is settled now**, which is the pinning
+ * rule and matters more here than for most grants: a ward's DC is the
+ * caster's at this moment, a retaliation's damage type is the one this
+ * casting chose, and a decoy count is a number that will move. The fold opens
+ * no catalogue, so none of the three could be re-read from a definition when
+ * the blow arrives.
+ */
+export function resolvePassiveDefenseEffect(
+  ctx: EffectContext,
+  effect: EffectOfKind<'passive-defense'>,
+  target: CharacterId,
+  world: GameState,
+): Result<GameState> {
+  const { source, events, outcomes, held } = ctx;
+  const printed = effect.defense;
+
+  let defense: PassiveDefenseState;
+  switch (printed.kind) {
+    case 'decoys':
+      defense = {
+        kind: 'decoys',
+        // The count opens at what the definition printed. Everything after
+        // this reads `remaining`, so the two never have to be reconciled.
+        remaining: printed.count,
+        die: printed.die,
+        deflectsOn: printed.deflectsOn,
+        ...(printed.unlessPerceivedWith === undefined
+          ? {}
+          : { unlessPerceivedWith: printed.unlessPerceivedWith }),
+        ...(printed.unlessCondition === undefined
+          ? {}
+          : { unlessCondition: printed.unlessCondition }),
+        ...(printed.endsWhenSpent === undefined ? {} : { endsWhenSpent: printed.endsWhenSpent }),
+      };
+      break;
+    case 'ward':
+      // SRD Sanctuary: "must succeed on a Wisdom saving throw", against the
+      // caster's spell save DC — pinned here exactly as every other DC a
+      // casting sets is, so a ward keeps the DC it was raised at.
+      defense = { kind: 'ward', ability: printed.ability, dc: ctx.saveDc };
+      break;
+    default: {
+      // **The complement, applied after the casting's choice has landed.**
+      // `statedDamageType` has already written the caster's stated type onto
+      // `effect.damageType`; where the definition prints a pair, what the
+      // flames deal is the member that was *not* stated. See
+      // `PassiveRetaliation.complementOf` for why the inversion lives in the
+      // engine and the pair lives in the book.
+      const stated = effect.damageType;
+      const inverted =
+        printed.complementOf === undefined || stated === undefined
+          ? null
+          : complementType(printed.complementOf, stated);
+      if (stated === undefined) {
+        return err(
+          'retaliation_without_type',
+          `${ctx.name} deals damage back to an attacker and names no damage type`,
+        );
+      }
+      defense = {
+        kind: 'retaliation',
+        damage: printed.damage,
+        damageType: inverted ?? stated,
+        ...(printed.melee === undefined ? {} : { melee: printed.melee }),
+        ...(printed.withinFeet === undefined ? {} : { withinFeet: printed.withinFeet }),
+      };
+    }
+  }
+
+  held.add(target);
+  events.push({ type: 'passive-defense-granted', id: target, defense: { source, defense } });
+  const current = events.slice(-1).reduce(applyEvent, world);
   outcomes.push({ target, affected: true });
   return ok(current);
 }

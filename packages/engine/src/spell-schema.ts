@@ -12,6 +12,8 @@ import {
 } from '@ie/shared';
 import { counterpartProblem, oneShotProblem, rollSelectorProblems } from './roll-modifiers.js';
 import { parseNotation } from './dice.js';
+import { PASSIVE_DEFENSE_KINDS } from './passive-defenses.js';
+import { SENSE_NAMES } from './positioning.js';
 import { LONG_CASTING_SECONDS } from './spells.js';
 import {
   conditionRiderOf,
@@ -110,6 +112,7 @@ const SCHOOLS: ReadonlySet<string> = new Set([
 
 const DAMAGE: ReadonlySet<string> = new Set(DAMAGE_TYPES);
 const CONDITION_NAMES: ReadonlySet<string> = new Set(CONDITIONS);
+const SENSES: ReadonlySet<string> = new Set(SENSE_NAMES);
 /**
  * The three things a casting can be asked to choose, as data for untyped
  * input — {@link StatedChoiceOf}, which the compiler enforces on a definition
@@ -2170,6 +2173,144 @@ function checkEffect(
       return;
     }
 
+    /**
+     * A defence the attack path consults, with nobody taking a Reaction.
+     *
+     * Three shapes under one kind, and every rule below is about keeping a
+     * definition from promising something no reader would keep:
+     *
+     * - **A decoy count and its threshold are whole and positive.** Zero
+     *   duplicates is a spell that does nothing, and a threshold above the
+     *   die's own faces is one that never deflects — both compile, and both
+     *   are an author writing a sentence the book does not print.
+     * - **A retaliation names a damage type**, because the flames have to be
+     *   of something; and where it prints a pair to take the complement of,
+     *   the pair is exactly two and holds the type the effect carries. A pair
+     *   that did not hold it would invert to nothing and quietly fall back.
+     * - **A ward names a real ability.** The attacker rolls it.
+     *
+     * What is deliberately *not* checked here is that the casting lasts long
+     * enough to be attacked during — `checkGrantLifetimes` asks that of every
+     * sourced grant through {@link grantCarried}, and this kind answers it
+     * there like the thirteen before it.
+     */
+    case 'passive-defense': {
+      const defense = effect.defense;
+      if (!readsAsObject(defense, `${path}.defense`, 'a defence is an object', found)) return;
+      if (!PASSIVE_DEFENSE_KINDS.has(defense.kind)) {
+        found.push({
+          field: `${path}.defense.kind`,
+          code: 'unknown_passive_defense',
+          reason: `"${String(defense.kind)}" is not a passive defence; the three are ${[...PASSIVE_DEFENSE_KINDS].join(', ')}`,
+        });
+        return;
+      }
+
+      if (defense.kind === 'decoys') {
+        for (const key of ['count', 'deflectsOn'] as const) {
+          const value = defense[key];
+          if (!Number.isInteger(value) || value <= 0) {
+            found.push({
+              field: `${path}.defense.${key}`,
+              code: 'bad_decoy_count',
+              reason: `a decoy ${key} is a positive whole number, got "${String(value)}"`,
+            });
+          }
+        }
+        const notation = parseNotation(defense.die);
+        if (!notation.ok) {
+          found.push({
+            field: `${path}.defense.die`,
+            code: 'bad_decoy_die',
+            reason: `"${String(defense.die)}" is not dice notation`,
+          });
+        } else if (
+          Number.isInteger(defense.deflectsOn) &&
+          defense.deflectsOn > notation.value.sides
+        ) {
+          found.push({
+            field: `${path}.defense.deflectsOn`,
+            code: 'unreachable_decoy_threshold',
+            reason: `a ${defense.die} never rolls ${defense.deflectsOn}, so no blow could ever be deflected`,
+          });
+        }
+        for (const sense of defense.unlessPerceivedWith ?? []) {
+          if (!SENSES.has(sense)) {
+            found.push({
+              field: `${path}.defense.unlessPerceivedWith`,
+              code: 'bad_sense',
+              reason: `"${String(sense)}" is not a sense`,
+            });
+          }
+        }
+        for (const condition of defense.unlessCondition ?? []) {
+          if (!CONDITION_NAMES.has(condition)) {
+            found.push({
+              field: `${path}.defense.unlessCondition`,
+              code: 'bad_condition',
+              reason: `"${String(condition)}" is not a condition`,
+            });
+          }
+        }
+        return;
+      }
+
+      if (defense.kind === 'ward') {
+        if (!ABILITY_NAMES_SET.has(defense.ability)) {
+          found.push({
+            field: `${path}.defense.ability`,
+            code: 'bad_ability',
+            reason: `"${String(defense.ability)}" is not an ability`,
+          });
+        }
+        return;
+      }
+
+      if (!parseNotation(defense.damage).ok) {
+        found.push({
+          field: `${path}.defense.damage`,
+          code: 'bad_retaliation_damage',
+          reason: `"${String(defense.damage)}" is not dice notation`,
+        });
+      }
+      if (effect.damageType === undefined || !DAMAGE.has(effect.damageType)) {
+        found.push({
+          field: `${path}.damageType`,
+          code: 'missing_damage_type',
+          reason: 'damage dealt back to an attacker has a type, and it sits on the effect so that a casting may state it',
+        });
+      } else if (defense.complementOf !== undefined) {
+        const pair = defense.complementOf;
+        if (pair.length !== 2 || !pair.includes(effect.damageType)) {
+          found.push({
+            field: `${path}.defense.complementOf`,
+            code: 'bad_complement',
+            reason: `a complement is one of two printed types and must hold the one this effect carries; got ${JSON.stringify(pair)} beside "${effect.damageType}"`,
+          });
+        }
+        for (const type of pair) {
+          if (!DAMAGE.has(type)) {
+            found.push({
+              field: `${path}.defense.complementOf`,
+              code: 'unknown_damage_type',
+              reason: `"${String(type)}" is not a damage type`,
+            });
+          }
+        }
+      }
+      if (
+        defense.withinFeet !== undefined &&
+        (!Number.isInteger(defense.withinFeet) || defense.withinFeet <= 0)
+      ) {
+        found.push({
+          field: `${path}.defense.withinFeet`,
+          code: 'bad_reach',
+          reason: `a retaliation's reach is a positive whole number of feet, got "${String(defense.withinFeet)}"`,
+        });
+      }
+      return;
+    }
+
     case 'buff':
       checkBonusGrant(effect.bonus, effect.applies, path, found, effect.only);
       return;
@@ -2762,6 +2903,12 @@ function grantCarried(effect: SpellEffect): string | null {
       return 'a granted Advantage or Disadvantage';
     case 'armor-class':
       return 'a base Armour Class';
+    // The fifteenth sourced grant. It carries no deadline of its own, for the
+    // reason the fifth, sixth and seventh do not: every SRD sentence of this
+    // shape runs "until the spell ends", and a passive defence that outlived
+    // its casting would answer a blow struck after the spell was over.
+    case 'passive-defense':
+      return 'a defence that answers a later attack';
     case 'damage-defense':
       return 'a granted Resistance, Immunity or Vulnerability';
     // The standalone kind carries no `lasts` at all — SRD Longstrider runs for
@@ -4583,6 +4730,7 @@ export const EFFECT_KINDS: ReadonlySet<string> = new Set([
   'interrupt-casting',
   'armor-class',
   'roll-mode',
+  'passive-defense',
   'damage-defense',
   'condition-immunity',
   'speed',

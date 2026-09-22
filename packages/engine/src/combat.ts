@@ -1695,12 +1695,25 @@ export function canUseFeatureThisTurn(
 export const MULTIATTACK_LEDGER = 'multiattack:';
 export const STATED_BONUS_ACTION_LEDGER = 'stated-bonus-action:';
 export const WEAPON_MASTERY_LEDGER = 'weapon-mastery:';
+/**
+ * A fourth, and the reason it is not one of the three above it.
+ *
+ * SRD Sanctuary's ward is settled once per attacker per turn — owner's ruling,
+ * 2026-09-22 — and a turn against a key is exactly what this ledger is. What
+ * it must **not** be written under is `multiattack:`: `attacksMadeThisTurn`
+ * filters on that prefix and splits what it finds on the last `#` to recover
+ * an attack's name, so a key with no `#` in it comes back as a nonsense name
+ * counted as a swing, and a warded creature's Multiattack sequence would hold
+ * an attack nobody made. One key space, one answer to "whose key is this".
+ */
+export const PASSIVE_DEFENSE_LEDGER = 'passive-defense:';
 
 /** All of them, for the validator that keeps content out. */
 export const RESERVED_LEDGER_NAMESPACES: readonly string[] = [
   MULTIATTACK_LEDGER,
   STATED_BONUS_ACTION_LEDGER,
   WEAPON_MASTERY_LEDGER,
+  PASSIVE_DEFENSE_LEDGER,
 ];
 
 export function markFeatureUsed(

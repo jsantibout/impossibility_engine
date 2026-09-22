@@ -543,6 +543,17 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // Hit's doubled dice, a Resistance halving the total the faces made, and the
   // held path that reports the same faces on `damage-rolled` instead.
   'damage-dice-recorded',
+  // The two a passive defence writes. Neither log was written within a year of
+  // the owner's ruling that made the shape exist — an ongoing effect on the
+  // defender that the attack path consults with nobody taking a Reaction — so
+  // neither could hold a Mirror Image, a Sanctuary or a Fire Shield, and
+  // neither has an attack that meets one. `passive-defenses.test.ts` casts all
+  // three through the public API and drives them end to end: the deflection and
+  // the count going down, the casting ending when the last duplicate is spent,
+  // the two exceptions read off the attacker, the ward that loses a swing and
+  // spends nothing, and the flames that answer a melee blow from inside five
+  // feet and stay cold for one an illusion took.
+  'decoy-destroyed',
   // A patch of Difficult Terrain the table declared: neither log was written
   // when the ground could cost anything but a foot per foot — the scene held
   // no terrain at all — and both fixtures fold to exactly the states they
@@ -599,6 +610,7 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // after its casting ends, and the Fog Cloud a Rogue Hides in.
   'light-declared',
   'obscurement-declared',
+  'passive-defense-granted',
   // A line a stat block prints a recharge on, spent and got back. Neither log
   // was written when the notation reached the engine at all — it was a field
   // on a parsed attack that nothing rolled a die for — and both fixtures fold

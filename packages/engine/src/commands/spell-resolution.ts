@@ -156,6 +156,7 @@ import {
   resolveBuffEffect,
   resolveConditionImmunityEffect,
   resolveDamageDefenseEffect,
+  resolvePassiveDefenseEffect,
   resolveRollModeEffect,
   resolveActionRuleEffect,
   resolveSpeedEffect,
@@ -2035,6 +2036,8 @@ function resolveOneEffect(
       return resolveConditionEffect(ctx, effect, target, world);
     case 'end-condition':
       return resolveEndConditionEffect(ctx, effect, target, victim, world);
+    case 'passive-defense':
+      return resolvePassiveDefenseEffect(ctx, effect, target, world);
     case 'dispel':
       return resolveDispelEffect(ctx, target, world);
     case 'interrupt-casting':

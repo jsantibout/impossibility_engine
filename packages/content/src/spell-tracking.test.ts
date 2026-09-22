@@ -1472,6 +1472,24 @@ describe('every spell this batch added is cast for real', () => {
    * the Otherworldly Steed is Instantaneous, is bound to nothing, and carries
    * the two numbers SRD prints over its own block as arithmetic on the slot.
    */
+  /**
+   * **Mirror Image and Sanctuary leave by a door the owner opened on
+   * 2026-09-22**, and the reading that kept them here for three attempts was
+   * one word. Both were filed as firing on *targeting* — a moment the casting
+   * owns, with nobody electing anything — and SRD Mirror Image does not: "Each
+   * time a creature **hits** you with an attack roll", which is the instant the
+   * engine already stops at between the roll and the damage. Sanctuary does
+   * fire on targeting, and for a weapon swing that moment is inside the attack
+   * command too, before the Attack action is spent.
+   *
+   * What both needed was the shape rather than the moment: a **passive
+   * defence**, an ongoing effect on the defender that the attack path consults
+   * with nobody taking a Reaction. Mirror Image also needed the one thing no
+   * casting had ever hung on a creature — a count that goes down — and
+   * Sanctuary needed a ruling about what a failed ward costs, which the owner
+   * gave: the attack is lost, nothing is spent, and one save per ward per
+   * turn.
+   */
   const EXECUTED_SINCE: readonly string[] = [
     'aid',
     'darkness',
@@ -1483,8 +1501,10 @@ describe('every spell this batch added is cast for real', () => {
     'fog-cloud',
     'goodberry',
     'magic-jar',
+    'mirror-image',
     'phantom-steed',
     'plant-growth',
+    'sanctuary',
     'spike-growth',
     'wind-walk',
     // The last of the tracked spells to be blocked on a *publication* rather

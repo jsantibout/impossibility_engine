@@ -12,6 +12,7 @@ import { type EffectEndCause, type PayoutKind } from './timers.js';
 import type { DefenseKind } from './attack.js';
 import type { Bonus, BonusApplies, BonusNarrowing } from './bonuses.js';
 import type { RollModifier } from './roll-modifiers.js';
+import type { PassiveDefense } from './passive-defenses.js';
 import type { AreaStanding, SpeedChange } from './standing.js';
 import type { MovementMode } from './character.js';
 import type { ActionRule, ActionSlot } from './combat.js';
@@ -1198,6 +1199,41 @@ export type SpellEffect =
        * which is a change with no rules gain.
        */
       readonly modifier: RollModifier;
+    }
+  /**
+   * A defence that answers somebody else's attack, with nobody taking a
+   * Reaction.
+   *
+   * Owner's ruling, 2026-09-22. SRD Mirror Image, Fire Shield and Sanctuary
+   * all reach into an attack that another creature is making — and none of
+   * them is a Reaction, which is the reading that kept this shape unbuilt:
+   * `hit-by-attack` is a window somebody *steps into*, and every one of these
+   * fires whether the defender is watching or asleep.
+   *
+   * It is also not a `roll-mode`. A mode changes a number on the d20; a
+   * duplicate takes a blow that already hit, a shield burns the creature that
+   * landed one, and a ward stops the roll being made at all.
+   *
+   * See `passive-defenses.ts`, where the three shapes are told apart and the
+   * reason there are three rather than one is written down.
+   */
+  | {
+      readonly kind: 'passive-defense';
+      readonly defense: PassiveDefense;
+      /**
+       * The damage a retaliation deals, where it deals any.
+       *
+       * At the top of the effect rather than inside {@link defense} so that
+       * {@link statedDamageType} rewrites it: SRD Fire Shield's type is the
+       * caster's choice, and the substitution that carries a choice into an
+       * effect looks for this field and this name. What the flames actually
+       * deal may be the *other* member of a printed pair — see
+       * `PassiveRetaliation.complementOf` — and that inversion is applied
+       * after this field has been filled in, never instead of it.
+       *
+       * Absent on a ward and on a set of decoys, neither of which deals any.
+       */
+      readonly damageType?: string;
     }
   /**
    * Hit points restored, with the caster's spellcasting modifier where the
@@ -4249,6 +4285,14 @@ export function numbersRead(definition: SpellDefinition): NumbersRead {
       case 'end-condition':
       case 'interrupt-casting':
         saveDc = true;
+        break;
+      // **A ward reads it and the other two do not**, which is why this asks
+      // the defence rather than the kind: SRD Sanctuary makes the *attacker*
+      // save against the caster's own DC, and duplicates and a wreath of
+      // flame ask nobody anything. Marking the whole kind would make a
+      // Mirror Image wand demand a DC its spell never uses.
+      case 'passive-defense':
+        if (effect.defense.kind === 'ward') saveDc = true;
         break;
       // **The one kind whose answer is conditional**, and the condition is the
       // resolver's own: SRD Bane is a `buff` that a Charisma save resists, and

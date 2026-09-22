@@ -8355,11 +8355,22 @@ export const ICE_KNIFE: SpellDefinition = {
  * > areas of effect. The spell ends if the warded creature makes an attack
  * > roll, casts a spell, or deals damage."
  *
- * **The last sentence is Invisibility's, word for word in a different
- * order**, and it is the half of this spell the engine really does: three
- * `CastingEndTrigger`s that IE-032 built, hung on a casting with no effects
- * under it. The ward itself answers a later attack, which is the shape
- * Shield and Mirror Image are also waiting on.
+ * **The last sentence is Invisibility's, word for word in a different order**,
+ * and it was for a long time the only half of this spell the engine did:
+ * three `CastingEndTrigger`s hung on a casting with no effects under it.
+ *
+ * The ward is the other half, and the owner's ruling of 2026-09-22 is what
+ * made it writable. Two things about it are unlike anything else in the
+ * catalogue: the creature who rolls is the one **attacking**, and what a
+ * failure costs is the attack itself. The engine aims nothing on a caller's
+ * behalf, so it takes neither of the book's two branches for the attacker —
+ * the swing is lost, **nothing is spent**, and redirecting is a second
+ * command against a creature nobody warded.
+ *
+ * The one place this is narrower than the book is deliberate and the owner
+ * accepted it: an attacker gets **one save per ward per turn** rather than one
+ * per targeting. Without that a failure costs nothing and can be re-declared
+ * until it passes, which is the spell undone.
  */
 export const SANCTUARY: SpellDefinition = {
   id: 'sanctuary',
@@ -8370,7 +8381,15 @@ export const SANCTUARY: SpellDefinition = {
   concentration: false,
   range: { kind: 'ranged', feet: 30 },
   targets: { count: 1, self: true },
-  effects: [],
+  effects: [
+    {
+      kind: 'passive-defense',
+      // "must succeed on a Wisdom saving throw", against the caster's own
+      // spell save DC — pinned at the casting, like every other number a
+      // spell sets.
+      defense: { kind: 'ward', ability: 'wis' },
+    },
+  ],
   durationSeconds: 60,
   // "The spell ends if the warded creature makes an attack roll, casts a
   // spell, or deals damage." The same three causes Invisibility prints, and
@@ -8382,9 +8401,10 @@ export const SANCTUARY: SpellDefinition = {
     { on: 'target-deals-damage', ends: 'casting' },
   ],
   unmodelled: [
-    'the ward is not applied: "any creature who targets the warded creature with an attack roll or a damaging spell must succeed on a Wisdom saving throw" is a spell answering somebody else’s later attack, and there is no window in which an attack is offered to another creature’s casting',
-    'so the branch the save buys — "either choose a new target or lose the attack or spell" — is not offered either',
-    '"This spell doesn’t protect the warded creature from areas of effect" is the exception to a rule that is not applied',
+    'the ward answers an attack roll and not yet "or a damaging spell": a spell that targets the warded creature and damages it without rolling to hit is aimed at declaration, and what a failed save would cost there is the slot rather than the attack — a second question nobody has ruled on',
+    'the branch the save buys is offered as two commands rather than one: "choose a new target" is a second swing at a creature nobody warded, because the engine aims nothing on a caller’s behalf, and "lose the attack" is declining to make one',
+    'an attacker gets one save per ward per turn rather than one each time they target, which is a limit the book does not print — owner’s ruling, 2026-09-22, in exchange for a failure that costs nothing not being re-rollable until it passes',
+    '"This spell doesn’t protect the warded creature from areas of effect" names a thing the ward never reaches anyway: an area is not a creature targeting another, and nothing consults a ward when one settles',
     'an attack roll that costs no Attack action — an Opportunity Attack, or any swing outside combat — ends this spell only if it hits: the attack roll itself is recorded on `roll-recorded`, which changes no state by rule, so nothing may hang the ending on it',
   ],
 };
@@ -8715,11 +8735,25 @@ export const MAGIC_WEAPON: SpellDefinition = {
  * > creature is unaffected by this spell if it has the Blinded condition,
  * > Blindsight, or Truesight."
  *
- * Three different absences in one paragraph, and they stack: the spell has to
- * be **offered somebody else's attack** after it has hit, it then throws a
- * handful of d6s that are not a D20 Test, and whether it applies at all is
- * decided by what the attacker can see. Sanctuary and Shield wait on the
- * first of those; this one waits on all three.
+ * **It fires on a hit, not on targeting**, and that one word is why three
+ * earlier attempts at this spell went looking in the wrong place. The book
+ * says "Each time a creature **hits** you with an attack roll", which is the
+ * instant the engine already stops at: the hit is known, the damage is not
+ * rolled, and the `pendingAttack` hold has not been built. Every prose note
+ * this spell carried said "targeting", each inherited from the last.
+ *
+ * What it needed was the owner's ruling of 2026-09-22 — a defence the attack
+ * path consults with **nobody taking a Reaction** — and one thing no other
+ * spell had ever asked the engine for: a count that goes **down**. Slots, Ki
+ * and charges are pools, and every one of them is declared by creation, an
+ * item or a stat block; nothing a casting hung on a creature had ever counted
+ * anything off.
+ *
+ * The exception is written in two axes because the sentence names two kinds of
+ * thing. `unlessPerceivedWith` is the sense half, the same axis Blur's second
+ * sentence uses; `unlessCondition` is the half that had nowhere to go at all —
+ * `RollSelector.condition` is about what a *saving throw* avoids, which is a
+ * different question with the same word in it.
  */
 export const MIRROR_IMAGE: SpellDefinition = {
   id: 'mirror-image',
@@ -8729,14 +8763,32 @@ export const MIRROR_IMAGE: SpellDefinition = {
   castingTime: 'action',
   concentration: false,
   range: { kind: 'self' },
-  targets: { count: 0 },
-  effects: [],
+  // It lands on the caster, because that is where the grant hangs: "Three
+  // illusory duplicates of yourself appear in **your** space."
+  targets: { count: 1, self: true },
+  effects: [
+    {
+      kind: 'passive-defense',
+      defense: {
+        kind: 'decoys',
+        // "Three illusory duplicates", "roll a d6 for each of your remaining
+        // duplicates", "If any of the d6s rolls a 3 or higher".
+        count: 3,
+        die: '1d6',
+        deflectsOn: 3,
+        // "A creature is unaffected by this spell if it has the Blinded
+        // condition, Blindsight, or Truesight."
+        unlessPerceivedWith: ['blindsight', 'truesight'],
+        unlessCondition: ['blinded'],
+        // "The spell ends when all three duplicates are destroyed."
+        endsWhenSpent: true,
+      },
+    },
+  ],
   durationSeconds: 60,
   unmodelled: [
-    'the duplicates are not in the world: three of them appearing in the caster’s space, moving with them and being destroyed one at a time are the DM’s',
-    'the deflection is not offered: "Each time a creature hits you with an attack roll during the spell’s duration, roll a d6 for each of your remaining duplicates" answers somebody else’s attack after it has landed, and a casting is offered no such window',
-    'so the d6s are not thrown either — a handful of dice that is not a D20 Test has nothing to ask the generator for — and "The spell ends when all three duplicates are destroyed" counts something that never happens',
-    'the exception is not applied: an attacker with the Blinded condition, Blindsight or Truesight is unaffected, and what an attacker can perceive is a pairwise declaration rather than a sense the engine reads',
+    'the duplicates are not in the world: three of them appearing in the caster’s space, moving with them and shifting position are the DM’s — what the engine holds is how many are left, which is the whole of what the deflection reads',
+    '"The duplicates otherwise ignore all other damage and effects" is a rule about a thing nothing can aim at: no command targets a duplicate, so nothing has to bounce off one',
   ],
 };
 
@@ -9399,8 +9451,14 @@ export const ARCANE_EYE: SpellDefinition = {
  * refused rather than guessed at — the discipline Protection from Energy
  * already follows.
  *
- * What is not executed is the eruption, which answers somebody else's melee
- * attack after it has hit.
+ * **And the eruption is the complement of that choice**, which is the one
+ * thing here the engine had to be taught rather than told. The caster states
+ * the type they want Resistance to; the flames are the *other* of the two the
+ * book prints. `damageTypeStated` carries a choice into every effect that
+ * names a type and cannot invert one, and a rule that inverted it by naming
+ * this spell is exactly what the catalogue sweep exists to refuse. So the pair
+ * is printed here and `complementOf` is the engine's statement about a two-way
+ * choice rather than about a spell.
  */
 export const FIRE_SHIELD: SpellDefinition = {
   id: 'fire-shield',
@@ -9414,11 +9472,25 @@ export const FIRE_SHIELD: SpellDefinition = {
   // The type the caster asks for Resistance to, which is the shield they
   // chose said in the engine's vocabulary rather than the book's.
   damageTypeStated: ['cold', 'fire'],
-  effects: [{ kind: 'damage-defense', damageTypes: ['cold'], defense: 'resistant' }],
+  effects: [
+    { kind: 'damage-defense', damageTypes: ['cold'], defense: 'resistant' },
+    {
+      kind: 'passive-defense',
+      // The placeholder the casting's choice is written over, exactly as the
+      // Resistance above it carries one. What the flames deal is the member of
+      // the pair that was *not* stated.
+      damageType: 'cold',
+      defense: {
+        kind: 'retaliation',
+        damage: '2d8',
+        melee: true,
+        withinFeet: 5,
+        complementOf: ['cold', 'fire'],
+      },
+    },
+  ],
   durationSeconds: 600,
   unmodelled: [
-    'the eruption is not resolved: "whenever a creature within 5 feet of you hits you with a melee attack roll, the shield erupts with flame" answers somebody else’s attack after it has landed, and a casting is offered no such window',
-    'so the 2d8 the attacker takes is not dealt, and neither is the rule that its type is the opposite of the Resistance — Fire from a warm shield, Cold from a chill one',
     'the Bright Light in a 10-foot radius and the Dim Light beyond it are the DM’s; the engine has no lighting',
   ],
 };

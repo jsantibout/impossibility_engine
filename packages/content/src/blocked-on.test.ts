@@ -3152,18 +3152,24 @@ describe('a trigger that ends a casting is a partial build, and the map says whi
     expect(SRD_CONTENT.spell('awaken')?.castingTime).toBe('long');
     // "The spell ends if the warded creature makes an attack roll, casts a
     // spell, or deals damage." — Invisibility's three, word for word, and the
-    // spell catalogue batch **spent** that reading: Sanctuary is tracked now
-    // and writes all three `endsEarly` causes, with the ward it cannot answer
-    // left to the table. The shape it kept is the one it always had.
+    // spell catalogue batch **spent** that reading: Sanctuary wrote all three
+    // `endsEarly` causes and left the ward to the table.
+    //
+    // **And it is executed now**, which is why the tracked entry is gone from
+    // under it rather than being asserted here: the owner's ruling of
+    // 2026-09-22 made a passive defence a thing a definition can write, so the
+    // ward is a `passive-defense` effect and the spell has left the tracked
+    // population altogether. `spell-tracking.test.ts` records the departure in
+    // `EXECUTED_SINCE` and the clauses it still hands over are adjudicated
+    // among the executed. What is asserted here is the half this describe
+    // block is about, which has not moved.
     expect(BLOCKED_ON['sanctuary']).toBeUndefined();
     expect(SRD_CONTENT.spell('sanctuary')?.endsEarly?.map((end) => end.on)).toEqual([
       'target-attacks',
       'target-casts',
       'target-deals-damage',
     ]);
-    expect(TRACKED_ADJUDICATED['sanctuary']?.map((entry) => entry.why)).toEqual([
-      'a-spell-that-answers-a-later-attack',
-    ]);
+    expect(TRACKED_ADJUDICATED['sanctuary']).toBeUndefined();
   });
 
   /** And the shape is still claimed, so the unclaimed-shape guard keeps it. */
