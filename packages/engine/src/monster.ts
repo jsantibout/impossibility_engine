@@ -21,8 +21,9 @@ import type {
 // The two readers of the branch shape, from the subpath that is schemas and no
 // data: a value imported from the barrel loads the whole parsed SRD into every
 // process that imports the engine, which `srd-barrel.test.ts` is the guard for.
-import { entriesOfBranch, gateOfBranch } from '@ie/srd/schemas';
+import { CREATURE_SIZES, entriesOfBranch, gateOfBranch } from '@ie/srd/schemas';
 import { STATED_BONUS_ACTION_LEDGER } from './combat.js';
+import type { TurnAnchor } from './time.js';
 import type { DamageDefenses } from './attack.js';
 import type {
   CharacterSheet,
@@ -977,4 +978,193 @@ export function monsterCanReceive(
   condition: ConditionName,
 ): boolean {
   return conditionApplicability(adapted, condition).kind !== 'immune';
+}
+
+// — what a hit buys, where the line says it in the book's own template ————————
+
+/**
+ * The clause an attack line prints after its damage, read into a structure.
+ *
+ * A 2024 attack line is a template up to the damage and **English after it**.
+ * `MonsterAttack.rider` carries that English verbatim and the swing reports
+ * it, which is honest and leaves every creature that prints one weaker than
+ * the book.
+ *
+ * **Two sentences are read here, and not because they are the commonest.**
+ * They are the two whose every part the engine already holds, expressed in the
+ * vocabulary {@link HitOption} is written in: a condition, a size the SRD
+ * gates it on, and a deadline anchored on the attacker's own next turn. What
+ * is deliberately *not* read is every sentence that needs something
+ * `HitOption` cannot carry — see {@link readPrintedRider}'s refusals — because
+ * a rider read half-way is a rule nobody printed, which is the exact failure
+ * the verbatim string was carried to avoid.
+ *
+ * `lasts` is a `TurnAnchor` and therefore always the **attacker's** turn: that
+ * is the creature `fileDeadlines` anchors a hit rider's span on. "Until the
+ * end of *its* next turn" is the target's, and is refused here rather than
+ * filed a round out.
+ */
+export interface PrintedRider {
+  readonly kind: 'condition';
+  /** In printed order — SRD's "the Blinded and Deafened conditions". */
+  readonly conditions: readonly ConditionName[];
+  /** SRD's "If the target is a Medium or smaller creature". */
+  readonly ifNoLargerThan?: CreatureSize;
+  /** SRD's "until the start of the ettercap's next turn". */
+  readonly lasts?: TurnAnchor;
+}
+
+/** The six size words the book writes the gate with, as the book capitalises them. */
+const SIZE_WORDS = '(Tiny|Small|Medium|Large|Huge|Gargantuan)';
+
+/** Both apostrophes, because a transcription may carry either. */
+const APOSTROPHE = "['’]";
+
+/**
+ * SRD Wolf: "If the target is a Medium or smaller creature, it has the Prone
+ * condition."
+ */
+const GATED_CONDITION = new RegExp(
+  `^If the target is a ${SIZE_WORDS} or smaller creature, it has the ([A-Za-z]+)(?: and (?:the )?([A-Za-z]+))? conditions?\\.$`,
+);
+
+/**
+ * SRD Ettercap: "and the target has the Poisoned condition until the start of
+ * the ettercap's next turn."
+ *
+ * "The ettercap's" rather than "its" is the whole of what this reads: the
+ * possessive names the creature the block belongs to, which is the attacker,
+ * and the attacker is the anchor a hit rider's span is filed on.
+ *
+ * **The possessive is captured and checked**, not merely matched, because a
+ * hit rider's span is filed on the holder whatever the sentence said: a
+ * deadline read off "the target's next turn" and filed on the attacker is a
+ * rule nobody printed, which is the failure the verbatim string exists to
+ * prevent. No SRD line writes it; homebrew comes through the same door.
+ */
+const ANCHORED_CONDITION = new RegExp(
+  `^and the target has the ([A-Za-z]+)(?: and ([A-Za-z]+))? conditions? until the (end|start) of the (.+?)${APOSTROPHE}s next turn\\.$`,
+);
+
+/**
+ * A **denylist**, and it is worth saying which way round it works: a
+ * possessive this does not name is taken for the attacker.
+ *
+ * That is the honest reading of the corpus rather than a rule out of the book.
+ * Every anchored line the SRD prints writes the block's own noun and none of
+ * them writes the block's *name*: "the storm giant's", "the giant centipede's"
+ * — so an allowlist of creature names would refuse half of them, and one built
+ * from a creature's in-play name would refuse anything a DM renamed. What can
+ * be listed is the small set of words a sentence would reach for the creature
+ * that was *struck* by, and those are refused; `target` is SRD's own, and
+ * `creature` and `victim` are not — `victim` appears nowhere in the book at
+ * all. They are here because the door is open to homebrew and the cost of the
+ * two readings is not symmetric: a word wrongly refused is a line handed to
+ * the DM, and a word wrongly accepted is a deadline filed on the wrong
+ * creature.
+ *
+ * **It does not close the case.** A homebrew line writing "the defender's next
+ * turn" is still read as the attacker's, and closing that needs the attacker
+ * passed in here — a signature this reader does not have. What is claimed is a
+ * denylist that errs toward the handover, and no more than that.
+ *
+ * Matched on the last word, because the book writes "the Grappled target" as
+ * readily as "the target".
+ */
+const NOT_THE_ATTACKER: readonly string[] = ['target', 'creature', 'victim'];
+
+/** Whether a captured possessive names the creature the block belongs to. */
+function possessiveIsTheAttacker(phrase: string): boolean {
+  const last = phrase.trim().toLowerCase().split(/\s+/).at(-1) ?? '';
+  return !NOT_THE_ATTACKER.includes(last);
+}
+
+/**
+ * The conditions that are **not** read out of a printed rider, whatever the
+ * sentence around them.
+ *
+ * A grapple is not a condition in this engine, it is a relation: `grapplesOn`,
+ * `lapsedGrapples` and `escapeGrapple` all find one by the `grapple:<who>`
+ * source its condition instance was filed under, and SRD ends it on facts
+ * about the grappler. A Grappled filed under a rider's own source would be a
+ * grapple nothing could escape from and nothing could lapse — strictly worse
+ * than the prose it replaced. Restrained travels with it, because every
+ * printed line that imposes one imposes it "until the grapple ends".
+ *
+ * Exhaustion is here for a different reason and the same rule: it is a level
+ * rather than an instance, so a deadline filed on it would have nothing to
+ * lift. No SRD attack line prints either, which is why this is a guard on the
+ * door rather than a case anything in the book walks into.
+ */
+const NOT_A_PLAIN_CONDITION: readonly ConditionName[] = ['grappled', 'restrained', 'exhaustion'];
+
+/** A printed condition word, or null where it is not one the engine imposes here. */
+function conditionWord(word: string | undefined): ConditionName | null {
+  if (word === undefined) return null;
+  const lowered = word.toLowerCase();
+  const found = CONDITIONS.find((condition) => condition === lowered) ?? null;
+  return found === null || NOT_A_PLAIN_CONDITION.includes(found) ? null : found;
+}
+
+/** A printed size word, or null. */
+function sizeWord(word: string): CreatureSize | null {
+  const lowered = word.toLowerCase();
+  return CREATURE_SIZES.find((size) => size === lowered) ?? null;
+}
+
+/** The conditions a matched sentence names, or null if any word is not one. */
+function conditionsOf(first: string, second: string | undefined): readonly ConditionName[] | null {
+  const one = conditionWord(first);
+  if (one === null) return null;
+  if (second === undefined) return [one];
+  const two = conditionWord(second);
+  return two === null ? null : [one, two];
+}
+
+/**
+ * The structure a printed rider states, or **null for everything else**.
+ *
+ * Null is the guard rather than a gap, and the refusals are worth naming
+ * because each is a mechanism rather than a wording:
+ *
+ * - **A printed saving throw** — the Ghoul's "_Constitution Saving Throw:_ DC
+ *   10" — states a DC, and `HitOption` derives its save DC from the holder's
+ *   sheet. That is right for a class feature and wrong for a number the book
+ *   prints: `8 + Proficiency Bonus` happens to equal the Ghoul's 10 and does
+ *   not equal the Death Dog's 12.
+ * - **A grapple** files a condition the escape command must be able to find —
+ *   see {@link NOT_A_PLAIN_CONDITION}.
+ * - **"Until the end of its next turn"** is anchored on the *target*, and a
+ *   hit rider's span is anchored on the holder. A deadline filed on the wrong
+ *   creature is a wrong rule rather than a refusal, which is what a closed
+ *   vocabulary exists to make impossible — so the possessive form of the same
+ *   sentence ("the target's next turn") is refused by
+ *   {@link possessiveIsTheAttacker} rather than merely absent from the book.
+ * - **A charge, a Bloodied swarm, an attack roll that had Advantage** each gate
+ *   on a fact — "moved 20+ feet straight toward it" — that either nobody has
+ *   declared or that belongs to the damage roll rather than to an effect list.
+ *
+ * Every one of those is still carried verbatim and still reported at the hit.
+ */
+export function readPrintedRider(text: string): PrintedRider | null {
+  const gated = GATED_CONDITION.exec(text);
+  if (gated !== null) {
+    const size = sizeWord(gated[1]!);
+    const conditions = conditionsOf(gated[2]!, gated[3]);
+    if (size === null || conditions === null) return null;
+    return { kind: 'condition', conditions, ifNoLargerThan: size };
+  }
+
+  const anchored = ANCHORED_CONDITION.exec(text);
+  if (anchored !== null) {
+    const conditions = conditionsOf(anchored[1]!, anchored[2]);
+    if (conditions === null || !possessiveIsTheAttacker(anchored[4]!)) return null;
+    return {
+      kind: 'condition',
+      conditions,
+      lasts: anchored[3] === 'start' ? 'start-of-next-turn' : 'end-of-next-turn',
+    };
+  }
+
+  return null;
 }
