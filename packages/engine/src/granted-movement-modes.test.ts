@@ -16,6 +16,7 @@ import { declaredCasting } from './spellcasting.js';
 import { fliesWithoutFallingOn, hasSpeedInModeOn, speedOf } from './standing.js';
 import { checkSpellDefinitionValue } from './spell-schema.js';
 import { checkFeatureDefinition } from './feature-schema.js';
+import { checkContent } from './content.js';
 import { applyConditionTo, endConcentration, resolveMove, resolveSpell } from './commands.js';
 import { flightLost } from './commands/movement.js';
 
@@ -195,6 +196,54 @@ describe('a spell grants a Climb Speed equal to the walking one', () => {
   });
 
   /**
+   * **The matched Speed is the walking *base*, and this is the fixture that
+   * says so.**
+   *
+   * {@link SpeedChange}'s `match-walk` argues the ruling and nothing asserted
+   * it, so the reading it argues against — match the whole walking Speed and
+   * then let everything that reaches a mode reach it again — passed every
+   * test in the engine. Two halves, and they fail in opposite directions:
+   *
+   * | | matching the base | matching the whole |
+   * |---|---|---|
+   * | Slowed spider, walk 30 halved to 15 | climbs 15 | climbs 7 |
+   * | Longstrider'd spider, walk 40 | climbs 30 | climbs 40 |
+   *
+   * The first is the SRD's: a halving is one halving, which is the rule
+   * `combineSpeed` already fixes for every other input. The second is the
+   * ruling directly above this family — an increase is the walking Speed's —
+   * and a climb that took Longstrider's ten feet would be reading a sentence
+   * the book does not print.
+   */
+  it('halves a Slowed spider once rather than twice', () => {
+    const slowed: readonly GameEvent[] = [
+      ...SETUP,
+      {
+        type: 'speed-modifier-granted',
+        id: TARGET,
+        modifier: { source: 'Slow#cast:99', change: 'halve' },
+      },
+    ];
+    const after = castOn(slowed, 'spider-climb', 2);
+    expect(speedOf(after, TARGET)).toBe(15);
+    expect(speedOf(after, TARGET, 'climb')).toBe(15);
+  });
+
+  it('does not hand the climb a walking increase', () => {
+    const faster: readonly GameEvent[] = [
+      ...SETUP,
+      {
+        type: 'speed-modifier-granted',
+        id: TARGET,
+        modifier: { source: 'Longstrider#cast:99', change: 'add', feet: 10 },
+      },
+    ];
+    const after = castOn(faster, 'spider-climb', 2);
+    expect(speedOf(after, TARGET)).toBe(40);
+    expect(speedOf(after, TARGET, 'climb')).toBe(30);
+  });
+
+  /**
    * SRD: "each foot of movement costs 1 extra foot ... unless the creature has
    * a Climb Speed". The surcharge is the reader this writer was built for.
    */
@@ -342,5 +391,125 @@ describe('the validator holds the pairing', () => {
 
   it('refuses a mode on an operation that only takes Speed away', () => {
     expect(codes({ kind: 'speed', change: 'zero', mode: 'fly' })).toContain('bad_speed_change');
+  });
+
+  /**
+   * **The two carriers that may not name a mode**, which is the other half of
+   * the rule and the half the arithmetic leans on.
+   *
+   * A `speed-change` rider says "its Speed is reduced by 10 feet" and an
+   * `areaStanding` says "Speed is halved in the Emanation": neither sentence
+   * is about a mode, neither type holds the field, and `speedOf` reads an
+   * area's change through a branch that names every member precisely because
+   * one it did not name would be read as a Speed of 0.
+   */
+  const riderCodes = (rider: unknown): readonly string[] =>
+    checkSpellDefinitionValue({
+      id: 'mode-rider',
+      name: 'Mode Rider',
+      level: 0,
+      school: 'evocation',
+      castingTime: 'action',
+      concentration: false,
+      range: { kind: 'ranged', feet: 60 },
+      targets: { count: 1 },
+      effects: [
+        {
+          kind: 'attack',
+          attack: 'ranged',
+          damage: { dice: '1d8' },
+          damageType: 'cold',
+          modifiers: [rider],
+        },
+      ],
+    }).map((problem) => problem.code);
+
+  const areaCodes = (standing: unknown): readonly string[] =>
+    checkSpellDefinitionValue({
+      id: 'mode-area',
+      name: 'Mode Area',
+      level: 1,
+      school: 'evocation',
+      castingTime: 'action',
+      concentration: true,
+      range: { kind: 'self' },
+      area: { kind: 'emanation', size: 15, origin: 'self' },
+      targets: { count: 0 },
+      effects: [],
+      durationSeconds: 60,
+      areaStanding: standing,
+      // A definition the engine resolves nothing of must say what the DM
+      // adjudicates; this fixture is about the area's Speed and nothing else.
+      unmodelled: ['everything but the halved Speed is outside this fixture'],
+    }).map((problem) => problem.code);
+
+  it('accepts the two changes each carrier really writes', () => {
+    expect(
+      riderCodes({ kind: 'speed-change', change: 'add', feet: -10, lasts: 'start-of-casters-next-turn' }),
+    ).toEqual([]);
+    expect(areaCodes({ kind: 'speed', change: 'halve' })).toEqual([]);
+  });
+
+  it('refuses a mode on a rider and on an area, which hold no such field', () => {
+    expect(
+      riderCodes({
+        kind: 'speed-change',
+        change: 'add',
+        feet: -10,
+        mode: 'fly',
+        lasts: 'start-of-casters-next-turn',
+      }),
+    ).toContain('bad_speed_change');
+    expect(areaCodes({ kind: 'speed', change: 'halve', mode: 'fly' })).toContain(
+      'bad_speed_change',
+    );
+  });
+
+  it('refuses a match on a rider and on an area, which have no mode to give', () => {
+    expect(
+      riderCodes({ kind: 'speed-change', change: 'match-walk', lasts: 'start-of-casters-next-turn' }),
+    ).toContain('bad_speed_change');
+    expect(areaCodes({ kind: 'speed', change: 'match-walk' })).toContain('bad_speed_change');
+  });
+
+  it('refuses hovering on a rider, which reads no such field either', () => {
+    expect(
+      riderCodes({
+        kind: 'speed-change',
+        change: 'add',
+        feet: -10,
+        hover: true,
+        lasts: 'start-of-casters-next-turn',
+      }),
+    ).toContain('bad_speed_change');
+  });
+});
+
+describe('a feat is held to the same pairing a feature is', () => {
+  /**
+   * A feat reaches `checkFeatureDefinition` through nothing: its whole door is
+   * `featStandingProblems`, so the rule that refuses a halved mode on a class
+   * feature had a hole exactly the width of one population until that door
+   * called the same helper.
+   */
+  const featCodes = (effect: unknown): readonly string[] =>
+    checkContent({
+      feats: [
+        {
+          id: 'wall-runner',
+          name: 'Wall Runner',
+          grants: { kind: 'standing', reach: 'self', effects: [effect] },
+        },
+      ],
+    } as never).map((problem) => problem.code);
+
+  it('accepts a feat that gives a Climb Speed', () => {
+    expect(featCodes({ kind: 'speed', change: 'match-walk', mode: 'climb' })).toEqual([]);
+  });
+
+  it('refuses a feat whose Speed nothing would gather', () => {
+    expect(featCodes({ kind: 'speed', change: 'halve', mode: 'climb' })).toContain(
+      'bad_speed_change',
+    );
   });
 });

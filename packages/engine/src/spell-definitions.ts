@@ -658,7 +658,13 @@ export type ModifierRider =
    */
   | {
       readonly kind: 'speed-change';
-      readonly change: SpeedChange;
+      /**
+       * Narrowed for {@link AreaStanding}'s reason: a rider says "its Speed is
+       * reduced by 10 feet" and holds no mode, so it has nowhere to give a
+       * Speed in. `checkSpeedChange` refuses the member at the door too, for
+       * untyped input.
+       */
+      readonly change: Exclude<SpeedChange, 'match-walk'>;
       /** Signed feet, required by `add` and refused by the other two. */
       readonly feet?: number;
       /**
@@ -1652,9 +1658,10 @@ export type SpellEffect =
    *
    * **Not a `buff`.** `BonusApplies` covers attacks, saves, ability checks and
    * an Armour Class, and a Speed is none of those: it is a number movement is
-   * measured against rather than a roll. And two of the three operations are
-   * not arithmetic at all — SRD Slow halves and Hypnotic Pattern zeroes, and
-   * a bonus that added would make a halving a negative number nobody printed.
+   * measured against rather than a roll. And most of the operations are not
+   * arithmetic at all — SRD Slow halves, Hypnotic Pattern zeroes and Spider
+   * Climb gives a whole Speed in a mode, and a bonus that added would make a
+   * halving a negative number nobody printed.
    *
    * The casting is in the source, so `releaseCasting`, `releaseOnTarget`, a
    * dispel, a broken Concentration and the deadline all end it through the

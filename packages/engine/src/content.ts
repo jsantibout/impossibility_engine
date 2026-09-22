@@ -11,6 +11,7 @@ import {
   checkFeatureDefinition,
   duplicateFeatureIds,
   parseFeatureDefinition,
+  speedGrantProblems,
   weaponSelectorProblems,
   type FeatureContext,
 } from './feature-schema.js';
@@ -569,6 +570,17 @@ function ownedStandingEffectProblems(
   }
   if (effect.kind === 'ability-score-set') {
     found.push(...abilitySetProblems(effect as unknown as Record<string, unknown>, at));
+  }
+  // **The Speed a grant gives, and the one door that would otherwise miss
+  // it.** `checkFeatureDefinition` holds a class, a subclass, a species and a
+  // background feature to `speedGrantProblems`; a *feat* reaches none of it —
+  // `featStandingProblems` is its whole door — so a feat granting a halved
+  // Climb Speed validated, compiled onto the sheet and was skipped by
+  // `speedOf`, which gathers a grant under `add` and `match-walk` alone. That
+  // is the benefit-nothing-reads failure this validator exists for, arriving
+  // through the third holder rather than the first two.
+  if (effect.kind === 'speed') {
+    found.push(...speedGrantProblems(effect as unknown as Record<string, unknown>, at));
   }
   return found;
 }

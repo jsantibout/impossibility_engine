@@ -80,9 +80,13 @@ export interface FeatureDefinitionProblem {
  * - **Feet beside a match.** Two numbers for one Speed, and the reader takes
  *   neither.
  *
- * Exported because a feat's grant reaches the same union through
- * `ownedStandingEffectProblems`, and a rule enforced on one of two doors is a
- * rule with a hole in it.
+ * Exported because a **feat** reaches none of this function's callers: a
+ * class, a subclass, a species and a background feature all come through
+ * `checkFeatureDefinition`, and a feat's grant goes through
+ * `featStandingProblems` and `ownedStandingEffectProblems` in `content.ts`
+ * instead. That door calls this one, because a rule enforced on one of two
+ * doors is a rule with a hole in it — and the hole would have been a feat
+ * whose halved Climb Speed validated and was then skipped by `speedOf`.
  */
 export function speedGrantProblems(
   effect: { readonly change?: unknown; readonly feet?: unknown; readonly mode?: unknown },

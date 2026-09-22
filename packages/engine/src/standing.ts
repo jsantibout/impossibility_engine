@@ -145,11 +145,23 @@ export type AreaStanding = {
    *
    * `change` is {@link SpeedChange} whole, so a Speed a casting's area moves
    * is spelled the way every other Speed a spell moves already is. `feet` is
-   * required by `add` and refused by the other two, exactly as the `speed`
-   * effect's is.
+   * required by `add` and refused by the other three, exactly as the `speed`
+   * effect's is — and `match-walk`, which gives a Speed in a mode rather than
+   * moving one, is refused here outright: an area has no mode to give one in.
    */
   readonly kind: 'speed';
-  readonly change: SpeedChange;
+  /**
+   * The three operations that move a Speed the creature already has.
+   *
+   * **Narrowed rather than {@link SpeedChange} whole**, which is the field
+   * that taught the lesson: widening that union for "a Climb Speed equal to
+   * its Speed" widened this one silently, and `speedOf`'s area loop read the
+   * new member as a Speed of 0. An area has no mode to give a Speed in — it
+   * says "Speed is halved in the Emanation" and nothing else — so the type
+   * says so, `checkSpeedChange` says so at the door for untyped input, and
+   * the loop names every member it handles.
+   */
+  readonly change: Exclude<SpeedChange, 'match-walk'>;
   /** Signed feet, required by `add` and refused by the other two. */
   readonly feet?: number;
 };
@@ -1034,7 +1046,11 @@ export type HungGrant =
   | {
       /** SRD Steady Aim: "your Speed is 0 until the end of the current turn." */
       readonly kind: 'speed';
-      readonly change: SpeedChange;
+      /**
+       * Narrowed for {@link AreaStanding}'s reason: a hung grant carries no
+       * mode, so it has nowhere to give a Speed in.
+       */
+      readonly change: Exclude<SpeedChange, 'match-walk'>;
       /** Signed feet, for an `add`; absent for the other two — see {@link GrantedSpeed}. */
       readonly feet?: number;
       readonly lasts: HungSpan;
@@ -3110,10 +3126,17 @@ export function speedOf(
   // An area carries no mode — `AreaStanding` has one member and SRD Spirit
   // Guardians halves a Speed rather than granting one — so its flat changes
   // are read exactly as an unqualified grant's are.
+  //
+  // **Each member is named**, which is the loop above's discipline and is the
+  // reason it has it: `AreaStanding.change` is {@link SpeedChange} whole, so
+  // widening that union widens this field, and a trailing `else` would have
+  // read the member added for "a Climb Speed equal to its Speed" as a Speed of
+  // 0. `checkSpeedChange` refuses `match-walk` on an area at the door and this
+  // is the same refusal where the arithmetic happens.
   for (const standing of areaStandingOn(state, who)) {
     if (standing.change === 'add') flattenInMode({ feet: standing.feet ?? 0 });
     else if (standing.change === 'halve') halvings += 1;
-    else zeroed = true;
+    else if (standing.change === 'zero') zeroed = true;
   }
 
   // **An increase is the walking Speed's; everything that takes Speed away is

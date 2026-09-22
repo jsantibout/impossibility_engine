@@ -123,7 +123,7 @@ const DEFENSE_KINDS: ReadonlySet<string> = new Set<DefenseKind>([
   'immune',
   'vulnerable',
 ]);
-/** The three operations {@link SpeedChange} names, as data, for untyped input. */
+/** Every operation {@link SpeedChange} names, as data, for untyped input. */
 const SPEED_CHANGES: ReadonlySet<string> = new Set<SpeedChange>([
   'add',
   'halve',
@@ -754,7 +754,7 @@ function checkRiderDuration(
 }
 
 /**
- * The two fields a Speed change carries, wherever it is carried.
+ * The fields a Speed change carries, wherever it is carried.
  *
  * **One rule, two carriers**, for the reason above: the standalone `speed`
  * effect and the `speed-change` rider say the same sentence, and a second copy
