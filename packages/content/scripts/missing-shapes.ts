@@ -580,7 +580,7 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
     {
       clause: 'the area is Difficult Terrain',
       why: 'difficult-terrain-an-area-creates',
-      note: 'The engine charges Difficult Terrain exactly and takes it as declared feet on the move that crosses it, so an area that makes the ground difficult is invisible to the ruler and every move through the tentacles is charged as open floor.',
+      note: 'SRD: "these tentacles turn the ground in that area into Difficult Terrain". The writer exists — `areaTerrain` on the definition pins the region the casting resolved and the ruler charges for it — and this definition does not carry it: the spell is level 4 and out of level-5 reach, so nobody has read it since. A reading, not a gap, and the shape’s own description says so.',
     },
   ],
   blur: [
@@ -924,7 +924,7 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
     {
       clause: 'becomes Difficult Terrain',
       why: 'difficult-terrain-an-area-creates',
-      note: 'SRD leaves the ground difficult "until the end of your next turn" — a deadline the engine can express over an area it cannot, because terrain reaches the ruler only as declared feet on a move.',
+      note: 'SRD leaves the ground difficult "until the end of your next turn", and **that** is what is missing rather than the terrain: a patch lapses with the casting that made it or not at all, and this casting is Instantaneous, so there is no record for the end of anybody’s next turn to end. The one arm of this shape a patch genuinely cannot describe.',
     },
   ],
   'incendiary-cloud': [
@@ -943,7 +943,7 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
     {
       clause: 'Lightly Obscured and Difficult Terrain',
       why: 'difficult-terrain-an-area-creates',
-      note: 'The swarm’s saves and damage all run; the ground it stands on costs nothing extra to cross, because Difficult Terrain reaches the ruler only as feet a move declares.',
+      note: 'SRD: "its area is Lightly Obscured and Difficult Terrain". The swarm’s saves and damage all run, and the ground is writable now — `areaTerrain` says it — on a definition nobody has re-read: the spell is level 5 and out of level-5 reach. The obscurement half waits on `light-and-obscurement-the-scene-holds` whatever happens to the first.',
     },
   ],
   invisibility: [
@@ -1625,7 +1625,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: 'movement-cost',
       clause: 'must spend 2 feet of movement for every 1 foot it moves when moving closer to you',
       why: 'difficult-terrain-an-area-creates',
-      note: 'a doubled cost to walk into the wind is Difficult Terrain by another name, and Difficult Terrain is charged exactly — declared by the foot on the move that crosses it. No area declares any, so there is nowhere for the wind to make the ground cost double.',
+      note: 'a doubled cost is Difficult Terrain by another name and an area may now write one — what this sentence adds is **which way the creature is walking**. A patch is a property of the square: it charges whoever crosses it, and no field on it can say "only while moving closer to you". That is the directional arm of this shape and the writer does not reach it.',
     },
     {
       marker: 'chance',
@@ -2401,7 +2401,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: 'movement-cost',
       clause: 'it must spend 4 feet of movement',
       why: 'difficult-terrain-an-area-creates',
-      note: 'Difficult Terrain is charged exactly and declared by the foot on the move that crosses it; deriving it from an area needs the path a move does not record, and four feet per foot is twice the printed rate besides.',
+      note: 'the four feet per foot are sayable — the rate is a number on the patch and Plant Growth writes exactly this one. What is not is the wall: SRD shapes it "up to 60 feet long, 10 feet high, and 5 feet thick" along a path of the caster’s choosing, which is the shape named on this spell’s other entry, and a patch has to lie somewhere before it can charge for anything.',
     },
   ],
   'blade-barrier': [
@@ -3636,7 +3636,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: null,
       clause: 'into Difficult Terrain (or vice versa) or otherwise impede movement through the area',
       why: 'difficult-terrain-an-area-creates',
-      note: 'Difficult Terrain is declared by the foot on the move that crosses it, so an area that creates it — or that takes it away, which this spell also does — is invisible to the ruler: a move records where it started and where it ended and nothing in between.',
+      note: 'the half that makes ground difficult is writable now; the half this sentence leads with is not. Turning Difficult Terrain **into** ordinary ground is a patch that cancels the patches under it, and nothing in the lattice subtracts — `terrainAt` takes the dearest rate lying over a space, because the book’s own rule is that a space thick with thorns is thorny whatever else grows there.',
     },
     {
       marker: null,
@@ -3728,7 +3728,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: null,
       clause: 'turn Difficult Terrain caused by plant growth',
       why: 'difficult-terrain-an-area-creates',
-      note: 'and the same sentence goes the other way a clause later, turning ordinary ground into Difficult Terrain. Both are invisible to the ruler for one reason: Difficult Terrain is charged by the foot on the move that crosses it and declared by the caller, so ground that holds a property of its own has nobody to tell.',
+      note: 'the clause after it — turning ordinary ground into Difficult Terrain — is writable now, and this one is the direction that is not: **removing** it. Nothing in the lattice subtracts, because `terrainAt` takes the dearest rate lying over a space and a patch cancelling its neighbours is the one thing a rate cannot say.'
     },
   ],
   'tiny-hut': [

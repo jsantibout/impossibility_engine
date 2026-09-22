@@ -222,6 +222,11 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'mind-spike',
   'misty-step',
   'moonbeam',
+  // Driven end to end by `casting-terrain.test.ts`: the Overgrowth cast at a
+  // point, the four feet per foot its own paragraph prints charged over the
+  // Sphere, and the patch left standing because the casting is Instantaneous
+  // and SRD gives the plants no ending.
+  'plant-growth',
   'poison-spray',
   // Driven end to end by `executed-second-pass.test.ts`: the ten-minute rite
   // declared and settled, the 2d8 and its per-slot die measured over sixty
@@ -261,6 +266,10 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // recorded as the second. Saying "untested" of a spell with its own suite
   // would be the same report telling a different lie.
   'sorcerous-burst',
+  // Driven end to end by `casting-terrain.test.ts`: the Sphere conjured at a
+  // point, the glossary's rate charged over it, and a move through it costing
+  // twice the ground it crosses.
+  'spike-growth',
   'spirit-guardians',
   'spiritual-weapon',
   // Driven end to end by `denied-benefits.test.ts`: cast through `resolveSpell`
