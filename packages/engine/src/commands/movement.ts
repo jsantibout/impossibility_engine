@@ -32,8 +32,11 @@ import {
   uniformTerrainBetween,
 } from '../positioning.js';
 import { type AttackResolution, resolveAttack } from './attacks.js';
+import { applyConditionTo } from './conditions.js';
+import { dealSpellDamage } from './damage.js';
+import { rollSpellDice } from './rolls.js';
 import { type Content } from '../content.js';
-import { type Supply } from './casting.js';
+import { type ConcentrationConsequence, type Supply } from './casting.js';
 import {
   creatureOf,
   ROUTE_REQUIRED,
@@ -201,7 +204,20 @@ export function moveWithin(
 
     // Resolve the destination through the same placement rules everything else
     // uses, so the move is measured on the lattice rather than in a straight line.
-    const moved = moveCreature(scene.value, id, command.placement);
+    //
+    // **And under the same flag the fold will apply it under.** SRD forbids
+    // ending a move in an occupied space only *willingly*, which is the one
+    // rule `moveCreature`'s `forced` option relaxes — and this call passed no
+    // options at all, so a shove into an occupied space was refused here while
+    // `fold/scene.ts` applied the very same `creature-moved` with the flag on.
+    // The command and the fold disagreeing about one event is worse than
+    // either answer: the shove the log would have accepted never happened.
+    const moved = moveCreature(
+      scene.value,
+      id,
+      command.placement,
+      command.forced === true ? { forced: true } : {},
+    );
     if (!moved.ok) return moved;
     const to = positionOf(moved.value.state, id);
     if (to === null) return needsContext('unplaced', `${id} did not land anywhere`);
@@ -903,6 +919,193 @@ export function dismountRider(
         ...(stamp === null ? {} : { command: stamp }),
       },
     ]);
+  });
+}
+
+// — falling ————————————————————————————————————————————————————————————————
+
+/**
+ * SRD "Falling": one die per ten feet, "to a maximum of 20d6".
+ *
+ * The cap is a number of **dice** rather than a number of feet, which is the
+ * distinction worth naming: two hundred feet and two thousand cost the same,
+ * and a reader who saw a distance here would expect the second to hurt more.
+ */
+export const FALL_DICE_CAP = 20;
+
+/** The feet one die of a fall is bought with. */
+const FALL_FEET_PER_DIE = 10;
+
+/**
+ * How many d6 a fall of this height throws.
+ *
+ * A pure function of the one number the table supplies, so the rule can be
+ * read, tested and quoted without a world around it — and so the command below
+ * has exactly one arithmetic decision in it, which is which of these numbers
+ * to hand to the dice.
+ *
+ * **Whole ten-foot drops only.** SRD says "for every 10 feet you fell", and a
+ * nineteen-foot drop contains one of them. Rounding up would be a die the book
+ * does not print.
+ */
+export function fallDamageDice(feet: number): number {
+  return Math.min(FALL_DICE_CAP, Math.floor(feet / FALL_FEET_PER_DIE));
+}
+
+export interface FallCommand extends CommandIdentity {
+  /**
+   * How far the creature fell, in feet.
+   *
+   * **The table's number, and the only one here that is.** SRD gives a rate —
+   * "you descend up to 500 feet at the end of the current turn" — and gives
+   * the height to the DM, because how far it is to the bottom of a pit is a
+   * fact about the room. Everything downstream is the engine's: the dice, the
+   * cap, the type, the defences they meet, the Concentration they put at risk
+   * and the Prone. It is the division `declareCreatureHeads` is on the DM's
+   * surface for — a number the table *states* is a fact, and a number the
+   * engine produced would be a fabrication.
+   */
+  readonly feet: number;
+}
+
+export interface FallResolution {
+  readonly events: readonly GameEvent[];
+  /** The notation the height came to, or null for a drop too short to cost one. */
+  readonly dice: string | null;
+  /** What actually landed, after the faller's own defences. */
+  readonly damage: number;
+  /** Whether the landing left them Prone. */
+  readonly prone: boolean;
+  /**
+   * Why the landing left them standing, when it did.
+   *
+   * A creature immune to Prone hits the ground just as hard and stays on its
+   * feet, which is an answer rather than an error — and an answer the caller
+   * cannot work out from {@link FallResolution.prone} alone, because `false`
+   * is also what a five-foot drop returns. The Shove and the Topple mastery
+   * both hand the same reason back rather than swallowing it.
+   */
+  readonly unverified: readonly string[];
+  readonly concentration: ConcentrationConsequence;
+  readonly duplicate: boolean;
+}
+
+/**
+ * Land, and pay for it.
+ *
+ * SRD "Falling", whole: "When you land, unless you avoid taking damage from
+ * the fall, you take 1d6 Bludgeoning damage for every 10 feet you fell, to a
+ * maximum of 20d6. You then have the Prone condition."
+ *
+ * **Here because a fall is movement**, and the only kind of it the engine has
+ * ever been able to see: a `MoveCommand` is a creature going somewhere and
+ * this is a creature arriving, at a cost the room decides. `docs/ROADMAP.md`
+ * filed the rule under `vitals.ts`, which holds the hit points a fall spends
+ * and none of the reasons a creature spends them — the same argument that
+ * keeps the Shove's Prone in `commands/unarmed.ts`.
+ *
+ * **Everything after the dice is the path a spell's damage already takes**
+ * ({@link dealSpellDamage}), so Resistance to Bludgeoning, Temporary Hit
+ * Points, the drop to 0 and the Unconscious that follows it, death, and the
+ * Concentration save the impact put at risk all behave exactly as they do for
+ * a Fire Bolt. Nothing here restates any of them, and the dice are thrown
+ * through the one issuer that stamps a roll, so the generator and the log stay
+ * in step.
+ *
+ * **It does not ask whether a fall was declared, and does not end one.**
+ * `declareFalling` exists to open a Reaction window at the moment somebody
+ * *starts* falling — the instant SRD *Feather Fall* answers — and this is the
+ * other end of the same descent. Demanding the declaration first would be the
+ * engine asking for one fact twice, and `fallWindowOpen` closes that window on
+ * the turn and the clock with no event, which is the ending nobody has to
+ * remember.
+ *
+ * **What is still missing, said out loud**: nothing reduces this damage. SRD
+ * *Feather Fall* ("takes no damage from the fall") and the Monk's Slow Fall
+ * ("reduce the damage by an amount equal to five times your Monk level") both
+ * answer this number and neither can reach it, because a reduction hung on a
+ * creature and read by one damage roll is a grant the format does not have.
+ * That is why `FeatureReactionWindow` still excludes `creature-falling`.
+ */
+export function resolveFall(
+  state: GameState,
+  id: CharacterId,
+  command: FallCommand,
+  supply: Supply,
+): Result<FallResolution> {
+  const nothing = (duplicate: boolean): FallResolution => ({
+    events: [],
+    dice: null,
+    damage: 0,
+    prone: false,
+    unverified: [],
+    concentration: { kind: 'none' },
+    duplicate,
+  });
+
+  return once(state, `fall:${id}`, { ...command }, () => nothing(true), (stamp) => {
+    const faller = creatureOf(state, id);
+    if (faller === null) return unknownCreature(id);
+
+    if (!Number.isInteger(command.feet) || command.feet < 0) {
+      return err(
+        'bad_fall_distance',
+        `${String(command.feet)} is not a height anybody fell from; a fall is a whole number of feet`,
+      );
+    }
+
+    const count = fallDamageDice(command.feet);
+    // SRD ties the two halves together in one word: "**unless** you avoid
+    // taking damage from the fall ... You **then** have the Prone condition."
+    // A drop too short to cost a die is a drop nobody lands badly from, so
+    // there is nothing to record and a retry recomputes the same nothing.
+    if (count === 0) return ok(nothing(false));
+
+    const dice = `${count}d6`;
+    const source = `a ${command.feet}-foot fall`;
+
+    // Validated before a die is thrown, so a refused call moved nothing — and
+    // the faller's own sheet is what the dice are rolled against, contributing
+    // nothing to them, because the ground carries nobody's ability modifier.
+    // The reading `rollImprovisedDamage` already takes for a collapsing floor.
+    const issuedBefore = supply.issuer.count;
+    const rolled = rollSpellDice(supply, faller.sheet, source, 'bludgeoning', dice);
+    if (!rolled.ok) return rolled;
+
+    // The stamp rides the `rolls-issued`, which is the one event this command
+    // always writes once it has thrown anything: the damage could be a zero
+    // against a creature immune to Bludgeoning, and a retry must be a no-op
+    // either way.
+    const events: GameEvent[] = [
+      {
+        type: 'rolls-issued',
+        count: supply.issuer.count - issuedBefore,
+        rng: supply.rng.snapshot(),
+        ...(stamp === null ? {} : { command: stamp }),
+      },
+    ];
+
+    const hurt = dealSpellDamage(state, id, rolled.value, source, supply, {});
+    if (!hurt.ok) return hurt;
+    events.push(...hurt.value.events);
+
+    // "You then have the Prone condition", and a creature immune to Prone
+    // stays standing while the fall still hurt — the reading the Shove already
+    // takes of the same pairing, **including handing the reason back**: a
+    // caller told only `prone: false` cannot tell an immunity from a drop too
+    // short to have cost a die.
+    const floored = applyConditionTo(events.reduce(applyEvent, state), id, 'prone', source);
+    if (floored.ok) events.push(...floored.value);
+
+    return ok({
+      events,
+      dice,
+      damage: hurt.value.amount,
+      prone: floored.ok,
+      unverified: floored.ok ? [] : [floored.reason],
+      concentration: hurt.value.concentration,
+      duplicate: false,
+    });
   });
 }
 

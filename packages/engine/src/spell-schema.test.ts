@@ -390,6 +390,60 @@ describe('each rule refuses something', () => {
     ).toEqual(['delayed_rolls_nothing']);
   });
 
+  /**
+   * A shove moves a creature on the 5-foot lattice everything else in the
+   * engine is measured on, so a distance that is not a whole number of spaces
+   * is a push the geometry would silently round — and rounding a rules number
+   * is the one thing a validator exists to refuse.
+   */
+  it('refuses a shove that is not a whole number of spaces', () => {
+    expect(
+      only({
+        effects: [
+          {
+            kind: 'save-damage',
+            ability: 'con',
+            damage: { dice: '2d8' },
+            damageType: 'thunder',
+            onSuccess: 'half',
+            movement: { feet: 7 },
+          },
+        ],
+      }),
+    ).toEqual(['bad_push_distance']);
+    expect(
+      only({
+        effects: [
+          {
+            kind: 'save-damage',
+            ability: 'con',
+            damage: { dice: '2d8' },
+            damageType: 'thunder',
+            onSuccess: 'half',
+            movement: { feet: 0 },
+          },
+        ],
+      }),
+    ).toEqual(['bad_push_distance']);
+  });
+
+  it('accepts a shove of whole spaces', () => {
+    expect(
+      only({
+        effects: [
+          {
+            kind: 'save-damage',
+            ability: 'con',
+            damage: { dice: '2d8' },
+            damageType: 'thunder',
+            onSuccess: 'half',
+            movement: { feet: 10 },
+          },
+        ],
+      }),
+    ).toEqual([]);
+  });
+
   it('refuses an area and a bounded target list at once', () => {
     expect(
       only({
@@ -1740,6 +1794,11 @@ const FORMAT_TYPES = [
   'SpellCheck',
   'ConditionRider',
   'DelayedDamage',
+  // The fourth rider slot's payload, here for `DelayedDamage`'s reason and
+  // with one thing more to say: it declares a distance and no direction, and
+  // the day a pull is written the second member has to arrive with the
+  // definition that writes it rather than ahead of one.
+  'ForcedMovement',
   // Both halves of the creature-type clause, so a third outcome added with no
   // SRD sentence behind it fails here rather than accumulating quietly. The
   // two it declares are Blight's automatic failure and Shatter's Disadvantage.

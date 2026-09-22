@@ -218,11 +218,11 @@ export const MISSING_SHAPES = {
   'a-second-place-to-put-a-creature':
     'there is one scene, so a creature sent elsewhere has nowhere to be. `docs/design/spell-definitions.md`: "A destination *outside* the scene is different in kind ... there is one scene, so Plane Shift and Word of Recall have no position to move anybody to", and `docs/design/casting.md`: "the real fix is the doctrine’s multiple-scenes seam".',
   falling:
-    '`docs/design/casting.md` lists the one Reaction trigger left after Counterspell: "Feather Fall | a creature falling | **falling, which is not modelled at all**". **The trigger half is built and the rest is not**: a fall is a declared fact now, `fall-declared` beside `lastDamage`, and the Reaction window derived from it is what let Feather Fall be written. What is still missing is everything with a number in it — nothing takes fall damage, no height is held anywhere, and no rate of descent has anything to be measured against, so the Monk’s Slow Fall cannot reduce a damage nobody deals and Reverse Gravity cannot say that a failed save means a creature fell upward.',
+    '`docs/design/casting.md` lists the one Reaction trigger left after Counterspell: "Feather Fall | a creature falling | **falling, which is not modelled at all**". **Two of its three halves are built now.** The trigger is a declared fact, `fall-declared` beside `lastDamage`, and the Reaction window derived from it is what let Feather Fall be written; and the landing is a rule — `resolveFall` throws 1d6 Bludgeoning per ten feet to a maximum of 20d6 against a height the table states, and lands the faller Prone unless the drop cost nothing, through the same damage path a Fire Bolt takes. What is still missing is the half both claimants here actually need, which is **a reduction**: Feather Fall takes the fall damage away outright and Slow Fall subtracts five times the Monk level from it, and a number hung on a creature that one damage roll reads is a grant the format does not have. `FeatureReactionWindow` still excludes `creature-falling` for exactly that reason, and the descent rate is a separate absence — nothing measures a descent, so the sixty feet a round has nothing to be measured against.',
   jumping:
     'jumping, which nothing models, so a jump distance has nothing to be measured against. Jump’s own clause in spell-definitions.ts says it: "the 30-foot jump for 10 feet of movement is not applied; jumping is not modelled, and the once-per-turn limit has nothing to count".',
   'forced-movement-a-spell-causes':
-    '`moveCreature` takes `forced: true` and reports who is being shared with, and no `SpellEffect` reaches it — `docs/design/space-and-areas.md` records both halves: "forced movement passes `forced: true`", and its recurring finding that a pure function nothing calls is a rule nothing enforces.',
+    '**The rider half is built and the standalone half is not.** `OutcomeRiders` gained a fourth slot — a shove a settled outcome carries, ten feet straight away from the caster, spending no Speed and provoking nobody — and SRD Thunderwave writes it, which is what closed the recurring finding `docs/design/space-and-areas.md` recorded: that `moveCreature` took `forced: true` and no `SpellEffect` reached it. A rider is a leaf, and every claimant left here is one that is **not**: each of the three needs a push that is the whole of an outcome rather than something riding one, gated by a saving throw the push is the only consequence of. `save` requires a condition and has never carried the last two rider slots, so none of them can say it — Levitate’s lift, Gust of Wind’s fifteen feet and the Forceful Hand’s five are the same missing arm of the union, and every one of them is blocked on a second shape besides.',
   'an-activation-that-resolves-an-area':
     '`docs/design/casting.md`: "An activation that resolves an area at a point chosen now | Call Lightning, Storm of Vengeance". `activateSpell` resolves an attack at a named target and moves an area along a stated route; resolving a **fresh** area in a direction chosen now is neither.',
   'an-activation-that-forces-a-saving-throw':
@@ -1052,13 +1052,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'dispelling magical Darkness',
       why: 'table',
       note: 'Ending a casting is a real operation — `spell-ended` and Dispel Magic both use it — and the Darkness casting it would reach sits nowhere. **The reason moved when Darkness was written and the reading did not**: it used to be that no Darkness definition compiled in, and it is now that the definition is tracked and carries no `SpellArea`, because a template no effect resolves over is a radius with no place attached. So "in its area" has no area to test against, light is not modelled at either end, and the clause is documented rather than modelled exactly as Counterspell’s components qualifier is — with the fact that makes it safe pinned by a test below rather than trusted.',
-    },
-  ],
-  thunderwave: [
-    {
-      clause: 'pushed 10 feet away',
-      why: 'forced-movement-a-spell-causes',
-      note: 'SRD: "is pushed 10 feet away from you" on a failed save. `moveCreature` already takes `forced: true` and reports whose space is being shared; no spell effect reaches it, so the wave deals its damage and moves nobody.',
     },
   ],
   'vampiric-touch': [
@@ -1911,7 +1904,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: null,
       clause: 'the creature takes no damage from the fall',
       why: 'falling',
-      note: 'falling damage is not modelled — it needs damage tagged as a fall and a height the table declares — so there is nothing here for the spell to prevent. The same missing half the Monk’s Slow Fall waits on, which is why the shape stays on the map with the spell written.',
+      note: 'the damage is modelled now — `resolveFall` throws a die per ten feet against a height the table states — and what this sentence needs is the half beside it: a **reduction** hung on a creature that the fall’s own damage roll reads. Nothing grants one, so there is still nothing here for the spell to prevent, and it is the same missing half the Monk’s Slow Fall waits on.',
     },
   ],
   sequester: [
@@ -5794,7 +5787,7 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     {
       clause: 'take no damage from falling',
       why: 'table',
-      note: 'falling is not modelled: no rule drops a creature, computes a distance or deals the damage, so a ring that cancels it cancels nothing the engine would have done. The descent rate is the same answer.',
+      note: 'the damage is a rule now and the cancelling is not: `resolveFall` deals a die per ten feet against a stated height, and nothing reduces or refuses it on behalf of one creature, so a ring that takes none of it has no grant to be. The descent rate is still nobody’s — no rule drops a creature or measures how fast.',
     },
   ],
   'ring-of-free-action': [

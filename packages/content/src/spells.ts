@@ -622,10 +622,14 @@ export const BURNING_HANDS: SpellDefinition = {
  * > _Using a Higher-Level Spell Slot._ "The damage increases by 1d8 for each
  * > spell slot level above 1."
  *
- * The **push is not modelled**: forced movement out of an area is its own
- * mechanic, `moveCreature` spends movement a shove does not, and a half-done
- * version that moved nobody would read as if it had. The damage is exact and
- * the push is a gap, which is the honest pair.
+ * **The spell the forced-movement rider was built for**, and every clause the
+ * engine owns now executes. The push is a rider on the failed save rather than an
+ * effect of its own, because one sentence is one saving throw: a second effect
+ * would roll a second Constitution save, and a creature could then take the
+ * 2d8 and stand exactly where it was. Ten feet straight away from the caster,
+ * spending no Speed, charging no Difficult Terrain and provoking nobody — see
+ * `ForcedMovement` in `spell-definitions.ts` for why the direction is the
+ * sentence rather than a field.
  */
 export const THUNDERWAVE: SpellDefinition = {
   id: 'thunderwave',
@@ -644,9 +648,10 @@ export const THUNDERWAVE: SpellDefinition = {
       damage: { dice: '2d8', perSlotLevelAbove: '1d8' },
       damageType: 'thunder',
       onSuccess: 'half',
+      // "and is pushed 10 feet away from you", on the same failure as the dice.
+      movement: { feet: 10 },
     },
   ],
-  unmodelled: ['a creature that fails is pushed 10 feet away from you'],
 };
 
 /**
