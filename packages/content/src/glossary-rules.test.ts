@@ -129,19 +129,21 @@ describe('every glossary rule says truthfully whether anything runs it', () => {
    * the engine's own text — not merely absent from the barrel, because a
    * command can be reached through another and a word that is nowhere cannot.
    *
-   * Two rules are named in the engine's **prose** and are still unbuilt, and
-   * each says so in its own note: `combat.ts` lists Search, Study, Influence
-   * and Utilize as the book's and leaves them to the table, and three
-   * definitions quote the Study action before the check the engine then
-   * rolls. So the assertion is over the words the engine **executes** — the
-   * `NAMED_ACTIONS` union and the mastery switch — rather than over every
-   * occurrence of the word, and the prose is where the reading is recorded.
+   * Five of the seven are named in the engine's **prose** and are still
+   * unbuilt, and each says so in its own note: `combat.ts` lists Search,
+   * Study, Influence and Utilize as the book's and leaves them to the table,
+   * three definitions quote the Study action before the check the engine then
+   * rolls, and two comments in `mastery.ts` say Nick is unbuilt. So the
+   * assertion is over a **quoted literal** — what a switch arm, a union member
+   * or a lookup is made of — rather than over every occurrence of the word,
+   * and the prose is where the reading is recorded.
    */
   it.each(GLOSSARY_RULES.filter((one) => one.built === null).map((one) => [one.id] as const))(
     'has nothing that executes %s',
     (id) => {
       expect(ACTIONS.has(id), `${id} is a NAMED_ACTIONS member after all`).toBe(false);
       expect(EXPORTS.has(`take${id[0]!.toUpperCase()}${id.slice(1)}`), id).toBe(false);
+      expect(executesIt(id), `${id} is quoted as a value after all`).toEqual([]);
     },
   );
 

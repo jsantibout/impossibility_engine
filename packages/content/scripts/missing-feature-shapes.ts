@@ -132,6 +132,10 @@ export const FEATURE_SHAPES = {
     'a rule about the action economy that a **feature** states about **somebody else**. The holder half is built and the catalogue writes it: `StandingGrant` in packages/engine/src/standing.ts carries an `action-rule` member, and `actionRulesOn` merges what a feature says with what a casting hung at every site a spend is checked — derived on every read rather than compiled onto the creature, because a stored copy "would put a permanent unconditional row into every Rogue’s state" and would reach no character already written into a log. SRD Cunning Action and SRD Adrenaline Rush are written through it. **What is left is the other direction**, and the SRD writes it on a *hit*: a rule hung on the creature you have just struck — Improved Brutal Strike stopping its Opportunity Attacks — which a casting does through an effect on its target and a feature through nothing, because a standing grant is a fact about its own holder. packages/engine/src/combat.ts keeps the neighbouring refusal about spending somebody else’s budget — "Nothing here can express that, on purpose" — and this is the narrower one beside it, waiting on the moment that would hang the rule as much as on the reach.',
   'an-action-the-engine-has-no-spender-for':
     'an action the book prints that no command takes, so no rule could name it even if a feature could write one. `NAMED_ACTIONS` in packages/engine/src/combat.ts **names its own absences and why they are absent**: "Search, Study, Influence, Ready and Utilize are the book’s too and are still absent, for the reason Hide was: no spender could be told one of them apart", so a rule naming one would read as enforced and would not be. **Hide has left this list**, and the way it left is the price the list charges: it came back with a command that takes it, which is why the same file now says "`hide` is the member that arrived with its spender". **Utilize** is what is left — bought with a Bonus Action by a Thief, while nothing charges for a Utilize at all — and it is deliberately **not** the grant shape beside it: no vocabulary a feature could be written in would help here, because there is nothing for a rule to be about until some command takes the action.',
+  'a-requirement-on-the-armour-its-holder-is-wearing':
+    'a standing grant conditioned on the armour its holder **is** wearing. The axis exists and both of its members are the other polarity: packages/engine/src/standing.ts carries `not-wearing-heavy-armor` — "while you aren\'t wearing **Heavy** armor." — and `unarmored` — "while you aren\'t wearing armor **or wielding a Shield**." — each read off the sheet\'s two slots on every read. SRD Defense asks the opposite question, "While you\'re wearing armor, you gain a +1 bonus to Armor Class", and the Fighting Style feat that prints it says so in its own note: the arithmetic is a standing flat bonus applying to `ac` that magic armour already uses, and what is missing is the clause that would gate it. Gate G1 is where it was found, because the feats were in no population and nothing read that note.',
+  'a-hand-an-attack-came-from':
+    'which of a creature\'s two hands swung. packages/engine/src/combat.ts holds the economy this turns on — a Bonus Action is a slot and not a hand — and nothing anywhere records that an attack was the off-hand one, so the two rules the SRD hangs on it have nothing to read: Two-Weapon Fighting\'s extra swing with a Light weapon, and the **Nick** mastery property, which redirects that swing into the Attack action and is quoted in no engine source file while a level 1 Rogue with a Scimitar reaches it. The Two-Weapon Fighting feat\'s own note is the transcription of the gap and says it in one line. The hands are held — `docs/design/characters-and-equipment.md` is where what a creature is holding is written down — and what is not held is the provenance of a swing.',
   'a-roll-mode-a-feature-takes-away':
     'a mode **cancelled** rather than granted. packages/engine/src/roll-modifiers.ts builds the axis as presence — "The mode is not part of the identity" — and `combineRollModes` weighs Advantage against Disadvantage — and SRD Elusive says something else again: no attack roll may **have** Advantage against you at all, which is neither a grant of Disadvantage nor a cancellation the vocabulary can express.',
   'a-turn-boundary-payout-a-feature-owes':
@@ -1546,6 +1550,37 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'Fiendish Legacy’s blocker on a second trait.',
     },
   ],
+  // — the feats, which no population had until gate G1 ————————————————————
+  //
+  // `allFeatures` walked classes, subclasses, species and backgrounds and
+  // never `SRD_CONTENT.feats`, so sixteen feats — nine of them in a level 1–5
+  // character's reach — were in no map, no row and no guard. A `FeatDefinition`
+  // has no `automation` flag to select on, which is why the three below are
+  // declared in {@link FEATS_ANSWERED_FOR} rather than derived; what is *not*
+  // declared is whether each is a debt, because each says so in its own note
+  // and the clauses here are anchored in it exactly as a feature's are.
+  defense: [
+    {
+      clause: 'The +1 to Armour Class is not applied',
+      why: 'a-requirement-on-the-armour-its-holder-is-wearing',
+      note: 'one clause short: the arithmetic is a standing flat bonus applying to `ac` that magic armour already uses, and a feat carries a standing grant now — Archery and Great Weapon Fighting beside it are declared that way and are applied.',
+    },
+  ],
+  'savage-attacker': [
+    {
+      clause: 'Rolling weapon damage twice once per turn is not applied',
+      why: 'a-die-behaviour-a-spell-asks-for',
+      note: 'the spell map’s own id, and the same sentence the Soldier background’s Origin feat waits on: `rerollDice` is built, tested, and reached by no definition and no feature.',
+    },
+  ],
+  'two-weapon-fighting': [
+    {
+      clause: 'the engine does not model which hand an attack came from',
+      why: 'a-hand-an-attack-came-from',
+      note: 'the feat’s note is the transcription of the gap. The Nick mastery property waits on the same fact from the other side, which is why one id carries both.',
+    },
+  ],
+
   'soldier:savage-attacker': [
     {
       clause: 'The feat is granted and its being the right one is checked',
@@ -1659,6 +1694,32 @@ export const barePoolFeatureIds = (): readonly string[] =>
 export const POOLS_ONLY_PARTLY_BOUGHT: readonly string[] = ['monk:focus'];
 
 /**
+ * The fourth arm: **feats**, which had no population at all until gate G1.
+ *
+ * {@link allFeatures} walks classes, subclasses, species and backgrounds and
+ * never `SRD_CONTENT.feats`, so sixteen feats — nine of them a level 1–5
+ * character can take — were in no map, no ledger row and no guard. It cost
+ * nothing the day it was written and would have cost silently the first time
+ * a feat printed something the engine did not do. It does now: three of the
+ * nine say in their own notes that a printed half is unapplied.
+ *
+ * **This one cannot be derived either, and the reason is different from the
+ * pools'.** A `FeatDefinition` carries no `automation` flag — the field does
+ * not exist on the type — so there is nothing to select on, and the only
+ * available query would be a regex over the note, which is the classifier
+ * wearing a derivation's clothes that this file keeps a record of. So it is a
+ * list, held down at both ends by `blocked-on-features.test.ts`: every id must
+ * be a feat the catalogue holds and must carry an entry whose clauses anchor
+ * in its own note, and the complement is pinned by name so a feat joining or
+ * leaving has to be somebody's reading.
+ */
+export const FEATS_ANSWERED_FOR: readonly string[] = [
+  'defense',
+  'savage-attacker',
+  'two-weapon-fighting',
+];
+
+/**
  * The whole population this map answers for: the three arms together.
  *
  * {@link featureCoverageGaps} reads this rather than the manual list alone,
@@ -1668,14 +1729,31 @@ export const POOLS_ONLY_PARTLY_BOUGHT: readonly string[] = ['monk:focus'];
  */
 export const ledgerFeatureIds = (): readonly string[] =>
   [
-    ...new Set([...manualFeatureIds(), ...barePoolFeatureIds(), ...POOLS_ONLY_PARTLY_BOUGHT]),
+    ...new Set([
+      ...manualFeatureIds(),
+      ...barePoolFeatureIds(),
+      ...POOLS_ONLY_PARTLY_BOUGHT,
+      ...FEATS_ANSWERED_FOR,
+    ]),
   ].sort();
 
 let notes: Map<string, string> | undefined;
 
-/** The note a feature carries, which is the document its clauses are held to. */
+/**
+ * The note a feature carries, which is the document its clauses are held to.
+ *
+ * **Feats are read here too**, and they are the only thing in this file that
+ * is not a `FeatureDefinition`. A feat has no `automation` flag and no level
+ * of its own, so it cannot join {@link allFeatures} — but it carries the same
+ * field for the same purpose, "What a DM still has to apply", and an entry
+ * about a feat has to anchor in something. One map, so a clause cannot be
+ * written about a note the catalogue does not print.
+ */
 export const featureNoteOf = (featureId: string): string => {
-  notes ??= new Map(allFeatures().map((feature) => [feature.id, feature.note]));
+  notes ??= new Map([
+    ...allFeatures().map((feature) => [feature.id, feature.note] as const),
+    ...SRD_CONTENT.feats.map((feat) => [feat.id, feat.note] as const),
+  ]);
   const found = notes.get(featureId);
   if (found === undefined) throw new Error(`${featureId} is not a feature of this catalogue`);
   return found;

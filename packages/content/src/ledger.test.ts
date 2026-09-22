@@ -39,6 +39,7 @@ import {
   withinReach,
   type ParsedSpell,
 } from '../scripts/coverage-data.js';
+import { FEATS_ANSWERED_FOR } from '../scripts/missing-feature-shapes.js';
 import {
   LEDGER_LEVEL,
   auditLedger,
@@ -317,18 +318,47 @@ describe('the three totals are the three populations added up', () => {
     expect(potions.map((one) => one.id)).toEqual(['potion-of-healing']);
   });
 
-  /** And feats are in the feature walk, which they were not before G1. */
-  it('walks the feats as well as the four books of features', () => {
-    const sources = new Set(ledger.features.map((one) => one.source));
-    expect([...sources].every((source) =>
-      ['class', 'subclass', 'species', 'background', 'feat'].includes(source),
-    )).toBe(true);
-    // Nine of the sixteen are in a level 1–5 character's reach, and the walk
-    // reaches every one of them — whether or not the blocker map answers for
-    // any yet, which today it does not.
+  /**
+   * And feats are in the feature walk, which they were not before G1 — a
+   * whole book of the catalogue the ledger could not see.
+   *
+   * Asserted over `ledger.features` rather than over `SRD_CONTENT.feats`,
+   * because the walk is the thing that was missing and a test of the fixture
+   * would pass with the walk deleted. Every feat the population answers for
+   * is in the table, carries the level its bracket prints, and waits on a
+   * shape.
+   */
+  it('puts every feat the map answers for in the table', () => {
+    const feats = ledger.features.filter((one) => one.source === 'feat');
+    expect(feats.map((one) => one.id).sort()).toEqual([...FEATS_ANSWERED_FOR].sort());
+    for (const one of feats) {
+      expect(one.level, one.id).toBeLessThanOrEqual(LEDGER_LEVEL);
+      expect(one.shapes.length, one.id).toBeGreaterThan(0);
+      expect(one.wait, one.id).toBe('shape');
+    }
+  });
+
+  /**
+   * And the bracket is the level, which is the one thing a feat has that a
+   * feature's `level` field is standing in for.
+   *
+   * An Origin feat and a Fighting Style print no bracket and are taken at 1;
+   * an Epic Boon prints 19 and is out of a level 5 character's reach. Nine of
+   * the sixteen are in it, which is the number the walk had been going past.
+   */
+  it('reads a feat’s bracket as its level and drops the ones out of reach', () => {
     const inReach = SRD_CONTENT.feats.filter((one) => (one.minimumLevel ?? 1) <= LEDGER_LEVEL);
-    expect(inReach.length).toBeGreaterThan(0);
-    expect(SRD_CONTENT.feats.length).toBeGreaterThan(inReach.length);
+    expect(inReach.length).toBeLessThan(SRD_CONTENT.feats.length);
+    for (const id of ledger.features.filter((one) => one.source === 'feat').map((one) => one.id)) {
+      expect(inReach.map((one) => one.id), id).toContain(id);
+    }
+    // The epic boons are out, and named so the drop is a claim rather than an
+    // absence: each prints `Prerequisite: Level 19+`.
+    const epic = SRD_CONTENT.feats.filter((one) => one.category === 'epic-boon');
+    expect(epic.length).toBeGreaterThan(0);
+    for (const one of epic) {
+      expect(ledger.features.map((row) => row.id), one.id).not.toContain(one.id);
+    }
   });
 
   it('splits each population into what waits on a shape and what does not', () => {

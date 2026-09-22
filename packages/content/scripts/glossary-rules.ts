@@ -21,9 +21,17 @@
  * prose would be a classifier wearing a derivation's clothes. So it is a
  * list, and the list is held down at both ends by `glossary-rules.test.ts`:
  * a row claiming to be built must name something the engine really exports
- * or a `NAMED_ACTIONS` member, and a row claiming to be missing must name
- * something that occurs in no engine source file. Neither half can be
- * satisfied by writing a sentence.
+ * or a `NAMED_ACTIONS` member, and a row claiming to be missing must be
+ * **quoted as a value in no engine source file** — no switch arm, no union
+ * member, no lookup. Neither half can be satisfied by writing a sentence.
+ *
+ * The guard asks for a quoted literal rather than for the word, and the
+ * difference is the whole of what it is worth. Five of the seven unbuilt rows
+ * are *named* in the engine's prose and say so in their own notes: `combat.ts`
+ * lists Search, Study, Influence and Utilize as the book's and leaves them to
+ * the table, three definitions quote the Study action before the check the
+ * engine then rolls, and two comments in `mastery.ts` say Nick is unbuilt. A
+ * word-level sweep would read every one of those as coverage.
  *
  * ### What is in it and what is not
  *
@@ -177,7 +185,7 @@ export const GLOSSARY_RULES: readonly GlossaryRule[] = [
     name: 'Nick',
     kind: 'mastery',
     built: null,
-    note: 'the mastery that makes the Light property’s extra attack part of the Attack action instead of a Bonus Action. **It occurs in no engine source file**, and a level 1 Rogue with a Scimitar reaches it — as does any level 1 character with a Dagger, a Light Hammer or a Sickle. It waits on the same thing Two-Weapon Fighting does: nothing records which hand an attack came from.',
+    note: 'the mastery that makes the Light property’s extra attack part of the Attack action instead of a Bonus Action. **It is quoted as a value in no engine source file** — the word is written twice, in two comments of `mastery.ts` saying it is unbuilt, and nowhere a switch arm or a union member could read it — and a level 1 Rogue with a Scimitar reaches it — as does any level 1 character with a Dagger, a Light Hammer or a Sickle. It waits on the same thing Two-Weapon Fighting does: nothing records which hand an attack came from.',
   },
   {
     id: 'push',

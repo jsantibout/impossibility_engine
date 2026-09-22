@@ -17,8 +17,10 @@
  * catalogue has no idea how many options the page holds.
  */
 import { describe, expect, it } from 'vitest';
+import { SRD_CONTENT } from '@ie/content';
 import type { FeatureDefinition } from '@ie/engine';
 import {
+  FEATS_ANSWERED_FOR,
   FEATURE_BLOCKED_ON,
   POOLS_ONLY_PARTLY_BOUGHT,
   POOL_SPENDING_MEMBERS,
@@ -157,14 +159,63 @@ describe('a pool that buys some of what its page prints is declared', () => {
   });
 });
 
-describe('the ledger population is the three arms together', () => {
+describe('the ledger population is the four arms together', () => {
+  /**
+   * **A fourth arm since gate G1**, and it is the one that had no population
+   * at all: `allFeatures` walks classes, subclasses, species and backgrounds
+   * and never `SRD_CONTENT.feats`, so sixteen feats were in no map, no ledger
+   * row and no guard. A `FeatDefinition` has no `automation` flag to select
+   * on, so `FEATS_ANSWERED_FOR` is declared the way
+   * `POOLS_ONLY_PARTLY_BOUGHT` is and held down the same way.
+   */
   it('is the union, sorted, with nothing named twice', () => {
     const ids = ledgerFeatureIds();
     expect(ids).toEqual([...ids].sort());
     expect(new Set(ids).size).toBe(ids.length);
     expect(ids).toEqual(
-      [...new Set([...manualFeatureIds(), ...barePoolFeatureIds(), ...POOLS_ONLY_PARTLY_BOUGHT])].sort(),
+      [
+        ...new Set([
+          ...manualFeatureIds(),
+          ...barePoolFeatureIds(),
+          ...POOLS_ONLY_PARTLY_BOUGHT,
+          ...FEATS_ANSWERED_FOR,
+        ]),
+      ].sort(),
     );
+  });
+
+  /**
+   * The feats arm, held down at both ends: each id is a feat the catalogue
+   * really holds, in a level 1–5 character's reach, whose clauses anchor in
+   * its own note — and the complement is pinned by name, so a feat joining
+   * or leaving is somebody's reading rather than a silent drift.
+   */
+  it('answers for the three feats whose own notes record a debt', () => {
+    expect([...FEATS_ANSWERED_FOR]).toEqual([...FEATS_ANSWERED_FOR].sort());
+    const feats = new Map(SRD_CONTENT.feats.map((one) => [one.id, one]));
+    for (const id of FEATS_ANSWERED_FOR) {
+      const feat = feats.get(id);
+      expect(feat, `${id} is not a feat of this catalogue`).toBeDefined();
+      expect(feat!.minimumLevel ?? 1).toBeLessThanOrEqual(5);
+      const entry = FEATURE_BLOCKED_ON[id];
+      expect(entry, id).toBeDefined();
+      expect(unanchoredFeatureClauses(id, entry ?? []), id).toEqual([]);
+    }
+    // And the six in reach this list does **not** answer for, by name. Each
+    // says in its own note that the whole of the feat is applied.
+    const inReach = SRD_CONTENT.feats
+      .filter((one) => (one.minimumLevel ?? 1) <= 5)
+      .map((one) => one.id)
+      .filter((id) => !FEATS_ANSWERED_FOR.includes(id))
+      .sort();
+    expect(inReach).toEqual([
+      'ability-score-improvement',
+      'alert',
+      'archery',
+      'great-weapon-fighting',
+      'magic-initiate',
+      'skilled',
+    ]);
   });
 
   it('holds the five the map could not see', () => {
