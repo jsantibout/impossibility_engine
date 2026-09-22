@@ -353,6 +353,21 @@ describe('SRD Find Steed’s "it shares your Initiative count"', () => {
     expect(rung?.initiative).toBe(20);
   });
 
+  /**
+   * And the rest of the same clause: "the steed takes its turn immediately
+   * after yours". A shared count puts the two turns together and the tiebreak
+   * is what says which way round, so the order is derived rather than left to
+   * whoever was inserted first.
+   */
+  it('takes its turn immediately after its summoner’s', () => {
+    const g = new Game().fight();
+    g.cast('bind-the-stag');
+    const who = summonedIn(g.state)!;
+
+    const order = g.state.combat?.order.map((c) => c.id) ?? [];
+    expect(order.indexOf(who)).toBe(order.indexOf(WIZ) + 1);
+  });
+
   it('leaves it out of an order that is not running', () => {
     const g = new Game();
     g.cast('bind-the-stag');
@@ -408,6 +423,24 @@ describe('the validator', () => {
     ).toContain('summon_outside_the_casting');
     // And the casting's own list is where it belongs, so nothing is refused.
     expect(codes({})).toEqual([]);
+  });
+
+  /**
+   * The creature is named for the casting rather than for the target, so two
+   * targets would resolve one creature twice — and the second run would refuse
+   * `already_present` and take the whole casting with it, naming a creature
+   * nobody wrote. Refused at authoring instead.
+   */
+  it('refuses a summons aimed at anybody but its caster', () => {
+    expect(
+      checkSpellDefinition({ ...CALL_THE_STAG, targets: { count: 2, self: true } }).map(
+        (p) => p.code,
+      ),
+    ).toContain('summon_over_several_targets');
+    expect(
+      checkSpellDefinition({ ...CALL_THE_STAG, targets: { count: 1 } }).map((p) => p.code),
+    ).toContain('summon_not_on_its_caster');
+    expect(checkSpellDefinition(CALL_THE_STAG)).toEqual([]);
   });
 
   it('refuses a casting whose stat block this world does not hold', () => {

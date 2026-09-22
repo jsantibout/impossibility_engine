@@ -66,6 +66,16 @@ const scaled = (number: SummonedNumber, level: number): number =>
  * holds; a fight that is not running holds none, and then the creature arrives
  * with no rung exactly as a summons with no stated total always has — the two
  * commands that give one still work, because the creature is in the game.
+ *
+ * **And it is seated one tiebreak below its summoner, which is the second
+ * sentence of the same clause.** SRD: "If you have the Incapacitated
+ * condition, the steed takes its turn **immediately after yours**." A shared
+ * count already puts the two turns together; what the tiebreak settles is the
+ * order *within* that count, which would otherwise fall to insertion order and
+ * say nothing. Ordering it after the summoner is right whether or not the
+ * summoner is Incapacitated — the condition changes who decides the steed's
+ * actions, not where its turn is — so the rung is derived once rather than
+ * branched on a condition that moves.
  */
 export function resolveSummonEffect(
   ctx: EffectContext,
@@ -93,7 +103,12 @@ export function resolveSummonEffect(
     ...(effect.hitPoints === undefined
       ? {}
       : { hitPointMaximum: scaled(effect.hitPoints, ctx.castLevel) }),
-    ...(sharing === undefined ? {} : { initiative: sharing.initiative }),
+    // The count, and one below the summoner's tiebreak so the steed's turn
+    // falls immediately after theirs rather than wherever insertion order put
+    // it — `byInitiative` ranks `b.tiebreak - a.tiebreak`, so lower is later.
+    ...(sharing === undefined
+      ? {}
+      : { initiative: sharing.initiative, tiebreak: sharing.tiebreak - 1 }),
   });
   if (!arrived.ok) return arrived;
 

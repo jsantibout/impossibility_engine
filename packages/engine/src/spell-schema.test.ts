@@ -3388,6 +3388,17 @@ describe('every branch judges untyped input rather than throwing on it', () => {
     readonly kind: string;
     readonly base: Record<string, unknown>;
     readonly fields: Readonly<Record<string, readonly unknown[]>>;
+    /**
+     * What the host definition has to say for this kind to be legal in it.
+     *
+     * Empty for every kind but one. `summon` carries a rule about the
+     * *definition* rather than about the effect — it is on its caster, so
+     * `targets` is `{ count: 1, self: true }` — and Fire Dart throws a dart at
+     * somebody else. Without this the base-validity row below would fail for a
+     * reason that has nothing to do with the effect it is checking, and the
+     * junk sweep would pass for it.
+     */
+    readonly host?: Record<string, unknown>;
   }[] = [
     {
       kind: 'attack',
@@ -3593,6 +3604,7 @@ describe('every branch judges untyped input rather than throwing on it', () => {
         armorClass: OBJECT_JUNK,
         hitPoints: OBJECT_JUNK,
       },
+      host: { targets: { count: 1, self: true } },
     },
   ];
 
@@ -3602,11 +3614,16 @@ describe('every branch judges untyped input rather than throwing on it', () => {
    * A base that was itself malformed would make the sweep pass for the wrong
    * reason: every row would refuse, and none of them because of the junk.
    */
-  it.each(BRANCHES.map((b) => [b.kind, b.base] as const))(
+  it.each(BRANCHES.map((b) => [b.kind, b.base, b.host ?? {}] as const))(
     'starts from a %s the validator accepts',
-    (_kind, base) => {
+    (_kind, base, host) => {
       expect(
-        checkSpellDefinitionValue({ ...FIRE_DART, durationSeconds: 60, effects: [base] }),
+        checkSpellDefinitionValue({
+          ...FIRE_DART,
+          durationSeconds: 60,
+          ...host,
+          effects: [base],
+        }),
       ).toEqual([]);
     },
   );

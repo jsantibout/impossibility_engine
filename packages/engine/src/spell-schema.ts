@@ -3244,6 +3244,8 @@ export function checkSpellDefinition(
     checkEffect(effect, definition.level, `effects[${i}]`, found),
   );
 
+  checkSummonTargets(definition, found);
+
   const activation = definition.activation;
   if (
     activation !== undefined &&
@@ -3818,6 +3820,53 @@ function checkTeleportPlacement(
     reason:
       'the caster states where the teleport goes at the casting, so only the casting’s own effect list can read it',
   });
+}
+
+/**
+ * A summons is on its caster, and on nobody else.
+ *
+ * **The rule the effect loop makes necessary.** `runEffects` is `for (target)
+ * for (effect)`, and `summonedId` is derived from the casting rather than from
+ * the target — because a creature this casting raised is a fact about the
+ * casting. Written against two targets, the summons would therefore be
+ * resolved twice under one id, and the second run would refuse
+ * `already_present` and take the whole casting with it — a refusal naming a
+ * creature the author never wrote, met at the table rather than at authoring.
+ *
+ * Keying the id by target was the other way out and is the wrong one: it would
+ * make "who did you aim it at" decide how many steeds appear, and SRD prints
+ * no spell of this shape. The book's summoning spells are all "**you** summon"
+ * — the spell is on its caster and the creature is the consequence, which is
+ * the target shape `teleport` already takes and the one Dimension Door writes.
+ *
+ * So one target, and it is the caster: the two halves of `{ count: 1, self:
+ * true }`, refused separately so an author is told which one is wrong. A
+ * definition that names a wider count is refused rather than resolved, and
+ * the day a spell summons two creatures this refusal is where the design
+ * conversation starts.
+ */
+function checkSummonTargets(
+  definition: SpellDefinition,
+  found: SpellDefinitionProblem[],
+): void {
+  if (!definition.effects.some((effect) => effect.kind === 'summon')) return;
+
+  if (definition.targets.count !== 1) {
+    found.push({
+      field: 'targets.count',
+      code: 'summon_over_several_targets',
+      reason:
+        'a summons is on its caster and the creature it raises is named for the casting, so a second target would resolve one creature twice',
+    });
+  }
+  if (definition.targets.self !== true) {
+    found.push({
+      field: 'targets.self',
+      code: 'summon_not_on_its_caster',
+      reason:
+        'SRD writes "you summon": the spell is on the creature casting it and the creature raised is the consequence',
+    });
+  }
 }
 
 /**

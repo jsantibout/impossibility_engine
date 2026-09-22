@@ -11615,6 +11615,11 @@ export const HEX: SpellDefinition = {
  * **Instantaneous, so the steed is not on loan.** The casting leaves no record
  * running, nothing binds the creature, and it stands there afterwards — which
  * is what the book means by a steed you summon rather than one you sustain.
+ *
+ * **It shares its rider's Initiative count and takes its turn after theirs**,
+ * both halves derived from the order rather than stated by anybody. What the
+ * Incapacitated clause changes on top of that is who decides the steed's
+ * actions, which is the table's and is filed as such.
  */
 export const FIND_STEED: SpellDefinition = {
   id: 'find-steed',
@@ -11638,6 +11643,7 @@ export const FIND_STEED: SpellDefinition = {
     'the steed leaving when its summoner dies is not watched: an Instantaneous casting leaves no record to bind the creature to, and a summons whose lifetime hangs on another creature rather than on a spell has nothing to hang it on',
     'its Fly Speed of 60 feet is not granted at any level: the block prints it gated — "requires level 4+ spell" — and a Speed that appears at a level is a third number the spell prints over its own block, beside the Armour Class and the Hit Points that are computed; withheld rather than given, because a limit enforced is never more permissive than the book',
     'the steed resembling a Large rideable animal, and the Celestial, Fey or Fiend chosen when it is called, are the caster’s — the block the book prints beneath that choice has no line that differs between the three, so the catalogue holds the type exactly as printed',
+    'the steed acting independently while its rider has the Incapacitated condition is the table’s: where its turn falls is derived either way — it shares the rider’s Initiative count and is seated immediately after them — and what the condition changes is who decides what the steed does with that turn',
     'the mounted combat it is controlled through, the telepathy it speaks over a mile, and the gear it leaves behind when it goes are the DM’s',
     'a second casting replacing the steed already called is not performed: nothing holds the first one here, so there is no record to end and no creature the engine can tell from any other',
   ],

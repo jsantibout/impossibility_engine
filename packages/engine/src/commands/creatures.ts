@@ -292,6 +292,17 @@ export interface Summons {
  * made at, which is `resolveSummonEffect`; what happens here is that the
  * stated number is written into the arrival instead of the printed one, so the
  * log pins exactly one Armour Class per creature.
+ *
+ * **That last paragraph reverses one this file used to carry**, and the
+ * reversal is recorded rather than quietly performed. It read: "a stat block
+ * whose numbers come from a caster's level or a spell's slot is a different
+ * mechanic, and `Summons` has nowhere to put one on purpose". It was written
+ * when the only caller was a DM naming a monster, and what it was guarding
+ * against — a number arriving here that somebody made up — is still guarded:
+ * the two fields take a whole number and this command computes neither, so
+ * what changed is that the *engine* now has a place to work one out from a
+ * printed formula and a slot level. A model still cannot reach either field;
+ * a `summon` effect is the only thing in the tree that writes them.
  */
 export function summonCreature(
   state: GameState,

@@ -78,9 +78,16 @@ export const OTHERWORLDLY_STEED: Monster = {
   alignment: 'Neutral',
   // 10 + 1 per spell level and 5 + 10 per spell level, at the spell's own
   // level of 2. Every casting writes its own answer over both.
+  //
+  // **The formula is the Hit Dice the book prints and nothing added to
+  // them** — "the steed has a number of Hit Dice [d10s] equal to the spell's
+  // level" — because the total beside it is printed as its own arithmetic
+  // rather than rolled from the dice. Nothing reads `hp.formula` (the adapter
+  // takes `hp.average`), which is exactly why an invented `+ 4` would sit here
+  // unchallenged, so what is written is what the book says.
   ac: 12,
   initiative: 1,
-  hp: { average: 25, formula: '2d10 + 4' },
+  hp: { average: 25, formula: '2d10' },
   speed: { walk: 60, burrow: null, climb: null, fly: null, swim: null, hover: false },
   abilities: {
     str: { score: 18, modifier: 4, save: 4 },
@@ -119,13 +126,16 @@ export const OTHERWORLDLY_STEED: Monster = {
  * **A block of its own rather than a Speed override on the horse**, which is
  * the owner's ruling applied to the smaller of the two cases: an override
  * would be a second field on `summon` whose only consumer is one spell, and a
- * creature whose Speed disagrees with the block it claims to be. The
- * transcription is the parsed Riding Horse verbatim — `bestiary.test.ts`
- * asserts that field by field against the parsed entry — with the Speed the
- * spell prints and the name and type the spell's own sentence gives it: a
- * "quasi-real, horselike creature" conjured by an Illusion spell is not a
- * Beast, and calling it one would let Beast Sense and Speak with Animals reach
- * a thing made of magic.
+ * creature whose Speed disagrees with the block it claims to be.
+ *
+ * **The book prints one exception and this makes one.** The transcription is
+ * the parsed Riding Horse field for field — `bestiary.test.ts` asserts that
+ * against the parsed entry, with the differences named — and the only
+ * mechanical difference is the Speed the spell prints. In particular the type
+ * stays `Beast`: "quasi-real" is a good argument for something else, and it is
+ * an argument rather than a transcription, and `mustBeType` and every
+ * Beast-gated effect read the field. A ruling the book did not print does not
+ * enter the catalogue through a stat block nobody is looking at.
  *
  * The thirteen miles in an hour is travel pace, which the engine does not
  * model at any scale; the spell's `unmodelled` hands it over.
@@ -135,7 +145,7 @@ export const PHANTOM_STEED_BLOCK: Monster = {
   name: 'Phantom Steed',
   size: 'large',
   alternateSizes: [],
-  type: 'Monstrosity',
+  type: 'Beast',
   subtype: null,
   swarmMemberSize: null,
   alignment: 'Unaligned',

@@ -812,6 +812,11 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'Not `movement-modes`, which would be the wrong filing twice over: a stat block’s Fly Speed **is** carried — `printedSpeeds` puts it on the sheet and `fliesWithoutFallingOn` reads it — so nothing about a flying creature is missing here. What the SRD prints is "Fly 60 ft. (requires level 4+ spell)", a Speed the creature has only when the slot was big enough, which is a third number the spell prints over its own block beside the two the `summon` kind computes. It is withheld rather than granted, because a limit enforced is never more permissive than the book.',
     },
     {
+      clause: 'the steed acting independently while its rider has the Incapacitated condition',
+      why: 'table',
+      note: 'SRD: "If you have the Incapacitated condition, the steed takes its turn immediately after yours and acts independently, focusing on protecting you." The first half is built and is built unconditionally, which is why the clause is the table’s rather than a debt: the steed shares its rider’s Initiative count and `resolveSummonEffect` seats it one tiebreak below them, so its turn falls immediately after theirs whether the rider is Incapacitated or not. What the condition changes is who decides what the creature does with that turn — the same question `declareSpellcasting` and `declareCreatureSide` leave open for every monster in the scene, and one no engine answers.',
+    },
+    {
       clause: 'the Celestial, Fey or Fiend chosen when it is called',
       why: 'table',
       note: 'SRD: "choose the steed’s creature type—Celestial, Fey, or Fiend—which determines certain traits in the stat block." The block the book prints beneath that sentence carries no trait at all — no traits, no actions, no reactions — so there is nothing in it for the choice to determine, and the catalogue holds the type exactly as printed rather than picking one of the three on the caster’s behalf. What the choice decides is what the steed is called and how it behaves, which is the table’s.',
