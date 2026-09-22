@@ -2470,27 +2470,31 @@ describe('a consumer count is a query', () => {
       .map((one) => one.shape)
       .sort();
     // **The tie is over and the bundle is not in it**, which is what happens
-    // when a bundle is actually split. The batch that built `grants` and
-    // `OutcomeRiders.spends` paid two of the five arms and sent three more to
-    // ids of their own, and the bundle went from twenty spells to seven — so
-    // the leader is a single shape again, and it is one nobody has built.
-    expect(leaders).toEqual(['a-casting-ended-by-a-trigger']);
+    // when a bundle is actually split. One batch built `grants` and
+    // `OutcomeRiders.spends`, paid two of the five arms and sent three more to
+    // ids of their own, taking the bundle from twenty spells to seven; another
+    // in the same batch took `a-casting-ended-by-a-trigger` from eight blocks
+    // to five. **Two tracks each wrote this assertion for the ranking their
+    // own branch produced, and neither survived the merge of both** — which is
+    // why the leader is asserted by measurement here and not by name from a
+    // digest.
+    expect(leaders).toEqual(['a-random-outcome-that-is-not-a-d20']);
     expect(Object.keys(SPLIT_BUNDLES)).toContain('an-action-a-spell-compels-or-forbids');
     // And the split is visible from here rather than only in the record: the
-    // largest piece to come out of it stands on its own, well below the
-    // leader, and the bundle stands below that.
+    // bundle stands below the leader, and the largest piece to come out of it
+    // stands on its own.
     const sizeOf = (shape: string) =>
       ranked.find((one) => one.shape === shape)?.blocks.length ?? 0;
     expect(sizeOf('an-action-a-spell-compels-or-forbids')).toBeLessThan(ranked[0]!.blocks.length);
     expect(sizeOf('a-creature-somebody-else-is-playing')).toBeGreaterThan(1);
-    // The largest shapes that are *not* bundles, as a set because they tie.
+    // The runners-up tie, so they are asserted as a set and never by `slice`
+    // alone: two shapes of equal size have no defined order between them.
     expect(
       ranked
-        .filter((one) => !(one.shape in SPLIT_BUNDLES))
-        .slice(0, 2)
+        .filter((one) => one.blocks.length === ranked[1]!.blocks.length)
         .map((one) => one.shape)
         .sort(),
-    ).toEqual(['a-casting-ended-by-a-trigger', 'a-random-outcome-that-is-not-a-d20']);
+    ).toEqual(['a-casting-ended-by-a-trigger', 'a-stat-block-created-mid-fight']);
     // **Moved from 20 to 15 by the third catalogue pass, and the total fell
     // further than the tracked column rose.** Twelve undefined spells named
     // this shape; ten of them were written, and only two carry the claim into
@@ -3046,14 +3050,21 @@ describe('a trigger that ends a casting is a partial build, and the map says whi
    * And Hypnotic Pattern keeps the whole of its clause, which is the
    * discriminating case for "do not widen the list to make a spell fit".
    *
-   * SRD: "It wakes up if it takes any damage or if another creature takes an
-   * action to shake it awake." *Any* damage is not the caster's or an ally's,
-   * and the second half is an action a spell grants — so neither half is one
-   * of the five, and the entry is untouched.
+   * The lesson the old row taught survives the build that spent it. The list
+   * was widened by *transcribing a sentence*, not by stretching a member until
+   * a spell fitted, and the spell still owes what it owes.
    */
-  it('leaves a spell whose trigger is any damage at all exactly where it was', () => {
+  it('builds the half of Hypnotic Pattern’s sentence that is a blow, and keeps the other', () => {
     const shapes = (ADJUDICATED['hypnotic-pattern'] ?? []).map((entry) => entry.why);
-    expect(shapes).toContain('a-casting-ended-by-a-trigger');
+    expect(shapes).not.toContain('a-casting-ended-by-a-trigger');
+    expect(SRD_CONTENT.spell('hypnotic-pattern')?.endsEarly).toEqual([
+      { on: 'target-takes-damage', ends: 'target' },
+    ]);
+    expect(
+      (SRD_CONTENT.spell('hypnotic-pattern')?.unmodelled ?? []).filter((note) =>
+        note.includes('shake the creature out of its stupor'),
+      ),
+    ).toHaveLength(1);
   });
 
   /**
