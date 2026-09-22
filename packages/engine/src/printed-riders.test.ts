@@ -7,6 +7,7 @@ import {
   declareCreatureSide,
   escapeGrapple,
   grapplesOn,
+  joinCombat,
   lapsedGrapples,
   placeCreatureInScene,
   resolveAttack,
@@ -565,15 +566,85 @@ describe('a printed saving throw, rolled at the number the block states', () => 
   });
 
   /**
-   * And the half of the same gate the engine cannot answer is said out loud
-   * rather than silently ignored: the book excepts an elf, lineage is not a
-   * fact this engine holds about a creature in play, and an unfired rule and a
-   * rule that checked and found nothing look identical from outside.
+   * **And the other half of the same gate, off the record creation kept.**
+   * The book excepts an elf, and a created character's species is one
+   * property away — `CharacterRecord.speciesId`, stored on the creature
+   * because "the choices are the character". Reporting it instead would
+   * Paralyze an elf the book does not reach, which is a rule nobody printed.
+   *
+   * The word is the *line's*, matched against the record; no species id is
+   * written in engine code, which is what `origin-and-feature-sweep.test.ts`
+   * holds the whole engine to.
    */
-  it('says out loud that it did not check for an elf', () => {
-    const out = bite(inTheWoods('ghoul', GHOUL), GHOUL, 'Claw', BREN, 'n');
+  it('leaves an elf alone, because the line excepts one', () => {
+    const elf: CharacterChoices = {
+      ...walkOn('Bren'),
+      speciesId: 'elf',
+      featureChoices: {
+        'elf:elven-lineage': ['High Elf'],
+        'elf:keen-senses': ['perception'],
+        'fighter:weapon-mastery': [],
+      },
+      feats: {
+        'sage:magic-initiate-wizard': {
+          featId: 'magic-initiate',
+          spellList: 'wizard',
+          spellcastingAbility: 'int',
+          cantrips: ['mage-hand', 'light'],
+          levelOneSpell: 'ray-of-sickness',
+        },
+        'fighter:fighting-style': { featId: 'archery' },
+      },
+    };
+    const out = bite(inTheWoods('ghoul', GHOUL, elf), GHOUL, 'Claw', BREN, 'n');
 
+    expect(out.attack?.hit).toBe(true);
+    expect(conditionsOn(out.state, BREN)).not.toContain('paralyzed');
     expect(out.unverified.join(' ')).toContain('elf');
+  });
+
+  /**
+   * And where there is no record to read — a monster, a creature a DM simply
+   * added — the fact is absent rather than false, so the rider lands and the
+   * silence is reported: an unfired rule and a rule that checked and found
+   * nothing look identical from outside.
+   */
+  it('says out loud that it could not check a creature with no record', () => {
+    const table = inTheWoods('ghoul', GHOUL);
+    table.did('an ogre wanders in', (s) => addCreature(s, SRD_CONTENT, OGRE, 'ogre'));
+    table.do('the ogre beside the ghoul', (s) =>
+      placeCreatureInScene(s, OGRE, { from: { creature: GHOUL }, feet: 5, bearing: 0 }),
+    );
+    // In the order, because the clause ends at a turn of the ogre's own and a
+    // creature with no place in it would send the whole line back to the DM
+    // before the species was ever asked about.
+    table.do('the ogre rolls', (s) => joinCombat(s, { id: OGRE, initiative: 5, speed: 40 }));
+
+    const out = bite(table, GHOUL, 'Claw', OGRE, 'n');
+
+    expect(out.unverified.join(' ')).toContain('nothing on ogre says what they are');
+  });
+
+  /**
+   * And the deadline itself, where the creature that was hit has no place in
+   * the order: an ogre a DM adds mid-fight and nobody has rolled for. The
+   * clause goes back whole rather than being filed on a turn that will never
+   * come, and rather than **refusing the swing** — which is what asking
+   * `resolveDuration` before the blow rather than after it buys.
+   */
+  it('hands the line back where the target has no turn to end it at', () => {
+    const table = inTheWoods('ghoul', GHOUL);
+    table.did('an ogre wanders in', (s) => addCreature(s, SRD_CONTENT, OGRE, 'ogre'));
+    table.do('the ogre beside the ghoul', (s) =>
+      placeCreatureInScene(s, OGRE, { from: { creature: GHOUL }, feet: 5, bearing: 0 }),
+    );
+
+    const out = bite(table, GHOUL, 'Claw', OGRE, 'n');
+
+    expect(out.attack?.hit).toBe(true);
+    expect(conditionsOn(out.state, OGRE)).not.toContain('paralyzed');
+    expect(out.unverified.join(' ')).toContain('the engine does not apply that');
+    expect(out.unverified.join(' ')).toContain('is not in this combat');
   });
 
   /**
@@ -829,6 +900,13 @@ describe('the reader claims only the sentences it can execute', () => {
       // SRD Mimic: a Disadvantage narrowed to the escape check, which is a
       // second mechanism on top of the grapple.
       'If the target is a Large or smaller creature, it has the Grappled condition (escape DC 13). Ability checks made to escape this grapple have Disadvantage.',
+      // SRD Chain Devil and SRD Roc: the Crocodile's Restrained written after
+      // a comma instead of after a full stop. A limb capture that ran to the
+      // sentence's end swallowed the whole clause and dropped the mechanic
+      // *without* handing the line back — the one failure worse than refusing
+      // it, because nothing said anything had gone missing.
+      'If the target is a Large or smaller creature, it has the Grappled condition (escape DC 14) from one of two chains, and it has the Restrained condition until the grapple ends.',
+      'If the target is a Huge or smaller creature, it has the Grappled condition (escape DC 19) from both talons, and it has the Restrained condition until the grapple ends.',
       // SRD Werewolf: a printed save whose failure is a curse rather than a
       // condition — the DC is readable and what it buys is not.
       'If the target is a Humanoid, it is subjected to the following effect. _Constitution Saving Throw:_ DC 12. _Failure:_ The target is cursed. If the cursed target drops to 0 Hit Points, it instead becomes a **Werewolf** under the GM’s control and has 10 Hit Points. _Success:_ The target is immune to this werewolf’s curse for 24 hours.',
@@ -841,9 +919,14 @@ describe('the reader claims only the sentences it can execute', () => {
 
   /**
    * And the population it moves, read off the book rather than claimed: a
-   * sweep over an empty set is a green test that checks nothing, and a floor
-   * here is what fails the day a parser change quietly stops reading a line it
-   * used to read.
+   * sweep over an empty set is a green test that checks nothing.
+   *
+   * **Pinned both ways, and the upper bound is the half that was missing.** A
+   * floor fails the day a parser change quietly stops reading a line it used
+   * to read; a ceiling fails the day one quietly starts reading a line it
+   * should not, which is the direction that puts a rule nobody printed into
+   * the fight. A limb capture that ran to the full stop swallowed the Chain
+   * Devil's and the Roc's Restrained and passed a green floor doing it.
    */
   it('reads a printed rider on a real and countable part of the bestiary', () => {
     let read = 0;
@@ -858,6 +941,6 @@ describe('the reader claims only the sentences it can execute', () => {
     }
 
     expect(carried).toBeGreaterThan(100);
-    expect(read).toBeGreaterThanOrEqual(45);
+    expect(read).toBe(49);
   });
 });

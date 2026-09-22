@@ -85,7 +85,8 @@ import {
   type HitOption,
   type StrikeStyle,
 } from '../standing.js';
-import { hasCondition } from '../conditions.js';
+import { benefitsFrom } from '../conditions.js';
+import { resolveDuration, timeView, turnAnchored } from '../time.js';
 import {
   chooseRoute,
   type ConcentrationConsequence,
@@ -406,28 +407,58 @@ function printedRiderOnASwing(
       );
     }
   }
-  // The half of the same sentence the engine cannot answer. Lineage is a
-  // creation choice and not a fact this engine holds about a creature in play,
-  // so it is said out loud rather than quietly skipped: an unfired rule and a
-  // rule that checked and found nothing look identical from outside.
+  // SRD Ghoul's "or elf": the other half of the same gate, and a species
+  // rather than a creature type. **Read off the record creation kept**, which
+  // is a fact the engine does hold for exactly the population a Ghoul claws:
+  // the choices are the character and they are stored on the creature. The
+  // word compared is the *line's*, so no species id is written down here.
+  //
+  // A creature with no record — a monster, somebody a DM simply added — has no
+  // species the engine can answer for, and the absent fact is reported rather
+  // than read as a denial: the reading the size gate above already takes of
+  // the same silence.
   if (read.alsoExcepts !== undefined) {
-    unverified.push(
-      `${printed.name}'s line also excepts an ${read.alsoExcepts}, and the engine holds no such fact about ${target}; it was applied regardless`,
-    );
+    const species = state.creatures[target]?.character?.speciesId ?? null;
+    if (species !== null && species.toLowerCase() === read.alsoExcepts.toLowerCase()) {
+      return {
+        option: null,
+        unverified: [
+          `${target} is a ${species}, and ${printed.name}'s line excepts one — nothing was applied`,
+        ],
+      };
+    }
+    if (species === null) {
+      unverified.push(
+        `${printed.name}'s line also excepts an ${read.alsoExcepts}, and nothing on ${target} says what they are; it was applied regardless`,
+      );
+    }
   }
 
   // A deadline the clock cannot reach is a condition that would never lift, so
   // it is left to the table rather than hung on somebody for ever — the answer
   // `hitRiderAsked` gives the same absence, minus the refusal, because nobody
   // asked for this rider and a swing must not be refused for taking it.
-  if (read.lasts !== undefined && state.combat === null) {
-    return {
-      option: null,
-      unverified: [
-        handOver,
-        `${printed.name}'s clause lasts until a turn boundary, and there are no turns here for it to end at`,
-      ],
-    };
+  //
+  // **The converter is asked rather than the combat**, because two different
+  // absences make the moment unreachable and only one of them is "no fight":
+  // a clause anchored on the *target's* next turn also has nowhere to go when
+  // the creature that was hit has no place in the order, which is an ordinary
+  // thing — a DM adds an ogre mid-fight and nobody has rolled for it. Asking
+  // `resolveDuration` here is asking the one function that will be asked again
+  // by `fileDeadlines`, so the two cannot come to disagree, and it is asked
+  // *before* the swing commits rather than after the blow has landed.
+  if (read.lasts !== undefined) {
+    const anchor = read.lastsOn === 'target' ? target : attacker;
+    const pinned = resolveDuration(timeView(state), turnAnchored(read.lasts, anchor));
+    if (!pinned.ok) {
+      return {
+        option: null,
+        unverified: [
+          handOver,
+          `${printed.name}'s clause lasts until a turn boundary of ${anchor}'s, and ${pinned.reason}`,
+        ],
+      };
+    }
   }
 
   const save = read.save;
@@ -1171,12 +1202,18 @@ export function resolveAttack(
     const targetCanSeeAttacker = canSomehowSee(state, command.target, id);
     const attackerCanSeeTarget = canSomehowSee(state, id, command.target);
 
-    if (targetCanSeeAttacker === null && hasCondition(attackerConditions, 'invisible')) {
+    // **`benefitsFrom` rather than `hasCondition`, because the note claims the
+    // swing kept something.** The readers below hand Invisible its Advantage
+    // and its Disadvantage only while the creature may still benefit from the
+    // condition — SRD Starry Wisp takes that away and leaves the condition —
+    // so asking the wider question here would tell the table the swing kept a
+    // mode it did not have.
+    if (targetCanSeeAttacker === null && benefitsFrom(attackerConditions, 'invisible')) {
       unverified.push(
         `${id} is Invisible and nobody has said whether ${command.target} can see them; SRD takes that Advantage away only against a creature that can, so the swing kept it`,
       );
     }
-    if (attackerCanSeeTarget === null && hasCondition(targetConditions, 'invisible')) {
+    if (attackerCanSeeTarget === null && benefitsFrom(targetConditions, 'invisible')) {
       unverified.push(
         `${command.target} is Invisible and nobody has said whether ${id} can see them; SRD lifts that Disadvantage only for an attacker who can, so the swing kept it`,
       );
@@ -1318,9 +1355,11 @@ export function resolveAttack(
     }
 
     // **What the block says a hit does**, reported the moment the hit is known:
-    // the clauses `printedRiderOnASwing` could not execute, and the Ghoul's
-    // Constitution save at DC 10 among them. What it *could* execute is riding
-    // on `riding` and is applied below with everything else a hit bought.
+    // the clauses `printedRiderOnASwing` could not execute — the Mummy's curse,
+    // a charge nobody has declared, an extra die a Bloodied swarm rolls — and
+    // the parts of a clause it executed and could not check. What it *could*
+    // execute is riding on `riding` and is applied below with everything else
+    // a hit bought.
     unverified.push(...fromTheBlock.unverified);
     // And the printed line where the swing also bought one of its own — the
     // purchase wins and this goes back to the table, said out loud rather than

@@ -1024,14 +1024,14 @@ export interface PrintedConditionRider {
    */
   readonly unlessType?: string;
   /**
-   * What the same sentence *also* excepts and nothing here can answer — SRD
-   * Ghoul's "or **elf**".
+   * What the same sentence *also* excepts, as a **species** — SRD Ghoul's "or
+   * **elf**".
    *
-   * Lineage is a creation choice and not a fact this engine holds about a
-   * creature in play, so the phrase is carried to be **reported at the hit**
-   * rather than evaluated: an unfired rule and a rule that checked and found
-   * nothing look identical from outside, and only the clause tells them apart.
-   * The same reading `grappleTarget` takes of the free hand SRD asks it for.
+   * Beside {@link unlessType} rather than folded into it because they are two
+   * records: a creature type is printed on a stat block and reaches
+   * `CreatureState.creatureType`, and a species is a creation choice that
+   * reaches `CharacterRecord.speciesId`. The swing reads whichever the
+   * creature has; a creature with neither is reported rather than assumed.
    */
   readonly alsoExcepts?: string;
   /** SRD Ghoul's "_Constitution Saving Throw:_ DC 10", where the line prints one. */
@@ -1117,13 +1117,21 @@ const ANCHORED_CONDITION = new RegExp(
  * The limb clause the book often appends — "from one of two claws", "from both
  * of the griffon's front claws" — is matched and captured rather than refused:
  * it says how many creatures the block can hold at once, which is a limit the
- * engine has no record to enforce and therefore reports. What is **not**
- * matched is a further *sentence*: the Crocodile's Restrained that ends when
- * the grapple does, and the Mimic's Disadvantage on the escape, are each a
- * second mechanism and the `$` is what refuses them.
+ * engine has no record to enforce and therefore reports.
+ *
+ * **What is not matched is anything after the limbs, and the comma is what
+ * says so.** A second *sentence* is refused by the `$` — the Crocodile's
+ * Restrained that ends when the grapple does, the Mimic's Disadvantage on the
+ * escape — and the Chain Devil and the Roc write the very same Restrained
+ * after a **comma** instead: "from one of two chains, **and it has the
+ * Restrained condition until the grapple ends**". A capture that ran to the
+ * full stop swallowed that whole clause into the limb phrase and dropped the
+ * mechanic without even handing the line back, which is the half-read rider
+ * this reader exists to refuse. No printed limb phrase contains a comma, so
+ * excluding one refuses the compound line and keeps every plain one.
  */
 const PRINTED_GRAPPLE = new RegExp(
-  `^If the target is a ${SIZE_WORDS} or smaller creature, it has the Grappled condition \\(escape DC (\\d+)\\)(?: from ([^.]+))?\\.$`,
+  `^If the target is a ${SIZE_WORDS} or smaller creature, it has the Grappled condition \\(escape DC (\\d+)\\)(?: from ([^.,]+))?\\.$`,
 );
 
 /**
