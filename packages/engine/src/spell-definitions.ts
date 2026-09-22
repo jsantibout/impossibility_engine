@@ -1857,7 +1857,90 @@ export type SpellEffect =
        * spell does not print is not one the engine may apply.
        */
       readonly requiresSight?: true;
+    }
+  /**
+   * A creature the casting puts into the world, out of the bestiary.
+   *
+   * SRD Find Steed: "You summon an otherworldly being that appears as a loyal
+   * steed in an unoccupied space of your choice within range. **This creature
+   * uses the Otherworldly Steed stat block.**" SRD Phantom Steed: "The steed
+   * uses the Riding Horse stat block (see "Monsters")."
+   *
+   * **A stat block by its id, and nothing else about the creature.** The
+   * owner's ruling of 2026-09-21 is what settles the representation: a
+   * spell-internal stat block is a *catalogue* entry like any other, rather
+   * than a second kind of content that only a spell can hold. So this arm
+   * names one, `summonCreature` reads it through `content.monsterById`, and
+   * every number the creature has — the sheet, the printed Armour Class, the
+   * average hit points, the creature type, both halves of the defence run and
+   * the size — is pinned into `creature-added` at the moment of arrival. The
+   * fold never opens a catalogue, so a log replayed next year raises the
+   * creature this casting raised and not the one the book prints then.
+   *
+   * **It targets the caster**, which is the shape `teleport` already takes and
+   * for the same reason: the spell is on the creature casting it and the thing
+   * it affects is not a creature at all. SRD writes "**You** summon"; the
+   * steed is the consequence.
+   *
+   * **The bond to the casting is derived rather than declared.** A casting
+   * that leaves a record running holds its creature there and the creature
+   * goes when it does (`strandedSummons`); one that leaves nothing running
+   * binds nothing, which is SRD Find Steed's Instantaneous steed and SRD
+   * Animate Dead's skeleton standing next week. A field would be a second way
+   * to say what `persists` already answers, and one a definition could get
+   * wrong — a bond to a casting with no record is a log the fold refuses.
+   *
+   * **Where it appears and what it may do are two other commands**, exactly as
+   * they are for any other creature walking through the door: `placeCreature`
+   * puts it on the map at the size its block prints, and `declareSpellcasting`
+   * says what it casts. `addCreature` documents that division and this changes
+   * none of it.
+   */
+  | {
+      readonly kind: 'summon';
+      /** Which stat block, by its id in content — as `addCreature` takes one. */
+      readonly monster: string;
+      /**
+       * SRD Find Steed's "**AC** 10 + 1 per spell level".
+       *
+       * The one place a *spell* overrides a number its stat block prints, and
+       * it is here rather than in the bestiary because the book prints the
+       * formula in the spell's own entry. Absent is every summons whose block
+       * is the whole truth — SRD Phantom Steed's Riding Horse — and then the
+       * printed Armour Class stands untouched.
+       */
+      readonly armorClass?: SummonedNumber;
+      /** SRD Find Steed's "**HP** 5 + 10 per spell level". */
+      readonly hitPoints?: SummonedNumber;
+      /**
+       * SRD Find Steed: "In combat, **it shares your Initiative count**."
+       *
+       * Derived from the order as it stands rather than stated: the caster's
+       * own rung is a fact the engine holds, and a total arriving from outside
+       * would be a number a caller produced. Absent is every summons that rolls
+       * for itself, and it seats nobody — `rollInitiativeFor` and `joinCombat`
+       * are the two commands that give a rung, exactly as they are for a
+       * creature a DM summons by hand.
+       */
+      readonly sharesCastersInitiative?: true;
     };
+
+/**
+ * A number a spell prints as a formula over the level it was cast at.
+ *
+ * SRD Find Steed prints two, inside the stat block it contains: "AC 10 + 1 per
+ * spell level" and "HP 5 + 10 per spell level". The value is
+ * `base + perSpellLevel × castLevel`, worked out **once, at the cast**, and
+ * what reaches the log is the answer — so an upcast steed is a fact about the
+ * casting rather than a formula the fold would have to re-evaluate.
+ *
+ * Not a {@link DiceScaling}: nothing is rolled, and the book scales these from
+ * the spell's *level* rather than from the levels above its own.
+ */
+export interface SummonedNumber {
+  readonly base: number;
+  readonly perSpellLevel: number;
+}
 
 /**
  * An area a spell fills, and where it starts.
@@ -3667,9 +3750,12 @@ export function numbersRead(definition: SpellDefinition): NumbersRead {
       case 'buff':
         if (effect.ability !== undefined) saveDc = true;
         break;
-      // The rest reach neither: they heal, grant, defend, move or dispel, and
-      // a dispel's own check is against 10 plus the spell's level rather than
-      // against anything this casting pinned.
+      // The rest reach neither: they heal, grant, defend, move, dispel or
+      // raise a creature, and a dispel's own check is against 10 plus the
+      // spell's level rather than against anything this casting pinned. A
+      // summons reads nothing of the caster's at all — every number it has is
+      // the stat block's, and the two the spell may print over it are worked
+      // out from the level the slot paid for.
       case 'temp-hp':
       case 'roll-mode':
       case 'armor-class':
@@ -3684,6 +3770,7 @@ export function numbersRead(definition: SpellDefinition): NumbersRead {
       case 'hit-point-maximum':
       case 'dispel':
       case 'teleport':
+      case 'summon':
         break;
       default: {
         const unhandled: never = effect;

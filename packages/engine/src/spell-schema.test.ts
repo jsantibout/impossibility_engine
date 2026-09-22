@@ -3575,6 +3575,25 @@ describe('every branch judges untyped input rather than throwing on it', () => {
       // the pairing rule below asserts by name rather than sweeping as junk.
       fields: { feet: required(NUMBER_JUNK) },
     },
+    {
+      kind: 'summon',
+      base: {
+        kind: 'summon',
+        monster: 'otherworldly-steed',
+        armorClass: { base: 10, perSpellLevel: 1 },
+        hitPoints: { base: 5, perSpellLevel: 10 },
+        sharesCastersInitiative: true,
+      },
+      // The stat block's id is required and the two numbers a spell may print
+      // over its own block are not — absent is every summons whose block is
+      // the whole truth. `sharesCastersInitiative` is a clause the book either
+      // prints or does not, which is the pairing `requiresSight` above takes.
+      fields: {
+        monster: required(STRING_JUNK),
+        armorClass: OBJECT_JUNK,
+        hitPoints: OBJECT_JUNK,
+      },
+    },
   ];
 
   /**

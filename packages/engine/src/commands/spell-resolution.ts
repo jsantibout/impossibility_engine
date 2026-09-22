@@ -175,6 +175,8 @@ import {
   resolveSaveEffect,
 } from './spell-effect-rolls.js';
 import { resolveTeleportEffect } from './spell-effect-teleport.js';
+import { resolveSummonEffect } from './spell-effect-summon.js';
+import { bindSummonsToCasting } from './creatures.js';
 import {
   anchoringFor,
   areaTargets,
@@ -1934,6 +1936,10 @@ function resolveOneEffect(
       return resolveInterruptCastingEffect(ctx, effect, target, victim, world);
     case 'teleport':
       return resolveTeleportEffect(ctx, effect, target, world);
+    // The one kind whose subject is not the target: the spell is on its caster
+    // and what it makes is a second creature, so the target is read off `ctx`.
+    case 'summon':
+      return resolveSummonEffect(ctx, effect, world);
 
     // An on-hit spell never reaches here: `resolveSpell` refuses one up
     // front, because the attack it rides on is not this command's to give.
@@ -2109,7 +2115,7 @@ export function resolveEffects(
     ...(context.alters === undefined ? {} : { alters: context.alters }),
   });
   if (!resolved.ok) return resolved;
-  const { numbers, outcomes, held } = resolved.value;
+  const { numbers, outcomes, held, summoned } = resolved.value;
 
   // The live half of the casting, now that it is known what the casting
   // actually caught. See `OngoingSpell` for why each field is there.
@@ -2174,6 +2180,22 @@ export function resolveEffects(
         ...(becomes.choice === undefined ? {} : { choice: becomes.choice }),
       },
     });
+  }
+
+  // **After the record because the fold insists**, which is the one ordering
+  // here that is not a courtesy to a reader. A `creature-summoned` naming a
+  // casting that is not in `state.ongoing` is refused by the reducer — the
+  // link would be born already broken and the creature would be owed a
+  // departure from its first moment — so a summons cannot be bound inside the
+  // effect loop that raised it. `resolveSummonEffect` leaves the names and
+  // this writes the links, one line below the record they depend on.
+  //
+  // **And nothing at all for a casting that leaves nothing running.** SRD Find
+  // Steed is Instantaneous and its steed is not on loan; SRD Animate Dead's
+  // skeleton is still standing next week. `summonCreature` says the same in
+  // the same words for a DM binding a creature by hand.
+  if (becomes !== undefined && summoned.length > 0) {
+    events.push(...bindSummonsToCasting(summoned, casterId, castingId));
   }
 
   // **After the record, because the patch may hang on it.** The fold does not
@@ -2264,6 +2286,14 @@ export interface EffectRunOutcome {
   readonly outcomes: readonly SpellTargetOutcome[];
   /** Whom this run has left something of its own on — see `landedOn`. */
   readonly held: ReadonlySet<CharacterId>;
+  /**
+   * The creatures it put into the world — see `EffectContext.summoned`.
+   *
+   * Returned rather than bound inside the run because the bond names a casting
+   * that is not running yet: the record is written after the effects resolve,
+   * and the fold refuses a `creature-summoned` that arrives before it.
+   */
+  readonly summoned: readonly CharacterId[];
 }
 
 /**
@@ -2390,6 +2420,9 @@ export function runEffects(
   // casting on" the world holds, so the half the record does *not* store.
   // See {@link aimedAt}.
   const held = new Set<CharacterId>();
+  // What it put into the world, for the caller to bind once its record exists
+  // — see `EffectContext.summoned`.
+  const summoned: CharacterId[] = [];
   const issuedBefore = supply.issuer.count;
 
   // **Derived once, at the casting, and read from the record ever after.**
@@ -2441,6 +2474,7 @@ export function runEffects(
     events,
     outcomes,
     held,
+    summoned,
     alters: run.alters ?? NO_ALTERATIONS(),
     ...(run.from === undefined ? {} : { from: run.from }),
     ...(run.fought === undefined ? {} : { fought: run.fought }),
@@ -2467,7 +2501,7 @@ export function runEffects(
     });
   }
 
-  return ok({ state: current, numbers, outcomes, held });
+  return ok({ state: current, numbers, outcomes, held, summoned });
 }
 
 /**

@@ -32,6 +32,7 @@ import type {
   SpellDefinition,
   SpellEffect,
   StatedChoiceOf,
+  SummonedNumber,
 } from './spell-definitions.js';
 import { TURN_MOMENTS } from './time.js';
 import { type PayoutKind } from './timers.js';
@@ -2084,6 +2085,55 @@ function checkEffect(
       return;
     }
 
+    /**
+     * A stat block by its id, and the two numbers a spell may print over it.
+     *
+     * The id is checked for *shape* here and for *existence* nowhere: this
+     * validator judges a definition on its own, and whether a world holds the
+     * block is a question about the world. `summonCreature` answers it with
+     * `unknown_monster` at the cast, which is the same refusal `addCreature`
+     * has always made and the same reading `conjures.item` takes — its
+     * catalogue check lives in `checkContent`, where both halves are present.
+     */
+    case 'summon': {
+      if (typeof effect.monster !== 'string' || effect.monster.trim().length === 0) {
+        found.push({
+          field: `${path}.monster`,
+          code: 'unknown_monster',
+          reason: 'a summons names the stat block it raises, by its id in content',
+        });
+      }
+      for (const field of ['armorClass', 'hitPoints'] as const) {
+        const scaled = effect[field];
+        if (scaled === undefined) continue;
+        if (
+          typeof scaled !== 'object' ||
+          scaled === null ||
+          !Number.isInteger((scaled as SummonedNumber).base) ||
+          (scaled as SummonedNumber).base < 1 ||
+          !Number.isInteger((scaled as SummonedNumber).perSpellLevel) ||
+          (scaled as SummonedNumber).perSpellLevel < 0
+        ) {
+          found.push({
+            field: `${path}.${field}`,
+            code: 'bad_summon_scaling',
+            reason:
+              'a number a spell prints over its own stat block is a whole base of at least 1 and a whole amount per spell level; SRD Find Steed writes "10 + 1 per spell level"',
+          });
+        }
+      }
+      const shares = (effect as { sharesCastersInitiative?: unknown }).sharesCastersInitiative;
+      if (shares !== undefined && shares !== true) {
+        found.push({
+          field: `${path}.sharesCastersInitiative`,
+          code: 'malformed_field',
+          reason:
+            'a spell either prints "it shares your Initiative count" or does not; the only value is true',
+        });
+      }
+      return;
+    }
+
     case 'armor-class':
       if (!Number.isInteger(effect.base) || effect.base < 1) {
         found.push({
@@ -3606,6 +3656,7 @@ function checkShape(value: unknown): readonly SpellDefinitionProblem[] {
       // anywhere else does not: both ask which of the lists the effect is in.
       checkFoughtClause(effect as object, entry.kind, where, at, found);
       checkTeleportPlacement(entry.kind, where, at, found);
+      checkSummonPlacement(entry.kind, where, at, found);
       checkNoNestedEffect(effect, at, found);
     });
   }
@@ -3766,6 +3817,44 @@ function checkTeleportPlacement(
     code: 'teleport_outside_the_casting',
     reason:
       'the caster states where the teleport goes at the casting, so only the casting’s own effect list can read it',
+  });
+}
+
+/**
+ * Where a summons may be written, which is the casting's own list and nowhere
+ * else.
+ *
+ * {@link checkTeleportPlacement}'s rule for a different reason, and the reason
+ * is the bond. A creature a casting is holding is bound by a
+ * `creature-summoned` written immediately after the casting's `spell-ongoing`
+ * record, and only the casting writes one: an area trigger fires a minute
+ * later off a record that already exists and an activation acts through one,
+ * so neither has a record to write the bond after. A summons in either list
+ * would raise a creature that nothing holds there — the spell would end and
+ * the creature would stand, silently, which is the class of failure this
+ * repository calls its worst.
+ *
+ * Refused at authoring rather than met at the table, and refused **beside**
+ * {@link checkTeleportPlacement} rather than anywhere else: both ask which
+ * list an effect sits in, which is a question `checkEffect` cannot answer
+ * because it is handed one effect. That puts both on the untyped walk, so a
+ * definition loaded from JSON meets them and one written in TypeScript is held
+ * to its own compiler — the asymmetry teleport already carries, and one this
+ * change deliberately does not widen by guarding one kind in two places and
+ * its neighbour in one.
+ */
+function checkSummonPlacement(
+  kind: unknown,
+  where: string,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  if (kind !== 'summon' || where === 'effects') return;
+  found.push({
+    field: `${path}.kind`,
+    code: 'summon_outside_the_casting',
+    reason:
+      'a creature a casting holds is bound to the casting’s own record, which only the casting’s own effect list is resolved in time to write',
   });
 }
 
@@ -3948,6 +4037,7 @@ export const EFFECT_KINDS: ReadonlySet<string> = new Set([
   'speed',
   'attack-rider',
   'teleport',
+  'summon',
   'turn-payout',
   'action-rule',
   'healing-rule',

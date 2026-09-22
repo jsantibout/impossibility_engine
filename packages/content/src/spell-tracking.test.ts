@@ -1424,14 +1424,27 @@ describe('every spell this batch added is cast for real', () => {
    * move crosses. `isExecuted` reads `areaTerrain` for exactly that reason —
    * a spell whose only printed mechanic the engine now resolves is not one
    * the engine resolves nothing of.
+   *
+   * **Find Steed and Phantom Steed are the tenth and eleventh, and they leave
+   * by the door P2-T11 built.** Each is one sentence long — a creature with a
+   * stat block appears — and what that sentence needed was two things at once:
+   * a `summon` effect kind, so a casting derives its creature from the spell
+   * rather than a caller reading the casting id back and summoning by hand;
+   * and somewhere for a stat block the book prints *inside a spell entry* to
+   * live, which the owner's ruling of 2026-09-21 settled as the bestiary. The
+   * Phantom Steed is held here by its casting and goes when the hour is up;
+   * the Otherworldly Steed is Instantaneous, is bound to nothing, and carries
+   * the two numbers SRD prints over its own block as arithmetic on the slot.
    */
   const EXECUTED_SINCE: readonly string[] = [
     'aid',
     'enhance-ability',
     'expeditious-retreat',
     'faerie-fire',
+    'find-steed',
     'goodberry',
     'magic-jar',
+    'phantom-steed',
     'plant-growth',
     'spike-growth',
     'wind-walk',

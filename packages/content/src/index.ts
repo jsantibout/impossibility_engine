@@ -26,6 +26,7 @@ import { ROGUE, ROGUE_SUBCLASSES } from './classes/rogue.js';
 import { SORCERER, SORCERER_SUBCLASSES } from './classes/sorcerer.js';
 import { WARLOCK, WARLOCK_SUBCLASSES } from './classes/warlock.js';
 import { WIZARD, WIZARD_SUBCLASSES } from './classes/wizard.js';
+import { SPELL_STAT_BLOCKS } from './bestiary.js';
 import { SRD_ITEMS } from './items.js';
 import {
   ALIGNMENTS,
@@ -40,6 +41,7 @@ import {
 import { SPELL_DEFINITIONS } from './spells.js';
 
 export * from './spells.js';
+export * from './bestiary.js';
 export * from './origins.js';
 export * from './items.js';
 export * from './classes/barbarian.js';
@@ -99,7 +101,11 @@ export const SRD_CONTENT_INPUT = {
   items: SRD_ITEMS,
   languages: LANGUAGES,
   alignments: ALIGNMENTS,
-  monsters: MONSTERS,
+  // The Monsters chapter, plus the blocks the book prints inside a spell's own
+  // entry — see `bestiary.ts`. One catalogue either way: a `summon` effect
+  // names a stat block by id and nothing downstream knows which chapter it was
+  // read out of.
+  monsters: [...MONSTERS, ...SPELL_STAT_BLOCKS],
 } as const;
 
 /** The SRD 5.2.1 catalogue, validated. */

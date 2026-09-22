@@ -136,7 +136,7 @@ export const MISSING_SHAPES = {
   'an-ability-score-a-spell-changes':
     'a score an effect **moves**, in any of the five ways the book moves one. `docs/design/time-and-turns.md`, on what a rest does not restore: "**Reduced ability scores and a reduced hit point maximum are not restored**, because neither is modelled in the first place." One of the five is built: an item may now *set* a score — an **absolute** held while it is worn, derived on every read by `abilityScoresOf` — and the three entries that printed only that sentence are transcribed. Four have no writer. A score an effect **lowers**. A **bounded delta with a lifetime**, which SRD prints on six Ioun Stones: "Your Dexterity increases by 2, to a maximum of 20, while this deep-red sphere orbits your head" is `ability-score-increase`’s arithmetic on a standing grant’s lifetime, and the member that holds the arithmetic is answered at creation while the one that holds the lifetime writes absolutes — the Belt of Dwarvenkind prints it too, and the Hammer of Thunderbolts adds 4 to whatever score a belt or a pair of gauntlets already bestowed. A set with a **deadline** rather than a garment, which a conferral would carry and `CONFERRED_EFFECT_KINDS` does not admit. And a **permanent** raise: the manuals’ and the tomes’ +2 after forty-eight hours of study, which outlives every rest and is a folded number rather than a derived one.',
   'a-stat-block-created-mid-fight':
-    'summons. `docs/design/casting.md`, "Which spells this reaches": "A stat block created mid-fight | Unseen Servant, Arcane Hand, Phantom Steed, Summon Dragon, Giant Insect ...". That row lost three entries to this reading — "the four Conjures", Guardian of Faith and Faithful Hound — because SRD 5.2.1 rewrote the Conjure family as spirits and none of the eight prints an Armour Class, Hit Points or a turn.',
+    'summons. `docs/design/casting.md`, "Which spells this reaches": "A stat block created mid-fight | Unseen Servant, Arcane Hand, Phantom Steed, Summon Dragon, Giant Insect ...". That row lost three entries to this reading — "the four Conjures", Guardian of Faith and Faithful Hound — because SRD 5.2.1 rewrote the Conjure family as spirits and none of the eight prints an Armour Class, Hit Points or a turn. **The creation half is built.** `summonCreature` and `dismissStrandedSummons` were the door; P2-T11 added the level above them — a `summon` effect kind, so a casting derives its creature from the spell instead of a caller reading the casting id back and summoning by hand. It names a stat block by its id in content, pins every number the block prints into `creature-added`, works out the two numbers a spell may print over its own block (SRD Find Steed’s "AC 10 + 1 per spell level"), reads the caster’s Initiative count where the spell shares it, and binds the creature to the casting **after** the ongoing record, which is the only order the fold accepts. The owner’s ruling of 2026-09-21 settled where a spell-internal block goes: into the bestiary, transcribed in `packages/content/src/bestiary.ts`, not into a second kind of content. What is left under this name is three things and none of them is the creation: **a stat block that is in neither chapter** — Unseen Servant’s servant and Find Familiar’s eleven forms, which the book prints nowhere as a block — **a summons whose lifetime is not a casting’s**, Find Steed’s steed going when its summoner dies, where the only lifetime the engine runs is an ongoing record’s — and **a number the spell prints over its block that is neither of the two computed**, Find Steed’s Fly Speed gated on a level 4 slot.',
   'movement-modes':
     'the Fly, Climb and Swim Speeds the engine does not distinguish, and the per-foot costs that ride with them. `docs/design/spell-definitions.md` refuses the vocabulary by name: "**Movement modes are refused outright.** Fly, Climb and Swim have no reader — no rule in the engine asks about one — so a vocabulary for them would be shape built ahead of every mechanic that could use it", and Roving’s own note says the same of its Climb and Swim Speeds. What is left of `speed-and-movement-modes` once IE-033 built the modifier half.',
   'a-speed-an-effect-multiplies':
@@ -800,6 +800,23 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: "If the creature ends its turn in a space where it doesn\'t have line of sight to you, the creature makes a Wisdom saving throw." A repeat save is raised by a turn boundary and owed by whoever holds the condition; this one is owed only where a pairwise sight declaration says the target cannot see the caster, which no boundary reads.',
     },
   ],
+  'find-steed': [
+    {
+      clause: 'the steed leaving when its summoner dies',
+      why: 'a-stat-block-created-mid-fight',
+      note: 'The creation half of that shape is built and this is what is left of it here. The steed arrives out of the bestiary with every number pinned, and the one lifetime the engine can run is a casting’s: a creature bound to an ongoing record goes when the record does, which `strandedSummons` finds and `dismissStrandedSummons` performs. Find Steed is Instantaneous and leaves no record, so the steed is bound to nothing — and "if you die" hangs the creature’s lifetime on another **creature**, which is a bond the engine has no shape for at all. Its other half, the steed disappearing at 0 Hit Points, is the death the stat block already dies: a monster dies the instant it drops to 0, which `adaptMonster` pins as `diesAtZero`.',
+    },
+    {
+      clause: 'its Fly Speed of 60 feet is not granted at any level',
+      why: 'a-stat-block-created-mid-fight',
+      note: 'Not `movement-modes`, which would be the wrong filing twice over: a stat block’s Fly Speed **is** carried — `printedSpeeds` puts it on the sheet and `fliesWithoutFallingOn` reads it — so nothing about a flying creature is missing here. What the SRD prints is "Fly 60 ft. (requires level 4+ spell)", a Speed the creature has only when the slot was big enough, which is a third number the spell prints over its own block beside the two the `summon` kind computes. It is withheld rather than granted, because a limit enforced is never more permissive than the book.',
+    },
+    {
+      clause: 'the Celestial, Fey or Fiend chosen when it is called',
+      why: 'table',
+      note: 'SRD: "choose the steed’s creature type—Celestial, Fey, or Fiend—which determines certain traits in the stat block." The block the book prints beneath that sentence carries no trait at all — no traits, no actions, no reactions — so there is nothing in it for the choice to determine, and the catalogue holds the type exactly as printed rather than picking one of the three on the caster’s behalf. What the choice decides is what the steed is called and how it behaves, which is the table’s.',
+    },
+  ],
   'finger-of-death': [
     {
       clause: 'rises as a Zombie',
@@ -1008,6 +1025,13 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'a successful save ends the spell',
       why: 'a-repeat-save-that-does-something-on-a-failure',
       note: 'The ending itself is expressible — `onSuccess: end-casting` exists — and it has no save to ride on, because the repeat save that would carry it deals damage the hook cannot roll.',
+    },
+  ],
+  'phantom-steed': [
+    {
+      clause: 'the casting does not stop early when the steed takes any damage',
+      why: 'a-casting-ended-by-a-trigger',
+      note: 'That shape’s own description names this spell in its list of causes with no member — "**any** damage from anybody (Modify Memory, Sleep, Sequester, Phantom Steed, Project Image, Eyebite)" — and the steed existing is what makes the gap visible rather than hypothetical. `CastingEndCause`’s five members are facts about a **target** or about the caster and their allies; the creature a casting is sustaining is neither, so there is no cause to write even though the damage event now names a creature the casting put there.',
     },
   ],
   'plant-growth': [
@@ -2244,14 +2268,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'the generator throws any notation parseNotation reads and no SpellEffect asks it for one; a payout at a turn boundary hands over hit points and cannot branch on the face a die showed.',
     },
   ],
-  'phantom-steed': [
-    {
-      marker: 'speed',
-      clause: 'it has a Speed of 100 feet',
-      why: 'a-stat-block-created-mid-fight',
-      note: 'the Speed is an override on a stat block out of the monster list, and the thing it overrides is a creature no casting can put in the scene — so the number has nobody to belong to.',
-    },
-  ],
   revivify: [
     {
       marker: 'hit-points',
@@ -2792,32 +2808,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'If the target drops to 0 Hit Points before this spell ends',
       why: 'an-outcome-that-reads-the-targets-hit-points',
       note: 'the curse moves to a new creature when this one falls, and no outcome asks the vitals a question — so the Bonus Action on a later turn that re-curses is never offered.',
-    },
-  ],
-  'find-steed': [
-    {
-      marker: 'armor-class',
-      clause: '10 + 1 per spell level',
-      why: 'a-stat-block-created-mid-fight',
-      note: 'the SRD prints the Otherworldly Steed stat block inside the spell entry, so the Armour Class is the summoned creature own and scales with the slot that summoned it; a casting adds no creature to a scene.',
-    },
-    {
-      marker: 'hit-points',
-      clause: 'The steed disappears if it drops to 0 Hit Points',
-      why: 'a-stat-block-created-mid-fight',
-      note: 'vitals on a creature the engine cannot make, and a lifecycle hanging off them: the steed leaves when they run out or when its summoner dies, and neither is a casting ending.',
-    },
-    {
-      marker: 'condition',
-      clause: 'If you have the Incapacitated condition',
-      why: 'a-stat-block-created-mid-fight',
-      note: 'the condition is read off the caster and what it changes is the summoned creature place in the initiative order, which is a turn belonging to a creature that is not in the scene.',
-    },
-    {
-      marker: 'speed',
-      clause: '60 ft., Fly 60 ft.',
-      why: 'a-stat-block-created-mid-fight',
-      note: 'a walking Speed and a flying Speed printed in the stat block the spell contains, on the creature that stat block describes and that no casting produces.',
     },
   ],
   'bestow-curse': [
