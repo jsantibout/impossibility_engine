@@ -37,6 +37,10 @@ import {
   canBeTargeted,
   coverBetween,
   distanceBetween,
+  lightAt,
+  obscurementAt,
+  piercesObscurement,
+  positionOf,
   sensesReaching,
   sightBetween,
   SIGHT_SENSES,
@@ -357,6 +361,17 @@ export type AttackDieRule = {
 };
 
 /** What a standing benefit does. */
+/**
+ * What a `sees-through` grant lets its holder see through.
+ *
+ * One member, declared as a list so the type is read off it rather than
+ * spelled twice: SRD prints one such sentence, Devil's Sight's, and a second
+ * member would be somebody's invention until a printed line asks for it.
+ */
+export const SEES_THROUGH = ['darkness'] as const;
+
+export type SeesThrough = (typeof SEES_THROUGH)[number];
+
 export type StandingGrant =
   /**
    * Advantage or Disadvantage on a kind of roll — see {@link RollModifier}.
@@ -675,6 +690,24 @@ export type StandingGrant =
    */
   | { readonly kind: 'sense'; readonly sense: SenseName; readonly feet: number }
   /**
+   * Darkness this creature sees through, and how far.
+   *
+   * **Not a fifth sense**, and that is the whole reason it is its own grant:
+   * the rules glossary defines four, `SENSE_NAMES` is closed on them, and
+   * SRD Devil's Sight is not in the list — "You can see normally in Darkness,
+   * both magical and nonmagical, to a distance of 120 feet" is an exception
+   * to one rule about light rather than a way of perceiving. Adding it to
+   * `SENSE_NAMES` would have handed it every sentence Blindsight answers,
+   * starting with Invisible's "can somehow see you".
+   *
+   * `through` is a closed vocabulary of one because the SRD prints one. What
+   * makes the member worth naming rather than assuming is that Darkvision
+   * already sees through *nonmagical* darkness: what this adds is the magical
+   * half, which is the only thing the sentence buys. See
+   * {@link piercesObscurement}, which is where both are read.
+   */
+  | { readonly kind: 'sees-through'; readonly through: SeesThrough; readonly feet: number }
+  /**
    * An ability score **set** to a number while whatever grants it holds.
    *
    * A third verb beside the two `ability-score-increase` has, and the SRD
@@ -981,7 +1014,24 @@ export type StandingRequirement =
    * attunement, and it does stop the benefit. An item that is attuned and
    * stowed keeps the effects that ask only for attunement and loses these.
    */
-  | { readonly kind: 'while-worn' };
+  | { readonly kind: 'while-worn' }
+  /**
+   * SRD Sunlight Sensitivity, on four stat blocks in one sentence: "**While
+   * in sunlight**, the kobold has Disadvantage on ability checks and attack
+   * rolls." SRD Sunlight Weakness and the vampires' Sunlight say it too.
+   *
+   * The holder's own space, which is what every one of those sentences says,
+   * read through `lightAt` at the moment the question is asked — so the
+   * Disadvantage arrives when the creature steps into the shaft of light and
+   * goes when it steps out, with nothing to remember and nothing to sweep.
+   *
+   * **Sunlight is Bright Light with a flag** (the owner's fourth ruling), so
+   * a torch is not the sun and a lantern does not blind a wight. A space
+   * nobody has said anything about is not sunlit either: the requirement
+   * fails on the null, which is the conservative direction and the "no
+   * default ambient" ruling read through to its consequence.
+   */
+  | { readonly kind: 'in-sunlight' };
 
 /** One benefit a feature grants, with its reach already resolved to feet. */
 export interface StandingEffect {
@@ -1791,6 +1841,14 @@ function requirementsHold(
     ) {
       return false;
     }
+    // Where the creature is standing, and how bright it is there — both read
+    // now rather than stored, exactly as `has-speed` reads a Speed. A creature
+    // nobody has placed is in no sunlight, which is the same answer an
+    // undeclared space gives and the conservative one.
+    if (requirement.kind === 'in-sunlight') {
+      const where = state.scene === null ? null : positionOf(state.scene, who);
+      if (where === null || !lightAt(state, where).sunlight) return false;
+    }
   }
   return true;
 }
@@ -2508,7 +2566,83 @@ export function sensesOf(state: GameState, who: CharacterId): readonly CreatureS
  */
 export function canSee(state: GameState, from: CharacterId, to: CharacterId): boolean | null {
   if (state.scene === null) return null;
-  return sightBetween(state.scene, from, to, sensesOf(state, from));
+  const obscurement = obscuredFrom(state, from, to);
+  return sightBetween(
+    state.scene,
+    from,
+    to,
+    sensesOf(state, from),
+    obscurement === null ? {} : { obscurement },
+  );
+}
+
+/**
+ * The darkness this creature sees through, and how far — `sensesOf` for the
+ * one grant that is not a sense.
+ *
+ * Gathered through `standingFor` exactly as a sense is, so an invocation, a
+ * species trait and a magic item all reach the sight question by one route
+ * and under the same clauses. One entry per member at the longest range, for
+ * the reason `sensesOf` keeps one: two sources of one sentence are one
+ * sentence, and the answer must not depend on which was read first.
+ */
+export function seesThroughOf(
+  state: GameState,
+  who: CharacterId,
+): Readonly<Partial<Record<SeesThrough, number>>> {
+  const furthest: Partial<Record<SeesThrough, number>> = {};
+  for (const { effect } of standingFor(state, who)) {
+    if (effect.grant.kind !== 'sees-through') continue;
+    const had = furthest[effect.grant.through];
+    if (had === undefined || effect.grant.feet > had) {
+      furthest[effect.grant.through] = effect.grant.feet;
+    }
+  }
+  return furthest;
+}
+
+/**
+ * Whether what lies over the **target's** space stops this looker seeing in.
+ *
+ * **The step `docs/design/light-and-sight.md` adds, and it is here rather
+ * than inside `sightBetween` on purpose.** The note's own reason: this reads
+ * the looker's senses against the target's space, which is the same class of
+ * question `sensesPerceiving` answers and not the class the declaration
+ * answers. `positioning.ts` holds space and has no creature to read a sense
+ * off; this file holds the creature. So the rule is pure and lives there, the
+ * gathering lives here, and `sightBetween` is handed a yes or a no.
+ *
+ * The SRD's sentence is about the target's space — "while trying to see
+ * something in that area" — so a creature standing in pitch darkness sees a
+ * lit target perfectly, and this never reads the looker's own square.
+ */
+function obscuredFrom(
+  state: GameState,
+  from: CharacterId,
+  to: CharacterId,
+): 'blocked' | 'pierced' | null {
+  const scene = state.scene;
+  if (scene === null || from === to) return null;
+  const where = positionOf(scene, to);
+  if (where === null) return null;
+
+  const here = obscurementAt(state, where);
+  // Lightly Obscured, Bright Light and a space nobody has spoken about all
+  // leave the question exactly where it was: with the declaration and the
+  // sense. Light changes the answer only where the book says it does.
+  if (here.degree !== 'heavily') return null;
+
+  const apart = distanceBetween(scene, from, to);
+  const reach = apart.ok ? apart.value : null;
+  const darkness = seesThroughOf(state, from).darkness;
+
+  return piercesObscurement(
+    here,
+    sensesReaching(scene, sensesOf(state, from), from, to),
+    darkness !== undefined && reach !== null && reach <= darkness ? [{ feet: darkness }] : [],
+  )
+    ? 'pierced'
+    : 'blocked';
 }
 
 /**

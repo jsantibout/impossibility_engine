@@ -552,6 +552,18 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   'healing-rule-granted',
   'hit-point-maximum-adjusted',
   'item-transferred',
+  // How bright a patch of the room is, and how obscured. Neither log was
+  // written when the lattice held either — sight was pairwise and no square
+  // was lit or unlit — and both fixtures fold to exactly the states they
+  // always folded to, with `light` and `obscurement` empty and `ambient`
+  // null on the scene. That is the "no default ambient" ruling paying for
+  // itself: a log that says nothing about the light is a log whose light is
+  // unsaid, which is what it always was. `light-and-sight.test.ts` folds both
+  // events and drives them end to end — the dwarf in the unlit hall and in a
+  // Darkness, the Devil's Sight that pierces it, the patch gone the read
+  // after its casting ends, and the Fog Cloud a Rogue Hides in.
+  'light-declared',
+  'obscurement-declared',
   // A line a stat block prints a recharge on, spent and got back. Neither log
   // was written when the notation reached the engine at all — it was a field
   // on a parsed attack that nothing rolled a die for — and both fixtures fold

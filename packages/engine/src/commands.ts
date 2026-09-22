@@ -67,7 +67,13 @@ export {
 } from './commands/creatures.js';
 export type { AddCreatureOutcome, DamageCommand, Summons } from './commands/creatures.js';
 export { applyConditionTo, liftConditionFrom, whyCondition } from './commands/conditions.js';
-export { declareCreatureType, declareDifficultTerrain, declareFalling } from './commands/facts.js';
+export {
+  declareCreatureType,
+  declareDifficultTerrain,
+  declareFalling,
+  declareLight,
+  declareObscurement,
+} from './commands/facts.js';
 export {
   awardItems,
   declareCreatureDead,

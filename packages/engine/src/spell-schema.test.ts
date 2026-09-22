@@ -2473,6 +2473,17 @@ describe('no spell is special-cased in the runtime', () => {
    * it hits. Excluded the day the spell catalogue gained the spell, which is
    * the day `save.condition` became optional.
    *
+   * **`darkness` is the eleventh, and it is `darkvision`'s case one glossary
+   * entry further on**: the rules glossary prints three levels of light —
+   * Bright Light, Dim Light, Darkness — and `LIGHT_LEVELS` in
+   * `positioning.ts` transcribes exactly those three, as `SENSE_NAMES`
+   * transcribes the four senses. Every reading of the word in the engine is a
+   * reading of that level: how bright a space is, what Darkvision makes of
+   * it, what a `sees-through` grant pierces. Not one of them is about the
+   * level 2 Illusion, and the test the feat allowance states holds — delete
+   * SRD Darkness from the catalogue and a cellar is still dark. Excluded the
+   * day the lattice gained a light level, which is P3-S.
+   *
    * Named one word at a time rather than matched loosely, so each exclusion
    * is reviewed instead of being a heuristic that quietly stops catching
    * things.
@@ -2481,6 +2492,7 @@ describe('no spell is special-cased in the runtime', () => {
     'shield',
     'light',
     'darkvision',
+    'darkness',
     'heal',
     'teleport',
     'command',
@@ -2616,6 +2628,7 @@ describe('no spell is special-cased in the runtime', () => {
   it('excludes only words the engine uses for something else', () => {
     expect([...ALSO_VOCABULARY].sort()).toEqual([
       'command',
+      'darkness',
       'darkvision',
       'divination',
       'fly',
@@ -2641,17 +2654,27 @@ describe('no spell is special-cased in the runtime', () => {
     // unreported exactly as a `'shield'` there would. That is the price of a
     // word the book uses twice, and the compensation is the assertion below —
     // the file that owns the mechanic writes the word only where the glossary
-    // is being transcribed, which is checkable and is checked.
+    // is being transcribed **and in the one rule the sense is a rule about**,
+    // which is checkable and is checked.
+    //
+    // **P3-S added that third line, and it is the point of the allowance
+    // rather than a crack in it.** Darkvision's own sentence is "in Darkness
+    // as if it were Dim Light", and until light was on the lattice there was
+    // nothing in this engine for the sense to read — `docs/design/light-and-
+    // sight.md` says so outright. `piercesObscurement` is that sentence, and
+    // it is about the level 2 Illusion no more than `SENSE_NAMES` is.
     const GLOSSARY = [
       "export const SENSE_NAMES = ['blindsight', 'darkvision', 'tremorsense', 'truesight'] as const;",
       "export const SIGHT_SENSES: ReadonlySet<SenseName> = new Set<SenseName>([",
     ];
+    const DARKVISION_RULE =
+      "return !here.light.magical && senses.some((sense) => sense.sense === 'darkvision');";
     for (const construct of GLOSSARY) expect(source('positioning.ts')).toContain(construct);
     expect(
       linesOf(source('positioning.ts'))
         .filter((line) => line.includes("'darkvision'"))
         .map((line) => line.trim()),
-    ).toEqual([GLOSSARY[0], "'darkvision',"]);
+    ).toEqual([DARKVISION_RULE, GLOSSARY[0], "'darkvision',"]);
     // And the two that are effect **kinds**, which is the sharper collision:
     // the word is in the union the whole vocabulary is written in.
     expect(source('spell-definitions.ts')).toContain("readonly kind: 'heal'");
@@ -2690,6 +2713,17 @@ describe('no spell is special-cased in the runtime', () => {
     // Transmutation. Both halves pinned, as the Speed above is.
     expect(WEAPON_MASTERIES).toContain('slow');
     expect(source('commands/mastery.ts')).toContain("case 'slow':");
+    // And the eleventh, which is a level of light. `LIGHT_LEVELS` transcribes
+    // the glossary's three in one line, the way `SENSE_NAMES` transcribes the
+    // four senses, and the word is then read as one of the three wherever a
+    // rule asks how bright a space is. Both halves pinned, as the Speed is:
+    // the transcription is really there, and there is really a rule reading
+    // it — the sentence that makes magical darkness defeat Darkvision.
+    expect(source('positioning.ts')).toContain(
+      "export const LIGHT_LEVELS = ['bright', 'dim', 'darkness'] as const;",
+    );
+    expect(source('positioning.ts')).toContain("patch.level === 'darkness'");
+    expect(source('standing.ts')).toContain("export const SEES_THROUGH = ['darkness'] as const;");
   });
 
   it('allows the two data constructs and nothing around them', () => {

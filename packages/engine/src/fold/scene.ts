@@ -10,6 +10,8 @@ import {
   addLandmark,
   declareCover,
   declareDifficultPatch,
+  declareLightPatch,
+  declareObscuringPatch,
   declareSight,
   dismount,
   mount,
@@ -33,6 +35,8 @@ export const SCENE_EVENTS = [
   'sight-declared',
   'cover-declared',
   'difficult-terrain-declared',
+  'light-declared',
+  'obscurement-declared',
   'mounted',
   'dismounted',
 ] as const;
@@ -53,7 +57,7 @@ export const isSceneEvent = seamOf(SCENE_EVENTS);
 export function applyScene({ state, next }: Applying, event: SceneEvent): GameState {
   switch (event.type) {
     case 'scene-set':
-      return { ...next, scene: scene(event.extent) };
+      return { ...next, scene: scene(event.extent, event.light ?? null) };
 
     case 'landmark-added':
       return { ...next, scene: must(event, addLandmark(sceneOf(state, event), event.name, event.at)) };
@@ -110,6 +114,38 @@ export function applyScene({ state, next }: Applying, event: SceneEvent): GameSt
             event.patch,
             event.region,
             event.costPerFoot,
+            event.source,
+          ),
+        ),
+      };
+
+    // The second and third consumers of the same patch shape, reduced exactly
+    // as the ground is and raising nothing for the same reason: light changes
+    // what a creature can see and catches nobody, so it is a property of the
+    // scene rather than a moment in it.
+    case 'light-declared':
+      return {
+        ...next,
+        scene: must(
+          event,
+          declareLightPatch(sceneOf(state, event), event.patch, event.region, event.level, {
+            ...(event.source === undefined ? {} : { source: event.source }),
+            ...(event.magical === undefined ? {} : { magical: event.magical }),
+            ...(event.sunlight === undefined ? {} : { sunlight: event.sunlight }),
+          }),
+        ),
+      };
+
+    case 'obscurement-declared':
+      return {
+        ...next,
+        scene: must(
+          event,
+          declareObscuringPatch(
+            sceneOf(state, event),
+            event.patch,
+            event.region,
+            event.degree,
             event.source,
           ),
         ),

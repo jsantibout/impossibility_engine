@@ -501,6 +501,12 @@ const DECLARATIONS: Readonly<
   declareCoverBetween: { tool: 'declare_cover' },
   declareDifficultTerrain: { tool: 'declare_difficult_terrain' },
   declareFalling: { tool: 'declare_falling' },
+  // The fifth and sixth declared facts, and the pair that gave Darkvision
+  // something to be a rule about. Both are the room, which is the DM's to
+  // describe; both take a word out of the glossary and a radius, which is the
+  // class of number `declare_difficult_terrain` already takes here.
+  declareLight: { tool: 'declare_light' },
+  declareObscurement: { tool: 'declare_obscurement' },
   // The first door on either surface that takes a number, and the DM's alone:
   // the count sizes an Attack action, so a model stating it would be writing
   // itself attacks, while the table stating it is reporting the creature in
@@ -965,6 +971,12 @@ const KIND_SETTLED_BY: Readonly<Record<string, ContextRequestKind | null>> = {
   declareSightBetween: 'visibility',
   declareCoverBetween: null,
   declareDifficultTerrain: null,
+  // Null, and not a hole: no command stops because nobody has said how bright
+  // it is. That *is* the "no default ambient" ruling read from this end — an
+  // undeclared room answers exactly as it always did, so there is nothing for
+  // a command to stop on and a kind here would be one nothing raises.
+  declareLight: null,
+  declareObscurement: null,
   declareFalling: null,
   declareCreatureDead: null,
   declareResourcePool: null,

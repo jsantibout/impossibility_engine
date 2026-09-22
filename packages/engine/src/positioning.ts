@@ -72,6 +72,35 @@ export interface PositionState {
    * patch is still there. See {@link DifficultPatch}.
    */
   readonly terrain: Readonly<Record<string, DifficultPatch>>;
+  /**
+   * How bright each patch of the room is, by the name the table gave it.
+   *
+   * The second consumer of {@link LatticePatch}, and declared for exactly the
+   * reason `terrain` is: deriving light from walls and sources needs obstacle
+   * geometry, which is where a rules engine becomes a VTT. The table names
+   * the light it sees; a casting pins its own patch with its `source`.
+   * See {@link lightAt}.
+   */
+  readonly light: Readonly<Record<string, LightPatch>>;
+  /**
+   * Obscurement that is **not** a light level: fog, foliage, smoke.
+   *
+   * A record of its own rather than a level, because SRD Fog Cloud makes its
+   * Sphere Heavily Obscured and says nothing whatever about how bright it is.
+   * What a light level implies is added to this at read time — see
+   * {@link obscurementAt} — so the two never have to be kept in step.
+   */
+  readonly obscurement: Readonly<Record<string, ObscuringPatch>>;
+  /**
+   * How bright the room is where no patch says otherwise, or null.
+   *
+   * **Null is "nobody has said", and it is the owner's second ruling**
+   * (2026-09-21): an undeclared scene is undeclared, not bright. Assuming
+   * Bright Light would be a silent default of a consequential fact, which the
+   * doctrine forbids — and it would make every sight answer this engine has
+   * ever given depend on a fact nobody stated.
+   */
+  readonly ambient: LightLevel | null;
   /** Who is riding what, and whether the mount consented. */
   readonly riding: Readonly<Record<string, Ride>>;
 }
@@ -86,7 +115,7 @@ export interface Ride {
   readonly willing: boolean;
 }
 
-export function scene(extent: SceneExtent): PositionState {
+export function scene(extent: SceneExtent, ambient: LightLevel | null = null): PositionState {
   return {
     extent,
     landmarks: {},
@@ -96,6 +125,9 @@ export function scene(extent: SceneExtent): PositionState {
     cover: {},
     sight: {},
     terrain: {},
+    light: {},
+    obscurement: {},
+    ambient,
     riding: {},
   };
 }
@@ -1531,6 +1563,149 @@ export function declareDifficultPatch(
 }
 
 /**
+ * The three levels of light the SRD rules glossary names, and no fourth.
+ *
+ * A closed vocabulary held in the engine for the reason the fifteen
+ * conditions and the four senses are: the book defines these in its *rules*
+ * glossary, and a world that wanted a fourth would be asking for a mechanic
+ * rather than for an entry. **Which** spell sheds what, and how far, is
+ * content and is pinned on the cast event exactly as an area is.
+ *
+ * Sunlight is deliberately **not** a member — it is Bright Light with a flag
+ * ({@link LightPatch.sunlight}), the owner's fourth ruling, because the SRD's
+ * only use of the distinction is Sunlight Sensitivity and the vampires.
+ */
+export const LIGHT_LEVELS = ['bright', 'dim', 'darkness'] as const;
+
+export type LightLevel = (typeof LIGHT_LEVELS)[number];
+
+/** The two degrees of obscurement the glossary names, and no third. */
+export const OBSCUREMENT_DEGREES = ['lightly', 'heavily'] as const;
+
+export type ObscurementDegree = (typeof OBSCUREMENT_DEGREES)[number];
+
+/** Brightest first, so "the strongest of them" is an index comparison. */
+const BRIGHTNESS: Readonly<Record<LightLevel, number>> = { bright: 2, dim: 1, darkness: 0 };
+
+/** A patch of the room at a stated level of light, as the table or a casting made it. */
+export interface LightPatch extends LatticePatch {
+  readonly level: LightLevel;
+  /**
+   * The spell level of the casting that made this light or this darkness.
+   *
+   * Present exactly when the light is **magical**, which is the one rule the
+   * SRD attaches to the distinction: "Darkvision can't see through it, and
+   * nonmagical light can't illuminate it" is Darkness's own sentence, and it
+   * is read by {@link lightAt} and by the sight question. The number is the
+   * level, because SRD Darkness and SRD Daylight dispel each other by
+   * comparing one — see `dispelledByLight`.
+   */
+  readonly magical?: { readonly spellLevel: number };
+  /**
+   * SRD sunlight: Bright Light, with the one flag four stat blocks read.
+   *
+   * A flag rather than a fourth level, the owner's ruling, so every rule that
+   * asks how bright a space is reads three words and no more, and only
+   * Sunlight Sensitivity, Sunlight Weakness and the vampires' Sunlight ask
+   * the extra question.
+   */
+  readonly sunlight?: boolean;
+}
+
+/** A patch of the room hard to see through for a reason that is not the light. */
+export interface ObscuringPatch extends LatticePatch {
+  readonly degree: ObscurementDegree;
+}
+
+/**
+ * Declare a patch of the room lit, dim or dark.
+ *
+ * Overwrites a patch of the same name, exactly as {@link declareDifficultPatch}
+ * does and for the same reason: light changes. The torch goes out, the
+ * shutters come open, and the table says so again rather than arguing with
+ * what it said before.
+ */
+export function declareLightPatch(
+  state: PositionState,
+  patch: string,
+  region: TerrainRegion,
+  level: LightLevel,
+  options: {
+    readonly source?: string;
+    readonly magical?: { readonly spellLevel: number };
+    readonly sunlight?: boolean;
+  } = {},
+): Result<PositionState> {
+  if (patch.trim().length === 0) {
+    return err('bad_patch', 'a patch of light needs a name, so a refusal can say what it was');
+  }
+  if (!LIGHT_LEVELS.includes(level)) {
+    return err(
+      'bad_light_level',
+      `${String(level)} is not a level of light; the glossary prints ${LIGHT_LEVELS.join(', ')}`,
+    );
+  }
+  const { source, magical, sunlight } = options;
+  if (magical !== undefined && !Number.isInteger(magical.spellLevel)) {
+    return err(
+      'bad_spell_level',
+      'magical light carries the level of the spell that made it, as a whole number',
+    );
+  }
+  // SRD prints no dark sunlight and no dim sunlight. The flag is Bright
+  // Light's, so a patch claiming otherwise is a contradiction rather than a
+  // reading, and a silently-kept one would hand Sunlight Sensitivity a bite
+  // in a cellar.
+  if (sunlight === true && level !== 'bright') {
+    return err(
+      'bad_sunlight',
+      'sunlight is Bright Light with a flag, so a patch that is not bright cannot be sunlit',
+    );
+  }
+
+  return ok({
+    ...state,
+    light: {
+      ...state.light,
+      [patch]: {
+        region,
+        level,
+        ...(source === undefined ? {} : { source }),
+        ...(magical === undefined ? {} : { magical }),
+        ...(sunlight === undefined ? {} : { sunlight }),
+      },
+    },
+  });
+}
+
+/** Declare a patch of the room obscured by something that is not the light. */
+export function declareObscuringPatch(
+  state: PositionState,
+  patch: string,
+  region: TerrainRegion,
+  degree: ObscurementDegree,
+  source?: string,
+): Result<PositionState> {
+  if (patch.trim().length === 0) {
+    return err('bad_patch', 'a patch of fog needs a name, so a refusal can say what it was');
+  }
+  if (!OBSCUREMENT_DEGREES.includes(degree)) {
+    return err(
+      'bad_obscurement',
+      `${String(degree)} is not a degree of obscurement; the glossary prints ${OBSCUREMENT_DEGREES.join(' and ')}`,
+    );
+  }
+
+  return ok({
+    ...state,
+    obscurement: {
+      ...state.obscurement,
+      [patch]: { region, degree, ...(source === undefined ? {} : { source }) },
+    },
+  });
+}
+
+/**
  * Whether a region lies over one 5-foot space.
  *
  * The same geometry {@link creaturesInArea} uses, against the space itself
@@ -1657,6 +1832,268 @@ function chargeAt(
   }
 
   return over.length === 0 ? OPEN_FLOOR : { costPerFoot, patches: over };
+}
+
+/** How bright one space is, and what made it so. */
+export interface LightHere {
+  /** The level, or null where nobody has said anything at all. */
+  readonly level: LightLevel | null;
+  /** Whether the level over this space is a casting's rather than the world's. */
+  readonly magical: boolean;
+  /** SRD sunlight, which only Sunlight Sensitivity and the vampires ask about. */
+  readonly sunlight: boolean;
+  /** The patches lying over it, named so a report can say what lit the square. */
+  readonly patches: readonly string[];
+}
+
+const UNLIT: LightHere = { level: null, magical: false, sunlight: false, patches: [] };
+
+/**
+ * How bright one space is: the strongest of the ambient and the patches, with
+ * one rule from the book.
+ *
+ * **The rule is SRD Darkness's own sentence** — "nonmagical light can't
+ * illuminate it" — and it is the only place the magical flag is read here. So
+ * a torch, a campfire and a sunlit window all lose to a Darkness, and a
+ * Daylight does not; what happens when two *magical* patches overlap is the
+ * mutual dispel, which removes the loser rather than arbitrating here.
+ *
+ * Otherwise the **brightest** governs, which is the shape the book gives
+ * overlapping cover read the other way up: light adds. A room lit by a torch
+ * is lit where the torch reaches whatever the ambient is, and a patch of
+ * shadow inside a bright room is a thing no SRD effect produces and the table
+ * declares by naming the room dim and lighting what it lit.
+ *
+ * Null where nobody has declared an ambient and no patch lies over the space,
+ * and that null is load-bearing: it is the owner's "no default ambient", and
+ * every rule below reads it as "nobody has said" rather than as darkness.
+ */
+export function lightAt(state: GameState, space: Point): LightHere {
+  const scene = state.scene;
+  if (scene === null) return UNLIT;
+  return brightnessAt(scene, livePatchesOf(state, scene.light), space);
+}
+
+/**
+ * {@link lightAt} with the live list already in hand — `chargeAt`'s reason.
+ */
+function brightnessAt(
+  scene: PositionState,
+  patches: readonly (readonly [string, LightPatch])[],
+  space: Point,
+): LightHere {
+  const over: string[] = [];
+  let magicalDark: LightPatch | null = null;
+  let strongest: LightPatch | null = null;
+
+  for (const [name, patch] of patches) {
+    if (!spaceInRegion(scene, patch.region, space)) continue;
+    over.push(name);
+    if (patch.level === 'darkness' && patch.magical !== undefined) {
+      magicalDark = patch;
+      continue;
+    }
+    if (strongest === null || BRIGHTNESS[patch.level] > BRIGHTNESS[strongest.level]) {
+      strongest = patch;
+    }
+  }
+
+  // Magical darkness, and nothing but magical light may lift it.
+  if (magicalDark !== null && (strongest === null || strongest.magical === undefined)) {
+    return { level: 'darkness', magical: true, sunlight: false, patches: over };
+  }
+
+  if (strongest === null) {
+    return scene.ambient === null
+      ? { ...UNLIT, patches: over }
+      : { level: scene.ambient, magical: false, sunlight: false, patches: over };
+  }
+
+  // The ambient is one more candidate, and never a magical one.
+  if (scene.ambient !== null && BRIGHTNESS[scene.ambient] > BRIGHTNESS[strongest.level]) {
+    return { level: scene.ambient, magical: false, sunlight: false, patches: over };
+  }
+
+  return {
+    level: strongest.level,
+    magical: strongest.magical !== undefined,
+    sunlight: strongest.sunlight === true,
+    patches: over,
+  };
+}
+
+/**
+ * The castings whose magical light this magical darkness puts out, or the
+ * other way about.
+ *
+ * SRD Darkness: "If any of this spell's area overlaps with an area of light
+ * created by a spell of level 2 or lower, the spell that created the light is
+ * dispelled." SRD Daylight prints the mirror of it against Darkness at level
+ * 3 or lower. Two sentences, one mechanism, and it is the only place in the
+ * SRD where two areas of light argue.
+ *
+ * **The threshold is the incoming casting's own level**, which is what both
+ * printed lines happen to say — Darkness is level 2 and dispels light at 2 or
+ * lower, Daylight is level 3 and dispels darkness at 3 or lower. A spell that
+ * printed a different number would need a field on its definition to say so,
+ * and none does.
+ *
+ * Nonmagical light and nonmagical darkness are untouched at both ends: the
+ * sentence is about a spell dispelling a spell, and a patch with no `magical`
+ * is the table's fact about a torch or a cellar.
+ *
+ * **The scan is the scene, and it is free where nothing could be dispelled**:
+ * the candidate list is built first, and a declaration with no magical patch
+ * of the opposite kind already standing never looks at a single space. That
+ * is what makes an exact region-against-region overlap affordable at all —
+ * this is a declaration, made rarely, and never a read.
+ */
+export function lightDispelledBy(
+  state: GameState,
+  region: TerrainRegion,
+  level: LightLevel,
+  spellLevel: number,
+): readonly string[] {
+  const scene = state.scene;
+  if (scene === null) return [];
+
+  const opposes = (patch: LightPatch): boolean =>
+    patch.magical !== undefined &&
+    patch.magical.spellLevel <= spellLevel &&
+    patch.source !== undefined &&
+    (level === 'darkness' ? patch.level !== 'darkness' : patch.level === 'darkness');
+
+  const candidates = livePatchesOf(state, scene.light).filter(([, patch]) => opposes(patch));
+  if (candidates.length === 0) return [];
+
+  const dispelled = new Set<string>();
+  for (let x = 0; x <= scene.extent.width; x += CUBE) {
+    for (let y = 0; y <= scene.extent.depth; y += CUBE) {
+      for (let z = 0; z <= scene.extent.height; z += CUBE) {
+        const space = { x, y, z };
+        if (!spaceInRegion(scene, region, space)) continue;
+        for (const [, patch] of candidates) {
+          if (patch.source === undefined || dispelled.has(patch.source)) continue;
+          if (spaceInRegion(scene, patch.region, space)) dispelled.add(patch.source);
+        }
+        if (dispelled.size === candidates.length) return [...dispelled].sort();
+      }
+    }
+  }
+  return [...dispelled].sort();
+}
+
+/** How hard one space is to see into, and why. */
+export interface ObscurementHere {
+  /** The greater of what was declared and what the light implies, or null for neither. */
+  readonly degree: ObscurementDegree | null;
+  /** How bright the space is, which is half the answer above. */
+  readonly light: LightHere;
+  /** The greatest degree a declared patch of fog puts over it, or null. */
+  readonly declared: ObscurementDegree | null;
+  /** The obscuring patches lying over it, named for a report. */
+  readonly patches: readonly string[];
+}
+
+/**
+ * How obscured one space is: the greater of what was declared and what the
+ * light level implies.
+ *
+ * The implication is the glossary's own mapping and therefore a rule rather
+ * than a catalogue entry — **Dim Light is Lightly Obscured, Darkness is
+ * Heavily Obscured** — and Bright Light and an undeclared space imply
+ * nothing. Fog is the other half: SRD Fog Cloud's Sphere is Heavily Obscured
+ * and the spell says nothing about how bright it is, which is why the two are
+ * separate records that meet here.
+ */
+export function obscurementAt(state: GameState, space: Point): ObscurementHere {
+  const scene = state.scene;
+  const light = lightAt(state, space);
+  if (scene === null) {
+    return { degree: null, light, declared: null, patches: [] };
+  }
+
+  const over: string[] = [];
+  let declared: ObscurementDegree | null = null;
+  for (const [name, patch] of livePatchesOf(state, scene.obscurement)) {
+    if (!spaceInRegion(scene, patch.region, space)) continue;
+    over.push(name);
+    if (patch.degree === 'heavily') declared = 'heavily';
+    else if (declared === null) declared = 'lightly';
+  }
+
+  const implied: ObscurementDegree | null =
+    light.level === 'darkness' ? 'heavily' : light.level === 'dim' ? 'lightly' : null;
+
+  const degree =
+    declared === 'heavily' || implied === 'heavily'
+      ? 'heavily'
+      : declared === 'lightly' || implied === 'lightly'
+        ? 'lightly'
+        : null;
+
+  return { degree, light, declared, patches: over };
+}
+
+/**
+ * How far a creature can see through darkness that is not merely dim.
+ *
+ * SRD Devil's Sight: "You can see normally in Darkness, both magical and
+ * nonmagical, to a distance of 120 feet." A range rather than a flag, like
+ * every sense, and **both** kinds of darkness, which is the whole of what
+ * makes it different from Darkvision — see {@link piercesObscurement}.
+ */
+export interface SightThroughDarkness {
+  readonly feet: number;
+}
+
+/**
+ * Whether what is over the target's space stops the looker seeing into it.
+ *
+ * **The one step `docs/design/light-and-sight.md` adds to the sight
+ * question**, written here as a pure rule with the looker's senses passed in
+ * — the shape {@link sensesReaching} already has, and for the same reason:
+ * senses are a fact about a creature and this module holds space. `canSee` in
+ * `standing.ts` is what reads them off the creature and asks this.
+ *
+ * Sense by sense, and every line is the book's:
+ *
+ * | | |
+ * |---|---|
+ * | Blindsight, Truesight | see "without relying on physical sight"; defeat anything |
+ * | Darkvision | "in Darkness as if it were Dim Light" — **nonmagical** darkness only |
+ * | Devil's Sight | "in Darkness, both magical and nonmagical" |
+ * | nothing at all | fog defeats every one of them but the first row |
+ *
+ * Lightly Obscured never changes the answer: it is Disadvantage on a
+ * Perception check that relies on sight, which is a roll's business and not
+ * this one. An undeclared space obscures nothing, which is the ruling that
+ * keeps every sight answer this engine ever gave exactly as it was.
+ *
+ * The senses are expected **already filtered to those that reach**, because
+ * the range test belongs with the distance and the distance is the caller's.
+ */
+export function piercesObscurement(
+  here: ObscurementHere,
+  senses: readonly CreatureSense[],
+  throughDarkness: readonly SightThroughDarkness[],
+): boolean {
+  if (here.degree !== 'heavily') return true;
+
+  if (senses.some((sense) => sense.sense === 'blindsight' || sense.sense === 'truesight')) {
+    return true;
+  }
+
+  // Fog, foliage, smoke: nothing about the light would help, so nothing but
+  // the two above does. Asked first, because a bank of fog in a dark room is
+  // still a bank of fog to a dwarf.
+  if (here.declared === 'heavily') return false;
+
+  if (throughDarkness.length > 0) return true;
+
+  // Nonmagical darkness is Dim Light to Darkvision, and Dim Light is seen.
+  // Magical darkness is the sentence that defeats it.
+  return !here.light.magical && senses.some((sense) => sense.sense === 'darkvision');
 }
 
 /** What a stated route costs in feet of movement, and what charged for it. */
@@ -1930,17 +2367,36 @@ export function sensesReaching(
  * The answer then falls back to null rather than to `false`: the sense has
  * nothing to say, and what the table declared was about cover rather than
  * about sight, so the honest response is still to ask.
+ *
+ * **`obscurement` is the light model's one step**, between the declaration
+ * and the sense. It is passed in rather than worked out here because working
+ * it out means reading the looker's senses against the *target's* space, and
+ * this module holds no creature to read a sense off — `canSee` in
+ * `standing.ts` gathers both and asks {@link piercesObscurement}. A caller
+ * that passes nothing gets the answer this function has always given, which
+ * is the "no default ambient" ruling arriving as a default argument.
  */
 export function sightBetween(
   state: PositionState,
   from: CharacterId,
   to: CharacterId,
   senses: readonly CreatureSense[] = [],
+  options: { readonly obscurement?: 'blocked' | 'pierced' } = {},
 ): boolean | null {
   if (from === to) return true;
   const declared = state.sight[coverKey(from, to)];
   if (declared !== undefined) return declared;
   if (!canBeTargeted(coverBetween(state, from, to))) return null;
+
+  // The one step light adds, **after** the declaration and before the sense:
+  // whatever lies over the target's space, read against this looker's senses
+  // by `obscuredFrom` in `standing.ts`. Either way it is a **verdict** rather
+  // than homework — somebody declared the fog, and a target the book says is
+  // Heavily Obscured is one you cannot see unless something of yours pierces
+  // it, in which case you can. Only a space nobody has spoken about falls
+  // through to the sense below.
+  if (options.obscurement === 'blocked') return false;
+  if (options.obscurement === 'pierced') return true;
 
   const reaching = sensesReaching(
     state,

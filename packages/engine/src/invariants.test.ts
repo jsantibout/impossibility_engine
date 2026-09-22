@@ -61,6 +61,8 @@ import {
   declareCreatureType,
   declareFalling,
   declareDifficultTerrain,
+  declareLight,
+  declareObscurement,
   declineOpportunity,
   dropConjured,
   endConcentration,
@@ -1819,6 +1821,32 @@ const GUARDED: readonly Guarded[] = [
         },
       ),
   },
+  {
+    name: 'declareLight',
+    log: SETUP,
+    run: (s, commandId) =>
+      declareLight(s, 'the lantern', {
+        region: {
+          origin: { space: { x: 100, y: 100, z: 0 } },
+          shape: { kind: 'sphere', radius: 20 },
+        },
+        level: 'bright',
+        commandId,
+      }),
+  },
+  {
+    name: 'declareObscurement',
+    log: SETUP,
+    run: (s, commandId) =>
+      declareObscurement(s, 'the smoke', {
+        region: {
+          origin: { space: { x: 100, y: 100, z: 0 } },
+          shape: { kind: 'sphere', radius: 20 },
+        },
+        degree: 'heavily',
+        commandId,
+      }),
+  },
   /**
    * The interruptible casting pair. Both halves need the guard and for
    * different reasons: a retried declaration would open a second casting with
@@ -3123,6 +3151,8 @@ const ENDS_A_CASTING_UNGUARDED: Readonly<Record<string, string>> = {
     'the moment the turn economy starts existing, so there is nobody yet acting for a guard to ask about: the first combatant’s turn starts with the fight, the payout that boundary owes is settled by the command that opened it, and a casting can end only because that settlement was damage — refusing to start a fight while something stood owed would leave the debt with no turn to be settled on',
   rollInitiativeAndBeginCombat:
     'the same moment reached through the dice, which is the whole of what it adds: it rolls Initiative and hands the order to beginCombat, so the casting it can end is the one that boundary’s payout ends, and it is exempt for the same reason and no other',
+  declareLight:
+    'the casting it ends is ended by the **book** rather than by anybody acting: SRD Darkness and SRD Daylight put each other out where their areas overlap, and this command is the table saying where the light is. Nobody in the fight spends a thing on a declaration, the dispel is a consequence of the geometry rather than a decision, and a guard would refuse to let a DM describe the room because somebody owed a saving throw — which is `resolveFall`’s exemption in the same words',
   removeCreatureEverywhere:
     'the casting leaves with its caster, and the creature leaving is bookkeeping about the cast rather than an action: refusing it while a debt stood would leave a fight unable to continue without somebody who is already gone',
   dismissStrandedSummons:

@@ -69,8 +69,10 @@ import {
 import {
   coverBetween,
   type CoverDegree,
+  obscurementAt,
   type Placement,
   type Point,
+  positionOf,
 } from '../positioning.js';
 import {
   describePerDay,
@@ -1013,19 +1015,21 @@ export interface HideCommand extends CommandIdentity {
    */
   readonly from?: ActionSlot;
   /**
-   * SRD: "while you're **Heavily Obscured**" — declared, never derived.
+   * SRD: "while you're **Heavily Obscured**" — and now only where nothing on
+   * the lattice already says so.
    *
-   * The engine holds no light, no fog and no obscurement; three spells say so
-   * in their own notes. So this is the table's fact about this attempt, stated
-   * on the command the way `declaredFacts` states the other clauses a caster
-   * cannot see for itself. The alternative — deriving it — would be the engine
-   * inventing the one input the doctrine says belongs to the fiction.
+   * **P3-S took back what the old docstring said this cost.** It read: "the
+   * log does not carry it … a reader of the log alone cannot tell this attempt
+   * from one taken behind a wall. Whoever models obscurement takes it back."
+   * A Heavily Obscured patch is a declared fact with an event behind it now —
+   * `obscurement-declared`, or the darkness a `light-declared` implies — so a
+   * Rogue standing in a Fog Cloud needs nothing on this command and the log
+   * says why the Hide was legal.
    *
-   * **What it costs is that the log does not carry it.** Cover and sight are
-   * declarations with events behind them, and this is a sentence somebody said
-   * once: the log records that the Hide succeeded, not that it was legal
-   * because there was fog. A reader of the log alone cannot tell this attempt
-   * from one taken behind a wall. Whoever models obscurement takes it back.
+   * What it stays is the table's fact where the lattice holds none: the engine
+   * still models no smoke nobody declared, and stating it here is the same
+   * move `declaredFacts` makes for every clause a caster cannot see for
+   * itself. Declared **or** derived, and either is enough.
    */
   readonly obscured?: boolean;
   /** Advantage or Disadvantage the table knows about and the engine does not. */
@@ -1148,8 +1152,17 @@ export function takeHide(
         return err('immune', `${id} is immune to the Invisible condition, so hiding buys nothing`);
       }
 
+      // Heavily Obscured, either way it can be true: what the table said on
+      // this command, or what the lattice already holds over the hider's own
+      // space. The **hider's** space and not a watcher's, because the clause
+      // is about where they are hiding.
+      const here = state.scene === null ? null : positionOf(state.scene, id);
+      const obscured =
+        command.obscured === true ||
+        (here !== null && obscurementAt(state, here).degree === 'heavily');
+
       const watchers = watchersOf(state, id);
-      if (state.scene === null && (watchers.length > 0 || command.obscured !== true)) {
+      if (state.scene === null && (watchers.length > 0 || !obscured)) {
         return needsContext(
           'no_scene',
           'hiding is about cover and sight lines, and there is no scene for either to be in',
@@ -1194,7 +1207,7 @@ export function takeHide(
       //
       // Half Cover is deliberately not enough: the book names two degrees and
       // reading the third in would be a better Hide than the SRD prints.
-      if (command.obscured !== true) {
+      if (!obscured) {
         const scene = state.scene;
         const exposed =
           scene === null

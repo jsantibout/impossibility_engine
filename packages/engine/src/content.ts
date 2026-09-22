@@ -32,7 +32,7 @@ import {
   type SubclassDefinition,
 } from './progression.js';
 import { parseNotation } from './dice.js';
-import type { StandingGrant, StandingRequirement } from './standing.js';
+import { SEES_THROUGH, type StandingGrant, type StandingRequirement } from './standing.js';
 import { SENSE_NAMES } from './positioning.js';
 import { dawnRollProblem, type Recovery } from './resources.js';
 import { EFFECT_END_CAUSES } from './timers.js';
@@ -283,6 +283,13 @@ export const ITEM_EFFECT_KINDS: ReadonlySet<string> = new Set([
   'evasion',
   'attack-damage',
   'sense',
+  // The one grant beside a sense that the sight question reads, and admitted
+  // for the sense's own reason: `seesThroughOf` walks `standingFor`, so a
+  // worn item that let its wearer see in Darkness reaches the answer by the
+  // route Goggles of Night already take. SRD prints the sentence on an
+  // invocation rather than on an item; the list's rule is what a reader
+  // reaches, not what the book happens to have written.
+  'sees-through',
   'ability-score-set',
   // A rule about the dice a swing throws, on the same test as the three
   // below: the gatherer is `standingDamageEffects`, which walks `standingFor`,
@@ -443,6 +450,39 @@ function senseProblems(
 }
 
 /**
+ * Everything wrong with a `sees-through` grant, wherever one is written.
+ *
+ * {@link senseProblems}' argument applied to the grant that sits beside a
+ * sense and is not one: both doors write it, so the rule is kept once, and
+ * both fields are ones an untyped blob could get wrong. The zero range is the
+ * same failure `sense_of_no_range` names — a printed line that reaches nobody
+ * and that nothing would ever read.
+ */
+function seesThroughProblems(
+  effect: Record<string, unknown>,
+  at: string,
+): readonly { readonly code: string; readonly reason: string; readonly field: string }[] {
+  const found: { code: string; reason: string; field: string }[] = [];
+  const through = effect['through'];
+  if (!isString(through) || !(SEES_THROUGH as readonly string[]).includes(through)) {
+    found.push({
+      code: 'bad_sees_through',
+      reason: `"${String(through)}" is not something a creature can be granted sight through: ${SEES_THROUGH.join(', ')}`,
+      field: `${at}.through`,
+    });
+  }
+  const feet = effect['feet'];
+  if (!Number.isInteger(feet) || (feet as number) <= 0) {
+    found.push({
+      code: 'bad_sees_through_range',
+      reason: `seeing through something reaches a whole number of feet greater than nought, not ${JSON.stringify(feet)}`,
+      field: `${at}.feet`,
+    });
+  }
+  return found;
+}
+
+/**
  * Everything wrong with a `check-bonus` grant, wherever one is written.
  *
  * {@link senseProblems}' argument on the newest member of the same union: it
@@ -561,6 +601,9 @@ function ownedStandingEffectProblems(
   }
   if (effect.kind === 'sense') {
     found.push(...senseProblems(effect as unknown as Record<string, unknown>, at));
+  }
+  if (effect.kind === 'sees-through') {
+    found.push(...seesThroughProblems(effect as unknown as Record<string, unknown>, at));
   }
   if (effect.kind === 'check-bonus') {
     found.push(...checkBonusProblems(effect as unknown as Record<string, unknown>, at));
@@ -787,6 +830,11 @@ export const REQUIREMENT_KINDS: ReadonlySet<string> = new Set([
   'unarmored',
   'while-attuned',
   'while-worn',
+  // Where the holder is standing and how bright it is there, read on every
+  // question through `lightAt` — the same derivation `has-speed` makes of a
+  // Speed. An item that printed SRD Sunlight Sensitivity's sentence would be
+  // executed rather than transcribed and ignored.
+  'in-sunlight',
 ]);
 
 /**
