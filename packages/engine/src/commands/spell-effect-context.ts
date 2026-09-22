@@ -136,6 +136,24 @@ export interface EffectContext {
    * only from a casting.
    */
   readonly source: string;
+  /**
+   * Every creature this resolution is running over, **in the order the caller
+   * named them**.
+   *
+   * A resolver is handed one target at a time, which is right for every kind
+   * but one: SRD Scorching Ray's three rays and Eldritch Blast's beams are
+   * several rolls out of one casting, and "you can hurl them at one target
+   * within range or at several" is a fact about the list rather than about any
+   * creature in it. So the list is here, and `resolveAttackEffect` reads its
+   * own share off it.
+   *
+   * **The order is load-bearing and is the caller's**, not the engine's: it is
+   * how a caster says two rays at the ogre and one at the goblin. An area
+   * spell's list arrives sorted, because there nobody named anybody and a
+   * casting that folded differently for two spellings of the same set would
+   * not be replayable.
+   */
+  readonly targets: readonly CharacterId[];
   readonly castLevel: number;
   /**
    * The level of the **slot that paid** for this casting, where one did.

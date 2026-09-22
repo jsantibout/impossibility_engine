@@ -174,7 +174,7 @@ export const MISSING_SHAPES = {
   'a-choice-made-at-the-casting':
     '`docs/design/rolls-and-damage.md` names it for the roll-modifier vocabulary — "An ability **chosen at the casting** | Hex, Enhance Ability, Bestow Curse" — and Guidance’s own clause in spell-definitions.ts says it plainly: "a per-casting choice has nowhere to be recorded". **A damage type is the one choice that is not here**, and it stopped being here when IE-017 gave `damageTypeStated` a second user: spell-definitions.ts records that the mechanism generalised while the reason did not — "what generalises is the field and what stays the spell’s own is the reason". An ability, a condition, one of six wonders, which of five effects to remove: none of those has a field.',
   'several-attack-rolls-from-one-casting':
-    'one casting rolls one attack per target. Eldritch Blast’s beams are separate attack rolls that may take different targets, which `spell-definitions.ts` already records in the clause itself — "which is a shape the engine does not have" — and which is the spell-side twin of the class-feature gap `docs/design/characters-and-equipment.md` names: "Extra attacks inside the Attack action. The economy counts one Attack action, not the attacks in it".',
+    '**The count is written now, and what is left of it is narrower than the id.** `spell-definitions.ts` gives the `attack` member an `AttackRollCount`, scaled by slot level or by Cantrip Upgrade exactly as its dice are, and the resolver throws each roll on its own — its own attack, its own line in the log, its own Critical Hit, its own damage. Scorching Ray hurls three rays and Eldritch Blast throws its beams. **Two things are still missing.** The first is *where* the rolls go when the caster wants them uneven: they are dealt as `spell-definitions.ts` says — "One each in the order the caller named them, round again for the surplus" — which says every split the SRD prints and not the lopsided ones it allows — four rays at two creatures go two and two and never three and one. The second is the harder one and is the whole of Chromatic Orb: a roll aimed at **a creature the casting never named**, chained off a face the dice showed, with a cap counting the leaps and a rule that no creature may be hit twice. This is still the spell-side twin of the class-feature gap `docs/design/characters-and-equipment.md` names: "Extra attacks inside the Attack action. The economy counts one Attack action, not the attacks in it".',
   'a-second-roll-sequenced-after-the-first':
     '`OutcomeRiders` in spell-definitions.ts rejects this by name: "the two that look as though they do — Ice Knife’s explosion and Chromatic Orb’s leap — are different mechanisms (**a second sequenced roll with an area at a target**, and a chained attack on a dice-face trigger). A child that rolls is a parent".',
   'a-success-branch-that-does-something':
@@ -709,9 +709,9 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   ],
   'eldritch-blast': [
     {
-      clause: 'the extra beams',
+      clause: 'an uneven split of the beams',
       why: 'several-attack-rolls-from-one-casting',
-      note: 'SRD adds a beam at levels 5, 11 and 17, each its own attack roll and each able to take a different target. One casting rolls one attack per target here, so the cantrip is a third of itself at level 17.',
+      note: 'the beams are thrown — a roll each at levels 5, 11 and 17, each its own attack and each able to take its own creature. What the caster cannot say is a split that is not as even as it can be: the rolls are dealt one to each creature named and round again for the rest, so a level 17 Warlock sends two beams at each of two creatures and never three at one and one at the other. Every split the SRD prints is sayable — all of them at one creature, one each at as many creatures as there are beams — and the lopsided middle is not.',
     },
   ],
   // **The Bonus Action Dash is written now**, which is what moved this spell
@@ -993,6 +993,13 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'Advantage on saving throws to avoid or end the Poisoned condition',
       why: 'a-save-keyed-to-a-condition',
       note: 'SRD: "the target has Advantage on saving throws to avoid or end the Poisoned condition". A `RollModifier` selects a save by ability and by nothing else, so the nearest sayable thing is Advantage on every Constitution save the target ever makes — which is a different and much larger spell. The engine rolls those saves without it.',
+    },
+  ],
+  'scorching-ray': [
+    {
+      clause: 'an uneven split of the rays',
+      why: 'several-attack-rolls-from-one-casting',
+      note: 'the three rays are hurled — "Make a ranged spell attack for each ray" is three attacks, each hitting, missing and critting on its own, and a fourth arrives with a level 3 slot. What the caster cannot say is a split that is not as even as it can be: the rolls are dealt one to each creature named and round again for the rest, so four rays at two creatures go two and two and never three and one. Both ends of the SRD sentence — "at one target within range or at several" — are sayable, and the lopsided middle is not.',
     },
   ],
   'searing-smite': [
@@ -1397,14 +1404,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'An unwilling creature that succeeds on a Constitution saving throw is unaffected',
       why: 'forced-movement-a-spell-causes',
       note: 'the save is written as the gate on an outcome, and the whole outcome here is the lift: rising 20 feet and hanging there is forced movement, and no SpellEffect reaches the one function that performs it. A save gating nothing would be a die thrown for no reason.',
-    },
-  ],
-  'scorching-ray': [
-    {
-      marker: 'dice',
-      clause: 'the target takes 2d6 Fire damage',
-      why: 'several-attack-rolls-from-one-casting',
-      note: 'the dice are ordinary and the three rolls are not: an effect rolls one attack per target and this casting hurls three rays that may all go at one creature, which is the shape Eldritch Blast is blocked on and the definition vocabulary already names.',
     },
   ],
   scrying: [

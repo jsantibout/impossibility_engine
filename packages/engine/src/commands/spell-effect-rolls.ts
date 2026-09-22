@@ -17,10 +17,12 @@ import { applyEvent, type CreatureState, type GameEvent, type GameState } from '
 import { apartFromSource } from '../positioning.js';
 import { consumedRollModifiers } from '../roll-modifiers.js';
 import {
+  attackRollsFor,
   conditionRiderOf,
   hasOutcomeRiders,
   isCreatureType,
   outcomeRidersOf,
+  rollsDealtTo,
   scaledDiceFor,
   scaledFlatFor,
 } from '../spell-definitions.js';
@@ -68,12 +70,69 @@ const dieEffectsOf = (ctx: EffectContext): readonly DieEffect[] =>
     : [];
 
 /**
+ * Every attack roll this effect owes this creature.
+ *
+ * **One roll is the whole of the book bar two spells**, and those two say the
+ * same thing twice: SRD Scorching Ray's "Make a ranged spell attack for each
+ * ray" and Eldritch Blast's beams. So the count comes off the definition
+ * ({@link attackRollsFor}), the share of it that lands here comes off where
+ * this creature stands in the list the caster named ({@link rollsDealtTo}),
+ * and an effect that states no count resolves exactly as it always did.
+ *
+ * **Each roll is its own roll, all the way down**: its own `rollAttack`, its
+ * own `roll-recorded` line in the log, its own Critical Hit, its own damage
+ * roll, its own one-shot modifier spent, its own riders, and its own
+ * {@link SpellTargetOutcome}. A second beam lands on a creature the first one
+ * killed the same way a second dagger does, because the world each roll reads
+ * is the one the roll before it left.
+ *
+ * The loop is here rather than in the dispatch because the count is the
+ * `attack` member's own: a dispatch that read it would be one kind's rule
+ * written in the place that must not know which kind it has.
+ */
+export function resolveAttackEffect(
+  ctx: EffectContext,
+  effect: EffectOfKind<'attack'>,
+  target: CharacterId,
+  world: GameState,
+): Result<GameState> {
+  const { definition } = ctx.casting();
+  const total = attackRollsFor(
+    effect.rolls,
+    definition.level,
+    ctx.numbers.casterLevel,
+    ctx.castLevel,
+  );
+  // The creature's place in the list the caster named. Every caller iterates
+  // the very list it put on the context, so a target that is not in it is a
+  // programmer error and gets the exception rule 6 reserves for one: a
+  // negative index can deal `rollsDealtTo` one roll too many — whenever the
+  // rolls do not divide evenly — which is a casting that throws a ray nobody
+  // asked for and refuses nothing while doing it.
+  const where = ctx.targets.indexOf(target);
+  if (where < 0) {
+    throw new Error(
+      `${ctx.label} is resolving an attack on ${target}, who is not among the targets it was given`,
+    );
+  }
+  const mine = rollsDealtTo(total, ctx.targets.length, where);
+
+  let current = world;
+  for (let thrown = 0; thrown < mine; thrown += 1) {
+    const done = resolveOneAttackRoll(ctx, effect, target, current);
+    if (!done.ok) return done;
+    current = done.value;
+  }
+  return ok(current);
+}
+
+/**
  * A spell attack roll, the damage a hit deals, and the riders it carries.
  *
  * The longest of the thirteen because it is three resolutions in one: the
  * attack, the miss branch SRD Acid Arrow prints, and the hit.
  */
-export function resolveAttackEffect(
+function resolveOneAttackRoll(
   ctx: EffectContext,
   effect: EffectOfKind<'attack'>,
   target: CharacterId,

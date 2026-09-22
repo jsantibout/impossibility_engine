@@ -163,6 +163,40 @@ export interface DiceScaling {
 }
 
 /**
+ * How many attack rolls one `attack` effect makes, and how that number grows.
+ *
+ * **The same two axes {@link DiceScaling} has, and for the same reason**: a
+ * cantrip's extra beams are read off the caster's level and a levelled spell's
+ * extra rays off the slot, so they are separate fields rather than one
+ * overloaded number. `cantripUpgradesAt` even holds the same thing it holds
+ * for dice — the character levels the SRD's Cantrip Upgrade names — because
+ * Eldritch Blast's "two beams at level 5, three beams at level 11, and four
+ * beams at level 17" *is* a Cantrip Upgrade, spent on rolls instead of dice.
+ *
+ * Deliberately not `DiceScaling` with a count on it: there is no notation
+ * here, nothing flat to add, and a second reading of the damage amount is
+ * exactly how two beams would quietly become 2d10.
+ */
+export interface AttackRollCount {
+  /** The rolls the spell makes at its own level: Scorching Ray's three rays. */
+  readonly count: number;
+  /**
+   * Rolls added for each spell slot level above the spell's own.
+   *
+   * SRD Scorching Ray: "You create one additional ray for each spell slot
+   * level above 2." Spelled as a plain number, exactly as
+   * {@link TargetRule.extraPerSlotLevelAbove} is — a roll has no notation to
+   * grow, so the per-slot entry has nothing to be but a count.
+   */
+  readonly extraPerSlotLevelAbove?: number;
+  /**
+   * SRD Cantrip Upgrade: the character levels at which one more roll is added.
+   * Eldritch Blast's are 5, 11 and 17.
+   */
+  readonly cantripUpgradesAt?: readonly number[];
+}
+
+/**
  * How many extra dice a {@link DieRule} may add, **named as a derivation
  * rather than written as a number**.
  *
@@ -843,6 +877,38 @@ export type SpellEffect =
        * is transcribed rather than generalised for exactly that reason.
        */
       readonly healsCasterForHalf?: true;
+      /**
+       * SRD Scorching Ray: "You hurl three fiery rays ... **Make a ranged
+       * spell attack for each ray.**"
+       *
+       * How many attack rolls this one effect makes. Absent is one, which is
+       * every other attack in the book and the shape this member had before
+       * the field existed.
+       *
+       * **A count of rolls rather than a count of dice**, and the two are not
+       * interchangeable: SRD Eldritch Blast's upgrade adds *beams*, and a beam
+       * hits or misses on its own, is aimed on its own, and carries its own
+       * Critical Hit. Folding two beams into one 2d10 attack would make the
+       * cantrip hit or miss as a whole — a different spell, worth a different
+       * amount, and wrong in both directions at once.
+       *
+       * **Where the rolls go is the caster's, stated by the creatures they
+       * name.** SRD says it twice — "You can hurl them at one target within
+       * range or at several", "you can direct the beams at the same target or
+       * at different ones" — so the rolls are dealt over the named targets in
+       * the order they were named, one each and round again for the surplus
+       * ({@link rollsDealtTo}). Naming one creature sends every roll at it and
+       * naming as many creatures as there are rolls sends one each, which are
+       * the two cases the sentence prints; an uneven split is said by naming
+       * the creature that takes more of them first. The engine never picks the
+       * creatures and never picks a face.
+       *
+       * The count is also what bounds the target list, because a roll is what
+       * a creature is named *for*: a cantrip with one beam takes one creature
+       * however many the {@link TargetRule} would allow, and a second beam is
+       * what buys a second creature.
+       */
+      readonly rolls?: AttackRollCount;
     } & OutcomeRiders)
   /**
    * A saving throw that deals damage, with what a success buys stated.
@@ -3232,4 +3298,77 @@ export function scaledFlatFor(
 export function targetCountFor(rule: TargetRule, spellLevel: number, slotLevel: number): number {
   const above = Math.max(0, slotLevel - spellLevel);
   return rule.count + (rule.extraPerSlotLevelAbove ?? 0) * above;
+}
+
+/**
+ * How many attack rolls one `attack` effect makes, at this caster level and
+ * this slot level.
+ *
+ * The twin of {@link scaledDiceFor} and the same fork: a cantrip reads the
+ * caster's level and ignores the slot, a levelled spell reads the slot and
+ * ignores the level. **Absent is one** — an effect that says nothing about a
+ * count makes the single roll every attack in the book makes.
+ */
+export function attackRollsFor(
+  rolls: AttackRollCount | undefined,
+  spellLevel: number,
+  casterLevel: number,
+  slotLevel: number,
+): number {
+  if (rolls === undefined) return 1;
+  if (spellLevel === 0) {
+    return rolls.count + (rolls.cantripUpgradesAt ?? []).filter((at) => casterLevel >= at).length;
+  }
+  const above = Math.max(0, slotLevel - spellLevel);
+  return rolls.count + (rolls.extraPerSlotLevelAbove ?? 0) * above;
+}
+
+/**
+ * The most attack rolls any one effect of this list will make.
+ *
+ * What a caller may name creatures up to, because a creature is named *for* a
+ * roll. The maximum rather than a sum: two attack effects in one list are two
+ * things that each happen to every target, not a pool of rolls to divide, and
+ * the target list has to be long enough for the longest of them.
+ *
+ * **Zero for a list with no attack in it**, which is the honest answer and not
+ * the useful one: a Detect Magic makes no attack rolls, and seeding at one so
+ * that the number could be used as a bound unexamined would have this function
+ * saying every spell in the book throws an attack. A caller wanting a floor
+ * says so where it wants it.
+ */
+export function attackRollsIn(
+  effects: readonly SpellEffect[],
+  spellLevel: number,
+  casterLevel: number,
+  slotLevel: number,
+): number {
+  return effects.reduce(
+    (most, effect) =>
+      effect.kind === 'attack'
+        ? Math.max(most, attackRollsFor(effect.rolls, spellLevel, casterLevel, slotLevel))
+        : most,
+    0,
+  );
+}
+
+/**
+ * How many of a casting's rolls land on the creature named `index`th of
+ * `targets`.
+ *
+ * One each in the order the caller named them, round again for the surplus.
+ * SRD prints the two ends of it — "at one target within range or at several",
+ * "at the same target or at different ones" — and leaves the middle to the
+ * caster, who says it by how many creatures they name and in what order: three
+ * rays at `[ogre]` all hit the ogre, at `[ogre, goblin]` go two and one, and
+ * at `[ogre, goblin, boar]` go one each.
+ *
+ * **The engine deals rather than decides.** It never adds a creature, never
+ * drops one, and never leaves a roll unthrown; what it does not do is invent a
+ * lopsided split the caster did not ask for, which is why the odd roll goes to
+ * the creature named first rather than anywhere cleverer.
+ */
+export function rollsDealtTo(total: number, targets: number, index: number): number {
+  if (targets <= 0) return 0;
+  return Math.floor(total / targets) + (index < total % targets ? 1 : 0);
 }

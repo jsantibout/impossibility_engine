@@ -894,9 +894,13 @@ export const STARRY_WISP = attackCantrip({
  *
  * **Not the usual cantrip upgrade.** Every other attack cantrip adds dice to
  * one attack; this one adds *separate attack rolls*, each of which hits or
- * misses on its own and may be aimed at a different creature. So its scaling
- * is deliberately left flat rather than dressed up as extra dice, which would
- * make it hit-or-miss all at once and be worth a different amount.
+ * misses on its own and may be aimed at a different creature. So the upgrade
+ * is written on `rolls` and the damage is deliberately left flat: dressing the
+ * beams up as extra dice would make the cantrip hit or miss all at once and be
+ * worth a different amount.
+ *
+ * `targets: { count: 1 }` is what the spell prints \u2014 "against one creature or
+ * object in range" \u2014 and the beams are what widen it, one creature per beam.
  */
 export const ELDRITCH_BLAST: SpellDefinition = {
   id: 'eldritch-blast',
@@ -908,10 +912,18 @@ export const ELDRITCH_BLAST: SpellDefinition = {
   range: { kind: 'ranged', feet: 120 },
   targets: { count: 1 },
   effects: [
-    { kind: 'attack', attack: 'ranged', damage: { dice: '1d10' }, damageType: 'force' },
+    {
+      kind: 'attack',
+      attack: 'ranged',
+      damage: { dice: '1d10' },
+      damageType: 'force',
+      // "two beams at level 5, three beams at level 11, and four beams at
+      // level 17" \u2014 the Cantrip Upgrade's own three levels, spent on rolls.
+      rolls: { count: 1, cantripUpgradesAt: [5, 11, 17] },
+    },
   ],
   unmodelled: [
-    'the extra beams at levels 5, 11 and 17 \u2014 each is a separate attack roll and may take a different target, which is a shape the engine does not have',
+    'an uneven split of the beams: the attack rolls are dealt one to each creature named and round again for the rest, so four beams at two creatures go two and two and never three and one',
   ],
 };
 
@@ -6442,14 +6454,16 @@ export const LEVITATE: SpellDefinition = {
  * > _Using a Higher-Level Spell Slot._ "You create one additional ray for each
  * > spell slot level above 2."
  *
- * **Tracked, and it is the clearest case in the batch for not stretching.**
- * An `attack` effect rolls one attack per target; three rays that may all go
- * at one target, or at three, is the shape Eldritch Blast is blocked on and
- * the definition vocabulary already records by name. A definition that rolled
- * one ray would be a Scorching Ray dealing a third of its damage, and one that
- * rolled 6d6 in a single attack would be a Scorching Ray that hits or misses
- * as a whole — both are wrong answers wearing the look of a right one, where a
- * tracked definition is a right answer that spends the slot.
+ * **Three rays, three attack rolls.** `rolls` on the `attack` effect is what
+ * "Make a ranged spell attack for each ray" needed and what this spell was
+ * tracked without: a definition that rolled one ray would be a Scorching Ray
+ * dealing a third of its damage, and one that rolled 6d6 in a single attack
+ * would be a Scorching Ray that hits or misses as a whole. Each ray hits, misses
+ * and crits on its own.
+ *
+ * The two counts say two different things and happen to agree: `targets` is
+ * how many creatures may be named — "at one target within range or at several",
+ * one more per slot level — and `rolls` is how many rays are hurled at them.
  */
 export const SCORCHING_RAY: SpellDefinition = {
   id: 'scorching-ray',
@@ -6462,10 +6476,18 @@ export const SCORCHING_RAY: SpellDefinition = {
   // "at one target within range or at several", and one more ray per slot level
   // above the second — so up to three targets at the spell's own level.
   targets: { count: 3, extraPerSlotLevelAbove: 1 },
-  effects: [],
+  effects: [
+    {
+      kind: 'attack',
+      attack: 'ranged',
+      damage: { dice: '2d6' },
+      damageType: 'fire',
+      // "You create one additional ray for each spell slot level above 2."
+      rolls: { count: 3, extraPerSlotLevelAbove: 1 },
+    },
+  ],
   unmodelled: [
-    'the three rays are not thrown: "Make a ranged spell attack for each ray. On a hit, the target takes 2d6 Fire damage" is several attack rolls from one casting, which one casting cannot make — an effect rolls one attack per target and cannot put two rays on one creature',
-    'the extra ray a higher slot buys is therefore not thrown either; the target count grows with the slot so the casting still records who was aimed at',
+    'an uneven split of the rays: the attack rolls are dealt one to each creature named and round again for the rest, so four rays at two creatures go two and two and never three and one',
   ],
 };
 

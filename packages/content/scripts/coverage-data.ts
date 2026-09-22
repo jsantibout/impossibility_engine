@@ -238,6 +238,13 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // assertion in the file while being wrong.
   'regenerate',
   'sacred-flame',
+  // Driven end to end by `several-attack-rolls.test.ts`, and partial as well,
+  // which is the pairing `sorcerous-burst` already stands for: three rays
+  // counted in the log out of one casting, a fourth bought with a level 3
+  // slot, each ray's damage held to its own 2d6, the deal over one, two and
+  // three creatures, an all-miss casting that still throws every ray, and a
+  // byte-identical replay from the seed.
+  'scorching-ray',
   'shatter',
   // Driven end to end by `executed-second-pass.test.ts`: refused by the
   // ordinary casting command, then settled onto a held greatsword hit, with

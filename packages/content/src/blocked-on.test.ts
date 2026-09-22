@@ -2480,15 +2480,25 @@ describe('a spell with one blocker is the leverage the map is for', () => {
     expect(ADJUDICATED['heal']).toBeUndefined();
     expect(SRD_CONTENT.spell('heal')?.unmodelled ?? []).toEqual([]);
 
-    // Written anyway: the shape still blocks somebody, and the spell is cast.
+    // Written anyway, and then **built** — the fourth way out, and the one
+    // this row was left standing to record. Scorching Ray was written as a
+    // tracked definition while `several-attack-rolls-from-one-casting` was
+    // missing entirely; the shape's first half exists now, so the spell hurls
+    // its rays for real. What the departure does *not* do is retire the shape:
+    // the count is built and an uneven split of the rays is not, Chromatic Orb
+    // still waits on the whole of it, and the spell stays a claimant with a
+    // residue instead of leaving the map clean.
     expect(BLOCKED_ON['scorching-ray']).toBeUndefined();
     expect(claimedShapes().has('several-attack-rolls-from-one-casting')).toBe(true);
-    expect(SRD_CONTENT.spell('scorching-ray')?.effects).toEqual([]);
+    expect(SRD_CONTENT.spell('scorching-ray')?.effects).not.toEqual([]);
+    expect(ADJUDICATED['scorching-ray']?.map((entry) => entry.why)).toEqual([
+      'several-attack-rolls-from-one-casting',
+    ]);
 
-    // And a third departure the same way, which is what makes Scorching Ray's
-    // a class rather than an exception: Barkskin is tracked, the floor on an
-    // Armour Class is still missing, and the shape keeps the spell as a
-    // tracked claimant instead of an undefined one. What changes is which
+    // And a third departure the way Revivify went, which is what makes
+    // Revivify's a class rather than an exception: Barkskin is tracked, the
+    // floor on an Armour Class is still missing, and the shape keeps the spell
+    // as a tracked claimant instead of an undefined one. What changes is which
     // population holds it, not whether the debt is owed.
     expect(BLOCKED_ON['barkskin']).toBeUndefined();
     expect(claimedShapes().has('an-armor-class-a-spell-floors')).toBe(true);

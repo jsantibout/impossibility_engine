@@ -45,6 +45,7 @@ import { fallWindowOpen } from '../reactions.js';
 import { canSee } from '../standing.js';
 import { type SlotKind } from '../resources.js';
 import {
+  attackRollsIn,
   DIRECTIONAL_AREAS,
   isCreatureType,
   type SpellArea,
@@ -986,6 +987,11 @@ export function namedTargets(
   needs: ContextRequest[],
   /** The point this casting keeps, already placed and checked. */
   origin: Point | null,
+  /**
+   * The caster's level as this casting pinned it, which a cantrip's roll count
+   * is read off — an item's is the item's, exactly as its dice are.
+   */
+  casterLevel: number,
 ): Result<readonly CharacterId[]> {
   // Two shapes take both a point and a target list, for different reasons: a
   // bounded list, where the point places the area the targets must stand in,
@@ -1005,7 +1011,32 @@ export function namedTargets(
     return err('not_directional', `${definition.name} has no direction to point`);
   }
 
-  const allowed = targetCountFor(definition.targets, definition.level, castLevel);
+  // **A creature is named for a roll**, so a spell that makes several of them
+  // may name up to that many however few its `TargetRule` prints: SRD Eldritch
+  // Blast is written "against one creature" and its beams are what buy the
+  // second and the third. The larger of the two rather than either alone —
+  // the target rule still speaks for every spell that rolls one attack or
+  // none, and a spell whose rolls outnumber its printed targets is saying that
+  // each roll picks its own.
+  //
+  // **A spell that aims at nobody at this slot keeps aiming at nobody.** Detect
+  // Magic and the object spells take no creature, and one of them rolling an
+  // attack — SRD Fire Bolt hits "a creature **or object**" — must not become a
+  // spell that takes a creature because it has a roll to spend on one.
+  //
+  // Asked of the **scaled** count and never of the printed base, which is the
+  // difference between a spell that names nobody and one whose base happens to
+  // be zero: `{ count: 0, extraPerSlotLevelAbove: 2 }` is a legal target rule
+  // that names two creatures a slot level up, and reading `targets.count`
+  // here would refuse it at every slot.
+  const printed = targetCountFor(definition.targets, definition.level, castLevel);
+  const allowed =
+    printed === 0
+      ? 0
+      : Math.max(
+          printed,
+          attackRollsIn(definition.effects, definition.level, casterLevel, castLevel),
+        );
 
   // A spell that aims at nobody. SRD's "Range: Self" utility spells — Detect
   // Magic, Disguise Self — and the ones that act on an object or a point, like
