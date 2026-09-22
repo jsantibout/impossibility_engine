@@ -358,6 +358,22 @@ export interface CharacterSheet {
   readonly armorTraining: ArmorTraining;
   /** Walking speed in feet before armour penalties. */
   readonly baseSpeed: number;
+  /**
+   * How many hands this creature has to hold things in.
+   *
+   * Absent is two, which is every creature the SRD prints a head count for and
+   * every creature it does not: the book gives no line for it and says "two
+   * hands" in the weapon properties as if nothing else were possible. The
+   * field exists because content may say otherwise — a homebrew four-armed
+   * thing wields two weapons and a shield without the engine learning its name
+   * — and because a creature can be left with none.
+   *
+   * What it is *not* is a slot list. SRD has one two-handed rule, one shield
+   * and no off-hand, so the fact a rule ever asks for is a **count**: how many
+   * are free. See `freeHands` in `commands/inventory.ts`, which is the only
+   * thing that subtracts.
+   */
+  readonly hands?: number;
   readonly spellcastingAbility: Ability | null;
   /**
    * Weapon categories this character is proficient with.
@@ -815,6 +831,18 @@ export function speed(sheet: CharacterSheet): number {
   const requirement = sheet.armor?.strengthRequirement ?? null;
   const penalty = requirement !== null && sheet.abilities.str < requirement ? 10 : 0;
   return Math.max(0, sheet.baseSpeed - penalty);
+}
+
+/**
+ * SRD writes every rule about holding in twos — "requires two hands", "a hand
+ * that is free" — and never prints the number, because for everything that
+ * carries a weapon it is two.
+ */
+export const DEFAULT_HANDS = 2;
+
+/** How many hands this creature has; see {@link CharacterSheet.hands}. */
+export function handsOf(sheet: CharacterSheet): number {
+  return Math.max(0, sheet.hands ?? DEFAULT_HANDS);
 }
 
 /** SRD: armour marked "Disadvantage" imposes it on Dexterity (Stealth) checks. */

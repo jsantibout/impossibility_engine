@@ -286,10 +286,15 @@ export interface SpellCoverage {
  * something of is executed.
  *
  * "Something" is the spell's own effects **or its activation or its area
- * trigger**: Flame Blade evokes a blade and does nothing else at the moment of
- * casting, and every blow it ever strikes is machinery the engine owns.
- * Counting it as tracked would understate the engine in exactly the direction
- * this file exists to prevent.
+ * trigger or what it conjures**: Flame Blade evokes a blade and does nothing
+ * else at the moment of casting, and every blow it ever strikes is machinery
+ * the engine owns. Counting it as tracked would understate the engine in
+ * exactly the direction this file exists to prevent.
+ *
+ * **The fourth arm is Goodberry's**, and it is the same argument: ten berries
+ * appear in a hand, are held for a day, are eaten one at a time for a hit
+ * point each and disappear when the spell ends — all of it the engine's, and
+ * the spell's own effect list empty because the berries are what it does.
  *
  * **Exported because three other places had written it out**, and one of the
  * copies had already lost the `areaTrigger` arm. The honesty guard's whole
@@ -299,7 +304,8 @@ export interface SpellCoverage {
 export const isExecuted = (definition: SpellDefinition): boolean =>
   definition.effects.length > 0 ||
   definition.activation !== undefined ||
-  definition.areaTrigger !== undefined;
+  definition.areaTrigger !== undefined ||
+  definition.conjures !== undefined;
 
 /** Every definition the engine resolves something of, by id. */
 export const EXECUTED_SPELL_IDS: ReadonlySet<string> = new Set(

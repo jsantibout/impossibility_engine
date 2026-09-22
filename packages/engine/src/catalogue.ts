@@ -86,6 +86,18 @@ export interface CatalogueItem {
    */
   readonly bundleSize?: number;
   /**
+   * How many hands holding this item takes up, where the printed record does
+   * not already say.
+   *
+   * Absent is the rule in {@link handsFor}, which answers for everything the
+   * SRD prints: a weapon's own properties say whether it takes one hand or
+   * two, a Shield takes one, and armour is worn rather than held. This is for
+   * the rest — a homebrew orb that must be held, a wondrous thing the book
+   * describes as carried — and for the one direction the rule cannot reach,
+   * which is an item that takes **no** hand at all.
+   */
+  readonly hands?: number;
+  /**
    * That this item requires attunement, and what it requires of whoever does.
    *
    * Absent for everything mundane, which is almost everything.
@@ -128,6 +140,37 @@ export interface CatalogueItem {
    * wearing an item's name.
    */
   readonly unmodelled?: readonly string[];
+}
+
+/**
+ * How many hands wielding this item takes up.
+ *
+ * **Read off the printed record wherever the book prints it**, which is the
+ * whole of the SRD's equipment table:
+ *
+ * | | |
+ * |---|---|
+ * | a weapon with the Two-Handed property | two — SRD: "this weapon requires two hands when you attack with it" |
+ * | any other weapon | one |
+ * | a Shield | one — SRD: "wielded in one hand" |
+ * | body armour | none: it is worn |
+ * | everything else | none, unless the item says otherwise |
+ *
+ * **Versatile is one.** SRD: "can be used with one or two hands", and the
+ * damage is what changes — `attack.ts` already reads the second die off the
+ * swing rather than off the hand, so a Longsword in a hand beside a Shield is
+ * exactly the legal wielding the book describes.
+ *
+ * The last row is a default rather than a claim about wands: an item's line
+ * may say what holding it costs (`CatalogueItem.hands`), and the engine's
+ * rule is what answers when it does not. Refusing to equip a fifth wondrous
+ * trinket is not a rule the SRD prints, and inventing one here would refuse
+ * a legal character at creation.
+ */
+export function handsFor(item: CatalogueItem): number {
+  if (item.hands !== undefined) return Math.max(0, item.hands);
+  if (item.weapon !== null) return item.weapon.properties.includes('two-handed') ? 2 : 1;
+  return item.armor?.category === 'shield' ? 1 : 0;
 }
 
 /**

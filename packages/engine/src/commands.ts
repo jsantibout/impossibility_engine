@@ -89,12 +89,18 @@ export {
   changeCoins,
   chargesLeft,
   coinsOf,
+  conjuredHolds,
+  dropConjured,
   endAttunement,
   equipItem,
+  evokeConjured,
   expendCharges,
+  freeHands,
+  handsInUse,
   purchaseItem,
   unequipItem,
 } from './commands/inventory.js';
+export type { EvokeConjuredCommand } from './commands/inventory.js';
 export { useItem } from './commands/item-use.js';
 export type { ItemUse, UseItemCommand } from './commands/item-use.js';
 export {

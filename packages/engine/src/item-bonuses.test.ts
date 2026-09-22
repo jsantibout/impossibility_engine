@@ -99,7 +99,12 @@ const SETUP: readonly GameEvent[] = [
     items: [
       { id: SWORD, quantity: 1 },
       { id: 'longsword', quantity: 1 },
-      { id: 'shortbow', quantity: 1 },
+      // A **Sling** rather than a Shortbow, and the reason is the rule
+      // this file now runs under: a Shortbow is Two-Handed, and a
+      // character holding the magic Longsword has one hand left. The
+      // second weapon has to be one a hand can hold, or the narrowing
+      // below would be tested on a wielding nobody could have.
+      { id: 'sling', quantity: 1 },
       { id: RING, quantity: 1 },
       { id: CLOAK, quantity: 1 },
     ],
@@ -256,7 +261,7 @@ describe('the narrowing bites: “made with this magic weapon”', () => {
    */
   it('gives the bonus to the sword and nothing to the bow', () => {
     const armed = worn(SETUP, SWORD);
-    const bow = swing(run(armed, (s) => equipItem(s, SRD_CONTENT, FIGHTER, 'shortbow')), 'shortbow');
+    const bow = swing(run(armed, (s) => equipItem(s, SRD_CONTENT, FIGHTER, 'sling')), 'sling');
     expect(contributionsOf(bow.events)['+1 Longsword']).toBeUndefined();
 
     const sword = swing(armed, SWORD);
@@ -280,13 +285,13 @@ describe('the narrowing bites: “made with this magic weapon”', () => {
     ];
 
     const withSword = swing(
-      apart(run(worn(SETUP, SWORD), (s) => equipItem(s, SRD_CONTENT, FIGHTER, 'shortbow'))),
-      'shortbow',
+      apart(run(worn(SETUP, SWORD), (s) => equipItem(s, SRD_CONTENT, FIGHTER, 'sling'))),
+      'sling',
       'blow',
     );
     const without = swing(
-      apart(run(SETUP, (s) => equipItem(s, SRD_CONTENT, FIGHTER, 'shortbow'))),
-      'shortbow',
+      apart(run(SETUP, (s) => equipItem(s, SRD_CONTENT, FIGHTER, 'sling'))),
+      'sling',
       'blow',
     );
     expect(withSword.attack!.hit).toBe(true);

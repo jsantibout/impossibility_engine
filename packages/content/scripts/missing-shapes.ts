@@ -755,13 +755,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'the dice are ordinary and so is the rule that picks their type \u2014 Fire from a warm shield, Cold from a chill one \u2014 and both hang on the eruption above, which has no moment to happen at.',
     },
   ],
-  'flame-blade': [
-    {
-      clause: 'letting go of the blade',
-      why: 'what-a-creature-is-holding',
-      note: 'SRD lets the caster drop the blade and evoke it again as a Bonus Action. Whether a hand is free, and what is in it, is not tracked — so there is no state the dropping and re-evoking could change.',
-    },
-  ],
   'freezing-sphere': [
     {
       clause: 'freezing a body of water',
@@ -1979,14 +1972,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'the attack deals extra Radiant damage',
       why: 'a-rider-on-a-later-weapon-attack',
       note: 'extra damage of a stated type on somebody’s weapon swing is the attack-rider grant, which hangs a notation and a damage type together and which no spell definition can write. The same sentence, and the other mechanic in it.',
-    },
-  ],
-  goodberry: [
-    {
-      marker: 'hit-points',
-      clause: 'Eating a berry restores 1 Hit Point',
-      why: 'what-a-creature-is-holding',
-      note: 'the hit point is arithmetic `healCreature` does all day; what has no representation is the berry. An inventory and an equipped set are held and only armour and weapons have a slot, so ten berries in a hand are nowhere and nothing can be eaten out of them.',
     },
   ],
   'ice-knife': [

@@ -9,12 +9,15 @@
 import { type CharacterId, err, needsContext, ok, type Result } from '@ie/shared';
 import {
   type CatalogueItem,
+  handsFor,
   itemChargePool,
   itemChargeRoll,
   itemStandingEffects,
   type ItemKind,
 } from '../catalogue.js';
+import { handsOf } from '../character.js';
 import { type Content } from '../content.js';
+import { type ConjuredItems } from '../spell-definitions.js';
 import {
   itemInstanceFor,
   type CreatureState,
@@ -22,15 +25,34 @@ import {
   type GameState,
   type InventoryLine,
 } from '../events.js';
-import { creatureOf, unknownCreature } from './command.js';
+import { creatureOf, spendFor, unknownCreature } from './command.js';
 import { mayAct } from './holds.js';
 import { once } from '../idempotency.js';
 import { hasPool, remaining, type PoolDeclaration } from '../resources.js';
 
-/** Everything this creature is carrying, by catalogue id. */
+/**
+ * Everything this creature is carrying, by catalogue id.
+ *
+ * **A conjured line is here only while its casting is.** SRD Goodberry:
+ * "Uneaten berries disappear when the spell ends." That is derived rather than
+ * folded, on the reading a patch of Difficult Terrain naming a casting already
+ * takes — a casting that runs out of time writes no event, so a removal hung
+ * on one would miss the commonest way a spell ends. See
+ * {@link InventoryLine.casting}.
+ */
 export function carrying(state: GameState, id: CharacterId): readonly InventoryLine[] {
-  return creatureOf(state, id)?.inventory ?? [];
+  const creature = creatureOf(state, id);
+  return creature === null ? [] : creature.inventory.filter((line) => stillThere(state, line));
 }
+
+/**
+ * Whether a line is still a thing the creature has.
+ *
+ * True of everything owned. False only of a conjured line whose casting has
+ * ended — dispelled, released, Concentration broken, or simply run out.
+ */
+const stillThere = (state: GameState, line: InventoryLine): boolean =>
+  line.casting === undefined || state.ongoing[line.casting] !== undefined;
 
 /** Money on hand, in copper. */
 export function coinsOf(state: GameState, id: CharacterId): number {
@@ -67,11 +89,19 @@ export const quantityOf = (state: GameState, id: CharacterId, itemId: string): n
  * `null` for a thing this creature does not have at all, so each caller gives
  * its own refusal for that — `not_owned` reads differently from `not_equipped`.
  */
-export function copyNamed(creature: CreatureState, named: string): Result<InventoryLine | null> {
-  const labelled = creature.inventory.find((line) => line.instance === named);
+export function copyNamed(
+  state: GameState,
+  creature: CreatureState,
+  named: string,
+): Result<InventoryLine | null> {
+  // The live view, for the reason `carrying` is one: a berry whose spell has
+  // ended is not a berry anybody can eat, and finding it here would be finding
+  // something that is not there.
+  const held = creature.inventory.filter((line) => stillThere(state, line));
+  const labelled = held.find((line) => line.instance === named);
   if (labelled !== undefined) return ok(labelled);
 
-  const lines = creature.inventory.filter((line) => line.id === named);
+  const lines = held.filter((line) => line.id === named);
   if (lines.length === 0) return ok(null);
   if (lines.length === 1) return ok(lines[0]!);
   return err(
@@ -330,6 +360,48 @@ const EQUIPPABLE: ReadonlySet<ItemKind> = new Set<ItemKind>([
 const ATTUNEMENT_LIMIT = 3;
 
 /**
+ * How many of this creature's hands are full.
+ *
+ * Two things fill a hand and they are counted the same way: what is
+ * **equipped**, whose cost is the item's own (`handsFor`), and what a casting
+ * **conjured** into a hand, whose cost was pinned on the line when it appeared
+ * — because a handful of ten berries is one hand and `handsFor` would charge
+ * ten.
+ *
+ * Content is read here rather than in the fold, exactly as `equipItem` reads
+ * it: this is a question a command asks, and the answer is the catalogue as it
+ * stands today.
+ */
+export function handsInUse(state: GameState, content: Content, id: CharacterId): number {
+  const creature = creatureOf(state, id);
+  if (creature === null) return 0;
+
+  const wielded = creature.equipped.reduce((total, worn) => {
+    const item = content.item(worn.id);
+    return total + (item === null ? 0 : handsFor(item));
+  }, 0);
+  const conjured = carrying(state, id).reduce(
+    (total, line) => total + (line.casting === undefined ? 0 : (line.hands ?? 0)),
+    0,
+  );
+  return wielded + conjured;
+}
+
+/**
+ * How many hands this creature has free.
+ *
+ * Never below zero: a log may put more in a creature's hands than it has —
+ * `createCharacter` equips a starting package without asking, and a stat block
+ * may print three weapons — and the honest answer to "how many are free" is
+ * none rather than a negative number nothing could interpret.
+ */
+export function freeHands(state: GameState, content: Content, id: CharacterId): number {
+  const creature = creatureOf(state, id);
+  if (creature === null) return 0;
+  return Math.max(0, handsOf(creature.sheet) - handsInUse(state, content, id));
+}
+
+/**
  * Wear or wield something already owned.
  *
  * The separation this exists for: **owning is not wearing**. Chain mail in a
@@ -355,7 +427,7 @@ export function equipItem(
 
     // Which copy, asked first: the name may be a kind of thing or one of them,
     // and an item's own id is not in the catalogue under that name.
-    const named = copyNamed(creature, itemId);
+    const named = copyNamed(state, creature, itemId);
     if (!named.ok) return named;
     const copy = named.value;
 
@@ -387,6 +459,20 @@ export function equipItem(
       if (taken !== undefined) {
         return err('slot_taken', `${taken.name} is already worn as ${slot}; take it off first`);
       }
+    }
+
+    // **And whether there is a hand for it**, which is the rule
+    // `docs/design/characters-and-equipment.md` recorded as missing: a
+    // creature could wield a Greatsword, a Longsword and a Shield at once.
+    // SRD Two-Handed: "this weapon requires two hands"; a Shield is "wielded
+    // in one hand"; what a spell put in a hand is in that hand too.
+    const wants = handsFor(item);
+    const free = freeHands(state, content, id);
+    if (wants > free) {
+      return err(
+        'no_free_hand',
+        `${item.name} takes ${handCount(wants)} and ${id} has ${free === 0 ? 'none' : handCount(free)} free`,
+      );
     }
 
     const grants = itemStandingEffects(item);
@@ -453,6 +539,190 @@ export function unequipItem(
       { type: 'item-unequipped', id, item: held.id, ...(stamp === null ? {} : { command: stamp }) },
     ]);
   });
+}
+
+/** "one hand" and "two hands", so a refusal reads like the book. */
+const handCount = (hands: number): string => `${hands === 1 ? 'one hand' : `${hands} hands`}`;
+
+/**
+ * What a casting conjured into this creature's hands, and which casting it was.
+ *
+ * Asked by both halves below and by the resolution that creates one. A
+ * conjured line names its casting, so this is a filter rather than a search —
+ * and it reads the live view, so a handful whose spell has ended is not here
+ * to be let go of twice.
+ */
+export function conjuredHolds(
+  state: GameState,
+  id: CharacterId,
+): readonly { readonly line: InventoryLine; readonly castingId: string }[] {
+  return carrying(state, id)
+    .filter((line) => line.casting !== undefined)
+    .map((line) => ({ line, castingId: line.casting! }));
+}
+
+/**
+ * Let go of a conjured thing: it disappears, and the casting runs on.
+ *
+ * SRD Flame Blade: "If you let go of the blade, it disappears, but you can
+ * evoke the blade again as a Bonus Action." Two facts in one sentence, and
+ * this is the first: the thing leaves the hand and ceases to exist, while the
+ * spell it came from is untouched — the Concentration holds, the duration runs,
+ * and {@link evokeConjured} is the way back.
+ *
+ * **It costs nothing.** SRD spends no action on letting go of anything;
+ * dropping a held item is free in the same way sheathing is not, and the book
+ * prices only the taking up.
+ *
+ * Refused for anything no casting conjured, because there is no rule here for
+ * an ordinary thing put down: a dropped Longsword is on the floor, and a floor
+ * is not something this engine holds.
+ */
+export function dropConjured(
+  state: GameState,
+  content: Content,
+  id: CharacterId,
+  itemId: string,
+  commandId?: string,
+): Result<GameEvent[]> {
+  const inputs: { commandId?: string; itemId: string } =
+    commandId === undefined ? { itemId } : { commandId, itemId };
+  return once(state, `drop-conjured:${id}`, inputs, () => [], (stamp) => {
+    const creature = creatureOf(state, id);
+    if (creature === null) return unknownCreature(id);
+
+    const held = conjuredHolds(state, id).find(
+      (conjured) => conjured.line.id === itemId || conjured.line.instance === itemId,
+    );
+    if (held === undefined) {
+      const item = content.item(itemId);
+      return err(
+        'not_conjured',
+        `no casting of ${id}'s put ${item?.name ?? itemId} in their hand; only a conjured thing disappears when it is let go of`,
+      );
+    }
+
+    return ok([
+      {
+        type: 'items-lost',
+        id,
+        // The whole handful: SRD's sentence is about the thing in the hand,
+        // and half a blade is not a state the book describes.
+        items: [{ id: held.line.id, quantity: held.line.quantity, casting: held.castingId }],
+        source: `${content.item(held.line.id)?.name ?? held.line.id}, let go of`,
+        ...(stamp === null ? {} : { command: stamp }),
+      },
+    ]);
+  });
+}
+
+/** What {@link evokeConjured} is asked. */
+export interface EvokeConjuredCommand {
+  /** The conjured thing to take up again, by catalogue id. */
+  readonly item: string;
+  readonly commandId?: string;
+}
+
+/**
+ * Evoke a conjured thing again, into a hand that is free.
+ *
+ * The other half of SRD Flame Blade's sentence: "you can evoke the blade again
+ * as a Bonus Action." The action is the **spell's**, read off the definition
+ * that conjured it (`ConjuredItems.retake`), because the book prices it per
+ * spell and a spell that does not print the clause cannot be asked for one.
+ *
+ * Everything else is the ordinary rules: the casting must still be running,
+ * there must be a hand for it, and a thing already in hand is refused rather
+ * than conjured twice.
+ */
+export function evokeConjured(
+  state: GameState,
+  id: CharacterId,
+  command: EvokeConjuredCommand,
+  supply: { readonly content: Content },
+): Result<GameEvent[]> {
+  return once(state, `evoke-conjured:${id}`, command, () => [], (stamp) => {
+    const creature = creatureOf(state, id);
+    if (creature === null) return unknownCreature(id);
+
+    const holding = mayAct(state, id);
+    if (holding !== null) return holding;
+
+    const content = supply.content;
+    const item = content.item(command.item);
+    if (item === null) return err('unknown_item', `${command.item} is not in the catalogue`);
+
+    if (conjuredHolds(state, id).some((conjured) => conjured.line.id === command.item)) {
+      return err('already_held', `${item.name} is already in ${id}'s hand`);
+    }
+
+    // Which casting of this creature's conjures it — read from the definitions
+    // its own ongoing castings name, so a blade is re-evoked out of the spell
+    // that made it and not out of somebody else's.
+    const from = Object.values(state.ongoing)
+      .filter((casting) => casting.caster === id)
+      .map((casting) => ({ casting, conjures: content.spell(casting.spellId)?.conjures }))
+      .find((held) => held.conjures?.item === command.item);
+    if (from === undefined || from.conjures === undefined) {
+      return err(
+        'not_conjured',
+        `no spell ${id} is concentrating on conjures ${item.name}; it is evoked by casting the spell rather than by taking it up`,
+      );
+    }
+    if (from.conjures.retake === undefined) {
+      return err(
+        'not_re_evoked',
+        `${from.casting.spell} does not print a clause for evoking ${item.name} again once it is let go of`,
+      );
+    }
+
+    const hands = from.conjures.hands ?? 1;
+    const free = freeHands(state, content, id);
+    if (hands > free) {
+      return err(
+        'no_free_hand',
+        `${item.name} takes ${handCount(hands)} and ${id} has ${free === 0 ? 'none' : handCount(free)} free`,
+      );
+    }
+
+    const events: GameEvent[] = [];
+    // The economy only exists in combat, exactly as a potion and a feature find.
+    if (state.combat !== null) {
+      const spent = spendFor(state, id, from.conjures.retake);
+      if (!spent.ok) return spent;
+      events.push(spent.value);
+    }
+
+    events.push({
+      type: 'items-gained',
+      id,
+      items: [conjuredLine(item.id, from.conjures, from.casting.castingId)],
+      source: `${from.casting.spell}, evoked again`,
+      ...(stamp === null ? {} : { command: stamp }),
+    });
+    return ok(events);
+  });
+}
+
+/**
+ * The line a conjuring puts in a hand, pinned from the definition that printed
+ * it.
+ *
+ * One spelling, because two doors write it — the casting and the re-evocation
+ * — and a second copy would be two places for the count and the hands to
+ * disagree. Rule 5: what the command read from content travels with the event.
+ */
+export function conjuredLine(
+  itemId: string,
+  conjures: ConjuredItems,
+  castingId?: string,
+): InventoryLine {
+  return {
+    id: itemId,
+    quantity: conjures.count,
+    ...(castingId === undefined ? {} : { casting: castingId }),
+    ...(conjures.hands === undefined ? {} : { hands: conjures.hands }),
+  };
 }
 
 /**
@@ -551,7 +821,7 @@ export function expendCharges(
 
     // Which copy, before the catalogue: a copy's own id is not a catalogue id,
     // and the answer decides which pool is spent from.
-    const named = copyNamed(creature, itemId);
+    const named = copyNamed(state, creature, itemId);
     if (!named.ok) return named;
     const copy = named.value;
 

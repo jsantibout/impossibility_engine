@@ -216,6 +216,8 @@ import {
   takeTestReaction,
   tradeResource,
   transferItem,
+  dropConjured,
+  evokeConjured,
   unequipItem,
   useBudgetPurchase,
   useFreeObjectInteraction,
@@ -3981,6 +3983,53 @@ const UNEQUIP_ITEM = tool({
     ),
 });
 
+/**
+ * The two halves of one printed sentence, and the only door either has.
+ *
+ * SRD Flame Blade: "If you let go of the blade, it disappears, but you can
+ * evoke the blade again as a Bonus Action." A conjured thing is not equipped —
+ * it is held by the casting that made it — so `unequip_item` does not reach
+ * it, and a spell cast again would spend a second slot.
+ */
+const LET_GO_OF_CONJURED = tool({
+  name: 'let_go_of_conjured',
+  description:
+    'Let go of something a spell put in this creature’s hand — Flame Blade’s blade, Goodberry’s berries. It disappears and the hand is free; the spell itself keeps running, and where the spell says so the thing can be evoked again with `evoke_conjured`. Costs nothing. Anything a spell did not conjure is refused: a weapon put down is on the floor, which is not a place this engine keeps.',
+  mutates: true,
+  input: z.object({ who: creatureId, item: z.string().min(1).describe('Catalogue id of the conjured thing.') }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      dropConjured(
+        context.campaign.state(),
+        context.campaign.content,
+        who(args.who),
+        args.item,
+        context.commandId,
+      ),
+      { letGo: args.item, by: args.who },
+    ),
+});
+
+const EVOKE_CONJURED = tool({
+  name: 'evoke_conjured',
+  description:
+    'Evoke again something this creature’s own spell conjured and then let go of — SRD Flame Blade’s "you can evoke the blade again as a Bonus Action". It costs whichever action the spell prints, needs the casting to still be running and needs a free hand. A spell that prints no such clause is refused rather than granted one.',
+  mutates: true,
+  input: z.object({ who: creatureId, item: z.string().min(1).describe('Catalogue id of the conjured thing.') }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      evokeConjured(
+        context.campaign.state(),
+        who(args.who),
+        { item: args.item, ...identity(context) },
+        context.campaign.supply(),
+      ),
+      { evoked: args.item, by: args.who },
+    ),
+});
+
 const ATTUNE_ITEM = tool({
   name: 'attune_item',
   description:
@@ -4286,8 +4335,10 @@ export const TOOLS: readonly ToolDefinition[] = [
   END_REST,
   END_TURN,
   EQUIP_ITEM,
+  EVOKE_CONJURED,
   EXTEND_FEATURE,
   HEAL_WITH_FEATURE,
+  LET_GO_OF_CONJURED,
   LOOK,
   MOVE,
   OPTIONS,

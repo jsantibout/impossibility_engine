@@ -481,15 +481,43 @@ describe('the doors a copy is gained through are the doors that label it', () =>
     .filter((file) => readFileSync(`${SRC}${file}`, 'utf8').includes("type: 'items-gained'"))
     .sort();
 
+  /**
+   * **The fourth door hands over nothing that could carry a record**, which is
+   * why it is here rather than labelling.
+   *
+   * A casting that conjures something puts a *handful* in a hand — SRD
+   * Goodberry's ten berries are ten of one line — so there is no copy for an
+   * id to belong to, and labelling them would be ten records and ten pools for
+   * one sentence. What keeps that from being a hole is `checkContent`, which
+   * refuses a spell that conjures an item with charges of its own: a thing
+   * that lasts exactly as long as a casting has nothing to remember. So the
+   * claim is unchanged — **every copy with a record is labelled where it is
+   * gained** — and the population that can produce one is still three.
+   */
+  const CONJURING = 'commands/spell-resolution.ts';
+
   it('is three of them, and every one labels what it hands over', () => {
-    expect(emitters).toEqual(['commands/declarations.ts', 'commands/inventory.ts', 'creation.ts']);
+    expect(emitters.filter((file) => file !== CONJURING)).toEqual([
+      'commands/declarations.ts',
+      'commands/inventory.ts',
+      'creation.ts',
+    ]);
   });
 
   /** And both of them label through the one compiler, rather than each deciding. */
   it('both label through the same compiler', () => {
-    for (const file of emitters) {
+    for (const file of emitters.filter((file) => file !== CONJURING)) {
       expect(readFileSync(`${SRC}${file}`, 'utf8')).toContain('issueItemCopies');
     }
+  });
+
+  /**
+   * And the door that does not label is pinned too, so a fifth cannot arrive
+   * quietly by claiming to be a conjuring.
+   */
+  it('has one door that hands over a stack, and it conjures it', () => {
+    expect(emitters).toContain(CONJURING);
+    expect(readFileSync(`${SRC}${CONJURING}`, 'utf8')).toContain('conjuredLine');
   });
 });
 

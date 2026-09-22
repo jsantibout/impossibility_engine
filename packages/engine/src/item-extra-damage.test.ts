@@ -98,7 +98,12 @@ const table = (defenses: Readonly<Record<string, DamageDefenses>> = {}): readonl
       { id: WOUNDING, quantity: 1 },
       { id: FROST, quantity: 1 },
       { id: PLAIN, quantity: 1 },
-      { id: 'shortbow', quantity: 1 },
+      // A **Sling** rather than a Shortbow, and the reason is the rule
+      // this file now runs under: a Shortbow is Two-Handed, and a
+      // character holding the magic Longsword has one hand left. The
+      // second weapon has to be one a hand can hold, or the narrowing
+      // below would be tested on a wielding nobody could have.
+      { id: 'sling', quantity: 1 },
     ],
     source: 'the hoard',
   },
@@ -187,12 +192,12 @@ describe('the narrowing bites on damage: “this magic weapon”, and no other',
     ];
 
     const withSword = swing(
-      apart(run(wielding(table(), VICIOUS), (s) => equipItem(s, SRD_CONTENT, FIGHTER, 'shortbow'))),
-      'shortbow',
+      apart(run(wielding(table(), VICIOUS), (s) => equipItem(s, SRD_CONTENT, FIGHTER, 'sling'))),
+      'sling',
     );
     const without = swing(
-      apart(run(table(), (s) => equipItem(s, SRD_CONTENT, FIGHTER, 'shortbow'))),
-      'shortbow',
+      apart(run(table(), (s) => equipItem(s, SRD_CONTENT, FIGHTER, 'sling'))),
+      'sling',
     );
     expect(withSword.attack!.hit).toBe(true);
     expect(withSword.damage).toBe(without.damage);

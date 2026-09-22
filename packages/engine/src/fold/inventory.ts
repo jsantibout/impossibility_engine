@@ -53,9 +53,19 @@ export const isInventoryEvent = seamOf(INVENTORY_EVENTS);
  * charges between them are not one wand with six, so a labelled copy merges
  * with nothing — not even with another copy of the same wand — while twenty
  * arrows and twenty more are forty arrows, exactly as they have always been.
+ *
+ * **And a conjured handful is its casting's**, on the same rule one step
+ * along: berries that disappear when one spell ends are not the same line as
+ * berries that disappear when another does, and neither is the same line as a
+ * berry somebody picked. So the casting is part of the key, and a line without
+ * one keeps exactly the key it has always had.
  */
 const mergeKey = (line: InventoryLine): string =>
-  line.instance === undefined ? `kind:${line.id}` : `copy:${line.instance}`;
+  line.instance !== undefined
+    ? `copy:${line.instance}`
+    : line.casting === undefined
+      ? `kind:${line.id}`
+      : `conjured:${line.casting}:${line.id}`;
 
 /**
  * Quantities merge and the list stays sorted, so two identical packs agree.
@@ -76,7 +86,12 @@ export function mergeItems(
   for (const line of [...inventory, ...items]) {
     const key = mergeKey(line);
     const held = lines.get(key);
-    lines.set(key, { ...line, quantity: (held?.quantity ?? 0) + line.quantity });
+    // **The held line's own facts survive a line that leaves.** A loss names
+    // the kind, the copy and the casting — enough to find the line — and is
+    // not obliged to restate what holding it costs, which was pinned when the
+    // handful was conjured. Under one key the two agree by construction, so
+    // the incoming line still wins wherever it says anything.
+    lines.set(key, { ...held, ...line, quantity: (held?.quantity ?? 0) + line.quantity });
   }
   return [...lines.values()]
     .filter((line) => line.quantity > 0)

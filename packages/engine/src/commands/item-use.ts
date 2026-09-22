@@ -260,7 +260,7 @@ export function useItem(
     // Which copy is being used, where the copies are told apart: a flask used
     // up has to be taken off the inventory by its own id, or the loss would
     // remove nothing and leave the benefit running out of a full bottle.
-    const named = copyNamed(creature, command.item);
+    const named = copyNamed(state, creature, command.item);
     if (!named.ok) return named;
     const copy = named.value;
     if (copy === null) {
@@ -336,6 +336,11 @@ export function useItem(
             id: item.id,
             quantity: 1,
             ...(copy.instance === undefined ? {} : { instance: copy.instance }),
+            // **And which handful**, where a casting conjured it. SRD
+            // Goodberry's berries are a line of their own with a lifetime of
+            // their own, so a berry eaten has to come off that line rather
+            // than off the ones somebody picked.
+            ...(copy.casting === undefined ? {} : { casting: copy.casting }),
           },
         ],
         source: `${item.name}, used`,
