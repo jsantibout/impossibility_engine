@@ -75,9 +75,24 @@ const dieEffectsOf = (ctx: EffectContext): readonly DieEffect[] =>
  * **One roll is the whole of the book bar two spells**, and those two say the
  * same thing twice: SRD Scorching Ray's "Make a ranged spell attack for each
  * ray" and Eldritch Blast's beams. So the count comes off the definition
- * ({@link attackRollsFor}), the share of it that lands here comes off where
- * this creature stands in the list the caster named ({@link rollsDealtTo}),
- * and an effect that states no count resolves exactly as it always did.
+ * ({@link attackRollsFor}), the share of it that lands here is the one the
+ * caster stated, and an effect that states no count resolves exactly as it
+ * always did.
+ *
+ * **Where the rolls go is the caster's, and they may say it unevenly.** SRD
+ * leaves the middle of "at one target within range or at several" open, so
+ * `EffectContext.rollsPerTarget` carries the split they stated and this
+ * creature's share is read straight off it by position. Said nothing, they get
+ * the deal {@link rollsDealtTo} has always made — one each in the order named,
+ * round again for the surplus — which is every even split and none of the
+ * lopsided ones.
+ *
+ * The stated vector is measured against {@link attackRollsIn}, which is the
+ * **longest** attack in the list rather than this one's own; a definition
+ * whose two attacks throw different numbers of rolls has no single split to
+ * state, so this effect falls back to the deal rather than spending somebody
+ * else's rays. No SRD spell has two, and the guard is here because a homebrew
+ * definition may.
  *
  * **Each roll is its own roll, all the way down**: its own `rollAttack`, its
  * own `roll-recorded` line in the log, its own Critical Hit, its own damage
@@ -115,7 +130,11 @@ export function resolveAttackEffect(
       `${ctx.label} is resolving an attack on ${target}, who is not among the targets it was given`,
     );
   }
-  const mine = rollsDealtTo(total, ctx.targets.length, where);
+  const stated = ctx.rollsPerTarget;
+  const mine =
+    stated !== undefined && stated.reduce((sum, count) => sum + count, 0) === total
+      ? stated[where]!
+      : rollsDealtTo(total, ctx.targets.length, where);
 
   let current = world;
   for (let thrown = 0; thrown < mine; thrown += 1) {

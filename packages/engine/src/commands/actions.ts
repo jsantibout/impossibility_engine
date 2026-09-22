@@ -98,7 +98,12 @@ import { featureTimer } from './features.js';
 import { mayAct } from './holds.js';
 import { type MoveResolution, moveWithin } from './movement.js';
 import { castOrRelease } from './spell-resolution.js';
-import { declaredFacts, type SpellResolution } from './targeting.js';
+import {
+  aimedIdentity,
+  type AimedRolls,
+  declaredFacts,
+  type SpellResolution,
+} from './targeting.js';
 
 /**
  * Which slot the caller is offering to pay a Dash out of.
@@ -1699,6 +1704,16 @@ export interface ReleaseCommand extends CommandIdentity {
   readonly ignore?: boolean;
   /** Who a readied spell lands on. Empty for an area spell, which picks its own. */
   readonly targets?: readonly CharacterId[];
+  /**
+   * How many of a readied casting's attack rolls go at each of those creatures.
+   *
+   * **Stated here rather than at the Ready**, which is where it parts company
+   * with the six facts `statedOf` carries forward: the targets a readied spell
+   * lands on are chosen at the release, and a split is aligned to them. See
+   * `CastSpellRequest.rollsAt`, which validates it through the same call the
+   * atomic casting uses.
+   */
+  readonly rollsAt?: readonly AimedRolls[];
   /** Where a readied area spell's origin goes. */
   readonly at?: Point;
   /** Where a readied move goes, relative to something already established. */
@@ -1744,7 +1759,15 @@ export function releaseReady(
   // the caller the hold never existed when in fact their first call consumed
   // it. A retry that reads as a rules problem is worse than one that doubles,
   // because the DM narrates the lie.
-  return once(state, `release:${id}`, command, () => ({ events: [], took: true }), (stamp) => {
+  // The split is a mapping and the order its pairs were written in says
+  // nothing, exactly as it says nothing on a casting — `castingIdentity` makes
+  // the same normalisation through the same call, so the two doors cannot
+  // disagree about which releases are one release.
+  const identity: ReleaseCommand = {
+    ...command,
+    ...(command.rollsAt === undefined ? {} : { rollsAt: aimedIdentity(command.rollsAt)! }),
+  };
+  return once(state, `release:${id}`, identity, () => ({ events: [], took: true }), (stamp) => {
     const creature = creatureOf(state, id);
     if (creature === null) return unknownCreature(id, 'has no record here yet; add it first');
 
@@ -1893,6 +1916,8 @@ function releaseSpell(
     {
       spellId: response.spellId,
       targets: command.targets ?? [],
+      // Beside the targets, because it is the release that chooses them.
+      ...(command.rollsAt === undefined ? {} : { rollsAt: command.rollsAt }),
       ...(command.at === undefined ? {} : { at: command.at }),
       ...(definition.level === 0 ? {} : { slotLevel: response.castLevel }),
       // What the caster stated at the Ready, put back on the request the

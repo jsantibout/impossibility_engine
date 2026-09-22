@@ -2199,6 +2199,20 @@ const CAST_SPELL = tool({
     caster: creatureId,
     spellId: z.string().min(1).describe('SRD spell id, e.g. fire-bolt, hold-person, magic-missile.'),
     targets: z.array(creatureId).describe('Creature ids. Empty for an area spell.'),
+    rollsAt: z
+      .array(
+        z.strictObject({
+          target: creatureId,
+          count: z
+            .int()
+            .min(1)
+            .describe('How many of the casting’s attack rolls go at this creature.'),
+        }),
+      )
+      .optional()
+      .describe(
+        'How to divide a casting that makes several attack rolls — Scorching Ray’s rays, Eldritch Blast’s beams. Name every creature in `targets` exactly once, with a share each, adding up to exactly the rolls the casting makes; the engine says how many that is and refuses anything else. Leave it out and the rolls are dealt round the creatures you named, one each and round again for the rest. This is a targeting decision and never a result: the engine still rolls every attack, and each one hits, misses and crits on its own.',
+      ),
     slotLevel: z.int().min(1).max(9).optional().describe('Which slot to spend. Omit for a cantrip.'),
     at: pointSchema.optional().describe('Where an area spell is centred, for a spell that asks for a point.'),
     towards: pointSchema.optional().describe('Point a Cone, Cube or Line at this exact spot.'),
@@ -2284,6 +2298,9 @@ const CAST_SPELL = tool({
     const request: CastSpellRequest = {
       spellId: args.spellId,
       targets: args.targets.map(who),
+      ...(args.rollsAt === undefined
+        ? {}
+        : { rollsAt: args.rollsAt.map((aim) => ({ target: who(aim.target), count: aim.count })) }),
       ...(args.at === undefined ? {} : { at: point(args.at) }),
       ...(towards.value === undefined ? {} : { towards: towards.value }),
       ...(args.anchoring === undefined ? {} : { anchoring: args.anchoring }),
@@ -4519,6 +4536,12 @@ const RELEASE_READY = tool({
       .array(creatureId)
       .optional()
       .describe('Who a readied spell lands on. Empty for an area spell, which picks its own.'),
+    rollsAt: z
+      .array(z.strictObject({ target: creatureId, count: z.int().min(1) }))
+      .optional()
+      .describe(
+        'How to divide a readied casting that makes several attack rolls, exactly as `cast_spell.rollsAt` does. Said here rather than at the Ready, because the creatures it divides between are chosen here too.',
+      ),
     at: pointSchema.optional().describe('Where a readied area spell’s origin goes.'),
     placement: placementSchema
       .optional()
@@ -4541,6 +4564,11 @@ const RELEASE_READY = tool({
         {
           ...(args.ignore === true ? { ignore: true } : {}),
           ...(args.targets === undefined ? {} : { targets: args.targets.map(who) }),
+          ...(args.rollsAt === undefined
+            ? {}
+            : {
+                rollsAt: args.rollsAt.map((aim) => ({ target: who(aim.target), count: aim.count })),
+              }),
           ...(args.at === undefined ? {} : { at: point(args.at) }),
           ...(args.placement === undefined ? {} : { placement: placementOf(args.placement) }),
           ...(args.difficultFeet === undefined ? {} : { difficultFeet: args.difficultFeet }),

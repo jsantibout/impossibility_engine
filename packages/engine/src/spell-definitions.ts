@@ -1046,13 +1046,18 @@ export type SpellEffect =
        * **Where the rolls go is the caster's, stated by the creatures they
        * name.** SRD says it twice — "You can hurl them at one target within
        * range or at several", "you can direct the beams at the same target or
-       * at different ones" — so the rolls are dealt over the named targets in
-       * the order they were named, one each and round again for the surplus
-       * ({@link rollsDealtTo}). Naming one creature sends every roll at it and
-       * naming as many creatures as there are rolls sends one each, which are
-       * the two cases the sentence prints; an uneven split is said by naming
-       * the creature that takes more of them first. The engine never picks the
-       * creatures and never picks a face.
+       * at different ones" — so a caster who names creatures and says nothing
+       * else has the rolls dealt over them in the order they were named, one
+       * each and round again for the surplus ({@link rollsDealtTo}). Naming one
+       * creature sends every roll at it and naming as many creatures as there
+       * are rolls sends one each, which are the two cases the sentence prints.
+       *
+       * **The lopsided middle the sentence leaves open is said outright**, with
+       * a count beside each creature — `CastSpellRequest.rollsAt`, checked by
+       * `rollsAimedAt` and pinned onto a declaration. Three rays at the goblin
+       * and one at the ogre is a thing the caster decides; the deal could only
+       * ever produce two and two. The engine never picks the creatures, never
+       * picks the split and never picks a face.
        *
        * The count is also what bounds the target list, because a roll is what
        * a creature is named *for*: a cantrip with one beam takes one creature
@@ -4493,6 +4498,11 @@ export function attackRollsIn(
  * drops one, and never leaves a roll unthrown; what it does not do is invent a
  * lopsided split the caster did not ask for, which is why the odd roll goes to
  * the creature named first rather than anywhere cleverer.
+ *
+ * **What this is not is the only way a split can be said.** A caster who wants
+ * three rays at one creature and one at another states it — `rollsAt` on the
+ * request, checked by `rollsAimedAt` — and this deal is what a caster who said
+ * nothing gets.
  */
 export function rollsDealtTo(total: number, targets: number, index: number): number {
   if (targets <= 0) return 0;

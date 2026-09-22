@@ -12,8 +12,9 @@ import {
   type SpellDefinition,
 } from './spell-definitions.js';
 import { checkSpellDefinition } from './spell-schema.js';
+import { extendContent } from './content.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
-import { resolveSpell } from './commands.js';
+import { releaseReady, resolveDeclaredCast, resolveSpell, takeReady } from './commands.js';
 
 /**
  * Several attack rolls out of one casting.
@@ -549,5 +550,707 @@ describe('the validator on a roll count', () => {
     expect(codes(counting({ count: 3, cantripUpgradesAt: [5] }))).toEqual([
       'cantrip_scaling_on_spell',
     ]);
+  });
+});
+
+/**
+ * **An uneven split of the rolls, said by the caster.**
+ *
+ * SRD prints the two ends — "You can hurl them at one target within range or
+ * at several", "you can direct the beams at the same target or at different
+ * ones" — and the middle it leaves open is the lopsided one: three rays at the
+ * goblin and one at the ogre. The deal round the named creatures says every
+ * even split and none of those, so four rays at two creatures went two and two
+ * and never three and one.
+ *
+ * The caster says it outright now, with a count beside each creature they
+ * named. **Counts beside the list rather than repeats inside it**: a target
+ * named twice would be a target every *other* effect kind ran on twice, and
+ * `duplicate_target` still refuses that spelling.
+ */
+describe('an uneven split of the rolls', () => {
+  /**
+   * The discriminating case. Four rays out of a level 3 slot, two creatures,
+   * and the split the deal could never produce.
+   */
+  it('sends three rays at one creature and one at the other', () => {
+    const log = raying();
+    const { events, outcome } = cast(KESSA, log, {
+      spellId: 'scorching-ray',
+      targets: [GOBLIN, OGRE],
+      slotLevel: 3,
+      rollsAt: [
+        { target: GOBLIN, count: 3 },
+        { target: OGRE, count: 1 },
+      ],
+    });
+    expect(attacksIn(events, 'Scorching Ray')).toHaveLength(4);
+    expect(outcome.outcomes.map((o) => o.target)).toEqual([GOBLIN, GOBLIN, GOBLIN, OGRE]);
+    // Each ray keeps its own 2d6: four rays are four damage rolls, never one
+    // 8d6 divided between them.
+    for (const hit of outcome.outcomes) {
+      expect(hit.affected).toBe(true);
+      expect(hit.damage).toBeGreaterThanOrEqual(2);
+      expect(hit.damage).toBeLessThanOrEqual(12);
+    }
+  });
+
+  /** And the same casting, with nothing said, still deals two and two. */
+  it('still deals evenly when the caster says nothing', () => {
+    const log = raying();
+    const { outcome } = cast(KESSA, log, {
+      spellId: 'scorching-ray',
+      targets: [GOBLIN, OGRE],
+      slotLevel: 3,
+    });
+    expect(outcome.outcomes.map((o) => o.target)).toEqual([GOBLIN, GOBLIN, OGRE, OGRE]);
+  });
+
+  /** The other direction: the creature named second takes the most. */
+  it('sends the surplus wherever the caster put it', () => {
+    const log = raying();
+    const { outcome } = cast(KESSA, log, {
+      spellId: 'scorching-ray',
+      targets: [GOBLIN, OGRE],
+      slotLevel: 3,
+      rollsAt: [
+        { target: GOBLIN, count: 1 },
+        { target: OGRE, count: 3 },
+      ],
+    });
+    expect(outcome.outcomes.map((o) => o.target)).toEqual([GOBLIN, OGRE, OGRE, OGRE]);
+  });
+
+  /**
+   * A cantrip's beams are counted off the **caster's level** rather than a
+   * slot, and the split is measured against that count: a level 5 Warlock has
+   * two beams to place and three is not a split of them.
+   */
+  it('measures a cantrip’s split against the beams the caster has', () => {
+    const log = blasting(5);
+    const { outcome } = cast(KAEL, log, {
+      spellId: 'eldritch-blast',
+      targets: [GOBLIN, OGRE],
+      rollsAt: [
+        { target: GOBLIN, count: 1 },
+        { target: OGRE, count: 1 },
+      ],
+    });
+    expect(outcome.outcomes.map((o) => o.target)).toEqual([GOBLIN, OGRE]);
+    expect(
+      refusal(KAEL, log, {
+        spellId: 'eldritch-blast',
+        targets: [GOBLIN, OGRE],
+        rollsAt: [
+          { target: GOBLIN, count: 1 },
+          { target: OGRE, count: 2 },
+        ],
+      }),
+    ).toBe('wrong_roll_count');
+  });
+
+  /** A split said twice is the same casting; the rays are still the seed's. */
+  it('replays byte-identically', () => {
+    const log = raying();
+    const request = {
+      spellId: 'scorching-ray',
+      targets: [GOBLIN, OGRE],
+      slotLevel: 3,
+      rollsAt: [
+        { target: GOBLIN, count: 3 },
+        { target: OGRE, count: 1 },
+      ],
+    } as const;
+    const first = cast(KESSA, log, request);
+    const second = cast(KESSA, log, request);
+    expect(JSON.stringify(first.events)).toBe(JSON.stringify(second.events));
+  });
+
+  /**
+   * A casting held open for a Counterspell settles the split it was declared
+   * with. Settlement takes no fresh request, so the distribution is pinned
+   * beside the targets it is aligned to.
+   */
+  it('settles a declared casting with the split it was declared with', () => {
+    const log = raying();
+    const state = fold('seed', log);
+    const declared = unwrap(
+      resolveSpell(
+        state,
+        KESSA,
+        {
+          spellId: 'scorching-ray',
+          targets: [GOBLIN, OGRE],
+          slotLevel: 3,
+          hold: true,
+          rollsAt: [
+            { target: GOBLIN, count: 3 },
+            { target: OGRE, count: 1 },
+          ],
+        },
+        supply(state, CERTAIN),
+      ),
+      'declare',
+    );
+    const open = fold('seed', [...log, ...declared.events]);
+    const settled = unwrap(
+      resolveDeclaredCast(open, declared.castingId!, supply(open, CERTAIN)),
+      'settle',
+    );
+    expect(settled.outcomes.map((o) => o.target)).toEqual([GOBLIN, GOBLIN, GOBLIN, OGRE]);
+  });
+
+  /**
+   * **And a readied casting settles the split too**, which is the third road a
+   * casting takes and the one where the split is stated latest: SRD Ready
+   * casts the spell now and releases it later, and the creatures it lands on
+   * are chosen at the release rather than at the Ready. So the split is stated
+   * there, beside the targets it divides between.
+   */
+  it('releases a readied casting with the split the release states', () => {
+    const log = [
+      ...raying(),
+      {
+        type: 'combat-started',
+        combatants: [
+          { id: KESSA, initiative: 20, speed: 30 },
+          { id: GOBLIN, initiative: 10, speed: 30 },
+          { id: OGRE, initiative: 5, speed: 30 },
+        ],
+      } satisfies GameEvent,
+    ];
+    const readied = [
+      ...log,
+      ...unwrap(
+        takeReady(
+          fold('seed', log),
+          KESSA,
+          {
+            trigger: 'if the goblin breaks cover',
+            response: { kind: 'spell', spellId: 'scorching-ray', slotLevel: 3 },
+          },
+          SRD_CONTENT,
+        ),
+        'ready',
+      ),
+    ];
+    const open = fold('seed', readied);
+    const released = unwrap(
+      releaseReady(
+        open,
+        KESSA,
+        {
+          targets: [GOBLIN, OGRE],
+          rollsAt: [
+            { target: GOBLIN, count: 3 },
+            { target: OGRE, count: 1 },
+          ],
+        },
+        supply(open, CERTAIN),
+      ),
+      'release',
+    );
+    expect(released.spell?.outcomes.map((o) => o.target)).toEqual([
+      GOBLIN,
+      GOBLIN,
+      GOBLIN,
+      OGRE,
+    ]);
+  });
+
+  /**
+   * **The spelling that was rejected stays rejected.** A duplicate in the
+   * target list would be a creature every other effect kind ran on twice, so
+   * the counts are said beside the list and the list itself is still a set.
+   */
+  it('still refuses the same creature named twice', () => {
+    expect(
+      refusal(KESSA, raying(), {
+        spellId: 'scorching-ray',
+        targets: [GOBLIN, GOBLIN],
+        slotLevel: 3,
+      }),
+    ).toBe('duplicate_target');
+  });
+
+  it('refuses a count that is not a whole number of rolls, at least one', () => {
+    const at = (count: number) => [
+      { target: GOBLIN, count },
+      { target: OGRE, count: 4 - count },
+    ];
+    for (const bad of [0, -1, 1.5]) {
+      expect(
+        refusal(KESSA, raying(), {
+          spellId: 'scorching-ray',
+          targets: [GOBLIN, OGRE],
+          slotLevel: 3,
+          rollsAt: at(bad),
+        }),
+      ).toBe('not_a_roll_count');
+    }
+  });
+
+  /** More rays than the casting has, and fewer: a ray unthrown is not a split. */
+  it('refuses a split that is not the number of rolls the casting makes', () => {
+    expect(
+      refusal(KESSA, raying(), {
+        spellId: 'scorching-ray',
+        targets: [GOBLIN, OGRE],
+        slotLevel: 3,
+        rollsAt: [
+          { target: GOBLIN, count: 4 },
+          { target: OGRE, count: 1 },
+        ],
+      }),
+    ).toBe('wrong_roll_count');
+    expect(
+      refusal(KESSA, raying(), {
+        spellId: 'scorching-ray',
+        targets: [GOBLIN, OGRE],
+        slotLevel: 3,
+        rollsAt: [
+          { target: GOBLIN, count: 2 },
+          { target: OGRE, count: 1 },
+        ],
+      }),
+    ).toBe('wrong_roll_count');
+  });
+
+  it('refuses a split that aims at somebody the casting never named', () => {
+    expect(
+      refusal(KESSA, raying(), {
+        spellId: 'scorching-ray',
+        targets: [GOBLIN, OGRE],
+        slotLevel: 3,
+        rollsAt: [
+          { target: GOBLIN, count: 3 },
+          { target: BOAR, count: 1 },
+        ],
+      }),
+    ).toBe('not_a_target');
+  });
+
+  it('refuses a split that names one creature twice', () => {
+    expect(
+      refusal(KESSA, raying(), {
+        spellId: 'scorching-ray',
+        targets: [GOBLIN, OGRE],
+        slotLevel: 3,
+        rollsAt: [
+          { target: GOBLIN, count: 2 },
+          { target: GOBLIN, count: 1 },
+          { target: OGRE, count: 1 },
+        ],
+      }),
+    ).toBe('duplicate_target');
+  });
+
+  /** A creature named for no roll is a creature named for nothing. */
+  it('refuses a split that leaves a named creature with no roll', () => {
+    expect(
+      refusal(KESSA, raying(), {
+        spellId: 'scorching-ray',
+        targets: [GOBLIN, OGRE],
+        slotLevel: 3,
+        rollsAt: [{ target: GOBLIN, count: 4 }],
+      }),
+    ).toBe('missing_roll_count');
+  });
+
+  /**
+   * **Two spellings of one request are one command.** A split is a *mapping*
+   * from creature to share, so the order the caller happened to write the
+   * pairs in says nothing about the casting, and `castingIdentity` sorts it
+   * away — which is sound for any definition, because two lists of the same
+   * pairs are the same mapping whatever spell they are aimed at.
+   *
+   * **A split that spells out the deal is a different question**, and the
+   * fingerprint deliberately declines it: see the two tests below, and
+   * `castingIdentity`'s own docstring for why the line falls there.
+   */
+  it('takes a re-ordered split as the same command', () => {
+    const log = raying();
+    const state = fold('seed', log);
+    const first = unwrap(
+      resolveSpell(
+        state,
+        KESSA,
+        {
+          spellId: 'scorching-ray',
+          targets: [GOBLIN, OGRE],
+          slotLevel: 3,
+          commandId: 'one',
+          rollsAt: [
+            { target: GOBLIN, count: 3 },
+            { target: OGRE, count: 1 },
+          ],
+        },
+        supply(state, CERTAIN),
+      ),
+      'first',
+    );
+    const after = fold('seed', [...log, ...first.events]);
+    // The same pairs, written the other way round, under the same id.
+    const retry = resolveSpell(
+      after,
+      KESSA,
+      {
+        spellId: 'scorching-ray',
+        targets: [GOBLIN, OGRE],
+        slotLevel: 3,
+        commandId: 'one',
+        rollsAt: [
+          { target: OGRE, count: 1 },
+          { target: GOBLIN, count: 3 },
+        ],
+      },
+      supply(after, CERTAIN),
+    );
+    expect(isErr(retry)).toBe(false);
+    if (!retry.ok) return;
+    // A retry that lands is the casting that already happened, reported again
+    // and charged for nothing.
+    expect(retry.value.events).toEqual([]);
+    expect(retry.value.castingId).toBe(first.castingId);
+  });
+
+  /**
+   * **And the same of the other door.** A release states its own split,
+   * because it chooses its own creatures, so it owes the same normalisation:
+   * `releaseReady` fingerprints its command too, and a re-ordered mapping is
+   * the same release.
+   */
+  it('takes a re-ordered split as the same release', () => {
+    const log = [
+      ...raying(),
+      {
+        type: 'combat-started',
+        combatants: [
+          { id: KESSA, initiative: 20, speed: 30 },
+          { id: GOBLIN, initiative: 10, speed: 30 },
+          { id: OGRE, initiative: 5, speed: 30 },
+        ],
+      } satisfies GameEvent,
+    ];
+    const readied = [
+      ...log,
+      ...unwrap(
+        takeReady(
+          fold('seed', log),
+          KESSA,
+          {
+            trigger: 'if the goblin breaks cover',
+            response: { kind: 'spell', spellId: 'scorching-ray', slotLevel: 3 },
+          },
+          SRD_CONTENT,
+        ),
+        'ready',
+      ),
+    ];
+    const open = fold('seed', readied);
+    const released = unwrap(
+      releaseReady(
+        open,
+        KESSA,
+        {
+          targets: [GOBLIN, OGRE],
+          commandId: 'let-it-go',
+          rollsAt: [
+            { target: GOBLIN, count: 3 },
+            { target: OGRE, count: 1 },
+          ],
+        },
+        supply(open, CERTAIN),
+      ),
+      'release',
+    );
+    const after = fold('seed', [...readied, ...released.events]);
+    const retry = releaseReady(
+      after,
+      KESSA,
+      {
+        targets: [GOBLIN, OGRE],
+        commandId: 'let-it-go',
+        rollsAt: [
+          { target: OGRE, count: 1 },
+          { target: GOBLIN, count: 3 },
+        ],
+      },
+      supply(after, CERTAIN),
+    );
+    expect(isErr(retry)).toBe(false);
+    if (!retry.ok) return;
+    expect(retry.value.events).toEqual([]);
+  });
+
+  /**
+   * **What a fingerprint may normalise, and what it may not.** Two spellings of
+   * one mapping are one command, because that is true of the request alone.
+   * Whether a split is *this casting's* default is not: it depends on how many
+   * rolls the casting makes, which the fingerprint cannot see and which is
+   * looked up on the far side of the duplicate check. A fingerprint that
+   * guessed would hand a caller `ok` for a casting the engine would have
+   * refused — the id already landed, so the body that does the refusing never
+   * runs.
+   */
+  it('does not take an illegal split as the casting that stated none', () => {
+    const log = raying();
+    const state = fold('seed', log);
+    const landed = unwrap(
+      resolveSpell(
+        state,
+        KESSA,
+        {
+          spellId: 'scorching-ray',
+          targets: [GOBLIN, OGRE],
+          slotLevel: 3,
+          commandId: 'once-only',
+        },
+        supply(state, CERTAIN),
+      ),
+      'cast',
+    );
+    const after = fold('seed', [...log, ...landed.events]);
+    // Three rays' worth of split on a four-ray casting — `wrong_roll_count`
+    // when it is validated, and it must not slip past as a retry of the
+    // casting that named the same creatures and stated nothing.
+    const smuggled = resolveSpell(
+      after,
+      KESSA,
+      {
+        spellId: 'scorching-ray',
+        targets: [GOBLIN, OGRE],
+        slotLevel: 3,
+        commandId: 'once-only',
+        rollsAt: [
+          { target: GOBLIN, count: 2 },
+          { target: OGRE, count: 1 },
+        ],
+      },
+      supply(after, CERTAIN),
+    );
+    expect(isErr(smuggled)).toBe(true);
+    if (!isErr(smuggled)) return;
+    expect(smuggled.code).toBe('command_id_reused');
+  });
+
+  /**
+   * **And the price of that, pinned rather than left to be discovered.**
+   *
+   * The refusal above is the same refusal a caller gets for spelling out the
+   * split the engine would have dealt anyway: the fingerprint cannot tell the
+   * two apart without the definition, so it tells neither apart and says no to
+   * both. That is the conservative direction — a retry refused is a caller
+   * told, where a retry wrongly accepted is a caster silently charged nothing
+   * for a casting they did not make — and it is here so that anybody making
+   * this symmetric with the record has to delete a test to do it.
+   */
+  it('refuses a retry that spells out the deal, because it cannot know it is the deal', () => {
+    const log = raying();
+    const state = fold('seed', log);
+    const landed = unwrap(
+      resolveSpell(
+        state,
+        KESSA,
+        {
+          spellId: 'scorching-ray',
+          targets: [GOBLIN, OGRE],
+          slotLevel: 3,
+          commandId: 'spelled-out',
+        },
+        supply(state, CERTAIN),
+      ),
+      'cast',
+    );
+    const after = fold('seed', [...log, ...landed.events]);
+    const retry = resolveSpell(
+      after,
+      KESSA,
+      {
+        spellId: 'scorching-ray',
+        targets: [GOBLIN, OGRE],
+        slotLevel: 3,
+        commandId: 'spelled-out',
+        // Exactly what the deal would have thrown, and the fingerprint has no
+        // way to know it: how many rays there are is the definition's answer.
+        rollsAt: [
+          { target: GOBLIN, count: 2 },
+          { target: OGRE, count: 2 },
+        ],
+      },
+      supply(after, CERTAIN),
+    );
+    expect(isErr(retry)).toBe(true);
+    if (!isErr(retry)) return;
+    expect(retry.code).toBe('command_id_reused');
+  });
+
+  /** And the deal, spelled out, is the casting that said nothing. */
+  it('takes a split that is only the deal as the casting that stated none', () => {
+    const log = raying();
+    const said = cast(KESSA, log, {
+      spellId: 'scorching-ray',
+      targets: [GOBLIN, OGRE],
+      slotLevel: 3,
+      rollsAt: [
+        { target: GOBLIN, count: 2 },
+        { target: OGRE, count: 2 },
+      ],
+    });
+    const silent = cast(KESSA, log, {
+      spellId: 'scorching-ray',
+      targets: [GOBLIN, OGRE],
+      slotLevel: 3,
+    });
+    expect(JSON.stringify(said.events)).toBe(JSON.stringify(silent.events));
+
+    // And the same of a declaration, which is where it would have been
+    // written down: two records meaning one casting must fold to one record.
+    const state = fold('seed', log);
+    const held = (rollsAt?: readonly { target: CharacterId; count: number }[]) =>
+      unwrap(
+        resolveSpell(
+          state,
+          KESSA,
+          {
+            spellId: 'scorching-ray',
+            targets: [GOBLIN, OGRE],
+            slotLevel: 3,
+            hold: true,
+            ...(rollsAt === undefined ? {} : { rollsAt }),
+          },
+          supply(state, CERTAIN),
+        ),
+        'declare',
+      );
+    expect(
+      JSON.stringify(
+        held([
+          { target: GOBLIN, count: 2 },
+          { target: OGRE, count: 2 },
+        ]).events,
+      ),
+    ).toBe(JSON.stringify(held().events));
+  });
+
+  /** A field quietly ignored is a caller who thinks they said something. */
+  it('refuses a split on a casting that makes one attack roll', () => {
+    expect(
+      refusal(KESSA, raying(), {
+        spellId: 'fire-bolt',
+        targets: [GOBLIN],
+        rollsAt: [{ target: GOBLIN, count: 1 }],
+      }),
+    ).toBe('no_rolls_to_aim');
+  });
+
+  it('refuses a split on a casting that rolls no attack at all', () => {
+    expect(
+      refusal(KESSA, raying(), {
+        spellId: 'hold-person',
+        targets: [GOBLIN],
+        slotLevel: 2,
+        rollsAt: [{ target: GOBLIN, count: 1 }],
+      }),
+    ).toBe('no_rolls_to_aim');
+  });
+});
+
+/**
+ * **A split is measured against the longest attack in the list**, because
+ * `attackRollsIn` is what bounds the target list and what the caller is told
+ * they may divide. A definition whose two attacks throw *different* numbers of
+ * rolls therefore has no single split to state, and the shorter one falls back
+ * to the deal rather than spending rays it never had.
+ *
+ * No SRD spell has two attack effects at all, so this is reached the way
+ * `content.test.ts` reaches everything else the format allows and the
+ * catalogue does not write: through the homebrew door, which is the same door.
+ */
+describe('a definition whose two attacks throw different numbers of rolls', () => {
+  /** Three bolts and one splinter, out of one cantrip. */
+  const FORKED: SpellDefinition = {
+    id: 'forked-bolt',
+    name: 'Forked Bolt',
+    level: 0,
+    school: 'evocation',
+    castingTime: 'action',
+    concentration: false,
+    range: { kind: 'ranged', feet: 120 },
+    targets: { count: 1 },
+    effects: [
+      {
+        kind: 'attack',
+        attack: 'ranged',
+        damage: { dice: '1d6' },
+        damageType: 'force',
+        rolls: { count: 3 },
+      },
+      { kind: 'attack', attack: 'ranged', damage: { dice: '1d4' }, damageType: 'force' },
+    ],
+  };
+
+  const homebrew = unwrap(
+    extendContent(SRD_CONTENT, {
+      spells: [FORKED],
+      spellEntries: [
+        {
+          id: 'forked-bolt',
+          name: 'Forked Bolt',
+          level: 0,
+          school: 'evocation',
+          classes: ['wizard'],
+          castingTime: 'Action',
+          ritual: false,
+          concentration: false,
+        },
+      ],
+    }),
+    'homebrew content',
+  );
+
+  const forking = (): GameEvent[] => {
+    const choices = wizard();
+    return [
+      ...unwrap(
+        createCharacter(
+          homebrew,
+          { ...choices, cantrips: [...choices.cantrips.slice(0, 3), 'forked-bolt'] },
+          KESSA,
+        ),
+        'wizard',
+      ),
+      ...scene(KESSA),
+    ];
+  };
+
+  /**
+   * The split spends the three bolts and the splinter is dealt as it always
+   * was: four rolls, not six. A resolver that read the split without checking
+   * whose rolls it was would throw the splinter three times as well.
+   */
+  it('spends the stated split on the attack it was counted from, and deals the other', () => {
+    const log = forking();
+    const state = fold('seed', log);
+    const outcome = unwrap(
+      resolveSpell(
+        state,
+        KESSA,
+        {
+          spellId: 'forked-bolt',
+          targets: [GOBLIN, OGRE],
+          rollsAt: [
+            { target: GOBLIN, count: 1 },
+            { target: OGRE, count: 2 },
+          ],
+        },
+        { ...supply(state, CERTAIN), content: homebrew },
+      ),
+      'cast',
+    );
+    expect(attacksIn(outcome.events, 'Forked Bolt')).toHaveLength(4);
+    // The goblin takes one bolt and the splinter; the ogre takes two bolts and
+    // nothing else, because `rollsDealtTo(1, 2, 1)` is nought.
+    expect(outcome.outcomes.map((o) => o.target)).toEqual([GOBLIN, GOBLIN, OGRE, OGRE]);
   });
 });

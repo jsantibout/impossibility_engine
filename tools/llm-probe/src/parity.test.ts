@@ -114,6 +114,9 @@ const AUDIT: readonly {
     fates: {
       spellId: expose('spell_id'),
       targets: expose('targets'),
+      rollsAt: because(
+        'how a casting that makes several attack rolls divides them — SRD Scorching Ray\'s "at one target within range or at several", Eldritch Blast\'s beams. A real caster decision and not a number that decides an outcome: it says where the engine\'s rolls go and the engine still throws every one of them. Withheld because there is nothing to divide here — the Mage has Scorching Ray prepared and the benchmark fight has exactly one hostile creature in it, so every ray goes at the ogre whether or not a split is stated, and a published field could only ever be sent the value the default already produces. Publish it the day a benchmark has two enemies standing',
+      ),
       at: expose('at'),
       // The Tier 2 fix. Published as a point to aim at — a creature, a
       // landmark or a spot — because that is what the engine takes and because

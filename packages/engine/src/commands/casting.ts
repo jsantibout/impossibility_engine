@@ -475,6 +475,17 @@ export interface CastCommand extends CommandIdentity {
 export interface CastingPlan {
   readonly spellId: string;
   readonly targets: readonly CharacterId[];
+  /**
+   * How many of the casting's attack rolls each of `targets` takes, aligned to
+   * that list by position.
+   *
+   * Beside the targets and for the same reason: settlement takes no fresh
+   * request, so a Scorching Ray declared three rays at the goblin and one at
+   * the ogre must not settle two and two. Absent for every casting whose
+   * caster stated no split, which is all but the two spells that throw several
+   * rolls — see `rollsAimedAt`.
+   */
+  readonly rollsPerTarget?: readonly number[];
   readonly unverified: readonly string[];
   /**
    * The space chosen at declaration, for a spell that holds a point.
@@ -892,6 +903,11 @@ function castSpellWith(
         concentration,
         ...(command.route === undefined ? {} : { route: command.route }),
         targets: command.hold.targets,
+        // The split the caster stated, carried verbatim beside the list it is
+        // aligned to — checked once, where the request was read.
+        ...(command.hold.rollsPerTarget === undefined
+          ? {}
+          : { rollsPerTarget: command.hold.rollsPerTarget }),
         ...(command.hold.origin === undefined ? {} : { origin: command.hold.origin }),
         ...(command.hold.area === undefined ? {} : { area: command.hold.area }),
         // The facts the caster stated, carried verbatim. Already sorted

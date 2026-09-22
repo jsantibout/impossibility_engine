@@ -154,6 +154,22 @@ export interface EffectContext {
    * not be replayable.
    */
   readonly targets: readonly CharacterId[];
+  /**
+   * How many of this casting's attack rolls each of {@link targets} takes,
+   * **aligned to that list by position**.
+   *
+   * The caster's own split, where they stated one — SRD's "at one target
+   * within range or at several" with the lopsided middle said out loud. Absent
+   * where they said nothing, and then `rollsDealtTo` deals them round the list
+   * exactly as it always has.
+   *
+   * A vector rather than a second list of ids, because the ids are already
+   * here in {@link targets} and a casting that named a creature twice is the
+   * thing this shape exists to avoid. Validated once, at the casting, by
+   * `rollsAimedAt`, and pinned onto a declaration so a held casting settles
+   * the split it was declared with.
+   */
+  readonly rollsPerTarget?: readonly number[];
   readonly castLevel: number;
   /**
    * The level of the **slot that paid** for this casting, where one did.

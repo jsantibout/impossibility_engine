@@ -939,6 +939,12 @@ export const STARRY_WISP = attackCantrip({
  *
  * `targets: { count: 1 }` is what the spell prints \u2014 "against one creature or
  * object in range" \u2014 and the beams are what widen it, one creature per beam.
+ *
+ * **"At the same target or at different ones" is said in full**, the lopsided
+ * middle included: a caster who wants two beams on the ogre and one on the
+ * goblin states it on the casting (`rollsAt`), and one who says nothing has
+ * them dealt evenly round the creatures they named. This spell carried the
+ * other half of that sentence as `unmodelled` until the count could be stated.
  */
 export const ELDRITCH_BLAST: SpellDefinition = {
   id: 'eldritch-blast',
@@ -959,9 +965,6 @@ export const ELDRITCH_BLAST: SpellDefinition = {
       // level 17" \u2014 the Cantrip Upgrade's own three levels, spent on rolls.
       rolls: { count: 1, cantripUpgradesAt: [5, 11, 17] },
     },
-  ],
-  unmodelled: [
-    'an uneven split of the beams: the attack rolls are dealt one to each creature named and round again for the rest, so four beams at two creatures go two and two and never three and one',
   ],
 };
 
@@ -6705,6 +6708,12 @@ export const LEVITATE: SpellDefinition = {
  * The two counts say two different things and happen to agree: `targets` is
  * how many creatures may be named — "at one target within range or at several",
  * one more per slot level — and `rolls` is how many rays are hurled at them.
+ *
+ * **And how they are divided is the caster's, all of it.** "At one target
+ * within range or at several" leaves the middle open, so four rays at two
+ * creatures may go three and one as readily as two and two — stated on the
+ * casting (`rollsAt`), dealt evenly when nothing is said. That middle was this
+ * spell's last `unmodelled` line.
  */
 export const SCORCHING_RAY: SpellDefinition = {
   id: 'scorching-ray',
@@ -6726,9 +6735,6 @@ export const SCORCHING_RAY: SpellDefinition = {
       // "You create one additional ray for each spell slot level above 2."
       rolls: { count: 3, extraPerSlotLevelAbove: 1 },
     },
-  ],
-  unmodelled: [
-    'an uneven split of the rays: the attack rolls are dealt one to each creature named and round again for the rest, so four rays at two creatures go two and two and never three and one',
   ],
 };
 

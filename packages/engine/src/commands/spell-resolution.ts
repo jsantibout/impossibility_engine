@@ -191,6 +191,7 @@ import {
   type HeldCasting,
   namedTargets,
   placeOrigin,
+  rollsAimedAt,
   type SpellResolution,
   type SpellTargetOutcome,
 } from './targeting.js';
@@ -372,6 +373,12 @@ export function resolveDeclaredCast(
       ...(pending.numbers === undefined ? {} : { numbers: pending.numbers }),
       ...(pending.ability === undefined ? {} : { ability: pending.ability }),
       targets: pending.targets,
+      // The sixth stated fact, read back off the record beside the targets it
+      // is aligned to. A Scorching Ray declared three-and-one settles three
+      // and one.
+      ...(pending.rollsPerTarget === undefined
+        ? {}
+        : { rollsPerTarget: pending.rollsPerTarget }),
       unverified: [...pending.unverified],
       supply,
       castingId: pending.castingId,
@@ -802,6 +809,21 @@ export function castOrRelease(
     const narrowed = selfOnlyRefusal(route, supply.content, definition, casterId, targets);
     if (!narrowed.ok) return narrowed;
 
+    // **Where the caster said their rolls go**, checked with the targets
+    // settled and before anything is spent — which is why it is here rather
+    // than inside `namedTargets`: an area spell resolves its own list and a
+    // split stated at one is refused by the same rule that refuses one stated
+    // at a Fire Bolt. The caster's level is the one the numbers were derived
+    // from, because a cantrip's beam count is read off it.
+    const aimed = rollsAimedAt(
+      definition,
+      request,
+      targets,
+      castLevel,
+      numbersFor(sheetAsItStands(state, casterId) ?? caster.sheet, route).casterLevel,
+    );
+    if (!aimed.ok) return aimed;
+
     // What the targets **are**, where the spell answers differently by type.
     // Asked here, with the targets settled and before anything is spent, so a
     // Blight aimed at a creature nobody has typed costs its caster nothing —
@@ -953,6 +975,7 @@ export function castOrRelease(
       castLevel,
       route,
       targets,
+      ...(aimed.value === undefined ? {} : { rollsPerTarget: aimed.value }),
       unverified,
       supply,
       held,
@@ -1362,6 +1385,13 @@ function resolveOnTargets(
     readonly castLevel: number;
     readonly route: CastingRoute;
     readonly targets: readonly CharacterId[];
+    /**
+     * The split of the casting's attack rolls the caster stated, aligned to
+     * `targets` by position and already checked by `rollsAimedAt`.
+     *
+     * Absent where they stated none, which is the deal `rollsDealtTo` makes.
+     */
+    readonly rollsPerTarget?: readonly number[];
     readonly unverified: string[];
     readonly supply: Supply;
     /** Set when the casting was paid for earlier — a readied spell. */
@@ -1398,7 +1428,9 @@ function resolveOnTargets(
 ): Result<SpellResolution> {
   const { castLevel, route, targets, unverified, supply, held, origin, area, stamp, casting } =
     context;
-  const { paidLevel, altered } = context;
+  const { paidLevel, altered, rollsPerTarget } = context;
+  /** The caster's split, spread onto whichever run this casting takes. */
+  const split = rollsPerTarget === undefined ? {} : { rollsPerTarget };
 
 
   // Normalised here, once, and read by both paths out of this file: the
@@ -1542,6 +1574,7 @@ function resolveOnTargets(
         numbers,
         route,
         targets,
+        ...split,
         unverified,
         supply,
         castingId: held.castingId,
@@ -1766,6 +1799,12 @@ function resolveOnTargets(
             hold: {
               spellId: request.spellId,
               targets,
+              // **Beside the targets, because it is aligned to them.** A held
+              // Scorching Ray settles the split it was declared with; a
+              // settlement takes no fresh request, so dropping this would
+              // quietly deal the rays evenly a round after the caster said
+              // otherwise.
+              ...split,
               unverified,
               ...(origin === null ? {} : { origin }),
               ...(area === null ? {} : { area }),
@@ -1858,6 +1897,7 @@ function resolveOnTargets(
       numbers,
       route,
       targets,
+      ...split,
       unverified,
       supply,
       castingId,
@@ -2061,6 +2101,8 @@ export function resolveEffects(
     /** The numbers this casting was made with, for every use after the first. */
     readonly numbers?: CastingNumbers;
     readonly targets: readonly CharacterId[];
+    /** The caster's split of this casting's attack rolls — see `rollsAimedAt`. */
+    readonly rollsPerTarget?: readonly number[];
     readonly unverified: string[];
     readonly supply: Supply;
     readonly castingId: string;
@@ -2176,6 +2218,7 @@ export function resolveEffects(
     // answer the sheet would have given for a caster who had none.
     ability: context.ability ?? route?.ability ?? caster?.sheet.spellcastingAbility ?? null,
     targets,
+    ...(context.rollsPerTarget === undefined ? {} : { rollsPerTarget: context.rollsPerTarget }),
     unverified,
     supply,
     events,
@@ -2323,6 +2366,15 @@ export interface EffectRun {
    */
   readonly numbers?: CastingNumbers;
   readonly targets: readonly CharacterId[];
+  /**
+   * The caster's split of this casting's attack rolls, aligned to
+   * {@link targets} by position — see `rollsAimedAt`.
+   *
+   * Absent for every run that is not a casting being made or settled: an
+   * activation and a conferral throw one roll at one creature, so there is
+   * nothing to divide.
+   */
+  readonly rollsPerTarget?: readonly number[];
   readonly unverified: string[];
   readonly supply: Supply;
   /** The batch being built; every event this run produces is appended to it. */
@@ -2545,6 +2597,7 @@ export function runEffects(
     level,
     source,
     targets,
+    ...(run.rollsPerTarget === undefined ? {} : { rollsPerTarget: run.rollsPerTarget }),
     castLevel,
     ...(run.slotLevel === undefined ? {} : { slotLevel: run.slotLevel }),
     route,

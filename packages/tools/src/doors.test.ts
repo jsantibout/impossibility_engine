@@ -872,6 +872,15 @@ const ANSWERS: Readonly<Record<string, Answer>> = {
   // not touch. `holdings.test.ts` drives both halves.
   division_required: { fields: ['use_pool_option.among'] },
 
+  // — a creature named for a roll that the split never gave one ——————————————
+  // SRD Scorching Ray's "at one target within range or at several" with the
+  // lopsided middle said out loud: a count beside each creature named. A
+  // target left out of the split was named for nothing, and the answer is the
+  // same call with that creature's share filled in. Two doors, because a
+  // readied casting chooses its creatures at the release rather than at the
+  // Ready, so the split is stated there too.
+  missing_roll_count: { fields: ['cast_spell.rollsAt', 'release_ready.rollsAt'] },
+
   // — and two that are not a caller's to answer at all —————————————————————
   missing_field: {
     unanswerable:
