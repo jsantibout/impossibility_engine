@@ -1377,6 +1377,8 @@ export interface StatedFacts {
   readonly unaffected?: readonly CharacterId[];
   /** Where a teleporting spell puts its target. */
   readonly teleportTo?: Placement;
+  /** The weapon a spell that imbues one was aimed at, by catalogue id. */
+  readonly weapon?: string;
 }
 
 /** What this creature is holding for a trigger, or null. */
@@ -1626,6 +1628,7 @@ function statedOf(response: StatedFacts): StatedFacts {
     ...(response.fought === undefined ? {} : { fought: response.fought }),
     ...(response.unaffected === undefined ? {} : { unaffected: response.unaffected }),
     ...(response.teleportTo === undefined ? {} : { teleportTo: response.teleportTo }),
+    ...(response.weapon === undefined ? {} : { weapon: response.weapon }),
   };
 }
 

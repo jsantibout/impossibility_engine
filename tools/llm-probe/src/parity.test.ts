@@ -141,6 +141,9 @@ const AUDIT: readonly {
       teleportTo: because(
         'where a teleporting spell puts its target. Two spells print the clause — Misty Step and Dimension Door — and the engine refuses a casting of either that names no space, so this is required rather than optional the day one of them is castable here. Neither benchmark character has one prepared, and publishing it means publishing a `Placement`, which is the vocabulary the movement tool would have to expose first',
       ),
+      weapon: because(
+        'which weapon a spell that imbues one was aimed at. Two spells print the clause — Shillelagh and Magic Weapon — and the engine refuses a casting of either that names none, so this is required rather than optional the day one of them is castable here. Neither benchmark character has one prepared, and the answer is an item id off the sheet rather than anything this surface would have to teach',
+      ),
       payment: because(
         'a free daily casting *and* a slot both serving. Reachable in principle — all three Tier 2 characters carry a Magic Initiate free casting — and measured as unreachable in practice: Shield refuses on its Reaction trigger first and Mage Armor has no executable definition, so the engine never gets as far as asking',
       ),

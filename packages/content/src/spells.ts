@@ -7901,10 +7901,31 @@ export const RESISTANCE: SpellDefinition = {
  * > _Cantrip Upgrade._ "The damage die changes when you reach levels 5 (d10),
  * > 11 (d12), and 17 (2d6)."
  *
- * Every clause rides a **later** weapon attack, which is the shape a casting
- * has no way to hang anything on. The one clause that does not is the recast
- * — `replacesPriorCasting` is exactly "if you cast it again" — so that half
- * is real and the rest is the table's.
+ * **The spell the `weapon-rider` grant was built for**, with Magic Weapon.
+ * Every clause of it rides a *later* attack made with **one object**, and
+ * neither narrowing the engine had could name one: `onlyWithItem` keys on the
+ * item that granted a benefit and nothing granted this, and a
+ * `WeaponNarrowing` over Simple Melee would have imbued every Dagger in the
+ * pack. `CastSpellRequest.weapon` is the casting naming its own, and
+ * `GrantedWeaponRider` is what a swing reads back.
+ *
+ * **"A Club or Quarterstaff" is two objects, not a description.** No selector
+ * over category, kind and properties says it — Simple Melee and Light catches
+ * a Dagger, Versatile catches a Longsword — so the two are named by id, which
+ * is content naming content and not the engine learning a catalogue.
+ *
+ * **The Cantrip Upgrade is a band table on the caster's level**, not
+ * `cantripUpgradesAt`: that field *adds* a die of the base notation, and this
+ * sentence changes the die's size and then how many there are. No arithmetic
+ * over 1d8 produces d10, d12, 2d6.
+ *
+ * Two clauses are left, and they are two different kinds of leftover. The
+ * damage-type choice is made at each later attack rather than at the casting,
+ * which is the half of this shape that is still open — it is the same sentence
+ * Conjure Minor Elementals prints. And "if you let go of the weapon" is a
+ * cause `endsEarly` has no member for; the casting now knows *which* weapon,
+ * which is half of what that clause needed, and what is still missing is a
+ * fact about whose hand it is in and an event that says it changed.
  */
 export const SHILLELAGH: SpellDefinition = {
   id: 'shillelagh',
@@ -7914,16 +7935,28 @@ export const SHILLELAGH: SpellDefinition = {
   castingTime: 'bonus-action',
   concentration: false,
   range: { kind: 'self' },
-  targets: { count: 0 },
-  effects: [],
+  targets: { count: 1, self: true },
+  effects: [
+    {
+      kind: 'weapon-rider',
+      // "A Club or Quarterstaff you are holding".
+      weapons: ['club', 'quarterstaff'],
+      // "the attack and damage rolls of **melee** attacks using that weapon".
+      meleeOnly: true,
+      // "you can use your spellcasting ability instead of Strength" — an
+      // offer, which is how `attackAbility` reads a style's ability.
+      castingAbility: true,
+      // "the weapon's damage die becomes a d8", and the Cantrip Upgrade.
+      die: '1d8',
+      dieAtLevel: { 5: '1d10', 11: '1d12', 17: '2d6' },
+    },
+  ],
   durationSeconds: 60,
   // SRD: "The spell ends early if you cast it again."
   replacesPriorCasting: true,
   unmodelled: [
-    'the substituted ability is not applied: "you can use your spellcasting ability instead of Strength for the attack and damage rolls of melee attacks using that weapon" is a rider on every later attack with one particular weapon, and a casting hangs none',
-    'the weapon’s damage die is not changed, and neither is the upgrade that changes it again: "The damage die changes when you reach levels 5 (d10), 11 (d12), and 17 (2d6)" rewrites a weapon’s printed die for a duration',
-    'the choice between Force damage and the weapon’s normal type is not recorded, because no later attack reads it',
-    'which weapon was imbued is not held, so "if you let go of the weapon" cannot end the spell: what is in a creature’s hands is not a fact the engine keeps',
+    'the choice between Force damage and the weapon’s normal type is not applied: "If the attack deals damage, it can be Force damage or the weapon’s normal damage type (your choice)" is chosen at each later attack rather than at the casting, and an attack carries no such choice',
+    'the spell does not end when you let go of the weapon: which weapon was imbued is now held, and whose hand it is in is not — an inventory says what a creature has and no event says what it dropped',
   ],
 };
 
@@ -8512,11 +8545,26 @@ export const ENHANCE_ABILITY: SpellDefinition = {
  * > level 3–5 spell slot. The bonus increases to +3 with a level 6+ spell
  * > slot."
  *
- * The bonus is arithmetic the engine does on every attack a magic weapon
- * makes; what it cannot do is put the bonus on **this** weapon for an hour.
- * A weapon is an item a creature owns and wields, not a thing a casting can
- * write a property onto — which is the same absence Shillelagh has, one
- * level up and with a plus instead of a die.
+ * **One number reaching two rolls**, which is why this is not a `buff`:
+ * `BonusApplies` covers attacks, saves, ability checks and an Armour Class,
+ * and a damage roll is none of them. And the plus is of the weapon's **own**
+ * type — a Mace under this deals 7 Bludgeoning, not 6 Bludgeoning and 1 of
+ * something else — which is what keeps it out of `attack-rider` beside it.
+ *
+ * **Range: Touch is what makes the grant's owner a real question.**
+ * Shillelagh is Range: Self and its caster and its wielder are the same
+ * creature; here the Paladin may enchant the Fighter's Greatsword, and the
+ * plus is the Fighter's. So the grant lands on the effect's target, which is
+ * the ordinary rule every other grant follows and the opposite of the
+ * asymmetry `attack-rider` needed for Hunter's Mark.
+ *
+ * The bands are the spell's own table, read the way `durationAtSlot` is read:
+ * the highest key at or below the slot, and `bonus` for a slot below every
+ * band. A level 5 slot falls in the band that opened at 3.
+ *
+ * "You touch a **nonmagical** weapon" is the one clause left. A weapon's
+ * magicality is not a fact the engine holds — nothing reads one, so nothing
+ * could refuse a second casting on an already-magic Longsword.
  */
 export const MAGIC_WEAPON: SpellDefinition = {
   id: 'magic-weapon',
@@ -8526,14 +8574,21 @@ export const MAGIC_WEAPON: SpellDefinition = {
   castingTime: 'bonus-action',
   concentration: false,
   range: { kind: 'touch' },
-  targets: { count: 0 },
-  effects: [],
+  targets: { count: 1, self: true },
+  effects: [
+    {
+      kind: 'weapon-rider',
+      // "a +1 bonus to attack rolls and damage rolls", and the two bands the
+      // higher-slot clause prints.
+      bonus: 1,
+      bonusAtSlot: { 3: 2, 6: 3 },
+    },
+  ],
   durationSeconds: 3600,
   // "The spell ends early if you cast it again."
   replacesPriorCasting: true,
   unmodelled: [
-    'the weapon is not enchanted: "that weapon becomes a magic weapon with a +1 bonus to attack rolls and damage rolls" is a rider on every later attack made with one particular weapon, and a casting hangs none — nor is which weapon was touched a fact the engine keeps',
-    'the bonus growing to +2 at a level 3–5 slot and +3 at level 6+ is a band table over a rider that is not applied',
+    'the weapon is not refused for being magic already, and does not become magic: "You touch a nonmagical weapon" and "that weapon becomes a magic weapon" are both about a property of the object that nothing in the engine holds or reads',
   ],
 };
 

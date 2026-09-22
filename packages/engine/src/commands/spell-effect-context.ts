@@ -218,6 +218,16 @@ export interface EffectContext {
    */
   readonly teleportTo?: Placement;
   /**
+   * The weapon a `weapon-rider` effect was aimed at, by catalogue id.
+   *
+   * Stated at the casting and refused there when a spell that imbues none
+   * names one, so a resolver reaching here without it is the definition and
+   * the command layer disagreeing rather than a rules dispute — the reading
+   * {@link EffectContext.teleportTo} takes, for the same reason: the weapon,
+   * like the destination, is a decision the engine will not make.
+   */
+  readonly weapon?: string;
+  /**
    * The casting a Reaction spell answers, by id.
    *
    * Resolved before anything was spent, by the same function the trigger check

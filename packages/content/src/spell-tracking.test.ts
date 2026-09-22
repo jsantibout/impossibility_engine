@@ -584,8 +584,19 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
    * which no definition can move; what this supports is the narrower claim that
    * a clean paragraph is usually a spell with nothing to execute, and the
    * exception is named rather than the rule loosened.
+   *
+   * **And a second spell now says otherwise, for the same kind of reason.**
+   * Magic Weapon's whole printed text is "a +1 bonus to attack rolls and
+   * damage rolls" and the two bands a higher slot buys, and
+   * {@link MECHANICAL_MARKERS} holds no pattern for an attack roll or for a
+   * bare mention of damage — `extra-damage` wants the word "extra" and `dice`
+   * wants a notation, and the spell prints neither. So the paragraph reads
+   * clean to this list and is executed by a `weapon-rider` grant all the same.
+   * `CLAUSE_MARKERS`, the executed population's own list, fires on it through
+   * `attack-roll` and `damage`, which is why the honesty guard over there is
+   * not fooled and this exemption is safe in the same way the first is.
    */
-  const CLEAN_AND_EXECUTED: readonly string[] = ['expeditious-retreat'];
+  const CLEAN_AND_EXECUTED: readonly string[] = ['expeditious-retreat', 'magic-weapon'];
 
   it('finds every clean paragraph outside the executed bucket', () => {
     const executed = SPELL_DEFINITIONS.filter(
@@ -1048,7 +1059,6 @@ const ADDED_FIRST: readonly string[] = [
   'heat-metal',
   'holy-aura',
   'ice-knife',
-  'magic-weapon',
   'major-image',
   'mass-heal',
   'meld-into-stone',
@@ -1063,7 +1073,6 @@ const ADDED_FIRST: readonly string[] = [
   'seeming',
   'sequester',
   'shapechange',
-  'shillelagh',
   'sleep',
   'sleet-storm',
   'speak-with-plants',

@@ -44,7 +44,7 @@ import {
   itemSource,
 } from '../catalogue.js';
 import { featureSource } from '../progression.js';
-import { conjuredHands, conjuredLine, freeHands } from './inventory.js';
+import { conjuredHands, conjuredLine, freeHands, quantityOf } from './inventory.js';
 import { spendAction, spendBonusAction, spendReaction } from '../combat.js';
 import { rollRecorded } from '../rolls.js';
 import { type CommandIdentity, commandOutcome, once } from '../idempotency.js';
@@ -87,6 +87,7 @@ import {
   type SpellDefinition,
   type SpellEffect,
   teleportOf,
+  weaponRiderOf,
   statedChoice,
   statedDamageType,
   damageTypesDealt,
@@ -157,6 +158,7 @@ import {
   resolveRollModeEffect,
   resolveActionRuleEffect,
   resolveSpeedEffect,
+  resolveWeaponRiderEffect,
 } from './spell-effect-grants.js';
 import {
   resolveHealEffect,
@@ -381,6 +383,9 @@ export function resolveDeclaredCast(
       // The fourth stated fact, read back off the record. A Dimension Door
       // declared at one space settles at that space and at no other.
       ...(pending.teleportTo === undefined ? {} : { teleportTo: pending.teleportTo }),
+      // The fifth, read back the same way. A Shillelagh declared at one staff
+      // settles at that staff and at no other.
+      ...(pending.weapon === undefined ? {} : { weapon: pending.weapon }),
       ...(persists(definition)
         ? {
             becomesOngoing: {
@@ -889,6 +894,40 @@ export function castOrRelease(
         const asked = contextRequestsOf(reachable);
         if (asked.length === 0) return reachable;
         needs.push(...asked);
+      }
+    }
+
+    // And whether the weapon this casting was aimed at is a weapon it could
+    // have been aimed at, asked here for the teleport's reasons: before the
+    // slot, before the action, and before a declaration that must always be
+    // able to settle. `declaredFacts` has already held the symmetry — named
+    // where the spell imbues one, refused where it does not — and what is left
+    // is everything that needs the catalogue, which that function has none of.
+    const imbues = weaponRiderOf(definition);
+    if (imbues !== null && request.weapon !== undefined) {
+      const named = request.weapon;
+      const item = supply.content.item(named);
+      if (item?.weapon === undefined || item.weapon === null) {
+        return err('unknown_weapon', `${named} is not a weapon the SRD lists`);
+      }
+      // SRD Shillelagh prints "A **Club or Quarterstaff**", which is two
+      // objects; SRD Magic Weapon prints "a weapon" and narrows nothing.
+      if (imbues.weapons !== undefined && !imbues.weapons.includes(named)) {
+        return err(
+          'weapon_not_named',
+          `${definition.name} imbues ${imbues.weapons.join(' or ')}, not a ${item.weapon.name}`,
+        );
+      }
+      // "you are holding", "you touch". **Carrying is as close as the engine
+      // gets**: an inventory says what a creature has and nothing says which
+      // hand it is in, and `resolveAttack` gates a swing on the same question.
+      // The gap is the half of Shillelagh's ending that is `unmodelled`.
+      for (const target of targets) {
+        if (quantityOf(state, target, named) >= 1) continue;
+        return err(
+          'weapon_not_held',
+          `${target} has no ${item.weapon.name} for ${definition.name} to imbue`,
+        );
       }
     }
 
@@ -1490,6 +1529,7 @@ function resolveOnTargets(
         ...(origin === null ? {} : { from: origin }),
         ...(fought === undefined ? {} : { fought }),
         ...(request.teleportTo === undefined ? {} : { teleportTo: request.teleportTo }),
+        ...(request.weapon === undefined ? {} : { weapon: request.weapon }),
         alters,
         // A released spell leaves the same thing running that a cast one does.
         // This was the one resolution path of three that wrote no record, so a
@@ -1724,6 +1764,9 @@ function resolveOnTargets(
               // The fourth, and the one settlement could not possibly work
               // out again: where the caster said they were going.
               ...(request.teleportTo === undefined ? {} : { teleportTo: request.teleportTo }),
+              // The fifth, and the same: a Shillelagh declared at one staff
+              // must not settle at the other one in the pack.
+              ...(request.weapon === undefined ? {} : { weapon: request.weapon }),
               // **And the numbers, for a casting an item made.** A class
               // casting's route is re-derived at settlement because it is a
               // fact about a sheet nothing between here and there can change.
@@ -1802,6 +1845,7 @@ function resolveOnTargets(
       ...(origin === null ? {} : { from: origin }),
       ...(fought === undefined ? {} : { fought }),
       ...(request.teleportTo === undefined ? {} : { teleportTo: request.teleportTo }),
+      ...(request.weapon === undefined ? {} : { weapon: request.weapon }),
       alters,
       // The casting this Reaction answers, as an **id** rather than as the record
       // that was read. The resolver looks it up again on the state its own events
@@ -1912,6 +1956,8 @@ function resolveOneEffect(
       return resolveActionRuleEffect(ctx, effect, target, world);
     case 'attack-rider':
       return resolveAttackRiderEffect(ctx, effect, target, world);
+    case 'weapon-rider':
+      return resolveWeaponRiderEffect(ctx, effect, target, world);
     case 'heal':
       return resolveHealEffect(ctx, effect, target, victim, world);
     case 'turn-payout':
@@ -2041,6 +2087,15 @@ export function resolveEffects(
      */
     readonly teleportTo?: Placement;
     /**
+     * The weapon a `weapon-rider` effect was aimed at, by catalogue id.
+     *
+     * The caster's decision, stated at the casting and never derived — the
+     * shape `teleportTo` above takes. A held casting pins it on the
+     * declaration, because settlement takes no fresh request and a Shillelagh
+     * declared at one staff must not settle at the other one in the pack.
+     */
+    readonly weapon?: string;
+    /**
      * Which casting a Reaction spell answers, by id.
      *
      * Several castings may be open at once and several may belong to one
@@ -2105,6 +2160,7 @@ export function resolveEffects(
     ...(context.from === undefined ? {} : { from: context.from }),
     ...(context.fought === undefined ? {} : { fought: context.fought }),
     ...(context.teleportTo === undefined ? {} : { teleportTo: context.teleportTo }),
+    ...(context.weapon === undefined ? {} : { weapon: context.weapon }),
     ...(context.answers === undefined ? {} : { answers: context.answers }),
     ...(context.alters === undefined ? {} : { alters: context.alters }),
   });
@@ -2227,6 +2283,7 @@ export interface EffectRun {
   readonly from?: Point;
   readonly fought?: readonly CharacterId[];
   readonly teleportTo?: Placement;
+  readonly weapon?: string;
   readonly answers?: string;
   /**
    * What the caster's features do to this casting's damage, and what electing
@@ -2445,6 +2502,7 @@ export function runEffects(
     ...(run.from === undefined ? {} : { from: run.from }),
     ...(run.fought === undefined ? {} : { fought: run.fought }),
     ...(run.teleportTo === undefined ? {} : { teleportTo: run.teleportTo }),
+    ...(run.weapon === undefined ? {} : { weapon: run.weapon }),
     ...(run.answers === undefined ? {} : { answers: run.answers }),
   };
 

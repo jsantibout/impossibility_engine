@@ -549,6 +549,15 @@ export interface CastingPlan {
    */
   readonly teleportTo?: Placement;
   /**
+   * The weapon a spell that imbues one was aimed at, by catalogue id.
+   *
+   * Beside the destination and for its reason: settlement takes no fresh
+   * request, so a Shillelagh declared at the Quarterstaff must not settle at
+   * the Club in the same pack. Carried verbatim from the request the layer
+   * above read — it is a catalogue id and there is nothing to normalise.
+   */
+  readonly weapon?: string;
+  /**
    * The numbers this casting was made with, for a casting an item made.
    *
    * SRD "Spells Cast from Items" makes a wand's spell an ordinary casting, and
@@ -895,6 +904,9 @@ function castSpellWith(
         // And where the teleport goes, which is the one fact a settlement
         // could not possibly work out again.
         ...(command.hold.teleportTo === undefined ? {} : { teleportTo: command.hold.teleportTo }),
+        // And which weapon it was aimed at, which a settlement could no more
+        // work out again than it could the destination.
+        ...(command.hold.weapon === undefined ? {} : { weapon: command.hold.weapon }),
         // And the numbers, and the ability they were worked out with, for the
         // one route a settlement cannot re-derive.
         ...(command.hold.numbers === undefined ? {} : { numbers: command.hold.numbers }),

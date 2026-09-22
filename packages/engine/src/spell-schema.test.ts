@@ -3519,6 +3519,18 @@ describe('every branch judges untyped input rather than throwing on it', () => {
       fields: { dice: required(STRING_JUNK), damageType: required(STRING_JUNK) },
     },
     {
+      kind: 'weapon-rider',
+      base: { kind: 'weapon-rider', die: '1d8' },
+      // **Nothing here is required**, which is what separates this from the
+      // rider above it: SRD Shillelagh writes a die, an ability and a melee
+      // narrowing and no plus, and SRD Magic Weapon writes a plus and nothing
+      // else. What the validator refuses instead is a rider that writes *none*
+      // of them, and a band table with no base under it, and both are asserted
+      // by name in `weapon-rider.test.ts` rather than swept as junk. The die
+      // is the one field a wrong *value* can be wrong about.
+      fields: { die: STRING_JUNK },
+    },
+    {
       kind: 'turn-payout',
       base: {
         kind: 'turn-payout',

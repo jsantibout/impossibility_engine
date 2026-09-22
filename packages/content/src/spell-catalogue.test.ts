@@ -13,7 +13,13 @@ import {
   resolveDeclaredCast,
   resolveSpell,
 } from '@ie/engine';
-import { delaysDamage, riderDurations, statesFoughtFact, teleportOf } from '@ie/engine';
+import {
+  delaysDamage,
+  riderDurations,
+  statesFoughtFact,
+  teleportOf,
+  weaponRiderOf,
+} from '@ie/engine';
 
 /**
  * The spells poured into the shapes, driven rather than inspected.
@@ -79,6 +85,23 @@ const setupWith = (targetType: string): readonly GameEvent[] => [
   added(TARGET, targetType),
   added(BYSTANDER, targetType),
   ...slots,
+  // A Club and a Quarterstaff apiece, for the spells that imbue **one weapon**
+  // and are refused until the caster names one the target has got. Those two
+  // rather than any others because Shillelagh names two objects by id and
+  // these are they, where Magic Weapon narrows nothing and takes either.
+  // Carried and not equipped: nothing here reads a hand, and an equipped
+  // weapon would change what a spell needing a free one could do.
+  ...([CASTER, TARGET, BYSTANDER] as const).map(
+    (who): GameEvent => ({
+      type: 'items-gained',
+      id: who,
+      items: [
+        { id: 'club', quantity: 1 },
+        { id: 'quarterstaff', quantity: 1 },
+      ],
+      source: 'the fixture',
+    }),
+  ),
   { type: 'scene-set', extent: { width: 400, depth: 400, height: 40 } },
   { type: 'landmark-added', name: 'here', at: { x: 100, y: 100, z: 0 } },
   { type: 'creature-placed', id: CASTER, placement: { from: { landmark: 'here' }, feet: 0 } },
@@ -294,6 +317,16 @@ const castAt = (
     ...(definition.choiceStated === undefined
       ? {}
       : { choice: definition.choiceStated.options[0]! }),
+    // The sixth, and the same shape a fifth time: a spell that imbues a weapon
+    // is refused until the caster names one, and a spell that imbues none is
+    // refused for naming one. The sweep answers with the **first** weapon the
+    // spell names, or the Quarterstaff everybody is carrying where it narrows
+    // nothing — the point here is that every definition casts rather than
+    // which stick it was pointed at. `weaponRiderOf` is the runtime's own
+    // reader, for the reason `teleportOf` is used above.
+    ...(weaponRiderOf(definition) === null
+      ? {}
+      : { weapon: weaponRiderOf(definition)!.weapons?.[0] ?? 'quarterstaff' }),
   };
   // The caster's own square. Deliberate: a Cube or Cone excludes its point of
   // origin, so an area placed *on* the target would leave them out of it —

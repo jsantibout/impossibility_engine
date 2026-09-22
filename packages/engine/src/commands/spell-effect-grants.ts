@@ -1,12 +1,12 @@
 /**
- * The seven effect kinds that hang a **sourced grant** on a creature.
+ * The effect kinds that hang a **sourced grant** on a creature.
  *
  * One module per the enumerator that already names the family: `grantsOf` in
  * `fold/release.ts` walks `bonuses`, `armorClasses`, `rollModifiers`,
- * `grantedDefenses`, `speedModifiers`, `attackRiders` and
- * `grantedConditionImmunities`, and these are the seven resolvers that write
- * them. The two lists are kept the same shape on purpose — an eighth family
- * joining the enumerator is an eighth resolver joining this file, and a grant
+ * `grantedDefenses`, `speedModifiers`, `attackRiders`, `weaponRiders` and
+ * `grantedConditionImmunities`, and these are the resolvers that write them.
+ * The two lists are kept the same shape on purpose — a family joining the
+ * enumerator is a resolver joining this file, and a grant
  * released by a dispel and not by a deadline is the failure that enumerator was
  * built to stop.
  *
@@ -15,9 +15,10 @@
  * arrived.
  */
 
-import { ABILITY_NAMES, type CharacterId, ok, type Result } from '@ie/shared';
+import { ABILITY_NAMES, type CharacterId, err, ok, type Result } from '@ie/shared';
 import { type D20TestResult, rollSavingThrow } from '../checks.js';
 import { applyEvent, type CreatureState, type GameState } from '../events.js';
+import { weaponRiderBonusAt, weaponRiderDieAt } from '../spell-definitions.js';
 import { armorClassOf, sheetAsItStands, speedOf } from '../standing.js';
 import { alteredRiderDice, recordD20Test, savingSupport } from './rolls.js';
 import { type EffectContext, type EffectOfKind } from './spell-effect-context.js';
@@ -343,6 +344,81 @@ export function resolveAttackRiderEffect(
       damageType: effect.damageType,
       ...(effect.weaponOnly === undefined ? {} : { weaponOnly: effect.weaponOnly }),
       ...(effect.marksTarget === undefined ? {} : { target }),
+    },
+  });
+  const current = events.slice(-1).reduce(applyEvent, world);
+  outcomes.push({ target, affected: true });
+  return ok(current);
+}
+
+/**
+ * What the casting did to **one weapon**, for as long as it runs.
+ *
+ * SRD Shillelagh: "A Club or Quarterstaff you are holding is imbued with
+ * nature's power … you can use your spellcasting ability instead of Strength
+ * for the attack and damage rolls of melee attacks using that weapon, and the
+ * weapon's damage die becomes a d8." SRD Magic Weapon: "that weapon becomes a
+ * magic weapon with a +1 bonus to attack rolls and damage rolls."
+ *
+ * Nothing is rolled here and nothing is resisted — every die is thrown by a
+ * later swing — so this is the shape `armor-class`, `damage-defense`, `speed`
+ * and `attack-rider` already take, on the fourteenth thing a spell hands out
+ * that is not a roll.
+ *
+ * **The grant lands on the target, not the caster**, which is the one thing
+ * about this resolver that differs from `attack-rider` beside it. That one is
+ * asymmetric because the *die* is thrown by whoever swings and the mark is on
+ * somebody else; here the weapon and the hand holding it are the same fact,
+ * and SRD Magic Weapon is Range: Touch precisely so it can be somebody else's
+ * hand.
+ *
+ * **Both tables are read here and pinned**, for the reason `alteredRiderDice`
+ * is read here: a notation and a plus that reached the log unresolved would
+ * have to be recomputed by every later swing off a slot and a caster level
+ * that the swing does not know — and a replay would need the caster's sheet as
+ * it stood at the casting to get the same number.
+ *
+ * The casting is in the source, so `releaseCasting` ends it with the spell — a
+ * dispel, a broken Concentration, the deadline and a recast all converge on
+ * the door every other grant already uses.
+ */
+export function resolveWeaponRiderEffect(
+  ctx: EffectContext,
+  effect: EffectOfKind<'weapon-rider'>,
+  target: CharacterId,
+  world: GameState,
+): Result<GameState> {
+  const { source, events, outcomes, held, ability, castLevel, numbers, weapon } = ctx;
+
+  // `resolveSpell` refuses a casting of this shape that names no weapon before
+  // anything is spent, so arriving here without one is the command layer and
+  // the definition disagreeing rather than a rules dispute — the reading
+  // `resolveTeleportEffect` takes of an absent destination.
+  if (weapon === undefined) {
+    return err(
+      'weapon_required',
+      `${ctx.label} imbues a weapon and none was named; say which weapon it was aimed at`,
+    );
+  }
+
+  held.add(target);
+  events.push({
+    type: 'weapon-rider-granted',
+    id: target,
+    rider: {
+      source,
+      weapon,
+      ...(effect.meleeOnly === undefined ? {} : { meleeOnly: effect.meleeOnly }),
+      ...(weaponRiderBonusAt(effect, castLevel) === undefined
+        ? {}
+        : { bonus: weaponRiderBonusAt(effect, castLevel) as number }),
+      ...(weaponRiderDieAt(effect, numbers.casterLevel) === undefined
+        ? {}
+        : { die: weaponRiderDieAt(effect, numbers.casterLevel) as string }),
+      // "your spellcasting ability", resolved to the one this casting went
+      // through. `castersAbilityRead` refuses the route that has none before a
+      // slot is spent, so a null here is that check having been skipped.
+      ...(effect.castingAbility === true && ability !== null ? { ability } : {}),
     },
   });
   const current = events.slice(-1).reduce(applyEvent, world);

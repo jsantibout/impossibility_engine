@@ -53,6 +53,7 @@ import {
   statesFoughtFact,
   targetCountFor,
   teleportOf,
+  weaponRiderOf,
 } from '../spell-definitions.js';
 import { type SlotlessReason } from '../spells.js';
 import { type ConcentrationConsequence } from './casting.js';
@@ -364,6 +365,29 @@ export interface CastSpellRequest extends CommandIdentity {
    * same boundary `eligibleTargets` draws for targeting.
    */
   readonly teleportTo?: Placement;
+  /**
+   * The weapon a spell that imbues one was aimed at, by catalogue id.
+   *
+   * SRD Shillelagh: "A Club or Quarterstaff **you are holding**"; SRD Magic
+   * Weapon: "You touch a nonmagical weapon … **that** weapon becomes a magic
+   * weapon". One object out of whatever the target is carrying, and the engine
+   * will not pick it: a Druid with a Club and a Quarterstaff has two answers
+   * and the book asked the caster.
+   *
+   * The sixth fact a casting states rather than derives, and it takes the
+   * shape of the other five: **required** by a spell that imbues a weapon and
+   * **refused** for one that does not, both before a slot is spent. What is
+   * checked beside that is the weapon's — it reaches an item, the item is a
+   * weapon, the spell's own list names it where it prints one, and the target
+   * has it — and every one of those is a refusal rather than a substitution.
+   *
+   * **A catalogue id and not an instance**, which is a limit worth stating:
+   * two Quarterstaves in one pack are one id, so a casting aimed at either
+   * reaches both. `InventoryLine.instance` exists and never reaches an attack,
+   * which names its weapon by catalogue id — so a grant keyed on an instance
+   * would reach no swing at all.
+   */
+  readonly weapon?: string;
   /**
    * How to pay for it.
    *
@@ -679,6 +703,32 @@ export function declaredFacts(
     return err(
       'no_teleport_clause',
       `${definition.name} does not teleport anybody; where they would go is not a fact it asks for`,
+    );
+  }
+
+  // — which weapon it was aimed at ————————————————————————————————————————
+  //
+  // The sixth stated fact, and the same two refusals a fifth time. SRD
+  // Shillelagh's "A Club or Quarterstaff you are holding" and Magic Weapon's
+  // "You touch a nonmagical weapon" both name one object out of whatever the
+  // target is carrying, and a Druid holding both has two answers.
+  //
+  // **Only the symmetry lives here**, because the rest of what a weapon has to
+  // be — an item that exists, an item that is a weapon, one the spell's own
+  // list names, one the target actually has — is read off the catalogue, and
+  // this function holds no content. `resolveSpell`'s pre-flight is where those
+  // are asked, beside the teleport destination's, and for the same reason.
+  if (weaponRiderOf(definition) !== null) {
+    if (request.weapon === undefined) {
+      return err(
+        'weapon_required',
+        `${definition.name} imbues one weapon and the engine will not choose which; name it`,
+      );
+    }
+  } else if (request.weapon !== undefined) {
+    return err(
+      'no_weapon_clause',
+      `${definition.name} does nothing to a weapon; which one is not a fact it asks for`,
     );
   }
 

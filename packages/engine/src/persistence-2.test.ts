@@ -632,6 +632,16 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // escape DC pinned beside it, the Prone and the five-foot push, the size
   // rule, and the Hide that stands because no attack roll was made.
   'unarmed-strike-made',
+  // What a casting did to one weapon. Neither log was written when a spell
+  // could reach an object at all: no creature had a `weaponRiders` list, no
+  // casting could name a weapon, and Shillelagh and Magic Weapon were both
+  // tracked definitions that resolved nothing. Both fixtures fold to exactly
+  // the states they always folded to with that list empty on every creature.
+  // `weapon-rider.test.ts` folds it and drives it end to end: the substituted
+  // ability, the replaced die and its band table, the plus on both rolls and
+  // its band table, every other weapon in the pack left alone, and the grant
+  // ending on the deadline, on a recast and through the dispel door.
+  'weapon-rider-granted',
 ];
 
 /** What the pair must cover between them, whatever else changes. */

@@ -311,6 +311,7 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'turn-budget-granted',
   'turn-payout-granted',
   'unarmed-strike-made',
+  'weapon-rider-granted',
 ];
 
 describe('the event vocabulary is a contract', () => {

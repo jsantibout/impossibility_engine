@@ -50,7 +50,11 @@ import {
   type SlotlessReason,
 } from './spells.js';
 import { type CombatState, type GrantedActionRule } from './combat.js';
-import { type GrantedAttackRider, type GrantedSpeed } from './standing.js';
+import {
+  type GrantedAttackRider,
+  type GrantedSpeed,
+  type GrantedWeaponRider,
+} from './standing.js';
 import {
   type PointAnchoring,
   type Placement,
@@ -462,6 +466,27 @@ export interface CreatureState {
    * the deadline all end it through the door that already existed.
    */
   readonly attackRiders: readonly GrantedAttackRider[];
+  /**
+   * Weapons a running effect has imbued, by the catalogue id of each.
+   *
+   * The fourteenth member of the family, and the other half of the sixth's
+   * sentence: {@link attackRiders} adds a component of its own to a swing and
+   * this changes the swing's own arithmetic — SRD Shillelagh's substituted
+   * ability and replaced die, SRD Magic Weapon's flat plus to two rolls at
+   * once.
+   *
+   * **It sits on whoever swings and names the object**, which is the pair
+   * neither narrowing the engine already had could express: `onlyWithItem` is
+   * keyed on the item that granted the benefit and there is no such item here,
+   * and a `WeaponNarrowing` describes a kind of weapon rather than the one the
+   * casting touched. See {@link GrantedWeaponRider} for what a catalogue id
+   * can and cannot tell apart.
+   *
+   * Linked by the casting in its `source` exactly as the other thirteen are,
+   * so `releaseCasting`, `releaseOnTarget`, a dispel, a broken Concentration
+   * and the deadline all end it through the door that already existed.
+   */
+  readonly weaponRiders: readonly GrantedWeaponRider[];
   /**
    * Condition Immunities a running effect has hung on this creature.
    *
@@ -957,6 +982,18 @@ export interface PendingCasting {
    */
   readonly teleportTo?: Placement;
   /**
+   * The weapon a spell that imbues one was aimed at, by catalogue id.
+   *
+   * The fifth stated fact, beside the other four and for the same reason: a
+   * Shillelagh declared at the Quarterstaff must not settle at the Club in the
+   * same pack, and settlement takes no fresh request to ask again.
+   *
+   * Absent for every spell that imbues nothing, which is all but two of them,
+   * so a declaration written before this folds to exactly the state it always
+   * did.
+   */
+  readonly weapon?: string;
+  /**
    * The numbers the casting was made with, for a casting an item made.
    *
    * Every other field here is pinned because settlement takes no fresh
@@ -1268,6 +1305,14 @@ export type ReadiedResponse =
        * hall must not let go beside its caster.
        */
       readonly teleportTo?: Placement;
+      /**
+       * The weapon a spell that imbues one was aimed at, by catalogue id.
+       *
+       * The fifth stated fact, and the release could no more work it out than
+       * it could the destination: a Shillelagh readied at the Quarterstaff
+       * must not let go at the Club.
+       */
+      readonly weapon?: string;
     }
   /**
    * SRD: "or you choose to move up to your Speed in response to it."

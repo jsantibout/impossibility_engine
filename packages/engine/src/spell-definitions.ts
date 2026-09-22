@@ -1836,6 +1836,126 @@ export type SpellEffect =
        */
       readonly marksTarget?: true;
     }
+  /**
+   * What the spell does to **one particular weapon**, read again on every
+   * later attack made with it.
+   *
+   * SRD Shillelagh: "A Club or Quarterstaff you are holding is imbued with
+   * nature's power. For the duration, you can use your spellcasting ability
+   * instead of Strength for the attack and damage rolls of melee attacks using
+   * that weapon, and the weapon's damage die becomes a d8." SRD Magic Weapon:
+   * "You touch a nonmagical weapon. Until the spell ends, that weapon becomes
+   * a magic weapon with a +1 bonus to attack rolls and damage rolls."
+   *
+   * **Not `attack-rider`**, which is the neighbouring kind and the other half
+   * of the same family. That one hangs a notation and a *damage type* on the
+   * caster, and what it adds is a component of its own — Divine Favor's
+   * Radiant meets the target's defences separately and doubles on a Critical
+   * Hit. Neither sentence here adds a component to anything: one *replaces*
+   * the weapon's die and the ability its rolls are made with, and the other
+   * adds a flat plus of the weapon's **own** type to two rolls at once.
+   *
+   * **Not a `buff` either**, for the reason `attack-rider` is not: `BonusApplies`
+   * covers attacks, saves, ability checks and an Armour Class, and a damage
+   * roll is none of them — so Magic Weapon's sentence has no home in it at all.
+   *
+   * **The weapon is the casting's, and that is the whole point of the kind.**
+   * `StandingGrant.onlyWithItem` narrows a benefit to the item that *granted*
+   * it — a Weapon, +1 confining its own plus to itself — and there is no item
+   * granting anything here. `WeaponNarrowing` describes a *kind* of weapon, so
+   * a Shillelagh written with one would imbue every Quarterstaff in the pack.
+   * What the SRD writes is "**that** weapon": one object, named by the caster
+   * at the casting through `CastSpellRequest.weapon`, pinned into the
+   * grant and matched against the record a later swing resolved.
+   *
+   * **It carries no `lasts` of its own**, for the reason `speed`,
+   * `attack-rider`, `condition-immunity` and `turn-payout` carry none: both
+   * SRD sentences run for the spell's own duration, and an Instantaneous
+   * casting would leave a weapon enchanted with nothing able to lift it.
+   * `checkGrantLifetimes` refuses that pairing.
+   */
+  | {
+      readonly kind: 'weapon-rider';
+      /**
+       * The weapons the spell names, by catalogue id. Absent names any weapon.
+       *
+       * SRD Shillelagh prints "A **Club or Quarterstaff**", which is two
+       * objects and not a description: a `WeaponSelector` over Simple Melee
+       * and Light matches a Dagger, and one over Versatile matches a
+       * Longsword, so no combination of the selector's three axes says what
+       * the book said. SRD Magic Weapon prints "a weapon" and writes nothing
+       * here.
+       *
+       * **Content naming content**, which is the door `expandPack` and a
+       * fixed spell grant already use: `checkContent` refuses an id that
+       * reaches no item and an item that is not a weapon. The engine still
+       * learns nothing — rule 4 forbids an *engine file* naming a catalogue
+       * id, and this is a field a definition fills in.
+       */
+      readonly weapons?: readonly string[];
+      /** SRD Shillelagh's "the attack and damage rolls of **melee** attacks". */
+      readonly meleeOnly?: true;
+      /**
+       * SRD Magic Weapon's "a +1 bonus to attack rolls and damage rolls".
+       *
+       * One number reaching both rolls, because the SRD writes one number
+       * reaching both rolls. A definition that wanted them to differ would be
+       * writing a sentence the book does not print.
+       */
+      readonly bonus?: number;
+      /**
+       * How the plus grows with the slot, by band.
+       *
+       * The key is the **lowest slot level of the band** and the value is the
+       * whole bonus — the shape {@link SpellDefinition.durationAtSlot} already
+       * takes, read the same way, so a level 4 slot falls in the band that
+       * opened at 3. SRD Magic Weapon's "+2 with a level 3–5 spell slot … +3
+       * with a level 6+ spell slot" is `{ 3: 2, 6: 3 }`, and {@link bonus} is
+       * what a slot below every band still gets.
+       *
+       * Presupposes {@link bonus}, and refused without it: a band table with
+       * no base is a spell that does nothing at its own level.
+       */
+      readonly bonusAtSlot?: Readonly<Record<number, number>>;
+      /**
+       * SRD Shillelagh's "the weapon's damage die becomes a d8".
+       *
+       * *Becomes*, not *besides* — this replaces the weapon's own notation,
+       * which is what `StrikeStyleInPlay.die` already means and where
+       * this is read. A Club under Shillelagh rolls a d8 and not a d4 and a
+       * d8.
+       */
+      readonly die?: string;
+      /**
+       * SRD Shillelagh's Cantrip Upgrade: "The damage die changes when you
+       * reach levels 5 (d10), 11 (d12), and 17 (2d6)."
+       *
+       * A band table keyed by the lowest **character** level of the band, read
+       * exactly as {@link bonusAtSlot} is read off the slot. Not
+       * `DiceScaling.cantripUpgradesAt`, which *adds* a die of the base
+       * notation: this sentence changes the die's size, and at 17 changes how
+       * many there are — no arithmetic over the base produces d8, d10, d12,
+       * 2d6.
+       *
+       * Presupposes {@link die}, for the reason `bonusAtSlot` presupposes
+       * `bonus`.
+       */
+      readonly dieAtLevel?: Readonly<Record<number, string>>;
+      /**
+       * SRD Shillelagh: "you **can** use your spellcasting ability instead of
+       * Strength for the attack and damage rolls".
+       *
+       * An **offer**, which is the reading `attackAbility` already gives SRD
+       * Finesse and the Monk's Dexterous Attacks: the better score is taken
+       * when nobody says, and the attacker may decline it. Imposing it would
+       * hand a Strength 18 Druid a worse staff than they started with.
+       *
+       * Which ability it is is the *caster's*, resolved at the casting and
+       * pinned into the grant — so a replay throws the right modifier with no
+       * idea whose spell list the casting came off.
+       */
+      readonly castingAbility?: true;
+    }
   | {
       readonly kind: 'interrupt-casting';
       readonly ability: Ability;
@@ -2984,6 +3104,65 @@ export function durationSecondsAt(
   return best ?? definition.durationSeconds;
 }
 
+/**
+ * The value of the band this level falls in, or the base where it falls below
+ * every band.
+ *
+ * `durationSecondsAt`'s arithmetic, lifted so the weapon rider's two tables
+ * cannot come to read their keys differently from the duration's. "The band is
+ * at this level or above" is the SRD's own phrasing — "level 3–5 … level 6+"
+ * is two keys, 3 and 6, and a level 5 slot falls in the first because 6 has
+ * not been reached.
+ *
+ * Sorted rather than trusting key order, for the reason `durationSecondsAt`
+ * sorts: this answer reaches a grant in the log.
+ */
+const bandAt = <T,>(
+  bands: Readonly<Record<number, T>> | undefined,
+  level: number,
+  base: T,
+): T => {
+  if (bands === undefined) return base;
+  let best = base;
+  let bestLevel = -Infinity;
+  for (const key of Object.keys(bands).map(Number).sort((a, b) => a - b)) {
+    if (key <= level && key > bestLevel) {
+      bestLevel = key;
+      best = bands[key] as T;
+    }
+  }
+  return best;
+};
+
+/**
+ * SRD Magic Weapon's plus at the slot it was cast with.
+ *
+ * The one reader of `bonusAtSlot`, so the resolver that pins the number and
+ * any later reader of the same table cannot disagree about which band a slot
+ * falls in — the discipline `durationSecondsAt` keeps for the duration.
+ */
+export const weaponRiderBonusAt = (
+  effect: EffectOfWeaponRider,
+  castLevel: number,
+): number | undefined =>
+  effect.bonus === undefined ? undefined : bandAt(effect.bonusAtSlot, castLevel, effect.bonus);
+
+/**
+ * SRD Shillelagh's die at the caster's own level.
+ *
+ * Off the **character's** level and not the slot's: a Cantrip Upgrade is a
+ * band of the caster's career, which is the same split `DiceScaling` keeps
+ * between `cantripUpgradesAt` and `perSlotLevelAbove`.
+ */
+export const weaponRiderDieAt = (
+  effect: EffectOfWeaponRider,
+  casterLevel: number,
+): string | undefined =>
+  effect.die === undefined ? undefined : bandAt(effect.dieAtLevel, casterLevel, effect.die);
+
+/** The one arm of the effect union the two readers above are about. */
+type EffectOfWeaponRider = Extract<SpellEffect, { kind: 'weapon-rider' }>;
+
 /** How far a range reaches in feet, or null where it is not a distance at all. */
 export const ranged = (range: SpellRange): number | null =>
   range.kind === 'ranged' ? range.feet : range.kind === 'touch' ? 5 : null;
@@ -3492,6 +3671,24 @@ export function teleportOf(
 }
 
 /**
+ * The weapon rider a casting hangs, or null for the rest of the book.
+ *
+ * {@link teleportOf}'s sibling and the same discipline, for the same three
+ * readers that must agree: the stated-fact check's *is a weapon required*, the
+ * pre-flight's *may this casting be aimed at that one*, and the resolver's
+ * *what does it do to it*.
+ *
+ * A definition's own effect list and nowhere else. An area trigger's list and
+ * an activation's both resolve on a later turn against creatures the caster
+ * never touched, and neither carries the weapon the caster named.
+ */
+export function weaponRiderOf(
+  definition: SpellDefinition,
+): Extract<SpellEffect, { kind: 'weapon-rider' }> | null {
+  return definition.effects.find((effect) => effect.kind === 'weapon-rider') ?? null;
+}
+
+/**
  * The condition riders an effect carries, however it spells them.
  *
  * Four kinds impose a condition and one of them writes the first one's fields
@@ -3618,12 +3815,25 @@ export function creatureTypesRead(effect: SpellEffect): readonly string[] {
  * make this check, and finding that out inside the resolution would be a
  * refusal that had already taken the charge.
  *
- * **One case, and the compiler keeps it honest.** `CastingRoute`'s item arm
- * carries `ability: Ability | null`, so a second resolver that reaches for the
+ * **Two cases, and the compiler keeps them honest.** `CastingRoute`'s item arm
+ * carries `ability: Ability | null`, so a third resolver that reaches for the
  * caster's ability fails to typecheck rather than silently reading a null.
+ *
+ * **The second is not a D20 Test of this casting's own**, and it belongs here
+ * anyway. SRD Shillelagh: "you can use your **spellcasting ability** instead
+ * of Strength for the attack and damage rolls" — the ability is pinned into a
+ * grant now and read by every swing for the next minute, so a wielder who has
+ * none has nothing to substitute and must hear so before the casting is spent
+ * rather than a minute later at the first swing. The question the name asks is
+ * "does this spell read the caster's own spellcasting ability", and both
+ * answer yes; which roll eventually reads it is the difference between them.
  */
 export function castersAbilityRead(definition: SpellDefinition): boolean {
-  return definition.effects.some((effect) => effect.kind === 'dispel');
+  return definition.effects.some(
+    (effect) =>
+      effect.kind === 'dispel' ||
+      (effect.kind === 'weapon-rider' && effect.castingAbility === true),
+  );
 }
 
 /** Which of a casting's own {@link CastingNumbers} resolving this spell reads. */
@@ -3720,6 +3930,11 @@ export function numbersRead(definition: SpellDefinition): NumbersRead {
       case 'condition-immunity':
       case 'speed':
       case 'attack-rider':
+      // The ability it may pin is not one of these three: it is an *ability*
+      // and not a number, which is `castersAbilityRead`'s question and not
+      // this one — the same split that keeps `EffectContext.ability` out of
+      // `CastingNumbers`.
+      case 'weapon-rider':
       case 'heal':
       case 'turn-payout':
       case 'action-rule':

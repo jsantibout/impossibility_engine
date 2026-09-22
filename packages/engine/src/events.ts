@@ -56,7 +56,12 @@ import {
   type WrittenOngoing,
 } from './spells.js';
 import { type CombatantInput, type GrantedActionRule, type NamedAction } from './combat.js';
-import { type GrantedAttackRider, type GrantedSpeed, type StandingEffect } from './standing.js';
+import {
+  type GrantedAttackRider,
+  type GrantedSpeed,
+  type GrantedWeaponRider,
+  type StandingEffect,
+} from './standing.js';
 import {
   type CoverDegree,
   type Placement,
@@ -1996,6 +2001,32 @@ export type GameEvent =
       readonly to: CharacterId;
       readonly degree: CoverDegree;
       readonly command?: CommandStamp;
+    }
+
+  /**
+   * An ongoing effect has imbued **one weapon**, and every later attack made
+   * with it reads what it did.
+   *
+   * The other half of `attack-rider-granted`'s sentence, and its own event for
+   * the reason that one is its own rather than a `bonus-applied`: what this
+   * carries is not a component added to a swing but the swing's own arithmetic
+   * changed — SRD Shillelagh's replaced die and substituted ability, SRD Magic
+   * Weapon's plus reaching an attack roll *and* a damage roll, which
+   * `BonusApplies` has no member for.
+   *
+   * **`id` is whoever holds the weapon** — the creature the casting touched,
+   * which for a Range: Self spell is the caster and for a Touch spell need not
+   * be. The weapon itself is a catalogue id on the grant; see
+   * {@link GrantedWeaponRider} for what that can and cannot tell apart.
+   *
+   * Ended by the source it carries, exactly as the other thirteen grants are,
+   * so there is no removal event: `releaseCasting`, `releaseOnTarget` and the
+   * `grants` timer are the doors.
+   */
+  | {
+      readonly type: 'weapon-rider-granted';
+      readonly id: CharacterId;
+      readonly rider: GrantedWeaponRider;
     }
   /**
    * A patch of ground that costs more to cross, and what a foot of it costs.

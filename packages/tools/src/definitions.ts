@@ -2079,6 +2079,13 @@ const CAST_SPELL = tool({
       .describe(
         'Where a teleporting spell puts its target — Misty Step’s "unoccupied space you can see", Dimension Door’s "the spot desired". Measured from a landmark or a creature like every other destination, never as a raw coordinate. The engine checks the distance, the space and the sight; which space is yours.',
       ),
+    weapon: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        'Which weapon a spell that imbues one was aimed at, by the item id `sheet` lists — Shillelagh’s "A Club or Quarterstaff you are holding", Magic Weapon’s "You touch a nonmagical weapon". One object out of whatever the target is carrying, and the engine will not pick it. Leaving it out for one of those is refused, and so is naming one for a spell that does nothing to a weapon.',
+      ),
     slotKind: z
       .enum(['spell', 'pact'])
       .optional()
@@ -2137,6 +2144,7 @@ const CAST_SPELL = tool({
       // apart. Every other stated fact here is absent-or-present.
       ...(args.fought === undefined ? {} : { fought: args.fought.map(who) }),
       ...(args.teleportTo === undefined ? {} : { teleportTo: placementOf(args.teleportTo) }),
+      ...(args.weapon === undefined ? {} : { weapon: args.weapon }),
       ...(args.slotKind === undefined ? {} : { slotKind: args.slotKind }),
       ...(args.payment === undefined ? {} : { payment: args.payment }),
       ...(args.source === undefined ? {} : { source: args.source }),
@@ -4212,6 +4220,7 @@ const TAKE_READY = tool({
         fought: z.array(creatureId).optional(),
         unaffected: z.array(creatureId).optional(),
         teleportTo: placementSchema.optional(),
+        weapon: z.string().min(1).optional(),
       }),
     ]),
   }),
@@ -4241,6 +4250,7 @@ const TAKE_READY = tool({
                   ...(response.teleportTo === undefined
                     ? {}
                     : { teleportTo: placementOf(response.teleportTo) }),
+                  ...(response.weapon === undefined ? {} : { weapon: response.weapon }),
                 }
               : response.kind === 'move'
                 ? { kind: 'move' }

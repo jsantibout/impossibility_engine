@@ -186,7 +186,7 @@ export const MISSING_SHAPES = {
   'a-spells-effects-applied-to-different-targets':
     '`docs/design/spell-definitions.md`: "**A spell has one effect list applied to every target**, so nothing yet expresses “each creature takes damage *and* is knocked Prone” with different outcomes per target beyond the save each one rolls." A casting that chooses per creature, or divides a pool among them, is the same gap.',
   'a-rider-on-a-later-weapon-attack':
-    '`PROGRESS.md`, on what the drained shapes left: "a rider on every weapon attack (Divine Favor, Hex, Hunter’s Mark)"; PROGRESS.md ranks it as "Extra damage on the target’s later attacks | 3 / 10 | `damageBonuses` / `extraDamage`, Rage Damage, Radiant Strikes". **IE-035 built the extra-damage half** — the `attack-rider` grant hangs a notation and a damage type on the caster, optionally narrowed to weapon attacks or to a marked target, and Divine Favor, Hunter’s Mark and Hex’s first sentence are all expressible by it. What is left is every rider that is not that: a **substituted ability** (Shillelagh, True Strike, Alter Self), a **replaced damage die** (the same three), a damage type **chosen at the moment of the attack** (Conjure Minor Elementals), a **flat** bonus of the weapon’s own type reaching the attack roll as well (Magic Weapon), extra damage with **no type** and so the weapon’s own (Enlarge/Reduce), and a rider that fires on damage from **a spell** rather than an attack roll (Bestow Curse).',
+    '`PROGRESS.md`, on what the drained shapes left: "a rider on every weapon attack (Divine Favor, Hex, Hunter’s Mark)"; PROGRESS.md ranks it as "Extra damage on the target’s later attacks | 3 / 10 | `damageBonuses` / `extraDamage`, Rage Damage, Radiant Strikes". **IE-035 built the extra-damage half** — the `attack-rider` grant hangs a notation and a damage type on the caster, optionally narrowed to weapon attacks or to a marked target, and Divine Favor, Hunter’s Mark and Hex’s first sentence are all expressible by it. **And the weapon half is built too**: a casting now names the particular weapon it was aimed at (`CastSpellRequest.weapon`), the `weapon-rider` grant hangs on whoever holds it keyed by that weapon’s id, and what it may change is the **substituted ability**, the **replaced damage die** and a **flat** plus of the weapon’s own type reaching the attack roll and the damage roll alike — with a band table apiece, off the slot and off the caster’s level. Shillelagh and Magic Weapon are what that finished. What is left is every rider that is neither of those two builds: a damage type **chosen at the moment of the attack** (Shillelagh’s second sentence, Conjure Minor Elementals), extra damage with **no type** and so the weapon’s own (Enlarge/Reduce), a rider that fires on damage from **a spell** rather than an attack roll (Bestow Curse), a substitution on an **Unarmed Strike**, which is not a weapon and so is not a thing a casting can name (Alter Self), and a casting that *makes* the attack it rides (True Strike), which is a door no effect kind opens.',
   'a-range-that-scales-with-caster-level':
     '`SpellDefinition.range` in spell-definitions.ts is one fixed `SpellRange`, and `ranged(definition.range)` is checked on every casting — tracked or executed, before a target is looked at. `docs/design/spell-definitions.md` keeps the two scaling axes apart on purpose — "**Cantrips scale by caster level and levelled spells by slot**, and they are separate fields rather than one overloaded number" — and both of them reach *dice*. Exactly one spell in the book prints a range that grows with the caster, and the engine would refuse the casting the SRD allows.',
   'a-cap-on-how-many-castings-run-at-once':
@@ -1046,6 +1046,13 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'Magic Missile',
       why: 'damage-with-neither-an-attack-roll-nor-a-save',
       note: 'Being targeted by Magic Missile is the spell’s second trigger and taking no damage from it is its second benefit, and neither can exist while the spell they name cannot be cast: its darts hit with no attack roll and no save.',
+    },
+  ],
+  shillelagh: [
+    {
+      clause: 'the choice between Force damage and the weapon’s normal type is not applied',
+      why: 'a-rider-on-a-later-weapon-attack',
+      note: 'SRD: "If the attack deals damage, it can be Force damage or the weapon’s normal damage type (your choice)." The casting names its weapon now and the grant changes that weapon’s die and the ability its rolls are made with; what is left is the one clause decided at each *later* swing rather than at the casting. That shape’s own description names a damage type chosen at the moment of the attack as part of what it still does not reach, filed there for Conjure Minor Elementals, and this is the other spell that prints it.',
     },
   ],
   'shining-smite': [
@@ -2015,14 +2022,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'the creature reduces the total damage taken by 1d4',
       why: 'a-reduction-an-effect-applies-to-damage',
       note: 'the die is ordinary and the subtraction is not: the damage pipeline adjusts a total, halves it for Resistance and doubles it for Vulnerability, and has no step that takes a roll off one. Not the defence of the same name — this cantrip and `defensesOf` are different arithmetic wearing one word.',
-    },
-  ],
-  shillelagh: [
-    {
-      marker: 'dice',
-      clause: 'The damage die changes when you reach levels 5 (d10)',
-      why: 'a-rider-on-a-later-weapon-attack',
-      note: 'the die being changed belongs to a weapon rather than to the spell, and every later swing with that weapon would have to read it. A casting hangs no notation on a weapon, which is the same absence the substituted ability in the sentence above has.',
     },
   ],
   'true-strike': [
@@ -3672,14 +3671,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'that spell is suppressed for 10 minutes',
       why: 'an-effect-that-suppresses-other-magic',
       note: 'Arcane Lock is a casting this engine really holds — it runs until dispelled and sits in `state.ongoing`. **Two things are missing and they are not the same thing.** The first is this shape: the state a suppressed casting sits in, a spell that does not function while its time goes on running, which is the half `spell-ended` did not build. The second is that nothing can name this particular casting anyway — Arcane Lock’s own definition records it for Dispel Magic, which ends an ongoing spell on a target where this casting is on a door. The debt is the first; the second is why building it would still leave a lock nobody can reach.',
-    },
-  ],
-  'magic-weapon': [
-    {
-      marker: null,
-      clause: 'a +1 bonus to attack rolls and damage rolls',
-      why: 'a-rider-on-a-later-weapon-attack',
-      note: 'the shape names this spell in its own description: a flat bonus of the weapon’s own type that reaches the attack roll as well. `attack-rider` hangs a notation and a damage type on the caster and `BonusApplies` reaches an attack roll but never damage, so neither half of the sentence has a home — and the weapon the bonus is hung on is not a fact the engine keeps either.',
     },
   ],
   'pass-without-trace': [

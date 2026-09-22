@@ -2211,9 +2211,153 @@ function checkEffect(
       checkDamageType(effect.damageType, `${path}.damageType`, found);
       return;
 
+    // What the casting does to one weapon, and the three ways a definition can
+    // write a sentence the SRD does not print.
+    //
+    // **A rider that changes nothing.** Every field below is optional, because
+    // Shillelagh writes three of them and Magic Weapon one, and a rider with
+    // none at all is a casting that names a weapon and then leaves it exactly
+    // as it was — the `amounts_to_nothing` reading `DiceScaling` already takes.
+    //
+    // **A band with no base.** `bonusAtSlot` and `dieAtLevel` are both read as
+    // "the highest key at or below the level, or the base", so a table with no
+    // base is a spell that does nothing at its own level and something at a
+    // higher one. `durationAtSlot` is the same table and gets the same rule.
+    //
+    // **Dice that are not dice**, in the base and in every band alike: the
+    // notation reaches a grant in the log and is rolled a minute later, where
+    // a refusal has nowhere to go.
+    case 'weapon-rider': {
+      if (
+        effect.bonus === undefined &&
+        effect.die === undefined &&
+        effect.castingAbility !== true
+      ) {
+        found.push({
+          field: path,
+          code: 'rider_does_nothing',
+          reason:
+            'a weapon rider that adds no bonus, changes no die and offers no ability leaves the weapon exactly as it was',
+        });
+      }
+      if (effect.bonus !== undefined && !Number.isInteger(effect.bonus)) {
+        found.push({
+          field: `${path}.bonus`,
+          code: 'bad_bonus',
+          reason: `${String(effect.bonus)} is not a whole number of plusses`,
+        });
+      }
+      if (effect.bonusAtSlot !== undefined && effect.bonus === undefined) {
+        found.push({
+          field: `${path}.bonusAtSlot`,
+          code: 'band_without_base',
+          reason: 'a band table with no bonus beneath it does nothing at the spell’s own level',
+        });
+      }
+      if (effect.dieAtLevel !== undefined && effect.die === undefined) {
+        found.push({
+          field: `${path}.dieAtLevel`,
+          code: 'band_without_base',
+          reason: 'a band table with no die beneath it does nothing at the spell’s own level',
+        });
+      }
+      // **Both tables are judged before either is read**, because both are
+      // read with `Object.keys` and a null arriving from JSON would throw
+      // there. That is the rule every reader in this file keeps: a validator
+      // that throws on the input it exists to judge has judged nothing.
+      const bonusBands = readableBand(effect.bonusAtSlot, `${path}.bonusAtSlot`, found);
+      const dieBands = readableBand(effect.dieAtLevel, `${path}.dieAtLevel`, found);
+      checkBandKeys(bonusBands, `${path}.bonusAtSlot`, found);
+      checkBandKeys(dieBands, `${path}.dieAtLevel`, found);
+      if (
+        effect.die !== undefined &&
+        (typeof effect.die !== 'string' || !parseNotation(effect.die).ok)
+      ) {
+        found.push({
+          field: `${path}.die`,
+          code: 'bad_dice',
+          reason: `"${String(effect.die)}" is not dice notation`,
+        });
+      }
+      for (const [level, die] of Object.entries(dieBands ?? {})) {
+        if (typeof die !== 'string' || !parseNotation(die).ok) {
+          found.push({
+            field: `${path}.dieAtLevel.${level}`,
+            code: 'bad_dice',
+            reason: `"${String(die)}" is not dice notation`,
+          });
+        }
+      }
+      if (effect.weapons !== undefined && !Array.isArray(effect.weapons)) {
+        found.push({
+          field: `${path}.weapons`,
+          code: MALFORMED,
+          reason: `a list of weapon ids, and this is ${nameOf(effect.weapons)}`,
+        });
+      } else if (effect.weapons !== undefined && effect.weapons.length === 0) {
+        found.push({
+          field: `${path}.weapons`,
+          code: 'empty_weapon_list',
+          reason:
+            'a spell that names no weapon at all writes no list; an empty one would match nothing and refuse every casting',
+        });
+      }
+      return;
+    }
+
     case 'dispel':
     case 'interrupt-casting':
       return;
+  }
+}
+
+/**
+ * A band table that can be read at all, or undefined with the reason reported.
+ *
+ * `Object.keys` on a null throws, and a definition that arrived as JSON is
+ * exactly where a null gets written — so this is the gate in front of both
+ * readers, and it reports rather than throwing, which is the rule the whole
+ * file keeps.
+ */
+function readableBand(
+  bands: unknown,
+  at: string,
+  found: SpellDefinitionProblem[],
+): Readonly<Record<number, unknown>> | undefined {
+  if (bands === undefined) return undefined;
+  if (typeof bands !== 'object' || bands === null || Array.isArray(bands)) {
+    found.push({
+      field: at,
+      code: MALFORMED,
+      reason: `a band table keyed by level, and this is ${nameOf(bands)}`,
+    });
+    return undefined;
+  }
+  return bands as Readonly<Record<number, unknown>>;
+}
+
+/**
+ * A band table's keys, held to the levels a band could be opened at.
+ *
+ * Both tables are keyed by a level — a slot's or a character's — and both are
+ * read by "the highest key at or below". A key that is not a positive whole
+ * number is a band that opens at no level the game has, and a table whose keys
+ * arrived as JSON is exactly where that gets written by accident.
+ */
+function checkBandKeys(
+  bands: Readonly<Record<number, unknown>> | undefined,
+  at: string,
+  found: SpellDefinitionProblem[],
+): void {
+  for (const key of Object.keys(bands ?? {})) {
+    const level = Number(key);
+    if (!Number.isInteger(level) || level < 1) {
+      found.push({
+        field: `${at}.${key}`,
+        code: 'bad_band_level',
+        reason: `${key} is not a level a band could open at`,
+      });
+    }
   }
 }
 
@@ -2434,6 +2578,13 @@ function grantCarried(effect: SpellEffect): string | null {
     // die away and an Instantaneous one never could.
     case 'attack-rider':
       return 'extra damage on later attacks';
+    // The fourteenth sourced grant, and the other half of the sixth's family.
+    // It carries no deadline of its own for the same reason: SRD Shillelagh
+    // runs "for the duration" and SRD Magic Weapon "until the spell ends", so
+    // the casting is the only thing that could give the weapon back — and an
+    // Instantaneous one would leave a Quarterstaff enchanted for ever.
+    case 'weapon-rider':
+      return 'a weapon this casting imbued';
     // The seventh, and it carries no deadline of its own for the reason the
     // fifth and sixth do not: every SRD sentence of this shape says "until the
     // spell ends" or prints a span the definition carries, and an Instantaneous
@@ -3960,6 +4111,7 @@ export const EFFECT_KINDS: ReadonlySet<string> = new Set([
   'condition-immunity',
   'speed',
   'attack-rider',
+  'weapon-rider',
   'teleport',
   'turn-payout',
   'action-rule',

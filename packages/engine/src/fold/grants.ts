@@ -38,6 +38,7 @@ export const GRANTS_EVENTS = [
   'damage-defense-granted',
   'speed-modifier-granted',
   'attack-rider-granted',
+  'weapon-rider-granted',
   'condition-immunity-granted',
   'turn-payout-granted',
   'action-rule-granted',
@@ -163,6 +164,22 @@ export function applyGrants({ state, next }: Applying, event: GrantsEvent): Game
         event.rider,
       ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
       return withCreature(next, event.id, { attackRiders }, creature);
+    }
+
+    case 'weapon-rider-granted': {
+      const creature = creatureOf(state, event, event.id);
+      // Re-granting from the same source replaces rather than stacking, the
+      // rule every grant in the family follows. **The source alone is the
+      // identity**, as it is for a defence, a Speed and a rider: no SRD
+      // sentence imbues two weapons in one casting, and SRD Magic Weapon and
+      // Shillelagh both say "the spell ends early if you cast it again" — so a
+      // second casting is a second id and `replacesPriorCasting` is what takes
+      // the first away, not a key collision here.
+      const weaponRiders = [
+        ...creature.weaponRiders.filter((held) => held.source !== event.rider.source),
+        event.rider,
+      ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
+      return withCreature(next, event.id, { weaponRiders }, creature);
     }
 
     case 'condition-immunity-granted': {

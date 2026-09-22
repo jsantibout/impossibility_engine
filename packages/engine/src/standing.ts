@@ -1819,6 +1819,34 @@ export function strikeStyleFor(
 ): StrikeStyle | null {
   const creature = state.creatures[who];
   if (creature === undefined) return null;
+
+  // **A casting that imbued this weapon is asked first**, and it can only ever
+  // answer for the one object it was aimed at.
+  //
+  // SRD Shillelagh redefines a Quarterstaff's die and the ability its rolls
+  // are made with, which is exactly what a style is, so it arrives here rather
+  // than as a fourth thing the attack layer would have to learn to read.
+  //
+  // **First, and the order is a ruling rather than an accident.** A style is
+  // the sheet's and a casting is an act somebody just took, so the deliberate
+  // thing wins where both reach the same swing — a Monk/Druid who spends a
+  // Bonus Action on Shillelagh gets Shillelagh's die and not Martial Arts'. It
+  // can shadow nothing else: a weapon rider is keyed on one weapon's id, so an
+  // Unarmed Strike — which every class style covers and no rider can — never
+  // reaches this branch at all. That is what makes putting it first safe,
+  // where a style with an empty `weapons` list in the same position would take
+  // the Monk's fist away.
+  const imbued = weaponRidersFor(creature, context.weapon).find(
+    (rider) => rider.die !== undefined || rider.ability !== undefined,
+  );
+  if (imbued !== undefined) {
+    return {
+      source: imbued.source,
+      name: spellOfSource(imbued.source),
+      ...(imbued.die === undefined ? {} : { die: imbued.die }),
+      ...(imbued.ability === undefined ? {} : { ability: imbued.ability }),
+    };
+  }
   // The sheet as it stands, for the reason every reader in this file takes it:
   // a Belt of Giant Strength moves the score the style's offer is weighed
   // against, and the styles themselves ride along untouched.
@@ -2125,7 +2153,45 @@ export function standingBonuses(
     }
   }
 
+  // **The weapon a casting imbued, folded in here rather than at the caller.**
+  // SRD Magic Weapon's "+1 bonus to attack rolls **and** damage rolls" is one
+  // number reaching two rolls, and this is the attack half; the damage half is
+  // `standingAttackDamage`, which is the other place a flat number of the
+  // weapon's own reaches a swing. Keyed apart from the feature bonuses above
+  // by the casting in the source, so two castings of Magic Weapon on one
+  // weapon do not stack — the same "same name, most potent" reading.
+  if (applies === 'attack') {
+    for (const bonus of weaponRiderBonuses(state.creatures[who], context.weapon ?? null)) {
+      const current = best.get(bonus.source);
+      if (current === undefined || (current.flat ?? 0) < (bonus.flat ?? 0)) {
+        best.set(bonus.source, bonus);
+      }
+    }
+  }
+
   return [...best.values()];
+}
+
+/**
+ * The flat plus an imbued weapon carries, as the two rolls that read it take
+ * their bonuses.
+ *
+ * Its own function because the plus reaches an attack roll and a damage roll
+ * and those are gathered in two places, and a second spelling of "which rider
+ * applies and what is it worth" is how the two would come to disagree about a
+ * thrown Dagger.
+ *
+ * `spellOfSource` gives the readable half back, so the log says "Magic Weapon"
+ * rather than `Magic Weapon#cast:3`; the casting id stays in the grant, which
+ * is what ends it.
+ */
+function weaponRiderBonuses(
+  creature: CreatureState | undefined,
+  weapon: Weapon | null,
+): readonly Bonus[] {
+  return weaponRidersFor(creature, weapon)
+    .filter((rider) => rider.bonus !== undefined)
+    .map((rider) => ({ source: spellOfSource(rider.source), flat: rider.bonus as number }));
 }
 
 /**
@@ -2968,6 +3034,86 @@ export function grantedAttackRiders(
 }
 
 /**
+ * What an ongoing effect has done to **one weapon**, read again on every later
+ * attack made with it.
+ *
+ * The fourteenth sourced grant and the other half of the sixth's family.
+ * {@link GrantedAttackRider} above hangs a notation and a damage type on the
+ * *attacker* and adds a component of its own; this changes the arithmetic of a
+ * particular object — SRD Shillelagh's substituted ability and replaced die,
+ * SRD Magic Weapon's flat plus of the weapon's own type.
+ *
+ * **Keyed on the weapon's catalogue id, which is the thing neither existing
+ * narrowing could say.** `StandingGrant.onlyWithItem` is keyed on the id of
+ * the item that *granted* the benefit — a Weapon, +1 confining its plus to
+ * itself — and no item granted this. `WeaponNarrowing` describes a *kind* of
+ * weapon, so it would imbue every Quarterstaff in the pack at once. The SRD
+ * writes "**that** weapon", and that is one id.
+ *
+ * **What the id can and cannot tell apart**, written down rather than
+ * discovered: two Quarterstaves in one pack are one id, so a casting aimed at
+ * either reaches both. Nothing in the engine can say otherwise today — an
+ * attack names its weapon by catalogue id and `InventoryLine.instance` never
+ * reaches the swing — and the alternative was a grant keyed on a fact no
+ * attack carries, which would have reached no swing at all.
+ *
+ * **Held by whoever swings**, like the rider above it, and hung on the
+ * creature the casting *touched*: Shillelagh is Range: Self and the two are
+ * the same creature, and Magic Weapon is Range: Touch and they need not be.
+ *
+ * Ended by the casting in its `source` exactly as the other thirteen are, so
+ * `releaseCasting`, `releaseOnTarget`, a dispel, a broken Concentration and
+ * the deadline all reach it through the door that already existed.
+ */
+export interface GrantedWeaponRider {
+  /** The casting (`Shillelagh#cast:1`) that imbued it. */
+  readonly source: string;
+  /** The weapon, by catalogue id: the one the casting was aimed at. */
+  readonly weapon: string;
+  /** SRD Shillelagh's "the attack and damage rolls of **melee** attacks". */
+  readonly meleeOnly?: true;
+  /** SRD Magic Weapon's plus, pinned at the slot it was cast with. */
+  readonly bonus?: number;
+  /** SRD Shillelagh's die, pinned at the caster's level. */
+  readonly die?: string;
+  /** SRD Shillelagh's offered ability, resolved to the caster's own. */
+  readonly ability?: Ability;
+}
+
+/**
+ * The weapon riders on this creature that have something to say about a swing
+ * with **this** weapon.
+ *
+ * One gatherer, three readers — the flat bonus on the attack roll
+ * ({@link standingBonuses}), the same bonus on the damage roll
+ * ({@link standingAttackDamage}), and the die and ability
+ * ({@link strikeStyleFor}). Emptying it fails a test of each, which is the
+ * evidence it is one question asked in three places rather than three
+ * questions spelled alike.
+ *
+ * **Matched off the weapon record the swing resolved**, never off a caller's
+ * `withItem`: the record is what a Versatile die and a reach are already read
+ * from, and a swing with no weapon at all — an Unarmed Strike, a spell attack
+ * — is a swing with no imbued object in it.
+ */
+export function weaponRidersFor(
+  creature: CreatureState | undefined,
+  weapon: Weapon | null,
+): readonly GrantedWeaponRider[] {
+  if (creature === undefined || weapon === null) return [];
+  return creature.weaponRiders.filter((rider) => {
+    if (rider.weapon !== weapon.id) return false;
+    // SRD Shillelagh: "melee attacks using that weapon". A Dagger thrown is a
+    // ranged attack with a melee weapon, and the sentence does not reach it —
+    // but nothing here knows whether it was thrown, so the weapon's own kind
+    // is what is asked. The narrower fact lives on `AttackOptions.thrown` and
+    // reaches neither of this function's three readers.
+    if (rider.meleeOnly === true && weapon.kind !== 'melee') return false;
+    return true;
+  });
+}
+
+/**
  * Compose a Speed out of its parts, in the order the architect fixed.
  *
  * **The SRD prints no order**, and the order is observable, so it is decided
@@ -3708,6 +3854,12 @@ export function standingAttackDamage(
       target: context.target,
     }),
   );
+
+  // **And the damage half of the imbued weapon's plus.** SRD Magic Weapon's +1
+  // is of the weapon's **own** type — a Mace under it deals 7 Bludgeoning, not
+  // 6 Bludgeoning and 1 of something else — so it is a `bonus` and not one of
+  // the typed components beside it. The attack half is `standingBonuses`.
+  bonuses.push(...weaponRiderBonuses(state.creatures[who], context.weapon));
 
   return { bonuses, extra, spent, unverified };
 }

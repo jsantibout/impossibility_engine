@@ -45,7 +45,7 @@ import {
  * | {@link FILED} | a sentence that is a **debt** — a mechanism over state the engine authoritatively holds, filed against the shape that blocks it |
  * | {@link HANDOVERS} | a paragraph whose every mechanical word is about something the engine holds nothing of — an object, a language, a thing somebody learns |
  * | {@link LIGHT} | the six this pass filed as handovers and G1 re-filed as debts, because there had been no id for light to file them against |
- * | {@link EXECUTES} | a spell whose debt turned out to be **stale**: the shape it named has since been built, and the definition writes it |
+ * | {@link EXECUTES} | a spell whose debt is no longer owed: the shape it named is built, and the definition writes it |
  * | {@link NEEDS_A_DECISION} | a debt whose shape exists in the **item** vocabulary and could not be named from this one without widening a type |
  *
  * `docs/design/content.md` is where that line is drawn and it is drawn by the
@@ -60,11 +60,12 @@ import {
  * book reads it afterwards.
  *
  * **Not one shape id below is new.** Each is already in {@link MISSING_SHAPES}
- * with a citation, and three of them name the very spell filed against them —
- * `a-creature-fact-an-effect-overrides` names Arcanist's Magic Aura,
- * `a-rider-on-a-later-weapon-attack` names Magic Weapon, and
+ * with a citation, and two of them name the very spell filed against them —
+ * `a-creature-fact-an-effect-overrides` names Arcanist's Magic Aura and
  * `a-cap-on-how-many-castings-run-at-once` names the sentence Prestidigitation
- * prints with a number in it.
+ * prints with a number in it. A third did: `a-rider-on-a-later-weapon-attack`
+ * named Magic Weapon, that shape's flat-bonus half is built, and the spell has
+ * moved to {@link EXECUTES}.
  */
 
 /**
@@ -79,7 +80,6 @@ const FILED: Readonly<Record<string, readonly string[]>> = {
   'arcanists-magic-aura': ['a-creature-fact-an-effect-overrides'],
   darkvision: ['senses-beyond-declared-sight'],
   knock: ['an-effect-that-suppresses-other-magic'],
-  'magic-weapon': ['a-rider-on-a-later-weapon-attack'],
   nondetection: ['an-effect-that-suppresses-other-magic'],
   'pass-without-trace': [
     'a-bonus-narrowed-to-a-skill',
@@ -172,12 +172,22 @@ const LIGHT: readonly string[] = [
 ];
 
 /**
- * And the one whose debt was stale — see the block below, which drives it.
+ * The ones whose debt is no longer owed — see the block below, which drives
+ * the first.
  *
- * A list of one rather than a sentence, because it is a third outcome of the
- * same reading and the arithmetic has to add up to forty-five.
+ * A list rather than a sentence, because it is a third outcome of the same
+ * reading and the arithmetic has to add up to forty-five.
+ *
+ * Expeditious Retreat's debt was **stale**: the shape it named had already
+ * been built when this pass read it. Magic Weapon's was **paid**, which is the
+ * outcome this list was always going to have to hold: it waited on
+ * `a-rider-on-a-later-weapon-attack` and named itself in that shape's own
+ * description, the `weapon-rider` grant was built, and the definition writes
+ * the whole of it — the plus on both rolls and the two bands a higher slot
+ * buys. What is left of its paragraph is that a weapon's magicality is not a
+ * fact the engine holds, which trips no marker and is nobody's debt.
  */
-const EXECUTES: readonly string[] = ['expeditious-retreat'];
+const EXECUTES: readonly string[] = ['expeditious-retreat', 'magic-weapon'];
 
 /**
  * And the one the reading found a debt in that this vocabulary cannot name.

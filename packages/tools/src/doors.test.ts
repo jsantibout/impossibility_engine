@@ -796,6 +796,11 @@ const ANSWERS: Readonly<Record<string, Answer>> = {
   destination_required: {
     fields: ['activate_spell.to', 'cast_spell.teleportTo', 'take_ready.response.teleportTo'],
   },
+  // The sixth stated fact, and the same two casting callers. SRD Shillelagh's
+  // "A Club or Quarterstaff you are holding" and Magic Weapon's "You touch a
+  // nonmagical weapon" name one object out of what the target is carrying, and
+  // a Druid holding both has two answers the engine will not pick between.
+  weapon_required: { fields: ['cast_spell.weapon', 'take_ready.response.weapon'] },
 
   // — and three questions about what pays for it ———————————————————————————
   slot_kind_required: { fields: ['cast_spell.slotKind', 'take_ready.response.slotKind'] },
