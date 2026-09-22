@@ -62,7 +62,7 @@ import {
   positionOf,
 } from '../positioning.js';
 import { canSee } from '../standing.js';
-import { creatureOf, sceneFor, unknownCreature } from './command.js';
+import { anchorNeeded, creatureOf, sceneFor, unknownCreature } from './command.js';
 import { mayAct } from './holds.js';
 
 export interface RelocateCommand extends CommandIdentity {
@@ -229,19 +229,12 @@ export function teleportTo(
   // 4d6 Force damage rather than a creature standing inside another.
   const moved = moveCreature(scene.value, who, command.placement);
   if (!moved.ok) {
-    // The refusal stays `moveCreature`'s; this says whose position is missing,
-    // which by here can only be the anchor's.
-    return moved.code === 'unplaced' && 'creature' in anchor
-      ? needsContext(moved.code, moved.reason, [
-          {
-            kind: 'position',
-            subject: anchor.creature,
-            need: `where ${anchor.creature} is standing`,
-            because: `${who} is being teleported to a space measured from ${anchor.creature}`,
-            satisfyWith: `a placeCreatureInScene command for ${anchor.creature}`,
-          },
-        ])
-      : moved;
+    // The refusal stays `moveCreature`'s; this says which fact about the anchor
+    // is missing. It was written out here when a creature nobody had placed was
+    // the only one it could be; an undeclared landmark joined it when that
+    // stopped being a verdict, and `anchorNeeded` is the one place both are
+    // answered.
+    return anchorNeeded(moved, anchor, `${who} is being teleported to a space measured from it`);
   }
 
   // Measured from where they were, on the lattice, between volumes — the one

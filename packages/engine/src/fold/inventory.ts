@@ -361,10 +361,20 @@ export function applyInventory({ state, next, legacy }: Applying, event: Invento
         quantity: event.quantity,
         ...(minted ? {} : { instance: event.instance }),
       };
+      /**
+       * **A conjured handful is not stock a drop may take from**, and saying
+       * so here is what stops a drop *making* things. `removeItems` merges a
+       * conjured line under `conjured:<casting>:<id>` and an ordinary one
+       * under `kind:<id>`, so a negative line naming only the kind finds no
+       * key, is filtered away by the `quantity > 0` rule, and leaves ten
+       * Goodberries in the hand with ten more on the floor. `dropItem` refuses
+       * a conjured line outright — a conjured thing disappears rather than
+       * landing — and this is the fold's half of the same sentence.
+       */
       const carried = creature.inventory
         .filter((owned) =>
           minted
-            ? owned.id === line.id && owned.instance === undefined
+            ? owned.id === line.id && owned.instance === undefined && owned.casting === undefined
             : owned.instance === event.instance,
         )
         .reduce((total, owned) => total + owned.quantity, 0);

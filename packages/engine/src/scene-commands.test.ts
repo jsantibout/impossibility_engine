@@ -26,7 +26,7 @@ import {
   setScene,
 } from './commands.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
-import { coverBetween, positionOf, sightBetween } from './positioning.js';
+import { coverBetween, type Placement, positionOf, sightBetween } from './positioning.js';
 import { declaredCasting } from './spellcasting.js';
 
 /**

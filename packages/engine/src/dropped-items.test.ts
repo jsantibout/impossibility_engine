@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
 import {
   asCharacterId,
+  contextRequestsOf,
   isErr,
   isNeedsContext,
   expect as unwrap,
@@ -255,6 +256,25 @@ describe('what a drop and a pick-up refuse', () => {
     expect(isErr(refused) && refused.code).toBe('equipped');
   });
 
+  /**
+   * **But only what is in the hand.** A pair of hands holds one of a kind —
+   * `equipItem` refuses a second — so with four handaxes and one wielded, the
+   * three spares are droppable and the fourth is not. Asking the *kind* the
+   * question vetoed the whole stack, which was never the rule.
+   */
+  it('lets the spares go while one of the kind is in hand', () => {
+    const log = run(room(), (s) => equipItem(s, SRD_CONTENT, GRUM, 'handaxe'));
+    const owned = quantityOf(state(log), GRUM, 'handaxe');
+
+    const spares = run(log, (s) =>
+      dropItem(s, SRD_CONTENT, GRUM, { item: 'handaxe', quantity: owned - 1 }),
+    );
+    expect(quantityOf(state(spares), GRUM, 'handaxe')).toBe(1);
+
+    const theLast = dropItem(state(spares), SRD_CONTENT, GRUM, { item: 'handaxe' });
+    expect(isErr(theLast) && theLast.code).toBe('equipped');
+  });
+
   /** A conjured thing does not land; it disappears, and there is a door for that. */
   it('refuses a conjured thing and names the door that takes one', () => {
     const armed: readonly GameEvent[] = [
@@ -297,8 +317,9 @@ describe('what a drop and a pick-up refuse', () => {
       (s) => setScene(s, { width: 60, depth: 60, height: 20 }),
     );
     const asked = dropItem(fold('seed', bare), SRD_CONTENT, GRUM, { item: WAND });
-    expect(isNeedsContext(asked) && asked.code).toBe('unplaced');
-    expect(isNeedsContext(asked) && asked.requests[0]?.satisfyWith).toMatch(/placeCreatureInScene/);
+    expect(isNeedsContext(asked)).toBe(true);
+    expect(isErr(asked) && asked.code).toBe('unplaced');
+    expect(contextRequestsOf(asked)[0]?.satisfyWith).toMatch(/placeCreatureInScene/);
   });
 
   it('refuses a pick-up from across the room', () => {
@@ -344,6 +365,63 @@ describe('the fold is what says a dropped record is real', () => {
     expect(() => fold('seed', dropped({ item: 'handaxe', instance: 'item:7' }))).toThrow(
       CorruptLogError,
     );
+  });
+
+  /** A record the creature holds is a record of a *particular* thing. */
+  it('refuses a known record the drop calls the wrong kind of thing', () => {
+    expect(() => fold('seed', dropped({ item: 'handaxe' }))).toThrow(CorruptLogError);
+    expect(() => fold('seed', dropped({ item: 'handaxe' }))).toThrow(/is a wand-of-secrets/);
+  });
+
+  /**
+   * **Putting down more than is carried would leave a pile nobody owned.** A
+   * loss that over-takes removes what is there and stops; this would put the
+   * difference on the floor, which is `item-transferred`'s arithmetic one door
+   * along.
+   */
+  it('refuses a drop of more than the creature is carrying', () => {
+    expect(() =>
+      fold('seed', dropped({ item: 'handaxe', instance: 'item:2', quantity: 99 })),
+    ).toThrow(CorruptLogError);
+    expect(() =>
+      fold('seed', dropped({ item: 'handaxe', instance: 'item:2', quantity: 99 })),
+    ).toThrow(/the drop puts down 99/);
+  });
+
+  it('refuses a drop of a quantity that is not a count', () => {
+    expect(() =>
+      fold('seed', dropped({ item: 'handaxe', instance: 'item:2', quantity: 1.5 })),
+    ).toThrow(CorruptLogError);
+  });
+
+  /**
+   * **A conjured handful is not stock a drop may take from.** It merges under
+   * its casting, so a drop naming only the kind would find no line to remove,
+   * remove nothing, and still put a pile on the floor — ten berries in the
+   * hand and ten more at the caster's feet. The command refuses a conjured
+   * line outright; this is the fold's half of the same sentence.
+   */
+  it('refuses a drop that would take a conjured handful for ordinary stock', () => {
+    const conjured: readonly GameEvent[] = [
+      ...room(),
+      {
+        type: 'items-gained',
+        id: GRUM,
+        items: [{ id: 'goodberry', quantity: 10, casting: 'casting:1', hands: 1 }],
+        source: 'a spell',
+      },
+      {
+        type: 'item-dropped',
+        id: GRUM,
+        item: 'goodberry',
+        quantity: 10,
+        instance: 'item:2',
+        placement: { from: { creature: GRUM }, feet: 0 },
+        source: 'put down',
+      },
+    ];
+    expect(() => fold('seed', conjured)).toThrow(CorruptLogError);
+    expect(() => fold('seed', conjured)).toThrow(/has 0 of goodberry/);
   });
 
   it('refuses a pile taken up that is not lying there', () => {

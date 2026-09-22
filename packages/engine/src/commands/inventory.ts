@@ -819,29 +819,43 @@ export function carriedWeight(
 }
 
 /**
- * Whether taking this much more on would put a creature over what it can carry.
+ * Whether taking this much more on is more than this creature could lift.
  *
- * **The refusal is a value, and it is only ever made on weight somebody has
- * stated.** What comes back is `null` for "fine" and an `Err` for "no", in the
- * shape `no_free_hand` takes one rule along: the number, the room left, and
- * what to do about it.
+ * **Which of the two printed numbers is a ceiling is the whole of this
+ * function, and the SRD settles it in its third sentence**: "While dragging,
+ * lifting, or pushing weight in excess of the maximum weight you can carry,
+ * your Speed can be no more than 5 feet." That sentence only means anything if
+ * a creature *may* be holding more than the Carry column — so Carry is the
+ * threshold past which you are slowed, and **Drag/Lift/Push is the ceiling**.
+ * Picking something up is lifting it, and buying something is walking out with
+ * it, so both are measured against the column the book calls a maximum.
+ *
+ * Refusing at the Carry column instead was the first draft and it was wrong in
+ * a way worth recording, because it looked right: the SRD's own starting
+ * bundles are heavier than the SRD's own Carry figure for a low-Strength
+ * class — a Bard's option A with a Sage's pack is 146 lb of *stated* weight
+ * against a Strength-8 Bard's 120 — so an engine that refused there shipped
+ * two doors that were dead for a canonical character it had just minted
+ * itself. The book is not in tension with itself; the reading was.
+ *
+ * **The half this does not build, and whose it is.** Nothing yet caps the
+ * Speed of a creature between the two numbers. Speed modifiers are
+ * `standing.ts`'s and `speed-modifier-granted`'s, which is another track's
+ * region; `carryingCapacity` returns both figures so that the rule is one read
+ * away when somebody owns it.
  *
  * **Where it is asked, and where it deliberately is not.** A character buying
  * something and a character bending down for something are both the character
- * taking weight on, and both are refused. A **DM's declaration** is not:
- * `awardItems` is the table saying what the party found and `transferItem` is
- * one creature handing another something, and both are facts about the world
- * that a rule about shoulders does not get to veto — the same division
- * `DECLARED_NOT_ACTED` already draws in `invariants.test.ts`. Nor is
- * `equipItem`, because putting on armour you already own changes nothing about
- * what you are carrying; the hands are what that door asks about.
+ * taking weight on. A **DM's declaration** is not: `awardItems` is the table
+ * saying what the party found and `transferItem` is one creature handing
+ * another something, and both are facts about the world that a rule about
+ * shoulders does not get to veto — the same division `DECLARED_NOT_ACTED`
+ * already draws in `invariants.test.ts`. Nor is `equipItem`, because putting on
+ * armour you already own changes nothing about what you are carrying; the
+ * hands are what that door asks about.
  *
- * SRD hands the GM a switch this does not yet model, and it is worth saying
- * where: "You can usually carry your gear and treasure without worrying about
- * the weight of those objects. If you try to haul an unusually heavy object or
- * a massive number of lighter objects, the GM **might** require you to abide by
- * the rules for carrying capacity." The rule as printed is therefore one a
- * table turns on, and the engine has nowhere to hold that fact yet.
+ * **And it is only ever made on weight somebody has stated.** An unweighed
+ * line adds nothing, so the bound is low and can only ever under-refuse.
  */
 function wouldOvercarry(
   state: GameState,
@@ -856,12 +870,12 @@ function wouldOvercarry(
     const weight = content.item(line.id)?.weightLb ?? null;
     if (weight !== null) taking += weight * line.quantity;
   }
-  if (held.pounds + taking <= capacity.carry) return ok(null);
+  if (held.pounds + taking <= capacity.dragLiftPush) return ok(null);
   return err(
     'over_capacity',
-    `${id} can carry ${capacity.carry} lb and is carrying ${held.pounds} lb${
+    `${id} can lift ${capacity.dragLiftPush} lb and is already carrying ${held.pounds} lb${
       held.unweighed === 0 ? '' : ` plus ${held.unweighed} thing(s) nobody has weighed`
-    }; another ${taking} lb is more than they can hold — put something down first`,
+    }; another ${taking} lb is more than they could pick up — put something down first`,
   );
 }
 
@@ -944,17 +958,37 @@ export function dropItem(
       );
     }
 
-    const held = creature.equipped.find((worn) => worn.id === copy.id);
-    if (held !== undefined && (held.instance === undefined || held.instance === copy.instance)) {
-      return err('equipped', `${copy.id} is worn or wielded by ${id}; take it off first`);
-    }
-
     const quantity = command.quantity ?? copy.quantity;
     if (!Number.isInteger(quantity) || quantity < 1) {
       return err('bad_quantity', `a drop puts down a positive whole number, got ${quantity}`);
     }
     if (quantity > copy.quantity) {
       return err('not_owned', `${id} has ${copy.quantity} of ${copy.id}, not ${quantity}`);
+    }
+
+    /**
+     * **What is in the hand stays in the hand, and only what is in the hand.**
+     *
+     * `equipped` is a fact of its own — `items-lost` does not touch it — so a
+     * dropped shield would go on adding its Armour Class from the floor.
+     * That is `loseItems`' rule and this is the same one.
+     *
+     * Counted rather than asked of the *kind*, which is the correction: a
+     * barbarian holding one of four handaxes may put the spares down, and a
+     * guard that found any equipped line under the id vetoed the whole stack.
+     * An unlabelled equipped line answers for one copy, because that is all a
+     * pair of hands ever holds of a kind — `equipItem` refuses a second — so
+     * what must survive the drop is one per equipped line.
+     */
+    const inHand = creature.equipped.filter(
+      (worn) =>
+        worn.id === copy.id && (worn.instance === undefined || worn.instance === copy.instance),
+    ).length;
+    if (copy.quantity - quantity < inHand) {
+      return err(
+        'equipped',
+        `${id} is wielding ${inHand} of their ${copy.quantity} ${copy.id}; putting down ${quantity} would drop what is in hand — take it off first`,
+      );
     }
 
     // At their feet unless the caller names somewhere established. Never a
@@ -1114,8 +1148,13 @@ export function takeItemUp(
  * measured against exactly what a caller would have seen.
  */
 export function itemsWithinReach(state: GameState, id: CharacterId): Result<readonly GroundPile[]> {
-  if (state.scene === null) return ok([]);
-  return groundItemsWithin(state.scene, id, ARMS_REACH);
+  // Homework, not an empty floor. "Nobody has described a room" and "the room
+  // is bare" are two different answers, and `ok([])` gave the second to the
+  // first — the mistake rule 6 is about, in the one place in this file that
+  // was making it.
+  const scene = sceneFor(state, id, `${id} to find anything lying at their feet`);
+  if (!scene.ok) return scene;
+  return groundItemsWithin(scene.value, id, ARMS_REACH);
 }
 
 /**

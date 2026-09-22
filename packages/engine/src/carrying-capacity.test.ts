@@ -143,16 +143,25 @@ describe('what a creature is actually carrying', () => {
   });
 });
 
-describe('a gain that would put a creature over capacity', () => {
-  /** Strength 3 is 45 lb; a suit of Chain Mail is 55. */
+describe('a gain heavier than the creature could lift', () => {
+  /**
+   * **Measured against Drag/Lift/Push, not against Carry**, and the SRD's own
+   * third sentence is why: "While dragging, lifting, or pushing weight in
+   * excess of the maximum weight you can carry, your Speed can be no more than
+   * 5 feet." A rule about being *over* Carry presumes you may be over it, so
+   * Carry is where you slow down and the second column is the ceiling.
+   *
+   * Strength 3 lifts 90 lb; two suits of Chain Mail are 110.
+   */
   it('is refused at the shop, with what it weighs and what is left', () => {
-    const refused = purchaseItem(state(walker(3)), SRD_CONTENT, A, 'chain-mail');
+    const refused = purchaseItem(state(walker(3)), SRD_CONTENT, A, 'chain-mail', 2);
     expect(isErr(refused) && refused.code).toBe('over_capacity');
-    expect(isErr(refused) && refused.reason).toMatch(/45/);
+    expect(isErr(refused) && refused.reason).toMatch(/90/);
   });
 
   it('is refused bending down for it', () => {
-    // Somebody strong buys it and puts it down; somebody weak cannot lift it.
+    // Somebody strong buys the pile and puts it down; somebody weak cannot
+    // pick it up again.
     const strong = id('strong');
     let log: readonly GameEvent[] = [
       ...walker(3),
@@ -160,7 +169,7 @@ describe('a gain that would put a creature over capacity', () => {
       { type: 'coins-changed', id: strong, copper: 1_000_000, source: 'a patron' },
     ];
     log = run(log, (s) => placeCreatureInScene(s, strong, { from: { creature: A }, feet: 5 }));
-    log = run(log, (s) => purchaseItem(s, SRD_CONTENT, strong, 'chain-mail'));
+    log = run(log, (s) => purchaseItem(s, SRD_CONTENT, strong, 'chain-mail', 2));
     log = run(log, (s) => dropItem(s, SRD_CONTENT, strong, { item: 'chain-mail' }));
 
     const refused = takeItemUp(state(log), SRD_CONTENT, A, { item: 'chain-mail' });
@@ -171,6 +180,38 @@ describe('a gain that would put a creature over capacity', () => {
   it('is not refused when it fits', () => {
     const bought = purchaseItem(state(walker(3)), SRD_CONTENT, A, 'dagger');
     expect(bought.ok).toBe(true);
+  });
+
+  /**
+   * **The measurement that made the first reading wrong, pinned so it cannot
+   * be forgotten.** A canonical Bard's option A with a Sage's pack is heavier
+   * than a Strength-8 Bard's Carry figure — the SRD's own kit against the
+   * SRD's own number — so a ceiling at Carry would have left a character the
+   * engine had just minted unable to buy or pick up anything at all, for ever.
+   * It is comfortably inside what that Bard can lift, which is the column the
+   * book calls a maximum.
+   */
+  it('leaves a canonical low-Strength character able to pick things up', () => {
+    const weigh = (items: readonly { readonly id: string; readonly quantity: number }[]): number =>
+      items.reduce(
+        (total, line) =>
+          total +
+          SRD_CONTENT.expandPack(line.id).reduce(
+            (inner, inside) =>
+              inner + (SRD_CONTENT.item(inside.id)?.weightLb ?? 0) * inside.quantity * line.quantity,
+            0,
+          ),
+        0,
+      );
+    const bard = SRD_CONTENT.classes.find((one) => one.id === 'bard')!;
+    const sage = SRD_CONTENT.backgrounds.find((one) => one.id === 'sage')!;
+    const kit =
+      weigh(bard.startingEquipment.find((one) => one.option === 'A')!.items) +
+      weigh(sage.startingEquipment.find((one) => one.option === 'A')!.items);
+
+    const capacity = carryingCapacity(state(walker(8)), A);
+    expect(kit).toBeGreaterThan(capacity.carry);
+    expect(kit).toBeLessThan(capacity.dragLiftPush);
   });
 
   /**

@@ -3968,6 +3968,29 @@ describe('unknown is not no', () => {
       },
     },
     {
+      /**
+       * **A move measured from a door nobody has described.**
+       *
+       * The case the landmark half of `anchorNeeded` exists for, and the one
+       * that made the doctrine defect visible: `resolveAnchor` answered `err`
+       * — "there is no X in this scene" — which reads to everything above as
+       * *that does not exist*, so the narrator describes a door, somebody
+       * reaches for it, and the engine denies the door. It is homework now,
+       * and this entry is what stops it quietly becoming a bare one: the
+       * second assertion below reads the request rather than the code, and
+       * `resolveMove` forwarded `moveCreature`'s refusal unadorned until this
+       * was written.
+       */
+      name: 'moving to a landmark nobody has named',
+      run: () =>
+        resolveMove(
+          fold('s', SETUP),
+          A,
+          { placement: { from: { landmark: 'the door' }, feet: 10 } },
+          supply(),
+        ),
+    },
+    {
       // A fight the DM says is over, with somebody standing in it that nobody
       // has put on a side. `side` is declared, exactly as sight and cover are:
       // `null` is "nobody has said", not "neutral", so a fight holding one
