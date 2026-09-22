@@ -873,12 +873,11 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD lets the caster keep the globe in hand to be thrown or slung later, or left to detonate on its own. A hand is a fact now and a casting may put a thing in one, but what sits there is an ordinary catalogue item with no state of its own \u2014 and this globe is a held *casting*, which detonates on a later action, may be thrown, and goes off by itself if it is not. Holding it is the half that is built; the rest of the sentence is not.',
     },
   ],
+  // One clause lighter: "The spell ends on the target if it drops to 0 Hit
+  // Points" is `target-drops-to-0`, read off a `damage-taken` that leaves the
+  // creature at 0, and the release is on that target rather than on the
+  // casting — which a level 4 slot is what makes visible.
   'gaseous-form': [
-    {
-      clause: 'if it drops to 0 Hit Points',
-      why: 'a-casting-ended-by-a-trigger',
-      note: 'SRD: "The spell ends on the target if it drops to 0 Hit Points or if it takes a Magic action to end the spell on itself." IE-032 built five transcribed causes and every one hangs on a consequence event; dropping to 0 Hit Points is not among them, so the cloud goes on being a cloud after its occupant falls.',
-    },
     {
       clause: 'the target ending it "as a Magic action" is not offered',
       why: 'a-casting-dismissed-early',
@@ -954,11 +953,16 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       why: 'an-area-that-filters-its-catch',
       note: 'An area catches every creature standing in it. SRD affects only those that can see the pattern, so a blindfolded creature in the Cube is Charmed here and is not Charmed in the book.',
     },
-    {
-      clause: 'ending for a creature that takes damage',
-      why: 'a-casting-ended-by-a-trigger',
-      note: 'SRD ends the effect on a creature that takes damage or is shaken awake. The damage is recorded and no casting can be told to release that creature when it lands.',
-    },
+    // **One clause lighter, and the other half of the same sentence is in the
+    // definition's own notes rather than here.** SRD: "The spell ends for an
+    // affected creature if it takes any damage or if someone else uses an
+    // action to shake the creature out of its stupor." The damage half is
+    // `target-takes-damage`, the cause **any** blow pulls, dealer or no
+    // dealer, releasing the one creature rather than the Cube. The shaking is
+    // one creature spending an action to free another, which nothing spends —
+    // and it trips no `CLAUSE_MARKERS` entry, so it belongs where every
+    // marker-invisible residue belongs: `unmodelled`, handed to the table on
+    // every casting.
   ],
   'ice-storm': [
     {
@@ -1052,13 +1056,12 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'The ending itself is expressible — `onSuccess: end-casting` exists — and it has no save to ride on, because the repeat save that would carry it deals damage the hook cannot roll.',
     },
   ],
-  'phantom-steed': [
-    {
-      clause: 'the casting does not stop early when the steed takes any damage',
-      why: 'a-casting-ended-by-a-trigger',
-      note: 'That shape’s own description names this spell in its list of causes with no member — "**any** damage from anybody (Modify Memory, Sleep, Sequester, Phantom Steed, Project Image, Eyebite)" — and the steed existing is what makes the gap visible rather than hypothetical. `CastingEndCause`’s five members are facts about a **target** or about the caster and their allies; the creature a casting is sustaining is neither, so there is no cause to write even though the damage event now names a creature the casting put there.',
-    },
-  ],
+  // **Gone, and it is the spell that shape was named for.** "The spell ends if
+  // the steed takes any damage" is `summon-takes-damage`: the creature a
+  // casting is *sustaining* is neither a target nor an ally, so `isOn` answers
+  // no about it and `summonedBy` — the link `strandedSummons` already reads —
+  // is what says which casting a bleeding steed belongs to. Everything else
+  // this spell prints is the table's.
   'plant-growth': [
     {
       clause: 'the Enrichment branch is not castable at all',
@@ -3752,7 +3755,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: null,
       clause: 'targeted by any Divination spell',
       why: 'an-effect-that-suppresses-other-magic',
-      note: 'a creature that refuses a casting rather than an area that does, which is the same missing state arriving at a different holder — the reading this shape already records for Freedom of Movement’s refusal of a Speed reduction. Every Divination this catalogue defines happens to be cast at Self or at no creature, so the rule has no reachable case *today*; the state it would need does not exist either way.',
+      note: 'a creature that refuses a casting rather than an area that does, which is the same missing state arriving at a different holder — the reading this shape already records for Freedom of Movement’s refusal of a Speed reduction. **The second half of this note was wrong and is corrected here**: it said every Divination this catalogue defines is cast at Self or at no creature, so the rule would have no reachable case. Two executed Divinations take a creature as their target — Mind Spike (level 2, `targets: { count: 1 }`, Range 120 feet) and Hunter’s Mark (level 1, the same) — and both are inside level-5 reach, so a Nondetection on a quarry is a case a table reaches this year. What is missing is only the state and its reader, and the reader is the one place a casting checks its targets.',
     },
   ],
 

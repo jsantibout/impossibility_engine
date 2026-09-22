@@ -3054,8 +3054,8 @@ export interface SpellDefinition {
    * Concentration, a dispel, a recast — and every one of them is either a
    * moment on the clock or somebody's decision. The SRD writes a fifth: a
    * spell that stops because **something happened**, and nobody decided it.
-   * Five sentences across eight executed spells, and each member below is one
-   * of them transcribed rather than a category somebody invented.
+   * Each member below is one such sentence transcribed rather than a category
+   * somebody invented.
    *
    * Absent for every spell that prints no such sentence, which is almost all
    * of them — and deliberately absent from Greater Invisibility, whose whole
@@ -3068,20 +3068,31 @@ export interface SpellDefinition {
 /**
  * What has to happen for a casting to stop early, as the book writes it.
  *
- * **A closed list of five, and what keeps it closed is that each member names
- * a fact the log already holds on an event that already has consequences.**
+ * **A closed list, and what keeps it closed is that each member names a fact
+ * the log already holds on an event that already has consequences.**
  * `target-deals-damage` is `damage-taken` naming its dealer — the field
  * Hellish Rebuke needed, because prose cannot be aimed at — and
  * `target-dons-armor` is `item-equipped` naming a piece of body armour. A
  * trigger whose fact the log does not hold is filed in `missing-shapes.ts`
  * instead: Sequester's caster-chosen condition, Faithful Hound's 300 feet,
- * Guardian of Faith's running total, and the several spells that end on
- * **any** damage rather than on the caster's, are all still there.
+ * Guardian of Faith's running total and Tiny Hut's caster stepping out of
+ * their own dome are all still there.
  *
- * Four of the five are {@link EffectEndCause}, declared in `timers.ts`
- * because a timer an item filed reads them too; the fifth is the one a casting
- * adds, because only a casting has a caster for "you or one of your allies" to
- * be about.
+ * The first four are {@link EffectEndCause}, declared in `timers.ts` because a
+ * timer an item filed reads them too; the rest are what a casting adds,
+ * because only a casting has a caster for "you or one of your allies" to be
+ * about and only a casting can be **sustaining** a creature.
+ *
+ * **Two axes, and the members are their cross section rather than their
+ * product.** A cause says what happened *and* whom it happened to, because
+ * those are the two things `fold/endings.ts` has to know and because the SRD
+ * writes them together in one clause. Every member but the last names a
+ * creature the casting is **on**, which `isOn` is the gate for; the last names
+ * the creature the casting put in the world, which `isOn` answers no about —
+ * a summon holds nothing of the casting, the casting holds the summon. A
+ * member is written the day a definition writes it and not before, which is
+ * why there is no `summon-drops-to-0`: SRD Unseen Servant prints it and its
+ * stat block is a shape this engine does not have.
  *
  * **`target-attacks` is `attack-made`, which is the Attack action rather than
  * every attack roll.** The only thing that names the roller of an attack that
@@ -3119,7 +3130,56 @@ export type CastingEndCause =
    * that says which castings this leaves unjudged, since a derived pass has no
    * `unverified` line to write one on.
    */
-  | 'caster-or-ally-damages-target';
+  | 'caster-or-ally-damages-target'
+  /**
+   * SRD Hypnotic Pattern: "The spell ends for an affected creature if it takes
+   * any damage."
+   *
+   * **Any** damage, which is why this is not `target-deals-damage` read
+   * backwards and not `caster-or-ally-damages-target` with the allegiance
+   * dropped: both of those read the creature at the *other* end of the blow,
+   * and a falling rock is at no end of it at all. `damage-taken` names its
+   * victim on every blow it records, dealer or no dealer, so this is the
+   * cheapest fact in the list and the one the four dealer-shaped causes walk
+   * straight past.
+   *
+   * **Any damage is still damage and not a hit.** A blow a Resistance or an
+   * Immunity took down to nothing writes a `damage-taken` for zero, and this
+   * does not fire on it — the reading `breakLostConcentration` already takes
+   * off the same event, because a Concentration save is not owed for a blow
+   * that did nothing either.
+   */
+  | 'target-takes-damage'
+  /**
+   * SRD Gaseous Form: "The spell ends on the target if it drops to 0 Hit
+   * Points."
+   *
+   * **The drop, not the damage** — one moment with two facts in it, and the
+   * reason this is a second member rather than a scope on the one above. It is
+   * read off a `damage-taken` that leaves the creature at 0, which is the same
+   * "ask the state the event left behind" that `target-dons-armor` already
+   * takes. What it reads is therefore the **total** and not the transition,
+   * and two residues follow, said plainly rather than argued away. A Hit Point
+   * maximum lowered onto 0 is no blow and reaches this nowhere. And a creature
+   * already at 0 taking another blow pulls it, which costs nothing for the
+   * spells in the book — their first drop ended them — but would end a casting
+   * laid on a creature that was already down at the next blow rather than at a
+   * fall. A blow that dealt nothing is not one of them: this fires only where
+   * `target-takes-damage` does.
+   */
+  | 'target-drops-to-0'
+  /**
+   * SRD Phantom Steed: "the spell ends if the steed takes any damage."
+   *
+   * **The creature the casting is sustaining, which is neither a target nor an
+   * ally.** `isOn` asks what a creature is *holding* of a casting and a steed
+   * holds nothing — no condition, no bonus, no grant — so every other member
+   * here would walk past it however the cause were spelled. What answers is
+   * `CreatureState.summonedBy`, the link `strandedSummons` already reads, and
+   * that link is the whole difference: this is a casting ending because
+   * something happened to the thing it put in the world.
+   */
+  | 'summon-takes-damage';
 
 /**
  * One printed sentence: what happens, and what it ends.
@@ -3140,6 +3200,12 @@ export interface CastingEndTrigger {
    * releases it on the creature the trigger names and leaves the casting
    * running for everyone else, through `releaseOnTarget`. Both doors already
    * existed — this is the field that says which one a sentence means.
+   *
+   * **`target` needs a creature the casting is on to release**, so it is
+   * refused on `summon-takes-damage`: a summon holds nothing of the casting,
+   * and `releaseOnTarget` asked about one would lift nothing and leave the
+   * spell running. A sentence that could never fire compiles, which is why the
+   * validator says so instead.
    */
   readonly ends: 'casting' | 'target';
 }

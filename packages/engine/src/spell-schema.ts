@@ -2490,10 +2490,25 @@ export const END_TRIGGER_CAUSES: ReadonlySet<string> = new Set([
   'target-casts',
   'target-dons-armor',
   'caster-or-ally-damages-target',
+  'target-takes-damage',
+  'target-drops-to-0',
+  'summon-takes-damage',
 ]);
 
 /** What a trigger may end: the casting, or the casting on one creature. */
 const END_TRIGGER_SCOPES: ReadonlySet<string> = new Set(['casting', 'target']);
+
+/**
+ * The causes whose creature is not one the casting is **on**.
+ *
+ * `releaseOnTarget` lifts what a creature is holding of a casting, and a
+ * summon is holding nothing — the casting is holding *it*. So `ends: 'target'`
+ * on such a cause is a sentence that would find nothing to release and leave
+ * the spell running, which compiles and is silently inert. Named as a set
+ * rather than tested by hand so that the next cause of this shape joins it in
+ * one place.
+ */
+const CAUSES_OUTSIDE_THE_CASTING: ReadonlySet<string> = new Set(['summon-takes-damage']);
 
 /**
  * A trigger that ends a casting needs a casting that could still be running.
@@ -2579,6 +2594,12 @@ function checkEndsEarly(
         field: `${path}.ends`,
         code: 'unknown_end_scope',
         reason: `"${String(ends)}" is neither "casting" nor "target"; the SRD prints one or the other and defaulting would pick for it`,
+      });
+    } else if (ends === 'target' && typeof on === 'string' && CAUSES_OUTSIDE_THE_CASTING.has(on)) {
+      found.push({
+        field: `${path}.ends`,
+        code: 'inert_end_scope',
+        reason: `"${on}" names a creature the casting is not on, so releasing the casting on it would lift nothing and leave the spell running; this sentence ends the casting`,
       });
     }
   });
