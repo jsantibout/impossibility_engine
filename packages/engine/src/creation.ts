@@ -1868,6 +1868,40 @@ function multiclassHitPoints(content: Content, choices: CharacterChoices, consti
 }
 
 /**
+ * Hit points the character's own features add to the class table's total.
+ *
+ * **Part of the maximum rather than a grant hung on the creature**, which is
+ * the whole of why this is here and not in the fold. A casting's maximum is a
+ * loan with a source and an ending; a feature's is what the table says the
+ * maximum *is* — `hpMax - hpMaxAdjustment` — so it is recomputed at every
+ * level and released by nothing. `advanceCharacter` needs no word about it:
+ * it subtracts the unadjusted maximum and asks what the difference is.
+ *
+ * The step is one hit point per level gained **after the one the feature
+ * arrived at**, counted in the levels the grant names: a species trait's are
+ * the character's, and a class feature's are that class's own, which is
+ * `classLevelFor`'s fork and the reason a Sorcerer 3 / Fighter 2 gets three
+ * Sorcerer levels' worth of Draconic Resilience and five character levels'
+ * worth of Dwarven Toughness.
+ */
+function featureHitPoints(
+  choices: CharacterChoices,
+  features: readonly FeatureDefinition[],
+): number {
+  let total = 0;
+  for (const feature of features) {
+    const grant = feature.grants;
+    if (grant?.kind !== 'hit-point-maximum') continue;
+    total += grant.flat;
+    if (grant.perLevel === undefined) continue;
+    const level =
+      grant.perLevel === 'class' ? classLevelFor(choices, feature.id) : totalLevelOf(choices);
+    total += Math.max(0, level - feature.level);
+  }
+  return total;
+}
+
+/**
  * Spell slots, from one class's table or from the combined one.
  *
  * SRD: "If you multiclass but have the Spellcasting feature from only one
@@ -3262,7 +3296,9 @@ export function planCharacter(
   return ok({
     sheet,
     proficiencyBonus: proficiencyBonusForLevel(choices.level),
-    hitPointMaximum: multiclassHitPoints(content, choices, abilityModifier(scores.con)),
+    hitPointMaximum:
+      multiclassHitPoints(content, choices, abilityModifier(scores.con)) +
+      featureHitPoints(choices, features),
     hitDie: definition.hitDie,
     spellSlots: pools.slots,
     pactSlots: pools.pact,

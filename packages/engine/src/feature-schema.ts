@@ -1147,6 +1147,37 @@ export function checkFeatureDefinition(
     }
   }
 
+  // A hit point maximum that raises nothing, and a step counted in levels
+  // nobody has.
+  //
+  // `flat` is what the feature is worth at the level it arrives at — Dwarven
+  // Toughness's 1 and Draconic Resilience's 3 — so a zero is a trait whose
+  // sentence says nothing happens and a fraction is a hit point the sheet
+  // cannot hold. Both would validate, compile into the maximum and move it by
+  // nothing or by half, which is the quiet failure this file exists to refuse
+  // at authoring.
+  //
+  // And the per-level term is read at a level: the **character's** for a
+  // species trait, or the **granting class's** for a class feature, which are
+  // the only two levels `planCharacter` can answer for. Anything else names a
+  // column of somebody else's book.
+  if (grant?.kind === 'hit-point-maximum') {
+    if (!isCount(grant.flat)) {
+      found.push({
+        field: 'grants.flat',
+        code: 'bad_hit_point_maximum',
+        reason: `a feature's hit points are a whole number of at least one, not ${String(grant.flat)}`,
+      });
+    }
+    if (grant.perLevel !== undefined && grant.perLevel !== 'character' && grant.perLevel !== 'class') {
+      found.push({
+        field: 'grants.perLevel',
+        code: 'bad_hit_point_maximum',
+        reason: `a level is the character's or the granting class's, and "${String(grant.perLevel)}" is neither`,
+      });
+    }
+  }
+
   // And the reading end of the same rule: the field says where a choice is
   // read *from*, so a grant that reads no choice names a source for nothing.
   if (

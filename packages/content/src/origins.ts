@@ -181,8 +181,9 @@ export const DWARF: SpeciesDefinition = {
       id: 'dwarf:dwarven-toughness',
       name: 'Dwarven Toughness',
       level: 1,
-      automation: 'manual',
-      note: 'Not applied: "Your Hit Point maximum increases by 1, and it increases by 1 again whenever you gain a level" needs a feature that raises the hit point maximum, which the engine does not have - Draconic Resilience wants the same thing and says so. A DM adds one hit point per character level.',
+      automation: 'engine',
+      note: 'The trait is one sentence and the sentence is applied: "Your Hit Point maximum increases by 1, and it increases by 1 again whenever you gain a level" is a hit-point-maximum grant read by planCharacter, so a level 1 Dwarf is one hit point above the class table and a level 5 Dwarf is five - and advanceCharacter hands over the level\'s own hit points and this one more, because it asks what the maximum has become rather than adding a number twice. The levels counted are the character\'s, which is what the sentence says: a Dwarf who multiclasses gains the hit point for every level of either class.',
+      grants: { kind: 'hit-point-maximum', flat: 1, perLevel: 'character' },
     },
     {
       id: 'dwarf:stonecunning',

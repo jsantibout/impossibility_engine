@@ -294,6 +294,8 @@ const AT_CREATION: Readonly<Record<string, string>> = {
   'weapon-mastery': 'the mastery properties this character may use, chosen at creation and named on a swing',
   'extra-attack': 'the number of attacks an Attack action buys, which `resolveAttack` counts down',
   'unarmored-defense': 'an alternative base Armour Class, which `armorClassOf` reads',
+  'hit-point-maximum':
+    'hit points added to the maximum when the character was made, which every level recomputes',
   'strike-style': 'SRD Martial Arts: the die and the Bonus Action strike an Unarmed Strike reads',
   'critical-range': 'SRD Improved Critical: the natural roll a hit crits on, read by the attack pipeline',
   'ability-score-increase': 'an ability score raised at creation; every modifier derived from it follows',

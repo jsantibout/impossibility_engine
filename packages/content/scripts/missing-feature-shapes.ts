@@ -1315,13 +1315,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'a printed span rather than an extended turn boundary.',
     },
   ],
-  'dwarf:dwarven-toughness': [
-    {
-      clause: 'needs a feature that raises the hit point maximum',
-      why: 'a-hit-point-maximum-a-spell-moves',
-      note: 'the spell half is built and this is not it. A spell’s maximum is a grant hung on a creature with a source and an ending; a feature’s is what the class table says the maximum **is**, recomputed by every level-up and never taken away — so it belongs in `planCharacter`’s own arithmetic, behind a `FeatureGrant` naming a column of the table. Draconic Resilience wants the same thing, which is what makes it a shape.',
-    },
-  ],
   'dwarf:stonecunning': [
     {
       clause: 'The sense is switched on for 10 minutes by a Bonus Action rather than had',

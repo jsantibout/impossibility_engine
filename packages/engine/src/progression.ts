@@ -1789,6 +1789,41 @@ export type FeatureGrant =
       readonly shieldAllowed: boolean;
     }
   /**
+   * Hit points a feature adds to the maximum the class table already gives.
+   *
+   * **Written here rather than through the `hit-point-maximum` spell effect,
+   * and the difference is the lifetime.** A casting's maximum is a sourced
+   * grant hung on a creature: `settleHitPointMaxima` holds `Vitals.hpMax` up
+   * while the casting runs and every ending gives it back, which is SRD Aid.
+   * A feature's is not a loan — it is part of what the class table says the
+   * maximum *is*, the number `hpMax - hpMaxAdjustment` denotes, recomputed by
+   * every level-up and taken away by nothing. So it is resolved in
+   * `planCharacter`'s own arithmetic, which is also what makes advancement
+   * right without a word: `advanceCharacter` subtracts the **unadjusted**
+   * maximum before asking what the new level was worth.
+   *
+   * **The per-level term is one hit point, and the SRD is why.** Both writers
+   * print the same two sentences with the same second half — Dwarven
+   * Toughness's "increases by 1, and it increases by 1 again whenever you gain
+   * a level" and Draconic Resilience's "increases by 3, and it increases by 1
+   * whenever you gain another Sorcerer level" — so the flat and the step are
+   * different numbers and only the flat varies. A feature whose step is not 1
+   * would need a field, and no printed feature has one.
+   *
+   * The fork {@link PoolSizing.perClassLevel} already draws: Dwarven
+   * Toughness counts **character** levels and Draconic Resilience counts the
+   * Sorcerer's own, so a Sorcerer 3 / Fighter 2 has three of the one and five
+   * of the other. Either way the step is counted from the level the feature
+   * itself arrives at, because that is the level at which the flat was given.
+   */
+  | {
+      readonly kind: 'hit-point-maximum';
+      /** What the feature is worth at the level it arrives: Draconic Resilience's 3. */
+      readonly flat: number;
+      /** Whose levels the "and 1 again whenever you gain a level" counts. */
+      readonly perLevel?: 'character' | 'class';
+    }
+  /**
    * A Reaction the feature takes at one of the engine's named windows — see
    * `ReactionFeature` in `reactions.ts`.
    *
