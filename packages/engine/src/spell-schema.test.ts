@@ -3662,21 +3662,37 @@ describe('every branch judges untyped input rather than throwing on it', () => {
     for (const kind of READ_NO_FIELD) expect(covered.has(kind)).toBe(false);
   });
 
-  const rows = BRANCHES.flatMap(({ kind, base, fields }) =>
+  const rows = BRANCHES.flatMap(({ kind, base, fields, host }) =>
     Object.entries(fields).flatMap(([field, junk]) =>
       junk.map(
         (value) =>
-          [`${kind}.${field} = ${JSON.stringify(value) ?? 'undefined'}`, base, field, value] as const,
+          [
+            `${kind}.${field} = ${JSON.stringify(value) ?? 'undefined'}`,
+            base,
+            field,
+            value,
+            host ?? {},
+          ] as const,
       ),
     ),
   );
 
-  it.each(rows)('answers with a refusal for %s', (_label, base, field, value) => {
+  // **The host travels with the row**, for the reason it travels with the
+  // base-validity check above: a row whose *definition* is illegal refuses
+  // before the junk is read, and `isErr` cannot tell the two apart — the
+  // sweep would go on passing while testing nothing. `summon` is the one kind
+  // with a rule about its host, and Fire Dart throws its dart at somebody else.
+  it.each(rows)('answers with a refusal for %s', (_label, base, field, value, host) => {
     // Both lifetimes, because the rule that reads a rider a second time
     // returns early the moment a casting persists — which is exactly what kept
     // `grantCarried`'s unguarded walk out of reach of the case that found it.
     for (const lifetime of [{ durationSeconds: 60 }, {}]) {
-      const definition = { ...FIRE_DART, ...lifetime, effects: [{ ...base, [field]: value }] };
+      const definition = {
+        ...FIRE_DART,
+        ...lifetime,
+        ...host,
+        effects: [{ ...base, [field]: value }],
+      };
       let parsed: ReturnType<typeof parseSpellDefinition> | undefined;
       expect(() => {
         parsed = parseSpellDefinition(definition);

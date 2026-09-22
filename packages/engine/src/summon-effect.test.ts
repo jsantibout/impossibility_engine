@@ -354,18 +354,20 @@ describe('SRD Find Steed’s "it shares your Initiative count"', () => {
   });
 
   /**
-   * And the rest of the same clause: "the steed takes its turn immediately
-   * after yours". A shared count puts the two turns together and the tiebreak
-   * is what says which way round, so the order is derived rather than left to
-   * whoever was inserted first.
+   * And it settles the **tie** on that count for nobody, which is the half of
+   * SRD's sentence this deliberately does not deliver: `Combatant.tiebreak`
+   * takes a DM's decision as an input rather than inventing one, so the steed
+   * arrives with the default every other combatant has and "immediately after
+   * yours" is the spell's own recorded debt.
    */
-  it('takes its turn immediately after its summoner’s', () => {
+  it('settles the tie on that count for nobody', () => {
     const g = new Game().fight();
     g.cast('bind-the-stag');
     const who = summonedIn(g.state)!;
 
-    const order = g.state.combat?.order.map((c) => c.id) ?? [];
-    expect(order.indexOf(who)).toBe(order.indexOf(WIZ) + 1);
+    const rung = g.state.combat?.order.find((c) => c.id === who);
+    const rider = g.state.combat?.order.find((c) => c.id === WIZ);
+    expect(rung?.tiebreak).toBe(rider?.tiebreak);
   });
 
   it('leaves it out of an order that is not running', () => {

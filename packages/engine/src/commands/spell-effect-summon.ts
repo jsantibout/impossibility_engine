@@ -67,15 +67,18 @@ const scaled = (number: SummonedNumber, level: number): number =>
  * with no rung exactly as a summons with no stated total always has — the two
  * commands that give one still work, because the creature is in the game.
  *
- * **And it is seated one tiebreak below its summoner, which is the second
- * sentence of the same clause.** SRD: "If you have the Incapacitated
- * condition, the steed takes its turn **immediately after yours**." A shared
- * count already puts the two turns together; what the tiebreak settles is the
- * order *within* that count, which would otherwise fall to insertion order and
- * say nothing. Ordering it after the summoner is right whether or not the
- * summoner is Incapacitated — the condition changes who decides the steed's
- * actions, not where its turn is — so the rung is derived once rather than
- * branched on a condition that moves.
+ * **The count, and not the tie.** SRD Find Steed's next sentence is "the steed
+ * takes its turn **immediately after yours**", and this deliberately does not
+ * try to deliver it. Seating the creature one tiebreak below its summoner
+ * looks like the answer and is not: `Combatant.tiebreak` says in as many words
+ * that "SRD leaves ties to the GM, so the engine takes that decision as an
+ * input rather than inventing one", every combatant's tiebreak is 0 unless a
+ * DM states otherwise, and a creature the DM put on that count at the same
+ * tiebreak would still come between the two — so the invented number would buy
+ * nothing through any door that exists and would break the rule it was
+ * standing on. "Immediately after creature X" is an insertion at a named
+ * position, which `byInitiative` ranks nothing by; the spell's own `unmodelled`
+ * says so.
  */
 export function resolveSummonEffect(
   ctx: EffectContext,
@@ -103,12 +106,9 @@ export function resolveSummonEffect(
     ...(effect.hitPoints === undefined
       ? {}
       : { hitPointMaximum: scaled(effect.hitPoints, ctx.castLevel) }),
-    // The count, and one below the summoner's tiebreak so the steed's turn
-    // falls immediately after theirs rather than wherever insertion order put
-    // it — `byInitiative` ranks `b.tiebreak - a.tiebreak`, so lower is later.
-    ...(sharing === undefined
-      ? {}
-      : { initiative: sharing.initiative, tiebreak: sharing.tiebreak - 1 }),
+    // The count, and **only** the count. See the note above on why the tie is
+    // not settled here.
+    ...(sharing === undefined ? {} : { initiative: sharing.initiative }),
   });
   if (!arrived.ok) return arrived;
 

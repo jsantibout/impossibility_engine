@@ -11616,10 +11616,11 @@ export const HEX: SpellDefinition = {
  * running, nothing binds the creature, and it stands there afterwards — which
  * is what the book means by a steed you summon rather than one you sustain.
  *
- * **It shares its rider's Initiative count and takes its turn after theirs**,
- * both halves derived from the order rather than stated by anybody. What the
- * Incapacitated clause changes on top of that is who decides the steed's
- * actions, which is the table's and is filed as such.
+ * **It shares its rider's Initiative count**, read off the order rather than
+ * stated by anybody. Where it falls *within* that count, and who decides what
+ * it does with the turn, are the two halves of the Combat paragraph the engine
+ * does not answer — recorded below rather than approximated with a tiebreak
+ * the SRD leaves to the GM.
  */
 export const FIND_STEED: SpellDefinition = {
   id: 'find-steed',
@@ -11643,7 +11644,8 @@ export const FIND_STEED: SpellDefinition = {
     'the steed leaving when its summoner dies is not watched: an Instantaneous casting leaves no record to bind the creature to, and a summons whose lifetime hangs on another creature rather than on a spell has nothing to hang it on',
     'its Fly Speed of 60 feet is not granted at any level: the block prints it gated — "requires level 4+ spell" — and a Speed that appears at a level is a third number the spell prints over its own block, beside the Armour Class and the Hit Points that are computed; withheld rather than given, because a limit enforced is never more permissive than the book',
     'the steed resembling a Large rideable animal, and the Celestial, Fey or Fiend chosen when it is called, are the caster’s — the block the book prints beneath that choice has no line that differs between the three, so the catalogue holds the type exactly as printed',
-    'the steed acting independently while its rider has the Incapacitated condition is the table’s: where its turn falls is derived either way — it shares the rider’s Initiative count and is seated immediately after them — and what the condition changes is who decides what the steed does with that turn',
+    'the steed shares its rider’s Initiative count and does **not** take its turn immediately after theirs when the rider has the Incapacitated condition: a rung is a number and the order ranks by it, so a creature on the same count falls wherever the tie falls, and settling that tie here would be the engine inventing a decision the SRD leaves to the GM',
+    'and what the steed does with the turn when its rider has the Incapacitated condition — "acts independently, focusing on protecting you" — is the table’s, the same question left open for every creature in the scene',
     'the mounted combat it is controlled through, the telepathy it speaks over a mile, and the gear it leaves behind when it goes are the DM’s',
     'a second casting replacing the steed already called is not performed: nothing holds the first one here, so there is no record to end and no creature the engine can tell from any other',
   ],
