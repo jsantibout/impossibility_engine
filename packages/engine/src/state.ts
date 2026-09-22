@@ -678,6 +678,27 @@ export interface PendingAttack {
   /** Catalogue id, or null for an Unarmed Strike. */
   readonly weapon: string | null;
   /**
+   * The heading of the line this creature's own stat block printed, where the
+   * swing was one of those rather than a weapon's.
+   *
+   * **The line's identity, pinned exactly as `weapon` above pins a weapon's.**
+   * A held swing has to be able to roll its damage a command later, and a
+   * printed line's damage is on the line — so a hold that remembered only "no
+   * weapon" would settle a Wolf's Bite as an Unarmed Strike, which is why a
+   * printed attack refused the hold until the owner ruled on 2026-09-21 that a
+   * monster's attack is holdable like anybody else's.
+   *
+   * The name and not the numbers, for the reason `weapon` is an id rather than
+   * an armoury record: the line is read back off the creature's own sheet at
+   * settlement, in the same breath as `sheetAsItStands` re-reads the rest of
+   * it. No catalogue is opened either way — a stat block's attacks were pinned
+   * into `creature-added` when the creature arrived.
+   *
+   * Absent for every swing made with a weapon, which is every character's, and
+   * for every log written before a printed line could be held.
+   */
+  readonly action?: string;
+  /**
    * The mastery property this swing is using, and what the attacker said about
    * it — absent where they are using none.
    *
