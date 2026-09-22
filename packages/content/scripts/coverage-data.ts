@@ -902,6 +902,12 @@ export const isReadLine = (line: StatBlockLine): boolean =>
  * whether a rider was printed would have gone on counting the Wolf's Prone
  * after the engine started applying it, which is the one failure a generated
  * report exists to make impossible.
+ *
+ * **It measures the reader and not the swing**, which is the one thing it
+ * claims less than it looks like. A rider anchored on a turn boundary is
+ * handed back to the DM on a swing taken outside combat, because there is no
+ * turn order for its deadline to end at — and this counts it as applied
+ * anyway. A stat-block line is measured against the fight it was printed for.
  */
 export const hasUnappliedRider = (line: StatBlockLine): boolean => {
   const rider =

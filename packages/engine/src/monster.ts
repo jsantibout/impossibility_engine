@@ -1035,10 +1035,31 @@ const GATED_CONDITION = new RegExp(
  * "The ettercap's" rather than "its" is the whole of what this reads: the
  * possessive names the creature the block belongs to, which is the attacker,
  * and the attacker is the anchor a hit rider's span is filed on.
+ *
+ * **The possessive is captured and checked**, not merely matched, because a
+ * hit rider's span is filed on the holder whatever the sentence said: a
+ * deadline read off "the target's next turn" and filed on the attacker is a
+ * rule nobody printed, which is the failure the verbatim string exists to
+ * prevent. No SRD line writes it; homebrew comes through the same door.
  */
 const ANCHORED_CONDITION = new RegExp(
-  `^and the target has the ([A-Za-z]+)(?: and ([A-Za-z]+))? conditions? until the (end|start) of the .+?${APOSTROPHE}s next turn\\.$`,
+  `^and the target has the ([A-Za-z]+)(?: and ([A-Za-z]+))? conditions? until the (end|start) of the (.+?)${APOSTROPHE}s next turn\\.$`,
 );
+
+/**
+ * The possessives that are **not** the attacker, and so are not this anchor.
+ *
+ * SRD's own word for the creature the blow landed on, in the two spellings a
+ * sentence could reach for it by. Matched on the last word, because the book
+ * writes "the Grappled target" as readily as "the target".
+ */
+const NOT_THE_ATTACKER: readonly string[] = ['target', 'creature', 'victim'];
+
+/** Whether a captured possessive names the creature the block belongs to. */
+function possessiveIsTheAttacker(phrase: string): boolean {
+  const last = phrase.trim().toLowerCase().split(/\s+/).at(-1) ?? '';
+  return !NOT_THE_ATTACKER.includes(last);
+}
 
 /**
  * The conditions that are **not** read out of a printed rider, whatever the
@@ -1098,7 +1119,9 @@ function conditionsOf(first: string, second: string | undefined): readonly Condi
  * - **"Until the end of its next turn"** is anchored on the *target*, and a
  *   hit rider's span is anchored on the holder. A deadline filed on the wrong
  *   creature is a wrong rule rather than a refusal, which is what a closed
- *   vocabulary exists to make impossible.
+ *   vocabulary exists to make impossible — so the possessive form of the same
+ *   sentence ("the target's next turn") is refused by
+ *   {@link possessiveIsTheAttacker} rather than merely absent from the book.
  * - **A charge, a Bloodied swarm, an attack roll that had Advantage** each gate
  *   on a fact — "moved 20+ feet straight toward it" — that either nobody has
  *   declared or that belongs to the damage roll rather than to an effect list.
@@ -1117,7 +1140,7 @@ export function readPrintedRider(text: string): PrintedRider | null {
   const anchored = ANCHORED_CONDITION.exec(text);
   if (anchored !== null) {
     const conditions = conditionsOf(anchored[1]!, anchored[2]);
-    if (conditions === null) return null;
+    if (conditions === null || !possessiveIsTheAttacker(anchored[4]!)) return null;
     return {
       kind: 'condition',
       conditions,

@@ -13,9 +13,11 @@ import {
   settleDamage,
   takeDamageReaction,
 } from './commands.js';
+import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { readPrintedRider } from './monster.js';
+import type { HitOption } from './standing.js';
 import { createRollIssuer } from './rolls.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
 
@@ -126,6 +128,12 @@ const rogue = (): CharacterChoices => ({
 /** A log built only out of what the engine produced. */
 class Table {
   readonly log: GameEvent[] = [];
+
+  /** A fact the table states rather than a command produces. */
+  says(...events: readonly GameEvent[]): GameState {
+    this.log.push(...events);
+    return this.state;
+  }
 
   get state(): GameState {
     return fold('fangs', this.log);
@@ -334,6 +342,132 @@ describe('the defender answers first', () => {
   });
 });
 
+// — the two facts the engine may not invent ——————————————————————————————————
+
+/** A creature nobody has sized, on no map: the fact the size gate asks for. */
+const SHAPE = id('shape');
+
+const plainSheet = (): CharacterSheet => ({
+  level: 1,
+  abilities: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
+  skills: {},
+  saveProficiencies: [],
+  armor: null,
+  shield: null,
+  armorTraining: { light: true, medium: true, heavy: true, shields: true },
+  baseSpeed: 30,
+  spellcastingAbility: null,
+});
+
+/**
+ * A brawl in a room nobody drew, with a creature nobody has measured.
+ *
+ * No scene and no turn order, which is most SRD play: the engine does not
+ * demand a map before anybody may swing, and both absences are facts the
+ * printed rider has to answer for rather than invent.
+ */
+const inTheDark = (monster: string, who: CharacterId): Table => {
+  const table = new Table();
+  table.did('the monster arrives', (s) => addCreature(s, SRD_CONTENT, who, monster));
+  table.says({
+    type: 'creature-added',
+    id: SHAPE,
+    name: 'a shape',
+    sheet: plainSheet(),
+    maxHp: 40,
+    side: 'party',
+  });
+  return table;
+};
+
+describe('a fact nobody has stated is reported, never invented', () => {
+  /**
+   * The size the gate reads is the one somebody pinned, and where nobody has,
+   * the rider lands on the Medium the map would have assumed — **and says so**,
+   * which is the answer Push's mastery property gives the same silence. An
+   * unfired rule and a rule that checked and found nothing look identical from
+   * outside; only the clause tells them apart.
+   */
+  it('takes an unmeasured creature for Medium, and says it did', () => {
+    const out = bite(inTheDark('wolf', WOLF), WOLF, 'Bite', SHAPE);
+
+    expect(conditionsOn(out.state, SHAPE)).toContain('prone');
+    expect(out.unverified.join(' ')).toContain('nobody has said how big');
+  });
+
+  /**
+   * And a deadline the clock cannot reach is left to the table rather than
+   * hung on somebody for ever. `hitRiderAsked` **refuses** the same absence,
+   * which is right for a rider somebody asked for; nobody asked for this one,
+   * so refusing the swing would turn a legal attack away for a sentence its
+   * own block printed. The line goes back to the DM, whole, with the reason.
+   */
+  it('leaves an anchored rider to the DM where there are no turns to end it at', () => {
+    const out = bite(inTheDark('ettercap', ETTERCAP), ETTERCAP, 'Bite', SHAPE);
+
+    expect(conditionsOn(out.state, SHAPE)).not.toContain('poisoned');
+    expect(out.unverified.join(' ')).toContain('the engine does not apply that');
+    expect(out.unverified.join(' ')).toContain('no turns here');
+  });
+});
+
+// — one rider, and whose it is ————————————————————————————————————————————————
+
+describe('a swing that both buys a rider and prints one', () => {
+  /**
+   * Nothing in the SRD bestiary does this, and a homebrew block through
+   * `loadContent` may: a creature whose sheet carries a feature's effect list
+   * *and* whose line prints a clause of its own. A hold pins one rider, so the
+   * two cannot both ride — and the one somebody elected wins, because a
+   * printed clause costs nothing and an elected one was paid for.
+   */
+  const TRICK: HitOption = {
+    feature: 'homebrew:throat-bite',
+    featureName: 'Throat Bite',
+    option: 'blind',
+    name: 'Throat Bite',
+    pool: null,
+    costs: 0,
+    effects: [{ kind: 'condition', condition: { name: 'blinded' } }],
+    ability: null,
+  };
+
+  /** The Wolf, with a feature of its own hung on the sheet its arrival pinned. */
+  const trained = (): Table => {
+    const table = inTheWoods('wolf', WOLF);
+    const at = table.log.findIndex(
+      (event) => event.type === 'creature-added' && event.id === WOLF,
+    );
+    const arrival = table.log[at] as Extract<GameEvent, { type: 'creature-added' }>;
+    table.log[at] = { ...arrival, sheet: { ...arrival.sheet, hitOptions: [TRICK] } };
+    return table;
+  };
+
+  it('resolves the one the swing paid for and hands the printed line back', () => {
+    const table = trained();
+    const out = unwrap(
+      resolveAttack(
+        table.state,
+        WOLF,
+        {
+          target: BREN,
+          weapon: null,
+          action: 'Bite',
+          attackBonuses: [{ source: 'forced', flat: 40 }],
+          onHit: { feature: TRICK.feature, option: TRICK.option },
+        },
+        supply(),
+      ),
+      'the bite',
+    );
+    const after = fold('fangs', [...table.log, ...out.events]);
+
+    expect(conditionsOn(after, BREN)).toContain('blinded');
+    expect(conditionsOn(after, BREN)).not.toContain('prone');
+    expect(out.unverified.join(' ')).toContain('Throat Bite rode on this blow instead');
+  });
+});
+
 // — what is still the DM's ————————————————————————————————————————————————————
 
 describe('every other rider is still prose, and still reported', () => {
@@ -396,6 +530,11 @@ describe('the reader claims only the sentences it can execute', () => {
       'If the target is a creature that isn’t an Undead or elf, it is subjected to the following effect. _Constitution Saving Throw:_ DC 10. _Failure:_ The target has the Paralyzed condition until the end of its next turn.',
       'If the target is a Large or smaller creature, it has the Grappled condition (escape DC 13).',
       'and the target has the Poisoned condition until the end of its next turn.',
+      // The same deadline written the other way round: a possessive the
+      // pattern matches and the check refuses, because a hit rider's span is
+      // filed on the holder whatever the sentence said.
+      'and the target has the Poisoned condition until the end of the target’s next turn.',
+      'and the target has the Poisoned condition until the start of the Grappled creature’s next turn.',
       'If the target is a Large or smaller creature and the elk moved 20+ feet straight toward it immediately before the hit, the target has the Prone condition.',
       'or 2 (1d4) Piercing damage if the swarm is Bloodied.',
       'Being underwater doesn’t grant Resistance to this Fire damage.',
