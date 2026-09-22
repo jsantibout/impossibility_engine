@@ -459,7 +459,13 @@ export function savingSupport(
   readonly conditions: ConditionState;
 } {
   const merged = new Map<string, Bonus>();
-  for (const bonus of bonusesFor(victim.bonuses, 'save')) merged.set(bonus.source, bonus);
+  // The ability the save is made with, so a penalty the SRD narrows to one
+  // ability's saves reaches those and no others: Slow's "a −2 penalty to AC
+  // and **Dexterity** saving throws" would otherwise land on the Wisdom save
+  // the spell itself calls for at the end of every turn.
+  for (const bonus of bonusesFor(victim.bonuses, 'save', { ability })) {
+    merged.set(bonus.source, bonus);
+  }
   for (const bonus of standingSaveBonuses(state, who, ability)) merged.set(bonus.source, bonus);
   // And the flat half: a Ring of Protection's "+1 bonus to ... saving throws".
   // No narrowing is offered because a saving throw is not made *with* anything,
@@ -517,7 +523,20 @@ export function checkBonuses(
   supplied: readonly Bonus[] | undefined,
   skill?: Skill,
 ): readonly Bonus[] {
+  // **And the bonuses a running spell hung on the creature**, which reached no
+  // ability check at all until a spell was narrow enough to want one: nothing
+  // called `bonusesFor(bonuses, 'ability-check')` anywhere, so a `buff` aimed
+  // at the family landed in state and was read by nobody. SRD Guidance is what
+  // notices — "the creature adds 1d4 to any ability check using the chosen
+  // skill" — and it wants both halves of this function at once: the gatherer,
+  // and the skill it is narrowed to.
+  //
+  // The skill is passed on rather than filtered here, because withholding is
+  // `bonusesFor`'s rule and one reading of it is what keeps the ongoing and
+  // the standing halves answering the same way.
+  const held = state.creatures[who]?.bonuses ?? [];
   const standing = [
+    ...bonusesFor(held, 'ability-check', skill === undefined ? undefined : { skill }),
     ...standingBonuses(state, who, 'ability-check'),
     ...(skill === undefined ? [] : standingCheckBonuses(state, who, skill)),
   ];

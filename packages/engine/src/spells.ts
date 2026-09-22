@@ -9,7 +9,12 @@ import {
   type PointAnchoring,
   type PositionState,
 } from './positioning.js';
-import type { AreaTrigger, CastingEndTrigger, SpellArea } from './spell-definitions.js';
+import type {
+  AreaTrigger,
+  CastingEndTrigger,
+  SpellArea,
+  StatedChoiceOf,
+} from './spell-definitions.js';
 import type { AreaStanding } from './standing.js';
 
 /**
@@ -112,6 +117,21 @@ export type CastingTime = 'action' | 'bonus-action' | 'reaction' | 'long';
  * is exactly the second answer to one question this engine keeps finding.
  */
 export const LONG_CASTING_SECONDS = 60;
+
+/**
+ * The choice a casting made, as the record keeps it: the value, and the field
+ * it replaces.
+ *
+ * Read by {@link OngoingSpell.choice}. It is a pair rather than a bare value
+ * because `statedChoice` needs both to do anything, and the second half is a
+ * fact about the *definition* — so keeping only the value would leave a
+ * running casting asking the catalogue, years of commits later, how to apply
+ * an answer it had already written down.
+ */
+export interface StatedChoicePin {
+  readonly of: StatedChoiceOf;
+  readonly value: string;
+}
 
 /** What a creature is currently concentrating on. */
 export interface Concentration {
@@ -394,6 +414,26 @@ export interface OngoingSpell {
    * or asked for, never guessed.
    */
   readonly damageType?: string;
+  /**
+   * The choice this casting made, for a spell that prints one.
+   *
+   * SRD Blindness/Deafness's "(your choice)", Guidance's "choose a skill",
+   * Enhance Ability's five abilities, Lesser Restoration's one condition of
+   * four. Pinned here for the reason `damageType` is: a casting already made
+   * does not change when the book does, and a record whose effects are read
+   * again later — an area trigger's, on a turn boundary a year of commits
+   * after the cast — has to read them with the answer the caster gave rather
+   * than with the value the definition was written around.
+   *
+   * **Both halves, because a value alone is not an answer.** Which *field* the
+   * value replaces is `choiceStated.of`, and reading that from the catalogue
+   * at the moment the trigger fires would let a book edit change how a running
+   * casting's pinned answer is applied — the failure `settleAreaEffects`
+   * already records about Web's saving throw, where "a correction reached a
+   * debt that had already been raised, which is history rewritten through
+   * data". So the pair travels together and cannot come apart.
+   */
+  readonly choice?: StatedChoicePin;
   /**
    * What {@link area} does to whoever is standing in it — **as cast**.
    *

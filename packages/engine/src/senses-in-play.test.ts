@@ -142,7 +142,9 @@ const blind = (log: readonly GameEvent[]) =>
   resolveSpell(
     fold('seed', log),
     SEER,
-    { spellId: 'blindness-deafness', targets: [OTHER], slotLevel: 2 },
+    // "(your choice)", stated because the spell insists on it. Blinded, which
+    // is the spell's own name for what this file is about.
+    { spellId: 'blindness-deafness', targets: [OTHER], slotLevel: 2, choice: 'blinded' },
     supply('blind'),
   );
 

@@ -9,7 +9,7 @@ import {
 } from './time.js';
 import { type EffectEndCause, type PayoutKind } from './timers.js';
 import type { DefenseKind } from './attack.js';
-import type { Bonus, BonusApplies } from './bonuses.js';
+import type { Bonus, BonusApplies, BonusNarrowing } from './bonuses.js';
 import type { RollModifier } from './roll-modifiers.js';
 import type { AreaStanding, SpeedChange } from './standing.js';
 import type { ActionRule } from './combat.js';
@@ -1025,6 +1025,15 @@ export type SpellEffect =
       readonly bonus: Bonus;
       readonly applies: readonly BonusApplies[];
       readonly direction: 'add' | 'subtract';
+      /**
+       * Which of those rolls it reaches — see {@link BonusNarrowing}.
+       *
+       * SRD Pass without Trace bonuses "Dexterity (Stealth) checks" and
+       * Guidance "any ability check using the chosen skill", where Bless
+       * bonuses every attack roll there is. Absent is the second kind of
+       * sentence, which is most of them.
+       */
+      readonly only?: BonusNarrowing;
     }
   /**
    * Advantage or Disadvantage on a kind of roll, for as long as the spell runs.
@@ -2047,6 +2056,23 @@ export interface TargetRule {
   readonly optional?: true;
 }
 
+/**
+ * What kind of thing a spell asks its caster to choose.
+ *
+ * Three members, and each one has a reader: a condition substitutes into the
+ * conditions an effect imposes or removes, an ability and a skill into the
+ * narrowing on a granted mode or bonus. A fourth would be a vocabulary member
+ * nothing keeps — see {@link SpellDefinition.choiceStated}.
+ */
+export type StatedChoiceOf = 'condition' | 'ability' | 'skill';
+
+/** The choice a spell prints: what kind, and which values. */
+export interface StatedChoice {
+  readonly of: StatedChoiceOf;
+  /** The values the SRD prints, in the order it prints them. */
+  readonly options: readonly string[];
+}
+
 export interface SpellDefinition {
   /** The SRD slug, so a definition and its parsed record are the same spell. */
   readonly id: string;
@@ -2163,6 +2189,50 @@ export interface SpellDefinition {
    * that evidence; it is.
    */
   readonly damageTypeStated?: readonly string[];
+  /**
+   * The one thing this spell asks the caster to choose, and what it prints.
+   *
+   * SRD writes the sentence four ways over the spells this engine executes,
+   * and every one of them is the same mechanism:
+   *
+   * > Blindness/Deafness: "it has the Blinded or Deafened condition (**your
+   * > choice**)."
+   * > Lesser Restoration: "end **one** condition on it: Blinded, Deafened,
+   * > Paralyzed, or Poisoned."
+   * > Enhance Ability: "**choose** Strength, Dexterity, Intelligence, Wisdom,
+   * > or Charisma."
+   * > Guidance: "You touch a willing creature and **choose a skill**."
+   *
+   * **`damageTypeStated` generalised, and along the axis that field's own
+   * docstring predicted.** The mechanism there is a printed list, one value
+   * named at the casting, anything off the list refused and the answer pinned;
+   * what stayed the spell's own was the *reason* — Spirit Guardians reports a
+   * fact the SRD decides, Protection from Energy makes a choice the caster is
+   * offered. Here the reason is always the second one, and the only new fact
+   * is **what kind of thing** is being chosen, which is why `of` exists and a
+   * bare list would not have done. See {@link statedChoice} for where it lands.
+   *
+   * **The definition still carries a value** — Blindness/Deafness names
+   * Blinded, Lesser Restoration names all four — so the shape is well-formed,
+   * the sweep can cast it, and a reader of the definition alone sees a whole
+   * spell. What the casting states is what actually lands, exactly as a stated
+   * damage type is.
+   *
+   * **One choice per casting**, because the book prints one per spell. SRD
+   * Enhance Ability's upcast asks for one *per target* — "You can choose a
+   * different ability for each target" — and that is not a second field but a
+   * casting whose effects differ across the creatures it caught, which is a
+   * named missing shape of its own.
+   *
+   * **A value substituted into the effects, never a choice of which effects
+   * run.** SRD Thaumaturgy's six wonders, Enlarge/Reduce's two halves and
+   * Glyph of Warding's two glyphs are a choice *between effect lists*, and
+   * nothing here can express one: `statedChoice` rewrites a field on an effect
+   * that is already in the list. That is the second arm of this shape and it
+   * is deliberately absent rather than half-built — an `of` member with no
+   * reader is the promise the validator exists to stop the engine making.
+   */
+  readonly choiceStated?: StatedChoice;
   /**
    * How the individual dice of this spell's damage behave — see
    * {@link DieRule}.
@@ -2797,6 +2867,134 @@ export function statedDamageType(
     }
     return effect;
   });
+}
+
+/**
+ * A spell's effects, using the value this casting chose.
+ *
+ * {@link statedDamageType}'s sibling and written to the same rule: the
+ * definition carries a value so the shape is well-formed, the casting carries
+ * the answer, and the answer is what lands. Which effects it touches is a
+ * question of `of` rather than of the spell, so a homebrew definition reaches
+ * it through the same door the SRD's four do.
+ *
+ * | `of` | What it rewrites | The SRD sentence |
+ * |---|---|---|
+ * | `condition` | the condition a `save` or `condition` imposes; the whole list an `end-condition` removes | "the Blinded or Deafened condition (your choice)"; "end **one** condition on it" |
+ * | `ability` | the ability on a granted mode's selector, and on a bonus's narrowing | "choose Strength, Dexterity, …" |
+ * | `skill` | the skill on those same two | "choose a skill" |
+ *
+ * **A removal collapses to one and an imposition replaces one**, which is the
+ * difference between the two sentences rather than a special case: Lesser
+ * Restoration prints four and ends one of them, and Blindness/Deafness prints
+ * two and imposes one. Both come out as the single value the caster named.
+ *
+ * **The definition declares the slot and the casting fills it.** A `save` with
+ * no condition, a selector that names no skill, a bonus with no narrowing at
+ * all: every one of them is returned untouched, so a choice never *creates* a
+ * field. One half of that keeps the validator honest without further help — a
+ * choice that would have landed nowhere is `stated_choice_reaches_nothing` at
+ * authoring rather than a clause silently dropped.
+ *
+ * **The other half needs a rule, because a replaced value can disagree with a
+ * neighbour that was not replaced.** A {@link RollSelector} may name an
+ * ability *and* a skill and they must agree; so the definition that prints
+ * `{ ability: 'wis', skill: 'insight' }` and offers a *skill* to choose would
+ * validate, then produce `{ ability: 'wis', skill: 'stealth' }` at the table —
+ * a selector describing a roll nobody makes, which matches nothing for ever
+ * and says nothing about it. So the validator refuses a choice printed against
+ * a pinned sibling (`stated_choice_collides`), and what is left really is
+ * "one field of the same kind replaced by another".
+ *
+ * Absent for every spell that prints no choice, where this is the identity
+ * function.
+ */
+export function statedChoice(
+  effects: readonly SpellEffect[],
+  of: StatedChoiceOf | undefined,
+  chosen: string | undefined,
+): readonly SpellEffect[] {
+  if (of === undefined || chosen === undefined) return effects;
+  return effects.map((effect) => {
+    if (of === 'condition') {
+      if (effect.kind === 'end-condition') {
+        return { ...effect, conditions: [chosen as ConditionName] };
+      }
+      if (effect.kind === 'condition') {
+        return { ...effect, condition: { ...effect.condition, name: chosen as ConditionName } };
+      }
+      if (effect.kind === 'save' && effect.condition !== undefined) {
+        return { ...effect, condition: chosen as ConditionName };
+      }
+      return effect;
+    }
+    const key = of === 'ability' ? 'ability' : 'skill';
+    if (effect.kind === 'roll-mode' && effect.modifier.selector[key] !== undefined) {
+      return {
+        ...effect,
+        modifier: {
+          ...effect.modifier,
+          selector: { ...effect.modifier.selector, [key]: chosen },
+        },
+      } as SpellEffect;
+    }
+    if (effect.kind === 'buff' && effect.only?.[key] !== undefined) {
+      return { ...effect, only: { ...effect.only, [key]: chosen } } as SpellEffect;
+    }
+    return effect;
+  });
+}
+
+/**
+ * A sibling field a substitution would leave disagreeing with what it wrote.
+ *
+ * An ability and a skill are a **pair** wherever either is written: a
+ * {@link RollSelector} that names both must have them agree, and so must a
+ * {@link BonusNarrowing}. {@link statedChoice} replaces one of the two and
+ * leaves the other alone, so a definition that pins the sibling has printed a
+ * value the casting is about to contradict — and the contradiction is exactly
+ * the one the validator already refuses when an author writes it by hand.
+ *
+ * Asked of the effects rather than of the chosen value, because it is true or
+ * false before anybody chooses anything: it is a property of the definition.
+ *
+ * Nothing to ask for `of: 'condition'`, which has no sibling — a condition
+ * name stands alone wherever it is written.
+ */
+export function statedChoiceCollides(
+  effects: readonly SpellEffect[],
+  of: StatedChoiceOf,
+): boolean {
+  if (of === 'condition') return false;
+  const sibling = of === 'ability' ? 'skill' : 'ability';
+  return effects.some((effect) => {
+    if (effect.kind === 'roll-mode') {
+      const selector = effect.modifier.selector;
+      return selector[of] !== undefined && selector[sibling] !== undefined;
+    }
+    if (effect.kind === 'buff' && effect.only !== undefined) {
+      return effect.only[of] !== undefined && effect.only[sibling] !== undefined;
+    }
+    return false;
+  });
+}
+
+/**
+ * Whether a stated choice would land anywhere in an effect list.
+ *
+ * The validator's reachability rule and the runtime's substitution read one
+ * answer, because a choice the definition accepts and the resolution then
+ * drops is the silent failure the whole validator exists to convert into a
+ * refusal at authoring. Written as "does the substitution change anything",
+ * so a kind added to {@link statedChoice} is reachable here the same day.
+ */
+export function statedChoiceReaches(
+  effects: readonly SpellEffect[],
+  of: StatedChoiceOf,
+  probe: string,
+): boolean {
+  const after = statedChoice(effects, of, probe);
+  return after.some((effect, i) => effect !== effects[i]);
 }
 
 /**

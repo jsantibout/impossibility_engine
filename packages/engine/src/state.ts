@@ -869,6 +869,19 @@ export interface PendingCasting {
    */
   readonly damageType?: string;
   /**
+   * The value the caster chose, where the spell prints a choice.
+   *
+   * Beside the damage type and for the same reason a second time: a
+   * Blindness/Deafness declared Deafened must not settle Blinded, and a
+   * settlement takes no fresh request to ask again. SRD writes the clause four
+   * ways — "(your choice)", "choose a skill", "choose Strength, Dexterity,
+   * …", "end **one** condition on it" — and the engine chooses none of them.
+   *
+   * Absent for every spell that prints no choice, which is what makes a
+   * declaration written before this folds to exactly the state it always did.
+   */
+  readonly choice?: string;
+  /**
    * Which creatures the caster or their allies are fighting.
    *
    * SRD Charm Person: "It does so with Advantage if you or your allies are
@@ -1185,6 +1198,14 @@ export type ReadiedResponse =
        * declared Necrotic must not settle Radiant.
        */
       readonly damageType?: string;
+      /**
+       * The value the caster chose, where the spell prints a choice.
+       *
+       * The same fact {@link PendingCasting} carries, for the same reason: a
+       * readied Blindness/Deafness declared Deafened must not let go Blinded,
+       * and the release takes no fresh request about what the spell *is*.
+       */
+      readonly choice?: string;
       /**
        * Which creatures the caster or their allies are fighting.
        *

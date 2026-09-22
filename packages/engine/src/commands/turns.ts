@@ -37,7 +37,7 @@ import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import { RECHARGE_DIE, rechargeMade, rechargeOfLine } from '../monster.js';
 import { rollRecorded } from '../rolls.js';
-import { needsCasterSheet, statedDamageType } from '../spell-definitions.js';
+import { needsCasterSheet, statedChoice, statedDamageType } from '../spell-definitions.js';
 import {
   type AreaMoment,
   castingIdOf,
@@ -826,7 +826,16 @@ export function settleAreaEffects(
         supply,
         castingId: record.castingId,
         events: [discharge],
-        effects: statedDamageType(trigger.effects, record.damageType),
+        // Both halves off the record and neither off the book: which field the
+        // caster's answer replaces was settled at the cast, and asking the
+        // catalogue here would let an edit change how a running casting's
+        // pinned answer lands — the failure this function's own preamble
+        // records about Web's saving throw.
+        effects: statedChoice(
+          statedDamageType(trigger.effects, record.damageType),
+          record.choice?.of,
+          record.choice?.value,
+        ),
         label: trigger.label,
       });
       if (!resolved.ok) return resolved;

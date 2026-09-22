@@ -300,6 +300,21 @@ export interface CastSpellRequest extends CommandIdentity {
    */
   readonly damageType?: string;
   /**
+   * The one value this spell asks its caster to choose.
+   *
+   * SRD Blindness/Deafness: "it has the Blinded or Deafened condition (**your
+   * choice**)"; Guidance: "choose a skill"; Enhance Ability: "choose Strength,
+   * Dexterity, …"; Lesser Restoration: "end **one** condition on it". The
+   * spell prints the list, the caster picks one of it, and the engine picks
+   * none of them — a default here would be the engine answering a question the
+   * book asked somebody else, and it would answer it the same way every time.
+   *
+   * Required by a spell that prints a choice and meaningless on every other,
+   * both of which are refusals rather than quiet defaults — the shape
+   * `damageType`, `fought` and `teleportTo` all take.
+   */
+  readonly choice?: string;
+  /**
    * Which creatures the caster or their allies are fighting.
    *
    * SRD Charm Person: "One Humanoid you can see within range makes a Wisdom
@@ -664,6 +679,33 @@ export function declaredFacts(
     return err(
       'no_teleport_clause',
       `${definition.name} does not teleport anybody; where they would go is not a fact it asks for`,
+    );
+  }
+
+  // — the one value the spell asks its caster to choose ————————————————————
+  //
+  // The fifth stated fact, and the same two refusals a fourth time. The list
+  // is the spell's, the answer is the caster's, and the engine makes neither:
+  // picking Blinded because Blindness/Deafness prints it first is the engine
+  // answering "(your choice)" on the caster's behalf, and it would answer the
+  // same way for ever.
+  const choice = definition.choiceStated;
+  if (choice === undefined) {
+    if (request.choice !== undefined) {
+      return err(
+        'no_choice_clause',
+        `${definition.name} offers the caster no choice; which one this is is not a fact it asks for`,
+      );
+    }
+  } else if (request.choice === undefined) {
+    return err(
+      'choice_required',
+      `${definition.name} prints ${choice.options.join(', ')} and the engine will not choose between them; name which`,
+    );
+  } else if (!choice.options.includes(request.choice)) {
+    return err(
+      'unknown_choice',
+      `${definition.name} prints ${choice.options.join(', ')}, not ${request.choice}`,
     );
   }
 

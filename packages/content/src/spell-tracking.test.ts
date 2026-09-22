@@ -201,6 +201,13 @@ const cast = (
       spellId,
       targets,
       ...(definition.level === 0 ? {} : { slotLevel: definition.level }),
+      // A spell that prints a choice is refused until the caster makes it, and
+      // the first printed value is the answer here for the reason the executed
+      // sweep gives: what this file claims is that every one of these is cast
+      // rather than refused, not which of the printed values it chose.
+      ...(definition.choiceStated === undefined
+        ? {}
+        : { choice: definition.choiceStated.options[0]! }),
       ...over,
     },
     supply(),
@@ -1291,9 +1298,9 @@ describe('every spell this batch added is cast for real', () => {
    * recorded here instead, which is the same move `SPLIT_BUNDLES` makes for a
    * clause whose shape was built: the row stays and says where it went.
    *
-   * **Five went out, by three different doors**, which is why the test below
+   * **Six went out, by four different doors**, which is why the test below
    * asks `isExecuted` rather than counting effects: a departure is "no longer
-   * tracked", and there are three ways to stop being tracked now rather than
+   * tracked", and there are four ways to stop being tracked now rather than
    * one.
    *
    * Three went the same way. `ActionRule` was derived from four SRD sentences
@@ -1316,9 +1323,14 @@ describe('every spell this batch added is cast for real', () => {
    * **Goodberry is the fifth**, and its effect list is still empty and always
    * will be: what the spell does is put ten berries in a hand, which is
    * `conjures`, and eating one is the berry's own conferral.
+   *
+   * **Enhance Ability is the sixth.** Its six named blessings are one effect
+   * with the ability named at the casting rather than six definitions, so
+   * `choiceStated` is what it was waiting for.
    */
   const EXECUTED_SINCE: readonly string[] = [
     'aid',
+    'enhance-ability',
     'expeditious-retreat',
     'goodberry',
     'magic-jar',

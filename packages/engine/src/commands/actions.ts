@@ -1012,6 +1012,8 @@ export type ReadyResponse =
 export interface StatedFacts {
   /** Which of the damage types the spell prints this casting deals. */
   readonly damageType?: string;
+  /** The value the caster chose, where the spell prints a choice. */
+  readonly choice?: string;
   /** Which creatures the caster or their allies are fighting. */
   readonly fought?: readonly CharacterId[];
   /** Creatures the caster designated unaffected, for a spell that offers it. */
@@ -1263,6 +1265,7 @@ function holdSpell(
 function statedOf(response: StatedFacts): StatedFacts {
   return {
     ...(response.damageType === undefined ? {} : { damageType: response.damageType }),
+    ...(response.choice === undefined ? {} : { choice: response.choice }),
     ...(response.fought === undefined ? {} : { fought: response.fought }),
     ...(response.unaffected === undefined ? {} : { unaffected: response.unaffected }),
     ...(response.teleportTo === undefined ? {} : { teleportTo: response.teleportTo }),

@@ -505,6 +505,14 @@ export interface CastingPlan {
    */
   readonly damageType?: string;
   /**
+   * The value the caster chose, where the spell prints a choice.
+   *
+   * Beside the damage type and for the same reason: a Blindness/Deafness
+   * declared Deafened must not settle Blinded, and a settlement takes no fresh
+   * request to ask again.
+   */
+  readonly choice?: string;
+  /**
    * Which creatures the caster or their allies are fighting.
    *
    * The third fact stated at the casting, beside the other two and for the
@@ -871,11 +879,12 @@ function castSpellWith(
         targets: command.hold.targets,
         ...(command.hold.origin === undefined ? {} : { origin: command.hold.origin }),
         ...(command.hold.area === undefined ? {} : { area: command.hold.area }),
-        // The three facts the caster stated, carried verbatim. Already sorted
+        // The facts the caster stated, carried verbatim. Already sorted
         // and already elided when empty by the layer that read the request —
         // re-normalising here would be the second copy that eventually
         // disagrees with the first.
         ...(command.hold.damageType === undefined ? {} : { damageType: command.hold.damageType }),
+        ...(command.hold.choice === undefined ? {} : { choice: command.hold.choice }),
         ...(command.hold.fought === undefined ? {} : { fought: command.hold.fought }),
         ...(command.hold.unaffected === undefined ? {} : { unaffected: command.hold.unaffected }),
         // And where the teleport goes, which is the one fact a settlement

@@ -2129,9 +2129,14 @@ export const HOLD_MONSTER: SpellDefinition = {
  *
  * **One minute and no Concentration**, which is the point of having it here:
  * it exercises a duration that runs on the clock rather than on a caster's
- * attention. The caster's choice between the two conditions is not offered —
- * a per-casting choice needs somewhere to be recorded, and inventing a default
- * would silently pick Blinded every time. It picks Blinded and says so.
+ * attention.
+ *
+ * **And "(your choice)" is the caster's now**, which is what the paragraph
+ * here used to say was missing: the definition prints both conditions, the
+ * casting names one of them, and `statedChoice` puts it on the save. The
+ * effect below still carries Blinded so the definition reads as a whole spell
+ * on its own — the discipline Spirit Guardians already follows with one of
+ * its two damage types — and a casting that said Deafened deafens.
  */
 export const BLINDNESS_DEAFNESS: SpellDefinition = {
   id: 'blindness-deafness',
@@ -2151,8 +2156,11 @@ export const BLINDNESS_DEAFNESS: SpellDefinition = {
       repeats: { at: 'end-of-turn', onSuccess: 'end-on-target' },
     },
   ],
+  // "the Blinded or Deafened condition (your choice)", in the order the SRD
+  // prints them. The save above carries the first so the shape is whole read
+  // alone; which one this casting imposes is the caster's to say.
+  choiceStated: { of: 'condition', options: ['blinded', 'deafened'] },
   durationSeconds: 60,
-  unmodelled: ['the caster\u2019s choice of Deafened instead of Blinded'],
 };
 
 /**
@@ -2708,10 +2716,17 @@ export const BANE: SpellDefinition = {
  * > "You touch a willing creature and choose a skill. Until the spell ends,
  * > the creature adds 1d4 to any ability check using the chosen skill."
  *
- * The 2024 wording narrowed this: it is one *chosen skill*, not any check.
- * Choosing which skill needs somewhere to record a per-casting choice, so the
- * bonus is hung on ability checks generally and the narrowing is declared
- * rather than silently applied to everything.
+ * The 2024 wording narrowed this: it is one *chosen skill*, not any check —
+ * and the cantrip needs both halves of one shape, which is why it is the spell
+ * the pair was built for. The **choice** is `choiceStated`, printed as the
+ * eighteen skills and answered at the casting; the **narrowing** is
+ * `BonusNarrowing`, which is what a stored bonus had no axis for, so a
+ * Guidance hung on ability checks reached every check its target ever made.
+ *
+ * The `only` below names Acrobatics for the reason the effect carries a
+ * printed value everywhere else in this catalogue: the definition has to be a
+ * whole spell read on its own, and the casting is what says which skill this
+ * one is about.
  */
 export const GUIDANCE: SpellDefinition = {
   id: 'guidance',
@@ -2728,12 +2743,35 @@ export const GUIDANCE: SpellDefinition = {
       bonus: { source: 'Guidance', dice: '1d4' },
       applies: ['ability-check'],
       direction: 'add',
+      only: { skill: 'acrobatics' },
     },
   ],
+  // "choose a skill", which is any of the eighteen: the SRD names no shorter
+  // list, so neither does this.
+  choiceStated: {
+    of: 'skill',
+    options: [
+      'acrobatics',
+      'animal-handling',
+      'arcana',
+      'athletics',
+      'deception',
+      'history',
+      'insight',
+      'intimidation',
+      'investigation',
+      'medicine',
+      'nature',
+      'perception',
+      'performance',
+      'persuasion',
+      'religion',
+      'sleight-of-hand',
+      'stealth',
+      'survival',
+    ],
+  },
   durationSeconds: 60,
-  unmodelled: [
-    'the bonus applies to any ability check rather than only the one chosen skill, because a per-casting choice has nowhere to be recorded',
-  ],
 };
 
 /**
@@ -5374,10 +5412,12 @@ export const BEACON_OF_HOPE: SpellDefinition = {
  * learned to buy things, so "the condition, not a cause of it" is preserved by
  * being shared.
  *
- * **"One" is the half that is not executed**, and it is a named missing shape
- * rather than a rounding: a condition chosen at the casting has nowhere to be
- * recorded, which is the gap Blindness/Deafness already carries. So the engine
- * ends every one of the four it finds, and the clause below says so.
+ * **"One" is the other half, and it is the caster's.** The definition prints
+ * all four, `choiceStated` says they are a choice, and the casting names the
+ * single condition this touch ends — so a creature that is Blinded and
+ * Poisoned keeps whichever of the two the caster did not name. The list below
+ * is what the spell *offers*; the substitution collapses it to the one chosen,
+ * which is the difference between offering four and ending four.
  */
 export const LESSER_RESTORATION: SpellDefinition = {
   id: 'lesser-restoration',
@@ -5394,9 +5434,13 @@ export const LESSER_RESTORATION: SpellDefinition = {
     // line, so a level 5 slot ends the same list.
     { kind: 'end-condition', conditions: ['blinded', 'deafened', 'paralyzed', 'poisoned'] },
   ],
-  unmodelled: [
-    'the caster chooses which single condition to end and the engine ends every one of the four that the target has; a condition chosen at the casting has nowhere to be recorded',
-  ],
+  // "end **one** condition on it: Blinded, Deafened, Paralyzed, or Poisoned".
+  // The same four, printed twice for two different jobs: the effect says what
+  // the spell can reach, and this says the caster picks one of them.
+  choiceStated: {
+    of: 'condition',
+    options: ['blinded', 'deafened', 'paralyzed', 'poisoned'],
+  },
 };
 
 /**
@@ -8247,12 +8291,17 @@ export const BARKSKIN: SpellDefinition = {
  * > creature for each spell slot level above 2. You can choose a different
  * > ability for each target."
  *
- * **The Advantage is ordinary and the choice is not.** A `RollModifier` names
- * Advantage on ability checks of a stated ability perfectly well — Contagion's
- * adjudication says so in the other direction — and a casting has nowhere to
- * record which of the five was picked. The upcast makes it worse rather than
- * better: one choice *per target*, which is a spell's effects differing across
- * the creatures one casting caught.
+ * **The Advantage was always ordinary and the choice is what was missing.** A
+ * `RollModifier` names Advantage on ability checks of a stated ability
+ * perfectly well; what a casting had nowhere to record was which of the five
+ * was picked, and `choiceStated` is that place. The selector below carries
+ * Strength so the definition is a whole spell read alone, and the casting
+ * replaces it with the ability the caster named.
+ *
+ * **The upcast is still not executed, and it is a different sentence.** "You
+ * can choose a different ability for each target" is one casting whose effects
+ * differ from target to target, which is a shape of its own and not a second
+ * choice: this spell states one value, and every creature it caught gets it.
  */
 export const ENHANCE_ABILITY: SpellDefinition = {
   id: 'enhance-ability',
@@ -8263,11 +8312,24 @@ export const ENHANCE_ABILITY: SpellDefinition = {
   concentration: true,
   range: { kind: 'touch' },
   targets: { count: 1, extraPerSlotLevelAbove: 1, self: true },
-  effects: [],
+  effects: [
+    {
+      kind: 'roll-mode',
+      modifier: {
+        mode: 'advantage',
+        // "ability checks using the chosen ability" — an ability *check* and
+        // not a saving throw, which is the narrowing `RollSelector` keeps
+        // apart on purpose: Beacon of Hope is the same sentence about saves.
+        selector: { roll: 'ability-check', relation: 'roller', ability: 'str' },
+      },
+    },
+  ],
+  // "choose Strength, Dexterity, Intelligence, Wisdom, or Charisma" — five,
+  // in the order the SRD prints them, and Constitution is not among them.
+  choiceStated: { of: 'ability', options: ['str', 'dex', 'int', 'wis', 'cha'] },
   durationSeconds: 3600,
   unmodelled: [
-    'the Advantage is not granted: the modifier itself is ordinary and the ability it applies to is chosen when the slot is spent, which a casting has nowhere to record',
-    '"You can choose a different ability for each target" is worse than one choice: it is a casting whose effects differ from target to target, and a casting applies its effects to all of them alike',
+    '"You can choose a different ability for each target" is a second choice per creature rather than one per casting: a casting states one value and applies its effects to every target alike',
   ],
 };
 
@@ -9369,12 +9431,22 @@ export const MASS_HEAL: SpellDefinition = {
  * > 1 minute. For the duration, you have Advantage on Charisma (Intimidation)
  * > checks."
  *
- * **The cantrip that is one branch away from being executed.** Five of its six
- * wonders are fiction — eyes, flames, a door, a sound, tremors — and the sixth
- * grants a mode `roll-modifiers.ts` writes exactly. What stands between them is
- * that a definition's effects are fixed when it is written and this spell's are
- * picked at the table, so a `roll-mode` here would boom the caster's voice
- * every time they flickered a candle.
+ * **The cantrip that is one branch away from being executed**, and the branch
+ * is the half of `choiceStated` that does not exist. Five of its six wonders
+ * are fiction — eyes, flames, a door, a sound, tremors — and the sixth grants
+ * a mode `roll-modifiers.ts` writes exactly.
+ *
+ * **What a stated choice does is substitute a value into an effect that is
+ * already in the list; what this spell needs is a choice of *which effects
+ * run*.** Blindness/Deafness prints two conditions for one save, Guidance
+ * eighteen skills for one bonus, Enhance Ability five abilities for one mode:
+ * every one of them is one effect wearing a different value. Booming Voice is
+ * a `roll-mode` the other five wonders do not have at all, so a definition
+ * that carried it would boom the caster's voice every time they flickered a
+ * candle — the failure this docstring named before the field existed, and
+ * which the field does not fix. Enlarge/Reduce and Glyph of Warding print the
+ * same shape, which is what makes it a shape rather than this cantrip's
+ * problem.
  */
 export const THAUMATURGY: SpellDefinition = {
   id: 'thaumaturgy',
@@ -9388,7 +9460,7 @@ export const THAUMATURGY: SpellDefinition = {
   effects: [],
   durationSeconds: 60,
   unmodelled: [
-    'which of the six wonders was worked is not recorded: altered eyes, a booming voice, flames that flicker, a door that flies open, a phantom sound and harmless tremors are one choice made at the casting, and a definition’s effects are written once and run every time',
+    'which of the six wonders was worked is not recorded: altered eyes, a booming voice, flames that flicker, a door that flies open, a phantom sound and harmless tremors are a choice between effect *lists*, where a stated choice substitutes a value into the one list a definition has',
     'so the Advantage on Charisma (Intimidation) checks the Booming Voice branch grants is not granted either — the mode itself is ordinary, and granting it unconditionally would be a cantrip that intimidated while it rumbled the floor',
     '"you can have up to three of its 1-minute effects active at a time" counts castings of one spell against each other, and nothing counts them; a fourth is not refused',
   ],

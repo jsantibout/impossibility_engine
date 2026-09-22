@@ -110,7 +110,7 @@ export const MISSING_SHAPES = {
   'a-fact-only-the-table-can-declare':
     'a fact the engine does not hold and cannot derive, which a rule then reads — how well you know a creature, whether you are outdoors in a storm, whether you are fighting it. Declared cover, declared sight and declared allegiance are the discipline CLAUDE.md already draws for this; the audit (§4) is where these clauses were found filed as a selector problem when what they want is the fact. **IE-030 built the fought fact and this is what it left**: `CastSpellRequest.fought` carries it and the five spells that read it as Advantage are finished, while SRD Enthrall reads the same fact as "Any creature you or your companions are fighting automatically succeeds on this save" — an outcome `checks.ts` has no `autoSucceed` for, beside `autoFail`, and which no definition could write until it does.',
   'a-bonus-narrowed-to-a-skill':
-    '**The id is narrower than what it holds, and it is kept because an id is a key two branches append to.** What is missing is a selector on a stored bonus at all: `ActiveBonus` carries a `BonusApplies` list and nothing else, so every narrowing the book prints inside one of those members has nowhere to go. SRD prints two — a **skill** (Enthrall) and **one ability’s saving throws** (Slow, whose −2 would otherwise land on every save the target ever makes, including the one the spell itself calls for). One axis, one absent reader, two sentences. The original description follows, and it is the skill half: a bonus or penalty that reaches one skill rather than the whole family, and reaches Passive Perception. `docs/design/rolls-and-damage.md` names the axis and its whole membership — "covers attacks, saves and ability checks — all rolls" and now an Armour Class — and a skill is not a member, so SRD Enthrall’s "a −10 penalty to Wisdom (Perception) checks and Passive Perception" would land on every ability check the target ever makes. `passivePerception` reads the sheet and no stored bonus at all, so the second half has no reader whatever. The narrower residue of the fought fact IE-030 built, and the reason Enthrall is not finished by it.',
+    '**The ongoing side is built and the standing side is what is left.** `BonusNarrowing` is the axis that was missing: an `ActiveBonus` now carries an optional ability and skill beside its `BonusApplies` list, `bonusesFor` withholds a narrowed bonus from a roll that does not match, and `checkBonuses` and `savingSupport` pass what the roll knows about itself — which is what finished Guidance and is what Pass without Trace, Enthrall’s check half and Slow’s Dexterity saves would be written against. It is **beside** `BonusApplies` rather than a member of it, which that type’s docstring argues for directly: a member says what a bonus applies to, a skill check *is* an ability check, and every member has to be read by `bonusesFor`. Two things are left. A **standing** grant has no such field — `standingBonuses` reads `StandingBonusApplies` and `standingCheckBonuses` is a sibling gatherer keyed by a feature’s own named skills — so `bard:jack-of-all-trades`, whose narrowing is "a skill proficiency you **lack**" rather than a named skill, still has nowhere to go. And `passivePerception` reads the sheet and no stored bonus whatever, so Enthrall’s second half has no reader at either end. The original description follows, and it is the half that is now built. SRD prints two — a **skill** (Enthrall) and **one ability’s saving throws** (Slow, whose −2 would otherwise land on every save the target ever makes, including the one the spell itself calls for). One axis, one absent reader, two sentences. The original description follows, and it is the skill half: a bonus or penalty that reaches one skill rather than the whole family, and reaches Passive Perception. `docs/design/rolls-and-damage.md` names the axis and its whole membership — "covers attacks, saves and ability checks — all rolls" and now an Armour Class — and a skill is not a member, so SRD Enthrall’s "a −10 penalty to Wisdom (Perception) checks and Passive Perception" would land on every ability check the target ever makes. `passivePerception` reads the sheet and no stored bonus at all, so the second half has no reader whatever. The narrower residue of the fought fact IE-030 built, and the reason Enthrall is not finished by it.',
   'an-automatic-success-by-creature-type':
     'IE-019 built `TypedSaveOutcome`, and spell-definitions.ts says exactly how far: "Two consumers, and they are the two shapes the SRD prints — Blight’s automatic failure and Shatter’s Disadvantage." The book prints a third, and one spell writes it: an automatic **success**. A two-member union missing its third member is a narrower gap than the family it came out of, and is what is left of it on this axis.',
   'a-filter-on-the-attackers-creature-type':
@@ -172,7 +172,7 @@ export const MISSING_SHAPES = {
   'a-turn-a-spell-inserts-into-the-order':
     '`docs/design/time-and-turns.md`: "**In combat the clock is derived.** A round ends when the Initiative order wraps, and six seconds have passed; nobody decides that." A spell that hands its caster several turns in a row has no way to say so without a decision somebody makes, which is the one thing the derived clock refuses.',
   'a-choice-made-at-the-casting':
-    '`docs/design/rolls-and-damage.md` names it for the roll-modifier vocabulary — "An ability **chosen at the casting** | Hex, Enhance Ability, Bestow Curse" — and Guidance’s own clause in spell-definitions.ts says it plainly: "a per-casting choice has nowhere to be recorded". **A damage type is the one choice that is not here**, and it stopped being here when IE-017 gave `damageTypeStated` a second user: spell-definitions.ts records that the mechanism generalised while the reason did not — "what generalises is the field and what stays the spell’s own is the reason". An ability, a condition, one of six wonders, which of five effects to remove: none of those has a field.',
+    '**The field exists now, and the id is narrower than it was — kept because an id is a key two branches append to.** `SpellDefinition.choiceStated` is `damageTypeStated` generalised along the axis that field’s own docstring predicted: a printed list, one value named at the casting, anything off the list refused, the answer pinned onto the events and the ongoing record. It carries a **condition**, an **ability** or a **skill**, and `statedChoice` substitutes the caster’s answer into the effect that holds one — which finished Blindness/Deafness’ "(your choice)", Lesser Restoration’s "end **one** condition", Enhance Ability’s five abilities and Guidance’s "choose a skill". What is left is the **second arm**, and it is a different mechanism rather than a missing member: a choice of **which effects run** instead of which value one of them carries. Thaumaturgy’s six wonders are six different effect lists of which five are fiction and one grants a mode; Enlarge/Reduce’s two halves and Glyph of Warding’s two glyphs are the same sentence. A substitution cannot express any of the three, because there is no field on a written effect for it to replace — a definition that carried Booming Voice’s mode would boom the caster’s voice every time they flickered a candle. **Hex is the fourth entry and is none of that**: its sentence is Enhance Ability’s with the mode reversed and is writable today, and it stays counted here because `TrackedAdjudication.why` has no value for "nothing blocks this and nobody has written the definition" — see the note on the entry itself. The original description follows: `docs/design/rolls-and-damage.md` names it for the roll-modifier vocabulary — "An ability **chosen at the casting** | Hex, Enhance Ability, Bestow Curse" — and a damage type was always the one choice that was not here.',
   'several-attack-rolls-from-one-casting':
     '**The count is written now, and what is left of it is narrower than the id.** `spell-definitions.ts` gives the `attack` member an `AttackRollCount`, scaled by slot level or by Cantrip Upgrade exactly as its dice are, and the resolver throws each roll on its own — its own attack, its own line in the log, its own Critical Hit, its own damage. Scorching Ray hurls three rays and Eldritch Blast throws its beams. **Two things are still missing.** The first is *where* the rolls go when the caster wants them uneven: they are dealt as `spell-definitions.ts` says — "One each in the order the caller named them, round again for the surplus" — which says every split the SRD prints and not the lopsided ones it allows — four rays at two creatures go two and two and never three and one. The second is the harder one and is the whole of Chromatic Orb: a roll aimed at **a creature the casting never named**, chained off a face the dice showed, with a cap counting the leaps and a rule that no creature may be hit twice. This is still the spell-side twin of the class-feature gap `docs/design/characters-and-equipment.md` names: "Extra attacks inside the Attack action. The economy counts one Attack action, not the attacks in it".',
   'a-second-roll-sequenced-after-the-first':
@@ -508,13 +508,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'The engine charges Difficult Terrain exactly and takes it as declared feet on the move that crosses it, so an area that makes the ground difficult is invisible to the ruler and every move through the tentacles is charged as open floor.',
     },
   ],
-  'blindness-deafness': [
-    {
-      clause: 'Deafened instead of Blinded',
-      why: 'a-choice-made-at-the-casting',
-      note: 'SRD: "it has the Blinded or Deafened condition (your choice) for the duration". The condition is a field on the effect, fixed when the definition was written, and a casting has nowhere to record which of the two this one chose.',
-    },
-  ],
   blur: [
     {
       clause: 'Blindsight or Truesight',
@@ -794,13 +787,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'The ruler charges Difficult Terrain by the declared foot and reads no area, so a creature walks across the grease at open-floor cost while the spell’s save is resolved exactly.',
     },
   ],
-  guidance: [
-    {
-      clause: 'rather than only the one chosen skill',
-      why: 'a-choice-made-at-the-casting',
-      note: 'SRD: "You touch a willing creature and choose a skill", and the creature "adds 1d4 to any ability check using the chosen skill". The bonus is granted to the whole ability-check family instead, which is broader than the spell, and the clause says why: a per-casting choice has nowhere to be recorded.',
-    },
-  ],
   harm: [
     {
       clause: 'Hit Point maximum reduction',
@@ -892,13 +878,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'an attack roll that costs no Attack action',
       why: 'a-casting-ended-by-a-trigger',
       note: 'SRD: "The spell ends early immediately after the target makes an attack roll, deals damage, or casts a spell." All three are built; the residue is which *event* records an attack roll. `target-attacks` reads `attack-made`, which is the Attack action, and the only thing naming the roller of a free swing — an Opportunity Attack, or any attack outside combat — is `roll-recorded`, which changes no state by rule. A free swing that lands still ends the spell through the damage it deals, so what is left is a free swing that misses.',
-    },
-  ],
-  'lesser-restoration': [
-    {
-      clause: 'a condition chosen at the casting has nowhere to be recorded',
-      why: 'a-choice-made-at-the-casting',
-      note: 'SRD: "end one condition on it: Blinded, Deafened, Paralyzed, or Poisoned." One of four, and the caster picks — so a creature both Blinded and Poisoned is fully cured of both, where the book cures one. It is the same gap Blindness/Deafness carries from the other side, where the choice is between imposing two rather than lifting one.',
     },
   ],
   // The spell this map predicted IE-017 would finish and which IE-042 actually
@@ -1585,14 +1564,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'the hit point is nothing and the interception is the whole spell: dropping to 0 is an engine-owned batch performed inside the operation that applies the damage, and there is no seam in it for an effect to say "stop at 1 instead".',
     },
   ],
-  'enhance-ability': [
-    {
-      marker: 'roll-mode',
-      clause: 'the target has Advantage on ability checks using the chosen ability',
-      why: 'a-choice-made-at-the-casting',
-      note: 'a `RollModifier` names Advantage on ability checks of a stated ability perfectly well — Contagion’s adjudication says exactly that from the other side — and which of the five this casting chose has nowhere to be recorded.',
-    },
-  ],
   foresight: [
     {
       marker: 'roll-mode',
@@ -2070,7 +2041,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: 'roll-mode',
       clause: 'Advantage on Charisma (Intimidation) checks',
       why: 'a-choice-made-at-the-casting',
-      note: 'the mode is ordinary — a RollModifier selects a Charisma check and grants Advantage — and it belongs to one of six branches picked at the table. A definition’s effects run on every casting, so granting it here would intimidate every time the caster flickered a candle.',
+      note: 'the mode is ordinary — a RollModifier selects a Charisma check and grants Advantage — and it belongs to one of six branches picked at the table. The stated choice IE built substitutes a **value** into an effect the definition already has; what this needs is a choice of **which effects run**, because Booming Voice is a roll-mode the other five wonders do not have at all. A definition’s effects run on every casting, so granting it here would intimidate every time the caster flickered a candle.',
     },
   ],
   'protection-from-evil-and-good': [
@@ -2699,16 +2670,16 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'the die joins every attack the caster lands on this target for the hour, where the extra dice a spell hangs belong to the one attack its casting was declared on — Divine Smite settles at the hit and this waits for the next one.',
     },
     {
+      marker: 'roll-mode',
+      clause: 'The target has Disadvantage on ability checks made with the chosen ability',
+      why: 'a-choice-made-at-the-casting',
+      note: 'the shape is built and this entry is a deliberate over-count of what is left. `choiceStated` records the ability the caster names and `statedChoice` puts it on the selector, which is Enhance Ability sentence with the mode reversed — so nothing blocks the clause, and the only reason it is unwritten is that nobody has written this definition. **The value that says exactly that exists and is one type over**: `BlockedClause.why` carries `expressible` — "the existing kinds already express it; it blocks nothing" — and `TrackedAdjudication.why` does not, because it was written for a population whose definitions execute something. Neither of the two values it does carry is true here: `engine` says the engine executes the clause and `table` says the clause is fiction. Widening this type to admit `expressible` reaches the coverage and ledger generators and every guard over this map, so it is a decision rather than a note. Until somebody takes it, or writes this definition, the shape id stays — the direction that over-reports a debt rather than losing one.',
+    },
+    {
       marker: 'extra-damage',
       clause: 'whenever you hit it with an attack roll',
       why: 'a-rider-on-a-later-weapon-attack',
       note: 'the trigger half of the same sentence, and the half that makes it a standing rider rather than a settlement: there is no later attack for a finished casting to read.',
-    },
-    {
-      marker: 'roll-mode',
-      clause: 'The target has Disadvantage on ability checks made with the chosen ability',
-      why: 'a-choice-made-at-the-casting',
-      note: 'the ability is chosen when the spell is cast and the modifier selects by it, so the modifier cannot be written until a per-casting choice has somewhere to be recorded — the clause the roll-modifier vocabulary names Hex for by name.',
     },
     {
       marker: 'hit-points',

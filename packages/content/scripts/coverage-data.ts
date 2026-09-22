@@ -186,6 +186,7 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'divine-favor',
   'divine-smite',
   'eldritch-blast',
+  'enhance-ability',
   'false-life',
   'fear',
   'finger-of-death',

@@ -30,6 +30,8 @@ import {
  *   designate creatures to be unaffected by it."
  * - Protection from Energy: "Resistance to one damage type of your choice:
  *   Acid, Cold, Fire, Lightning, or Thunder."
+ * - Blindness/Deafness: "it has the Blinded or Deafened condition (**your
+ *   choice**) for the duration."
  *
  * `PendingCasting` pins the targets, the origin and the area for exactly one
  * reason — "settlement takes no fresh request, so a Spiritual Weapon declared
@@ -54,7 +56,12 @@ const BYSTANDER = id('bystander');
 /** Protection from Energy's target. */
 const FIGHTER = id('fighter');
 
-const PREPARED = ['spirit-guardians', 'protection-from-energy', 'hold-person'];
+const PREPARED = [
+  'spirit-guardians',
+  'protection-from-energy',
+  'hold-person',
+  'blindness-deafness',
+];
 
 const sheet = (): CharacterSheet => ({
   level: 11,
@@ -421,6 +428,75 @@ describe('a held Protection from Energy grants the Resistance its caster chose',
   });
 });
 
+// — a choice the caster made, carried across the same seam ——————————————
+
+describe('a held Blindness/Deafness settles with the condition its caster chose', () => {
+  /**
+   * The fifth stated fact across the same seam, and it fails the same way if
+   * the declaration drops it: the definition prints **Blinded** as the value
+   * `statedChoice` rewrites, so a settlement that lost the caster's answer
+   * blinds every target whatever they said — silently, because a blinded
+   * creature is a perfectly plausible outcome of this spell.
+   *
+   * Told apart by which condition lands, which is the whole of what the two
+   * castings differ in.
+   */
+  /** A declared sight, because this spell reaches "one creature you can see". */
+  const SEEN: readonly GameEvent[] = [
+    { type: 'sight-declared', from: CLERIC, to: BYSTANDER, seen: true },
+  ];
+
+  const held = (choice: string) => {
+    const game = new Game().push(SEEN);
+    const { castingId } = game.declare('blindness-deafness', {
+      targets: [BYSTANDER],
+      slotLevel: 2,
+      choice,
+    });
+    const events = game.settleCast();
+    return { game, castingId, events };
+  };
+
+  const conditionsIn = (events: readonly GameEvent[]): readonly string[] =>
+    events.filter((e) => e.type === 'condition-applied').map((e) => e.condition);
+
+  it('deafens when the declaration chose Deafened', () => {
+    expect(conditionsIn(held('deafened').events)).toEqual(['deafened']);
+  });
+
+  it('does not impose the value the definition prints', () => {
+    expect(conditionsIn(held('deafened').events)).not.toContain('blinded');
+  });
+
+  it('blinds when the declaration chose Blinded', () => {
+    expect(conditionsIn(held('blinded').events)).toEqual(['blinded']);
+  });
+
+  /**
+   * And the record keeps the **pair**, not the value alone. Which field the
+   * answer replaces is a fact about the definition, and a record that kept
+   * only the value would have to ask the catalogue for the other half every
+   * time a later trigger fired.
+   */
+  it('records the choice on the casting, kind and value together', () => {
+    const { game, castingId } = held('deafened');
+    expect(ongoingSpellOf(game.state, castingId)?.choice).toEqual({
+      of: 'condition',
+      value: 'deafened',
+    });
+  });
+
+  it('agrees with the same spell cast in one breath', () => {
+    const game = new Game().push(SEEN);
+    const { events } = game.cast('blindness-deafness', {
+      targets: [BYSTANDER],
+      slotLevel: 2,
+      choice: 'deafened',
+    });
+    expect(conditionsIn(events)).toEqual(['deafened']);
+  });
+});
+
 // — a casting that stated nothing is untouched ——————————————————————————————————
 
 describe('a held casting that states neither fact is unchanged', () => {
@@ -447,6 +523,7 @@ describe('a held casting that states neither fact is unchanged', () => {
     expect(record).toBeDefined();
     expect(record?.damageType).toBeUndefined();
     expect(record?.unaffected).toBeUndefined();
+    expect(record?.choice).toBeUndefined();
   });
 
   /** And an empty designation is the absence of one, not an empty list. */

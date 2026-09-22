@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
-import { asCharacterId, expect as unwrap, type CharacterId } from '@ie/shared';
+import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
@@ -107,8 +107,23 @@ const supply = (seed = 'cast') => ({
 const applied = (condition: string, source: string): GameEvent =>
   ({ type: 'condition-applied', id: ALLY, condition, source }) as GameEvent;
 
-const cast = (state: GameState, spellId: string) =>
-  resolveSpell(state, CLERIC, { spellId, targets: [ALLY], slotLevel: 2 }, supply());
+const cast = (state: GameState, spellId: string, over: Record<string, unknown> = {}) =>
+  resolveSpell(
+    state,
+    CLERIC,
+    { spellId, targets: [ALLY], slotLevel: 2, ...over } as Parameters<typeof resolveSpell>[2],
+    supply(),
+  );
+
+/**
+ * SRD Lesser Restoration ends "**one** condition on it", and which one is the
+ * caster's to say: the definition prints all four, the casting names one, and
+ * a casting that names none is refused rather than curing everything it finds.
+ * So every fixture below says which — which is also what makes them able to
+ * tell a removal apart from a wash.
+ */
+const restore = (state: GameState, choice: string) =>
+  cast(state, 'lesser-restoration', { choice });
 
 describe('Lesser Restoration ends a condition', () => {
   /**
@@ -125,7 +140,7 @@ describe('Lesser Restoration ends a condition', () => {
       applied('charmed', 'a dryad'),
     ]);
 
-    const out = unwrap(cast(state, 'lesser-restoration'), 'lesser restoration');
+    const out = unwrap(restore(state, 'poisoned'), 'lesser restoration');
     const next = fold('seed', [
       ...SETUP,
       applied('poisoned', 'a serpent'),
@@ -151,7 +166,7 @@ describe('Lesser Restoration ends a condition', () => {
       applied('poisoned', 'a bad oyster'),
     ]);
 
-    const out = unwrap(cast(state, 'lesser-restoration'), 'lesser restoration');
+    const out = unwrap(restore(state, 'poisoned'), 'lesser restoration');
     const next = fold('seed', [
       ...SETUP,
       applied('poisoned', 'a serpent'),
@@ -170,7 +185,7 @@ describe('Lesser Restoration ends a condition', () => {
    */
   it('is not an error when the creature has none of them', () => {
     const state = base();
-    const out = unwrap(cast(state, 'lesser-restoration'), 'lesser restoration');
+    const out = unwrap(restore(state, 'poisoned'), 'lesser restoration');
 
     expect(out.outcomes[0]?.affected).toBe(false);
     expect(out.outcomes[0]?.ended).toBeUndefined();
@@ -178,17 +193,20 @@ describe('Lesser Restoration ends a condition', () => {
   });
 
   /**
-   * **Every one it names that the target has, which is where the SRD and the
-   * engine part company.** The book ends "one condition"; a choice made at the
-   * casting has nowhere to be recorded, so the engine ends all of them it
-   * finds, and `spell-honesty.test.ts` adjudicates that clause to
-   * `a-choice-made-at-the-casting` rather than letting it pass as narration.
+   * **One, and the one the caster named**, which is where the engine and the
+   * SRD stopped parting company. The book ends "one condition"; the engine
+   * used to end every one of the four it found, because a choice made at the
+   * casting had nowhere to be recorded, and `spell-honesty.test.ts`
+   * adjudicated the clause rather than letting it pass as narration.
    *
-   * This is also the only fixture that can tell "every condition" from "the
-   * first one": with one condition in play the two are the same events, which
-   * is how a mutation ending only the first survived a whole file.
+   * This is the fixture that can tell the three readings apart, and it needs
+   * all three of its conditions to do it. The target is Blinded, Poisoned and
+   * Charmed and the caster names Poisoned: an engine that ended everything it
+   * named would take the Blinded too, one that took the definition's first
+   * entry would take the Blinded and leave the Poisoned, and the Charmed is
+   * the control that says a removal is exact rather than a wash.
    */
-  it('ends every named condition the creature has, not the first', () => {
+  it('ends the one condition the casting chose, and no other', () => {
     const state = fold('seed', [
       ...SETUP,
       applied('blinded', 'a flash'),
@@ -196,7 +214,7 @@ describe('Lesser Restoration ends a condition', () => {
       applied('charmed', 'a dryad'),
     ]);
 
-    const out = unwrap(cast(state, 'lesser-restoration'), 'lesser restoration');
+    const out = unwrap(restore(state, 'poisoned'), 'lesser restoration');
     const next = fold('seed', [
       ...SETUP,
       applied('blinded', 'a flash'),
@@ -205,10 +223,21 @@ describe('Lesser Restoration ends a condition', () => {
       ...out.events,
     ]);
 
-    expect(next.creatures[ALLY]?.conditions.conditions).toEqual(['charmed']);
-    // In the SRD's own printed order, because that is the order the definition
-    // lists them in and the log records which were ended.
-    expect(out.outcomes[0]?.ended).toEqual(['blinded', 'poisoned']);
+    expect(next.creatures[ALLY]?.conditions.conditions).toEqual(['blinded', 'charmed']);
+    expect(out.outcomes[0]?.ended).toEqual(['poisoned']);
+  });
+
+  /** And the refusals, which are the other half of "the caster chooses". */
+  it('refuses a casting that names no condition', () => {
+    const state = fold('seed', [...SETUP, applied('poisoned', 'a serpent')]);
+    const out = cast(state, 'lesser-restoration');
+    expect(isErr(out) && out.code).toBe('choice_required');
+  });
+
+  it('refuses one the spell does not print', () => {
+    const state = fold('seed', [...SETUP, applied('charmed', 'a dryad')]);
+    const out = restore(state, 'charmed');
+    expect(isErr(out) && out.code).toBe('unknown_choice');
   });
 
   /**
@@ -220,23 +249,29 @@ describe('Lesser Restoration ends a condition', () => {
    */
   it('rolls nothing and does not move the generator', () => {
     const state = fold('seed', [...SETUP, applied('poisoned', 'a serpent')]);
-    const out = unwrap(cast(state, 'lesser-restoration'), 'lesser restoration');
+    const out = unwrap(restore(state, 'poisoned'), 'lesser restoration');
 
     expect(out.events.some((e) => e.type === 'roll-recorded')).toBe(false);
     expect(out.events.some((e) => e.type === 'rolls-issued')).toBe(false);
   });
 
-  /** Every condition the spell names, and no others: Paralyzed goes too. */
+  /** Every condition the spell names is reachable: Paralyzed goes too. */
   it('reaches every condition the spell names', () => {
     const state = fold('seed', [...SETUP, applied('paralyzed', 'a ghoul')]);
-    const out = unwrap(cast(state, 'lesser-restoration'), 'lesser restoration');
+    const out = unwrap(restore(state, 'paralyzed'), 'lesser restoration');
     const next = fold('seed', [...SETUP, applied('paralyzed', 'a ghoul'), ...out.events]);
 
     expect(next.creatures[ALLY]?.conditions.conditions).toEqual([]);
     expect(out.outcomes[0]?.ended).toEqual(['paralyzed']);
   });
 
-  /** The definition names exactly the four the SRD prints, in the SRD's order. */
+  /**
+   * The definition names exactly the four the SRD prints, in the SRD's order
+   * — **twice, for two different jobs.** The effect says what the spell can
+   * reach and the stated choice says the caster picks one of them, and a
+   * definition where the two disagreed would offer a choice the removal could
+   * not honour.
+   */
   it('names the four conditions the SRD prints', () => {
     const definition = SRD_CONTENT.spell('lesser-restoration');
     const effect = definition?.effects[0];
@@ -247,6 +282,10 @@ describe('Lesser Restoration ends a condition', () => {
       'paralyzed',
       'poisoned',
     ]);
+    expect(definition?.choiceStated).toEqual({
+      of: 'condition',
+      options: ['blinded', 'deafened', 'paralyzed', 'poisoned'],
+    });
   });
 });
 
@@ -309,7 +348,7 @@ describe('Protection from Poison ends the Poisoned condition', () => {
   /** Lesser Restoration is Instantaneous, so it leaves no record at all. */
   it('is the only one of the two that leaves a record', () => {
     const state = fold('seed', [...SETUP, applied('poisoned', 'a wyvern')]);
-    const out = unwrap(cast(state, 'lesser-restoration'), 'lesser restoration');
+    const out = unwrap(restore(state, 'poisoned'), 'lesser restoration');
     const next = fold('seed', [...SETUP, applied('poisoned', 'a wyvern'), ...out.events]);
 
     expect(next.ongoing).toEqual({});

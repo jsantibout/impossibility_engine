@@ -1,4 +1,4 @@
-import { ok, type Result, type RollMode } from '@ie/shared';
+import { type Ability, ok, type Result, type RollMode, type Skill } from '@ie/shared';
 import type { Rng } from './dice.js';
 import { parseNotation } from './dice.js';
 import { rollRecorded, type RecordedRoll, type RollIssuer } from './rolls.js';
@@ -86,6 +86,60 @@ export type BonusApplies = 'attack' | 'save' | 'ability-check' | 'ac';
 export type StandingBonusApplies = BonusApplies | 'damage';
 
 /**
+ * Which of the rolls a bonus applies to it actually reaches.
+ *
+ * **Beside {@link BonusApplies} rather than inside it**, and the docstring
+ * above is the argument: a member of that type says *what a bonus applies to*
+ * — a family of roll, or the one standing number the SRD writes in the same
+ * breath — and a skill is not one of those. `ability-check` and `skill` are
+ * not alternatives; a skill check **is** an ability check, so a member spelled
+ * `skill` would have to be read as "an ability check, but". Widening the type
+ * is also the specific failure its docstring names: every member has to be
+ * read by `bonusesFor`, and a narrowing read as a family would either reach
+ * every check or none.
+ *
+ * So it is the shape {@link RollSelector} already uses for a *mode*, where the
+ * family is `roll` and the narrowings sit beside it as filters that may both
+ * be absent. Two engine facts say the same thing from the other end:
+ * `standingCheckBonuses` is a **sibling gatherer** of `standingBonuses` rather
+ * than a member of `StandingBonusApplies`, and `checkBonuses` already takes a
+ * skill as an argument rather than reading one off a grant.
+ *
+ * Both filters **narrow**: absent means the whole family, and a bonus that
+ * names one is withheld from a roll that does not match. A caller with no
+ * skill to name — Initiative, a bare ability check — gets only the bonuses
+ * that name none either, which is `checkBonuses`' conservative direction and
+ * the same one for the same reason.
+ *
+ * The SRD prints both halves and neither is the other:
+ *
+ * > Guidance: "the creature adds 1d4 to any ability check using **the chosen
+ * > skill**"; Pass without Trace: "a +10 bonus to **Dexterity (Stealth)**
+ * > checks"; Enthrall: "a −10 penalty to **Wisdom (Perception)** checks".
+ * > Slow: "a −2 penalty to AC and **Dexterity saving throws**" — one ability's
+ * > saves, whose penalty would otherwise land on every save the target ever
+ * > makes, including the one the spell itself calls for.
+ *
+ * **One readable pairing per filter, and the validator holds them to it**: a
+ * skill on an ability check, an ability on a saving throw, and nothing else.
+ * That is not a taste — it is which gatherer is handed which fact.
+ * {@link bonusesFor}'s `of` comes from `checkBonuses`, which is told the skill
+ * and not the ability, and from `savingSupport`, which is told the ability and
+ * has no skill to be told; the attack gatherer is told neither. So a skill
+ * named on a save reaches nothing, an ability named on an attack widens back
+ * to every swing, an ability named on an *ability check* withholds the bonus
+ * from every check there is, and an Armour Class is not a roll and is made
+ * with nothing. "Dexterity (Stealth)" is written `{ skill: 'stealth' }` and
+ * loses nothing, because a skill names its own governing ability.
+ */
+export interface BonusNarrowing {
+  /** The ability the roll is made with. Readable on a saving throw alone. */
+  readonly ability?: Ability;
+  /** The skill the check uses. Readable on an ability check alone. */
+  readonly skill?: Skill;
+}
+
+/**
  * A bonus an ongoing effect has hung on a creature.
  *
  * `Bonus` is a modifier a caller passes to one roll. This is the same thing
@@ -101,6 +155,13 @@ export interface ActiveBonus {
   readonly bonus: Bonus;
   readonly applies: readonly BonusApplies[];
   readonly direction: 'add' | 'subtract';
+  /**
+   * Which of those rolls it actually reaches — see {@link BonusNarrowing}.
+   *
+   * Absent is every bonus the SRD writes about a whole family, which is most
+   * of them: Bless reaches every attack roll and every save its target makes.
+   */
+  readonly only?: BonusNarrowing;
 }
 
 /**
@@ -109,13 +170,21 @@ export interface ActiveBonus {
  * Subtraction is folded in here rather than at the reading site: a caller
  * asking "what applies to my save" should get modifiers it can add, not a list
  * it has to know the sign convention for.
+ *
+ * `of` is what the roll knows about itself — the ability it is made with, the
+ * skill it uses — and it is only ever read to *withhold*: a bonus that names
+ * neither reaches every roll of the family it applies to, exactly as it did
+ * before {@link BonusNarrowing} existed. A caller that knows nothing passes
+ * nothing and gets the unnarrowed bonuses alone, which is the conservative
+ * direction `checkBonuses` already takes for the feature-side twin.
  */
 export function bonusesFor(
   held: readonly ActiveBonus[],
   kind: BonusApplies,
+  of?: BonusNarrowing,
 ): readonly Bonus[] {
   return held
-    .filter((active) => active.applies.includes(kind))
+    .filter((active) => active.applies.includes(kind) && reaches(active.only, of))
     .map((active) =>
       active.direction === 'add'
         ? active.bonus
@@ -125,6 +194,22 @@ export function bonusesFor(
             direction: 'subtract' as const,
           },
     );
+}
+
+/**
+ * Whether a narrowed bonus reaches the roll asking.
+ *
+ * Every filter the bonus names must be matched by a fact the roll supplied.
+ * **An unanswered filter withholds**, which is the direction that cannot be
+ * wrong twice: a Guidance narrowed to Religion that reached a check nobody
+ * named a skill for would be the unnarrowed bonus back again, wearing a field
+ * that said otherwise.
+ */
+function reaches(only: BonusNarrowing | undefined, of: BonusNarrowing | undefined): boolean {
+  if (only === undefined) return true;
+  if (only.ability !== undefined && only.ability !== of?.ability) return false;
+  if (only.skill !== undefined && only.skill !== of?.skill) return false;
+  return true;
 }
 
 /** A bonus after its dice, if any, have been rolled. */

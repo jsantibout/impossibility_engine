@@ -18,6 +18,8 @@ import {
   CREATURE_TYPES,
   DM_DECIDES,
   modifierRidersOf,
+  statedChoiceCollides,
+  statedChoiceReaches,
 } from './spell-definitions.js';
 import type {
   AttackRollCount,
@@ -29,6 +31,7 @@ import type {
   SpellCheck,
   SpellDefinition,
   SpellEffect,
+  StatedChoiceOf,
 } from './spell-definitions.js';
 import { TURN_MOMENTS } from './time.js';
 import { type PayoutKind } from './timers.js';
@@ -42,7 +45,7 @@ import {
   STATABLE_PRICES,
   type ActionRule,
 } from './combat.js';
-import type { Bonus, BonusApplies } from './bonuses.js';
+import type { Bonus, BonusApplies, BonusNarrowing } from './bonuses.js';
 import type { RollModifier } from './roll-modifiers.js';
 
 /**
@@ -103,6 +106,16 @@ const SCHOOLS: ReadonlySet<string> = new Set([
 
 const DAMAGE: ReadonlySet<string> = new Set(DAMAGE_TYPES);
 const CONDITION_NAMES: ReadonlySet<string> = new Set(CONDITIONS);
+/**
+ * The three things a casting can be asked to choose, as data for untyped
+ * input — {@link StatedChoiceOf}, which the compiler enforces on a definition
+ * that arrived through `tsc` and cannot on one read from a file.
+ */
+const STATED_CHOICE_KINDS: ReadonlySet<string> = new Set<StatedChoiceOf>([
+  'condition',
+  'ability',
+  'skill',
+]);
 /** The three answers `DamageDefenses` holds, as data, for untyped input. */
 const DEFENSE_KINDS: ReadonlySet<string> = new Set<DefenseKind>([
   'resistant',
@@ -558,6 +571,41 @@ function checkDamageType(
       code: 'unknown_damage_type',
       reason: `"${type}" is not one of the SRD's thirteen damage types`,
     });
+  }
+}
+
+/**
+ * One printed option, checked against the vocabulary its kind belongs to.
+ *
+ * A switch over the kind rather than one set of everything, because a
+ * condition named where an ability was meant is a spell the caster can cast
+ * and nobody can read — and the three vocabularies have nothing in common to
+ * make the confusion visible later.
+ */
+function checkChoiceOption(
+  of: StatedChoiceOf,
+  option: string,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  switch (of) {
+    case 'condition':
+      checkCondition(option, path, found);
+      return;
+    case 'ability':
+      if (!ABILITY_NAMES_SET.has(option as Ability)) {
+        found.push({ field: path, code: 'bad_ability', reason: `"${option}" is not an ability` });
+      }
+      return;
+    case 'skill':
+      if (!SKILL_NAMES.has(option as Skill)) {
+        found.push({ field: path, code: 'bad_skill', reason: `"${option}" is not a skill` });
+      }
+      return;
+    default: {
+      const unhandled: never = of;
+      throw new Error(`no vocabulary for the choice ${String(unhandled)}`);
+    }
   }
 }
 
@@ -1235,6 +1283,7 @@ function checkBonusGrant(
   applies: readonly BonusApplies[],
   path: string,
   found: SpellDefinitionProblem[],
+  only?: BonusNarrowing,
 ): void {
   // The two are independent fields, so each is read on its own terms and a bad
   // one does not hide the other: a `buff` can perfectly well have an
@@ -1279,6 +1328,115 @@ function checkBonusGrant(
       reason: 'a bonus that applies to no kind of roll is a bonus nothing reads',
     });
   }
+
+  if (
+    only !== undefined &&
+    readsAsObject(
+      only,
+      `${path}.only`,
+      'a narrowing is an object naming the ability or the skill the bonus reaches',
+      found,
+    )
+  ) {
+    checkBonusNarrowing(only, applied ? applies : [], path, found);
+  }
+}
+
+/**
+ * The rules a bonus's narrowing has to keep, which are the selector's rules
+ * over a different field.
+ *
+ * Three of the four are {@link rollSelectorProblems} said about a bonus: a
+ * value out of its vocabulary, a skill on a roll that uses none, and a skill
+ * and an ability that disagree. They are stated again rather than shared
+ * because the *families* differ — a selector names one `RollFamily` and a
+ * bonus names a list of {@link BonusApplies} — and folding the two would mean
+ * translating a list into a family that does not exist.
+ *
+ * **The fourth is this engine's rather than the book's, and is worth the
+ * refusal for exactly that reason.** A narrowing is only ever *read* where a
+ * gatherer is told the fact, and the two gatherers are told **one fact each**:
+ * `checkBonuses` takes a skill and `savingSupport` takes the ability the save
+ * is made with. So the readable pairings are the two the SRD writes — a skill
+ * on an ability check (Guidance, Pass without Trace, Enthrall) and an ability
+ * on a saving throw (Slow's "−2 penalty to … Dexterity saving throws") — and
+ * every other pairing is refused rather than left to land and reach nothing.
+ *
+ * Three of the refusals are worth naming. An ability on an **attack** would
+ * widen silently back to every swing its holder made, because that gatherer is
+ * told nothing at all; an **Armour Class** is not a roll and is made with
+ * nothing; and an ability on an **ability check** is refused even though the
+ * roll knows one, because `checkBonuses` is not handed it — a filter nothing
+ * answers withholds the bonus from every check there is, which is the *quiet*
+ * direction of the same failure. A skill names its own governing ability, so
+ * "Dexterity (Stealth)" is `{ skill: 'stealth' }` and loses nothing.
+ *
+ * Each of those lifts the day the gatherer passes what it already knows —
+ * `RollQuery.ability` holds it for an attack, and the four check callers all
+ * have one — and this is the single place that would stop refusing.
+ */
+function checkBonusNarrowing(
+  only: BonusNarrowing,
+  applies: readonly BonusApplies[],
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  if (only.ability === undefined && only.skill === undefined) {
+    found.push({
+      field: `${path}.only`,
+      code: 'narrowing_narrows_nothing',
+      reason: 'a narrowing that names neither an ability nor a skill is the bonus unnarrowed',
+    });
+    return;
+  }
+
+  const abilityKnown = only.ability === undefined || ABILITY_NAMES_SET.has(only.ability);
+  const skillKnown = only.skill === undefined || SKILL_NAMES.has(only.skill);
+  if (!abilityKnown) {
+    found.push({
+      field: `${path}.only.ability`,
+      code: 'bad_ability',
+      reason: `"${String(only.ability)}" is not an ability`,
+    });
+  }
+  if (!skillKnown) {
+    found.push({
+      field: `${path}.only.skill`,
+      code: 'bad_skill',
+      reason: `"${String(only.skill)}" is not a skill`,
+    });
+  }
+
+  // Only once both are known good: reading a value that is not a skill at all
+  // would report a second, less useful problem about the first one.
+  if (abilityKnown && skillKnown && only.ability !== undefined && only.skill !== undefined) {
+    const owner = SKILL_ABILITY[only.skill];
+    if (owner !== only.ability) {
+      found.push({
+        field: `${path}.only`,
+        code: 'skill_ability_mismatch',
+        reason: `${only.skill} is a ${owner} skill, so a ${only.ability} check never uses it`,
+      });
+    }
+  }
+
+  // One readable family per filter, and the filters are asked separately so a
+  // narrowing that names both draws the problem each half has.
+  const unreadable = (filter: 'skill' | 'ability', reads: BonusApplies): void => {
+    if (only[filter] === undefined) return;
+    const wrong = applies.filter((kind) => kind !== reads);
+    if (wrong.length === 0) return;
+    found.push({
+      field: `${path}.only.${filter}`,
+      code: 'narrowing_unreadable',
+      reason:
+        filter === 'skill'
+          ? `a ${wrong.join(' or ')} uses no skill`
+          : `nothing narrows a bonus on ${wrong.join(' or ')} by an ability: only the saving throw gatherer is told which ability the roll was made with`,
+    });
+  };
+  unreadable('skill', 'ability-check');
+  unreadable('ability', 'save');
 }
 
 /** The `roll-mode` rules, shared with the `mode` rider that is that kind minus its save. */
@@ -1704,7 +1862,7 @@ function checkEffect(
     }
 
     case 'buff':
-      checkBonusGrant(effect.bonus, effect.applies, path, found);
+      checkBonusGrant(effect.bonus, effect.applies, path, found, effect.only);
       return;
 
     case 'roll-mode':
@@ -2498,6 +2656,89 @@ export function checkSpellDefinition(
     definition.damageTypeStated.forEach((type, i) =>
       checkDamageType(type, `damageTypeStated[${i}]`, found),
     );
+  }
+
+  // — the one thing the spell asks its caster to choose ————————————————————
+  //
+  // `damageTypeStated`'s rules over a wider vocabulary, and one rule of its
+  // own: the choice has to **land somewhere**. A stated damage type
+  // substitutes into whatever damage the spell deals and a definition that
+  // deals none is already refused elsewhere; a choice can be of four different
+  // things, and `statedChoice` is where each of them lands — so the
+  // reachability question is asked of that function rather than restated here,
+  // which is what stops the two coming to disagree about where a choice goes.
+
+  if (
+    definition.choiceStated !== undefined &&
+    readsAsObject(
+      definition.choiceStated,
+      'choiceStated',
+      'a stated choice is an object naming what is chosen and the values the spell prints',
+      found,
+    )
+  ) {
+    const choice = definition.choiceStated;
+    const known = STATED_CHOICE_KINDS.has(choice.of);
+    if (!known) {
+      found.push({
+        field: 'choiceStated.of',
+        code: 'unknown_stated_choice',
+        reason: `"${String(choice.of)}" is not something a casting can choose; ${[...STATED_CHOICE_KINDS].join(', ')} is`,
+      });
+    }
+    if (
+      readsAsList(
+        choice.options,
+        'choiceStated.options',
+        'the values a spell prints for its caster to choose between are a list',
+        found,
+      )
+    ) {
+      if (choice.options.length < 2) {
+        found.push({
+          field: 'choiceStated.options',
+          code: 'stated_choice_needs_choice',
+          reason: 'this records a spell printing a choice; one entry is not a choice',
+        });
+      }
+      if (known) {
+        choice.options.forEach((option, i) =>
+          checkChoiceOption(choice.of, option, `choiceStated.options[${i}]`, found),
+        );
+      }
+    }
+
+    // **And it has to reach an effect.** A choice the caster makes and nothing
+    // reads is the failure every other reachability rule here exists to catch
+    // — silent, because the casting is refused until the caster answers and
+    // then the answer goes nowhere. Probed with the first printed value, which
+    // is the one the definition itself is written around.
+    if (
+      known &&
+      Array.isArray(choice.options) &&
+      choice.options.length > 0 &&
+      !statedChoiceReaches(definition.effects, choice.of, choice.options[0]!)
+    ) {
+      found.push({
+        field: 'choiceStated',
+        code: 'stated_choice_reaches_nothing',
+        reason: `nothing in this spell's effects holds a ${choice.of} for the casting's choice to replace`,
+      });
+    }
+
+    // **And it may not be printed against a pinned sibling.** An ability and a
+    // skill agree or they describe a roll nobody makes, and a substitution
+    // replaces one of the two — so a definition that writes both and offers
+    // one of them to the caster validates here and then contradicts itself at
+    // the table, which is the one way "the definition declares the slot and
+    // the casting fills it" could still land a selector nothing matches.
+    if (known && statedChoiceCollides(definition.effects, choice.of)) {
+      found.push({
+        field: 'choiceStated',
+        code: 'stated_choice_collides',
+        reason: `this spell pins the ${choice.of === 'ability' ? 'skill' : 'ability'} beside the ${choice.of} the casting chooses, and the two would have to agree; drop the pinned one`,
+      });
+    }
   }
 
   // — what the individual dice of this spell's damage do ————————————————————

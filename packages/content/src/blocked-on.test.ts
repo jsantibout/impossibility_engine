@@ -2190,19 +2190,35 @@ describe('a consumer count is a query', () => {
     ]) {
       expect(blockersOf(id), id).not.toContain('a-choice-made-at-the-casting');
     }
-    // And still blocks one whose choice is anything else: an ability, a
-    // condition, one of six wonders, which of five effects to remove.
-    // Four spells across all three populations, which is what makes the
-    // claim about the *shape* rather than about one map: two are undefined,
-    // one is executed and one is tracked, and each is read out of whichever
-    // map holds it.
+    // **And the value half is no longer a blocker either.** `choiceStated`
+    // carries a condition, an ability or a skill on the same terms a damage
+    // type has been carried since IE-017, and `statedChoice` substitutes the
+    // caster's answer into the effect that holds one — which took
+    // Blindness/Deafness, Lesser Restoration, Enhance Ability and Guidance off
+    // this id as surely as the damage type took the six above.
     for (const id of [
-      'hex',
       'blindness-deafness',
-      'thaumaturgy',
-      'greater-restoration',
+      'lesser-restoration',
       'enhance-ability',
+      'guidance',
     ]) {
+      const shapes =
+        BLOCKED_ON[id] !== undefined
+          ? blockersOf(id)
+          : [
+              ...(ADJUDICATED[id]?.map((e) => e.why) ?? []),
+              ...(TRACKED_ADJUDICATED[id]?.map((e) => e.why) ?? []),
+            ];
+      expect(shapes, id).not.toContain('a-choice-made-at-the-casting');
+    }
+    // What is still filed here is the **other arm**, and it is a different
+    // mechanism rather than a leftover: a choice of *which effects run*, where
+    // a substitution replaces a value in the one list a definition has.
+    // Thaumaturgy's six wonders, Enlarge/Reduce's two halves and Glyph of
+    // Warding's two glyphs are all that sentence, and they are read across
+    // three populations — one executed, two undefined — which is what
+    // makes the claim about the *shape* rather than about one map.
+    for (const id of ['thaumaturgy', 'enlarge-reduce', 'glyph-of-warding']) {
       const shapes =
         BLOCKED_ON[id] !== undefined
           ? blockersOf(id)
@@ -2685,9 +2701,11 @@ describe('a shape that gets built is content work, not a merge', () => {
   it('moves a newly defined spell out of the map and into the adjudications', () => {
     expect(BLOCKED_ON['lesser-restoration']).toBeUndefined();
     expect(BLOCKED_ON['protection-from-poison']).toBeUndefined();
-    expect(ADJUDICATED['lesser-restoration']?.map((e) => e.why)).toEqual([
-      'a-choice-made-at-the-casting',
-    ]);
+    // Lesser Restoration's one adjudication was the "**one** condition" the
+    // caster picks, and the debt is paid: it holds none now, which is the end
+    // state this row was always tracking rather than a row that stopped
+    // mattering.
+    expect(ADJUDICATED['lesser-restoration']).toBeUndefined();
     // IE-014 gave this two adjudications and IE-017 built one of them away, so
     // the Resistance clause is executed and only the condition-keyed save is
     // left. Two merges, one entry, and the map says which half survived.
