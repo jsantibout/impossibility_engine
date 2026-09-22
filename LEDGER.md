@@ -33,7 +33,7 @@ state is displayed as zero.
 
 | Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none |
 |---|---|---|---|---|
-| Spells in reach, not executed | 113 spells | 80 | 0 | 33 |
+| Spells in reach, not executed | 111 spells | 78 | 0 | 33 |
 | Features manual, or a pool with nothing to buy | 53 features | 47 | 0 | 6 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 |
 | Glossary general rules nothing executes | 22 rules | 7 | 0 | 15 |
@@ -55,7 +55,6 @@ hold at all. An executed spell with nothing left is not here.
 | `a-choice-made-at-the-casting` | 4 | 2 |
 | `a-random-outcome-that-is-not-a-d20` | 4 | 2 |
 | `senses-beyond-declared-sight` | 3 | 2 |
-| `a-spell-that-answers-a-later-attack` | 2 | 2 |
 | `an-area-that-filters-its-catch` | 2 | 2 |
 | `a-casting-ended-by-a-trigger` | 5 | 1 |
 | `a-repeat-save-that-does-something-on-a-failure` | 4 | 1 |
@@ -169,11 +168,6 @@ sums to the population.
 - **Faerie Fire** (level 1) — executed-partial
 - **Find Familiar** (level 1) — no-definition — also waits on 3
 - **Darkvision** (level 2) — tracked
-
-#### `a-spell-that-answers-a-later-attack` — blocks 2, finishes 2
-
-- **Sanctuary** (level 1) — tracked
-- **Mirror Image** (level 2) — tracked
 
 #### `an-area-that-filters-its-catch` — blocks 2, finishes 2
 
