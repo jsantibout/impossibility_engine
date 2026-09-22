@@ -9,7 +9,9 @@ import { remaining, spellSlotKey } from '@ie/engine';
 import { declaredCasting } from '@ie/engine';
 import {
   advanceTime,
+  DIRECTIONAL_AREAS,
   pendingCastingsOf,
+  type Point,
   resolveDamage,
   resolveDeclaredCast,
   resolveSpell,
@@ -17,6 +19,7 @@ import {
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { isExecuted } from '../scripts/coverage-data.js';
+import { FEATURE_SHAPES } from '../scripts/missing-feature-shapes.js';
 import {
   ITEM_SHAPES,
   MISSING_SHAPES,
@@ -123,6 +126,17 @@ const TRACKED: readonly string[] = SPELL_DEFINITIONS.filter(
  */
 const TYPED: Readonly<Record<string, CharacterId>> = { Humanoid: ALLY, Beast: BEAST };
 
+/**
+ * Where an area spell puts its template: a point 50 feet from the door, and a
+ * direction for the shapes that need one.
+ *
+ * Inside the scene, inside every printed Range this table casts, and far
+ * enough from the creatures that nothing here turns on who is caught — these
+ * sweeps are about a spell being *cast* rather than refused.
+ */
+const AREA_AT: Point = { x: 100, y: 100, z: 0 };
+const AREA_TOWARDS: Point = { x: 150, y: 100, z: 0 };
+
 const SETUP: readonly GameEvent[] = [
   added(WIZARD),
   added(ALLY),
@@ -228,6 +242,17 @@ const cast = (
       ...(definition.choiceStated === undefined
         ? {}
         : { choice: definition.choiceStated.options[0]! }),
+      // **An area needs a point, and a directional one a direction**: the two
+      // facts `resolveTargets` demands of any spell with a volume. Derived
+      // from the definition rather than listed by spell id, so the next
+      // definition that grows an area needs no line here. The point is inside
+      // the scene and within every Range this table's spells print.
+      ...(definition.area === undefined
+        ? {}
+        : {
+            at: AREA_AT,
+            ...(DIRECTIONAL_AREAS.has(definition.area.kind) ? { towards: AREA_TOWARDS } : {}),
+          }),
       ...over,
     },
     supply(),
@@ -659,7 +684,9 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
    *
    * What is asserted here is that the form is in use and that it is a **claim
    * or a handover** rather than a comment: each one names a shape one of the
-   * two vocabularies has, or says `'table'`. Its two refusals — a sentence a
+   * three vocabularies has, or says `'table'`. Speak with Animals is the
+   * first to reach past the spell book: what blocks it is the Influence
+   * action, which is a gap the **feature** vocabulary already describes. Its two refusals — a sentence a
    * marker can see, and an `'engine'` or `'expressible'` claim nobody can
    * re-run — are held by `misanchoredAdjudications` above and driven with
    * synthetics in `marker-less-blockers.test.ts`.
@@ -678,6 +705,7 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
     const known = new Set<string>([
       ...Object.keys(MISSING_SHAPES),
       ...Object.keys(ITEM_SHAPES),
+      ...Object.keys(FEATURE_SHAPES),
       'table',
     ]);
     for (const [spellId, entry] of markerLess) {
@@ -737,7 +765,11 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
    * vocabulary was split out to avoid.
    */
   it('names an enumerated shape for every clause that is not the table’s', () => {
-    const known = [...Object.keys(MISSING_SHAPES), ...Object.keys(ITEM_SHAPES)];
+    const known = [
+      ...Object.keys(MISSING_SHAPES),
+      ...Object.keys(ITEM_SHAPES),
+      ...Object.keys(FEATURE_SHAPES),
+    ];
     for (const [spellId, written] of Object.entries(ADJUDICATED)) {
       for (const entry of written) {
         if (entry.why === 'table' || entry.why === 'engine') continue;
@@ -799,7 +831,11 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
    * vocabulary has.
    */
   it('names no shape the vocabulary does not have', () => {
-    const known = new Set<string>([...Object.keys(MISSING_SHAPES), ...Object.keys(ITEM_SHAPES)]);
+    const known = new Set<string>([
+      ...Object.keys(MISSING_SHAPES),
+      ...Object.keys(ITEM_SHAPES),
+      ...Object.keys(FEATURE_SHAPES),
+    ]);
     for (const [spellId, written] of Object.entries(ADJUDICATED)) {
       for (const entry of written) {
         if (entry.why === 'table' || entry.why === 'engine') continue;
@@ -1344,9 +1380,9 @@ describe('every spell this batch added is cast for real', () => {
    * recorded here instead, which is the same move `SPLIT_BUNDLES` makes for a
    * clause whose shape was built: the row stays and says where it went.
    *
-   * **Six went out, by four different doors**, which is why the test below
+   * **Nine went out, by six different doors**, which is why the test below
    * asks `isExecuted` rather than counting effects: a departure is "no longer
-   * tracked", and there are four ways to stop being tracked now rather than
+   * tracked", and there are six ways to stop being tracked now rather than
    * one.
    *
    * Three went the same way. `ActionRule` was derived from four SRD sentences
@@ -1380,6 +1416,14 @@ describe('every spell this batch added is cast for real', () => {
    * does — take the benefit of the Invisible condition away. The field is
    * optional now, the Dexterity save hangs the `benefit` rider, and the
    * 20-foot Cube is an ordinary area picking its own targets.
+   *
+   * **Plant Growth and Spike Growth are the eighth and ninth, and they
+   * leave by a fifth door.** Neither rolls anything and neither catches
+   * anybody: what each does is make the ground expensive, which is a patch on
+   * the lattice the casting keeps and the ruler charges for at every space a
+   * move crosses. `isExecuted` reads `areaTerrain` for exactly that reason —
+   * a spell whose only printed mechanic the engine now resolves is not one
+   * the engine resolves nothing of.
    */
   const EXECUTED_SINCE: readonly string[] = [
     'aid',
@@ -1388,6 +1432,8 @@ describe('every spell this batch added is cast for real', () => {
     'faerie-fire',
     'goodberry',
     'magic-jar',
+    'plant-growth',
+    'spike-growth',
     'wind-walk',
   ];
 

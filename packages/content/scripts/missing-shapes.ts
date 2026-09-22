@@ -67,6 +67,10 @@ import { fileURLToPath } from 'node:url';
 // does: an entry is transcribed when a record resolves to it, and a second
 // spelling of that join would be the second place to get it wrong.
 import { magicItemEntries, transcribedItems } from './magic-items.js';
+// **Type-only, and that is load-bearing.** `missing-feature-shapes.ts` imports
+// values from this file, so a value import back would close a runtime cycle;
+// a type import is erased under `verbatimModuleSyntax` and closes nothing.
+import type { FeatureShapeId } from './missing-feature-shapes.js';
 
 /**
  * The mechanical shapes that stand between an SRD spell and a finished one.
@@ -150,7 +154,7 @@ export const MISSING_SHAPES = {
   'a-hit-point-maximum-a-spell-moves':
     'PROGRESS.md ranked "Healing that lifts a condition, raises the dead, or raises the maximum" and the audit named Harm’s reduction as debt: the maximum was set when a creature is added and by advancement, and no effect moved it. **The raise is built**: `hit-point-maximum` is a twelfth sourced grant, `settleHitPointMaximum` reconciles `Vitals.hpMax` in the fold’s derived pass so every ending gives it back, and `advanceCharacter` subtracts the *unadjusted* maximum so a level taken mid-spell is worth the whole of its level — which is Aid and its slot scaling whole. Three things are still missing under this name and each is its own sentence. **A reduction**: Harm’s, the Berserker Axe’s, and Greater Restoration ending one — every SRD sentence that lowers a maximum is fastened to damage already taken, so the clause that makes it mean something is the half that is absent. **A maximum that cannot be reduced**, which is Aura of Life and is a refusal rather than an amount. **And a rolled one**: Heroes’ Feast’s 2d10, refused at authoring (`rolled_hit_point_maximum`) because a die thrown once and then carried for hours is a number the log cannot account for. A *feature* that raises a maximum is a different absence again — see the feature ledger.',
   'difficult-terrain-an-area-creates':
-    'Difficult Terrain is charged exactly and **declared by the foot** on the move that crosses it (`MoveCommand.difficultFeet`). Deriving it from a spell’s area needs the path a move does not record — CLAUDE.md’s own named gap — so five executed areas are invisible to the ruler. The audit counts "three Difficult Terrain areas" among the clauses that are rules rather than fiction.',
+    '**Built for the ordinary case, and what is left is three sentences that are not it.** `AreaTerrain` in spell-definitions.ts says a spell’s area makes the ground expensive — "a fact about the **ground**, asked per space by the ruler as a move crosses it, and true of spaces nobody is standing in" — and `docs/design/light-and-sight.md` is where the patch it writes is named as the precedent the sight model generalises from; the casting pins the region it resolved into the `difficult-terrain-declared` event the table’s own declaration already writes, the patch lapses when the casting leaves `state.ongoing`, and the ruler charges for it at every space a move crosses — Grease, Web, Spike Growth and Plant Growth are written on it, at the glossary’s rate and at Plant Growth’s own four. The description before this one said the mechanism was missing outright and named five executed areas as invisible to the ruler; that is no longer the gap. What still names this shape is the ground a patch **cannot** describe: terrain charged only in one **direction**, which is Gust of Wind spending two feet per foot only while moving closer to the caster and is a fact about the mover rather than about the square; ground a spell **removes** rather than makes, which is Speak with Plants turning plant-grown Difficult Terrain back into ordinary ground and Mirage Arcane in both directions; and a patch whose lifetime is a **turn boundary** rather than a casting or forever, which is Ice Storm ending at the end of the caster’s next turn (out of level-5 reach and is recorded here rather than left for somebody to rediscover). Three executed spells past level-5 reach — Black Tentacles, Ice Storm and Insect Plague — still carry an `unmodelled` line saying their area is not Difficult Terrain, which is now true only of the third clause above; writing the field on the first two is a reading somebody owes and moves no number in reach.',
   'an-area-that-moves-by-itself':
     '`docs/design/casting.md`: "Cloudkill and Incendiary Cloud, blocked on automatic turn-start drift". PROGRESS.md says why it is not transcription: the move has to land before the start-of-turn clauses are determined, the direction is derived for one spell and chosen for the other, and a caster with no position has no "away from you" at all.',
   'an-area-trigger-on-the-casters-turn':
@@ -310,6 +314,13 @@ export interface SplitBundle {
    * reach the executed population would count a bundle spanning all three
    * short, which is the error this file exists to end.
    *
+   * **A tracked entry with no marker is found by its clause instead**, which
+   * is the marker-less form arriving here: `marker` is the key a tracked
+   * entry is looked up by and `null` is not a key. Without that the lookup
+   * would miss the entry entirely and fall through to the branch that
+   * forgives a clause whose *spell* has since been written — which would be a
+   * silent pass on a re-filing that had quietly not happened.
+   *
    * **A clause may leave the map, and there is exactly one honest reason.**
    * IE-019 executed Shatter, so `['shatter', 'a Construct has Disadvantage']`
    * is no longer an adjudication at all — and that is not a lost fact, it is
@@ -442,6 +453,59 @@ export const SPLIT_BUNDLES: Readonly<Record<string, SplitBundle>> = {
       ['haste', 'speed-and-movement-modes', 'a-speed-an-effect-multiplies'],
     ],
   },
+  /**
+   * The bundle gate G1 read as five mechanisms, recorded once it had somewhere
+   * to send more than one of them.
+   *
+   * **P2-T0 could not write this and said so in as many words**: the split
+   * needed a second destination and the only one it had was
+   * `a-rider-that-lasts-until-the-start-of-the-targets-next-turn`, where
+   * Shocking Grasp had already gone. The second is a **feature** shape, and
+   * filing a spell against one is the widening of `TrackedAdjudication.why`
+   * the owner took rather than enumerate the field a fourth time — so the
+   * record and the type landed together, which is why they are one commit.
+   *
+   * **Four adjudications over four spells, and the id survives.** That is
+   * `a-mode-on-the-save-a-spell-forces`' precedent rather than
+   * `speed-and-movement-modes`': what the reading found is that the
+   * description claimed arms the vocabulary had grown into, not that the
+   * mechanism was imaginary. What is left under the id is the three arms
+   * nobody has built — an extra action **created** (Expeditious Retreat,
+   * Haste), a compelled action spending somebody else's budget (Dissonant
+   * Whispers, Command, the three Dominates, Compulsion), and a lifetime an
+   * Instantaneous casting cannot hang (Befuddlement) — and the `held` list
+   * below holds only what moved, which is what the guard over these records
+   * demands.
+   */
+  'an-action-a-spell-compels-or-forbids': {
+    adjudications: 4,
+    spells: 4,
+    held: [
+      // The arm that left first, at gate G1: what Shocking Grasp lacks is one
+      // word of a duration vocabulary and not a rule about the economy.
+      [
+        'shocking-grasp',
+        'cannot make Opportunity Attacks',
+        'a-rider-that-lasts-until-the-start-of-the-targets-next-turn',
+      ],
+      // And the three the widening released, all to one destination: an
+      // action the book prints that no command takes.
+      [
+        'gaseous-form',
+        'the things the cloud cannot do are not forbidden',
+        'an-action-the-engine-has-no-spender-for',
+      ],
+      [
+        'haste',
+        'the five that extra action may be spent on',
+        'an-action-the-engine-has-no-spender-for',
+      ],
+      // The tracked population's slot is a **marker** key — except where the
+      // entry has no marker, which is this one and is why the lookup takes
+      // the clause as well. See `SplitBundle.held`.
+      ['speak-with-animals', 'skill options with them', 'an-action-the-engine-has-no-spender-for'],
+    ],
+  },
 };
 
 // — the executed population ——————————————————————————————————————————————————
@@ -462,8 +526,15 @@ export interface Adjudication {
    * the test asserts in both directions.
    */
   readonly clause: string;
-  /** Fiction the engine should never decide, or the shape that blocks it. */
-  readonly why: 'table' | ShapeId;
+  /**
+   * Fiction the engine should never decide, or the shape that blocks it.
+   *
+   * The shape may belong to any of the three books — see {@link BlockerId}.
+   * Two executed spells need it and both are gate G1's re-filings: Gaseous
+   * Form's forbidden talking and Haste's five narrowed actions are blocked on
+   * `an-action-the-engine-has-no-spender-for`, which is a feature shape.
+   */
+  readonly why: 'table' | BlockerId;
   readonly note: string;
 }
 
@@ -509,7 +580,7 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
     {
       clause: 'the area is Difficult Terrain',
       why: 'difficult-terrain-an-area-creates',
-      note: 'The engine charges Difficult Terrain exactly and takes it as declared feet on the move that crosses it, so an area that makes the ground difficult is invisible to the ruler and every move through the tentacles is charged as open floor.',
+      note: 'SRD: "these tentacles turn the ground in that area into Difficult Terrain". The writer exists — `areaTerrain` on the definition pins the region the casting resolved and the ruler charges for it — and this definition does not carry it: the spell is level 4 and out of level-5 reach, so nobody has read it since. A reading, not a gap, and the shape’s own description says so.',
     },
   ],
   blur: [
@@ -787,15 +858,8 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
     },
     {
       clause: 'the things the cloud cannot do are not forbidden',
-      why: 'an-action-a-spell-compels-or-forbids',
-      note: 'SRD: "The target can’t talk or manipulate objects, and any objects it was carrying or holding can’t be dropped, used, or otherwise interacted with." The action economy is the engine’s and the only lever a spell has on it is a condition the engine names; forbidding two actions and leaving the rest is a rider nothing expresses, and what is in a creature’s hands is not a fact the engine holds either.',
-    },
-  ],
-  grease: [
-    {
-      clause: 'becoming Difficult Terrain',
-      why: 'difficult-terrain-an-area-creates',
-      note: 'The ruler charges Difficult Terrain by the declared foot and reads no area, so a creature walks across the grease at open-floor cost while the spell’s save is resolved exactly.',
+      why: 'an-action-the-engine-has-no-spender-for',
+      note: 'SRD: "The target can’t talk or manipulate objects, and any objects it was carrying or holding can’t be dropped, used, or otherwise interacted with." Forbidding a named action is `ActionRule`’s `forbids` and four definitions write it; what this sentence forbids is **talking** and **handling an object**, and no command takes either — the second is the Utilize action, which `NAMED_ACTIONS` leaves out because no spender could be told apart as having taken one. Gate G1 read it as mis-filed for that reason, and the gap it names is the feature book’s.',
     },
   ],
   harm: [
@@ -812,9 +876,14 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: "the target’s Speed is doubled, it gains a +2 bonus to Armor Class". A Speed is composed from a halving, which is presence rather than count, and a zero, which is last and wins; a doubling is neither, and the book gives no order for one against a halving — so the member arrives with the rule that settles it or not at all.',
     },
     {
-      clause: 'the extra action and the five it may be spent on',
+      clause: 'the extra action',
       why: 'an-action-a-spell-compels-or-forbids',
-      note: 'SRD: "it gains an additional action on each of its turns. That action can be used to take only the Attack (one attack only), Dash, Disengage, Hide, or Utilize action." Granting an extra action is named in that shape’s own description beside forbidding one, and the narrowing is a second rider on a thing the first cannot create.',
+      note: 'SRD: "it gains an additional action on each of its turns." An extra action **granted** rather than an existing one governed, which is the arm of that shape with no member at all: `ActionRule` forbids a slot, narrows one and pays for a named action out of a cheaper slot, and none of the three creates one. Gate G1 counted this arm as its own and it is the half of Haste’s sentence that still has nowhere to go.',
+    },
+    {
+      clause: 'the five that extra action may be spent on',
+      why: 'an-action-the-engine-has-no-spender-for',
+      note: 'SRD: "That action can be used to take only the Attack (one attack only), Dash, Disengage, Hide, or Utilize action." The narrowing itself is `permits-only` and is written by four definitions; what it cannot name is **Utilize**, which `NAMED_ACTIONS` leaves out because no spender could be told apart as having taken one, so a rule listing it would read as enforced and would not be. Filed apart from the sentence above it because the two are different gaps and a single entry hid which of them is which.',
     },
     {
       clause: 'the lethargy',
@@ -862,7 +931,7 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
     {
       clause: 'becomes Difficult Terrain',
       why: 'difficult-terrain-an-area-creates',
-      note: 'SRD leaves the ground difficult "until the end of your next turn" — a deadline the engine can express over an area it cannot, because terrain reaches the ruler only as declared feet on a move.',
+      note: 'SRD leaves the ground difficult "until the end of your next turn", and **that** is what is missing rather than the terrain: a patch lapses with the casting that made it or not at all, and this casting is Instantaneous, so there is no record for the end of anybody’s next turn to end. The one arm of this shape a patch genuinely cannot describe.',
     },
   ],
   'incendiary-cloud': [
@@ -881,7 +950,7 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
     {
       clause: 'Lightly Obscured and Difficult Terrain',
       why: 'difficult-terrain-an-area-creates',
-      note: 'The swarm’s saves and damage all run; the ground it stands on costs nothing extra to cross, because Difficult Terrain reaches the ruler only as feet a move declares.',
+      note: 'SRD: "its area is Lightly Obscured and Difficult Terrain". The swarm’s saves and damage all run, and the ground is writable now — `areaTerrain` says it — on a definition nobody has re-read: the spell is level 5 and out of level-5 reach. The obscurement half waits on `light-and-obscurement-the-scene-holds` whatever happens to the first.',
     },
   ],
   invisibility: [
@@ -948,6 +1017,13 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'a successful save ends the spell',
       why: 'a-repeat-save-that-does-something-on-a-failure',
       note: 'The ending itself is expressible — `onSuccess: end-casting` exists — and it has no save to ride on, because the repeat save that would carry it deals damage the hook cannot roll.',
+    },
+  ],
+  'plant-growth': [
+    {
+      clause: 'the Enrichment branch is not castable at all',
+      why: 'a-choice-made-at-the-casting',
+      note: 'SRD prints one spell with two effects and lets the **casting time** choose between them, Action for the Overgrowth and eight hours for the Enrichment — "This spell channels vitality into plants. The casting time you use determines whether the spell has the Overgrowth or the Enrichment effect below." That is the second arm of this shape exactly as its description states it — a choice of which effects run rather than which value one of them carries, which is Enlarge/Reduce’s two halves and Glyph of Warding’s two glyphs — with the extra turn of the screw that the two branches do not even share a casting time, and a definition carries one. The Overgrowth is what is written, and its four feet per foot are charged.',
     },
   ],
   'prayer-of-healing': [
@@ -1038,6 +1114,18 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: "gains the ability to move up, down, and across vertical surfaces and along ceilings, while leaving its hands free". **The Climb Speed in the next sentence is executed and this is what is left.** A scene is a lattice of 5-foot cubes with landmarks and elevation, and no surfaces at all — there is no wall for the engine to say a creature may walk on, and inventing one would be the engine deciding where the room’s walls are. So the same line declared cover and declared sight already draw: the DM says which surface the spider took, and the engine charges the climb at the Climb Speed the spell gave it.',
     },
   ],
+  'spike-growth': [
+    {
+      clause: 'the spikes deal nothing',
+      why: 'a-distance-a-creature-travels-inside-an-area',
+      note: 'SRD: "it takes 2d4 Piercing damage for every 5 feet it travels". The dice are multiplied by a distance travelled **inside** the area, and a move is charged by the foot without anybody asking which of those feet were where — so there is no number for the dice to be multiplied by. The sentence before it is executed now: the ground is Difficult Terrain, laid as a patch the casting keeps.',
+    },
+    {
+      clause: 'the Wisdom (Perception or Survival) check that spots the hazard is not offered',
+      why: 'a-check-another-creature-may-attempt',
+      note: 'the check belongs to a creature that is about to walk in rather than to one the casting caught, and who may attempt a check is derived from what its timer sits on — an effect on a creature is that creature’s, a casting with no victim is anybody’s, and this is neither.',
+    },
+  ],
   sunbeam: [
     {
       clause: 'creates a new Line on a later turn',
@@ -1066,9 +1154,9 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD Restrains a creature "while in the webs". A condition ends with its casting, on a deadline, or on a save; ending because its holder walked out of an area is a lifetime nothing expresses, so it runs until the casting ends or the creature breaks free.',
     },
     {
-      clause: 'the webs are Difficult Terrain',
-      why: 'difficult-terrain-an-area-creates',
-      note: 'Every save the webs call for is raised and resolved; crossing them costs the same as crossing an empty floor, because Difficult Terrain reaches the ruler only as declared feet on a move.',
+      clause: 'the area within the webs being Lightly Obscured',
+      why: 'light-and-obscurement-the-scene-holds',
+      note: 'SRD writes two facts about the Cube in one sentence and the engine now holds one of them: the webs are Difficult Terrain, laid as a patch the casting keeps and charged at every space a move crosses. The other half has nothing to be written on — no square is lit, dim or obscured — which is the shape `docs/design/light-and-sight.md` is the design for and P3-S builds.',
     },
     {
       clause: 'flammable',
@@ -1294,8 +1382,20 @@ export interface TrackedAdjudication {
    * **item** vocabulary and finishes on the very sentence. Minting a second id
    * over here for one gap is the duplication that vocabulary was split out to
    * avoid, so the field takes the union that {@link ItemBlockerId} already is.
+   *
+   * ### And the third, which is why the field stopped being enumerated
+   *
+   * `FeatureShapeId` is the same argument from the third book, and the point
+   * at which the owner took the general form instead of a fourth list: Speak
+   * with Animals widens the Influence action, Gaseous Form forbids talking
+   * and handling objects, and Haste's extra action may be spent on a Utilize
+   * — and every one of those is `an-action-the-engine-has-no-spender-for`,
+   * which `NAMED_ACTIONS` describes from the feature side because no spender
+   * could be told apart as having taken one. So the field is
+   * {@link BlockerId}, which is a shape in any of the three maps, and the
+   * disjointness that makes that unambiguous is asserted rather than assumed.
    */
-  readonly why: 'table' | 'engine' | 'expressible' | ShapeId | ItemShapeId;
+  readonly why: 'table' | 'engine' | 'expressible' | BlockerId;
   readonly note: string;
 }
 
@@ -1545,7 +1645,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: 'movement-cost',
       clause: 'must spend 2 feet of movement for every 1 foot it moves when moving closer to you',
       why: 'difficult-terrain-an-area-creates',
-      note: 'a doubled cost to walk into the wind is Difficult Terrain by another name, and Difficult Terrain is charged exactly — declared by the foot on the move that crosses it. No area declares any, so there is nowhere for the wind to make the ground cost double.',
+      note: 'a doubled cost is Difficult Terrain by another name and an area may now write one — what this sentence adds is **which way the creature is walking**. A patch is a property of the square: it charges whoever crosses it, and no field on it can say "only while moving closer to you". That is the directional arm of this shape and the writer does not reach it.',
     },
     {
       marker: 'chance',
@@ -1714,20 +1814,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'have the Prone condition and lose Concentration',
       why: 'an-outcome-that-breaks-concentration',
       note: 'the Prone half is an ordinary condition rider and is welded to the half that is not: one failed save imposes both, and no outcome of a saving throw asks for somebody’s Concentration to break.',
-    },
-  ],
-  'spike-growth': [
-    {
-      marker: 'dice',
-      clause: 'it takes 2d4 Piercing damage for every 5 feet it travels',
-      why: 'a-distance-a-creature-travels-inside-an-area',
-      note: 'the dice are multiplied by a distance travelled **inside** the area, and a move is charged by the foot without anybody asking which of those feet were where — so there is no number for the dice to be multiplied by.',
-    },
-    {
-      marker: 'ability-check',
-      clause: 'succeed on a Wisdom (Perception or Survival) check against your spell save DC',
-      why: 'a-check-another-creature-may-attempt',
-      note: 'the check belongs to a creature that is about to walk in rather than to one the casting caught, and who may attempt a check is derived from what its timer sits on — an effect on a creature is that creature’s, a casting with no victim is anybody’s, and this is neither.',
     },
   ],
   'warding-bond': [
@@ -2182,14 +2268,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'the Speed is an override on a stat block out of the monster list, and the thing it overrides is a creature no casting can put in the scene — so the number has nobody to belong to.',
     },
   ],
-  'plant-growth': [
-    {
-      marker: 'movement-cost',
-      clause: 'must spend 4 feet of movement for every 1 foot it moves',
-      why: 'difficult-terrain-an-area-creates',
-      note: 'Difficult Terrain is charged exactly and declared by the foot on the move that crosses it, and deriving it from a spell’s area needs the path a move does not record. Four feet per foot is twice the printed rate besides, which nothing expresses either.',
-    },
-  ],
   revivify: [
     {
       marker: 'hit-points',
@@ -2329,7 +2407,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: 'movement-cost',
       clause: 'it must spend 4 feet of movement',
       why: 'difficult-terrain-an-area-creates',
-      note: 'Difficult Terrain is charged exactly and declared by the foot on the move that crosses it; deriving it from an area needs the path a move does not record, and four feet per foot is twice the printed rate besides.',
+      note: 'the four feet per foot are sayable — the rate is a number on the patch and Plant Growth writes exactly this one. What is not is the wall: SRD shapes it "up to 60 feet long, 10 feet high, and 5 feet thick" along a path of the caster’s choosing, which is the shape named on this spell’s other entry, and a patch has to lie somewhere before it can charge for anything.',
     },
   ],
   'blade-barrier': [
@@ -3564,7 +3642,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: null,
       clause: 'into Difficult Terrain (or vice versa) or otherwise impede movement through the area',
       why: 'difficult-terrain-an-area-creates',
-      note: 'Difficult Terrain is declared by the foot on the move that crosses it, so an area that creates it — or that takes it away, which this spell also does — is invisible to the ruler: a move records where it started and where it ended and nothing in between.',
+      note: 'the half that makes ground difficult is writable now; the half this sentence leads with is not. Turning Difficult Terrain **into** ordinary ground is a patch that cancels the patches under it, and nothing in the lattice subtracts — `terrainAt` takes the dearest rate lying over a space, because the book’s own rule is that a space thick with thorns is thorny whatever else grows there.',
     },
     {
       marker: null,
@@ -3601,8 +3679,8 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
     {
       marker: null,
       clause: 'skill options with them',
-      why: 'an-action-a-spell-compels-or-forbids',
-      note: 'the spell widens what may be attempted against a Beast, which is `ActionRule`’s `allows` polarity — and the action it widens is the Influence action, which `NAMED_ACTIONS` leaves out because no spender can be told apart as having taken one. That is the residue this shape records by name, beside Wind Walk’s Magic action and every Hide, Search and Study left out for the same reason.',
+      why: 'an-action-the-engine-has-no-spender-for',
+      note: 'the spell widens what may be attempted against a Beast, which is `ActionRule`’s `allows` polarity and is sayable — what is not is the **action** it widens. That is the Influence action, and `NAMED_ACTIONS` leaves it out because no spender could be told apart as having taken one: a rule naming it would read as enforced and would not be. Gate G1 read this as mis-filed under `an-action-a-spell-compels-or-forbids`, whose vocabulary is built; the gap is the feature book’s and is the same one Utilize sits in.',
     },
   ],
   darkvision: [
@@ -3656,7 +3734,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: null,
       clause: 'turn Difficult Terrain caused by plant growth',
       why: 'difficult-terrain-an-area-creates',
-      note: 'and the same sentence goes the other way a clause later, turning ordinary ground into Difficult Terrain. Both are invisible to the ruler for one reason: Difficult Terrain is charged by the foot on the move that crosses it and declared by the caller, so ground that holds a property of its own has nobody to tell.',
+      note: 'the clause after it — turning ordinary ground into Difficult Terrain — is writable now, and this one is the direction that is not: **removing** it. Nothing in the lattice subtracts, because `terrainAt` takes the dearest rate lying over a space and a patch cancelling its neighbours is the one thing a rate cannot say.'
     },
   ],
   'tiny-hut': [
@@ -4239,8 +4317,8 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     },
     {
       clause: 'these plants turn the ground in the area into Difficult Terrain',
-      why: 'difficult-terrain-an-area-creates',
-      note: 'Difficult Terrain is charged by the foot on the move that crosses it and declared by the caller, so an area that creates it is invisible to the ruler — the move records where it started and where it ended and nothing in between.',
+      why: 'expressible',
+      note: '`SpellDefinition.areaTerrain` says exactly this and four spells are written on it: the casting pins the 20-foot square it resolved and the ground charges the glossary’s rate until the Concentration goes. What still stops the definition being written is the sentence after it — "Each creature (other than you) in the area" — which is `an-area-that-filters-its-catch`, and a definition written without it would Restrain the druid who cast it.',
     },
     {
       clause: 'Each creature (other than you) in the area when you cast the spell',
@@ -5347,6 +5425,29 @@ export type ItemShapeId = keyof typeof ITEM_SHAPES;
 
 /** Every shape an item entry may name: the spell vocabulary, and the item one. */
 export type ItemBlockerId = ShapeId | ItemShapeId;
+
+/**
+ * Every shape **any** entry, in any of the three books, may name.
+ *
+ * The owner's disposition of 2026-09-21, taken after the third time
+ * `TrackedAdjudication.why` was too narrow: rather than a fourth enumeration,
+ * `why` names a shape in any of the three maps. The three widenings it
+ * replaces were all the same discovery arriving from a different book —
+ * Remove Curse's attunement is an item's gap finished on a spell's sentence,
+ * Hex is a definition nobody wrote, and the action nobody can spend is a
+ * **feature** shape three spells are blocked on.
+ *
+ * **It rests on the three id spaces being disjoint**, which is asserted
+ * rather than left to the naming convention: a string that named a shape in
+ * two maps would make every `why` ambiguous, and each consumer would resolve
+ * it by whichever map it looked in first. See `why-names-any-shape.test.ts`.
+ *
+ * `FeatureBlockerId` in `missing-feature-shapes.ts` is this same union and
+ * predates it by one book; the declaration lives there because that is the
+ * file that can see all three. The type import here is erased, so the value
+ * cycle between the two files stays one-way.
+ */
+export type BlockerId = ShapeId | ItemShapeId | FeatureShapeId;
 
 /**
  * One sentence of an untranscribed item's printed entry, and what stands in

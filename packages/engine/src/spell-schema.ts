@@ -48,6 +48,7 @@ import {
 } from './combat.js';
 import type { Bonus, BonusApplies, BonusNarrowing } from './bonuses.js';
 import type { RollModifier } from './roll-modifiers.js';
+import { DIFFICULT_TERRAIN } from './positioning.js';
 
 /**
  * Whether a spell definition is *coherent*, asked of a value rather than of a
@@ -2788,6 +2789,39 @@ export function checkSpellDefinition(
         // through the same function, so a Speed a casting's area moves cannot
         // be spelled a fourth way.
         checkSpeedChange(definition.areaStanding, 'areaStanding', found);
+      }
+    }
+  }
+
+  if (definition.areaTerrain !== undefined) {
+    if (definition.area === undefined) {
+      found.push({
+        field: 'areaTerrain',
+        code: 'terrain_without_area',
+        reason:
+          'ground a spell makes expensive is the ground under its area; a spell with no volume covers no ground',
+      });
+    }
+    if (
+      readsAsObject(
+        definition.areaTerrain,
+        'areaTerrain',
+        'terrain an area creates is an object naming what a foot of that ground costs',
+        found,
+      )
+    ) {
+      const rate = definition.areaTerrain.costPerFoot;
+      // **The pure function's own rule, from the same constant.** A second
+      // spelling of the floor here would be a second chance to disagree with
+      // `declareDifficultPatch`, which the fold calls on the event this
+      // definition will write — and a definition it let through would throw
+      // in the reducer rather than be refused at authoring.
+      if (!Number.isInteger(rate) || rate < DIFFICULT_TERRAIN) {
+        found.push({
+          field: 'areaTerrain.costPerFoot',
+          code: 'bad_terrain_cost',
+          reason: `${String(rate)} feet per foot is not Difficult Terrain; the glossary's rate is ${DIFFICULT_TERRAIN} and a spell that prints its own prints a larger whole number`,
+        });
       }
     }
   }

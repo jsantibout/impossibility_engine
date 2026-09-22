@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { SPELL_DEFINITIONS } from '@ie/content';
 import { EXECUTED_SPELL_IDS, PARTIAL_SPELLS } from '../scripts/coverage-data.js';
+import { FEATURE_SHAPES } from '../scripts/missing-feature-shapes.js';
 import {
   ADJUDICATED,
+  ITEM_SHAPES,
   MISSING_SHAPES,
   markersIn,
   sentencesOf,
@@ -167,12 +169,25 @@ describe('an executed spell may not file a rule the engine owns as fiction', () 
    * The half that makes this more than a comment box: a clause that is not the
    * table's must name an enumerated missing shape, and adding one means adding
    * to a reviewed list that says where the repository already described it.
+   *
+   * **In any of the three books**, which is the owner's disposition of
+   * 2026-09-21 arriving here: a spell's sentence may finish on a gap the item
+   * or the feature vocabulary already describes, and minting a second id over
+   * here for it is the duplication those vocabularies were split out to
+   * avoid. Gaseous Form and Haste each name a feature shape now, because what
+   * blocks them is an action no command takes. The three id spaces are
+   * disjoint, which `why-names-any-shape.test.ts` asserts rather than assumes.
    */
   it('names an enumerated shape for every clause that is not the table’s', () => {
+    const known = [
+      ...Object.keys(MISSING_SHAPES),
+      ...Object.keys(ITEM_SHAPES),
+      ...Object.keys(FEATURE_SHAPES),
+    ];
     for (const [spellId, entries] of Object.entries(ADJUDICATED)) {
       for (const entry of entries) {
         if (entry.why === 'table') continue;
-        expect(Object.keys(MISSING_SHAPES), `${spellId}/${entry.clause}`).toContain(entry.why);
+        expect(known, `${spellId}/${entry.clause}`).toContain(entry.why);
       }
     }
   });
@@ -194,7 +209,11 @@ describe('an executed spell may not file a rule the engine owns as fiction', () 
    * one the vocabulary knows.
    */
   it('names no shape the vocabulary does not have', () => {
-    const known = new Set<string>(Object.keys(MISSING_SHAPES));
+    const known = new Set<string>([
+      ...Object.keys(MISSING_SHAPES),
+      ...Object.keys(ITEM_SHAPES),
+      ...Object.keys(FEATURE_SHAPES),
+    ]);
     for (const [spellId, entries] of Object.entries(ADJUDICATED)) {
       for (const entry of entries) {
         if (entry.why === 'table') continue;

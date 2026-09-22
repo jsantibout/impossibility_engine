@@ -1892,6 +1892,35 @@ export type SpellArea =
     }
   | { readonly kind: 'emanation'; readonly distance: number; readonly origin: 'self' };
 
+/**
+ * Ground a casting's area is expensive to cross, for as long as the casting
+ * lasts.
+ *
+ * **One field, because the book prints one number and it is not always the
+ * glossary's.** Difficult Terrain costs two feet per foot; SRD Plant Growth
+ * and Wall of Thorns each cost four, which no boolean can say and which a
+ * boolean would have had to be widened into the first time either was
+ * transcribed. `DifficultPatch` in `positioning.ts` has held the rate as a
+ * number since it was written, for the same reason and out of the same
+ * reading; this is the content-facing end of it.
+ *
+ * Deliberately not a member of {@link AreaStanding}. That one is what an area
+ * does to a **creature** standing in it, derived per creature on every read;
+ * this is a fact about the **ground**, asked per space by the ruler as a move
+ * crosses it, and true of spaces nobody is standing in.
+ */
+export interface AreaTerrain {
+  /**
+   * Feet of movement spent per foot of ground; at least `DIFFICULT_TERRAIN`.
+   *
+   * The floor is the glossary's own rate and the validator holds the
+   * definition to it, because a spell that made the ground *cheaper* is a
+   * sentence the SRD does not print and a number below two would quietly
+   * charge less than open floor.
+   */
+  readonly costPerFoot: number;
+}
+
 /** Shapes that need to be pointed somewhere as well as placed. */
 export const DIRECTIONAL_AREAS: ReadonlySet<SpellArea['kind']> = new Set([
   'cone',
@@ -2248,6 +2277,27 @@ export interface SpellDefinition {
    * Speed is halved in the Emanation" is this.
    */
   readonly areaStanding?: AreaStanding;
+  /**
+   * What the area does to the **ground** — see {@link AreaTerrain}.
+   *
+   * Set only alongside `area`, and the third of the three fields above it
+   * rather than a fourth kind of trigger: nothing fires, nothing is rolled,
+   * and — unlike {@link areaStanding} — it is not about a creature at all.
+   * SRD Web writes all three sentences about one Cube: "The first time a
+   * creature enters the webs on a turn … it must succeed on a Dexterity
+   * saving throw" is {@link areaTrigger}, and "The webs are Difficult
+   * Terrain" is this.
+   *
+   * **A patch on the lattice, not a rule read off the catalogue.** The region
+   * the casting resolved is pinned into a `difficult-terrain-declared` event
+   * beside the cast, exactly as the area and the numbers are, so the fold
+   * charges for the ground without opening a book. What keeps the patch
+   * honest afterwards is the casting: it lapses the moment that casting
+   * leaves `state.ongoing`, and a spell the book gives no ending — SRD Plant
+   * Growth's Instantaneous overgrowth — leaves ground that simply stays
+   * overgrown, which is what its paragraph says.
+   */
+  readonly areaTerrain?: AreaTerrain;
   /**
    * SRD "you can designate creatures to be unaffected by it".
    *

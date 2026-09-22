@@ -67,7 +67,12 @@ import {
   type GameState,
 } from '../events.js';
 import { ONGOING_RECORD_VERSION } from '../ongoing-compatibility.js';
-import { type Placement, type Point, type PointAnchoring } from '../positioning.js';
+import {
+  type Placement,
+  type Point,
+  type PointAnchoring,
+  type TerrainRegion,
+} from '../positioning.js';
 import { remaining, tallied } from '../resources.js';
 import {
   creatureTypesRead,
@@ -91,6 +96,7 @@ import {
   castingSource,
   type CastingNumbers,
   type CastingTime,
+  regionOfArea,
   type StatedChoicePin,
 } from '../spells.js';
 import {
@@ -108,6 +114,7 @@ import {
   nextCastingId,
   resolveCastWith,
   settlementEvents,
+  terrainPatchOf,
   triggerRefusal,
 } from './casting.js';
 import { creatureOf, turnContextFor, unknownCreature } from './command.js';
@@ -335,6 +342,18 @@ export function resolveDeclaredCast(
       events,
     );
 
+    /** Where the ground this settlement makes expensive lies — see `terrainPatchOf`. */
+    const settledTerrain =
+      definition.areaTerrain === undefined || definition.area === undefined
+        ? null
+        : regionOfArea(
+            definition.area,
+            pending.caster,
+            pending.area?.at,
+            pending.area?.towards,
+            pending.area?.anchoring ?? 'space',
+          );
+
     return charged(resolveEffects(state, pending.caster, caster, definition, {
       castLevel: pending.level,
       // The slot the declaration named and this settlement expends. SRD Prayer
@@ -392,6 +411,10 @@ export function resolveDeclaredCast(
           }
         : {}),
       alters: damage.alters,
+      // The same patch the atomic path lays, from the point the declaration
+      // pinned rather than from a request there is none of. A Web held open
+      // for a Counterspell and then settled is webbing in the same square.
+      ...(settledTerrain === null ? {} : { terrainRegion: settledTerrain }),
     }));
   });
 }
@@ -712,7 +735,15 @@ export function castOrRelease(
       );
       if (!resolved.ok) return resolved;
       targets = resolved.value;
-      if (definition.areaTrigger !== undefined && request.at !== undefined) {
+      // **Two clauses want the point, not one.** An area trigger reads it at
+      // every later boundary, and ground the area made expensive is laid at
+      // it — SRD Spike Growth prints the second and not the first, so a
+      // condition naming only the trigger would leave that spell's patch with
+      // nowhere to be.
+      if (
+        (definition.areaTrigger !== undefined || definition.areaTerrain !== undefined) &&
+        request.at !== undefined
+      ) {
         area = {
           at: request.at,
           ...(request.towards === undefined ? {} : { towards: request.towards }),
@@ -1337,6 +1368,25 @@ function resolveOnTargets(
   // the declaration wants. See `choicePinned`.
   const pinned = choicePinned(definition, request);
 
+  /**
+   * Where the ground this casting makes expensive lies — see `terrainPatchOf`.
+   *
+   * Worked out here, once, off the area this casting actually resolved, and
+   * handed down rather than re-derived: the point and the direction are
+   * decisions taken at this casting and nothing later remembers them. Null
+   * for every spell that makes no ground expensive, which is all but four.
+   */
+  const terrainRegion =
+    definition.areaTerrain === undefined || definition.area === undefined
+      ? null
+      : regionOfArea(
+          definition.area,
+          casterId,
+          area?.at,
+          area?.towards,
+          area?.anchoring ?? 'space',
+        );
+
   const ongoingWith = (): OngoingRecordPlan => ({
     spellId: definition.id,
     // **Three answers, stated rather than inferred.** A Range: Self spell is
@@ -1446,6 +1496,7 @@ function resolveOnTargets(
         // readied Bless was running, concentrated on, and invisible to Dispel
         // Magic.
         ...(persists(definition) ? { becomesOngoing: ongoingWith() } : {}),
+        ...(terrainRegion === null ? {} : { terrainRegion }),
       }),
     );
   }
@@ -1758,6 +1809,7 @@ function resolveOnTargets(
       // accepted and reads it as it now stands.
       ...(context.answers === undefined ? {} : { answers: context.answers }),
       ...(persists(definition) ? { becomesOngoing: ongoingWith() } : {}),
+      ...(terrainRegion === null ? {} : { terrainRegion }),
     }),
   );
   if (!resolved.ok) return resolved;
@@ -2009,6 +2061,17 @@ export function resolveEffects(
      * exists rather than making a second one.
      */
     readonly becomesOngoing?: OngoingRecordPlan;
+    /**
+     * Where this casting's area lies, when the spell makes that ground
+     * expensive to cross — see `terrainPatchOf`.
+     *
+     * The region rather than the definition's rate, because the rate is
+     * printed and reconstructs itself while the point and the direction were
+     * decisions taken once, at this casting. Absent for every spell that
+     * makes no ground expensive, and for an activation, which acts through an
+     * area that is already there rather than laying a second one.
+     */
+    readonly terrainRegion?: TerrainRegion;
     /** What the caster's features do to this casting's damage — see EffectRun. */
     readonly alters?: CastingAlterations;
   },
@@ -2112,6 +2175,15 @@ export function resolveEffects(
       },
     });
   }
+
+  // **After the record, because the patch may hang on it.** The fold does not
+  // read `state.ongoing` to reduce a declared patch and the liveness question
+  // is asked at every read, so nothing depends on the order — but a log is
+  // read by people too, and the webs appearing after the casting they belong
+  // to is the order they happened in.
+  events.push(
+    ...terrainPatchOf(definition, castingId, context.terrainRegion ?? null, becomes !== undefined),
+  );
 
   return ok({ events, castingId, outcomes, unverified });
 }

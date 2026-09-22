@@ -10,6 +10,7 @@ import {
   type Citation,
   type CitedSource,
 } from '../scripts/citations.js';
+import { FEATURE_SHAPES } from '../scripts/missing-feature-shapes.js';
 import {
   ADJUDICATED,
   BLOCKED_ON,
@@ -1715,7 +1716,7 @@ describe('a shape says where this repository already described it', () => {
   });
 
   /**
-   * And nothing claims a shape **either** vocabulary has dropped.
+   * And nothing claims a shape **any** vocabulary has dropped.
    *
    * The item half is here because gate G1 widened `TrackedAdjudication.why` to
    * `ItemBlockerId`: Remove Curse's Attunement clause is a debt whose shape is
@@ -1724,9 +1725,21 @@ describe('a shape says where this repository already described it', () => {
    * the duplication the item vocabulary was split out to avoid, so a claim may
    * name either list and this guard reads both. What it still refuses is a
    * claim naming neither, which is the drift it was written for.
+   *
+   * **The feature half is the third and the last**, taken by the owner on
+   * 2026-09-21 as the general form rather than a fourth enumeration: `why`
+   * names a shape in any of the three maps. Speak with Animals, Gaseous Form
+   * and Haste's narrowed action are all blocked on
+   * `an-action-the-engine-has-no-spender-for`, which the feature book
+   * describes because `NAMED_ACTIONS` leaves Influence and Utilize out for a
+   * reason that has nothing to do with spells.
    */
   it('has a vocabulary that covers every claim', () => {
-    const known = new Set<string>([...Object.keys(MISSING_SHAPES), ...Object.keys(ITEM_SHAPES)]);
+    const known = new Set<string>([
+      ...Object.keys(MISSING_SHAPES),
+      ...Object.keys(ITEM_SHAPES),
+      ...Object.keys(FEATURE_SHAPES),
+    ]);
     expect([...claimedShapes()].filter((shape) => !known.has(shape))).toEqual([]);
   });
 });
@@ -1947,8 +1960,14 @@ describe('the split bundles add back up', () => {
     // The tracked map is keyed by *marker*, a closed union, so the lookup goes
     // through its entries rather than by index: a recorded triple is history
     // and may name a marker the vocabulary has since dropped.
+    //
+    // **Or by the clause, where the entry carries no marker.** `null` is not a
+    // key, so a marker-less entry cannot be recorded under one — and a lookup
+    // that missed it would fall through to the branch that forgives a clause
+    // whose spell has since been written, which is a silent pass on a
+    // re-filing that never happened. Speak with Animals is the first of these.
     const tracked = (TRACKED_ADJUDICATED[spellId] ?? []).find(
-      (entry) => entry.marker === clause,
+      (entry) => entry.marker === clause || (entry.marker === null && entry.clause === clause),
     );
     if (tracked !== undefined) return tracked.why;
     // An undefined spell's entry is a bare shape id, so the question it can
@@ -2419,7 +2438,29 @@ describe('a consumer count is a query', () => {
    */
   it('names the largest blocker in the undefined population', () => {
     const ranked = [...allShapeConsumers()].sort((a, b) => b.blocks.length - a.blocks.length);
+    // **The top of this ranking is a bundle, and saying so is the point.**
+    // Gate G1 read `an-action-a-spell-compels-or-forbids` as five mechanisms
+    // rather than one; P2-A moved three of its adjudications out — Speak with
+    // Animals, Gaseous Form and Haste's narrowed action, all to
+    // `an-action-the-engine-has-no-spender-for` — and recorded the rest in
+    // `SPLIT_BUNDLES`. It still leads, so the honest assertion is not that the
+    // leader is a mechanism nobody built but that **a leader which is a bundle
+    // is declared as one**: nobody may brief it as a unit while it sits here.
+    //
+    // The tie a single batch briefly created is gone, and `slice(0, 2)` was
+    // never stable across one — two shapes of equal size have no defined
+    // order. So this asserts the leader by name and the runners-up as a set.
     expect(ranked[0]!.shape).toBe('an-action-a-spell-compels-or-forbids');
+    expect(Object.keys(SPLIT_BUNDLES)).toContain(ranked[0]!.shape);
+    expect(ranked[0]!.blocks.length).toBeGreaterThan(ranked[1]!.blocks.length);
+    // The largest shapes that are *not* bundles, as a set because they tie.
+    expect(
+      ranked
+        .filter((one) => !(one.shape in SPLIT_BUNDLES))
+        .slice(0, 2)
+        .map((one) => one.shape)
+        .sort(),
+    ).toEqual(['a-casting-ended-by-a-trigger', 'a-random-outcome-that-is-not-a-d20']);
     // **Moved from 20 to 15 by the third catalogue pass, and the total fell
     // further than the tracked column rose.** Twelve undefined spells named
     // this shape; ten of them were written, and only two carry the claim into

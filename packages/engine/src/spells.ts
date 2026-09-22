@@ -8,6 +8,7 @@ import {
   type Point,
   type PointAnchoring,
   type PositionState,
+  type TerrainRegion,
 } from './positioning.js';
 import type {
   AreaTrigger,
@@ -519,10 +520,50 @@ export function creaturesStandingInCastingArea(
 
 /** Where this casting's area sits: a point it keeps, or the creature carrying it. */
 function originOfCastingArea(area: SpellArea, record: OngoingSpell): AreaOrigin | null {
-  if (area.origin === 'self') return { creature: record.caster as CharacterId };
-  return record.origin === undefined
-    ? null
-    : areaPointAt(record.origin, record.anchoring ?? 'space');
+  return originOfArea(area, record.caster as CharacterId, record.origin, record.anchoring ?? 'space');
+}
+
+/**
+ * Where an area sits, from the three facts that decide it.
+ *
+ * {@link originOfCastingArea}'s question asked of a casting that has not
+ * become a record yet — SRD Plant Growth is Instantaneous and leaves nothing
+ * running, and its overgrowth still has to be somewhere. One function, so the
+ * point a patch is laid at and the point a trigger later measures from cannot
+ * come out in two different frames.
+ */
+export function originOfArea(
+  area: SpellArea,
+  caster: CharacterId,
+  at: Point | undefined,
+  anchoring: PointAnchoring,
+): AreaOrigin | null {
+  if (area.origin === 'self') return { creature: caster };
+  return at === undefined ? null : areaPointAt(at, anchoring);
+}
+
+/**
+ * An area and where it was put, as the geometry vocabulary a region is
+ * written in.
+ *
+ * The join between the two halves above, and the one conversion between a
+ * printed {@link SpellArea} and a {@link TerrainRegion}. Null where the
+ * casting has not said enough to place the shape — a point-origin area with
+ * no point, or a directional one with no direction — which is the same answer
+ * {@link creaturesStandingInCastingArea} gives and for the same reason: an
+ * area nobody can locate catches nobody and covers no ground.
+ */
+export function regionOfArea(
+  area: SpellArea,
+  caster: CharacterId,
+  at: Point | undefined,
+  towards: Point | undefined,
+  anchoring: PointAnchoring,
+): TerrainRegion | null {
+  const origin = originOfArea(area, caster, at, anchoring);
+  if (origin === null) return null;
+  const shape = areaShapeOf(area, towards, anchoring);
+  return shape === null ? null : { origin, shape };
 }
 
 /**

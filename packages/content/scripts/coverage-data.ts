@@ -223,6 +223,11 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'mind-spike',
   'misty-step',
   'moonbeam',
+  // Driven end to end by `casting-terrain.test.ts`: the Overgrowth cast at a
+  // point, the four feet per foot its own paragraph prints charged over the
+  // Sphere, and the patch left standing because the casting is Instantaneous
+  // and SRD gives the plants no ending.
+  'plant-growth',
   'poison-spray',
   // Driven end to end by `executed-second-pass.test.ts`: the ten-minute rite
   // declared and settled, the 2d8 and its per-slot die measured over sixty
@@ -269,6 +274,12 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // recorded as the second. Saying "untested" of a spell with its own suite
   // would be the same report telling a different lie.
   'sorcerous-burst',
+  // Driven end to end by `casting-terrain.test.ts`: the Sphere conjured at a
+  // point through `resolveSpell`, and the glossary's rate charged over it.
+  // The move that costs twice the ground it crosses is Grease's in the same
+  // file — one walk proves the ruler, and what this entry claims is that this
+  // spell's own casting lays a patch.
+  'spike-growth',
   'spirit-guardians',
   'spiritual-weapon',
   // Driven end to end by `denied-benefits.test.ts`: cast through `resolveSpell`
@@ -320,6 +331,15 @@ export interface SpellCoverage {
  * point each and disappear when the spell ends — all of it the engine's, and
  * the spell's own effect list empty because the berries are what it does.
  *
+ * **The fifth arm is the ground an area makes expensive**, and it is the
+ * fourth's argument about a different noun: SRD Spike Growth's casting rolls
+ * nothing and catches nobody, and the whole of what it does — "The area
+ * becomes Difficult Terrain for the duration" — is a patch the engine lays on
+ * the lattice, keeps alive against the casting and charges the ruler for at
+ * every space a move crosses. Counting that as tracked would say the engine
+ * resolves nothing of the spell while it is doing the only thing the spell
+ * does.
+ *
  * **Exported because three other places had written it out**, and one of the
  * copies had already lost the `areaTrigger` arm. The honesty guard's whole
  * population is this predicate, so a drifting copy would silently stop
@@ -329,6 +349,7 @@ export const isExecuted = (definition: SpellDefinition): boolean =>
   definition.effects.length > 0 ||
   definition.activation !== undefined ||
   definition.areaTrigger !== undefined ||
+  definition.areaTerrain !== undefined ||
   definition.conjures !== undefined;
 
 /** Every definition the engine resolves something of, by id. */
