@@ -17,12 +17,12 @@ homebrew.
 
 - **Dice and rolls** — seeded and replayable, every roll with provenance; the
   D20 pipeline with named modifiers and attributed advantage; typed damage
-  against per-type defences; criticals; reaction windows held open; every
-  individual face a blow was made of, in the log.
+  against per-type defences; criticals; reaction windows held open; every face
+  a blow was made of, in the log.
 - **Creatures** — derived character sheets, stated monster sheets, all fifteen
   conditions with their sources, hit points, temporary hit points with a
   lifetime, death saves, exhaustion. Every ability a roll reads comes off
-  `sheetAsItStands`, so a substitution reaches all of them.
+  `sheetAsItStands`.
 - **Space** — a cube lattice, distance between volumes, declared sight and
   cover, six area shapes, persistent and carried areas, teleportation,
   mounting, the glossary's four senses. A spell can push a creature; a fall has
@@ -62,10 +62,10 @@ homebrew.
   the DM's, partitioned by **authority** rather than by species of caller: a
   DM's door takes a decision the rules leave open, and neither takes a die face.
 - **Measurement, as tests rather than claims** — `COVERAGE.md` and `LEDGER.md`
-  are generated and go stale loudly; `reachability.test.ts` builds a level 5
-  character of every path and fails on an engine feature no door reaches; and
+  are generated and go stale loudly; `reachability.test.ts` fails on an engine
+  feature no door reaches, for a level 5 character of every path; and
   `level-five-session.test.ts` plays a party through a fight, two rests and a
-  level-up, printing what the engine handed to the DM.
+  level-up, counting what the engine handed to the DM.
 
 ## What does not
 
