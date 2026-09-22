@@ -404,7 +404,11 @@ export interface OngoingSpell {
    * every read and stored on nobody.
    *
    * Absent means the area does nothing to a creature merely for standing in
-   * it, which is every persistent area but one.
+   * it, which is every persistent area but one — **and also means it on a
+   * record written before the field existed**, which is a casting that was
+   * running when this engine gained it. See `ONGOING_RECORD_VERSION`: that
+   * casting is left as it was rather than re-read out of the book, because a
+   * replay that changed is the one thing the pinning was for.
    */
   readonly areaStanding?: AreaStanding;
 }
