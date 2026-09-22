@@ -1019,15 +1019,22 @@ export function namedTargets(
   // none, and a spell whose rolls outnumber its printed targets is saying that
   // each roll picks its own.
   //
-  // **A spell that aims at nobody keeps aiming at nobody.** A `count` of zero
-  // is Detect Magic and the object spells, and one of them rolling an attack —
-  // SRD Fire Bolt hits "a creature **or object**" — must not become a spell
-  // that takes a creature because it has a roll to spend on one.
+  // **A spell that aims at nobody at this slot keeps aiming at nobody.** Detect
+  // Magic and the object spells take no creature, and one of them rolling an
+  // attack — SRD Fire Bolt hits "a creature **or object**" — must not become a
+  // spell that takes a creature because it has a roll to spend on one.
+  //
+  // Asked of the **scaled** count and never of the printed base, which is the
+  // difference between a spell that names nobody and one whose base happens to
+  // be zero: `{ count: 0, extraPerSlotLevelAbove: 2 }` is a legal target rule
+  // that names two creatures a slot level up, and reading `targets.count`
+  // here would refuse it at every slot.
+  const printed = targetCountFor(definition.targets, definition.level, castLevel);
   const allowed =
-    definition.targets.count === 0
+    printed === 0
       ? 0
       : Math.max(
-          targetCountFor(definition.targets, definition.level, castLevel),
+          printed,
           attackRollsIn(definition.effects, definition.level, casterLevel, castLevel),
         );
 

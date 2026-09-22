@@ -7,6 +7,7 @@ import { createRollIssuer } from './rolls.js';
 import { levelGrantedSpells } from './spellbook.js';
 import {
   attackRollsFor,
+  attackRollsIn,
   rollsDealtTo,
   type SpellDefinition,
 } from './spell-definitions.js';
@@ -264,6 +265,47 @@ describe('how many rolls a casting makes', () => {
   /** An attack that says nothing about a count makes the one roll it always did. */
   it('makes one roll where the effect states no count', () => {
     expect(attackRollsFor(undefined, 0, 17, 0)).toBe(1);
+  });
+
+  /**
+   * And a list with no attack in it throws none, which is the honest answer
+   * rather than the convenient one: a floor of 1 here would have this function
+   * saying every spell in the book rolls an attack, and the one caller that
+   * wants a floor — the target bound in `namedTargets` — says so itself.
+   */
+  it('counts no rolls in a list that makes no attack', () => {
+    expect(attackRollsIn([], 2, 20, 9)).toBe(0);
+    expect(
+      attackRollsIn(
+        [
+          { kind: 'heal', healing: { dice: '2d8' }, addSpellcastingModifier: false },
+          { kind: 'temp-hp', amount: { flat: 5 }, addSpellcastingModifier: false },
+        ],
+        2,
+        20,
+        9,
+      ),
+    ).toBe(0);
+  });
+
+  it('counts the longest attack of a list that makes several', () => {
+    expect(
+      attackRollsIn(
+        [
+          { kind: 'attack', attack: 'ranged', damage: { dice: '1d6' }, damageType: 'fire' },
+          {
+            kind: 'attack',
+            attack: 'melee',
+            damage: { dice: '1d6' },
+            damageType: 'fire',
+            rolls: { count: 3, extraPerSlotLevelAbove: 1 },
+          },
+        ],
+        2,
+        20,
+        4,
+      ),
+    ).toBe(5);
   });
 
   /**

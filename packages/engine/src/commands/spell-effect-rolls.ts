@@ -106,8 +106,9 @@ export function resolveAttackEffect(
   // The creature's place in the list the caster named. Every caller iterates
   // the very list it put on the context, so a target that is not in it is a
   // programmer error and gets the exception rule 6 reserves for one: a
-  // negative index deals `rollsDealtTo` one roll too many, which is a casting
-  // that throws a ray nobody asked for and refuses nothing while doing it.
+  // negative index can deal `rollsDealtTo` one roll too many — whenever the
+  // rolls do not divide evenly — which is a casting that throws a ray nobody
+  // asked for and refuses nothing while doing it.
   const where = ctx.targets.indexOf(target);
   if (where < 0) {
     throw new Error(
