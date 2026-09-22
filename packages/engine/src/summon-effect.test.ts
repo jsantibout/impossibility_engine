@@ -356,18 +356,63 @@ describe('SRD Find Steed’s "it shares your Initiative count"', () => {
   /**
    * And it settles the **tie** on that count for nobody, which is the half of
    * SRD's sentence this deliberately does not deliver: `Combatant.tiebreak`
-   * takes a DM's decision as an input rather than inventing one, so the steed
-   * arrives with the default every other combatant has and "immediately after
-   * yours" is the spell's own recorded debt.
+   * takes a DM's decision as an input rather than inventing one.
+   *
+   * The rider is given a tiebreak of its own here so the assertion can tell
+   * three rules apart that agree on a default board — the steed taking the
+   * default (what the code does), the steed *copying* its rider, and the steed
+   * being seated one below it (what was tried and reverted). Only the first
+   * passes.
    */
   it('settles the tie on that count for nobody', () => {
-    const g = new Game().fight();
+    const g = new Game().push([
+      {
+        type: 'combat-started',
+        combatants: [
+          { id: WIZ, initiative: 20, speed: 30, tiebreak: 3 },
+          { id: FOE, initiative: 5, speed: 30 },
+        ],
+      },
+    ]);
     g.cast('bind-the-stag');
     const who = summonedIn(g.state)!;
 
     const rung = g.state.combat?.order.find((c) => c.id === who);
-    const rider = g.state.combat?.order.find((c) => c.id === WIZ);
-    expect(rung?.tiebreak).toBe(rider?.tiebreak);
+    expect(rung).toBeDefined();
+    expect(rung?.initiative).toBe(20);
+    expect(rung?.tiebreak).toBe(0);
+  });
+
+  /**
+   * And what that leaves, said out loud, because the spell's `unmodelled`
+   * claims exactly this width: with nobody else on the rider's count,
+   * `addCombatant` seats a joiner after everyone it exactly ties with, so the
+   * steed's turn *does* fall immediately after its rider's. What is missing is
+   * the guarantee, not the behaviour — a third creature on that count comes
+   * between them, and no rung can say "after this creature".
+   */
+  it('lands after its rider while nobody else shares the count', () => {
+    const g = new Game().fight();
+    g.cast('bind-the-stag');
+    const who = summonedIn(g.state)!;
+
+    const order = g.state.combat?.order.map((c) => c.id) ?? [];
+    expect(order.indexOf(who)).toBe(order.indexOf(WIZ) + 1);
+
+    // And the third creature that breaks it, which is the recorded gap.
+    const crowded = new Game().push([
+      {
+        type: 'combat-started',
+        combatants: [
+          { id: WIZ, initiative: 20, speed: 30 },
+          { id: FOE, initiative: 20, speed: 30 },
+        ],
+      },
+    ]);
+    crowded.cast('bind-the-stag');
+    const there = summonedIn(crowded.state)!;
+    const crowdedOrder = crowded.state.combat?.order.map((c) => c.id) ?? [];
+    expect(crowdedOrder.indexOf(there)).toBe(crowdedOrder.indexOf(WIZ) + 2);
   });
 
   it('leaves it out of an order that is not running', () => {

@@ -68,17 +68,19 @@ const scaled = (number: SummonedNumber, level: number): number =>
  * commands that give one still work, because the creature is in the game.
  *
  * **The count, and not the tie.** SRD Find Steed's next sentence is "the steed
- * takes its turn **immediately after yours**", and this deliberately does not
- * try to deliver it. Seating the creature one tiebreak below its summoner
- * looks like the answer and is not: `Combatant.tiebreak` says in as many words
- * that "SRD leaves ties to the GM, so the engine takes that decision as an
- * input rather than inventing one", every combatant's tiebreak is 0 unless a
- * DM states otherwise, and a creature the DM put on that count at the same
- * tiebreak would still come between the two — so the invented number would buy
- * nothing through any door that exists and would break the rule it was
- * standing on. "Immediately after creature X" is an insertion at a named
- * position, which `byInitiative` ranks nothing by; the spell's own `unmodelled`
- * says so.
+ * takes its turn **immediately after yours**", and no tiebreak is written here
+ * to deliver it. `Combatant.tiebreak` says in as many words that "SRD leaves
+ * ties to the GM, so the engine takes that decision as an input rather than
+ * inventing one" — and an invented one would have been worse than useless:
+ * `addCombatant` already seats a joiner after everyone it exactly ties with,
+ * so with the rider's count and the default the steed lands immediately after
+ * them, while one tiebreak *below* the rider would have pushed it behind any
+ * combatant a DM had given a lower one.
+ *
+ * So what is left undelivered is the guarantee rather than the behaviour: a
+ * third creature on the rider's count comes between the two, and "after this
+ * creature" is an insertion at a named position that `byInitiative` ranks
+ * nothing by. The spell's own `unmodelled` records it at that width.
  */
 export function resolveSummonEffect(
   ctx: EffectContext,
