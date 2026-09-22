@@ -429,8 +429,14 @@ Three claims checked, then the order.
 
 ### Job 3 — the sight-model note
 
-Written: `docs/design/light-and-sight.md`, cited from `CLAUDE.md`. **It carries
-five decisions for the owner** and nothing is built until they are taken.
+Written: `docs/design/light-and-sight.md`, cited from `CLAUDE.md`. It carried
+five decisions for the owner and **the owner answered yes to all five, as
+written, on 2026-09-21**: light declared on the lattice; no default ambient;
+magical darkness defeating Darkvision and nonmagical light, with Devil's Sight
+defeating it; sunlight as bright light with a flag; the mutual dispel in
+scope. The note is now a ruling rather than a proposal, and P3-S builds it.
+P2-T12's lattice patch is the seam it reuses, which is why that track is
+ranked first among the builders.
 
 ### §10 dispositions taken at G1
 

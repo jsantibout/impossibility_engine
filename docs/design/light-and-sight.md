@@ -5,10 +5,10 @@ Read before changing the sight half of `positioning.ts` (`sightBetween`,
 `commands/scene.ts`, the Hide command in `commands/actions.ts`, or any
 definition that prints Bright Light, Dim Light, Darkness or an obscured area.
 
-**Status: a design for the owner's ruling (P2-T22), built as P3-S.** The
-owner ruled on 2026-09-21 that the sight model is to be built. This note says
-what "it" is, what it deliberately is not, and what it costs. The owner
-decisions it needs are listed at the end.
+**Status: ruled by the owner on 2026-09-21, all five decisions, as written.
+Built as P3-S.** This note says what "it" is, what it deliberately is not, and
+what it costs. The five decisions are at the end, now as rulings rather than
+questions; a change to any of them is a change to this note first.
 
 ## What exists
 
@@ -153,9 +153,11 @@ cheap; it is not a prerequisite for anything above.
   Kobold's Disadvantage bites only where the target stands in sunlight; (6)
   the two frozen fixtures.
 
-## Decisions for the owner
+## The five rulings (owner, 2026-09-21)
 
-1. Light on the lattice (the third way), at the cost above.
+Put to the owner as questions at G1 and answered yes to all five, as written.
+
+1. **Light on the lattice** (the third way), at the cost above.
 2. **No default ambient.** An undeclared scene is undeclared, not bright.
    The cost is one field in Infinite Realms' scene setup (I-A4, code not
    model). The alternative — assume bright — is a silent default of a

@@ -6,9 +6,8 @@ here. **What happens next is `docs/ROADMAP.md`** — the phases, the gates and
 the tracks to playable levels 1–5 through Infinite Realms. This file no longer
 holds a "Next".
 
-Capped at two thousand words by `docs/ROADMAP.md` §1.5. The long version —
-every capability with its reasoning, every ruling with the argument behind it,
-and the batch notes — is frozen at `docs/archive/status-2026-09-21.md`.
+Capped at two thousand words by `docs/ROADMAP.md` §1.5. The long version is
+frozen at `docs/archive/status-2026-09-21.md`.
 
 ## What runs
 
@@ -145,6 +144,13 @@ forced-movement rule, known forms are chosen at the start of a Long Rest, and a
 Wild Companion familiar goes away when one completes · Nimbus Quill's table
 rolls physical dice, so the third door is the answer — its own swept directory,
 never stamped `engine`, never on an AI DM's surface.
+
+**Owner, 2026-09-21, on the sight model** — all five decisions in
+`docs/design/light-and-sight.md`, yes as written. Light is **declared on the
+lattice** as Difficult Terrain is; deriving it from walls is refused. **An
+undeclared scene is undeclared, not bright.** Magical darkness defeats
+Darkvision and nonmagical light, Devil's Sight defeats it, and sunlight is
+bright light with a flag. Not built yet: it is P3-S.
 
 **Taken by a builder and recorded here rather than drifted into.** A creature
 at 0 hit points, or dead, keeps its hit points when a maximum rises: raising
