@@ -3678,6 +3678,11 @@ export const WEB: SpellDefinition = {
   // "The webs are Difficult Terrain" — one of the three sentences the spell
   // writes about one Cube, beside the save its trigger rolls.
   areaTerrain: { costPerFoot: 2 },
+  // And the second of the three, which waited on the sight model: "The area
+  // within the webs is Lightly Obscured." Not a level of light — the webbing
+  // is not dim, it is thick — which is why obscurement is a record of its own
+  // and why this spell could not have been finished by a light level.
+  areaObscurement: { degree: 'lightly' },
   effects: [],
   areaTrigger: {
     at: 'start-of-turn',
@@ -3695,7 +3700,6 @@ export const WEB: SpellDefinition = {
   durationSeconds: 3600,
   unmodelled: [
     'Restrained by the webs lasts "while in the webs", and a condition that ends when its holder walks out of an area has no shape here: it runs until the casting ends or the creature breaks free',
-    'the area within the webs being Lightly Obscured is not held: the engine has no obscurement, and the Difficult Terrain half of the same sentence is charged',
     'the webs collapsing when they are not anchored between two solid masses, which is a fact about the room',
     'the webs being flammable, and the 2d4 Fire damage a burning cube deals',
   ],
@@ -7154,12 +7158,26 @@ export const DANCING_LIGHTS: SpellDefinition = {
  * > "If any of this spell's area overlaps with an area of Darkness created by
  * > a spell of level 3 or lower, that other spell is dispelled."
  *
- * **No area is recorded, and that is deliberate.** A `SpellArea` is what an
- * effect is resolved over, and there is no effect here: sunlight reaches
- * nothing the engine holds. A Sphere with nothing in it would be a template
- * the casting pins and nobody reads, which is a second place to get the radius
- * wrong for no gain — so the sixty feet are quoted to the table instead, where
- * the thing that reads them is a person.
+ * **The area is recorded now, and the note that refused it said why it would
+ * be.** It read: "A `SpellArea` is what an effect is resolved over, and there
+ * is no effect here: sunlight reaches nothing the engine holds." P3-S built
+ * the thing it reaches. The Sphere is the template, `areaLight` is what
+ * resolves over it, and `dimBeyond` lays the second patch the next sentence
+ * prints — "sheds Dim Light for an additional 60 feet" — as a wider ring of
+ * Dim Light around the bright core.
+ *
+ * **`sunlight: true` is a reading, and it is the printed word.** The
+ * paragraph says "sunlight" three times and calls the Sphere "the sunlight's
+ * area", so the flag four stat blocks read is set — which means this spell
+ * gives a Kobold Disadvantage and burns a Vampire Spawn. The 2014 edition's
+ * errata denied that and SRD 5.2.1's own sentence does not; `srd-policy.md`
+ * ranks the printed text above the memory of a different edition, so it is
+ * executed as printed and written down here rather than decided quietly.
+ *
+ * And the dispel is performed: `lightDispelledBy` ends a magical Darkness
+ * whose casting is of level 3 or lower where the two Spheres overlap, which
+ * is this spell's printed threshold and the other half of the pair Darkness
+ * prints.
  */
 export const DAYLIGHT: SpellDefinition = {
   id: 'daylight',
@@ -7170,12 +7188,12 @@ export const DAYLIGHT: SpellDefinition = {
   concentration: false,
   range: { kind: 'ranged', feet: 60 },
   targets: { count: 0 },
+  area: { kind: 'sphere', radius: 60, origin: 'point' },
+  areaLight: { level: 'bright', dimBeyond: 60, sunlight: true },
   effects: [],
   durationSeconds: 3600,
   unmodelled: [
-    'the light is not modelled: a 60-foot-radius Sphere of Bright Light, and Dim Light for an additional 60 feet, are the DM’s — the engine has no lighting and nothing reads whether a square is lit',
-    'the object the spell may be cast on instead, the 60-foot Emanation it carries, and covering it with a bowl or a helm are the DM’s; objects are not modelled',
-    'the dispel is not performed: "If any of this spell’s area overlaps with an area of Darkness created by a spell of level 3 or lower, that other spell is dispelled" — ending a casting is an operation the engine has, and the Darkness casting it would reach holds no place in the scene for these sixty feet to overlap',
+    'the object the spell may be cast on instead, the 60-foot Emanation it carries, and covering it with a bowl or a helm are the DM’s; the engine holds no objects for an Emanation to originate from',
   ],
 };
 
@@ -7195,27 +7213,32 @@ export const DAYLIGHT: SpellDefinition = {
  * > Light created by a spell of level 2 or lower, that other spell is
  * > dispelled."
  *
- * **The last spell in `BLOCKED_ON` held back by a decision rather than by a
- * transcription**, and the decision was about the Sphere. Its entry filed the
- * fifteen feet as expressible and the other four clauses as the table's, which
- * is the reading this definition keeps — and the Sphere is still quoted rather
- * than pinned, for the reason Daylight gives three definitions above and Fog
- * Cloud gives one below.
+ * **The Sphere is pinned now, and the argument that kept it quoted is the
+ * argument that says so.** The old note here read: "A `SpellArea` is what an
+ * effect is **resolved over**, and there is no effect here: darkness reaches
+ * nothing the engine holds until the sight model does … A template nobody
+ * reads is a second place to get the radius wrong." Every word of that was
+ * true and every word of it was conditional on the sight model, which P3-S
+ * built. There is a reader now — `lightAt` — and the fifteen feet are what it
+ * reads, so the area is a template something resolves over and `areaLight` is
+ * what it resolves into.
  *
- * A `SpellArea` is what an effect is **resolved over**, and there is no effect
- * here: darkness reaches nothing the engine holds until the sight model does.
- * Written as an area it would do three things and none of them is wanted — it
- * would demand a point at every casting, report every creature standing in the
- * Sphere as a target of a spell that does nothing to them, and pin a radius
- * with no place attached, because a casting records **where** its area sits
- * only alongside an `areaTrigger`. A template nobody reads is a second place
- * to get the radius wrong, which is Daylight's sentence exactly.
+ * Three of the four quoted clauses go with it. The Sphere is drawn; "Darkvision
+ * can't see through it, and nonmagical light can't illuminate it" is the
+ * `magical` flag the patch carries and the rule `piercesObscurement` keeps;
+ * and the dispel is performed, because two areas of light can now overlap —
+ * `lightDispelledBy` ends a Bright or Dim patch whose casting is of level 2
+ * or lower, which is this spell's printed threshold.
  *
- * That is also what keeps Sunburst's "This spell dispels Darkness in its area"
- * the table's, and the reason has moved rather than gone: it used to be that
- * no Darkness casting existed, and it is now that the casting exists and holds
- * no light and no place for a Sphere to overlap. `spell-honesty.test.ts` pins
- * the new fact where it pinned the old one.
+ * What is left is the object: an Emanation originating from a thing that is
+ * not a creature, and a bowl put over it. The engine holds no objects, so
+ * neither half has anywhere to sit.
+ *
+ * Sunburst's "This spell dispels Darkness in its area" is still the table's,
+ * and the reason has moved a second time: it used to be that no Darkness
+ * casting existed, then that the casting held no place, and it is now that
+ * Sunburst itself pins no area for the two to overlap in.
+ * `spell-honesty.test.ts` pins the new fact where it pinned the old one.
  */
 export const DARKNESS: SpellDefinition = {
   id: 'darkness',
@@ -7226,13 +7249,12 @@ export const DARKNESS: SpellDefinition = {
   concentration: true,
   range: { kind: 'ranged', feet: 60 },
   targets: { count: 0 },
+  area: { kind: 'sphere', radius: 15, origin: 'point' },
+  areaLight: { level: 'darkness' },
   effects: [],
   durationSeconds: 600,
   unmodelled: [
-    'the dark is not in the scene: a 15-foot-radius Sphere of magical Darkness spreading from a point within range is quoted rather than drawn, because nothing is resolved over it and the engine has no lighting',
-    'who can see through it is the DM’s: "Darkvision can’t see through it, and nonmagical light can’t illuminate it" asks about obscurement, and sight here is a pairwise declaration between two creatures exactly as cover is',
-    'the object the spell may be cast on instead, the 15-foot Emanation originating from it, and covering it with a bowl or a helm are the DM’s — an Emanation whose origin is an object is not a template the format can state, and it carries no effect to resolve anywhere',
-    'the dispel is not performed: "If any of this spell’s area overlaps with an area of Bright Light or Dim Light created by a spell of level 2 or lower, that other spell is dispelled" triggers on two areas of light overlapping, and the engine holds no light to overlap',
+    'the object the spell may be cast on instead, the 15-foot Emanation originating from it, and covering it with a bowl or a helm are the DM’s — an Emanation whose origin is an object is not a template the format can state, and the engine holds no objects for one to originate from',
   ],
 };
 
@@ -7347,13 +7369,20 @@ export const CREATE_OR_DESTROY_WATER: SpellDefinition = {
  * > _Using a Higher-Level Spell Slot._ "The fog's radius increases by 20 feet
  * > for each spell slot level above 1."
  *
- * **The slot grows the area, and an area is one fixed size.** That is the
- * clause `blocked-on.test.ts` records under protest for Confusion's Sphere,
- * and it is the second spell in the book to print it — so a definition that
- * pinned a 20-foot Sphere would resolve a level 5 casting over the level 1
- * template. Nothing is resolved over this fog at all, which is what makes the
- * omission safe here and makes the sentence the table's rather than a
- * template's.
+ * **The slot grows the area, an area is one fixed size, and the patch is not
+ * an area.** The old note refused the Sphere on exactly that ground — "a
+ * definition that pinned a 20-foot Sphere would resolve a level 5 casting
+ * over the level 1 template" — and it is still true of `area`, which the fold
+ * reads back at every later question. It is not true of the patch this spell
+ * lays: the region is worked out once, at the casting, against the slot in
+ * hand, so `radiusPerSlotLevelAbove` puts the hundred-foot bank a level 5 Fog
+ * Cloud prints on the lattice and pins it into the event. That is the one
+ * place in the vocabulary where a slot reaches a distance, and it is safe
+ * only because nothing looks the number up again.
+ *
+ * The template stays the level 1 Sphere, because that is what the *area* is
+ * and nothing resolves over it; what the higher slot buys is read off
+ * `areaObscurement` and lands on the lattice instead.
  */
 export const FOG_CLOUD: SpellDefinition = {
   id: 'fog-cloud',
@@ -7364,11 +7393,11 @@ export const FOG_CLOUD: SpellDefinition = {
   concentration: true,
   range: { kind: 'ranged', feet: 120 },
   targets: { count: 0 },
+  area: { kind: 'sphere', radius: 20, origin: 'point' },
+  areaObscurement: { degree: 'heavily', radiusPerSlotLevelAbove: 20 },
   effects: [],
   durationSeconds: 3600,
   unmodelled: [
-    'the fog is not in the world: a 20-foot-radius Sphere that is Heavily Obscured is the DM’s, because obscurement is not a state the engine holds and no square is inside or outside anything',
-    'the radius growing by 20 feet for each slot level above 1 is not applied; a slot reaches damage dice, a target count and a duration, and never an area',
     '"until a strong wind (such as one created by Gust of Wind) disperses it" is the DM’s: the wind is fiction here, and a casting the engine ends is one it can see ending',
   ],
 };

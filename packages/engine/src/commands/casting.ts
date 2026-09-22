@@ -46,6 +46,7 @@ import {
   type PendingCasting,
 } from '../events.js';
 import {
+  lightDispelledBy,
   type Placement,
   type Point,
   type PointAnchoring,
@@ -1193,6 +1194,99 @@ export function terrainPatchOf(
       ...(lastsWithTheCasting ? { source: castingId } : {}),
     },
   ];
+}
+
+/**
+ * The patches of light and of fog a casting lays down, if its spell makes any.
+ *
+ * {@link terrainPatchOf}'s sibling, and every word of that docstring holds
+ * here: the same events a table's own declaration writes, the region pinned
+ * rather than looked up, `source` set exactly when there is a casting to hang
+ * it on, and no patch at all where the area could not be placed.
+ *
+ * **What is different is the arithmetic, and there is a little.**
+ *
+ * - `magical` carries the spell's **printed** level rather than the slot that
+ *   paid for it, because that is the number the book compares: "an area of
+ *   Bright Light or Dim Light created by a spell of level 2 or lower" is a
+ *   flat threshold, so an upcast Darkness puts out exactly what the printed
+ *   one does.
+ * - `dimBeyond` lays a **second** patch on the same origin with a wider
+ *   radius — SRD Daylight's "sheds Dim Light for an additional 60 feet" — and
+ *   the bright core wins where they overlap, which is what `lightAt` does
+ *   with two patches anyway.
+ * - `radiusPerSlotLevelAbove` widens the fog by the slot, which is a thing
+ *   the *template* could not say and the patch can: an area is pinned once
+ *   and read at every later question, while this region is worked out here,
+ *   at the casting, against the slot in hand.
+ *
+ * **And one thing a patch of ground never had to do: put another casting
+ * out.** SRD Darkness and SRD Daylight each dispel the other where their
+ * areas overlap, so laying a magical patch ends the opposite castings
+ * `lightDispelledBy` finds under it. That is a consequence of the geometry
+ * rather than anybody's decision, which is why it arrives in the same batch
+ * as the cast and asks nobody's leave.
+ */
+export function lightPatchesOf(
+  state: GameState,
+  definition: SpellDefinition,
+  castingId: string,
+  region: TerrainRegion | null,
+  lastsWithTheCasting: boolean,
+  castLevel: number,
+): readonly GameEvent[] {
+  const light = definition.areaLight;
+  const fog = definition.areaObscurement;
+  if ((light === undefined && fog === undefined) || region === null) return [];
+
+  const source = lastsWithTheCasting ? { source: castingId } : {};
+  const magical = { magical: { spellLevel: definition.level } };
+  const named = (what: string): string => `${definition.name} ${what} (${castingId})`;
+  const widened = (by: number): TerrainRegion =>
+    region.shape.kind === 'sphere'
+      ? { ...region, shape: { ...region.shape, radius: region.shape.radius + by } }
+      : region;
+
+  const events: GameEvent[] = [];
+
+  if (light !== undefined) {
+    events.push({
+      type: 'light-declared',
+      patch: named('light'),
+      region,
+      level: light.level,
+      ...magical,
+      ...(light.sunlight === undefined ? {} : { sunlight: light.sunlight }),
+      ...source,
+    });
+    for (const dispelled of lightDispelledBy(state, region, light.level, definition.level)) {
+      events.push({ type: 'spell-ended', castingId: dispelled, on: null, reason: 'dispelled' });
+    }
+    if (light.dimBeyond !== undefined) {
+      events.push({
+        type: 'light-declared',
+        patch: named('dim light'),
+        region: widened(light.dimBeyond),
+        level: 'dim',
+        ...magical,
+        ...source,
+      });
+    }
+  }
+
+  if (fog !== undefined) {
+    const grown = fog.radiusPerSlotLevelAbove;
+    events.push({
+      type: 'obscurement-declared',
+      patch: named('fog'),
+      region:
+        grown === undefined ? region : widened(grown * Math.max(0, castLevel - definition.level)),
+      degree: fog.degree,
+      ...source,
+    });
+  }
+
+  return events;
 }
 
 /**

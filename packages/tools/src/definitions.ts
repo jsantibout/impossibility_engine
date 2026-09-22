@@ -162,6 +162,8 @@ import {
   declareCreatureType,
   declareDawn,
   declareDifficultTerrain,
+  declareLight,
+  declareObscurement,
   declareFalling,
   declareSightBetween,
   declineDamageReaction,
@@ -1393,13 +1395,19 @@ const DECLARE_CREATURE_TYPE = tool({
 const SET_SCENE = tool({
   name: 'set_scene',
   description:
-    'Declare the room the fight happens in, in feet. Nobody can be placed until there is one. Setting a scene again is the party walking into the next room, and unplaces everybody.',
+    'Declare the room the fight happens in, in feet. Nobody can be placed until there is one. Setting a scene again is the party walking into the next room, and unplaces everybody. Say how bright it is if you know: leaving the light out leaves it unsaid rather than bright, which is honest and is why a dwarf’s Darkvision will then answer nothing about the room.',
   mutates: true,
   establishes: ['scene'],
   input: z.object({
     width: z.number().positive().describe('Feet.'),
     depth: z.number().positive().describe('Feet.'),
     height: z.number().positive().describe('Feet.'),
+    light: z
+      .enum(['bright', 'dim', 'darkness'])
+      .optional()
+      .describe(
+        'How bright the room is where no patch of light says otherwise. Omit it and the light is undeclared, not bright — declare_light then covers the parts that differ.',
+      ),
   }),
   run: (context, args) =>
     settleEvents(
@@ -1407,7 +1415,7 @@ const SET_SCENE = tool({
       setScene(
         context.campaign.state(),
         { width: args.width, depth: args.depth, height: args.height },
-        identity(context),
+        { ...identity(context), ...(args.light === undefined ? {} : { light: args.light }) },
       ),
       { established: 'scene' },
     ),
@@ -1584,6 +1592,148 @@ const DECLARE_DIFFICULT_TERRAIN = tool({
         ...identity(context),
       }),
       { established: 'difficult terrain', patch: args.patch },
+    ),
+});
+
+/**
+ * How bright a patch of the room is — the fourth declared fact, and the one
+ * Darkvision has been a rule about with nothing to read.
+ *
+ * `docs/design/light-and-sight.md` is the design and the owner ruled it:
+ * **light is declared on the lattice**, exactly as the ground is, because
+ * deriving it needs walls and light sources and that is the line
+ * `space-and-areas.md` draws. This is the table's half; everything after the
+ * declaration is the engine's, and there is a lot of it — which spaces the
+ * patch covers, whether Darkvision gets through it, whether a Rogue standing
+ * in it may Hide, whether two patches put each other out.
+ *
+ * **No default ambient, so saying nothing says nothing.** A room nobody has
+ * described is not Bright Light; it is undescribed, and every answer the
+ * engine gives about it is the answer it gave before light existed. A DM who
+ * wants the room lit says so, here or on `set_scene`.
+ *
+ * **The fields, and the one that is not a number.** `level` is a word out of
+ * the glossary's three. `magical` is the one distinction the book attaches a
+ * rule to — "Darkvision can't see through it, and nonmagical light can't
+ * illuminate it" — and it takes a spell level because SRD Darkness and SRD
+ * Daylight dispel each other by comparing one; a DM naming it is reporting
+ * which spell made the dark, not deciding a mechanic. `sunlight` is the flag
+ * four stat blocks read, refused on anything but bright. The radius is the
+ * room's, which is the class of number `declare_difficult_terrain` already
+ * takes on this door.
+ */
+const DECLARE_LIGHT = tool({
+  name: 'declare_light',
+  description:
+    'Say how bright a patch of the room is — the torchlight, the shaft of sun through the grating, the dark beyond the lantern. The engine works out which spaces it covers, what a creature with Darkvision makes of it, whether somebody can Hide there, and what two overlapping patches do to each other. Declared rather than deduced, exactly like cover: the room is fiction and the engine holds no record of it. Saying nothing leaves the light unsaid rather than bright. Naming a patch that already exists replaces it, because light changes.',
+  mutates: true,
+  input: z.object({
+    patch: z
+      .string()
+      .min(1)
+      .describe('The table’s name for it, e.g. the brazier. A report quotes it back.'),
+    at: pointSchema.describe('The middle of the patch.'),
+    radius: z
+      .number()
+      .finite()
+      .nonnegative()
+      .describe('How far it reaches from there, in feet. 0 is the one space.'),
+    level: z
+      .enum(['bright', 'dim', 'darkness'])
+      .describe('The glossary’s three levels of light, and no fourth.'),
+    sunlight: z
+      .boolean()
+      .optional()
+      .describe(
+        'True where this bright light is the sun. Only Sunlight Sensitivity and the vampires ask, and only bright light may carry it.',
+      ),
+    magicalSpellLevel: z
+      .number()
+      .int()
+      .min(0)
+      .max(9)
+      .optional()
+      .describe(
+        'The level of the spell that made this light or this darkness, where a spell did. Magical darkness defeats Darkvision and nonmagical light; two magical patches of opposite kind put each other out.',
+      ),
+    source: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        'The castingId of a running spell that made this light, if one did. The patch stops lighting anything the moment that casting stops running.',
+      ),
+  }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      declareLight(context.campaign.state(), args.patch, {
+        region: {
+          origin: areaPointAt(point(args.at)),
+          shape: { kind: 'sphere', radius: args.radius },
+        },
+        level: args.level,
+        ...(args.sunlight === undefined ? {} : { sunlight: args.sunlight }),
+        ...(args.magicalSpellLevel === undefined
+          ? {}
+          : { magical: { spellLevel: args.magicalSpellLevel } }),
+        ...(args.source === undefined ? {} : { source: args.source }),
+        ...identity(context),
+      }),
+      { established: 'light', patch: args.patch },
+    ),
+});
+
+/**
+ * And the half of obscurement that is not about the light at all.
+ *
+ * A record of its own beside the light because SRD Fog Cloud makes its Sphere
+ * Heavily Obscured and says nothing whatever about how bright it is, and a
+ * degree derived wholly from a level could not have written that spell. What
+ * a level *does* imply — Dim Light is Lightly Obscured, Darkness is Heavily
+ * Obscured — the engine adds at read time, so a DM declaring a dark room does
+ * not also have to declare it obscured.
+ */
+const DECLARE_OBSCUREMENT = tool({
+  name: 'declare_obscurement',
+  description:
+    'Say where the air is hard to see through for a reason that is not the light — fog, thick foliage, smoke, a dust cloud. Heavily Obscured blocks sight outright unless a creature has Blindsight or Truesight, and is what a Hide asks for; Lightly Obscured gives Disadvantage on Perception that relies on sight. Darkness and dim light already imply their own degree and do not need declaring here. Naming a patch that already exists replaces it.',
+  mutates: true,
+  input: z.object({
+    patch: z
+      .string()
+      .min(1)
+      .describe('The table’s name for it, e.g. the fog bank. A report quotes it back.'),
+    at: pointSchema.describe('The middle of the patch.'),
+    radius: z
+      .number()
+      .finite()
+      .nonnegative()
+      .describe('How far it reaches from there, in feet. 0 is the one space.'),
+    degree: z
+      .enum(['lightly', 'heavily'])
+      .describe('The glossary’s two degrees of obscurement, and no third.'),
+    source: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        'The castingId of a running spell that made it, if one did. The patch clears the moment that casting stops running.',
+      ),
+  }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      declareObscurement(context.campaign.state(), args.patch, {
+        region: {
+          origin: areaPointAt(point(args.at)),
+          shape: { kind: 'sphere', radius: args.radius },
+        },
+        degree: args.degree,
+        ...(args.source === undefined ? {} : { source: args.source }),
+        ...identity(context),
+      }),
+      { established: 'obscurement', patch: args.patch },
     ),
 });
 
@@ -4370,6 +4520,8 @@ export const TOOLS: readonly ToolDefinition[] = [
   DECLARE_CREATURE_TYPE,
   DECLARE_DIFFICULT_TERRAIN,
   DECLARE_FALLING,
+  DECLARE_LIGHT,
+  DECLARE_OBSCUREMENT,
   DECLARE_SIDE,
   DECLARE_SIGHT,
   DECLINE_DAMAGE_REACTION,

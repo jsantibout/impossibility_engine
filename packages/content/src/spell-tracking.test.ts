@@ -585,18 +585,34 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
    * a clean paragraph is usually a spell with nothing to execute, and the
    * exception is named rather than the rule loosened.
    *
-   * **And a second spell now says otherwise, for the same kind of reason.**
+   * **And three more say otherwise now, for one reason each.**
+   *
    * Magic Weapon's whole printed text is "a +1 bonus to attack rolls and
    * damage rolls" and the two bands a higher slot buys, and
    * {@link MECHANICAL_MARKERS} holds no pattern for an attack roll or for a
    * bare mention of damage — `extra-damage` wants the word "extra" and `dice`
-   * wants a notation, and the spell prints neither. So the paragraph reads
-   * clean to this list and is executed by a `weapon-rider` grant all the same.
-   * `CLAUSE_MARKERS`, the executed population's own list, fires on it through
-   * `attack-roll` and `damage`, which is why the honesty guard over there is
-   * not fooled and this exemption is safe in the same way the first is.
+   * wants a notation, and the spell prints neither.
+   *
+   * Darkness, Daylight and Fog Cloud read clean for the neighbouring reason,
+   * which this list's neighbour at the top of the file already records: the
+   * book writes Bright Light, Dim Light, Darkness and Heavily Obscured in none
+   * of the words that list knows, because it was derived from the mechanics a
+   * *tracked* spell hides and light was not one of them. They are executed by
+   * a patch on the lattice all the same.
+   *
+   * `CLAUSE_MARKERS`, the executed population's own list, is fooled by none of
+   * the four — it fires through `attack-roll` and `damage` on the first and on
+   * the light clauses of the rest — which is why the honesty guard over there
+   * is what actually holds their paragraphs to account, and why these
+   * exemptions are safe.
    */
-  const CLEAN_AND_EXECUTED: readonly string[] = ['expeditious-retreat', 'magic-weapon'];
+  const CLEAN_AND_EXECUTED: readonly string[] = [
+    'darkness',
+    'daylight',
+    'expeditious-retreat',
+    'fog-cloud',
+    'magic-weapon',
+  ];
 
   it('finds every clean paragraph outside the executed bucket', () => {
     const executed = SPELL_DEFINITIONS.filter(
@@ -1433,12 +1449,24 @@ describe('every spell this batch added is cast for real', () => {
    * move crosses. `isExecuted` reads `areaTerrain` for exactly that reason —
    * a spell whose only printed mechanic the engine now resolves is not one
    * the engine resolves nothing of.
+   *
+   * **Darkness, Daylight and Fog Cloud are the tenth, eleventh and twelfth,
+   * and they leave by the same door with a different noun.** P3-S put light
+   * and obscurement on the lattice beside the ground, so a Sphere of magical
+   * darkness, sixty feet of sunlight with sixty more of dim around it, and a
+   * bank of fog that grows with the slot are all patches a casting lays,
+   * keeps alive and has read at every question about who can see whom.
+   * `isExecuted` reads `areaLight` and `areaObscurement` for the reason it
+   * reads `areaTerrain`, and all three are argued in `coverage-data.ts`.
    */
   const EXECUTED_SINCE: readonly string[] = [
     'aid',
+    'darkness',
+    'daylight',
     'enhance-ability',
     'expeditious-retreat',
     'faerie-fire',
+    'fog-cloud',
     'goodberry',
     'magic-jar',
     'plant-growth',

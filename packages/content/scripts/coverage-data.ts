@@ -180,6 +180,12 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'conjure-woodland-beings',
   'counterspell',
   'cure-wounds',
+  // The three P3-S finished, each driven end to end through `resolveSpell` in
+  // `light-and-sight.test.ts`: the Sphere Darkness pins and the Darkvision it
+  // defeats, the bright core and dim ring Daylight lays, the bank Fog Cloud
+  // grows with the slot, and the dispel the first two owe each other.
+  'darkness',
+  'daylight',
   'dimension-door',
   'dispel-magic',
   'dissonant-whispers',
@@ -196,6 +202,7 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'fireball',
   'flame-blade',
   'flame-strike',
+  'fog-cloud',
   'goodberry',
   'grease',
   'greater-invisibility',
@@ -340,6 +347,16 @@ export interface SpellCoverage {
  * resolves nothing of the spell while it is doing the only thing the spell
  * does.
  *
+ * **The sixth and seventh arms are the light an area sheds and the fog it
+ * fills**, and they are the fifth's argument about the two nouns P3-S added.
+ * SRD Darkness rolls nothing and catches nobody, and the whole of what it
+ * does — fifteen feet of magical darkness that Darkvision cannot see through
+ * — is a patch the engine lays on the lattice, keeps alive against the
+ * casting, and reads at every question about who can see whom. SRD Fog Cloud
+ * is the same spell with obscurement in place of a level. Counting either as
+ * tracked would say the engine resolves nothing of the spell while it is
+ * doing the only thing the spell does.
+ *
  * **Exported because three other places had written it out**, and one of the
  * copies had already lost the `areaTrigger` arm. The honesty guard's whole
  * population is this predicate, so a drifting copy would silently stop
@@ -350,6 +367,8 @@ export const isExecuted = (definition: SpellDefinition): boolean =>
   definition.activation !== undefined ||
   definition.areaTrigger !== undefined ||
   definition.areaTerrain !== undefined ||
+  definition.areaLight !== undefined ||
+  definition.areaObscurement !== undefined ||
   definition.conjures !== undefined;
 
 /** Every definition the engine resolves something of, by id. */

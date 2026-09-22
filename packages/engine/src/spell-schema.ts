@@ -48,7 +48,7 @@ import {
 } from './combat.js';
 import type { Bonus, BonusApplies, BonusNarrowing } from './bonuses.js';
 import type { RollModifier } from './roll-modifiers.js';
-import { DIFFICULT_TERRAIN } from './positioning.js';
+import { DIFFICULT_TERRAIN, LIGHT_LEVELS, OBSCUREMENT_DEGREES } from './positioning.js';
 
 /**
  * Whether a spell definition is *coherent*, asked of a value rather than of a
@@ -2974,6 +2974,121 @@ export function checkSpellDefinition(
           code: 'bad_terrain_cost',
           reason: `${String(rate)} feet per foot is not Difficult Terrain; the glossary's rate is ${DIFFICULT_TERRAIN} and a spell that prints its own prints a larger whole number`,
         });
+      }
+    }
+  }
+
+  if (definition.areaLight !== undefined) {
+    if (definition.area === undefined) {
+      found.push({
+        field: 'areaLight',
+        code: 'light_without_area',
+        reason:
+          'the light a spell sheds lies over its area; a spell with no volume lights no part of the room',
+      });
+    }
+    if (
+      readsAsObject(
+        definition.areaLight,
+        'areaLight',
+        'light an area sheds is an object naming which of the glossary’s three levels it is',
+        found,
+      )
+    ) {
+      const { level, dimBeyond, sunlight } = definition.areaLight;
+      // **The pure function's own rules, read off the same constants.** A
+      // second spelling here would be a second chance to disagree with
+      // `declareLightPatch`, which the fold calls on the event this definition
+      // will write — and a definition it let through would throw in the
+      // reducer rather than be refused at authoring.
+      if (!(LIGHT_LEVELS as readonly string[]).includes(level)) {
+        found.push({
+          field: 'areaLight.level',
+          code: 'bad_light_level',
+          reason: `"${String(level)}" is not a level of light; the glossary prints ${LIGHT_LEVELS.join(', ')}`,
+        });
+      }
+      if (sunlight === true && level !== 'bright') {
+        found.push({
+          field: 'areaLight.sunlight',
+          code: 'bad_sunlight',
+          reason:
+            'sunlight is Bright Light with a flag, so an area that is not bright cannot be sunlit',
+        });
+      }
+      if (dimBeyond !== undefined) {
+        if (!Number.isInteger(dimBeyond) || dimBeyond <= 0) {
+          found.push({
+            field: 'areaLight.dimBeyond',
+            code: 'bad_dim_beyond',
+            reason: `dim light beyond the area reaches a whole number of feet greater than nought, not ${String(dimBeyond)}`,
+          });
+        } else if (definition.area?.kind !== 'sphere') {
+          // A ring of Dim Light around a Cone has no radius to widen, and
+          // laying nothing quietly would be the benefit-nothing-reads failure
+          // this validator exists for.
+          found.push({
+            field: 'areaLight.dimBeyond',
+            code: 'dim_beyond_without_a_radius',
+            reason:
+              'light spreading past the area is measured from the area’s edge, and only a Sphere has an edge that is one number',
+          });
+        }
+      }
+    }
+  }
+
+  if (definition.areaObscurement !== undefined) {
+    if (definition.area === undefined) {
+      found.push({
+        field: 'areaObscurement',
+        code: 'obscurement_without_area',
+        reason:
+          'the fog a spell makes fills its area; a spell with no volume obscures no part of the room',
+      });
+    }
+    if (
+      readsAsObject(
+        definition.areaObscurement,
+        'areaObscurement',
+        'obscurement an area creates is an object naming which of the glossary’s two degrees it is',
+        found,
+      )
+    ) {
+      const { degree, radiusPerSlotLevelAbove: perLevel } = definition.areaObscurement;
+      if (!(OBSCUREMENT_DEGREES as readonly string[]).includes(degree)) {
+        found.push({
+          field: 'areaObscurement.degree',
+          code: 'bad_obscurement',
+          reason: `"${String(degree)}" is not a degree of obscurement; the glossary prints ${OBSCUREMENT_DEGREES.join(' and ')}`,
+        });
+      }
+      // Saying it twice is the failure, not saying it at all: a level implies
+      // its own degree in `obscurementAt`, so a definition writing both has
+      // two records of one fact and one of them will be the stale one.
+      if (definition.areaLight !== undefined && definition.areaLight.level !== 'bright') {
+        found.push({
+          field: 'areaObscurement',
+          code: 'obscurement_the_light_already_says',
+          reason:
+            'dim light is Lightly Obscured and darkness is Heavily Obscured already; an area that states its level states its degree with it',
+        });
+      }
+      if (perLevel !== undefined) {
+        if (!Number.isInteger(perLevel) || perLevel <= 0) {
+          found.push({
+            field: 'areaObscurement.radiusPerSlotLevelAbove',
+            code: 'bad_obscurement_growth',
+            reason: `a slot grows the fog by a whole number of feet greater than nought, not ${String(perLevel)}`,
+          });
+        } else if (definition.area?.kind !== 'sphere') {
+          found.push({
+            field: 'areaObscurement.radiusPerSlotLevelAbove',
+            code: 'growth_without_a_radius',
+            reason:
+              'a slot that widens the fog widens a radius, and only a Sphere has one',
+          });
+        }
       }
     }
   }

@@ -64,6 +64,8 @@ import {
 } from './standing.js';
 import {
   type CoverDegree,
+  type LightLevel,
+  type ObscurementDegree,
   type Placement,
   type SceneExtent,
   type Point,
@@ -1623,7 +1625,20 @@ export type GameEvent =
    * declaration has to be here rather than inferred from the fold happening to
    * work.
    */
-  | { readonly type: 'scene-set'; readonly extent: SceneExtent; readonly command?: CommandStamp }
+  | {
+      readonly type: 'scene-set';
+      readonly extent: SceneExtent;
+      /**
+       * How bright the room is where no patch says otherwise.
+       *
+       * **Absent is "nobody has said"**, never Bright Light — the owner's
+       * second ruling, 2026-09-21. Every log written before light existed is
+       * therefore a log with an undeclared ambient, which is exactly what it
+       * was, and folds to the state it always folded to.
+       */
+      readonly light?: LightLevel;
+      readonly command?: CommandStamp;
+    }
   | {
       readonly type: 'landmark-added';
       readonly name: string;
@@ -2045,6 +2060,46 @@ export type GameEvent =
       readonly patch: string;
       readonly region: TerrainRegion;
       readonly costPerFoot: number;
+      readonly source?: string;
+      readonly command?: CommandStamp;
+    }
+  /**
+   * How bright a patch of the room is.
+   *
+   * Declared on the lattice, like the ground and for the same reason:
+   * deriving light needs walls and sources, and `docs/design/light-and-sight.md`
+   * is where the owner ruled that out (2026-09-21, the first of five). The
+   * fields past the level are the two the book distinguishes — `magical`
+   * carries the spell level, because Darkness's "nonmagical light can't
+   * illuminate it" and its mutual dispel with Daylight both read one, and
+   * `sunlight` is the flag that makes Bright Light the sun rather than a
+   * fourth level. `source` names the casting that made it, and the patch
+   * stops lighting anything when that casting stops running.
+   */
+  | {
+      readonly type: 'light-declared';
+      /** The table's name for this patch, which a report quotes back. */
+      readonly patch: string;
+      readonly region: TerrainRegion;
+      readonly level: LightLevel;
+      readonly magical?: { readonly spellLevel: number };
+      readonly sunlight?: boolean;
+      readonly source?: string;
+      readonly command?: CommandStamp;
+    }
+  /**
+   * A patch of the room hard to see into for a reason that is not the light.
+   *
+   * Fog, foliage, smoke. Its own event beside the light because SRD Fog Cloud
+   * makes its Sphere Heavily Obscured and says nothing whatever about how
+   * bright it is, and a degree derived wholly from a level could not have
+   * written that spell.
+   */
+  | {
+      readonly type: 'obscurement-declared';
+      readonly patch: string;
+      readonly region: TerrainRegion;
+      readonly degree: ObscurementDegree;
       readonly source?: string;
       readonly command?: CommandStamp;
     }

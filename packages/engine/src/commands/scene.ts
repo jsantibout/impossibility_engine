@@ -96,6 +96,7 @@ import {
   type CoverDegree,
   declareCover,
   declareSight,
+  type LightLevel,
   placeCreature,
   type Placement,
   type Point,
@@ -123,10 +124,18 @@ import { settleBoundaryPayouts, settleStartOfTurnRecharges } from './turns.js';
 export function setScene(
   state: GameState,
   extent: SceneExtent,
-  command: CommandIdentity = {},
+  command: CommandIdentity & { readonly light?: LightLevel } = {},
 ): Result<GameEvent[]> {
+  const { light } = command;
   return once(state, 'set-scene', { ...command, extent }, () => [], (stamp) =>
-    ok([{ type: 'scene-set', extent, ...(stamp === null ? {} : { command: stamp }) }]),
+    ok([
+      {
+        type: 'scene-set',
+        extent,
+        ...(light === undefined ? {} : { light }),
+        ...(stamp === null ? {} : { command: stamp }),
+      },
+    ]),
   );
 }
 

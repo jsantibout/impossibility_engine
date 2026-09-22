@@ -115,6 +115,7 @@ import {
   nextCastingId,
   resolveCastWith,
   settlementEvents,
+  lightPatchesOf,
   terrainPatchOf,
   triggerRefusal,
 } from './casting.js';
@@ -344,9 +345,12 @@ export function resolveDeclaredCast(
       events,
     );
 
-    /** Where the ground this settlement makes expensive lies — see `terrainPatchOf`. */
+    /** Where the patches this settlement lays lie — see `terrainPatchOf`. */
     const settledTerrain =
-      definition.areaTerrain === undefined || definition.area === undefined
+      (definition.areaTerrain === undefined &&
+        definition.areaLight === undefined &&
+        definition.areaObscurement === undefined) ||
+      definition.area === undefined
         ? null
         : regionOfArea(
             definition.area,
@@ -740,13 +744,17 @@ export function castOrRelease(
       );
       if (!resolved.ok) return resolved;
       targets = resolved.value;
-      // **Two clauses want the point, not one.** An area trigger reads it at
-      // every later boundary, and ground the area made expensive is laid at
-      // it — SRD Spike Growth prints the second and not the first, so a
-      // condition naming only the trigger would leave that spell's patch with
-      // nowhere to be.
+      // **Four clauses want the point, not one.** An area trigger reads it at
+      // every later boundary, and every patch the area lays is laid at it —
+      // ground made expensive, light shed, fog filled. SRD Spike Growth prints
+      // the second and not the first and SRD Darkness prints the third, so a
+      // condition naming only the trigger would leave those spells' patches
+      // with nowhere to be.
       if (
-        (definition.areaTrigger !== undefined || definition.areaTerrain !== undefined) &&
+        (definition.areaTrigger !== undefined ||
+          definition.areaTerrain !== undefined ||
+          definition.areaLight !== undefined ||
+          definition.areaObscurement !== undefined) &&
         request.at !== undefined
       ) {
         area = {
@@ -1408,15 +1416,26 @@ function resolveOnTargets(
   const pinned = choicePinned(definition, request);
 
   /**
-   * Where the ground this casting makes expensive lies — see `terrainPatchOf`.
+   * Where the patches this casting lays lie — see `terrainPatchOf` and
+   * `lightPatchesOf`.
    *
    * Worked out here, once, off the area this casting actually resolved, and
    * handed down rather than re-derived: the point and the direction are
    * decisions taken at this casting and nothing later remembers them. Null
-   * for every spell that makes no ground expensive, which is all but four.
+   * for every spell that lays no patch, which is nearly all of them.
+   *
+   * **One region for all three kinds**, because there is one area: the ground
+   * a Web makes expensive, the dark a Darkness sheds and the fog a Fog Cloud
+   * fills are all "the region this casting's area resolved to", and a second
+   * derivation would be a second place for a Cylinder's height to be measured
+   * from the wrong plane. The name is the ground's because the ground was
+   * first; the fact is the area's.
    */
   const terrainRegion =
-    definition.areaTerrain === undefined || definition.area === undefined
+    (definition.areaTerrain === undefined &&
+      definition.areaLight === undefined &&
+      definition.areaObscurement === undefined) ||
+    definition.area === undefined
       ? null
       : regionOfArea(
           definition.area,
@@ -2239,6 +2258,14 @@ export function resolveEffects(
   // to is the order they happened in.
   events.push(
     ...terrainPatchOf(definition, castingId, context.terrainRegion ?? null, becomes !== undefined),
+    ...lightPatchesOf(
+      state,
+      definition,
+      castingId,
+      context.terrainRegion ?? null,
+      becomes !== undefined,
+      castLevel,
+    ),
   );
 
   return ok({ events, castingId, outcomes, unverified });

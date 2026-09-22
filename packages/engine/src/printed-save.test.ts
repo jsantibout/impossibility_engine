@@ -16,10 +16,11 @@ import {
   declareCreatureSide,
   forcePrintedSave,
   placeCreatureInScene,
+  rollImprovisedDamage,
   setScene,
   takeStatedAction,
 } from './commands.js';
-import { createRng, type Rng } from './dice.js';
+import { createRng, restoreRng, type Rng } from './dice.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { adaptMonster, statedActionOf } from './monster.js';
 import { createRollIssuer } from './rolls.js';
@@ -564,3 +565,116 @@ describe('what the door refuses, and what it asks for', () => {
     expect(out.events.some((event) => event.type === 'damage-rolled')).toBe(false);
   });
 });
+
+/**
+ * The dice it throws are on the campaign's own stream, and the log says where
+ * that stream got to.
+ *
+ * **This was wrong, and it was wrong invisibly.** The command threw a saving
+ * throw for every creature the line caught and a damage roll for most of them,
+ * moved the generator, and wrote no `rolls-issued` — so nothing in the log
+ * recorded either the roll ids it minted or the position it left the
+ * generator in. Every other rolling command in the engine writes one;
+ * `takeHide`, five hundred lines down the same file, writes it around a
+ * single check.
+ *
+ * What that costs is CLAUDE.md's third rule. A session is resumed by
+ * rebuilding the generator from the last recorded snapshot and the issuer
+ * from `rollsIssued` — which is what `supply()` below does and what
+ * `scenario.test.ts` has always done — so a command that records neither
+ * leaves the *next* command to restart the stream from the seed. It draws the
+ * same faces under the same roll ids, and the log folds to a state that
+ * depends on how the session happened to be split across restarts.
+ *
+ * It stayed latent because nothing above the engine imports the command —
+ * `packages/tools` carries `take_printed_action`, which hands the sentence
+ * over, and no door that rolls it. So no log has been written with the hole
+ * in it, which is why this is a defect fixed rather than a migration; and it
+ * is pinned here rather than left for whichever batch opens that door,
+ * because a rule proved by nobody using it yet is the cheapest kind to keep.
+ */
+describe('the rolls it makes are written back to the log', () => {
+  /** The supply a resumed session builds: the issuer and generator the log left. */
+  const resumed = (table: Table) => {
+    const now = table.state;
+    return {
+      issuer: createRollIssuer('r', now.rollsIssued),
+      rng: now.rng === null ? createRng('fangs') : restoreRng(now.rng),
+      content: SRD_CONTENT,
+    };
+  };
+
+  it('records the ids it minted and the generator it left', () => {
+    const table = inTheWoods('winter-wolf', WINTER);
+    // **Where the campaign already was**, and not zero by assumption: an
+    // issuer resumed at `startAt` counts what *it* minted, so asserting the
+    // total against it directly would be a claim about this fixture rolling
+    // nothing beforehand rather than about the rule. The day the woods roll
+    // Initiative, this still holds.
+    const before = table.state.rollsIssued;
+    const started = resumed(table);
+    table.did('the wolf breathes', (s) =>
+      forcePrintedSave(s, WINTER, { line: COLD_BREATH, targets: [BREN] }, started),
+    );
+
+    // A save and a damage roll at the least, so the count is a real number
+    // rather than a zero that would pass whatever the command did.
+    expect(started.issuer.count).toBeGreaterThan(1);
+    expect(table.state.rollsIssued).toBe(before + started.issuer.count);
+    expect(table.state.rng).toEqual(started.rng.snapshot());
+  });
+
+  /**
+   * And the consequence, which is the thing that actually breaks: what the
+   * *next* command draws has to depend on the breath having happened.
+   *
+   * Two campaigns off one seed, identical but for the breath, and the same
+   * four eight-sided dice thrown in each afterwards. If the breath wrote its
+   * position back, the ice lands differently in the campaign where the wolf
+   * breathed; if it did not, both resume from the seed and throw the same
+   * four faces under the same roll id — which is the defect, stated as the
+   * only thing about it anybody would ever notice.
+   */
+  it('leaves the next command a stream it has not already drawn', () => {
+    const breathed = inTheWoods('winter-wolf', WINTER);
+    breathed.did('the wolf breathes', (s) =>
+      forcePrintedSave(s, WINTER, { line: COLD_BREATH, targets: [BREN] }, resumed(breathed)),
+    );
+    expect(rolled(breathed.events, BREN).faces).toHaveLength(4);
+
+    const quiet = inTheWoods('winter-wolf', WINTER);
+
+    const ice = (table: Table) =>
+      rolled(
+        unwrap(
+          rollImprovisedDamage(
+            table.state,
+            BREN,
+            { dice: '4d8', damageType: 'cold', source: 'the ice underfoot' },
+            resumed(table),
+          ),
+          'the ice gives way',
+        ).events,
+        BREN,
+      );
+
+    expect(ice(breathed).faces).not.toEqual(ice(quiet).faces);
+    // And the id is fresh, which is the other half of the same bookkeeping: a
+    // rewound issuer mints `r-1` twice, and two rolls become one in any index
+    // built on the id.
+    expect(ice(breathed).ids).not.toEqual(ice(quiet).ids);
+  });
+});
+
+/** The faces one recorded damage roll showed, and the id it showed them under. */
+const rolled = (
+  events: readonly GameEvent[],
+  target: CharacterId,
+): { readonly faces: readonly number[]; readonly ids: string | null } => {
+  const recorded = events.find(
+    (event) => event.type === 'damage-dice-recorded' && event.target === target,
+  );
+  if (recorded?.type !== 'damage-dice-recorded') return { faces: [], ids: null };
+  const component = recorded.components[0]!;
+  return { faces: component.dice.map((die) => die.value), ids: component.roll };
+};

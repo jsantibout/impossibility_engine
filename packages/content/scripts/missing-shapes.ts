@@ -262,7 +262,7 @@ export const MISSING_SHAPES = {
   'a-distance-a-creature-travels-inside-an-area':
     '`docs/design/space-and-areas.md`, on what a persistent area cannot see: "**The path.** Movement records where a move started and where it ended and nothing in between", and `docs/design/casting.md`: "Distance travelled inside an area, which no move records | Spike Growth". Inferring the crossing from a straight line would be the engine inventing a route nobody took.',
   'light-and-obscurement-the-scene-holds':
-    'light and obscurement as facts the scene holds, which nothing in state does today: sight is a pairwise declaration, no square is lit or unlit, and so Darkvision has never had the rule it is a rule about and no casting can shed, quench or obscure anything. **A reader who wanted to record the debt could not**, which is the gate-G1 finding this id closes — the spell map had no id for light at all while six definitions in level-5 reach printed one. `docs/design/light-and-sight.md` is the design the owner ruled on: "Declare it on the lattice", exactly as Difficult Terrain already is, with an ambient level on the scene, patches carrying a region and the `source` casting that made them, and one step added between the declaration and the sense. Three of its sentences are what a definition cannot state without it — "magical darkness is not lit by nonmagical light", "Sunlight is Bright Light with a flag", and "No default ambient" — and the same note lists what the shape reaches beyond the spells: the Illumination traits, Sunlight Sensitivity, Shadow Stealth and Sunlight Weakness.',
+    '**built as P3-S, and this is what is left of it.** The description before this one said light and obscurement were facts nothing in state held — "no square is lit or unlit, and so Darkvision has never had the rule it is a rule about and no casting can shed, quench or obscure anything" — and `docs/design/light-and-sight.md` is the design the owner ruled on, all five decisions, on 2026-09-21. Every one of them is executed: light and obscurement are records of patches on the lattice beside `terrain`, each carrying a region and the `source` casting that lapses it; `lightAt` takes the strongest of the ambient and the patches with the book’s own exception, that nonmagical light does not lift magical darkness; `obscurementAt` takes the greater of what was declared and what the level implies; the sight question gained one step between the declaration and the sense, where Blindsight and Truesight defeat anything, Darkvision turns nonmagical darkness into dim and Devil’s Sight defeats the magical kind; sunlight is Bright Light with a flag, which a `StandingRequirement` reads; and an undeclared scene is undeclared rather than bright. Darkness, Daylight, Fog Cloud and Web’s obscurement half are written on it, and Hide no longer needs the table to state a fog it can see. **What is left is not about light at all: it is the object.** SRD Light, Continual Flame and Dancing Lights shed from *a thing* — a touched object, four floating motes — and Darkness and Daylight each print an alternative form originating from one, with a bowl that can be put over it; the note’s own vocabulary is "a point, or carried by a creature", because the engine holds no objects for a patch to hang on and inventing a position for one would be the table’s job done badly. The second residue is the **trigger**: the mutual dispel runs "on pinning a patch", so a spell that puts darkness out without laying any light of its own — Sunburst’s flash — can reach `lightDispelledBy` by no route. Beyond the spells the same note lists what waits on a stat block rather than on this shape: the six Illumination traits, Sunlight Sensitivity, Shadow Stealth and Sunlight Weakness are written in SRD monster text the parser types no trait for, so the rule is executable and the creature carrying it is not.',
   'a-world-fact-nothing-can-represent':
     'PROGRESS.md’s category C, named spell by spell: "**Meld into Stone** (every mechanical clause it has — 6d6 Force, 50 Force, Disadvantage on Perception, Prone on expulsion — hangs off “you are inside a rock”, which is a state nothing can hold)". Not a mechanism that is missing; a fact the world model has no room for, and inventing one is not on.',
 } as const;
@@ -688,6 +688,16 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD gates the *removal* of the condition behind a save, and a save is raised here only by a turn boundary; nothing puts one in front of another effect’s cure.',
     },
   ],
+  // One of the three spells P3-S moved out of the tracked bucket, and the only
+  // one whose leftover sentence still trips a marker. Darkness's twin of it
+  // does not, so it carries no entry at all.
+  daylight: [
+    {
+      clause: 'the 60-foot Emanation it carries',
+      why: 'table',
+      note: 'the object half, as Darkness prints it and for its reason: an Emanation originating from a thing state does not hold, and a bowl or a helm over it. The sixty feet of Bright Light, the sixty more of Dim and the dispel against a Darkness of level 3 or lower are all executed.',
+    },
+  ],
   'dimension-door': [
     {
       clause: 'the willing creature who comes along',
@@ -815,6 +825,13 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'the 2d8 the attacker takes is not dealt',
       why: 'a-spell-that-answers-a-later-attack',
       note: 'the dice are ordinary and so is the rule that picks their type \u2014 Fire from a warm shield, Cold from a chill one \u2014 and both hang on the eruption above, which has no moment to happen at.',
+    },
+  ],
+  'fog-cloud': [
+    {
+      clause: '"until a strong wind (such as one created by Gust of Wind) disperses it"',
+      why: 'table',
+      note: 'the wind is fiction here: nothing in the engine makes one, Gust of Wind itself is not executed, and a casting the engine ends is one it can see ending. The fog is on the lattice now, twenty feet of Heavily Obscured and twenty more for every slot level above the first, so this is the one sentence of the paragraph left to a person.',
     },
   ],
   'freezing-sphere': [
@@ -1118,8 +1135,8 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   sunburst: [
     {
       clause: 'dispelling magical Darkness',
-      why: 'table',
-      note: 'Ending a casting is a real operation — `spell-ended` and Dispel Magic both use it — and the Darkness casting it would reach sits nowhere. **The reason moved when Darkness was written and the reading did not**: it used to be that no Darkness definition compiled in, and it is now that the definition is tracked and carries no `SpellArea`, because a template no effect resolves over is a radius with no place attached. So "in its area" has no area to test against, light is not modelled at either end, and the clause is documented rather than modelled exactly as Counterspell’s components qualifier is — with the fact that makes it safe pinned by a test below rather than trusted.',
+      why: 'light-and-obscurement-the-scene-holds',
+      note: 'the clause this shape’s own test was built to hand back. It was filed `table` on the strength of one field — "the definition is tracked and carries no `SpellArea`, because a template no effect resolves over is a radius with no place attached" — and `spell-honesty.test.ts` pinned both halves so that the day Darkness grew an area the reading would fail rather than go quietly on calling a rule fiction. That day is P3-S: Darkness holds a Sphere, the Sphere holds magical darkness, and Sunburst’s own 60-foot Sphere overlaps it perfectly well. What is missing is the **trigger**, and `docs/design/light-and-sight.md` says exactly where its edge is: the mutual dispel runs "on pinning a patch", and Sunburst pins none — it is a flash, Instantaneous, leaving no light behind. So `lightDispelledBy` is built and reachable from every casting that lays light, and a casting that lays none has no way to call it.',
     },
   ],
   'vampiric-touch': [
@@ -1134,11 +1151,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'while in the webs',
       why: 'a-condition-that-ends-when-its-holder-leaves-an-area',
       note: 'SRD Restrains a creature "while in the webs". A condition ends with its casting, on a deadline, or on a save; ending because its holder walked out of an area is a lifetime nothing expresses, so it runs until the casting ends or the creature breaks free.',
-    },
-    {
-      clause: 'the area within the webs being Lightly Obscured',
-      why: 'light-and-obscurement-the-scene-holds',
-      note: 'SRD writes two facts about the Cube in one sentence and the engine now holds one of them: the webs are Difficult Terrain, laid as a patch the casting keeps and charged at every space a move crosses. The other half has nothing to be written on — no square is lit, dim or obscured — which is the shape `docs/design/light-and-sight.md` is the design for and P3-S builds.',
     },
     {
       clause: 'flammable',
@@ -3811,7 +3823,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: null,
       clause: 'The effect casts Bright Light in a 20-foot radius and Dim Light for an additional 20 feet',
       why: 'light-and-obscurement-the-scene-holds',
-      note: 'the same two radii Light prints, on a casting that never ends — so the flame is the one permanent light in level-5 reach and there is nothing in the scene for it to light.',
+      note: 'the same two radii Light prints, on a casting that never ends — so the flame is the one **permanent** light in level-5 reach, and the lattice would hold it perfectly well: a patch with no `source` is the ordinary case rather than a missing link, which is what SRD Plant Growth’s overgrowth already is. What it has no anchor for is the same thing Light has none for. The flame springs from an object, the object is where somebody is holding it, and the engine holds no objects.',
     },
   ],
   'create-food-and-water': [
@@ -3841,53 +3853,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: null,
       clause: 'each light sheds Dim Light in a 10-foot radius',
       why: 'light-and-obscurement-the-scene-holds',
-      note: 'the cantrip a level 1 Bard, Druid, Sorcerer or Wizard can take that does exactly one mechanical thing, and the engine has nowhere to put it.',
-    },
-  ],
-  darkness: [
-    {
-      marker: null,
-      clause: 'magical Darkness spreads from a point within range and fills a 15-foot-radius Sphere',
-      why: 'light-and-obscurement-the-scene-holds',
-      note: 'the spell this whole id was found on. The Sphere is quoted to the table rather than pinned as an area, because pinning an area whose only content is a light level would assert a template nothing resolves over.',
-    },
-    {
-      marker: null,
-      clause: "Darkvision can't see through it, and nonmagical light can't illuminate it",
-      why: 'light-and-obscurement-the-scene-holds',
-      note: 'the obscurement half, and the sentence `docs/design/light-and-sight.md` turns into a rule: magical darkness defeats Darkvision and nonmagical light, Devil’s Sight defeats it, and nonmagical darkness is dim to Darkvision.',
-    },
-    {
-      marker: null,
-      clause: 'that other spell is dispelled',
-      why: 'light-and-obscurement-the-scene-holds',
-      note: 'the mutual dispel against Bright or Dim Light of level 2 or lower. Ending a casting is an operation the engine has; what it lacks is two areas of light to overlap, which is why this is the same debt rather than a second one.',
-    },
-    {
-      marker: null,
-      clause: 'causing the Darkness to fill a 15-foot Emanation originating from that object',
-      why: 'table',
-      note: 'an Emanation whose origin is an object is not a template the format can state, and covering the object with a bowl or a helm is a fact about a thing state does not hold.',
-    },
-  ],
-  daylight: [
-    {
-      marker: null,
-      clause: "The sunlight's area is Bright Light and sheds Dim Light for an additional 60 feet",
-      why: 'light-and-obscurement-the-scene-holds',
-      note: 'sixty feet of Bright Light and sixty more of Dim, which `docs/design/light-and-sight.md` models as a patch on the lattice carrying a level and the casting that made it.',
-    },
-    {
-      marker: null,
-      clause: 'causing the sunlight to fill a 60-foot Emanation originating from that object',
-      why: 'table',
-      note: 'the object half, as Darkness prints it: an Emanation originating from a thing state does not hold, and a bowl or a helm over it.',
-    },
-    {
-      marker: null,
-      clause: 'overlaps with an area of Darkness created by a spell of level 3 or lower',
-      why: 'light-and-obscurement-the-scene-holds',
-      note: 'the other side of Darkness’s dispel, and the pair is why the sight note calls the mutual dispel a second step rather than a separate shape.',
+      note: 'the cantrip a level 1 Bard, Druid, Sorcerer or Wizard can take that does exactly one mechanical thing, and the thing it does is four of them at once. A level of light has somewhere to sit since P3-S; **four** of them have not, because each mote is its own patch on its own origin and the clause above is why none of the four has one — the lights have no positions, so there is nothing to lay a 10-foot radius around, four times over.',
     },
   ],
   'detect-evil-and-good': [
@@ -3946,20 +3912,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'the disk is an object: where it is, the 500 pounds it holds, what rides on it, the 20 feet it follows within, the elevation change it refuses and the 100 feet that end the spell are all measured against a thing that is not in the scene.',
     },
   ],
-  'fog-cloud': [
-    {
-      marker: null,
-      clause: 'The Sphere is Heavily Obscured',
-      why: 'light-and-obscurement-the-scene-holds',
-      note: 'the one spell of the six whose debt is obscurement without a light level, which is why `docs/design/light-and-sight.md` keeps obscurement as a record of its own beside light rather than deriving it wholly from the level.',
-    },
-    {
-      marker: null,
-      clause: "The fog's radius increases by 20 feet for each spell slot level above 1",
-      why: 'table',
-      note: 'filed here under protest, exactly as Confusion’s Sphere is and for the same reason: a slot reaches damage dice, a target count and a duration and never an area, and inventing a shape id is a decision rather than a reading. The protest is the entry, so the next reader finds it.',
-    },
-  ],
   'gentle-repose': [
     {
       marker: null,
@@ -3995,7 +3947,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: null,
       clause: 'the object sheds Bright Light in a 20-foot radius and Dim Light for an additional 20 feet',
       why: 'light-and-obscurement-the-scene-holds',
-      note: 'the cantrip every class on the list takes for this one sentence. `docs/design/light-and-sight.md` puts it on the lattice as a patch carried by whatever holds the object.',
+      note: 'the cantrip every class on the list takes for this one sentence, and the one of the six the shape did **not** finish. P3-S put light on the lattice and a casting pins the region its area resolved to, and this spell has no area: SRD touches "one Large or smaller object" and the light is the object’s, so the patch would have to hang on a thing. `docs/design/light-and-sight.md` allows two anchors and neither is one — "a point, or carried by a creature" — and a torch in a hand would want the second while the same cantrip on a doorframe wants the first. Until an object has somewhere to be, the twenty feet have nothing to be measured from.',
     },
   ],
   'locate-animals-or-plants': [

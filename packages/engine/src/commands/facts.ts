@@ -15,7 +15,16 @@
 import { type CharacterId, err, ok, type Result } from '@ie/shared';
 import { type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
-import { DIFFICULT_TERRAIN, declareDifficultPatch, type TerrainRegion } from '../positioning.js';
+import {
+  DIFFICULT_TERRAIN,
+  declareDifficultPatch,
+  declareLightPatch,
+  declareObscuringPatch,
+  lightDispelledBy,
+  type LightLevel,
+  type ObscurementDegree,
+  type TerrainRegion,
+} from '../positioning.js';
 import { creatureOf, sceneFor, unknownCreature } from './command.js';
 
 /**
@@ -179,6 +188,153 @@ export function declareDifficultTerrain(
         patch,
         region,
         costPerFoot,
+        ...(source === undefined ? {} : { source }),
+        ...(stamp === null ? {} : { command: stamp }),
+      },
+    ]);
+  });
+}
+
+export interface LightCommand extends CommandIdentity {
+  /** Where the light is, in the vocabulary an area of effect uses. */
+  readonly region: TerrainRegion;
+  /** Bright, dim or darkness — the glossary's three words and no fourth. */
+  readonly level: LightLevel;
+  /**
+   * The level of the spell that made it, where a spell did.
+   *
+   * Present exactly when the light is magical, which is the distinction the
+   * SRD attaches its one rule to: nonmagical light does not lift magical
+   * darkness, and two magical patches of opposite kind put each other out.
+   */
+  readonly magical?: { readonly spellLevel: number };
+  /** SRD sunlight: Bright Light with the flag four stat blocks read. */
+  readonly sunlight?: boolean;
+  /** The casting that made this light, if one did. */
+  readonly source?: string;
+}
+
+/**
+ * Declare how bright a patch of the room is.
+ *
+ * The table's half of the model `docs/design/light-and-sight.md` designs and
+ * the owner ruled on: **light is declared on the lattice**, exactly as
+ * Difficult Terrain is, because deriving it needs walls and light sources and
+ * that is where a rules engine becomes a VTT. What the engine computes is
+ * everything downstream — which spaces the patch covers, which of two
+ * overlapping patches governs, what a creature's senses make of it, and
+ * whether the patch is still there.
+ *
+ * **There is no default ambient and this command does not create one.** A
+ * space nobody has spoken about stays unspoken about, which is the ruling
+ * that keeps every sight answer this engine has ever given exactly as it was.
+ *
+ * A patch may name the casting that made it, on the same terms the ground
+ * does: that casting's record is the patch's lifetime, and naming a casting
+ * nobody is running is refused rather than absorbed.
+ *
+ * **And the one thing that is not merely a declaration**: SRD Darkness and
+ * SRD Daylight put each other out where they overlap, so a magical patch
+ * arriving over a magical patch of the opposite kind ends the loser's casting
+ * in the same batch. See `lightDispelledBy` for the sentence and the
+ * threshold.
+ */
+export function declareLight(
+  state: GameState,
+  patch: string,
+  command: LightCommand,
+): Result<GameEvent[]> {
+  const { region, level, magical, sunlight, source } = command;
+
+  return once(state, `declare-light:${patch}`, { ...command }, () => [], (stamp) => {
+    const scene = sceneFor(state, patch, `the light on ${patch} to be`);
+    if (!scene.ok) return scene;
+
+    if (source !== undefined && state.ongoing[source] === undefined) {
+      return err(
+        'unknown_casting',
+        `no casting ${source} is running, so there is nothing for ${patch} to last as long as`,
+      );
+    }
+
+    // The refusal is the pure function's — a second spelling here would be a
+    // second chance to disagree with the fold.
+    const declared = declareLightPatch(scene.value, patch, region, level, {
+      ...(source === undefined ? {} : { source }),
+      ...(magical === undefined ? {} : { magical }),
+      ...(sunlight === undefined ? {} : { sunlight }),
+    });
+    if (!declared.ok) return declared;
+
+    return ok([
+      {
+        type: 'light-declared',
+        patch,
+        region,
+        level,
+        ...(magical === undefined ? {} : { magical }),
+        ...(sunlight === undefined ? {} : { sunlight }),
+        ...(source === undefined ? {} : { source }),
+        ...(stamp === null ? {} : { command: stamp }),
+      },
+      ...(magical === undefined
+        ? []
+        : lightDispelledBy(state, region, level, magical.spellLevel).map(
+            (castingId): GameEvent => ({
+              type: 'spell-ended',
+              castingId,
+              on: null,
+              reason: 'dispelled',
+            }),
+          )),
+    ]);
+  });
+}
+
+export interface ObscurementCommand extends CommandIdentity {
+  readonly region: TerrainRegion;
+  /** Lightly or heavily — the glossary's two degrees and no third. */
+  readonly degree: ObscurementDegree;
+  /** The casting that made it, if one did. */
+  readonly source?: string;
+}
+
+/**
+ * Declare a patch of the room obscured by something that is not the light.
+ *
+ * Fog, foliage, smoke — and SRD Fog Cloud, which is why this is a record of
+ * its own beside the light rather than a degree derived from a level: the
+ * spell makes its Sphere Heavily Obscured and says nothing whatever about how
+ * bright it is. What the light *does* imply is added at read time, in
+ * `obscurementAt`, so the two never have to be kept in step by anybody.
+ */
+export function declareObscurement(
+  state: GameState,
+  patch: string,
+  command: ObscurementCommand,
+): Result<GameEvent[]> {
+  const { region, degree, source } = command;
+
+  return once(state, `declare-obscurement:${patch}`, { ...command }, () => [], (stamp) => {
+    const scene = sceneFor(state, patch, `the air over ${patch} to be`);
+    if (!scene.ok) return scene;
+
+    if (source !== undefined && state.ongoing[source] === undefined) {
+      return err(
+        'unknown_casting',
+        `no casting ${source} is running, so there is nothing for ${patch} to last as long as`,
+      );
+    }
+
+    const declared = declareObscuringPatch(scene.value, patch, region, degree, source);
+    if (!declared.ok) return declared;
+
+    return ok([
+      {
+        type: 'obscurement-declared',
+        patch,
+        region,
+        degree,
         ...(source === undefined ? {} : { source }),
         ...(stamp === null ? {} : { command: stamp }),
       },
