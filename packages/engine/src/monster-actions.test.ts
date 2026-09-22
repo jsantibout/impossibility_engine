@@ -421,20 +421,35 @@ describe('a monster attacks with what its block prints', () => {
   });
 
   /**
-   * A held attack is SRD's "immediately after hitting" window, and everything
-   * it needs is written into `attack-landed` — which carries a weapon's id and
-   * has nowhere to put a printed line. Refused before anything is spent rather
-   * than rolled and then lost.
+   * A held attack is SRD's "immediately after hitting" window, and a printed
+   * line was refused it as long as `attack-landed` carried only a weapon's id
+   * and had nowhere to put a line — the damage could not have been rolled a
+   * command later. `PendingAttack.action` is that place, the owner ruled on
+   * 2026-09-21 that a monster's attack is holdable, and what the refusal cost
+   * is the subject of `held-monster-attack.test.ts`: SRD Shield reads no
+   * trigger but a held attack, so the only swings a party could answer were
+   * the ones another character made.
    */
-  it('refuses to hold a printed attack’s damage', () => {
+  it('holds a printed attack’s damage like any other', () => {
     const table = inTheWoods('wolf', WOLF);
-    const bite = resolveAttack(
-      table.state,
-      WOLF,
-      { target: BREN, weapon: null, action: 'Bite', hold: true },
-      supply(),
+    const bite = unwrap(
+      resolveAttack(
+        table.state,
+        WOLF,
+        {
+          target: BREN,
+          weapon: null,
+          action: 'Bite',
+          hold: true,
+          attackBonuses: [{ source: 'forced', flat: 40 }],
+        },
+        supply(),
+      ),
+      'the bite',
     );
-    expect(isErr(bite) ? bite.code : 'ok').toBe('cannot_hold');
+    const held = fold('fangs', [...table.events, ...bite.events]).pendingAttack;
+    expect(held?.attacker).toBe(WOLF);
+    expect(held?.action).toBe('Bite');
   });
 
   /** The whole point: the Wolf owns nothing, and bites anyway. */

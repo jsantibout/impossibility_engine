@@ -234,18 +234,14 @@ function printedAttackProblem(
     );
   }
 
-  // **SRD Divine Smite's window has nothing to hold here.** `attack-landed`
-  // pins what a held attack needs to roll its damage a command later, and what
-  // it pins is a weapon's catalogue id — there is nowhere in it for a printed
-  // line, and a hit whose damage could never be rolled is worse than a
-  // refusal. Nothing in the bestiary asks for the window.
-  if (command.hold === true) {
-    return err(
-      'cannot_hold',
-      `${printed.name} is an attack this creature's block prints, and its damage cannot be held for a second command`,
-    );
-  }
-
+  // **And the hold is not one of them, since 2026-09-21.** A printed line used
+  // to be refused here, because `attack-landed` pinned a weapon's catalogue id
+  // and had nowhere to say which line was swung — a hit whose damage could
+  // never be rolled. What that refusal cost was not SRD Divine Smite, which no
+  // stat block buys, but the window on the *other* side of the hit: the only
+  // trigger SRD Shield reads is a held attack, so a party fighting monsters —
+  // which is every party — was never offered one. `PendingAttack.action` is
+  // the missing fact and the owner ruled the rest.
   return null;
 }
 
@@ -1391,6 +1387,12 @@ export function resolveAttack(
           attacker: id,
           target: command.target,
           weapon: command.weapon,
+          // The stat block's own line, where this swing was one. Its identity
+          // rather than its numbers, for the reason the weapon above it is an
+          // id — see {@link PendingAttack.action}. `printed` is non-null
+          // exactly when `command.action` was named and found, so the two
+          // cannot disagree about which line is being held.
+          ...(printed === null ? {} : { action: printed.name }),
           twoHanded: command.twoHanded === true,
           thrown: command.thrown === true,
           ...(command.finesseAbility === undefined
@@ -1790,6 +1792,25 @@ export function resolveAttackDamage(
     const sheet = sheetAsItStands(state, id) ?? attacker.sheet;
 
     const weapon = pending.weapon === null ? null : (supply.content.item(pending.weapon)?.weapon ?? null);
+
+    // **The line the hold pinned, read back off the sheet above.** The weapon
+    // beside it is re-read from the catalogue by its id; this is the same move
+    // against the same identity, and the record it lands in is the creature's
+    // own — a stat block's attacks were pinned into `creature-added`, so no
+    // catalogue is opened here either.
+    //
+    // A line the sheet no longer prints is a programmer's error dressed as a
+    // rules question, so it is refused rather than quietly settled as an
+    // Unarmed Strike: the swing that opened this hold found it a moment ago.
+    const printed = pending.action === undefined ? null : printedAttackOf(sheet, pending.action);
+    if (pending.action !== undefined && printed === null) {
+      return err(
+        'unknown_action',
+        `the hit being settled was made with ${pending.action}, and ${id}'s stat block no longer prints a line by that name`,
+      );
+    }
+    const stated = statedInPlay(printed, pending.thrown);
+
     const heldStyle = strikeStyleFor(state, id, {
       weapon,
       wielding: wieldingOf(supply.content, attacker),
@@ -1811,7 +1832,10 @@ export function resolveAttackDamage(
 
     const fromFeatures = standingAttackDamage(current, id, {
       ability: pending.ability,
-      melee: rangeOf(weapon, pending.thrown) === null,
+      // **The same question `resolveAttack` asks, and asked the same way.** A
+      // printed line says which of the two it is and has no weapon behind it,
+      // so asking the weapon would make a Goblin's held Shortbow shot melee.
+      melee: stated === undefined ? rangeOf(weapon, pending.thrown) === null : !stated.ranged,
       weapon,
       // The weapon the hit was made with was written down when it landed, so a
       // held attack narrows on the same fact the ordinary one does.
@@ -1833,6 +1857,9 @@ export function resolveAttackDamage(
       sheet,
       {
         weapon,
+        // What a printed line's damage is rolled from — the same field the
+        // unheld swing hands `rollAttackDamage`, off the same line.
+        ...(stated === undefined ? {} : { statedAttack: stated }),
         // Re-derived rather than pinned on the held attack, for the reason the
         // sheet above is re-read: the style's own gate is "while you aren't
         // wearing armor", so a Monk who put a breastplate on between the roll
@@ -1895,7 +1922,9 @@ export function resolveAttackDamage(
       after,
       pending.target,
       rolled.value.components,
-      weapon?.name ?? 'Unarmed Strike',
+      // `attackName`'s reading, on the far side of the hold: the block's own
+      // heading first, so a Bite is reported as a Bite rather than as a fist.
+      printed?.name ?? weapon?.name ?? 'Unarmed Strike',
       supply,
       {
         by: pending.attacker,

@@ -811,7 +811,7 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
     {
       clause: 'the shield erupts with flame',
       why: 'a-spell-that-answers-a-later-attack',
-      note: 'the eruption fires on somebody else\u2019s melee attack after it has hit, and a casting is offered no window on another creature\u2019s attack \u2014 the same absence Sanctuary, Shield and Mirror Image all wait on.',
+      note: 'the eruption fires on somebody else\u2019s melee attack after it has hit, and a casting is offered no window on another creature\u2019s attack \u2014 the same absence Sanctuary and Mirror Image wait on. **Not the absence SRD Shield waited on**, and the difference is the whole of this shape: Shield is a Reaction somebody takes into a hit that is being held, and it became reachable against a monster on 2026-09-21, when a stat block’s line was allowed to take the hold like anybody else’s. Nobody takes this one.',
     },
     {
       clause: 'the 2d8 the attacker takes is not dealt',
@@ -1755,7 +1755,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: 'condition',
       clause: 'if it has the Blinded condition, Blindsight, or Truesight',
       why: 'a-spell-that-answers-a-later-attack',
-      note: '**re-filed rather than retired**, and two pieces short rather than one. The sense half of this clause is built: a selector now carries `unlessPerceivedWith` and the attacker’s senses are read at the swing, which finished Blur’s. The Blinded half is not — that axis names senses and a condition is not one, so the first three words of this sentence have no field even now. And neither half has anything to except *from*: the duplicates are the spell, the deflection they perform answers somebody else’s attack after it has landed, and a casting is offered no window on another creature’s attack, which is the same absence Sanctuary, Shield and Fire Shield wait on and the blocker this is charged to. Retiring the entry when the sense axis landed would have read in the ledger as a finished spell.',
+      note: '**re-filed rather than retired**, and two pieces short rather than one. The sense half of this clause is built: a selector now carries `unlessPerceivedWith` and the attacker’s senses are read at the swing, which finished Blur’s. The Blinded half is not — that axis names senses and a condition is not one, so the first three words of this sentence have no field even now. And neither half has anything to except *from*: the duplicates are the spell, the deflection they perform answers somebody else’s attack after it has landed, and a casting is offered no window on another creature’s attack, which is the same absence Sanctuary and Fire Shield wait on and the blocker this is charged to. **Not Shield’s**: that one is a Reaction its caster takes into a hit still being held, and holding a monster’s swing — the owner’s ruling of 2026-09-21 — is what made it reachable in a fight against monsters. Nothing here is taken by anybody, so nothing here came with it. Retiring the entry when the sense axis landed would have read in the ledger as a finished spell.',
     },
   ],
   seeming: [
@@ -2067,7 +2067,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: 'saving-throw',
       clause: 'must succeed on a Wisdom saving throw or either choose a new target or lose the attack or spell',
       why: 'a-spell-that-answers-a-later-attack',
-      note: 'the save belongs to whoever attacks the warded creature, so the spell has to be offered a window on somebody else’s attack. There is none: the reaction windows a casting answers are the caster’s own, and Shield and Mirror Image wait on the same absence.',
+      note: 'the save belongs to whoever attacks the warded creature, so the spell has to be offered a window on somebody else’s attack. There is none: the reaction windows a casting answers are the caster’s own, and Mirror Image waits on the same absence. **SRD Shield does not**: it is a Reaction its caster takes into a hit that is still open, and a monster’s swing can be held open since 2026-09-21 — a window somebody steps into, where this is a save the rules make the attacker roll whether anybody is watching or not.',
     },
   ],
   sleep: [
