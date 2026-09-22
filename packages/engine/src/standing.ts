@@ -2566,14 +2566,9 @@ export function sensesOf(state: GameState, who: CharacterId): readonly CreatureS
  */
 export function canSee(state: GameState, from: CharacterId, to: CharacterId): boolean | null {
   if (state.scene === null) return null;
-  const obscurement = obscuredFrom(state, from, to);
-  return sightBetween(
-    state.scene,
-    from,
-    to,
-    sensesOf(state, from),
-    obscurement === null ? {} : { obscurement },
-  );
+  return sightBetween(state.scene, from, to, sensesOf(state, from), {
+    obscured: obscuredFrom(state, from, to),
+  });
 }
 
 /**
@@ -2615,34 +2610,34 @@ export function seesThroughOf(
  * The SRD's sentence is about the target's space — "while trying to see
  * something in that area" — so a creature standing in pitch darkness sees a
  * lit target perfectly, and this never reads the looker's own square.
+ *
+ * **False is "nothing is in the way", not "you can see"**, which is the
+ * ordering the note gives and the reason this answers a boolean rather than a
+ * verdict: a looker who defeats the dark is returned to the question they
+ * would have been asked in a lit room, where a declaration or a sight-sense
+ * settles it. SRD Devil's Sight's own word is "normally".
  */
-function obscuredFrom(
-  state: GameState,
-  from: CharacterId,
-  to: CharacterId,
-): 'blocked' | 'pierced' | null {
+function obscuredFrom(state: GameState, from: CharacterId, to: CharacterId): boolean {
   const scene = state.scene;
-  if (scene === null || from === to) return null;
+  if (scene === null || from === to) return false;
   const where = positionOf(scene, to);
-  if (where === null) return null;
+  if (where === null) return false;
 
   const here = obscurementAt(state, where);
   // Lightly Obscured, Bright Light and a space nobody has spoken about all
   // leave the question exactly where it was: with the declaration and the
   // sense. Light changes the answer only where the book says it does.
-  if (here.degree !== 'heavily') return null;
+  if (here.degree !== 'heavily') return false;
 
   const apart = distanceBetween(scene, from, to);
   const reach = apart.ok ? apart.value : null;
   const darkness = seesThroughOf(state, from).darkness;
 
-  return piercesObscurement(
+  return !piercesObscurement(
     here,
     sensesReaching(scene, sensesOf(state, from), from, to),
     darkness !== undefined && reach !== null && reach <= darkness ? [{ feet: darkness }] : [],
-  )
-    ? 'pierced'
-    : 'blocked';
+  );
 }
 
 /**

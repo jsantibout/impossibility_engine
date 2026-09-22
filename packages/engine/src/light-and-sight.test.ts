@@ -10,6 +10,10 @@ import { createRng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { spellSlotKey } from './resources.js';
 import { declaredCasting } from './spellcasting.js';
+import { checkSpellDefinition } from './spell-schema.js';
+import type { SpellDefinition } from './spell-definitions.js';
+import { checkContent } from './content.js';
+import type { SpeciesDefinition } from './origins.js';
 
 /**
  * Light, obscurement, and the one step they add to the sight question.
@@ -164,11 +168,18 @@ describe('a dwarf thirty feet from an orc', () => {
     expect(seeing([darknessOver(ORC, 'Darkness', { magical: { spellLevel: 2 } })])).toBe(false);
   });
 
+  /**
+   * **Devil's Sight lifts the impediment; the Darkvision under it answers.**
+   * SRD's word is "normally", so what the invocation buys is the *removal* of
+   * the sentence that stops Darkvision working — which is why the tiefling
+   * below carries both, as every SRD tiefling does, and why the dwarf beside
+   * her with Darkvision alone is still blind in the same square.
+   */
   it("sees her in that same magical darkness with Devil's Sight", () => {
     const state = fold(
       'light',
       [
-        added(id('tiefling'), { standing: [DEVILS_SIGHT] }),
+        added(id('tiefling'), { standing: [DEVILS_SIGHT, DARKVISION_60] }),
         ...TABLE,
         {
           type: 'creature-placed',
@@ -181,6 +192,33 @@ describe('a dwarf thirty feet from an orc', () => {
     );
 
     expect(canSee(state, id('tiefling'), ORC)).toBe(true);
+    // The contrast, in the same square: the dwarf has the same Darkvision and
+    // not the invocation, and the magical darkness still stops her.
+    expect(canSee(state, DWARF, ORC)).toBe(false);
+  });
+
+  /**
+   * And the impediment is all it removes. A creature with the invocation and
+   * no sight-sense at all is back where the question started — `null`, which
+   * is "ask", exactly as it would be in a lit room nobody has described.
+   */
+  it("gives a creature with nothing but Devil's Sight the question back", () => {
+    const state = fold(
+      'light',
+      [
+        added(id('imp'), { standing: [DEVILS_SIGHT] }),
+        ...TABLE,
+        {
+          type: 'creature-placed',
+          id: id('imp'),
+          placement: { from: { creature: DWARF }, feet: 5, bearing: 270 },
+        },
+        darknessOver(ORC, 'Darkness', { magical: { spellLevel: 2 } }),
+      ],
+      SRD_CONTENT,
+    );
+
+    expect(canSee(state, id('imp'), ORC)).toBeNull();
   });
 
   it('sees her regardless once the table declares the sight line', () => {
@@ -231,7 +269,7 @@ describe('Hide', () => {
   ];
 
   const supply = () => ({
-    issuer: createRollIssuer(createRng('fog')),
+    issuer: createRollIssuer('fog'),
     rng: createRng('fog'),
     content: SRD_CONTENT,
   });
@@ -367,7 +405,7 @@ describe('a Darkness the engine casts', () => {
   ];
 
   const supply = () => ({
-    issuer: createRollIssuer(createRng('dark')),
+    issuer: createRollIssuer('dark'),
     rng: createRng('dark'),
     content: SRD_CONTENT,
   });
@@ -429,6 +467,214 @@ describe('a Darkness the engine casts', () => {
 
     expect(state.ongoing[castingId]).toBeUndefined();
     expect(lightAt(state, { x: 130, y: 100, z: 0 }).level).toBeNull();
+  });
+});
+
+// ─── 4c. the three spells, each laying what it prints ───────────────────────
+
+/**
+ * Daylight, Fog Cloud and the sentence the two of them share with Darkness.
+ *
+ * Driven through `resolveSpell` rather than asserted off the definitions,
+ * because the three things this half of P3-S added are all things the
+ * *casting* does and a definition cannot: the second, wider patch of Dim
+ * Light; the radius a higher slot buys; and the dispel two overlapping areas
+ * of opposite light owe each other.
+ */
+describe('a casting lays what its spell prints', () => {
+  const CASTER = id('caster');
+  const BYSTANDER = id('bystander');
+
+  /**
+   * Two casters, and the second one is two hundred and sixty feet away on
+   * purpose: the only way two of these areas can fail to overlap is for the
+   * casters to be nowhere near each other, since Daylight alone reaches sixty
+   * feet of range and a hundred and twenty of radius.
+   */
+  const room = (prepared: readonly string[], slots: readonly number[]): readonly GameEvent[] => [
+    added(CASTER, { spellcastingAbility: 'int' }),
+    added(BYSTANDER, { spellcastingAbility: 'int' }),
+    ...[CASTER, BYSTANDER].flatMap((who) =>
+      slots.map(
+        (level): GameEvent => ({
+          type: 'resource-pool-declared',
+          id: who,
+          pool: {
+            key: spellSlotKey(level),
+            label: `level ${level} spell slot`,
+            max: 3,
+            recovers: 'long-rest',
+          },
+        }),
+      ),
+    ),
+    ...[CASTER, BYSTANDER].map(
+      (who): GameEvent => ({
+        type: 'spellcasting-declared',
+        id: who,
+        spellcasting: declaredCasting({ ability: 'int', prepared: [...prepared] }),
+      }),
+    ),
+    { type: 'scene-set', extent: { width: 600, depth: 600, height: 40 } },
+    { type: 'landmark-added', name: 'the gate', at: { x: 300, y: 300, z: 0 } },
+    { type: 'creature-placed', id: CASTER, placement: { from: { landmark: 'the gate' }, feet: 0 } },
+    {
+      type: 'creature-placed',
+      id: BYSTANDER,
+      placement: { from: { creature: CASTER }, feet: 260, bearing: 90 },
+    },
+  ];
+
+  const supply = (seed: string) => ({
+    issuer: createRollIssuer(seed),
+    rng: createRng(seed),
+    content: SRD_CONTENT,
+  });
+
+  const cast = (
+    log: readonly GameEvent[],
+    spellId: string,
+    at: { x: number; y: number; z: number },
+    slotLevel: number,
+    by: CharacterId = CASTER,
+  ): readonly GameEvent[] => [
+    ...log,
+    ...unwrap(
+      resolveSpell(
+        fold('light', log, SRD_CONTENT),
+        by,
+        { spellId, targets: [], at, slotLevel },
+        supply(`${spellId}:${by}`),
+      ),
+      spellId,
+    ).events,
+  ];
+
+  /**
+   * SRD Daylight: "The sunlight's area is Bright Light and sheds Dim Light for
+   * an additional 60 feet." Two patches on one origin, and the bright core
+   * wins where they overlap because `lightAt` takes the strongest.
+   */
+  it('lays Daylight’s bright core and the dim ring beyond it', () => {
+    const log = cast(room(['daylight'], [3]), 'daylight', { x: 340, y: 300, z: 0 }, 3);
+    const state = fold('light', log, SRD_CONTENT);
+
+    expect(log.filter((event) => event.type === 'light-declared')).toHaveLength(2);
+    // Sixty feet of bright, and the sun's own flag on it.
+    expect(lightAt(state, { x: 340, y: 300, z: 0 })).toMatchObject({
+      level: 'bright',
+      sunlight: true,
+    });
+    expect(lightAt(state, { x: 395, y: 300, z: 0 }).level).toBe('bright');
+    // Sixty more of dim, which is not sunlight and says so.
+    expect(lightAt(state, { x: 440, y: 300, z: 0 })).toMatchObject({
+      level: 'dim',
+      sunlight: false,
+    });
+    // And nothing at all past the ring: no default ambient, out here either.
+    expect(lightAt(state, { x: 480, y: 300, z: 0 }).level).toBeNull();
+  });
+
+  /**
+   * SRD Fog Cloud: "The fog's radius increases by 20 feet for each spell slot
+   * level above 1." Expressible on the patch and not on the area, because the
+   * patch is worked out at the casting and pinned.
+   */
+  it('grows Fog Cloud’s bank by the slot that paid for it', () => {
+    const one = fold(
+      'light',
+      cast(room(['fog-cloud'], [1, 3]), 'fog-cloud', { x: 340, y: 300, z: 0 }, 1),
+      SRD_CONTENT,
+    );
+    const three = fold(
+      'light',
+      cast(room(['fog-cloud'], [1, 3]), 'fog-cloud', { x: 340, y: 300, z: 0 }, 3),
+      SRD_CONTENT,
+    );
+
+    const edge = { x: 390, y: 300, z: 0 };
+    expect(obscurementAt(one, { x: 340, y: 300, z: 0 }).degree).toBe('heavily');
+    // Fifty feet out: outside the level 1 Sphere, inside the level 3 one.
+    expect(obscurementAt(one, edge).degree).toBeNull();
+    expect(obscurementAt(three, edge).degree).toBe('heavily');
+    // And the fog says nothing about the light, which is why it is a record
+    // of its own: a bank of fog at noon is still bright and still blinding.
+    expect(obscurementAt(three, edge).light.level).toBeNull();
+  });
+
+  /**
+   * SRD Darkness: "If any of this spell's area overlaps with an area of Bright
+   * Light or Dim Light created by a spell of level 2 or lower, that other
+   * spell is dispelled." SRD Daylight prints the mirror of it at level 3.
+   */
+  describe('the mutual dispel', () => {
+    const lit = () => cast(room(['daylight', 'darkness'], [2, 3]), 'daylight', { x: 340, y: 300, z: 0 }, 3);
+
+    const castingOf = (log: readonly GameEvent[], spellId: string): string => {
+      const record = log.find(
+        (event) => event.type === 'spell-ongoing' && event.casting.spellId === spellId,
+      );
+      return record?.type === 'spell-ongoing' ? record.casting.castingId : '';
+    };
+
+    /** Daylight is level 3, and Darkness's threshold is 2. It survives. */
+    it('leaves a light the incoming darkness does not out-rank', () => {
+      const log = cast(lit(), 'darkness', { x: 350, y: 300, z: 0 }, 2);
+      const state = fold('light', log, SRD_CONTENT);
+
+      expect(log.filter((event) => event.type === 'spell-ended')).toEqual([]);
+      expect(state.ongoing[castingOf(log, 'daylight')]).toBeDefined();
+      // **And the sunlight wins the square, which is the SRD's own sentence
+      // read exactly as far as it goes.** Darkness says "*nonmagical* light
+      // can't illuminate it", so magical light can — and the book's way of
+      // settling which magical light governs is the dispel, which this
+      // Darkness lost by being level 2. A level 2 Darkness cast into a
+      // Daylight therefore does nothing at all, which is what the pair of
+      // printed thresholds says.
+      expect(lightAt(state, { x: 350, y: 300, z: 0 })).toMatchObject({
+        level: 'bright',
+        magical: true,
+      });
+    });
+
+    /** And the other way about: Daylight at 3 puts out a Darkness at 2. */
+    it('puts out a darkness the incoming light does out-rank', () => {
+      const dark = cast(room(['daylight', 'darkness'], [2, 3]), 'darkness', { x: 340, y: 300, z: 0 }, 2);
+      const casting = castingOf(dark, 'darkness');
+      expect(fold('light', dark, SRD_CONTENT).ongoing[casting]).toBeDefined();
+
+      const log = cast(dark, 'daylight', { x: 350, y: 300, z: 0 }, 3);
+      const state = fold('light', log, SRD_CONTENT);
+
+      expect(
+        log.filter((event) => event.type === 'spell-ended').map((event) =>
+          event.type === 'spell-ended' ? event.castingId : '',
+        ),
+      ).toEqual([casting]);
+      expect(state.ongoing[casting]).toBeUndefined();
+      expect(lightAt(state, { x: 340, y: 300, z: 0 }).level).toBe('bright');
+    });
+
+    /**
+     * Two areas that do not overlap argue about nothing — and this is the one
+     * case where the scan actually runs and finds nothing, rather than being
+     * skipped because there was no candidate to look for.
+     */
+    it('leaves a darkness the light does not reach', () => {
+      const dark = cast(
+        room(['daylight', 'darkness'], [2, 3]),
+        'darkness',
+        { x: 300, y: 300, z: 0 },
+        2,
+      );
+      const log = cast(dark, 'daylight', { x: 560, y: 300, z: 0 }, 3, BYSTANDER);
+      const state = fold('light', log, SRD_CONTENT);
+
+      expect(log.filter((event) => event.type === 'spell-ended')).toEqual([]);
+      expect(state.ongoing[castingOf(dark, 'darkness')]).toBeDefined();
+      expect(lightAt(state, { x: 300, y: 300, z: 0 }).level).toBe('darkness');
+      expect(lightAt(state, { x: 560, y: 300, z: 0 }).level).toBe('bright');
+    });
   });
 });
 
@@ -611,5 +857,175 @@ describe('the two declarations', () => {
         }),
       ),
     ).toBe(true);
+  });
+});
+
+// ─── the other door the same rules come through ─────────────────────────────
+
+/**
+ * The validator's half, which is the half homebrew hits.
+ *
+ * `declareLightPatch`'s refusals above are the table's door; these are a
+ * *definition's*, and the rule is kept at both for the reason
+ * `spell-schema.ts` already states of the terrain rate — a definition the
+ * validator let through would throw in the reducer rather than be refused at
+ * authoring, which is a corrupt log instead of a rejected book.
+ */
+describe('a definition that sheds or obscures', () => {
+  const base: SpellDefinition = {
+    id: 'homebrew-gloom',
+    name: 'Homebrew Gloom',
+    level: 2,
+    school: 'evocation',
+    castingTime: 'action',
+    concentration: true,
+    range: { kind: 'ranged', feet: 60 },
+    targets: { count: 0 },
+    area: { kind: 'sphere', radius: 15, origin: 'point' },
+    effects: [],
+    durationSeconds: 600,
+    // The patch *is* what this spell resolves, and the line says what is left
+    // — which is what keeps a definition with an empty effect list from being
+    // a silent one.
+    unmodelled: ['the smell of the gloom is the DM’s'],
+  };
+  const codes = (definition: SpellDefinition): readonly string[] =>
+    checkSpellDefinition(definition).map((problem) => problem.code);
+
+  it('is accepted whole where every field agrees', () => {
+    expect(codes({ ...base, areaLight: { level: 'darkness' } })).toEqual([]);
+    expect(
+      codes({ ...base, areaLight: { level: 'bright', dimBeyond: 20, sunlight: true } }),
+    ).toEqual([]);
+    expect(
+      codes({ ...base, areaObscurement: { degree: 'heavily', radiusPerSlotLevelAbove: 20 } }),
+    ).toEqual([]);
+  });
+
+  /** Light lies over an area; a spell with no volume lights no part of a room. */
+  it('refuses light and fog on a spell with no area', () => {
+    const { area, ...rest } = base;
+    expect(area).toBeDefined();
+    const areaLess: SpellDefinition = rest;
+    expect(codes({ ...areaLess, areaLight: { level: 'dim' } })).toContain('light_without_area');
+    expect(codes({ ...areaLess, areaObscurement: { degree: 'heavily' } })).toContain(
+      'obscurement_without_area',
+    );
+  });
+
+  /** The glossary's three words and its two, closed at this door as at the other. */
+  it('refuses a word the glossary does not print', () => {
+    expect(codes({ ...base, areaLight: { level: 'gloomy' as 'dim' } })).toContain(
+      'bad_light_level',
+    );
+    expect(
+      codes({ ...base, areaObscurement: { degree: 'somewhat' as 'lightly' } }),
+    ).toContain('bad_obscurement');
+  });
+
+  it('refuses sunlight that is not bright', () => {
+    expect(codes({ ...base, areaLight: { level: 'dim', sunlight: true } })).toContain(
+      'bad_sunlight',
+    );
+  });
+
+  /**
+   * Light spreading past the area is measured from the area's edge, and only
+   * a Sphere has an edge that is one number — so a ring around a Cone is a
+   * field that would silently lay nothing.
+   */
+  it('refuses a dim ring it could not measure, and one of no size', () => {
+    expect(codes({ ...base, areaLight: { level: 'bright', dimBeyond: 0 } })).toContain(
+      'bad_dim_beyond',
+    );
+    expect(
+      codes({
+        ...base,
+        area: { kind: 'cone', length: 30, origin: 'self' },
+        areaLight: { level: 'bright', dimBeyond: 20 },
+      }),
+    ).toContain('dim_beyond_without_a_radius');
+  });
+
+  it('refuses fog that grows by nothing, and fog that grows with no radius', () => {
+    expect(
+      codes({ ...base, areaObscurement: { degree: 'heavily', radiusPerSlotLevelAbove: 0 } }),
+    ).toContain('bad_obscurement_growth');
+    expect(
+      codes({
+        ...base,
+        area: { kind: 'cube', size: 20, origin: 'point' },
+        areaObscurement: { degree: 'heavily', radiusPerSlotLevelAbove: 20 },
+      }),
+    ).toContain('growth_without_a_radius');
+  });
+
+  /**
+   * And the one that is a *duplication* rather than a contradiction: a level
+   * implies its own degree in `obscurementAt`, so a definition that writes
+   * both has two records of one fact and one of them will go stale.
+   */
+  it('refuses an obscurement the light already states', () => {
+    expect(
+      codes({
+        ...base,
+        areaLight: { level: 'darkness' },
+        areaObscurement: { degree: 'heavily' },
+      }),
+    ).toContain('obscurement_the_light_already_says');
+    // Bright says nothing about obscurement, so fog beside it is Web's own
+    // sentence and not a second spelling of anything.
+    expect(
+      codes({
+        ...base,
+        areaLight: { level: 'bright' },
+        areaObscurement: { degree: 'lightly' },
+      }),
+    ).toEqual([]);
+  });
+});
+
+/**
+ * And the grant that is not a sense, held to the same shape at both doors.
+ */
+describe('a sees-through grant', () => {
+  /** A species carrying one feature, so the validator is asked about a grant. */
+  const speciesGranting = (grant: unknown): SpeciesDefinition =>
+    ({
+      id: 'nightfolk',
+      name: 'Nightfolk',
+      creatureType: 'Humanoid',
+      sizes: ['Medium'],
+      speed: 30,
+      features: [
+        {
+          id: 'nightfolk:devils-sight',
+          name: "Devil's Sight",
+          level: 1,
+          automation: 'engine',
+          note: 'Applied whole: the range reaches the sight question.',
+          grants: { kind: 'standing', effects: [grant] },
+        },
+      ],
+    }) as unknown as SpeciesDefinition;
+
+  const problems = (grant: unknown): readonly string[] =>
+    checkContent({ species: [speciesGranting(grant)] }).map((problem) => problem.code);
+
+  it('is accepted where it names the one thing the book prints', () => {
+    expect(problems({ kind: 'sees-through', through: 'darkness', feet: 120 })).toEqual([]);
+  });
+
+  it('refuses something no rule knows how to see through', () => {
+    expect(problems({ kind: 'sees-through', through: 'walls', feet: 120 })).toContain(
+      'bad_sees_through',
+    );
+  });
+
+  /** A range of nothing reaches nobody, which is `sense_of_no_range`'s rule. */
+  it('refuses a range that reaches nobody', () => {
+    expect(problems({ kind: 'sees-through', through: 'darkness', feet: 0 })).toContain(
+      'bad_sees_through_range',
+    );
   });
 });

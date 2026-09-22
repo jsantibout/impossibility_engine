@@ -835,6 +835,13 @@ export function forcePrintedSave(
       const ability: Ability = printed.ability;
       const outcomes: PrintedSaveOnACreature[] = [];
       let current = events.reduce(applyEvent, state);
+      // **Where the generator was before this command threw anything**, read
+      // once and written back once at the end. Everything below draws from it
+      // — a save for every creature the line caught, and a damage roll for
+      // every one that did not walk away clean — so a single `rolls-issued`
+      // covers the lot, which is `resolveEffects`' shape rather than `hide`'s
+      // one-roll one.
+      const issuedBefore = supply.issuer.count;
 
       for (const target of targets) {
         const victim = current.creatures[target];
@@ -914,6 +921,23 @@ export function forcePrintedSave(
           save: save.value,
           damage: hurt.value.amount,
           concentration: hurt.value.concentration,
+        });
+      }
+
+      // **The generator's position, written back where every other rolling
+      // command writes it.** Without it this command threw a save and a
+      // handful of damage dice, moved the generator, and told the log
+      // nothing — so a session resumed from that log rebuilt the stream from
+      // the seed and the *next* command drew the very same faces under the
+      // very same roll ids. Rule 3 says a log folds to one state forever, and
+      // a stream that silently rewinds is the one way that stops being true.
+      // Latent until now because nothing above the engine imported the
+      // command; it is on the DM's door this batch.
+      if (supply.issuer.count > issuedBefore) {
+        events.push({
+          type: 'rolls-issued',
+          count: supply.issuer.count - issuedBefore,
+          rng: supply.rng.snapshot(),
         });
       }
 

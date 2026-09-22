@@ -1966,6 +1966,11 @@ export function lightDispelledBy(
   const candidates = livePatchesOf(state, scene.light).filter(([, patch]) => opposes(patch));
   if (candidates.length === 0) return [];
 
+  // **Castings, not patches**, which is what the early exit below has to
+  // count: SRD Daylight lays two patches on one casting — the bright core and
+  // the dim ring — so a scan that stopped when it had found as many patches
+  // as candidates would never stop at all where that spell is the candidate.
+  const atStake = new Set(candidates.map(([, patch]) => patch.source));
   const dispelled = new Set<string>();
   for (let x = 0; x <= scene.extent.width; x += CUBE) {
     for (let y = 0; y <= scene.extent.depth; y += CUBE) {
@@ -1976,7 +1981,7 @@ export function lightDispelledBy(
           if (patch.source === undefined || dispelled.has(patch.source)) continue;
           if (spaceInRegion(scene, patch.region, space)) dispelled.add(patch.source);
         }
-        if (dispelled.size === candidates.length) return [...dispelled].sort();
+        if (dispelled.size === atStake.size) return [...dispelled].sort();
       }
     }
   }
@@ -2368,9 +2373,9 @@ export function sensesReaching(
  * nothing to say, and what the table declared was about cover rather than
  * about sight, so the honest response is still to ask.
  *
- * **`obscurement` is the light model's one step**, between the declaration
- * and the sense. It is passed in rather than worked out here because working
- * it out means reading the looker's senses against the *target's* space, and
+ * **`obscured` is the light model's one step**, between the declaration and
+ * the sense. It is passed in rather than worked out here because working it
+ * out means reading the looker's senses against the *target's* space, and
  * this module holds no creature to read a sense off — `canSee` in
  * `standing.ts` gathers both and asks {@link piercesObscurement}. A caller
  * that passes nothing gets the answer this function has always given, which
@@ -2381,7 +2386,7 @@ export function sightBetween(
   from: CharacterId,
   to: CharacterId,
   senses: readonly CreatureSense[] = [],
-  options: { readonly obscurement?: 'blocked' | 'pierced' } = {},
+  options: { readonly obscured?: boolean } = {},
 ): boolean | null {
   if (from === to) return true;
   const declared = state.sight[coverKey(from, to)];
@@ -2390,13 +2395,17 @@ export function sightBetween(
 
   // The one step light adds, **after** the declaration and before the sense:
   // whatever lies over the target's space, read against this looker's senses
-  // by `obscuredFrom` in `standing.ts`. Either way it is a **verdict** rather
-  // than homework — somebody declared the fog, and a target the book says is
-  // Heavily Obscured is one you cannot see unless something of yours pierces
-  // it, in which case you can. Only a space nobody has spoken about falls
-  // through to the sense below.
-  if (options.obscurement === 'blocked') return false;
-  if (options.obscurement === 'pierced') return true;
+  // by `obscuredFrom` in `standing.ts`.
+  //
+  // **It answers `false` and never `true`**, which is the note's own ordering
+  // and is worth saying because the other reading is tempting. Heavy
+  // obscurement is an *impediment*: SRD Devil's Sight says "you can see
+  // normally in Darkness", and normally is whatever this question already
+  // answered — so a looker who defeats the dark falls through to the sense
+  // below and gets the answer they would have got in a lit room. Answering
+  // `true` here would assert sight in a pitch-dark cellar that the same
+  // engine declines to assert at noon.
+  if (options.obscured === true) return false;
 
   const reaching = sensesReaching(
     state,
