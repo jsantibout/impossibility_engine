@@ -403,7 +403,7 @@ describe('the validator holds the pairing', () => {
    * area's change through a branch that names every member precisely because
    * one it did not name would be read as a Speed of 0.
    */
-  const riderCodes = (rider: unknown): readonly string[] =>
+  const problemsOfRider = (rider: unknown) =>
     checkSpellDefinitionValue({
       id: 'mode-rider',
       name: 'Mode Rider',
@@ -422,9 +422,12 @@ describe('the validator holds the pairing', () => {
           modifiers: [rider],
         },
       ],
-    }).map((problem) => problem.code);
+    });
 
-  const areaCodes = (standing: unknown): readonly string[] =>
+  const riderCodes = (rider: unknown): readonly string[] =>
+    problemsOfRider(rider).map((problem) => problem.code);
+
+  const problemsOfArea = (standing: unknown) =>
     checkSpellDefinitionValue({
       id: 'mode-area',
       name: 'Mode Area',
@@ -441,7 +444,16 @@ describe('the validator holds the pairing', () => {
       // A definition the engine resolves nothing of must say what the DM
       // adjudicates; this fixture is about the area's Speed and nothing else.
       unmodelled: ['everything but the halved Speed is outside this fixture'],
-    }).map((problem) => problem.code);
+    });
+
+  const areaCodes = (standing: unknown): readonly string[] =>
+    problemsOfArea(standing).map((problem) => problem.code);
+
+  const riderReasons = (rider: unknown): readonly string[] =>
+    problemsOfRider(rider).map((problem) => problem.reason);
+
+  const areaReasons = (standing: unknown): readonly string[] =>
+    problemsOfArea(standing).map((problem) => problem.reason);
 
   it('accepts the two changes each carrier really writes', () => {
     expect(
@@ -465,11 +477,21 @@ describe('the validator holds the pairing', () => {
     );
   });
 
+  /**
+   * **Read by its reason rather than by its code**, which is the one place in
+   * this file where that matters: two rules refuse a `match-walk` here — the
+   * carrier one, because a rider and an area hold no mode, and the modes-path
+   * one, because a match with no mode is a match with nothing to give — and
+   * they share `bad_speed_change`. Asserting the code alone would pass under
+   * either, so it could not tell which rule was doing the work.
+   */
   it('refuses a match on a rider and on an area, which have no mode to give', () => {
     expect(
-      riderCodes({ kind: 'speed-change', change: 'match-walk', lasts: 'start-of-casters-next-turn' }),
-    ).toContain('bad_speed_change');
-    expect(areaCodes({ kind: 'speed', change: 'match-walk' })).toContain('bad_speed_change');
+      riderReasons({ kind: 'speed-change', change: 'match-walk', lasts: 'start-of-casters-next-turn' }).join(' '),
+    ).toContain('no mode to give it in');
+    expect(areaReasons({ kind: 'speed', change: 'match-walk' }).join(' ')).toContain(
+      'no mode to give it in',
+    );
   });
 
   it('refuses hovering on a rider, which reads no such field either', () => {
@@ -511,5 +533,57 @@ describe('a feat is held to the same pairing a feature is', () => {
     expect(featCodes({ kind: 'speed', change: 'halve', mode: 'climb' })).toContain(
       'bad_speed_change',
     );
+  });
+
+  /**
+   * **Hovering is where this door and the spell's part company.** SRD Fly
+   * hands over "and can hover" and `fliesWithoutFallingOn` reads it off the
+   * stored grant; a feature's grant is derived onto a sheet, where the only
+   * hover anything reads is the one a stat block printed. So a feature that
+   * wrote one would be a flier who silently falls.
+   */
+  it('refuses hovering on a grant, which no reader would ever find', () => {
+    expect(featCodes({ kind: 'speed', change: 'add', feet: 30, mode: 'climb', hover: true })).toContain(
+      'bad_speed_change',
+    );
+  });
+
+  /**
+   * **One problem per problem.** A class feature reaches two doors —
+   * `checkFeatureDefinition` and, through `checkContent`, the shared function a
+   * feat's grant goes through — and for a while both held the same effect at
+   * the same path, so an author fixed one mistake and was shown it twice.
+   */
+  it('reports a feature’s bad Speed once rather than once per door', () => {
+    const problems = checkContent({
+      classes: [
+        {
+          id: 'homebrew:wallwalker',
+          name: 'Wallwalker',
+          hitDie: 8,
+          primaryAbility: ['dex'],
+          saveProficiencies: ['dex', 'int'],
+          proficiencies: { armor: [], weapons: [], tools: [], skillChoices: 2, skillsFrom: ['stealth', 'acrobatics'] },
+          startingEquipment: { options: [] },
+          multiclass: {},
+          table: Array.from({ length: 20 }, (_unused, level) => ({ level: level + 1 })),
+          features: [
+            {
+              id: 'homebrew:wallwalker:scuttle',
+              name: 'Scuttle',
+              level: 1,
+              automation: 'engine',
+              note: 'A Climb Speed, written wrong on purpose.',
+              grants: {
+                kind: 'standing',
+                reach: 'self',
+                effects: [{ kind: 'speed', change: 'halve', mode: 'climb' }],
+              },
+            },
+          ],
+        },
+      ],
+    } as never).filter((problem) => problem.code === 'bad_speed_change');
+    expect(problems).toHaveLength(1);
   });
 });

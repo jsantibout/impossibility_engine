@@ -143,11 +143,13 @@ export type AreaStanding = {
    * flat reduction and a Grappled creature's zero in the order the architect
    * fixed, rather than in a second arithmetic of its own.
    *
-   * `change` is {@link SpeedChange} whole, so a Speed a casting's area moves
-   * is spelled the way every other Speed a spell moves already is. `feet` is
-   * required by `add` and refused by the other three, exactly as the `speed`
-   * effect's is — and `match-walk`, which gives a Speed in a mode rather than
-   * moving one, is refused here outright: an area has no mode to give one in.
+   * `change` is every operation that *moves* a Speed, so a Speed a casting's
+   * area moves is spelled the way every other Speed a spell moves already is.
+   * `feet` is required by `add` and refused by the other two, exactly as the
+   * `speed` effect's is — and `match-walk`, which gives a Speed in a mode
+   * rather than moving one, is refused outright: an area has no mode to give
+   * one in. See the field below for why that is a narrowing and not a
+   * borrowing.
    */
   readonly kind: 'speed';
   /**
@@ -3123,16 +3125,17 @@ export function speedOf(
     else if (granted.change === 'zero') zeroed = true;
   }
 
-  // An area carries no mode — `AreaStanding` has one member and SRD Spirit
-  // Guardians halves a Speed rather than granting one — so its flat changes
-  // are read exactly as an unqualified grant's are.
+  // An area carries no mode — SRD Spirit Guardians halves a Speed rather than
+  // granting one — so its flat changes are read exactly as an unqualified
+  // grant's are.
   //
-  // **Each member is named**, which is the loop above's discipline and is the
-  // reason it has it: `AreaStanding.change` is {@link SpeedChange} whole, so
-  // widening that union widens this field, and a trailing `else` would have
-  // read the member added for "a Climb Speed equal to its Speed" as a Speed of
-  // 0. `checkSpeedChange` refuses `match-walk` on an area at the door and this
-  // is the same refusal where the arithmetic happens.
+  // **Each member is named**, which is the loop above's discipline and is why
+  // it has it. `AreaStanding.change` used to be {@link SpeedChange} whole, so
+  // widening that union for "a Climb Speed equal to its Speed" widened this
+  // field with it and a trailing `else` here read the new member as a Speed of
+  // 0. The type is narrowed now, so nothing typed can arrive; naming the
+  // members is what makes a *later* widening ignore what it cannot compute
+  // rather than zero somebody's Speed.
   for (const standing of areaStandingOn(state, who)) {
     if (standing.change === 'add') flattenInMode({ feet: standing.feet ?? 0 });
     else if (standing.change === 'halve') halvings += 1;

@@ -3337,6 +3337,13 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
       });
       if (feature.grants?.kind === 'standing') {
         (feature.grants.effects ?? []).forEach((effect, position) => {
+          // **`checkFeatureDefinition` above already held this one**, at this
+          // very path, and a problem reported twice is a problem an author
+          // fixes once and sees again. It is in the shared function because a
+          // **feat** reaches neither this loop's sibling nor that call — see
+          // `speedGrantProblems` — and it is skipped here because a feature
+          // reaches both.
+          if (effect.kind === 'speed') return;
           for (const problem of ownedStandingEffectProblems(
             effect,
             `${where}.grants.effects[${position}]`,

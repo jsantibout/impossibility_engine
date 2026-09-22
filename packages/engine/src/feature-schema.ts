@@ -80,6 +80,12 @@ export interface FeatureDefinitionProblem {
  * - **Feet beside a match.** Two numbers for one Speed, and the reader takes
  *   neither.
  *
+ * **Four of the five fields, and `hover` is refused rather than shared**,
+ * which is the one place this door and the spell's part company: a spell's
+ * `speed` effect may hand over SRD Fly's "and can hover" because a casting's
+ * grant is stored where `fliesWithoutFallingOn` reads it, and a feature's is
+ * derived onto a sheet where nothing reads it at all.
+ *
  * Exported because a **feat** reaches none of this function's callers: a
  * class, a subclass, a species and a background feature all come through
  * `checkFeatureDefinition`, and a feat's grant goes through
@@ -89,12 +95,34 @@ export interface FeatureDefinitionProblem {
  * whose halved Climb Speed validated and was then skipped by `speedOf`.
  */
 export function speedGrantProblems(
-  effect: { readonly change?: unknown; readonly feet?: unknown; readonly mode?: unknown },
+  effect: {
+    readonly change?: unknown;
+    readonly feet?: unknown;
+    readonly mode?: unknown;
+    readonly hover?: unknown;
+  },
   at: string,
 ): readonly FeatureDefinitionProblem[] {
   const found: FeatureDefinitionProblem[] = [];
   const change = effect.change ?? 'add';
   const { feet, mode } = effect;
+
+  // **Hovering is a casting's to hand over and a stat block's to print, and a
+  // grant's nowhere at all.** `fliesWithoutFallingOn` reads two places — the
+  // sheet's own `speeds.hover`, which `adaptMonster` fills from "Fly 40 ft.
+  // (hover)", and a stored `GrantedSpeed`, which SRD Fly writes — and a
+  // standing grant is neither. `StandingGrant`'s `speed` member has no such
+  // field, so typed content cannot write one; this is the door untyped
+  // homebrew arrives through, and the alternative is a flier who silently
+  // falls.
+  if (effect.hover !== undefined) {
+    found.push({
+      field: `${at}.hover`,
+      code: 'bad_speed_change',
+      reason:
+        'hovering is read off the sheet a stat block printed or off a casting’s own grant, and a feature’s grant is neither, so nothing would ever read this',
+    });
+  }
 
   if (change !== 'add' && change !== 'match-walk') {
     found.push({
