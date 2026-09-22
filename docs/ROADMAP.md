@@ -190,8 +190,9 @@ measured with these. One batch, tracks partitioned by file.
   `structuredClone` to the engine block of `eslint.config.js`; add items,
   languages, alignments and monsters to the sweep in
   `origin-and-feature-sweep.test.ts` with `spellbook` on the vocabulary
-  list. Then, by the owner: prune the eighteen merged worktrees under
-  `.claude/worktrees`, push the commits ahead of `origin/main`.
+  list. **Pushing and pruning are the foreman's, not the owner's** (owner,
+  2026-09-21): at batch close the coordinator pushes `main` and removes every
+  worktree whose branch is an ancestor of it, without asking.
 - `[x]` **P0-T6 STATUS.md to its cap**, by the foreman: "What runs" to a
   dated changelog under `docs/archive/`, "Next" replaced by a pointer here,
   the rulings kept.
