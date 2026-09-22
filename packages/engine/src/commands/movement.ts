@@ -1468,19 +1468,22 @@ function heightFallen(
         ],
       );
     case 'no-flight':
-      // **A question rather than a verdict, and it names the field that
-      // answers it.** The kind is `position` because the missing fact is
-      // geometric and about this creature, and the vocabulary of kinds is a
-      // closed union in `@ie/shared` with no member for a height; adding one
-      // is a decision about that package rather than about this rule. As
-      // everywhere, `satisfyWith` is the authority on what to send — the
-      // pairing `route_required` already relies on.
+      // **A question rather than a verdict, and it is the re-send kind.**
+      // `route` is the one member of the closed vocabulary that means
+      // "satisfied by sending this command again with a field filled in"
+      // rather than by declaring a fact somewhere else — `ContextRequest`
+      // says so in as many words, and `swapInitiative`'s willingness is
+      // already tagged that way for exactly this reason. It is **not**
+      // `position`: nobody is missing a position, the tool surface routes a
+      // request by its kind, and `position`'s door is the placement command,
+      // which would send a caller looking for a height to `place_creature`.
+      // The `unplaced` case above really is missing one, and is tagged so.
       return needsContext(
         'no_fall_height',
         `nobody has said how far ${id} fell, and nothing has dropped ${id} out of the air, so the engine has no height of its own: how far it is to the bottom is a fact about the room`,
         [
           {
-            kind: 'position',
+            kind: 'route',
             subject: id,
             need: `how far ${id} fell, in feet`,
             because:

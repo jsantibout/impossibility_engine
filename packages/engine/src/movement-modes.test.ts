@@ -456,6 +456,10 @@ describe('a flier that stops flying falls', () => {
     // can invoke: the request says which command and which field.
     expect(isErr(fell) && fell.requests?.[0]?.satisfyWith).toContain('resolveFall');
     expect(isErr(fell) && fell.requests?.[0]?.satisfyWith).toContain('feet');
+    // And it is tagged as the kind a tool surface routes back to this same
+    // call. `position` would send a caller who needs a height to the
+    // placement command, which is the one thing worse than not asking.
+    expect(isErr(fell) && fell.requests?.[0]?.kind).toBe('route');
   });
 
   it('reports what it assumed about the air under a derived fall', () => {
