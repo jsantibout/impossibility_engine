@@ -207,7 +207,7 @@ const WRITTEN: Readonly<Record<string, 'tracked' | 'executed'>> = {
   'private-sanctum': 'tracked',
   'resilient-sphere': 'tracked',
   resurrection: 'tracked',
-  'scorching-ray': 'tracked',
+  'scorching-ray': 'executed',
   scrying: 'tracked',
   telekinesis: 'tracked',
   teleport: 'tracked',

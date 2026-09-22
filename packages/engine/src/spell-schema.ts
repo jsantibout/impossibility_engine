@@ -20,6 +20,7 @@ import {
   modifierRidersOf,
 } from './spell-definitions.js';
 import type {
+  AttackRollCount,
   ConditionRider,
   DiceScaling,
   ModifierRider,
@@ -320,6 +321,86 @@ function nameOf(value: unknown): string {
  * catch that, and it is the same `validateBonusDice` discipline: parse
  * everything before anything is thrown.
  */
+/**
+ * How many attack rolls an effect makes, held to the same two rules the dice
+ * beside it are held to.
+ *
+ * **A roll is a whole thing and there is at least one of them.** A count of
+ * zero is an attack effect that attacks nobody, and a fractional one is a
+ * number `rollsDealtTo` would deal and never finish dealing; both would
+ * resolve silently, which is the failure mode every rule in this file exists
+ * to convert into a refusal.
+ *
+ * The cantrip/slot fork is `checkScaling`'s word for word, because it is the
+ * same mistake: `attackRollsFor` takes one branch or the other and would
+ * simply ignore the field belonging to the one it did not take, so a Scorching
+ * Ray written with a Cantrip Upgrade would hurl three rays for ever.
+ */
+function checkRollCount(
+  rolls: AttackRollCount,
+  level: number,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  if (!readsAsObject(rolls, path, 'a roll count is an object naming how many rolls', found)) {
+    return;
+  }
+
+  if (!Number.isInteger(rolls.count) || rolls.count < 1) {
+    found.push({
+      field: `${path}.count`,
+      code: 'bad_roll_count',
+      reason: `an attack makes a whole number of rolls and at least one; "${String(rolls.count)}" is not one`,
+    });
+  }
+
+  if (rolls.extraPerSlotLevelAbove !== undefined) {
+    if (!Number.isInteger(rolls.extraPerSlotLevelAbove) || rolls.extraPerSlotLevelAbove < 0) {
+      found.push({
+        field: `${path}.extraPerSlotLevelAbove`,
+        code: 'bad_roll_count',
+        reason: `a bigger slot adds a whole number of rolls and never takes one away; "${String(rolls.extraPerSlotLevelAbove)}" is not one`,
+      });
+    }
+    if (level === 0) {
+      found.push({
+        field: `${path}.extraPerSlotLevelAbove`,
+        code: 'slot_scaling_on_cantrip',
+        reason: 'a cantrip is cast with no spell slot, so nothing about it scales with one',
+      });
+    }
+  }
+
+  if (rolls.cantripUpgradesAt !== undefined) {
+    if (level !== 0) {
+      found.push({
+        field: `${path}.cantripUpgradesAt`,
+        code: 'cantrip_scaling_on_spell',
+        reason: 'the Cantrip Upgrade applies to cantrips; a levelled spell scales with its slot',
+      });
+    } else if (
+      !readsAsList(
+        rolls.cantripUpgradesAt,
+        `${path}.cantripUpgradesAt`,
+        'a Cantrip Upgrade is a list of the character levels that add a roll',
+        found,
+      )
+    ) {
+      return;
+    } else {
+      rolls.cantripUpgradesAt.forEach((at, i) => {
+        if (!Number.isInteger(at) || at < 1 || at > 20) {
+          found.push({
+            field: `${path}.cantripUpgradesAt[${i}]`,
+            code: 'bad_roll_count',
+            reason: `a Cantrip Upgrade happens at a character level, 1 to 20; "${String(at)}" is not one`,
+          });
+        }
+      });
+    }
+  }
+}
+
 function checkScaling(
   scaling: DiceScaling,
   level: number,
@@ -1263,6 +1344,9 @@ function checkEffect(
     case 'attack':
       checkScaling(effect.damage, level, `${path}.damage`, found);
       checkDamageType(effect.damageType, `${path}.damageType`, found);
+      if (effect.rolls !== undefined) {
+        checkRollCount(effect.rolls, level, `${path}.rolls`, found);
+      }
       // An attack rolls an attack, so nothing it hangs has a save to repeat.
       checkRiders(effect, level, path, host(false), found);
       return;

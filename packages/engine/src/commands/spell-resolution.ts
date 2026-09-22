@@ -695,7 +695,21 @@ export function castOrRelease(
         };
       }
     } else {
-      const named = namedTargets(state, casterId, definition, request, castLevel, reach, needs, origin);
+      // The caster level a cantrip's beam count is read off, derived exactly
+      // as the numbers below are and from the same call — the sheet as it
+      // stands for a class route, and the item's own for an item's, because a
+      // wand's Eldritch Blast throws the wand's beams and not its wielder's.
+      const named = namedTargets(
+        state,
+        casterId,
+        definition,
+        request,
+        castLevel,
+        reach,
+        needs,
+        origin,
+        numbersFor(sheetAsItStands(state, casterId) ?? caster.sheet, route).casterLevel,
+      );
       if (!named.ok) return named;
       targets = named.value;
     }
@@ -2261,6 +2275,7 @@ export function runEffects(
     name,
     level,
     source,
+    targets,
     castLevel,
     ...(run.slotLevel === undefined ? {} : { slotLevel: run.slotLevel }),
     route,
