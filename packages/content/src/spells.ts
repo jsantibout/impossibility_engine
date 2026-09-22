@@ -2352,9 +2352,14 @@ export const HYPNOTIC_PATTERN: SpellDefinition = {
     },
   ],
   durationSeconds: 60,
+  // "The spell ends for an affected creature if it takes any damage" — **any**
+  // damage, dealer or no dealer, and for that creature rather than for the
+  // Cube: the other three go on staring. The second half of the sentence is
+  // somebody else's action and stays in `unmodelled`.
+  endsEarly: [{ on: 'target-takes-damage', ends: 'target' }],
   unmodelled: [
     'only a creature that can see the pattern is affected',
-    'the spell ending for a creature that takes damage or is shaken out of it',
+    'the spell ending because "someone else uses an action to shake the creature out of its stupor" is not offered: one creature spending an action to free another is an action nothing spends',
   ],
 };
 
@@ -6606,9 +6611,13 @@ export const GASEOUS_FORM: SpellDefinition = {
     },
   ],
   durationSeconds: 3600,
+  // "The spell ends on the target if it drops to 0 Hit Points" — on that
+  // target, which is the half of the sentence a higher slot makes visible:
+  // level 4 puts two creatures in mist and one of them falling leaves the
+  // other one a cloud.
+  endsEarly: [{ on: 'target-drops-to-0', ends: 'target' }],
   unmodelled: [
     'the cloud itself is the DM’s: what the target looks like, that it "can pass through narrow openings", and that "it treats liquids as though they were solid surfaces" are fiction, and the gear coming along changes nothing the engine holds',
-    'the spell ending "if it drops to 0 Hit Points" is not applied: a casting ends by its deadline, its Concentration, a dispel or one of five transcribed causes, and dropping to 0 is not among them',
     'the target ending it "as a Magic action" is not offered: `endOngoingSpell` is the caster’s door and costs nothing, and this sentence prints both exceptions — the **target** ends it, and the book charges a Magic action for the ending',
     'the movement is not changed: "the target’s only method of movement is a Fly Speed of 10 feet, and it can hover" needs a movement mode, and the engine tracks one Speed and no modes — so the target keeps the Speed it had',
     '"The target can enter and occupy the space of another creature" is not applied: occupancy is a rule the engine owns outright, and nothing lets an effect tell that rule to believe something different about one creature',
@@ -10106,8 +10115,11 @@ export const PHANTOM_STEED: SpellDefinition = {
   targets: { count: 1, self: true },
   effects: [{ kind: 'summon', monster: 'phantom-steed' }],
   durationSeconds: 3600,
+  // "the spell ends if the steed takes any damage" — the whole casting, not a
+  // release on the steed: there is nothing hung on the steed to release, and
+  // the hour ending is what sends it away.
+  endsEarly: [{ on: 'summon-takes-damage', ends: 'casting' }],
   unmodelled: [
-    'the casting does not stop early when the steed takes any damage: the causes a casting may end on name facts about a **target**, and the steed is not one — no cause names the creature a casting sustains',
     'the saddle, bit and bridle, their puff of smoke ten feet from the steed, the thirteen miles in an hour and the minute the rider has to dismount are the DM’s',
     'who sits on it — "you or a creature you choose can ride the steed" — is the table’s; the engine seats nobody on a mount',
   ],

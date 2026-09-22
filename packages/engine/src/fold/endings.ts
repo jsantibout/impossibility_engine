@@ -23,7 +23,7 @@
  */
 import type { CharacterId } from '@ie/shared';
 import type { EffectEndCause } from '../timers.js';
-import { castingNumber } from '../spells.js';
+import { castingNumber, type OngoingSpell } from '../spells.js';
 
 import type { GameEvent } from '../events.js';
 import type { GameState } from '../state.js';
@@ -87,6 +87,23 @@ type EndingFact =
       readonly cause: 'caster-or-ally-damages-target';
       readonly victim: CharacterId;
       readonly dealer: CharacterId;
+    }
+  /**
+   * The creature a blow landed on, whoever swung and whether anybody did.
+   *
+   * `to` rather than `who` deliberately: `who` is the discriminant
+   * {@link endTriggeredEffects} narrows on to prove that only
+   * {@link EffectEndCause} can reach a timer, and a second field of that name
+   * would quietly widen what an item's conferral could be ended by.
+   */
+  | {
+      readonly cause: 'target-takes-damage' | 'target-drops-to-0';
+      readonly to: CharacterId;
+    }
+  /** The creature a casting is sustaining, found through `summonedBy`. */
+  | {
+      readonly cause: 'summon-takes-damage';
+      readonly summon: CharacterId;
     };
 
 /**
@@ -117,16 +134,79 @@ function endingFactsOf(state: GameState, event: GameEvent): readonly EndingFact[
     case 'item-equipped':
       return isBodyArmor(state, event) ? [{ cause: 'target-dons-armor', who: event.id }] : [];
     case 'damage-taken':
-      // A trap names nobody, and that is a real answer rather than a gap:
-      // there is no creature that dealt it, so neither cause can fire.
-      return event.by === undefined
-        ? []
-        : [
-            { cause: 'target-deals-damage', who: event.by },
-            { cause: 'caster-or-ally-damages-target', victim: event.id, dealer: event.by },
-          ];
+      return [
+        // The three that read the creature the blow *landed on*, so a trap
+        // naming nobody still pulls them. `drops-to-0` is the state the event
+        // left behind — this pass runs after the fold applied it — and it is
+        // the transition rather than the total: a creature already at 0 is not
+        // dropping to it, and a casting this could end would have ended at the
+        // first drop.
+        { cause: 'target-takes-damage', to: event.id },
+        { cause: 'summon-takes-damage', summon: event.id },
+        ...(state.creatures[event.id]?.vitals.hp === 0
+          ? [{ cause: 'target-drops-to-0', to: event.id } as const]
+          : []),
+        // And the two that read the other end of it. A trap names nobody, and
+        // that is a real answer rather than a gap: there is no creature that
+        // dealt it, so neither of these can fire.
+        ...(event.by === undefined
+          ? []
+          : [
+              { cause: 'target-deals-damage', who: event.by } as const,
+              {
+                cause: 'caster-or-ally-damages-target',
+                victim: event.id,
+                dealer: event.by,
+              } as const,
+            ]),
+      ];
     default:
       return [];
+  }
+}
+
+/**
+ * The creature this fact makes *this* casting's business, or null.
+ *
+ * **Every sentence in the vocabulary says whom it is about, and all but one of
+ * them say "the target".** `spellOn` is the engine's answer to which creatures
+ * those are, so a Mage Armor on the wizard is untouched by the fighter putting
+ * a breastplate on and a Charm Person is untouched by damage dealt to somebody
+ * it never caught. The exception is the creature a casting is **sustaining**:
+ * `isOn` asks what a creature is holding of the casting and a steed holds
+ * nothing, so `summonedBy` is the only link that can answer and the eligibility
+ * rule is its own.
+ *
+ * One function rather than a gate written beside the loop, because the gate is
+ * the *rule* — that a fact belongs to a casting — and a second cause read by
+ * an `isOn` somebody remembered to skip is how a Phantom Steed comes to end on
+ * a blow struck three rooms away.
+ */
+function subjectOf(
+  state: GameState,
+  record: OngoingSpell,
+  fact: EndingFact,
+): CharacterId | null {
+  switch (fact.cause) {
+    case 'summon-takes-damage':
+      return state.creatures[fact.summon]?.summonedBy?.castingId === record.castingId
+        ? fact.summon
+        : null;
+
+    case 'caster-or-ally-damages-target':
+      // Withheld rather than invented: only a verdict that says yes ends
+      // anything, and `unknown` is reported by `withheldEndings`.
+      return ['caster', 'ally'].includes(allyOfCaster(state, record.caster, fact.dealer)) &&
+        isOn(state, record, fact.victim)
+        ? fact.victim
+        : null;
+
+    case 'target-takes-damage':
+    case 'target-drops-to-0':
+      return isOn(state, record, fact.to) ? fact.to : null;
+
+    default:
+      return isOn(state, record, fact.who) ? fact.who : null;
   }
 }
 
@@ -145,11 +225,9 @@ interface Ending {
  * Numerically rather than lexically, as every walk over `ongoing` is, so two
  * folds of one log end them in one order.
  *
- * **The creature has to be one the casting is on.** Every sentence here says
- * "the target", and `spellOn` is the engine's answer to which creatures those
- * are — so a Mage Armor on the wizard is untouched by the fighter putting a
- * breastplate on, and a Charm Person is untouched by damage dealt to somebody
- * it never caught.
+ * **The fact has to be this casting's**, which {@link subjectOf} is the whole
+ * of: for all but one cause that means a creature the casting is *on*, and for
+ * the one it means the creature the casting is sustaining.
  *
  * `settled` is the loop's own memory rather than a rule — see
  * {@link endTriggeredCastings} for why termination is not left to what a
@@ -170,16 +248,8 @@ function nextEnding(
       for (const fact of facts) {
         if (fact.cause !== trigger.on) continue;
 
-        const subject =
-          fact.cause === 'caster-or-ally-damages-target'
-            ? // Withheld rather than invented: only a verdict that says yes
-              // ends anything, and `unknown` is reported by `withheldEndings`.
-              ['caster', 'ally'].includes(allyOfCaster(state, record.caster, fact.dealer))
-              ? fact.victim
-              : null
-            : fact.who;
-
-        if (subject === null || !isOn(state, record, subject)) continue;
+        const subject = subjectOf(state, record, fact);
+        if (subject === null) continue;
         if (settled.has(endingKey(castingId, subject))) continue;
         return { castingId, on: trigger.ends === 'target' ? subject : null, subject };
       }
