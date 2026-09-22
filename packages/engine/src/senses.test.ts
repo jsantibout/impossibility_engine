@@ -3,7 +3,13 @@ import { SRD_CONTENT } from '@ie/content';
 import { asCharacterId, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { fold, type GameEvent } from './events.js';
-import { canSee, canSomehowSee, sensesOf, SENSES_THAT_SOMEHOW_SEE } from './standing.js';
+import {
+  canSee,
+  canSomehowSee,
+  sensesOf,
+  sensesPerceiving,
+  SENSES_THAT_SOMEHOW_SEE,
+} from './standing.js';
 import {
   scene,
   sensesReaching,
@@ -543,6 +549,105 @@ describe('SRD Invisible: the senses that satisfy “can somehow see you”', () 
   /** The sense belongs to the looker, as it does in the wider question. */
   it('does not lend Truesight to whoever is being looked at', () => {
     expect(canSomehowSee(fold('seed', watching('truesight', 60)), NEAR, SEER)).toBeNull();
+  });
+});
+
+/**
+ * The third question on the same pair, and the one that is **not** about sight.
+ *
+ * SRD Blur: "An attacker is immune to this effect if it **perceives you with
+ * Blindsight or Truesight**." SRD Mirror Image names the same two. Neither is
+ * a sentence about seeing — ordinary sight is precisely what those spells
+ * defeat — so neither may be answered by a function that puts the table's
+ * declaration first. `sensesPerceiving` hands back the senses and lets the
+ * rule that asked decide which of them it cares about.
+ */
+describe('the senses one creature perceives another with, which is not a sight question', () => {
+  const watching = (sense: SenseName, feet: number): readonly GameEvent[] => [
+    added(SEER, {
+      standing: [
+        {
+          feature: 'a-species:a-trait',
+          name: 'A Sense',
+          reach: { kind: 'self' },
+          grant: { kind: 'sense', sense, feet },
+        },
+      ],
+    }),
+    added(NEAR),
+    { type: 'scene-set', extent: { width: 400, depth: 400, height: 40 } },
+    { type: 'landmark-added', name: 'the well', at: { x: 100, y: 100, z: 0 } },
+    { type: 'creature-placed', id: SEER, placement: { from: { landmark: 'the well' }, feet: 0 } },
+    {
+      type: 'creature-placed',
+      id: NEAR,
+      placement: { from: { creature: SEER }, feet: 30, bearing: 90 },
+    },
+  ];
+
+  it('names the senses that reach, and nothing about seeing', () => {
+    expect(sensesPerceiving(fold('seed', watching('truesight', 60)), SEER, NEAR)).toEqual([
+      'truesight',
+    ]);
+    // Every sense, not only the sight ones: Tremorsense "doesn't count as a
+    // form of sight" and is still a way of perceiving somebody. No clause
+    // names it today, and that is the caller's business rather than this
+    // function's.
+    expect(sensesPerceiving(fold('seed', watching('tremorsense', 60)), SEER, NEAR)).toEqual([
+      'tremorsense',
+    ]);
+  });
+
+  /** Every sense in the glossary is printed "with a range of N feet". */
+  it('stops at the range the sense was granted with', () => {
+    expect(sensesPerceiving(fold('seed', watching('truesight', 10)), SEER, NEAR)).toEqual([]);
+  });
+
+  /**
+   * **A declaration has no say, and that is the whole difference.** The same
+   * table that declares a sight line declares nothing about a sense, and Blur
+   * would be undone by an implementation that read one: a goblin the table has
+   * placed in the wizard's line of sight still swings at a blurred shape.
+   */
+  it('gives a declared sight line no say in either direction', () => {
+    const seen = fold('seed', [
+      ...watching('darkvision', 60),
+      { type: 'sight-declared', from: SEER, to: NEAR, seen: true },
+    ]);
+    // `canSomehowSee` answers `true` off that declaration; this answers with
+    // the senses, and Darkvision is one of them whatever anybody declared.
+    expect(canSomehowSee(seen, SEER, NEAR)).toBe(true);
+    expect(sensesPerceiving(seen, SEER, NEAR)).toEqual(['darkvision']);
+
+    const unseen = fold('seed', [
+      ...watching('truesight', 60),
+      { type: 'sight-declared', from: SEER, to: NEAR, seen: false },
+    ]);
+    expect(sensesPerceiving(unseen, SEER, NEAR)).toEqual(['truesight']);
+  });
+
+  /**
+   * **Declared Total Cover silences a sense**, which is the glossary's own
+   * sentence on Blindsight — "you can see anything that isn't behind Total
+   * Cover" — and no less true of the other three. Kept from `sightBetween`
+   * because it is a fact about the pair rather than about the sentence.
+   */
+  it('is silenced by declared Total Cover', () => {
+    const state = fold('seed', [
+      ...watching('truesight', 60),
+      { type: 'cover-declared', from: SEER, to: NEAR, degree: 'total' },
+    ]);
+    expect(sensesPerceiving(state, SEER, NEAR)).toEqual([]);
+  });
+
+  /** Outside a scene there is no distance for a range to be measured against. */
+  it('perceives nothing when nobody is anywhere', () => {
+    expect(sensesPerceiving(fold('seed', [added(SEER), added(NEAR)]), SEER, NEAR)).toEqual([]);
+  });
+
+  /** The senses are the looker's, as they are in both sight questions. */
+  it('does not lend Truesight to whoever is being perceived', () => {
+    expect(sensesPerceiving(fold('seed', watching('truesight', 60)), NEAR, SEER)).toEqual([]);
   });
 });
 

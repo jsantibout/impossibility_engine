@@ -519,26 +519,40 @@ export function rollSelectorProblems(
   // validator because both callers need it and the names are the engine's own
   // closed list — the same reason `against_holder_without_target` is here.
   if (selector.unlessPerceivedWith !== undefined) {
-    for (const sense of selector.unlessPerceivedWith) {
-      if (!SENSE_NAMES.includes(sense)) {
+    // **The shape before the vocabulary, because this validator meets
+    // homebrew.** Every field here arrives as `unknown` through
+    // `loadContent`, and inviolable rule 6 says a rules-legal refusal is a
+    // value: walking a number with `for…of` would throw a `TypeError` out of
+    // the one door an author's JSON comes through. A bare string is refused
+    // with the rest rather than iterated, which would report one `bad_sense`
+    // per letter.
+    if (!Array.isArray(selector.unlessPerceivedWith)) {
+      found.push({
+        code: 'perceived_with_is_not_a_list',
+        reason: 'a sense clause is a list of sense names — the senses that excuse an attacker',
+      });
+    } else {
+      for (const sense of selector.unlessPerceivedWith) {
+        if (!SENSE_NAMES.includes(sense)) {
+          found.push({
+            code: 'bad_sense',
+            reason: `"${String(sense)}" is not a sense the rules glossary names`,
+          });
+        }
+      }
+      if (selector.unlessPerceivedWith.length === 0) {
         found.push({
-          code: 'bad_sense',
-          reason: `"${String(sense)}" is not a sense the rules glossary names`,
+          code: 'perceived_with_names_no_sense',
+          reason: 'an exception that names no sense excuses nobody; leave the field off instead',
         });
       }
-    }
-    if (selector.unlessPerceivedWith.length === 0) {
-      found.push({
-        code: 'perceived_with_names_no_sense',
-        reason: 'an exception that names no sense excuses nobody; leave the field off instead',
-      });
-    }
-    if (selector.relation !== 'against-holder') {
-      found.push({
-        code: 'perceived_with_off_against_holder',
-        reason:
-          'the engine records what the roller perceives the creature rolled against with, so a sense clause can only excuse an attacker — on a "roller" selector there is no direction to read and the exception would never apply',
-      });
+      if (selector.relation !== 'against-holder') {
+        found.push({
+          code: 'perceived_with_off_against_holder',
+          reason:
+            'the engine records what the roller perceives the creature rolled against with, so a sense clause can only excuse an attacker — on a "roller" selector there is no direction to read and the exception would never apply',
+        });
+      }
     }
   }
 
@@ -640,6 +654,21 @@ export interface SpentRollModifier {
  *
  * Sorted by holder and then source, because the answer reaches the log and two
  * readers of one state have to agree about the order.
+ *
+ * **A grant whose exception this query did not answer is not spent**, and
+ * that is the one place the two walks are allowed to differ. The rule is "the
+ * roll it reached", and {@link RollSelector.unlessPerceivedWith} is part of
+ * reaching: a spender whose query left {@link RollQuery.rollerPerceives}
+ * unset cannot tell whether the grant applied, and spending on a fact nobody
+ * gathered would use up a sentence that changed nothing. Absence is "nobody
+ * asked" rather than "nobody perceives, so it applied" — the asymmetry is
+ * deliberate, because the conservative direction differs between the two
+ * questions: a gatherer that does not know applies the benefit and says so,
+ * and a spender that does not know spends nothing. No printed effect combines
+ * the two flags today; the day one does, a call site that has not been taught
+ * to gather the fact leaves the grant standing rather than eating it, and
+ * refusing the pairing outright — the move `oneShotProblem` makes for a family
+ * nothing can end on — is the definition validator's to add.
  */
 export function consumedRollModifiers(
   state: GameState,
@@ -654,6 +683,12 @@ export function consumedRollModifiers(
     const sources = new Set<string>();
     for (const held of creature.rollModifiers) {
       if (held.modifier.oneShot !== true) continue;
+      if (
+        held.modifier.selector.unlessPerceivedWith !== undefined &&
+        query.rollerPerceives === undefined
+      ) {
+        continue;
+      }
       if (!selectorMatches(held.modifier.selector, holder as CharacterId, query)) continue;
       sources.add(held.source);
     }

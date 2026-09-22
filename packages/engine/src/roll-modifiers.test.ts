@@ -24,6 +24,7 @@ import {
 import { declaredCasting } from './spellcasting.js';
 import { rollModesFor } from './standing.js';
 import {
+  consumedRollModifiers,
   grantedRollModes,
   rollModifierKey,
   selectorMatches,
@@ -445,6 +446,31 @@ describe('the definition validator carries those rules to an author', () => {
   });
 
   /**
+   * **A refusal, not an exception, and the door is the reason.** Inviolable
+   * rule 6: a rules-legal refusal is a value. This validator is what homebrew
+   * meets at `loadContent`, where every field arrives as `unknown` — so a
+   * sense clause that is a number, a string or a null has to come back as a
+   * problem, the way a bad ability and a bad skill already do, rather than as
+   * a `TypeError` out of a `for…of`.
+   */
+  it('refuses a sense clause that is not a list of senses, rather than throwing', () => {
+    const withSenses = (senses: unknown): unknown => ({
+      kind: 'roll-mode',
+      modifier: {
+        mode: 'disadvantage',
+        selector: { roll: 'attack', relation: 'against-holder', unlessPerceivedWith: senses },
+      },
+    });
+
+    for (const bad of [5, null, { truesight: true }, 'truesight']) {
+      expect(() => codes(withSenses(bad))).not.toThrow();
+      expect(codes(withSenses(bad))).toContain('perceived_with_is_not_a_list');
+    }
+    // And a well-formed one still passes, so the guard is a guard and not a ban.
+    expect(codes(withSenses(['blindsight', 'truesight']))).toEqual([]);
+  });
+
+  /**
    * The other half of the sentence, and the half that keeps "valid" from
    * coming to mean "official": a spell nobody printed is mechanically valid
    * data if it uses the primitive correctly.
@@ -651,6 +677,91 @@ describe('a selector can be switched off by what the attacker perceives with', (
     expect(
       selectorMatches(selector, WIZARD, { ...roll, rollerPerceives: ['blindsight'] }),
     ).toBe(false);
+  });
+
+  /**
+   * **A grant is spent by the roll it reached, and an exception decides
+   * whether it reached one.** `oneShot` and this axis have no catalogue user
+   * in common today, and that is exactly when to close it: the spender runs
+   * the same {@link selectorMatches}, so a query that answered the sense
+   * question differently from the gatherer would spend a grant that changed
+   * nothing — the one-shot bug `rollModifierKey` was written to stop, arriving
+   * from the other side.
+   *
+   * Two rules, and the second is the one a future call site will need. A
+   * perceiving attacker spends nothing, because the modifier did not reach
+   * the roll. And **a query that did not answer the question spends nothing
+   * either**: the fact is the caller's to gather, absence is "nobody asked"
+   * rather than "nobody perceives", and the engine does not judge a rule on a
+   * fact nothing supplied.
+   */
+  it('does not spend a one-shot grant the attacker was immune to', () => {
+    const held: readonly GameEvent[] = [
+      ...ogreSensing('truesight', 60),
+      {
+        type: 'roll-modifier-granted',
+        id: WIZARD,
+        modifier: {
+          source: 'A Blurring Hex',
+          modifier: {
+            mode: 'disadvantage',
+            oneShot: true,
+            selector: {
+              roll: 'attack',
+              relation: 'against-holder',
+              unlessPerceivedWith: ['blindsight', 'truesight'],
+            },
+          },
+        },
+      },
+    ];
+    const state = fold('seed', held);
+    const query = { family: 'attack', roller: OGRE, against: WIZARD } as const;
+
+    // The gatherer and the spender agree: a Truesight attacker reached nothing.
+    expect(grantedRollModes(state, { ...query, rollerPerceives: ['truesight'] })).toEqual([]);
+    expect(consumedRollModifiers(state, { ...query, rollerPerceives: ['truesight'] })).toEqual([]);
+
+    // And an ordinary attacker spends it, which is what makes the line above a
+    // claim about the exception rather than about the grant.
+    expect(
+      consumedRollModifiers(state, { ...query, rollerPerceives: [] }).map((s) => s.source),
+    ).toEqual(['A Blurring Hex']);
+
+    // Nobody asked: no answer, so nothing is spent on the strength of one.
+    expect(consumedRollModifiers(state, query)).toEqual([]);
+  });
+
+  /** And the swing through the public command spends it, so the rule is wired. */
+  it('spends it on an attacker with no such sense, through the command', () => {
+    const held: readonly GameEvent[] = [
+      ...SETUP,
+      {
+        type: 'roll-modifier-granted',
+        id: WIZARD,
+        modifier: {
+          source: 'A Blurring Hex',
+          modifier: {
+            mode: 'disadvantage',
+            oneShot: true,
+            selector: {
+              roll: 'attack',
+              relation: 'against-holder',
+              unlessPerceivedWith: ['blindsight', 'truesight'],
+            },
+          },
+        },
+      },
+    ];
+    const spentBy = (log: readonly GameEvent[]) =>
+      swing(log, WIZARD)
+        .events.filter((e) => e.type === 'roll-modifier-consumed')
+        .map((e) => (e as { source: string }).source);
+
+    expect(spentBy(held)).toEqual(['A Blurring Hex']);
+    // The Truesight ogre never had it, so it has nothing to give up.
+    const sighted: readonly GameEvent[] = [...ogreSensing('truesight', 60), ...held.slice(SETUP.length)];
+    expect(spentBy(sighted)).toEqual([]);
   });
 
   /** Identity: two grants from one source differing only here are two grants. */

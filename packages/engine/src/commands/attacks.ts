@@ -77,6 +77,7 @@ import {
   canSomehowSee,
   checkFeatureDamageTypes,
   effectiveConditions,
+  sensesPerceiving,
   sheetAsItStands,
   standingAttackDamage,
   standingBonuses,
@@ -1295,12 +1296,17 @@ export function resolveAttack(
     // roll made against it"; neither says "the next one that hits", and a
     // grant spent only by a hit would give a fumbling attacker several bites
     // at one sentence. The same query `defendingModes` asked above, so what is
-    // spent is exactly what was read.
+    // spent is exactly what was read — **including the sense clause**, which
+    // has to be gathered again here for that sentence to stay true: a grant
+    // the attacker's Truesight excused did not reach this roll, and a spender
+    // that could not see the exception would eat it anyway. `sensesPerceiving`
+    // is pure and state-only, so asking twice cannot disagree.
     for (const spent of consumedRollModifiers(state, {
       family: 'attack',
       roller: id,
       against: command.target,
       ability,
+      rollerPerceives: sensesPerceiving(state, id, command.target),
     })) {
       events.push({ type: 'roll-modifier-consumed', id: spent.holder, source: spent.source });
     }
