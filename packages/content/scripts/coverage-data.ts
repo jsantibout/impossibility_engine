@@ -180,6 +180,12 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'conjure-woodland-beings',
   'counterspell',
   'cure-wounds',
+  // The three P3-S finished, each driven end to end through `resolveSpell` in
+  // `light-and-sight.test.ts`: the Sphere Darkness pins and the Darkvision it
+  // defeats, the bright core and dim ring Daylight lays, the bank Fog Cloud
+  // grows with the slot, and the dispel the first two owe each other.
+  'darkness',
+  'daylight',
   'dimension-door',
   'dispel-magic',
   'dissonant-whispers',
@@ -196,6 +202,7 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'fireball',
   'flame-blade',
   'flame-strike',
+  'fog-cloud',
   'goodberry',
   'grease',
   'greater-invisibility',

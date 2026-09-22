@@ -586,8 +586,12 @@ describe('what the door refuses, and what it asks for', () => {
  * same faces under the same roll ids, and the log folds to a state that
  * depends on how the session happened to be split across restarts.
  *
- * It stayed latent because nothing above the engine imported the command.
- * That stopped being true this batch: it is on the DM's door now.
+ * It stayed latent because nothing above the engine imports the command —
+ * `packages/tools` carries `take_printed_action`, which hands the sentence
+ * over, and no door that rolls it. So no log has been written with the hole
+ * in it, which is why this is a defect fixed rather than a migration; and it
+ * is pinned here rather than left for whichever batch opens that door,
+ * because a rule proved by nobody using it yet is the cheapest kind to keep.
  */
 describe('the rolls it makes are written back to the log', () => {
   /** The supply a resumed session builds: the issuer and generator the log left. */
@@ -602,6 +606,12 @@ describe('the rolls it makes are written back to the log', () => {
 
   it('records the ids it minted and the generator it left', () => {
     const table = inTheWoods('winter-wolf', WINTER);
+    // **Where the campaign already was**, and not zero by assumption: an
+    // issuer resumed at `startAt` counts what *it* minted, so asserting the
+    // total against it directly would be a claim about this fixture rolling
+    // nothing beforehand rather than about the rule. The day the woods roll
+    // Initiative, this still holds.
+    const before = table.state.rollsIssued;
     const started = resumed(table);
     table.did('the wolf breathes', (s) =>
       forcePrintedSave(s, WINTER, { line: COLD_BREATH, targets: [BREN] }, started),
@@ -610,18 +620,10 @@ describe('the rolls it makes are written back to the log', () => {
     // A save and a damage roll at the least, so the count is a real number
     // rather than a zero that would pass whatever the command did.
     expect(started.issuer.count).toBeGreaterThan(1);
-    expect(table.state.rollsIssued).toBe(started.issuer.count);
+    expect(table.state.rollsIssued).toBe(before + started.issuer.count);
     expect(table.state.rng).toEqual(started.rng.snapshot());
   });
 
-  /**
-   * And the consequence, which is the thing that actually breaks: a second
-   * command on the same campaign must not redraw the first one's dice.
-   *
-   * Four eight-sided dice both times, deliberately — the same shape of draw,
-   * so a rewound generator shows up as the identical faces rather than as
-   * something that merely looks different.
-   */
   /**
    * And the consequence, which is the thing that actually breaks: what the
    * *next* command draws has to depend on the breath having happened.

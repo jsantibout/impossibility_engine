@@ -931,8 +931,10 @@ export function forcePrintedSave(
       // the seed and the *next* command drew the very same faces under the
       // very same roll ids. Rule 3 says a log folds to one state forever, and
       // a stream that silently rewinds is the one way that stops being true.
-      // Latent until now because nothing above the engine imported the
-      // command; it is on the DM's door this batch.
+      // Latent because nothing above the engine imports this command yet —
+      // `packages/tools` carries the door that hands the sentence over and
+      // not the one that rolls it — so no log has been written with the hole
+      // in it. That is why it is a defect fixed rather than a migration.
       if (supply.issuer.count > issuedBefore) {
         events.push({
           type: 'rolls-issued',
