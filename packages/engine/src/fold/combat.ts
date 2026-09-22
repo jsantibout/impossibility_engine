@@ -38,6 +38,8 @@ import {
  * to the Monk table changes future sheets rather than historical folds.
  */
 import { speedOf } from '../standing.js';
+import { MOVEMENT_MODES } from '../character.js';
+import type { CharacterId } from '@ie/shared';
 import { attacksInAction, statedBonusActionSlot, statedBonusActionsUsed } from '../monster.js';
 import type { GameEvent } from '../events.js';
 import type { GameState } from '../state.js';
@@ -87,6 +89,30 @@ export type CombatEvent = Extract<GameEvent, { type: (typeof COMBAT_EVENTS)[numb
 
 /** Whether an event is this seam's. Built from the same list, so the two cannot drift. */
 export const isCombatEvent = seamOf(COMBAT_EVENTS);
+
+/**
+ * The most a `movement-spent` may say this creature spent: its fastest Speed.
+ *
+ * **The reducer's backstop is deliberately weaker than the rule, because the
+ * rule needs a fact the event does not carry.** A creature with more than one
+ * Speed spends the turn's feet against whichever it is using at the time —
+ * SRD: "you can switch back and forth between your Speeds" — so a Cockatrice
+ * that flies forty feet writes a perfectly legal `movement-spent` of 40 that
+ * a walking Speed of 20 would call corrupt. Which mode a move used is the
+ * *command's* to check and it does (`wayOf`, `commands/movement.ts`); this
+ * asks the question the event can answer on its own, which is whether the
+ * creature could have gone that far by any means it has.
+ *
+ * A guard that refuses an event the engine itself emits is worse than a
+ * looser guard: it is a log that cannot be replayed. The exact check stays
+ * where the mode is known, and this stays a coherence check — the same
+ * division `endCombat`'s refusals are held to two paragraphs below.
+ *
+ * Identical to `speedOf(state, who)` for every creature with one Speed, which
+ * is every creature in both frozen logs.
+ */
+const spendableSpeed = (state: GameState, who: CharacterId): number =>
+  Math.max(...MOVEMENT_MODES.map((mode) => speedOf(state, who, mode)));
 
 /**
  * Reduce one of this seam's events.
@@ -242,7 +268,12 @@ export function applyCombat({ state, next }: Applying, event: CombatEvent): Game
         state,
         must(
           event,
-          spendMovement(combatOf(state, event), event.id, event.feet, speedOf(state, event.id)),
+          spendMovement(
+            combatOf(state, event),
+            event.id,
+            event.feet,
+            spendableSpeed(state, event.id),
+          ),
         ),
       );
 

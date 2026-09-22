@@ -492,6 +492,29 @@ export function conditionSpeed(state: ConditionState, baseSpeed: number): number
   return Math.max(0, baseSpeed - 5 * state.exhaustion);
 }
 
+/**
+ * SRD "Flying": the conditions that take a flier out of the air.
+ *
+ * > "If a flying creature is knocked Prone, has its Speed reduced to 0, or is
+ * > otherwise deprived of the ability to move, the creature falls unless it
+ * > has the Hover trait or is being held aloft by magic."
+ *
+ * Two of the sentence's three clauses, and only the two this module can see:
+ * being knocked Prone, and the five conditions that pin a creature outright.
+ * A Speed reduced to 0 by anything *else* — Hypnotic Pattern's grant, an
+ * Emanation that halves it away — is not a fact about a condition, so it is
+ * asked of `speedOf` by the caller rather than guessed at here. See
+ * `fallingFromTheAir` in `commands/movement.ts`, which is where the two halves
+ * meet and where the Hover exception is read.
+ *
+ * Prone rather than "cannot move" is the whole of why this is not
+ * {@link conditionSpeed} asked for 0: SRD Prone leaves a creature able to
+ * crawl at half speed, so a Prone flier's Speed is not 0 and it still falls.
+ */
+export function deprivedOfFlight(state: ConditionState): boolean {
+  return hasCondition(state, 'prone') || SPEED_ZERO.some((c) => hasCondition(state, c));
+}
+
 /** SRD Incapacitated: "You can't take any action, Bonus Action, or Reaction." */
 export function isIncapacitated(state: ConditionState): boolean {
   return hasCondition(state, 'incapacitated');

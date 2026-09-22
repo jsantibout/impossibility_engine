@@ -27,6 +27,7 @@ import type { TurnAnchor } from './time.js';
 import type { DamageDefenses } from './attack.js';
 import type {
   CharacterSheet,
+  OtherSpeeds,
   StatedAction,
   StatedAttack,
   StatedBonusAction,
@@ -803,6 +804,39 @@ export const describePerDay = (uses: number): string =>
 export const hasPrintedTrait = (sheet: CharacterSheet, kind: MonsterTrait['kind']): boolean =>
   sheet.stated?.traits?.some((trait) => trait.kind === kind) === true;
 
+/**
+ * The Speeds a block prints beside its walking one, onto the sheet.
+ *
+ * The parser has read "Speed 20 ft., Fly 40 ft." into five numbers and a flag
+ * since the bestiary was first ingested, and this adapter took the first of
+ * them and dropped the rest — so a Cockatrice reached the game a walker, and
+ * `speedOf` had nothing to answer a flight with. The same failure
+ * {@link AdaptedMonster.creatureType} records: an authoritative fact the
+ * Engine holds must reach the creature record.
+ *
+ * **A null and a zero become an absence**, which is `CharacterSheet.speeds`'s
+ * own reading: a block printing no Fly Speed and a block printing one of 0
+ * both say this creature does not fly. Omitted entirely where the block
+ * prints only a walking Speed, so every stat block that has always had one
+ * Speed reaches state carrying exactly what it always did.
+ */
+function printedSpeeds(speed: Monster['speed']): { readonly speeds?: OtherSpeeds } {
+  const some = (feet: number | null): number | undefined =>
+    feet === null || feet <= 0 ? undefined : feet;
+
+  const speeds: OtherSpeeds = {
+    ...(some(speed.climb) === undefined ? {} : { climb: speed.climb as number }),
+    ...(some(speed.fly) === undefined ? {} : { fly: speed.fly as number }),
+    ...(some(speed.swim) === undefined ? {} : { swim: speed.swim as number }),
+    ...(some(speed.burrow) === undefined ? {} : { burrow: speed.burrow as number }),
+    // Hovering is meaningless without a Fly Speed, and the book never prints
+    // it without one; carried only beside the Speed it qualifies.
+    ...(speed.hover && some(speed.fly) !== undefined ? { hover: true } : {}),
+  };
+
+  return Object.keys(speeds).length === 0 ? {} : { speeds };
+}
+
 export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster {
   const { defenses, caveats } = buildDefenses(monster);
 
@@ -910,6 +944,7 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
     // SRD: "A monster has training with any armor in its stat block."
     armorTraining: { light: true, medium: true, heavy: true, shields: true },
     baseSpeed: monster.speed.walk,
+    ...printedSpeeds(monster.speed),
     spellcastingAbility: null,
     // Omitted at one, which is the sheet's own reading of the field: "one,
     // unless a feature says otherwise", and an explicit 1 on every stat block

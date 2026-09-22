@@ -1815,7 +1815,7 @@ const END_COMBAT = tool({
 const MOVE = tool({
   name: 'move',
   description:
-    'Move a creature, spending its Speed. Always relative to a landmark or another creature — never a raw coordinate. Leaving an enemy’s reach offers them an Opportunity Attack, and the move is held until every creature offered one has answered.',
+    'Move a creature, spending its Speed. Always relative to a landmark or another creature — never a raw coordinate. Say which Speed it is using when it is not walking, and say when the move is a jump. Leaving an enemy’s reach offers them an Opportunity Attack, and the move is held until every creature offered one has answered.',
   mutates: true,
   establishes: ['route'],
   input: z
@@ -1826,6 +1826,28 @@ const MOVE = tool({
         .optional()
         .describe(
           'True when somebody is moving them rather than them walking — a shove, a gust, a trap. Costs no Speed and provokes nobody.',
+        ),
+      mode: z
+        .enum(['walk', 'climb', 'fly', 'swim', 'burrow'])
+        .optional()
+        .describe(
+          'Which Speed this move uses. Leave it out for walking. Climbing and swimming cost double for a creature without the matching Speed, and Difficult Terrain doubles again; flying or burrowing without one is refused, because there is no unaided version. Going up at all needs a flight, a climb or a High Jump.',
+        ),
+      jump: z
+        .object({
+          kind: z
+            .enum(['long', 'high'])
+            .describe('Long is across, High is up. A Long Jump may not rise at all.'),
+          running: z
+            .boolean()
+            .optional()
+            .describe(
+              'True if they moved at least 10 feet immediately before jumping, which doubles both distances. The engine checks it against the movement already spent this turn.',
+            ),
+        })
+        .optional()
+        .describe(
+          'That this move is a jump. The engine works out how far this creature can jump from its Strength and refuses a longer one; the feet it clears cost movement like any other.',
         ),
       difficultFeet: z
         .number()
@@ -1849,6 +1871,15 @@ const MOVE = tool({
         {
           placement: placementOf(args),
           ...(args.forced === true ? { forced: true } : {}),
+          ...(args.mode === undefined ? {} : { mode: args.mode }),
+          ...(args.jump === undefined
+            ? {}
+            : {
+                jump: {
+                  kind: args.jump.kind,
+                  ...(args.jump.running === undefined ? {} : { running: args.jump.running }),
+                },
+              }),
           ...(args.difficultFeet === undefined ? {} : { difficultFeet: args.difficultFeet }),
           ...(args.route === undefined ? {} : { route: args.route.map(point) }),
           ...identity(context),

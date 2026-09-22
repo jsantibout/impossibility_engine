@@ -161,6 +161,7 @@
     "COMBAT_EVENTS",
     "CombatEvent",
     "isCombatEvent",
+    "spendableSpeed",
     "applyCombat"
   ],
   "fold/scene.ts": [

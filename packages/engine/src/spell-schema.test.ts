@@ -2440,6 +2440,20 @@ describe('no spell is special-cased in the runtime', () => {
    * engine is built on and has nothing whatever to do with a Cleric shouting
    * "Grovel". Excluded the day the spell catalogue gained the spell.
    *
+   * **`fly` is the ninth, and it is Darkvision's case again with a different
+   * glossary entry**: the rules glossary defines five Speeds — "Some creatures
+   * have a Climb Speed, a Fly Speed, a Swim Speed, or a Burrow Speed" — and
+   * `MovementMode` in `character.ts` transcribes exactly those five, as
+   * `SENSE_NAMES` transcribes the four senses. `commands/movement.ts` then
+   * writes `mode === 'fly'` deciding what a move costs and whether the mover
+   * can make it at all, and not one of those lines is about the level 3
+   * Transmutation. The test the feat allowance states holds: delete SRD Fly
+   * from the catalogue and the engine still means the word, because a
+   * Cockatrice would still have a Fly Speed. Three of the other four modes
+   * collide with nothing; this one collides because the SRD named a spell
+   * after the mechanic it grants, which is the same thing it did with
+   * Darkvision and with Resistance.
+   *
    * **`divination` is the eighth, and it is the book colliding with itself**:
    * the SRD prints eight schools of magic and names one spell after one of
    * them. `SCHOOLS` in `spell-schema.ts` transcribes the eight, which is the
@@ -2461,6 +2475,7 @@ describe('no spell is special-cased in the runtime', () => {
     'command',
     'resistance',
     'divination',
+    'fly',
   ]);
 
   /**
@@ -2591,6 +2606,7 @@ describe('no spell is special-cased in the runtime', () => {
       'command',
       'darkvision',
       'divination',
+      'fly',
       'heal',
       'light',
       'resistance',
@@ -2644,6 +2660,16 @@ describe('no spell is special-cased in the runtime', () => {
         .filter((line) => line.includes("'divination'"))
         .map((line) => line.trim()),
     ).toEqual(["'divination',"]);
+    // And the ninth, which is a Speed. `MovementMode` transcribes the
+    // glossary's five in one line, the way `SENSE_NAMES` transcribes the four
+    // senses, and the word is then read as one of the five wherever a rule
+    // asks which Speed a move was made with. Both halves are pinned: the
+    // transcription is really there, and there is really a rule reading it,
+    // so the allowance is answering for a mechanic rather than for a name.
+    expect(source('character.ts')).toContain(
+      "export type MovementMode = 'walk' | 'fly' | 'climb' | 'swim' | 'burrow';",
+    );
+    expect(source('commands/movement.ts')).toContain("mode === 'fly'");
   });
 
   it('allows the two data constructs and nothing around them', () => {

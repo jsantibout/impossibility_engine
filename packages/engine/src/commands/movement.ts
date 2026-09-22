@@ -9,13 +9,21 @@
 import { type CharacterId, err, needsContext, ok, type Result } from '@ie/shared';
 import { reachOf } from '../attack.js';
 import { spendMovement, spendReaction } from '../combat.js';
-import { isIncapacitated } from '../conditions.js';
+import { deprivedOfFlight, isIncapacitated } from '../conditions.js';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import { actionRulesOn, canSee, sheetAsItStands, speedOf } from '../standing.js';
-import type { CharacterSheet } from '../character.js';
+import {
+  fliesWithoutFalling,
+  hasSpeedInMode,
+  highJumpHeight,
+  longJumpDistance,
+  type CharacterSheet,
+  type MovementMode,
+} from '../character.js';
 import { bestPrintedMeleeAttack } from '../monster.js';
 import {
+  altitudeOf,
   checkRoute,
   costOfRoute,
   dismount,
@@ -47,6 +55,38 @@ import {
 import { completeIfSettled, mayAct } from './holds.js';
 import { sweptRoute } from './ongoing.js';
 
+/**
+ * A jump, as the SRD glossary prints it: which kind, and whether they ran.
+ *
+ * Two kinds and one fact, because the glossary has two entries and both hang
+ * on the same sentence — "if you move at least 10 feet immediately before the
+ * jump". The distances themselves are `longJumpDistance` and
+ * `highJumpHeight`, in `character.ts`, where the sheet they are read off
+ * lives.
+ */
+export interface JumpDeclaration {
+  readonly kind: 'long' | 'high';
+  /**
+   * Whether the jumper had a running start.
+   *
+   * SRD: "if you move at least 10 feet immediately before the jump"; a
+   * standing jump covers half. **Declared, and then checked against what the
+   * engine knows**: inside a fight the turn's budget says how many feet this
+   * creature has already spent, and a running start claimed on a turn with
+   * fewer than ten of them is refused `no_running_start`. Outside a fight
+   * there is no budget to check it against, so the claim is taken and
+   * reported as unverified — the reading `chargeTerrain` already takes of a
+   * number nothing is being spent from.
+   *
+   * *Immediately* before is the half the engine cannot see: a creature that
+   * walked ten feet, opened a door and then jumped spent the same ten feet.
+   * The budget is the closest fact the engine holds, and it is checked in the
+   * direction that matters — a jumper who has moved nothing at all has
+   * certainly not run.
+   */
+  readonly running?: boolean;
+}
+
 export interface MoveCommand extends CommandIdentity {
   /** Where to, relative to something already established. */
   readonly placement: Placement;
@@ -59,6 +99,37 @@ export interface MoveCommand extends CommandIdentity {
    * creature's own movement either, so it costs no Speed and provokes nobody.
    */
   readonly forced?: boolean;
+  /**
+   * Which of the mover's Speeds this move is made with.
+   *
+   * SRD: "When you move, you can use as much of your Speed as you like ... If
+   * you have more than one Speed, you can switch between them during your
+   * move." Absent is `walk`, which is every move written before modes existed
+   * and every move a creature with one Speed makes.
+   *
+   * **Named rather than derived**, and the reason is the same one that keeps
+   * cover declared: a creature at the water's edge with a Swim Speed and a
+   * walking Speed can move either way, and which it did is a fact about the
+   * fiction. The engine holds no water. What the engine does hold is the
+   * consequence — which Speed the move is measured against, what a foot of it
+   * costs, and whether the creature has that Speed at all.
+   *
+   * Flying and burrowing are refused outright (`no_such_speed`) to a creature
+   * with no such Speed, because there is no unaided version of either.
+   * Climbing and swimming are the two the book *does* print an unaided
+   * version of, and it costs double; see {@link chargeTerrain}.
+   */
+  readonly mode?: MovementMode;
+  /**
+   * That this move is a jump, and which of the two the SRD prints.
+   *
+   * A jump is ordinary movement — "each foot you clear on the jump costs a
+   * foot of movement" — so it is a field on a move rather than a command of
+   * its own: what it adds is a **bound** (a Long Jump is your Strength score
+   * and no further) and, for the High Jump, the one way a creature with no
+   * Speed in the air may legally end up above where it started.
+   */
+  readonly jump?: JumpDeclaration;
   /**
    * How many feet of this move are through Difficult Terrain.
    *
@@ -225,6 +296,24 @@ export function moveWithin(
     // The distance positioning itself measured, on the lattice, between volumes.
     const feet = moved.value.distance;
 
+    // — what they are moving *with* ————————————————————————————————————————
+    //
+    // Before any cost and before any question about the route, because a move
+    // this creature cannot make at all is refused rather than itemised: a
+    // Goblin asked to fly is told it cannot fly, not asked which spaces it
+    // flew over.
+    const sheet = sheetAsItStands(state, id) ?? mover.sheet;
+    const mode = command.mode ?? 'walk';
+    const way = wayOf(state, id, sheet, mode);
+    if (!way.ok) return way;
+
+    const rise = to.z - from.z;
+    const jumped = checkJump(state, id, sheet, command, feet, rise);
+    if (!jumped.ok) return jumped;
+
+    const ascent = checkRise(id, mode, command, rise);
+    if (!ascent.ok) return ascent;
+
     // **A carried area sweeps, and a move of more than one space does not say
     // what it swept.** Checked before any cost, any budget and any Opportunity
     // Attack, so a move that needs its route stated costs nothing to ask about.
@@ -248,7 +337,17 @@ export function moveWithin(
     // declares is for ground no patch covers — the snow, the slope, the narrow
     // opening — and every foot of that still costs a foot extra.
     const charging = chargingOf(state, id, command, allowance);
-    const ground = chargeTerrain(state, scene.value, id, from, to, feet, charging, command.route);
+    const ground = chargeTerrain(
+      state,
+      scene.value,
+      id,
+      from,
+      to,
+      feet,
+      charging,
+      command.route,
+      way.value.surcharge,
+    );
     if (!ground.ok) return ground;
 
     const difficult = command.difficultFeet ?? 0;
@@ -263,7 +362,13 @@ export function moveWithin(
     // is one value rather than a condition spelled twice: a shove pays neither
     // the patches nor the feet the mover declared, because it is not the
     // creature's movement and Difficult Terrain costs movement.
-    const cost = ground.value.cost + (charging === 'none' ? 0 : difficult);
+    //
+    // And the surcharge reaches the declared feet exactly as it reaches the
+    // declared patches, which is the glossary's own arithmetic: "1 extra foot
+    // (2 extra feet in Difficult Terrain)" is a foot of expensive ground
+    // costing two and an unaided climb over it costing four.
+    const cost =
+      ground.value.cost + (charging === 'none' ? 0 : difficult * way.value.surcharge);
 
     // — what it costs ——————————————————————————————————————————————————————
     //
@@ -292,7 +397,12 @@ export function moveWithin(
       // said "it is not b's turn". A caller branching on the code and a DM
       // reading the reason were given two different answers to one question,
       // which is exactly what a refusal being a value is meant to prevent.
-      const spent = spendMovement(state.combat, id, cost, speedOf(state, id), {
+      // The allowance is the mode's — a Cockatrice flies forty feet and walks
+      // twenty — and for an unaided climb or swim it is the walking Speed the
+      // creature is doing it with. One value, worked out where the mode was
+      // checked, so the cap and the surcharge cannot disagree about which
+      // Speed this move is.
+      const spent = spendMovement(state.combat, id, cost, way.value.allowance, {
         rules: actionRulesOn(state, id),
       });
       // **Running out of movement mid-square has to say what made the ground
@@ -342,7 +452,7 @@ export function moveWithin(
         feet,
         cost,
         terrain,
-        unverified: [...opportunity.unverified, ...ground.value.unverified],
+        unverified: [...opportunity.unverified, ...ground.value.unverified, ...jumped.value],
         duplicate: false,
       });
     }
@@ -363,7 +473,7 @@ export function moveWithin(
       feet,
       cost,
       terrain,
-      unverified: [...opportunity.unverified, ...ground.value.unverified],
+      unverified: [...opportunity.unverified, ...ground.value.unverified, ...jumped.value],
       duplicate: false,
     });
   });
@@ -385,6 +495,181 @@ export function moveWithin(
  * here so the two cannot drift.
  */
 type Charging = 'spend' | 'report' | 'none';
+
+/**
+ * What a move in this mode draws on, and whether every foot of it costs two.
+ *
+ * One value rather than three questions asked in three places, for
+ * {@link Charging}'s reason exactly: the cap the budget is checked against and
+ * the rate the ground is charged at are two halves of one answer — "which
+ * Speed is this creature moving with" — and a move whose cap said flying while
+ * its rate said walking would be a bug nobody could see from either side.
+ *
+ * | | |
+ * |---|---|
+ * | the mode's own Speed | move against it, one foot per foot |
+ * | climbing or swimming without one | move against the walking Speed, two feet per foot |
+ * | flying or burrowing without one | refused; there is no unaided version |
+ *
+ * SRD: "While climbing or swimming, each foot of movement costs 1 extra foot
+ * (2 extra feet in Difficult Terrain) unless the creature has a Climb Speed or
+ * Swim Speed, respectively." The surcharge is a **multiplier** rather than a
+ * flat extra foot, which is the one reading that makes the parenthesis true:
+ * ordinary ground at 1 becomes 2, and Difficult Terrain at 2 becomes 4, which
+ * is 2 extra feet.
+ *
+ * The question asked of the *sheet* rather than of the live Speed, because
+ * "unless the creature has a Climb Speed" is about what the creature is: a
+ * Grappled spider still has a Climb Speed, and charging it double for a climb
+ * it cannot make anyway would be the wrong answer arrived at by the wrong
+ * question.
+ */
+interface WayOfMoving {
+  readonly allowance: number;
+  readonly surcharge: 1 | 2;
+}
+
+function wayOf(
+  state: GameState,
+  id: CharacterId,
+  sheet: CharacterSheet,
+  mode: MovementMode,
+): Result<WayOfMoving> {
+  if (mode === 'walk' || hasSpeedInMode(sheet, mode)) {
+    return ok({ allowance: speedOf(state, id, mode), surcharge: 1 });
+  }
+
+  if (mode === 'climb' || mode === 'swim') {
+    return ok({ allowance: speedOf(state, id, 'walk'), surcharge: 2 });
+  }
+
+  return err(
+    'no_such_speed',
+    `${id} has no ${mode === 'fly' ? 'Fly' : 'Burrow'} Speed, and the rules print no way to ${mode} without one`,
+  );
+}
+
+/**
+ * SRD: a creature ends a move higher than it began only if something took it
+ * up there.
+ *
+ * The rule that makes a Fly Speed and a High Jump mean something, and the one
+ * thing here that is a *new* refusal on an old shape: `Placement.elevation`
+ * has been on every move since positioning landed, so any creature could
+ * simply rise twenty feet and nothing asked how. Three answers, and they are
+ * the three the book prints — it flew, it climbed, or it jumped.
+ *
+ * Going **down** asks nothing, because gravity is not a Speed: a creature may
+ * always end lower than it started, and what that costs it on arrival is
+ * {@link resolveFall}'s.
+ *
+ * A shove is exempt for the reason it is exempt from everything else here: it
+ * is not the creature's movement, and a Thunderwave that throws somebody into
+ * the air is not asking them to fly.
+ */
+function checkRise(
+  id: CharacterId,
+  mode: MovementMode,
+  command: MoveCommand,
+  rise: number,
+): Result<null> {
+  if (rise <= 0 || command.forced === true) return ok(null);
+  if (mode === 'fly' || mode === 'climb' || mode === 'burrow') return ok(null);
+  if (command.jump?.kind === 'high') return ok(null);
+
+  return err(
+    'cannot_rise',
+    `${id} would end this move ${rise} feet higher than it started, and nothing is holding them up: fly it, climb it, or jump it`,
+  );
+}
+
+/**
+ * The bound a declared jump puts on the move that is the jump.
+ *
+ * SRD "Jump", both entries, and the whole of what the engine adds to them: the
+ * distance is a number off the sheet ({@link longJumpDistance},
+ * {@link highJumpHeight}), the cost is the move's own — "each foot you clear
+ * on the jump costs a foot of movement", which is what every foot of every
+ * move already costs — and this is the refusal that keeps a Strength 8
+ * character from clearing a thirty-foot chasm.
+ *
+ * **Which measurement each kind bounds is the difference between them.** A
+ * Long Jump is horizontal, so it bounds the distance covered; a High Jump is
+ * vertical, so it bounds the *rise* and says nothing about the ground crossed
+ * on the way — a caller who clears five feet upward and fifteen along is
+ * making an ordinary fifteen-foot move with a jump in it, and pays for all of
+ * it.
+ *
+ * **The lattice is coarser than the High Jump rule, and the refusal says so
+ * rather than rounding.** Everything in this engine is placed on 5-foot cubes,
+ * so the smallest rise a position can hold is five feet, and a standing High
+ * Jump of three reaches nothing at all. That is the rule and the lattice
+ * agreeing — a creature that wants to be five feet up takes a running start,
+ * which is what the book has it do — and rounding in the jumper's favour here
+ * would be the engine inventing two feet of altitude nobody has.
+ *
+ * Returns what it could not check rather than refusing it; see
+ * {@link JumpDeclaration.running}.
+ */
+function checkJump(
+  state: GameState,
+  id: CharacterId,
+  sheet: CharacterSheet,
+  command: MoveCommand,
+  feet: number,
+  rise: number,
+): Result<readonly string[]> {
+  const jump = command.jump;
+  if (jump === undefined) return ok([]);
+
+  // A jump is the jumper's own movement on their own legs. Both of these are
+  // refusals rather than silent precedence, because a move that is two things
+  // at once is a question with two answers — the reading `resolveAttack`
+  // takes of a swing named as both a weapon and a printed line.
+  if (command.forced === true) {
+    return err('bad_jump', `${id} is being moved by something else, which is not a jump`);
+  }
+  if ((command.mode ?? 'walk') !== 'walk') {
+    return err('bad_jump', `${id} cannot jump and ${command.mode} in the same move`);
+  }
+
+  const running = jump.running === true;
+  const unverified: string[] = [];
+  if (running) {
+    const budget = state.combat?.budgets[id];
+    if (budget === undefined) {
+      unverified.push(
+        `${id} is not in a fight, so nothing counts the ten feet a running jump needs; the running start was taken as declared`,
+      );
+    } else if (budget.movementSpent < RUNNING_START) {
+      return err(
+        'no_running_start',
+        `a running jump needs ${RUNNING_START} feet of movement immediately before it, and ${id} has moved ${budget.movementSpent} feet this turn`,
+      );
+    }
+  }
+
+  if (jump.kind === 'long') {
+    const reach = longJumpDistance(sheet, running);
+    return feet > reach
+      ? err(
+          'jump_too_far',
+          `${id}'s ${running ? 'running' : 'standing'} Long Jump covers ${reach} feet, and this one is ${feet}`,
+        )
+      : ok(unverified);
+  }
+
+  const height = highJumpHeight(sheet, running);
+  return rise > height
+    ? err(
+        'jump_too_far',
+        `${id}'s ${running ? 'running' : 'standing'} High Jump reaches ${height} feet, and this one rises ${rise}`,
+      )
+    : ok(unverified);
+}
+
+/** SRD "Jump": "if you move at least 10 feet immediately before the jump". */
+const RUNNING_START = 10;
 
 function chargingOf(
   state: GameState,
@@ -423,6 +708,12 @@ interface TerrainChargeOutcome {
  * route and no other. `uniformTerrainBetween` is where that region is
  * computed, and where the reason it is wider than the box between the
  * endpoints is written down.
+ *
+ * **The mode's surcharge multiplies whatever the ground came to**, in all
+ * three of the cases that charge anything, because that is what makes SRD's
+ * parenthesis arithmetic: "1 extra foot (2 extra feet in Difficult Terrain)"
+ * is one number doubled and not two numbers added. See {@link wayOf} for
+ * where the 1 or the 2 is decided and why it is decided once.
  */
 function chargeTerrain(
   state: GameState,
@@ -433,6 +724,7 @@ function chargeTerrain(
   feet: number,
   charging: Charging,
   route: readonly Point[] | undefined,
+  surcharge: 1 | 2,
 ): Result<TerrainChargeOutcome> {
   // **Difficult Terrain costs movement, and a shove is not the creature's
   // movement.** SRD offers an Opportunity Attack only against a creature
@@ -445,7 +737,8 @@ function chargeTerrain(
   if (route !== undefined) {
     const checked = checkRoute(scene, from, to, route);
     if (!checked.ok) return checked;
-    return ok({ ...costOfRoute(state, checked.value), unverified: [] });
+    const walked = costOfRoute(state, checked.value);
+    return ok({ ...walked, cost: walked.cost * surcharge, unverified: [] });
   }
 
   // Nothing was entered, so nothing charged. A zero-foot move is a mount, a
@@ -454,7 +747,11 @@ function chargeTerrain(
 
   const uniform = uniformTerrainBetween(state, from, to);
   if (uniform !== null) {
-    return ok({ cost: feet * uniform.costPerFoot, patches: uniform.patches, unverified: [] });
+    return ok({
+      cost: feet * uniform.costPerFoot * surcharge,
+      patches: uniform.patches,
+      unverified: [],
+    });
   }
 
   // **Outside combat there is nothing to run out of, so the question is
@@ -466,7 +763,7 @@ function chargeTerrain(
   // answer.
   if (charging === 'report') {
     return ok({
-      cost: feet,
+      cost: feet * surcharge,
       patches: [],
       unverified: [
         `the ground between (${from.x}, ${from.y}, ${from.z}) and (${to.x}, ${to.y}, ${to.z}) is Difficult Terrain in some places and not others — ${declaredHere(state)} — and no route was stated, so no patch was charged for this move; outside combat there was no budget for one to be charged against`,
@@ -954,7 +1251,8 @@ export function fallDamageDice(feet: number): number {
 
 export interface FallCommand extends CommandIdentity {
   /**
-   * How far the creature fell, in feet.
+   * How far the creature fell, in feet — or absent, for a flier the air has
+   * stopped holding up.
    *
    * **The table's number, and the only one here that is.** SRD gives a rate —
    * "you descend up to 500 feet at the end of the current turn" — and gives
@@ -964,8 +1262,73 @@ export interface FallCommand extends CommandIdentity {
    * and the Prone. It is the division `declareCreatureHeads` is on the DM's
    * surface for — a number the table *states* is a fact, and a number the
    * engine produced would be a fabrication.
+   *
+   * **Absent is the one case where the engine already knows**, and it is
+   * narrow on purpose: a creature that was *aloft* has nothing underneath it,
+   * so its height above the floor is its fall — see {@link altitudeOf}, which
+   * is the only place `z` is read as a distance to the ground. A creature
+   * standing at the same coordinate is standing on something the engine
+   * cannot see, and is asked. So this is not a second door for a caller to
+   * state a height through: omitting it does not mean "you decide", it means
+   * "read the one you already have", and every case where there is no such
+   * number is a refusal rather than a guess. See {@link flightLost}.
    */
-  readonly feet: number;
+  readonly feet?: number;
+}
+
+/**
+ * Whether the air has stopped holding a creature up, and how far it is down.
+ *
+ * SRD "Flying": "If a flying creature is knocked Prone, has its Speed reduced
+ * to 0, or is otherwise deprived of the ability to move, the creature falls
+ * unless it has the Hover trait or is being held aloft by magic."
+ *
+ * Five answers rather than a boolean, because the four that are not a fall
+ * are four different things to say to a caller — and three of them are the
+ * difference between a rule that did not fire and a fact nobody has
+ * established:
+ *
+ * | | |
+ * |---|---|
+ * | `falls` | it was flying, something stopped it, and this is the drop |
+ * | `hovers` | it has the trait the sentence excepts; nothing happens |
+ * | `aloft` | it is still flying under its own power |
+ * | `unplaced` | it flies and is stopped, and nobody has said where it was |
+ * | `no-flight` | it has no Fly Speed; this rule is not about it |
+ *
+ * **The Speed asked about is the Fly Speed**, which is the whole reason
+ * `speedOf` learned modes: a Cockatrice Restrained by a net has a walking
+ * Speed of 0 *and* a Fly Speed of 0, and it is the second that drops it.
+ * {@link deprivedOfFlight} is the conditions half, in `conditions.ts` with the
+ * conditions; the grant half and the area half are already inside `speedOf`.
+ *
+ * "Held aloft by magic" is the clause that is **not** read, because nothing
+ * records it: a Fly Speed a spell granted is a Fly Speed, and a creature
+ * levitating on somebody else's magic has no Speed of its own for this to
+ * find. Both are the same gap — a spell cannot grant a mode yet — and neither
+ * is silently decided here.
+ */
+export type FlightLoss =
+  | { readonly kind: 'falls'; readonly feet: number }
+  | { readonly kind: 'hovers' }
+  | { readonly kind: 'aloft' }
+  | { readonly kind: 'unplaced' }
+  | { readonly kind: 'no-flight' };
+
+export function flightLost(state: GameState, id: CharacterId): FlightLoss {
+  const creature = state.creatures[id];
+  if (creature === undefined) return { kind: 'no-flight' };
+
+  const sheet = sheetAsItStands(state, id) ?? creature.sheet;
+  if (!hasSpeedInMode(sheet, 'fly')) return { kind: 'no-flight' };
+  if (fliesWithoutFalling(sheet)) return { kind: 'hovers' };
+
+  const stopped = deprivedOfFlight(creature.conditions) || speedOf(state, id, 'fly') <= 0;
+  if (!stopped) return { kind: 'aloft' };
+
+  const scene = state.scene;
+  const height = scene === null ? null : altitudeOf(scene, id);
+  return height === null ? { kind: 'unplaced' } : { kind: 'falls', feet: height };
 }
 
 export interface FallResolution {
@@ -1027,6 +1390,67 @@ export interface FallResolution {
  * creature and read by one damage roll is a grant the format does not have.
  * That is why `FeatureReactionWindow` still excludes `creature-falling`.
  */
+/**
+ * How far this fall was, and — where the engine worked it out — the descent.
+ *
+ * Two doors to one number, and they are not symmetrical. A height the table
+ * states is taken as stated and **moves nobody**: the engine does not know
+ * where the bottom of that pit is, and placing a creature it cannot see the
+ * floor under would be inventing a coordinate. A height the engine read off
+ * the lattice is a flier coming down through air it can see, so the landing
+ * is an ordinary `creature-moved` — forced, because falling is not the
+ * creature's movement, and straight down, because nothing pushed it sideways.
+ *
+ * The four refusals are {@link FlightLoss}'s four other answers, each in its
+ * own words: two are verdicts on established facts and two are homework.
+ */
+function heightFallen(
+  state: GameState,
+  id: CharacterId,
+  command: FallCommand,
+): Result<{ readonly feet: number; readonly descends: boolean }> {
+  if (command.feet !== undefined) {
+    return Number.isInteger(command.feet) && command.feet >= 0
+      ? ok({ feet: command.feet, descends: false })
+      : err(
+          'bad_fall_distance',
+          `${String(command.feet)} is not a height anybody fell from; a fall is a whole number of feet`,
+        );
+  }
+
+  const flight = flightLost(state, id);
+  switch (flight.kind) {
+    case 'hovers':
+      return err('hovering', `${id} hovers, so nothing about being stopped brings it down`);
+    case 'aloft':
+      return err(
+        'still_aloft',
+        `nothing has taken ${id} out of the air, so there is no fall to resolve; state the height if it fell for some other reason`,
+      );
+    case 'unplaced':
+      return needsContext(
+        'unplaced',
+        `nobody has said where ${id} was flying, so there is no height to fall from`,
+        [
+          {
+            kind: 'position',
+            subject: id,
+            need: `where ${id} is`,
+            because: 'a fall out of the air is measured from how high up it was',
+            satisfyWith: `a placeCreatureInScene command for ${id}`,
+          },
+        ],
+      );
+    case 'no-flight':
+      return needsContext(
+        'no_fall_height',
+        `nobody has said how far ${id} fell, and ${id} was not flying, so the engine has no height of its own: how far it is to the bottom is a fact about the room`,
+      );
+    default:
+      return ok({ feet: flight.feet, descends: flight.feet > 0 });
+  }
+}
+
 export function resolveFall(
   state: GameState,
   id: CharacterId,
@@ -1047,22 +1471,37 @@ export function resolveFall(
     const faller = creatureOf(state, id);
     if (faller === null) return unknownCreature(id);
 
-    if (!Number.isInteger(command.feet) || command.feet < 0) {
-      return err(
-        'bad_fall_distance',
-        `${String(command.feet)} is not a height anybody fell from; a fall is a whole number of feet`,
-      );
-    }
+    const dropped = heightFallen(state, id, command);
+    if (!dropped.ok) return dropped;
+    const { feet } = dropped.value;
 
-    const count = fallDamageDice(command.feet);
+    // The descent itself, where the engine is the one who knew the height:
+    // straight down, forced — falling is nobody's movement — and carrying the
+    // stamp, because it is the first event this command writes and a retry
+    // must not drop the creature twice.
+    const descent: readonly GameEvent[] = !dropped.value.descends
+      ? []
+      : [
+          {
+            type: 'creature-moved',
+            id,
+            placement: { from: { creature: id }, feet: 0, elevation: -feet },
+            forced: true,
+            ...(stamp === null ? {} : { command: stamp }),
+          },
+        ];
+
+    const count = fallDamageDice(feet);
     // SRD ties the two halves together in one word: "**unless** you avoid
     // taking damage from the fall ... You **then** have the Prone condition."
     // A drop too short to cost a die is a drop nobody lands badly from, so
-    // there is nothing to record and a retry recomputes the same nothing.
-    if (count === 0) return ok(nothing(false));
+    // there is nothing to record and a retry recomputes the same nothing —
+    // except that a flier who came down from four feet is on the ground now,
+    // and the descent says so.
+    if (count === 0) return ok({ ...nothing(false), events: descent });
 
     const dice = `${count}d6`;
-    const source = `a ${command.feet}-foot fall`;
+    const source = `a ${feet}-foot fall`;
 
     // Validated before a die is thrown, so a refused call moved nothing — and
     // the faller's own sheet is what the dice are rolled against, contributing
@@ -1072,16 +1511,23 @@ export function resolveFall(
     const rolled = rollSpellDice(supply, faller.sheet, source, 'bludgeoning', dice);
     if (!rolled.ok) return rolled;
 
-    // The stamp rides the `rolls-issued`, which is the one event this command
-    // always writes once it has thrown anything: the damage could be a zero
-    // against a creature immune to Bludgeoning, and a retry must be a no-op
-    // either way.
+    // The stamp rides the first event this command always writes — the
+    // descent where there is one, and otherwise the `rolls-issued`, which is
+    // the one it always writes once it has thrown anything: the damage could
+    // be a zero against a creature immune to Bludgeoning, and a retry must be
+    // a no-op either way.
+    //
+    // **The descent comes first because it happened first**, and because the
+    // damage is dealt to a creature that is on the ground: a log replayed in
+    // this order never holds a Cockatrice at thirty feet with 3d6 of landing
+    // already taken out of it.
     const events: GameEvent[] = [
+      ...descent,
       {
         type: 'rolls-issued',
         count: supply.issuer.count - issuedBefore,
         rng: supply.rng.snapshot(),
-        ...(stamp === null ? {} : { command: stamp }),
+        ...(stamp === null || descent.length > 0 ? {} : { command: stamp }),
       },
     ];
 

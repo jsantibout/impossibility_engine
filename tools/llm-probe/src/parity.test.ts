@@ -220,6 +220,12 @@ const AUDIT: readonly {
       route: because(
         'the 5-foot spaces a move crossed, which the engine asks for only when a declared patch of Difficult Terrain covers some of the ground between the endpoints and not the rest. Nothing in either benchmark declares one, so the question is never put; and it is a fact rather than a number — the engine still works out what the crossing cost',
       ),
+      mode: because(
+        'which of the five Speeds the move uses. No reachable user: the ogre encounter is a flat room, and no creature in either benchmark — the Fighter, the Cleric, the Mage, the Ogre — has a Climb, Fly, Swim or Burrow Speed, so every move on this surface is the walk the field defaults to. The first thing to revisit when a benchmark puts water or a wall in the room; `packages/tools` publishes it, because a campaign can',
+      ),
+      jump: because(
+        'that a move is a Long or a High Jump. No reachable user for the same reason: nothing in either benchmark has anything to jump over or up to, and a jump the engine is not told about is the ordinary move it already was. It bounds rather than buys — the feet cost what they always cost — so leaving it unpublished refuses nobody anything they could otherwise have done',
+      ),
     },
   },
   {

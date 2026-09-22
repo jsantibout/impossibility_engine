@@ -24,7 +24,13 @@ import {
   withoutConditions,
   type ConditionState,
 } from './conditions.js';
-import { abilityModifier, armorClass, type CharacterSheet } from './character.js';
+import {
+  abilityModifier,
+  armorClass,
+  speedInMode,
+  type CharacterSheet,
+  type MovementMode,
+} from './character.js';
 import {
   distanceBetween,
   sightBetween,
@@ -2890,12 +2896,34 @@ function areaStandingOn(state: GameState, who: CharacterId): readonly AreaStandi
  * started at a moment somebody can write down and ends at another. So one is
  * filtered by `meetsRequirements` and the other is not — a stored grant whose
  * requirement was re-evaluated would be a second answer to when it ends.
+ *
+ * **And it answers for a mode.** SRD prints five Speeds; this reader held one,
+ * so a Cockatrice's Fly Speed of 40 had nowhere to be asked for and every
+ * caller measuring a flight got a walk. `mode` defaults to `'walk'`, which is
+ * every existing caller and every rule that says "your Speed" without
+ * qualifying it. What differs between the modes is written inside, in one
+ * place, for the reason the whole function exists.
  */
-export function speedOf(state: GameState, who: CharacterId): number {
+export function speedOf(
+  state: GameState,
+  who: CharacterId,
+  mode: MovementMode = 'walk',
+): number {
   const creature = state.creatures[who];
   if (creature === undefined) return 0;
 
-  const base = state.combat?.order.find((c) => c.id === who)?.speed ?? creature.sheet.baseSpeed;
+  // **The walking Speed is the pinned one; the other four are the sheet's.**
+  // `Combatant.speed` is what the fight began with and it is a walking Speed —
+  // `startCombat` is handed `sheet.baseSpeed` — so reading it for a Fly Speed
+  // would measure a flight against a walk. A mode the creature has no Speed in
+  // is 0, and stays 0 through everything below: nothing adds a Fly Speed to a
+  // creature that has none, and `hasSpeedInMode` is the question a rule asks
+  // when it needs to tell "cannot" from "stopped".
+  const base =
+    mode === 'walk'
+      ? (state.combat?.order.find((c) => c.id === who)?.speed ?? creature.sheet.baseSpeed)
+      : speedInMode(creature.sheet, mode);
+  if (mode !== 'walk' && base === 0) return 0;
 
   let flat = 0;
   for (const effect of creature.sheet.standing ?? []) {
@@ -2918,7 +2946,16 @@ export function speedOf(state: GameState, who: CharacterId): number {
     else zeroed = true;
   }
 
-  return combineSpeed(base, flat, halvings, zeroed, creature.conditions);
+  // **A flat increase is the walking Speed's; a halving and a zeroing are
+  // every mode's.** SRD writes "your Speed" unqualified for the walking one —
+  // Longstrider's ten feet and a Barbarian's Fast Movement are both that
+  // sentence — so adding them to a Fly Speed would be reading a rule the book
+  // does not print. Being stopped is the opposite: Grappled's "Speed is 0" and
+  // Slow's halving are about the creature rather than about a mode, and a
+  // Restrained Cockatrice does not fly away at half speed. The asymmetry is
+  // the SRD's, and it is the reading the fall below depends on — a flier whose
+  // Speed is reduced to 0 is a flier the air has stopped holding up.
+  return combineSpeed(base, mode === 'walk' ? flat : 0, halvings, zeroed, creature.conditions);
 }
 
 /**

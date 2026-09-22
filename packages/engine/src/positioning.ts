@@ -104,6 +104,22 @@ export function positionOf(state: PositionState, who: CharacterId): Point | null
   return state.positions[who] ?? null;
 }
 
+/**
+ * How far above the floor a creature is, or null if nobody has said where.
+ *
+ * `z` measured up from the floor is the lattice's own definition, and this is
+ * the one place that fact is turned into a *height* — which is the only sense
+ * in which the engine ever knows how far something has to fall. It knows it
+ * for a creature that is **aloft** and for no other: a flier holding station
+ * at 30 feet has nothing under it, so the drop is the coordinate. A creature
+ * standing at 30 feet is standing on something the engine cannot see, and its
+ * fall is a fact about the room that only the table has. See `resolveFall`,
+ * which asks this question of exactly one of those two.
+ */
+export function altitudeOf(state: PositionState, who: CharacterId): number | null {
+  return positionOf(state, who)?.z ?? null;
+}
+
 const within = (extent: SceneExtent, p: Point): boolean =>
   p.x >= 0 && p.x <= extent.width && p.y >= 0 && p.y <= extent.depth && p.z >= 0 && p.z <= extent.height;
 

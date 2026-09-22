@@ -5116,7 +5116,15 @@ describe('Speed is read through one reader', () => {
   it('asks speedOf from the two reducer cases that need it', () => {
     const reducer = SPEED_SOURCE['fold/combat.ts']!;
     expect(reducer).toMatch(/dash\(combatOf\(state, event\), event\.id, speedOf\(state, event\.id\)\)/);
-    expect(reducer).toMatch(/spendMovement\([\s\S]{0,120}speedOf\(state, event\.id\)/);
+    // **The movement spend asks the same reader once per mode.** A
+    // `movement-spent` does not say which Speed the mover used, and a
+    // creature with more than one legitimately spends against whichever it is
+    // using — so the reducer's backstop is the fastest of them, and the exact
+    // check stays in the command that knows. Still one reader: `spendableSpeed`
+    // is `speedOf` asked five times and nothing else, which is asserted here
+    // rather than left to the name.
+    expect(reducer).toMatch(/spendMovement\([\s\S]{0,160}spendableSpeed\(state, event\.id\)/);
+    expect(reducer).toMatch(/MOVEMENT_MODES\.map\(\(mode\) => speedOf\(state, who, mode\)\)/);
   });
 
   /**
