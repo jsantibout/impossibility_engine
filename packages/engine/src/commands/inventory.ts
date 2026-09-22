@@ -822,21 +822,25 @@ export function carriedWeight(
  * Whether taking this much more on is more than this creature could lift.
  *
  * **Which of the two printed numbers is a ceiling is the whole of this
- * function, and the SRD settles it in its third sentence**: "While dragging,
- * lifting, or pushing weight in excess of the maximum weight you can carry,
- * your Speed can be no more than 5 feet." That sentence only means anything if
- * a creature *may* be holding more than the Carry column — so Carry is the
- * threshold past which you are slowed, and **Drag/Lift/Push is the ceiling**.
- * Picking something up is lifting it, and buying something is walking out with
- * it, so both are measured against the column the book calls a maximum.
+ * function, and the SRD does not simply say.** What it says is that the rule
+ * is the GM's to invoke: "You can usually carry your gear and treasure without
+ * worrying about the weight of those objects. If you try to haul an unusually
+ * heavy object or a massive number of lighter objects, the GM **might** require
+ * you to abide by the rules for carrying capacity." There is nowhere in this
+ * engine to hold "this table has turned capacity on", and inventing one is a
+ * primitive nobody has asked for — so the refusal has to stand where **every**
+ * reading agrees, and that is the printed Drag/Lift/Push maximum. Picking
+ * something up is lifting it and buying something is walking out with it, so
+ * both are measured there.
  *
  * Refusing at the Carry column instead was the first draft and it was wrong in
  * a way worth recording, because it looked right: the SRD's own starting
  * bundles are heavier than the SRD's own Carry figure for a low-Strength
- * class — a Bard's option A with a Sage's pack is 146 lb of *stated* weight
- * against a Strength-8 Bard's 120 — so an engine that refused there shipped
- * two doors that were dead for a canonical character it had just minted
- * itself. The book is not in tension with itself; the reading was.
+ * class — a canonical Bard's kit against a Strength-8 Bard's number, pinned
+ * exactly in `carrying-capacity.test.ts` rather than quoted here — so an
+ * engine that refused there shipped two doors that were dead for a character
+ * it had just minted itself. That is the reading the book hands the GM a
+ * switch to avoid, and the switch is the thing that is missing.
  *
  * **The half this does not build, and whose it is.** Nothing yet caps the
  * Speed of a creature between the two numbers. Speed modifiers are

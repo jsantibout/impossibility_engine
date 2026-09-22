@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
-import { asCharacterId, isErr, expect as unwrap, type CharacterId, type Result } from '@ie/shared';
+import {
+  asCharacterId,
+  contextRequestsOf,
+  isErr,
+  isNeedsContext,
+  expect as unwrap,
+  type CharacterId,
+  type Result,
+} from '@ie/shared';
 import type { CreatureSize } from '@ie/srd';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
@@ -12,6 +20,7 @@ import {
   carriedWeight,
   carryingCapacity,
   dropItem,
+  itemsWithinReach,
   placeCreatureInScene,
   purchaseItem,
   setScene,
@@ -33,15 +42,29 @@ import {
  * and every size above doubles.
  *
  * **Two honesties are load-bearing here.** `weightLb` is `number | null`, and
- * null is "nobody has said" rather than zero — 56 of the catalogue's 401
- * items, every magic item among them, print no weight at all. So the sum is a
- * **lower bound** with the unweighed lines counted beside it, and a refusal
- * made on a lower bound can only ever under-refuse. And the SRD's own starting
- * bundles are heavier than the SRD's own capacities for a low-Strength class —
- * a Bard's option A and a Sage's pack come to 147 lb against a Strength-8
- * Bard's 120 — which is exactly why the book writes "You can usually carry
- * your gear and treasure without worrying about the weight" and hands the
- * switch to the GM. See the digest for what that leaves open.
+ * null is "nobody has said" rather than zero — every magic item in the
+ * catalogue prints no weight at all. So the sum is a **lower bound** with the
+ * unweighed lines counted beside it, and a refusal made on a lower bound can
+ * only ever under-refuse.
+ *
+ * And **the refusal stands where every reading agrees**, which is the printed
+ * Drag/Lift/Push maximum rather than the Carry column. The SRD does not make
+ * Carry a hard stop; it hands the GM a switch — "You can usually carry your
+ * gear and treasure without worrying about the weight of those objects. If you
+ * try to haul an unusually heavy object or a massive number of lighter
+ * objects, the GM **might** require you to abide by the rules for carrying
+ * capacity." This engine has nowhere to hold "this table turned that on", and
+ * refusing at Carry anyway would leave a canonical low-Strength character
+ * unable to buy or pick up anything for ever, because the SRD's own starting
+ * bundles are heavier than its own Carry figure for one. The last test below
+ * pins those two numbers against each other so that the wrong reading cannot
+ * come back without a measurement arguing with it.
+ *
+ * What is **not** built is the consequence Carry does have: "While dragging,
+ * lifting, or pushing weight in excess of the maximum weight you can carry,
+ * your Speed can be no more than 5 feet." Speed modifiers are `standing.ts`'s,
+ * which is another track's region this batch; `carryingCapacity` returns both
+ * figures so the rule is one read away for whoever owns it.
  */
 
 const id = (s: string) => asCharacterId(s);
@@ -143,6 +166,28 @@ describe('what a creature is actually carrying', () => {
   });
 });
 
+describe('what is lying at a creature’s feet', () => {
+  it('is the pile within arm’s reach, and nothing further off', () => {
+    let log = run(walker(15), (s) => purchaseItem(s, SRD_CONTENT, A, 'greataxe'));
+    log = run(log, (s) => dropItem(s, SRD_CONTENT, A, { item: 'greataxe' }));
+    expect(unwrap(itemsWithinReach(state(log), A), 'reach').map((pile) => pile.item)).toEqual([
+      'greataxe',
+    ]);
+  });
+
+  /**
+   * **"Nobody has described a room" is not "the room is bare."** This answered
+   * the second to the first, which is rule 6's mistake made by a reader rather
+   * than by a refusal.
+   */
+  it('asks for a scene rather than reporting an empty floor', () => {
+    const roomless = fold('seed', [arrives(A, 15, 'medium')]);
+    const asked = itemsWithinReach(roomless, A);
+    expect(isNeedsContext(asked)).toBe(true);
+    expect(contextRequestsOf(asked)[0]?.satisfyWith).toMatch(/setScene/);
+  });
+});
+
 describe('a gain heavier than the creature could lift', () => {
   /**
    * **Measured against Drag/Lift/Push, not against Carry**, and the SRD's own
@@ -210,8 +255,10 @@ describe('a gain heavier than the creature could lift', () => {
       weigh(sage.startingEquipment.find((one) => one.option === 'A')!.items);
 
     const capacity = carryingCapacity(state(walker(8)), A);
-    expect(kit).toBeGreaterThan(capacity.carry);
-    expect(kit).toBeLessThan(capacity.dragLiftPush);
+    // Exactly, so that the argument in the docstring above is a measurement
+    // rather than a remark: a prose figure nothing pins is the failure rule 8
+    // is about, and this one is load-bearing for which column is the ceiling.
+    expect({ kit, ...capacity }).toEqual({ kit: 147, carry: 120, dragLiftPush: 240 });
   });
 
   /**
