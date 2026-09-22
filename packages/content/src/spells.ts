@@ -5549,11 +5549,19 @@ export const LESSER_RESTORATION: SpellDefinition = {
  * > duration, the target has Advantage on saving throws to avoid or end the
  * > Poisoned condition, and it has Resistance to Poison damage."
  *
- * The first and third sentences execute; the second is debt with a name. A
- * list of one is what a spell that names its own condition looks like —
- * nothing is chosen, so nothing is missing there — and the hour it then runs
- * makes the casting an ongoing record where an Instantaneous removal leaves
- * none at all.
+ * All three sentences execute. A list of one is what a spell that names its
+ * own condition looks like — nothing is chosen, so nothing is missing there —
+ * and the hour it then runs makes the casting an ongoing record where an
+ * Instantaneous removal leaves none at all.
+ *
+ * **The middle sentence was the one with a name**, and the name was a missing
+ * axis: a mode was selected by roll family, ability and skill, so the nearest
+ * sayable thing was Advantage on every Constitution saving throw the target
+ * ever made — which would have helped against a Disintegrate. `condition` on
+ * the selector is the narrowing, the same one the three species traits that
+ * write this sentence now carry, and "avoid **or end**" needs no second
+ * effect: one grant reaches the save a poison forces and the save a turn
+ * boundary repeats against a poison already standing.
  *
  * **That record was on nobody, and building the Resistance is what put it on
  * somebody.** A casting is on a creature while it has a live effect there that
@@ -5574,12 +5582,16 @@ export const PROTECTION_FROM_POISON: SpellDefinition = {
   targets: { count: 1, self: true },
   effects: [
     { kind: 'end-condition', conditions: ['poisoned'] },
+    {
+      kind: 'roll-mode',
+      modifier: {
+        mode: 'advantage',
+        selector: { roll: 'saving-throw', relation: 'roller', condition: 'poisoned' },
+      },
+    },
     { kind: 'damage-defense', damageTypes: ['poison'], defense: 'resistant' },
   ],
   durationSeconds: 3600,
-  unmodelled: [
-    'the target has Advantage on saving throws to avoid or end the Poisoned condition; a mode is selected by roll family, ability and skill, and there is no way to say "a saving throw against a named condition", so those saves are rolled without it',
-  ],
 };
 
 /**

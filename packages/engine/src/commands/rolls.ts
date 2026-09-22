@@ -12,6 +12,7 @@ import {
   type Ability,
   ABILITY_NAMES,
   type CharacterId,
+  type ConditionName,
   err,
   ok,
   type Result,
@@ -444,6 +445,16 @@ export function mergedModes(
  * apply it twice. The conditions come back too: a feature can say a condition
  * has no effect on this creature right now, and every roll that reads
  * conditions has to read that instead.
+ *
+ * **And what the save is *about*, where the caller knows.** SRD Fey Ancestry
+ * grants Advantage "on saving throws you make to avoid or end the Charmed
+ * condition", and a gatherer that could not be told which save this is would
+ * hand an elf that Advantage on every Wisdom save she ever made. Only the
+ * caller knows: a casting's resolver reads its own condition riders, and the
+ * turn boundary reads the timer whose condition its repeat would end. A caller
+ * with none says nothing, and a condition-keyed selector reads that as a miss
+ * rather than a guess — which is every Concentration check, every
+ * Counterspell save and every save a DM simply calls for.
  */
 export function savingSupport(
   state: GameState,
@@ -454,6 +465,8 @@ export function savingSupport(
     readonly bonuses?: readonly Bonus[] | undefined;
     readonly modes?: readonly (RollMode | ModeSource)[] | undefined;
   },
+  /** The conditions this save would avoid or end, where it is about any. */
+  about?: readonly ConditionName[],
 ): {
   readonly bonuses: readonly Bonus[];
   readonly modes: readonly (RollMode | ModeSource)[];
@@ -482,7 +495,17 @@ export function savingSupport(
   return {
     bonuses: [...merged.values()],
     modes: mergedModes(
-      rollModesFor(state, { family: 'saving-throw', roller: who, ability }).modes,
+      rollModesFor(state, {
+        family: 'saving-throw',
+        roller: who,
+        ability,
+        // Omitted rather than passed empty where the caller said nothing, for
+        // the reason the sight facts on an attack are: absent is "nobody
+        // said" and an empty list would be a statement that this save is
+        // about no condition at all. Both read as a miss today; they are
+        // different claims and the log should not conflate them.
+        ...(about === undefined || about.length === 0 ? {} : { aboutConditions: about }),
+      }).modes,
       supply.modes ?? [],
     ),
     conditions: effectiveConditions(state, who),

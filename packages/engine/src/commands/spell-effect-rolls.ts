@@ -491,7 +491,20 @@ export function resolveSaveDamageEffect(
   } = ctx;
   let current = world;
 
-  const support = savingSupport(current, target, victim, effect.ability, supply);
+  // **The same question the plain save asks, because this is the same save.**
+  // SRD Contagion is one Constitution saving throw for damage *and* the
+  // Poisoned condition, so a dwarf's Advantage to avoid being Poisoned reaches
+  // it exactly as it reaches a save that only imposes. Two resolvers roll two
+  // saves, and a trait that reached one of them would work against a spell and
+  // not against its neighbour.
+  const support = savingSupport(
+    current,
+    target,
+    victim,
+    effect.ability,
+    supply,
+    conditionRiderOf(effect).map((rider) => rider.name),
+  );
   // SRD singles a creature type out twice, and both sentences are about
   // this save: Blight's "A Plant creature automatically fails the save"
   // and Shatter's "A Construct has Disadvantage on the save". The type
@@ -732,7 +745,22 @@ export function resolveSaveEffect(
   let current = world;
 
   // A saving throw, and a condition on a failure.
-  const support = savingSupport(current, target, victim, effect.ability, supply);
+  //
+  // **Which is also what the save is *about*.** SRD Fey Ancestry grants
+  // Advantage "to avoid or end the Charmed condition", and the avoiding is
+  // this roll: the riders this failure would impose are the conditions the
+  // target is saving against, so the gatherer is handed them rather than left
+  // to guess from the ability. The list may be empty — SRD Slow's failure
+  // hands out grants and imposes nothing — and an empty list is a save about
+  // no condition, which is what `savingSupport` reads it as.
+  const support = savingSupport(
+    current,
+    target,
+    victim,
+    effect.ability,
+    supply,
+    conditionRiderOf(effect).map((rider) => rider.name),
+  );
   // The sheet as it stands — see `resolveSaveDamageEffect`. Two resolvers roll
   // two saves, so one of them moving is not the other moving.
   const sheet = sheetAsItStands(current, target) ?? victim.sheet;

@@ -86,6 +86,8 @@ import {
  * claims is removed.
  */
 export const FEATURE_SHAPES = {
+  'a-check-keyed-to-the-condition-it-would-end':
+    '**the residue of `a-save-keyed-to-a-condition`, and it is a feature’s gap rather than a casting’s.** That shape was the axis a `RollSelector` lacked, and the axis is built: a selector now names the condition a roll is about, and the four SRD sentences that print it on a *saving throw* — Dwarven Resilience, Fey Ancestry, Brave and Protection from Poison — are executed, both halves of "avoid or end". The shape left the spell vocabulary with its last spell, which is IE-010’s precedent for a shape whose claimants have all moved. What is left is one sentence and it is on an ability check: SRD Powerful Build grants "Advantage on any ability check you make to end the Grappled condition", and no ability check in this engine records what it is about. packages/engine/src/roll-modifiers.ts refuses the pairing rather than accepting a grant that would match nothing — "only a saving throw says what it is about today" — and names this trait as the roll that will say next. No casting and no item prints the sentence, which is what makes it belong here.',
   'an-effect-that-ends-when-its-target-is-hurt':
     'an effect the SRD ends early "if it takes any damage". What an option may print as an early end is held to what a timer can see happen to the creature it sits on, and packages/engine/src/content.ts refuses anything else by name — a cause is "not something the engine can see happen to the creature a timer sits on" — while every cause that list does hold is keyed on what that creature itself does. Damage dealt to it by somebody else is not among them, so Turn Undead\'s and Abjure Foes\'s escape clause is transcribed and inert: the conditions stand until the minute is up.',
   'a-target-list-an-ability-modifier-sizes':
@@ -1337,18 +1339,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'a printed span rather than an extended turn boundary.',
     },
   ],
-  'dwarf:dwarven-resilience': [
-    {
-      clause: 'is a standing grant that every hit is measured against',
-      why: 'expressible',
-      note: 'the Poison Resistance, a standing grant every hit is measured against.',
-    },
-    {
-      clause: 'has no way to say which condition a save is about',
-      why: 'a-save-keyed-to-a-condition',
-      note: 'the spell map’s own id, which Protection from Poison waits on; four origin traits want it here.',
-    },
-  ],
   'dwarf:dwarven-toughness': [
     {
       clause: 'needs a feature that raises the hit point maximum',
@@ -1388,13 +1378,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'the engine gathers a spells grant only from the features of a class that casts',
       why: 'a-spell-a-source-that-does-not-cast-grants',
       note: 'the cantrip and the two levelled spells each lineage knows.',
-    },
-  ],
-  'elf:fey-ancestry': [
-    {
-      clause: 'a roll selector names a family, an ability and a skill and has no condition axis',
-      why: 'a-save-keyed-to-a-condition',
-      note: 'Advantage on saves against the Charmed condition, on the axis a selector has no room for.',
     },
   ],
   'elf:trance': [
@@ -1467,21 +1450,14 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
   'goliath:powerful-build': [
     {
-      clause: 'names a condition, and a roll selector names a family, an ability and a skill and has no condition axis',
-      why: 'a-save-keyed-to-a-condition',
-      note: 'Advantage on a check to end the Grappled condition, which is the same missing axis on a check rather than a save.',
+      clause: 'legal on a saving throw and refused on an ability check',
+      why: 'a-check-keyed-to-the-condition-it-would-end',
+      note: 'the last of the five that wanted this axis, and the only one still waiting. The other four say "saving throws" and are executed; this one says "any ability check you make to end the Grappled condition", and no ability check in this engine records what it is about — so the selector refuses a condition there rather than accepting one that would match nothing. The shape is what is left of itself: a check that carries the condition it would end.',
     },
     {
       clause: 'the catalogue records a weight for every item and nothing adds them up',
       why: 'a-rule-the-engine-fixes-for-everybody',
       note: 'carrying capacity, which no rule computes and so none can widen.',
-    },
-  ],
-  'halfling:brave': [
-    {
-      clause: 'a roll selector names a family, an ability and a skill and has no condition axis',
-      why: 'a-save-keyed-to-a-condition',
-      note: 'Advantage on saves against the Frightened condition, on the axis a selector has no room for.',
     },
   ],
   'halfling:halfling-nimbleness': [

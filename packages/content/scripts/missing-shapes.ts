@@ -233,8 +233,6 @@ export const MISSING_SHAPES = {
     'the **exceptions** to the general dismissal, which is built: `endOngoingSpell` ends a casting of the caster’s own by id and spends nothing, which is what SRD prints for a **Time Span** duration. What is left is what each claimant prints instead — `docs/design/casting.md`: "every one of those three prints an exception to it". Animal Shapes and Gaseous Form are ended by the **target** rather than by the caster; all three cost an action the book names where a dismissal costs none; and a casting that runs "Until dispelled" is refused outright, because the book gives its caster no ending at all.',
   'a-dc-the-caster-does-not-set':
     'every saving throw a spell forces is measured against the casting’s pinned `saveDc`. The audit names the asymmetry from the other side — "**Three members of the definition format have zero catalogue users**, not one: `roll-mode.save` ..., `SpellCheck.dc` ..., and `’end-casting’` as a `save.repeats.onSuccess` value" — so an *ability check* may already name a printed DC and a *saving throw* may not.',
-  'a-save-keyed-to-a-condition':
-    'a save selected by what it is *against* rather than by the ability that rolls it. `docs/design/rolls-and-damage.md` names it and names this spell: "A save keyed to a named **condition** rather than an ability | Protection from Poison", in the table of what the roll-modifier vocabulary deliberately does not reach. Distinct from `a-mode-on-the-save-a-spell-forces`, which is the caster’s own save seen from the other end — this one modifies a save some *other* effect will call for.',
   'a-condition-benefit-an-effect-takes-away':
     'a benefit the condition layer derives, switched off while the condition itself stays. Three SRD spells print the sentence — Faerie Fire, Starry Wisp, and Mind Spike’s "against you" — and PROGRESS.md already lists Faerie Fire among the clauses the roll vocabulary cannot reach. **The shape itself is built now**: the `benefit` rider hangs a denial off a settled outcome, and `benefitsFrom` is what all three readers of the Invisible condition’s benefits ask — including the Initiative Advantage, which nothing used to reach. What is left is one further shape each. Faerie Fire is finished — `save.condition` is optional, so its Dexterity save hangs this rider, and its 20-foot Cube is an ordinary `area` picking its own targets; Mind Spike narrows the denial to the caster alone, which is a-condition-benefit-an-effect-takes-away meeting the-effects-source-as-a-participant, and a blanket denial would be wrong for it rather than merely coarse; Shining Smite hangs the same sentence on an ongoing casting whose beneficiaries are everybody the casting did not target.',
   'a-random-outcome-that-is-not-a-d20':
@@ -948,13 +946,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'remain within range for the spell',
       why: 'table',
       note: 'SRD: "Up to five creatures of your choice who remain within range for the spell\'s entire casting gain the benefits of a Short Rest". Range is measured against where the five stand when the rite settles, and nothing records where anybody stood for the ten minutes before it; a position history kept only so that one spell could read it would be a rule nothing else asks for, so whether they stayed is the DM\'s.',
-    },
-  ],
-  'protection-from-poison': [
-    {
-      clause: 'Advantage on saving throws to avoid or end the Poisoned condition',
-      why: 'a-save-keyed-to-a-condition',
-      note: 'SRD: "the target has Advantage on saving throws to avoid or end the Poisoned condition". A `RollModifier` selects a save by ability and by nothing else, so the nearest sayable thing is Advantage on every Constitution save the target ever makes — which is a different and much larger spell. The engine rolls those saves without it.',
     },
   ],
   'scorching-ray': [
@@ -5564,12 +5555,15 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
       note: 'the whole of the entry. Rations feed a character in fiction and the engine has no hunger, no day and no nourishment, so there is nothing here the grant vocabulary is short of — and nothing for a record to carry either, which is rule 1 in packages/content/src/items.ts rather than a blocker.',
     },
   ],
+  // One id lighter: the Advantage on saves to avoid or end the Poisoned
+  // condition is writable now, on the same axis three species traits and
+  // Protection from Poison took. Four blockers stand, so the entry stays
+  // blocked and nothing about its pile changes.
   'belt-of-dwarvenkind': [
     'a-language-or-a-proficiency-an-item-grants',
     'a-bonus-narrowed-to-a-skill',
     'an-ability-score-a-spell-changes',
     'senses-beyond-declared-sight',
-    'a-save-keyed-to-a-condition',
   ],
   'belt-of-giant-strength': [
     'an-ability-score-a-spell-changes',
@@ -5935,7 +5929,11 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'a-stat-block-created-mid-fight',
     'a-selector-for-every-d20-test',
   ],
-  'necklace-of-adaptation': ['a-save-keyed-to-a-condition'],
+  // **Back to unread, which is the honest pile rather than a demotion.**
+  'necklace-of-adaptation': {
+    unread:
+      'its one grandfathered blocker was the condition-keyed save, and that axis is built: "Advantage on saving throws made to avoid or end the Poisoned condition" is now a standing roll mode an item grant can carry, on the same axis Fey Ancestry and Protection from Poison took. So nothing mechanical stands between this paragraph and a record — and a bare list of ids was never the reading that would say so. What is left is the other half of the sentence, "you can breathe normally in any environment", which somebody has to weigh against rule 1 in packages/content/src/items.ts before this becomes a record or a piece of fiction. Unread is the honest pile for that, and it is where an entry goes by default rather than by decision.',
+  },
   // **Placed, by the shape the re-derivation had to name anyway** — and then
   // read to the end of the paragraph, which is where the second blocker was.
   // The last reading left this unread because "the blocker it named is gone

@@ -2733,12 +2733,12 @@ describe('a shape that gets built is content work, not a merge', () => {
     // state this row was always tracking rather than a row that stopped
     // mattering.
     expect(ADJUDICATED['lesser-restoration']).toBeUndefined();
-    // IE-014 gave this two adjudications and IE-017 built one of them away, so
-    // the Resistance clause is executed and only the condition-keyed save is
-    // left. Two merges, one entry, and the map says which half survived.
-    expect(ADJUDICATED['protection-from-poison']?.map((e) => e.why)).toEqual([
-      'a-save-keyed-to-a-condition',
-    ]);
+    // IE-014 gave this two adjudications, IE-017 built one of them away and
+    // P2-F1 built the other: the condition-keyed save is the axis three
+    // species traits wanted, and this spell's own sentence is the fourth. So
+    // the entry is gone rather than emptied, which is where Lesser
+    // Restoration's went and what an executed spell with no debt looks like.
+    expect(ADJUDICATED['protection-from-poison']).toBeUndefined();
   });
 });
 

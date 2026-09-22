@@ -311,16 +311,26 @@ describe('Protection from Poison ends the Poisoned condition', () => {
   });
 
   /**
-   * The removal names one condition; the Resistance beside it is the spell's
-   * third sentence, and one clause is still declared rather than executed.
+   * Three sentences, three effects, and nothing left over.
+   *
+   * The removal names one condition; the Advantage beside it is the middle
+   * sentence, keyed to the condition the saves are about rather than to the
+   * ability that rolls them; the Resistance is the third. The clause that
+   * used to be declared rather than executed was the middle one, and the spell
+   * holds no `unmodelled` at all now.
    */
-  it('names one condition, grants one Resistance, and leaves its last clause unmodelled', () => {
+  it('names one condition, keys one Advantage to it, and grants one Resistance', () => {
     const definition = SRD_CONTENT.spell('protection-from-poison');
     const effect = definition?.effects[0];
     expect(effect && 'conditions' in effect ? effect.conditions : null).toEqual(['poisoned']);
-    const granted = definition?.effects[1];
+    const mode = definition?.effects[1];
+    expect(mode && 'modifier' in mode ? mode.modifier : null).toEqual({
+      mode: 'advantage',
+      selector: { roll: 'saving-throw', relation: 'roller', condition: 'poisoned' },
+    });
+    const granted = definition?.effects[2];
     expect(granted && 'damageTypes' in granted ? granted.damageTypes : null).toEqual(['poison']);
-    expect(definition?.unmodelled?.length).toBeGreaterThanOrEqual(1);
+    expect(definition?.unmodelled).toBeUndefined();
   });
 
   /**

@@ -16,6 +16,7 @@
 import {
   type Ability,
   type CharacterId,
+  type ConditionName,
   err,
   ok,
   type Result,
@@ -878,6 +879,31 @@ function nextOwed(state: GameState): OwedAreaEffect | null {
 }
 
 /**
+ * The condition a repeat save would **end**, read off the timer that owes it.
+ *
+ * SRD writes "avoid or end" as one sentence — Dwarven Resilience, Fey
+ * Ancestry, Brave and Protection from Poison all do — so a grant that reaches
+ * the save a casting forced has to reach the save the boundary repeats. What
+ * that save is about is not on the debt and deliberately is not: a
+ * {@link PendingSave} says what is *owed*, and the timer it names already
+ * holds the answer, because a `condition` target is one condition instance on
+ * one creature. Reading it here rather than copying it onto the debt is the
+ * rule `effectKey` itself follows — one fact, one place, nothing to disagree.
+ *
+ * Empty for every other kind of timer, which a condition-keyed selector reads
+ * as a miss: a casting's own deadline and a feature's activation end nothing
+ * a creature is suffering from, so a save repeated against one is about no
+ * condition at all.
+ */
+function conditionEndedBy(state: GameState, effectKey: string): readonly ConditionName[] {
+  const target = state.timers[effectKey]?.target;
+  if (target === undefined || target.kind !== 'condition') return [];
+  const held = state.creatures[target.on]?.conditions.instances ?? [];
+  const instance = held.find((one) => one.id === target.instance);
+  return instance === undefined ? [] : [instance.condition];
+}
+
+/**
  * Roll the turn-boundary saves a state already owes.
  *
  * The deferred half of {@link resolveTurn}: a caller who advanced without a
@@ -915,7 +941,25 @@ export function resolvePendingSaves(
         return unknownCreature(pending.target, 'owes a save but is not in this game');
       }
 
-      const support = savingSupport(state, pending.target, creature, pending.ability, supply);
+      // **"Avoid or end", and this is the ending.** SRD Dwarven Resilience
+      // grants Advantage on saving throws "to avoid **or end** the Poisoned
+      // condition", so the repeat a boundary raises is the same sentence as
+      // the save the casting forced, read one turn later.
+      //
+      // **Derived from the timer rather than carried on the debt**, which is
+      // the rule this file already follows about `effectKey`: a `PendingSave`
+      // is what is owed, and what it is about is a fact the timer already
+      // holds — its `condition` target names the instance this save would end.
+      // A field on the debt would be a second copy of an answer, free to
+      // disagree with the first.
+      const support = savingSupport(
+        state,
+        pending.target,
+        creature,
+        pending.ability,
+        supply,
+        conditionEndedBy(state, pending.effectKey),
+      );
       // The sheet as it stands: a save the boundary repeats is a save, and an
       // item that sets the ability it is made with is worn or it is not at the
       // moment the die is thrown.
