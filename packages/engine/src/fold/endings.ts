@@ -164,8 +164,14 @@ function endingFactsOf(state: GameState, event: GameEvent): readonly EndingFact[
           : []),
         // And the two that read the other end of it. A trap names nobody, and
         // that is a real answer rather than a gap: there is no creature that
-        // dealt it, so neither of these can fire.
-        ...(event.by === undefined
+        // dealt it, so neither of these can fire — and neither fires on
+        // nothing, for the same reason the three above do not. An amount of 0
+        // is also a blow a damage **threshold** turned aside: SRD calls that
+        // "superficial" and says it "doesn't reduce Hit Points", which is
+        // Immunity and so damage *not taken*. Two tracks reached that reading
+        // independently, one from Resistance and one from thresholds, which is
+        // the strongest evidence it is the right one.
+        ...(event.by === undefined || event.amount === 0
           ? []
           : [
               { cause: 'target-deals-damage', who: event.by } as const,

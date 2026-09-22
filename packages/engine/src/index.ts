@@ -38,6 +38,9 @@ export * from './vitals.js';
 export * from './positioning.js';
 export * from './reactions.js';
 export * from './monster.js';
+// A thing you can attack and break: the vocabulary an object's two tables are
+// written in, and the rule that stands over both of them.
+export * from './objects.js';
 export * from './events.js';
 export * from './idempotency.js';
 export * from './commands.js';

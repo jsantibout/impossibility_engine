@@ -77,7 +77,7 @@ import { concentrationSaveDc } from '../vitals.js';
 // import cycle it closes (`actions.ts` reaches for `castSpell` here) resolves
 // either way round.
 import { HIDE } from './actions.js';
-import { creatureOf, turnContextFor, unknownCreature } from './command.js';
+import { creatureOf, damageTakenIn, turnContextFor, unknownCreature } from './command.js';
 import { applyConditionTo, endConditionsOn, schedule } from './conditions.js';
 import { type DamageCommand, damageCreature } from './creatures.js';
 import { mayAct, pendingCastingsOf } from './holds.js';
@@ -1778,7 +1778,11 @@ export function resolveDamage(
     const events: GameEvent[] = [...damage.value];
     const after = events.reduce(applyEvent, state);
 
-    const check = concentrationSaveAfterDamage(after, id, command.amount);
+    // **What was taken, not what was swung.** `damageCreature` is the one
+    // place a damage threshold is applied, and a blow it turned aside is
+    // superficial: SRD says it "doesn't reduce Hit Points", so there is
+    // nothing for Concentration to be at risk from.
+    const check = concentrationSaveAfterDamage(after, id, damageTakenIn(events, command.amount));
     if (check === null) {
       const lost = held !== null && (after.creatures[id]?.concentration ?? null) === null;
       return ok({

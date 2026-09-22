@@ -620,11 +620,33 @@ export function damageCreature(
       return err('bad_amount', `damage must be a non-negative number, got ${command.amount}`);
     }
 
+    // SRD "Damage Threshold": "A creature or an object that has a damage
+    // threshold has Immunity to all damage unless it takes an amount of damage
+    // from a single attack or effect equal to or greater than its damage
+    // threshold, in which case it takes that entire instance of damage. Any
+    // damage that fails to meet or exceed the damage threshold is superficial
+    // and doesn't reduce Hit Points."
+    //
+    // **Here, because this is the one place damage becomes hit points lost.**
+    // Every route — a swing, a spell, a fall, a chandelier a DM dropped —
+    // arrives at `damage-taken`, and a threshold applied anywhere else would
+    // be one a second route walked past. It is the same seam Resistance
+    // already resolves at: the log records what was *taken*, not what was
+    // swung, so a blow the threshold turned aside is a `damage-taken` of 0
+    // rather than an event nobody wrote. The event stays, because the thing
+    // still happened and narration should be able to say the axe rang off the
+    // stone.
+    //
+    // Read off the sheet, which is where `creature-added` pinned it, so the
+    // fold needs nothing new and neither frozen fixture moves.
+    const threshold = creature.sheet.stated?.damageThreshold ?? 0;
+    const amount = command.amount < threshold ? 0 : command.amount;
+
     const events: GameEvent[] = [
       {
         type: 'damage-taken',
         id,
-        amount: command.amount,
+        amount,
         ...(command.critical === undefined ? {} : { critical: command.critical }),
         ...(command.source === undefined ? {} : { source: command.source }),
         ...(command.by === undefined ? {} : { by: command.by }),
@@ -633,7 +655,7 @@ export function damageCreature(
     ];
 
     // Ask the rules what this damage does before deciding what follows it.
-    const outcome = applyDamageToVitals(creature.vitals, command.amount, {
+    const outcome = applyDamageToVitals(creature.vitals, amount, {
       ...(command.critical === undefined ? {} : { critical: command.critical }),
     });
 

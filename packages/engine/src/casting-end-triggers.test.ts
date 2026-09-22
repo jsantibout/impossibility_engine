@@ -620,6 +620,32 @@ describe('the derived pass settles, and settles once', () => {
     expect(game.running(friendship)).toBe(false);
   });
 
+  /**
+   * And no casting at all on a blow that dealt nothing.
+   *
+   * SRD Animal Friendship: "If **you or one of your allies deals damage** to
+   * the target, the spell ends" — and a blow a damage threshold turned aside
+   * dealt none. The glossary is explicit that such a blow is "superficial and
+   * doesn't reduce Hit Points", which is Immunity, which is damage not taken.
+   *
+   * It is tested at the amount rather than through a threshold because the
+   * amount is the whole of what this seam can see: `damageCreature` is the one
+   * place a reduction happens and it writes what was taken, so a `damage-taken`
+   * of 0 is *every* way of dealing nothing at once — a threshold today, and
+   * whatever the next one is. `resolveDamage` already reads the same event the
+   * same way for the Concentration save, and the two seams have to agree.
+   */
+  it('ends nothing on a blow that dealt no damage', () => {
+    const game = new Game(setup());
+    const invisibility = game.cast(WIZ, 'invisibility', [ALLY]);
+    const friendship = game.cast(WIZ, 'animal-friendship', [BEAST]);
+
+    game.hit(BEAST, ALLY, 0);
+
+    expect(game.running(invisibility)).toBe(true);
+    expect(game.running(friendship)).toBe(true);
+  });
+
   /** Two castings on one creature, ended by one blow. */
   it('ends every casting the same creature carries', () => {
     const game = new Game(setup());

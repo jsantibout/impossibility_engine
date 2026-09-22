@@ -44,7 +44,7 @@ import {
   type Supply,
   resolveDamage,
 } from './casting.js';
-import { creatureOf, unknownCreature } from './command.js';
+import { creatureOf, damageTakenIn, unknownCreature } from './command.js';
 import { rollSpellDice } from './rolls.js';
 
 /**
@@ -386,7 +386,10 @@ export function dealSpellDamage(
 
   return ok({
     events: dice === null ? resolved.value.events : [dice, ...resolved.value.events],
-    amount: applied.total,
+    // What landed, which is what the defences left of the roll *and* what a
+    // damage threshold let through. `damageTakenIn` reads it off the event the
+    // command wrote rather than re-deriving it here, so there is one answer.
+    amount: damageTakenIn(resolved.value.events, applied.total),
     concentration: resolved.value.concentration,
   });
 }

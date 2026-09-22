@@ -1,8 +1,8 @@
-import { ABILITIES, err, ok, SKILL_ABILITY, SKILLS, type Result } from '@ie/shared';
+import { ABILITIES, DAMAGE_TYPES, err, ok, SKILL_ABILITY, SKILLS, type Result } from '@ie/shared';
 // The subpath, never the barrel: `@ie/srd` re-exports the parsed book, so
 // importing a schema from it loads the catalogue into every process that
 // imports the engine. `srd-barrel.test.ts` is the guard.
-import { MonsterSchema, type Monster } from '@ie/srd/schemas';
+import { CREATURE_SIZES, MonsterSchema, type Monster } from '@ie/srd/schemas';
 import { CONFERRED_LEVEL, itemChargePool, type CatalogueItem } from './catalogue.js';
 import { MAX_ABILITY_SCORE } from './character.js';
 import {
@@ -39,6 +39,7 @@ import { EFFECT_END_CAUSES } from './timers.js';
 import type { ActionRule } from './combat.js';
 import { TURN_ANCHORS } from './time.js';
 import { oneShotProblem, rollSelectorProblems } from './roll-modifiers.js';
+import type { ObjectMaterial, ObjectSize } from './objects.js';
 import { CREATURE_TYPES } from './spell-definitions.js';
 import type { SpellDefinition } from './spell-definitions.js';
 import {
@@ -113,6 +114,25 @@ export interface ContentInput {
    * twin of it waiting for a second consumer there is none of.
    */
   readonly monsters?: readonly Monster[];
+  /**
+   * The substances an object can be made of, with the Armour Class each
+   * suggests.
+   *
+   * Content because the SRD's own word for the table is *suggests*, and
+   * because a world that holds mithral holds voidsteel on the same terms. See
+   * `objects.ts` for the line between this table and the rule beside it: the
+   * numbers are here, "objects have Immunity to Poison and Psychic damage" is
+   * the engine's.
+   */
+  readonly objectMaterials?: readonly ObjectMaterial[];
+  /**
+   * Hit points by size, fragile and resilient, for an object Large or smaller.
+   *
+   * The SRD stops at Large and says to divide anything bigger into sections,
+   * which is the GM's to do — so a missing row is a refusal rather than a
+   * number to extrapolate.
+   */
+  readonly objectSizes?: readonly ObjectSize[];
 }
 
 export interface Content {
@@ -128,6 +148,10 @@ export interface Content {
   readonly alignments: readonly AlignmentDefinition[];
   /** See {@link ContentInput.monsters}. */
   readonly monsters: readonly Monster[];
+  /** See {@link ContentInput.objectMaterials}. */
+  readonly objectMaterials: readonly ObjectMaterial[];
+  /** See {@link ContentInput.objectSizes}. */
+  readonly objectSizes: readonly ObjectSize[];
 
   /** The executable definition, or null: the engine can look a spell up but only executes the ones it has been given. */
   readonly spell: (id: string) => SpellDefinition | null;
@@ -141,6 +165,10 @@ export interface Content {
   readonly item: (id: string) => CatalogueItem | null;
   /** The stat block, or null: `addCreature` takes the id and this is how it comes by the block. */
   readonly monsterById: (id: string) => Monster | null;
+  /** The substance, or null: `declareObject` takes the name a DM said and this is how it comes by the Armour Class. */
+  readonly objectMaterial: (id: string) => ObjectMaterial | null;
+  /** The Object Hit Points row for a size, or null where the table prints none. */
+  readonly objectSize: (size: string) => ObjectSize | null;
   /** By the name written on a character sheet, which is what a choice names. */
   readonly languageNamed: (name: string) => LanguageDefinition | null;
   readonly alignmentNamed: (name: string) => AlignmentDefinition | null;
@@ -3022,6 +3050,10 @@ const ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 /** The engine's own skill vocabulary, which is the one a stat block is held to. */
 const SKILL_NAMES: ReadonlySet<string> = new Set<string>(SKILLS);
 
+/** The same, for the two tables an object's numbers come out of. */
+const DAMAGE_TYPE_NAMES: ReadonlySet<string> = new Set<string>(DAMAGE_TYPES);
+const CREATURE_SIZE_NAMES: ReadonlySet<string> = new Set<string>(CREATURE_SIZES);
+
 const byId = <T extends { readonly id: string }>(rows: readonly T[]): ReadonlyMap<string, T> =>
   new Map(rows.map((row) => [row.id, row]));
 
@@ -3216,6 +3248,8 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
   const languages = input.languages ?? [];
   const alignments = input.alignments ?? [];
   const monsters = input.monsters ?? [];
+  const objectMaterials = input.objectMaterials ?? [];
+  const objectSizes = input.objectSizes ?? [];
 
   for (const [what, rows] of [
     ['spells', spells],
@@ -3229,6 +3263,8 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
     ['languages', languages],
     ['alignments', alignments],
     ['monsters', monsters],
+    ['objectMaterials', objectMaterials],
+    ['objectSizes', objectSizes],
   ] as const) {
     for (const id of duplicates(rows.map((row) => row.id))) {
       problems.push({ field: `${what}[${id}]`, code: 'duplicate_id', reason: `${what} holds ${id} twice` });
@@ -3237,6 +3273,49 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
       if (!ID.test(row.id)) {
         problems.push({ field: `${what}[${row.id}]`, code: 'bad_id', reason: `"${row.id}" is not a lower-case hyphenated id` });
       }
+    }
+  }
+
+  // The two object tables, held to the same judgement whichever door they came
+  // through. A suggested Armour Class or a suggested hit point total that is
+  // not a positive whole number is a row nothing could be built from, and a
+  // hit points row keyed by something that is not a size is a row nobody could
+  // ever look up: `declareObject` asks for `medium` and gets nothing back.
+  for (const material of objectMaterials) {
+    if (!Number.isInteger(material.armorClass) || material.armorClass < 1) {
+      problems.push({
+        field: `objectMaterials[${material.id}].armorClass`,
+        code: 'bad_armor_class',
+        reason: `an Armour Class is a whole number of at least 1, not ${material.armorClass}`,
+      });
+    }
+    for (const type of Object.keys(material.defenses ?? {})) {
+      if (DAMAGE_TYPE_NAMES.has(type)) continue;
+      problems.push({
+        field: `objectMaterials[${material.id}].defenses`,
+        code: 'unknown_damage_type',
+        reason: `"${type}" is not a damage type this engine knows, so the defence would never be applied`,
+      });
+    }
+  }
+  for (const row of objectSizes) {
+    if (!CREATURE_SIZE_NAMES.has(row.id)) {
+      problems.push({
+        field: `objectSizes[${row.id}]`,
+        code: 'unknown_size',
+        reason: `"${row.id}" is not a size, and this table is keyed by the size it is for`,
+      });
+    }
+    for (const [which, value] of [
+      ['fragile', row.fragile],
+      ['resilient', row.resilient],
+    ] as const) {
+      if (Number.isInteger(value) && value >= 1) continue;
+      problems.push({
+        field: `objectSizes[${row.id}].${which}`,
+        code: 'bad_hit_points',
+        reason: `a hit point maximum is a whole number of at least 1, not ${value}`,
+      });
     }
   }
 
@@ -4201,6 +4280,8 @@ export function createContent(input: ContentInput): Result<Content> {
   const languages = input.languages ?? [];
   const alignments = input.alignments ?? [];
   const monsters = input.monsters ?? [];
+  const objectMaterials = input.objectMaterials ?? [];
+  const objectSizes = input.objectSizes ?? [];
 
   const spellMap = byId(spells);
   const entryMap = byId(entries);
@@ -4211,6 +4292,8 @@ export function createContent(input: ContentInput): Result<Content> {
   const featMap = byId(feats);
   const itemMap = byId(items);
   const monsterMap = byId(monsters);
+  const materialMap = byId(objectMaterials);
+  const objectSizeMap = byId(objectSizes);
   const languageMap = new Map(languages.map((language) => [language.name, language]));
   const alignmentMap = new Map(alignments.map((alignment) => [alignment.name, alignment]));
 
@@ -4226,6 +4309,8 @@ export function createContent(input: ContentInput): Result<Content> {
     languages,
     alignments,
     monsters,
+    objectMaterials,
+    objectSizes,
     spell: (id) => spellMap.get(id) ?? null,
     spellEntry: (id) => entryMap.get(id) ?? null,
     classById: (id) => classMap.get(id) ?? null,
@@ -4235,6 +4320,8 @@ export function createContent(input: ContentInput): Result<Content> {
     featById: (id) => featMap.get(id) ?? null,
     item: (id) => itemMap.get(id) ?? null,
     monsterById: (id) => monsterMap.get(id) ?? null,
+    objectMaterial: (id) => materialMap.get(id) ?? null,
+    objectSize: (size) => objectSizeMap.get(size) ?? null,
     languageNamed: (name) => languageMap.get(name) ?? null,
     alignmentNamed: (name) => alignmentMap.get(name) ?? null,
     expandPack: (id) => {
@@ -4277,6 +4364,8 @@ export function extendContent(base: Content, extra: ContentInput): Result<Conten
     languages: [...base.languages, ...(extra.languages ?? [])],
     alignments: [...base.alignments, ...(extra.alignments ?? [])],
     monsters: [...base.monsters, ...(extra.monsters ?? [])],
+    objectMaterials: [...base.objectMaterials, ...(extra.objectMaterials ?? [])],
+    objectSizes: [...base.objectSizes, ...(extra.objectSizes ?? [])],
   });
 }
 
@@ -4769,6 +4858,81 @@ function parseMonster(value: unknown): Result<Monster> {
   return err('bad_monster', `monsters[${id}]: ${said}`);
 }
 
+/**
+ * One row of the Object Armour Class table, from untyped JSON.
+ *
+ * The `defenses` record is parsed rather than trusted because it is the one
+ * field a homebrew table writes freely — "our paper burns" — and a typo in a
+ * damage type there would be a Vulnerability nothing ever applied.
+ */
+function parseObjectMaterial(value: unknown): Result<ObjectMaterial> {
+  if (!isShape(value)) return err('bad_object_material', 'an object material is an object');
+  const where = `objectMaterials[${isString(value['id']) ? value['id'] : '?'}]`;
+  const s = new Shaped(where);
+  const material: ObjectMaterial = {
+    id: s.string(value, 'id'),
+    name: s.string(value, 'name'),
+    armorClass: s.int(value, 'armorClass'),
+  };
+  const problems = [...s.problems()];
+
+  const defenses = value['defenses'];
+  const parsed: Record<string, { immune?: boolean; resistant?: boolean; vulnerable?: boolean }> = {};
+  if (defenses !== undefined) {
+    if (!isShape(defenses)) {
+      problems.push(`${where}: defenses must be an object keyed by damage type`);
+    } else {
+      for (const [type, entry] of Object.entries(defenses)) {
+        if (!DAMAGE_TYPE_NAMES.has(type)) {
+          problems.push(`${where}: "${type}" is not a damage type`);
+          continue;
+        }
+        if (!isShape(entry)) {
+          problems.push(`${where}: defenses.${type} must be an object`);
+          continue;
+        }
+        const one: { immune?: boolean; resistant?: boolean; vulnerable?: boolean } = {};
+        for (const kind of ['immune', 'resistant', 'vulnerable'] as const) {
+          const flag = entry[kind];
+          if (flag === undefined) continue;
+          if (typeof flag !== 'boolean') {
+            problems.push(`${where}: defenses.${type}.${kind} must be a boolean`);
+            continue;
+          }
+          one[kind] = flag;
+        }
+        parsed[type] = one;
+      }
+    }
+  }
+
+  if (problems.length > 0) return err('bad_object_material', problems.join('; '));
+  return ok(defenses === undefined ? material : { ...material, defenses: parsed });
+}
+
+/** One row of the Object Hit Points table, from untyped JSON. */
+function parseObjectSize(value: unknown): Result<ObjectSize> {
+  if (!isShape(value)) return err('bad_object_size', 'an object size is an object');
+  const where = `objectSizes[${isString(value['id']) ? value['id'] : '?'}]`;
+  const s = new Shaped(where);
+  const id = s.string(value, 'id');
+  const size: ObjectSize = {
+    id: id as ObjectSize['id'],
+    fragile: s.int(value, 'fragile'),
+    resilient: s.int(value, 'resilient'),
+  };
+  const examples = value['examples'];
+  const problems = [...s.problems()];
+  if (examples !== undefined && !isStringList(examples)) {
+    problems.push(`${where}: examples must be a list of strings`);
+  }
+  if (id.length > 0 && !CREATURE_SIZE_NAMES.has(id)) {
+    problems.push(`${where}: "${id}" is not a size — the row is keyed by the size it is for`);
+  }
+  if (problems.length > 0) return err('bad_object_size', problems.join('; '));
+  return ok(isStringList(examples) ? { ...size, examples } : size);
+}
+
 function parseAll<T>(
   value: unknown,
   what: string,
@@ -4812,6 +4976,13 @@ export function loadContent(value: unknown): Result<Content> {
     languages: parseAll(value['languages'], 'languages', parseLanguage, problems),
     alignments: parseAll(value['alignments'], 'alignments', parseAlignment, problems),
     monsters: parseAll(value['monsters'], 'monsters', parseMonster, problems),
+    objectMaterials: parseAll(
+      value['objectMaterials'],
+      'objectMaterials',
+      parseObjectMaterial,
+      problems,
+    ),
+    objectSizes: parseAll(value['objectSizes'], 'objectSizes', parseObjectSize, problems),
   };
   if (problems.length > 0) return err('bad_content', problems.slice(0, 5).join('; '));
   return createContent(input);

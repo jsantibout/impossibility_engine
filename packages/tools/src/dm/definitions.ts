@@ -91,7 +91,9 @@ import {
   awardItems,
   changeCoins,
   COPPER_PER,
+  damageTakenIn,
   declareCreatureHeads,
+  declareObject,
   forcePrintedSave,
   liftConditionFrom,
   loseItems,
@@ -123,6 +125,7 @@ import {
   damageTypeSchema,
   printedLineName,
   sensesFields,
+  sizeSchema,
   skillSchema,
 } from '../schemas.js';
 
@@ -437,7 +440,11 @@ const IMPROVISED_DAMAGE = tool({
       (value) => value.events,
       (value) => ({
         damaged: args.target,
-        amount: args.amount,
+        // What landed, not what was ruled: a target with a damage threshold
+        // takes nothing at all from a blow under it, and a report saying
+        // "eleven" about a wall that did not feel it is a sentence a DM would
+        // narrate.
+        amount: damageTakenIn(value.events, args.amount),
         concentration: value.concentration,
         duplicate: value.duplicate,
       }),
@@ -1238,6 +1245,86 @@ const DECLARE_HEADS = tool({
     ),
 });
 
+
+/**
+ * A thing in the room that can be hit, and broken.
+ *
+ * **The declaration is the creation.** There is no catalogue of doors a scene
+ * has to be built out of, and no registration step before a party may swing at
+ * something: a DM describes a thing and it is in the world. That absence is
+ * deliberate and it is the failure this tool exists to avoid — a world whose
+ * breakable things had to be declared in advance is a world where the
+ * interesting one is always the one nobody thought of.
+ *
+ * **What the caller says is fiction; every number comes out of the book.** A
+ * name, a substance, a size and whether the thing is flimsy — and the SRD's
+ * two tables under "Breaking Objects" answer with the Armour Class and the hit
+ * points. That split is exactly `add_creature`'s: a caller names a stat block
+ * and never writes one, because an entry point that takes an Armour Class is a
+ * door a made-up Armour Class walks through.
+ *
+ * **The one number here is the damage threshold, and it belongs on this
+ * surface for the reason a DC does.** The SRD names it — "Big objects, such as
+ * castle walls, often have extra resilience represented by a damage threshold"
+ * — and prints no table for it. A rule that says such a thing exists and
+ * declines to say what it is, is the definition of what a DM adjudicates.
+ *
+ * **What it is not is a creature that fights.** An object has no side, takes
+ * no turn and is not put into the turn order, so a door standing in the room
+ * cannot stop `end_combat` closing a fight over the last hostile — which is
+ * the one interaction this whole shape had to survive, and which
+ * `objects.test.ts` beside this file holds.
+ */
+const DECLARE_OBJECT = tool({
+  name: 'declare_object',
+  description:
+    'Put a breakable thing in the scene by describing it: a door, a chest, a statue, a rope. Say what it is called, what it is made of, how big it is and whether it is flimsy or sturdy — the engine reads the Armour Class off the substance and the hit points off the size, and makes it immune to Poison and Psychic damage and to being Charmed, Frightened, Poisoned or knocked Prone. It is destroyed at 0 hit points and rolls no death saves. Nothing has to be registered first: describe it when the players go for it. Place it with `place_creature` if where it stands matters. It never takes a turn and is never in the turn order.',
+  mutates: true,
+  input: z.strictObject({
+    id: creatureId.describe('What to refer to it by afterwards — oak-door, altar, the-rope.'),
+    name: z.string().min(1).describe('What it is, in words: "the barred oak door".'),
+    material: z
+      .string()
+      .min(1)
+      .describe(
+        'What it is made of, by its id in this world’s table — e.g. wood, or stone. The Armour Class follows from it, and a world may hold substances the book never printed.',
+      ),
+    size: sizeSchema.describe(
+      'How big. The hit points follow from it, and the book’s table stops at Large — break anything bigger into sections and declare each one.',
+    ),
+    build: z
+      .enum(['fragile', 'resilient'])
+      .describe(
+        'Which column of the book’s table: a bottle is fragile and a lock is resilient, and both are Tiny. You are the only one who knows which this is.',
+      ),
+    damageThreshold: z
+      .int()
+      .min(1)
+      .optional()
+      .describe(
+        'A damage threshold, where you have ruled one — a castle wall ignores anything under it entirely and takes the whole blow once it is met. The book names these and prints no numbers for them, so it is yours. Leave it out for an ordinary thing.',
+      ),
+  }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      declareObject(
+        context.campaign.state(),
+        context.campaign.content,
+        who(args.id),
+        {
+          name: args.name,
+          material: args.material,
+          size: args.size,
+          build: args.build,
+          ...(args.damageThreshold === undefined ? {} : { damageThreshold: args.damageThreshold }),
+        },
+        identity(context),
+      ),
+      { declared: args.id, name: args.name, material: args.material, size: args.size },
+    ),
+});
+
 /**
  * The tools a model may never reach, in the stable sorted order the prompt
  * cache depends on.
@@ -1247,6 +1334,7 @@ export const DM_ONLY_TOOLS: readonly ToolDefinition[] = [
   AWARD_COIN,
   AWARD_ITEMS,
   DECLARE_HEADS,
+  DECLARE_OBJECT,
   END_CONDITION,
   FORCE_PRINTED_SAVE,
   IMPROVISED_DAMAGE,

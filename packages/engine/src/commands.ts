@@ -41,7 +41,7 @@
  * questions.
  */
 
-export { ZERO_HIT_POINTS } from './commands/command.js';
+export { damageTakenIn, ZERO_HIT_POINTS } from './commands/command.js';
 export {
   mayAct,
   owedAreaEffectsOf,
@@ -67,6 +67,8 @@ export {
 } from './commands/creatures.js';
 export type { AddCreatureOutcome, DamageCommand, Summons } from './commands/creatures.js';
 export { applyConditionTo, liftConditionFrom, whyCondition } from './commands/conditions.js';
+export { declareObject } from './commands/objects.js';
+export type { ObjectDeclaration } from './commands/objects.js';
 export {
   declareCreatureType,
   declareDifficultTerrain,
