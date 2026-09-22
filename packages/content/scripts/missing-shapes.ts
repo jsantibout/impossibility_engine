@@ -4312,7 +4312,7 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     {
       clause: 'these plants turn the ground in the area into Difficult Terrain',
       why: 'expressible',
-      note: '`SpellDefinition.areaTerrain` says exactly this and three spells are written on it: the casting pins the 20-foot square it resolved and the ground charges the glossary’s rate until the Concentration goes. What still stops the definition being written is the sentence after it — "Each creature (other than you) in the area" — which is `an-area-that-filters-its-catch`, and a definition written without it would Restrain the druid who cast it.',
+      note: '`SpellDefinition.areaTerrain` says exactly this and four spells are written on it: the casting pins the 20-foot square it resolved and the ground charges the glossary’s rate until the Concentration goes. What still stops the definition being written is the sentence after it — "Each creature (other than you) in the area" — which is `an-area-that-filters-its-catch`, and a definition written without it would Restrain the druid who cast it.',
     },
     {
       clause: 'Each creature (other than you) in the area when you cast the spell',

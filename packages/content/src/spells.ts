@@ -7560,7 +7560,7 @@ export const GUST_OF_WIND: SpellDefinition = {
     'the Strength saving throw is not rolled: what a failure buys is "pushed 15 feet away from you in a direction following the Line", and no spell effect reaches the forced movement `moveCreature` already performs',
     'the Line is not a template: 60 feet long and 10 feet wide is a shape the engine has, and the Bonus Action that changes the direction it blasts in on a later turn re-aims an area a casting fixed where it was put',
     'the repeat save a creature makes for ending its turn in the Line is not raised, because the Line is not there to end a turn in',
-    'the doubled cost of walking into the wind — "must spend 2 feet of movement for every 1 foot it moves when moving closer to you" — is not charged: Difficult Terrain is declared by the foot on the move that crosses it, and no area declares any',
+    'the doubled cost of walking into the wind — "must spend 2 feet of movement for every 1 foot it moves when moving closer to you" — is not charged: a casting may make ground expensive now, and a patch is a property of the **square**, charging whoever crosses it at the rate it holds. Nothing on one can say "only while moving closer to you", which is a fact about the mover',
     'the gas dispersed, the unprotected candles snuffed and the protected flames dancing are the DM’s, and so is the "50 percent chance to extinguish them", which is a random outcome that is not a d20',
   ],
 };
@@ -7642,7 +7642,7 @@ export const FREEDOM_OF_MOVEMENT: SpellDefinition = {
   effects: [],
   durationSeconds: 3600,
   unmodelled: [
-    'being "unaffected by Difficult Terrain" is not applied: Difficult Terrain is charged exactly and declared by the foot on the move that crosses it, so a creature excused from it has nothing to be excused from',
+    'being "unaffected by Difficult Terrain" is not applied: there is ground to be excused from now — a casting pins a patch and the ruler charges for it at every space a move crosses — and the cost is read off the **square** rather than off the mover, so nothing excuses one creature from a rate the ground holds for everybody',
     'the refusal of a Speed reduction is not applied: "spells and other magical effects can neither reduce the target’s Speed" is an effect stopping another effect from landing, and `speedOf` reads every grant a source hung with no notion of one being refused',
     'the two conditions are not refused: the subject is "spells and other magical effects", so a Ghoul’s Paralyzed still lands and a Hold Person’s does not, and a condition Immunity here answers about the condition rather than about what caused it',
     'the Swim Speed equal to its Speed is not granted; the engine tracks one Speed and no movement modes',
@@ -8650,7 +8650,7 @@ export const SLEET_STORM: SpellDefinition = {
   durationSeconds: 60,
   unmodelled: [
     'the save is not raised, because half of what a failure costs cannot be written: "have the Prone condition and lose Concentration" pairs an ordinary condition with a broken Concentration, and no outcome of a saving throw asks for one',
-    'the Cylinder is not a template and the ground in it is not changed: Difficult Terrain is declared by the foot on the move that crosses it, and no area declares any',
+    'the ground in the Cylinder is not changed, and what stands in the way is the area rather than the terrain: `areaTerrain` says a spell’s area is Difficult Terrain and four definitions write it, but this one carries no `area` at all — its 40-foot-radius, 20-foot-high Cylinder is a template nothing has transcribed, and a patch has to lie somewhere before it can charge for anything',
     'the Heavily Obscured area and the exposed flames it douses are the DM’s; the engine has no lighting and no obscurement',
   ],
 };
@@ -8683,7 +8683,7 @@ export const SPEAK_WITH_PLANTS: SpellDefinition = {
   effects: [],
   durationSeconds: 600,
   unmodelled: [
-    'the terrain is not changed in either direction: turning plant-grown Difficult Terrain into ordinary ground, and ordinary ground into Difficult Terrain, are both terrain an area creates, and Difficult Terrain is the caller’s statement on the move that crosses it rather than a property the ground holds',
+    'the terrain is not changed in either direction, and the two halves are blocked on different things. Turning ordinary ground into Difficult Terrain is writable — `areaTerrain` says it and four definitions write it — and this spell has no area to write it on: its Range is Self and what it reaches is "plants within 30 feet", which is not a template. Turning plant-grown Difficult Terrain **back** into ordinary ground is writable nowhere: the lattice takes the dearest rate lying over a space, by the book’s own rule that Difficult Terrain is not cumulative, and nothing in it subtracts',
     'the conversation is the DM’s: questioning plants about the past day, giving them simple commands, and talking to a Plant creature as if you shared a language are all narration',
   ],
 };
@@ -10148,7 +10148,7 @@ export const WALL_OF_THORNS: SpellDefinition = {
   unmodelled: [
     'the wall is not in the world: "60 feet long, 10 feet high, and 5 feet thick or a circle that has a 20-foot diameter" is a wall, and a choice between two of them, where a casting holds one fixed template',
     'so neither Dexterity save is rolled — the 7d8 Piercing when it appears, and the 7d8 Slashing on the first entry or the end of a turn inside it, which is Web’s own trigger on a shape the engine cannot describe',
-    'the four feet of movement per foot are not charged: Difficult Terrain is declared by the foot on the move that crosses it, and no area derives it',
+    'the four feet of movement per foot are not charged, and the rate is not what is missing: `areaTerrain` carries a printed rate and Plant Growth writes exactly this one. It is the wall above — a patch lies over the area its casting pinned, and this casting pins no area at all',
     'the wall blocking line of sight is the DM’s: cover and sight stay declared rather than ray-cast',
   ],
 };
@@ -11709,7 +11709,7 @@ export const CONJURE_MINOR_ELEMENTALS: SpellDefinition = {
     'the extra 2d8 is not dealt: it rides every attack the caster makes for ten minutes, where the extra dice a spell hangs belong to the one attack its casting was declared on — and the die a slot above 4 adds goes with it',
     'and the condition on it is a second absence, because the rider fires only when the creature hit was standing in the Emanation at the time',
     'the damage type is chosen when the attack is made rather than when the spell is cast, which is a choice at a moment no casting record reaches',
-    'the ground in the Emanation is not Difficult Terrain for the caster’s enemies: the cost is declared by the foot on the move that crosses it, and no area declares any — nor could it declare it for one side only',
+    'the ground in the Emanation is not Difficult Terrain for the caster’s enemies: an Emanation may be expensive ground now, and a patch charges **whoever** crosses it at the rate the square holds — the lattice has no notion of a side, and a rate true of one creature and not another is not a property of the ground',
   ],
 };
 
@@ -13144,7 +13144,7 @@ export const MIRAGE_ARCANE: SpellDefinition = {
   ],
   unmodelled: [
     'the mile is not drawn: the area’s size is chosen when the spell is cast, up to a printed maximum, and a `SpellArea` is one fixed size belonging to the definition with nowhere to record a choice',
-    'so the illusion turns no clear ground into Difficult Terrain and takes none away: Difficult Terrain is declared by the foot on the move that crosses it, and an area that creates it is invisible to the ruler',
+    'so the illusion turns no clear ground into Difficult Terrain and takes none away: the first half waits on the mile above, because a patch lies over the area its casting pinned and this casting pins none; the second waits on nothing anybody has built, because the lattice takes the dearest rate lying over a space — the book’s own rule that Difficult Terrain is not cumulative — and nothing in it subtracts',
     'and Truesight does not see through it: sight here is a pairwise declaration between two creatures, so a sense that excuses its holder from an illusion has no state to sit in and nothing to be read off',
   ],
 };

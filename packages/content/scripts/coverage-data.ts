@@ -267,8 +267,10 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // would be the same report telling a different lie.
   'sorcerous-burst',
   // Driven end to end by `casting-terrain.test.ts`: the Sphere conjured at a
-  // point, the glossary's rate charged over it, and a move through it costing
-  // twice the ground it crosses.
+  // point through `resolveSpell`, and the glossary's rate charged over it.
+  // The move that costs twice the ground it crosses is Grease's in the same
+  // file — one walk proves the ruler, and what this entry claims is that this
+  // spell's own casting lays a patch.
   'spike-growth',
   'spirit-guardians',
   'spiritual-weapon',
