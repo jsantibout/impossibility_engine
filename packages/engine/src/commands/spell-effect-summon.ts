@@ -69,18 +69,24 @@ const scaled = (number: SummonedNumber, level: number): number =>
  *
  * **The count, and not the tie.** SRD Find Steed's next sentence is "the steed
  * takes its turn **immediately after yours**", and no tiebreak is written here
- * to deliver it. `Combatant.tiebreak` says in as many words that "SRD leaves
+ * to deliver it. The reason is `Combatant.tiebreak`'s own, whole: "SRD leaves
  * ties to the GM, so the engine takes that decision as an input rather than
- * inventing one" — and an invented one would have been worse than useless:
- * `addCombatant` already seats a joiner after everyone it exactly ties with,
- * so with the rider's count and the default the steed lands immediately after
- * them, while one tiebreak *below* the rider would have pushed it behind any
- * combatant a DM had given a lower one.
+ * inventing one." A number this resolver made up would be a rung nobody chose,
+ * and it would silently reorder the creatures whose tiebreak a DM *had* stated
+ * — which is the one thing that field exists to stop.
  *
- * So what is left undelivered is the guarantee rather than the behaviour: a
- * third creature on the rider's count comes between the two, and "after this
- * creature" is an insertion at a named position that `byInitiative` ranks
- * nothing by. The spell's own `unmodelled` records it at that width.
+ * **It is not that an invented one would rank the steed badly.** Ranking is
+ * `b.tiebreak - a.tiebreak`, highest first, so one below the rider would in
+ * fact put the steed ahead of most of the count; the argument against it is
+ * whose decision it is, and that argument does not need a second one.
+ *
+ * What is left undelivered is therefore the **guarantee** rather than the
+ * behaviour. `addCombatant` seats a joiner after everyone it exactly ties
+ * with, so with the rider's count and the default the steed does land
+ * immediately after them today; a creature the DM put on that count at the
+ * rider's own tiebreak comes between the two, and "after this creature" is an
+ * insertion at a named position that `byInitiative` ranks nothing by. The
+ * spell's own `unmodelled` records it at that width.
  */
 export function resolveSummonEffect(
   ctx: EffectContext,

@@ -388,8 +388,8 @@ describe('SRD Find Steed’s "it shares your Initiative count"', () => {
    * claims exactly this width: with nobody else on the rider's count,
    * `addCombatant` seats a joiner after everyone it exactly ties with, so the
    * steed's turn *does* fall immediately after its rider's. What is missing is
-   * the guarantee, not the behaviour — a third creature on that count comes
-   * between them, and no rung can say "after this creature".
+   * the guarantee, not the behaviour — a creature on that count at the rider's
+   * own tiebreak comes between them, and no rung can say "after this one".
    */
   it('lands after its rider while nobody else shares the count', () => {
     const g = new Game().fight();
@@ -399,7 +399,8 @@ describe('SRD Find Steed’s "it shares your Initiative count"', () => {
     const order = g.state.combat?.order.map((c) => c.id) ?? [];
     expect(order.indexOf(who)).toBe(order.indexOf(WIZ) + 1);
 
-    // And the third creature that breaks it, which is the recorded gap.
+    // And the creature that breaks it: on the rider's count and, like the
+    // rider, at the default tiebreak — which is the recorded gap exactly.
     const crowded = new Game().push([
       {
         type: 'combat-started',
