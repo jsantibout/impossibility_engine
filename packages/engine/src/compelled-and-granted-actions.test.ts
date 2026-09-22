@@ -619,6 +619,20 @@ describe('the fold refuses what the command would not have written', () => {
 
     const later = turnOf(nextTurn(log), TARGET);
     expect(budgetOf(fold('seed', later), TARGET)?.extraActions ?? []).toEqual([]);
+
+    // **And the other arm off the same event**, which is what makes the
+    // sentence above about the arm rather than about the door: the boundary
+    // reads `each-turn` off whatever stands on the creature, so a rule hung by
+    // a rider — which writes this event verbatim — mints exactly as one hung
+    // by the standalone kind does.
+    const perTurn: GameEvent = {
+      ...hung,
+      rule: { ...hung.rule, rule: { kind: 'grants', at: 'each-turn', only: ['dash'] } },
+    };
+    const minted = turnOf(nextTurn([...onTheirTurn, perTurn]), TARGET);
+    expect(budgetOf(fold('seed', minted), TARGET)?.extraActions).toEqual([
+      { source: 'A Forgery', only: ['dash'] },
+    ]);
   });
 });
 
@@ -686,26 +700,15 @@ describe('the vocabulary is held at authoring', () => {
   });
 
   /**
-   * **And the rider door refuses the member the effect door carries**, which
-   * is the one way an extra action could have been written and then read by
-   * nobody: a rider hangs a standing rule, and an extra action is not one.
+   * **The rider door refuses one arm and carries the other**, which is the
+   * whole of the distinction: a rider hangs a rule standing on the creature,
+   * the boundary reads an `each-turn` rule from there whichever door hung it,
+   * and nothing reads a `casting` one from there at all — the standalone
+   * kind's resolver diverts that arm into the budget instead of hanging it,
+   * and a rider has no such branch.
    */
-  it('refuses an extra action hung as a rider on an outcome', () => {
-    const found = problems([
-      {
-        kind: 'save-damage',
-        ability: 'wis',
-        damage: { dice: '1d6' },
-        damageType: 'psychic',
-        onSuccess: 'none',
-        modifiers: [{ kind: 'action', rule: { kind: 'grants', at: 'casting', only: ['dash'] } }],
-      },
-    ]);
-    expect(found.some((p) => p.code === 'bad_action_rule')).toBe(true);
-
-    // And the neighbouring members still ride, so what is refused is the
-    // member rather than the door.
-    expect(
+  it('refuses an extra action a rider would hand over at the casting', () => {
+    const riding = (rule: unknown) =>
       problems([
         {
           kind: 'save-damage',
@@ -713,10 +716,20 @@ describe('the vocabulary is held at authoring', () => {
           damage: { dice: '1d6' },
           damageType: 'psychic',
           onSuccess: 'none',
-          modifiers: [{ kind: 'action', rule: { kind: 'forbids', slots: ['reaction'] } }],
+          modifiers: [{ kind: 'action', rule }],
         },
-      ]),
-    ).toEqual([]);
+      ]);
+
+    expect(
+      riding({ kind: 'grants', at: 'casting', only: ['dash'] }).some(
+        (p) => p.code === 'bad_action_rule',
+      ),
+    ).toBe(true);
+
+    // The arm a rider *can* hang, and the neighbouring member beside it — so
+    // what is refused is the arm rather than the member or the door.
+    expect(riding({ kind: 'grants', at: 'each-turn' })).toEqual([]);
+    expect(riding({ kind: 'forbids', slots: ['reaction'] })).toEqual([]);
   });
 
   it('refuses a spend of movement, which is measured in feet and not in slots', () => {

@@ -1369,20 +1369,24 @@ function checkModifierRider(
   }
   if (rider?.kind === 'action') {
     checkActionRule(rider.rule, `${path}.rule`, found);
-    // **And the one member of that vocabulary a rider may not carry.** A rider
-    // hangs a *standing* rule: `applyRiders` writes `action-rule-granted` and
-    // nothing else, so a `grants` arriving here would be stored on the
-    // creature and then read by nobody — `refuseSpend` never consults it and
-    // the turn boundary only mints the `each-turn` arm off a standalone
-    // effect. That is the silence `ActionRule.at` says must not be possible,
-    // arriving by the other door; the standalone `action-rule` kind is where
-    // an extra action is written.
-    if (rider.rule?.kind === 'grants') {
+    // **And one arm of that vocabulary a rider may not carry**, which is one
+    // arm rather than the member because only one of the two is silent here.
+    //
+    // A rider writes `action-rule-granted` and nothing else, so what it hangs
+    // is a rule standing on the creature. `each-turn` is read from there by
+    // `extraActionsOwedAtTurnStart` at every boundary, whichever door hung it,
+    // so a rider carrying one works and is accepted. `casting` is not read
+    // from there by anything: the standalone kind's resolver diverts it into
+    // the budget *instead of* hanging it, and a rider has no such branch — so
+    // one arriving here would stand on the creature for the life of the
+    // casting and be read by nobody. That is the silence {@link ActionRule.at}
+    // says must not be possible, reached by the other door.
+    if (rider.rule?.kind === 'grants' && rider.rule.at === 'casting') {
       found.push({
         field: `${path}.rule`,
         code: 'bad_action_rule',
         reason:
-          'an extra action is handed to a turn and not hung on a creature, so it cannot ride an outcome; write it as an "action-rule" effect, whose resolver puts it in the budget',
+          'an extra action handed over at the casting goes into the turn that is running rather than onto the creature, and a rider has nowhere to put it; write it as an "action-rule" effect, whose resolver does, or say "each-turn" if the sentence means every turn',
       });
     }
     // The second rider that may carry a deadline of its own. Whether it
