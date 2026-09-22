@@ -401,6 +401,11 @@ export function resolveWeaponRiderEffect(
     );
   }
 
+  // Read once each, because each is a band table read against a level and a
+  // second call is a second chance for the two to disagree.
+  const bonus = weaponRiderBonusAt(effect, castLevel);
+  const die = weaponRiderDieAt(effect, numbers.casterLevel);
+
   held.add(target);
   events.push({
     type: 'weapon-rider-granted',
@@ -409,12 +414,8 @@ export function resolveWeaponRiderEffect(
       source,
       weapon,
       ...(effect.meleeOnly === undefined ? {} : { meleeOnly: effect.meleeOnly }),
-      ...(weaponRiderBonusAt(effect, castLevel) === undefined
-        ? {}
-        : { bonus: weaponRiderBonusAt(effect, castLevel) as number }),
-      ...(weaponRiderDieAt(effect, numbers.casterLevel) === undefined
-        ? {}
-        : { die: weaponRiderDieAt(effect, numbers.casterLevel) as string }),
+      ...(bonus === undefined ? {} : { bonus }),
+      ...(die === undefined ? {} : { die }),
       // "your spellcasting ability", resolved to the one this casting went
       // through. `castersAbilityRead` refuses the route that has none before a
       // slot is spent, so a null here is that check having been skipped.

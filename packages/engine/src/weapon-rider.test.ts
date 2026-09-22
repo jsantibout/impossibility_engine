@@ -9,7 +9,15 @@ import { spellSlotKey } from './resources.js';
 import { declaredCasting } from './spellcasting.js';
 import { checkSpellDefinition } from './spell-schema.js';
 import type { SpellDefinition } from './spell-definitions.js';
-import { advanceTime, resolveAttack, resolveSpell } from './commands.js';
+import { extendContent, type Content } from './content.js';
+import { weaponRidersFor } from './standing.js';
+import {
+  advanceTime,
+  releaseReady,
+  resolveAttack,
+  resolveSpell,
+  takeReady,
+} from './commands.js';
 import { spellOn } from './fold/release.js';
 
 /**
@@ -76,7 +84,7 @@ const supply = (d20 = 15) => ({
  * Quarterstaff swung by this caster adds nothing, and the same Quarterstaff
  * under Shillelagh adds +4.
  */
-const sheet = (level: number): CharacterSheet => ({
+const sheet = (level: number, over: Partial<CharacterSheet> = {}): CharacterSheet => ({
   level,
   abilities: { str: 10, dex: 10, con: 10, int: 10, wis: 18, cha: 10 },
   skills: {},
@@ -87,6 +95,7 @@ const sheet = (level: number): CharacterSheet => ({
   baseSpeed: 30,
   spellcastingAbility: 'wis',
   weaponProficiencies: ['simple', 'martial'],
+  ...over,
 });
 
 const slotsFor = (who: CharacterId): readonly GameEvent[] =>
@@ -112,12 +121,16 @@ const dummy = (who: CharacterId): GameEvent => ({
   creatureType: 'Humanoid',
 });
 
-const table = (level = 1, carrying = ['quarterstaff', 'club', 'mace']): readonly GameEvent[] => [
+const table = (
+  level = 1,
+  carrying = ['quarterstaff', 'club', 'mace', 'dart'],
+  over: Partial<CharacterSheet> = {},
+): readonly GameEvent[] => [
   {
     type: 'creature-added',
     id: CASTER,
     name: CASTER,
-    sheet: sheet(level),
+    sheet: sheet(level, over),
     maxHp: 400,
     diesAtZero: false,
     creatureType: 'Humanoid',
@@ -166,7 +179,7 @@ const cast = (log: readonly GameEvent[], request: CastRequest): readonly GameEve
 ];
 
 /** Swing, with the d20 fixed so the total is the arithmetic and not the luck. */
-const swing = (log: readonly GameEvent[], weapon: string, d20 = 15) =>
+const swing = (log: readonly GameEvent[], weapon: string | null, d20 = 15) =>
   must(
     resolveAttack(fold('seed', log), CASTER, { target: DUMMY, weapon }, supply(d20)),
   );
@@ -346,6 +359,344 @@ describe('Magic Weapon adds its plus to both rolls', () => {
     const log = armed();
     const later = [...log, ...must(advanceTime(state(log), 3700, 'a march'))];
     expect(ridersOn(later)).toEqual([]);
+  });
+});
+
+// — a casting and a class feature reaching the same swing ————————————————————
+
+/**
+ * **The ordering ruling, which was asserted in a comment and by no test.**
+ *
+ * `strikeStyleFor` asks the casting's rider before the sheet's own styles, and
+ * the reason is a reading rather than an accident: a style is something the
+ * character *has* and a casting is something they just *did*, so the
+ * deliberate act wins where both reach one swing. A Monk/Druid who spends a
+ * Bonus Action on Shillelagh gets Shillelagh's die.
+ *
+ * **The fixture is built so that no other rule could produce the answer.** The
+ * class style's die is a **d12** — bigger than Shillelagh's d8 and bigger than
+ * the Quarterstaff's own d6 — so "the better die wins" predicts 12 and the
+ * ordering predicts 8. And the style offers **Dexterity 20 (+5)** against
+ * Shillelagh's Wisdom 18 (+4), so the better *modifier* predicts +5 and the
+ * ordering predicts +4. Both discriminate, and they discriminate in the same
+ * direction, which is what makes the pair worth having: moving the rider
+ * branch below the style loop fails this and nothing else in the suite did.
+ */
+describe('a casting outranks a class style on the weapon it imbued', () => {
+  /**
+   * SRD Martial Arts' shape, with the two numbers chosen to lose the
+   * comparison rather than to win it. `whileWieldingOnly` is deliberately
+   * absent: this caster is carrying a rack of weapons and the gate is not what
+   * is under test.
+   */
+  const MARTIAL_ARTS = {
+    source: 'homebrew:martial-arts',
+    name: 'Martial Arts',
+    weapons: [{ category: 'simple' as const, kind: 'melee' as const }],
+    die: '1d12',
+    ability: 'dex' as const,
+    bonusUnarmedStrike: true,
+  };
+
+  const monkish = (level = 1) =>
+    table(level, ['quarterstaff', 'club', 'mace', 'dart'], {
+      abilities: { str: 10, dex: 20, con: 10, int: 10, wis: 18, cha: 10 },
+      strikeStyles: [MARTIAL_ARTS],
+    });
+
+  /** The control: with no casting in play, the class style is what answers. */
+  it('leaves the class style in charge when no casting has touched the weapon', () => {
+    const hit = swing(monkish(), 'quarterstaff');
+    expect(hit.attack?.ability).toBe('dex');
+    expect(hit.damage).toBe(12 + 5);
+  });
+
+  it('gives the imbued weapon the casting’s die and the casting’s ability', () => {
+    const log = cast(monkish(), {
+      spellId: 'shillelagh',
+      targets: [CASTER],
+      weapon: 'quarterstaff',
+    });
+    const hit = swing(log, 'quarterstaff');
+    // Shillelagh's d8 and Wisdom, not the style's d12 and Dexterity — and
+    // neither is the better of the two, which is the point.
+    expect(hit.attack?.ability).toBe('wis');
+    expect(hit.damage).toBe(8 + 4);
+  });
+
+  /**
+   * **And it shadows the style nowhere else**, which is what makes putting it
+   * first safe rather than merely convenient.
+   *
+   * A weapon rider is keyed on one weapon's catalogue id, so it can never
+   * answer for a weapon the casting did not name — and it can never answer for
+   * an Unarmed Strike at all, which every class style covers and no rider
+   * could. A style with an empty `weapons` list in the same position would
+   * have taken the Monk's fist away.
+   */
+  it('leaves the Monk’s other weapon and the Monk’s fist alone', () => {
+    const log = cast(monkish(), {
+      spellId: 'shillelagh',
+      targets: [CASTER],
+      weapon: 'quarterstaff',
+    });
+    // The Club in the same pack is a Monk weapon and no casting touched it.
+    const club = swing(log, 'club');
+    expect(club.attack?.ability).toBe('dex');
+    expect(club.damage).toBe(12 + 5);
+
+    // And the fist, which is the branch a rider can never reach.
+    const fist = swing(log, null);
+    expect(fist.attack?.ability).toBe('dex');
+    expect(fist.damage).toBe(12 + 5);
+  });
+
+  /**
+   * And a rider that changes **neither** die nor ability is not a style at all,
+   * so it must not displace one. SRD Magic Weapon writes a plus and nothing
+   * else; a Monk whose Mace it enchants keeps the Martial Arts die and gains
+   * the +1 on top.
+   */
+  it('yields no style for a rider that only adds a plus', () => {
+    const log = cast(monkish(5), {
+      spellId: 'magic-weapon',
+      targets: [CASTER],
+      slotLevel: 2,
+      weapon: 'mace',
+    });
+    const hit = swing(log, 'mace');
+    expect(hit.attack?.ability).toBe('dex');
+    // The style's d12 survives, and the plus is added to it rather than
+    // replacing it with the Mace's own d6.
+    expect(hit.damage).toBe(12 + 5 + 1);
+  });
+});
+
+// — "melee attacks using that weapon" ——————————————————————————————————————
+
+/**
+ * SRD Shillelagh: "the attack and damage rolls of **melee** attacks using that
+ * weapon".
+ *
+ * **Unreachable through the SRD catalogue and built anyway**, which is why it
+ * needs a homebrew definition to be tested at all: Shillelagh narrows itself
+ * to a Club and a Quarterstaff and both are Melee, so no SRD casting can put a
+ * `meleeOnly` rider on a Ranged weapon and the predicate would never once
+ * return false. Deleting the line was a green mutation before this.
+ *
+ * A Dart is the fixture because it is the one Ranged weapon in the book that
+ * needs no ammunition: `kind: 'ranged'`, Simple, 1d4 Piercing, thrown.
+ */
+describe('a melee-only rider does nothing for a ranged weapon', () => {
+  const definition = (meleeOnly: boolean) => ({
+    id: 'homebrew-oil',
+    name: 'Homebrew Oil',
+    level: 1,
+    school: 'transmutation',
+    castingTime: 'action',
+    concentration: false,
+    range: { kind: 'touch' },
+    targets: { count: 1, self: true },
+    effects: [{ kind: 'weapon-rider', bonus: 2, ...(meleeOnly ? { meleeOnly: true } : {}) }],
+    durationSeconds: 60,
+  });
+
+  const contentWith = (meleeOnly: boolean): Content =>
+    unwrap(
+      extendContent(SRD_CONTENT, {
+        spells: [definition(meleeOnly) as unknown as SpellDefinition],
+      }),
+      'homebrew',
+    );
+
+  const oiled = (meleeOnly: boolean, weapon: string): readonly GameEvent[] => {
+    // The same table, with the homebrew spell prepared: a caster who has not
+    // prepared it is refused `spell_not_available` before any of this matters.
+    const log: readonly GameEvent[] = table().map((event) =>
+      event.type === 'spellcasting-declared'
+        ? {
+            ...event,
+            spellcasting: declaredCasting({
+              ability: 'wis',
+              cantrips: ['shillelagh'],
+              prepared: ['magic-weapon', 'cure-wounds', 'homebrew-oil'],
+            }),
+          }
+        : event,
+    );
+    const content = contentWith(meleeOnly);
+    const request = { spellId: 'homebrew-oil', targets: [CASTER], slotLevel: 1, weapon };
+    return [
+      ...log,
+      ...must(
+        resolveSpell(fold('seed', log), CASTER, request, {
+          ...supply(),
+          content,
+        }),
+      ).events,
+    ];
+  };
+
+  it('is withheld from the Dart it was cast on', () => {
+    expect(SRD_CONTENT.item('dart')?.weapon?.kind).toBe('ranged');
+    const plain = swing(table(), 'dart');
+    const narrowed = swing(oiled(true, 'dart'), 'dart');
+    expect(narrowed.attack!.total).toBe(plain.attack!.total);
+    expect(narrowed.damage).toBe(plain.damage);
+  });
+
+  /**
+   * The other half, and what makes the first non-vacuous: the *same* casting
+   * without the clause reaches the same Dart. Only the narrowing differs, so a
+   * predicate that never fired would fail here instead.
+   */
+  it('reaches the same Dart when the spell does not print the clause', () => {
+    const plain = swing(table(), 'dart');
+    const open = swing(oiled(false, 'dart'), 'dart');
+    expect(open.attack!.total).toBe(plain.attack!.total + 2);
+    expect(open.damage).toBe(plain.damage! + 2);
+  });
+
+  /** And a melee weapon is reached either way, so the clause narrows and does not forbid. */
+  it('reaches a melee weapon with the clause in place', () => {
+    const plain = swing(table(), 'mace');
+    const oil = swing(oiled(true, 'mace'), 'mace');
+    expect(oil.damage).toBe(plain.damage! + 2);
+  });
+
+  /** And the predicate itself, asked directly, on the record a swing resolves. */
+  it('answers off the weapon record the swing resolved', () => {
+    const running = state(oiled(true, 'mace'));
+    const creature = running.creatures[CASTER]!;
+    expect(creature.weaponRiders).toHaveLength(1);
+    expect(weaponRidersFor(creature, SRD_CONTENT.item('mace')!.weapon!)).toHaveLength(1);
+    // The same rider, asked about a Ranged record: the id would match and the
+    // kind does not.
+    expect(
+      weaponRidersFor(creature, { ...SRD_CONTENT.item('mace')!.weapon!, kind: 'ranged' }),
+    ).toEqual([]);
+    // And a swing with no weapon in it at all.
+    expect(weaponRidersFor(creature, null)).toEqual([]);
+  });
+});
+
+// — a readied casting, which is the second door the weapon travels through ——
+
+/**
+ * **The evidence for the two edits into `commands/actions.ts`.**
+ *
+ * SRD spends the slot at the Ready, so a readied casting states its facts
+ * there and the release takes no fresh request — which is why `StatedFacts`
+ * carries the damage type, the choice, the fought list and the teleport
+ * destination. The weapon is the sixth, and without it a readied casting
+ * reaches `resolveSpell` with nothing naming the weapon and is refused
+ * `weapon_required` at the moment of release, after the slot has gone.
+ *
+ * **Neither SRD spell can be readied**, and that is worth saying rather than
+ * discovering: SRD requires a readied spell's casting time to be an Action,
+ * and Shillelagh and Magic Weapon are both a Bonus Action. So the field is
+ * vocabulary rather than a road either of them travels, and the homebrew
+ * definition above — whose casting time *is* an Action — is what drives it.
+ * That is the same reason `attack-riders.test.ts` reaches for Mass Suggestion
+ * to test a readied duration band.
+ */
+describe('a readied casting keeps the weapon it named', () => {
+  const OIL: SpellDefinition = {
+    id: 'homebrew-readied-oil',
+    name: 'Homebrew Readied Oil',
+    level: 1,
+    school: 'transmutation',
+    castingTime: 'action',
+    concentration: false,
+    range: { kind: 'touch' },
+    targets: { count: 1, self: true },
+    effects: [{ kind: 'weapon-rider', bonus: 2 }],
+    durationSeconds: 60,
+  } as unknown as SpellDefinition;
+
+  const CONTENT: Content = unwrap(
+    extendContent(SRD_CONTENT, { spells: [OIL] }),
+    'readied homebrew',
+  );
+
+  const readied = (weapon: string): readonly GameEvent[] => {
+    const base: readonly GameEvent[] = [
+      ...table(1).map((event) =>
+        event.type === 'spellcasting-declared'
+          ? {
+              ...event,
+              spellcasting: declaredCasting({
+                ability: 'wis',
+                cantrips: ['shillelagh'],
+                prepared: ['magic-weapon', 'cure-wounds', OIL.id],
+              }),
+            }
+          : event,
+      ),
+      {
+        type: 'combat-started',
+        combatants: [
+          { id: CASTER, initiative: 20, speed: 30 },
+          { id: DUMMY, initiative: 10, speed: 30 },
+        ],
+      },
+    ];
+    const held: readonly GameEvent[] = [
+      ...base,
+      ...must(
+        takeReady(
+          fold('seed', base),
+          CASTER,
+          {
+            trigger: 'when the goblin steps up',
+            response: { kind: 'spell', spellId: OIL.id, slotLevel: 1, weapon },
+          },
+          CONTENT,
+        ),
+      ),
+    ];
+    return [
+      ...held,
+      ...must(
+        releaseReady(
+          fold('seed', held),
+          CASTER,
+          { targets: [CASTER] },
+          { ...supply(), content: CONTENT },
+        ),
+      ).events,
+    ];
+  };
+
+  /**
+   * **Asserted on the grant and on the reader rather than on a swing**, and
+   * the reason is the Ready itself: the action went at the Ready, so the
+   * caster cannot also attack on that turn and `resolveAttack` refuses with
+   * `no_action`. That every other test in this file drives the swing is what
+   * makes reading the grant here enough — what is in doubt at this door is
+   * whether the weapon survived the round trip, not what a rider does once it
+   * has.
+   */
+  const staff = SRD_CONTENT.item('quarterstaff')!.weapon!;
+  const club = SRD_CONTENT.item('club')!.weapon!;
+
+  it('imbues the weapon the Ready named, and not another in the pack', () => {
+    const creature = state(readied('quarterstaff')).creatures[CASTER]!;
+    expect(creature.weaponRiders).toHaveLength(1);
+    expect(creature.weaponRiders[0]?.weapon).toBe('quarterstaff');
+    expect(creature.weaponRiders[0]?.bonus).toBe(2);
+
+    // And the reader honours it for that weapon and no other.
+    expect(weaponRidersFor(creature, staff)).toHaveLength(1);
+    expect(weaponRidersFor(creature, club)).toEqual([]);
+  });
+
+  /** And the other weapon in the pack, to prove the id travelled rather than a default. */
+  it('imbues the Club when the Club is what was named', () => {
+    const creature = state(readied('club')).creatures[CASTER]!;
+    expect(creature.weaponRiders[0]?.weapon).toBe('club');
+    expect(weaponRidersFor(creature, club)).toHaveLength(1);
+    expect(weaponRidersFor(creature, staff)).toEqual([]);
   });
 });
 
