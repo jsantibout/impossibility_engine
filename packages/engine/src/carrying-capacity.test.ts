@@ -14,6 +14,7 @@ import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
+import { groundItems } from './positioning.js';
 import {
   addSceneLandmark,
   awardItems,
@@ -42,10 +43,12 @@ import {
  * and every size above doubles.
  *
  * **Two honesties are load-bearing here.** `weightLb` is `number | null`, and
- * null is "nobody has said" rather than zero — every magic item in the
- * catalogue prints no weight at all. So the sum is a **lower bound** with the
+ * null is "nobody has said" rather than zero — some items print no weight, and
+ * the generic placeholders an arcane focus or a musical instrument stand in
+ * for print none by their nature. So the sum is a **lower bound** with the
  * unweighed lines counted beside it, and a refusal made on a lower bound can
- * only ever under-refuse.
+ * only ever under-refuse. (How many there are is a count, and counts live in
+ * the reports rather than in prose.)
  *
  * And **the refusal stands where every reading agrees**, which is the printed
  * Drag/Lift/Push maximum rather than the Carry column. The SRD does not make
@@ -56,9 +59,10 @@ import {
  * capacity." This engine has nowhere to hold "this table turned that on", and
  * refusing at Carry anyway would leave a canonical low-Strength character
  * unable to buy or pick up anything for ever, because the SRD's own starting
- * bundles are heavier than its own Carry figure for one. The last test below
- * pins those two numbers against each other so that the wrong reading cannot
- * come back without a measurement arguing with it.
+ * bundles are heavier than its own Carry figure for one. "leaves a canonical
+ * low-Strength character able to pick things up" pins those numbers against
+ * each other, so the wrong reading cannot come back without a measurement
+ * arguing with it.
  *
  * What is **not** built is the consequence Carry does have: "While dragging,
  * lifting, or pushing weight in excess of the maximum weight you can carry,
@@ -169,7 +173,19 @@ describe('what a creature is actually carrying', () => {
 describe('what is lying at a creature’s feet', () => {
   it('is the pile within arm’s reach, and nothing further off', () => {
     let log = run(walker(15), (s) => purchaseItem(s, SRD_CONTENT, A, 'greataxe'));
+    log = run(log, (s) => purchaseItem(s, SRD_CONTENT, A, 'dagger'));
+    // One at their feet and one across the room, so the answer is the filter's
+    // rather than the fixture's: a test holding only the near pile would pass
+    // with no distance rule at all.
     log = run(log, (s) => dropItem(s, SRD_CONTENT, A, { item: 'greataxe' }));
+    log = run(log, (s) =>
+      dropItem(s, SRD_CONTENT, A, {
+        item: 'dagger',
+        placement: { from: { landmark: 'here' }, feet: 30, bearing: 90 },
+      }),
+    );
+
+    expect(groundItems(state(log).scene!).map((pile) => pile.item)).toEqual(['greataxe', 'dagger']);
     expect(unwrap(itemsWithinReach(state(log), A), 'reach').map((pile) => pile.item)).toEqual([
       'greataxe',
     ]);
