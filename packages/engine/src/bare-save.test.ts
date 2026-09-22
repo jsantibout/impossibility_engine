@@ -201,8 +201,8 @@ describe('Slow', () => {
     },
   ];
 
-  const cast = (bonus: number): GameState => {
-    const out = must(
+  const resolve = (bonus: number) =>
+    must(
       resolveSpell(
         fold('seed', SETUP),
         WIZARD,
@@ -218,8 +218,8 @@ describe('Slow', () => {
         supply('slow', bonus),
       ),
     );
-    return fold('seed', [...SETUP, ...out.events]);
-  };
+
+  const cast = (bonus: number): GameState => fold('seed', [...SETUP, ...resolve(bonus).events]);
 
   const reactionRules = (state: GameState): readonly string[] =>
     (state.creatures[OGRE]?.actionRules ?? [])
@@ -237,6 +237,23 @@ describe('Slow', () => {
   /** And the failure imposes no condition at all, which is the whole point. */
   it('imposes no condition', () => {
     expect(effectiveConditions(cast(FAILS), OGRE).conditions).toEqual([]);
+  });
+
+  /**
+   * **And the outcome says so by leaving the field out.**
+   *
+   * `SpellTargetOutcome.conditions` is "absent rather than empty where nothing
+   * landed, so a reader asking whether a condition was imposed asks one
+   * question" — the rule `condition` and `end-condition` already keep, and the
+   * one a saving throw could not break while every `save` imposed one. A
+   * caller reading `affected: true` and then `conditions` must not be handed
+   * an empty list here and a missing field two resolvers along.
+   */
+  it('reports the failure with no conditions field at all', () => {
+    const outcome = resolve(FAILS).outcomes.find((one) => one.target === OGRE);
+
+    expect(outcome?.affected).toBe(true);
+    expect(outcome === undefined ? [] : Object.keys(outcome)).not.toContain('conditions');
   });
 
   it('does none of it to a target that makes the save', () => {
