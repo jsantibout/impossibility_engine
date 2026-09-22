@@ -132,7 +132,12 @@ space. Blinded itself changes nothing: a Blinded creature already fails sight.
 
 Darkness, Fog Cloud, Light, Daylight, Continual Flame, Dancing Lights,
 Produce Flame's light, Faerie Fire's and Starry Wisp's dim light, Moonbeam's;
-Sunlight Sensitivity on the Kobold, Specter, Wight and Wraith; Devil's
+Sunlight Sensitivity on the Kobold Warrior, Drider, Specter, Wight and Wraith
+— **five blocks, and the requirement reads the space its holder stands in,
+not the target's**: SRD prints "While in sunlight, *the kobold has*
+Disadvantage". The vampires' Sunlight is refused whole, because it prints the
+Sensitivity behind damage at a turn boundary and taking half of it would be a
+vampire the book did not print. Devil's
 Sight; Sacred Weapon's light; the six Illumination traits, Shadow Stealth,
 Sunlight Weakness and Vampire Spawn's Sunlight. Mirror Image, Blur and the
 Darkvision spell are the attacker-side sense reading (P2-T16), not this.

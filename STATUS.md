@@ -31,29 +31,35 @@ homebrew.
   a landing (1d6 per ten feet to 20d6, and Prone); and **going up needs a way
   up** — a move that ends higher is refused unless it flew, climbed, burrowed
   or jumped.
-- **Combat and time** — Initiative and Alert's swap within its window, the
-  action budget, joining a running fight, the clock, spans and turn-anchored
-  deadlines, repeat saves and delayed damage raised at the boundary, Short and
-  Long Rests. A fight **ends** when no hostile remains or they surrender, and
-  the event pins why.
+- **Combat and time** — Initiative and Alert's swap, the action budget, an
+  extra action a running effect grants each turn, a slot of somebody else's
+  turn spent by a spell, joining a running fight, the clock, turn-anchored
+  deadlines, repeat saves and delayed damage at the boundary, Short and Long
+  Rests. A fight **ends** when no hostile remains or they surrender.
 - **Monsters that fight from their own printed lines** — Multiattack as a named
   sequence, an opportunity attack reaching for the best printed melee attack,
   recharge enforced and returned on a rest, spendable Bonus Actions, daily
   limits cleared at a declared dawn, eighteen printed saving throws rolled
-  through the DM's door, and a count the table keeps for the Hydra.
+  through the DM's door, sunlight sensitivity on five blocks, and the Hydra's
+  declared head count.
 - **Features that do something** — an action rule a feature holds, a use that
   hangs something a later roll spends, a pool use that buys room in the turn
   budget, the Unarmed Strike's three options, fighting styles, weapon
   masteries, and the defender answering first on both paths.
 - **Casting and spells** — slots and Pact slots as pools, castings with
   identities, Concentration, ongoing spells, the effect and rider kinds, dice
-  that behave the way their spell says, and printed sentences handed to the DM
-  marked as theirs.
+  that behave the way their spell says, printed sentences handed to the DM
+  marked as theirs, and **passive defences** the attack path consults while
+  the defender elects nothing.
 - **Characters** — twelve SRD classes with their subclass, nine species,
   backgrounds, feats, multiclassing, creation and advancement.
-- **Items** — grants live while worn or wielded, attunement, charges, a copy
-  told apart from its twin, an item that moves between people, a purse in the
-  DM's chosen denomination. **Hands are a count**, so a Two-Handed weapon and a
+- **Items and objects** — grants live while worn or wielded, attunement,
+  charges, a copy told apart from its twin, an item that moves between people,
+  a purse in the DM's denomination. **An item nobody holds lies on the floor**
+  with an instance id, and a creature can be too laden to lift it. **An object
+  is declared into the scene and broken**: a door stated by material and size,
+  swung at and destroyed through the paths a creature already takes, with a
+  damage threshold that turns a superficial blow aside. **Hands are a count**, so a Two-Handed weapon and a
   shield refuse each other and a conjured thing occupies one while its casting
   runs.
 - **Content** — `createContent` / `loadContent` validate a catalogue from JSON
@@ -76,10 +82,10 @@ homebrew.
   timed, effect left to the table. `LEDGER.md` names each and its shape.
 - **Most class, species and background features past the common shapes are
   `manual`** with a note saying what is missing.
-- **Four pools count and refill truthfully and buy nothing**: Wild Shape,
-  Paladin's Channel Divinity, Font of Magic, Arcane Recovery. Each is recorded
-  in `reachability.test.ts`'s `NOTHING_TO_BUY`, checked in both directions, so
-  one that opens deletes its line in the same commit.
+- **Two pools count and refill truthfully and buy nothing**: Wild Shape and
+  Paladin's Channel Divinity. Font of Magic and Arcane Recovery now buy spell
+  slots. `reachability.test.ts`'s `NOTHING_TO_BUY` is checked in both
+  directions, so a pool that opens deletes its line in the same commit.
 - **A casting cannot summon.** The door is built and the effect kind is not, so
   a caller must cast, read the `castingId` back and summon by hand.
 - **Nothing reduces damage an effect has rolled**, which is why Feather Fall
@@ -88,11 +94,9 @@ homebrew.
 - **Movement modes are built, and jumping is half.** The four Speeds are on
   the sheet and off a stat block, a move names its mode, going without the
   Speed costs double, a stopped flier falls, and a spell or feature can grant
-  a mode. A granted Speed reaches the mode granted; an unqualified increase
-  reaches walking alone and an unqualified slowing reaches every mode. The
-  longer running jump is missing, so Second-Story Work stays manual.
+  one. The longer running jump is missing, so Second-Story Work stays manual.
 - Light shed by an **object** — Light, Continual Flame, Dancing Lights — has
-  nowhere to hang, because the engine holds no objects.
+  nowhere to hang: an object can be broken but cannot yet carry a light patch.
 - **A printed stat-block rider that deals extra damage is still prose.** The
   condition families execute — gated on the target's size or on a creature
   type the block names, anchored on either creature's next turn, and a grapple
@@ -104,7 +108,10 @@ homebrew.
 - **Nothing brings a jumper down.** A High Jump leaves the creature at the
   elevation it reached and no rule ends that. Narrower than it was — elevation
   was wholly unguarded until `cannot_rise` — but still open.
-- No carried weight, no ammunition, no objects that are not creatures.
+- No ammunition spent. **An object cannot make an ability check** — a door
+  asked for one rolls at −5 and can succeed, where it should refuse; and
+  nothing stops a caller putting an object in the turn order, which would
+  leave a fight unable to close.
 - A conferral refuses by name what it cannot do: bonuses to spell attack rolls,
   ability scores an item sets, curses, Speed from an item.
 - **Two corpus migrations are owed**: a weapon mastery is a ceiling rather than
@@ -118,42 +125,16 @@ homebrew.
 Each is a decision, not a task; the brief that acts on one cites it here. The
 argument behind each is in `docs/archive/status-2026-09-21.md`.
 
-**Owner, 2026-09-20.** Hide is the engine's verb (cover or obscurement, no
-line of sight, then DC 15 Stealth) · size is a creation choice · Multiattack
-needs composition, because a count-only version lets a Ghoul make two Claws ·
-a monster's opportunity attack is its best printed melee attack that does not
-recharge · "permanent" is a real duration and carries its source · some printed
-text is the DM's alone · Channel Divinity is a shell with one shared pool · the
-defender answers first · a use may name an attack, so the hand-over should be
-decided by what the named action *is* rather than by how the sentence reads
-(**queued**) · recharge is enforced and also returns on a rest · `alsoHolding`
-stays although no catalogue can reach it, because a reader that drops data
-when a validator loosens is the coupling that bites · the Hydra's head count
-gets its own event · *Shield* drops a pinned rider unspent · the Hydra's heads
-are declared and its Bites derived from them, the first DM door that takes a
-number, on the line that a number the *engine* produces is a fabrication and a
-number the *table* states is a fact · a fight ends when no hostile remains or
-they surrender, and a flight is a prompt rather than an end.
-
-**Ruled after that batch.** Truesight and Blindsight satisfy "if a creature can
-somehow see you"; Darkvision does not · the Initiative swap is Alert's, gated
-on the feat, the window and the ally's consent · Wild Shape: gear merges, the
-AC is always the stat block's, a form larger than its space is the
-forced-movement rule, known forms are chosen at the start of a Long Rest, and a
-Wild Companion familiar goes away when one completes · Nimbus Quill's table
-rolls physical dice, so the third door is the answer — its own swept directory,
-never stamped `engine`, never on an AI DM's surface.
-
-**Owner, 2026-09-21: a monster's attack is holdable**, so a party fighting
-monsters is offered the window *Shield* answers. The refusal was not a rule: a
-hold had nowhere to record which printed line was swung.
-
-**Owner, 2026-09-21, on the sight model** — all five decisions in
-`docs/design/light-and-sight.md`, yes as written. Light is **declared on the
-lattice** as Difficult Terrain is; deriving it from walls is refused. **An
-undeclared scene is undeclared, not bright.** Magical darkness defeats
-Darkvision and nonmagical light, Devil's Sight defeats it, and sunlight is
-bright light with a flag. Not built yet: it is P3-S.
+**Owner, 2026-09-20, and the four ruled just after that batch** — Hide as the
+engine's verb, size as a creation choice, Multiattack needing composition, a
+monster's opportunity attack, "permanent" as a duration, DM-only text, Channel
+Divinity's shared pool, the defender answering first, recharge, `alsoHolding`,
+the Hydra's declared heads and derived Bites, a fight that ends; then Truesight
+and Blindsight satisfying "can somehow see" where Darkvision does not, Alert's
+swap and its window, Wild Shape's four answers, and Nimbus Quill's table
+rolling its own dice. **Each is quoted in full, with its argument, in
+`docs/archive/status-2026-09-21.md`** — they are settled, and repeating them
+here costs the words this file is capped at.
 
 **Taken by a builder and recorded here rather than drifted into.** A creature
 at 0 hit points, or dead, keeps its hit points when a maximum rises: raising

@@ -87,6 +87,7 @@ fixture, which is the only place that edge exists.
 packages/engine/src/
   dice, rolls, roll-modifiers, checks, attack, bonuses   the D20 pipeline and typed damage
   conditions, vitals, standing, resources, rest          creature state and what changes it
+  objects, passive-defenses                              a thing that can be broken, and a defence taking no Reaction
   positioning, combat, reactions                         space and the action economy
   time, timers                                           the clock, Duration → Deadline, and what hangs on a deadline
   spells, spell-definitions, spell-schema                casting records and the definition vocabulary/validator
