@@ -1,0 +1,193 @@
+import { describe, expect, it } from 'vitest';
+import { SRD_CONTENT } from '@ie/content';
+import { asCharacterId, isErr, expect as unwrap, type CharacterId, type Result } from '@ie/shared';
+import type { CreatureSize } from '@ie/srd';
+import type { CharacterSheet } from './character.js';
+import { createRng, type Rng } from './dice.js';
+import { createRollIssuer } from './rolls.js';
+import { fold, type GameEvent, type GameState } from './events.js';
+import {
+  addSceneLandmark,
+  awardItems,
+  carriedWeight,
+  carryingCapacity,
+  dropItem,
+  placeCreatureInScene,
+  purchaseItem,
+  setScene,
+  takeItemUp,
+} from './commands.js';
+
+/**
+ * What a creature can carry, and what happens when it tries to carry more.
+ *
+ * `weightLb` has been on every catalogue item since the equipment tables were
+ * parsed and **nothing read it** — the equipment note recorded the gap in as
+ * many words: "Nothing weighs anything. Weight is in the catalogue; carrying
+ * capacity…". This is the reader, and the one refusal it makes possible.
+ *
+ * SRD Rules Glossary, "Carrying Capacity": "Your size and Strength score
+ * determine the maximum weight in pounds that you can carry", and the table
+ * prints two numbers per size — what you can carry and what you can drag, lift
+ * or push. Small and Medium are Str × 15 and Str × 30; Tiny is half of each
+ * and every size above doubles.
+ *
+ * **Two honesties are load-bearing here.** `weightLb` is `number | null`, and
+ * null is "nobody has said" rather than zero — 56 of the catalogue's 401
+ * items, every magic item among them, print no weight at all. So the sum is a
+ * **lower bound** with the unweighed lines counted beside it, and a refusal
+ * made on a lower bound can only ever under-refuse. And the SRD's own starting
+ * bundles are heavier than the SRD's own capacities for a low-Strength class —
+ * a Bard's option A and a Sage's pack come to 147 lb against a Strength-8
+ * Bard's 120 — which is exactly why the book writes "You can usually carry
+ * your gear and treasure without worrying about the weight" and hands the
+ * switch to the GM. See the digest for what that leaves open.
+ */
+
+const id = (s: string) => asCharacterId(s);
+const A = id('a');
+
+const state = (log: readonly GameEvent[]): GameState => fold('seed', log);
+const run = (
+  log: readonly GameEvent[],
+  command: (s: GameState) => Result<GameEvent[]>,
+): readonly GameEvent[] => [...log, ...unwrap(command(state(log)), 'command')];
+
+/** The generator `awardItems` takes, for the copies whose count the book rolls. */
+const supply = () => ({
+  issuer: createRollIssuer('r'),
+  rng: createRng('s') as Rng,
+  content: SRD_CONTENT,
+});
+
+/** Enough of a sheet for the two facts capacity reads: a Strength and a size. */
+const sheetWith = (str: number): CharacterSheet => ({
+  level: 1,
+  abilities: { str, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
+  skills: {},
+  saveProficiencies: [],
+  armor: null,
+  shield: null,
+  armorTraining: { light: true, medium: true, heavy: true, shields: true },
+  baseSpeed: 30,
+  spellcastingAbility: null,
+  weaponProficiencies: ['simple', 'martial'],
+});
+
+const arrives = (who: CharacterId, str: number, size: CreatureSize): GameEvent => ({
+  type: 'creature-added',
+  id: who,
+  name: who,
+  sheet: sheetWith(str),
+  maxHp: 20,
+  diesAtZero: false,
+  creatureType: 'Humanoid',
+  side: 'party',
+  size,
+});
+
+/** A creature with a stated Strength, a purse, and a room to stand in. */
+const walker = (str: number, size: CreatureSize = 'medium'): readonly GameEvent[] => {
+  let log: readonly GameEvent[] = [
+    arrives(A, str, size),
+    { type: 'coins-changed', id: A, copper: 1_000_000, source: 'a patron' },
+  ];
+  log = run(log, (s) => setScene(s, { width: 200, depth: 200, height: 40 }));
+  log = run(log, (s) => addSceneLandmark(s, 'here', { x: 50, y: 50, z: 0 }));
+  log = run(log, (s) => placeCreatureInScene(s, A, { from: { landmark: 'here' }, feet: 0 }));
+  return log;
+};
+
+describe('the capacity the SRD prints', () => {
+  it('is Strength times fifteen for a Medium creature, and double that to drag', () => {
+    const world = state(walker(15));
+    expect(carryingCapacity(world, A)).toEqual({ carry: 225, dragLiftPush: 450 });
+  });
+
+  /** Tiny halves it; every size above Medium doubles. */
+  it('halves for Tiny and doubles for Large', () => {
+    expect(carryingCapacity(state(walker(10, 'tiny')), A)).toEqual({ carry: 75, dragLiftPush: 150 });
+    expect(carryingCapacity(state(walker(10, 'large')), A)).toEqual({
+      carry: 300,
+      dragLiftPush: 600,
+    });
+  });
+});
+
+describe('what a creature is actually carrying', () => {
+  it('adds up the catalogue weights of every line, quantity and all', () => {
+    // A Greataxe is 7 lb and a Handaxe 2 lb, so four of them is 8.
+    let log = run(walker(15), (s) => purchaseItem(s, SRD_CONTENT, A, 'greataxe'));
+    log = run(log, (s) => purchaseItem(s, SRD_CONTENT, A, 'handaxe', 4));
+    expect(carriedWeight(state(log), SRD_CONTENT, A)).toEqual({ pounds: 15, unweighed: 0 });
+  });
+
+  /**
+   * **An unweighed item is counted, not weighed as nothing.** Null is nobody
+   * having said, and a sum that silently treated it as zero would be a lie a
+   * refusal was then made on.
+   */
+  it('counts what nobody has weighed rather than calling it weightless', () => {
+    const log = run(walker(15), (s) =>
+      awardItems(s, supply(), A, [{ id: 'wand-of-secrets' }], 'in the barrow'),
+    );
+    expect(carriedWeight(state(log), SRD_CONTENT, A)).toEqual({ pounds: 0, unweighed: 1 });
+  });
+
+  /** And what is put down stops being carried, which is the whole point. */
+  it('drops with the item', () => {
+    let log = run(walker(15), (s) => purchaseItem(s, SRD_CONTENT, A, 'greataxe'));
+    expect(carriedWeight(state(log), SRD_CONTENT, A).pounds).toBe(7);
+    log = run(log, (s) => dropItem(s, SRD_CONTENT, A, { item: 'greataxe' }));
+    expect(carriedWeight(state(log), SRD_CONTENT, A).pounds).toBe(0);
+  });
+});
+
+describe('a gain that would put a creature over capacity', () => {
+  /** Strength 3 is 45 lb; a suit of Chain Mail is 55. */
+  it('is refused at the shop, with what it weighs and what is left', () => {
+    const refused = purchaseItem(state(walker(3)), SRD_CONTENT, A, 'chain-mail');
+    expect(isErr(refused) && refused.code).toBe('over_capacity');
+    expect(isErr(refused) && refused.reason).toMatch(/45/);
+  });
+
+  it('is refused bending down for it', () => {
+    // Somebody strong buys it and puts it down; somebody weak cannot lift it.
+    const strong = id('strong');
+    let log: readonly GameEvent[] = [
+      ...walker(3),
+      arrives(strong, 18, 'medium'),
+      { type: 'coins-changed', id: strong, copper: 1_000_000, source: 'a patron' },
+    ];
+    log = run(log, (s) => placeCreatureInScene(s, strong, { from: { creature: A }, feet: 5 }));
+    log = run(log, (s) => purchaseItem(s, SRD_CONTENT, strong, 'chain-mail'));
+    log = run(log, (s) => dropItem(s, SRD_CONTENT, strong, { item: 'chain-mail' }));
+
+    const refused = takeItemUp(state(log), SRD_CONTENT, A, { item: 'chain-mail' });
+    expect(isErr(refused) && refused.code).toBe('over_capacity');
+  });
+
+  /** And a gain that fits is not refused, so the guard is about the weight. */
+  it('is not refused when it fits', () => {
+    const bought = purchaseItem(state(walker(3)), SRD_CONTENT, A, 'dagger');
+    expect(bought.ok).toBe(true);
+  });
+
+  /**
+   * **The refusal is made on the known weight only.** An unweighed item adds
+   * nothing to the sum, so the bound can only ever be too low — which
+   * under-refuses, and never refuses something that would have fitted.
+   */
+  it('never refuses on weight nobody has stated', () => {
+    let log = walker(3);
+    for (let n = 0; n < 20; n += 1) {
+      log = run(log, (s) =>
+        awardItems(s, supply(), A, [{ id: 'wand-of-secrets' }], 'in the barrow', {
+          commandId: `found-${n}`,
+        }),
+      );
+    }
+    expect(carriedWeight(state(log), SRD_CONTENT, A)).toEqual({ pounds: 0, unweighed: 20 });
+    expect(purchaseItem(state(log), SRD_CONTENT, A, 'dagger').ok).toBe(true);
+  });
+});

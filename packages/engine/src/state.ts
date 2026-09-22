@@ -1632,21 +1632,19 @@ export interface InventoryLine {
   readonly hands?: number;
 }
 
-/** What every item instance id begins with. One spelling, read and written here. */
-export const ITEM_INSTANCE_PREFIX = 'item:';
-
-/** The id of the nth copy the engine has issued a record to. */
-export const itemInstanceFor = (n: number): string => `${ITEM_INSTANCE_PREFIX}${n}`;
-
 /**
- * The number inside an instance id, for putting copies in the order they were
- * gained.
+ * The three that say what a copy's own id is, re-exported from the leaf that
+ * holds them.
  *
- * Numerically, for the reason `castingNumber` is: `item:2` was gained before
- * `item:10`, and a string sort would put ten first — which would reorder an
- * inventory, and an inventory that sorts differently on the same log is a
- * state that does not serialise identically.
+ * They moved out when `positioning.ts` came to key the floor by one: this
+ * module's imports are loaded before it is, so a value edge from the geometry
+ * to here pulled `standing.ts` in half-built. They are still *this* module's
+ * vocabulary — see {@link InventoryLine.instance} — and every caller that had
+ * them from here still has them from here. See `item-instance.ts`.
  */
-export const itemInstanceNumber = (instance: string): number =>
-  Number(instance.slice(ITEM_INSTANCE_PREFIX.length)) || 0;
+export {
+  ITEM_INSTANCE_PREFIX,
+  itemInstanceFor,
+  itemInstanceNumber,
+} from './item-instance.js';
 

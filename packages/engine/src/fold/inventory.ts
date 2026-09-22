@@ -16,11 +16,13 @@ import {
   type GameState,
   type InventoryLine,
 } from '../state.js';
-import { attachPool, detachPool } from '../resources.js';
+import { attachPool, detachPool, type ResourcePool } from '../resources.js';
+import { placeItemOnGround, takeItemFromGround, type GroundItem } from '../positioning.js';
 import {
   CorruptLogError,
   creatureOf,
   must,
+  sceneOf,
   withCreature,
   seamOf,
   unhandledEvent,
@@ -32,6 +34,8 @@ export const INVENTORY_EVENTS = [
   'items-gained',
   'items-lost',
   'item-transferred',
+  'item-dropped',
+  'item-taken-up',
   'coins-changed',
   'item-equipped',
   'item-unequipped',
@@ -310,6 +314,142 @@ export function applyInventory({ state, next, legacy }: Applying, event: Invento
         { inventory: mergeItems(taker.inventory, [line]), resources: taken },
         taker,
       );
+    }
+
+    /**
+     * Something put down: off the creature, onto the floor, in one step.
+     *
+     * **Whether the record was minted is derived rather than declared**, and
+     * that is deliberate: the fold can see whether the creature holds a line
+     * under this id, so a second field saying so would be a second source of
+     * truth that a hand-written log could set the wrong way. A copy the
+     * creature already holds under that record is named by it; anything else
+     * has to be the **next** record the engine would issue, on exactly the
+     * pattern `items-gained` follows one case above — the command knows the id
+     * before the event exists, and the fold is what says it is real.
+     */
+    case 'item-dropped': {
+      const creature = creatureOf(state, event, event.id);
+      const held = creature.inventory.find((line) => line.instance === event.instance);
+      const minted = held === undefined;
+
+      if (minted) {
+        const expected = itemInstanceFor(state.itemsIssued + 1);
+        if (event.instance !== expected) {
+          throw new CorruptLogError(event, `expected item ${expected}, got ${event.instance}`);
+        }
+      } else if (held.id !== event.item) {
+        throw new CorruptLogError(
+          event,
+          `${event.instance} is a ${held.id}, and the drop calls it a ${event.item}`,
+        );
+      }
+
+      if (!Number.isInteger(event.quantity) || event.quantity < 1) {
+        throw new CorruptLogError(
+          event,
+          `a drop puts down a whole number of things, not ${event.quantity}`,
+        );
+      }
+
+      // **More than is carried would leave a pile nobody owned**, which is
+      // `item-transferred`'s arithmetic read one door along: a loss that
+      // over-takes removes what is there and stops, and this would put the
+      // difference on the floor.
+      const line: InventoryLine = {
+        id: event.item,
+        quantity: event.quantity,
+        ...(minted ? {} : { instance: event.instance }),
+      };
+      const carried = creature.inventory
+        .filter((owned) =>
+          minted
+            ? owned.id === line.id && owned.instance === undefined
+            : owned.instance === event.instance,
+        )
+        .reduce((total, owned) => total + owned.quantity, 0);
+      if (carried < event.quantity) {
+        throw new CorruptLogError(
+          event,
+          `${event.id} has ${carried} of ${event.item}, and the drop puts down ${event.quantity}`,
+        );
+      }
+
+      // The copy's own state goes down with it: a pool belongs to whoever
+      // holds the copy, and a wand on the floor is held by nobody.
+      let resources = creature.resources;
+      const pools: ResourcePool[] = [];
+      for (const key of event.pools ?? []) {
+        const detached = must(event, detachPool(resources, key));
+        resources = detached.state;
+        pools.push(detached.pool);
+      }
+
+      const dropped = withCreature(
+        next,
+        event.id,
+        { inventory: removeItems(creature.inventory, [line]), resources },
+        creature,
+      );
+      return {
+        ...dropped,
+        scene: must(
+          event,
+          placeItemOnGround(
+            sceneOf(state, event),
+            event.instance,
+            {
+              item: event.item,
+              quantity: event.quantity,
+              ...(minted ? { minted: true } : {}),
+              ...(pools.length === 0 ? {} : { pools }),
+            },
+            event.placement,
+          ),
+        ),
+        itemsIssued: minted ? state.itemsIssued + 1 : state.itemsIssued,
+      };
+    }
+
+    /**
+     * And back up again, whole.
+     *
+     * The pile carries what it is, so the event's `item` and `quantity` are
+     * checked against the floor rather than believed — a hand-written log that
+     * calls the wand a javelin is a contradiction, not a swap. A **minted**
+     * record is handed back at this door and not reissued: the label answered
+     * "which pile", and in a pack there is no pile.
+     */
+    case 'item-taken-up': {
+      const creature = creatureOf(state, event, event.id);
+      const taken = must(event, takeItemFromGround(sceneOf(state, event), event.instance));
+      const pile: GroundItem = taken.pile;
+      if (pile.item !== event.item || pile.quantity !== event.quantity) {
+        throw new CorruptLogError(
+          event,
+          `${event.instance} is ${pile.quantity} of ${pile.item}, and the pick-up calls it ${event.quantity} of ${event.item}`,
+        );
+      }
+
+      let resources = creature.resources;
+      for (const pool of pile.pools ?? []) {
+        resources = must(event, attachPool(resources, pool));
+      }
+
+      const line: InventoryLine = {
+        id: pile.item,
+        quantity: pile.quantity,
+        ...(pile.minted === true ? {} : { instance: event.instance }),
+      };
+      return {
+        ...withCreature(
+          next,
+          event.id,
+          { inventory: mergeItems(creature.inventory, [line]), resources },
+          creature,
+        ),
+        scene: taken.state,
+      };
     }
 
     case 'coins-changed': {

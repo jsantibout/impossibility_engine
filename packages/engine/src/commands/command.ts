@@ -23,7 +23,7 @@ import { type CharacterId, err, type Err, needsContext, ok, type Result } from '
 import { spendAction, spendBonusAction } from '../combat.js';
 import { type Duration } from '../time.js';
 import { type GameEvent, type GameState } from '../events.js';
-import { distanceBetween, positionOf, type PositionState } from '../positioning.js';
+import { type Anchor, distanceBetween, positionOf, type PositionState } from '../positioning.js';
 import { actionRulesOn } from '../standing.js';
 
 /**
@@ -147,6 +147,53 @@ export function sceneFor(
       satisfyWith: 'a setScene command',
     },
   ]);
+}
+
+/**
+ * A placement's refusal, with the request the anchor it named would need.
+ *
+ * `resolveAnchor` in `positioning.ts` answers two facts bare — a creature
+ * nobody has placed, and a **landmark nobody has declared** — on the division
+ * of labour this file exists for: a pure helper returns the kind, and the
+ * command that knows which rule wanted the fact says what would settle it.
+ *
+ * The landmark half is the one that was a doctrine defect rather than a gap.
+ * It answered `err` — "there is no X in this scene" — which reads to
+ * everything above as *that does not exist*: the narrator describes a door,
+ * somebody reaches for it, and the engine denies the door. Rule 6 says which
+ * kind it is, and an undeclared landmark is a fact **missing rather than
+ * wrong**. It is `scene`-kinded because that is the kind `addSceneLandmark`
+ * settles — `add_landmark` already declares it on the tool surface beside
+ * `set_scene`, so this opens no door that was not already open.
+ *
+ * Anything else passes through untouched: an extent a pile does not fit
+ * inside, a space already taken, a distance that is not one. Those are
+ * verdicts, and re-sending them changes nothing.
+ */
+export function anchorNeeded<T>(refusal: Err, anchor: Anchor, because: string): Result<T> {
+  if (refusal.code === 'unknown_anchor' && 'landmark' in anchor) {
+    return needsContext(refusal.code, refusal.reason, [
+      {
+        kind: 'scene',
+        subject: anchor.landmark,
+        need: `where "${anchor.landmark}" is, so that a distance from it means something`,
+        because,
+        satisfyWith: `an addSceneLandmark command for "${anchor.landmark}"`,
+      },
+    ]);
+  }
+  if (refusal.code === 'unplaced' && 'creature' in anchor) {
+    return needsContext(refusal.code, refusal.reason, [
+      {
+        kind: 'position',
+        subject: anchor.creature,
+        need: `where ${anchor.creature} is standing`,
+        because,
+        satisfyWith: `a placeCreatureInScene command for ${anchor.creature}`,
+      },
+    ]);
+  }
+  return refusal;
 }
 
 /**

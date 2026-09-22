@@ -91,22 +91,34 @@ export type { TradeResourceCommand } from './commands/pools.js';
 export {
   attuneItem,
   attunedItems,
+  carriedWeight,
   carrying,
+  carryingCapacity,
   changeCoins,
   chargesLeft,
   coinsOf,
   conjuredHolds,
   dropConjured,
+  dropItem,
   endAttunement,
   equipItem,
   evokeConjured,
   expendCharges,
   freeHands,
   handsInUse,
+  itemsWithinReach,
   purchaseItem,
+  quantityOf,
+  takeItemUp,
   unequipItem,
 } from './commands/inventory.js';
-export type { EvokeConjuredCommand } from './commands/inventory.js';
+export type {
+  CarriedWeight,
+  CarryingCapacity,
+  DropItemCommand,
+  EvokeConjuredCommand,
+  TakeItemUpCommand,
+} from './commands/inventory.js';
 export { useItem } from './commands/item-use.js';
 export type { ItemUse, UseItemCommand } from './commands/item-use.js';
 export {

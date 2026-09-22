@@ -65,6 +65,7 @@ import {
   declareObscurement,
   declineOpportunity,
   dropConjured,
+  dropItem,
   endConcentration,
   endOngoingSpell,
   escapeGrapple,
@@ -116,6 +117,7 @@ import {
   takeDamageReaction,
   takeDamageResponse,
   takeOpportunityAttack,
+  takeItemUp,
   takeReady,
   forcePrintedSave,
   takeStatedAction,
@@ -1066,6 +1068,19 @@ const berried = (): readonly GameEvent[] => {
  * again as a Bonus Action." A retry of the evocation that got past the guard
  * would conjure a second blade and spend a second Bonus Action.
  */
+/**
+ * A's longsword on the floor at A's feet, for the command that picks one up.
+ *
+ * Through `dropItem` rather than hand-written, because a hand-written
+ * `item-dropped` is the one shape the fold refuses: the record on it has to be
+ * the next one the engine would issue, and only the command knows which that
+ * is.
+ */
+const dropped = (): readonly GameEvent[] => [
+  ...SETUP,
+  ...unwrap(dropItem(fold('s', SETUP), SRD_CONTENT, A, { item: 'longsword' }), 'put down'),
+];
+
 const blademless = (): readonly GameEvent[] => {
   const armed: readonly GameEvent[] = [
     ...SETUP,
@@ -1509,6 +1524,23 @@ const GUARDED: readonly Guarded[] = [
     name: 'evokeConjured',
     log: blademless(),
     run: (s, commandId) => evokeConjured(s, A, { item: 'flame-blade', commandId }, supply()),
+  },
+  /**
+   * Putting something down and taking it up again. Both write one event
+   * apiece — the item leaves the pack and lies in the room, and the reverse —
+   * and both are exactly the sort a retry would do twice: a second drop of a
+   * longsword the first drop already put on the floor mints a second record
+   * for a sword that is not there.
+   */
+  {
+    name: 'dropItem',
+    log: SETUP,
+    run: (s, commandId) => dropItem(s, SRD_CONTENT, A, { item: 'longsword', commandId }),
+  },
+  {
+    name: 'takeItemUp',
+    log: dropped(),
+    run: (s, commandId) => takeItemUp(s, SRD_CONTENT, A, { item: 'longsword', commandId }),
   },
   /**
    * The Unarmed Strike's other two options. Each throws the target's save, so

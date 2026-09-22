@@ -7,14 +7,23 @@
  */
 
 import { type CharacterId, err, needsContext, ok, type Result } from '@ie/shared';
+import type { CreatureSize } from '@ie/srd';
 import {
   type CatalogueItem,
   handsFor,
+  instancedPoolKeys,
   itemChargePool,
   itemChargeRoll,
   itemStandingEffects,
   type ItemKind,
 } from '../catalogue.js';
+import {
+  groundItems,
+  groundItemsWithin,
+  placeItemOnGround,
+  type GroundPile,
+  type Placement,
+} from '../positioning.js';
 import { handsOf } from '../character.js';
 import { type Content } from '../content.js';
 import { type ConjuredItems } from '../spell-definitions.js';
@@ -25,7 +34,7 @@ import {
   type GameState,
   type InventoryLine,
 } from '../events.js';
-import { creatureOf, spendFor, unknownCreature } from './command.js';
+import { anchorNeeded, creatureOf, sceneFor, spendFor, unknownCreature } from './command.js';
 import { mayAct } from './holds.js';
 import { once } from '../idempotency.js';
 import { hasPool, remaining, type PoolDeclaration } from '../resources.js';
@@ -320,6 +329,13 @@ export function purchaseItem(
         quantity: line.quantity * quantity,
       })),
     );
+
+    // **And whether there are shoulders for it.** After the price, because a
+    // character who cannot afford it never had to lift it, and before the
+    // event, because the log should not hold a purchase that could not be
+    // carried home.
+    const room = wouldOvercarry(state, content, id, bought.items);
+    if (!room.ok) return room;
 
     return ok([
       {
@@ -703,6 +719,403 @@ export function evokeConjured(
     });
     return ok(events);
   });
+}
+
+/**
+ * What a creature can carry, and what it can drag, lift or push.
+ *
+ * SRD Rules Glossary, "Carrying Capacity": "Your size and Strength score
+ * determine the maximum weight in pounds that you can carry, as shown in the
+ * Carrying Capacity table. The table also shows the maximum weight you can
+ * drag, lift, or push." The printed table is Str × 15 and Str × 30 for
+ * Small/Medium, half of each for Tiny, and a doubling for every size above —
+ * so it is one multiplier per size rather than two columns of numbers.
+ *
+ * The drag figure is computed beside the carry figure because the SRD prints
+ * them together and the sentence that uses it is one line further on: "While
+ * dragging, lifting, or pushing weight in excess of the maximum weight you can
+ * carry, your Speed can be no more than 5 feet." Nothing spends it yet; it is
+ * here so that the rule it belongs to is not two reads of a table apart.
+ */
+const CAPACITY_BY_SIZE: Readonly<Record<CreatureSize, number>> = {
+  tiny: 0.5,
+  small: 1,
+  medium: 1,
+  large: 2,
+  huge: 4,
+  gargantuan: 8,
+};
+
+/** SRD: Small and Medium carry Strength × 15, and drag, lift or push twice that. */
+const POUNDS_PER_STRENGTH = 15;
+
+export interface CarryingCapacity {
+  readonly carry: number;
+  readonly dragLiftPush: number;
+}
+
+/**
+ * The two numbers the table prints for this creature.
+ *
+ * Derived on every read rather than stored, for the reason `standing.ts`
+ * insists a conditional benefit must be: a Strength that moves — a level-up, a
+ * Belt of Giant Strength, a Reduce that makes somebody Small — moves what they
+ * can carry in the same instant, and a stored copy would be last week's
+ * shoulders.
+ *
+ * A creature nobody has added has no Strength to read, and answers zero of
+ * both rather than throwing: the callers here have all looked the creature up
+ * already, and a reader that threw would be a reader a tool surface could not
+ * ask a speculative question of.
+ */
+export function carryingCapacity(state: GameState, id: CharacterId): CarryingCapacity {
+  const creature = creatureOf(state, id);
+  if (creature === null) return { carry: 0, dragLiftPush: 0 };
+  const strength = creature.sheet.abilities.str;
+  const carry = strength * POUNDS_PER_STRENGTH * CAPACITY_BY_SIZE[creature.size ?? 'medium'];
+  return { carry, dragLiftPush: carry * 2 };
+}
+
+/** What a creature is carrying, and how much of it nobody has weighed. */
+export interface CarriedWeight {
+  /** Pounds, summed over every line the catalogue prints a weight for. */
+  readonly pounds: number;
+  /**
+   * How many *things* are on lines the catalogue prints no weight for.
+   *
+   * **Null is "nobody has said", not zero**, and 56 of the SRD catalogue's 401
+   * items are null — every magic item among them, and the three generic focus
+   * placeholders. Adding them in as weightless would make the sum a claim the
+   * book never made, and a refusal would then be made on it. So they are
+   * counted here instead, beside the sum, and the number travels into the
+   * refusal's own reason: what the engine knows is a **lower bound**, and a
+   * bound that is too low can only ever under-refuse.
+   */
+  readonly unweighed: number;
+}
+
+/**
+ * Add up what a creature is carrying.
+ *
+ * Over `carrying` rather than over the raw inventory, so a conjured handful
+ * whose spell has ended weighs nothing — it is not there. Equipped items are
+ * carried too, which is the whole of the distinction `equipped` draws: chain
+ * mail worn and chain mail in the pack weigh the same, and only one of them is
+ * Armour Class.
+ */
+export function carriedWeight(
+  state: GameState,
+  content: Content,
+  id: CharacterId,
+): CarriedWeight {
+  let pounds = 0;
+  let unweighed = 0;
+  for (const line of carrying(state, id)) {
+    const weight = content.item(line.id)?.weightLb ?? null;
+    if (weight === null) unweighed += line.quantity;
+    else pounds += weight * line.quantity;
+  }
+  return { pounds, unweighed };
+}
+
+/**
+ * Whether taking this much more on would put a creature over what it can carry.
+ *
+ * **The refusal is a value, and it is only ever made on weight somebody has
+ * stated.** What comes back is `null` for "fine" and an `Err` for "no", in the
+ * shape `no_free_hand` takes one rule along: the number, the room left, and
+ * what to do about it.
+ *
+ * **Where it is asked, and where it deliberately is not.** A character buying
+ * something and a character bending down for something are both the character
+ * taking weight on, and both are refused. A **DM's declaration** is not:
+ * `awardItems` is the table saying what the party found and `transferItem` is
+ * one creature handing another something, and both are facts about the world
+ * that a rule about shoulders does not get to veto — the same division
+ * `DECLARED_NOT_ACTED` already draws in `invariants.test.ts`. Nor is
+ * `equipItem`, because putting on armour you already own changes nothing about
+ * what you are carrying; the hands are what that door asks about.
+ *
+ * SRD hands the GM a switch this does not yet model, and it is worth saying
+ * where: "You can usually carry your gear and treasure without worrying about
+ * the weight of those objects. If you try to haul an unusually heavy object or
+ * a massive number of lighter objects, the GM **might** require you to abide by
+ * the rules for carrying capacity." The rule as printed is therefore one a
+ * table turns on, and the engine has nowhere to hold that fact yet.
+ */
+function wouldOvercarry(
+  state: GameState,
+  content: Content,
+  id: CharacterId,
+  gaining: readonly InventoryLine[],
+): Result<null> {
+  const capacity = carryingCapacity(state, id);
+  const held = carriedWeight(state, content, id);
+  let taking = 0;
+  for (const line of gaining) {
+    const weight = content.item(line.id)?.weightLb ?? null;
+    if (weight !== null) taking += weight * line.quantity;
+  }
+  if (held.pounds + taking <= capacity.carry) return ok(null);
+  return err(
+    'over_capacity',
+    `${id} can carry ${capacity.carry} lb and is carrying ${held.pounds} lb${
+      held.unweighed === 0 ? '' : ` plus ${held.unweighed} thing(s) nobody has weighed`
+    }; another ${taking} lb is more than they can hold — put something down first`,
+  );
+}
+
+/**
+ * SRD's arm's length: "you can interact with an object within 5 feet of you".
+ *
+ * A number rather than a read off the creature, because reach is a *weapon's*
+ * property in this engine and an empty hand has none. A Huge creature still
+ * reaches from its own volume, which is what `groundItemsWithin` measures
+ * from — so a dragon lying across four squares picks up what is beside any of
+ * them, without anybody having to model an arm.
+ */
+const ARMS_REACH = 5;
+
+/** What {@link dropItem} is asked. */
+export interface DropItemCommand {
+  /** Catalogue id, or a copy's id where the copies are told apart. */
+  readonly item: string;
+  /** How many. The whole line if it is left out. */
+  readonly quantity?: number;
+  /** Where it lands. The dropper's own square if it is left out. */
+  readonly placement?: Placement;
+  readonly commandId?: string;
+}
+
+/**
+ * Put something down. It leaves the pack and lies in the room.
+ *
+ * **The case `dropConjured` refused in as many words**: "a dropped Longsword is
+ * on the floor, and a floor is not something this engine holds." It is now. Two
+ * thirds of "where objects are" were already here — a table is a landmark, and
+ * what somebody holds is in their square by construction, because a held thing
+ * is a line on a creature and the creature has the placement. The missing case
+ * was the thing in nobody's inventory.
+ *
+ * **Which copy is the whole of the work**, and the owner has ruled on it. A
+ * weapon is a *catalogue* id, so "my sword on the floor" cannot be told from
+ * the identical sword still in the pack; the engine already issues a record to
+ * a copy with state of its own, and a dropped item **gets one if it does not
+ * already have one**. A copy that has one keeps it, and its charges go down
+ * with it — "one put down keeps what it had left".
+ *
+ * **It costs nothing**, on `dropConjured`'s reading of the same silence: the
+ * SRD prices the taking up and not the letting go. Neither half spends the
+ * turn's free object interaction, because `useFreeObjectInteraction` is its own
+ * command and every other item command — `equipItem`, `unequipItem`,
+ * `dropConjured` — leaves that allowance to whoever is having the turn.
+ *
+ * Refused for what a spell conjured, because a conjured thing disappears rather
+ * than landing, and for what is worn or wielded, on `loseItems`' rule and for
+ * its reason: `equipped` is a separate fact, so a dropped shield would go on
+ * adding its Armour Class from the floor.
+ */
+export function dropItem(
+  state: GameState,
+  content: Content,
+  id: CharacterId,
+  command: DropItemCommand,
+): Result<GameEvent[]> {
+  return once(state, `drop-item:${id}`, command, () => [], (stamp) => {
+    const creature = creatureOf(state, id);
+    if (creature === null) return unknownCreature(id);
+
+    const scene = sceneFor(state, id, `${id} to put something down in`);
+    if (!scene.ok) return scene;
+
+    const named = copyNamed(state, creature, command.item);
+    if (!named.ok) return named;
+    const copy = named.value;
+    if (copy === null) {
+      return err('not_owned', `${id} does not have ${content.item(command.item)?.name ?? command.item}`);
+    }
+
+    // A conjured thing has a door of its own and a different ending: it
+    // disappears, and the casting runs on.
+    if (copy.casting !== undefined) {
+      return err(
+        'conjured',
+        `${copy.id} is held by a casting rather than carried; a conjured thing disappears when it is let go of, which is dropConjured`,
+      );
+    }
+
+    const held = creature.equipped.find((worn) => worn.id === copy.id);
+    if (held !== undefined && (held.instance === undefined || held.instance === copy.instance)) {
+      return err('equipped', `${copy.id} is worn or wielded by ${id}; take it off first`);
+    }
+
+    const quantity = command.quantity ?? copy.quantity;
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      return err('bad_quantity', `a drop puts down a positive whole number, got ${quantity}`);
+    }
+    if (quantity > copy.quantity) {
+      return err('not_owned', `${id} has ${copy.quantity} of ${copy.id}, not ${quantity}`);
+    }
+
+    // At their feet unless the caller names somewhere established. Never a
+    // coordinate: the anchor is the dropper, a landmark or another creature,
+    // exactly as a creature's own placement is.
+    const placement: Placement = command.placement ?? { from: { creature: id }, feet: 0 };
+    const instance = copy.instance ?? itemInstanceFor(state.itemsIssued + 1);
+
+    // The refusal is `placeItemOnGround`'s, surfaced rather than restated —
+    // and the anchor's own two missing facts get the requests that settle them.
+    const lands = placeItemOnGround(
+      scene.value,
+      instance,
+      { item: copy.id, quantity },
+      placement,
+    );
+    if (!lands.ok) {
+      return anchorNeeded(lands, placement.from, `${copy.id} is being put down relative to it`);
+    }
+
+    // Everything keyed to this copy goes down with it. Only a copy that
+    // already had a record can have any: a record minted by this drop is one
+    // nothing has ever been keyed to.
+    const pools =
+      copy.instance === undefined
+        ? []
+        : instancedPoolKeys(Object.keys(creature.resources.pools), copy.instance);
+
+    return ok([
+      {
+        type: 'item-dropped',
+        id,
+        item: copy.id,
+        quantity,
+        instance,
+        placement,
+        ...(pools.length === 0 ? {} : { pools }),
+        source: `${content.item(copy.id)?.name ?? copy.id}, put down`,
+        ...(stamp === null ? {} : { command: stamp }),
+      },
+    ]);
+  });
+}
+
+/** What {@link takeItemUp} is asked. */
+export interface TakeItemUpCommand {
+  /** The pile's own id, or the catalogue id where one pile in reach answers to it. */
+  readonly item: string;
+  readonly commandId?: string;
+}
+
+/**
+ * Pick a pile up off the floor, whole.
+ *
+ * The other half, and the half that needs a place: a thing on the ground is
+ * somewhere, so taking it up asks where the taker is standing and whether they
+ * can reach it. Out of reach is a **verdict** — walking over is a move the
+ * caller makes, not a fact it declares — while nobody having placed the taker
+ * is homework, because a creature standing nowhere is not a creature standing
+ * far away.
+ *
+ * **Which pile** takes `copyNamed`'s three answers, read off the floor rather
+ * than off a pack: a pile's own id is that pile, a kind of thing with one pile
+ * in reach is that pile, and a kind with several is a question — two javelins
+ * on the ground are two piles and guessing would pick up somebody else's.
+ *
+ * Hands are not asked for, and deliberately: picking something up puts it in
+ * the pack, not in a hand. `equipItem` is what asks for a hand, and it asks
+ * the same question of a thing taken off the floor as of a thing bought.
+ */
+export function takeItemUp(
+  state: GameState,
+  content: Content,
+  id: CharacterId,
+  command: TakeItemUpCommand,
+): Result<GameEvent[]> {
+  return once(state, `take-item-up:${id}`, command, () => [], (stamp) => {
+    const creature = creatureOf(state, id);
+    if (creature === null) return unknownCreature(id);
+
+    const scene = sceneFor(state, id, `${id} to pick something up in`);
+    if (!scene.ok) return scene;
+
+    const near = groundItemsWithin(scene.value, id, ARMS_REACH);
+    if (!near.ok) {
+      return near.code === 'unplaced'
+        ? needsContext(near.code, near.reason, [
+            {
+              kind: 'position',
+              subject: id,
+              need: `where ${id} is standing`,
+              because: 'picking something up means being within reach of it',
+              satisfyWith: `a placeCreatureInScene command for ${id}`,
+            },
+          ])
+        : near;
+    }
+
+    const byRecord = near.value.find((pile) => pile.instance === command.item);
+    const matching = byRecord === undefined
+      ? near.value.filter((pile) => pile.item === command.item)
+      : [byRecord];
+
+    if (matching.length === 0) {
+      // Lying somewhere else, or lying nowhere: two different things to be
+      // told, and a caller that is told the second when the first is true goes
+      // looking for an item rather than walking ten feet.
+      const anywhere = groundItems(scene.value).filter(
+        (pile) => pile.instance === command.item || pile.item === command.item,
+      );
+      const name = content.item(command.item)?.name ?? command.item;
+      return anywhere.length === 0
+        ? err('not_on_ground', `there is no ${name} lying in this scene`)
+        : err(
+            'out_of_reach',
+            `the nearest ${name} is more than ${ARMS_REACH} feet from ${id}; move within reach of it first`,
+          );
+    }
+    if (matching.length > 1) {
+      return err(
+        'ambiguous_pile',
+        `there are ${matching.length} piles of ${command.item} within reach of ${id} (${matching
+          .map((pile) => pile.instance)
+          .join(', ')}); name the one you mean`,
+      );
+    }
+
+    const pile = matching[0]!;
+
+    // The same question the shop asks, at the other door a character takes
+    // weight on. A DM handing the party what it found is not asked it — see
+    // `wouldOvercarry` for why the two doors part company here.
+    const room = wouldOvercarry(state, content, id, [
+      { id: pile.item, quantity: pile.quantity },
+    ]);
+    if (!room.ok) return room;
+
+    return ok([
+      {
+        type: 'item-taken-up',
+        id,
+        item: pile.item,
+        quantity: pile.quantity,
+        instance: pile.instance,
+        source: `${content.item(pile.item)?.name ?? pile.item}, picked up`,
+        ...(stamp === null ? {} : { command: stamp }),
+      },
+    ]);
+  });
+}
+
+/**
+ * What is lying within arm's reach of a creature.
+ *
+ * The read beside the two writes, so a caller can say what is on the floor
+ * before deciding to bend down — and so `takeItemUp`'s own refusals are
+ * measured against exactly what a caller would have seen.
+ */
+export function itemsWithinReach(state: GameState, id: CharacterId): Result<readonly GroundPile[]> {
+  if (state.scene === null) return ok([]);
+  return groundItemsWithin(state.scene, id, ARMS_REACH);
 }
 
 /**

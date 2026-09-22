@@ -3,6 +3,13 @@ import type { CreatureSize } from '@ie/srd';
 // Type-only, and deliberately: `events.ts` reads this module's geometry at
 // value level, so a value edge back would be a real cycle.
 import type { GameState } from './events.js';
+// The floor is keyed by an engine-issued copy id, and those ids sort in the
+// order they were issued. From the leaf that holds them rather than from
+// `state.ts`, which re-exports them: `state.ts`'s own imports are loaded
+// before it is, so an edge to it from here pulls half the engine in through
+// the geometry. See `item-instance.ts`.
+import { itemInstanceNumber } from './item-instance.js';
+import type { ResourcePool } from './resources.js';
 
 /**
  * Where things are.
@@ -103,6 +110,68 @@ export interface PositionState {
   readonly ambient: LightLevel | null;
   /** Who is riding what, and whether the mount consented. */
   readonly riding: Readonly<Record<string, Ride>>;
+  /**
+   * What is lying on the floor, keyed by the copy's own record.
+   *
+   * The third population in the room, beside the creatures and the landmarks,
+   * and the one that had nowhere to be: a thing somebody is *holding* is in
+   * their square by construction — it is a line on a creature and the creature
+   * has the placement — and a table is a landmark. What had no place at all
+   * was the thing in **nobody's** inventory. See {@link GroundItem}.
+   */
+  readonly ground: Readonly<Record<string, GroundItem>>;
+}
+
+/**
+ * A pile of something lying in the scene, with a place of its own.
+ *
+ * **Keyed by the copy's record, because a catalogue id cannot say which one.**
+ * A weapon is a catalogue id and two quarterstaves in a pack are one id, so
+ * "my sword on the floor" could not otherwise be told from the identical sword
+ * still in the pack. The engine already issues a record to a copy that has
+ * state of its own ({@link import('./state.js').InventoryLine.instance}); a
+ * drop is the second thing that needs one, and the owner's ruling is that a
+ * dropped item gets one **if it does not already have one**.
+ *
+ * What it is **not** is a creature. Nothing here is a `CharacterId`, nothing
+ * attacks it, nothing derives cover from it and nothing weighs it — an attack
+ * target is a `CharacterId` and every reader downstream is keyed on a
+ * creature, so widening that is a decision this is deliberately not making.
+ */
+export interface GroundItem {
+  /** What the pile is, by catalogue id. */
+  readonly item: string;
+  /** How many of it lie here. A pile is whole; nobody takes half of one. */
+  readonly quantity: number;
+  /** Where it lies, on the same lattice everything else is on. */
+  readonly at: Point;
+  /**
+   * Whether the record keying it was minted by the drop.
+   *
+   * The half of the ruling that has to be remembered. A copy that arrived with
+   * a record keeps it for ever, because the record is what its charges are
+   * keyed to. A *stack* has none, is given one so that it can be told from its
+   * twin in the pack, and hands it back when somebody picks it up — twenty
+   * arrows back in a quiver are a count again, and a quiver that fragmented a
+   * little further every time it was dropped would be the label outliving the
+   * question it was minted to answer.
+   */
+  readonly minted?: boolean;
+  /**
+   * The pool records belonging to this copy, held here while nobody holds it.
+   *
+   * Exactly what `item-transferred` moves between two creatures, with the
+   * floor standing in for the second one: a pool belongs to the creature that
+   * holds it, and a wand on the ground is held by nobody. Absent for the
+   * almost everything that has no charges. "One put down keeps what it had
+   * left" is the sentence this field is.
+   */
+  readonly pools?: readonly ResourcePool[];
+}
+
+/** A pile and the record it is keyed by, for a caller reading the floor. */
+export interface GroundPile extends GroundItem {
+  readonly instance: string;
 }
 
 export interface Ride {
@@ -129,6 +198,7 @@ export function scene(extent: SceneExtent, ambient: LightLevel | null = null): P
     obscurement: {},
     ambient,
     riding: {},
+    ground: {},
   };
 }
 
@@ -407,7 +477,29 @@ function resolveAnchor(state: PositionState, anchor: Anchor): Result<Point> {
   if ('landmark' in anchor) {
     const at = state.landmarks[anchor.landmark];
     if (at === undefined) {
-      return err('unknown_anchor', `there is no "${anchor.landmark}" in this scene`);
+      /**
+       * **Homework, not a verdict**, and the distinction is the difference
+       * between a world a narrator may describe and one it learns to stop
+       * describing.
+       *
+       * This answered `err` — "there is no X in this scene" — which reads to
+       * everything above it as *that does not exist*. The narrator describes a
+       * door, somebody reaches for it, and the engine denies the door. Rule 6
+       * says which of the two this is: an `err` is for something rules-illegal,
+       * and `needsContext` is for a fact that is **missing rather than wrong**.
+       * A landmark nobody has declared is unstated. The caller declares it with
+       * `addSceneLandmark` and sends the same command again, which is precisely
+       * what the second kind promises and what the first forecloses.
+       *
+       * Bare, on the division of labour `unplaced` beside it already follows: a
+       * pure helper returns the kind, and the command that knows which rule
+       * wanted the fact attaches the request — see `anchorNeeded` in
+       * `commands/command.ts`, and `placeCreatureInScene` for a caller.
+       */
+      return needsContext(
+        'unknown_anchor',
+        `nothing called "${anchor.landmark}" has been placed in this scene yet`,
+      );
     }
     return ok(at);
   }
@@ -677,6 +769,106 @@ export function removeCreature(state: PositionState, who: CharacterId): Result<P
   for (const rider of ridersOf(state, who)) delete riding[rider];
 
   return ok({ ...state, positions, sizes, heights, riding });
+}
+
+/**
+ * Put a pile down somewhere established.
+ *
+ * The item half of {@link placeCreature}, and deliberately the *simple* half.
+ * A creature may not end its move in an occupied space, so placing one sweeps
+ * bearings and reports `occupied`; a thing on the floor lies where it was
+ * dropped, in the dropper's own square if that is where they let go of it, and
+ * a sword nobody may put at their own feet would be a rule this engine
+ * invented. So no occupancy test, and none of the size arithmetic that exists
+ * to answer one.
+ *
+ * What does apply is everything that makes a place a place: the anchor is
+ * something the fiction established, the distance is a distance, and the room
+ * has edges. **The model never types coordinates** here either — the caller
+ * hands an {@link Anchor} exactly as it does for a creature.
+ */
+export function placeItemOnGround(
+  state: PositionState,
+  instance: string,
+  pile: Omit<GroundItem, 'at'>,
+  placement: Placement,
+): Result<PositionState> {
+  if (state.ground[instance] !== undefined) {
+    return err('already_on_ground', `${instance} is already lying in this scene`);
+  }
+  if (!Number.isFinite(placement.feet) || placement.feet < 0) {
+    return err('bad_distance', `${placement.feet} is not a distance`);
+  }
+
+  const from = resolveAnchor(state, placement.from);
+  if (!from.ok) return from;
+
+  const at = project(from.value, placement.feet, placement.bearing ?? 0, placement.elevation ?? 0);
+  if (!within(state.extent, at)) {
+    return err(
+      'outside_scene',
+      `there is no room ${placement.feet} feet from there inside this scene`,
+    );
+  }
+
+  return ok({ ...state, ground: { ...state.ground, [instance]: { ...pile, at } } });
+}
+
+/** Take a pile off the floor, whole, and hand back what was lying there. */
+export function takeItemFromGround(
+  state: PositionState,
+  instance: string,
+): Result<{ readonly state: PositionState; readonly pile: GroundItem }> {
+  const pile = state.ground[instance];
+  if (pile === undefined) {
+    return err('not_on_ground', `${instance} is not lying in this scene`);
+  }
+  const ground = { ...state.ground };
+  delete ground[instance];
+  return ok({ state: { ...state, ground }, pile });
+}
+
+export function groundItemOf(state: PositionState, instance: string): GroundItem | null {
+  return state.ground[instance] ?? null;
+}
+
+/**
+ * Everything on the floor, in the order the copies were issued their records.
+ *
+ * Numerically, for the reason `mergeItems` sorts an inventory that way:
+ * `item:2` was issued before `item:10`, and a string sort would put ten first.
+ */
+export function groundItems(state: PositionState): readonly GroundPile[] {
+  return Object.entries(state.ground)
+    .map(([instance, pile]) => ({ instance, ...pile }))
+    .sort((a, b) => itemInstanceNumber(a.instance) - itemInstanceNumber(b.instance));
+}
+
+/**
+ * What a creature could reach without moving, measured the way everything else
+ * is: from their volume to the cube the pile sits in.
+ *
+ * `needs-context` where nobody has placed them, because a creature standing
+ * nowhere is not a creature standing far away.
+ */
+export function groundItemsWithin(
+  state: PositionState,
+  who: CharacterId,
+  reach: number,
+): Result<readonly GroundPile[]> {
+  // Asked before the floor is read, and not once per pile: an empty room would
+  // otherwise answer "nothing within reach" to somebody standing nowhere,
+  // which is a fact stated rather than a fact missing.
+  if (positionOf(state, who) === null) {
+    return needsContext('unplaced', `${who} has no position to reach from`);
+  }
+  const near: GroundPile[] = [];
+  for (const pile of groundItems(state)) {
+    const distance = distanceToPoint(state, who, pile.at);
+    if (!distance.ok) return distance;
+    if (distance.value <= reach) near.push(pile);
+  }
+  return ok(near);
 }
 
 /**

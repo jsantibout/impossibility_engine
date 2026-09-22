@@ -563,6 +563,17 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // whole of its level.
   'healing-rule-granted',
   'hit-point-maximum-adjusted',
+  // Something put down, and something picked up. Neither log was written
+  // when an item could be anywhere but in somebody's pack: the scene held
+  // creatures and landmarks and nothing else, `dropConjured` said in as many
+  // words that "a floor is not something this engine holds", and both
+  // fixtures fold to exactly the states they always folded to with an empty
+  // `ground` on the scene. `dropped-items.test.ts` folds both and drives them
+  // end to end: the wand that keeps its record and its charges, the stack
+  // labelled only while it lies there, the pile out of reach, the pile two of
+  // one kind make ambiguous, and the floor a new room clears.
+  'item-dropped',
+  'item-taken-up',
   'item-transferred',
   // How bright a patch of the room is, and how obscured. Neither log was
   // written when the lattice held either — sight was pairwise and no square

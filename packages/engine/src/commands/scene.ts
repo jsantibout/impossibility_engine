@@ -108,7 +108,7 @@ import { statedDawnAmount } from '../resources.js';
 import { isDown } from '../vitals.js';
 import { type SpellcastingState } from '../spellcasting.js';
 import { type Supply } from './casting.js';
-import { creatureOf, sceneFor, unknownCreature } from './command.js';
+import { anchorNeeded, creatureOf, sceneFor, unknownCreature } from './command.js';
 import { settleBoundaryPayouts, settleStartOfTurnRecharges } from './turns.js';
 
 /**
@@ -217,19 +217,11 @@ export function placeCreatureInScene(
     const placed = placeCreature(scene.value, id, resolved);
     // The refusal stays `placeCreature`'s — this adds the request it could not
     // know to attach, and re-derives nothing about whether the anchor is there.
+    // Both halves of "the anchor is not there" go through one helper now, the
+    // landmark one having joined the creature one when it stopped being a
+    // verdict: see `anchorNeeded`.
     if (!placed.ok) {
-      const anchor = placement.from;
-      return placed.code === 'unplaced' && 'creature' in anchor
-        ? needsContext(placed.code, placed.reason, [
-            {
-              kind: 'position',
-              subject: anchor.creature,
-              need: `where ${anchor.creature} is standing`,
-              because: `${id} is being placed relative to ${anchor.creature}`,
-              satisfyWith: `a placeCreatureInScene command for ${anchor.creature}`,
-            },
-          ])
-        : placed;
+      return anchorNeeded(placed, placement.from, `${id} is being placed relative to it`);
     }
 
     return ok([
