@@ -10,9 +10,17 @@
  * both are here. A row claiming `built` must name something `@ie/engine`
  * really exports or a `NAMED_ACTIONS` member — so a renamed command breaks
  * the claim rather than outliving it. A row claiming nothing executes it must
- * name something that **occurs in no engine source file**, which is the check
- * that would have caught `nick` on the day the mastery vocabulary was written
- * and is the one the population exists for.
+ * be **quoted as a value in no engine source file** — no switch arm, no union
+ * member, no lookup — which is the check that would have caught `nick` on the
+ * day the mastery vocabulary was written and is the one the population exists
+ * for.
+ *
+ * **A value and not a word**, because five of the seven unbuilt rows are
+ * named in the engine's own prose and say so in their own notes: `combat.ts`
+ * lists Search, Study, Influence and Utilize as the book's and leaves them to
+ * the table, three definitions quote the Study action before the check the
+ * engine then rolls, and two comments in `mastery.ts` say Nick is unbuilt. A
+ * word-level sweep would read every one of those as coverage.
  *
  * Both are driven with a synthetic built to be caught before they are run on
  * the real list, because a guard that can only be run against the data it
@@ -148,10 +156,12 @@ describe('every glossary rule says truthfully whether anything runs it', () => {
   );
 
   /**
-   * And `nick` is the one that occurs **nowhere at all**, which is the
+   * And `nick` is the one the engine **names and does not run**, which is the
    * finding this population was opened for: a mastery property a level 1
-   * Rogue with a Scimitar reaches, in no engine source file. Pinned by name,
-   * so building it has to come here and say so.
+   * Rogue with a Scimitar reaches, quoted as a value nowhere and written
+   * twice in comments of `mastery.ts` saying it is unbuilt. Both halves are
+   * asserted, so building it has to come here and say so — and so does
+   * deleting the two comments that record the reading.
    */
   it('finds the nick mastery nowhere the engine executes one', () => {
     expect(executesIt('nick')).toEqual([]);

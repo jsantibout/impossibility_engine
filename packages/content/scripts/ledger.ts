@@ -781,9 +781,10 @@ export function renderLedger(ledger: Ledger = auditLedger()): string {
     '**all** — not this one, not the blocker map, not a guard. A `FeatDefinition`',
     'carries no `automation` flag to select on, so the arm that answers for them',
     'is `FEATS_ANSWERED_FOR`, a declared list held down at both ends by',
-    '`blocked-on-features.test.ts` exactly as `POOLS_ONLY_PARTLY_BOUGHT` is. Its',
-    'bracket is the level: an Origin feat and a Fighting Style print none and are',
-    'taken at 1, so nine of the sixteen are in a level 1–5 character\'s reach.',
+    '`pool-blockers.test.ts` exactly as `POOLS_ONLY_PARTLY_BOUGHT` is — the',
+    'entries in it, and the complement pinned by name. Its bracket is the level:',
+    'an Origin feat and a Fighting Style print none and are taken at 1, so nine',
+    'of the sixteen are in a level 1–5 character\'s reach.',
   );
   const bySource = (source: string) =>
     ledger.features.filter((one) => one.source === source).length;

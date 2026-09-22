@@ -1708,10 +1708,16 @@ export const POOLS_ONLY_PARTLY_BOUGHT: readonly string[] = ['monk:focus'];
  * not exist on the type — so there is nothing to select on, and the only
  * available query would be a regex over the note, which is the classifier
  * wearing a derivation's clothes that this file keeps a record of. So it is a
- * list, held down at both ends by `blocked-on-features.test.ts`: every id must
- * be a feat the catalogue holds and must carry an entry whose clauses anchor
- * in its own note, and the complement is pinned by name so a feat joining or
- * leaving has to be somebody's reading.
+ * list, held down at both ends in **two** places, exactly as
+ * {@link POOLS_ONLY_PARTLY_BOUGHT} is. `pool-blockers.test.ts` owns the arm:
+ * every id must be a feat the catalogue holds, in a level 1–5 character's
+ * reach, whose clauses anchor in its own note — and the complement, the six
+ * feats in reach this list does **not** answer for, is pinned by name so a
+ * feat joining or leaving has to be somebody's reading.
+ * `blocked-on-features.test.ts` owns the map-wide half, which every entry is
+ * held to whatever population it came from: a line for something outside the
+ * population is `stale`, a member with no line is `unrecorded`, and every
+ * clause anchors in its own note exactly once.
  */
 export const FEATS_ANSWERED_FOR: readonly string[] = [
   'defense',

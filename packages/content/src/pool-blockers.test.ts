@@ -185,6 +185,29 @@ describe('the ledger population is the four arms together', () => {
   });
 
   /**
+   * **The two id spaces are disjoint**, which `featureNoteOf` now depends on.
+   *
+   * It merges the feats into one map keyed on bare ids so a clause about a
+   * feat can anchor in that feat's note. Today every feature id is
+   * colon-namespaced and no feat is, so nothing can collide — but if one ever
+   * did, the later entry would silently win and a clause would be anchored
+   * against the wrong document with every other guard still green. That is a
+   * quiet failure, so it is asserted rather than left to the naming
+   * convention.
+   */
+  it('keeps the feature and feat id spaces apart', () => {
+    const features = new Set([
+      ...SRD_CONTENT.classes.flatMap((one) => one.features),
+      ...SRD_CONTENT.subclasses.flatMap((one) => one.features),
+      ...SRD_CONTENT.species.flatMap((one) => one.features),
+      ...SRD_CONTENT.backgrounds.flatMap((one) => one.features),
+    ].map((one) => one.id));
+    for (const feat of SRD_CONTENT.feats) {
+      expect(features.has(feat.id), `${feat.id} is a feature id as well as a feat id`).toBe(false);
+    }
+  });
+
+  /**
    * The feats arm, held down at both ends: each id is a feat the catalogue
    * really holds, in a level 1–5 character's reach, whose clauses anchor in
    * its own note — and the complement is pinned by name, so a feat joining
