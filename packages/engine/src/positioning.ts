@@ -104,6 +104,25 @@ export function positionOf(state: PositionState, who: CharacterId): Point | null
   return state.positions[who] ?? null;
 }
 
+/**
+ * How far above the floor a creature is, or null if nobody has said where.
+ *
+ * `z` measured up from the floor is the lattice's own definition, and this is
+ * the one place that fact is turned into a *height* — the distance to the
+ * floor **of the lattice**, which is the only floor the engine has. A ledge,
+ * a rooftop and a rope bridge are fiction and none of them is in here, so a
+ * creature at 30 feet has thirty feet of air under it as far as this model is
+ * concerned, exactly as it has whatever cover somebody declared and no other.
+ *
+ * `resolveFall` is the one caller, it asks only for a flier the air has
+ * stopped holding up, and it reports the assumption rather than burying it: a
+ * table that had a ledge in mind states the height instead, and a stated
+ * height always wins.
+ */
+export function altitudeOf(state: PositionState, who: CharacterId): number | null {
+  return positionOf(state, who)?.z ?? null;
+}
+
 const within = (extent: SceneExtent, p: Point): boolean =>
   p.x >= 0 && p.x <= extent.width && p.y >= 0 && p.y <= extent.depth && p.z >= 0 && p.z <= extent.height;
 

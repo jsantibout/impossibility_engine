@@ -25,7 +25,13 @@ import {
   withoutConditions,
   type ConditionState,
 } from './conditions.js';
-import { abilityModifier, armorClass, type CharacterSheet } from './character.js';
+import {
+  abilityModifier,
+  armorClass,
+  speedInMode,
+  type CharacterSheet,
+  type MovementMode,
+} from './character.js';
 import {
   distanceBetween,
   sightBetween,
@@ -2966,35 +2972,85 @@ function areaStandingOn(state: GameState, who: CharacterId): readonly AreaStandi
  * started at a moment somebody can write down and ends at another. So one is
  * filtered by `meetsRequirements` and the other is not — a stored grant whose
  * requirement was re-evaluated would be a second answer to when it ends.
+ *
+ * **And it answers for a mode.** SRD prints five Speeds; this reader held one,
+ * so a Cockatrice's Fly Speed of 40 had nowhere to be asked for and every
+ * caller measuring a flight got a walk. `mode` defaults to `'walk'`, which is
+ * every existing caller and every rule that says "your Speed" without
+ * qualifying it. What differs between the modes is written inside, in one
+ * place, for the reason the whole function exists.
  */
-export function speedOf(state: GameState, who: CharacterId): number {
+export function speedOf(
+  state: GameState,
+  who: CharacterId,
+  mode: MovementMode = 'walk',
+): number {
   const creature = state.creatures[who];
   if (creature === undefined) return 0;
 
-  const base = state.combat?.order.find((c) => c.id === who)?.speed ?? creature.sheet.baseSpeed;
+  // **The walking Speed is the pinned one; the other four are the sheet's.**
+  // `Combatant.speed` is what the fight began with and it is a walking Speed —
+  // `startCombat` is handed `sheet.baseSpeed` — so reading it for a Fly Speed
+  // would measure a flight against a walk. A mode the creature has no Speed in
+  // is 0, and stays 0 through everything below: nothing adds a Fly Speed to a
+  // creature that has none, and `hasSpeedInMode` is the question a rule asks
+  // when it needs to tell "cannot" from "stopped".
+  const base =
+    mode === 'walk'
+      ? (state.combat?.order.find((c) => c.id === who)?.speed ?? creature.sheet.baseSpeed)
+      : speedInMode(creature.sheet, mode);
+  if (mode !== 'walk' && base === 0) return 0;
 
-  let flat = 0;
+  // Split by sign as they are gathered rather than netted afterwards: a
+  // Longstrider and a Ray of Frost on one creature are two sentences, and
+  // cancelling them into a net of zero would quietly hand the flier back the
+  // ten feet the ice took. See the note below the loops.
+  let up = 0;
+  let down = 0;
+  const flatten = (feet: number): void => {
+    if (feet >= 0) up += feet;
+    else down += feet;
+  };
+
   for (const effect of creature.sheet.standing ?? []) {
     if (effect.grant.kind !== 'speed') continue;
     if (!meetsRequirements(state, who, effect)) continue;
-    flat += effect.grant.feet;
+    flatten(effect.grant.feet);
   }
 
   let halvings = 0;
   let zeroed = false;
   for (const granted of creature.speedModifiers) {
-    if (granted.change === 'add') flat += granted.feet ?? 0;
+    if (granted.change === 'add') flatten(granted.feet ?? 0);
     else if (granted.change === 'halve') halvings += 1;
     else zeroed = true;
   }
 
   for (const standing of areaStandingOn(state, who)) {
-    if (standing.change === 'add') flat += standing.feet ?? 0;
+    if (standing.change === 'add') flatten(standing.feet ?? 0);
     else if (standing.change === 'halve') halvings += 1;
     else zeroed = true;
   }
 
-  return combineSpeed(base, flat, halvings, zeroed, creature.conditions);
+  // **An increase is the walking Speed's; everything that takes Speed away is
+  // every mode's.** SRD writes "your Speed" unqualified for the walking one —
+  // Longstrider's ten feet and a Barbarian's Fast Movement are both that
+  // sentence — so adding them to a Fly Speed would be reading a rule the book
+  // does not print. Slowing is the other way round, and all four spellings of
+  // it agree: Grappled's "Speed is 0", Slow's halving, Exhaustion's five feet
+  // a level and Ray of Frost's flat ten are about the creature rather than
+  // about a mode. A Restrained Cockatrice does not fly away at half speed,
+  // and a Specter iced by Ray of Frost does not fly away at full.
+  //
+  // So the flat accumulator is split by sign rather than by source, which is
+  // the only line here that is a ruling rather than a transcription: the book
+  // prints no sentence reducing one mode and not another, and the alternative
+  // — reductions that miss every mode but walking — leaves a creature whose
+  // Speed is *mostly* a Fly Speed untouched by half the rules that slow
+  // anybody. Exhaustion already behaved this way through `conditionSpeed`,
+  // and this is the rest of the family joining it rather than an exception
+  // being carved.
+  return combineSpeed(base, mode === 'walk' ? up + down : down, halvings, zeroed, creature.conditions);
 }
 
 /**

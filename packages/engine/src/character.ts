@@ -346,6 +346,55 @@ export interface BudgetPurchase {
   readonly oncePerTurn?: boolean;
 }
 
+/**
+ * The five Speeds the SRD prints, as the name of a move rather than a number.
+ *
+ * `walk` is the unqualified one — "your Speed", the field every rule that does
+ * not say otherwise reads — and the other four are the glossary's: "Some
+ * creatures have a Climb Speed, a Fly Speed, a Swim Speed, or a Burrow Speed."
+ * A mode is what a *move* names, which is why it lives here beside the sheet
+ * that holds the Speeds rather than in `positioning.ts` beside the lattice: a
+ * mode is a fact about the mover, not about the ground.
+ */
+export type MovementMode = 'walk' | 'fly' | 'climb' | 'swim' | 'burrow';
+
+/** Every mode, for a caller enumerating them; `walk` first, as the book does. */
+export const MOVEMENT_MODES: readonly MovementMode[] = [
+  'walk',
+  'climb',
+  'fly',
+  'swim',
+  'burrow',
+];
+
+/**
+ * The four Speeds beside walking, and the one fact that rides with a Fly Speed.
+ *
+ * Shaped like the stat block's printed line, because that is where all but a
+ * spell's come from: a block prints "Speed 20 ft., Fly 40 ft." and
+ * `adaptMonster` carries both rather than dropping the second.
+ *
+ * Every field is optional and absent means the creature has no such Speed.
+ * Zero is not written: a printed 0 and an absent line say the same thing about
+ * a mode nobody has, and one spelling keeps `speedInMode` from having to tell
+ * them apart.
+ */
+export interface OtherSpeeds {
+  readonly climb?: number;
+  readonly fly?: number;
+  readonly swim?: number;
+  readonly burrow?: number;
+  /**
+   * SRD "Flying": a flier that hovers is the exception to the fall.
+   *
+   * On the speeds rather than beside them because the book prints it there —
+   * "Fly 40 ft. (hover)" — and because it means nothing without one: a
+   * creature that cannot fly cannot hover either, and `fliesWithoutFalling`
+   * reads the pair.
+   */
+  readonly hover?: boolean;
+}
+
 export interface CharacterSheet {
   readonly level: number;
   readonly abilities: AbilityScores;
@@ -358,6 +407,22 @@ export interface CharacterSheet {
   readonly armorTraining: ArmorTraining;
   /** Walking speed in feet before armour penalties. */
   readonly baseSpeed: number;
+  /**
+   * The other Speeds this creature has, where it has any.
+   *
+   * SRD prints five and the engine held one. The walking Speed keeps its own
+   * field because every rule that says "your Speed" unqualified means that
+   * one; the other four are optional, and **absent is not zero with extra
+   * steps** — a creature with no Fly Speed cannot fly at all, while one whose
+   * Fly Speed is momentarily 0 has been stopped, and only the second of those
+   * falls out of the sky. See {@link speedInMode} for the reader that keeps
+   * the two apart, and `commands/movement.ts` for what each mode charges.
+   *
+   * Optional, and absent means walking only — what every sheet written before
+   * this field says, which is why both frozen fixtures fold unchanged and
+   * neither was regenerated.
+   */
+  readonly speeds?: OtherSpeeds;
   /**
    * How many hands this creature has to hold things in.
    *
@@ -831,6 +896,79 @@ export function speed(sheet: CharacterSheet): number {
   const requirement = sheet.armor?.strengthRequirement ?? null;
   const penalty = requirement !== null && sheet.abilities.str < requirement ? 10 : 0;
   return Math.max(0, sheet.baseSpeed - penalty);
+}
+
+/**
+ * The Speed this sheet prints for a mode, before anything has happened to it.
+ *
+ * The **base** `speedOf` measures from, and nothing else: no condition, no
+ * grant, no armour. Zero for a mode the creature has no Speed in, which is
+ * why {@link hasSpeedInMode} exists beside it — a rule that asks "can it fly
+ * at all" and a rule that asks "how fast" want different answers about a
+ * Cockatrice somebody has Restrained.
+ */
+export function speedInMode(sheet: CharacterSheet, mode: MovementMode): number {
+  if (mode === 'walk') return sheet.baseSpeed;
+  return Math.max(0, sheet.speeds?.[mode] ?? 0);
+}
+
+/**
+ * Whether this creature has a Speed of this kind at all.
+ *
+ * Read off the sheet rather than off state on purpose: "has a Swim Speed" is a
+ * fact about what the creature *is*, and a Restrained fish has a Swim Speed of
+ * 0 without having stopped being a fish. SRD's climbing and swimming surcharge
+ * asks exactly this question — "unless you have a Climb Speed" — and asking
+ * the live number instead would charge a Grappled creature double for a swim
+ * it could not make anyway.
+ */
+export function hasSpeedInMode(sheet: CharacterSheet, mode: MovementMode): boolean {
+  return mode === 'walk' || speedInMode(sheet, mode) > 0;
+}
+
+/**
+ * SRD "Flying": "the creature falls unless it has the Hover trait."
+ *
+ * True only for a creature that has both — a Fly Speed to lose and the trait
+ * that keeps it up when everything else is gone.
+ */
+export function fliesWithoutFalling(sheet: CharacterSheet): boolean {
+  return hasSpeedInMode(sheet, 'fly') && sheet.speeds?.hover === true;
+}
+
+/**
+ * SRD "Jump", the Long Jump:
+ *
+ * > "When you make a Long Jump, you leap horizontally a number of feet up to
+ * > your Strength score if you move at least 10 feet immediately before the
+ * > jump. When you make a standing Long Jump, you can leap only half that
+ * > distance."
+ *
+ * The **score**, not the modifier, which is the one thing about this rule
+ * everybody gets wrong: a Strength of 16 jumps sixteen feet, not three. Half
+ * is rounded down, because a jump is measured on the same 5-foot lattice
+ * everything else is and the book prints no half-foot anywhere.
+ */
+export function longJumpDistance(sheet: CharacterSheet, running: boolean): number {
+  const full = Math.max(0, sheet.abilities.str);
+  return running ? full : Math.floor(full / 2);
+}
+
+/**
+ * SRD "Jump", the High Jump:
+ *
+ * > "you leap into the air a number of feet equal to 3 plus your Strength
+ * > modifier if you move at least 10 feet immediately before the jump. When
+ * > you make a standing High Jump, you can jump only half that distance."
+ *
+ * The **modifier** here, where the Long Jump takes the score — the asymmetry
+ * is the book's, and it is why these are two functions rather than one with a
+ * flag. Never negative: a Strength of 4 gets a High Jump of nothing, not a
+ * hole in the floor.
+ */
+export function highJumpHeight(sheet: CharacterSheet, running: boolean): number {
+  const full = Math.max(0, 3 + abilityModifier(sheet.abilities.str));
+  return running ? full : Math.floor(full / 2);
 }
 
 /**
