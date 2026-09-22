@@ -751,8 +751,10 @@ export function resolveSaveEffect(
   // this roll: the riders this failure would impose are the conditions the
   // target is saving against, so the gatherer is handed them rather than left
   // to guess from the ability. The list may be empty — SRD Slow's failure
-  // hands out grants and imposes nothing — and an empty list is a save about
-  // no condition, which is what `savingSupport` reads it as.
+  // hands out grants and imposes nothing — and an empty list goes through as
+  // itself: it says this save is about no condition, which is a different
+  // claim from a caller that never answered, and a condition-keyed selector
+  // misses both.
   const support = savingSupport(
     current,
     target,

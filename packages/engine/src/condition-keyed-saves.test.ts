@@ -131,7 +131,35 @@ const A_FRIGHT: SpellDefinition = {
   durationSeconds: 60,
 };
 
-const CONTENT = unwrap(extendContent(SRD_CONTENT, { spells: [A_FRIGHT] }), 'extend');
+/**
+ * A save whose failure imposes nothing, which SRD Slow and SRD Faerie Fire are
+ * and which track D made writable.
+ *
+ * Neither of those is castable at one named creature — Slow centres a Cube and
+ * Faerie Fire a Cube too — and the claim here is about the *save*, not the
+ * geometry, so the shape is borrowed rather than the spell. One Wisdom saving
+ * throw, three words of penalty on a failure, and no condition at all.
+ */
+const A_SAPPING: SpellDefinition = {
+  id: 'a-sapping-word',
+  name: 'A Sapping Word',
+  level: 1,
+  school: 'enchantment',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 1 },
+  effects: [
+    {
+      kind: 'save',
+      ability: 'wis',
+      modifiers: [{ kind: 'speed-change', change: 'halve' }],
+    },
+  ],
+  durationSeconds: 60,
+};
+
+const CONTENT = unwrap(extendContent(SRD_CONTENT, { spells: [A_FRIGHT, A_SAPPING] }), 'extend');
 
 const supply = (seed = 'roll') => ({
   issuer: createRollIssuer('r'),
@@ -145,6 +173,7 @@ const PREPARED = [
   'hold-person',
   'protection-from-poison',
   'a-sudden-fright',
+  'a-sapping-word',
 ];
 
 /**
@@ -310,6 +339,23 @@ describe('the species traits that name a condition', () => {
     expect(saveMode('a-sudden-fright', ELF)).toBe('normal');
     expect(saveMode('charm-person', DWARF)).toBe('normal');
     expect(saveMode('charm-person', HALFLING)).toBe('normal');
+  });
+
+  /**
+   * **A save that is about no condition at all**, which is the case the query
+   * field has to be able to say rather than merely leave out. SRD Slow forces
+   * one Wisdom saving throw whose failure hands out three grants and imposes
+   * nothing, so the list of conditions it is about is *empty* — the caller
+   * answered, and the answer is none. It goes through as itself rather than
+   * being collapsed into "nobody asked", and a condition-keyed grant misses
+   * it either way. The elf beside the halfling makes that a pair rather than
+   * a single reading: neither trait reaches a save about nothing.
+   */
+  it('reaches no trait when the save it forces is about no condition', () => {
+    expect(saveMode('a-sapping-word', ELF)).toBe('normal');
+    expect(saveMode('a-sapping-word', HALFLING)).toBe('normal');
+    expect(saveMode('a-sapping-word', DWARF)).toBe('normal');
+    expect(saveMode('a-sapping-word', HUMAN)).toBe('normal');
   });
 
   /** And the catalogue writes them, rather than this file inventing the shape. */

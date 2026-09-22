@@ -499,12 +499,14 @@ export function savingSupport(
         family: 'saving-throw',
         roller: who,
         ability,
-        // Omitted rather than passed empty where the caller said nothing, for
-        // the reason the sight facts on an attack are: absent is "nobody
-        // said" and an empty list would be a statement that this save is
-        // about no condition at all. Both read as a miss today; they are
-        // different claims and the log should not conflate them.
-        ...(about === undefined || about.length === 0 ? {} : { aboutConditions: about }),
+        // Passed through exactly as the caller answered, empty included — the
+        // rule `rollerPerceives` follows on an attack. Absent is "nobody
+        // asked" and an empty list is "asked, and this save is about no
+        // condition at all", which SRD Slow's failure really is: three grants
+        // and nothing imposed. Both read as a miss on a condition-keyed
+        // selector, and collapsing one into the other here would make that
+        // agreement a coincidence rather than a rule.
+        ...(about === undefined ? {} : { aboutConditions: about }),
       }).modes,
       supply.modes ?? [],
     ),
