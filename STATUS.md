@@ -1,12 +1,11 @@
 # Status
 
 What runs, what does not, and the rulings that stand. Counts live in
-`COVERAGE.md` and `LEDGER.md` (`npm run coverage`, `npm run ledger`), never
-here. **What happens next is `docs/ROADMAP.md`** — the phases, the gates and
+`COVERAGE.md` and `LEDGER.md`, never here. **What happens next is `docs/ROADMAP.md`** — the phases, the gates and
 the tracks to playable levels 1–5 through Infinite Realms. This file no longer
 holds a "Next".
 
-Capped at two thousand words by `docs/ROADMAP.md` §1.5. The long version is
+Capped at two thousand words (`docs/ROADMAP.md` §1.5); the long version is
 frozen at `docs/archive/status-2026-09-21.md`.
 
 ## What runs
@@ -24,16 +23,16 @@ homebrew.
   lifetime, death saves, exhaustion. Every ability a roll reads comes off
   `sheetAsItStands`.
 - **Space** — a cube lattice, distance between volumes, declared sight and
-  cover, six area shapes, persistent and carried areas, teleportation,
-  mounting, the glossary's four senses. A spell can push a creature; a fall has
+  cover, six area shapes, persistent and carried areas, teleportation, the
+  glossary's four senses, mounting. A spell can push a creature; a fall has
   a landing (1d6 per ten feet to 20d6, and Prone); and **going up needs a way
   up** — a move that ends higher is refused unless it flew, climbed, burrowed
   or jumped.
 - **Combat and time** — Initiative and Alert's swap within its window, the
   action budget, joining a running fight, the clock, spans and turn-anchored
   deadlines, repeat saves and delayed damage raised at the boundary, Short and
-  Long Rests. A fight **ends**: `endCombat` closes one when no hostile remains
-  or the hostiles surrender, and the event pins why.
+  Long Rests. A fight **ends** when no hostile remains or they surrender, and
+  the event pins why.
 - **Monsters that fight from their own printed lines** — Multiattack as a named
   sequence, an opportunity attack reaching for the best printed melee attack,
   recharge enforced and returned on a rest, spendable Bonus Actions, daily
@@ -44,16 +43,16 @@ homebrew.
   budget, the Unarmed Strike's three options, fighting styles, weapon
   masteries, and the defender answering first on both paths.
 - **Casting and spells** — slots and Pact slots as pools, castings with
-  identities, Concentration, ongoing spells, the effect kinds and three rider
-  kinds, dice that behave the way their spell says, and printed sentences
-  handed to the DM marked as theirs alone.
-- **Characters** — all twelve SRD classes with their SRD subclass, all nine
-  species, backgrounds, feats, multiclassing, creation and advancement.
+  identities, Concentration, ongoing spells, the effect and rider kinds, dice
+  that behave the way their spell says, and printed sentences handed to the DM
+  marked as theirs.
+- **Characters** — twelve SRD classes with their subclass, nine species,
+  backgrounds, feats, multiclassing, creation and advancement.
 - **Items** — grants live while worn or wielded, attunement, charges, a copy
   told apart from its twin, an item that moves between people, a purse in the
-  denomination the DM names. **Hands are a count**, so a Two-Handed weapon and
-  a shield refuse each other, and a conjured thing occupies one for as long as
-  its casting runs.
+  DM's chosen denomination. **Hands are a count**, so a Two-Handed weapon and a
+  shield refuse each other and a conjured thing occupies one while its casting
+  runs.
 - **Content** — `createContent` / `loadContent` validate a catalogue from JSON
   text; homebrew goes through the same door the SRD does, and content using
   mechanics the engine has touches no engine file.
@@ -70,9 +69,8 @@ homebrew.
 
 - **No orchestration, persistence or web app.** Nothing stores a log. The
   engine still has no idea a language model exists, which is the point.
-- **Spells whose text needs a mechanic the engine lacks are *tracked*** — cast,
-  costed, timed, effect left to the table — rather than executed. `LEDGER.md`
-  names each and the shape it waits on.
+- **Spells needing a mechanic the engine lacks are *tracked*** — cast, costed,
+  timed, effect left to the table. `LEDGER.md` names each and its shape.
 - **Most class, species and background features past the common shapes are
   `manual`** with a note saying what is missing.
 - **Four pools count and refill truthfully and buy nothing**: Wild Shape,
@@ -104,7 +102,7 @@ homebrew.
 - **Nothing brings a jumper down.** A High Jump leaves the creature at the
   elevation it reached and no rule ends that. Narrower than it was — elevation
   was wholly unguarded until `cannot_rise` — but still open.
-- No carried weight, no ammunition spent, no objects that are not creatures.
+- No carried weight, no ammunition, no objects that are not creatures.
 - A conferral refuses by name what it cannot do: bonuses to spell attack rolls,
   ability scores an item sets, curses, Speed from an item.
 - **Two corpus migrations are owed**: a weapon mastery is a ceiling rather than
