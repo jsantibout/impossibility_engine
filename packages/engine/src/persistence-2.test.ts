@@ -526,6 +526,21 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // opportunity appearing and disappearing on the same rule, and the spell
   // cast through the public API.
   'fall-declared',
+  // The two halves of a rule about hit points that a running effect states —
+  // one standing in front of healing, one holding a maximum up. Neither log
+  // was written when a spell could do either: no creature had a `healingRules`
+  // or a `hitPointMaxima` list, healing was arithmetic nothing could refuse,
+  // and a maximum moved only at creation and on a level-up. Both fixtures fold
+  // to exactly the states they always folded to with both lists empty and
+  // `hpMaxAdjustment` at zero on every creature.
+  // `healing-and-hit-point-maxima.test.ts` folds both and drives them end to
+  // end: a Cure Wounds maximised by a Beacon of Hope, a Chill Touch that makes
+  // the next one restore nothing and gives the hit points back at its own
+  // deadline, an Aid that carries the current total up with the maximum and
+  // clamps it on the way down, and a level-up taken mid-Aid that is worth the
+  // whole of its level.
+  'healing-rule-granted',
+  'hit-point-maximum-adjusted',
   'item-transferred',
   // A line a stat block prints a recharge on, spent and got back. Neither log
   // was written when the notation reached the engine at all — it was a field

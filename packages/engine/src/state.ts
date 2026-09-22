@@ -53,7 +53,11 @@ import {
   type PositionState,
   type Point,
 } from './positioning.js';
-import { type Vitals } from './vitals.js';
+import {
+  type GrantedHealingRule,
+  type GrantedHitPointMaximum,
+  type Vitals,
+} from './vitals.js';
 
 import type { GameEvent } from './events.js';
 
@@ -523,6 +527,32 @@ export interface CreatureState {
    * spends it all end it through the door that already existed.
    */
   readonly grantedReactions: readonly GrantedReaction[];
+  /**
+   * What a running effect has said about this creature regaining hit points —
+   * the eleventh member of the family the ten above form.
+   *
+   * SRD Beacon of Hope maximises any healing for a minute; SRD Chill Touch
+   * forbids all of it until the end of the caster's next turn. Both are rules
+   * standing in front of arithmetic rather than amounts, and both belong to
+   * whatever hung them: linked by `source` exactly as the other ten are, so a
+   * dispel, a broken Concentration and a `grants` deadline all end them
+   * through the door that already existed. See {@link HealingRule}.
+   */
+  readonly healingRules: readonly GrantedHealingRule[];
+  /**
+   * What a running effect has added to this creature's hit point maximum —
+   * the twelfth member, and the only one the fold has to *reconcile* rather
+   * than merely read.
+   *
+   * SRD Aid: "Each target's Hit Point maximum and current Hit Points increase
+   * by 5 for the duration." The other eleven families are consulted where they
+   * matter and cost nothing when they are taken away; this one moves a number
+   * that is stored, so `settleHitPointMaximum` runs in the fold's derived pass
+   * and brings `Vitals.hpMax` back in line with whatever is still here. That
+   * is what buys the release path for free — nothing has to emit the
+   * subtraction, because no ending emits anything at all.
+   */
+  readonly hitPointMaxima: readonly GrantedHitPointMaximum[];
   /**
    * Bonuses this creature's own features add to Initiative.
    *

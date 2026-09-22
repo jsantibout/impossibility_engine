@@ -12,6 +12,7 @@ import { type CharacterId, ok, type Result } from '@ie/shared';
 import { applyEvent, type CreatureState, type GameState } from '../events.js';
 import { scaledDiceFor, scaledFlatFor } from '../spell-definitions.js';
 import { castingHealingBonus } from '../standing.js';
+import { healingRuleOf, maximisedHealing } from '../vitals.js';
 import { grantTemporaryHpTo, healCreature } from './creatures.js';
 import { rollSpellDice } from './rolls.js';
 import { type EffectContext, type EffectOfKind } from './spell-effect-context.js';
@@ -64,7 +65,22 @@ export function resolveHealEffect(
   let current = world;
 
   const dice = scaledDiceFor(effect.healing, level, numbers.casterLevel, castLevel);
-  const rolled = rollSpellDice(supply, casterSheet().sheet, name, 'healing', dice);
+  // **What the target's own running effects say about the dice, before they
+  // are thrown.** SRD Beacon of Hope: "regains the maximum number of Hit
+  // Points possible from any healing." It is the *target's* rule rather than
+  // the caster's — the Cleric who blessed them need not be the one healing
+  // them, and need not still be there — and it reaches the roll through the
+  // same `DieEffect.substitute` Great Weapon Fighting uses, so every d8 is
+  // still thrown, still recorded, and still says what it showed.
+  const standing = healingRuleOf(victim.healingRules);
+  const rolled = rollSpellDice(
+    supply,
+    casterSheet().sheet,
+    name,
+    'healing',
+    dice,
+    standing === 'maximised' ? [maximisedHealing('the maximum possible')] : [],
+  );
   if (!rolled.ok) return rolled;
 
   // SRD: "2d8 plus your spellcasting ability modifier" — and it is the
@@ -163,6 +179,78 @@ export function resolveTurnPayoutEffect(
       ...(effect.damageType === undefined ? {} : { damageType: effect.damageType }),
     },
   });
+  const current = events.slice(-1).reduce(applyEvent, world);
+  outcomes.push({ target, affected: true });
+  return ok(current);
+}
+
+/**
+ * A rule the spell leaves standing in front of the target's healing.
+ *
+ * SRD Beacon of Hope: each target "regains the maximum number of Hit Points
+ * possible from any healing." Nothing is rolled here and nothing is restored —
+ * the rule is read by whatever heals them next, which may be a different
+ * caster an hour later — so this is the shape the Armour Class, the defence,
+ * the Speed and the action rule already take, on the sixth thing a spell hands
+ * out that is not a roll.
+ *
+ * The casting is in the source, so `releaseCasting`, `releaseOnTarget`, a
+ * dispel, a broken Concentration and the deadline all end it through the door
+ * every other grant already uses. The standalone kind carries no deadline of
+ * its own; a rider does, which is SRD Chill Touch — see `applyRiders`.
+ */
+export function resolveHealingRuleEffect(
+  ctx: EffectContext,
+  effect: EffectOfKind<'healing-rule'>,
+  target: CharacterId,
+  world: GameState,
+): Result<GameState> {
+  const { source, events, outcomes, held } = ctx;
+
+  held.add(target);
+  events.push({ type: 'healing-rule-granted', id: target, rule: { source, rule: effect.rule } });
+  const current = events.slice(-1).reduce(applyEvent, world);
+  outcomes.push({ target, affected: true });
+  return ok(current);
+}
+
+/**
+ * A hit point maximum the spell holds up for as long as it runs.
+ *
+ * SRD Aid: "Each target's Hit Point maximum and current Hit Points increase by
+ * 5 for the duration." Nothing is rolled and nobody resists, so this is the
+ * shape its five neighbours take — and it differs from every one of them in
+ * what happens *afterwards*: the fold's derived pass reads the grant and moves
+ * `Vitals.hpMax` to match, both when it lands and when it goes.
+ *
+ * **The number is settled here and pinned**, which is the rule every number a
+ * casting reads out of a definition follows. What the slot bought is worked
+ * out once, at the cast, so an eight-hour Aid is worth what it was worth when
+ * it was cast.
+ *
+ * **The hit points that come with it are the fold's, not this resolver's.**
+ * Emitting a heal beside the grant would reset death saves, lift the
+ * unconsciousness that 0 hit points caused and be capped by the very maximum
+ * it was raising — four wrong answers to a sentence that says the points were
+ * never lost. `settleHitPointMaximum` is where the one answer lives.
+ */
+export function resolveHitPointMaximumEffect(
+  ctx: EffectContext,
+  effect: EffectOfKind<'hit-point-maximum'>,
+  target: CharacterId,
+  world: GameState,
+): Result<GameState> {
+  const { source, level, castLevel, events, outcomes, held } = ctx;
+
+  const amount = scaledFlatFor(effect.amount, level, castLevel);
+  // A definition that raises a maximum by nothing is refused at authoring
+  // (`bad_hit_point_maximum`), so this is the validator and the resolver
+  // disagreeing rather than a rules dispute — and a grant of zero would sit on
+  // the creature saying nothing for eight hours.
+  if (amount <= 0) return ok(world);
+
+  held.add(target);
+  events.push({ type: 'hit-point-maximum-adjusted', id: target, adjustment: { source, amount } });
   const current = events.slice(-1).reduce(applyEvent, world);
   outcomes.push({ target, affected: true });
   return ok(current);

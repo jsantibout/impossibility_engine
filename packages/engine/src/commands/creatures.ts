@@ -28,7 +28,7 @@ import { addCombatant } from '../combat.js';
 import { adaptMonster } from '../monster.js';
 import type { Placement } from '../positioning.js';
 import { speedOf } from '../standing.js';
-import { applyDamageToVitals, isDown } from '../vitals.js';
+import { applyDamageToVitals, healingRuleOf, isDown } from '../vitals.js';
 import { creatureOf, unknownCreature, ZERO_HIT_POINTS } from './command.js';
 import { settleHoldsInvolving } from './holds.js';
 
@@ -574,6 +574,30 @@ export function healCreature(
     if (creature.vitals.dead) {
       return err('dead', `${id} is dead; hit points alone will not bring them back`);
     }
+
+    // SRD Chill Touch: "it can't regain Hit Points until the end of your next
+    // turn." **The door is here, so every caller of this function meets it** —
+    // a Cure Wounds, a potion, a turn boundary's payout, a pool's use, a
+    // feature's own self-heal — which is the whole reason a rule standing in
+    // front of healing is a grant on the creature rather than a clause inside
+    // one spell, and what a door a DM award ever gets would meet as well.
+    //
+    // **`rest.ts` is the one healing that does not come through here**, and it
+    // is named rather than left to be discovered: a rest writes its `healed`
+    // events itself, so a rule standing on a creature is not consulted by the
+    // Hit Dice of a Short Rest or by a Long Rest's restoration. Nothing the
+    // SRD prints can reach that gap — the two sentences of this shape are
+    // Beacon of Hope's minute and Chill Touch's single turn, and the shortest
+    // rest is an hour — so what is missing is a guard against homebrew rather
+    // than a rule the book owns. It goes here when a rule outlives an hour.
+    //
+    // **An empty batch rather than a refusal**, and the distinction is the one
+    // `err` exists to draw. Nothing was done wrong: the Cure Wounds was legal,
+    // the slot is gone, the casting happened. What the rule says is that no
+    // hit points were regained, and a log with no `healed` event in it says
+    // exactly that. A refusal here would unwind a casting that the book says
+    // took place.
+    if (healingRuleOf(creature.healingRules) === 'prevented') return ok([]);
 
     const events: GameEvent[] = [
       { type: 'healed', id, amount, ...(stamp === null ? {} : { command: stamp }) },

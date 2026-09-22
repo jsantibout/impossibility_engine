@@ -1058,11 +1058,41 @@ function checkModifierRider(
     checkRiderDuration(rider.lasts, path, found);
     return;
   }
+  if (rider?.kind === 'healing') {
+    checkHealingRule(rider.rule, `${path}.rule`, found);
+    // The fourth rider that may carry a deadline of its own. Whether it *must*
+    // is {@link checkGrantLifetimes}', exactly as for the three above: SRD
+    // Chill Touch hangs its refusal off an Instantaneous cantrip, so the
+    // casting is over before anything could lift it.
+    checkRiderDuration(rider.lasts, path, found);
+    return;
+  }
   found.push({
     field: `${path}.kind`,
     code: 'unknown_modifier_rider',
-    reason: `"${String((rider as { kind?: unknown } | undefined)?.kind)}" is not a grant a rider carries; a rider adds a bonus, grants a mode, changes a Speed, or changes what a turn permits`,
+    reason: `"${String((rider as { kind?: unknown } | undefined)?.kind)}" is not a grant a rider carries; a rider adds a bonus, grants a mode, changes a Speed, changes what a turn permits, or changes what healing does`,
   });
+}
+
+/**
+ * Which of the two things the SRD says about regaining hit points.
+ *
+ * The vocabulary as data, because this meets untyped input — and shared by the
+ * standalone kind and the rider, so Beacon of Hope and Chill Touch are refused
+ * in the same words for the same mistake.
+ */
+export function checkHealingRule(
+  rule: unknown,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  if (rule !== 'maximised' && rule !== 'prevented') {
+    found.push({
+      field: path,
+      code: 'unknown_healing_rule',
+      reason: `"${String(rule)}" is not something the book says about healing; a rule maximises what is restored or forbids it outright`,
+    });
+  }
 }
 
 /** What a rider slot is, said once because three slots say it. */
@@ -1620,6 +1650,59 @@ function checkEffect(
       return;
     }
 
+    /**
+     * A rule standing in front of healing: which of the two the SRD writes.
+     *
+     * There is nothing else to be wrong about. The rule names no amount, no
+     * target and no moment of its own — the standalone kind runs for the
+     * casting's own duration, which `checkGrantLifetimes` is what holds it to
+     * — so the vocabulary *is* the whole check, shared with the `healing`
+     * rider that says the same sentence off an attack.
+     */
+    case 'healing-rule':
+      checkHealingRule(effect.rule, `${path}.rule`, found);
+      return;
+
+    /**
+     * A hit point maximum a spell holds up: how much, and that it is upwards.
+     *
+     * Two rules beyond the amount's own, and each is a sentence this member
+     * either prints or refuses to print:
+     *
+     * - **It goes up.** The kind carries a raise and no reduction, for the
+     *   reason argued where it is declared, so a negative or a zero here is an
+     *   author writing a member that does not exist rather than a number that
+     *   is out of range.
+     * - **No dice, today.** Every SRD sentence of this shape states a printed
+     *   number, and a rolled maximum would be a die thrown once and then
+     *   carried for eight hours with nothing in the log to say what it was.
+     *   `flat` and `flatPerSlotLevelAbove` are exactly Aid's two sentences,
+     *   and a notation is refused until something prints one.
+     */
+    case 'hit-point-maximum': {
+      checkScaling(effect.amount, level, `${path}.amount`, found);
+      if (!readsAsObject(effect.amount, `${path}.amount`, 'an amount is an object', found)) return;
+      if (effect.amount.dice !== undefined) {
+        found.push({
+          field: `${path}.amount.dice`,
+          code: 'rolled_hit_point_maximum',
+          reason:
+            'a hit point maximum is held up by a printed number; no SRD sentence rolls one, and a die thrown once and carried for hours is a number the log cannot account for',
+        });
+      }
+      for (const key of ['flat', 'flatPerSlotLevelAbove'] as const) {
+        const value = effect.amount[key];
+        if (value !== undefined && (!Number.isInteger(value) || value <= 0)) {
+          found.push({
+            field: `${path}.amount.${key}`,
+            code: 'bad_hit_point_maximum',
+            reason: `a hit point maximum is raised by a positive whole number, got "${String(value)}"; this kind carries no reduction`,
+          });
+        }
+      }
+      return;
+    }
+
     case 'buff':
       checkBonusGrant(effect.bonus, effect.applies, path, found);
       return;
@@ -2031,6 +2114,16 @@ function grantCarried(effect: SpellEffect): string | null {
     // casting would forbid a creature an action with nothing able to lift it.
     case 'action-rule':
       return 'a rule about what a turn may be spent on';
+    // The tenth and eleventh, and they carry no deadline of their own for the
+    // reason the fifth through ninth do not: SRD Beacon of Hope runs for the
+    // minute the spell does and SRD Aid for its eight hours, so the casting is
+    // the only thing that could take either away. An Instantaneous one would
+    // leave a creature unable to regain hit points for ever, or five points
+    // richer for ever — the two directions of the same missing ending.
+    case 'healing-rule':
+      return 'a rule standing in front of healing';
+    case 'hit-point-maximum':
+      return 'a hit point maximum held up';
     default: {
       for (const rider of conditionRiderOf(withReadableRiders(effect))) {
         // Unreadable first, lifetime second. A rider that is missing, null or
@@ -2086,6 +2179,13 @@ function grantCarried(effect: SpellEffect): string | null {
             // Instantaneous cantrip, and without the rider's own deadline
             // nothing could ever hand the Reaction back.
             if (rider.lasts === undefined) return 'a rule about what a turn may be spent on';
+            break;
+          case 'healing':
+            // The fourth, and its only writer is a cantrip too: SRD Chill
+            // Touch stops a target regaining hit points "until the end of your
+            // next turn", and without the rider's own deadline nothing could
+            // ever let them regain any again.
+            if (rider.lasts === undefined) return 'a rule standing in front of healing';
             break;
           default:
             break;
@@ -3270,7 +3370,13 @@ const RIDER_DEPTH_LIMIT = 6;
  * a name collision rather than through a type. `spell-schema.test.ts` asserts
  * the intersection is empty.
  */
-export const RIDER_KINDS: ReadonlySet<string> = new Set(['bonus', 'mode', 'speed-change', 'action']);
+export const RIDER_KINDS: ReadonlySet<string> = new Set([
+  'bonus',
+  'mode',
+  'speed-change',
+  'action',
+  'healing',
+]);
 
 /**
  * The effect kinds, as a set.
@@ -3303,4 +3409,6 @@ export const EFFECT_KINDS: ReadonlySet<string> = new Set([
   'teleport',
   'turn-payout',
   'action-rule',
+  'healing-rule',
+  'hit-point-maximum',
 ]);

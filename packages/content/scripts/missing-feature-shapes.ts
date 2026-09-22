@@ -444,14 +444,14 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
     {
       clause: 'The caster healing themselves when they heal somebody else',
       why: 'healing-modified-by-an-effect',
-      note: 'healing that fires because other healing happened.',
+      note: 'healing that fires because other healing happened, which is untouched by the rules a running effect may now state about healing: those change what a heal restores, and this one is a second heal with a different recipient.',
     },
   ],
   'life-domain:supreme-healing': [
     {
       clause: 'Maximising healing dice rather than rolling them',
       why: 'healing-modified-by-an-effect',
-      note: 'the maximising half of the same missing reader.',
+      note: 'the reader is built and the door is not. `maximised` is a `HealingRule` the healing path reads on every roll, and SRD Beacon of Hope hangs one — but the only things that can hang one are a spell effect and a rider on a settled outcome, and this is a feature. What it needs is a `FeatureGrant` that states the rule, which is the same absence the two hit point maximum features below carry one axis over.',
     },
   ],
 
@@ -1133,7 +1133,7 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
     {
       clause: 'needs a feature that raises the hit point maximum',
       why: 'a-hit-point-maximum-a-spell-moves',
-      note: 'the spell map’s own id: the maximum is set at creation and by advancement, and nothing else moves it.',
+      note: 'two absences, and only the first is this shape’s. A feature’s maximum is a column of the class table read by `planCharacter` rather than a grant hung on a creature, so it needs a `FeatureGrant` of its own — which is what Dwarven Toughness waits on too. **And this feature could not carry one even then**: `FeatureDefinition.grants` is singular, the slot already holds the `unarmored-defense` grant that applies the Armour Class half, and the SRD prints both sentences under one heading. That is the same wall the note on Innate Sorcery records — "an activation this feature has no second grant to carry beside the pool" — and it is a decision about the vocabulary rather than a missing mechanic.',
     },
   ],
   'draconic-sorcery:dragon-wings': [
@@ -1349,7 +1349,7 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
     {
       clause: 'needs a feature that raises the hit point maximum',
       why: 'a-hit-point-maximum-a-spell-moves',
-      note: 'Draconic Resilience wants the same thing, which is what makes it a shape.',
+      note: 'the spell half is built and this is not it. A spell’s maximum is a grant hung on a creature with a source and an ending; a feature’s is what the class table says the maximum **is**, recomputed by every level-up and never taken away — so it belongs in `planCharacter`’s own arithmetic, behind a `FeatureGrant` naming a column of the table. Draconic Resilience wants the same thing, which is what makes it a shape.',
     },
   ],
   'dwarf:stonecunning': [

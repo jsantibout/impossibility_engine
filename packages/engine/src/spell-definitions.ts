@@ -16,6 +16,7 @@ import type { ActionRule } from './combat.js';
 import type { PointAnchoring } from './positioning.js';
 import type { CastingTime } from './spells.js';
 import type { SpellReactionWindow } from './reactions.js';
+import type { HealingRule } from './vitals.js';
 
 /**
  * Spells the engine can actually execute.
@@ -694,6 +695,33 @@ export type ModifierRider =
       readonly rule: ActionRule;
       /** A deadline of the rider's own, shorter than the casting's. */
       readonly lasts?: RiderDuration;
+    }
+  /**
+   * A rule about regaining hit points that the same roll imposes.
+   *
+   * SRD Chill Touch: "On a hit, the target takes 1d10 Necrotic damage, **and
+   * it can't regain Hit Points until the end of your next turn.**" One attack
+   * roll, two consequences — and a second effect would roll a second attack
+   * for one sentence, which is the argument every member of this union makes.
+   *
+   * **It is `healing` and not `healing-rule`, because a rider kind may never
+   * be an effect kind.** `checkShape`'s denylist refuses a nested `kind` that
+   * is an effect kind, so a name shared between the two vocabularies would let
+   * recursion in through a collision — the same reason `buff`'s rider is
+   * `bonus`, `roll-mode`'s is `mode`, `speed`'s is `speed-change` and
+   * `action-rule`'s is `action`.
+   *
+   * **The fourth rider that carries `lasts`**, and for exactly the reason the
+   * first three do: its only writer is a cantrip. Chill Touch is
+   * Instantaneous, so the casting is over the moment it resolves and nothing
+   * it hung could ever be lifted; `EffectTarget.grants` is the deadline and
+   * `checkGrantLifetimes` is what insists on it.
+   */
+  | {
+      readonly kind: 'healing';
+      readonly rule: HealingRule;
+      /** A deadline of the rider's own, shorter than the casting's. */
+      readonly lasts?: RiderDuration;
     };
 
 /**
@@ -1104,6 +1132,72 @@ export type SpellEffect =
       readonly addSpellcastingModifier?: boolean;
       /** Required when {@link payout} is `damage`, and refused otherwise. */
       readonly damageType?: string;
+    }
+  /**
+   * A rule the spell stands in front of healing with.
+   *
+   * SRD Beacon of Hope: each target "regains the **maximum** number of Hit
+   * Points possible from any healing." SRD Chill Touch, on a hit: "it **can't
+   * regain Hit Points** until the end of your next turn."
+   *
+   * **Not an amount, which is the whole reason this is its own kind.** `heal`
+   * restores a number; this restores nothing and heals nobody. It is an
+   * instruction to somebody *else's* healing, whenever it arrives — a Cure
+   * Wounds a round later, a potion, a pool's use — so it is a grant that sits
+   * on the creature and is read by the door healing goes through, exactly as
+   * `roll-mode` is read by the door a d20 goes through.
+   *
+   * **One kind for two sentences**, because they are one question with two
+   * answers: whether the arithmetic runs as printed. See `HealingRule` in
+   * `vitals.ts`, where the pair is argued and where a creature carrying both
+   * is settled.
+   *
+   * The standalone kind carries no deadline of its own, for the reason
+   * `speed`, `attack-rider`, `condition-immunity` and `turn-payout` carry
+   * none: every SRD sentence in this position runs for the spell's own
+   * duration. Chill Touch's shorter one is a **rider**, which is where a
+   * deadline lives — see {@link ModifierRider}'s `healing` member, and SRD Ray
+   * of Frost, which made the same argument first.
+   */
+  | {
+      readonly kind: 'healing-rule';
+      readonly rule: HealingRule;
+    }
+  /**
+   * A hit point maximum the spell holds up while it runs.
+   *
+   * SRD Aid: "Each target's Hit Point maximum **and current Hit Points**
+   * increase by 5 for the duration." _Using a Higher-Level Spell Slot:_ "Each
+   * target's Hit Points increase by 5 for each spell slot level above 2."
+   *
+   * **The one number a spell moves that the fold stores rather than derives.**
+   * Everything else a casting hangs on a creature is consulted where it
+   * matters and costs nothing when it goes; a maximum is read by the cap on
+   * healing, by Massive Damage and by advancement's own arithmetic, and it is
+   * already written down. So this grant is *reconciled* rather than merely
+   * carried — `settleHitPointMaximum` runs in the fold's derived pass — which
+   * is what lets a broken Concentration, a deadline and Dispel Magic give it
+   * back through the doors they already use, and what keeps a level-up taken
+   * mid-spell worth the whole of its level.
+   *
+   * **It raises and does not lower**, and the absence is deliberate rather
+   * than an oversight. The SRD's reductions are all fastened to damage that
+   * has already been taken — Harm's, and the one a Berserker Axe exacts — so
+   * the sentence that lowers a maximum is never the whole of the rule, and the
+   * half that is missing is the other half. One consumer, transcribed, in the
+   * tradition of `healsCasterForHalf` and `onMiss`; the day a reduction is
+   * written it arrives with the clause that makes it mean something.
+   *
+   * **A {@link DiceScaling} with no dice**, which is the shape `flat` and
+   * `flatPerSlotLevelAbove` were widened for: Aid's five and its five per slot
+   * level are exactly that pair, and the notation stays available for a
+   * sentence that rolls one. The number is settled **once, at the cast**, and
+   * pinned into the grant, so a maximum held up for eight hours does not move
+   * when a catalogue does.
+   */
+  | {
+      readonly kind: 'hit-point-maximum';
+      readonly amount: DiceScaling;
     }
   /**
    * Extra damage on a weapon attack that has already hit.
@@ -2911,11 +3005,14 @@ export function riderDurations(definition: SpellDefinition): readonly RiderDurat
       if (rider.lasts !== undefined) found.push(rider.lasts);
     }
     for (const rider of modifierRidersOf(effect)) {
-      // The three riders that may carry a deadline of their own — see
+      // The four riders that may carry a deadline of their own — see
       // {@link ModifierRider}, where each is argued from an Instantaneous
       // host that could never lift what it hung.
       if (
-        (rider.kind === 'speed-change' || rider.kind === 'action' || rider.kind === 'mode') &&
+        (rider.kind === 'speed-change' ||
+          rider.kind === 'action' ||
+          rider.kind === 'mode' ||
+          rider.kind === 'healing') &&
         rider.lasts !== undefined
       ) {
         found.push(rider.lasts);
@@ -3158,6 +3255,8 @@ export function numbersRead(definition: SpellDefinition): NumbersRead {
       case 'heal':
       case 'turn-payout':
       case 'action-rule':
+      case 'healing-rule':
+      case 'hit-point-maximum':
       case 'dispel':
       case 'teleport':
         break;

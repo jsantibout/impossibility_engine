@@ -843,6 +843,13 @@ export const SHOCKING_GRASP = attackCantrip({
  * > "Make a melee spell attack against a target within reach. On a hit, the
  * > target takes 1d10 Necrotic damage, and it can't regain Hit Points until
  * > the end of your next turn."
+ *
+ * One sentence, two consequences, one attack roll — so the refusal is a rider
+ * on the hit rather than a second effect that would roll a second attack for
+ * the same touch. The deadline is the rider's own because a cantrip is
+ * Instantaneous: the casting is over the instant it resolves and could never
+ * lift what it hung, which is the argument Ray of Frost's Speed reduction made
+ * first and `checkGrantLifetimes` is what insists on.
  */
 export const CHILL_TOUCH = attackCantrip({
   id: 'chill-touch',
@@ -852,7 +859,9 @@ export const CHILL_TOUCH = attackCantrip({
   attack: 'melee',
   dice: '1d10',
   damageType: 'necrotic',
-  unmodelled: ['the target cannot regain Hit Points until the end of your next turn'],
+  // "until the end of **your** next turn" — the caster's, which is the anchor
+  // `end-of-casters-next-turn` names and a full round from the target's own.
+  modifiers: [{ kind: 'healing', rule: 'prevented', lasts: 'end-of-casters-next-turn' }],
 });
 
 /**
@@ -5335,11 +5344,14 @@ export const BEACON_OF_HOPE: SpellDefinition = {
       kind: 'roll-mode',
       modifier: { mode: 'advantage', selector: { roll: 'death-save', relation: 'roller' } },
     },
+    // "and regains the maximum number of Hit Points possible from any
+    // healing." A third effect for the third clause, and it is a *rule* rather
+    // than an amount: nothing is restored here, and what it reaches is
+    // whatever heals the target next — which may be a different caster, an
+    // hour later, out of a potion.
+    { kind: 'healing-rule', rule: 'maximised' },
   ],
   durationSeconds: 60,
-  unmodelled: [
-    'each target regains the maximum number of Hit Points possible from any healing; healing rolls its dice and nothing reads a maximise instruction, so a Cure Wounds on a target of this spell heals its rolled amount',
-  ],
 };
 
 /**
@@ -8115,8 +8127,12 @@ export const SLEEP: SpellDefinition = {
  * Twenty-two words, and both of them are the **maximum**. Healing raises
  * current hit points and stops at the maximum; this raises the maximum and
  * carries the current total up with it, and puts it back eight hours later.
- * Nothing in `vitals.ts` moves a maximum for a duration, which is the one
- * absence between this spell and a definition that does it all.
+ *
+ * So it is not a `heal` with a bigger number: a heal is capped by the very
+ * maximum this sentence moves, resets death saves and lifts the unconsciousness
+ * that 0 hit points caused, and the book asks for none of those. It is a grant
+ * the fold reconciles — see `hit-point-maximum` — and the current total rises
+ * with it because the five were never lost.
  */
 export const AID: SpellDefinition = {
   id: 'aid',
@@ -8130,12 +8146,16 @@ export const AID: SpellDefinition = {
   // thirty feet of themselves is one of them, and the SRD prints no clause
   // excluding them. Three is the ceiling rather than a demand.
   targets: { count: 3, self: true },
-  effects: [],
-  durationSeconds: 28_800,
-  unmodelled: [
-    'nobody is bolstered: "Each target’s Hit Point maximum and current Hit Points increase by 5 for the duration" moves a Hit Point maximum for a span and then moves it back, and nothing does that — healing raises the current total and stops at the maximum',
-    'the slot scaling is the same sentence again with a bigger number, and lands nowhere for the same reason',
+  effects: [
+    {
+      kind: 'hit-point-maximum',
+      // "increase by 5", and "increase by 5 for each spell slot level above
+      // 2": `flat` and `flatPerSlotLevelAbove` are exactly those two printed
+      // numbers, on an amount that rolls nothing at all.
+      amount: { flat: 5, flatPerSlotLevelAbove: 5 },
+    },
   ],
+  durationSeconds: 28_800,
 };
 
 /**

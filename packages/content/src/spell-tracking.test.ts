@@ -1286,17 +1286,30 @@ describe('every spell this batch added is cast for real', () => {
    * recorded here instead, which is the same move `SPLIT_BUNDLES` makes for a
    * clause whose shape was built: the row stays and says where it went.
    *
-   * All three went the same way. `ActionRule` was derived from four SRD
-   * sentences and no definition wrote one; these three write all four — Wind
-   * Walk's "The only actions a target can take in this form", Magic Jar's "You
-   * can't move or take Reactions" beside "The only action you can take", and
-   * Expeditious Retreat's "you can take that action again as a Bonus Action",
-   * which is the `allows` polarity and the last of the four. So the engine
-   * resolves something on each casting, which is the whole of what separates
-   * the two buckets, and everything else each spell prints is an executed
-   * definition's debt in `ADJUDICATED`.
+   * **Four went out, by two different doors.** Three of them went the same
+   * way: `ActionRule` was derived from four SRD sentences and no definition
+   * wrote one; these three write all four — Wind Walk's "The only actions a
+   * target can take in this form", Magic Jar's "You can't move or take
+   * Reactions" beside "The only action you can take", and Expeditious
+   * Retreat's "you can take that action again as a Bonus Action", which is the
+   * `allows` polarity and the last of the four. So the engine resolves
+   * something on each casting, which is the whole of what separates the two
+   * buckets, and everything else each spell prints is an executed definition's
+   * debt in `ADJUDICATED`.
+   *
+   * **Aid is the fourth, and it left through a different door.** Its whole
+   * text is twenty-two words about a hit point maximum, so a pass that could
+   * not move one had nothing to write and tracked it; the `hit-point-maximum`
+   * effect is that writer, and the spell is now executed end to end with no
+   * sentence left over — which is why it is also the first of these to leave
+   * `ADJUDICATED` entirely rather than move a clause into it.
    */
-  const EXECUTED_SINCE: readonly string[] = ['expeditious-retreat', 'magic-jar', 'wind-walk'];
+  const EXECUTED_SINCE: readonly string[] = [
+    'aid',
+    'expeditious-retreat',
+    'magic-jar',
+    'wind-walk',
+  ];
 
   it('records the departures rather than deleting the rows', () => {
     expect(EXECUTED_SINCE).toEqual([...EXECUTED_SINCE].sort());
@@ -1446,14 +1459,31 @@ describe('every spell this batch added is cast for real', () => {
     expect(Object.keys(after.ongoing)).toHaveLength(0);
   });
 
-  /** And every one of them tells the table what it is being left, verbatim. */
-  it.each(ADDED.map((s) => [s] as const))('hands %s’s own sentences to the table', (spellId) => {
-    const definition = SRD_CONTENT.spell(spellId)!;
-    const out = driven(spellId);
-    expect(definition.unmodelled ?? [], spellId).not.toEqual([]);
-    for (const gap of definition.unmodelled ?? []) {
-      expect(out.unverified).toContain(`${definition.name}: ${gap}`);
-    }
+  /**
+   * And every one of them tells the table what it is being left, verbatim.
+   *
+   * **Except the one that is now left with nothing**, which is the honest end
+   * of a row rather than a hole in the sweep: every sentence Aid prints is
+   * executed, so it has no `unmodelled` to hand over and this assertion would
+   * demand one exist. `EXECUTED_SINCE` is where that is recorded and why, and
+   * the assertion below is the positive form of it.
+   */
+  it.each(ADDED.filter((s) => s !== 'aid').map((s) => [s] as const))(
+    'hands %s’s own sentences to the table',
+    (spellId) => {
+      const definition = SRD_CONTENT.spell(spellId)!;
+      const out = driven(spellId);
+      expect(definition.unmodelled ?? [], spellId).not.toEqual([]);
+      for (const gap of definition.unmodelled ?? []) {
+        expect(out.unverified).toContain(`${definition.name}: ${gap}`);
+      }
+    },
+  );
+
+  /** And Aid is left with nothing to hand over, which is what finished means. */
+  it('leaves the table nothing of Aid', () => {
+    expect(SRD_CONTENT.spell('aid')!.unmodelled ?? []).toEqual([]);
+    expect(driven('aid').unverified).toEqual([]);
   });
 
   /**

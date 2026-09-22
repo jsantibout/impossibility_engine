@@ -116,6 +116,8 @@ export function applyRoster({ state, next }: Applying, event: RosterEvent): Game
             payouts: [],
             actionRules: [],
             grantedReactions: [],
+            healingRules: [],
+            hitPointMaxima: [],
             initiativeBonuses: [],
             inventory: [],
             equipped: [],

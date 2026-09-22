@@ -46,7 +46,7 @@ import {
   spellOfSource,
 } from '../spells.js';
 import { actionRulesOn, effectiveConditions, rollModesFor, sheetAsItStands } from '../standing.js';
-import { isDown, rollDeathSave } from '../vitals.js';
+import { healingRuleOf, isDown, maximisedHealing, rollDeathSave } from '../vitals.js';
 import { type Supply } from './casting.js';
 import { type DamageComponent } from '../attack.js';
 import { creatureOf, unknownCreature, ZERO_HIT_POINTS } from './command.js';
@@ -269,7 +269,17 @@ function settleTurnPayouts(
     let rolled = payout.flat;
     let components: readonly DamageComponent[] = [];
     if (payout.dice !== undefined) {
-      const dice = rollSpellDice(supply, recipient.sheet, label, type, payout.dice);
+      // **And what the recipient's own running effects say about the dice**,
+      // where what is being handed over is hit points. SRD Beacon of Hope
+      // maximises "any healing", and a Regenerate paying out at the start of a
+      // turn is healing arriving a minute after the cast that arranged it —
+      // the case the phrase is about. A payout of damage or of Temporary Hit
+      // Points reads nothing: neither is regaining hit points.
+      const maximise =
+        payout.payout === 'healing' && healingRuleOf(recipient.healingRules) === 'maximised'
+          ? [maximisedHealing('the maximum possible')]
+          : [];
+      const dice = rollSpellDice(supply, recipient.sheet, label, type, payout.dice, maximise);
       if (!dice.ok) return dice;
       components = dice.value;
       rolled += components.reduce((sum, component) => sum + component.total, 0);

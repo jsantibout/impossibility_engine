@@ -331,7 +331,7 @@ export const DRACONIC_SORCERY: SubclassDefinition = {
       name: 'Draconic Resilience',
       level: 3,
       automation: 'manual',
-      note: 'The Armour Class half is applied: SRD, "While you aren’t wearing armor, your base Armor Class equals 10 plus your Dexterity and Charisma modifiers." The hit point half is not — "your Hit Point maximum increases by 3, and it increases by 1 whenever you gain another Sorcerer level" needs a feature that raises the hit point maximum, which nothing else wants yet.',
+      note: 'The Armour Class half is applied: SRD, "While you aren’t wearing armor, your base Armor Class equals 10 plus your Dexterity and Charisma modifiers." The hit point half is not — "your Hit Point maximum increases by 3, and it increases by 1 whenever you gain another Sorcerer level" needs a feature that raises the hit point maximum, and it needs this feature to be able to carry a **second** grant beside the one above, which `FeatureDefinition.grants` is singular about. Dwarven Toughness wants the first half; the second is the wall Innate Sorcery records one class over.',
       grants: { kind: 'unarmored-defense', ability: 'cha', shieldAllowed: true },
     },
     {

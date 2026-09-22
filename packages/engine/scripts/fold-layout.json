@@ -207,6 +207,7 @@
     "applyEvent",
     "applyEventWith",
     "applyEventUnder",
+    "settleHitPointMaxima",
     "endLostAttunements",
     "fold",
     "historyOf"

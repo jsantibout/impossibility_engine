@@ -3502,6 +3502,25 @@ describe('every branch judges untyped input rather than throwing on it', () => {
       fields: { rule: required(OBJECT_JUNK) },
     },
     {
+      kind: 'healing-rule',
+      base: { kind: 'healing-rule', rule: 'maximised' },
+      // One field, and it is the whole of the effect: which of the two things
+      // the book says about regaining hit points. There is no amount, no
+      // target and no moment — the standalone kind runs for the casting's own
+      // duration — so the vocabulary is the only thing there is to get wrong.
+      fields: { rule: required(STRING_JUNK) },
+    },
+    {
+      kind: 'hit-point-maximum',
+      base: { kind: 'hit-point-maximum', amount: { flat: 5 } },
+      // One field, and it is required: a maximum held up by nothing is not
+      // held up. What is *inside* the amount — that it names no dice and that
+      // its numbers are positive whole ones — is a pairing rule rather than a
+      // junk sweep, asserted by name in
+      // `healing-and-hit-point-maxima.test.ts` where the kind's own rules are.
+      fields: { amount: required(OBJECT_JUNK) },
+    },
+    {
       kind: 'teleport',
       base: { kind: 'teleport', feet: 30, requiresSight: true },
       // The destination is the **casting's** to state and is nowhere on the
