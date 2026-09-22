@@ -4204,7 +4204,29 @@ export const PLANE_SHIFT: SpellDefinition = {
  *
  * > _Level 3 Abjuration (Cleric, Paladin, Warlock, Wizard)._
  * > **Casting Time:** Action. **Range:** Touch. **Duration:** Instantaneous.
- * > "At your touch, all curses affecting one creature or object end."
+ * > "At your touch, all curses affecting one creature or object end. If the
+ * > object is a cursed magic item, its curse remains, but the spell breaks its
+ * > owner's Attunement to the object so it can be removed or discarded."
+ *
+ * **The second sentence is a debt and was filed as fiction**, on a claim that
+ * is false against the engine: `unmodelled` said Attunement is not modelled,
+ * and `CreatureState.attuned` holds it, `attuneItem` writes it, `attuned` and
+ * `attunement-ended` are events and the fold applies both. So this is a table
+ * fact a rule then reads, which `docs/design/content.md` calls a debt.
+ *
+ * It is **not** filed against a shape here, and that is deliberate rather than
+ * an omission. The shape exists and names this spell by name —
+ * `what-ends-attunement-besides-a-command`, "armour that cannot be doffed until
+ * a Remove Curse lands is an attunement its holder may not release" — but it is
+ * an `ItemShapeId`, and `TrackedAdjudication.why` takes `ShapeId`. Filing it
+ * means either widening that type or minting a second id for one gap in the
+ * spell vocabulary, and both are decisions rather than readings.
+ * `unadjudicated-triage.test.ts` records the finding where the next reader will
+ * meet it.
+ *
+ * The first sentence is fiction and stays so: nothing the engine applies is a
+ * curse — Bestow Curse is tracked and applies nothing — so there is no curse
+ * for the touch to end.
  */
 export const REMOVE_CURSE: SpellDefinition = {
   id: 'remove-curse',
@@ -4218,7 +4240,7 @@ export const REMOVE_CURSE: SpellDefinition = {
   effects: [],
   unmodelled: [
     'a curse is not a thing in state — nothing the engine applies is one — so which curses end is the DM’s',
-    'Attunement is not modelled, so breaking it to a cursed magic item is the DM’s',
+    'the Attunement is not broken: "the spell breaks its owner’s Attunement to the object" reads a fact the engine holds authoritatively — `attuned` on the sheet, written by `attuneItem` and ended by `attunement-ended` — and nothing ends one for a reason no command gave',
   ],
 };
 

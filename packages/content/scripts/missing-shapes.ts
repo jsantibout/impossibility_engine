@@ -3655,7 +3655,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: null,
       clause: 'that spell is suppressed for 10 minutes',
       why: 'an-effect-that-suppresses-other-magic',
-      note: 'Arcane Lock is a casting this engine really holds — it runs until dispelled and sits in `state.ongoing` — so this is not a clause with no reachable case. What is missing is the state a suppressed casting sits in: a spell that does not function while its time goes on running, which is the half of this shape `spell-ended` did not build.',
+      note: 'Arcane Lock is a casting this engine really holds — it runs until dispelled and sits in `state.ongoing`. **Two things are missing and they are not the same thing.** The first is this shape: the state a suppressed casting sits in, a spell that does not function while its time goes on running, which is the half `spell-ended` did not build. The second is that nothing can name this particular casting anyway — Arcane Lock’s own definition records it for Dispel Magic, which ends an ongoing spell on a target where this casting is on a door. The debt is the first; the second is why building it would still leave a lock nobody can reach.',
     },
   ],
   'magic-weapon': [

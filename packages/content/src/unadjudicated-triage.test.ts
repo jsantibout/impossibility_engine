@@ -16,6 +16,7 @@ import {
   type Rng,
 } from '@ie/engine';
 import {
+  ITEM_SHAPES,
   MISSING_SHAPES,
   TRACKED_ADJUDICATED,
   misanchoredAdjudications,
@@ -32,15 +33,16 @@ import {
  * finished business. Forty-five of the fifty-two spells in that column had no
  * entry at all, which is why the audit before this one called them done.
  *
- * So this file is the reading, written down where the report can count it. Two
- * lists, because the reading has two outcomes and conflating them is the defect
- * being closed:
+ * So this file is the reading, written down where the report can count it. Four
+ * lists, because conflating any two of these outcomes is the defect being
+ * closed:
  *
  * | | |
  * |---|---|
  * | {@link FILED} | a sentence that is a **debt** — a mechanism over state the engine authoritatively holds, filed against the shape that blocks it |
  * | {@link HANDOVERS} | a paragraph whose every mechanical word is about something the engine holds nothing of — an object, a light, a language, a thing somebody learns |
  * | {@link EXECUTES} | a spell whose debt turned out to be **stale**: the shape it named has since been built, and the definition writes it |
+ * | {@link NEEDS_A_DECISION} | a debt whose shape exists in the **item** vocabulary and cannot be named from this one without widening a type |
  *
  * `docs/design/content.md` is where that line is drawn and it is drawn by the
  * reader rather than by a marker: *a table fact that a rule then reads is a
@@ -124,7 +126,6 @@ const HANDOVERS: readonly string[] = [
   'mending',
   'message',
   'purify-food-and-drink',
-  'remove-curse',
   'rope-trick',
   'speak-with-dead',
   'tongues',
@@ -140,9 +141,39 @@ const HANDOVERS: readonly string[] = [
  */
 const EXECUTES: readonly string[] = ['expeditious-retreat'];
 
+/**
+ * And the one the reading found a debt in that this vocabulary cannot name.
+ *
+ * SRD Remove Curse: "If the object is a cursed magic item, its curse remains,
+ * but the spell breaks its owner's Attunement to the object so it can be
+ * removed or discarded." Its `unmodelled` called Attunement unmodelled and that
+ * is false — `CreatureState.attuned` holds it, `attuneItem` writes it, and
+ * `attuned` and `attunement-ended` are both events the fold applies — so this
+ * is a table fact a rule then reads, which is a debt.
+ *
+ * **The shape exists and names this spell by name.** `ITEM_SHAPES`'
+ * `what-ends-attunement-besides-a-command` is "an attunement that ends, or
+ * refuses to end, for a reason no command gives", and its own description
+ * finishes on "armour that cannot be doffed until a Remove Curse lands". Four
+ * cursed items already sit on it.
+ *
+ * **It cannot be filed from here, and inventing a way is not a reading.**
+ * `TrackedAdjudication.why` takes `'table' | 'engine' | ShapeId`, and that id is
+ * an `ItemShapeId`. Filing it means widening the field to `ItemBlockerId` — one
+ * union of two vocabularies that every guard over both maps would then have to
+ * be re-read against — or minting a second id in `MISSING_SHAPES` for one gap,
+ * which is the duplication the item vocabulary was split out to avoid. Either
+ * is a decision about the shape of the record rather than a reading of a
+ * paragraph, so the finding is written down and the decision is left.
+ *
+ * A list of one rather than a comment, because a comment is what the ledger
+ * already could not count.
+ */
+const NEEDS_A_DECISION: readonly string[] = ['remove-curse'];
+
 describe('the forty-five unadjudicated spells are read', () => {
   it('accounts for every one of them exactly once', () => {
-    const read = [...Object.keys(FILED), ...HANDOVERS, ...EXECUTES];
+    const read = [...Object.keys(FILED), ...HANDOVERS, ...EXECUTES, ...NEEDS_A_DECISION];
     expect(read).toHaveLength(45);
     expect(new Set(read).size).toBe(45);
   });
@@ -165,6 +196,22 @@ describe('the forty-five unadjudicated spells are read', () => {
     const definition = SPELL_DEFINITIONS.find((d) => d.id === spellId);
     expect(definition, `${spellId} has no definition`).toBeDefined();
     expect((definition?.unmodelled ?? []).length, spellId).toBeGreaterThan(0);
+  });
+
+  /**
+   * And the finding that is left for somebody with the authority to take it.
+   *
+   * Asserted as facts rather than as prose: the shape is real and belongs to
+   * the other vocabulary, this one does not hold it, and the spell is filed
+   * against nothing in the meantime. All three have to change together on the
+   * day the decision is taken, which is what keeps this from being a note.
+   */
+  it('leaves Remove Curse read, unfiled, and said so', () => {
+    for (const spellId of NEEDS_A_DECISION) {
+      expect(TRACKED_ADJUDICATED[spellId], spellId).toBeUndefined();
+    }
+    expect(Object.keys(ITEM_SHAPES)).toContain('what-ends-attunement-besides-a-command');
+    expect(Object.keys(MISSING_SHAPES)).not.toContain('what-ends-attunement-besides-a-command');
   });
 });
 
