@@ -138,6 +138,8 @@ import {
 import { resolveCast } from './commands/casting.js';
 import { conditionInstanceId } from './conditions.js';
 import { beginRest, endRest, hitDieKey, SHORT_REST } from './rest.js';
+import { extendContent, type Content } from './content.js';
+import type { SpellDefinition } from './spell-definitions.js';
 import { type FeatDefinition } from './origins.js';
 import type { FeatureSource } from './progression.js';
 
@@ -485,7 +487,15 @@ interface Probe {
  */
 const PROBES: Probe[] = [];
 
-const supply = (seed = 's') => {
+/**
+ * A probed supply, over whichever book the fixture needs.
+ *
+ * The content argument is not decoration: a sweep that can only be pointed at
+ * the SRD can only see the branches SRD content reaches, and one of them —
+ * a per-turn payout that rolls — has no SRD spell behind it. So a fixture may
+ * hand in a book of its own, built through the same door homebrew uses.
+ */
+const supply = (seed = 's', content: Content = SRD_CONTENT) => {
   const issuer = createRollIssuer('r');
   const source = createRng(seed) as Rng;
   let draws = 0;
@@ -500,7 +510,7 @@ const supply = (seed = 's') => {
     snapshot: () => source.snapshot(),
   };
   PROBES.push({ issuer, rng, drawn: () => draws });
-  return { issuer, rng, content: SRD_CONTENT };
+  return { issuer, rng, content };
 };
 
 /**
@@ -1186,6 +1196,67 @@ const heroic = (): readonly GameEvent[] => {
     ...unwrap(
       resolveSpell(fold('s', armed), A, { spellId: 'heroism', targets: [A], slotLevel: 1 }, supply()),
       'heroism',
+    ).events,
+  ];
+};
+
+/**
+ * The same boundary, over a payout that throws dice.
+ *
+ * **Why a homebrew spell and not one out of the book.** Every SRD per-turn
+ * payout hands over a printed number or an ability modifier — Heroism's
+ * Temporary Hit Points, Regenerate's one Hit Point — so `heroic()` drives the
+ * arm of `settleTurnPayouts` that rolls nothing, and the sweep below it
+ * reported `drawn: 0` for a command that rolls at every other boundary it
+ * pays. A fixture is the only way to reach the arm that does, and the door a
+ * fixture reaches it through is the one homebrew already uses: a definition,
+ * validated by `createContent`, over a `Content` built with `extendContent`.
+ * Not one line of the engine knows this spell exists, which is rule 4 working
+ * rather than an exception to it.
+ */
+const ROLLING_PAYOUT: SpellDefinition = {
+  id: 'ember-vigil',
+  name: 'Ember Vigil',
+  level: 1,
+  school: 'abjuration',
+  castingTime: 'action',
+  concentration: true,
+  durationSeconds: 60,
+  range: { kind: 'touch' },
+  targets: { count: 1, self: true },
+  effects: [
+    // The whole of the fixture: a payout carrying a notation, so the boundary
+    // that settles it has a die to throw.
+    { kind: 'turn-payout', at: 'start-of-turn', payout: 'temporary-hit-points', dice: '1d4' },
+  ],
+};
+
+/** The book, plus that one spell. */
+const WITH_A_ROLLING_PAYOUT: Content = unwrap(
+  extendContent(SRD_CONTENT, { spells: [ROLLING_PAYOUT] }),
+  'the book with a rolling payout in it',
+);
+
+/** A holding that spell on itself, exactly as `heroic()` holds Heroism. */
+const vigilant = (): readonly GameEvent[] => {
+  const armed: readonly GameEvent[] = [
+    ...SETUP,
+    {
+      type: 'spellcasting-declared',
+      id: A,
+      spellcasting: declaredCasting({ ability: 'int', prepared: ['ember-vigil'] }),
+    },
+  ];
+  return [
+    ...armed,
+    ...unwrap(
+      resolveSpell(
+        fold('s', armed),
+        A,
+        { spellId: 'ember-vigil', targets: [A], slotLevel: 1 },
+        supply('s', WITH_A_ROLLING_PAYOUT),
+      ),
+      'the vigil',
     ).events,
   ];
 };
@@ -2143,6 +2214,25 @@ const GUARDED: readonly Guarded[] = [
       ),
   },
   {
+    // And the same boundary where the payout it owes **throws a die**. The
+    // entry above owes Temporary Hit Points off an ability modifier and turns
+    // the generator not at all, so it is the idempotency guard it exercises
+    // and nothing else; this one is what the counting sweep below needed, and
+    // the hole it found was a whole command's dice going unrecorded.
+    name: 'beginCombat (paying a payout that rolls)',
+    log: vigilant(),
+    run: (s, commandId) =>
+      beginCombat(
+        s,
+        [
+          { id: A, initiative: 21, speed: 30 },
+          { id: B, initiative: 3, speed: 30 },
+        ],
+        { commandId },
+        supply('s', WITH_A_ROLLING_PAYOUT),
+      ),
+  },
+  {
     // The other end of the same fight. `SETUP` puts A on `party` and B on
     // `foes`, so the surrender is a side somebody standing is actually on —
     // and a retry that got past the guard would write a second `combat-ended`
@@ -2530,15 +2620,17 @@ describe('a retried command changes nothing the first one did not', () => {
  * branch instead and is blunt where this one is exact. Neither is the guard
  * on its own.
  *
- * **That bound cost something the day this was written**, which is the most
- * useful thing to know about it. `settleTurnPayouts` throws the dice a payout
- * carries, and the payout in `heroic()` below carries none — SRD Heroism hands
- * over an ability modifier — so the corpus drove `beginCombat` and `resolveTurn`
- * down the arm that rolls nothing and this sweep saw a command that never
- * rolled. Reviewed by hand and reproduced with a homebrew `turn-payout` whose
- * `dice` is `1d4`: one die drawn, `combat-started` and `temporary-hp-granted`
- * emitted, no `rolls-issued`. A fixture that carries dice is what closes it,
- * and it belongs in the same change as the emission.
+ * **That bound cost something, and what it cost is now a fixture rather than a
+ * paragraph.** `settleTurnPayouts` throws the dice a payout carries, and every
+ * SRD payout carries none — Heroism hands over an ability modifier, Regenerate
+ * a printed number — so the corpus drove `beginCombat` and `resolveTurn` down
+ * the arm that rolls nothing, this sweep saw a command that never rolled, and
+ * the command emitted no `rolls-issued` for a die it really threw. The corpus
+ * entry `beginCombat (paying a payout that rolls)` is what closes it: a
+ * homebrew spell whose `turn-payout` names `1d4`, cast through the door
+ * homebrew already uses, over a `Content` built with `extendContent`. It fails
+ * on the commit before the emission and passes on it — which is the only kind
+ * of evidence a sweep's blind spot admits.
  */
 interface Turned {
   /** Dice drawn through every generator the command was handed. */

@@ -1,0 +1,130 @@
+/**
+ * Every tool on a surface, as JSON Schema an API will accept.
+ *
+ * `ToolDefinition.schema` has always said it was "for a caller that wants to
+ * publish it as JSON Schema", and until now every caller that wanted to did
+ * the conversion itself — the probe's OpenAI driver writes its `parameters` by
+ * hand. This is that conversion, done once, so the app copies nothing.
+ *
+ * What is asserted here is not "the schemas look right", which a reader can
+ * see. It is that **the conversion cannot silently stop covering a surface**:
+ * every tool converts, in the order the prompt cache depends on, and the whole
+ * serialisation is pinned by length so a tool added, renamed or re-shaped shows
+ * up as a diff somebody has to look at.
+ */
+
+import { describe, expect, it } from 'vitest';
+import { SRD_CONTENT } from '@ie/content';
+import {
+  createCampaign,
+  createDmSurface,
+  createSurface,
+  openAiTools,
+  toolSchemas,
+} from '@ie/tools';
+
+const campaign = () => createCampaign({ content: SRD_CONTENT, seed: 'tool-schemas' });
+const player = () => createSurface(campaign());
+const dm = () => createDmSurface(campaign());
+
+/** Every value anywhere in a JSON tree, so a sweep can look at all of them. */
+function* walk(value: unknown): Generator<[string, unknown]> {
+  if (Array.isArray(value)) {
+    for (const item of value) yield* walk(item);
+    return;
+  }
+  if (value === null || typeof value !== 'object') return;
+  for (const [key, inner] of Object.entries(value as Record<string, unknown>)) {
+    yield [key, inner];
+    yield* walk(inner);
+  }
+}
+
+describe('toolSchemas', () => {
+  it('converts every tool on both surfaces without throwing', () => {
+    expect(() => toolSchemas(player())).not.toThrow();
+    expect(() => toolSchemas(dm())).not.toThrow();
+    expect(toolSchemas(player()).length).toBeGreaterThan(0);
+  });
+
+  it('keeps the surface’s own order, which is what the prompt cache rests on', () => {
+    for (const surface of [player(), dm()]) {
+      expect(toolSchemas(surface).map((one) => one.name)).toEqual(
+        surface.tools.map((one) => one.name),
+      );
+    }
+  });
+
+  it('gives every tool an object schema and its own description', () => {
+    for (const surface of [player(), dm()]) {
+      for (const schema of toolSchemas(surface)) {
+        expect(schema.parameters['type']).toBe('object');
+        expect(typeof schema.description).toBe('string');
+        expect(schema.description.length).toBeGreaterThan(0);
+      }
+      const byName = new Map(surface.tools.map((one) => [one.name, one.description]));
+      for (const schema of toolSchemas(surface)) {
+        expect(schema.description).toBe(byName.get(schema.name));
+      }
+    }
+  });
+
+  it('strips what an API would reject or be confused by', () => {
+    for (const surface of [player(), dm()]) {
+      const json = JSON.stringify(toolSchemas(surface));
+      // `$schema` is a dialect declaration, not a parameter description.
+      expect(json).not.toContain('$schema');
+      // `.int()` bounds every integer by `Number.MAX_SAFE_INTEGER`, which is
+      // noise in a prompt and a rejection in some APIs.
+      expect(json).not.toContain('9007199254740991');
+      for (const [key, value] of walk(toolSchemas(surface))) {
+        if (key === 'maximum' || key === 'minimum') {
+          expect(Math.abs(value as number)).toBeLessThan(Number.MAX_SAFE_INTEGER);
+        }
+      }
+    }
+  });
+
+  it('is byte-stable across two calls, because a prompt cache is', () => {
+    expect(JSON.stringify(toolSchemas(player()))).toBe(JSON.stringify(toolSchemas(player())));
+    expect(JSON.stringify(toolSchemas(dm()))).toBe(JSON.stringify(toolSchemas(dm())));
+  });
+
+  /**
+   * The pin.
+   *
+   * A count and a length, per surface. Neither is a fact about the rules — it
+   * is a tripwire: a tool added, a field renamed, a `z.number()` becoming a
+   * `z.enum()` all move it, and moving it is a line in a diff rather than a
+   * silent change to what a model is shown. Update it deliberately and say
+   * what moved.
+   */
+  it('publishes exactly the surface it publishes, pinned', () => {
+    expect(toolSchemas(player())).toHaveLength(76);
+    expect(toolSchemas(dm())).toHaveLength(91);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(92157);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(110067);
+  });
+});
+
+describe('openAiTools', () => {
+  it('wraps each schema in the function-calling envelope and nothing else', () => {
+    const wrapped = openAiTools(player());
+    const bare = toolSchemas(player());
+    expect(wrapped).toHaveLength(bare.length);
+    for (const [index, one] of wrapped.entries()) {
+      expect(one.type).toBe('function');
+      expect(one.function.name).toBe(bare[index]!.name);
+      expect(one.function.description).toBe(bare[index]!.description);
+      expect(JSON.stringify(one.function.parameters)).toBe(JSON.stringify(bare[index]!.parameters));
+      expect(Object.keys(one).sort()).toEqual(['function', 'type']);
+      expect(Object.keys(one.function).sort()).toEqual(['description', 'name', 'parameters']);
+    }
+  });
+
+  it('wraps the DM’s surface the same way', () => {
+    expect(openAiTools(dm()).map((one) => one.function.name)).toEqual(
+      dm().tools.map((one) => one.name),
+    );
+  });
+});

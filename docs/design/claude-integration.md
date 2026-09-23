@@ -31,7 +31,8 @@ Zod, a clock and id generation; the engine below it may not.
 **One `Campaign` per content and log.** It owns the seed, the validated
 `Content` and the event log, and nothing else. `GameState` is a derived cache
 stepped by `applyEvent` — stepping and refolding are the same function
-(`fold/apply.ts:206`, `:458`), which `persistence-2.test.ts:367` already
+(`applyEvent` at `fold/apply.ts:231`, `fold` at `:599`), which
+`persistence-2.test.ts:367` already
 relies on, and a test holds the cache equal to `fold(seed, log)` after every
 call. No live `Rng` or `RollIssuer` is held: both are rebuilt per call from
 `state.rng` and `state.rollsIssued` and thrown away, as `scenario.test.ts:207`

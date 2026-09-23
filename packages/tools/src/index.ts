@@ -19,6 +19,7 @@ export * from './observe.js';
 export * from './outcome.js';
 export * from './schemas.js';
 export * from './surface.js';
+export * from './tool-schemas.js';
 
 /**
  * And the other surface, which is the one a human DM holds.

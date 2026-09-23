@@ -816,14 +816,25 @@ describe('the surface cannot reach the external-roll functions', () => {
 });
 
 describe('nothing reaches the log except through an engine command', () => {
-  it('has exactly the two append call sites it documents', () => {
+  it('has exactly the three append call sites it documents', () => {
     // `Campaign.append` is the only writer, and it cannot check what it is
-    // handed. So the discipline is here: two call sites, both passing a
-    // `Result`'s own events. A third has to be argued for by moving this
-    // number, which is what makes it a decision rather than a drift.
+    // handed. So the discipline is here: three call sites, each passing
+    // events an engine command produced. A fourth has to be argued for by
+    // moving these numbers, which is what makes it a decision rather than a
+    // drift.
+    //
+    // Two are in `definitions.ts` and pass a `Result`'s own events: `settle`,
+    // and `roll_initiative`'s joining branch.
     const definitions = sources().find((source) => source.file === 'definitions.ts')!;
-    const sites = definitions.text.match(/campaign\.append\(/g) ?? [];
-    expect(sites).toHaveLength(2);
+    expect(definitions.text.match(/campaign\.append\(/g) ?? []).toHaveLength(2);
+    // The third is `restoreCampaign`, which replays a stored log — events an
+    // engine command produced on an earlier day. It was argued for when the
+    // record was built, and it is counted here because the old shape of this
+    // guard skipped `campaign.ts` whole: a caller added beside `append`'s own
+    // declaration was the one place a fourth could have arrived unseen.
+    const campaign = sources().find((source) => source.file === 'campaign.ts')!;
+    expect(campaign.text.match(/campaign\.append\(/g) ?? []).toHaveLength(1);
+    expect(campaign.text.match(/\.append\(/g) ?? []).toHaveLength(1);
     // And nothing else in the package appends at all.
     for (const { file, text } of swept()) {
       if (file === 'definitions.ts' || file === 'campaign.ts') continue;
