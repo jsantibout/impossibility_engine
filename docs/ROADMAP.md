@@ -1469,6 +1469,33 @@ Appended after wave two (2026-09-22):
   could write it. A trait's save — a Ghast's Stench at the start of a turn in
   its aura — is a fourth: an aura forced by a moment, not a use.
 - **The Opus fleet stopped on the owner's monthly spend limit** on
-  2026-09-23; the five wave-3 briefs (sight, attack riders, feature
-  vocabulary, casting cost, small features) are written and unlaunched, and
-  Fable takes them in that order alone.
+  2026-09-23; the five wave-3 briefs are written, and Fable takes them alone
+  in the order small features, feature vocabulary, casting cost, sight,
+  attack riders. **Small features merged 2026-09-23**: Resourceful, Naturally
+  Stealthy, Jack of All Trades, Slow Fall and Second-Story Work execute, and
+  the DM surface gained `resolve_fall`.
+
+Appended after wave three's first track (2026-09-23):
+
+- **A reroll answers a failure, and only a failure.** Heroic Inspiration's
+  "any die" was built as `on: 'any'` and taken out the same day: a
+  `test-rolled` window that opened on every check a Human made turned every
+  ordinary roll into a two-call negotiation, and both scripted DM sessions
+  said so. What that leaves to the DM: rerolling a made roll whose total
+  still matters (a Stealth check's total is the DC to find the hider), and
+  the attack-roll and damage-die halves, which land in no window a reroll
+  can answer in. Champion's Heroic Warrior keeps the `heroic-inspiration`
+  shape for the one thing still missing, a pool a turn boundary refills.
+- **A Reaction's door is its window's tool.** A holdings line for a Reaction
+  names `TAKEN_BY[window]` rather than null, so a pool whose only door is
+  `take_test_reaction` is not reported door-less; `reachability.test.ts`
+  reads the kind before the door for the same reason.
+- **A fall is landed by the table and softened by name.** `resolve_fall` is
+  DM-only because the height converts into 20d6; Slow Fall is a
+  `fall-damage-reduction` grant the faller elects on the landing, spending
+  the Reaction where a fight runs. No `creature-falling` window exists, which
+  is what Feather Fall, cast in answer to somebody else's fall, still waits
+  on.
+- **The Hide behind a larger creature hands one fact over**: the engine
+  checks size and the five feet, and names the creature; whether it stands
+  between the hider and each watcher is the table's.

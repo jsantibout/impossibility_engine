@@ -34,7 +34,7 @@ state is displayed as zero.
 | Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none |
 |---|---|---|---|---|
 | Spells in reach, not executed | 109 spells | 76 | 0 | 33 |
-| Features manual, or a pool with nothing to buy | 34 features | 28 | 0 | 6 |
+| Features manual, or a pool with nothing to buy | 29 features | 23 | 0 | 6 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 |
 | Glossary general rules nothing executes | 22 rules | 0 | 0 | 22 |
 | CR ≤ 5 stat-block items handed over or unapplied | 258 items | on 145 of 244 blocks | 0 | 99 blocks already clean |
@@ -523,7 +523,7 @@ entries in it, and the complement pinned by name. Its bracket is the level:
 an Origin feat and a Fighting Style print none and are taken at 1, so nine
 of the sixteen are in a level 1–5 character's reach.
 
-Of the 34, 23 are class or subclass features printed at level 5 or below, 10 are species or background traits and 1 are feats.
+Of the 29, 20 are class or subclass features printed at level 5 or below, 8 are species or background traits and 1 are feats.
 The snapshot of 2026-09-21 in `docs/dev/roadmap-ledger-2026-09-21.md`
 counted the first group only, and did not see the pools; the traits are in
 reach of a level 5 character too, which is where the difference in the size
@@ -534,14 +534,9 @@ comes from.
 | `a-feature-that-changes-what-a-casting-costs` | 4 | 2 |
 | `a-resource-traded-for-another` | 2 | 1 |
 | `a-bonus-an-ability-modifier-sizes` | 1 | 1 |
-| `a-bonus-narrowed-to-a-skill` | 1 | 1 |
 | `a-declared-fact-a-feature-sets` | 1 | 1 |
 | `a-requirement-on-the-armour-its-holder-is-wearing` | 1 | 1 |
-| `a-rule-the-engine-fixes-for-everybody` | 1 | 1 |
 | `an-option-re-chosen-on-a-rest` | 1 | 1 |
-| `falling` | 1 | 1 |
-| `heroic-inspiration` | 1 | 1 |
-| `jumping` | 1 | 1 |
 | `a-pool-the-proficiency-bonus-sizes` | 5 | 0 |
 | `a-benefit-that-runs-for-a-printed-span` | 4 | 0 |
 | `a-casting-paid-for-out-of-a-feature-pool` | 2 | 0 |
@@ -588,10 +583,6 @@ sums to the population.
 
 - `oath-of-devotion:sacred-weapon` — Sacred Weapon (level 3, subclass, manual)
 
-#### `a-bonus-narrowed-to-a-skill` — blocks 1, finishes 1
-
-- `bard:jack-of-all-trades` — Jack of All Trades (level 2, class, manual)
-
 #### `a-declared-fact-a-feature-sets` — blocks 1, finishes 1
 
 - `paladin:channel-divinity` — Channel Divinity (level 3, class, engine)
@@ -600,25 +591,9 @@ sums to the population.
 
 - `defense` — Defense (level 1, feat, fighting-style)
 
-#### `a-rule-the-engine-fixes-for-everybody` — blocks 1, finishes 1
-
-- `halfling:naturally-stealthy` — Naturally Stealthy (level 1, species, manual)
-
 #### `an-option-re-chosen-on-a-rest` — blocks 1, finishes 1
 
 - `elf:elven-lineage` — Elven Lineage (level 1, species, manual)
-
-#### `falling` — blocks 1, finishes 1
-
-- `monk:slow-fall` — Slow Fall (level 4, class, manual)
-
-#### `heroic-inspiration` — blocks 1, finishes 1
-
-- `human:resourceful` — Resourceful (level 1, species, manual)
-
-#### `jumping` — blocks 1, finishes 1
-
-- `thief:second-story-work` — Second-Story Work (level 3, subclass, manual)
 
 #### `a-pool-the-proficiency-bonus-sizes` — blocks 5, finishes 0
 
