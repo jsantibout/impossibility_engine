@@ -223,6 +223,9 @@ const AUDIT: readonly {
     fates: {
       placement: expose('from_landmark'),
       forced: expose('forced'),
+      usingGrant: because(
+        'SRD Tactical Shift\'s "you can move up to half your Speed without provoking Opportunity Attacks", spent out of feet a feature handed the turn rather than out of the Speed. A decision rather than a number, and `packages/tools` publishes it as `using_grant`. It is not on **this** surface because this one is a benchmark held fixed: neither benchmark character has a feature that hands a move over, so a published field would be refused every value it could be sent today',
+      ),
       difficultFeet: because(
         'a DM ruling that this ground costs extra. Legitimate authorship rather than a forbidden number, and no beat in either benchmark asked for it — the one persistent area that would, Grease, prints its Difficult Terrain in `unmodelled`',
       ),

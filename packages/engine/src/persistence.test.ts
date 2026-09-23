@@ -271,6 +271,7 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'mounted',
   'movement-completed',
   'movement-declared',
+  'movement-granted',
   'movement-spent',
   'obscurement-declared',
   'opportunity-answered',

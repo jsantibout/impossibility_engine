@@ -1303,6 +1303,23 @@ export interface SelfHealFeature extends HealAmount {
   readonly action: 'action' | 'bonus-action';
   /** The pool a use comes out of. */
   readonly pool: string;
+  /**
+   * Feet a use of this hands the turn, where a feature the holder has says so.
+   *
+   * SRD Tactical Shift, compiled here rather than read at the use for the
+   * reason every other menu is: the command reads a sheet and never a class
+   * table, so the number on the event is pinned rather than looked up.
+   *
+   * **Absent for a holder who has not got the feature that hands it over**,
+   * which is what makes a level 1 Fighter's Second Wind the Second Wind it
+   * always was: creation compiles it only where the named feature is one the
+   * character really earned.
+   */
+  readonly handsMove?: {
+    /** The feature whose sentence hands it over; also the grant's source. */
+    readonly feature: string;
+    readonly share: 'half-speed';
+  };
 }
 
 /**

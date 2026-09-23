@@ -51,6 +51,7 @@ import {
   recoveryCap,
   selfHealAddend,
   sheetAsItStands,
+  speedOf,
 } from '../standing.js';
 import { type Supply } from './casting.js';
 import { creatureOf, reachedBy, spendFor, unknownCreature } from './command.js';
@@ -480,6 +481,33 @@ export function useSelfHeal(
       amount: 1,
       ...(stamp === null ? {} : { command: stamp }),
     });
+
+    // **And the feet a later feature hands over for using it.** SRD Tactical
+    // Shift: "Whenever you activate your Second Wind **with a Bonus Action**,
+    // you can move up to half your Speed without provoking Opportunity
+    // Attacks." Both halves of that condition are checked here: the slot the
+    // use costs, and whether this character has the feature at all — which
+    // creation answered by compiling the rider or not.
+    //
+    // **Before the healing and after the use**, because it is part of what the
+    // use buys rather than part of what the dice say: a heal prevented by a
+    // Chill Touch still hands the feet over, which is what the sentence says.
+    // Outside combat there is no turn to hand them to, and nothing is written.
+    const hands = definition.handsMove;
+    if (hands !== undefined && definition.action === 'bonus-action' && state.combat !== null) {
+      // Half of the Speed the feature was used at, floored — one number,
+      // pinned onto the event, so a Speed that changes later moves no foot of
+      // what has already been handed over.
+      const feet = Math.floor(speedOf(state, id) / 2);
+      if (feet > 0) {
+        events.push({
+          type: 'movement-granted',
+          id,
+          source: featureSource(hands.feature),
+          feet,
+        });
+      }
+    }
 
     const healed = rollAndHeal(state, id, definition, definition.name, supply);
     if (!healed.ok) return healed;

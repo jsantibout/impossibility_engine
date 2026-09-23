@@ -13,6 +13,7 @@ import {
   advanceTurn,
   dash,
   disengage,
+  grantMovement,
   markFeatureUsed,
   removeCombatant,
   grantTurnBudget,
@@ -74,6 +75,7 @@ export const COMBAT_EVENTS = [
   'reaction-spent',
   'budget-compelled',
   'movement-spent',
+  'movement-granted',
   'free-interaction-used',
   'utilize-taken',
   'help-given',
@@ -307,7 +309,30 @@ export function applyCombat({ state, next }: Applying, event: CombatEvent): Game
             event.id,
             event.feet,
             spendableSpeed(state, event.id),
+            undefined,
+            // Which of the two allowances this came out of, which is a fact
+            // only the command held until the event carried it: a grant's feet
+            // take nothing off the turn's own Speed, and measuring one against
+            // the other would be the fork `spendableSpeed` exists to prevent.
+            event.grant,
           ),
+        ),
+      );
+
+    // The number is the event's, pinned at the moment the feature was used:
+    // half of a Speed is half of the Speed it was used at, and `speedOf` today
+    // is a different question. So the backstop asks what the command asked —
+    // that it is this creature's turn — and takes the feet as stated.
+    case 'movement-granted':
+      return withCombat(
+        next,
+        state,
+        must(
+          event,
+          grantMovement(combatOf(state, event), event.id, {
+            source: event.source,
+            feet: event.feet,
+          }),
         ),
       );
 

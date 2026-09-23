@@ -704,6 +704,18 @@ export interface GrantedAction {
 }
 
 /**
+ * Feet one feature handed this turn, and what is left of them.
+ *
+ * The source is what the log calls whatever handed them over — a feature's
+ * own `feature:` source — so a refusal can say which grant had nothing left in
+ * it, and a mover can say which one they are spending.
+ */
+export interface GrantedMove {
+  readonly source: string;
+  readonly feet: number;
+}
+
+/**
  * Attacks bought outside an Attack action, and what they may be spent on.
  *
  * SRD Flurry of Blows: "You can expend 1 Focus Point to make two Unarmed
@@ -771,6 +783,34 @@ export interface TurnBudget {
    * down rather than discovered.
    */
   readonly movementGained: number;
+  /**
+   * Feet a feature **handed** this turn, and what handed them over.
+   *
+   * SRD Tactical Shift: "Whenever you activate your Second Wind with a Bonus
+   * Action, you can move up to half your Speed without provoking Opportunity
+   * Attacks."
+   *
+   * **A third counter, and neither of its two neighbours could be it.**
+   * {@link movementGained} is a Dash: feet *added to the allowance*, spent out
+   * of {@link movementSpent} like any other and provoking exactly as walking
+   * does. `MoveCommand.forced` is the other half of what this needs — no Speed
+   * and no Opportunity Attacks — and it is movement somebody else is doing to
+   * you, so it also legalises ending in an occupied space, which SRD forbids
+   * only *willingly* and a Tactical Shift is entirely willing.
+   *
+   * So what is handed over is its own thing: feet spent out of nothing, that
+   * provoke nobody and are still the creature's own move.
+   *
+   * **A list with a source, for {@link extraActions}' reason.** Each is a
+   * sentence somebody printed, the refusal has to be able to name what would
+   * have paid for a move, and a mover states which grant they are spending —
+   * because two features handing over feet on one turn is a thing the
+   * vocabulary should not have to have an opinion about.
+   *
+   * Empty on a fresh budget: the sentence is about the turn the feature was
+   * used on and nothing carries a foot of it into the next.
+   */
+  readonly grantedMoves: readonly GrantedMove[];
   /**
    * Attacks left in the Attack action, or null if it has not been taken.
    *
@@ -891,6 +931,7 @@ const fullBudget = (): TurnBudget => ({
   grantedAttacks: null,
   movementSpent: 0,
   movementGained: 0,
+  grantedMoves: [],
   attacksRemaining: null,
   disengaged: false,
   freeInteraction: true,
@@ -1466,6 +1507,50 @@ export function dash(
 }
 
 /**
+ * Hand this turn a number of feet that spend no Speed.
+ *
+ * SRD Tactical Shift, and the shape {@link grantTurnBudget} has one field
+ * along: only a combat event writes a budget, so only a combat event can add
+ * to one — see {@link GrantedAction} for why that rule exists.
+ *
+ * **A second grant from the same source replaces the first rather than
+ * stacking**, which is the rule every sourced grant in this engine keeps: the
+ * sentence hands over half a Speed each time it fires, not half a Speed more.
+ * Nothing can fire it twice on one turn today — a pool use is a Bonus Action
+ * and a turn has one — and the rule is here rather than waiting for the
+ * feature that needs it, because the alternative is a silent accumulation.
+ *
+ * A grant of nothing is refused rather than filed: a row with no feet in it is
+ * a refusal waiting to be read as an allowance.
+ */
+export function grantMovement(
+  state: CombatState,
+  id: CharacterId,
+  grant: GrantedMove,
+): Result<CombatState> {
+  if (!Number.isFinite(grant.feet) || grant.feet <= 0) {
+    return err('bad_distance', `${grant.feet} is not a number of feet to hand over`);
+  }
+
+  const budget = requireTheirTurn(state, id);
+  if (!budget.ok) return budget;
+
+  return ok(
+    withBudget(
+      state,
+      id,
+      {
+        grantedMoves: [
+          ...budget.value.grantedMoves.filter((held) => held.source !== grant.source),
+          grant,
+        ],
+      },
+      budget.value,
+    ),
+  );
+}
+
+/**
  * SRD Disengage: no Opportunity Attacks from your movement, for this turn.
  *
  * The action each of these costs is spent by its own `action-spent` event, so
@@ -1514,6 +1599,7 @@ export function spendMovement(
   feet: number,
   allowance: number,
   spend?: Spend,
+  grant?: string,
 ): Result<CombatState> {
   if (!Number.isFinite(feet) || feet < 0) {
     return err('bad_distance', `${feet} is not a distance that can be moved`);
@@ -1528,6 +1614,37 @@ export function spendMovement(
 
   const budget = requireTheirTurn(state, id);
   if (!budget.ok) return budget;
+
+  // **Feet a feature handed over come out of that grant and out of nothing
+  // else**, which is the whole of why they are a counter rather than more
+  // allowance: `movementSpent` is untouched, so a Tactical Shift leaves the
+  // turn's own thirty feet exactly where they were. A grant nobody handed this
+  // creature is refused by name rather than falling back on the Speed, because
+  // a mover asking to spend one meant to keep their own movement.
+  if (grant !== undefined) {
+    const held = budget.value.grantedMoves.find((one) => one.source === grant);
+    if (held === undefined) {
+      return err('no_such_grant', `nothing has handed ${id} a move under ${grant} this turn`);
+    }
+    if (feet > held.feet) {
+      return err(
+        'not_enough_movement',
+        `${grant} has ${held.feet} feet left of what it handed ${id}`,
+      );
+    }
+    return ok(
+      withBudget(
+        state,
+        id,
+        {
+          grantedMoves: budget.value.grantedMoves.map((one) =>
+            one.source === grant ? { ...one, feet: one.feet - feet } : one,
+          ),
+        },
+        budget.value,
+      ),
+    );
+  }
 
   const allowed = movementLeft(budget.value, allowance);
   if (feet > allowed) {

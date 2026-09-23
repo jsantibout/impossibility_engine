@@ -620,6 +620,18 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // Darkness, the Devil's Sight that pierces it, the patch gone the read
   // after its casting ends, and the Fog Cloud a Rogue Hides in.
   'light-declared',
+  // Feet a feature handed a turn, spent out of no Speed at all. Neither log
+  // was written when a feature could hand one over: `FeatureGrant` had no
+  // movement member at all, and `combat.ts` said in as many words why movement
+  // was not a budget member — so both fixtures fold to exactly the states they
+  // always folded to, with no granted move on any budget and every
+  // `movement-spent` in them charged to the turn's own Speed.
+  // `tactical-shift.test.ts` folds it and drives it end to end: the fifteen
+  // feet half a Speed of 30 comes to, the move that spends none of the turn's
+  // own movement and provokes nobody, twenty feet refused, the occupied space
+  // it may still not end in, a grant nothing handed over, and the turn
+  // boundary that takes what is left of it away.
+  'movement-granted',
   'obscurement-declared',
   'passive-defense-granted',
   // A line a stat block prints a recharge on, spent and got back. Neither log

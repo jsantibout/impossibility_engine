@@ -846,6 +846,11 @@ describe('the whole SRD catalogue’s features validate', () => {
     expect(claims.map((entry) => entry.feature.id).sort()).toEqual([
       'cleric:improved-blessed-strikes',
       'druid:improved-elemental-fury',
+      // The third, and the first that is not an "Improved X" raising a number:
+      // SRD Tactical Shift is a rider on Second Wind's *use*, declared on the
+      // pool grant that use comes out of, so this feature has nothing of its
+      // own to declare and names the one that does.
+      'fighter:tactical-shift',
     ]);
     for (const entry of claims) {
       const sibling = POPULATION.find(

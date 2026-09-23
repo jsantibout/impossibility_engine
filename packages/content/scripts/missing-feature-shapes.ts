@@ -123,7 +123,7 @@ export const FEATURE_SHAPES = {
   'an-attack-the-class-redefines':
     'a class that changes what an attack **is**. Two of the four ways it does so are built: a `strike-style` grant redefines the die and the ability of a class\'s Unarmed Strike and of the weapons that class names, and the Bonus Action strike it hands out is paid for out of the Bonus Action the economy already holds. What is left is the other two, and they are the ones that touch the action economy or the damage itself — a damage **type** the holder chooses on each hit, and an attack traded for something else: two more Unarmed Strikes bought with a Focus Point, the swing the Light property gives that nothing pays for, a breath weapon put in an Attack action\'s place. `docs/design/characters-and-equipment.md` files the neighbouring half of the same gap — "**Extra attacks inside the Attack action.** The economy counts one Attack action, not the attacks in it".',
   'a-move-a-feature-hands-its-holder':
-    'a move a feature gives away, outside the turn\'s allowance and outside anybody\'s command. `docs/design/space-and-areas.md` records the neighbouring half — "forced movement passes `forced: true`" — and that is a move somebody makes to somebody else. Half your Speed as part of a Bonus Action, a Withdraw that provokes nothing, a Step of the Wind that carries an ally: each is movement no grant kind can offer.',
+    'a move a feature gives away, outside the turn\'s allowance and outside anybody\'s command. `docs/design/space-and-areas.md` records the neighbouring half — "forced movement passes `forced: true`" — and that is a move somebody makes to somebody else. **The counter is built now and the vocabulary is still one sentence wide**: `TurnBudget.grantedMoves` holds feet a feature handed the turn, spent out of no Speed, provoking nobody, and refused where nothing handed them over, and SRD Tactical Shift is the sentence that walks through it — declared on the `heals` block of the use it rides on, which is `recoversSooner`\'s shape one field along. What is left is every sentence that block cannot carry: a move that is not a rider on a pool use at all, one that provokes nothing *for the rest of the turn* rather than for the move it pays for, and one that carries somebody **else** — a Step of the Wind\'s ally is a second creature moving, which no grant on one holder can say.',
   'a-speed-a-feature-reduces':
     'a Speed taken **away** from another creature. packages/engine/src/standing.ts draws the line on the member that adds one — "Speed *reductions* are not this member\'s business" — and files what does reduce a Speed under the condition layer, where nothing but Exhaustion writes one. A Hamstring Blow that takes fifteen feet off a target until your next turn has the arithmetic and no writer.',
   'a-modifier-a-feature-puts-on-another-creature':
@@ -556,13 +556,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'Defense is the one left',
       why: 'table',
       note: 'three of the four feats are executed now and the fourth is its own feat’s debt; recording and validating the choice is all this feature ever claimed, and that has not changed.',
-    },
-  ],
-  'fighter:tactical-shift': [
-    {
-      clause: 'The free half-Speed move on a Second Wind',
-      why: 'a-move-a-feature-hands-its-holder',
-      note: 'Instinctive Pounce’s shape on a second class.',
     },
   ],
   'fighter:studied-attacks': [

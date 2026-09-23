@@ -1632,7 +1632,21 @@ export type GameEvent =
   | { readonly type: 'action-spent'; readonly id: CharacterId }
   | { readonly type: 'bonus-action-spent'; readonly id: CharacterId }
   | { readonly type: 'reaction-spent'; readonly id: CharacterId }
-  | { readonly type: 'movement-spent'; readonly id: CharacterId; readonly feet: number }
+  | {
+      readonly type: 'movement-spent';
+      readonly id: CharacterId;
+      readonly feet: number;
+      /**
+       * The grant these feet came out of, where they came out of one.
+       *
+       * SRD Tactical Shift's half a Speed is spent from `TurnBudget.grantedMoves`
+       * and takes nothing off the turn's own movement, so the reducer has to
+       * know which of the two a `movement-spent` is — and only the command did.
+       * Absent is the turn's own Speed, which is what every log written before
+       * a feature could hand one over says.
+       */
+      readonly grant?: string;
+    }
   /**
    * A slot of somebody's turn that a **spell** used up.
    *
@@ -1716,6 +1730,29 @@ export type GameEvent =
       readonly type: 'free-interaction-used';
       readonly id: CharacterId;
       readonly command?: CommandStamp;
+    }
+  /**
+   * Feet a feature handed this turn, spent out of no Speed at all.
+   *
+   * SRD Tactical Shift: "Whenever you activate your Second Wind with a Bonus
+   * Action, you can move up to half your Speed without provoking Opportunity
+   * Attacks."
+   *
+   * **The number is pinned rather than derived**, which is the rule every
+   * command's event follows: half of a Speed is half of the Speed the feature
+   * was used at, and a Speed that changes later must not move feet already
+   * handed over. The fold spends what the event says.
+   *
+   * It carries no `command` stamp: it is never the only event the use writes,
+   * and the `resource-spent` beside it carries the id — the rule `useSelfHeal`
+   * already keeps about where a stamp belongs.
+   */
+  | {
+      readonly type: 'movement-granted';
+      readonly id: CharacterId;
+      /** What handed them over, which is what a move names to spend them. */
+      readonly source: string;
+      readonly feet: number;
     }
   /**
    * The Utilize action, taken.

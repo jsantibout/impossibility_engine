@@ -375,6 +375,20 @@ function reachOf(
       : { how: 'at-creation', why };
   }
 
+  // A feature that declares nothing of its own and names the one whose
+  // declaration executes it. SRD Tactical Shift is the first of these in a
+  // level 1\u20135 character's reach: its sentence rides on a use of Second
+  // Wind, so it is reached through Second Wind's own door \u2014 and the feet it
+  // hands over are spent by naming the grant on `move`.
+  if (feature.executedBy !== undefined) {
+    const host = sheet.features.find((one) => one.feature === feature.executedBy);
+    if (host?.spentBy != null) return { how: 'spendable', door: host.spentBy };
+    return {
+      how: 'unreachable',
+      why: `it is executed by ${feature.executedBy}, which names no tool`,
+    };
+  }
+
   if (feature.grantsSubclass === true) {
     return { how: 'at-creation', why: 'the subclass, chosen when the character is made' };
   }

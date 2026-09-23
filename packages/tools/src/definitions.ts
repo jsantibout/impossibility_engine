@@ -2015,6 +2015,13 @@ const MOVE = tool({
         .describe(
           'The 5-foot spaces this move passed through, in order, ending where it ends. Send it when a move came back `route_required`: the same call again with this filled in is the whole of the answer. Not the answer to `single_steps_required`, which wants the walk re-sent as several calls of one space each.',
         ),
+      using_grant: z
+        .string()
+        .min(1)
+        .optional()
+        .describe(
+          'Spend feet a feature handed this turn instead of the creature\u2019s own Speed \u2014 SRD Tactical Shift is "whenever you activate your Second Wind with a Bonus Action, you can move up to half your Speed without provoking Opportunity Attacks". `sheet` reports what a creature holds and the feature that handed the feet over is the name to send here. The move spends none of the turn\u2019s own movement and provokes nobody, and it may still not end in a space somebody is standing in: that part is what `forced` allows and this is not forced. A grant nothing handed this creature is refused rather than quietly charged to their Speed.',
+        ),
     })
     .and(placementSchema),
   run: (context, args) =>
@@ -2026,6 +2033,7 @@ const MOVE = tool({
         {
           placement: placementOf(args),
           ...(args.forced === true ? { forced: true } : {}),
+          ...(args.using_grant === undefined ? {} : { usingGrant: args.using_grant }),
           ...(args.mode === undefined ? {} : { mode: args.mode }),
           ...(args.jump === undefined
             ? {}
