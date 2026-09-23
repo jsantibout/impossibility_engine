@@ -70,6 +70,13 @@ export function recordD20Test(
     natural: result.natural,
     total: result.total,
     ...(result.modeSources.length === 0 ? {} : { modes: result.modeSources }),
+    // **And the throw this one replaced.** `D20TestResult.supersedes` is
+    // filled two ways — by `rerollTest`, after a Reaction, and by the pipeline
+    // itself for a rule that costs nothing — and this is the one place the
+    // sixteen callers of this function funnel through, so both reach the log
+    // by writing nothing here twice. Omitted when nothing was superseded, so
+    // every log that carried no such field goes on not carrying one.
+    ...(result.supersedes === undefined ? {} : { supersedes: result.supersedes }),
     contributions: [
       // What is left of the modifier once every named flat bonus inside it has
       // been named: the ability, the proficiency, and whatever else the sheet

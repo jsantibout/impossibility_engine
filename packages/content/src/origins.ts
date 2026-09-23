@@ -413,8 +413,13 @@ export const HALFLING: SpeciesDefinition = {
       id: 'halfling:luck',
       name: 'Luck',
       level: 1,
-      automation: 'manual',
-      note: 'Not applied: rerolling a 1 on the d20 is a reroll the engine has, and only as a Reaction offered at a named window - Indomitable takes it that way. This one costs no Reaction, is not offered, and fires on the die rather than on the outcome. A DM applies the reroll, and it must be the new roll that stands.',
+      automation: 'engine',
+      note: 'Applied. "When you roll a 1 on the d20 of a D20 Test, you can reroll the die, and you must use the new roll" is a rule read after the die lands, so it is neither a roll mode nor the Reaction reroll Indomitable takes: it costs nothing, is offered by nobody and fires on the face. The grant names the face, sheetAsItStands derives it onto the sheet on every read, and the two rollers that throw a d20 for a test read it there - so it reaches every ability check, every saving throw, every attack roll, Initiative and a death saving throw without a single roll site having to remember it. Exactly one reroll: a 1 on the new die stands, because "the new roll" is the roll the test made. Under Advantage or Disadvantage it is the die the mode picked out that is thrown again and the other stands. Both faces are in the log - the first on roll-recorded supersedes, the second as the roll itself - and it never touches a face a table read out, because a stated die takes the other path.',
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        effects: [{ kind: 'reroll-test-die', on: 1 }],
+      },
     },
     {
       id: 'halfling:naturally-stealthy',

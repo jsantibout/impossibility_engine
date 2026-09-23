@@ -1385,6 +1385,10 @@ function rollTheDeathSave(
   const rolled = rollDeathSave(supply.issuer, supply.rng, creature.vitals, {
     modes: [...standing, ...(supply.modes ?? [])],
     ...(supply.bonuses === undefined ? {} : { bonuses: supply.bonuses }),
+    // SRD Luck reaches a death save like any other D20 Test, and this is the
+    // one roller handed `Vitals` rather than a sheet — so the sheet is read
+    // here and the face travels in. See `DeathSaveOptions.reroll`.
+    reroll: (sheetAsItStands(state, who) ?? creature.sheet).rerollsD20On ?? null,
   });
   if (!rolled.ok) return rolled;
 

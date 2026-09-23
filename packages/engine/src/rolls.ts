@@ -67,19 +67,85 @@ export function createRollIssuer(prefix: string, startAt = 0): RollIssuer {
 
 export interface RecordedD20 extends D20Outcome {
   readonly provenance: RollProvenance;
+  /**
+   * The roll this one replaced, where a rule threw the die again.
+   *
+   * SRD Luck: "you must use the new roll" — so the first roll is history
+   * rather than a choice, and the whole of it is kept here so the log can show
+   * what was given up. It carries its own provenance, because the two throws
+   * are two rolls and a reader that saw one id for both could not tell which
+   * face the engine actually used.
+   */
+  readonly superseded?: RecordedD20;
 }
 
 export interface RecordedRoll extends RollOutcome {
   readonly provenance: RollProvenance;
 }
 
+/**
+ * A face of the d20 that is thrown again, and what says so.
+ *
+ * SRD Luck is the one sentence of this shape: a face rather than an outcome,
+ * a replacement rather than a mode, and no Reaction spent to do it.
+ */
+export interface D20Reroll {
+  /** SRD's "a 1 on the d20": the face the rule reaches. */
+  readonly on: number;
+  /** The feature that said so, for the log. */
+  readonly source: string;
+}
+
+/**
+ * `reroll` is a rule read **after** the die lands — see {@link D20Reroll}. The
+ * counted die is the one thrown again, which under Advantage or Disadvantage
+ * is the one the mode picked out and under neither is the only one there is;
+ * the other die stands, because the rule names "the d20 of a D20 Test" and a
+ * creature rolling two has only ever used one of them.
+ *
+ * **Once, never twice.** A 1 on the replacement stands: the sentence is about
+ * the roll a test makes and this is the roll it made, so a rule that chased
+ * its own tail would be a different sentence with no printer.
+ */
 export function rollD20Recorded(
   issuer: RollIssuer,
   rng: Rng,
   mode: RollMode,
   modifier: number,
+  reroll: D20Reroll | null = null,
 ): RecordedD20 {
-  return { ...rollD20(rng, mode, modifier), provenance: issuer.issue('engine') };
+  const first: RecordedD20 = {
+    ...rollD20(rng, mode, modifier),
+    provenance: issuer.issue('engine'),
+  };
+  if (reroll === null || first.natural !== reroll.on) return first;
+
+  // Which die counted, so the replacement lands on that one rather than on a
+  // fresh pair. Ties go to the first, which is `rollD20`'s own reading of a
+  // mode and is what keeps the two functions from disagreeing about it.
+  const counted = first.rolls.indexOf(first.natural);
+  const rolls = first.rolls.map((face, index) => (index === counted ? rng.int(20) : face));
+  const natural =
+    mode === 'advantage'
+      ? Math.max(...rolls)
+      : mode === 'disadvantage'
+        ? Math.min(...rolls)
+        : rolls[0]!;
+
+  return {
+    rolls,
+    natural,
+    mode,
+    modifier,
+    total: natural + modifier,
+    isCriticalHit: natural === 20,
+    isCriticalMiss: natural === 1,
+    // Its own id, and no note: `note` is why a roll was *overridden* by
+    // somebody, and this is the engine rolling its own dice under its own
+    // rule. What said so travels on the event, beside the face it replaced.
+    provenance: issuer.issue('engine'),
+    superseded: first,
+  };
 }
 
 /**

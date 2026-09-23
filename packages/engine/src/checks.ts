@@ -28,6 +28,7 @@ import {
   createRollIssuer,
   recordExternalD20,
   rollD20Recorded,
+  type D20Reroll,
   type RecordedD20,
   type RollIssuer,
   type RollSource,
@@ -298,6 +299,16 @@ export function rollD20Test(
   modeSources: readonly ModeSource[],
   bonuses: readonly Bonus[],
   stated?: StatedD20,
+  /**
+   * A face this roller throws again — SRD Luck. Read off the sheet by
+   * {@link resolve} rather than gathered here, because this function takes a
+   * modifier and holds no character; a caller that has a sheet passes what it
+   * says, and a caller that has none passes nothing.
+   *
+   * It cannot reach a stated die: the engine may not replace a face somebody
+   * at the table read out, and the branch below is where the two paths part.
+   */
+  reroll?: D20Reroll | null,
 ): Result<D20Roll> {
   // Nothing is rolled until the whole operation is known to be valid, so a
   // rejected roll leaves the generator and the roll counter untouched.
@@ -308,7 +319,7 @@ export function rollD20Test(
   const modifier = baseModifier + flatBonusTotal(bonuses);
   const d20 =
     stated === undefined
-      ? ok(rollD20Recorded(issuer, rng, mode, modifier))
+      ? ok(rollD20Recorded(issuer, rng, mode, modifier, reroll ?? null))
       : resolveStatedD20(issuer, stated, mode, modifier);
   // A refused face is refused before the bonus dice are thrown, so it leaves
   // the generator where it found it.
@@ -459,6 +470,11 @@ function resolve(
     modeSources,
     allBonuses,
     options.statedRoll,
+    // SRD Luck, read off the sheet the caller already handed in — see
+    // {@link CharacterSheet.rerollsD20On}. Every ability check and every
+    // saving throw this engine rolls comes through here, which is the whole
+    // reason it is a field on the sheet rather than an option at each site.
+    sheet.rerollsD20On ?? null,
   );
   if (!rolled.ok) return rolled;
 
@@ -503,6 +519,16 @@ function resolve(
     // because other effects can care what the die showed.
     success: autoFailed === null && total >= options.dc,
     margin: total - options.dc,
+    // **And the roll this one replaced, where the pipeline replaced one.**
+    // The same field `rerollTest` fills after a Reaction, filled here by a
+    // rule that costs nothing and is offered by nobody — so a reader of the
+    // result, and then of the log, sees both faces however the second one came
+    // to be thrown. The superseded *total* is the die and its modifier: the
+    // bonus dice are thrown once, after the d20 settles, so there is no
+    // earlier total that included them.
+    ...(roll.superseded === undefined
+      ? {}
+      : { supersedes: { natural: roll.superseded.natural, total: roll.superseded.total } }),
   });
 }
 

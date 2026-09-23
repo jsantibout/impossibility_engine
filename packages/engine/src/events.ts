@@ -2388,6 +2388,26 @@ export type GameEvent =
        */
       readonly stated?: StatedRoll;
       /**
+       * What an earlier throw of this same roll came to, where a rule threw
+       * the die again.
+       *
+       * **The audit-trail rule `modes` was added for, on the other axis.** A
+       * roll that came out 14 because a 1 was thrown again is a different fact
+       * from a roll that simply came out 14, and until this field the log
+       * could only say so when the reroll cost a Reaction: `takeTestReaction`
+       * emits a second `roll-recorded` beside the first, so Indomitable is two
+       * events. SRD Luck costs nothing, is offered by nobody and fires inside
+       * the pipeline, so it has no second event to be — and a reroll the log
+       * could not see would be exactly the silence the `modes` field closed.
+       *
+       * **Optional, and absent means what it always meant**: no roll in any
+       * log this engine has written was ever thrown twice in-pipeline, so
+       * every existing log folds unchanged and the two frozen fixtures with
+       * it. The fold reads nothing here — `roll-recorded` changes no state —
+       * which is why the field can arrive without a migration.
+       */
+      readonly supersedes?: { readonly natural: number; readonly total: number };
+      /**
        * The command that produced it, for a command that rolls and may miss.
        *
        * `resolveAttack` needs somewhere to stamp its identity that happens

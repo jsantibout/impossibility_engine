@@ -1352,6 +1352,17 @@ export function resolveAttack(
         ...namedFlat.map((bonus) => ({ source: bonus.source, amount: bonus.flat ?? 0 })),
       ],
       outcome: attack.value.hit ? 'hit' : 'miss',
+      // The face this roll replaced, where a rule threw the die again — the
+      // same field `recordD20Test` writes for a check or a save, written here
+      // because this event is built by hand. See `roll-recorded.supersedes`.
+      ...(attack.value.roll.superseded === undefined
+        ? {}
+        : {
+            supersedes: {
+              natural: attack.value.roll.superseded.natural,
+              total: attack.value.roll.superseded.total,
+            },
+          }),
       // Where the d20 came from, when it was not this engine. Absent for every
       // roll anything can make today, and read off the roll rather than
       // assumed — see `StatedRoll` in `events.ts` for why the field is here

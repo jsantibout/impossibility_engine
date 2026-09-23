@@ -2,7 +2,7 @@ import { err, ok, type Result, type RollMode } from '@ie/shared';
 import type { DieEffect, Rng } from './dice.js';
 import type { Bonus, ModeSource } from './bonuses.js';
 import { rollD20Test } from './checks.js';
-import { type RecordedD20, type RollIssuer } from './rolls.js';
+import { type D20Reroll, type RecordedD20, type RollIssuer } from './rolls.js';
 
 /**
  * Hit points, temporary hit points, death saving throws, and the arithmetic of
@@ -448,6 +448,16 @@ export interface DeathSaveOptions {
   readonly modes?: readonly (RollMode | ModeSource)[];
   /** Named bonuses or penalties that apply to the save. */
   readonly bonuses?: readonly Bonus[];
+  /**
+   * A face this roller throws again — SRD Luck.
+   *
+   * An option here where every other D20 Test reads it off the sheet, because
+   * a death save is the one roll in the engine made from `Vitals` rather than
+   * from a character: it is "not tied to an ability score", so this function
+   * is handed no sheet to read it from and the caller passes what the sheet
+   * said. See {@link CharacterSheet.rerollsD20On}.
+   */
+  readonly reroll?: D20Reroll | null;
 }
 
 /**
@@ -476,7 +486,15 @@ export function rollDeathSave(
     typeof m === 'string' ? { source: 'situational', mode: m } : m,
   );
 
-  const rolled = rollD20Test(issuer, rng, 0, modeSources, options.bonuses ?? []);
+  const rolled = rollD20Test(
+    issuer,
+    rng,
+    0,
+    modeSources,
+    options.bonuses ?? [],
+    undefined,
+    options.reroll ?? null,
+  );
   if (!rolled.ok) return rolled;
 
   const outcome = resolveDeathSave(v, rolled.value.roll.natural, rolled.value.total);

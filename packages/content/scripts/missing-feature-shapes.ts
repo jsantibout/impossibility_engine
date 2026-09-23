@@ -1443,13 +1443,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'a constant in the positioning rules that one trait bends for its holder.',
     },
   ],
-  'halfling:luck': [
-    {
-      clause: 'fires on the die rather than on the outcome',
-      why: 'a-roll-result-an-effect-replaces',
-      note: 'the spell map’s own id: a reroll offered by nothing and triggered by the face shown.',
-    },
-  ],
   'halfling:naturally-stealthy': [
     {
       clause: 'no feature widens the concealment a Hide asks for',

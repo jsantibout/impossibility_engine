@@ -3112,7 +3112,44 @@ export function sheetAsItStands(state: GameState, who: CharacterId): CharacterSh
   const creature = state.creatures[who];
   if (creature === undefined) return null;
   const abilities = abilityScoresOf(state, who);
-  return abilities === creature.sheet.abilities ? creature.sheet : { ...creature.sheet, abilities };
+  // **And the face this creature throws again**, folded in here for the reason
+  // the scores above are: every roller in the engine asks this function for
+  // the sheet it rolls from, so a rule that reaches the sheet reaches all of
+  // them and taking the source of it away takes the rule with it. Derived on
+  // every read rather than compiled at creation, so a ring that granted the
+  // same sentence works the day it is put on. See
+  // {@link CharacterSheet.rerollsD20On}.
+  const reroll = d20RerollFor(state, who);
+  if (abilities === creature.sheet.abilities && reroll === null) return creature.sheet;
+  return {
+    ...creature.sheet,
+    abilities,
+    ...(reroll === null ? {} : { rerollsD20On: reroll }),
+  };
+}
+
+/**
+ * The d20 face this creature's standing effects throw again, or none.
+ *
+ * **One rule, not a list**, for `standingWeaponRollRule`'s reason: two
+ * sentences that each said "reroll the die" would be a die thrown three times,
+ * which no reading of "you must use the new roll" reaches. The *lowest* face
+ * wins where two are written, because a rule about a 1 and a rule about a 2
+ * are not two chances — they are one reroll, and a holder of both would rather
+ * it were spent on the worse face. No SRD character holds two; a homebrew one
+ * that did gets an answer rather than an accident.
+ */
+function d20RerollFor(
+  state: GameState,
+  who: CharacterId,
+): { readonly on: number; readonly source: string } | null {
+  let found: { on: number; source: string } | null = null;
+  for (const { effect } of standingFor(state, who)) {
+    const grant = effect.grant;
+    if (grant.kind !== 'reroll-test-die') continue;
+    if (found === null || grant.on < found.on) found = { on: grant.on, source: effect.name };
+  }
+  return found;
 }
 
 /**

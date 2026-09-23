@@ -88,7 +88,9 @@ export function rollInitiative(
   const exhaustion = conditions === undefined ? null : exhaustionBonus(conditions);
   const bonuses = [...(options.bonuses ?? []), ...(exhaustion === null ? [] : [exhaustion])];
 
-  const rolled = rollD20Test(issuer, rng, initiativeModifier(sheet), modeSources, bonuses);
+  // SRD Initiative is a Dexterity check, so it is a D20 Test and SRD Luck
+  // reaches it — off the same sheet this function already rolls from.
+  const rolled = rollD20Test(issuer, rng, initiativeModifier(sheet), modeSources, bonuses, undefined, sheet.rerollsD20On ?? null);
   if (!rolled.ok) return rolled;
 
   return ok({ ...rolled.value, id });
