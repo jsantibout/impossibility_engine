@@ -138,45 +138,44 @@ describe('every glossary rule says truthfully whether anything runs it', () => {
    * the engine's own text — not merely absent from the barrel, because a
    * command can be reached through another and a word that is nowhere cannot.
    *
-   * Both of the rows left are named in the engine's **prose** and are still
-   * unbuilt, and each says so in its own note: two comments in `mastery.ts`
-   * say Nick is unbuilt, and the hand an attack came from is discussed in
-   * several places and recorded nowhere. So the assertion is over a **quoted
-   * literal** — what a switch arm, a union member or a lookup is made of —
-   * rather than over every occurrence of the word, and the prose is where the
-   * reading is recorded.
+   * **The table is empty, and that is the claim rather than a hole in the
+   * guard.** It is written as a loop rather than an `it.each` for exactly that
+   * reason: `it.each` over an empty table registers no test and goes green
+   * having asserted nothing, which is the failure `vitest.setup.ts` refuses
+   * outright. The guard itself is still exercised, above, against a synthetic
+   * built to be caught.
    */
-  it.each(GLOSSARY_RULES.filter((one) => one.built === null).map((one) => [one.id] as const))(
-    'has nothing that executes %s',
-    (id) => {
-      expect(ACTIONS.has(id), `${id} is a NAMED_ACTIONS member after all`).toBe(false);
-      expect(EXPORTS.has(`take${id[0]!.toUpperCase()}${id.slice(1)}`), id).toBe(false);
-      expect(executesIt(id), `${id} is quoted as a value after all`).toEqual([]);
-    },
-  );
+  it('finds nothing executing a rule the list calls missing', () => {
+    for (const one of GLOSSARY_RULES.filter((row) => row.built === null)) {
+      expect(ACTIONS.has(one.id), `${one.id} is a NAMED_ACTIONS member after all`).toBe(false);
+      expect(EXPORTS.has(`take${one.id[0]!.toUpperCase()}${one.id.slice(1)}`), one.id).toBe(false);
+      expect(executesIt(one.id), `${one.id} is quoted as a value after all`).toEqual([]);
+    }
+  });
 
   /**
-   * And `nick` is the one the engine **names and does not run**, which is the
-   * finding this population was opened for: a mastery property a level 1
-   * Rogue with a Scimitar reaches, quoted as a value nowhere and written
-   * twice in comments of `mastery.ts` saying it is unbuilt. Both halves are
-   * asserted, so building it has to come here and say so — and so does
-   * deleting the two comments that record the reading.
+   * And `nick` is the row this population was opened for: a mastery property a
+   * level 1 Rogue with a Scimitar reaches, and it was **quoted as a value in
+   * no engine source file** while the word appeared twice, in two comments of
+   * `mastery.ts` saying it was unbuilt.
+   *
+   * It is built now, and the assertion is the same one read the other way
+   * round: it is quoted where the code that applies it is, like the seven
+   * beside it, and the comments that recorded the reading are gone. Both
+   * halves still bite — a row that went back to being prose would fail this.
    */
-  it('finds the nick mastery nowhere the engine executes one', () => {
-    expect(executesIt('nick')).toEqual([]);
-    // And the other seven are quoted in the code that applies them, so the
-    // sweep is not simply blind.
-    for (const one of GLOSSARY_RULES.filter(
-      (row) => row.kind === 'mastery' && row.built !== null,
-    )) {
+  it('finds the nick mastery quoted where the engine executes it', () => {
+    expect(executesIt('nick').length).toBeGreaterThan(0);
+    // And every mastery is quoted in the code that applies it, so the sweep is
+    // not simply blind.
+    for (const one of GLOSSARY_RULES.filter((row) => row.kind === 'mastery')) {
       expect(executesIt(one.id).length, one.id).toBeGreaterThan(0);
     }
-    // The word itself is in the engine exactly twice, in two comments of
-    // `mastery.ts` that say the property is unbuilt — which is the reading
-    // this row records and the reason the guard asks for a **value** rather
-    // than a word. A build has to quote it, and quoting it fails this.
-    expect(saysIt('nick').map((path) => path.split('/').at(-1))).toEqual(['mastery.ts']);
+    // The word is in `attacks.ts` now, which is where the price of the Light
+    // property's extra attack is decided, and no longer in `mastery.ts` — Nick
+    // is not an after-the-hit rider and the comments that said it was unbuilt
+    // went with the build.
+    expect(saysIt('nick').map((path) => path.split('/').at(-1))).toContain('attacks.ts');
   });
 
   /**
@@ -184,9 +183,9 @@ describe('every glossary rule says truthfully whether anything runs it', () => {
    * repository's rule for a hand list: a row joining or leaving it is
    * somebody's reading and should have to say so here.
    */
-  it('holds only what is still waiting', () => {
+  it('has nothing left waiting', () => {
     const missing = GLOSSARY_RULES.filter((one) => one.built === null).map((one) => one.id);
-    expect(missing.sort()).toEqual(['nick', 'two-weapon-fighting']);
+    expect(missing.sort()).toEqual([]);
   });
 
   /** And every one of the eight masteries the SRD prints has a row. */

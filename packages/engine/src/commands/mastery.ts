@@ -15,10 +15,12 @@
  * Vicious Mockery and Guiding Bolt already spend. Cleave is a second attack
  * roll, which is the attack command itself.
  *
- * **Two of the eight are not here.** Nick redirects the extra attack the Light
- * property gives and nothing in the engine pays for one; the Long Rest
- * re-choice is an option re-answered, which a choice frozen at creation is
- * not.
+ * **Two of the eight are not here, and only one of them is unbuilt.** Nick is
+ * not an after-the-hit rider at all: it changes what **pays** for the extra
+ * attack the Light property buys, which is the action economy's, so it lives
+ * in `commands/attacks.ts` beside the swing it re-prices. The Long Rest
+ * re-choice is the one that is not built, and it is an option re-answered,
+ * which a choice frozen at creation is not.
  */
 import { err, ok, type Ability, type CharacterId, type Result } from '@ie/shared';
 import type { WeaponMastery } from '@ie/srd';
@@ -136,7 +138,9 @@ export function masteryAfterHit(
     case 'topple':
       return topple(state, supply, hit);
     // Cleave is a second attack roll and Graze answers a miss, so neither is
-    // an after-the-hit rider; Nick is the action economy's and is unbuilt.
+    // an after-the-hit rider; Nick is the action economy's and is priced by
+    // `resolveAttack`'s `lightAttack` rather than by anything that happens
+    // after a blow lands.
     default:
       return ok(NOTHING);
   }

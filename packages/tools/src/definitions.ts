@@ -2119,7 +2119,13 @@ const ATTACK = tool({
     mastery: masterySchema
       .optional()
       .describe(
-        'Use the mastery property of the weapon in hand — Cleave, Graze, Push, Slow and Topple are written "you can", so silence declines them. An empty object uses whatever the weapon prints. A property this character has not unlocked is refused rather than quietly skipped. Nick is the one exception in the other direction: it is accepted and does nothing, because the extra attack it redirects is not paid for by anything the engine has.',
+        'Use the mastery property of the weapon in hand — Cleave, Graze, Push, Slow and Topple are written "you can", so silence declines them. An empty object uses whatever the weapon prints. A property this character has not unlocked is refused rather than quietly skipped. Nick is not asked for here: it changes what **pays** for the Light property’s extra attack rather than what a blow does, so it is `light_attack: "attack-action"` below.',
+      ),
+    light_attack: z
+      .enum(['bonus-action', 'attack-action'])
+      .optional()
+      .describe(
+        'Make this swing the extra attack the **Light** property buys. SRD: "When you take the Attack action on your turn and attack with a Light weapon, you can make one extra attack as a Bonus Action later on the same turn. That extra attack must be made with a different Light weapon, and you don’t add your ability modifier to the extra attack’s damage unless that modifier is negative." So take the Attack action first, then send this with the **other** Light weapon — a different catalogue id, or the same one where the character really has two copies of it. `"attack-action"` is SRD Nick, which pays for the same extra attack out of the Attack action instead and leaves the Bonus Action free; it is refused unless the weapon prints that property and the character has unlocked it. One extra attack a turn either way, and the ability modifier comes back only for a character with the Two-Weapon Fighting fighting style.',
       ),
     onHit: hitRiderSchema
       .optional()
@@ -2142,6 +2148,7 @@ const ATTACK = tool({
           ...(args.finesseAbility === undefined ? {} : { finesseAbility: args.finesseAbility }),
           ...(args.hold === true ? { hold: true } : {}),
           ...(args.mastery === undefined ? {} : { mastery: masteryOf(args.mastery) }),
+          ...(args.light_attack === undefined ? {} : { lightAttack: args.light_attack }),
           ...(args.onHit === undefined ? {} : { onHit: args.onHit }),
           ...identity(context),
         },

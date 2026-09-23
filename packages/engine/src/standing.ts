@@ -596,6 +596,30 @@ export type StandingGrant =
    */
   | { readonly kind: 'evasion' }
   /**
+   * The ability modifier put back on the Light property's extra attack.
+   *
+   * SRD Two-Weapon Fighting: "When you make an extra attack as a result of
+   * using a weapon that has the **Light** property, you can add your ability
+   * modifier to the damage of that attack if you aren't already adding it."
+   *
+   * **A bare marker, for `evasion`'s reason.** It carries no number and no
+   * narrowing because the sentence has none: there is one extra attack the
+   * Light property buys, the property's own clause takes the modifier off it,
+   * and this puts it back. Anything this grant could carry would be a rule the
+   * book does not print.
+   *
+   * **It is named after the rule and not after the feat**, which is what keeps
+   * it out of the origin sweep: `lightAttack` is a field on a swing, the Light
+   * property is the equipment table's, and the feat is one thing that may
+   * carry this — a homebrew class feature saying the same sentence carries it
+   * too, and the reader cannot tell them apart.
+   *
+   * "if you aren't already adding it" is the one clause with nowhere to bite:
+   * the Light property's own sentence has already taken the modifier off, so
+   * there is never a case where it is still on.
+   */
+  | { readonly kind: 'light-extra-attack-damage' }
+  /**
    * SRD Cunning Action, SRD Adrenaline Rush: a rule about the action economy
    * that a **feature** states about its own holder.
    *
@@ -3745,6 +3769,21 @@ function adjacentAllyOf(
  * Asked of the *target* rather than the caster, which is what makes it a
  * defence: the Rogue standing in the Fireball is the one who evades it.
  */
+/**
+ * Whether this creature adds its ability modifier to the Light property's
+ * extra attack after all.
+ *
+ * SRD Two-Weapon Fighting, read the way every standing grant is read —
+ * **from state, on every read** — so a feat gained at level 4 reaches a
+ * character already in a log and an item that conferred it stops the moment
+ * it is taken off.
+ */
+export function addsAbilityToLightExtraAttack(state: GameState, who: CharacterId): boolean {
+  return standingFor(state, who).some(
+    ({ effect }) => effect.grant.kind === 'light-extra-attack-damage',
+  );
+}
+
 export function evadesHalfDamage(
   state: GameState,
   who: CharacterId,

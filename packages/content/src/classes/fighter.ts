@@ -150,7 +150,7 @@ export const FIGHTER: ClassDefinition = {
       name: 'Fighting Style',
       level: 1,
       automation: 'manual',
-      note: 'The chosen Fighting Style feat is recorded and validated against the SRD list. Archery and Great Weapon Fighting are applied: each carries a standing grant, compiled onto the sheet at creation and read at the swing. The other two of the four are still a note rather than a grant, and on different blockers - Defense wants a requirement about wearing armour, and Two-Weapon Fighting a fact no attack carries.',
+      note: 'The chosen Fighting Style feat is recorded and validated against the SRD list. Archery and Great Weapon Fighting are applied: each carries a standing grant, compiled onto the sheet at creation and read at the swing. Three of the four are applied now: Two-Weapon Fighting carries a standing grant too, which puts the ability modifier back on the extra attack the Light property buys. Defense is the one left, and it wants a requirement about wearing armour.',
       choice: { kind: 'feat', choose: 1, category: 'fighting-style' },
     },
     {
@@ -176,7 +176,7 @@ export const FIGHTER: ClassDefinition = {
       name: 'Weapon Mastery',
       level: 1,
       automation: 'engine',
-      note: 'SRD: "Your training with weapons allows you to use the mastery properties of three kinds of Simple or Martial weapons of your choice ... as shown in the Weapon Mastery column of the Fighter Features table." Three kinds at level 1 and six at 16, which is the column rather than a number. Executed: the weapons chosen are recorded on the sheet, and the properties that follow from the record run on the attack — Graze\'s damage on a miss, Cleave\'s second swing, Push\'s forced move, Slow\'s ten feet, Topple\'s Constitution save, and Sap and Vex, which the SRD writes as things that simply happen rather than things you can do. Two clauses are still the table\'s: Nick redirects the extra attack the Light property gives, and nothing pays for one; and changing a choice on a Long Rest is an option re-answered, which a choice frozen at creation is not.',
+      note: 'SRD: "Your training with weapons allows you to use the mastery properties of three kinds of Simple or Martial weapons of your choice ... as shown in the Weapon Mastery column of the Fighter Features table." Three kinds at level 1 and six at 16, which is the column rather than a number. Executed: the weapons chosen are recorded on the sheet, and the properties that follow from the record run on the attack — Graze\'s damage on a miss, Cleave\'s second swing, Push\'s forced move, Slow\'s ten feet, Topple\'s Constitution save, and Sap and Vex, which the SRD writes as things that simply happen rather than things you can do. One clause is still the table\'s: changing a choice on a Long Rest is an option re-answered, which a choice frozen at creation is not. Nick was the other and is executed now — it re-prices the extra attack the Light property buys, out of the Attack action instead of a Bonus Action, which is `resolveAttack`’s `lightAttack` rather than anything that happens after a blow lands.',
       grants: { kind: 'weapon-mastery' },
       choice: { kind: 'weapon', chooseByLevel: WEAPON_MASTERY_COUNT },
     },

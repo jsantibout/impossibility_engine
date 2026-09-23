@@ -264,6 +264,9 @@ describe('startCombat', () => {
       grantedAttacks: null,
       disengaged: false,
       freeInteraction: true,
+      // Null: SRD Light's extra attack is measured against the Attack action
+      // this turn swung, and a fresh turn has swung nothing.
+      lightWeaponSwung: null,
       spellSlotSpentOnTurn: null,
       // Empty rather than absent: a once-per-turn feature records the turn it
       // was used on, and nothing has been used yet.

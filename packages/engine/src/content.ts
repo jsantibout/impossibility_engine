@@ -317,6 +317,11 @@ export const ITEM_EFFECT_KINDS: ReadonlySet<string> = new Set([
   'condition-immunity',
   'damage-resistance',
   'evasion',
+  // Read from an item exactly as it is read from a feature: the gatherer is
+  // `standingFor`, and `addsAbilityToLightExtraAttack` walks it. No SRD item
+  // prints the sentence today; the list's rule is what a reader reaches, not
+  // what the book happens to have written.
+  'light-extra-attack-damage',
   'attack-damage',
   'sense',
   // The one grant beside a sense that the sight question reads, and admitted

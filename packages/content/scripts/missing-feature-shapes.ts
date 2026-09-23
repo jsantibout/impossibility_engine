@@ -134,8 +134,6 @@ export const FEATURE_SHAPES = {
     'a rule about the action economy that a **feature** states about **somebody else**. The holder half is built and the catalogue writes it: `StandingGrant` in packages/engine/src/standing.ts carries an `action-rule` member, and `actionRulesOn` merges what a feature says with what a casting hung at every site a spend is checked — derived on every read rather than compiled onto the creature, because a stored copy "would put a permanent unconditional row into every Rogue’s state" and would reach no character already written into a log. SRD Cunning Action and SRD Adrenaline Rush are written through it. **What is left is the other direction**, and the SRD writes it on a *hit*: a rule hung on the creature you have just struck — Improved Brutal Strike stopping its Opportunity Attacks — which a casting does through an effect on its target and a feature through nothing, because a standing grant is a fact about its own holder. packages/engine/src/combat.ts used to refuse the neighbouring question about spending somebody else’s budget and no longer does — the owner’s ruling of 2026-09-22 settled it, and the module now records that "a spell may spend another creature’s budget" — so this is the narrower one left beside it, waiting on the moment that would hang the rule as much as on the reach.',
   'a-requirement-on-the-armour-its-holder-is-wearing':
     'a standing grant conditioned on the armour its holder **is** wearing. The axis exists and both of its members are the other polarity: packages/engine/src/standing.ts carries `not-wearing-heavy-armor` — "while you aren\'t wearing **Heavy** armor." — and `unarmored` — "while you aren\'t wearing armor **or wielding a Shield**." — each read off the sheet\'s two slots on every read. SRD Defense asks the opposite question, "While you\'re wearing armor, you gain a +1 bonus to Armor Class", and the Fighting Style feat that prints it says so in its own note: the arithmetic is a standing flat bonus applying to `ac` that magic armour already uses, and what is missing is the clause that would gate it. Gate G1 is where it was found, because the feats were in no population and nothing read that note.',
-  'a-hand-an-attack-came-from':
-    'which of a creature\'s two hands swung. packages/engine/src/combat.ts holds the economy this turns on — a Bonus Action is a slot and not a hand — and nothing anywhere records that an attack was the off-hand one, so the two rules the SRD hangs on it have nothing to read: Two-Weapon Fighting\'s extra swing with a Light weapon, and the **Nick** mastery property, which redirects that swing into the Attack action and is quoted in no engine source file while a level 1 Rogue with a Scimitar reaches it. The Two-Weapon Fighting feat\'s own note is the transcription of the gap and says it in one line. The hands are held — `docs/design/characters-and-equipment.md` is where what a creature is holding is written down — and what is not held is the provenance of a swing.',
   'a-roll-mode-a-feature-takes-away':
     'a mode **cancelled** rather than granted. packages/engine/src/roll-modifiers.ts builds the axis as presence — "The mode is not part of the identity" — and `combineRollModes` weighs Advantage against Disadvantage — and SRD Elusive says something else again: no attack roll may **have** Advantage against you at all, which is neither a grant of Disadvantage nor a cancellation the vocabulary can express.',
   'a-turn-boundary-payout-a-feature-owes':
@@ -555,9 +553,9 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   // — Fighter —
   'fighter:fighting-style': [
     {
-      clause: 'The other two of the four are still a note rather than a grant',
+      clause: 'Defense is the one left',
       why: 'table',
-      note: 'two of the four feats are executed now and two are their own feats’ debt; recording and validating the choice is all this feature ever claimed, and that has not changed.',
+      note: 'three of the four feats are executed now and the fourth is its own feat’s debt; recording and validating the choice is all this feature ever claimed, and that has not changed.',
     },
   ],
   'fighter:tactical-shift': [
@@ -1516,14 +1514,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'the spell map’s own id, and the same sentence the Soldier background’s Origin feat waits on: `rerollDice` is built, tested, and reached by no definition and no feature.',
     },
   ],
-  'two-weapon-fighting': [
-    {
-      clause: 'the engine does not model which hand an attack came from',
-      why: 'a-hand-an-attack-came-from',
-      note: 'the feat’s note is the transcription of the gap. The Nick mastery property waits on the same fact from the other side, which is why one id carries both.',
-    },
-  ],
-
   'soldier:savage-attacker': [
     {
       clause: 'The feat is granted and its being the right one is checked',
@@ -1669,11 +1659,7 @@ export const POOLS_ONLY_PARTLY_BOUGHT: readonly string[] = ['monk:focus'];
  * population is `stale`, a member with no line is `unrecorded`, and every
  * clause anchors in its own note exactly once.
  */
-export const FEATS_ANSWERED_FOR: readonly string[] = [
-  'defense',
-  'savage-attacker',
-  'two-weapon-fighting',
-];
+export const FEATS_ANSWERED_FOR: readonly string[] = ['defense', 'savage-attacker'];
 
 /**
  * The whole population this map answers for: the three arms together.

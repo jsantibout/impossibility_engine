@@ -233,6 +233,10 @@ export function applyCombat({ state, next }: Applying, event: CombatEvent): Game
             // and absent is a weapon, which is what every log written before the
             // field says.
             event.type === 'unarmed-strike-made' ? true : (event.unarmed ?? false),
+            // And the Light weapon the swing used, where it used one. An
+            // Unarmed Strike never does; a weapon swing says so or says
+            // nothing, which is what every log written before the field says.
+            event.type === 'unarmed-strike-made' ? null : (event.light ?? null),
           ),
         ).state,
       );

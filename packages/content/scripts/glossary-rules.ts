@@ -187,8 +187,8 @@ export const GLOSSARY_RULES: readonly GlossaryRule[] = [
     id: 'nick',
     name: 'Nick',
     kind: 'mastery',
-    built: null,
-    note: 'the mastery that makes the Light property’s extra attack part of the Attack action instead of a Bonus Action. **It is quoted as a value in no engine source file** — the word is written twice, in two comments of `mastery.ts` saying it is unbuilt, and nowhere a switch arm or a union member could read it — and a level 1 Rogue with a Scimitar reaches it — as does any level 1 character with a Dagger, a Light Hammer or a Sickle. It waits on the same thing Two-Weapon Fighting does: nothing records which hand an attack came from.',
+    built: 'resolveAttack',
+    note: 'the mastery that makes the Light property’s extra attack part of the Attack action instead of a Bonus Action, which is the second price `lightAttack` takes. It is refused to a weapon that does not print the property and to a character who has not unlocked it, and it is the same one extra attack either way — one ledger key, so a Nick cannot be followed by a Bonus Action swing. It was the mastery quoted as a value in no engine source file while a level 1 Rogue with a Scimitar reached it, which is the finding this population was opened for.',
   },
   {
     id: 'push',
@@ -231,7 +231,7 @@ export const GLOSSARY_RULES: readonly GlossaryRule[] = [
     id: 'two-weapon-fighting',
     name: 'Two-Weapon Fighting',
     kind: 'rule',
-    built: null,
-    note: 'the extra attack a Light weapon in the other hand buys as a Bonus Action, with no ability modifier on the damage unless the Fighting Style feat is held. The Two-Weapon Fighting feat’s own note says it outright: the engine does not model which hand an attack came from, so neither half of this rule has anywhere to read the fact it turns on.',
+    built: 'resolveAttack',
+    note: 'the extra attack a second Light weapon buys as a Bonus Action, with no ability modifier on the damage unless the Fighting Style feat is held — and the feat is executed too, as a standing grant that puts the modifier back. **The fact it turns on was never a hand**: the book asks which Light weapon this turn’s Attack action already swung, which is a fact about the turn, and `TurnBudget.lightWeaponSwung` records it. "A different Light weapon" is a different *copy*, so two daggers are two weapons and one dagger is not; a negative modifier is added whatever, which is the clause `withoutAbilityModifier` has always kept for Cleave.'
   },
 ];

@@ -1685,7 +1685,27 @@ export type GameEvent =
    * what every log written before it says and what every armed swing says
    * still.
    */
-  | { readonly type: 'attack-made'; readonly id: CharacterId; readonly unarmed?: boolean }
+  | {
+      readonly type: 'attack-made';
+      readonly id: CharacterId;
+      readonly unarmed?: boolean;
+      /**
+       * The catalogue id of the **Light** weapon this swing used, where it
+       * used one.
+       *
+       * SRD Light: "When you take the Attack action on your turn and attack
+       * with a Light weapon, you can make one extra attack as a Bonus Action
+       * later on the same turn." The fact the sentence turns on is which Light
+       * weapon the action swung, and the budget is where a fact about a turn
+       * lives — so the event carries it for the same reason `unarmed` is here:
+       * only the command knew, and `TurnBudget.lightWeaponSwung` is the
+       * reducer's to write.
+       *
+       * Absent for every swing with anything else, which is what every log
+       * written before the field says and what a Greatsword says still.
+       */
+      readonly light?: string;
+    }
   | { readonly type: 'dash-taken'; readonly id: CharacterId; readonly command?: CommandStamp }
   | {
       readonly type: 'disengage-taken';

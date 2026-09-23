@@ -212,7 +212,7 @@ describe('the ledger population is the four arms together', () => {
    * its own note — and the complement is pinned by name, so a feat joining
    * or leaving is somebody's reading rather than a silent drift.
    */
-  it('answers for the three feats whose own notes record a debt', () => {
+  it('answers for the two feats whose own notes record a debt', () => {
     expect([...FEATS_ANSWERED_FOR]).toEqual([...FEATS_ANSWERED_FOR].sort());
     const feats = new Map(SRD_CONTENT.feats.map((one) => [one.id, one]));
     for (const id of FEATS_ANSWERED_FOR) {
@@ -223,8 +223,10 @@ describe('the ledger population is the four arms together', () => {
       expect(entry, id).toBeDefined();
       expect(unanchoredFeatureClauses(id, entry ?? []), id).toEqual([]);
     }
-    // And the six in reach this list does **not** answer for, by name. Each
-    // says in its own note that the whole of the feat is applied.
+    // And the seven in reach this list does **not** answer for, by name. Each
+    // says in its own note that the whole of the feat is applied — Two-Weapon
+    // Fighting most recently, which left this list when the extra attack the
+    // Light property buys became a swing a command takes.
     const inReach = SRD_CONTENT.feats
       .filter((one) => (one.minimumLevel ?? 1) <= 5)
       .map((one) => one.id)
@@ -237,6 +239,7 @@ describe('the ledger population is the four arms together', () => {
       'great-weapon-fighting',
       'magic-initiate',
       'skilled',
+      'two-weapon-fighting',
     ]);
   });
 

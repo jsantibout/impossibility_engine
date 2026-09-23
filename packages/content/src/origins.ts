@@ -968,7 +968,12 @@ export const FIGHTING_STYLE_FEATS: readonly FeatDefinition[] = [
     category: 'fighting-style',
     requires: { kind: 'none' },
     repeatable: false,
-    note: 'Adding the ability modifier to the off-hand attack is not applied; the engine does not model which hand an attack came from.',
+    grants: {
+      kind: 'standing',
+      reach: 'self',
+      effects: [{ kind: 'light-extra-attack-damage' }],
+    },
+    note: 'Applied. SRD: "When you make an extra attack as a result of using a weapon that has the Light property, you can add your ability modifier to the damage of that attack if you aren\u2019t already adding it." The extra attack the Light property buys is a swing `resolveAttack` takes now \u2014 `lightAttack` says which price pays for it \u2014 and the property\u2019s own clause takes the modifier off its damage, which this puts back. The note used to say the engine did not model which hand an attack came from; the book never asks which hand, it asks which Light weapon this turn\u2019s Attack action already swung, and the turn budget records that.',
   },
 ];
 

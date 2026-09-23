@@ -792,6 +792,31 @@ export interface TurnBudget {
   /** SRD: one free object interaction per turn; a second needs Utilize. */
   readonly freeInteraction: boolean;
   /**
+   * The Light weapon this turn's Attack action has swung, or null.
+   *
+   * SRD Light: "When you take the Attack action on your turn and attack with a
+   * **Light** weapon, you can make one extra attack as a Bonus Action later on
+   * the same turn. That extra attack must be made with a **different** Light
+   * weapon."
+   *
+   * **A per-turn record and not a hand**, which is the whole of why this field
+   * closes a gap two notes had filed as "nothing records which hand an attack
+   * came from". The SRD has no off-hand: what the sentence asks is which Light
+   * weapon this turn's Attack action already used, and the only place a fact
+   * about a turn can live is the turn's own budget. A hand model would have
+   * been a second answer to a question the book never asks.
+   *
+   * **Written only by a swing of the Attack action**, which is the clause's
+   * own condition — attacks something else bought (SRD Flurry of Blows) are
+   * not the Attack action and do not open the allowance. The *first* such
+   * swing wins, because that is the weapon the sentence is about and a later
+   * swing with a second Light weapon is already the extra attack's business.
+   *
+   * Null on a fresh budget, so the allowance dies with the turn that earned
+   * it: "later on the same turn" and nothing after it.
+   */
+  readonly lightWeaponSwung: string | null;
+  /**
    * Which turn this creature last expended a spell slot on, or null.
    *
    * SRD: "On a turn, you can expend only one spell slot to cast a spell." Note
@@ -869,6 +894,7 @@ const fullBudget = (): TurnBudget => ({
   attacksRemaining: null,
   disengaged: false,
   freeInteraction: true,
+  lightWeaponSwung: null,
   spellSlotSpentOnTurn: null,
   featureUsedOnTurn: {},
 });
@@ -1287,9 +1313,21 @@ export function spendAttack(
   conditions?: ConditionState,
   spend?: Spend,
   unarmed = false,
+  light: string | null = null,
 ): Result<{ readonly state: CombatState; readonly tookAction: boolean }> {
   const budget = requireTheirTurn(state, id);
   if (!budget.ok) return budget;
+
+  /**
+   * SRD Light, recorded where the Attack action is paid for.
+   *
+   * The **first** Light weapon the action swings is the one the sentence is
+   * about, so a record already standing is left alone: a second Light weapon
+   * inside one Attack action is either Nick's extra attack, which spends
+   * nothing here, or a swing the allowance has already been opened by.
+   */
+  const remembering = (had: TurnBudget): Partial<TurnBudget> =>
+    light === null || had.lightWeaponSwung !== null ? {} : { lightWeaponSwung: light };
 
   // **Attacks something else bought come first**, where the swing qualifies
   // for them. A Monk who flurried and then swings a Quarterstaff does not
@@ -1316,7 +1354,10 @@ export function spendAttack(
       state: withBudget(
         state,
         id,
-        { attacksRemaining: budget.value.attacksRemaining - 1 },
+        {
+          attacksRemaining: budget.value.attacksRemaining - 1,
+          ...remembering(budget.value),
+        },
         budget.value,
       ),
       tookAction: false,
@@ -1354,7 +1395,7 @@ export function spendAttack(
     state: withBudget(
       taken.value,
       id,
-      { attacksRemaining: Math.max(0, attacksPerAction - 1) },
+      { attacksRemaining: Math.max(0, attacksPerAction - 1), ...remembering(after.value) },
       after.value,
     ),
     tookAction: true,
