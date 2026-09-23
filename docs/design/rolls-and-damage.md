@@ -12,6 +12,16 @@ so `snapshot()` / `restoreRng()` persist a generator mid-fight. Every die is
 individually addressable (`DieRoll`), which is what per-die effects need —
 Great Weapon Fighting's substitution, Sorcerous Burst's explosion, rerolls.
 
+**A rule may also read a whole roll.** `RollRule` / `rollUnder` judge the
+total rather than a face: SRD Savage Attacker's "roll the weapon's damage dice
+twice and use either roll" is `roll-twice-keep-either`, reached through the
+`attack-roll-rule` standing grant, applied to the weapon's own component only,
+after a critical has doubled the notation, once per turn. The losing throw's
+dice ride along `dropped` exactly as a keep clause's do, so both throws are one
+`RollOutcome` under one id and the log shows what was given up. "Either" is
+the higher, stated rather than asked — a second way for a replay to diverge is
+not a decision worth offering a caller.
+
 ## Provenance
 
 Every roll carries a `RollSource`: `engine`, `physical-dice` or
@@ -31,6 +41,17 @@ the granted modifiers on it, then from what the caller supplied. A
 `RollModifier` selects by roll family, ability, skill and relation
 (roller or target), one selector for spells and class features alike.
 Exhaustion is a flat penalty per level, not Disadvantage.
+
+**One reroll lives inside the pipeline.** SRD Halfling Luck's "reroll the die,
+and you must use the new roll" is neither a mode (weighed before the die) nor a
+Reaction at a window (Indomitable's `rerollTest`): `rollD20Recorded` rethrows
+the counted die when the sheet's `rerollsD20On` says so — derived onto
+`CharacterSheet` from a `reroll-test-die` standing grant, so every site that
+throws a D20 Test reaches it through `sheetAsItStands` with nothing to
+remember; Initiative and the death save, the two rollers handed no sheet, are
+wired by hand. The new face is used even when it is worse, a 1 on it is not
+chased, a stated die is untouched, and `roll-recorded.supersedes` keeps the
+first face so the audit trail shows both.
 
 A casting's damage may be altered before it is rolled, by the caster's own
 features and by nothing else. The alterations are gathered once, at the

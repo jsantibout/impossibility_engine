@@ -47,6 +47,16 @@ reason, requests)` when a fact is merely unknown. Every `needs-context` from a
 command names the command that would supply the fact; `invariants.test.ts`
 sweeps for both properties.
 
+A command may pin onto its event a decision the fold must not re-derive, as an
+optional field whose absence means what it always meant — which is why neither
+frozen fixture moves when one is added. `damage-taken.floor` is SRD Relentless
+Endurance's 1 hit point: the number the blow could not drive the creature
+below, what said so, and the use it cost, which `fold/vitals.ts` counts as a
+tally off the same event rather than from a second `resource-spent` (the second
+seam to write a tally, after `fold/upkeep.ts`). `roll-recorded.supersedes` is
+the face a Luck reroll replaced, and `creature-summoned.kept` the terms a
+summoner keeps a creature on.
+
 ## Debts the turn owes
 
 Interruptible resolutions live in state so a reload cannot lose them:
