@@ -462,6 +462,42 @@ export type StandingGrant =
       readonly skills: readonly Skill[];
     }
   /**
+   * SRD Sacred Weapon: "you add your Charisma modifier to attack rolls you
+   * make with that weapon (minimum bonus of +1)."
+   *
+   * The third family of one derivation, and the last of the three the SRD
+   * writes. `save-bonus` is Aura of Protection's saving throw, `check-bonus`
+   * above is the two Orders' named skills, and `flat-bonus` below is "Flat,
+   * and only flat" — so a Charisma modifier on an attack roll had no member
+   * at all, and the number was one the caller passed in.
+   *
+   * **A member beside the other two rather than a field on either**, for the
+   * reason `check-bonus` is not a widened `save-bonus`: a bonus to a saving
+   * throw, a bonus to a named skill's checks and a bonus to an attack roll are
+   * three sentences the book has never written as one, and the narrowing each
+   * carries is different — a skill list there, a kind of weapon here.
+   *
+   * **The narrowing is a kind of weapon and not an object.** SRD says "that
+   * weapon", one particular thing imbued at the moment the feature was
+   * switched on, and a standing grant is hung on a creature rather than on an
+   * object — `GrantedWeaponRider` is the one record keyed on a weapon's id and
+   * only a casting writes one. So the sentence reaches the weapons the feature
+   * names, and a holder swinging a second Melee weapon during the minute gets
+   * the bonus the book gave the first. The feature's own note says so.
+   */
+  | {
+      readonly kind: 'attack-bonus';
+      readonly fromAbility: Ability;
+      /** SRD's "(minimum bonus of +1)", read as a floor under the modifier. */
+      readonly minimum: number;
+      /**
+       * The weapons the sentence reaches — SRD Sacred Weapon's "one **Melee**
+       * weapon that you are holding". Absent reaches every attack roll,
+       * including a spell's and a fist's.
+       */
+      readonly onlyWithWeapon?: WeaponNarrowing;
+    }
+  /**
    * A flat number added to something, with the item or feature's name on it.
    *
    * **The commonest sentence in the book, and the one shape this union did not
@@ -2247,14 +2283,29 @@ function requirementsHold(
       const level = lightAt(state, where).level;
       if (level !== 'dim' && level !== 'darkness') return false;
     }
-    // SRD glossary: "A creature is Bloodied while it has half its Hit Points
-    // or fewer remaining." Doubled rather than halved, so no rounding rule has
-    // to be invented for an odd maximum.
-    if (requirement.kind === 'while-bloodied' && creature.vitals.hp * 2 > creature.vitals.hpMax) {
+    if (requirement.kind === 'while-bloodied' && !isBloodied(creature)) {
       return false;
     }
   }
   return true;
+}
+
+/**
+ * SRD glossary: "A creature is Bloodied while it has half its Hit Points or
+ * fewer remaining."
+ *
+ * Doubled rather than halved, so no rounding rule has to be invented for an
+ * odd maximum. A function rather than a line inside `requirementsHold`,
+ * because the same sentence is printed on a stat block's own attack line —
+ * SRD Swarm of Rats bites for less "if the swarm is Bloodied" — and a second
+ * spelling of the comparison is how the two would come to disagree about an
+ * odd Hit Point maximum.
+ *
+ * A creature nobody has added is not Bloodied; it is not anything.
+ */
+export function isBloodied(creature: CreatureState | undefined): boolean {
+  if (creature === undefined) return false;
+  return creature.vitals.hp * 2 <= creature.vitals.hpMax;
 }
 
 /**
@@ -2610,7 +2661,38 @@ export function standingBonuses(
   const best = new Map<string, Bonus>();
   const withItem = context.withItem ?? null;
 
-  for (const { effect } of standingFor(state, who)) {
+  for (const { from, effect } of standingFor(state, who)) {
+    // **The ability-sized plus on an attack roll**, gathered in the same walk
+    // as the flat one because they are the same question asked of two
+    // sentences — SRD Sacred Weapon's Charisma modifier and an Archery
+    // feat's +2 both end up as a named number on the same roll.
+    //
+    // `abilityScoresOf(from)` for `save-bonus`'s reason: the modifier is the
+    // **holder's**, read off their scores as they stand, so a Paladin wearing
+    // something that sets their Charisma swings at the score they have. The
+    // two are the same creature for every sentence the book writes here, and
+    // reading the holder anyway is what keeps them from disagreeing the day
+    // one is not.
+    if (effect.grant.kind === 'attack-bonus') {
+      if (applies !== 'attack') continue;
+      if (
+        effect.grant.onlyWithWeapon !== undefined &&
+        !weaponNarrowingHolds(effect.grant.onlyWithWeapon, wielding(context))
+      ) {
+        continue;
+      }
+      const holder = state.creatures[from];
+      if (holder === undefined) continue;
+      const flat = Math.max(
+        effect.grant.minimum,
+        abilityModifier(abilityScoresOf(state, from)[effect.grant.fromAbility]),
+      );
+      const current = best.get(effect.feature);
+      if (current === undefined || (current.flat ?? 0) < flat) {
+        best.set(effect.feature, { source: effect.name, flat });
+      }
+      continue;
+    }
     if (effect.grant.kind !== 'flat-bonus') continue;
     if (!effect.grant.applies.includes(applies)) continue;
     // "Made with this magic weapon", and with no other.
@@ -3784,6 +3866,16 @@ export interface GrantedWeaponRider {
   readonly die?: string;
   /** SRD Shillelagh's offered ability, resolved to the caster's own. */
   readonly ability?: Ability;
+  /**
+   * SRD Shillelagh's "it can be Force damage or the weapon's normal damage
+   * type (your choice)" — the types offered *instead of* the weapon's own.
+   *
+   * The one field on this record that is not settled here: the other four are
+   * facts about the casting, and this is an offer the swing answers. Which of
+   * them a blow takes is named on the attack command under the spell's own
+   * name, and naming none deals what the weapon deals.
+   */
+  readonly damageTypes?: readonly string[];
 }
 
 /**
@@ -4215,25 +4307,83 @@ export interface AttackContext {
 }
 
 /**
- * Refuse a damage type the feature does not offer, before anything is rolled.
+ * Everything offering this swing a choice of damage type, by the name the
+ * choice is made under.
  *
- * A caller may choose between the types the SRD prints and may not invent one:
- * Divine Strike is Necrotic or Radiant, and a Cleric asking for Fire is asking
- * for a rule that does not exist. Checked up front, so a refusal costs neither
- * a die nor the attack.
+ * Two offerers and one map. A feature's own `attack-damage` grant is keyed by
+ * its feature id — SRD Divine Strike's Necrotic or Radiant — and a casting
+ * that imbued the weapon in hand is keyed by the **spell's** name, which is
+ * what `spellOfSource` reports a weapon rider as everywhere else. One
+ * gatherer, so the check at the door and the reader at the damage roll cannot
+ * come to disagree about what was on offer.
  */
-export function checkFeatureDamageTypes(
+function damageTypesOffered(
   state: GameState,
   who: CharacterId,
-  chosen: Readonly<Record<string, string>> | undefined,
-): Result<true> {
-  if (chosen === undefined) return ok(true);
+  weapon: Weapon | null,
+): ReadonlyMap<string, readonly string[]> {
   const offered = new Map<string, readonly string[]>();
   for (const { effect } of standingFor(state, who)) {
     if (effect.grant.kind === 'attack-damage' && effect.grant.damageTypeChoices !== undefined) {
       offered.set(effect.feature, effect.grant.damageTypeChoices);
     }
   }
+  for (const rider of weaponRidersFor(state.creatures[who], weapon)) {
+    if (rider.damageTypes !== undefined) offered.set(spellOfSource(rider.source), rider.damageTypes);
+  }
+  return offered;
+}
+
+/**
+ * The type a casting's offer puts on the weapon's own damage, or null where
+ * nobody took one.
+ *
+ * SRD Shillelagh: "it can be Force damage **or** the weapon's normal damage
+ * type (your choice)" — one type or the other, so what comes back *replaces*
+ * the weapon's rather than joining it. Naming none is how the offer is
+ * declined, which is the reading `featureDamageTypes` already takes of an
+ * absent key.
+ *
+ * The first offer that was answered wins, and no SRD weapon can carry two:
+ * Shillelagh replaces its own prior casting and Magic Weapon offers no type at
+ * all. A second would be a sentence the book does not print.
+ */
+export function weaponRiderDamageType(
+  state: GameState,
+  who: CharacterId,
+  weapon: Weapon | null,
+  chosen: Readonly<Record<string, string>> | undefined,
+): string | null {
+  if (chosen === undefined) return null;
+  for (const rider of weaponRidersFor(state.creatures[who], weapon)) {
+    if (rider.damageTypes === undefined) continue;
+    const named = chosen[spellOfSource(rider.source)];
+    if (named !== undefined && rider.damageTypes.includes(named)) return named;
+  }
+  return null;
+}
+
+/**
+ * Refuse a damage type the feature does not offer, before anything is rolled.
+ *
+ * A caller may choose between the types the SRD prints and may not invent one:
+ * Divine Strike is Necrotic or Radiant, and a Cleric asking for Fire is asking
+ * for a rule that does not exist. Checked up front, so a refusal costs neither
+ * a die nor the attack.
+ *
+ * `weapon` is the record the swing resolved, for the reason
+ * {@link weaponRidersFor} takes one: a casting's offer belongs to the object
+ * it imbued, so naming it on a swing with anything else is a choice nobody
+ * offered — the same refusal a feature the holder does not have draws.
+ */
+export function checkFeatureDamageTypes(
+  state: GameState,
+  who: CharacterId,
+  chosen: Readonly<Record<string, string>> | undefined,
+  weapon: Weapon | null = null,
+): Result<true> {
+  if (chosen === undefined) return ok(true);
+  const offered = damageTypesOffered(state, who, weapon);
 
   for (const [feature, type] of Object.entries(chosen)) {
     const allowed = offered.get(feature);

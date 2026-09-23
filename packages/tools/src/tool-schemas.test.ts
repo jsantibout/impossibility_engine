@@ -113,8 +113,8 @@ describe('toolSchemas', () => {
     // casting-cost track's one published field.
     expect(toolSchemas(player())).toHaveLength(78);
     expect(toolSchemas(dm())).toHaveLength(95);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(100861);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(121783);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(102351);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(123273);
   });
 });
 
