@@ -60,6 +60,7 @@ import { creatureOf, reachedBy, unknownCreature } from './command.js';
 import { applyConditionTo } from './conditions.js';
 import { mayAct } from './holds.js';
 import { checkBonuses, recordD20Test, savingSupport } from './rolls.js';
+import { conditionEndedBy } from './turns.js';
 
 /**
  * SRD Unarmed Strike: "a target **within 5 feet** of you".
@@ -191,7 +192,7 @@ const REPLAYED: UnarmedResolution = {
  * place sizes are ordered rather than by a literal nobody updated. Gargantuan
  * is its own answer: there is nothing above it to step to.
  */
-const oneLargerThan = (size: CreatureSize): CreatureSize =>
+export const oneLargerThan = (size: CreatureSize): CreatureSize =>
   CREATURE_SIZES[Math.min(CREATURE_SIZES.indexOf(size) + 1, CREATURE_SIZES.length - 1)]!;
 
 /**
@@ -772,6 +773,12 @@ export function escapeGrapple(
         roller: who,
         ability: command.ability,
         skill,
+        // The other half of the same sentence, off the same derivation the
+        // other check roller uses: this door exists because the book offers
+        // two abilities and `EffectCheck` holds one, and a trait that reached
+        // one door and not the other would make Strength the lucky escape.
+        // See `conditionEndedBy`.
+        aboutConditions: conditionEndedBy(state, grapple.effectKey),
       }).modes;
       const sheet = sheetAsItStands(state, who) ?? creature.sheet;
       const rolled = rollAbilityCheck(supply.issuer, supply.rng, sheet, command.ability, {

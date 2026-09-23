@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { asCharacterId, expect as unwrap, type CharacterId } from '@ie/shared';
+import { asCharacterId, expect as unwrap } from '@ie/shared';
 import {
   createCharacter,
   createRng,

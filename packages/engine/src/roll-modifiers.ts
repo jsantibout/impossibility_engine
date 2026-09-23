@@ -642,10 +642,21 @@ export function rollSelectorProblems(
         reason: `"${String(selector.condition)}" is not one of the fifteen conditions the rules glossary names`,
       });
     }
-    if (selector.roll !== 'saving-throw') {
+    // **Two families say what they are about, and the second one is new.**
+    // The refusal here used to name every roll but a save, with the ability
+    // check that ends a Grapple written into it as the next one that would
+    // say. It says now: `resolveEffectCheck` and `escapeGrapple` both derive
+    // the condition their check would end from the timer they are settling —
+    // `conditionEndedBy`, the same one line for both — so SRD Powerful Build's
+    // "Advantage on any ability check you make to end the Grappled condition"
+    // picks out exactly that check and no other Strength check its holder
+    // makes. Every other family is still refused for the reason this was: an
+    // attack roll and an Initiative roll are about nobody's condition, so a
+    // selector naming one there would match nothing for ever.
+    if (selector.roll !== 'saving-throw' && selector.roll !== 'ability-check') {
       found.push({
         code: 'condition_off_a_saving_throw',
-        reason: `only a saving throw says what it is about today, so naming a condition on a ${selector.roll} would pick out nothing for ever — the ability check that ends a Grapple is the next roll that will say, and this is the one place that refusal is written`,
+        reason: `a saving throw and the ability check that ends an effect say what they are about; a ${selector.roll} does not, so naming a condition on one would pick out nothing for ever`,
       });
     }
   }

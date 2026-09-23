@@ -369,8 +369,22 @@ export const GOLIATH: SpeciesDefinition = {
       id: 'goliath:powerful-build',
       name: 'Powerful Build',
       level: 1,
-      automation: 'manual',
-      note: 'Not applied: "Advantage on any ability check you make to end the Grappled condition" names a condition, and the condition axis a selector now carries is legal on a saving throw and refused on an ability check — no check roller says what it is about, so a grant written there would pick out nothing for ever. This is the trait the refusal names by way of apology. Counting as one size larger for carrying capacity reaches nothing either: the catalogue records a weight for every item and nothing adds them up, so there is no capacity to widen.',
+      automation: 'engine',
+      note: 'Both printed benefits are applied. "Advantage on any ability check you make to end the Grappled condition" names a condition, which is the axis a selector gained for Brave and its siblings and which was legal on a saving throw alone: no ability check said what it was about. Two of them do now - resolveEffectCheck and escapeGrapple, the two doors out of an effect, both deriving the condition from the very timer they are settling - so the grant picks out the escape and no other Strength or Dexterity check the Goliath makes, on either of the two abilities the book offers. The other half is the Carrying Capacity table, which the objects batch built: a carrying-capacity grant moves which row of it this creature reads, so a Medium Goliath carries and drags the Large figures, and nothing else about its size moves - it occupies the same space, is grappled by the same sizes and squeezes through the same gaps, because the sentence is about that table and says so.',
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        effects: [
+          {
+            kind: 'roll-mode',
+            modifier: {
+              mode: 'advantage',
+              selector: { roll: 'ability-check', relation: 'roller', condition: 'grappled' },
+            },
+          },
+          { kind: 'carrying-capacity', sizesLarger: 1 },
+        ],
+      },
     },
   ],
 };

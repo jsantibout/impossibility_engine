@@ -34,10 +34,12 @@ import {
   type GameState,
   type InventoryLine,
 } from '../events.js';
+import { standingFor } from '../standing.js';
 import { anchorNeeded, creatureOf, sceneFor, spendFor, unknownCreature } from './command.js';
 import { mayAct } from './holds.js';
 import { once } from '../idempotency.js';
 import { hasPool, remaining, type PoolDeclaration } from '../resources.js';
+import { oneLargerThan } from './unarmed.js';
 
 /**
  * Everything this creature is carrying, by catalogue id.
@@ -772,8 +774,35 @@ export function carryingCapacity(state: GameState, id: CharacterId): CarryingCap
   const creature = creatureOf(state, id);
   if (creature === null) return { carry: 0, dragLiftPush: 0 };
   const strength = creature.sheet.abilities.str;
-  const carry = strength * POUNDS_PER_STRENGTH * CAPACITY_BY_SIZE[creature.size ?? 'medium'];
+  // **SRD Powerful Build: "you count as one size larger when determining your
+  // carrying capacity."** The step is applied to the row of the table this
+  // creature reads, and to nothing else about it: it still occupies its own
+  // space, is still grappled by the same sizes and still squeezes through the
+  // same gaps, because the sentence is about this table and says so. Derived
+  // on every read, so a creature the table has since made Large reads the row
+  // above the one it is on now rather than the one it was born on.
+  const size = capacitySizeOf(state, id, creature.size ?? 'medium');
+  const carry = strength * POUNDS_PER_STRENGTH * CAPACITY_BY_SIZE[size];
   return { carry, dragLiftPush: carry * 2 };
+}
+
+/**
+ * The row of the Carrying Capacity table this creature reads, which is not
+ * always the size it is.
+ *
+ * The steps of every `carrying-capacity` grant it holds, summed rather than
+ * maximised: two sentences that each said "one size larger" are two steps, and
+ * `oneLargerThan` applied twice is what that means. Gargantuan is its own
+ * answer, so a step past the top of the list is not an error.
+ */
+function capacitySizeOf(state: GameState, id: CharacterId, own: CreatureSize): CreatureSize {
+  let steps = 0;
+  for (const { effect } of standingFor(state, id)) {
+    if (effect.grant.kind === 'carrying-capacity') steps += effect.grant.sizesLarger;
+  }
+  let size = own;
+  for (let taken = 0; taken < steps; taken++) size = oneLargerThan(size);
+  return size;
 }
 
 /** What a creature is carrying, and how much of it nobody has weighed. */

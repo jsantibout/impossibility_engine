@@ -278,11 +278,19 @@ describe('a selector can name the condition a saving throw is about', () => {
     const problems = (selector: RollSelector) =>
       rollSelectorProblems(selector, (skill) => SKILL_ABILITY[skill]).map((p) => p.code);
 
-    for (const roll of ['attack', 'ability-check', 'initiative', 'death-save'] as const) {
+    // **`ability-check` left this list**, which is the refusal's own reason
+    // coming true: it named the ability check that ends a Grapple as the next
+    // roll that would say what it is about, and two check rollers say now —
+    // see `condition-keyed-checks.test.ts` and SRD Powerful Build. The three
+    // left record no such fact and are refused exactly as they were.
+    for (const roll of ['attack', 'initiative', 'death-save'] as const) {
       expect(
         problems({ roll, relation: 'roller', condition: 'charmed' }),
       ).toContain('condition_off_a_saving_throw');
     }
+    expect(problems({ roll: 'ability-check', relation: 'roller', condition: 'grappled' })).toEqual(
+      [],
+    );
     expect(
       problems({
         roll: 'saving-throw',
