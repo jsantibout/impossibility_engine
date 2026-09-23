@@ -4047,7 +4047,15 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
       // anything, and whether the table on that sibling supplies what this
       // grant came to read. Both failures look perfectly well formed one
       // definition at a time and grant nothing at all.
-      if (feature.grants?.kind === 'standing') {
+      // Where a grant reads a **sibling's** choice, and what it reads off it.
+      //
+      // Asked of every grant kind rather than of `standing` alone, because the
+      // gate is every kind's: SRD writes "one of the following options" over a
+      // Reaction, a cantrip and a benefit alike, and a species writes the
+      // question on one trait and the answers on the later ones. Only the
+      // damage-type table below is still a `standing` grant's, because only a
+      // `standing` grant reads one.
+      if (feature.grants !== undefined) {
         const grant = feature.grants;
         const from = grant.choiceFrom;
         const chooser = from === undefined ? feature : own.get(from);
@@ -4074,11 +4082,24 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
               reason: `${feature.id} arrives at level ${feature.level} and reads a choice ${chooser.id} does not ask until ${chooser.level}, so it would grant nothing in between and say so nowhere`,
             });
           }
+          // And the gate, against the options the chooser really offers. A
+          // gate naming an option nobody can pick is never an error at any
+          // moment: the grant is simply never compiled, and nothing says why.
+          const gate = grant.onlyIfChoice;
+          const offered = chooser.choice?.kind === 'option' ? chooser.choice.from : [];
+          if (gate !== undefined && chooser.choice !== undefined && !offered.includes(gate)) {
+            problems.push({
+              field: `${where}.grants.onlyIfChoice`,
+              code: 'option_not_offered',
+              reason: `${feature.id} gates this grant on ${gate}, and ${chooser.id} offers ${offered.length === 0 ? 'no named options' : offered.join(' or ')}, so nobody could ever hold it`,
+            });
+          }
+
           // And the table, wherever it sits: a grant reading damage types out
           // of one needs every meaning to carry some. A meaning carrying
           // nothing this engine knows is legal until something reads it.
           const table = chooser.optionMeans;
-          if (table !== undefined && grant.damageTypesFromChoice === true) {
+          if (table !== undefined && grant.kind === 'standing' && grant.damageTypesFromChoice === true) {
             // The path points at the table, which is on the feature that asked
             // the question rather than on the one reading the answer.
             const at = source.features.indexOf(chooser);

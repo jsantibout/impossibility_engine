@@ -1178,13 +1178,43 @@ export function checkFeatureDefinition(
     }
   }
 
+  // A gate on an option nobody can pick — the half a definition can answer
+  // about itself, which is the half where the choice is its own.
+  //
+  // A gate that matches nothing is never an error at any moment: the character
+  // simply never gets the benefit, every pass compiles, and nothing anywhere
+  // says why. The other half — a gate reading a **sibling's** choice — is
+  // `checkContent`'s, because it needs the source this feature belongs to.
+  if (grant?.onlyIfChoice !== undefined && grant.choiceFrom === undefined) {
+    const asked = feature.choice;
+    if (asked === undefined || asked.kind !== 'option') {
+      found.push({
+        field: 'grants.onlyIfChoice',
+        code: 'gate_without_a_choice',
+        reason:
+          asked === undefined
+            ? `${feature.id} grants ${grant.onlyIfChoice} only to whoever chose it, and asks the player for nothing`
+            : `a "${asked.kind}" choice offers no named options, so nothing could ever answer ${String(grant.onlyIfChoice)}`,
+      });
+    } else if (!asked.from.includes(grant.onlyIfChoice)) {
+      found.push({
+        field: 'grants.onlyIfChoice',
+        code: 'option_not_offered',
+        reason: `${feature.id} gates this grant on ${grant.onlyIfChoice} and offers ${asked.from.join(' or ')}, so nobody could ever hold it`,
+      });
+    }
+  }
+
   // And the reading end of the same rule: the field says where a choice is
   // read *from*, so a grant that reads no choice names a source for nothing.
+  //
+  // Asked of every kind, because the gate is every kind's now. Only a
+  // `standing` grant reads a choice for anything but the gate, which is the
+  // damage types its table supplies.
   if (
-    grant?.kind === 'standing' &&
-    grant.choiceFrom !== undefined &&
-    grant.damageTypesFromChoice !== true &&
-    grant.onlyIfChoice === undefined
+    grant?.choiceFrom !== undefined &&
+    grant.onlyIfChoice === undefined &&
+    !(grant.kind === 'standing' && grant.damageTypesFromChoice === true)
   ) {
     found.push({
       field: 'grants.choiceFrom',

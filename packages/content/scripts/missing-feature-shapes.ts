@@ -1264,23 +1264,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
 
   // — Species and backgrounds. Read here; `origins.ts` is somebody else's file. —
-  'dragonborn:draconic-ancestry': [
-    {
-      clause: 'The Damage Resistance trait reads this choice',
-      why: 'expressible',
-      note: 'the Resistance the chosen dragon names, applied through the option table.',
-    },
-    {
-      clause: 'the appearance the trait also decides is fiction the DM narrates',
-      why: 'table',
-      note: 'what a Dragonborn looks like.',
-    },
-    {
-      clause: 'The Breath Weapon is written in terms of the same choice and none of it is applied',
-      why: 'a-grant-gated-on-one-option-of-a-choice',
-      note: 'the second reader of this one choice, which would need its own gated grant on its own feature.',
-    },
-  ],
   'dragonborn:breath-weapon': [
     {
       clause: 'Replacing one of the Attack action attacks',

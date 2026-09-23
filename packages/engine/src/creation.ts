@@ -734,8 +734,38 @@ function grantedFeatures(content: Content, choices: CharacterChoices, parts: Par
     ...extra,
     ...cumulativeFeatures(parts.species, choices.level),
     ...cumulativeFeatures(parts.background, choices.level),
-  ];
+  ].map((feature) => withGateMet(feature, choices));
 }
+
+/**
+ * One feature, with a grant whose option was not taken removed.
+ *
+ * **The one place a gate is applied, and the reason it is one place.** SRD
+ * writes "You gain one of the following options of your choice" over every
+ * kind of grant there is, and a gate read inside the standing loop was a gate
+ * the pools, the Reactions, the spells and the activations each had to
+ * remember — which is a rule that holds until the next pass is written. Every
+ * one of those passes walks the list this returns, so the grant an unchosen
+ * option belongs to is not there to be compiled.
+ *
+ * The feature itself stays, and so does the question it asked: a Cleric who
+ * took Protector has Divine Order, has answered it, and has none of what
+ * Thaumaturge grants. That is different from granting something inert.
+ */
+function withGateMet(feature: FeatureDefinition, choices: CharacterChoices): FeatureDefinition {
+  const grant = feature.grants;
+  if (grant?.onlyIfChoice === undefined) return feature;
+  // Where the choice this grant reads was made: its own feature unless the
+  // grant names a sibling, which is how the SRD writes a species — one trait
+  // asks which ancestry, lineage or legacy you are and the later ones are
+  // written in terms of it. The content validator has already held the name to
+  // a sibling that offers the option.
+  const picked = choices.featureChoices[grant.choiceFrom ?? feature.id] ?? [];
+  return picked.includes(grant.onlyIfChoice) ? feature : withoutGrant(feature);
+}
+
+/** The same feature with no grant at all, which is what an unchosen option grants. */
+const withoutGrant = ({ grants: _grants, ...rest }: FeatureDefinition): FeatureDefinition => rest;
 
 /**
  * The multiclassing rules, checked before anything is derived from them.
@@ -2476,13 +2506,10 @@ export function planCharacter(
     const chooser = byFeatureId.get(grant.choiceFrom ?? feature.id);
     const picked = choices.featureChoices[chooser?.id ?? feature.id] ?? [];
 
-    // SRD "You gain one of the following options of your choice": a feature
-    // whose player took the other option grants nothing at all. Checked before
-    // the effects rather than inside them, because the whole grant belongs to
-    // the option.
-    if (grant.onlyIfChoice !== undefined && !picked.includes(grant.onlyIfChoice)) {
-      continue;
-    }
+    // SRD "You gain one of the following options of your choice" is not asked
+    // here any more: `withGateMet` has already taken the grant off a feature
+    // whose player took the other option, for every kind of grant at once. See
+    // `GrantGate`.
 
     // A feature that only resizes the aura grants no benefit of its own.
     for (const declared of grant.effects ?? []) {

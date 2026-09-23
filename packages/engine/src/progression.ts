@@ -244,7 +244,7 @@ export interface FeatureDefinition {
    * after it. A feature says what kind of thing it grants, and creation looks
    * for the kind.
    */
-  readonly grants?: FeatureGrant;
+  readonly grants?: GatedFeatureGrant;
   /**
    * The feature whose declaration executes this one, when this one declares
    * nothing of its own.
@@ -750,25 +750,11 @@ export type FeatureGrant =
        * says nothing of the kind.
        */
       readonly requires?: readonly StandingRequirement[];
-      /** The damage types come from the choice this feature asked for. */
-      readonly damageTypesFromChoice?: boolean;
       /**
-       * Where that choice was made, when it was not made on this feature.
-       *
-       * The SRD writes a species as one trait that asks which ancestry,
-       * lineage or legacy you have and later traits written as "determined by"
-       * it. The choice is one fact and belongs to one feature; a second
-       * feature restating it would be the player typing an answer they have
-       * already given, and two places to disagree about it.
-       *
-       * So a grant may name the feature whose choice it reads, and the
-       * validator holds the name to a **sibling** — a feature of the same
-       * class, subclass, species or background — that asks a choice and does
-       * not arrive later than this one. Both things a grant reads off a choice
-       * follow it: the damage types above and the option gate below. Absent
-       * means this feature's own choice, which is the ordinary case.
+       * The damage types come from the choice this feature asked for — or
+       * from the one {@link GrantGate.choiceFrom} names.
        */
-      readonly choiceFrom?: string;
+      readonly damageTypesFromChoice?: boolean;
       /** SRD Aura Expansion: this feature makes the aura this many feet. */
       readonly auraFeet?: number;
       /**
@@ -789,15 +775,6 @@ export type FeatureGrant =
        * Fast Movement and Roving print a flat 10 and carry none of this.
        */
       readonly feetByLevel?: readonly number[];
-      /**
-       * The option this effect belongs to, for a feature that offers several.
-       *
-       * SRD writes "You gain one of the following options of your choice" on
-       * Hunter's Prey, Elemental Fury and Blessed Strikes, and only one of the
-       * options is this grant. A feature whose chosen option is the other one
-       * grants nothing — which is different from granting something inert.
-       */
-      readonly onlyIfChoice?: string;
     }
   /**
    * A feature the character switches on — see `ActivatedFeature` in
@@ -1881,6 +1858,63 @@ export type FeatureGrant =
       /** What it widens to. One member, because the SRD writes one sentence. */
       readonly damageTypes: 'any';
     };
+
+/**
+ * One option of a choice, and the grant that belongs to it alone.
+ *
+ * SRD writes "You gain one of the following options of your choice" over
+ * feature after feature, and what follows the colon is **anything**: Hunter's
+ * Prey's extra damage is a standing benefit, Divine Order's extra cantrip is a
+ * `spells` grant, Giant Ancestry's Stone's Endurance is a Reaction. The gate
+ * lived on the `standing` member alone until the second kind wanted it, which
+ * made it a property of one grant kind rather than of the sentence.
+ *
+ * **Per grant and never per feature**, which is the decision worth writing
+ * down: SRD Elven Lineage is one printed feature that wants a Wood Elf's Speed
+ * *and* a Drow's Darkvision *and* a cantrip that differs per lineage, and a
+ * gate on the feature could only say one of the three. A feature whose chosen
+ * option is the other one grants nothing at all, which is different from
+ * granting something inert.
+ *
+ * Applied in exactly one place — `grantedFeatures` in `creation.ts`, before
+ * any grant is compiled — so the pools, the Reactions, the spells, the
+ * activations, the hit points and the standing loop all see only the grants
+ * whose option was taken. A gate honoured by whichever pass remembered to ask
+ * is a gate with a hole in it.
+ */
+export interface GrantGate {
+  /** The option this grant belongs to, out of the ones the choice offers. */
+  readonly onlyIfChoice?: string;
+  /**
+   * Where that choice was made, when it was not made on this feature.
+   *
+   * The SRD writes a species as one trait that asks which ancestry, lineage or
+   * legacy you have and later traits written as "determined by" it. The choice
+   * is one fact and belongs to one feature; a second feature restating it
+   * would be the player typing an answer they have already given, and two
+   * places to disagree about it.
+   *
+   * So a grant may name the feature whose choice it reads, and the validator
+   * holds the name to a **sibling** — a feature of the same class, subclass,
+   * species or background — that asks a choice and does not arrive later than
+   * this one. Both things a grant reads off a choice follow it: the gate above
+   * and a `standing` grant's damage types. Absent means this feature's own
+   * choice, which is the ordinary case.
+   */
+  readonly choiceFrom?: string;
+}
+
+/**
+ * What a **feature** grants: one of the kinds above, and the option it belongs
+ * to where the feature offers several.
+ *
+ * The intersection rather than a field on each of two dozen members, which is
+ * the same type either way and one place to document it. A feat's grant and an
+ * item's are {@link FeatureGrant} without the gate, because neither has a
+ * choice to read — `checkContent` refuses `onlyIfChoice` and `choiceFrom` on
+ * both by name, and the type says the same thing one step earlier.
+ */
+export type GatedFeatureGrant = FeatureGrant & GrantGate;
 
 /**
  * One end of a trade: what is spent, or what is bought.

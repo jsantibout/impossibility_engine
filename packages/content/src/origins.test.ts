@@ -435,15 +435,26 @@ describe('a species or background feature marked engine is one something reads',
   it.each(
     ORIGIN_FEATURES.filter((f) => f.automation === 'engine').map((f) => [f.id, f] as const),
   )('%s declares something a reader reaches', (_id, feature) => {
-    // The three routes, and every one of them is code that dereferences the
+    // The four routes, and every one of them is code that dereferences the
     // field: a readable grant (`READABLE_GRANT_KINDS`, which is the engine's
-    // own list), a skill choice (`gatherProficiencies` adds it), or a granted
-    // feat (`checkFeats` validates it and `planCharacter` records it).
+    // own list), a skill choice (`gatherProficiencies` adds it), a granted
+    // feat (`checkFeats` validates it and `planCharacter` records it) — or a
+    // **question a sibling trait reads the answer to**.
+    //
+    // The fourth is the shape the SRD writes a species in and it had no
+    // feature until Draconic Ancestry: one trait asks which ancestry, lineage
+    // or legacy you are and prints the table beside it, and the later traits
+    // are written as "determined by" it. `creation.ts` reads both off the
+    // feature that asked — the option, through a grant's `choiceFrom` gate,
+    // and the table, through `optionMeans` — so a trait that grants nothing
+    // itself is still executed, and by more readers than most.
+    const readBySibling = ORIGIN_FEATURES.some((other) => other.grants?.choiceFrom === feature.id);
     const readable =
       (feature.grants !== undefined && READABLE_GRANT_KINDS.has(feature.grants.kind)) ||
       feature.choice?.kind === 'skill' ||
       feature.choice?.kind === 'feat' ||
-      feature.grantsFeat !== undefined;
+      feature.grantsFeat !== undefined ||
+      (feature.choice !== undefined && readBySibling);
     expect(readable).toBe(true);
   });
 
