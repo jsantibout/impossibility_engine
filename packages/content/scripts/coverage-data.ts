@@ -1062,11 +1062,13 @@ export const hasUnappliedRider = (line: StatBlockLine): boolean => {
  * | SRD Shadow Stealth, SRD Nimble Escape and its siblings | `adaptMonster`, as the `allows` action rules Cunning Action is written as |
  * | SRD Undead Fortitude | `resolveDamage`, which throws the save and pins the floor on `damage-taken` |
  * | SRD Magic Resistance | `adaptMonster`, as a `roll-mode` narrowed to saves a spell forced |
+ * | SRD Illumination | `lightAt`, which derives a carried patch on every read |
  *
- * **`sheds-light` is the one parsed kind still not here**, and the reason is
- * a shape rather than an oversight: a `LightPatch` is *declared* and never
- * derived, so a creature that sheds Bright Light lights nothing until a patch
- * can be anchored to a creature and move with it.
+ * **Every parsed kind is now on this list or on the handover one below it.**
+ * `sheds-light` was the last exception, and the reason it was one was a shape
+ * rather than an oversight: a `LightPatch` is *declared* and never derived, so
+ * a creature that sheds Bright Light lit nothing until a patch could be
+ * anchored to a creature and move with it. `carriedLight` is that patch.
  */
 export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
   'advantage-when-ally-is-within-5-feet-of-the-target',
@@ -1077,6 +1079,7 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
   'hides-in-dim-light-or-darkness',
   'jumps-without-a-running-start',
   'magic-resistance',
+  'sheds-light',
   'takes-a-named-action-as-a-bonus-action',
   'undead-fortitude',
 ];

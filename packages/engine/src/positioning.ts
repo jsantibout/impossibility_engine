@@ -9,6 +9,10 @@ import type { GameState } from './events.js';
 // before it is, so an edge to it from here pulls half the engine in through
 // the geometry. See `item-instance.ts`.
 import { itemInstanceNumber } from './item-instance.js';
+// SRD Illumination, read off a sheet — see {@link carriedLight}. A value edge,
+// and a safe one: `character.ts` imports nothing but `@ie/shared` at value
+// level, so this pulls in one module and not the engine behind it.
+import { printedLight } from './character.js';
 import type { ResourcePool } from './resources.js';
 
 /**
@@ -2063,7 +2067,79 @@ const UNLIT: LightHere = { level: null, magical: false, sunlight: false, patches
 export function lightAt(state: GameState, space: Point): LightHere {
   const scene = state.scene;
   if (scene === null) return UNLIT;
-  return brightnessAt(scene, livePatchesOf(state, scene.light), space);
+  return brightnessAt(
+    scene,
+    [...livePatchesOf(state, scene.light), ...carriedLight(state)],
+    space,
+  );
+}
+
+/**
+ * SRD Illumination: the light the creatures standing in this scene are
+ * carrying, as patches nobody declared.
+ *
+ * "The beetle sheds Bright Light in a 10-foot radius and Dim Light for an
+ * additional 10 feet." Six blocks print that sentence and it was the one
+ * parsed trait kind nothing read, because a `LightPatch` is *declared* — the
+ * table says the room is dark, a casting pins the dark it made — and nobody
+ * declares that a beetle is glowing, because the beetle walks.
+ *
+ * **Derived on every read, and stored nowhere.** A creature that moves moves
+ * its light, and there is no event a removal could hang on; that is the same
+ * answer `livePatchesOf` gives a Web whose casting has ended and `standing.ts`
+ * gives an aura whose holder has been stunned. The region is a Sphere
+ * **carried by the creature** — `{ origin: { creature } }`, the shape the area
+ * vocabulary already had for a thing that moves with its owner — so nothing
+ * here computes a coordinate and a beetle that is picked up and put down
+ * somewhere else lights the new place.
+ *
+ * **Nonmagical**, which is the absence of `magical` rather than a decision
+ * taken here: the SRD prints no "magical" on any of the six Illumination
+ * lines, so a magical Darkness beats it exactly as it beats a torch, through
+ * {@link brightnessAt}'s one rule.
+ *
+ * **Two patches, because the sentence prints two radii**, and the dim one is
+ * the whole sphere rather than a ring: light adds, and the bright patch over
+ * the middle of it is the stronger of the two wherever they overlap, which is
+ * the same arithmetic two declared patches get.
+ *
+ * A creature nobody has placed sheds nothing, because there is nowhere for it
+ * to shed onto — `spaceInRegion` would have nothing to measure from.
+ */
+function carriedLight(state: GameState): readonly (readonly [string, LightPatch])[] {
+  const scene = state.scene;
+  if (scene === null) return [];
+
+  const shed: (readonly [string, LightPatch])[] = [];
+  // Sorted, because this list reaches `LightHere.patches` and a record whose
+  // order depended on the order creatures happened to arrive in would report
+  // two ways for one world.
+  for (const who of Object.keys(state.creatures).sort()) {
+    const creature = state.creatures[who];
+    if (creature === undefined) continue;
+    const light = printedLight(creature.sheet);
+    if (light === null) continue;
+    if (positionOf(scene, creature.id) === null) continue;
+
+    const origin = { creature: creature.id } as const;
+    const dimRadius = light.brightRadiusFeet + light.dimBeyondFeet;
+    if (dimRadius > 0) {
+      shed.push([
+        `dim light shed by ${who}`,
+        { region: { origin, shape: { kind: 'sphere', radius: dimRadius } }, level: 'dim' },
+      ]);
+    }
+    if (light.brightRadiusFeet > 0) {
+      shed.push([
+        `light shed by ${who}`,
+        {
+          region: { origin, shape: { kind: 'sphere', radius: light.brightRadiusFeet } },
+          level: 'bright',
+        },
+      ]);
+    }
+  }
+  return shed;
 }
 
 /**
