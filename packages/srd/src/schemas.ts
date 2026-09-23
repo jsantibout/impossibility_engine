@@ -636,6 +636,21 @@ export const MonsterTraitSchema = z.discriminatedUnion('kind', [
      */
     kind: z.literal('undead-fortitude'),
   }),
+  z.object({
+    /**
+     * SRD Magic Resistance, printed word for word on twenty-seven stat blocks
+     * and on eleven at CR 5 or below: "The devil has Advantage on saving
+     * throws against spells and other magical effects."
+     *
+     * **A bare kind, for the reason `undead-fortitude` is one.** Nothing in
+     * the sentence varies: one mode, one family, one narrowing. The Rakshasa's
+     * Greater Magic Resistance is a different rule in three clauses —
+     * automatic successes, spell attacks that miss, and a divination it
+     * forbids — and is refused whole rather than read down to the part that
+     * fits.
+     */
+    kind: z.literal('magic-resistance'),
+  }),
 ]);
 export type MonsterTrait = z.infer<typeof MonsterTraitSchema>;
 

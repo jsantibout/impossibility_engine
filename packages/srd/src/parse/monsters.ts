@@ -645,6 +645,19 @@ const UNDEAD_FORTITUDE = new RegExp(
     `On a successful save, ${SUBJECT} drops to 1 Hit Point instead\\.$`,
 );
 
+/**
+ * SRD Magic Resistance: "The devil has Advantage on saving throws against
+ * spells and other magical effects."
+ *
+ * Anchored, which is what refuses the Rakshasa: its Greater Magic Resistance
+ * opens "automatically succeeds on saving throws against spells" and goes on
+ * for two more clauses. A sentence read down to the words it shares with this
+ * one would be a rakshasa the book did not print.
+ */
+const MAGIC_RESISTANCE = new RegExp(
+  `^${SUBJECT} has Advantage on saving throws against spells and other magical effects\\.$`,
+);
+
 /** The book's nouns for the rolls, in the kind's own three words. */
 const BLOODIED_ROLLS: Readonly<Record<string, readonly ('attack-roll' | 'saving-throw')[]>> = {
   'attack rolls': ['attack-roll'],
@@ -754,6 +767,7 @@ export function parseTraitShape(text: string): MonsterTrait | null {
   }
 
   if (UNDEAD_FORTITUDE.test(text)) return { kind: 'undead-fortitude' };
+  if (MAGIC_RESISTANCE.test(text)) return { kind: 'magic-resistance' };
 
   return null;
 }

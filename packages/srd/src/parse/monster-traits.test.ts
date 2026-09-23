@@ -411,6 +411,31 @@ describe('the reader is a list of matched sentences and not an interpreter', () 
     expect(parseTraitShape(printed.replace('1 Hit Point', '10 Hit Points'))).toBeNull();
   });
 
+  /**
+   * SRD Magic Resistance, one sentence over devils, golems, genies, hags and
+   * the rest — and the Rakshasa's Greater Magic Resistance, which shares nine
+   * words with it and is a different rule in three clauses.
+   */
+  it('reads the sentence that turns a spell aside', () => {
+    expect(traitOf('imp', 'Magic Resistance')).toEqual({ kind: 'magic-resistance' });
+    expect(traitOf('dryad', 'Magic Resistance')).toEqual({ kind: 'magic-resistance' });
+    expect(traitOf('rakshasa', 'Greater Magic Resistance')).toBeNull();
+  });
+
+  it('refuses a resistance sentence that promises more than Advantage', () => {
+    expect(
+      parseTraitShape('The devil has Advantage on saving throws against spells and other magical effects.'),
+    ).toEqual({ kind: 'magic-resistance' });
+    expect(
+      parseTraitShape(
+        'The devil automatically succeeds on saving throws against spells and other magical effects.',
+      ),
+    ).toBeNull();
+    expect(
+      parseTraitShape('The devil has Advantage on saving throws against spells.'),
+    ).toBeNull();
+  });
+
   it('leaves every other trait of a block it did read alone', () => {
     // The frog prints two traits this file reads and the giant crab prints one
     // beside a sentence nothing matches; neither block gains a shape it was

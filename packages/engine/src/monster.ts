@@ -1082,6 +1082,41 @@ function printedBloodiedAdvantage(
 }
 
 /**
+ * SRD Magic Resistance, onto the sheet as the standing effect it is.
+ *
+ * "The devil has Advantage on saving throws against spells and other magical
+ * effects." One mode, one family, one narrowing — `againstMagic`, the axis
+ * `RollSelector` gained for this sentence, because a save selected by its
+ * ability alone would have given a devil Advantage on every save it ever made,
+ * a Grapple's escape included.
+ *
+ * `printedSunlight`'s shape with the gate on the *roll* rather than on the
+ * holder: nothing about the devil has to be true for this to apply, and
+ * everything about the save does.
+ */
+function printedMagicResistance(
+  line: MonsterLine,
+  key: string,
+): readonly StandingEffect[] {
+  if (line.trait?.kind !== 'magic-resistance') return [];
+  return [
+    {
+      feature: key,
+      // The block's own heading, so a roll reports the rule the book printed.
+      name: line.name,
+      reach: { kind: 'self' },
+      grant: {
+        kind: 'roll-mode',
+        modifier: {
+          mode: 'advantage',
+          selector: { roll: 'saving-throw', relation: 'roller', againstMagic: true },
+        },
+      },
+    },
+  ];
+}
+
+/**
  * SRD Nimble Escape, SRD Cunning Action, SRD Deathless Agility and SRD Shadow
  * Stealth: a named action paid for out of a Bonus Action.
  *
@@ -1187,6 +1222,7 @@ function printedStanding(monster: Monster): { readonly standing?: readonly Stand
       return [
         ...printedSunlight(line, key),
         ...printedBloodiedAdvantage(line, key),
+        ...printedMagicResistance(line, key),
         ...printedBonusActionAllowance(line, key, costsABonusAction),
       ];
     }),

@@ -462,6 +462,14 @@ export function mergedModes(
  * with none says nothing, and a condition-keyed selector reads that as a miss
  * rather than a guess — which is every Concentration check, every
  * Counterspell save and every save a DM simply calls for.
+ *
+ * **And whether it is a save against magic**, for the same reason and read the
+ * same way. SRD Magic Resistance grants Advantage "on saving throws against
+ * spells and other magical effects", and only the caller knows which kind of
+ * save this is: a spell's own resolver says yes outright, the turn boundary
+ * asks whether the effect its repeat would end came from a casting, and a
+ * printed stat-block line says nothing, because a dragon's breath is not a
+ * spell. Silence is a miss — see {@link RollQuery.magical}.
  */
 export function savingSupport(
   state: GameState,
@@ -474,6 +482,8 @@ export function savingSupport(
   },
   /** The conditions this save would avoid or end, where it is about any. */
   about?: readonly ConditionName[],
+  /** Whether a spell or other magical effect forced it. Silence is "no". */
+  magical?: boolean,
 ): {
   readonly bonuses: readonly Bonus[];
   readonly modes: readonly (RollMode | ModeSource)[];
@@ -514,6 +524,11 @@ export function savingSupport(
         // selector, and collapsing one into the other here would make that
         // agreement a coincidence rather than a rule.
         ...(about === undefined ? {} : { aboutConditions: about }),
+        // Passed through exactly as the caller answered, for the reason the
+        // conditions above are: an unkeyed save is not SRD Magic Resistance's
+        // sentence, and a gatherer that guessed would hand a devil Advantage
+        // on every save it ever makes.
+        ...(magical === undefined ? {} : { magical }),
       }).modes,
       supply.modes ?? [],
     ),

@@ -1112,7 +1112,10 @@ describe('what a stat block’s sections print, and what is read', () => {
       // over a narrower rule and is refused, which is the count saying so.
       // Two more again with Undead Fortitude: the Zombie and the Ogre Zombie,
       // which are the only two blocks in the book that print that sentence.
-      traits: { printed: 337, read: 103 },
+      // And thirty-four more with Magic Resistance, which is one sentence over
+      // devils, golems, genies, hags and the rest — the Rakshasa's Greater
+      // Magic Resistance is refused whole, which is the count saying so.
+      traits: { printed: 337, read: 137 },
       // Fifty-three more than before the save template was read, and the
       // Clay Golem's Multiattack before them. Forty-seven more again with the
       // Spellcasting line, which is the book's third opening and is read

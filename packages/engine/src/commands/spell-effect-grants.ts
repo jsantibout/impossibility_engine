@@ -39,7 +39,10 @@ export function resolveBuffEffect(
 
   let save: D20TestResult | null = null;
   if (effect.ability !== undefined) {
-    const support = savingSupport(current, target, victim, effect.ability, supply);
+    // **A spell forced it**, which SRD Magic Resistance reads: "Advantage on
+    // saving throws against spells and other magical effects." No condition
+    // is named here, so the fifth argument is skipped and the sixth answered.
+    const support = savingSupport(current, target, victim, effect.ability, supply, undefined, true);
     // The victim's sheet as it stands: an item that *sets* the score this save
     // is made with is on the creature, and `checks.ts` takes a sheet. Asked of
     // `current` because that is the world every other reader in this function

@@ -181,7 +181,9 @@ export function resolveInterruptCastingEffect(
     );
   }
 
-  const support = savingSupport(current, target, victim, effect.ability, supply);
+  // A spell forced it — SRD Counterspell's own Constitution save — so SRD
+  // Magic Resistance reaches it. See {@link RollQuery.magical}.
+  const support = savingSupport(current, target, victim, effect.ability, supply, undefined, true);
   // The sheet as it stands, so an Amulet of Health reaches the Constitution
   // save SRD Counterspell asks the interrupted caster for. Read off `current`,
   // which has the Counterspell's own casting folded into it.

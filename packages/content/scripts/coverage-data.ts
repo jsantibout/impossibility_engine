@@ -1061,6 +1061,7 @@ export const hasUnappliedRider = (line: StatBlockLine): boolean => {
  * | SRD Spider Climb | `climbCheck`, which is the handover its holder does not get |
  * | SRD Shadow Stealth, SRD Nimble Escape and its siblings | `adaptMonster`, as the `allows` action rules Cunning Action is written as |
  * | SRD Undead Fortitude | `resolveDamage`, which throws the save and pins the floor on `damage-taken` |
+ * | SRD Magic Resistance | `adaptMonster`, as a `roll-mode` narrowed to saves a spell forced |
  *
  * **`sheds-light` is the one parsed kind still not here**, and the reason is
  * a shape rather than an oversight: a `LightPatch` is *declared* and never
@@ -1075,6 +1076,7 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
   'does-not-provoke-when-flying-out-of-reach',
   'hides-in-dim-light-or-darkness',
   'jumps-without-a-running-start',
+  'magic-resistance',
   'takes-a-named-action-as-a-bonus-action',
   'undead-fortitude',
 ];
