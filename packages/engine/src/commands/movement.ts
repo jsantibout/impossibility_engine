@@ -42,6 +42,7 @@ import {
   type MountOptions,
   moveCreature,
   mustCrossSomebody,
+  occupantsBetween,
   type Placement,
   type Point,
   type PositionState,
@@ -1042,12 +1043,48 @@ function checkPassage(
 ): Result<PassageOutcome> {
   if (charging === 'none') return ok({ unverified: [] });
 
+  const moverSize = sizeOf(scene, id) ?? 'medium';
+  const side = state.creatures[id]?.side ?? null;
+  const sizesLarger = passageAllowanceOf(state, id);
+
+  /**
+   * Whether this mover may walk through that creature — or null for a side
+   * nobody has stated, which is a third answer and not a no.
+   */
+  const passable = (occupant: CharacterId): boolean | null => {
+    const other = state.creatures[occupant];
+    if (other === undefined) return true;
+    const allied = side !== null && other.side !== null && other.side === side;
+    const may = canPassThrough(moverSize, sizeOf(scene, occupant) ?? 'medium', {
+      allied,
+      occupantIncapacitated: isIncapacitated(other.conditions),
+      ...(sizesLarger > 0 ? { passesWhenLargerBy: sizesLarger } : {}),
+    });
+    if (may) return true;
+    return side === null || other.side === null ? null : false;
+  };
+
   if (route === undefined) {
     if (!mustCrossSomebody(scene, id, from, to)) return ok({ unverified: [] });
+    // **And nobody is asked a question whose answer cannot change anything.**
+    // The walk above establishes only that *somebody's* space was entered. If
+    // every creature this move could have reached is one the mover may walk
+    // through — an ally, a Tiny creature, an Incapacitated one, a two-size
+    // gap, or a Halfling's one — then no route the caller could state would
+    // be refused, and asking would be `chargeTerrain`'s "Web in the far
+    // corner" round trip with the answer known before it was sent.
+    if (occupantsBetween(scene, id, from, to).every((who) => passable(who) !== false)) {
+      return ok({ unverified: [] });
+    }
     const feet = distanceBetweenPoints(from, to);
+    // **Asked outside combat too**, which is where this parts company with the
+    // terrain question one function up. That one is about a *number* and
+    // declines to ask where there is no budget to charge it against; this one
+    // is about whether the move may be made at all, and a move nobody may make
+    // is no more legal out of combat than in it.
     return needsContext(
       ROUTE_REQUIRED,
-      `every shortest way from (${from.x}, ${from.y}, ${from.z}) to (${to.x}, ${to.y}, ${to.z}) goes through a space somebody is standing in, and whether ${id} may pass through it depends on whose it is`,
+      `every shortest way from (${from.x}, ${from.y}, ${from.z}) to (${to.x}, ${to.y}, ${to.z}) goes through a space somebody is standing in, and at least one of them is somebody ${id} may not walk through`,
       [
         {
           kind: 'route',
@@ -1061,33 +1098,14 @@ function checkPassage(
     );
   }
 
-  const moverSize = sizeOf(scene, id) ?? 'medium';
-  const side = state.creatures[id]?.side ?? null;
-  // Every grant it holds, summed rather than maximised, on `capacitySizeOf`'s
-  // argument: two sentences that each said "a size larger" are two steps.
-  let sizesLarger = 0;
-  for (const { effect } of standingFor(state, id)) {
-    if (effect.grant.kind === 'passage') sizesLarger += effect.grant.sizesLarger;
-  }
-
   const unverified: string[] = [];
   for (const { space, occupant } of crossingsAlong(scene, id, route)) {
-    const other = state.creatures[occupant];
-    if (other === undefined) continue;
-    const allied = side !== null && other.side !== null && other.side === side;
-    if (
-      canPassThrough(moverSize, sizeOf(scene, occupant) ?? 'medium', {
-        allied,
-        occupantIncapacitated: isIncapacitated(other.conditions),
-        ...(sizesLarger > 0 ? { passesWhenLargerBy: sizesLarger } : {}),
-      })
-    ) {
-      continue;
-    }
+    const may = passable(occupant);
+    if (may === true) continue;
 
-    if (side === null || other.side === null) {
+    if (may === null) {
       unverified.push(
-        `nobody has said whose side ${other.side === null ? occupant : id} is on, so ${id} was not held to the rule about moving through ${occupant}'s space at (${space.x}, ${space.y}, ${space.z})`,
+        `nobody has said whose side ${state.creatures[occupant]?.side == null ? occupant : id} is on, so ${id} was not held to the rule about moving through ${occupant}'s space at (${space.x}, ${space.y}, ${space.z})`,
       );
       continue;
     }
@@ -1099,6 +1117,24 @@ function checkPassage(
   }
 
   return ok({ unverified });
+}
+
+/**
+ * How many sizes larger a creature may be and still be walked through, over
+ * every `passage` grant this one holds.
+ *
+ * Summed rather than maximised, and named rather than inlined, on the
+ * argument `capacitySizeOf` is written on: two sentences that each said "a
+ * size larger" are two steps. The floor that keeps a second step from
+ * reaching a creature of the mover's own size is `canPassThrough`'s, which is
+ * why nothing caps the sum here.
+ */
+function passageAllowanceOf(state: GameState, id: CharacterId): number {
+  let steps = 0;
+  for (const { effect } of standingFor(state, id)) {
+    if (effect.grant.kind === 'passage') steps += effect.grant.sizesLarger;
+  }
+  return steps;
 }
 
 /** The tail of a refusal that names what slowed the mover, or nothing at all. */

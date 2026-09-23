@@ -364,11 +364,11 @@ export const ITEM_EFFECT_KINDS: ReadonlySet<string> = new Set([
   // the route the belt's Strength already takes.
   'carrying-capacity',
   // The sizes a creature may be walked through, on the same test: the gatherer
-  // is `passageAllowanceOf` in `commands/movement.ts`, which walks
-  // `standingFor`, so slippers that let their wearer slip between a giant's
-  // feet would be read by the rule that wanted them. No SRD item prints the
-  // sentence today; the list's rule is what a reader reaches, not what the
-  // book happens to have written.
+  // is `passageAllowanceOf`, beside `checkPassage` in `commands/movement.ts`,
+  // and it walks `standingFor` — so slippers that let their wearer slip
+  // between a giant's feet would be read by the rule that wanted them. No SRD
+  // item prints the sentence today; the list's rule is what a reader reaches,
+  // not what the book happens to have written.
   'passage',
   // Read from an item exactly as it is read from a feature: the gatherer is
   // `standingFor`, which folds a worn item's effects in beside a class's, so a

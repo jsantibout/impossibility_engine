@@ -668,6 +668,56 @@ export function crossingsAlong(
 }
 
 /**
+ * Everybody a move from here to there could possibly have walked into.
+ *
+ * The **enclosure** rather than the region: the endpoints widened by the slack
+ * each axis may wander and still arrive in the same number of steps, which is
+ * `uniformTerrainBetween`'s own box, widened again by the volume the mover
+ * sweeps through it. A creature whose volume misses that box could not have
+ * been in the way of any shortest route, so this is the cheap half of the two
+ * questions a route raises — the one nearly every move answers with nobody —
+ * and it is also the list a caller consults to find out whether the expensive
+ * half is worth asking about at all.
+ */
+export function occupantsBetween(
+  state: PositionState,
+  who: CharacterId,
+  from: Point,
+  to: Point,
+): readonly CharacterId[] {
+  const start = snapPoint(from);
+  const end = snapPoint(to);
+  const reach = distanceBetweenPoints(start, end);
+  const size = state.sizes[who] ?? 'medium';
+  const width = footprintOf(size);
+  const height = heightOf(state, who);
+
+  const slack = (a: number, b: number): number =>
+    Math.floor((reach - Math.abs(a - b)) / (2 * CUBE)) * CUBE;
+  const swept: Box = {
+    min: {
+      x: Math.min(start.x, end.x) - slack(start.x, end.x),
+      y: Math.min(start.y, end.y) - slack(start.y, end.y),
+      z: Math.min(start.z, end.z) - slack(start.z, end.z),
+    },
+    max: {
+      x: Math.max(start.x, end.x) + slack(start.x, end.x) + width,
+      y: Math.max(start.y, end.y) + slack(start.y, end.y) + width,
+      z: Math.max(start.z, end.z) + slack(start.z, end.z) + Math.max(CUBE, snap(height)),
+    },
+  };
+
+  return Object.keys(state.positions)
+    .sort()
+    .map((other) => other as CharacterId)
+    .filter((other) => {
+      if (other === who) return false;
+      const box = boxOf(state, other);
+      return box !== null && overlaps(swept, box);
+    });
+}
+
+/**
  * Whether **every** shortest way from here to there enters somebody's space.
  *
  * `uniformTerrainBetween`'s question asked about creatures instead of about
@@ -687,7 +737,9 @@ export function crossingsAlong(
  * Occupancy rather than passability, because the crossing may be perfectly
  * legal and the engine still cannot say it happened: what it has established
  * is that *some* space of somebody's was entered, and which one is the
- * table's to state.
+ * table's to state. Whether that is worth asking about is the caller's, off
+ * {@link occupantsBetween} — see `checkPassage`, which does not ask where
+ * every creature in the enclosure is one this mover may walk through.
  */
 export function mustCrossSomebody(
   state: PositionState,
@@ -704,32 +756,8 @@ export function mustCrossSomebody(
   const height = heightOf(state, who);
 
   // **Nobody anywhere near it is the answer nearly every move gets**, and the
-  // walk below is the only expensive thing this module does. The region lies
-  // inside the endpoints widened by the slack each axis may wander and still
-  // arrive in the same number of steps — `uniformTerrainBetween`'s own box —
-  // and the mover sweeps its own volume through it, so a creature whose
-  // volume misses that box could not have been in the way of any route.
-  const slack = (a: number, b: number): number =>
-    Math.floor((reach - Math.abs(a - b)) / (2 * CUBE)) * CUBE;
-  const width = footprintOf(size);
-  const swept: Box = {
-    min: {
-      x: Math.min(start.x, end.x) - slack(start.x, end.x),
-      y: Math.min(start.y, end.y) - slack(start.y, end.y),
-      z: Math.min(start.z, end.z) - slack(start.z, end.z),
-    },
-    max: {
-      x: Math.max(start.x, end.x) + slack(start.x, end.x) + width,
-      y: Math.max(start.y, end.y) + slack(start.y, end.y) + width,
-      z: Math.max(start.z, end.z) + slack(start.z, end.z) + Math.max(CUBE, snap(height)),
-    },
-  };
-  const near = Object.keys(state.positions).some((other) => {
-    if (other === who) return false;
-    const box = boxOf(state, other as CharacterId);
-    return box !== null && overlaps(swept, box);
-  });
-  if (!near) return false;
+  // walk below is the only expensive thing this module does.
+  if (occupantsBetween(state, who, from, to).length === 0) return false;
 
   const key = (p: Point): string => `${p.x},${p.y},${p.z}`;
 

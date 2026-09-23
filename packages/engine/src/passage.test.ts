@@ -134,6 +134,19 @@ const east = (feet: number, route?: readonly Point[]) => ({
 const walk = (log: readonly GameEvent[], request: Parameters<typeof resolveMove>[2]) =>
   resolveMove(fold('seed', log), WALKER, request, supply());
 
+/**
+ * A walker with an Ogre on the one diagonal it could walk: ten feet across
+ * and ten feet tall, so the space over its head is not a way round either.
+ */
+const hemmedIn = (blockerSide: string): readonly GameEvent[] => [
+  added('walker', 'party'),
+  added('blocker', blockerSide),
+  { type: 'scene-set', extent: { width: 400, depth: 400, height: 40 } },
+  placed('walker', { x: 100, y: 100, z: 0 }, 'medium'),
+  placed('blocker', { x: 105, y: 105, z: 0 }, 'large'),
+  { type: 'combat-started', combatants: [{ id: WALKER, initiative: 20, speed: 60 }] },
+];
+
 describe('a move through somebody else’s space', () => {
   /**
    * The base rule, on the size gap the book prints. The blocker stands at
@@ -204,14 +217,7 @@ describe('a move through somebody else’s space', () => {
    * asks, answered by the same field.
    */
   it('asks for the route when every shortest way there crosses somebody', () => {
-    const hemmed: readonly GameEvent[] = [
-      added('walker', 'party'),
-      added('blocker', 'goblins'),
-      { type: 'scene-set', extent: { width: 400, depth: 400, height: 40 } },
-      placed('walker', { x: 100, y: 100, z: 0 }, 'medium'),
-      placed('blocker', { x: 105, y: 105, z: 0 }, 'large'),
-      { type: 'combat-started', combatants: [{ id: WALKER, initiative: 20, speed: 60 }] },
-    ];
+    const hemmed = hemmedIn('goblins');
     const diagonal = {
       placement: { from: { point: { x: 100, y: 100, z: 0 } }, feet: 15, bearing: 45 },
     };
@@ -235,6 +241,24 @@ describe('a move through somebody else’s space', () => {
       supply(),
     );
     expect(isErr(stated) ? stated.code : 'allowed').toBe('blocked_by_creature');
+  });
+
+  /**
+   * And it asks only where the answer could change anything. The same walk
+   * past the same Ogre on the same side crosses somebody whatever way it
+   * goes — and every way it could go is a crossing the book allows, so there
+   * is nothing for a stated route to settle and the question is not asked.
+   * That is `chargeTerrain`'s rule about the Web in the far corner, applied
+   * to creatures.
+   */
+  it('does not ask where everybody in the way is somebody it may walk through', () => {
+    const out = resolveMove(
+      fold('seed', hemmedIn('party')),
+      WALKER,
+      { placement: { from: { point: { x: 100, y: 100, z: 0 } }, feet: 15, bearing: 45 } },
+      supply(),
+    );
+    expect(unwrap(out, 'past the ally').feet).toBe(15);
   });
 });
 
