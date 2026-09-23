@@ -62,7 +62,7 @@
  */
 
 import { SRD_CONTENT } from '@ie/content';
-import type { FeatureDefinition } from '@ie/engine';
+import { featureGrants, type FeatureDefinition } from '@ie/engine';
 import {
   ITEM_SHAPES,
   MISSING_SHAPES,
@@ -114,6 +114,8 @@ export const FEATURE_SHAPES = {
     'a number added to a roll that is read off the holder\'s own sheet. Two grants do it and each answers for one family: `save-bonus` in packages/engine/src/standing.ts is Aura of Protection, "the *holder\'s* modifier, read off their sheet rather than the beneficiary\'s", and `check-bonus` beside it is the two Orders\' bonus over the skills a feature names. `flat-bonus` beside them is "Flat, and only flat", so what is still unsaid is the third family: a Charisma bonus to **attack rolls**, which nothing derives a number for.',
   'a-feature-that-carries-a-second-grant':
     'one feature that must do two mechanical things at once. `FeatureDefinition.grants` is a single `FeatureGrant`, and `docs/design/characters-and-equipment.md` already names a victim — "Disciplined Survivor\'s reroll needs a feature to carry two grants". A species trait that grants a Speed to one lineage and a sense to another, and a class feature that is both a prepared spell and a pool of free castings, are the same absence.',
+  'a-second-question-one-feature-asks':
+    'a feature that asks the player **two** things. packages/engine/src/progression.ts gives a feature one question — “What the player must decide when they gain it” — and the answer is stored under the feature’s own id, so one feature holds one answer list and every grant written in terms of a choice reads that one. SRD Divine Order and Primal Order each print two under one heading: which order, and — for one of the two orders — which extra cantrip from the class list. The gate that hangs a grant on the order chosen is built; the cantrip still cannot be granted, because the feature has already spent its question and a spells grant with no fixed list is compiled from the answer to it.',
   'a-grant-gated-on-one-option-of-a-choice':
     'a grant that applies only when the player picked a particular option. `onlyIfChoice` in packages/engine/src/progression.ts is that gate and it lives on the `standing` grant alone, written for the three features SRD prints "You gain one of the following options of your choice" on — "only one of the options is this grant. A feature whose chosen option is the other one grants nothing" — so an option whose benefit is a pool, a Reaction, a proficiency or a spell has nowhere to hang.',
   'a-feature-that-rewrites-another-features-rule':
@@ -411,8 +413,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
     },
     {
       clause: 'Thaumaturge grants an extra cantrip',
-      why: 'a-grant-gated-on-one-option-of-a-choice',
-      note: 'a spells grant is expressible and gating it on the option chosen is not: only a standing grant carries `onlyIfChoice`.',
+      why: 'a-second-question-one-feature-asks',
+      note: 'the gate landed and this did not: a spells grant gated on Thaumaturge is expressible now, and which cantrip is a second question this feature has no room for — it has already asked which order.',
     },
     {
       clause: 'That is a standing check bonus gated on the option chosen',
@@ -501,8 +503,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
     },
     {
       clause: 'Magician grants a cantrip',
-      why: 'a-grant-gated-on-one-option-of-a-choice',
-      note: 'as Thaumaturge: the spells grant exists and the gate does not.',
+      why: 'a-second-question-one-feature-asks',
+      note: 'as Thaumaturge, and for the same reason on a second class: the gate exists and the second question does not.',
     },
     {
       clause: 'That is a standing check bonus gated on the option chosen',
@@ -1071,11 +1073,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       why: 'a-benefit-that-runs-for-a-printed-span',
       note: 'a printed span rather than an extended turn boundary.',
     },
-    {
-      clause: 'an activation this feature has no second grant to carry beside the pool',
-      why: 'a-feature-that-carries-a-second-grant',
-      note: 'the pool is declared now, and the activation is the half a feature has no second grant for.',
-    },
   ],
   'sorcerer:metamagic': [
     {
@@ -1116,18 +1113,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'The free Metamagic option during Innate Sorcery',
       why: 'a-feature-that-rewrites-another-features-rule',
       note: 'a capstone changing what an earlier feature costs while a third is running.',
-    },
-  ],
-  'draconic-sorcery:draconic-resilience': [
-    {
-      clause: 'The Armour Class half is applied',
-      why: 'expressible',
-      note: 'an unarmoured-defense grant, the third feature to want that shape.',
-    },
-    {
-      clause: 'needs a feature that raises the hit point maximum',
-      why: 'a-hit-point-maximum-a-spell-moves',
-      note: 'two absences, and only the first is this shape’s. A feature’s maximum is a column of the class table read by `planCharacter` rather than a grant hung on a creature, so it needs a `FeatureGrant` of its own — which is what Dwarven Toughness waits on too. **And this feature could not carry one even then**: `FeatureDefinition.grants` is singular, the slot already holds the `unarmored-defense` grant that applies the Armour Class half, and the SRD prints both sentences under one heading. That is the same wall the note on Innate Sorcery records — "an activation this feature has no second grant to carry beside the pool" — and it is a decision about the vocabulary rather than a missing mechanic.',
     },
   ],
   'draconic-sorcery:dragon-wings': [
@@ -1574,10 +1559,12 @@ export const POOL_SPENDING_MEMBERS = [
  * what lets four features join the map with no list to keep.
  */
 export const isBarePool = (feature: FeatureDefinition): boolean => {
-  const grant = feature.grants as { kind?: string } | undefined;
-  if (grant?.kind !== 'pool') return false;
-  return POOL_SPENDING_MEMBERS.every(
-    (member) => (grant as Record<string, unknown>)[member] === undefined,
+  const pools = featureGrants(feature).filter((grant) => grant.kind === 'pool');
+  if (pools.length === 0) return false;
+  return pools.every((grant) =>
+    POOL_SPENDING_MEMBERS.every(
+      (member) => (grant as unknown as Record<string, unknown>)[member] === undefined,
+    ),
   );
 };
 

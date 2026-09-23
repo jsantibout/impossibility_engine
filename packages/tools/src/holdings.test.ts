@@ -35,6 +35,24 @@ import {
   type ToolOutcome,
 } from '@ie/tools';
 
+/**
+ * The grants one feature carries, whether it wrote one or a list.
+ *
+ * Normalised here rather than imported, because this file imports no engine —
+ * `featureGrants` is the engine's own copy of these three lines.
+ */
+const grantsOf = (feature: {
+  readonly grants?: unknown;
+}): readonly { readonly kind: string; readonly feature?: string; readonly options?: unknown }[] => {
+  const grants = feature.grants;
+  if (grants === undefined) return [];
+  return (Array.isArray(grants) ? grants : [grants]) as readonly {
+    readonly kind: string;
+    readonly feature?: string;
+    readonly options?: unknown;
+  }[];
+};
+
 // — a character of any class at any level ——————————————————————————————————
 
 const SKILLS = [
@@ -109,7 +127,7 @@ const autoChoices = (
     const choice = feature.choice;
     if (choice === undefined) continue;
     if (choice.kind === 'skill') {
-      const expertise = feature.grants?.kind === 'expertise';
+      const expertise = grantsOf(feature).some((grant) => grant.kind === 'expertise');
       const from = expertise ? [...used] : (choice.from ?? SKILLS).filter((one) => !used.has(one));
       const picked = from.slice(0, choice.choose);
       if (!expertise) for (const one of picked) used.add(one);

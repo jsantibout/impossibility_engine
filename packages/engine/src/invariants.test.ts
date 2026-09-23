@@ -13,6 +13,7 @@ import {
   type CharacterId,
   type Result,
 } from '@ie/shared';
+import { featureGrants } from './progression.js';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng, type RngState } from './dice.js';
 import { createRollIssuer, type RollIssuer } from './rolls.js';
@@ -5989,12 +5990,14 @@ describe('Speed is read through one reader', () => {
   const circularSpeedGrants = (sources: readonly FeatureSource[]): readonly string[] =>
     sources.flatMap((source) =>
       source.features
-        .filter((feature) => {
-          const grant = feature.grants;
-          if (grant?.kind !== 'standing') return false;
-          if (!(grant.effects ?? []).some((effect) => effect.kind === 'speed')) return false;
-          return (grant.requires ?? []).some((requirement) => requirement.kind === 'has-speed');
-        })
+        .filter((feature) =>
+          featureGrants(feature).some(
+            (grant) =>
+              grant.kind === 'standing' &&
+              (grant.effects ?? []).some((effect) => effect.kind === 'speed') &&
+              (grant.requires ?? []).some((requirement) => requirement.kind === 'has-speed'),
+          ),
+        )
         .map((feature) => feature.id),
     );
 

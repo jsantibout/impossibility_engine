@@ -242,10 +242,12 @@ describe('a Sorcerer is a creature the rest of the engine accepts', () => {
     expect(armorClassCalculation(sheet).source).toBe('draconic-sorcery:draconic-resilience');
   });
 
-  it('has hit points from a d6', () => {
+  it('has hit points from a d6, and Draconic Resilience’s three on top', () => {
     const plan = unwrap(planCharacter(SRD_CONTENT,sorcerer()), 'plan');
-    // Level 3, d6, Constitution 15 (+2): 6 + 4 + 4 + 3×2 = 20.
-    expect(plan.hitPointMaximum).toBe(20);
+    // Level 3, d6, Constitution 15 (+2): 6 + 4 + 4 + 3×2 = 20 off the table,
+    // and SRD Draconic Resilience's "Hit Point maximum increases by 3" is the
+    // subclass's own second grant.
+    expect(plan.hitPointMaximum).toBe(23);
   });
 
   it('folds, survives JSON, and replays prefix by prefix', () => {

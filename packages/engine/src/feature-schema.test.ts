@@ -10,7 +10,7 @@ import {
   RESERVED_LEDGER_NAMESPACES,
   STATED_BONUS_ACTION_LEDGER,
 } from './combat.js';
-import { MAX_LEVEL, type FeatureDefinition } from './progression.js';
+import { featureGrants, MAX_LEVEL, type FeatureDefinition } from './progression.js';
 import {
   checkFeatureDefinition,
   declaredGrantKinds,
@@ -637,7 +637,7 @@ describe('rule 7 — no FeatureGrant member sits unwritten', () => {
    */
   const written: ReadonlySet<string> = new Set([
     ...POPULATION.flatMap((entry) =>
-      entry.feature.grants === undefined ? [] : [String(entry.feature.grants.kind)],
+      featureGrants(entry.feature).map((grant) => String(grant.kind)),
     ),
     ...SRD_CONTENT.items.flatMap((item) =>
       (item.grants ?? []).map((grant) => String(grant.kind)),
@@ -669,7 +669,7 @@ describe('rule 7 — no FeatureGrant member sits unwritten', () => {
   it('has the items and the feats writing what the class tables do not', () => {
     const fromClasses = new Set(
       POPULATION.flatMap((entry) =>
-        entry.feature.grants === undefined ? [] : [String(entry.feature.grants.kind)],
+        featureGrants(entry.feature).map((grant) => String(grant.kind)),
       ),
     );
     expect([...written].filter((kind) => !fromClasses.has(kind)).sort()).toEqual([
@@ -908,7 +908,12 @@ describe('parseFeatureDefinition is the Result half', () => {
   it('answers rather than throwing on every field a rule reads', () => {
     const malformed: readonly [string, unknown][] = [
       ['a grant that is not an object', { ...sound, grants: null }],
-      ['a grant that is a list', { ...sound, grants: [{ kind: 'expertise' }] }],
+      // A list is the plural field and is legal; an **empty** one is a feature
+      // that carries no grant while saying it carries some, and a list holding
+      // something that is not a grant is the same failure as a lone one.
+      ['a list that names no grant', { ...sound, grants: [] }],
+      ['a list holding something that is not an object', { ...sound, grants: [null] }],
+      ['a list holding a grant with no kind', { ...sound, grants: [{}] }],
       ['a grant with no kind', { ...sound, grants: {} }],
       ['a grant whose kind is not a string', { ...sound, grants: { kind: 7 } }],
       ['a fixed list that is a string', { ...sound, grants: { kind: 'spells', fixed: 'bless' } }],

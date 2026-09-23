@@ -66,7 +66,9 @@ const TRADE_FEATURES: readonly string[] = [
   ...SRD_CONTENT.species.flatMap((one) => one.features),
   ...SRD_CONTENT.backgrounds.flatMap((one) => one.features),
 ]
-  .filter((feature) => feature.grants?.kind === 'trade')
+  .filter((feature) =>
+    [feature.grants ?? []].flat().some((grant) => (grant as { kind?: string }).kind === 'trade'),
+  )
   .map((feature) => feature.id)
   .sort();
 

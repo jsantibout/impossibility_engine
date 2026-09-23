@@ -11,6 +11,7 @@ import {
   createRng,
   createRollIssuer,
   declaredCasting,
+  featureGrants,
   fold,
   freeCastPoolKey,
   planCharacter,
@@ -448,9 +449,11 @@ describe('a species or background feature marked engine is one something reads',
     // feature that asked — the option, through a grant's `choiceFrom` gate,
     // and the table, through `optionMeans` — so a trait that grants nothing
     // itself is still executed, and by more readers than most.
-    const readBySibling = ORIGIN_FEATURES.some((other) => other.grants?.choiceFrom === feature.id);
+    const readBySibling = ORIGIN_FEATURES.some((other) =>
+      featureGrants(other).some((grant) => grant.choiceFrom === feature.id),
+    );
     const readable =
-      (feature.grants !== undefined && READABLE_GRANT_KINDS.has(feature.grants.kind)) ||
+      featureGrants(feature).some((grant) => READABLE_GRANT_KINDS.has(grant.kind)) ||
       feature.choice?.kind === 'skill' ||
       feature.choice?.kind === 'feat' ||
       feature.grantsFeat !== undefined ||

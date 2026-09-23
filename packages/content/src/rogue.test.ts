@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { featureGrants, type FeatureDefinition } from '@ie/engine';
 import { ROGUE, SNEAK_ATTACK_DICE, SRD_CONTENT, THIEF, WIZARD } from '@ie/content';
 import { asCharacterId, isErr, expect as unwrap } from '@ie/shared';
 import { armorClass, proficiencyBonusForLevel, skillModifier } from '@ie/engine';
@@ -121,8 +122,10 @@ describe('the Rogue table agrees with the engine', () => {
 describe('Expertise is the same grant the Wizard has', () => {
   /** Both features declare the same grant; neither is found by its id. */
   it('is declared as a grant on both classes', () => {
-    const rogueExpertise = ROGUE.features.filter((f) => f.grants?.kind === 'expertise');
-    const wizardExpertise = WIZARD.features.filter((f) => f.grants?.kind === 'expertise');
+    const expertise = (f: FeatureDefinition) =>
+      featureGrants(f).some((grant) => grant.kind === 'expertise');
+    const rogueExpertise = ROGUE.features.filter(expertise);
+    const wizardExpertise = WIZARD.features.filter(expertise);
     expect(rogueExpertise).toHaveLength(2);
     expect(wizardExpertise).toHaveLength(1);
   });

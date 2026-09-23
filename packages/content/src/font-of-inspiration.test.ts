@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { featureGrants } from '@ie/engine';
 import { SRD_CONTENT } from '@ie/content';
 import { asCharacterId, expect as unwrap, type CharacterId } from '@ie/shared';
 import {
@@ -273,7 +274,7 @@ describe('the feature is executed, and the map says so', () => {
   it('names a feature of the same class', () => {
     const bardClass = SRD_CONTENT.classById('bard')!;
     const declaring = bardClass.features.find((f) => f.id === 'bard:bardic-inspiration')!;
-    const grant = declaring.grants!;
+    const grant = featureGrants(declaring)[0]!;
     expect(grant.kind).toBe('pool');
     const named = grant.kind === 'pool' ? grant.recoversSooner?.withFeature : undefined;
     expect(named).toBe('bard:font-of-inspiration');

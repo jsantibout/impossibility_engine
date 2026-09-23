@@ -24,9 +24,11 @@ import type {
 } from './origins.js';
 import {
   MAX_LEVEL,
+  featureGrants,
   type ClassDefinition,
   type FeatureDefinition,
   type FeatureGrant,
+  type GatedFeatureGrant,
   type CastingOptionGrant,
   type PoolOptionGrant,
   type SubclassDefinition,
@@ -197,9 +199,11 @@ export interface ContentProblem {
  * the door. A list rather than a single key because the question is
  * membership, and a feature that declared two would answer for both.
  */
-const poolKeysOf = (feature: FeatureDefinition): readonly string[] => {
-  const grant = feature.grants;
-  if (grant === undefined) return [];
+const poolKeysOf = (feature: FeatureDefinition): readonly string[] =>
+  featureGrants(feature).flatMap(poolKeysIn);
+
+/** The pools one grant declares, which is at most one. */
+const poolKeysIn = (grant: GatedFeatureGrant): readonly string[] => {
   if (grant.kind === 'pool') return [grant.key];
   if (grant.kind === 'activated' && grant.pool !== null) return [grant.pool];
   if (grant.kind === 'reaction' && grant.declares !== undefined && grant.pool !== undefined) {
@@ -3489,479 +3493,625 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
       for (const problem of checkFeatureDefinition(feature, context)) {
         problems.push({ ...problem, field: `${where}.${problem.field}` });
       }
-      // The two requirements an item's grant is looked up by — see
-      // {@link ITEM_ONLY_REQUIREMENTS}. On a class feature they name nothing.
-      //
-      // **Asked of every grant that carries a gate, not of `standing` alone.**
-      // `requirementsHold` is one evaluator over one vocabulary, so a second
-      // member carrying `requires` inherits the trap along with the clause: a
-      // style written "while worn" would look the clause up against a feature
-      // id, hold never, and say nothing about it — which is precisely the
-      // silence this refusal exists to break.
-      //
-      // Asked of the **field** rather than of a list of kinds that carry it,
-      // so a third member joining them is covered by the day it compiles. A
-      // list would be exhaustive only as long as somebody kept it so, and this
-      // refusal exists because the last thing nobody kept was believed.
-      const gated: readonly StandingRequirement[] =
-        feature.grants !== undefined && 'requires' in feature.grants
-          ? (feature.grants.requires ?? [])
-          : [];
-      gated.forEach((requirement, position) => {
-        if (ITEM_ONLY_REQUIREMENTS.has(requirement.kind)) {
-          problems.push({
-            field: `${where}.grants.requires[${position}]`,
-            code: 'item_requirement_on_a_feature',
-            reason: `"${requirement.kind}" is read against the id of the item granting it, and a class feature is not an item, so this would never hold`,
-          });
-        }
-      });
-      if (feature.grants?.kind === 'standing') {
-        (feature.grants.effects ?? []).forEach((effect, position) => {
-          // **`checkFeatureDefinition` above already held this one**, at this
-          // very path, and a problem reported twice is a problem an author
-          // fixes once and sees again. It is in the shared function because a
-          // **feat** reaches neither this loop's sibling nor that call — see
-          // `speedGrantProblems` — and it is skipped here because a feature
-          // reaches both.
-          if (effect.kind === 'speed') return;
-          for (const problem of ownedStandingEffectProblems(
-            effect,
-            `${where}.grants.effects[${position}]`,
-            feature.id,
-          )) {
-            problems.push({ field: problem.field, code: problem.code, reason: problem.reason });
+      // Every rule about a grant, asked of each grant the feature carries —
+      // see `featureGrants`. The path says which: a feature that writes one
+      // grant reports `grants.x` exactly as it always did, and one that writes
+      // a list reports `grants[1].x`, so a problem can be found where it was
+      // written.
+      const listed = Array.isArray(feature.grants);
+      featureGrants(feature).forEach((grant, grantIndex) => {
+        const grantsAt = listed ? `${where}.grants[${grantIndex}]` : `${where}.grants`;
+        // The two requirements an item's grant is looked up by — see
+        // {@link ITEM_ONLY_REQUIREMENTS}. On a class feature they name nothing.
+        //
+        // **Asked of every grant that carries a gate, not of `standing` alone.**
+        // `requirementsHold` is one evaluator over one vocabulary, so a second
+        // member carrying `requires` inherits the trap along with the clause: a
+        // style written "while worn" would look the clause up against a feature
+        // id, hold never, and say nothing about it — which is precisely the
+        // silence this refusal exists to break.
+        //
+        // Asked of the **field** rather than of a list of kinds that carry it,
+        // so a third member joining them is covered by the day it compiles. A
+        // list would be exhaustive only as long as somebody kept it so, and this
+        // refusal exists because the last thing nobody kept was believed.
+        const gated: readonly StandingRequirement[] =
+          'requires' in grant ? (grant.requires ?? []) : [];
+        gated.forEach((requirement, position) => {
+          if (ITEM_ONLY_REQUIREMENTS.has(requirement.kind)) {
+            problems.push({
+              field: `${grantsAt}.requires[${position}]`,
+              code: 'item_requirement_on_a_feature',
+              reason: `"${requirement.kind}" is read against the id of the item granting it, and a class feature is not an item, so this would never hold`,
+            });
           }
         });
-      }
-      // A trade, and the four things a catalogue can write here that nothing
-      // downstream could recover from: two trades a command could not tell
-      // apart, a slot bought at no level (`spellSlotKey` throws on one, which
-      // is a refusal arriving as a crash), a trade of no uses, and a limit
-      // with nowhere to be counted — "you can't do so again until you finish a
-      // Long Rest" with no pool of one behind it is no limit at all.
-      if (feature.grants?.kind === 'trade') {
-        const trades = feature.grants.trades ?? [];
-        if (trades.length === 0) {
-          problems.push({
-            field: `${where}.grants.trades`,
-            code: 'empty_trade',
-            reason: `${feature.id} trades nothing for anything, so nothing would ever read it`,
+        if (grant.kind === 'standing') {
+          (grant.effects ?? []).forEach((effect, position) => {
+            // **`checkFeatureDefinition` above already held this one**, at this
+            // very path, and a problem reported twice is a problem an author
+            // fixes once and sees again. It is in the shared function because a
+            // **feat** reaches neither this loop's sibling nor that call — see
+            // `speedGrantProblems` — and it is skipped here because a feature
+            // reaches both.
+            if (effect.kind === 'speed') return;
+            for (const problem of ownedStandingEffectProblems(
+              effect,
+              `${grantsAt}.effects[${position}]`,
+              feature.id,
+            )) {
+              problems.push({ field: problem.field, code: problem.code, reason: problem.reason });
+            }
           });
         }
-        // The pool the feature itself declares, which is a key and a sizing or
-        // neither: a key with no sizing is a pool nothing gives a maximum, and
-        // a sizing with no key is a maximum on nothing.
-        const declaring = feature.grants.pool !== undefined;
-        const sizing = feature.grants.declares !== undefined;
-        if (declaring !== sizing) {
-          problems.push({
-            field: declaring ? `${where}.grants.declares` : `${where}.grants.pool`,
-            code: 'half_a_declared_pool',
-            reason: `${feature.id} declares ${declaring ? 'a pool with no sizing' : 'a sizing with no pool key'}, and a pool is both`,
-          });
-        }
-        if (declaring && feature.grants.pool!.trim() === '') {
-          problems.push({
-            field: `${where}.grants.pool`,
-            code: 'bad_trade_pool',
-            reason: 'a pool is found by its key, and a blank one names nothing',
-          });
-        }
-        const seen = new Set<string>();
-        trades.forEach((trade, position) => {
-          const at = `${where}.grants.trades[${position}]`;
-          if (typeof trade?.id !== 'string' || trade.id.trim() === '') {
+        // A trade, and the four things a catalogue can write here that nothing
+        // downstream could recover from: two trades a command could not tell
+        // apart, a slot bought at no level (`spellSlotKey` throws on one, which
+        // is a refusal arriving as a crash), a trade of no uses, and a limit
+        // with nowhere to be counted — "you can't do so again until you finish a
+        // Long Rest" with no pool of one behind it is no limit at all.
+        if (grant.kind === 'trade') {
+          const trades = grant.trades ?? [];
+          if (trades.length === 0) {
             problems.push({
-              field: `${at}.id`,
-              code: 'bad_trade_id',
-              reason: 'a trade is named, because a command says which of a feature’s trades it means',
+              field: `${grantsAt}.trades`,
+              code: 'empty_trade',
+              reason: `${feature.id} trades nothing for anything, so nothing would ever read it`,
             });
-          } else if (seen.has(trade.id)) {
-            problems.push({
-              field: `${at}.id`,
-              code: 'duplicate_trade',
-              reason: `${feature.id} offers two trades called ${trade.id}, and a command naming one would find either`,
-            });
-          } else {
-            seen.add(trade.id);
           }
+          // The pool the feature itself declares, which is a key and a sizing or
+          // neither: a key with no sizing is a pool nothing gives a maximum, and
+          // a sizing with no key is a maximum on nothing.
+          const declaring = grant.pool !== undefined;
+          const sizing = grant.declares !== undefined;
+          if (declaring !== sizing) {
+            problems.push({
+              field: declaring ? `${grantsAt}.declares` : `${grantsAt}.pool`,
+              code: 'half_a_declared_pool',
+              reason: `${feature.id} declares ${declaring ? 'a pool with no sizing' : 'a sizing with no pool key'}, and a pool is both`,
+            });
+          }
+          if (declaring && grant.pool!.trim() === '') {
+            problems.push({
+              field: `${grantsAt}.pool`,
+              code: 'bad_trade_pool',
+              reason: 'a pool is found by its key, and a blank one names nothing',
+            });
+          }
+          const seen = new Set<string>();
+          trades.forEach((trade, position) => {
+            const at = `${grantsAt}.trades[${position}]`;
+            if (typeof trade?.id !== 'string' || trade.id.trim() === '') {
+              problems.push({
+                field: `${at}.id`,
+                code: 'bad_trade_id',
+                reason: 'a trade is named, because a command says which of a feature’s trades it means',
+              });
+            } else if (seen.has(trade.id)) {
+              problems.push({
+                field: `${at}.id`,
+                code: 'duplicate_trade',
+                reason: `${feature.id} offers two trades called ${trade.id}, and a command naming one would find either`,
+              });
+            } else {
+              seen.add(trade.id);
+            }
 
-          for (const [side, end] of [
-            ['spends', trade?.spends],
-            ['gains', trade?.gains],
-          ] as const) {
-            // The other end, which is what a `the-slot-level` amount reads and
-            // what a price table is indexed by.
-            //
-            // **The level it reads is the one the *caller* names**, and that
-            // is the whole of the rule rather than a detail of it: the command
-            // has a slot level in hand only where the spent end is a slot the
-            // grant left unlevelled, so `the-slot-level` anywhere else sizes
-            // itself from nothing and the trade runs for a zero it does not
-            // refuse. Exactly the shape of `price_table_without_a_choice`
-            // below, which is the same mistake at the other end.
-            const other = side === 'spends' ? trade?.gains : trade?.spends;
-            const readsASlot =
-              side === 'gains' && other?.kind === 'spell-slot' && other.level === undefined;
-            if (end?.kind === 'pool') {
-              if (typeof end.key !== 'string' || end.key.trim() === '') {
-                problems.push({
-                  field: `${at}.${side}.key`,
-                  code: 'bad_trade_pool',
-                  reason: 'a pool is found by its key, and a blank one names nothing',
-                });
-              }
-              // SRD Font of Magic: "a number of Sorcery Points equal to the
-              // slot's level". There must *be* a slot in the trade for it to
-              // read, and on a trade of two pools it would read nothing.
-              if (end.uses === 'the-slot-level') {
-                if (!readsASlot) {
+            for (const [side, end] of [
+              ['spends', trade?.spends],
+              ['gains', trade?.gains],
+            ] as const) {
+              // The other end, which is what a `the-slot-level` amount reads and
+              // what a price table is indexed by.
+              //
+              // **The level it reads is the one the *caller* names**, and that
+              // is the whole of the rule rather than a detail of it: the command
+              // has a slot level in hand only where the spent end is a slot the
+              // grant left unlevelled, so `the-slot-level` anywhere else sizes
+              // itself from nothing and the trade runs for a zero it does not
+              // refuse. Exactly the shape of `price_table_without_a_choice`
+              // below, which is the same mistake at the other end.
+              const other = side === 'spends' ? trade?.gains : trade?.spends;
+              const readsASlot =
+                side === 'gains' && other?.kind === 'spell-slot' && other.level === undefined;
+              if (end?.kind === 'pool') {
+                if (typeof end.key !== 'string' || end.key.trim() === '') {
+                  problems.push({
+                    field: `${at}.${side}.key`,
+                    code: 'bad_trade_pool',
+                    reason: 'a pool is found by its key, and a blank one names nothing',
+                  });
+                }
+                // SRD Font of Magic: "a number of Sorcery Points equal to the
+                // slot's level". There must *be* a slot in the trade for it to
+                // read, and on a trade of two pools it would read nothing.
+                if (end.uses === 'the-slot-level') {
+                  if (!readsASlot) {
+                    problems.push({
+                      field: `${at}.${side}.uses`,
+                      code: 'no_slot_level_to_read',
+                      reason: `${feature.id} sizes what it ${side} by a slot's level, and this trade expends no spell slot whose level the caster names, so there is no level to read`,
+                    });
+                  }
+                } else if (typeof end.uses === 'object' && end.uses !== null) {
+                  // The Created Spell Slots table prices a slot that is bought
+                  // at a level the caller names. On the gained end it would be a
+                  // price nobody paid; against a slot the *grant* levels it
+                  // would be a table with one readable row and no choice.
+                  const costs = (end.uses as { byBoughtSlotLevel?: unknown }).byBoughtSlotLevel;
+                  if (side === 'gains') {
+                    problems.push({
+                      field: `${at}.gains.uses`,
+                      code: 'price_table_on_what_is_bought',
+                      reason:
+                        'a price table is what an end pays, and on the end that is gained it would be a price nothing charged',
+                    });
+                  } else if (!(other?.kind === 'spell-slot' && other.level === undefined)) {
+                    problems.push({
+                      field: `${at}.spends.uses`,
+                      code: 'price_table_without_a_choice',
+                      reason: `${feature.id} prices a slot by the level bought, and this trade buys no slot whose level the caller names`,
+                    });
+                  }
+                  if (!Array.isArray(costs) || costs.length === 0 || costs.length > 9) {
+                    problems.push({
+                      field: `${at}.${side}.uses.byBoughtSlotLevel`,
+                      code: 'bad_slot_price_table',
+                      reason: `a price table has a row for each slot level it creates, from one to nine, not ${JSON.stringify(costs)}`,
+                    });
+                  } else if (costs.some((cost) => !Number.isInteger(cost) || cost < 1)) {
+                    problems.push({
+                      field: `${at}.${side}.uses.byBoughtSlotLevel`,
+                      code: 'bad_slot_price',
+                      reason: `a slot costs a whole number of at least one, and ${JSON.stringify(costs)} has a row that is not`,
+                    });
+                  }
+                } else if (!Number.isInteger(end.uses) || end.uses < 1) {
                   problems.push({
                     field: `${at}.${side}.uses`,
-                    code: 'no_slot_level_to_read',
-                    reason: `${feature.id} sizes what it ${side} by a slot's level, and this trade expends no spell slot whose level the caster names, so there is no level to read`,
+                    code: 'bad_trade_amount',
+                    reason: `a trade moves a whole number of uses of at least one, not ${JSON.stringify(end.uses)}`,
                   });
                 }
-              } else if (typeof end.uses === 'object' && end.uses !== null) {
-                // The Created Spell Slots table prices a slot that is bought
-                // at a level the caller names. On the gained end it would be a
-                // price nobody paid; against a slot the *grant* levels it
-                // would be a table with one readable row and no choice.
-                const costs = (end.uses as { byBoughtSlotLevel?: unknown }).byBoughtSlotLevel;
-                if (side === 'gains') {
+              } else if (end?.kind === 'spell-slot') {
+                // The level is the caster's where a slot is *spent*, and where
+                // one is bought it is either the grant's — "give yourself **a
+                // level 1** spell slot" — or the caller's, which is what the
+                // other end's price table makes it. A bought slot with neither
+                // is a level nothing supplies.
+                const pricedByTheOtherEnd =
+                  other?.kind === 'pool' && typeof other.uses === 'object' && other.uses !== null;
+                if (side === 'gains' && end.level === undefined && !pricedByTheOtherEnd) {
                   problems.push({
-                    field: `${at}.gains.uses`,
-                    code: 'price_table_on_what_is_bought',
+                    field: `${at}.gains.level`,
+                    code: 'slot_without_a_level',
                     reason:
-                      'a price table is what an end pays, and on the end that is gained it would be a price nothing charged',
-                  });
-                } else if (!(other?.kind === 'spell-slot' && other.level === undefined)) {
-                  problems.push({
-                    field: `${at}.spends.uses`,
-                    code: 'price_table_without_a_choice',
-                    reason: `${feature.id} prices a slot by the level bought, and this trade buys no slot whose level the caller names`,
+                      'a slot given back is of a level the feature names, or of one the caller names and the other end prices; this one has neither',
                   });
                 }
-                if (!Array.isArray(costs) || costs.length === 0 || costs.length > 9) {
+                if (end.level !== undefined && (!Number.isInteger(end.level) || end.level < 1 || end.level > 9)) {
                   problems.push({
-                    field: `${at}.${side}.uses.byBoughtSlotLevel`,
-                    code: 'bad_slot_price_table',
-                    reason: `a price table has a row for each slot level it creates, from one to nine, not ${JSON.stringify(costs)}`,
-                  });
-                } else if (costs.some((cost) => !Number.isInteger(cost) || cost < 1)) {
-                  problems.push({
-                    field: `${at}.${side}.uses.byBoughtSlotLevel`,
-                    code: 'bad_slot_price',
-                    reason: `a slot costs a whole number of at least one, and ${JSON.stringify(costs)} has a row that is not`,
+                    field: `${at}.${side}.level`,
+                    code: 'bad_slot_level',
+                    reason: `spell slots run from level 1 to 9, not ${JSON.stringify(end.level)}`,
                   });
                 }
-              } else if (!Number.isInteger(end.uses) || end.uses < 1) {
+              } else if (end?.kind === 'spell-slots') {
+                // SRD Arcane Recovery is the one sentence of this shape and it
+                // is on the bought end. Nothing in the book burns a handful of
+                // slots at once, and `tradeResource` spends exactly one key.
+                if (side === 'spends') {
+                  problems.push({
+                    field: `${at}.spends`,
+                    code: 'slots_spent_together',
+                    reason:
+                      'a budget of combined slot levels is what a trade buys; nothing in the book expends several slots in one act',
+                  });
+                }
+                if (end.combinedLevel !== 'half-class-level-round-up') {
+                  problems.push({
+                    field: `${at}.${side}.combinedLevel`,
+                    code: 'bad_combined_level',
+                    reason: `the one budget the SRD prints is half the class level rounded up, and "${String((end as { combinedLevel?: unknown }).combinedLevel)}" is not it`,
+                  });
+                }
+                if (!Number.isInteger(end.maxLevel) || end.maxLevel < 1 || end.maxLevel > 9) {
+                  problems.push({
+                    field: `${at}.${side}.maxLevel`,
+                    code: 'bad_slot_level',
+                    reason: `spell slots run from level 1 to 9, not ${JSON.stringify(end.maxLevel)}`,
+                  });
+                }
+              } else {
                 problems.push({
-                  field: `${at}.${side}.uses`,
-                  code: 'bad_trade_amount',
-                  reason: `a trade moves a whole number of uses of at least one, not ${JSON.stringify(end.uses)}`,
+                  field: `${at}.${side}`,
+                  code: 'bad_trade_resource',
+                  reason: `"${String((end as { kind?: unknown })?.kind)}" is not something this engine trades: a pool, a spell slot, or slots inside a combined-level budget`,
                 });
               }
-            } else if (end?.kind === 'spell-slot') {
-              // The level is the caster's where a slot is *spent*, and where
-              // one is bought it is either the grant's — "give yourself **a
-              // level 1** spell slot" — or the caller's, which is what the
-              // other end's price table makes it. A bought slot with neither
-              // is a level nothing supplies.
-              const pricedByTheOtherEnd =
-                other?.kind === 'pool' && typeof other.uses === 'object' && other.uses !== null;
-              if (side === 'gains' && end.level === undefined && !pricedByTheOtherEnd) {
-                problems.push({
-                  field: `${at}.gains.level`,
-                  code: 'slot_without_a_level',
-                  reason:
-                    'a slot given back is of a level the feature names, or of one the caller names and the other end prices; this one has neither',
-                });
-              }
-              if (end.level !== undefined && (!Number.isInteger(end.level) || end.level < 1 || end.level > 9)) {
-                problems.push({
-                  field: `${at}.${side}.level`,
-                  code: 'bad_slot_level',
-                  reason: `spell slots run from level 1 to 9, not ${JSON.stringify(end.level)}`,
-                });
-              }
-            } else if (end?.kind === 'spell-slots') {
-              // SRD Arcane Recovery is the one sentence of this shape and it
-              // is on the bought end. Nothing in the book burns a handful of
-              // slots at once, and `tradeResource` spends exactly one key.
-              if (side === 'spends') {
-                problems.push({
-                  field: `${at}.spends`,
-                  code: 'slots_spent_together',
-                  reason:
-                    'a budget of combined slot levels is what a trade buys; nothing in the book expends several slots in one act',
-                });
-              }
-              if (end.combinedLevel !== 'half-class-level-round-up') {
-                problems.push({
-                  field: `${at}.${side}.combinedLevel`,
-                  code: 'bad_combined_level',
-                  reason: `the one budget the SRD prints is half the class level rounded up, and "${String((end as { combinedLevel?: unknown }).combinedLevel)}" is not it`,
-                });
-              }
-              if (!Number.isInteger(end.maxLevel) || end.maxLevel < 1 || end.maxLevel > 9) {
-                problems.push({
-                  field: `${at}.${side}.maxLevel`,
-                  code: 'bad_slot_level',
-                  reason: `spell slots run from level 1 to 9, not ${JSON.stringify(end.maxLevel)}`,
-                });
-              }
-            } else {
+            }
+
+            if (trade?.moment !== undefined && trade.moment !== 'short-rest') {
               problems.push({
-                field: `${at}.${side}`,
-                code: 'bad_trade_resource',
-                reason: `"${String((end as { kind?: unknown })?.kind)}" is not something this engine trades: a pool, a spell slot, or slots inside a combined-level budget`,
+                field: `${at}.moment`,
+                code: 'bad_trade_moment',
+                reason: `the one moment the SRD hangs a trade on is the end of a Short Rest, and "${String((trade as { moment?: unknown }).moment)}" is not it`,
               });
             }
-          }
 
-          if (trade?.moment !== undefined && trade.moment !== 'short-rest') {
-            problems.push({
-              field: `${at}.moment`,
-              code: 'bad_trade_moment',
-              reason: `the one moment the SRD hangs a trade on is the end of a Short Rest, and "${String((trade as { moment?: unknown }).moment)}" is not it`,
-            });
-          }
-
-          if (trade?.limit === 'once-per-long-rest' && trade.pool === undefined) {
-            problems.push({
-              field: `${at}.pool`,
-              code: 'limit_without_a_pool',
-              reason:
-                'a once-a-day limit is a pool of one, the reading a recovery grant already takes; without one nothing counts the use',
-            });
-          }
-          if (trade?.limit === 'once-per-turn' && trade.pool !== undefined) {
-            problems.push({
-              field: `${at}.pool`,
-              code: 'pool_without_a_limit',
-              reason:
-                'a once-a-turn trade is counted by the turn’s own ledger, so a pool declared beside it is one nothing ever spends',
-            });
-          }
-          // And the third arm, whose pool is the other sentence: an unlimited
-          // trade declares a pool of one only when that pool is what it fills
-          // — SRD Holy Nimbus's own single use, which the feature has no
-          // second grant to declare. One declared anywhere else is a pool
-          // nothing ever spends, which is `pool_without_a_limit`'s failure
-          // wearing the new member's name.
-          if (
-            trade?.limit === 'unlimited' &&
-            trade.pool !== undefined &&
-            !(trade.gains?.kind === 'pool' && trade.gains.key === trade.pool)
-          ) {
-            problems.push({
-              field: `${at}.pool`,
-              code: 'pool_without_a_limit',
-              reason: `${feature.id} prints no limit, so the pool of one it declares is the use it buys back; "${trade.pool}" is not what this trade fills, and nothing would ever spend it`,
-            });
-          }
-          if (
-            trade?.limit !== 'once-per-turn' &&
-            trade?.limit !== 'once-per-long-rest' &&
-            trade?.limit !== 'unlimited'
-          ) {
-            problems.push({
-              field: `${at}.limit`,
-              code: 'bad_trade_limit',
-              reason: `a trade is limited once a turn, once a Long Rest, or not at all, and "${String((trade as { limit?: unknown } | undefined)?.limit)}" is none of the three`,
-            });
-          }
-        });
-      }
-      // The item's own sizing, on a class feature. `poolSizeOf` reads a column,
-      // a modifier or a multiple of the level and never a flat count, so a
-      // feature naming one would be sized by a number nothing reads — the same
-      // failure `item_requirement_on_a_feature` above names, in the other
-      // direction.
-      if (feature.grants?.kind === 'pool' && feature.grants.uses !== undefined) {
-        problems.push({
-          field: `${where}.grants.uses`,
-          code: 'item_sizing_on_a_feature',
-          reason: `a flat number of uses is how an item's line sizes its charges, and poolSizeOf sizes a feature's pool from its class table, so ${feature.id} would be sized by a number nothing reads`,
-        });
-      }
-      // What a use of the pool buys, where what it buys is an effect list.
-      // Judged by the conferral's own rules with the one difference a feature
-      // makes — it has a caster — and against this source's own table, whose
-      // length is what a class-table column has to match.
-      if (feature.grants?.kind === 'pool' && feature.grants.options !== undefined) {
-        problems.push(
-          ...featureOptionsProblems(
-            feature.id,
-            feature.grants.options,
-            `${where}.grants.options`,
-            source.levels,
-          ),
-        );
-      }
-      // A form another feature's menu takes — SRD Preserve Life joining
-      // Channel Divinity's. The options themselves are judged by the rules the
-      // host's own menu is judged by, because they *are* that menu's; what is
-      // checked here is the half a definition cannot check for itself, and it
-      // is `free_casting_pool_arrives_later`'s rule one grant along. A form
-      // that names a menu nobody in scope prints, one that arrives before the
-      // menu does, or one whose id the host already uses is a line on a class
-      // table that looks executed and reaches nobody.
-      // The same sentence asked of a feature, because the kind is a member of
-      // the one vocabulary and a homebrew class feature may print it.
-      if (feature.grants !== undefined) {
-        problems.push(
-          ...initiativeGrantProblems(feature.grants, `${where}.grants`, feature.id),
-        );
-      }
-
-      // What a use of this pool buys in the turn budget. A purchase that adds
-      // nothing is the failure `empty_feature_option` names one menu along,
-      // and a count of zero attacks is the same thing wearing a number.
-      if (feature.grants?.kind === 'pool' && feature.grants.buysBudget !== undefined) {
-        const purchases = feature.grants.buysBudget;
-        const seen = new Set<string>();
-        purchases.forEach((purchase, at) => {
-          const field = `${where}.grants.buysBudget[${at}]`;
-          if (purchase.extraAction === undefined && purchase.extraAttacks === undefined) {
-            problems.push({
-              field,
-              code: 'empty_budget_purchase',
-              reason: `${feature.id}'s "${purchase.name}" spends a use and adds nothing to the turn`,
-            });
-          }
-          if (purchase.extraAttacks !== undefined && purchase.extraAttacks.count < 1) {
-            problems.push({
-              field: `${field}.extraAttacks.count`,
-              code: 'empty_budget_purchase',
-              reason: `${feature.id}'s "${purchase.name}" buys no attacks at all`,
-            });
-          }
-          if (seen.has(purchase.id)) {
-            problems.push({
-              field: `${field}.id`,
-              code: 'duplicate_budget_purchase',
-              reason: `${feature.id} sells two things called "${purchase.id}", and the caller names one`,
-            });
-          }
-          seen.add(purchase.id);
-        });
-      }
-
-      if (feature.grants?.kind === 'pool-options') {
-        const grant = feature.grants;
-        if (!isString(grant.feature) || grant.feature.trim() === '') {
-          problems.push({
-            field: `${where}.grants.feature`,
-            code: 'option_menu_unnamed',
-            reason: `${feature.id} adds a form to a menu and names none; the menu belongs to the feature that declares the pool`,
+            if (trade?.limit === 'once-per-long-rest' && trade.pool === undefined) {
+              problems.push({
+                field: `${at}.pool`,
+                code: 'limit_without_a_pool',
+                reason:
+                  'a once-a-day limit is a pool of one, the reading a recovery grant already takes; without one nothing counts the use',
+              });
+            }
+            if (trade?.limit === 'once-per-turn' && trade.pool !== undefined) {
+              problems.push({
+                field: `${at}.pool`,
+                code: 'pool_without_a_limit',
+                reason:
+                  'a once-a-turn trade is counted by the turn’s own ledger, so a pool declared beside it is one nothing ever spends',
+              });
+            }
+            // And the third arm, whose pool is the other sentence: an unlimited
+            // trade declares a pool of one only when that pool is what it fills
+            // — SRD Holy Nimbus's own single use, which the feature has no
+            // second grant to declare. One declared anywhere else is a pool
+            // nothing ever spends, which is `pool_without_a_limit`'s failure
+            // wearing the new member's name.
+            if (
+              trade?.limit === 'unlimited' &&
+              trade.pool !== undefined &&
+              !(trade.gains?.kind === 'pool' && trade.gains.key === trade.pool)
+            ) {
+              problems.push({
+                field: `${at}.pool`,
+                code: 'pool_without_a_limit',
+                reason: `${feature.id} prints no limit, so the pool of one it declares is the use it buys back; "${trade.pool}" is not what this trade fills, and nothing would ever spend it`,
+              });
+            }
+            if (
+              trade?.limit !== 'once-per-turn' &&
+              trade?.limit !== 'once-per-long-rest' &&
+              trade?.limit !== 'unlimited'
+            ) {
+              problems.push({
+                field: `${at}.limit`,
+                code: 'bad_trade_limit',
+                reason: `a trade is limited once a turn, once a Long Rest, or not at all, and "${String((trade as { limit?: unknown } | undefined)?.limit)}" is none of the three`,
+              });
+            }
           });
         }
-        if (!Array.isArray(grant.options) || grant.options.length === 0) {
+        // The item's own sizing, on a class feature. `poolSizeOf` reads a column,
+        // a modifier or a multiple of the level and never a flat count, so a
+        // feature naming one would be sized by a number nothing reads — the same
+        // failure `item_requirement_on_a_feature` above names, in the other
+        // direction.
+        if (grant.kind === 'pool' && grant.uses !== undefined) {
           problems.push({
-            field: `${where}.grants.options`,
-            code: 'empty_option_menu',
-            reason: `${feature.id} adds nothing to the menu it names`,
+            field: `${grantsAt}.uses`,
+            code: 'item_sizing_on_a_feature',
+            reason: `a flat number of uses is how an item's line sizes its charges, and poolSizeOf sizes a feature's pool from its class table, so ${feature.id} would be sized by a number nothing reads`,
           });
-        } else {
+        }
+        // What a use of the pool buys, where what it buys is an effect list.
+        // Judged by the conferral's own rules with the one difference a feature
+        // makes — it has a caster — and against this source's own table, whose
+        // length is what a class-table column has to match.
+        if (grant.kind === 'pool' && grant.options !== undefined) {
           problems.push(
             ...featureOptionsProblems(
               feature.id,
               grant.options,
-              `${where}.grants.options`,
+              `${grantsAt}.options`,
               source.levels,
             ),
           );
         }
+        // A form another feature's menu takes — SRD Preserve Life joining
+        // Channel Divinity's. The options themselves are judged by the rules the
+        // host's own menu is judged by, because they *are* that menu's; what is
+        // checked here is the half a definition cannot check for itself, and it
+        // is `free_casting_pool_arrives_later`'s rule one grant along. A form
+        // that names a menu nobody in scope prints, one that arrives before the
+        // menu does, or one whose id the host already uses is a line on a class
+        // table that looks executed and reaches nobody.
+        // The same sentence asked of a feature, because the kind is a member of
+        // the one vocabulary and a homebrew class feature may print it.
+        problems.push(...initiativeGrantProblems(grant, `${grantsAt}`, feature.id));
 
-        const hosts = (source.inScope ?? source.features).filter(
-          (one) => one.id === grant.feature && one.grants?.kind === 'pool',
-        );
-        const host = hosts[0];
-        if (host === undefined) {
-          problems.push({
-            field: `${where}.grants.feature`,
-            code: 'unknown_option_menu',
-            reason: `${feature.id} adds a form to "${String(grant.feature)}", and no feature of ${source.where} declares a pool by that name — a menu is a pool grant's, and a subclass may join its own class's`,
+        // What a use of this pool buys in the turn budget. A purchase that adds
+        // nothing is the failure `empty_feature_option` names one menu along,
+        // and a count of zero attacks is the same thing wearing a number.
+        if (grant.kind === 'pool' && grant.buysBudget !== undefined) {
+          const purchases = grant.buysBudget;
+          const seen = new Set<string>();
+          purchases.forEach((purchase, at) => {
+            const field = `${grantsAt}.buysBudget[${at}]`;
+            if (purchase.extraAction === undefined && purchase.extraAttacks === undefined) {
+              problems.push({
+                field,
+                code: 'empty_budget_purchase',
+                reason: `${feature.id}'s "${purchase.name}" spends a use and adds nothing to the turn`,
+              });
+            }
+            if (purchase.extraAttacks !== undefined && purchase.extraAttacks.count < 1) {
+              problems.push({
+                field: `${field}.extraAttacks.count`,
+                code: 'empty_budget_purchase',
+                reason: `${feature.id}'s "${purchase.name}" buys no attacks at all`,
+              });
+            }
+            if (seen.has(purchase.id)) {
+              problems.push({
+                field: `${field}.id`,
+                code: 'duplicate_budget_purchase',
+                reason: `${feature.id} sells two things called "${purchase.id}", and the caller names one`,
+              });
+            }
+            seen.add(purchase.id);
           });
-        } else if (host.level > feature.level) {
-          problems.push({
-            field: `${where}.grants.feature`,
-            code: 'option_menu_arrives_later',
-            reason: `${feature.id} arrives at level ${feature.level} and joins a menu ${host.id} does not print until ${host.level}, so every use in between would find no such option`,
-          });
-        } else {
-          const taken = new Set(
-            (host.grants?.kind === 'pool' ? (host.grants.options ?? []) : []).map((one) => one.id),
-          );
-          for (const option of Array.isArray(grant.options) ? grant.options : []) {
-            if (!taken.has(option?.id)) continue;
+        }
+
+        if (grant.kind === 'pool-options') {
+          if (!isString(grant.feature) || grant.feature.trim() === '') {
             problems.push({
-              field: `${where}.grants.options`,
-              code: 'duplicate_feature_option',
-              reason: `${host.id} already offers "${option.id}", and a caller naming it could reach only the first`,
+              field: `${grantsAt}.feature`,
+              code: 'option_menu_unnamed',
+              reason: `${feature.id} adds a form to a menu and names none; the menu belongs to the feature that declares the pool`,
+            });
+          }
+          if (!Array.isArray(grant.options) || grant.options.length === 0) {
+            problems.push({
+              field: `${grantsAt}.options`,
+              code: 'empty_option_menu',
+              reason: `${feature.id} adds nothing to the menu it names`,
+            });
+          } else {
+            problems.push(
+              ...featureOptionsProblems(
+                feature.id,
+                grant.options,
+                `${grantsAt}.options`,
+                source.levels,
+              ),
+            );
+          }
+
+          const hosts = (source.inScope ?? source.features).filter(
+            (one) =>
+              one.id === grant.feature &&
+              featureGrants(one).some((declared) => declared.kind === 'pool'),
+          );
+          const host = hosts[0];
+          if (host === undefined) {
+            problems.push({
+              field: `${grantsAt}.feature`,
+              code: 'unknown_option_menu',
+              reason: `${feature.id} adds a form to "${String(grant.feature)}", and no feature of ${source.where} declares a pool by that name — a menu is a pool grant's, and a subclass may join its own class's`,
+            });
+          } else if (host.level > feature.level) {
+            problems.push({
+              field: `${grantsAt}.feature`,
+              code: 'option_menu_arrives_later',
+              reason: `${feature.id} arrives at level ${feature.level} and joins a menu ${host.id} does not print until ${host.level}, so every use in between would find no such option`,
+            });
+          } else {
+            const taken = new Set(
+              featureGrants(host)
+                .flatMap((declared) => (declared.kind === 'pool' ? (declared.options ?? []) : []))
+                .map((one) => one.id),
+            );
+            for (const option of Array.isArray(grant.options) ? grant.options : []) {
+              if (!taken.has(option?.id)) continue;
+              problems.push({
+                field: `${grantsAt}.options`,
+                code: 'duplicate_feature_option',
+                reason: `${host.id} already offers "${option.id}", and a caller naming it could reach only the first`,
+              });
+            }
+          }
+        }
+        // What a **hit** buys, judged by the same rules one trigger along: the
+        // effects are the conferral's, the fields an action owns are refused,
+        // and what is checked here is the trigger's own — the pool it spends,
+        // what one costs, and the weapons the swing has to have been made with.
+        if (grant.kind === 'on-hit') {
+          problems.push(
+            ...hitRiderProblems(feature.id, grant, `${grantsAt}`, source.levels),
+          );
+        }
+        // And the item's other sizing, refused for the sharper half of the same
+        // reason: no class table has ever rolled, and only the doors that hand
+        // an item copy over can roll one.
+        if (grant.kind === 'pool' && grant.usesRolled !== undefined) {
+          problems.push({
+            field: `${grantsAt}.usesRolled`,
+            code: 'item_rolled_sizing_on_a_feature',
+            reason: `a rolled charge maximum is an item copy's, rolled once by the door that hands the copy over; a class table has never rolled, so ${feature.id} would be sized by dice nothing throws`,
+          });
+        }
+        // The item's own route, on a class feature — the same door again. SRD
+        // "Spells Cast from Items" is about an item, the charges it spends are
+        // looked up by the granting item's id, and a class feature has none. A
+        // feature that grants spells has `kind: 'spells'`, which is executed.
+        if (grant.kind === 'casts') {
+          problems.push({
+            field: `${grantsAt}`,
+            code: 'item_casting_on_a_feature',
+            reason: `"casts" is an item casting a spell from its own charges, looked up by the granting item's id, and ${feature.id} is not an item; a feature that grants a spell declares it with a "spells" grant`,
+          });
+        }
+        // And the other half of the same SRD sentence, refused for the same
+        // reason: a conferral is used up and the thing used up is the *item*,
+        // so `useItem` looks it up by catalogue id and takes one off the
+        // inventory. A feature confers an effect list too, and what pays for it
+        // is a use of its own pool — so the message names the grant that does
+        // it rather than sending an author to a shape that cannot.
+        if (grant.kind === 'confers') {
+          problems.push({
+            field: `${grantsAt}`,
+            code: 'item_conferral_on_a_feature',
+            reason: `"confers" is an item conferring an effect without casting a spell, and the item is used up doing it; ${feature.id} is not an item, so nothing would be spent — a feature confers an effect list through the "options" its own "pool" grant carries`,
+          });
+        }
+        // A menu of things a casting may buy — SRD Metamagic. The half a
+        // definition cannot check for itself: the options are filtered at
+        // creation by the answer the player gave *this feature's* own `option`
+        // choice, so an option the choice does not offer can never be taken and
+        // would sit on the class table unreachable. That is the failure this
+        // whole file exists to catch, and it looks perfectly well formed.
+        if (grant.kind === 'casting-options') {
+          problems.push(
+            ...castingOptionProblems(feature, grant, `${grantsAt}`),
+          );
+        }
+        // A pool whose recovery a later feature rewrites names a feature this
+        // character could actually hold, which is `executedBy`'s reason with its
+        // failure: the rewrite is gated on holding the feature named, so an id
+        // nobody prints is a sentence that never fires, and the pool keeps the
+        // tag it was declared with while the class file reads as though it does
+        // not. Silence rather than a refusal is what this file turns into a
+        // problem.
+        //
+        // **Read against `inScope` rather than against siblings**, for the
+        // reason that field exists: `recoveryOf` gates on the whole feature
+        // list a character earned, class and subclass together, so a subclass
+        // pool a class feature moves is a legal thing to write and asking only
+        // about siblings would refuse it.
+        if (grant.kind === 'pool' && grant.recoversSooner !== undefined) {
+          const named = grant.recoversSooner.withFeature;
+          const rewriter = byId(source.inScope ?? source.features).get(named);
+          if (rewriter === undefined || rewriter.id === feature.id) {
+            problems.push({
+              field: `${grantsAt}.recoversSooner.withFeature`,
+              code: 'bad_recovery_rewrite',
+              reason: `${feature.id} says ${named} rewrites its recovery, and no other feature ${source.where} reaches carries that id`,
             });
           }
         }
-      }
-      // What a **hit** buys, judged by the same rules one trigger along: the
-      // effects are the conferral's, the fields an action owns are refused,
-      // and what is checked here is the trigger's own — the pool it spends,
-      // what one costs, and the weapons the swing has to have been made with.
-      if (feature.grants?.kind === 'on-hit') {
-        problems.push(
-          ...hitRiderProblems(feature.id, feature.grants, `${where}.grants`, source.levels),
-        );
-      }
-      // And the item's other sizing, refused for the sharper half of the same
-      // reason: no class table has ever rolled, and only the doors that hand
-      // an item copy over can roll one.
-      if (feature.grants?.kind === 'pool' && feature.grants.usesRolled !== undefined) {
-        problems.push({
-          field: `${where}.grants.usesRolled`,
-          code: 'item_rolled_sizing_on_a_feature',
-          reason: `a rolled charge maximum is an item copy's, rolled once by the door that hands the copy over; a class table has never rolled, so ${feature.id} would be sized by dice nothing throws`,
-        });
-      }
-      // The item's own route, on a class feature — the same door again. SRD
-      // "Spells Cast from Items" is about an item, the charges it spends are
-      // looked up by the granting item's id, and a class feature has none. A
-      // feature that grants spells has `kind: 'spells'`, which is executed.
-      if (feature.grants?.kind === 'casts') {
-        problems.push({
-          field: `${where}.grants`,
-          code: 'item_casting_on_a_feature',
-          reason: `"casts" is an item casting a spell from its own charges, looked up by the granting item's id, and ${feature.id} is not an item; a feature that grants a spell declares it with a "spells" grant`,
-        });
-      }
-      // And the other half of the same SRD sentence, refused for the same
-      // reason: a conferral is used up and the thing used up is the *item*,
-      // so `useItem` looks it up by catalogue id and takes one off the
-      // inventory. A feature confers an effect list too, and what pays for it
-      // is a use of its own pool — so the message names the grant that does
-      // it rather than sending an author to a shape that cannot.
-      if (feature.grants?.kind === 'confers') {
-        problems.push({
-          field: `${where}.grants`,
-          code: 'item_conferral_on_a_feature',
-          reason: `"confers" is an item conferring an effect without casting a spell, and the item is used up doing it; ${feature.id} is not an item, so nothing would be spent — a feature confers an effect list through the "options" its own "pool" grant carries`,
-        });
-      }
-      // A menu of things a casting may buy — SRD Metamagic. The half a
-      // definition cannot check for itself: the options are filtered at
-      // creation by the answer the player gave *this feature's* own `option`
-      // choice, so an option the choice does not offer can never be taken and
-      // would sit on the class table unreachable. That is the failure this
-      // whole file exists to catch, and it looks perfectly well formed.
-      if (feature.grants?.kind === 'casting-options') {
-        problems.push(
-          ...castingOptionProblems(feature, feature.grants, `${where}.grants`),
-        );
-      }
+        // A casting the feature pays for out of a pool, judged by the two
+        // things a definition cannot check for itself: whether anything here
+        // will ever read it, and whether the pool it spends exists.
+        //
+        // The first is the door `item_casting_on_a_feature` above is: a free
+        // casting is compiled by the loop over this character's **casting
+        // classes**, on that class's own spellcasting ability, so one written
+        // on a species, a background or a class that casts nothing declares a
+        // pool nothing can spend and a route nobody has. The second is the
+        // reading `choiceFrom` below takes of a sibling — a pool a feature
+        // spends without declaring is another feature's, and a key that names
+        // none is a casting that refuses at the table rather than here.
+        if (grant.kind === 'spells' && grant.freeCasting !== undefined) {
+          const free = grant.freeCasting;
+          if (source.casts !== true) {
+            problems.push({
+              field: `${grantsAt}.freeCasting`,
+              code: 'free_casting_without_a_caster',
+              reason: `a casting without a slot is made with the granting class's own spellcasting ability, and ${source.where} supplies none, so ${feature.id} would declare a pool nothing spends`,
+            });
+          }
+          if (free.declares === undefined && typeof free.pool === 'string') {
+            const declaring = (source.inScope ?? source.features).filter((one) =>
+              poolKeysOf(one).includes(free.pool),
+            );
+            if (declaring.length === 0) {
+              problems.push({
+                field: `${grantsAt}.freeCasting.pool`,
+                code: 'unknown_free_casting_pool',
+                reason: `${feature.id} spends "${free.pool}" and declares nothing, and no feature of ${source.where} declares a pool by that name — a free casting sizes its own pool through "declares" or comes out of one a feature beside it declared`,
+              });
+            } else if (declaring.every((one) => one.level > feature.level)) {
+              problems.push({
+                field: `${grantsAt}.freeCasting.pool`,
+                code: 'free_casting_pool_arrives_later',
+                reason: `${feature.id} arrives at level ${feature.level} and spends a pool ${declaring[0]!.id} does not declare until ${declaring[0]!.level}, so every casting in between would be refused for want of a pool`,
+              });
+            }
+          }
+        }
+        // A grant written in terms of another feature's choice — the SRD's
+        // ancestries, lineages and legacies. The half a definition cannot check
+        // for itself: whether the feature it names is a sibling that asks
+        // anything, and whether the table on that sibling supplies what this
+        // grant came to read. Both failures look perfectly well formed one
+        // definition at a time and grant nothing at all.
+        // Where a grant reads a **sibling's** choice, and what it reads off it.
+        //
+        // Asked of every grant kind rather than of `standing` alone, because the
+        // gate is every kind's: SRD writes "one of the following options" over a
+        // Reaction, a cantrip and a benefit alike, and a species writes the
+        // question on one trait and the answers on the later ones. Only the
+        // damage-type table below is still a `standing` grant's, because only a
+        // `standing` grant reads one.
+        {
+          const from = grant.choiceFrom;
+          const chooser = from === undefined ? feature : own.get(from);
+          if (from !== undefined && (chooser === undefined || chooser.id === feature.id)) {
+            problems.push({
+              field: `${grantsAt}.choiceFrom`,
+              code: 'bad_choice_from',
+              reason:
+                chooser === undefined
+                  ? `${feature.id} reads the choice made on ${from}, and ${source.where} has no such feature — a choice is read from a sibling of the same source, because that is the only place one is guaranteed to have been asked`
+                  : `${feature.id} names itself as where its choice was made, which is what leaving the field out already says`,
+            });
+          } else if (chooser !== undefined) {
+            if (from !== undefined && chooser.choice === undefined) {
+              problems.push({
+                field: `${grantsAt}.choiceFrom`,
+                code: 'choice_from_asks_nothing',
+                reason: `${feature.id} reads the choice made on ${chooser.id}, and ${chooser.id} asks the player for nothing`,
+              });
+            } else if (from !== undefined && chooser.level > feature.level) {
+              problems.push({
+                field: `${grantsAt}.choiceFrom`,
+                code: 'choice_from_arrives_later',
+                reason: `${feature.id} arrives at level ${feature.level} and reads a choice ${chooser.id} does not ask until ${chooser.level}, so it would grant nothing in between and say so nowhere`,
+              });
+            }
+            // And the gate, against the options the chooser really offers. A
+            // gate naming an option nobody can pick is never an error at any
+            // moment: the grant is simply never compiled, and nothing says why.
+            const gate = grant.onlyIfChoice;
+            const offered = chooser.choice?.kind === 'option' ? chooser.choice.from : [];
+            if (gate !== undefined && chooser.choice !== undefined && !offered.includes(gate)) {
+              problems.push({
+                field: `${grantsAt}.onlyIfChoice`,
+                code: 'option_not_offered',
+                reason: `${feature.id} gates this grant on ${gate}, and ${chooser.id} offers ${offered.length === 0 ? 'no named options' : offered.join(' or ')}, so nobody could ever hold it`,
+              });
+            }
+
+            // And the table, wherever it sits: a grant reading damage types out
+            // of one needs every meaning to carry some. A meaning carrying
+            // nothing this engine knows is legal until something reads it.
+            const table = chooser.optionMeans;
+            if (table !== undefined && grant.kind === 'standing' && grant.damageTypesFromChoice === true) {
+              // The path points at the table, which is on the feature that asked
+              // the question rather than on the one reading the answer.
+              const at = source.features.indexOf(chooser);
+              for (const [option, meaning] of Object.entries(table)) {
+                if (meaning?.damageTypes === undefined) {
+                  problems.push({
+                    field: `${source.where}.features[${at}].optionMeans.${option}`,
+                    code: 'option_means_unusable',
+                    reason: `${feature.id} reads damage types out of ${chooser.id}'s table, and ${option} names none, so a character who took it would resist nothing`,
+                  });
+                }
+              }
+            }
+          }
+        }
+      });
+
       // A feature executed by another names one on the same source that
-      // actually declares something; otherwise the claim just moves.
+      // actually declares something; otherwise the claim just moves. Asked of
+      // the feature rather than of a grant, because a feature that declares
+      // nothing at all is exactly the one this rule is about.
       if (feature.executedBy !== undefined) {
         const executor = own.get(feature.executedBy);
         const declares =
@@ -3975,144 +4125,6 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
             code: 'bad_executed_by',
             reason: `${feature.id} says ${feature.executedBy} executes it, and no feature of that id on ${source.where} declares anything a reader reads`,
           });
-        }
-      }
-      // A pool whose recovery a later feature rewrites names a feature this
-      // character could actually hold, which is `executedBy`'s reason with its
-      // failure: the rewrite is gated on holding the feature named, so an id
-      // nobody prints is a sentence that never fires, and the pool keeps the
-      // tag it was declared with while the class file reads as though it does
-      // not. Silence rather than a refusal is what this file turns into a
-      // problem.
-      //
-      // **Read against `inScope` rather than against siblings**, for the
-      // reason that field exists: `recoveryOf` gates on the whole feature
-      // list a character earned, class and subclass together, so a subclass
-      // pool a class feature moves is a legal thing to write and asking only
-      // about siblings would refuse it.
-      if (feature.grants?.kind === 'pool' && feature.grants.recoversSooner !== undefined) {
-        const named = feature.grants.recoversSooner.withFeature;
-        const rewriter = byId(source.inScope ?? source.features).get(named);
-        if (rewriter === undefined || rewriter.id === feature.id) {
-          problems.push({
-            field: `${where}.grants.recoversSooner.withFeature`,
-            code: 'bad_recovery_rewrite',
-            reason: `${feature.id} says ${named} rewrites its recovery, and no other feature ${source.where} reaches carries that id`,
-          });
-        }
-      }
-      // A casting the feature pays for out of a pool, judged by the two
-      // things a definition cannot check for itself: whether anything here
-      // will ever read it, and whether the pool it spends exists.
-      //
-      // The first is the door `item_casting_on_a_feature` above is: a free
-      // casting is compiled by the loop over this character's **casting
-      // classes**, on that class's own spellcasting ability, so one written
-      // on a species, a background or a class that casts nothing declares a
-      // pool nothing can spend and a route nobody has. The second is the
-      // reading `choiceFrom` below takes of a sibling — a pool a feature
-      // spends without declaring is another feature's, and a key that names
-      // none is a casting that refuses at the table rather than here.
-      if (feature.grants?.kind === 'spells' && feature.grants.freeCasting !== undefined) {
-        const free = feature.grants.freeCasting;
-        if (source.casts !== true) {
-          problems.push({
-            field: `${where}.grants.freeCasting`,
-            code: 'free_casting_without_a_caster',
-            reason: `a casting without a slot is made with the granting class's own spellcasting ability, and ${source.where} supplies none, so ${feature.id} would declare a pool nothing spends`,
-          });
-        }
-        if (free.declares === undefined && typeof free.pool === 'string') {
-          const declaring = (source.inScope ?? source.features).filter((one) =>
-            poolKeysOf(one).includes(free.pool),
-          );
-          if (declaring.length === 0) {
-            problems.push({
-              field: `${where}.grants.freeCasting.pool`,
-              code: 'unknown_free_casting_pool',
-              reason: `${feature.id} spends "${free.pool}" and declares nothing, and no feature of ${source.where} declares a pool by that name — a free casting sizes its own pool through "declares" or comes out of one a feature beside it declared`,
-            });
-          } else if (declaring.every((one) => one.level > feature.level)) {
-            problems.push({
-              field: `${where}.grants.freeCasting.pool`,
-              code: 'free_casting_pool_arrives_later',
-              reason: `${feature.id} arrives at level ${feature.level} and spends a pool ${declaring[0]!.id} does not declare until ${declaring[0]!.level}, so every casting in between would be refused for want of a pool`,
-            });
-          }
-        }
-      }
-      // A grant written in terms of another feature's choice — the SRD's
-      // ancestries, lineages and legacies. The half a definition cannot check
-      // for itself: whether the feature it names is a sibling that asks
-      // anything, and whether the table on that sibling supplies what this
-      // grant came to read. Both failures look perfectly well formed one
-      // definition at a time and grant nothing at all.
-      // Where a grant reads a **sibling's** choice, and what it reads off it.
-      //
-      // Asked of every grant kind rather than of `standing` alone, because the
-      // gate is every kind's: SRD writes "one of the following options" over a
-      // Reaction, a cantrip and a benefit alike, and a species writes the
-      // question on one trait and the answers on the later ones. Only the
-      // damage-type table below is still a `standing` grant's, because only a
-      // `standing` grant reads one.
-      if (feature.grants !== undefined) {
-        const grant = feature.grants;
-        const from = grant.choiceFrom;
-        const chooser = from === undefined ? feature : own.get(from);
-        if (from !== undefined && (chooser === undefined || chooser.id === feature.id)) {
-          problems.push({
-            field: `${where}.grants.choiceFrom`,
-            code: 'bad_choice_from',
-            reason:
-              chooser === undefined
-                ? `${feature.id} reads the choice made on ${from}, and ${source.where} has no such feature — a choice is read from a sibling of the same source, because that is the only place one is guaranteed to have been asked`
-                : `${feature.id} names itself as where its choice was made, which is what leaving the field out already says`,
-          });
-        } else if (chooser !== undefined) {
-          if (from !== undefined && chooser.choice === undefined) {
-            problems.push({
-              field: `${where}.grants.choiceFrom`,
-              code: 'choice_from_asks_nothing',
-              reason: `${feature.id} reads the choice made on ${chooser.id}, and ${chooser.id} asks the player for nothing`,
-            });
-          } else if (from !== undefined && chooser.level > feature.level) {
-            problems.push({
-              field: `${where}.grants.choiceFrom`,
-              code: 'choice_from_arrives_later',
-              reason: `${feature.id} arrives at level ${feature.level} and reads a choice ${chooser.id} does not ask until ${chooser.level}, so it would grant nothing in between and say so nowhere`,
-            });
-          }
-          // And the gate, against the options the chooser really offers. A
-          // gate naming an option nobody can pick is never an error at any
-          // moment: the grant is simply never compiled, and nothing says why.
-          const gate = grant.onlyIfChoice;
-          const offered = chooser.choice?.kind === 'option' ? chooser.choice.from : [];
-          if (gate !== undefined && chooser.choice !== undefined && !offered.includes(gate)) {
-            problems.push({
-              field: `${where}.grants.onlyIfChoice`,
-              code: 'option_not_offered',
-              reason: `${feature.id} gates this grant on ${gate}, and ${chooser.id} offers ${offered.length === 0 ? 'no named options' : offered.join(' or ')}, so nobody could ever hold it`,
-            });
-          }
-
-          // And the table, wherever it sits: a grant reading damage types out
-          // of one needs every meaning to carry some. A meaning carrying
-          // nothing this engine knows is legal until something reads it.
-          const table = chooser.optionMeans;
-          if (table !== undefined && grant.kind === 'standing' && grant.damageTypesFromChoice === true) {
-            // The path points at the table, which is on the feature that asked
-            // the question rather than on the one reading the answer.
-            const at = source.features.indexOf(chooser);
-            for (const [option, meaning] of Object.entries(table)) {
-              if (meaning?.damageTypes === undefined) {
-                problems.push({
-                  field: `${source.where}.features[${at}].optionMeans.${option}`,
-                  code: 'option_means_unusable',
-                  reason: `${feature.id} reads damage types out of ${chooser.id}'s table, and ${option} names none, so a character who took it would resist nothing`,
-                });
-              }
-            }
-          }
         }
       }
       // A feat a feature grants outright has to exist, when the catalogue holds feats at all.

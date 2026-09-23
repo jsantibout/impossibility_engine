@@ -244,7 +244,7 @@ export interface FeatureDefinition {
    * after it. A feature says what kind of thing it grants, and creation looks
    * for the kind.
    */
-  readonly grants?: GatedFeatureGrant;
+  readonly grants?: GatedFeatureGrant | readonly GatedFeatureGrant[];
   /**
    * The feature whose declaration executes this one, when this one declares
    * nothing of its own.
@@ -1915,6 +1915,34 @@ export interface GrantGate {
  * both by name, and the type says the same thing one step earlier.
  */
 export type GatedFeatureGrant = FeatureGrant & GrantGate;
+
+/**
+ * The grants one feature carries, however it wrote them.
+ *
+ * `FeatureDefinition.grants` was singular until SRD Draconic Resilience, which
+ * is one printed heading over two mechanics — an unarmoured Armour Class and a
+ * hit point maximum — and the vocabulary could say only the first. Gate G1
+ * decided the plural and this is it: one grant or a list of them, so every
+ * entry written against the singular field stays valid, and one normaliser
+ * every reader goes through.
+ *
+ * **Splitting the page's feature into two ids is the answer that was refused**,
+ * and for a reason outside the vocabulary: the ledger population, the origin
+ * sweep and the surface's `holdingsOf` are all keyed by the feature the book
+ * prints, so a second id would be a feature nobody printed turning up in every
+ * report.
+ *
+ * Named `featureGrants` because `grantsOf` is taken: `fold/release.ts` uses it
+ * for the ten families of effect hung on a creature, which is a different
+ * question with a similar shape.
+ */
+export const featureGrants = (
+  feature: { readonly grants?: GatedFeatureGrant | readonly GatedFeatureGrant[] } | undefined,
+): readonly GatedFeatureGrant[] => {
+  const grants = feature?.grants;
+  if (grants === undefined) return [];
+  return Array.isArray(grants) ? grants : [grants as GatedFeatureGrant];
+};
 
 /**
  * One end of a trade: what is spent, or what is bought.

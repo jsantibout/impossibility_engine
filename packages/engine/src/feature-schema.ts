@@ -6,7 +6,9 @@ import { ABILITY_SCORE_MAXIMUM, MOVEMENT_MODES, type MovementMode } from './char
 import { parseNotation } from './dice.js';
 import {
   MAX_LEVEL,
+  featureGrants,
   type FeatureDefinition,
+  type GatedFeatureGrant,
   type FeatureOptionMeaning,
   type PoolSizing,
 } from './progression.js';
@@ -250,9 +252,8 @@ const isCount = (value: unknown): boolean =>
  * and Font of Magic's Sorcery Points, which a trade declares.
  */
 const poolSizingOf = (
-  grant: FeatureDefinition['grants'],
+  grant: GatedFeatureGrant,
 ): { readonly at: string; readonly sizing: PoolSizing } | null => {
-  if (grant === undefined) return null;
   if (grant.kind === 'pool') return { at: 'grants', sizing: grant };
   if (grant.kind === 'activated' && grant.pool !== null) return { at: 'grants', sizing: grant };
   if (grant.kind === 'reaction' && grant.declares !== undefined) {
@@ -429,7 +430,7 @@ function abilityChoiceProblems(
  * refusal names.
  */
 export function abilityGrantProblemsOf(
-  grant: FeatureDefinition['grants'],
+  grant: GatedFeatureGrant | undefined,
   asks: boolean,
   who: string,
 ): readonly FeatureDefinitionProblem[] {
@@ -517,119 +518,41 @@ export function abilityGrantProblemsOf(
 }
 
 /**
- * Everything wrong with a feature definition, rather than the first thing.
+ * Everything wrong with **one** of a feature's grants.
  *
- * The shape `checkCharacter` and `checkSpellDefinition` already use, for the
- * same reason: somebody filling in a definition does not want to be told about
- * one mistake at a time. {@link parseFeatureDefinition} is the `Result` half.
+ * Its own function because a feature may carry several — see
+ * {@link featureGrants} — and every rule here is about one grant on its own.
+ * The caller indexes the paths where there is more than one, so a feature that
+ * writes a single grant reports exactly the paths it always did.
  */
-export function checkFeatureDefinition(
+function grantProblems(
   feature: FeatureDefinition,
+  grant: GatedFeatureGrant,
   context: FeatureContext,
 ): readonly FeatureDefinitionProblem[] {
   const found: FeatureDefinitionProblem[] = [];
 
-  // Rule 1, the half that is about one definition. A feature id is a global
-  // key — `featureChoices` is keyed by it, `classLevelFor` splits it on the
-  // colon, and it reaches the log inside `character-created`. So the namespace
-  // is not decoration.
-  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*:[a-z0-9]+(?:-[a-z0-9]+)*$/.test(feature.id)) {
+  // Rule 4's first half, asked of each grant: a feature that claims the engine
+  // executes it and carries a grant no reader discriminates on.
+  if (feature.automation === 'engine' && !context.readableGrants.has(grant.kind)) {
     found.push({
-      field: 'id',
-      code: 'bad_feature_id',
-      reason: `"${feature.id}" is not a namespaced id: lower-case hyphenated words either side of one colon, as in "source:feature-name"`,
+      field: 'grants.kind',
+      code: 'grant_not_read',
+      reason: `nothing in the engine's readers discriminates on a "${grant.kind}" grant, so this feature claims to be executed and nothing executes it`,
     });
   }
 
-  // **And not one of the namespaces the engine writes into the turn ledger.**
-  // A feature id is a key in `featureUsedOnTurn` the moment something spends it
-  // once per turn, and the engine's own entries live in that same map behind a
-  // prefix. A content id inside one of those prefixes is a key the engine's
-  // readers would pick up as theirs — `stated-bonus-action:` is read by a gated
-  // Multiattack, which would then be opened by a class feature rather than by
-  // the printed line the book names.
-  if (RESERVED_LEDGER_NAMESPACES.some((namespace) => feature.id.startsWith(namespace))) {
-    found.push({
-      field: 'id',
-      code: 'reserved_feature_namespace',
-      reason: `"${feature.id}" is in a namespace the engine keeps for its own turn ledger (${RESERVED_LEDGER_NAMESPACES.join(', ')}); pick another`,
-    });
-  }
-
-  if (feature.name.trim().length === 0) {
-    found.push({ field: 'name', code: 'bad_name', reason: 'a feature needs a name' });
-  }
-
-  if (feature.automation !== 'engine' && feature.automation !== 'manual') {
-    found.push({
-      field: 'automation',
-      code: 'bad_automation',
-      reason: `"${String(feature.automation)}" is neither "engine" nor "manual"; there is no third state in which the engine half-does something`,
-    });
-  }
-
-  // Rule 2. A feature granted at a level its own source's table does not reach
-  // is unreachable: `featuresAt` filters by equality and `cumulativeFeatures`
-  // by `<=`, so nobody would ever be granted it and nothing would say so.
-  if (
-    !Number.isInteger(feature.level) ||
-    feature.level < 1 ||
-    feature.level > context.levels
-  ) {
-    found.push({
-      field: 'level',
-      code: 'unreachable_level',
-      reason: `level ${feature.level} is outside the 1 to ${context.levels} this source's table reaches, so nothing would ever grant it`,
-    });
-  }
-
-  // Rule 3. Only of a manual feature: `manual` means a DM applies it, and the
-  // note is the whole of what tells them what is left to do. An absent note
-  // and a placeholder one are the same failure, so they take one code.
-  const note = feature.note.trim();
-  if (feature.automation === 'manual' && (note.length === 0 || HOLLOW_NOTE.test(note))) {
-    found.push({
-      field: 'note',
-      code: 'hollow_note',
-      reason:
-        'a manual feature\'s note says what a DM still has to do; an unexplained "not automated" is not a useful thing to read at three in the morning',
-    });
-  }
-
-  // Rule 4. The structural form of the nine-features failure: a feature that
-  // claims the engine executes it, and declares nothing the engine reads.
-  if (feature.automation === 'engine') {
-    const grant = feature.grants;
-    if (grant !== undefined && !context.readableGrants.has(grant.kind)) {
-      found.push({
-        field: 'grants.kind',
-        code: 'grant_not_read',
-        reason: `nothing in the engine's readers discriminates on a "${grant.kind}" grant, so this feature claims to be executed and nothing executes it`,
-      });
-    }
-
-    const declares = [...context.readableFields].filter(
-      (field) => (feature as unknown as Record<string, unknown>)[field] !== undefined,
-    );
-    // Executed through another feature's declaration, or through the source's
-    // own — see {@link FeatureDefinition.executedBy} and
-    // {@link FeatureContext.executedBySource}.
-    const elsewhere =
-      feature.executedBy !== undefined || context.executedBySource?.has(feature.id) === true;
-    if (declares.length === 0 && !elsewhere) {
-      found.push({
-        field: 'automation',
-        code: 'engine_declares_nothing',
-        reason: `this feature claims to be executed and declares none of ${[...context.readableFields].sort().join(', ')}, so nothing on the feature reaches a reader`,
-      });
-    }
-  }
+  // Rule 9, the half that is about the grant: the scores it raises outright,
+  // and the ceiling it lifts for them. The other half — the spread the feature
+  // offers — is the feature's own and is asked once, beside rule 8.
+  found.push(
+    ...abilityGrantProblemsOf(grant, feature.choice?.kind === 'ability-score', feature.id),
+  );
 
   // Rule 5. A fixed grant is the feature's own answer rather than the
   // player's, so its ids are never validated against a character's choices —
   // which is precisely why a typo in one would go unseen for ever.
-  const grant = feature.grants;
-  if (grant?.kind === 'spells' && grant.fixed !== undefined) {
+  if (grant.kind === 'spells' && grant.fixed !== undefined) {
     if (grant.fixed.length === 0) {
       found.push({
         field: 'grants.fixed',
@@ -668,7 +591,7 @@ export function checkFeatureDefinition(
   // and the pool because a free casting with nowhere to come from is a feature
   // that refuses every casting it offers, at the table rather than here. The
   // *sizing* is rule 6 below, which reads this grant with the other three.
-  if (grant?.kind === 'spells' && grant.freeCasting !== undefined) {
+  if (grant.kind === 'spells' && grant.freeCasting !== undefined) {
     const free = grant.freeCasting;
     if (typeof free.spell !== 'string' || free.spell.trim() === '') {
       found.push({
@@ -740,7 +663,7 @@ export function checkFeatureDefinition(
   // keeps: what a use of it spends is the grant, and the grant is gone. The
   // same guard `oneShotProblem` puts on a modifier promising an ending, at the
   // one door that could promise this one.
-  if (grant?.kind === 'pool' && grant.confersReaction !== undefined) {
+  if (grant.kind === 'pool' && grant.confersReaction !== undefined) {
     grant.confersReaction.does.forEach((effect, index) => {
       if (effect.kind === 'intervene' && effect.refundedOnFailure === true) {
         found.push({
@@ -766,7 +689,7 @@ export function checkFeatureDefinition(
   // subclass its parent class's — is `checkContent`'s `bad_recovery_rewrite`,
   // asked beside `executedBy`'s own cross-feature question, because a
   // definition cannot see its siblings from here.
-  if (grant?.kind === 'pool' && grant.recoversSooner !== undefined) {
+  if (grant.kind === 'pool' && grant.recoversSooner !== undefined) {
     const sooner = grant.recoversSooner;
     if (typeof sooner.withFeature !== 'string' || sooner.withFeature.trim() === '') {
       found.push({
@@ -799,7 +722,7 @@ export function checkFeatureDefinition(
   // `roll-modifier-consumed`'s body *is* `releaseGrants`. Two grants of one
   // kind would therefore share a source, and the roll that spent the first
   // would silently end the second.
-  if (grant?.kind === 'activated') {
+  if (grant.kind === 'activated') {
     const kinds = new Set<string>();
     (grant.hangs ?? []).forEach((hung, index) => {
       const at = `grants.hangs[${index}]`;
@@ -910,6 +833,343 @@ export function checkFeatureDefinition(
     }
   }
 
+  // Rule 10. A feature that reaches into a casting's damage, and the two
+  // things it can say that nothing downstream could recover from.
+  //
+  // **A band that reaches no slot**, which is a narrowing that narrows to
+  // nothing: a feature written `{ from: 5, to: 1 }` matches no casting at all,
+  // and there is no moment at which anybody would find out.
+  //
+  // **A price counted in two dice.** SRD Overchannel escalates a d12 cost by a
+  // d12, and the arithmetic is "how many of *the* die", so a cost printed in
+  // d12s and escalating by d8s has no single answer. The resolver refuses it
+  // (`mismatched_backlash_dice`) and this refuses it at the door, which is
+  // where a catalogue error belongs.
+  // **The rule a feature holds about a turn, asked of the one validator, on
+  // both spellings of a standing effect.** `action-rule` is `combat.ts`'s
+  // vocabulary written on a class table, and the sentence that refuses a
+  // spell's allowance refuses a feature's for the same reason: a price no
+  // command will charge is a clause that validates, compiles onto the sheet,
+  // is handed back by `actionRulesOn` and is honoured by nothing.
+  //
+  // `standing.effects` and `activated.whileActive` are both `StandingGrant[]`
+  // and creation compiles both onto the sheet, so a guard on one of them is a
+  // rule enforced on whichever spelling the author happened not to use.
+  // **And the Speed a feature grants, on both spellings for the same
+  // reason.** SRD Second-Story Work's "a Climb Speed equal to your Speed" is
+  // spelled exactly as SRD Spider Climb's is, so the pairing is held to the
+  // same rule: a mode only beside an operation that *gives* a Speed, a match
+  // only with a mode to give, and feet only with an `add`. A feature that
+  // halved one mode would be a sentence the book does not print, and one that
+  // matched the walking Speed to itself would compile onto a sheet and change
+  // nothing.
+  for (const [at, effects] of [
+    ['grants.effects', grant.kind === 'standing' ? grant.effects : undefined],
+    ['grants.whileActive', grant.kind === 'activated' ? grant.whileActive : undefined],
+  ] as const) {
+    (effects ?? []).forEach((effect, index) => {
+      if (effect.kind === 'action-rule') {
+        checkActionRule(effect.rule, `${at}[${index}].rule`, found);
+        return;
+      }
+      if (effect.kind === 'speed') {
+        found.push(...speedGrantProblems(effect, `${at}[${index}]`));
+      }
+    });
+  }
+
+  if (grant.kind === 'standing') {
+    (grant.effects ?? []).forEach((effect, index) => {
+      if (effect.kind !== 'casting-damage') return;
+      const at = `grants.effects[${index}]`;
+      const band = effect.when.slotLevels;
+      if (band !== undefined && band.from > band.to) {
+        found.push({
+          field: `${at}.when.slotLevels`,
+          code: 'empty_slot_band',
+          reason: `levels ${band.from} to ${band.to} is a band no slot falls in, so this feature would reach nothing`,
+        });
+      }
+      const cost = effect.costs;
+      if (cost !== undefined) {
+        const base = parseNotation(cost.dicePerSlotLevel);
+        const step = parseNotation(cost.increasesBy);
+        if (!base.ok || !step.ok) {
+          found.push({
+            field: `${at}.costs`,
+            code: 'bad_backlash_dice',
+            reason: `a price is paid in dice: "${cost.dicePerSlotLevel}" and "${cost.increasesBy}" are not both notation`,
+          });
+        } else if (base.value.sides !== step.value.sides) {
+          found.push({
+            field: `${at}.costs.increasesBy`,
+            code: 'mismatched_backlash_dice',
+            reason: `a price printed in d${base.value.sides}s cannot escalate by a d${step.value.sides}; one price is counted in one die`,
+          });
+        }
+        if (!Number.isInteger(cost.freeUses) || cost.freeUses < 0) {
+          found.push({
+            field: `${at}.costs.freeUses`,
+            code: 'bad_free_uses',
+            reason: `"the first time you do so" is a whole number of free uses, not ${String(cost.freeUses)}`,
+          });
+        }
+        if (cost.key.trim().length === 0) {
+          found.push({
+            field: `${at}.costs.key`,
+            code: 'bad_backlash_key',
+            reason: 'the uses are counted under a key, and a blank one names no tally',
+          });
+        }
+      }
+    });
+  }
+
+  // Rule 11. A style that redefines an attack, and the three things it can say
+  // that nothing downstream could recover from.
+  //
+  // **A die that is not a die.** The notation is thrown by `rollAttackDamage`
+  // and compared against the weapon's own before it is, so a malformed one
+  // would silently lose that comparison and the feature would appear to do
+  // nothing at all — the quietest possible failure.
+  //
+  // **A table that does not reach the level it is read at.** The die is a
+  // column of a class table, indexed by that class's level, and a short column
+  // leaves a high-level holder with no die rather than an error.
+  //
+  // **A style that says nothing.** A grant with no die, no ability and no
+  // Bonus Action strike is `automation: 'engine'` claiming an execution that
+  // changes nothing, which is rule 4's failure wearing a legal grant kind.
+  if (grant.kind === 'strike-style') {
+    const table = grant.dieByLevel;
+    if (table !== undefined) {
+      if (table.length < MAX_LEVEL) {
+        found.push({
+          field: 'grants.dieByLevel',
+          code: 'short_die_table',
+          reason: `a die read at a class level needs a row for each of the ${MAX_LEVEL} levels, and this has ${table.length}`,
+        });
+      }
+      const bad = table.filter((notation) => !parseNotation(notation).ok);
+      if (bad.length > 0) {
+        found.push({
+          field: 'grants.dieByLevel',
+          code: 'bad_strike_die',
+          reason: `a die rolled in place of a weapon's damage is notation: ${bad.join(', ')} ${bad.length === 1 ? 'is' : 'are'} not`,
+        });
+      }
+    }
+    if (
+      grant.dieByLevel === undefined &&
+      grant.ability === undefined &&
+      grant.bonusUnarmedStrike !== true
+    ) {
+      found.push({
+        field: 'grants',
+        code: 'empty_strike_style',
+        reason:
+          'a style redefines a die, an ability or the action a strike costs; one that redefines none of the three is a feature claiming to be executed and changing nothing',
+      });
+    }
+    // **And a selector nobody could ever match**, which is the same quiet
+    // failure from the other end: a category, a kind or a property outside the
+    // closed sets the equipment tables print names no weapon, so the style
+    // would cover less than it says and nothing would ever say so. The
+    // compiler holds a class file written here; this holds one that arrived as
+    // JSON.
+    (grant.weapons ?? []).forEach((selector, index) => {
+      found.push(...weaponSelectorProblems(selector, `grants.weapons[${index}]`));
+    });
+
+    if (grant.whileWieldingOnly === true && (grant.weapons ?? []).length === 0) {
+      found.push({
+        field: 'grants.whileWieldingOnly',
+        code: 'wields_nothing',
+        reason:
+          '"wielding only" reads the weapons this style names, and a style that names none would be lost the moment its holder picked up anything at all',
+      });
+    }
+  }
+
+  // A hit point maximum that raises nothing, and a step counted in levels
+  // nobody has.
+  //
+  // `flat` is what the feature is worth at the level it arrives at — Dwarven
+  // Toughness's 1 and Draconic Resilience's 3 — so a zero is a trait whose
+  // sentence says nothing happens and a fraction is a hit point the sheet
+  // cannot hold. Both would validate, compile into the maximum and move it by
+  // nothing or by half, which is the quiet failure this file exists to refuse
+  // at authoring.
+  //
+  // And the per-level term is read at a level: the **character's** for a
+  // species trait, or the **granting class's** for a class feature, which are
+  // the only two levels `planCharacter` can answer for. Anything else names a
+  // column of somebody else's book.
+  if (grant.kind === 'hit-point-maximum') {
+    if (!isCount(grant.flat)) {
+      found.push({
+        field: 'grants.flat',
+        code: 'bad_hit_point_maximum',
+        reason: `a feature's hit points are a whole number of at least one, not ${String(grant.flat)}`,
+      });
+    }
+    if (grant.perLevel !== undefined && grant.perLevel !== 'character' && grant.perLevel !== 'class') {
+      found.push({
+        field: 'grants.perLevel',
+        code: 'bad_hit_point_maximum',
+        reason: `a level is the character's or the granting class's, and "${String(grant.perLevel)}" is neither`,
+      });
+    }
+  }
+
+  // A gate on an option nobody can pick — the half a definition can answer
+  // about itself, which is the half where the choice is its own.
+  //
+  // A gate that matches nothing is never an error at any moment: the character
+  // simply never gets the benefit, every pass compiles, and nothing anywhere
+  // says why. The other half — a gate reading a **sibling's** choice — is
+  // `checkContent`'s, because it needs the source this feature belongs to.
+  if (grant.onlyIfChoice !== undefined && grant.choiceFrom === undefined) {
+    const asked = feature.choice;
+    if (asked === undefined || asked.kind !== 'option') {
+      found.push({
+        field: 'grants.onlyIfChoice',
+        code: 'gate_without_a_choice',
+        reason:
+          asked === undefined
+            ? `${feature.id} grants ${grant.onlyIfChoice} only to whoever chose it, and asks the player for nothing`
+            : `a "${asked.kind}" choice offers no named options, so nothing could ever answer ${String(grant.onlyIfChoice)}`,
+      });
+    } else if (!asked.from.includes(grant.onlyIfChoice)) {
+      found.push({
+        field: 'grants.onlyIfChoice',
+        code: 'option_not_offered',
+        reason: `${feature.id} gates this grant on ${grant.onlyIfChoice} and offers ${asked.from.join(' or ')}, so nobody could ever hold it`,
+      });
+    }
+  }
+
+  // And the reading end of the same rule: the field says where a choice is
+  // read *from*, so a grant that reads no choice names a source for nothing.
+  //
+  // Asked of every kind, because the gate is every kind's now. Only a
+  // `standing` grant reads a choice for anything but the gate, which is the
+  // damage types its table supplies.
+  if (
+    grant.choiceFrom !== undefined &&
+    grant.onlyIfChoice === undefined &&
+    !(grant.kind === 'standing' && grant.damageTypesFromChoice === true)
+  ) {
+    found.push({
+      field: 'grants.choiceFrom',
+      code: 'choice_from_reads_nothing',
+      reason: `${feature.id} says its choice is made on ${grant.choiceFrom} and nothing on the grant reads a choice`,
+    });
+  }
+
+  return found;
+}
+
+/**
+ * Everything wrong with a feature definition, rather than the first thing.
+ *
+ * The shape `checkCharacter` and `checkSpellDefinition` already use, for the
+ * same reason: somebody filling in a definition does not want to be told about
+ * one mistake at a time. {@link parseFeatureDefinition} is the `Result` half.
+ */
+export function checkFeatureDefinition(
+  feature: FeatureDefinition,
+  context: FeatureContext,
+): readonly FeatureDefinitionProblem[] {
+  const found: FeatureDefinitionProblem[] = [];
+
+  // Rule 1, the half that is about one definition. A feature id is a global
+  // key — `featureChoices` is keyed by it, `classLevelFor` splits it on the
+  // colon, and it reaches the log inside `character-created`. So the namespace
+  // is not decoration.
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*:[a-z0-9]+(?:-[a-z0-9]+)*$/.test(feature.id)) {
+    found.push({
+      field: 'id',
+      code: 'bad_feature_id',
+      reason: `"${feature.id}" is not a namespaced id: lower-case hyphenated words either side of one colon, as in "source:feature-name"`,
+    });
+  }
+
+  // **And not one of the namespaces the engine writes into the turn ledger.**
+  // A feature id is a key in `featureUsedOnTurn` the moment something spends it
+  // once per turn, and the engine's own entries live in that same map behind a
+  // prefix. A content id inside one of those prefixes is a key the engine's
+  // readers would pick up as theirs — `stated-bonus-action:` is read by a gated
+  // Multiattack, which would then be opened by a class feature rather than by
+  // the printed line the book names.
+  if (RESERVED_LEDGER_NAMESPACES.some((namespace) => feature.id.startsWith(namespace))) {
+    found.push({
+      field: 'id',
+      code: 'reserved_feature_namespace',
+      reason: `"${feature.id}" is in a namespace the engine keeps for its own turn ledger (${RESERVED_LEDGER_NAMESPACES.join(', ')}); pick another`,
+    });
+  }
+
+  if (feature.name.trim().length === 0) {
+    found.push({ field: 'name', code: 'bad_name', reason: 'a feature needs a name' });
+  }
+
+  if (feature.automation !== 'engine' && feature.automation !== 'manual') {
+    found.push({
+      field: 'automation',
+      code: 'bad_automation',
+      reason: `"${String(feature.automation)}" is neither "engine" nor "manual"; there is no third state in which the engine half-does something`,
+    });
+  }
+
+  // Rule 2. A feature granted at a level its own source's table does not reach
+  // is unreachable: `featuresAt` filters by equality and `cumulativeFeatures`
+  // by `<=`, so nobody would ever be granted it and nothing would say so.
+  if (
+    !Number.isInteger(feature.level) ||
+    feature.level < 1 ||
+    feature.level > context.levels
+  ) {
+    found.push({
+      field: 'level',
+      code: 'unreachable_level',
+      reason: `level ${feature.level} is outside the 1 to ${context.levels} this source's table reaches, so nothing would ever grant it`,
+    });
+  }
+
+  // Rule 3. Only of a manual feature: `manual` means a DM applies it, and the
+  // note is the whole of what tells them what is left to do. An absent note
+  // and a placeholder one are the same failure, so they take one code.
+  const note = feature.note.trim();
+  if (feature.automation === 'manual' && (note.length === 0 || HOLLOW_NOTE.test(note))) {
+    found.push({
+      field: 'note',
+      code: 'hollow_note',
+      reason:
+        'a manual feature\'s note says what a DM still has to do; an unexplained "not automated" is not a useful thing to read at three in the morning',
+    });
+  }
+
+  // Rule 4. The structural form of the nine-features failure: a feature that
+  // claims the engine executes it, and declares nothing the engine reads.
+  if (feature.automation === 'engine') {
+    const declares = [...context.readableFields].filter(
+      (field) => (feature as unknown as Record<string, unknown>)[field] !== undefined,
+    );
+    // Executed through another feature's declaration, or through the source's
+    // own — see {@link FeatureDefinition.executedBy} and
+    // {@link FeatureContext.executedBySource}.
+    const elsewhere =
+      feature.executedBy !== undefined || context.executedBySource?.has(feature.id) === true;
+    if (declares.length === 0 && !elsewhere) {
+      found.push({
+        field: 'automation',
+        code: 'engine_declares_nothing',
+        reason: `this feature claims to be executed and declares none of ${[...context.readableFields].sort().join(', ')}, so nothing on the feature reaches a reader`,
+      });
+    }
+  }
+
   // Rule 8, the half a definition can answer about itself — rule 7 is the
   // population's and lives below. The other half, whether the sibling a grant
   // names exists and asks anything, is `checkContent`'s: it needs the source
@@ -981,247 +1241,48 @@ export function checkFeatureDefinition(
   // because both live on the same feature: the branches the sentence offers,
   // and the scores its grant raises or lifts a ceiling for.
   found.push(...abilityChoiceProblems(feature));
-  found.push(
-    ...abilityGrantProblemsOf(
-      feature.grants,
-      feature.choice?.kind === 'ability-score',
-      feature.id,
-    ),
-  );
 
-  // Rule 10. A feature that reaches into a casting's damage, and the two
-  // things it can say that nothing downstream could recover from.
+  // Rule 12. Two grants of one kind on one feature, and whether that kind
+  // composes.
   //
-  // **A band that reaches no slot**, which is a narrowing that narrows to
-  // nothing: a feature written `{ from: 5, to: 1 }` matches no casting at all,
-  // and there is no moment at which anybody would find out.
+  // | Kind | Repeats | Why |
+  // |---|---|---|
+  // | `standing` | freely | the reader is a loop over effects, each with its own source; SRD prints several benefits under one heading |
+  // | every other kind | only under distinct gates | every other reader looks for *the* grant of its kind, so two that could both apply is an ambiguity nothing resolves |
   //
-  // **A price counted in two dice.** SRD Overchannel escalates a d12 cost by a
-  // d12, and the arithmetic is "how many of *the* die", so a cost printed in
-  // d12s and escalating by d8s has no single answer. The resolver refuses it
-  // (`mismatched_backlash_dice`) and this refuses it at the door, which is
-  // where a catalogue error belongs.
-  // **The rule a feature holds about a turn, asked of the one validator, on
-  // both spellings of a standing effect.** `action-rule` is `combat.ts`'s
-  // vocabulary written on a class table, and the sentence that refuses a
-  // spell's allowance refuses a feature's for the same reason: a price no
-  // command will charge is a clause that validates, compiles onto the sheet,
-  // is handed back by `actionRulesOn` and is honoured by nothing.
-  //
-  // `standing.effects` and `activated.whileActive` are both `StandingGrant[]`
-  // and creation compiles both onto the sheet, so a guard on one of them is a
-  // rule enforced on whichever spelling the author happened not to use.
-  // **And the Speed a feature grants, on both spellings for the same
-  // reason.** SRD Second-Story Work's "a Climb Speed equal to your Speed" is
-  // spelled exactly as SRD Spider Climb's is, so the pairing is held to the
-  // same rule: a mode only beside an operation that *gives* a Speed, a match
-  // only with a mode to give, and feet only with an `add`. A feature that
-  // halved one mode would be a sentence the book does not print, and one that
-  // matched the walking Speed to itself would compile onto a sheet and change
-  // nothing.
-  for (const [at, effects] of [
-    ['grants.effects', grant?.kind === 'standing' ? grant.effects : undefined],
-    ['grants.whileActive', grant?.kind === 'activated' ? grant.whileActive : undefined],
-  ] as const) {
-    (effects ?? []).forEach((effect, index) => {
-      if (effect.kind === 'action-rule') {
-        checkActionRule(effect.rule, `${at}[${index}].rule`, found);
-        return;
-      }
-      if (effect.kind === 'speed') {
-        found.push(...speedGrantProblems(effect, `${at}[${index}]`));
-      }
-    });
+  // A gate makes the difference because gates are exclusive: "one of the
+  // following options" is one answer, so at most one of two differently gated
+  // grants is ever compiled. Two under the *same* gate are the ambiguity
+  // again, wearing an option's name.
+  const byKind = new Map<string, GatedFeatureGrant[]>();
+  for (const grant of featureGrants(feature)) {
+    byKind.set(grant.kind, [...(byKind.get(grant.kind) ?? []), grant]);
   }
-
-  if (grant?.kind === 'standing') {
-    (grant.effects ?? []).forEach((effect, index) => {
-      if (effect.kind !== 'casting-damage') return;
-      const at = `grants.effects[${index}]`;
-      const band = effect.when.slotLevels;
-      if (band !== undefined && band.from > band.to) {
-        found.push({
-          field: `${at}.when.slotLevels`,
-          code: 'empty_slot_band',
-          reason: `levels ${band.from} to ${band.to} is a band no slot falls in, so this feature would reach nothing`,
-        });
-      }
-      const cost = effect.costs;
-      if (cost !== undefined) {
-        const base = parseNotation(cost.dicePerSlotLevel);
-        const step = parseNotation(cost.increasesBy);
-        if (!base.ok || !step.ok) {
-          found.push({
-            field: `${at}.costs`,
-            code: 'bad_backlash_dice',
-            reason: `a price is paid in dice: "${cost.dicePerSlotLevel}" and "${cost.increasesBy}" are not both notation`,
-          });
-        } else if (base.value.sides !== step.value.sides) {
-          found.push({
-            field: `${at}.costs.increasesBy`,
-            code: 'mismatched_backlash_dice',
-            reason: `a price printed in d${base.value.sides}s cannot escalate by a d${step.value.sides}; one price is counted in one die`,
-          });
-        }
-        if (!Number.isInteger(cost.freeUses) || cost.freeUses < 0) {
-          found.push({
-            field: `${at}.costs.freeUses`,
-            code: 'bad_free_uses',
-            reason: `"the first time you do so" is a whole number of free uses, not ${String(cost.freeUses)}`,
-          });
-        }
-        if (cost.key.trim().length === 0) {
-          found.push({
-            field: `${at}.costs.key`,
-            code: 'bad_backlash_key',
-            reason: 'the uses are counted under a key, and a blank one names no tally',
-          });
-        }
-      }
-    });
-  }
-
-  // Rule 11. A style that redefines an attack, and the three things it can say
-  // that nothing downstream could recover from.
-  //
-  // **A die that is not a die.** The notation is thrown by `rollAttackDamage`
-  // and compared against the weapon's own before it is, so a malformed one
-  // would silently lose that comparison and the feature would appear to do
-  // nothing at all — the quietest possible failure.
-  //
-  // **A table that does not reach the level it is read at.** The die is a
-  // column of a class table, indexed by that class's level, and a short column
-  // leaves a high-level holder with no die rather than an error.
-  //
-  // **A style that says nothing.** A grant with no die, no ability and no
-  // Bonus Action strike is `automation: 'engine'` claiming an execution that
-  // changes nothing, which is rule 4's failure wearing a legal grant kind.
-  if (grant?.kind === 'strike-style') {
-    const table = grant.dieByLevel;
-    if (table !== undefined) {
-      if (table.length < MAX_LEVEL) {
-        found.push({
-          field: 'grants.dieByLevel',
-          code: 'short_die_table',
-          reason: `a die read at a class level needs a row for each of the ${MAX_LEVEL} levels, and this has ${table.length}`,
-        });
-      }
-      const bad = table.filter((notation) => !parseNotation(notation).ok);
-      if (bad.length > 0) {
-        found.push({
-          field: 'grants.dieByLevel',
-          code: 'bad_strike_die',
-          reason: `a die rolled in place of a weapon's damage is notation: ${bad.join(', ')} ${bad.length === 1 ? 'is' : 'are'} not`,
-        });
-      }
-    }
-    if (
-      grant.dieByLevel === undefined &&
-      grant.ability === undefined &&
-      grant.bonusUnarmedStrike !== true
-    ) {
-      found.push({
-        field: 'grants',
-        code: 'empty_strike_style',
-        reason:
-          'a style redefines a die, an ability or the action a strike costs; one that redefines none of the three is a feature claiming to be executed and changing nothing',
-      });
-    }
-    // **And a selector nobody could ever match**, which is the same quiet
-    // failure from the other end: a category, a kind or a property outside the
-    // closed sets the equipment tables print names no weapon, so the style
-    // would cover less than it says and nothing would ever say so. The
-    // compiler holds a class file written here; this holds one that arrived as
-    // JSON.
-    (grant.weapons ?? []).forEach((selector, index) => {
-      found.push(...weaponSelectorProblems(selector, `grants.weapons[${index}]`));
-    });
-
-    if (grant.whileWieldingOnly === true && (grant.weapons ?? []).length === 0) {
-      found.push({
-        field: 'grants.whileWieldingOnly',
-        code: 'wields_nothing',
-        reason:
-          '"wielding only" reads the weapons this style names, and a style that names none would be lost the moment its holder picked up anything at all',
-      });
-    }
-  }
-
-  // A hit point maximum that raises nothing, and a step counted in levels
-  // nobody has.
-  //
-  // `flat` is what the feature is worth at the level it arrives at — Dwarven
-  // Toughness's 1 and Draconic Resilience's 3 — so a zero is a trait whose
-  // sentence says nothing happens and a fraction is a hit point the sheet
-  // cannot hold. Both would validate, compile into the maximum and move it by
-  // nothing or by half, which is the quiet failure this file exists to refuse
-  // at authoring.
-  //
-  // And the per-level term is read at a level: the **character's** for a
-  // species trait, or the **granting class's** for a class feature, which are
-  // the only two levels `planCharacter` can answer for. Anything else names a
-  // column of somebody else's book.
-  if (grant?.kind === 'hit-point-maximum') {
-    if (!isCount(grant.flat)) {
-      found.push({
-        field: 'grants.flat',
-        code: 'bad_hit_point_maximum',
-        reason: `a feature's hit points are a whole number of at least one, not ${String(grant.flat)}`,
-      });
-    }
-    if (grant.perLevel !== undefined && grant.perLevel !== 'character' && grant.perLevel !== 'class') {
-      found.push({
-        field: 'grants.perLevel',
-        code: 'bad_hit_point_maximum',
-        reason: `a level is the character's or the granting class's, and "${String(grant.perLevel)}" is neither`,
-      });
-    }
-  }
-
-  // A gate on an option nobody can pick — the half a definition can answer
-  // about itself, which is the half where the choice is its own.
-  //
-  // A gate that matches nothing is never an error at any moment: the character
-  // simply never gets the benefit, every pass compiles, and nothing anywhere
-  // says why. The other half — a gate reading a **sibling's** choice — is
-  // `checkContent`'s, because it needs the source this feature belongs to.
-  if (grant?.onlyIfChoice !== undefined && grant.choiceFrom === undefined) {
-    const asked = feature.choice;
-    if (asked === undefined || asked.kind !== 'option') {
-      found.push({
-        field: 'grants.onlyIfChoice',
-        code: 'gate_without_a_choice',
-        reason:
-          asked === undefined
-            ? `${feature.id} grants ${grant.onlyIfChoice} only to whoever chose it, and asks the player for nothing`
-            : `a "${asked.kind}" choice offers no named options, so nothing could ever answer ${String(grant.onlyIfChoice)}`,
-      });
-    } else if (!asked.from.includes(grant.onlyIfChoice)) {
-      found.push({
-        field: 'grants.onlyIfChoice',
-        code: 'option_not_offered',
-        reason: `${feature.id} gates this grant on ${grant.onlyIfChoice} and offers ${asked.from.join(' or ')}, so nobody could ever hold it`,
-      });
-    }
-  }
-
-  // And the reading end of the same rule: the field says where a choice is
-  // read *from*, so a grant that reads no choice names a source for nothing.
-  //
-  // Asked of every kind, because the gate is every kind's now. Only a
-  // `standing` grant reads a choice for anything but the gate, which is the
-  // damage types its table supplies.
-  if (
-    grant?.choiceFrom !== undefined &&
-    grant.onlyIfChoice === undefined &&
-    !(grant.kind === 'standing' && grant.damageTypesFromChoice === true)
-  ) {
+  for (const [kind, sharing] of byKind) {
+    if (sharing.length < 2 || kind === 'standing') continue;
+    const gates = new Set(sharing.map((grant) => grant.onlyIfChoice ?? ''));
+    if (gates.size === sharing.length && !gates.has('')) continue;
     found.push({
-      field: 'grants.choiceFrom',
-      code: 'choice_from_reads_nothing',
-      reason: `${feature.id} says its choice is made on ${grant.choiceFrom} and nothing on the grant reads a choice`,
+      field: 'grants',
+      code: 'grants_do_not_compose',
+      reason: `${feature.id} carries ${sharing.length} "${kind}" grants, and a reader looking for the ${kind} would find two; only a "standing" grant repeats freely, and any other kind repeats only as one option each of a choice`,
     });
   }
+
+  // Every rule about a grant, asked of each grant the feature carries.
+  //
+  // The path says which: a feature that writes one grant reports `grants.x`
+  // exactly as it always did, and one that writes a list reports `grants[1].x`,
+  // so a problem can be found in the file it came from.
+  const listed = Array.isArray(feature.grants);
+  featureGrants(feature).forEach((grant, index) => {
+    for (const problem of grantProblems(feature, grant, context)) {
+      found.push({
+        ...problem,
+        field: listed ? problem.field.replace(/^grants/, `grants[${index}]`) : problem.field,
+      });
+    }
+  });
 
   return found;
 }
@@ -1341,19 +1402,33 @@ function checkFeatureShape(value: unknown): FeatureDefinitionProblem | null {
     };
   }
 
-  const grants = record['grants'];
-  if (grants === undefined) return null;
-  if (typeof grants !== 'object' || grants === null || Array.isArray(grants)) {
-    return { field: 'grants', code: 'bad_feature_shape', reason: 'a grant is an object' };
-  }
-  const grant = grants as Record<string, unknown>;
-  if (typeof grant['kind'] !== 'string') {
+  // One grant or a list of them — see {@link featureGrants}. A list is checked
+  // arm by arm and the path says which; the shape rules below are asked of the
+  // first, because the first thing wrong with a definition is what this
+  // function returns.
+  const declared = record['grants'];
+  if (declared === undefined) return null;
+  if (Array.isArray(declared) && declared.length === 0) {
     return {
-      field: 'grants.kind',
+      field: 'grants',
       code: 'bad_feature_shape',
-      reason: 'a grant says which kind it is, as a string',
+      reason: 'a list of grants that names none is a feature granting nothing; leave the field out',
     };
   }
+  for (const [index, one] of (Array.isArray(declared) ? declared : [declared]).entries()) {
+    const at = Array.isArray(declared) ? `grants[${index}]` : 'grants';
+    if (typeof one !== 'object' || one === null || Array.isArray(one)) {
+      return { field: at, code: 'bad_feature_shape', reason: 'a grant is an object' };
+    }
+    if (typeof (one as Record<string, unknown>)['kind'] !== 'string') {
+      return {
+        field: `${at}.kind`,
+        code: 'bad_feature_shape',
+        reason: 'a grant says which kind it is, as a string',
+      };
+    }
+  }
+  const grant = (Array.isArray(declared) ? declared[0] : declared) as Record<string, unknown>;
 
   // Rule 8's reading end names a feature, exactly as `executedBy` does.
   if (grant['choiceFrom'] !== undefined && typeof grant['choiceFrom'] !== 'string') {

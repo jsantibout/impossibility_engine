@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { featureGrants } from './progression.js';
 import { SRD_CONTENT } from '@ie/content';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
@@ -122,7 +123,7 @@ const autoChoices = (
     const choice = feature.choice;
     if (choice === undefined) continue;
     if (choice.kind === 'skill') {
-      const expertise = feature.grants?.kind === 'expertise';
+      const expertise = featureGrants(feature).some((grant) => grant.kind === 'expertise');
       const from = expertise
         ? [...used]
         : (choice.from ?? SKILLS).filter((skill) => !used.has(skill));

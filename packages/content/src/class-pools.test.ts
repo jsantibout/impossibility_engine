@@ -1,4 +1,4 @@
-import { type Content } from '@ie/engine';
+import { featureGrants, type Content } from '@ie/engine';
 import { describe, expect, it } from 'vitest';
 import { FOCUS_POINTS, SECOND_WIND_USES, SRD_CONTENT } from '@ie/content';
 import { asCharacterId, isErr, expect as unwrap } from '@ie/shared';
@@ -277,8 +277,8 @@ describe('a feature that claims a pool declares one', () => {
       )
       .map((f) => [f.id, f] as const),
   )('%s declares the pool its note claims', (_id, feature) => {
-    const grant = feature.grants;
-    const declares =
+    const declares = featureGrants(feature).some(
+      (grant) =>
       // The routes by which a feature actually ends up with a pool, and the
       // reason the guard reads the grant rather than counting declarations in
       // one place: `activated` declares one for a feature you switch on, and
@@ -294,16 +294,16 @@ describe('a feature that claims a pool declares one', () => {
       // reads beside the other three, so the arm names that field rather than
       // the kind: a `spells` grant with no free casting on it still declares
       // nothing and is still caught here.
-      grant?.kind === 'pool' ||
-      (grant?.kind === 'spells' && grant.freeCasting !== undefined) ||
-      (grant?.kind === 'activated' && grant.pool !== null) ||
+        grant.kind === 'pool' ||
+        (grant.kind === 'spells' && grant.freeCasting !== undefined) ||
+        (grant.kind === 'activated' && grant.pool !== null) ||
       // And `recovery`, whose pool holds the one use the feature's own
       // sentence allows it before a Long Rest.
-      grant?.kind === 'recovery' ||
+        grant.kind === 'recovery' ||
       // And `reaction`, which either declares a pool of its own — Indomitable,
       // Dark One's Own Luck — or spends one another feature declared, as
       // Cutting Words spends Bardic Inspiration.
-      (grant?.kind === 'reaction' && grant.pool !== undefined) ||
+        (grant.kind === 'reaction' && grant.pool !== undefined) ||
       // And `trade`, in either of two places. Each *trade* may declare a pool
       // of one for either of the two sentences that need one and have no
       // second grant to say it with: Wild Resurgence's own daily limit, and
@@ -312,18 +312,19 @@ describe('a feature that claims a pool declares one', () => {
       // which is Font of Magic's Sorcery Points and Arcane Recovery's one
       // daily use — one printed feature that both holds a resource and prints
       // what converts it.
-      (grant?.kind === 'trade' &&
-        (grant.pool !== undefined || grant.trades.some((one) => one.pool !== undefined)));
+        (grant.kind === 'trade' &&
+          (grant.pool !== undefined || grant.trades.some((one) => one.pool !== undefined))),
+    );
     expect(declares).toBe(true);
   });
 
   /** And every pool grant says how big it is and when it comes back. */
   it.each(
     everyFeature()
-      .filter((f) => f.grants?.kind === 'pool')
+      .filter((f) => featureGrants(f).some((grant) => grant.kind === 'pool'))
       .map((f) => [f.id, f] as const),
   )('%s says how big it is and when it refills', (_id, feature) => {
-    const grant = feature.grants;
+    const grant = featureGrants(feature).find((one) => one.kind === 'pool');
     if (grant?.kind !== 'pool') throw new Error('expected a pool');
     const sized =
       grant.usesByLevel !== undefined ||
@@ -341,13 +342,13 @@ describe('a feature that claims a pool declares one', () => {
    */
   it('declares a pool for every class resource the notes name', () => {
     const keys = everyFeature()
-      .map((f) => {
-        const grant = f.grants;
-        if (grant?.kind === 'pool') return grant.key;
+      .flatMap((f) => featureGrants(f))
+      .map((grant) => {
+        if (grant.kind === 'pool') return grant.key;
         // The second door onto the same declaration, which arrived with SRD
         // Font of Magic: a feature that holds a resource *and* prints what
         // converts it carries one grant, so the key is on the trade.
-        if (grant?.kind === 'trade' && grant.pool !== undefined) return grant.pool;
+        if (grant.kind === 'trade' && grant.pool !== undefined) return grant.pool;
         return null;
       })
       .filter((k): k is string => k !== null)
@@ -487,12 +488,13 @@ describe('a Short Rest that gives back one use without emptying the pool', () =>
           .filter((s) => s.classId === definition.id)
           .flatMap((s) => s.features),
       ])
-      .filter((f) => {
-        const grant = f.grants;
-        if (grant?.kind === 'pool') return grant.regainsOnShortRest !== undefined;
-        if (grant?.kind === 'activated') return grant.regainsOnShortRest !== undefined;
-        return false;
-      })
+      .filter((f) =>
+        featureGrants(f).some(
+          (grant) =>
+            (grant.kind === 'pool' || grant.kind === 'activated') &&
+            grant.regainsOnShortRest !== undefined,
+        ),
+      )
       .map((f) => f.id)
       .sort();
 
@@ -888,15 +890,16 @@ describe('advancing a level moves every pool the level moves', () => {
           .filter((s) => s.classId === definition.id)
           .flatMap((s) => s.features),
       ])
-      .flatMap((feature): readonly Sized[] => {
-        const grant = feature.grants;
-        if (grant?.kind === 'pool') return [[feature.id, grant]];
-        if (grant?.kind === 'activated' && grant.pool !== null) return [[feature.id, grant]];
-        if (grant?.kind === 'reaction' && grant.declares !== undefined) {
-          return [[feature.id, grant.declares]];
-        }
-        return [];
-      });
+      .flatMap((feature): readonly Sized[] =>
+        featureGrants(feature).flatMap((grant): readonly Sized[] => {
+          if (grant.kind === 'pool') return [[feature.id, grant]];
+          if (grant.kind === 'activated' && grant.pool !== null) return [[feature.id, grant]];
+          if (grant.kind === 'reaction' && grant.declares !== undefined) {
+            return [[feature.id, grant.declares]];
+          }
+          return [];
+        }),
+      );
 
     // Not vacuous: every pool-declaring feature in the twelve classes.
     expect(sizings.length).toBeGreaterThan(10);
