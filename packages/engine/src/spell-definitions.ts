@@ -1125,6 +1125,53 @@ export type SpellEffect =
       }[];
     } & OutcomeRiders)
   /**
+   * Damage that simply lands: no attack roll to make and no saving throw to
+   * avoid, dealt as a pool of separate hits among the creatures the caster
+   * named.
+   *
+   * SRD Magic Missile: "You create three glowing darts of magical force. Each
+   * dart strikes a creature of your choice that you can see within range. **A
+   * dart deals 1d4 + 1 Force damage to its target.** The darts all strike
+   * simultaneously, and you can direct them to hit one creature or several."
+   *
+   * **Each hit rolls its own dice**, which is the singular "A dart deals" and
+   * the same reading {@link AttackRollCount} takes of Eldritch Blast's beams.
+   * Three darts are three 1d4+1 rather than one 3d4+3, and the two are not the
+   * same spell: the flat +1 is printed per dart, and a target with Resistance
+   * halves three small numbers rather than one large one. Folding them would
+   * be wrong in both directions at once.
+   *
+   * **It carries no {@link OutcomeRiders}, and the absence is the rule rather
+   * than an omission.** A rider hangs on a settled *outcome* — "on a hit", "on
+   * a failed save" — and there is no outcome here: the damage is the whole of
+   * what happens, and the branch a rider would ride does not exist. A rider
+   * slot on this kind would mean "always", which is a different mechanism
+   * wearing the same field. `outcomeRidersOf`, `conditionRiderOf` and
+   * `modifierRidersOf` therefore need no arm for it; their defaults are the
+   * right answer rather than a missed one.
+   *
+   * **The count and the split are the attack's, verbatim.** `rolls` is the
+   * same {@link AttackRollCount}, because "The spell creates one more dart for
+   * each spell slot level above 1" is Scorching Ray's additional ray in
+   * different words; where the darts go is the caster's, stated with
+   * `CastSpellRequest.rollsAt` and otherwise dealt by {@link rollsDealtTo}.
+   * One field name on two hosts rather than two names for one count, so
+   * {@link aimedRollsIn} and `attackRollsFor` read it without asking which
+   * kind they have.
+   */
+  | {
+      readonly kind: 'auto-damage';
+      readonly damage: DiceScaling;
+      readonly damageType: string;
+      /**
+       * How many separate hits this one effect deals.
+       *
+       * Absent is one, which is what a definition that says nothing about a
+       * count means everywhere else the field appears.
+       */
+      readonly rolls?: AttackRollCount;
+    }
+  /**
    * Temporary Hit Points.
    *
    * Not healing, and the engine already knew the difference: they sit beside
@@ -4309,6 +4356,13 @@ export function numbersRead(definition: SpellDefinition): NumbersRead {
       // summons reads nothing of the caster's at all — every number it has is
       // the stat block's, and the two the spell may print over it are worked
       // out from the level the slot paid for.
+      //
+      // **A pool of hits is here and not above**, which is the whole of what
+      // it is: nothing is rolled to decide whether a dart lands, so there is
+      // no attack modifier, and it hangs nothing that could offer a save, so
+      // there is no DC. Its dice are scaled off the slot, which is a number
+      // the casting *paid*, not one it pinned.
+      case 'auto-damage':
       case 'temp-hp':
       case 'roll-mode':
       case 'armor-class':
@@ -4499,28 +4553,46 @@ export function attackRollsFor(
 }
 
 /**
- * The most attack rolls any one effect of this list will make.
+ * The most **aimed rolls** any one effect of this list will make.
+ *
+ * An aimed roll is one the caster points at a creature and the engine throws:
+ * Scorching Ray's rays, Eldritch Blast's beams, Magic Missile's darts. Two
+ * kinds make them and the difference between them is what decides the hit, not
+ * how many there are — so the count, the per-slot growth and the split are one
+ * question asked of both rather than two questions spelled alike.
+ *
+ * **The name says "aimed" rather than "attack" for exactly that reason.** A
+ * dart is not an attack roll and never becomes one; a function called
+ * `attackRollsIn` that counted darts would be a word doing a job it does not
+ * mean, which is how a reader comes to believe Magic Missile can miss.
  *
  * What a caller may name creatures up to, because a creature is named *for* a
- * roll. The maximum rather than a sum: two attack effects in one list are two
+ * roll. The maximum rather than a sum: two such effects in one list are two
  * things that each happen to every target, not a pool of rolls to divide, and
  * the target list has to be long enough for the longest of them.
  *
- * **Zero for a list with no attack in it**, which is the honest answer and not
- * the useful one: a Detect Magic makes no attack rolls, and seeding at one so
- * that the number could be used as a bound unexamined would have this function
- * saying every spell in the book throws an attack. A caller wanting a floor
+ * **Zero for a list with neither in it**, which is the honest answer and not
+ * the useful one: a Detect Magic aims nothing, and seeding at one so that the
+ * number could be used as a bound unexamined would have this function saying
+ * every spell in the book throws a roll at somebody. A caller wanting a floor
  * says so where it wants it.
  */
 /**
  * Does this casting **aim an attack roll or damage at a creature it names**?
  *
  * SRD Sanctuary wards against "an attack roll **or a damaging spell**", and
- * the two halves of that sentence are the two ways a casting reaches a
- * creature to hurt it: a roll to hit (`attack`) and a save that deals damage
- * on a failure (`save-damage`). A ward that read "any spell at all" would turn
- * away a Cure Wounds aimed at the creature it protects, which is the opposite
- * of what it is for.
+ * the two halves of that sentence are the three ways a casting reaches a
+ * creature to hurt it: a roll to hit (`attack`), a save that deals damage on a
+ * failure (`save-damage`), and damage that neither decides (`auto-damage`). A
+ * ward that read "any spell at all" would turn away a Cure Wounds aimed at the
+ * creature it protects, which is the opposite of what it is for.
+ *
+ * **The third is the one that needs saying out loud**, because it is the only
+ * member of the union with no roll in front of it. "A damaging spell" is the
+ * whole of the SRD's second half and says nothing about how the damage is
+ * decided, so a Magic Missile is exactly what Sanctuary turns away — and a
+ * kind left out of this list would walk its darts straight through the one
+ * spell written to stop them.
  *
  * **`attack-damage` is not here** and its absence is the rule rather than an
  * omission: SRD Divine Smite rides an attack roll somebody has already made,
@@ -4531,10 +4603,15 @@ export function attackRollsFor(
  * warded creature from areas of effect" is the book saying so.
  */
 export function aimsHarmAtATarget(effects: readonly SpellEffect[]): boolean {
-  return effects.some((effect) => effect.kind === 'attack' || effect.kind === 'save-damage');
+  return effects.some(
+    (effect) =>
+      effect.kind === 'attack' ||
+      effect.kind === 'save-damage' ||
+      effect.kind === 'auto-damage',
+  );
 }
 
-export function attackRollsIn(
+export function aimedRollsIn(
   effects: readonly SpellEffect[],
   spellLevel: number,
   casterLevel: number,
@@ -4542,7 +4619,7 @@ export function attackRollsIn(
 ): number {
   return effects.reduce(
     (most, effect) =>
-      effect.kind === 'attack'
+      effect.kind === 'attack' || effect.kind === 'auto-damage'
         ? Math.max(most, attackRollsFor(effect.rolls, spellLevel, casterLevel, slotLevel))
         : most,
     0,

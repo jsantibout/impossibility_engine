@@ -309,14 +309,20 @@ describe('the engine offers the targets it can see', () => {
   });
 
   /**
-   * Magic Missile is a real SRD spell with no definition — it hits without an
-   * attack roll, which is a shape the engine does not have. A shortlist for a
-   * spell the engine cannot resolve is empty rather than a guess at who looks
-   * plausible. (This was Fireball until Fireball became executable; the point
-   * is the missing definition, not the spell.)
+   * Phantasmal Force is a real SRD spell with no definition — an illusion only
+   * its target believes in is a shape the engine does not have. A shortlist for
+   * a spell the engine cannot resolve is empty rather than a guess at who looks
+   * plausible. (This was Magic Missile until the pool of hits landed, and
+   * Fireball before that; the point is the missing definition, not the spell.)
    */
   it('says nothing useful about a spell it cannot execute', () => {
-    const eligible = eligibleTargets(fold('seed', table()), SRD_CONTENT, WIZARD, 'magic-missile', 1);
+    const eligible = eligibleTargets(
+      fold('seed', table()),
+      SRD_CONTENT,
+      WIZARD,
+      'phantasmal-force',
+      2,
+    );
     expect(eligible.eligible).toEqual([]);
     expect(eligible.excluded).toEqual([]);
   });

@@ -212,9 +212,11 @@ describe('the definitions match the SRD', () => {
   it('is found by the id the SRD index uses', () => {
     expect(SRD_CONTENT.spell('fire-bolt')).toBe(FIRE_BOLT);
     expect(SRD_CONTENT.spell('hold-person')).toBe(HOLD_PERSON);
-    // Magic Missile is parsed and has no definition: it hits without an
-    // attack roll, and that shape does not exist yet.
-    expect(SRD_CONTENT.spell('magic-missile')).toBeNull();
+    // Phantasmal Force is parsed and has no definition: an illusion only its
+    // target believes in is a shape the engine does not have. (This was Magic
+    // Missile until the pool of hits landed, and Fireball before that; the
+    // point is the missing definition, not the spell.)
+    expect(SRD_CONTENT.spell('phantasmal-force')).toBeNull();
   });
 });
 
@@ -423,7 +425,7 @@ describe('what a cast refuses, and what it admits it cannot check', () => {
   };
 
   it('refuses a spell the engine cannot execute', () => {
-    reject({ spellId: 'magic-missile', targets: [GOBLIN] }, 'no_definition');
+    reject({ spellId: 'phantasmal-force', targets: [GOBLIN] }, 'no_definition');
   });
 
   /** SRD: you cast what you know or have prepared. */

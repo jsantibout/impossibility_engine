@@ -356,7 +356,7 @@ export const SHIELD: SpellDefinition = {
   ],
   durationUntil: 'start-of-casters-next-turn',
   unmodelled: [
-    'being targeted by Magic Missile is also a trigger, and taking no damage from it is also a benefit; neither is modelled, because Magic Missile is not executable here',
+    'being targeted by Magic Missile is also a trigger, and taking no damage from it is also a benefit; neither is modelled, and Magic Missile being executable is no longer the reason. The trigger needs a reaction window that opens on being targeted by a particular spell, which is a seventh ReactionWindow and a point in a resolution path nothing stops at today; the benefit needs a damage Immunity narrowed to one spell, which `damage-defense` refuses to be by construction and which no engine rule may name anyway',
   ],
 };
 
@@ -3309,6 +3309,65 @@ export const MAGE_ARMOR: SpellDefinition = {
   // `mustBeUnarmored` already reads the body slot.
   endsEarly: [{ on: 'target-dons-armor', ends: 'casting' }],
   unmodelled: ['whether the target is willing is not modelled; willingness is fiction'],
+};
+
+/**
+ * SRD Magic Missile:
+ *
+ * > _Level 1 Evocation (Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 120 feet. **Duration:** Instantaneous.
+ * > "You create three glowing darts of magical force. Each dart strikes a
+ * > creature of your choice that you can see within range. A dart deals 1d4 +
+ * > 1 Force damage to its target. The darts all strike simultaneously, and you
+ * > can direct them to hit one creature or several."
+ * > _Using a Higher-Level Spell Slot._ "The spell creates one more dart for
+ * > each spell slot level above 1."
+ *
+ * **The spell the `auto-damage` effect was built for**, and the shape is the
+ * whole of it: damage with nothing rolled to decide whether it lands. Every
+ * damage-bearing kind the format had hung off an attack roll or a saving
+ * throw, so this paragraph could not be written at all.
+ *
+ * **Three darts, three damage rolls.** "A dart deals 1d4 + 1" is singular, and
+ * the reading is Eldritch Blast's beams word for word: a count of hits rather
+ * than a count of dice. One 3d4+3 would hand the printed +1 out once instead
+ * of three times and would let a Resistance halve once instead of three times
+ * — wrong in both directions, and by different amounts.
+ *
+ * **The two counts say two different things and happen to agree.** `targets`
+ * is how many creatures may be named — "one creature or several", one more per
+ * slot level — and `rolls` is how many darts there are to hand out among them.
+ * Which creature gets how many is the caster's, said with `rollsAt` and dealt
+ * round the list when they say nothing, exactly as Scorching Ray's rays are.
+ *
+ * **Shield's second trigger is still not modelled and this does not finish
+ * it.** That spell needs two things this one does not provide: a Reaction
+ * window that opens on *being targeted by a particular spell*, and a damage
+ * Immunity narrowed to one spell id, which the engine may not hold — see
+ * `SHIELD.unmodelled`.
+ */
+export const MAGIC_MISSILE: SpellDefinition = {
+  id: 'magic-missile',
+  name: 'Magic Missile',
+  level: 1,
+  school: 'evocation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 120 },
+  // "you can direct them to hit one creature or several", and one more dart
+  // per slot level above the first — so up to three creatures at level 1.
+  targets: { count: 3, extraPerSlotLevelAbove: 1 },
+  effects: [
+    {
+      kind: 'auto-damage',
+      // "A dart deals 1d4 + 1 Force damage" — the addend is printed on the
+      // dart, so it lands on every one of them.
+      damage: { dice: '1d4', flat: 1 },
+      damageType: 'force',
+      // "The spell creates one more dart for each spell slot level above 1."
+      rolls: { count: 3, extraPerSlotLevelAbove: 1 },
+    },
+  ],
 };
 
 /**
@@ -13786,6 +13845,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   MAGE_HAND,
   MAGIC_CIRCLE,
   MAGIC_JAR,
+  MAGIC_MISSILE,
   MAGIC_MOUTH,
   MAGIC_WEAPON,
   MAGNIFICENT_MANSION,

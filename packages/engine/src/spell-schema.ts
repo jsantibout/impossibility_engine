@@ -175,11 +175,16 @@ const DIE_RULE_CAPS: ReadonlySet<string> = new Set(['spellcasting-modifier']);
  * The effect kinds that roll a casting's **own** damage dice.
  *
  * What a die rule has to find on a definition for the rule to be about
- * anything. The two are the attack and the damaging save — the pair
- * `resolveAttackEffect` and `resolveSaveDamageEffect` roll — and a kind joins
- * them here the day its resolver carries the effects through.
+ * anything. The three are the attack, the damaging save and the pool of hits
+ * that neither decides — the trio `resolveAttackEffect`,
+ * `resolveSaveDamageEffect` and `resolveAutoDamageEffect` roll — and a kind
+ * joins them here the day its resolver carries the effects through.
  */
-const ROLLS_ITS_OWN_DAMAGE: ReadonlySet<string> = new Set(['attack', 'save-damage']);
+const ROLLS_ITS_OWN_DAMAGE: ReadonlySet<string> = new Set([
+  'attack',
+  'save-damage',
+  'auto-damage',
+]);
 
 /**
  * Whether a casting of this definition rolls its damage **more than once**.
@@ -198,6 +203,12 @@ const ROLLS_ITS_OWN_DAMAGE: ReadonlySet<string> = new Set(['attack', 'save-damag
  *   one; an `attack` has no such field.
  * - **More than one target**, which the per-target loop rolls for one at a
  *   time.
+ * - **More than one aimed roll out of one effect** — Scorching Ray's rays,
+ *   Magic Missile's darts — each of which rolls its own damage. Every SRD
+ *   spell that has them also names several targets, so the clause above
+ *   already answered for all of them; it is written down because a homebrew
+ *   spell may hurl three darts at exactly one creature, and the budget would
+ *   then be handed out three times.
  * - **The targets a bigger slot adds**: `targetCountFor` is
  *   `count + extraPerSlotLevelAbove × above`, so the base count alone does not
  *   answer this.
@@ -229,6 +240,18 @@ function rollsDamageTwice(definition: SpellDefinition): boolean {
     return true;
   }
   if (definition.area !== undefined || definition.targetsWithin !== undefined) return true;
+  if (
+    rollers.some(
+      (effect) =>
+        'rolls' in effect &&
+        effect.rolls !== undefined &&
+        (effect.rolls.count > 1 ||
+          (effect.rolls.extraPerSlotLevelAbove ?? 0) > 0 ||
+          (effect.rolls.cantripUpgradesAt ?? []).length > 0),
+    )
+  ) {
+    return true;
+  }
   if (
     (definition.activation?.effects ?? []).some((effect) =>
       ROLLS_ITS_OWN_DAMAGE.has(effect.kind),
@@ -1871,6 +1894,19 @@ function checkEffect(
       }
       // An attack rolls an attack, so nothing it hangs has a save to repeat.
       checkRiders(effect, level, path, host(false), found);
+      return;
+
+    // Damage that simply lands: the same two fields an attack's damage is
+    // checked as, the same count of hits, and **no riders at all** — the
+    // member carries no `& OutcomeRiders`, so there is nothing here to check
+    // and a rider written beside one is refused by the shape rather than by a
+    // rule. See the union member for why there is no outcome to ride.
+    case 'auto-damage':
+      checkScaling(effect.damage, level, `${path}.damage`, found);
+      checkDamageType(effect.damageType, `${path}.damageType`, found);
+      if (effect.rolls !== undefined) {
+        checkRollCount(effect.rolls, level, `${path}.rolls`, found);
+      }
       return;
 
     case 'save-damage':
@@ -4719,6 +4755,7 @@ export const RIDER_KINDS: ReadonlySet<string> = new Set([
 export const EFFECT_KINDS: ReadonlySet<string> = new Set([
   'attack',
   'save-damage',
+  'auto-damage',
   'temp-hp',
   'buff',
   'heal',

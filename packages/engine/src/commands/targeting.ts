@@ -45,7 +45,7 @@ import { fallWindowOpen } from '../reactions.js';
 import { canSee } from '../standing.js';
 import { type SlotKind } from '../resources.js';
 import {
-  attackRollsIn,
+  aimedRollsIn,
   rollsDealtTo,
   DIRECTIONAL_AREAS,
   isCreatureType,
@@ -1233,7 +1233,7 @@ export function namedTargets(
       ? 0
       : Math.max(
           printed,
-          attackRollsIn(definition.effects, definition.level, casterLevel, castLevel),
+          aimedRollsIn(definition.effects, definition.level, casterLevel, castLevel),
         );
 
   // A spell that aims at nobody. SRD's "Range: Self" utility spells — Detect
@@ -1490,7 +1490,7 @@ export function namedTargets(
  *
  * The count it is measured against is the casting's own — off the slot for a
  * levelled spell and off the caster's level for a cantrip — which is the same
- * `attackRollsIn` that bounds the target list.
+ * `aimedRollsIn` that bounds the target list.
  */
 export function rollsAimedAt(
   definition: SpellDefinition,
@@ -1505,7 +1505,7 @@ export function rollsAimedAt(
   // A field quietly ignored is a caller who thinks they said something. One
   // roll has nowhere to go but the one creature it is owed to, and a casting
   // that rolls no attack at all has nothing to aim.
-  const total = attackRollsIn(definition.effects, definition.level, casterLevel, castLevel);
+  const total = aimedRollsIn(definition.effects, definition.level, casterLevel, castLevel);
   if (total <= 1) {
     return err(
       'no_rolls_to_aim',

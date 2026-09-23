@@ -3452,6 +3452,20 @@ describe('every branch judges untyped input rather than throwing on it', () => {
       },
     },
     {
+      // Damage that simply lands. Two required fields and one optional count,
+      // and **no rider rows at all**, because the member carries no
+      // `& OutcomeRiders` — a rider written beside a dart is refused by the
+      // shape rather than by a rule, which is why there is nothing here to
+      // feed junk to.
+      kind: 'auto-damage',
+      base: { kind: 'auto-damage', damage: { dice: '1d4', flat: 1 }, damageType: 'force' },
+      fields: {
+        damage: required(OBJECT_JUNK),
+        damageType: required(STRING_JUNK),
+        rolls: OBJECT_JUNK,
+      },
+    },
+    {
       kind: 'save-damage',
       base: {
         kind: 'save-damage',

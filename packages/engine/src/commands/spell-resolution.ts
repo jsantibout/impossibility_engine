@@ -175,6 +175,7 @@ import {
 } from './spell-effect-magic.js';
 import {
   resolveAttackEffect,
+  resolveAutoDamageEffect,
   resolveSaveDamageEffect,
   resolveSaveEffect,
 } from './spell-effect-rolls.js';
@@ -2112,6 +2113,8 @@ function resolveOneEffect(
       return resolveHitPointMaximumEffect(ctx, effect, target, world);
     case 'save-damage':
       return resolveSaveDamageEffect(ctx, effect, target, victim, world);
+    case 'auto-damage':
+      return resolveAutoDamageEffect(ctx, effect, target, world);
     case 'save':
       return resolveSaveEffect(ctx, effect, target, victim, world);
     case 'condition':

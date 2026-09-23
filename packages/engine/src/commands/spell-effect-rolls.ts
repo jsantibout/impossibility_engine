@@ -1,11 +1,21 @@
 /**
- * The three effect kinds a die decides: the spell attack, the saving throw
- * that deals damage, and the saving throw that does not.
+ * The four effect kinds that throw a die of their own: the spell attack, the
+ * saving throw that deals damage, the saving throw that does not, and the
+ * damage that neither decides.
  *
- * One module because they are the only three that **host an outcome** —
- * something rolled, an affirmative branch, and riders hung on that branch —
- * which is the whole of what `applyRiders` exists for. Every other kind lands
- * or does not land, and has nothing for a rider to ride.
+ * **Three of them host an outcome** — something rolled, an affirmative branch,
+ * and riders hung on that branch — which is the whole of what `applyRiders`
+ * exists for, and it is why they were one module before the fourth arrived.
+ *
+ * **The fourth hosts none and is here anyway.** SRD Magic Missile's dart is
+ * decided by nothing: it lands, and the only die in it is the damage. What
+ * puts it beside the other three is the machinery underneath — the same
+ * `rollSpellDice` and `dealSpellDamage` pair, the same per-roll loop over a
+ * caster's stated split, the same `ExtraDamage.effects` carrying the
+ * definition's own die rule — so it is the same code read twice rather than
+ * a second module that would have to be kept in step by hand. Every other kind
+ * lands or does not land, and has nothing for a rider to ride and no die to
+ * throw.
  */
 
 import { ABILITY_NAMES, type CharacterId, type ConditionName, ok, type Result } from '@ie/shared';
@@ -71,14 +81,7 @@ const dieEffectsOf = (ctx: EffectContext): readonly DieEffect[] =>
     : [];
 
 /**
- * Every attack roll this effect owes this creature.
- *
- * **One roll is the whole of the book bar two spells**, and those two say the
- * same thing twice: SRD Scorching Ray's "Make a ranged spell attack for each
- * ray" and Eldritch Blast's beams. So the count comes off the definition
- * ({@link attackRollsFor}), the share of it that lands here is the one the
- * caster stated, and an effect that states no count resolves exactly as it
- * always did.
+ * This creature's share of one effect's aimed rolls.
  *
  * **Where the rolls go is the caster's, and they may say it unevenly.** SRD
  * leaves the middle of "at one target within range or at several" open, so
@@ -88,12 +91,46 @@ const dieEffectsOf = (ctx: EffectContext): readonly DieEffect[] =>
  * round again for the surplus — which is every even split and none of the
  * lopsided ones.
  *
- * The stated vector is measured against {@link attackRollsIn}, which is the
- * **longest** attack in the list rather than this one's own; a definition
- * whose two attacks throw different numbers of rolls has no single split to
- * state, so this effect falls back to the deal rather than spending somebody
- * else's rays. No SRD spell has two, and the guard is here because a homebrew
- * definition may.
+ * The stated vector is measured against {@link aimedRollsIn}, which is the
+ * **longest** aimed effect in the list rather than this one's own; a definition
+ * whose two such effects throw different numbers has no single split to state,
+ * so this falls back to the deal rather than spending somebody else's rays. No
+ * SRD spell has two, and the guard is here because a homebrew definition may.
+ *
+ * **The creature has to be in the list.** Every caller iterates the very list
+ * it put on the context, so a target that is not in it is a programmer error
+ * and gets the exception rule 6 reserves for one: a negative index can deal
+ * `rollsDealtTo` one roll too many — whenever the rolls do not divide evenly —
+ * which is a casting that throws a ray nobody asked for and refuses nothing
+ * while doing it.
+ *
+ * Shared by the two kinds that aim rolls, because the sharing rule is about
+ * the *list* rather than about what happens at the end of one: a dart is dealt
+ * exactly as a ray is, and two copies of this would be two chances to disagree
+ * about a caster's stated split.
+ */
+function shareOf(ctx: EffectContext, total: number, target: CharacterId): number {
+  const where = ctx.targets.indexOf(target);
+  if (where < 0) {
+    throw new Error(
+      `${ctx.label} is aiming rolls at ${target}, who is not among the targets it was given`,
+    );
+  }
+  const stated = ctx.rollsPerTarget;
+  return stated !== undefined && stated.reduce((sum, count) => sum + count, 0) === total
+    ? stated[where]!
+    : rollsDealtTo(total, ctx.targets.length, where);
+}
+
+/**
+ * Every attack roll this effect owes this creature.
+ *
+ * **One roll is the whole of the book bar two spells**, and those two say the
+ * same thing twice: SRD Scorching Ray's "Make a ranged spell attack for each
+ * ray" and Eldritch Blast's beams. So the count comes off the definition
+ * ({@link attackRollsFor}), the share of it that lands here is the one the
+ * caster stated, and an effect that states no count resolves exactly as it
+ * always did. Where they go is {@link shareOf}'s question.
  *
  * **Each roll is its own roll, all the way down**: its own `rollAttack`, its
  * own `roll-recorded` line in the log, its own Critical Hit, its own damage
@@ -113,29 +150,11 @@ export function resolveAttackEffect(
   world: GameState,
 ): Result<GameState> {
   const { definition } = ctx.casting();
-  const total = attackRollsFor(
-    effect.rolls,
-    definition.level,
-    ctx.numbers.casterLevel,
-    ctx.castLevel,
+  const mine = shareOf(
+    ctx,
+    attackRollsFor(effect.rolls, definition.level, ctx.numbers.casterLevel, ctx.castLevel),
+    target,
   );
-  // The creature's place in the list the caster named. Every caller iterates
-  // the very list it put on the context, so a target that is not in it is a
-  // programmer error and gets the exception rule 6 reserves for one: a
-  // negative index can deal `rollsDealtTo` one roll too many — whenever the
-  // rolls do not divide evenly — which is a casting that throws a ray nobody
-  // asked for and refuses nothing while doing it.
-  const where = ctx.targets.indexOf(target);
-  if (where < 0) {
-    throw new Error(
-      `${ctx.label} is resolving an attack on ${target}, who is not among the targets it was given`,
-    );
-  }
-  const stated = ctx.rollsPerTarget;
-  const mine =
-    stated !== undefined && stated.reduce((sum, count) => sum + count, 0) === total
-      ? stated[where]!
-      : rollsDealtTo(total, ctx.targets.length, where);
 
   let current = world;
   for (let thrown = 0; thrown < mine; thrown += 1) {
@@ -509,6 +528,122 @@ function resolveOneAttackRoll(
       : { conditions: riders.value.conditions }),
     affected: true,
   });
+  return ok(current);
+}
+
+/**
+ * Damage that simply lands, dealt one hit at a time.
+ *
+ * SRD Magic Missile: "**A dart deals 1d4 + 1 Force damage to its target.** The
+ * darts all strike simultaneously, and you can direct them to hit one creature
+ * or several."
+ *
+ * **Nothing is rolled to decide whether it lands**, so there is no attack, no
+ * saving throw, no miss branch, no Critical Hit and no rider — the shortest of
+ * the resolvers in this module, and short for a reason rather than by
+ * omission. What is left is the dice, and they are thrown through exactly the
+ * pair every other damaging effect uses.
+ *
+ * **One hit at a time, all the way down.** Each dart rolls its own dice, lands
+ * its own `damage-dice-recorded` and `damage-taken`, meets the target's
+ * defences on its own, and raises its own Concentration save. Three darts at a
+ * creature with Resistance to Force are three halvings and not one, and the
+ * printed `+ 1` is printed on the dart — the whole reason the count is a count
+ * of *hits* rather than a multiplier on the notation.
+ *
+ * **A ward was asked once, at the declaration**, where SRD Sanctuary puts it:
+ * "any creature who **targets** the warded creature". `aimsHarmAtATarget` is
+ * what lets `resolveSpell` see that this kind is a damaging spell, and asking
+ * again here would roll a second save per dart.
+ *
+ * **The casting is never reached for.** This hangs nothing on one — no
+ * condition instance, no granted modifier, no promised later hit — so it reads
+ * the spell's name and level off the context, which an item's conferral would
+ * answer too. That the kind is refused on a conferral today is `checkContent`'s
+ * rule rather than this resolver's; there is nothing here for one to break.
+ */
+export function resolveAutoDamageEffect(
+  ctx: EffectContext,
+  effect: EffectOfKind<'auto-damage'>,
+  target: CharacterId,
+  world: GameState,
+): Result<GameState> {
+  const {
+    casterId,
+    casterSheet,
+    name,
+    level,
+    castLevel,
+    numbers,
+    supply,
+    events,
+    outcomes,
+    alters,
+  } = ctx;
+  const mine = shareOf(
+    ctx,
+    attackRollsFor(effect.rolls, level, numbers.casterLevel, castLevel),
+    target,
+  );
+
+  let current = world;
+  for (let thrown = 0; thrown < mine; thrown += 1) {
+    // The definition's dice as the caster's own features leave them, read
+    // inside the loop for the reason the attack reads them inside its own: a
+    // maximisation is spent on the roll it is spent on, and a rule that took
+    // the maximum of the first dart and let the rest fall back would be a
+    // feature that behaved differently at two darts than at one.
+    const scaled = alteredCastingDice(
+      alters,
+      scaledDiceFor(effect.damage, level, numbers.casterLevel, castLevel),
+    );
+    if (!scaled.ok) return scaled;
+
+    const rolled = rollSpellDice(
+      supply,
+      casterSheet().sheet,
+      name,
+      effect.damageType,
+      scaled.value.dice,
+      // "For this spell" is about the spell and not about which of its dice is
+      // rolling, which is the reading the two neighbours above take of the
+      // same field.
+      dieEffectsOf(ctx),
+    );
+    if (!rolled.ok) return rolled;
+
+    const hurt = dealSpellDamage(
+      current,
+      target,
+      withFlatAddend(
+        rolled.value,
+        // SRD prints "1d4 **+ 1**" on the dart, so the addend lands on every
+        // one of them. Beside it, whatever the caster's features turned into a
+        // flat number and the one damage roll a modifier rides.
+        scaledFlatFor(effect.damage, level, castLevel) +
+          scaled.value.flat +
+          takeCastingAddend(alters),
+      ),
+      name,
+      supply,
+      { by: casterId },
+    );
+    if (!hurt.ok) return hurt;
+
+    events.push(...hurt.value.events);
+    current = hurt.value.events.reduce(applyEvent, current);
+
+    // One outcome per hit, which is what the attack beside it reports and for
+    // the same reason: a creature that took three darts took three lots of
+    // damage and may have made three Concentration saves, and one summed
+    // outcome would have to pick which of them to report.
+    outcomes.push({
+      target,
+      damage: hurt.value.amount,
+      concentration: hurt.value.concentration,
+      affected: true,
+    });
+  }
   return ok(current);
 }
 

@@ -250,7 +250,7 @@ export const MISSING_SHAPES = {
   'a-rest-an-effect-gives-or-denies':
     'a rest is a span the engine measures and its payout is `endRest`’s — `docs/design/time-and-turns.md`, "**A rest is a span, not a button**". No effect confers the benefits of one without the hours, and none takes them away from a rest that was completed.',
   'damage-with-neither-an-attack-roll-nor-a-save':
-    'PROGRESS.md ranks it at 19 open spells, and Magic Missile is the one this clause names: while that spell cannot be cast, Shield’s second trigger has nothing to fire on.',
+    '**built for the spell vocabulary, and this is what is left of it.** PROGRESS.md ranked it at 19 open spells and Magic Missile was the one it named; the `auto-damage` effect is that sentence — typed damage with a flat addend and nothing rolled to decide whether it lands, dealt as a pool of separate hits among the creatures the caster named, with the count and the split an `attack` already carried. Magic Missile is executed off it, Heat Metal’s opening 2d8 is expressible by it and waits on the two clauses beside it, and Shield’s clause has left this id for the shape that actually blocks it. What is left is the **item** half, which is a different door: `packages/engine/src/content.ts` admits fourteen effect kinds to a conferral and this is not one of them, so a Potion of Poison’s 4d6, a talisman that burns whoever touches it and a manual that scorches whoever cannot read it are still filed here. A conferral has no casting, no slot and no caster level for a `DiceScaling` to read, which is what admitting the kind has to answer for rather than assume.',
   'an-armor-class-a-spell-floors':
     'PROGRESS.md ranks it: "An Armour Class a spell **sets** (**built** — Mage Armor) or **floors** (~3 left: Barkskin’s “if its AC is lower”)". `docs/design/spell-definitions.md` says why the built half does not cover it: "Barkskin is deliberately *not* included: “an Armor Class of 17 if its AC is lower than that” is a floor on the **total**, a different rule, and one spell is not evidence for building it."',
   'the-effects-source-as-a-participant':
@@ -1128,8 +1128,15 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   shield: [
     {
       clause: 'Magic Missile',
-      why: 'damage-with-neither-an-attack-roll-nor-a-save',
-      note: 'Being targeted by Magic Missile is the spell’s second trigger and taking no damage from it is its second benefit, and neither can exist while the spell they name cannot be cast: its darts hit with no attack roll and no save.',
+      // **Re-filed, because the reason it used to give stopped being true.**
+      // This clause was `damage-with-neither-an-attack-roll-nor-a-save` on the
+      // grounds that Shield's second trigger and second benefit could not
+      // exist while the spell they name could not be cast. Magic Missile is
+      // executed now and Shield is no nearer: what blocks it is two other
+      // things entirely, and leaving the old id here would have credited a
+      // shape's retirement with finishing a spell it does not touch.
+      why: 'a-reduction-an-effect-applies-to-damage',
+      note: 'SRD: "you take no damage from _Magic Missile_." A standing effect on the defender that takes damage off a hit, which is this shape — narrowed by its **source** rather than by its type, which `damage-defense` refuses to be by construction (a granted defence names a damage type, and an engine rule naming a spell id is swept out). The spell has a second half that is not this shape and is recorded on the definition instead: its printed Casting Time makes being targeted by the Magic Missile spell a trigger for the Reaction, and that is a seventh `ReactionWindow` — a point in a resolution path nothing stops at.',
     },
   ],
   shillelagh: [
@@ -1906,8 +1913,8 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
     {
       marker: 'dice',
       clause: 'takes 2d8 Fire damage when you cast the spell',
-      why: 'damage-with-neither-an-attack-roll-nor-a-save',
-      note: 'the dice land on whoever is in physical contact with a glowing object, with neither an attack roll nor a saving throw between them \u2014 and every damage-bearing effect kind the format has hangs off one of the two.',
+      why: 'expressible',
+      note: 'the dice land on whoever is in physical contact with a glowing object, with neither an attack roll nor a saving throw between them \u2014 and the `auto-damage` effect says exactly that now, dice, type and all. Nothing blocks this clause; what blocks the spell is the two clauses below it, so the definition is not written and this sentence waits with them.',
     },
     {
       marker: 'saving-throw',
@@ -4351,28 +4358,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
   // is filed for that spell under the same shape. One sentence in two spells
   // must not have two answers, and the number it moves is a leverage count a
   // tranche gets planned from.
-  'magic-missile': [
-    {
-      clause: 'Each dart strikes a creature of your choice that you can see within range',
-      why: 'expressible',
-      note: 'A target list the caller names, held to the spell’s range and to declared sight, which is what every targeted spell in the catalogue already writes and what `resolveSpell` validates before anything is spent.',
-    },
-    {
-      clause: 'A dart deals 1d4 + 1 Force damage to its target',
-      why: 'damage-with-neither-an-attack-roll-nor-a-save',
-      note: 'Typed damage with a flat bonus and no roll to decide whether it lands. Every damage effect the format has hangs off an attack roll or a saving throw, so there is no kind that simply deals it.',
-    },
-    {
-      clause: 'you can direct them to hit one creature or several',
-      why: 'a-spells-effects-applied-to-different-targets',
-      note: 'A pool of three identical hits divided among the targets however the caster likes. One effect list reaches every target the same number of times, so a definition cannot say that two darts went to one creature and one to another.',
-    },
-    {
-      clause: 'The spell creates one more dart for each spell slot level above 1',
-      why: 'a-spells-effects-applied-to-different-targets',
-      note: 'The slot buys a dart rather than a target, and the two are not the same number: `TargetRule.extraPerSlotLevelAbove` grows how many creatures may be named, and this grows how many hits there are to hand out among them.',
-    },
-  ],
   // **The second blocker the design document had already written down.**
   // `SpellCheck.onSuccess` says outright that there is deliberately no
   // `end-casting` value and names Maze as one of the three spells that print
