@@ -34,7 +34,7 @@ state is displayed as zero.
 | Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none |
 |---|---|---|---|---|
 | Spells in reach, not executed | 109 spells | 76 | 0 | 33 |
-| Features manual, or a pool with nothing to buy | 25 features | 19 | 0 | 6 |
+| Features manual, or a pool with nothing to buy | 22 features | 16 | 0 | 6 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 |
 | Glossary general rules nothing executes | 22 rules | 0 | 0 | 22 |
 | CR ≤ 5 stat-block items handed over or unapplied | 258 items | on 145 of 244 blocks | 0 | 99 blocks already clean |
@@ -523,7 +523,7 @@ entries in it, and the complement pinned by name. Its bracket is the level:
 an Origin feat and a Fighting Style print none and are taken at 1, so nine
 of the sixteen are in a level 1–5 character's reach.
 
-Of the 25, 20 are class or subclass features printed at level 5 or below, 4 are species or background traits and 1 are feats.
+Of the 22, 17 are class or subclass features printed at level 5 or below, 4 are species or background traits and 1 are feats.
 The snapshot of 2026-09-21 in `docs/dev/roadmap-ledger-2026-09-21.md`
 counted the first group only, and did not see the pools; the traits are in
 reach of a level 5 character too, which is where the difference in the size
@@ -531,7 +531,7 @@ comes from.
 
 | Shape | Blocks | Finishes |
 |---|---|---|
-| `a-feature-that-changes-what-a-casting-costs` | 4 | 2 |
+| `a-feature-that-changes-what-a-casting-costs` | 2 | 1 |
 | `a-resource-traded-for-another` | 2 | 1 |
 | `a-bonus-an-ability-modifier-sizes` | 1 | 1 |
 | `a-bonus-to-spell-attack-rolls` | 1 | 1 |
@@ -539,7 +539,6 @@ comes from.
 | `a-requirement-on-the-armour-its-holder-is-wearing` | 1 | 1 |
 | `an-object-with-statistics-of-its-own` | 1 | 1 |
 | `an-option-re-chosen-on-a-rest` | 1 | 1 |
-| `a-casting-paid-for-out-of-a-feature-pool` | 2 | 0 |
 | `a-language-or-a-proficiency-an-item-grants` | 2 | 0 |
 | `a-move-a-feature-hands-its-holder` | 2 | 0 |
 | `a-second-question-one-feature-asks` | 2 | 0 |
@@ -550,7 +549,6 @@ comes from.
 | `a-mode-on-the-save-a-spell-forces` | 1 | 0 |
 | `a-reaction-effect-the-vocabulary-lacks` | 1 | 0 |
 | `a-speed-a-feature-reduces` | 1 | 0 |
-| `a-stat-block-created-mid-fight` | 1 | 0 |
 | `an-action-a-spell-compels-or-forbids` | 1 | 0 |
 | `an-area-an-item-creates` | 1 | 0 |
 | `an-outcome-of-a-spells-own-damage` | 1 | 0 |
@@ -562,11 +560,9 @@ comes from.
 is planned from. A feature can need more than one shape, so neither column
 sums to the population.
 
-#### `a-feature-that-changes-what-a-casting-costs` — blocks 4, finishes 2
+#### `a-feature-that-changes-what-a-casting-costs` — blocks 2, finishes 1
 
 - `warlock:eldritch-invocations` — Eldritch Invocations (level 1, class, manual)
-- `wizard:ritual-adept` — Ritual Adept (level 1, class, manual)
-- `paladin:smite` — Paladin's Smite (level 2, class, manual) — also waits on 1
 - `sorcerer:metamagic` — Metamagic (level 2, class, manual) — also waits on 3
 
 #### `a-resource-traded-for-another` — blocks 2, finishes 1
@@ -597,11 +593,6 @@ sums to the population.
 #### `an-option-re-chosen-on-a-rest` — blocks 1, finishes 1
 
 - `elf:elven-lineage` — Elven Lineage (level 1, species, manual)
-
-#### `a-casting-paid-for-out-of-a-feature-pool` — blocks 2, finishes 0
-
-- `druid:wild-companion` — Wild Companion (level 2, class, manual) — also waits on 1
-- `paladin:smite` — Paladin's Smite (level 2, class, manual) — also waits on 1
 
 #### `a-language-or-a-proficiency-an-item-grants` — blocks 2, finishes 0
 
@@ -646,10 +637,6 @@ sums to the population.
 #### `a-speed-a-feature-reduces` — blocks 1, finishes 0
 
 - `goliath:giant-ancestry` — Giant Ancestry (level 1, species, manual) — also waits on 2
-
-#### `a-stat-block-created-mid-fight` — blocks 1, finishes 0
-
-- `druid:wild-companion` — Wild Companion (level 2, class, manual) — also waits on 1
 
 #### `an-action-a-spell-compels-or-forbids` — blocks 1, finishes 0
 

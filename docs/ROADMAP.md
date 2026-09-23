@@ -1477,7 +1477,9 @@ Appended after wave two (2026-09-22):
   2026-09-23**: Adrenaline Rush, Stonecunning, Large Form and Draconic Flight
   execute, Innate Sorcery switches on and off with its bonus clause still the
   table's, and Breath Weapon, Giant Ancestry, Gnomish Lineage and Tireless
-  declare the pools their notes claimed.
+  declare the pools their notes claimed. **Casting cost merged 2026-09-23**:
+  Wild Companion, Ritual Adept and Paladin's Smite execute, and `cast_spell`
+  publishes `ritual`.
 
 Appended after wave three's first track (2026-09-23):
 
@@ -1535,3 +1537,30 @@ Appended after wave three's second track (2026-09-23):
 - **Dark One's Blessing is a moment, not a price.** The Temporary Hit Points
   it prints arrive "when you reduce an enemy to 0 Hit Points", which no
   feature route opens; the shape stays with that one claimant.
+
+Appended after wave three's third track (2026-09-23):
+
+- **A feature's free casting may say more than its price.** `freeCasting` may
+  name a sibling feature's pool (Wild Companion spends Wild Shape's), print
+  the slot route beside the free one, fix a `choiceStated` value and put a
+  Long Rest lifetime on the summons it calls. The granted route carries all
+  four; `choosePayment` still asks which price, and a caster who answers a
+  fixed choice otherwise is refused `choice_fixed` rather than corrected.
+- **A kept summons has three lifetimes and one bond.** At 0 Hit Points, when
+  the summoner dies where the spell says so, and now when the summoner
+  completes a Long Rest *later than the binding* (`KeptBond.since`); all three
+  are `strandedSummons`' to report and the sweep's to perform, none is a
+  second field on the creature.
+- **A Ritual from the book is the class's own route, licensed.** `chooseRoute`
+  reads `ritual-from-book` off the sheet and `SpellcastingClass.book` off the
+  creation-pinned record, and returns the `prepared` kind because that is what
+  the route decides — ability, printed numbers — while the casting's own
+  `slotless: 'ritual'` says why nothing was spent. The book being in hand is
+  the table's. `cast_spell.ritual` is published; the llm-probe keeps it
+  excluded beside `hold` until that surface publishes a settlement command.
+- **A smite on a hit may be a free casting.** `resolveAttackDamage.smite` takes
+  `payment: 'free-casting'` in place of a slot level and spends the granted
+  route's pool inside the settlement's batch; no tool publishes a smite yet,
+  which is a door the attack surface still owes.
+- **Material components are not modelled**, so Wild Companion's "without
+  Material components" costs nothing to say and the note says so.
