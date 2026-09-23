@@ -1,11 +1,18 @@
 import { err, needsContext, ok, type CharacterId, type Result } from '@ie/shared';
 import { abilityModifier } from './character.js';
+import type { Content } from './content.js';
+import {
+  rechooseCharacter,
+  restRechoices,
+  type ClassSpellChoices,
+  type RestRechoiceOffer,
+} from './creation.js';
 import { HOUR, hours } from './time.js';
 import type { Rng } from './dice.js';
 import { timerKey } from './timers.js';
 import type { GameEvent, GameState } from './events.js';
 import { once, type CommandIdentity } from './idempotency.js';
-import { remaining } from './resources.js';
+import { hitDieSides, remaining } from './resources.js';
 import { rollRecorded, type RollIssuer } from './rolls.js';
 import { sheetAsItStands } from './standing.js';
 
@@ -82,32 +89,6 @@ export function restEarned(rest: RestState, now: number): RestBenefit {
   return now - rest.startedAt >= restRequires(rest.kind) ? rest.kind : 'none';
 }
 
-const HIT_DIE_PREFIX = 'hit-die:';
-/** The die sizes the game uses: characters take d6 to d12, monsters d4 and d20. */
-const HIT_DIE_SIDES = new Set([4, 6, 8, 10, 12, 20]);
-
-/**
- * Hit Dice are a resource pool like any other, tagged `long-rest`.
- *
- * The pool's key carries the die size because nothing else knows it: a
- * character sheet has a level but no class, and the class table that says a
- * Wizard takes d6s is not modelled. Declared, never derived — same rule as
- * every other pool.
- */
-export function hitDieKey(sides: number): string {
-  if (!HIT_DIE_SIDES.has(sides)) {
-    throw new Error(`a Hit Die is a d4, d6, d8, d10, d12 or d20, got d${sides}`);
-  }
-  return `${HIT_DIE_PREFIX}d${sides}`;
-}
-
-/** The die size a pool key names, or null if the key is some other pool. */
-export function hitDieSides(key: string): number | null {
-  if (!key.startsWith(`${HIT_DIE_PREFIX}d`)) return null;
-  const sides = Number(key.slice(HIT_DIE_PREFIX.length + 1));
-  return HIT_DIE_SIDES.has(sides) ? sides : null;
-}
-
 const creatureOf = (state: GameState, id: CharacterId) => state.creatures[id] ?? null;
 
 /**
@@ -167,16 +148,52 @@ export interface HitDieSpent {
   readonly regained: number;
 }
 
+/** One prepared spell studied out of the list and one studied in. */
+export interface StudiedSpell {
+  /** The prepared spell being put down. */
+  readonly replaces: string;
+  /** The one taken up in its place, out of what the character already has. */
+  readonly prepares: string;
+}
+
 export interface RestOptions extends CommandIdentity {
   /** Hit Dice to spend, by pool key. Only a Short Rest offers this. */
   readonly hitDice?: readonly string[];
   /** An interruption the engine cannot see, such as an hour of hard walking. */
   readonly interrupted?: string;
+  /**
+   * A question the rest re-asks, answered again — SRD Circle of the Land
+   * Spells' "Whenever you finish a Long Rest, choose one type of land", keyed
+   * by the feature that asks it.
+   *
+   * **Silence keeps the last answer**, because the SRD's sentence is a
+   * permission rather than a demand: a Druid who sleeps without thinking about
+   * it wakes up in the land they chose yesterday.
+   */
+  readonly choosesAgain?: Readonly<Record<string, readonly string[]>>;
+  /**
+   * Prepared spells swapped over the rest — SRD Memorize Spell's "you can study
+   * your spellbook and replace one of the level 1+ Wizard spells you have
+   * prepared … with another level 1+ spell from the book".
+   *
+   * A list because the count is the feature's: the grant says how many swaps a
+   * rest buys, and asking for more is refused rather than truncated.
+   */
+  readonly studies?: readonly StudiedSpell[];
 }
 
 export interface HitDiceSupply {
   readonly issuer: RollIssuer;
   readonly rng: Rng;
+  /**
+   * The world this character was built out of.
+   *
+   * Optional, and needed only where the rest re-asks something: reading which
+   * questions a rest re-asks means reading the holder's features, and
+   * re-planning the character means reading the catalogue those features grant
+   * out of. Every other benefit a rest pays is written in the log already.
+   */
+  readonly content?: Content;
 }
 
 export interface RestResolution {
@@ -196,6 +213,134 @@ export interface RestResolution {
    * has; a caller that needs to know its command landed reads this.
    */
   readonly duplicate: boolean;
+}
+
+/**
+ * The rest whose questions are re-asked is the rest that was **finished**.
+ *
+ * Both printed features open "Whenever you finish a Short/Long Rest", and a
+ * Long Rest broken after an hour is not a Short Rest anybody finished — it is a
+ * Long Rest that pays out a Short Rest's benefits, which is a sentence about
+ * hit points and pools and not about studying a spellbook. So a rest re-asks
+ * its own kind's questions when it earned its own kind's benefit, and nothing
+ * otherwise.
+ */
+const restFinished = (rest: RestState, benefit: RestBenefit): RestKind | null =>
+  benefit === rest.kind ? rest.kind : null;
+
+/**
+ * The choices a finished rest hands back, applied.
+ *
+ * Every refusal here is about the *rest*: whether this rest re-asks anything,
+ * whether the holder has a feature that re-asks what the caller answered, and
+ * whether the answer is the size the feature offers. Whether the answer itself
+ * is legal — a land the subclass does not print, a spell the book does not hold
+ * — is `planCharacter`'s question, asked by `rechooseCharacter` and reported
+ * with the same path creation reports it with.
+ */
+function rechoiceEvents(
+  state: GameState,
+  id: CharacterId,
+  creature: NonNullable<GameState['creatures'][CharacterId]>,
+  rest: RestState,
+  benefit: RestBenefit,
+  options: RestOptions,
+  content: Content | undefined,
+): Result<readonly GameEvent[]> {
+  const choosesAgain = options.choosesAgain ?? {};
+  const studies = options.studies ?? [];
+  if (Object.keys(choosesAgain).length === 0 && studies.length === 0) return ok([]);
+
+  if (content === undefined) {
+    return err('no_content', 'a rest that re-asks a choice reads the holder’s features, which needs the content');
+  }
+
+  const record = creature.character;
+  if (record === null || record === undefined) {
+    return err('not_a_character', `${id} was not created from character choices`);
+  }
+
+  const finished = restFinished(rest, benefit);
+  const offers = restRechoices(content, record.choices);
+
+  /** The one offer that answers for this patch, or the refusal it earns. */
+  const offerFor = (
+    matches: (offer: RestRechoiceOffer) => boolean,
+    what: string,
+  ): Result<RestRechoiceOffer> => {
+    const held = offers.filter(matches);
+    const first = held[0];
+    if (first === undefined) {
+      return err('no_such_rechoice', `${id} holds no feature that re-asks ${what} on a rest`);
+    }
+    const earned = held.find((offer) => offer.rest === finished);
+    if (earned === undefined) {
+      return err(
+        'rest_rechoice_not_earned',
+        `${first.featureName} re-asks ${what} whenever a ${first.rest} rest is finished, and this ${rest.kind} rest earned ${benefit === 'none' ? 'nothing' : `a ${benefit} rest’s benefits`}`,
+      );
+    }
+    return ok(earned);
+  };
+
+  const featureChoices: Record<string, readonly string[]> = {};
+  for (const [feature, answer] of Object.entries(choosesAgain)) {
+    const offer = offerFor(
+      (one) => one.feature === feature && one.rechooses.kind === 'this-features-choice',
+      `${feature}’s own choice`,
+    );
+    if (!offer.ok) return offer;
+    featureChoices[feature] = answer;
+  }
+
+  let preparedSpells: readonly string[] | undefined;
+  const spellsByClass: Record<string, ClassSpellChoices> = {};
+  if (studies.length > 0) {
+    const offer = offerFor(
+      (one) => one.rechooses.kind === 'prepared-spells',
+      'a prepared spell',
+    );
+    if (!offer.ok) return offer;
+    const rechooses = offer.value.rechooses;
+    const allowed = rechooses.kind === 'prepared-spells' ? rechooses.swap : 0;
+    if (studies.length > allowed) {
+      return err(
+        'too_many_studied',
+        `${offer.value.featureName} swaps ${allowed} prepared spell(s) on a ${offer.value.rest} rest, and ${studies.length} were asked for`,
+      );
+    }
+
+    // Which list the spell is prepared in: a single-class character's flat one,
+    // or the entry for whichever class prepared it. The swap follows the spell
+    // rather than asking the caller which class it belonged to, because the
+    // character already answered that when they prepared it.
+    for (const { replaces, prepares } of studies) {
+      const flat = preparedSpells ?? record.choices.preparedSpells ?? [];
+      if (flat.includes(replaces)) {
+        preparedSpells = flat.map((one) => (one === replaces ? prepares : one));
+        continue;
+      }
+      const named = Object.entries(record.choices.spellsByClass ?? {}).find(([classId, entry]) =>
+        (spellsByClass[classId]?.preparedSpells ?? entry.preparedSpells ?? []).includes(replaces),
+      );
+      if (named === undefined) {
+        return err('not_prepared', `${id} does not have ${replaces} prepared, so it cannot be studied out`);
+      }
+      const [classId, entry] = named;
+      const held = spellsByClass[classId]?.preparedSpells ?? entry.preparedSpells ?? [];
+      spellsByClass[classId] = {
+        ...entry,
+        ...spellsByClass[classId],
+        preparedSpells: held.map((one) => (one === replaces ? prepares : one)),
+      };
+    }
+  }
+
+  return rechooseCharacter(state, content, id, {
+    ...(Object.keys(featureChoices).length === 0 ? {} : { featureChoices }),
+    ...(preparedSpells === undefined ? {} : { preparedSpells }),
+    ...(Object.keys(spellsByClass).length === 0 ? {} : { spellsByClass }),
+  });
 }
 
 /** What a retry is told, and the whole of what it is told. */
@@ -405,6 +550,15 @@ export function endRest(
         break;
       }
     }
+
+    // What the rest re-asked, settled after the benefit it paid and before the
+    // rest is declared over: a pool the re-choice declares is born full either
+    // way, and a pool it resizes keeps what has been spent, so the order is
+    // about the reading rather than about the arithmetic — the character who
+    // woke up is the one the choices describe.
+    const rechosen = rechoiceEvents(state, id, creature, rest, benefit, options, supply?.content);
+    if (!rechosen.ok) return rechosen;
+    events.push(...rechosen.value);
 
     events.push({
       type: 'rest-ended',

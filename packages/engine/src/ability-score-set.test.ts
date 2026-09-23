@@ -10,7 +10,8 @@ import { createCharacter, type CharacterChoices } from './creation.js';
 import { attuneItem, equipItem, unequipItem } from './commands/inventory.js';
 import { createRng, restoreRng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
-import { SHORT_REST, beginRest, endRest, hitDieKey, type RestResolution } from './rest.js';
+import { SHORT_REST, beginRest, endRest, type RestResolution } from './rest.js';
+import { hitDieKey } from './resources.js';
 import {
   abilityScoresOf,
   armorClassOf,

@@ -4139,7 +4139,7 @@ const BEGIN_REST = tool({
 const END_REST = tool({
   name: 'end_rest',
   description:
-    'End a rest and take what it earned. The engine reads the benefit off the clock and off the interruptions it recorded: a completed rest pays in full, a Long Rest broken after an hour pays as a Short Rest, and a Short Rest broken at all pays nothing. A rest that has simply not finished yet is refused, and the answer is to let more time pass. Name Hit Dice to spend them — a Short Rest is the only rest that offers it, the engine rolls each one and adds the Constitution it finds on the sheet, and asking for more than are left is refused before any is rolled.',
+    'End a rest and take what it earned. The engine reads the benefit off the clock and off the interruptions it recorded: a completed rest pays in full, a Long Rest broken after an hour pays as a Short Rest, and a Short Rest broken at all pays nothing. A rest that has simply not finished yet is refused, and the answer is to let more time pass. Name Hit Dice to spend them — a Short Rest is the only rest that offers it, the engine rolls each one and adds the Constitution it finds on the sheet, and asking for more than are left is refused before any is rolled. A rest a character finishes also re-asks whatever their features re-ask — the type of land a Circle of the Land Druid wakes up in, the one prepared spell a Wizard studies out of their book — and saying nothing keeps yesterday’s answer.',
   mutates: true,
   input: z.object({
     who: creatureId,
@@ -4156,6 +4156,23 @@ const END_REST = tool({
       .describe(
         'An interruption the engine cannot see, such as an hour of walking or other hard exertion. The three it can see — Initiative, a spell cast, damage taken — it records for itself and you should not report.',
       ),
+    choosesAgain: z
+      .record(z.string().min(1), z.array(z.string().min(1)))
+      .optional()
+      .describe(
+        'A choice this rest re-asks, answered again, keyed by the feature that asks it — e.g. {"circle-of-the-land:spells": ["Arid"]}. Only a rest the character actually finished re-asks anything, and only the kind of rest the feature names; leave it out to keep the answer they already gave.',
+      ),
+    studies: z
+      .array(
+        z.object({
+          replaces: z.string().min(1).describe('The prepared spell being put down.'),
+          prepares: z.string().min(1).describe('The one taken up in its place, from the book.'),
+        }),
+      )
+      .optional()
+      .describe(
+        'Prepared spells studied out and in over this rest — SRD Memorize Spell swaps one on a finished Short Rest. How many a feature offers is the feature’s; asking for more is refused.',
+      ),
   }),
   run: (context, args) =>
     settle(
@@ -4167,6 +4184,8 @@ const END_REST = tool({
           ...identity(context),
           ...(args.hitDice === undefined ? {} : { hitDice: args.hitDice }),
           ...(args.interruptedBy === undefined ? {} : { interrupted: args.interruptedBy }),
+          ...(args.choosesAgain === undefined ? {} : { choosesAgain: args.choosesAgain }),
+          ...(args.studies === undefined ? {} : { studies: args.studies }),
         },
         context.campaign.supply(),
       ),

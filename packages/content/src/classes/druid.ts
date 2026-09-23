@@ -312,8 +312,36 @@ export const CIRCLE_OF_THE_LAND: SubclassDefinition = {
       id: 'circle-of-the-land:spells',
       name: 'Circle of the Land Spells',
       level: 3,
-      automation: 'manual',
-      note: 'The land spells are **not** granted. SRD: "Whenever you finish a Long Rest, choose one type of land" — arid, polar, temperate or tropical — and the spells follow the choice. A fixed grant would pick a land for the player, and a creation-time choice would freeze it for life; neither is the rule. It needs a grant that can be re-chosen on a rest, which is a rest mechanic rather than a creation one.',
+      automation: 'engine',
+      note: 'Executed. SRD: "Whenever you finish a Long Rest, choose one type of land: arid, polar, temperate, or tropical. Consult the table below that corresponds to the chosen type; you have the spells listed for your Druid level and lower prepared." The land is this feature’s own choice, re-asked on every finished Long Rest through the `rechosen-on-a-rest` grant, and each land’s spells are a grant gated on the answer — so a Druid who chose arid last night has Blur, Burning Hands and Fire Bolt prepared and none of the other nine, and one who has never named a land has none of them, because the sentence begins "Whenever you finish". What is **not** automatic is the same half Life Domain Spells leaves alone: the later rows at Druid levels 5, 7 and 9 are granted by no shape that counts a *class* level, and a grant staged on the character level would hand a Druid 3 / Fighter 2 a Fireball the book does not print.',
+      // "choose one type of land: arid, polar, temperate, or tropical".
+      choice: { kind: 'option', choose: 1, from: ['Arid', 'Polar', 'Temperate', 'Tropical'] },
+      grants: [
+        // "Whenever you finish a Long Rest, choose one type of land".
+        { kind: 'rechosen-on-a-rest', rest: 'long', rechooses: { kind: 'this-features-choice' } },
+        // The level 3 row of each of the four tables, always prepared. A grant
+        // apiece, gated on the land, because the answer is what selects one.
+        {
+          kind: 'spells',
+          fixed: ['blur', 'burning-hands', 'fire-bolt'],
+          onlyIfChoice: 'Arid',
+        },
+        {
+          kind: 'spells',
+          fixed: ['fog-cloud', 'hold-person', 'ray-of-frost'],
+          onlyIfChoice: 'Polar',
+        },
+        {
+          kind: 'spells',
+          fixed: ['misty-step', 'shocking-grasp', 'sleep'],
+          onlyIfChoice: 'Temperate',
+        },
+        {
+          kind: 'spells',
+          fixed: ['acid-splash', 'ray-of-sickness', 'web'],
+          onlyIfChoice: 'Tropical',
+        },
+      ],
     },
   ],
 };

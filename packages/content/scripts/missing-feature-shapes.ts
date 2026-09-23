@@ -536,13 +536,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'ageing, which no rule here reads.',
     },
   ],
-  'circle-of-the-land:spells': [
-    {
-      clause: 'It needs a grant that can be re-chosen on a rest',
-      why: 'an-option-re-chosen-on-a-rest',
-      note: 'the design note names this feature by name as the shape’s first consumer.',
-    },
-  ],
 
   // — Fighter —
   'fighter:fighting-style': [
@@ -1191,13 +1184,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'long casting times are refused',
       why: 'table',
       note: 'a refusal the casting layer owns, recorded so the feature’s note stays true to it.',
-    },
-  ],
-  'wizard:memorize-spell': [
-    {
-      clause: 'Swapping a prepared spell on a Short Rest',
-      why: 'an-option-re-chosen-on-a-rest',
-      note: 'the design note names "every \\"swap a prepared spell on a Long Rest\\" rule" as this shape’s second consumer.',
     },
   ],
   'wizard:spell-mastery': [

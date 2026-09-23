@@ -248,6 +248,7 @@ export const READABLE_GRANT_KINDS: ReadonlySet<string> = new Set([
   'pool',
   'pool-options',
   'reaction',
+  'rechosen-on-a-rest',
   'recovery',
   'save-proficiency',
   'spells',

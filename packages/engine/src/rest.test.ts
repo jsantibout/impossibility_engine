@@ -5,7 +5,7 @@ import type { CharacterSheet } from './character.js';
 import { HOUR, hours, minutes } from './time.js';
 import { createRng, restoreRng } from './dice.js';
 import { fold, type GameEvent, type GameState } from './events.js';
-import { remaining, spellSlotKey } from './resources.js';
+import { hitDieKey, hitDieSides, remaining, spellSlotKey } from './resources.js';
 import { createRollIssuer } from './rolls.js';
 import {
   castSpell,
@@ -19,8 +19,6 @@ import {
   SHORT_REST,
   beginRest,
   endRest,
-  hitDieKey,
-  hitDieSides,
   restEarned,
   type RestResolution,
   type RestState,

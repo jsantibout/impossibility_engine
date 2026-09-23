@@ -83,16 +83,18 @@ import {
   type SubclassDefinition,
   type ReactionGrantAmount,
   type ReactionGrantEffect,
+  type RestRechoice,
   type TradedAmount,
   type TradedResource,
 } from './progression.js';
+import type { RestKind } from './rest.js';
 import {
+  hitDieKey,
   pactSlotKey,
   spellSlotKey,
   type PoolDeclaration,
   type Recovery,
 } from './resources.js';
-import { hitDieKey } from './rest.js';
 import {
   countOf,
   highestSlotLevel,
@@ -1095,6 +1097,19 @@ function checkFeatureChoices(
         continue;
       }
       if (made === undefined) continue;
+    }
+
+    // **A choice a rest re-asks is a standing decision too**, and it is the
+    // Weapon Mastery paragraph above with a different feature's name on it:
+    // SRD Circle of the Land Spells opens "Whenever you finish a Long Rest,
+    // choose one type of land", so the land follows the rest rather than the
+    // sheet, and a Druid who has named none has named none. An answer that
+    // *is* given is still held to the offer below.
+    if (
+      made === undefined &&
+      featureGrants(feature).some((one) => one.kind === 'rechosen-on-a-rest')
+    ) {
+      continue;
     }
 
     const wanted = asked.kind === 'weapon' ? (made ?? []).length : asked.choose;
@@ -4501,6 +4516,32 @@ export function advanceCharacter(
     equipped: creature.equipped.map((held) => held.id),
   };
 
+  return replanCharacter(state, content, id, choices);
+}
+
+/**
+ * Re-derive a character from a new set of choices and emit only what moved.
+ *
+ * The body {@link advanceCharacter} has always been, lifted out because a
+ * level is not the only thing that changes a character's answers: SRD Circle
+ * of the Land chooses a type of land on every Long Rest and SRD Memorize Spell
+ * swaps a prepared spell on every Short one, and both are "the choices are the
+ * character" read a second time. What a level-up adds is the level; what this
+ * does with any set of choices is what a level-up did with the next level's.
+ *
+ * Nothing here knows about rests, levels or features: it takes the whole
+ * `CharacterChoices` the caller has already merged, plans it, and writes the
+ * difference against the creature standing in `state`.
+ */
+function replanCharacter(
+  state: GameState,
+  content: Content,
+  id: CharacterId,
+  choices: CharacterChoices,
+): Result<GameEvent[]> {
+  const creature = state.creatures[id];
+  if (creature === undefined) return needsContext('unknown_creature', `${id} is not in this game`);
+
   const plan = planCharacter(content, choices, creature.inventory);
   if (!plan.ok) return plan;
 
@@ -4568,12 +4609,139 @@ export function advanceCharacter(
       subclassId: choices.subclassId ?? null,
       speciesId: choices.speciesId,
       backgroundId: choices.backgroundId,
-      level,
+      // The record's level is the choices' level, which is the one thing
+      // `levelInto` already settled: a level taken in another class grows the
+      // multiclass entry and leaves this where it was.
+      level: choices.level,
       choices,
     },
   });
 
   return ok(events);
+}
+
+/** What a rest may hand back, out of everything a character chose. */
+export interface RechoicePatch {
+  readonly preparedSpells?: readonly string[];
+  readonly spellsByClass?: Readonly<Record<string, ClassSpellChoices>>;
+  readonly featureChoices?: Readonly<Record<string, readonly string[]>>;
+}
+
+/** The whole of what a re-choice may name, held at run time as well as in the type. */
+const RECHOOSABLE: ReadonlySet<string> = new Set([
+  'preparedSpells',
+  'spellsByClass',
+  'featureChoices',
+]);
+
+/** Structural equality over the plain JSON a `CharacterChoices` is made of. */
+function sameAnswer(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+    return a.every((one, index) => sameAnswer(one, b[index]));
+  }
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
+  const left = a as Record<string, unknown>;
+  const right = b as Record<string, unknown>;
+  const keys = new Set([...Object.keys(left), ...Object.keys(right)]);
+  for (const key of keys) {
+    if (!sameAnswer(left[key], right[key])) return false;
+  }
+  return true;
+}
+
+/**
+ * Answer one of a character's questions again, keeping everything else.
+ *
+ * The same call a level-up makes, minus the level: SRD Circle of the Land
+ * Spells and SRD Memorize Spell both hand back an answer the character already
+ * gave, and a re-choice is that answer merged in and the character re-planned.
+ * `endRest` is its only caller today and decides *which* questions a given
+ * rest re-asks; this decides nothing about rests at all, which is what keeps it
+ * usable by the next feature that re-asks something.
+ *
+ * **It refuses anything a re-choice may not name**, at run time and not only in
+ * the type: a level, a class, a species and the twenty other fields on
+ * `CharacterChoices` are what the character *is*, and a door that quietly
+ * accepted one would be a level-up with no level check in front of it.
+ *
+ * **And an identical patch emits nothing.** A rest taken without changing one's
+ * mind is not an event — the record would be re-written to the bytes it already
+ * holds, and every log would grow a `character-advanced` per night's sleep.
+ */
+export function rechooseCharacter(
+  state: GameState,
+  content: Content,
+  id: CharacterId,
+  patch: RechoicePatch,
+): Result<GameEvent[]> {
+  const creature = state.creatures[id];
+  if (creature === undefined) return needsContext('unknown_creature', `${id} is not in this game`);
+
+  const record = creature.character;
+  if (record === null || record === undefined) {
+    return err('not_a_character', `${id} was not created from character choices`);
+  }
+
+  for (const key of Object.keys(patch)) {
+    if (!RECHOOSABLE.has(key)) {
+      return err(
+        'not_rechosen',
+        `a rest re-asks ${[...RECHOOSABLE].join(', ')}; ${key} is what the character is, and only a level-up changes it`,
+      );
+    }
+  }
+
+  const choices: CharacterChoices = {
+    ...record.choices,
+    ...(patch.preparedSpells === undefined ? {} : { preparedSpells: patch.preparedSpells }),
+    ...(patch.spellsByClass === undefined
+      ? {}
+      : { spellsByClass: { ...(record.choices.spellsByClass ?? {}), ...patch.spellsByClass } }),
+    ...(patch.featureChoices === undefined
+      ? {}
+      : { featureChoices: { ...record.choices.featureChoices, ...patch.featureChoices } }),
+  };
+
+  if (sameAnswer(choices, record.choices)) return ok([]);
+
+  return replanCharacter(state, content, id, choices);
+}
+
+/** One question a feature re-asks, and the rest that re-asks it. */
+export interface RestRechoiceOffer {
+  readonly feature: string;
+  readonly featureName: string;
+  readonly rest: RestKind;
+  readonly rechooses: RestRechoice;
+}
+
+/**
+ * The questions this character's features re-ask on a rest.
+ *
+ * Read off the grants rather than off any list of feature ids, so `endRest` can
+ * ask what a rest re-asks without the engine knowing that a Druid exists. The
+ * same derivation creation uses, on the same gated feature list, so a feature
+ * whose option was not taken re-asks nothing either.
+ */
+export function restRechoices(
+  content: Content,
+  choices: CharacterChoices,
+): readonly RestRechoiceOffer[] {
+  const offers: RestRechoiceOffer[] = [];
+  const { parts } = resolveParts(content, choices);
+  if (parts === null) return offers;
+  for (const [feature, grant] of grantsIn(grantedFeatures(content, choices, parts))) {
+    if (grant.kind !== 'rechosen-on-a-rest') continue;
+    offers.push({
+      feature: feature.id,
+      featureName: feature.name,
+      rest: grant.rest,
+      rechooses: grant.rechooses,
+    });
+  }
+  return offers;
 }
 
 /**

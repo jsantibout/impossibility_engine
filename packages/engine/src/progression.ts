@@ -15,6 +15,9 @@ import type { EffectEndCause } from './timers.js';
 import type { D20TestKind } from './checks.js';
 import type { ReactionReach } from './reactions.js';
 import type { Recovery } from './resources.js';
+// Type-only, so nothing is imported at run time and no cycle exists: `rest.ts`
+// owns the two kinds of rest and `creation.ts` reads them off a grant.
+import type { RestKind } from './rest.js';
 import type { SpellArea, SpellEffect } from './spell-definitions.js';
 import { CASTING_MARK } from './spells.js';
 import type {
@@ -593,6 +596,42 @@ export interface HitOptionGrant {
   /** What ends a conferred condition before its span is up. */
   readonly endsEarly?: readonly EffectEndCause[];
 }
+
+/**
+ * Which of a character's own answers a rest re-asks — see the
+ * `rechosen-on-a-rest` member of {@link FeatureGrant}.
+ *
+ * Two members because the SRD writes two sentences, and they differ in *whose*
+ * answer is re-asked rather than in what happens afterwards: Circle of the Land
+ * re-asks the feature's own `choice`, and Memorize Spell re-asks a line of the
+ * character's prepared list. Both land in `CharacterChoices` and both are then
+ * re-planned by the same call.
+ */
+export type RestRechoice =
+  /**
+   * This feature's own `choice`, answered again.
+   *
+   * SRD Circle of the Land Spells' type of land, and the shape the coordinator's
+   * Wild Shape forms take: any feature whose grants are gated on the answer
+   * (`GrantGate.onlyIfChoice`) changes what it grants when the answer changes,
+   * with no further vocabulary.
+   *
+   * **It also makes the choice a standing decision rather than a creation
+   * quota**, which `checkFeatureChoices` reads: a character who has named no
+   * land has named none, exactly as a Weapon Mastery choice is a ceiling and
+   * for the same printed reason — the sentence starts "Whenever you finish".
+   */
+  | { readonly kind: 'this-features-choice' }
+  /**
+   * Prepared spells, a bounded number of them swapped for spells the character
+   * already has.
+   *
+   * SRD Memorize Spell swaps one. {@link swap} is the count because the SRD
+   * prints a count — Spell Mastery's Long Rest sentence swaps one of *two*
+   * named spells — and a feature that swapped every prepared spell would be the
+   * class's own re-preparation rather than a feature at all.
+   */
+  | { readonly kind: 'prepared-spells'; readonly swap: number };
 
 /**
  * The mechanical shapes a feature's choice can take.
@@ -1873,6 +1912,42 @@ export type FeatureGrant =
       readonly flat: number;
       /** Whose levels the "and 1 again whenever you gain a level" counts. */
       readonly perLevel?: 'character' | 'class';
+    }
+  /**
+   * A choice the holder answers **again** whenever they finish a rest.
+   *
+   * SRD Circle of the Land Spells: "Whenever you finish a Long Rest, choose one
+   * type of land: arid, polar, temperate, or tropical … you have the spells
+   * listed for your Druid level and lower prepared." SRD Memorize Spell:
+   * "Whenever you finish a Short Rest, you can study your spellbook and replace
+   * one of the level 1+ Wizard spells you have prepared … with another level 1+
+   * spell from the book."
+   *
+   * **What is declared here is the question, not the answer.** Everything a
+   * re-choice changes is already a `CharacterChoices` field that creation reads
+   * — the land is this feature's own `choice`, the swap is `preparedSpells` —
+   * and a re-choice is the same field answered a second time, run back through
+   * `planCharacter` by `rechooseCharacter` so that only the differences are
+   * emitted. A grant that carried the *new* answer would be a second place the
+   * character is derived from, and the two would eventually disagree.
+   *
+   * **A grant rather than a note on the rest**, and rule 4 is why: "the engine
+   * holds no catalogue". `endRest` must be able to ask which questions this
+   * character's features re-ask without naming a feature, a class or a subclass,
+   * and this is what it asks.
+   *
+   * **The rest named here is the rest the holder *finished*.** A Long Rest
+   * broken after an hour pays out a Short Rest's benefits and is not a Short
+   * Rest somebody finished, so it re-asks nothing: both printed features open
+   * with "Whenever you finish", and a broken rest is the one thing that did not
+   * happen.
+   */
+  | {
+      readonly kind: 'rechosen-on-a-rest';
+      /** Which rest re-asks it. */
+      readonly rest: RestKind;
+      /** Which of the character's own answers is re-asked. */
+      readonly rechooses: RestRechoice;
     }
   /**
    * A Reaction the feature takes at one of the engine's named windows — see

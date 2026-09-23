@@ -341,6 +341,7 @@ type Reach =
   | { readonly how: 'reaction'; readonly door: string }
   | { readonly how: 'passive' }
   | { readonly how: 'joins-a-menu'; readonly host: string }
+  | { readonly how: 're-asked-on-a-rest'; readonly door: string }
   | { readonly how: 'at-creation'; readonly why: string }
   | { readonly how: 'unreachable'; readonly why: string };
 
@@ -393,6 +394,16 @@ function reachOf(
     }
     return { how: 'joins-a-menu', host: menu.feature ?? '' };
   }
+
+  // A question a rest re-asks, which is `end_rest`'s door and nobody else's:
+  // SRD Circle of the Land Spells and SRD Memorize Spell are answered by
+  // ending a rest, and neither is spent from a pool, hung on the sheet or
+  // taken as a Reaction. Asked before the creation branch below because such a
+  // feature also carries the grants its answer selects — the four lands'
+  // spell lists — and those are creation's, which would otherwise make the
+  // rest's own grant look like the one nothing reaches.
+  const rest = grants.find((one) => one.kind === 'rechosen-on-a-rest');
+  if (rest !== undefined) return { how: 're-asked-on-a-rest', door: 'end_rest' };
 
   if (grants.length > 0) {
     const unreached = grants.filter((one) => AT_CREATION[one.kind] === undefined);
@@ -492,7 +503,14 @@ describe('every feature the engine executes can be reached from the door', () =>
     expect(new Set(found.map((one) => one.path.classId)).size).toBe(PATHS.length);
     expect(found.length).toBeGreaterThan(80);
     const observed = new Set(found.map((one) => one.reach.how));
-    for (const how of ['spendable', 'reaction', 'passive', 'joins-a-menu', 'at-creation']) {
+    for (const how of [
+      'spendable',
+      'reaction',
+      'passive',
+      'joins-a-menu',
+      'at-creation',
+      're-asked-on-a-rest',
+    ]) {
       expect([...observed]).toContain(how);
     }
   });
@@ -514,7 +532,12 @@ describe('every feature the engine executes can be reached from the door', () =>
   it('names a real tool for every feature it says is spendable', () => {
     const doors = sweep()
       .map((one) => one.reach)
-      .filter((reach) => reach.how === 'spendable' || reach.how === 'reaction')
+      .filter(
+        (reach) =>
+          reach.how === 'spendable' ||
+          reach.how === 'reaction' ||
+          reach.how === 're-asked-on-a-rest',
+      )
       .map((reach) => (reach as { door: string }).door);
     expect(doors.length).toBeGreaterThan(0);
     for (const door of [...new Set(doors)]) expect(TOOL_NAMES).toContain(door);

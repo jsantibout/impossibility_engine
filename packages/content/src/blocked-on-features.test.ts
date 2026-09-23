@@ -109,7 +109,7 @@ describe('the feature blocked-on map covers the population it answers for', () =
    * that reads nothing, or a map that has quietly stopped being populated.
    */
   it('covers a population worth deriving', () => {
-    expect(Object.keys(FEATURE_BLOCKED_ON).length).toBeGreaterThan(100);
+    expect(Object.keys(FEATURE_BLOCKED_ON).length).toBeGreaterThan(80);
   });
 
   /** In an order two branches can both append to, and the order is the data's. */

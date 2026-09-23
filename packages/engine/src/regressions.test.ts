@@ -4,7 +4,8 @@ import type { CharacterSheet } from './character.js';
 import { HOUR, ROUND, hours, minutes } from './time.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { spellSlotKey } from './resources.js';
-import { hitDieKey, beginRest, endRest, LONG_REST } from './rest.js';
+import { beginRest, endRest, LONG_REST } from './rest.js';
+import { hitDieKey } from './resources.js';
 import { grantTemporaryHpTo } from './commands.js';
 // The low-level half beneath `resolveSpell`, a module export rather than a
 // command — see the barrel's own note about why it is not published.

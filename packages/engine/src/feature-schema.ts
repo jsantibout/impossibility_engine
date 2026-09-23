@@ -1094,6 +1094,53 @@ function grantProblems(
     }
   }
 
+  // A question re-asked on a rest, and the two ways it can be a question
+  // nobody could ever answer.
+  //
+  // A rest is a Short one or a Long one and nothing else, so a third word is a
+  // grant `endRest` would compare against both kinds and match neither — a
+  // feature that validates, compiles, and is silently never re-asked.
+  //
+  // And a grant that re-asks **this feature's own choice** on a feature that
+  // asks nothing is the same failure from the other end: the rest would hand
+  // `planCharacter` an answer to a question the feature does not print, and
+  // creation would refuse the character on a rest rather than at the door.
+  // The swap count is a count for the reason every other count here is one: a
+  // zero is a sentence that says nothing happens.
+  if (grant.kind === 'rechosen-on-a-rest') {
+    if (grant.rest !== 'short' && grant.rest !== 'long') {
+      found.push({
+        field: 'grants.rest',
+        code: 'bad_rest_kind',
+        reason: `a rest is short or long, and "${String(grant.rest)}" is neither`,
+      });
+    }
+    const rechooses = grant.rechooses;
+    if (rechooses?.kind === 'this-features-choice') {
+      if (feature.choice === undefined) {
+        found.push({
+          field: 'grants.rechooses',
+          code: 'rechooses_nothing',
+          reason: `${feature.id} re-asks its own choice on a rest and asks no choice, so there is nothing to answer again`,
+        });
+      }
+    } else if (rechooses?.kind === 'prepared-spells') {
+      if (!isCount(rechooses.swap)) {
+        found.push({
+          field: 'grants.rechooses.swap',
+          code: 'rechooses_nothing',
+          reason: `a swap is a whole number of at least one spell, not ${String(rechooses.swap)}`,
+        });
+      }
+    } else {
+      found.push({
+        field: 'grants.rechooses',
+        code: 'rechooses_nothing',
+        reason: `a rest re-asks this feature's own choice or a line of the prepared list, and "${String((rechooses as { kind?: unknown } | undefined)?.kind)}" is neither`,
+      });
+    }
+  }
+
   // A gate on an option nobody can pick — the half a definition can answer
   // about itself, which is the half where the choice is its own.
   //
