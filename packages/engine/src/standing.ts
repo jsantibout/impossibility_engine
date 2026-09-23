@@ -2283,14 +2283,29 @@ function requirementsHold(
       const level = lightAt(state, where).level;
       if (level !== 'dim' && level !== 'darkness') return false;
     }
-    // SRD glossary: "A creature is Bloodied while it has half its Hit Points
-    // or fewer remaining." Doubled rather than halved, so no rounding rule has
-    // to be invented for an odd maximum.
-    if (requirement.kind === 'while-bloodied' && creature.vitals.hp * 2 > creature.vitals.hpMax) {
+    if (requirement.kind === 'while-bloodied' && !isBloodied(creature)) {
       return false;
     }
   }
   return true;
+}
+
+/**
+ * SRD glossary: "A creature is Bloodied while it has half its Hit Points or
+ * fewer remaining."
+ *
+ * Doubled rather than halved, so no rounding rule has to be invented for an
+ * odd maximum. A function rather than a line inside `requirementsHold`,
+ * because the same sentence is printed on a stat block's own attack line —
+ * SRD Swarm of Rats bites for less "if the swarm is Bloodied" — and a second
+ * spelling of the comparison is how the two would come to disagree about an
+ * odd Hit Point maximum.
+ *
+ * A creature nobody has added is not Bloodied; it is not anything.
+ */
+export function isBloodied(creature: CreatureState | undefined): boolean {
+  if (creature === undefined) return false;
+  return creature.vitals.hp * 2 <= creature.vitals.hpMax;
 }
 
 /**
