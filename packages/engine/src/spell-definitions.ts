@@ -2172,9 +2172,21 @@ export type SpellEffect =
    * **`onFailure` is a closed list of one, and it is a list because the value
    * is a *rule* rather than a label.** `'no-answer'` says: the casting
    * happened, the slot is gone, and the printed text the book left to the
-   * table does not go out for it — an omen nobody received must not be handed
-   * to a DM to narrate. A second value would be a second rule with a second
-   * resolver arm, which is why this is not a boolean.
+   * table is withheld from **the resolution that reports it** — an omen
+   * nobody received must not be handed to a DM to narrate. A second value
+   * would be a second rule with a second resolver arm, which is why this is
+   * not a boolean.
+   *
+   * **What it does not reach is the declaration**, and the reason is the
+   * clock. A rite of a minute is declared, and the declaration hands its text
+   * over there and then — into the caller's `unverified` and pinned onto
+   * `spell-declared` — a minute before this die exists. So a reader of the
+   * *log* sees the text on the declaration and the withdrawal in the
+   * settlement's resolution, which is the chronology of what happened: the
+   * caster set out to ask a question and got no answer. Suppressing the
+   * declaration's copy would mean holding every handover in the book back
+   * until every effect had run, which is one spell's rule moved into the
+   * pipeline every spell goes through.
    */
   | {
       readonly kind: 'chance';

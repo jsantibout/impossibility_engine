@@ -132,15 +132,24 @@ function chanceOf(
  * pool with nothing spent.
  *
  * **What a failure costs is the handover**, which is the whole of
- * `onFailure: 'no-answer'`. The casting's printed `dmDecides` text is pushed
- * onto `unverified` at the declaration, long before this die exists — and the
- * settlement gets its own copy of that list, so the failure takes the lines
- * back out of it and says why instead. The alternative was to hold the
- * handover until every effect had run, which would have moved a rule about one
- * spell into the pipeline every spell goes through, and would still have left
- * the declaration's copy standing. Taking them out of the settlement's list is
- * the narrower change and reports the truth the settlement is reporting: this
- * casting produced no omen.
+ * `onFailure: 'no-answer'` — and it costs it in **this resolution** rather
+ * than everywhere the text has ever appeared. Be exact about what that means,
+ * because a spell of a minute reports twice:
+ *
+ * - The **declaration** handed the text over a minute ago, into its own
+ *   caller's `unverified` and pinned onto `spell-declared` for the fold. Both
+ *   stand, and both are true of the moment they record: the caster began a
+ *   rite that asks the table a question.
+ * - The **settlement** gets a fresh copy of that list, and this is where the
+ *   die finally falls. The failure takes the lines back out of that copy and
+ *   says why instead, so the resolution the caller acts on reports no omen.
+ *
+ * The alternative was to hold every handover in the book back until every
+ * effect had run, which moves one spell's rule into the pipeline every spell
+ * goes through — and it would *still* have left the pinned event standing,
+ * because that is written before any effect resolves. Trimming the
+ * settlement's own list is the narrower change and reports the truth the
+ * settlement is reporting.
  *
  * **It ends nothing and refuses nothing.** The spell was cast, the slot is
  * gone and the minute was spent; SRD says the caster gets no answer, not that

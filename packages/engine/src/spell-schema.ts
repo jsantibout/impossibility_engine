@@ -3740,23 +3740,22 @@ export function checkSpellDefinition(
       });
     }
 
-    // **And the rule has to reach a die.** The two effect kinds that roll a
-    // casting's own damage are the attack and the damaging save; a definition
-    // that has neither throws nothing this could be about, and a rule nobody
+    // **And the rule has to reach a die.** The effect kinds that roll a
+    // casting's own damage are {@link ROLLS_ITS_OWN_DAMAGE}; a definition
+    // with none of them throws nothing this could be about, and a rule nobody
     // reads is the failure the whole validator exists to prevent.
     if (!definition.effects.some((effect) => ROLLS_ITS_OWN_DAMAGE.has(effect.kind))) {
       found.push({
         field: 'dieRule',
         code: 'die_rule_rolls_nothing',
-        reason:
-          'a die rule is about the dice this spell rolls for damage, and this spell rolls none: give it an attack or a damaging save, or drop the rule',
+        reason: `a die rule is about the dice this spell rolls for damage, and this spell rolls none: give it ${[...ROLLS_ITS_OWN_DAMAGE].join(', ')}, or drop the rule`,
       });
     } else if (rollsDamageTwice(definition)) {
       found.push({
         field: 'dieRule',
         code: 'die_rule_rolls_more_than_once',
         reason:
-          "the cap is a budget for the whole casting and is spent per damage roll, so a spell that rolls its damage more than once — several targets, more of them out of a bigger slot, a count it never states, an area, an activation that rolls again on a later turn, two damaging effects, or a payload printed in a second damage type — would be allowed it once per roll",
+          "the cap is a budget for the whole casting and is spent per damage roll, so a spell that rolls its damage more than once — several targets, more of them out of a bigger slot, a count it never states, several aimed rolls out of one effect, an area, an activation that rolls again on a later turn, two damaging effects, or a payload printed in a second damage type — would be allowed it once per roll",
       });
     }
   }
@@ -3954,6 +3953,7 @@ export function checkSpellDefinition(
   );
 
   checkSummonTargets(definition, found);
+  checkChanceTargets(definition, found);
 
   const activation = definition.activation;
   if (
@@ -4369,6 +4369,7 @@ function checkShape(value: unknown): readonly SpellDefinitionProblem[] {
       checkRecordedVerdict(effect as object, entry.kind, where, at, found);
       checkTeleportPlacement(entry.kind, where, at, found);
       checkSummonPlacement(entry.kind, where, at, found);
+      checkChancePlacement(entry.kind, where, at, found);
       checkNoNestedEffect(effect, at, found);
     });
   }
@@ -4642,6 +4643,88 @@ function checkSummonTargets(
         'SRD writes "you summon": the spell is on the creature casting it and the creature raised is the consequence',
     });
   }
+}
+
+/**
+ * A printed chance is a fact about the **casting**, so it is asked once.
+ *
+ * {@link checkSummonTargets}'s rule for the same reason and by the same
+ * machinery. `runEffects` is `for (target) for (effect)`, and this resolver
+ * ignores the target it is handed entirely: what it throws a die about is
+ * whether *this casting* worked. Written against two creatures it would throw
+ * two d100s, count the casting twice, and — because the count is read off the
+ * world the previous iteration left — throw the second die against a chance
+ * the first one had just raised. A spell that got worse at itself the more
+ * creatures it named, met at the table rather than at authoring.
+ *
+ * So one target, and it is the caster: the two halves of `{ count: 1, self:
+ * true }`, refused separately so an author is told which one is wrong. SRD
+ * writes every one of these sentences about the caster — "If **you** cast the
+ * spell more than once" — and the day one is printed about somebody else, this
+ * refusal is where the design conversation starts.
+ *
+ * **And an area is refused outright rather than counted**, which the target
+ * rule cannot say: an area fills the target list from whoever is standing in
+ * it, so `{ count: 1, self: true }` beside one is a rule nothing reads. The
+ * same door {@link checkSummonPlacement} shuts on the other axis.
+ */
+function checkChanceTargets(
+  definition: SpellDefinition,
+  found: SpellDefinitionProblem[],
+): void {
+  if (!definition.effects.some((effect) => effect.kind === 'chance')) return;
+
+  if (definition.targets.count !== 1 || definition.targets.extraPerSlotLevelAbove !== undefined) {
+    found.push({
+      field: 'targets.count',
+      code: 'chance_over_several_targets',
+      reason:
+        'a printed chance is thrown once for the casting, so a second target would throw a second die and count the casting twice',
+    });
+  }
+  if (definition.targets.self !== true || definition.targets.unlimited === true) {
+    found.push({
+      field: 'targets.self',
+      code: 'chance_not_on_its_caster',
+      reason:
+        'SRD writes "if you cast the spell": the chance is the caster’s and the casting is on them',
+    });
+  }
+  if (definition.area !== undefined || definition.targetsWithin !== undefined) {
+    found.push({
+      field: 'area',
+      code: 'chance_over_an_area',
+      reason:
+        'an area fills the target list from whoever is standing in it, so a chance written beside one is thrown once per creature caught',
+    });
+  }
+}
+
+/**
+ * Where a chance may be written, which is the casting's own list and nowhere
+ * else.
+ *
+ * {@link checkSummonPlacement}'s rule and its argument, read off the other
+ * end of the same sentence. What this die decides is whether *this casting*
+ * worked, and a casting has one of those: an area trigger firing a minute
+ * later, or an activation taken on a later turn, would count the casting again
+ * and throw a second die about a question the settlement already answered.
+ * There is no SRD sentence of that shape and a homebrew one would be a spell
+ * that failed twice.
+ */
+function checkChancePlacement(
+  kind: unknown,
+  where: string,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  if (kind !== 'chance' || where === 'effects') return;
+  found.push({
+    field: `${path}.kind`,
+    code: 'chance_outside_the_casting',
+    reason:
+      'a printed chance decides whether this casting worked, and only the casting’s own effect list is resolved once',
+  });
 }
 
 /**

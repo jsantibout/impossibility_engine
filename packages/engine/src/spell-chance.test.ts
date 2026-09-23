@@ -325,4 +325,50 @@ describe('the validator', () => {
   it('refuses a failure it has no rule for', () => {
     expect(problemsIn(withEffect({ onFailure: 'explodes' })).length).toBeGreaterThan(0);
   });
+
+  /**
+   * The rule the effect loop makes necessary, and it is `summon`'s.
+   *
+   * `runEffects` is `for (target) for (effect)`, and this resolver ignores the
+   * target it is handed: the die is about the casting. Written against two
+   * creatures it would throw two, count the casting twice, and throw the
+   * second against a chance the first had just raised — a spell that got worse
+   * at itself the more creatures it named.
+   */
+  it('refuses a chance thrown at more than one creature', () => {
+    expect(problemsIn({ ...FLAT, targets: { count: 2, self: true } })).toContain(
+      'chance_over_several_targets',
+    );
+    expect(
+      problemsIn({ ...FLAT, targets: { count: 1, self: true, extraPerSlotLevelAbove: 1 } }),
+    ).toContain('chance_over_several_targets');
+    expect(problemsIn({ ...FLAT, targets: { count: 1 } })).toContain('chance_not_on_its_caster');
+    expect(problemsIn({ ...FLAT, targets: { count: 1, self: true, unlimited: true } })).toContain(
+      'chance_not_on_its_caster',
+    );
+  });
+
+  /** And an area, which fills the target list from whoever is standing in it. */
+  it('refuses a chance written beside an area', () => {
+    expect(
+      problemsIn({ ...FLAT, area: { kind: 'sphere', radiusFeet: 20 }, at: undefined }),
+    ).toContain('chance_over_an_area');
+  });
+
+  /**
+   * And a list that is resolved again later. An area trigger fires a minute
+   * on and an activation on a later turn; either would count the casting a
+   * second time and throw a second die about a question the settlement has
+   * already answered.
+   */
+  it('refuses a chance outside the casting’s own effect list', () => {
+    const { effects, ...rest } = FLAT;
+    expect(
+      problemsIn({
+        ...rest,
+        effects: [],
+        activation: { action: 'bonus-action', effects },
+      }),
+    ).toContain('chance_outside_the_casting');
+  });
 });

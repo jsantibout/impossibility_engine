@@ -2127,8 +2127,9 @@ function resolveOneEffect(
       return resolveChanceEffect(ctx, effect, world);
     case 'teleport':
       return resolveTeleportEffect(ctx, effect, target, world);
-    // The one kind whose subject is not the target: the spell is on its caster
-    // and what it makes is a second creature, so the target is read off `ctx`.
+    // The first of the two kinds whose subject is not the target: the spell is
+    // on its caster and what it makes is a second creature, so the target is
+    // read off `ctx`.
     case 'summon':
       return resolveSummonEffect(ctx, effect, world);
 

@@ -317,6 +317,52 @@ describe('the validator judges a die rule like every other member', () => {
     );
   });
 
+  /**
+   * **The fourth route, which a target count does not show either.**
+   *
+   * One effect can aim several rolls of its own — Scorching Ray's rays, Magic
+   * Missile's darts — and each rolls its own damage. Every SRD spell that has
+   * them also names several creatures, so the clause above already answered
+   * for all of them; the guard is written down because a homebrew spell may
+   * hurl three darts at exactly one creature, and the budget would then be
+   * handed out three times.
+   */
+  it('refuses a rule on one effect that aims several rolls at one creature', () => {
+    const rays = {
+      ...JSON.parse(EMBER_CASCADE),
+      effects: [
+        {
+          kind: 'attack',
+          attack: 'ranged',
+          damage: { dice: '1d6' },
+          damageType: 'fire',
+          rolls: { count: 3 },
+        },
+      ],
+    };
+    expect(checkSpellDefinitionValue(rays).map((p) => p.code)).toContain(
+      'die_rule_rolls_more_than_once',
+    );
+
+    // And the same count grown by the slot rather than printed, which is the
+    // shape `extraPerSlotLevelAbove` takes on a target rule one clause up.
+    const perSlot = {
+      ...JSON.parse(EMBER_CASCADE),
+      effects: [
+        {
+          kind: 'attack',
+          attack: 'ranged',
+          damage: { dice: '1d6' },
+          damageType: 'fire',
+          rolls: { count: 1, extraPerSlotLevelAbove: 1 },
+        },
+      ],
+    };
+    expect(checkSpellDefinitionValue(perSlot).map((p) => p.code)).toContain(
+      'die_rule_rolls_more_than_once',
+    );
+  });
+
   it('is content with the rule on a spell whose save deals damage', () => {
     const saving = {
       ...JSON.parse(EMBER_CASCADE),
@@ -331,6 +377,22 @@ describe('the validator judges a die rule like every other member', () => {
       ],
     };
     expect(checkSpellDefinitionValue(saving)).toEqual([]);
+  });
+
+  /**
+   * **And on a spell whose damage no roll decides**, which is the third
+   * member of {@link ROLLS_ITS_OWN_DAMAGE} and the reason the set is a set.
+   * A dart rolls the casting's own dice through the same `rollSpellDice` an
+   * attack does, so a rule written about "this spell" reaches it — and a
+   * definition left out of the set would have been told its rule rolls
+   * nothing while the resolver went on carrying it.
+   */
+  it('is content with the rule on a spell whose damage simply lands', () => {
+    const darts = {
+      ...JSON.parse(EMBER_CASCADE),
+      effects: [{ kind: 'auto-damage', damage: { dice: '1d4', flat: 1 }, damageType: 'force' }],
+    };
+    expect(checkSpellDefinitionValue(darts)).toEqual([]);
   });
 });
 
