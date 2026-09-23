@@ -16,9 +16,11 @@ import {
   inconsistencies,
   isExecuted,
   isExecutedFeature,
+  isHandoverTrait,
   isReadLine,
   hasUnexecutedTrait,
   statBlockLines,
+  HANDOVER_TRAIT_KINDS,
   TRAIT_KINDS_WITH_A_READER,
 } from '../scripts/coverage-data.js';
 import { entryFor, isCompleteItem, magicItemEntries } from '../scripts/magic-items.js';
@@ -529,8 +531,15 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
     // **And the predicate answers both ways**, asked of a kind on the list and
     // of one that is not. A guard that only ever expected `false` would pass
     // against `() => false`, which is the answer that quietly retires the row.
+    //
+    // A handed-over kind is on neither side of this question — it is read and
+    // finished — so it is excluded from the search for an unspent one rather
+    // than being the first thing found.
     const spent = TRAIT_KINDS_WITH_A_READER[0]!;
-    const inert = kinds.find((kind) => !TRAIT_KINDS_WITH_A_READER.includes(kind));
+    const inert = kinds.find(
+      (kind) =>
+        !TRAIT_KINDS_WITH_A_READER.includes(kind) && !Object.hasOwn(HANDOVER_TRAIT_KINDS, kind),
+    );
     expect(inert).toBeDefined();
     expect(hasUnexecutedTrait({ name: 'x', text: 'y' })).toBe(false);
     expect(hasUnexecutedTrait({ name: 'x', text: 'y', trait: { kind: spent } })).toBe(false);
@@ -563,6 +572,87 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
 
     const text = sources.join('\n');
     expect(TRAIT_KINDS_WITH_A_READER.filter((kind) => !text.includes(`'${kind}'`))).toEqual([]);
+  });
+
+  /**
+   * The third answer, and it is pinned the **opposite** way round.
+   *
+   * A handed-over kind is one the engine reads, gives to the table and will
+   * never build — `docs/ROADMAP.md` §6 P3-B says so of the breathing traits in
+   * as many words — so it is neither spent nor waiting, and it drops out of
+   * both of the columns above. That is a claim worth two guards, because it
+   * can be wrong two ways.
+   *
+   * **A name the schema no longer admits** is the loud one, exactly as it is
+   * for the roster. **A kind that has quietly grown a reader** is the
+   * dangerous one: it would go on being reported as handed over while
+   * something in the engine spent it, which is the same drift pointed the
+   * other way. So the second guard is the roster's, inverted — a handover
+   * must be named **nowhere** in `packages/engine/src`.
+   *
+   * And no kind may be on both lists, which is what would make the two
+   * predicates disagree about one line.
+   */
+  it('hands over only kinds the schema admits and no reader spends', () => {
+    const kinds: readonly string[] = MonsterTraitSchema.options.map(
+      (option) => option.shape.kind.value,
+    );
+    const handovers = Object.keys(HANDOVER_TRAIT_KINDS);
+    expect(handovers.length).toBeGreaterThan(0);
+    expect(handovers.filter((kind) => !kinds.includes(kind))).toEqual([]);
+    expect(handovers.filter((kind) => TRAIT_KINDS_WITH_A_READER.includes(kind))).toEqual([]);
+
+    // Every one carries its own reason, because the day one of them stops
+    // being a handover it will be one of them and not all three.
+    for (const [kind, reason] of Object.entries(HANDOVER_TRAIT_KINDS)) {
+      expect(reason.length, kind).toBeGreaterThan(80);
+    }
+
+    const here = fileURLToPath(new URL('.', import.meta.url));
+    const root = `${here}../../engine/src/`;
+    const sources: string[] = [];
+    const walk = (dir: string): void => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        if (entry.isDirectory()) walk(`${dir}${entry.name}/`);
+        else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts')) {
+          sources.push(readFileSync(`${dir}${entry.name}`, 'utf8'));
+        }
+      }
+    };
+    walk(root);
+    expect(sources.length).toBeGreaterThan(40);
+
+    const text = sources.join('\n');
+    expect(handovers.filter((kind) => text.includes(`'${kind}'`))).toEqual([]);
+  });
+
+  /**
+   * And the predicate answers all three ways, asked of a handover, of a kind
+   * with a reader, and of a line with no trait at all.
+   *
+   * The middle one is what a predicate written as "any kind not on the roster"
+   * would get wrong — and getting it wrong silently is how twelve printed
+   * sentences would be counted twice or not at all.
+   */
+  it('sorts a line into exactly one of the three answers', () => {
+    const handover = Object.keys(HANDOVER_TRAIT_KINDS)[0]!;
+    const spent = TRAIT_KINDS_WITH_A_READER[0]!;
+    const inert = MonsterTraitSchema.options
+      .map((option) => option.shape.kind.value)
+      .find(
+        (kind) =>
+          !TRAIT_KINDS_WITH_A_READER.includes(kind) && !Object.hasOwn(HANDOVER_TRAIT_KINDS, kind),
+      );
+    expect(inert, 'a kind that is neither spent nor handed over').toBeDefined();
+
+    const line = (kind: string) => ({ name: 'x', text: 'y', trait: { kind } });
+    expect([isHandoverTrait(line(handover)), hasUnexecutedTrait(line(handover))]).toEqual([
+      true,
+      false,
+    ]);
+    expect([isHandoverTrait(line(spent)), hasUnexecutedTrait(line(spent))]).toEqual([false, false]);
+    expect([isHandoverTrait(line(inert!)), hasUnexecutedTrait(line(inert!))]).toEqual([false, true]);
+    expect(isHandoverTrait({ name: 'x', text: 'y' })).toBe(false);
   });
 
   /**

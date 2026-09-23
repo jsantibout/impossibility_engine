@@ -1032,7 +1032,42 @@ export type StandingRequirement =
    * fails on the null, which is the conservative direction and the "no
    * default ambient" ruling read through to its consequence.
    */
-  | { readonly kind: 'in-sunlight' };
+  | { readonly kind: 'in-sunlight' }
+  /**
+   * SRD Shadow Stealth: "**While in Dim Light or Darkness**, the shadow takes
+   * the Hide action."
+   *
+   * `in-sunlight`'s sibling and read exactly as it is — `lightAt` at the
+   * holder's own space, on every question — and for the same reason: the
+   * shadow that steps into the lit corridor loses the Bonus Action the moment
+   * it does, with nothing to remember and nothing to sweep.
+   *
+   * **The two halves of the clause are one requirement** rather than two
+   * effects, because the sentence prints a disjunction and a requirement list
+   * is a conjunction: two effects would be the shadow holding the rule twice
+   * in the dark, and a requirement per level would hold it never.
+   *
+   * A space nobody has said anything about fails it, which is the same
+   * conservative direction `in-sunlight` takes of the same null: an undeclared
+   * space is not darkness, it is silence.
+   */
+  | { readonly kind: 'in-dim-light-or-darkness' }
+  /**
+   * SRD Bloodied Fury: "**While Bloodied**, the boar has Advantage on attack
+   * rolls." SRD Bloodied Frenzy and SRD Blood Frenzy print the same clause.
+   *
+   * The rules glossary settles what it means and leaves nothing to read into
+   * it: "A creature is Bloodied while it has half its Hit Points or fewer
+   * remaining." So this is arithmetic on the creature's own vitals, derived on
+   * every read like every other requirement here — the Advantage arrives with
+   * the blow that takes it past half and goes with the healing that lifts it
+   * back, and no event says so.
+   *
+   * **Against the effective maximum**, which is what `hpMax` already is: a
+   * creature whose maximum an Aid is holding up is Bloodied at half of the
+   * number the rules currently say, not half of the one its class table does.
+   */
+  | { readonly kind: 'while-bloodied' };
 
 /** One benefit a feature grants, with its reach already resolved to feet. */
 export interface StandingEffect {
@@ -1868,6 +1903,21 @@ function requirementsHold(
     if (requirement.kind === 'in-sunlight') {
       const where = state.scene === null ? null : positionOf(state.scene, who);
       if (where === null || !lightAt(state, where).sunlight) return false;
+    }
+    // The same reading, of the other end of the same scale. A null is
+    // "nobody has said" rather than darkness, so it withholds: a shadow in a
+    // room nobody has described does not get its Bonus Action by default.
+    if (requirement.kind === 'in-dim-light-or-darkness') {
+      const where = state.scene === null ? null : positionOf(state.scene, who);
+      if (where === null) return false;
+      const level = lightAt(state, where).level;
+      if (level !== 'dim' && level !== 'darkness') return false;
+    }
+    // SRD glossary: "A creature is Bloodied while it has half its Hit Points
+    // or fewer remaining." Doubled rather than halved, so no rounding rule has
+    // to be invented for an odd maximum.
+    if (requirement.kind === 'while-bloodied' && creature.vitals.hp * 2 > creature.vitals.hpMax) {
+      return false;
     }
   }
   return true;

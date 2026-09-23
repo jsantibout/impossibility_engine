@@ -25,7 +25,7 @@ import type {
 import { CREATURE_SIZES, entriesOfBranch, gateOfBranch } from '@ie/srd/schemas';
 import { STATED_BONUS_ACTION_LEDGER } from './combat.js';
 import type { TurnAnchor } from './time.js';
-import type { HitRiderAnchor, StandingEffect } from './standing.js';
+import type { HitRiderAnchor, StandingEffect, StandingRequirement } from './standing.js';
 import type { RollFamily } from './roll-modifiers.js';
 import type { DamageDefenses } from './attack.js';
 import type {
@@ -808,6 +808,31 @@ export const hasPrintedTrait = (sheet: CharacterSheet, kind: MonsterTrait['kind'
   sheet.stated?.traits?.some((trait) => trait.kind === kind) === true;
 
 /**
+ * SRD Standing Leap: the two distances a block prints for itself, or null.
+ *
+ * "The frog's Long Jump is up to 10 feet and its High Jump is up to 5 feet
+ * **with or without a running start**." Both halves are here because the
+ * sentence prints both and they are the whole of the rule: the numbers replace
+ * what {@link longJumpDistance} and {@link highJumpHeight} would derive from a
+ * Strength score, and the running start stops being asked for. A frog has
+ * Strength 1 and would otherwise have a standing Long Jump of nothing at all.
+ *
+ * Returned as a pair rather than read one at a time, because a caller that
+ * took the distance and forgot the running start would be enforcing half a
+ * sentence — and the half it dropped is the half the trait is named for.
+ */
+export const printedLeap = (
+  sheet: CharacterSheet,
+): { readonly longJumpFeet: number; readonly highJumpFeet: number } | null => {
+  for (const trait of sheet.stated?.traits ?? []) {
+    if (trait.kind === 'jumps-without-a-running-start') {
+      return { longJumpFeet: trait.longJumpFeet, highJumpFeet: trait.highJumpFeet };
+    }
+  }
+  return null;
+};
+
+/**
  * The Speeds a block prints beside its walking one, onto the sheet.
  *
  * The parser has read "Speed 20 ft., Fly 40 ft." into five numbers and a flag
@@ -899,27 +924,152 @@ const printedTraitKey = (monsterId: string, name: string): string =>
  *
  * Read from the **Traits** section alone, which is where the book prints both.
  */
-function printedSunlight(monster: Monster): { readonly standing?: readonly StandingEffect[] } {
-  const standing = monster.traits.flatMap((line) =>
-    line.trait === undefined || line.trait.kind !== 'disadvantage-in-sunlight'
-      ? []
-      : line.trait.rolls.map(
-          (roll): StandingEffect => ({
-            feature: printedTraitKey(monster.id, line.name),
-            // The block's own heading, so a refusal or a log names the rule the
-            // book printed rather than a string this file chose.
-            name: line.name,
-            reach: { kind: 'self' },
-            grant: {
-              kind: 'roll-mode',
-              modifier: {
-                mode: 'disadvantage',
-                selector: { roll: SUNLIT_ROLL[roll], relation: 'roller' },
-              },
-            },
-            requires: [{ kind: 'in-sunlight' }],
-          }),
-        ),
+function printedSunlight(
+  line: MonsterLine,
+  key: string,
+): readonly StandingEffect[] {
+  if (line.trait?.kind !== 'disadvantage-in-sunlight') return [];
+  return line.trait.rolls.map(
+    (roll): StandingEffect => ({
+      feature: key,
+      // The block's own heading, so a refusal or a log names the rule the
+      // book printed rather than a string this file chose.
+      name: line.name,
+      reach: { kind: 'self' },
+      grant: {
+        kind: 'roll-mode',
+        modifier: {
+          mode: 'disadvantage',
+          selector: { roll: SUNLIT_ROLL[roll], relation: 'roller' },
+        },
+      },
+      requires: [{ kind: 'in-sunlight' }],
+    }),
+  );
+}
+
+/**
+ * SRD Bloodied Fury and SRD Bloodied Frenzy, the same way up.
+ *
+ * `printedSunlight`'s mirror image and written as one: Advantage rather than
+ * Disadvantage, and `while-bloodied` rather than `in-sunlight`. Both read the
+ * holder's own state at the moment the question is asked, so the Advantage
+ * arrives with the blow that takes the boar past half and goes with the
+ * healing that lifts it back — no event, nothing to sweep.
+ */
+function printedBloodiedAdvantage(
+  line: MonsterLine,
+  key: string,
+): readonly StandingEffect[] {
+  if (line.trait?.kind !== 'advantage-while-bloodied') return [];
+  return line.trait.rolls.map(
+    (roll): StandingEffect => ({
+      feature: key,
+      name: line.name,
+      reach: { kind: 'self' },
+      grant: {
+        kind: 'roll-mode',
+        modifier: {
+          mode: 'advantage',
+          selector: { roll: SUNLIT_ROLL[roll], relation: 'roller' },
+        },
+      },
+      requires: [{ kind: 'while-bloodied' }],
+    }),
+  );
+}
+
+/**
+ * SRD Nimble Escape, SRD Cunning Action, SRD Deathless Agility and SRD Shadow
+ * Stealth: a named action paid for out of a Bonus Action.
+ *
+ * **The rule a class feature is already written as.** `rogue:cunning-action`
+ * compiles to three `{ kind: 'allows', action, from: 'bonus-action' }` standing
+ * effects and `takeDash`, `takeDisengage` and `takeHide` each take the cheaper
+ * price; nothing about that door knows or cares whether the creature asking is
+ * a Rogue or a goblin. So this is the same three clauses, read off a stat
+ * block's sentence instead of a class table — one effect per action the line
+ * prints, because a grant carries one rule.
+ *
+ * **Shadow Stealth is the same rule with its own first clause**, which is why
+ * it is compiled here rather than somewhere of its own: "While in Dim Light or
+ * Darkness, the shadow takes the Hide action" is a Hide out of a Bonus Action
+ * gated on the light, and the gate is a {@link StandingRequirement} the engine
+ * now has.
+ *
+ * **Refused where the line prints a limit**, and that is the conservative
+ * direction rather than a nicety: an `allows` rule is unlimited and re-derived
+ * on every read, so a line printed "(Recharge 5–6)" or "(2/Day)" compiled here
+ * would be a rule the book rations handed over free. The SRD prints no such
+ * line today; a homebrew block reaching this door would, and would be left as
+ * the prose it already is.
+ */
+function printedBonusActionAllowance(
+  line: MonsterLine,
+  key: string,
+): readonly StandingEffect[] {
+  if (line.recharge !== undefined || line.perDay !== undefined) return [];
+
+  const allowed = (
+    actions: readonly ('dash' | 'disengage' | 'hide')[],
+    requires: readonly StandingRequirement[],
+  ): readonly StandingEffect[] =>
+    actions.map((action) => ({
+      feature: key,
+      name: line.name,
+      reach: { kind: 'self' },
+      grant: {
+        kind: 'action-rule',
+        rule: { kind: 'allows', action, from: 'bonus-action' },
+      },
+      ...(requires.length === 0 ? {} : { requires }),
+    }));
+
+  if (line.trait?.kind === 'takes-a-named-action-as-a-bonus-action') {
+    return allowed(line.trait.actions, []);
+  }
+  if (line.trait?.kind === 'hides-in-dim-light-or-darkness') {
+    return allowed(['hide'], [{ kind: 'in-dim-light-or-darkness' }]);
+  }
+  return [];
+}
+
+/**
+ * One printed line of a stat block, whichever heading it was printed under.
+ *
+ * Structural rather than named, for the reason the parser runs every detector
+ * over every section: what a line *says* is not a property of its heading.
+ */
+type MonsterLine = Monster['traits'][number];
+
+/**
+ * Every printed sentence this adapter compiles into a standing effect.
+ *
+ * **Read from every section, not from Traits alone.** `printedSunlight` was
+ * written against the Traits section because both of its sentences are printed
+ * there; Shadow Stealth and Nimble Escape are printed under **Bonus Actions**,
+ * and a heading says what a line costs rather than what it is. So the walk is
+ * over the whole block and the dispatch is on the shape the parser read, which
+ * is the same rule `parseTraitShape` is applied by.
+ */
+function printedStanding(monster: Monster): { readonly standing?: readonly StandingEffect[] } {
+  const sections: readonly (readonly MonsterLine[])[] = [
+    monster.traits,
+    monster.actions,
+    monster.bonusActions,
+    monster.reactions,
+    monster.legendaryActions,
+  ];
+
+  const standing = sections.flatMap((section) =>
+    section.flatMap((line) => {
+      const key = printedTraitKey(monster.id, line.name);
+      return [
+        ...printedSunlight(line, key),
+        ...printedBloodiedAdvantage(line, key),
+        ...printedBonusActionAllowance(line, key),
+      ];
+    }),
   );
 
   return standing.length === 0 ? {} : { standing };
@@ -1042,10 +1192,10 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
     armorTraining: { light: true, medium: true, heavy: true, shields: true },
     baseSpeed: monster.speed.walk,
     ...printedSpeeds(monster.speed),
-    // The one printed trait an engine rule already spends — see
-    // {@link printedSunlight}. Omitted for every block that prints neither, so
-    // a sheet gains no field it was not given.
-    ...printedSunlight(monster),
+    // The printed sentences an engine rule already spends — see
+    // {@link printedStanding}. Omitted for every block that prints none, so a
+    // sheet gains no field it was not given.
+    ...printedStanding(monster),
     spellcastingAbility: null,
     // Omitted at one, which is the sheet's own reading of the field: "one,
     // unless a feature says otherwise", and an explicit 1 on every stat block

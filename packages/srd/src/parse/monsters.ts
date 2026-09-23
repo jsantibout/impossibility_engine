@@ -622,6 +622,11 @@ const BLOODIED_ROLLS: Readonly<Record<string, readonly ('attack-roll' | 'saving-
   'attack rolls and saving throws': ['attack-roll', 'saving-throw'],
 };
 
+/** A fresh array for the shape, because the schema's is a mutable one. */
+const bloodiedRolls = (printed: string): ('attack-roll' | 'saving-throw')[] => [
+  ...(BLOODIED_ROLLS[printed] ?? []),
+];
+
 /** A printed span, always in minutes — the book writes both units. */
 const inMinutes = (count: string, unit: string): number =>
   Number(count) * (unit.startsWith('hour') ? 60 : 1);
@@ -716,7 +721,7 @@ export function parseTraitShape(text: string): MonsterTrait | null {
 
   const bloodied = BLOODIED_ADVANTAGE.exec(text);
   if (bloodied !== null) {
-    return { kind: 'advantage-while-bloodied', rolls: BLOODIED_ROLLS[bloodied[1]!]! };
+    return { kind: 'advantage-while-bloodied', rolls: bloodiedRolls(bloodied[1]!) };
   }
 
   return null;

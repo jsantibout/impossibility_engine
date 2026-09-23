@@ -72,6 +72,7 @@ import {
   UNEXECUTED_TRAIT_SHAPE,
   hasUnappliedRider,
   hasUnexecutedTrait,
+  isHandoverTrait,
   isReadLine,
   spellsInReach,
   statBlockLines,
@@ -173,6 +174,17 @@ export interface LedgerMonsters {
   readonly riders: number;
   /** Read trait lines whose mechanic no engine reader asks for. */
   readonly inertTraits: number;
+  /**
+   * Read trait lines the engine hands to the table and will never build.
+   *
+   * **Not part of {@link items}**, and that is the whole reason it is counted
+   * separately: a handover waits on nothing, so putting it in the population
+   * would inflate the map with entries blocked on nothing — and leaving it out
+   * of the report entirely would hide a dozen printed sentences in the gap
+   * between "spent" and "unspent". See `HANDOVER_TRAIT_KINDS` for the per-kind
+   * reason.
+   */
+  readonly handedOverTraits: number;
   /**
    * The population: handed-over lines, plus the two families the parser read
    * and the engine does not spend.
@@ -466,6 +478,7 @@ const auditMonsters = (maxCr: number): LedgerMonsters => {
   let read = 0;
   let riders = 0;
   let inertTraits = 0;
+  let handedOverTraits = 0;
   let clean = 0;
   // A line is settled when the parser read it *and* the engine spends what it
   // read. The two `read but not spent` families are counted beside the
@@ -479,6 +492,10 @@ const auditMonsters = (maxCr: number): LedgerMonsters => {
     read += lines.filter(isReadLine).length;
     riders += lines.filter(hasUnappliedRider).length;
     inertTraits += lines.filter(hasUnexecutedTrait).length;
+    // Read, given to the table, and finished — counted so the number is on the
+    // record rather than silently absent from both of the columns above. See
+    // `HANDOVER_TRAIT_KINDS`.
+    handedOverTraits += lines.filter(isHandoverTrait).length;
     if (!lines.some(unpaid)) clean += 1;
   }
 
@@ -536,6 +553,7 @@ const auditMonsters = (maxCr: number): LedgerMonsters => {
     handedOver,
     riders,
     inertTraits,
+    handedOverTraits,
     items: handedOver + riders + inertTraits,
     clean,
     unfinished: low.length - clean,
@@ -877,6 +895,8 @@ export function renderLedger(ledger: Ledger = auditLedger()): string {
     '## 5. CR ≤ 5 stat-block lines handed over or unapplied',
     '',
     `${monsters.blocks} of the ${SRD_CONTENT.monsters.length} carried stat blocks are CR ≤ 5. They print ${monsters.printed} lines, of which the parser reads ${monsters.read} and hands over ${monsters.handedOver}. Reading is not spending: a further ${monsters.riders} of the read attack lines carry a printed rider nothing applies, and ${monsters.inertTraits} read trait lines state a mechanic no engine reader asks for. So the population is ${monsters.items} items over ${monsters.blocks} blocks — ${monsters.clean} of which already carry none of them.`,
+    '',
+    `**A third answer, counted apart from both:** ${monsters.handedOverTraits} of the read trait lines are sentences the engine reads and **hands to the table**, and will never execute — the breathing traits, which say what a creature is and name nothing any rule consults, because nothing here drowns. They are neither spent nor waiting, so they are not among the ${monsters.items} above and do not keep a block off the clean list. \`HANDOVER_TRAIT_KINDS\` holds the reason per kind, and \`coverage.test.ts\` pins that none of them has a reader after all.`,
     '',
     '**A block is the unit that matters and a line is the unit that is counted.**',
     'A block with four unapplied lines is one fight that does not run, not four,',
