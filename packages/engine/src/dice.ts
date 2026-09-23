@@ -401,6 +401,101 @@ export function rerollDice(
   return ok({ ...outcome, dice, total: sumCounted(dice, outcome.modifier) });
 }
 
+/**
+ * A rule read over a **whole roll** rather than over one die at a time.
+ *
+ * {@link DieEffect}'s sibling and the other scope a rule can have. Every
+ * member of that interface is handed `(rolled, sides)` — one die, in isolation
+ * — which is the right shape for a substitution, an explosion and a chosen
+ * reroll, and cannot express a sentence about the roll as a whole. SRD Savage
+ * Attacker is that sentence: "you can roll the weapon's damage dice **twice**
+ * and use either roll against the target", where what is compared is two
+ * totals and not two faces.
+ *
+ * A closed vocabulary with one member, which is the rule every closed
+ * vocabulary in this engine follows: an arm arrives with the sentence that
+ * writes it. The next one this reader will be asked for is SRD Chromatic Orb's
+ * "if you roll the same number on two or more of the d8s" — a *predicate* over
+ * a roll rather than a second throw of it — and it is deliberately not here,
+ * because its consequence is a second attack out of one casting and the
+ * trigger alone would fire at nothing.
+ */
+export type RollRule = {
+  /**
+   * SRD Savage Attacker: roll the dice twice, keep one of the two totals.
+   *
+   * **The higher, and the choice is barely one.** The book says "use either
+   * roll", so the decision is the player's — but the two rolls are of the same
+   * dice against the same target with nothing else riding on which is taken,
+   * so the higher is the only answer a player has a reason to give. Asking the
+   * caller which would be a question with one sensible answer and a second way
+   * for a replay to diverge. Both throws reach the log either way: the dice
+   * that lost are `dropped` rather than discarded, exactly as a keep clause's
+   * are, so the record shows what was given up.
+   */
+  readonly kind: 'roll-twice-keep-either';
+  /** The feature that stated the rule, for the log. */
+  readonly name: string;
+};
+
+/**
+ * Roll notation under a rule about the whole roll, or under none.
+ *
+ * `rule === null` is {@link roll} exactly, which is what lets a caller pass
+ * what it gathered without branching on whether it gathered anything.
+ */
+export function rollUnder(
+  rng: Rng,
+  input: string,
+  rule: RollRule | null,
+  effects: readonly DieEffect[] = [],
+): Result<RollOutcome> {
+  if (rule === null) return roll(rng, input, effects);
+
+  const first = roll(rng, input, effects);
+  if (!first.ok) return first;
+  // The second throw is made before either is judged, so a rule that reaches
+  // this point always moves the generator by the same amount — a replay of the
+  // same log reproduces both throws whichever one it ends up counting.
+  const second = roll(rng, input, effects);
+  if (!second.ok) return second;
+
+  // A tie keeps the first, which is arbitrary and therefore stated: two equal
+  // totals are the same number, and the only thing that could differ is which
+  // dice the log calls counted.
+  const keepFirst = first.value.total >= second.value.total;
+  const offset = first.value.dice.length;
+
+  const drop = (die: DieRoll): DieRoll =>
+    die.disposition === 'counted' ? { ...die, disposition: 'dropped' } : die;
+
+  const dice: DieRoll[] = [
+    ...first.value.dice.map((die) => (keepFirst ? die : drop(die))),
+    ...second.value.dice.map((die) => {
+      // Reindexed onto the end of the first throw's dice, so `index` stays
+      // what it promises — a position in *this* roll, usable to name the die —
+      // and `replaces` still points at the die it was derived from.
+      const moved: DieRoll = {
+        ...die,
+        index: offset + die.index,
+        // The second throw exists because of the rule, so the rule is what
+        // caused these dice. The first throw's are what the swing would have
+        // thrown anyway and keep whatever cause they already had.
+        cause: die.cause ?? rule.name,
+        replaces: die.replaces === null ? null : offset + die.replaces,
+      };
+      return keepFirst ? drop(moved) : moved;
+    }),
+  ];
+
+  return ok({
+    notation: first.value.notation,
+    dice,
+    modifier: first.value.modifier,
+    total: sumCounted(dice, first.value.modifier),
+  });
+}
+
 export interface D20Outcome {
   /** One die at normal, two under advantage or disadvantage, in roll order. */
   readonly rolls: readonly number[];
@@ -414,14 +509,21 @@ export interface D20Outcome {
 }
 
 /**
- * The d20 test that underpins every check, save and attack roll.
+ * What a set of d20 faces comes to under a mode.
  *
- * Critical hits and misses key off the natural die, never the modified total —
- * a +9 rogue rolling a natural 1 still fumbles.
+ * **Its own function because two callers read the same faces.** {@link rollD20}
+ * throws them, and `rollD20Recorded` throws one of them *again* for SRD Luck
+ * and has to settle the pair a second time — so the mode, the total and the
+ * two critical faces are derived here and nowhere else. Two copies of this
+ * would be two answers to "which die counted", and the day one of them learns
+ * a Champion's lowered critical face is the day the other is quietly wrong for
+ * rerolled rolls alone.
  */
-export function rollD20(rng: Rng, mode: RollMode, modifier: number): D20Outcome {
-  const rolls = mode === 'normal' ? [rng.int(20)] : [rng.int(20), rng.int(20)];
-
+export function settleD20(
+  rolls: readonly number[],
+  mode: RollMode,
+  modifier: number,
+): D20Outcome {
   const natural =
     mode === 'advantage'
       ? Math.max(...rolls)
@@ -438,4 +540,30 @@ export function rollD20(rng: Rng, mode: RollMode, modifier: number): D20Outcome 
     isCriticalHit: natural === 20,
     isCriticalMiss: natural === 1,
   };
+}
+
+/**
+ * The d20 test that underpins every check, save and attack roll.
+ *
+ * Critical hits and misses key off the natural die, never the modified total —
+ * a +9 rogue rolling a natural 1 still fumbles.
+ */
+export function rollD20(rng: Rng, mode: RollMode, modifier: number): D20Outcome {
+  return settleD20(
+    mode === 'normal' ? [rng.int(20)] : [rng.int(20), rng.int(20)],
+    mode,
+    modifier,
+  );
+}
+
+/**
+ * Which of the faces thrown is the one the mode counted.
+ *
+ * Ties go to the first, which is {@link settleD20}'s own reading of a mode —
+ * `Math.max` of two 14s is the first 14. A rule that replaces "the d20 of a
+ * D20 Test" needs to know which die that was, and this is the one place it is
+ * decided.
+ */
+export function countedDieIndex(outcome: D20Outcome): number {
+  return outcome.rolls.indexOf(outcome.natural);
 }

@@ -121,6 +121,7 @@ const FORBIDDEN = [
   'resolveDeathSave',
   // — rollers that hand back a roll rather than events ——————————————————————
   'roll',
+  'rollUnder',
   'rollD20',
   'rerollDice',
   'rollD20Recorded',
@@ -188,6 +189,8 @@ const FORBIDDEN_BECAUSE: Readonly<Record<string, string>> = {
   resolveDeathSave:
     'takes a natural and a total the caller states and answers whether a creature lives; it writes no event, but it is the one place a stated face decides a life outside the seam above',
   roll: 'the raw roller — notation in, faces out, and no event anywhere',
+  rollUnder:
+    'the same raw roller under a whole-roll rule, which throws the notation twice and hands back the faces of both — one caller-supplied rule away from being roll itself',
   rollD20: 'the raw d20, for the same reason',
   rerollDice: 'rerolls faces that were never in a log to begin with',
   rollD20Recorded:

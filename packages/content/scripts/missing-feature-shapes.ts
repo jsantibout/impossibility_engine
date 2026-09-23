@@ -86,8 +86,6 @@ import {
  * claims is removed.
  */
 export const FEATURE_SHAPES = {
-  'a-check-keyed-to-the-condition-it-would-end':
-    '**the residue of `a-save-keyed-to-a-condition`, and it is a feature’s gap rather than a casting’s.** That shape was the axis a `RollSelector` lacked, and the axis is built: a selector now names the condition a roll is about, and the four SRD sentences that print it on a *saving throw* — Dwarven Resilience, Fey Ancestry, Brave and Protection from Poison — are executed, both halves of "avoid or end". The shape left the spell vocabulary with its last spell, which is IE-010’s precedent for a shape whose claimants have all moved. What is left is one sentence and it is on an ability check: SRD Powerful Build grants "Advantage on any ability check you make to end the Grappled condition", and no ability check in this engine records what it is about. packages/engine/src/roll-modifiers.ts refuses the pairing rather than accepting a grant that would match nothing — "only a saving throw says what it is about today" — and names this trait as the roll that will say next. No casting and no item prints the sentence, which is what makes it belong here.',
   'an-effect-that-ends-when-its-target-is-hurt':
     'an effect the SRD ends early "if it takes any damage". What an option may print as an early end is held to what a timer can see happen to the creature it sits on, and packages/engine/src/content.ts refuses anything else by name — a cause is "not something the engine can see happen to the creature a timer sits on" — while every cause that list does hold is keyed on what that creature itself does. Damage dealt to it by somebody else is not among them, so Turn Undead\'s and Abjure Foes\'s escape clause is transcribed and inert: the conditions stand until the minute is up.',
   'a-target-list-an-ability-modifier-sizes':
@@ -147,7 +145,7 @@ export const FEATURE_SHAPES = {
   'heroic-inspiration':
     'Heroic Inspiration, which the engine holds nothing for at all: no field, no event and no command. It is not even a pool: packages/engine/src/progression.ts describes that member as "A named resource the feature *is*, rather than one it spends", and this is a resource no feature **is** — it arrives from a rest or from a fight and is spent on any D20 Test. A class feature grants it during combat and a species trait grants it on a Long Rest, so what both record is the permission and nothing that could ever be spent.',
   'a-rule-the-engine-fixes-for-everybody':
-    'a constant the engine applies to every creature, which one feature is meant to bend. A Long Rest is eight hours, an attunement limit is a number inside a command, moving through an occupied space wants two sizes of difference, and carrying capacity is summed nowhere. `docs/design/characters-and-equipment.md` keeps the list of what the attunement rules still owe — "what ends attunement besides a command — death, losing the item, another creature attuning to it" — and every one of these is that same shape: a rule the engine holds rather than the sheet, so a trait bending it for its holder alone has nothing to bend.',
+    'a constant the engine applies to every creature, which one feature is meant to bend. A Long Rest is eight hours, an attunement limit is a number inside a command, and moving through an occupied space wants two sizes of difference. `docs/design/characters-and-equipment.md` keeps the list of what the attunement rules still owe — "what ends attunement besides a command — death, losing the item, another creature attuning to it" — and every one of these is that same shape: a rule the engine holds rather than the sheet, so a trait bending it for its holder alone has nothing to bend. **Carrying capacity used to be named here and is not any more**, in both directions: the objects batch built the table, and a `carrying-capacity` grant now moves which row of it a creature reads — which is the shape whole, and is what SRD Powerful Build walks through.',
   'a-spell-list-that-is-not-your-class-list':
     'a spell known or prepared from **another class\'s** list. `checkContent` refuses a fixed grant naming nothing and creation checks every chosen spell against the list of the class that is choosing it, which is right for eleven classes and wrong for the two features the SRD writes the exception on. `docs/design/content.md` states what a class list is for — "`spellEntry(id)` — the spell\'s identity and class lists (the SRD index shape)" — and there is no second list a feature may widen it to.',
   'a-spell-a-source-that-does-not-cast-grants':
@@ -1424,30 +1422,11 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'a printed span rather than a turn boundary the holder has to keep extending.',
     },
   ],
-  'goliath:powerful-build': [
-    {
-      clause: 'legal on a saving throw and refused on an ability check',
-      why: 'a-check-keyed-to-the-condition-it-would-end',
-      note: 'the last of the five that wanted this axis, and the only one still waiting. The other four say "saving throws" and are executed; this one says "any ability check you make to end the Grappled condition", and no ability check in this engine records what it is about — so the selector refuses a condition there rather than accepting one that would match nothing. The shape is what is left of itself: a check that carries the condition it would end.',
-    },
-    {
-      clause: 'the catalogue records a weight for every item and nothing adds them up',
-      why: 'a-rule-the-engine-fixes-for-everybody',
-      note: 'carrying capacity, which no rule computes and so none can widen.',
-    },
-  ],
   'halfling:halfling-nimbleness': [
     {
       clause: 'a rule the engine writes for a two-size difference and for nothing else, and it is not read off a feature',
       why: 'a-rule-the-engine-fixes-for-everybody',
       note: 'a constant in the positioning rules that one trait bends for its holder.',
-    },
-  ],
-  'halfling:luck': [
-    {
-      clause: 'fires on the die rather than on the outcome',
-      why: 'a-roll-result-an-effect-replaces',
-      note: 'the spell map’s own id: a reroll offered by nothing and triggered by the face shown.',
     },
   ],
   'halfling:naturally-stealthy': [
@@ -1474,13 +1453,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'is not one of the three ways the engine sizes a pool',
       why: 'a-pool-the-proficiency-bonus-sizes',
       note: 'the uses, sized in Proficiency Bonuses like every other origin trait with a limit.',
-    },
-  ],
-  'orc:relentless-endurance': [
-    {
-      clause: 'dropping to 1 Hit Point instead of 0 is a decision taken at the moment damage lands',
-      why: 'an-effect-that-intercepts-dropping-to-0',
-      note: 'Relentless Rage wants the same hook, which is what makes it a shape.',
     },
   ],
   'tiefling:fiendish-legacy': [
@@ -1518,13 +1490,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'one clause short: the arithmetic is a standing flat bonus applying to `ac` that magic armour already uses, and a feat carries a standing grant now — Archery and Great Weapon Fighting beside it are declared that way and are applied.',
     },
   ],
-  'savage-attacker': [
-    {
-      clause: 'Rolling weapon damage twice once per turn is not applied',
-      why: 'a-die-behaviour-a-spell-asks-for',
-      note: 'the spell map’s own id, and the same sentence the Soldier background’s Origin feat waits on: `rerollDice` is built, tested, and reached by no definition and no feature.',
-    },
-  ],
   'two-weapon-fighting': [
     {
       clause: 'the engine does not model which hand an attack came from',
@@ -1533,18 +1498,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
     },
   ],
 
-  'soldier:savage-attacker': [
-    {
-      clause: 'The feat is granted and its being the right one is checked',
-      why: 'expressible',
-      note: 'the background’s Origin feat, named by the background and validated.',
-    },
-    {
-      clause: 'Rolling the weapon damage dice twice once per turn and using either roll',
-      why: 'a-die-behaviour-a-spell-asks-for',
-      note: 'the spell map’s own id: `rerollDice` is built, tested, and reached by no definition and no feature.',
-    },
-  ],
 };
 
 /**
@@ -1678,11 +1631,7 @@ export const POOLS_ONLY_PARTLY_BOUGHT: readonly string[] = ['monk:focus'];
  * population is `stale`, a member with no line is `unrecorded`, and every
  * clause anchors in its own note exactly once.
  */
-export const FEATS_ANSWERED_FOR: readonly string[] = [
-  'defense',
-  'savage-attacker',
-  'two-weapon-fighting',
-];
+export const FEATS_ANSWERED_FOR: readonly string[] = ['defense', 'two-weapon-fighting'];
 
 /**
  * The whole population this map answers for: the three arms together.

@@ -136,7 +136,13 @@ const fighter = (featId: string): CharacterChoices => ({
     },
     'human:versatile': { featId: 'alert' },
     'fighter:fighting-style': { featId },
-    'fighter:ability-score-improvement': { featId: 'savage-attacker' },
+    // An Origin feat that adds nothing to a swing, so the slot is filled
+    // without a second style joining the one under test — and deliberately not
+    // one of the fighting-style feats, which `featId` above may be any of.
+    'fighter:ability-score-improvement': {
+      featId: 'skilled',
+      proficiencies: ['arcana', 'history', 'nature'],
+    },
   },
   dmGrants: { items: [], goldPieces: 0, magicItems: [], note: 'standard' },
 });

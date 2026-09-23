@@ -1,6 +1,6 @@
 import { err, ok, type Ability, type CharacterId, type Result, type RollMode } from '@ie/shared';
 import type { Weapon, WeaponMastery, WeaponProperty } from '@ie/srd';
-import { parseNotation, type DieEffect, type Rng } from './dice.js';
+import { parseNotation, type DieEffect, type Rng, type RollRule } from './dice.js';
 import type { Content } from './content.js';
 // Type-only, and deliberately: `events.ts` reads this module's damage types
 // the same way, so a value edge in either direction would be a real cycle.
@@ -559,6 +559,20 @@ export interface AttackOptions {
    * else that reads or reacts to an individual die.
    */
   readonly damageEffects?: readonly DieEffect[];
+  /**
+   * A rule read over the **weapon's own damage roll** as a whole — see
+   * {@link RollRule}.
+   *
+   * SRD Savage Attacker: "you can roll **the weapon's damage dice** twice and
+   * use either roll against the target". Its scope is the narrower of the two
+   * a rule about a hit can have, and deliberately so: `damageEffects` above is
+   * the attack's — Great Weapon Fighting says "any 1 or 2 on a damage die" and
+   * reaches every die the swing throws, riders included — while this sentence
+   * names the weapon's dice and no others. So a Sneak Attack riding on the
+   * same hit is thrown once, and a printed stat-block line is not a weapon and
+   * is not reached at all.
+   */
+  readonly weaponRollRule?: RollRule;
   /** The attacker's own conditions: Blinded, Poisoned, Prone, Invisible. */
   readonly attackerConditions?: ConditionState;
   /** The target's conditions: Prone, Restrained, Paralyzed, Invisible. */
@@ -796,9 +810,13 @@ export function rollAttack(
   // returns before the bonus dice are thrown, so it leaves the generator where
   // it found it.
   const modifier = attackModifier(sheet, options);
+  // SRD Luck reaches the third D20 Test through the sheet, exactly as it
+  // reaches the other two — see {@link CharacterSheet.rerollsD20On}. It is
+  // read here rather than taken as an option for the reason the modes above
+  // are read off the sheet: a fact about the roller belongs to the roller.
   const stated =
     options.statedRoll === undefined
-      ? ok(rollD20Recorded(issuer, rng, mode, modifier))
+      ? ok(rollD20Recorded(issuer, rng, mode, modifier, sheet.rerollsD20On ?? null))
       : resolveStatedD20(issuer, options.statedRoll, mode, modifier);
   if (!stated.ok) return stated;
   const roll = stated.value;
@@ -1045,7 +1063,17 @@ export function rollAttackDamage(
   } else {
     const notation = doubledOnCrit(dice, critical);
     if (!notation.ok) return notation;
-    const outcome = rollRecorded(issuer, rng, notation.value, effects);
+    // **The one place a whole-roll rule bites**, and it is after the critical
+    // has doubled the notation: SRD Savage Attacker rolls "the weapon's damage
+    // dice" twice, and on a Critical Hit the weapon's damage dice are the
+    // doubled set. See {@link AttackOptions.weaponRollRule}.
+    const outcome = rollRecorded(
+      issuer,
+      rng,
+      notation.value,
+      effects,
+      options.weaponRollRule ?? null,
+    );
     if (!outcome.ok) return outcome;
     components.push({
       source,

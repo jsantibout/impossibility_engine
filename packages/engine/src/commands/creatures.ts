@@ -28,7 +28,7 @@ import { type CommandIdentity, once } from '../idempotency.js';
 import { addCombatant } from '../combat.js';
 import { adaptMonster, type PrintedSpeedMode, withPrintedSpeeds } from '../monster.js';
 import type { Placement } from '../positioning.js';
-import { speedOf } from '../standing.js';
+import { hitPointFloorFor, speedOf } from '../standing.js';
 import { applyDamageToVitals, healingRuleOf, isDown } from '../vitals.js';
 import { creatureOf, unknownCreature, ZERO_HIT_POINTS } from './command.js';
 import { settleHoldsInvolving } from './holds.js';
@@ -735,21 +735,49 @@ export function damageCreature(
     const threshold = creature.sheet.stated?.damageThreshold ?? 0;
     const amount = command.amount < threshold ? 0 : command.amount;
 
+    const critical = command.critical === undefined ? {} : { critical: command.critical };
+
+    // **What this blow would do, asked before it is written down.** SRD
+    // Relentless Endurance is "when you are reduced to 0 Hit Points but not
+    // killed outright", and the only way to know whether that is what happened
+    // is to run the rules — so they are run once with nothing under the
+    // creature, and only then is the trait asked about. A dry run costs
+    // nothing: `applyDamageToVitals` is pure arithmetic over a `Vitals` and
+    // touches neither the log nor the generator.
+    const unheld = applyDamageToVitals(creature.vitals, amount, critical);
+    const floor =
+      unheld.droppedToZero && !unheld.died ? hitPointFloorFor(state, id) : null;
+
     const events: GameEvent[] = [
       {
         type: 'damage-taken',
         id,
         amount,
-        ...(command.critical === undefined ? {} : { critical: command.critical }),
+        ...critical,
         ...(command.source === undefined ? {} : { source: command.source }),
         ...(command.by === undefined ? {} : { by: command.by }),
+        // Pinned, because the fold recomputes the blow from this event and a
+        // decision the command kept to itself would be undone on replay. The
+        // price rides with it, so the claim and what paid for it cannot come
+        // apart. See `damage-taken.floor`.
+        ...(floor === null
+          ? {}
+          : {
+              floor: {
+                at: floor.at,
+                feature: floor.feature,
+                spent: { key: floor.key, recovers: floor.recovers },
+              },
+            }),
         ...(stamp === null ? {} : { command: stamp }),
       },
     ];
 
-    // Ask the rules what this damage does before deciding what follows it.
+    // Ask the rules what this damage does before deciding what follows it —
+    // now with whatever the trait put under the creature.
     const outcome = applyDamageToVitals(creature.vitals, amount, {
-      ...(command.critical === undefined ? {} : { critical: command.critical }),
+      ...critical,
+      ...(floor === null ? {} : { floor: floor.at }),
     });
 
     // SRD: "If you reach 0 Hit Points and don't die instantly, you have the

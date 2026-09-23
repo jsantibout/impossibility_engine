@@ -711,6 +711,37 @@ export interface CharacterSheet {
    */
   readonly criticalOn?: number;
   /**
+   * A face of the d20 this creature throws again, and what says so.
+   *
+   * SRD Luck: "When you roll a 1 on the d20 of a D20 Test, you can reroll the
+   * die, and you must use the new roll."
+   *
+   * **On the sheet for `criticalOn`'s reason turned inside out.** That one is
+   * here because it is unconditional; this one is here because it must reach
+   * every D20 Test there is. A D20 Test is rolled from seventeen places across
+   * eleven command modules, and each of them already asks for the sheet as it
+   * stands — so a field read by `checks.ts` and `attack.ts` reaches all of
+   * them with nothing to remember, where an option gathered at each site is
+   * seventeen places for a trait to be forgotten. That is the fork
+   * `savingSupport` exists to prevent, on a wider surface.
+   *
+   * **Derived rather than compiled**, which is the one way it differs from
+   * every neighbour here: `sheetAsItStands` folds it in from the creature's
+   * standing effects on every read, so an item or a spell that granted the
+   * same sentence would reach the same roller, and taking the item off takes
+   * it away again. Creation writes nothing here.
+   *
+   * It does not reach a die a *table* threw — `resolveStatedD20` is a
+   * different path and the engine may not replace a face somebody read out —
+   * nor `rerollTest`, which is already a reroll and is handed no sheet.
+   */
+  readonly rerollsD20On?: {
+    /** SRD's "a 1 on the d20". */
+    readonly on: number;
+    /** The feature that said so, for the log. */
+    readonly source: string;
+  };
+  /**
    * Ways this character's features redefine an attack of their own — the
    * Monk's growing fist, and whatever a homebrew class writes with the same
    * grant.

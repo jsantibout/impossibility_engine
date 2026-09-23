@@ -334,6 +334,25 @@ export const ITEM_EFFECT_KINDS: ReadonlySet<string> = new Set([
   // sentence today; the list's rule is what a reader reaches, not what the
   // book happens to have written.
   'attack-die-rule',
+  // The same sentence's other scope, admitted on the same test: the gatherer
+  // is `standingWeaponRollRule`, which walks `standingFor` and so already
+  // reads a worn item's grants. No SRD item prints the sentence today; the
+  // list's rule is what a reader reaches, not what the book happens to have
+  // written.
+  'attack-roll-rule',
+  // A d20 face thrown again, on the same test: `rerollsD20On` is derived by
+  // `sheetAsItStands`, which reads `standingFor`, so a ring whose wearer
+  // rerolled their 1s would be executed rather than transcribed and ignored.
+  'reroll-test-die',
+  // A floor under a blow, on the same test: the gatherer is
+  // `hitPointFloorFor`, which reads `standingFor`, so an amulet that kept its
+  // wearer standing once a day would reach the one place damage becomes hit
+  // points lost.
+  'hit-point-floor',
+  // And the size a carrying capacity is read at: `carryingCapacity` reads
+  // `standingFor`, so a Belt of Giant Strength's shoulders would be reached by
+  // the route the belt's Strength already takes.
+  'carrying-capacity',
   // Read from an item exactly as it is read from a feature: the gatherer is
   // `standingFor`, which folds a worn item's effects in beside a class's, so a
   // staff that empowered its wielder's Evocations would be executed rather than
@@ -636,6 +655,21 @@ function ownedStandingEffectProblems(
   if (effect.kind === 'attack-die-rule') {
     found.push(...attackDieRuleProblems(effect as unknown as Record<string, unknown>, at));
   }
+  if (effect.kind === 'attack-roll-rule') {
+    found.push(...attackRollRuleProblems(effect as unknown as Record<string, unknown>, at));
+    if (effect.onlyWithWeapon !== undefined) {
+      found.push(...weaponNarrowingProblems(effect.onlyWithWeapon, `${at}.onlyWithWeapon`));
+    }
+  }
+  if (effect.kind === 'reroll-test-die') {
+    found.push(...rerollTestDieProblems(effect as unknown as Record<string, unknown>, at));
+  }
+  if (effect.kind === 'hit-point-floor') {
+    found.push(...hitPointFloorProblems(effect as unknown as Record<string, unknown>, at));
+  }
+  if (effect.kind === 'carrying-capacity') {
+    found.push(...carryingCapacityProblems(effect as unknown as Record<string, unknown>, at));
+  }
   if (effect.kind === 'sense') {
     found.push(...senseProblems(effect as unknown as Record<string, unknown>, at));
   }
@@ -780,6 +814,138 @@ function attackDieRuleProblems(
     });
   }
   return found;
+}
+
+/**
+ * Everything wrong with an `attack-roll-rule` grant, wherever one is written.
+ *
+ * {@link attackDieRuleProblems}' neighbour, on the other scope and with the
+ * same job: a rule whose kind nothing reads compiles, lands on the sheet and
+ * then changes nothing, which is the silent failure this file exists to turn
+ * into a refusal at authoring. One arm, for the reason the type has one.
+ */
+function attackRollRuleProblems(
+  effect: Record<string, unknown>,
+  at: string,
+): readonly { readonly code: string; readonly reason: string; readonly field: string }[] {
+  const rule = effect['rule'];
+  if (!isShape(rule)) {
+    return [
+      {
+        code: 'bad_roll_rule',
+        reason: 'a rule about the roll a weapon’s damage is, is an object saying which kind it is',
+        field: `${at}.rule`,
+      },
+    ];
+  }
+  if (rule['kind'] !== 'roll-twice-keep-either') {
+    return [
+      {
+        code: 'bad_roll_rule',
+        reason: `"${String(rule['kind'])}" is not a whole-roll rule this engine reads off a feature; the second throw is the one arm a printed sentence writes`,
+        field: `${at}.rule.kind`,
+      },
+    ];
+  }
+  const once = effect['oncePerTurn'];
+  if (once !== undefined && once !== true) {
+    return [
+      {
+        code: 'bad_roll_rule',
+        reason: `SRD's "once per turn" is present or absent, and ${JSON.stringify(once)} is neither — a limit written as false is a limit somebody meant to leave off`,
+        field: `${at}.oncePerTurn`,
+      },
+    ];
+  }
+  return [];
+}
+
+/**
+ * Everything wrong with a `reroll-test-die` grant, wherever one is written.
+ *
+ * The face is the whole of the grant, so it is the whole of the check: a face
+ * a d20 cannot show is a rule that could never fire, and a rule that never
+ * fires is a feature marked executed whose sentence does nothing.
+ */
+function rerollTestDieProblems(
+  effect: Record<string, unknown>,
+  at: string,
+): readonly { readonly code: string; readonly reason: string; readonly field: string }[] {
+  const on = effect['on'];
+  if (!Number.isInteger(on) || (on as number) < 1 || (on as number) > 20) {
+    return [
+      {
+        code: 'bad_reroll_face',
+        reason: `SRD Luck's "a 1 on the d20" is a face a d20 can show, and ${JSON.stringify(on)} is not one of the twenty`,
+        field: `${at}.on`,
+      },
+    ];
+  }
+  return [];
+}
+
+/**
+ * Everything wrong with a `hit-point-floor` grant, wherever one is written.
+ *
+ * Three fields and each can be written so that the trait never fires: a floor
+ * of zero is the drop it was meant to prevent, a nameless key is a count
+ * nothing can find again, and a recovery outside the four is a use nothing
+ * ever gives back.
+ */
+function hitPointFloorProblems(
+  effect: Record<string, unknown>,
+  at: string,
+): readonly { readonly code: string; readonly reason: string; readonly field: string }[] {
+  const found: { code: string; reason: string; field: string }[] = [];
+  const floor = effect['floor'];
+  if (!Number.isInteger(floor) || (floor as number) < 1) {
+    found.push({
+      code: 'bad_hit_point_floor',
+      reason: `SRD Relentless Endurance's "drop to 1 Hit Point instead" is a floor above zero, and ${JSON.stringify(floor)} is the drop it prevents`,
+      field: `${at}.floor`,
+    });
+  }
+  const key = effect['key'];
+  if (typeof key !== 'string' || key.trim() === '') {
+    found.push({
+      code: 'bad_hit_point_floor',
+      reason: 'the use is counted under a key, as a pool’s is; a count with no name is one nothing can find again',
+      field: `${at}.key`,
+    });
+  }
+  const recovers = effect['recovers'];
+  if (typeof recovers !== 'string' || !RECOVERIES.has(recovers)) {
+    found.push({
+      code: 'bad_hit_point_floor',
+      reason: `"${String(recovers)}" is not something this engine gives uses back on; SRD's "until you finish a Long Rest" is "long-rest"`,
+      field: `${at}.recovers`,
+    });
+  }
+  return found;
+}
+
+/**
+ * Everything wrong with a `carrying-capacity` grant, wherever one is written.
+ *
+ * SRD Powerful Build counts "as one size larger", so the step is at least one:
+ * a zero is a sentence that widens nothing, and a negative one is a narrowing
+ * no printed line asks for.
+ */
+function carryingCapacityProblems(
+  effect: Record<string, unknown>,
+  at: string,
+): readonly { readonly code: string; readonly reason: string; readonly field: string }[] {
+  const larger = effect['sizesLarger'];
+  if (!Number.isInteger(larger) || (larger as number) < 1) {
+    return [
+      {
+        code: 'bad_capacity_step',
+        reason: `SRD Powerful Build counts "as one size larger", so the step is a whole number of sizes above none; ${JSON.stringify(larger)} widens nothing`,
+        field: `${at}.sizesLarger`,
+      },
+    ];
+  }
+  return [];
 }
 
 /**
@@ -2982,6 +3148,54 @@ function itemGrantProblems(
           )) {
             say(problem.code, problem.reason, problem.field);
           }
+        }
+        return;
+      }
+      // The same sentence's other scope, and the three grants that arrived
+      // beside it. Each is judged by its own checker for the reason the arm
+      // above is: a grant whose shape nothing reads is a benefit that silently
+      // never applies, which is what this validator exists to refuse.
+      if (effect.kind === 'attack-roll-rule') {
+        for (const problem of attackRollRuleProblems(
+          effect as unknown as Record<string, unknown>,
+          on,
+        )) {
+          say(problem.code, problem.reason, problem.field);
+        }
+        if (effect.onlyWithWeapon !== undefined) {
+          for (const problem of weaponNarrowingProblems(
+            effect.onlyWithWeapon,
+            `${on}.onlyWithWeapon`,
+          )) {
+            say(problem.code, problem.reason, problem.field);
+          }
+        }
+        return;
+      }
+      if (effect.kind === 'reroll-test-die') {
+        for (const problem of rerollTestDieProblems(
+          effect as unknown as Record<string, unknown>,
+          on,
+        )) {
+          say(problem.code, problem.reason, problem.field);
+        }
+        return;
+      }
+      if (effect.kind === 'hit-point-floor') {
+        for (const problem of hitPointFloorProblems(
+          effect as unknown as Record<string, unknown>,
+          on,
+        )) {
+          say(problem.code, problem.reason, problem.field);
+        }
+        return;
+      }
+      if (effect.kind === 'carrying-capacity') {
+        for (const problem of carryingCapacityProblems(
+          effect as unknown as Record<string, unknown>,
+          on,
+        )) {
+          say(problem.code, problem.reason, problem.field);
         }
         return;
       }

@@ -51,7 +51,7 @@ import type { CreatureState, GameState } from './events.js';
 import { creaturesStandingInCastingArea, spellOfSource, type CastingTime } from './spells.js';
 import type { SpellArea, SpellEffect } from './spell-definitions.js';
 import type { EffectEndCause } from './timers.js';
-import type { Recovery } from './resources.js';
+import { tallied, type Recovery } from './resources.js';
 import type { TradedAmount } from './progression.js';
 import {
   weaponInSet,
@@ -62,7 +62,7 @@ import {
   type WeaponSelector,
   type WieldingContext,
 } from './attack.js';
-import { treatLowRollsAs, type DieEffect } from './dice.js';
+import { treatLowRollsAs, type DieEffect, type RollRule } from './dice.js';
 import type { Weapon } from '@ie/srd';
 import {
   actionRuleKey,
@@ -361,6 +361,24 @@ export type AttackDieRule = {
   readonly as: number;
 };
 
+/**
+ * What a feature says about the **damage roll a weapon makes**, as a
+ * declaration — {@link AttackDieRule}'s sibling on the other scope.
+ *
+ * Declared here rather than inside {@link StandingGrant} for that type's own
+ * reason: the union is read out of this file as data by `content.test.ts`, and
+ * a nested `kind` would be counted as a grant nobody grants.
+ *
+ * One arm, named for its writer. `RollRule` in the dice layer has one member
+ * too, and the two lists grow together: a roll-level behaviour arrives with the
+ * sentence that asks for it, and the declaration arrives with the feature that
+ * says it out loud.
+ */
+export type AttackRollRule = {
+  /** SRD Savage Attacker's two throws, and `rollUnder`'s shape. */
+  readonly kind: 'roll-twice-keep-either';
+};
+
 /** What a standing benefit does. */
 /**
  * What a `sees-through` grant lets its holder see through.
@@ -534,6 +552,106 @@ export type StandingGrant =
        */
       readonly onlyWithWeapon?: WeaponNarrowing;
     }
+  /**
+   * A rule about the **roll** a weapon's damage is, rather than about a die in
+   * it — the member above's sibling, on the other scope.
+   *
+   * SRD Savage Attacker: "Once per turn when you hit a target with a weapon,
+   * you can roll the weapon's damage dice twice and use either roll against
+   * the target."
+   *
+   * `attack-die-rule` reaches every die the swing throws and judges each one
+   * alone; this reaches the weapon's component and judges the two totals. See
+   * {@link RollRule} for why that is a different signature rather than a
+   * fourth field on `DieEffect`, and {@link AttackOptions.weaponRollRule} for
+   * why the scope is the weapon's own dice and not the whole hit.
+   */
+  | {
+      readonly kind: 'attack-roll-rule';
+      readonly rule: AttackRollRule;
+      /**
+       * SRD's "Once per turn", kept on the combat ledger `attack-damage`'s own
+       * once-per-turn clause is kept on — a `feature-used` mark under this
+       * feature's id and the turn it was spent. Out of combat there is no turn
+       * to be once in, which is the reading every other holder of this flag
+       * already takes.
+       */
+      readonly oncePerTurn?: true;
+      /**
+       * The sentence's own narrowing, read off the weapon the swing resolved.
+       *
+       * Absent covers every weapon its holder swings, which is what SRD
+       * Savage Attacker says — "when you hit a target with a weapon", with no
+       * clause about which.
+       */
+      readonly onlyWithWeapon?: WeaponNarrowing;
+    }
+  /**
+   * A face of the d20 thrown again, with the new one standing.
+   *
+   * SRD Luck: "When you roll a 1 on the d20 of a D20 Test, you can reroll the
+   * die, and you must use the new roll."
+   *
+   * **Not a {@link RollModifier}.** That union is modes, applied inside
+   * `selectorMatches` before a die is thrown; this is a rule read *after* one
+   * lands and it replaces a result rather than changing how it was reached.
+   * Putting it there would make one union two things and would hand
+   * `combineRollModes` a member it cannot weigh.
+   *
+   * **Not a Reaction either**, which is the other thing the engine already had:
+   * `rerollTest` is reached only through a window a feature spends its Reaction
+   * at. This trait costs nothing, is offered by nobody and fires on the face
+   * rather than on the outcome, so it belongs in the pipeline — see
+   * {@link CharacterSheet.rerollsD20On}, which is how it gets there.
+   */
+  | {
+      readonly kind: 'reroll-test-die';
+      /** SRD's "a 1 on the d20": the face that is thrown again. */
+      readonly on: number;
+    }
+  /**
+   * A floor this creature's Hit Points cannot be driven below by one blow,
+   * paid for out of a limit the grant declares.
+   *
+   * SRD Relentless Endurance: "When you are reduced to 0 Hit Points but not
+   * killed outright, you can drop to 1 Hit Point instead. Once you use this
+   * trait, you can't do so again until you finish a Long Rest."
+   *
+   * **The limit rides on the grant**, exactly as {@link CastingDamageCost}'s
+   * does and for the same reason: `FeatureDefinition.grants` is singular, so
+   * the feature that states the rule is the feature that would have had to
+   * declare the pool, and two grants cannot say one sentence. A tally rather
+   * than a pool because nothing declares a tally — the key and what empties it
+   * ride on the use — and the reader here is what refuses the second one,
+   * which is the same division of labour Overchannel's count already has.
+   *
+   * **"Not killed outright" is not a field.** It is Massive Damage and a
+   * monster's `diesAtZero`, both of which `applyDamageToVitals` settles before
+   * it reaches the floor at all, so a grant cannot get them wrong.
+   */
+  | {
+      readonly kind: 'hit-point-floor';
+      /** SRD's "1 Hit Point": what the blow may not drive them below. */
+      readonly floor: number;
+      /** What the uses are counted under — a tally's key, as a pool's is. */
+      readonly key: string;
+      /** SRD's "until you finish a Long Rest", which zeroes the count. */
+      readonly recovers: Recovery;
+    }
+  /**
+   * The size this creature's **carrying capacity** is read at, where it is not
+   * the size the creature is.
+   *
+   * SRD Powerful Build: "You also count as one size larger when determining
+   * your carrying capacity."
+   *
+   * A step rather than a named size, because the SRD writes it as a relation
+   * and a named one would be wrong the moment the holder is enlarged — the
+   * same argument `oneLargerThan` is written on. Nothing else about the
+   * creature moves: it still occupies its own space, is still grappled by the
+   * same sizes and still squeezes through the same gaps.
+   */
+  | { readonly kind: 'carrying-capacity'; readonly sizesLarger: number }
   /**
    * SRD Aura of Courage: "Immunity to the Frightened condition while in your
    * Aura of Protection. If a Frightened ally enters the aura, that condition
@@ -2372,6 +2490,59 @@ export function standingDamageEffects(
 }
 
 /**
+ * The whole-roll rule this creature's standing effects state about a weapon's
+ * damage, and the once-per-turn allowance taking it spends.
+ *
+ * {@link standingDamageEffects}' twin on the other scope, asking the same
+ * weapon narrowing and answering in the dice layer's own vocabulary. Two
+ * differences, and both are the SRD's:
+ *
+ * - **One rule, not a list.** Two rules that each said "roll it twice" would
+ *   be four throws of one weapon's dice, which no reading of "use either roll"
+ *   reaches. The first that qualifies wins, and the order is the order
+ *   `standingFor` returns — a fact about the sheet rather than about who
+ *   asked. No SRD character can hold two of these; a homebrew one that did
+ *   would get one of them rather than a compounding.
+ * - **It can be spent.** SRD Savage Attacker is "once per turn", which is
+ *   `standingAttackDamage`'s clause exactly: the combat ledger refuses a
+ *   second use on the same turn, and the caller writes the `feature-used` mark
+ *   from `spent`. Out of combat there is no ledger and no turn, so the rule
+ *   simply holds — the reading every other once-per-turn feature takes.
+ */
+export function standingWeaponRollRule(
+  state: GameState,
+  who: CharacterId,
+  context: {
+    readonly weapon?: Weapon | null;
+    readonly twoHanded?: boolean;
+    /** The turn this swing is on, or null outside a fight. */
+    readonly turn?: number | null;
+  } = {},
+): { readonly rule: RollRule | null; readonly spent: readonly string[] } {
+  for (const { effect } of standingFor(state, who)) {
+    const grant = effect.grant;
+    if (grant.kind !== 'attack-roll-rule') continue;
+    if (
+      grant.onlyWithWeapon !== undefined &&
+      !weaponNarrowingHolds(grant.onlyWithWeapon, wielding(context))
+    ) {
+      continue;
+    }
+    // Last, so that a rule ruled out by its own narrowing does not spend an
+    // allowance it never used — `standingAttackDamage`'s ordering, for its
+    // reason.
+    const spent: string[] = [];
+    if (grant.oncePerTurn === true && state.combat !== null) {
+      if (!canUseFeatureThisTurn(state.combat, who, effect.feature)) continue;
+      if ((context.turn ?? null) !== null) spent.push(effect.feature);
+    }
+    return { rule: { kind: 'roll-twice-keep-either', name: effect.name }, spent };
+  }
+
+  return { rule: null, spent: [] };
+}
+
+/**
  * Every Advantage and Disadvantage that reaches this roll, from anywhere.
  *
  * **The one gatherer.** A class feature's derived grant and a spell's durable
@@ -2998,7 +3169,92 @@ export function sheetAsItStands(state: GameState, who: CharacterId): CharacterSh
   const creature = state.creatures[who];
   if (creature === undefined) return null;
   const abilities = abilityScoresOf(state, who);
-  return abilities === creature.sheet.abilities ? creature.sheet : { ...creature.sheet, abilities };
+  // **And the face this creature throws again**, folded in here for the reason
+  // the scores above are: every roller in the engine asks this function for
+  // the sheet it rolls from, so a rule that reaches the sheet reaches all of
+  // them and taking the source of it away takes the rule with it. Derived on
+  // every read rather than compiled at creation, so a ring that granted the
+  // same sentence works the day it is put on. See
+  // {@link CharacterSheet.rerollsD20On}.
+  const reroll = d20RerollFor(state, who);
+  if (abilities === creature.sheet.abilities && reroll === null) return creature.sheet;
+  return {
+    ...creature.sheet,
+    abilities,
+    ...(reroll === null ? {} : { rerollsD20On: reroll }),
+  };
+}
+
+/**
+ * The floor this creature's standing effects put under a blow, if any is still
+ * there to spend.
+ *
+ * SRD Relentless Endurance: "When you are reduced to 0 Hit Points but not
+ * killed outright, you can drop to 1 Hit Point instead. Once you use this
+ * trait, you can't do so again until you finish a Long Rest."
+ *
+ * **The limit is a tally and the refusal is here.** A tally is a count with no
+ * ceiling — `resources.ts` says so — and what that buys is that *nothing has
+ * to declare it*: `FeatureDefinition.grants` is singular and the trait has
+ * already spent it on the standing grant that states the rule, so there is no
+ * second grant left to declare a pool with. The key and what empties it ride
+ * on the grant, exactly as SRD Overchannel's do, and the reader is what makes
+ * a count of one mean "once": above zero, this answers null.
+ *
+ * **The highest floor wins** where two are written, which is the only reading
+ * that does not make a second trait a downgrade. No SRD creature holds two.
+ */
+export function hitPointFloorFor(
+  state: GameState,
+  who: CharacterId,
+): {
+  readonly at: number;
+  readonly feature: string;
+  readonly key: string;
+  readonly recovers: Recovery;
+} | null {
+  const creature = state.creatures[who];
+  if (creature === undefined) return null;
+
+  let found: { at: number; feature: string; key: string; recovers: Recovery } | null = null;
+  for (const { effect } of standingFor(state, who)) {
+    const grant = effect.grant;
+    if (grant.kind !== 'hit-point-floor') continue;
+    if (tallied(creature.resources, grant.key) > 0) continue;
+    if (found === null || grant.floor > found.at) {
+      found = {
+        at: grant.floor,
+        feature: effect.name,
+        key: grant.key,
+        recovers: grant.recovers,
+      };
+    }
+  }
+  return found;
+}
+
+/**
+ * The d20 face this creature's standing effects throw again, or none.
+ *
+ * **One rule, not a list**, for `standingWeaponRollRule`'s reason: two
+ * sentences that each said "reroll the die" would be a die thrown three times,
+ * which no reading of "you must use the new roll" reaches. The *lowest* face
+ * wins where two are written, because a rule about a 1 and a rule about a 2
+ * are not two chances — they are one reroll, and a holder of both would rather
+ * it were spent on the worse face. No SRD character holds two; a homebrew one
+ * that did gets an answer rather than an accident.
+ */
+function d20RerollFor(
+  state: GameState,
+  who: CharacterId,
+): { readonly on: number; readonly source: string } | null {
+  let found: { on: number; source: string } | null = null;
+  for (const { effect } of standingFor(state, who)) {
+    const grant = effect.grant;
+    if (grant.kind !== 'reroll-test-die') continue;
+    if (found === null || grant.on < found.on) found = { on: grant.on, source: effect.name };
+  }
+  return found;
 }
 
 /**

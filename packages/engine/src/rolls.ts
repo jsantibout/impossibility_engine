@@ -1,13 +1,16 @@
 import { asRollId, err, ok, type Result, type RollId, type RollMode } from '@ie/shared';
 import {
+  countedDieIndex,
   notationBounds,
   parseNotation,
-  roll,
   rollD20,
+  rollUnder,
+  settleD20,
   type D20Outcome,
   type DieEffect,
   type Rng,
   type RollOutcome,
+  type RollRule,
 } from './dice.js';
 
 /**
@@ -66,28 +69,91 @@ export function createRollIssuer(prefix: string, startAt = 0): RollIssuer {
 
 export interface RecordedD20 extends D20Outcome {
   readonly provenance: RollProvenance;
+  /**
+   * The roll this one replaced, where a rule threw the die again.
+   *
+   * SRD Luck: "you must use the new roll" — so the first roll is history
+   * rather than a choice, and the whole of it is kept here so the log can show
+   * what was given up. It carries its own provenance, because the two throws
+   * are two rolls and a reader that saw one id for both could not tell which
+   * face the engine actually used.
+   */
+  readonly superseded?: RecordedD20;
 }
 
 export interface RecordedRoll extends RollOutcome {
   readonly provenance: RollProvenance;
 }
 
+/**
+ * A face of the d20 that is thrown again, and what says so.
+ *
+ * SRD Luck is the one sentence of this shape: a face rather than an outcome,
+ * a replacement rather than a mode, and no Reaction spent to do it.
+ */
+export interface D20Reroll {
+  /** SRD's "a 1 on the d20": the face the rule reaches. */
+  readonly on: number;
+  /** The feature that said so, for the log. */
+  readonly source: string;
+}
+
+/**
+ * `reroll` is a rule read **after** the die lands — see {@link D20Reroll}. The
+ * counted die is the one thrown again, which under Advantage or Disadvantage
+ * is the one the mode picked out and under neither is the only one there is;
+ * the other die stands, because the rule names "the d20 of a D20 Test" and a
+ * creature rolling two has only ever used one of them.
+ *
+ * **Once, never twice.** A 1 on the replacement stands: the sentence is about
+ * the roll a test makes and this is the roll it made, so a rule that chased
+ * its own tail would be a different sentence with no printer.
+ */
 export function rollD20Recorded(
   issuer: RollIssuer,
   rng: Rng,
   mode: RollMode,
   modifier: number,
+  reroll: D20Reroll | null = null,
 ): RecordedD20 {
-  return { ...rollD20(rng, mode, modifier), provenance: issuer.issue('engine') };
+  const first: RecordedD20 = {
+    ...rollD20(rng, mode, modifier),
+    provenance: issuer.issue('engine'),
+  };
+  if (reroll === null || first.natural !== reroll.on) return first;
+
+  // Which die counted, so the replacement lands on that one rather than on a
+  // fresh pair — and then the **same** settlement the first throw got, from
+  // the same function, so the two can never disagree about which die counts
+  // or about what a natural 20 is. See `settleD20`.
+  const counted = countedDieIndex(first);
+  const rolls = first.rolls.map((face, index) => (index === counted ? rng.int(20) : face));
+
+  return {
+    ...settleD20(rolls, mode, modifier),
+    // Its own id, and no note: `note` is why a roll was *overridden* by
+    // somebody, and this is the engine rolling its own dice under its own
+    // rule. What said so travels on the event, beside the face it replaced.
+    provenance: issuer.issue('engine'),
+    superseded: first,
+  };
 }
 
+/**
+ * `rule` is a sentence about the roll as a whole — see {@link RollRule}. It is
+ * **one** recorded roll however many dice it ends up throwing: Savage
+ * Attacker's two throws are two halves of one damage roll rather than two
+ * damage rolls, so they share an id and the loser's dice ride along `dropped`.
+ * Absent, or null, is the roll this function has always made.
+ */
 export function rollRecorded(
   issuer: RollIssuer,
   rng: Rng,
   notation: string,
   effects: readonly DieEffect[] = [],
+  rule: RollRule | null = null,
 ): Result<RecordedRoll> {
-  const outcome = roll(rng, notation, effects);
+  const outcome = rollUnder(rng, notation, rule, effects);
   // Issue the id only once the roll has actually happened, so a rejected roll
   // does not leave a gap in the sequence.
   if (!outcome.ok) return outcome;

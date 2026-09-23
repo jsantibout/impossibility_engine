@@ -106,7 +106,7 @@ const rogueChoices = (level: number): CharacterChoices => ({
     ? {
         feats: {
           ...common.feats,
-          'rogue:ability-score-improvement': { featId: 'savage-attacker' },
+          'rogue:ability-score-improvement': { featId: 'defense' },
           ...(level >= 8 ? { 'rogue:ability-score-improvement-2': { featId: 'ability-score-improvement', abilities: ['cha', 'int'] } } : {}),
           ...(level >= 10 ? { 'rogue:ability-score-improvement-3': { featId: 'ability-score-improvement', abilities: ['cha', 'int'] } } : {}),
           ...(level >= 12 ? { 'rogue:ability-score-improvement-4': { featId: 'ability-score-improvement', abilities: ['cha', 'int'] } } : {}),
@@ -688,7 +688,7 @@ describe('a feature whose damage type is chosen at the hit', () => {
     },
     feats: {
       ...common.feats,
-      ...(level >= 4 ? { 'cleric:ability-score-improvement': { featId: 'savage-attacker' } } : {}),
+      ...(level >= 4 ? { 'cleric:ability-score-improvement': { featId: 'defense' } } : {}),
       ...(level >= 8 ? { 'cleric:ability-score-improvement-2': { featId: 'ability-score-improvement', abilities: ['cha', 'int'] } } : {}),
       ...(level >= 12 ? { 'cleric:ability-score-improvement-3': { featId: 'ability-score-improvement', abilities: ['cha', 'int'] } } : {}),
       ...(level >= 16 ? { 'cleric:ability-score-improvement-4': { featId: 'ability-score-improvement', abilities: ['cha', 'int'] } } : {}),
@@ -876,7 +876,7 @@ describe('a feature that lowers which die face is a Critical Hit', () => {
     feats: {
       ...common.feats,
       'fighter:fighting-style': { featId: 'defense' },
-      ...(level >= 4 ? { 'fighter:ability-score-improvement': { featId: 'savage-attacker' } } : {}),
+      ...(level >= 4 ? { 'fighter:ability-score-improvement': { featId: 'ability-score-improvement', abilities: ['str', 'str'] } } : {}),
       ...(level >= 6 ? { 'fighter:ability-score-improvement-2': { featId: 'ability-score-improvement', abilities: ['cha', 'int'] } } : {}),
       ...(level >= 7 ? { 'champion:additional-fighting-style': { featId: 'dueling' } } : {}),
       ...(level >= 8 ? { 'fighter:ability-score-improvement-3': { featId: 'ability-score-improvement', abilities: ['cha', 'int'] } } : {}),
@@ -895,6 +895,12 @@ describe('a feature that lowers which die face is a Critical Hit', () => {
     };
     expect(at(1)).toBe(20);
     expect(at(3)).toBe(19);
+    // And at 5, which is the level this repository is building towards and the
+    // first one at which the helper fills the ability-score improvement. It
+    // used to fill it with a feat the character already held and would have
+    // been refused outright had anything asked — a build nobody drove, which
+    // is the quietest way for a fixture to stop describing a legal character.
+    expect(at(5)).toBe(19);
   });
 
   /**

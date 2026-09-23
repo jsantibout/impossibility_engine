@@ -369,8 +369,22 @@ export const GOLIATH: SpeciesDefinition = {
       id: 'goliath:powerful-build',
       name: 'Powerful Build',
       level: 1,
-      automation: 'manual',
-      note: 'Not applied: "Advantage on any ability check you make to end the Grappled condition" names a condition, and the condition axis a selector now carries is legal on a saving throw and refused on an ability check — no check roller says what it is about, so a grant written there would pick out nothing for ever. This is the trait the refusal names by way of apology. Counting as one size larger for carrying capacity reaches nothing either: the catalogue records a weight for every item and nothing adds them up, so there is no capacity to widen.',
+      automation: 'engine',
+      note: 'Both printed benefits are applied. "Advantage on any ability check you make to end the Grappled condition" names a condition, which is the axis a selector gained for Brave and its siblings and which was legal on a saving throw alone: no ability check said what it was about. Two of them do now - resolveEffectCheck and escapeGrapple, the two doors out of an effect, both deriving the condition from the very timer they are settling - so the grant picks out the escape and no other Strength or Dexterity check the Goliath makes, on either of the two abilities the book offers. The other half is the Carrying Capacity table, which the objects batch built: a carrying-capacity grant moves which row of it this creature reads, so a Medium Goliath carries and drags the Large figures, and nothing else about its size moves - it occupies the same space, is grappled by the same sizes and squeezes through the same gaps, because the sentence is about that table and says so.',
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        effects: [
+          {
+            kind: 'roll-mode',
+            modifier: {
+              mode: 'advantage',
+              selector: { roll: 'ability-check', relation: 'roller', condition: 'grappled' },
+            },
+          },
+          { kind: 'carrying-capacity', sizesLarger: 1 },
+        ],
+      },
     },
   ],
 };
@@ -413,8 +427,13 @@ export const HALFLING: SpeciesDefinition = {
       id: 'halfling:luck',
       name: 'Luck',
       level: 1,
-      automation: 'manual',
-      note: 'Not applied: rerolling a 1 on the d20 is a reroll the engine has, and only as a Reaction offered at a named window - Indomitable takes it that way. This one costs no Reaction, is not offered, and fires on the die rather than on the outcome. A DM applies the reroll, and it must be the new roll that stands.',
+      automation: 'engine',
+      note: 'Applied. "When you roll a 1 on the d20 of a D20 Test, you can reroll the die, and you must use the new roll" is a rule read after the die lands, so it is neither a roll mode nor the Reaction reroll Indomitable takes: it costs nothing, is offered by nobody and fires on the face. The grant names the face, sheetAsItStands derives it onto the sheet on every read, and the two rollers that throw a d20 for a test read it there - so it reaches every ability check, every saving throw, every attack roll, Initiative and a death saving throw without a single roll site having to remember it. Exactly one reroll: a 1 on the new die stands, because "the new roll" is the roll the test made. Under Advantage or Disadvantage it is the die the mode picked out that is thrown again and the other stands. Both faces are in the log - the first on roll-recorded supersedes, the second as the roll itself - and it never touches a face a table read out, because a stated die takes the other path.',
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        effects: [{ kind: 'reroll-test-die', on: 1 }],
+      },
     },
     {
       id: 'halfling:naturally-stealthy',
@@ -496,8 +515,20 @@ export const ORC: SpeciesDefinition = {
       id: 'orc:relentless-endurance',
       name: 'Relentless Endurance',
       level: 1,
-      automation: 'manual',
-      note: 'Not applied: dropping to 1 Hit Point instead of 0 is a decision taken at the moment damage lands, and the only thing a feature may do there is reduce the damage as a Reaction. A DM holds the Orc at 1 hit point once between Long Rests.',
+      automation: 'engine',
+      note: 'Applied. Dropping to 1 Hit Point instead of 0 is a decision taken at the moment damage lands, and it is taken there: damageCreature runs the rules once to see what the blow would do, and where the answer is a drop to 0 that is not a death it pins a floor onto the damage-taken event and spends the use. The floor is on the event rather than in the command because the fold recomputes the blow from the event - a decision the command kept to itself would be undone the first time the log was replayed - so a replay reads a number somebody already decided and opens no catalogue. "But not killed outright" needs no field: Massive Damage and a monster death at 0 are both settled before the floor is read, so the trait cannot fire on either. The once-a-day limit is a tally keyed to this trait with long-rest on it, counted off the very event that carries the floor and zeroed by the rest, and the reader refuses a second use while the count stands - a count rather than a pool because nothing declares a tally and a feature carries one grant, which this trait has already spent on the rule itself. The price rides on the claim rather than beside it, so the two cannot come apart in a log and a blow is never asked whose turn it is.',
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        effects: [
+          {
+            kind: 'hit-point-floor',
+            floor: 1,
+            key: 'orc:relentless-endurance',
+            recovers: 'long-rest',
+          },
+        ],
+      },
     },
   ],
 };
@@ -677,8 +708,8 @@ export const SOLDIER: BackgroundDefinition = {
       id: 'soldier:savage-attacker',
       name: 'Savage Attacker',
       level: 1,
-      automation: 'manual',
-      note: 'The feat is granted and its being the right one is checked, and that is the whole of what happens: Savage Attacker is executed nowhere. Rolling the weapon damage dice twice once per turn and using either roll is the DM, or the caller reproducing it through the dice module - see the feat own note.',
+      automation: 'engine',
+      note: 'Applied, and for free: the background names the Origin feat, creation checks that it is the right one and grants it, and the feat own standing grant is what executes. Rolling the weapon damage dice twice once per turn and using either roll is the feat sentence rather than the background, so this feature holds no second copy of it - see the feat own note for what the rule does and what it reaches.',
       grantsFeat: { featId: 'savage-attacker' },
     },
   ],
@@ -731,7 +762,12 @@ export const ORIGIN_FEATS: readonly FeatDefinition[] = [
     category: 'origin',
     requires: { kind: 'none' },
     repeatable: false,
-    note: 'Rolling weapon damage twice once per turn is not applied; the caller can reproduce it through the dice module.',
+    grants: {
+      kind: 'standing',
+      reach: 'self',
+      effects: [{ kind: 'attack-roll-rule', rule: { kind: 'roll-twice-keep-either' }, oncePerTurn: true }],
+    },
+    note: 'Applied. "Roll the weapon damage dice twice and use either roll" is a rule about the roll rather than about a die in it, which is the scope rollUnder in the dice layer answers and the one Great Weapon Fighting beside it does not: the second throw is made, the lower total is dropped rather than discarded, and both throws reach the log in the one damage roll they are two halves of. It reaches the weapon own dice and nothing else, so a Sneak Attack riding on the same hit is thrown once; on a Critical Hit it is the doubled set that is thrown twice, because that is what the weapon damage dice are by then. No narrowing is declared, because the sentence has none - it says "a weapon", not which. "Once per turn" is the combat ledger own mark, so a second hit on the same turn rolls once; out of combat there is no turn to be once in. "Use either" is taken as the higher of the two, which is the only choice a player has a reason to make and is stated rather than asked.',
   },
   {
     id: 'skilled',

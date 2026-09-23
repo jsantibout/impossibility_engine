@@ -90,7 +90,7 @@ const monk = (over: Partial<CharacterChoices> = {}): CharacterChoices => ({
     },
     'human:versatile': { featId: 'alert' },
     // The level 4 feat, which a level 5 character has to have answered.
-    'monk:ability-score-improvement': { featId: 'savage-attacker' },
+    'monk:ability-score-improvement': { featId: 'defense' },
   },
   dmGrants: { items: [], goldPieces: 0, magicItems: [], note: 'standard' },
   ...over,
@@ -576,7 +576,7 @@ describe('a rider waits for the window the same blow opened', () => {
         levelOneSpell: 'find-familiar',
       },
       'human:versatile': { featId: 'alert' },
-      'rogue:ability-score-improvement': { featId: 'savage-attacker' },
+      'rogue:ability-score-improvement': { featId: 'defense' },
     },
     dmGrants: { items: [], goldPieces: 0, magicItems: [], note: 'standard' },
   });

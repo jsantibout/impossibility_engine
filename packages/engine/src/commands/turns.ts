@@ -687,6 +687,14 @@ export function resolveEffectCheck(
       roller: who,
       ability: check.ability,
       ...(check.skill === undefined ? {} : { skill: check.skill }),
+      // **And what this check is about**, which is the axis a saving throw has
+      // had since Brave and the one an ability check had no answer for. The
+      // timer being settled holds it — a `condition` target is one condition
+      // instance on one creature — so it is derived rather than restated, by
+      // the same `conditionEndedBy` the turn boundary's repeated save uses.
+      // SRD Powerful Build's "any ability check you make to end the Grappled
+      // condition" is the sentence this lets a grant pick out.
+      aboutConditions: conditionEndedBy(state, command.effectKey),
     }).modes;
 
     // **The sheet as it stands**, so a Belt of Giant Strength is behind the
@@ -966,7 +974,7 @@ function nextOwed(state: GameState): OwedAreaEffect | null {
  * a creature is suffering from, so a save repeated against one is about no
  * condition at all.
  */
-function conditionEndedBy(state: GameState, effectKey: string): readonly ConditionName[] {
+export function conditionEndedBy(state: GameState, effectKey: string): readonly ConditionName[] {
   const target = state.timers[effectKey]?.target;
   if (target === undefined || target.kind !== 'condition') return [];
   const held = state.creatures[target.on]?.conditions.instances ?? [];
@@ -1409,6 +1417,10 @@ function rollTheDeathSave(
   const rolled = rollDeathSave(supply.issuer, supply.rng, creature.vitals, {
     modes: [...standing, ...(supply.modes ?? [])],
     ...(supply.bonuses === undefined ? {} : { bonuses: supply.bonuses }),
+    // SRD Luck reaches a death save like any other D20 Test, and this is the
+    // one roller handed `Vitals` rather than a sheet — so the sheet is read
+    // here and the face travels in. See `DeathSaveOptions.reroll`.
+    reroll: (sheetAsItStands(state, who) ?? creature.sheet).rerollsD20On ?? null,
   });
   if (!rolled.ok) return rolled;
 
