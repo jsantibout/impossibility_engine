@@ -33,7 +33,7 @@ state is displayed as zero.
 
 | Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none |
 |---|---|---|---|---|
-| Spells in reach, not executed | 108 spells | 75 | 0 | 33 |
+| Spells in reach, not executed | 104 spells | 71 | 0 | 33 |
 | Features manual, or a pool with nothing to buy | 22 features | 16 | 0 | 6 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 |
 | Glossary general rules nothing executes | 22 rules | 0 | 0 | 22 |
@@ -49,10 +49,8 @@ hold at all. An executed spell with nothing left is not here.
 
 | Shape | Blocks | Finishes |
 |---|---|---|
-| `light-and-obscurement-the-scene-holds` | 3 | 3 |
 | `an-effect-that-suppresses-other-magic` | 5 | 2 |
 | `a-choice-made-at-the-casting` | 4 | 2 |
-| `senses-beyond-declared-sight` | 3 | 2 |
 | `a-reduction-an-effect-applies-to-damage` | 2 | 2 |
 | `an-area-that-filters-its-catch` | 2 | 2 |
 | `a-casting-ended-by-a-trigger` | 5 | 1 |
@@ -78,6 +76,7 @@ hold at all. An executed spell with nothing left is not here.
 | `falling` | 1 | 1 |
 | `healing-that-raises-the-dead` | 1 | 1 |
 | `jumping` | 1 | 1 |
+| `light-and-obscurement-the-scene-holds` | 1 | 1 |
 | `targeting-rules-that-differ-within-one-casting` | 1 | 1 |
 | `what-ends-attunement-besides-a-command` | 1 | 1 |
 | `a-standing-effect-derived-from-where-a-creature-stands` | 4 | 0 |
@@ -116,6 +115,7 @@ hold at all. An executed spell with nothing left is not here.
 | `an-effect-that-fires-when-the-casting-ends` | 1 | 0 |
 | `an-effect-that-stabilises-a-dying-creature` | 1 | 0 |
 | `an-outcome-that-reads-the-targets-defences` | 1 | 0 |
+| `senses-beyond-declared-sight` | 1 | 0 |
 | `several-attack-rolls-from-one-casting` | 1 | 0 |
 | `the-effects-source-as-a-participant` | 1 | 0 |
 
@@ -123,12 +123,6 @@ hold at all. An executed spell with nothing left is not here.
 **finishes** is what it is the *only* blocker for — the column a tranche
 is planned from. A spell can need more than one shape, so neither column
 sums to the population.
-
-#### `light-and-obscurement-the-scene-holds` — blocks 3, finishes 3
-
-- **Dancing Lights** (level 0) — tracked
-- **Light** (level 0) — tracked
-- **Continual Flame** (level 2) — tracked
 
 #### `an-effect-that-suppresses-other-magic` — blocks 5, finishes 2
 
@@ -144,12 +138,6 @@ sums to the population.
 - **Enlarge/Reduce** (level 2) — tracked — also waits on 3
 - **Glyph of Warding** (level 3) — tracked — also waits on 1
 - **Plant Growth** (level 3) — executed-partial
-
-#### `senses-beyond-declared-sight` — blocks 3, finishes 2
-
-- **Faerie Fire** (level 1) — executed-partial
-- **Find Familiar** (level 1) — executed-partial — also waits on 2
-- **Darkvision** (level 2) — tracked
 
 #### `a-reduction-an-effect-applies-to-damage` — blocks 2, finishes 2
 
@@ -276,6 +264,10 @@ sums to the population.
 #### `jumping` — blocks 1, finishes 1
 
 - **Jump** (level 1) — tracked
+
+#### `light-and-obscurement-the-scene-holds` — blocks 1, finishes 1
+
+- **Faerie Fire** (level 1) — executed-partial
 
 #### `targeting-rules-that-differ-within-one-casting` — blocks 1, finishes 1
 
@@ -450,6 +442,10 @@ sums to the population.
 #### `an-outcome-that-reads-the-targets-defences` — blocks 1, finishes 0
 
 - **Sleep** (level 1) — tracked — also waits on 1
+
+#### `senses-beyond-declared-sight` — blocks 1, finishes 0
+
+- **Find Familiar** (level 1) — executed-partial — also waits on 2
 
 #### `several-attack-rolls-from-one-casting` — blocks 1, finishes 0
 

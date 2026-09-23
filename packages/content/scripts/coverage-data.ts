@@ -182,13 +182,20 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'cone-of-cold',
   'conjure-fey',
   'conjure-woodland-beings',
+  // `sight.test.ts` (engine): cast on its bearer, its light read back and
+  // standing until dispelled.
+  'continual-flame',
   'counterspell',
   'cure-wounds',
+  // `sight.test.ts` (engine): a dim patch re-laid where its Bonus Action moves it.
+  'dancing-lights',
   // The three P3-S finished, each driven end to end through `resolveSpell` in
   // `light-and-sight.test.ts`: the Sphere Darkness pins and the Darkvision it
   // defeats, the bright core and dim ring Daylight lays, the bank Fog Cloud
   // grows with the slot, and the dispel the first two owe each other.
   'darkness',
+  // `sight.test.ts` (engine): the sense conferred and read by `sensesOf`.
+  'darkvision',
   'daylight',
   'dimension-door',
   'dispel-magic',
@@ -225,6 +232,9 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'insect-plague',
   'invisibility',
   'lesser-restoration',
+  // `sight.test.ts` (engine): carried by its bearer and moving with them, out
+  // with the hour and put out by a Darkness cast over it.
+  'light',
   'lightning-bolt',
   'longstrider',
   'mage-armor',

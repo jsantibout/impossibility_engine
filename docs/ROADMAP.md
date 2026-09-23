@@ -1483,7 +1483,9 @@ Appended after wave two (2026-09-22):
   the fleet being back): Sacred Weapon executes, Shillelagh's damage type is
   chosen at the swing, and the printed damage clauses a stat block gates on
   Bloodied or on Advantage are read; True Strike waits on the ruling below.
-  The sight track is in flight on `fable-sight`.
+  **Sight merged 2026-09-23** (the fifth track, Fable's own): Light,
+  Continual Flame, Dancing Lights and Darkvision execute, and Faerie Fire's
+  Advantage asks whether the attacker sees.
 
 Appended after wave three's first track (2026-09-23):
 
@@ -1604,3 +1606,33 @@ Appended after wave three's fourth track — attack riders (2026-09-23):
   lifetime on the rider grants was refused because it costs two Actions where
   the book prints one. This is a brief for the next wave, and the owner may
   reopen it.
+
+Appended after wave three's fifth track — sight (2026-09-23):
+
+- **A casting's light is carried by its bearer.** The engine holds no
+  objects, so Light and Continual Flame name the creature holding the touched
+  thing as their target, and a `light` effect lays the patch on a region whose
+  origin is that creature: it moves with them, is sourced to the casting id so
+  it lapses with the record, and a darker casting of higher level over it ends
+  it. Which object was touched, and an object set down for good, are the
+  table's — `declare_light` lights the spot.
+- **Four motes are one dim patch.** Dancing Lights lays a dim sphere at the
+  point the caster names and its Bonus Action re-lays it after
+  `spell-origin-moved` (`activation.movesArea`); the tether between the motes
+  and a mote leaving the range are the table's.
+- **A casting confers a sense.** Darkvision the spell is a `sense` effect —
+  `sense-granted` on the target, `CreatureState.senseModifiers`, read by
+  `sensesOf` at the longest range held and released with the casting.
+- **The sight gate applies when unsettled, and says so.** Faerie Fire's
+  Advantage carries `RollSelector.ifRollerSees`; a roll site passes
+  `rollerSees` from `canSee`, a no withholds the grant, and a yes or a silence
+  applies it — the silence reported by `rollModesFor` as an unsettled grant
+  rather than swallowed, because the sight question stays the table's to
+  settle.
+- **A creature is always within reach of itself**, so a touch laid on the
+  caster's own hand asks for no scene; a light cast with no scene set lays no
+  patch and says so in `unverified` rather than corrupting the fold.
+- **A debt:** an attack's `roll-recorded` names no `modes`, so an attack's
+  granted Advantage is visible only on the swing's own `mode` where a check's
+  record names its sources. Recording them beside the check's is a small
+  change to `rollAttack` for a later track.
