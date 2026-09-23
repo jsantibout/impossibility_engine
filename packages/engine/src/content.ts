@@ -374,6 +374,13 @@ export const ITEM_EFFECT_KINDS: ReadonlySet<string> = new Set([
   // item prints the sentence today; the list's rule is what a reader reaches,
   // not what the book happens to have written.
   'passage',
+  // The four a level 1–5 character's own features print and no SRD item does
+  // yet: each is read through `standingFor`, so an item that printed the
+  // sentence would be executed rather than transcribed and ignored.
+  'half-proficiency-on-checks',
+  'hides-behind-larger-creature',
+  'fall-damage-reduction',
+  'jump-bonus',
   // Read from an item exactly as it is read from a feature: the gatherer is
   // `standingFor`, which folds a worn item's effects in beside a class's, so a
   // staff that empowered its wielder's Evocations would be executed rather than
@@ -694,6 +701,12 @@ function ownedStandingEffectProblems(
   if (effect.kind === 'passage') {
     found.push(...passageProblems(effect as unknown as Record<string, unknown>, at));
   }
+  if (effect.kind === 'fall-damage-reduction') {
+    found.push(...fallReductionProblems(effect as unknown as Record<string, unknown>, at));
+  }
+  if (effect.kind === 'jump-bonus') {
+    found.push(...jumpBonusProblems(effect as unknown as Record<string, unknown>, at));
+  }
   if (effect.kind === 'sense') {
     found.push(...senseProblems(effect as unknown as Record<string, unknown>, at));
   }
@@ -994,6 +1007,51 @@ function passageProblems(
         code: 'bad_passage_step',
         reason: `SRD Halfling Nimbleness moves "two sizes larger" to "a size larger", so the step is a whole number of sizes above none; ${JSON.stringify(larger)} bends nothing`,
         field: `${at}.sizesLarger`,
+      },
+    ];
+  }
+  return [];
+}
+
+/**
+ * Everything wrong with a `fall-damage-reduction` grant: a multiplier that
+ * takes nothing off, and a class level content has no business writing.
+ */
+function fallReductionProblems(
+  effect: Record<string, unknown>,
+  at: string,
+): readonly { readonly code: string; readonly reason: string; readonly field: string }[] {
+  const found: { code: string; reason: string; field: string }[] = [];
+  const per = effect['perClassLevel'];
+  if (!Number.isInteger(per) || (per as number) < 1) {
+    found.push({
+      code: 'bad_fall_reduction',
+      reason: `SRD Slow Fall takes "five times your Monk level" off a fall, so the multiplier is a whole number of hit points per level above none; ${JSON.stringify(per)} takes nothing off`,
+      field: `${at}.perClassLevel`,
+    });
+  }
+  if (effect['classLevel'] !== undefined) {
+    found.push({
+      code: 'bad_fall_reduction',
+      reason: 'the class level is pinned by creation from the character, never written by content',
+      field: `${at}.classLevel`,
+    });
+  }
+  return found;
+}
+
+/** Everything wrong with a `jump-bonus` grant: an ability that is not one of the six. */
+function jumpBonusProblems(
+  effect: Record<string, unknown>,
+  at: string,
+): readonly { readonly code: string; readonly reason: string; readonly field: string }[] {
+  const ability = effect['fromAbility'];
+  if (!isString(ability) || !(ABILITIES as readonly string[]).includes(ability)) {
+    return [
+      {
+        code: 'bad_jump_bonus',
+        reason: `a jump lengthened by an ability modifier names one of the six abilities, not ${JSON.stringify(ability)}`,
+        field: `${at}.fromAbility`,
       },
     ];
   }
@@ -3253,6 +3311,18 @@ function itemGrantProblems(
       }
       if (effect.kind === 'passage') {
         for (const problem of passageProblems(effect as unknown as Record<string, unknown>, on)) {
+          say(problem.code, problem.reason, problem.field);
+        }
+        return;
+      }
+      if (effect.kind === 'fall-damage-reduction') {
+        for (const problem of fallReductionProblems(effect as unknown as Record<string, unknown>, on)) {
+          say(problem.code, problem.reason, problem.field);
+        }
+        return;
+      }
+      if (effect.kind === 'jump-bonus') {
+        for (const problem of jumpBonusProblems(effect as unknown as Record<string, unknown>, on)) {
           say(problem.code, problem.reason, problem.field);
         }
         return;

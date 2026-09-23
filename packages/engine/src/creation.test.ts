@@ -820,7 +820,9 @@ describe('features are granted, and say what is not automated', () => {
     // and the free daily casting is a pool the engine spends. Potent Cantrip
     // left it the day a feature could reach into a casting's damage. What is
     // left is genuinely unexecuted.
-    expect(manual.map((f) => f.id)).toEqual(['wizard:ritual-adept', 'human:resourceful']);
+    // Resourceful left it the day Heroic Inspiration became a Reaction in the
+    // test-rolled window. What is left is genuinely unexecuted.
+    expect(manual.map((f) => f.id)).toEqual(['wizard:ritual-adept']);
     for (const feature of manual) expect(feature.note.length).toBeGreaterThan(0);
   });
 

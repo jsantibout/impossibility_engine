@@ -98,6 +98,7 @@ import {
   liftConditionFrom,
   loseItems,
   resolveDamage,
+  resolveFall,
   resolveTest,
   rollImprovisedDamage,
   settleTest,
@@ -1438,6 +1439,60 @@ const DECLARE_OBJECT = tool({
  * The tools a model may never reach, in the stable sorted order the prompt
  * cache depends on.
  */
+/**
+ * Land a creature that fell, at a height the table states.
+ *
+ * The height is the DM's — how far it is to the bottom of a pit is a fact
+ * about the room, and `declare_falling` deliberately takes none — and every
+ * number after it is the engine's: 1d6 per ten feet to 20d6, Bludgeoning
+ * against the faller's own defences, the Prone, the Concentration put at
+ * risk. `reaction` names a feature the faller elects to land with — SRD Slow
+ * Fall — and the engine reads what it takes off and spends the Reaction.
+ */
+const RESOLVE_FALL = tool({
+  name: 'resolve_fall',
+  description:
+    'Land a creature that fell. State the height in feet — that is the one fact here that is yours — and the engine rolls the landing (1d6 per ten feet, to a maximum of 20d6, Bludgeoning), applies the faller’s own Resistance and Immunity, puts any Concentration at risk, and leaves them Prone unless they are immune to it. If the faller holds a feature that softens a fall, such as a Monk’s Slow Fall, name it in `reaction` and the engine takes off what the feature says and spends the Reaction where a fight is running; it refuses a feature the faller does not hold, and a Reaction already spent, with nothing rolled.',
+  mutates: true,
+  input: z.strictObject({
+    who: creatureId.describe('The creature that fell.'),
+    feet: z
+      .number()
+      .int()
+      .min(0)
+      .describe('How far they fell, in feet — a fact about the room, and yours to state.'),
+    reaction: z
+      .string()
+      .min(1)
+      .optional()
+      .describe('A feature the faller elects to land with, by id from `sheet`, e.g. monk:slow-fall.'),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      resolveFall(
+        context.campaign.state(),
+        who(args.who),
+        {
+          feet: args.feet,
+          ...(args.reaction === undefined ? {} : { reaction: args.reaction }),
+          ...identity(context),
+        },
+        context.campaign.supply(),
+      ),
+      (value) => value.events,
+      (value) => ({
+        dice: value.dice,
+        damage: value.damage,
+        prone: value.prone,
+        ...(value.reduced === undefined ? {} : { reduced: value.reduced }),
+        concentration: value.concentration,
+        duplicate: value.duplicate,
+      }),
+      (value) => value.unverified,
+    ),
+});
+
 export const DM_ONLY_TOOLS: readonly ToolDefinition[] = [
   ABILITY_CHECK,
   AWARD_COIN,
@@ -1448,6 +1503,7 @@ export const DM_ONLY_TOOLS: readonly ToolDefinition[] = [
   FORCE_PRINTED_SAVE,
   IMPROVISED_DAMAGE,
   LOSE_ITEMS,
+  RESOLVE_FALL,
   ROLL_IMPROVISED_DAMAGE,
   RULE_CONDITION,
   SAVING_THROW,

@@ -52,6 +52,7 @@ import {
   rollModesFor,
   sheetAsItStands,
   speedOf,
+  standingFor,
 } from '../standing.js';
 import {
   checkBonuses,
@@ -78,6 +79,8 @@ import {
   type Placement,
   type Point,
   positionOf,
+  sizeAtMost,
+  sizeOf,
 } from '../positioning.js';
 import {
   describePerDay,
@@ -1089,6 +1092,31 @@ export const HIDE_DC = 15;
 const HIDING_COVER: readonly CoverDegree[] = ['three-quarters', 'total'];
 
 /**
+ * A creature at least one size larger than the hider within five feet, where
+ * the hider holds a grant that lets them hide behind one — or null.
+ *
+ * SRD Naturally Stealthy's sentence, read off the scene: the sizes are what
+ * somebody said before what the map assumed, exactly as the attack path reads
+ * a rider's size gate, and Medium is the map's default for an unstated one.
+ */
+function largerCreatureBeside(state: GameState, hider: CharacterId): CharacterId | null {
+  const holds = standingFor(state, hider).some(
+    ({ from, effect }) => from === hider && effect.grant.kind === 'hides-behind-larger-creature',
+  );
+  const scene = state.scene;
+  if (!holds || scene === null) return null;
+  const own = state.creatures[hider]?.size ?? sizeOf(scene, hider) ?? 'medium';
+  for (const other of Object.keys(state.creatures).sort()) {
+    if (other === hider) continue;
+    const size = state.creatures[other as CharacterId]?.size ?? sizeOf(scene, other as CharacterId);
+    if (size === null || sizeAtMost(size, own)) continue;
+    const apart = distanceBetween(scene, hider, other as CharacterId);
+    if (apart.ok && apart.value <= 5) return other as CharacterId;
+  }
+  return null;
+}
+
+/**
  * What the Invisible condition a Hide buys is recorded under.
  *
  * A source string rather than a casting, for the reason every condition has
@@ -1142,6 +1170,12 @@ export interface HideResolution {
    * creature may well be hiding, and this did not do it.
    */
   readonly hidden: boolean;
+  /**
+   * What the engine could not check: a Hide allowed behind a larger creature
+   * (SRD Naturally Stealthy) names the creature, because which watcher it
+   * stands between the hider and is the table's.
+   */
+  readonly unverified?: readonly string[];
   /** True when this command id had already been applied. */
   readonly duplicate?: boolean;
 }
@@ -1299,7 +1333,14 @@ export function takeHide(
       //
       // Half Cover is deliberately not enough: the book names two degrees and
       // reading the third in would be a better Hide than the SRD prints.
-      if (!obscured) {
+      //
+      // SRD Naturally Stealthy widens the test for its holder alone: "even
+      // when you are obscured only by a creature that is at least one size
+      // larger than you". A larger creature within five feet is the
+      // obscurement; which watcher it stands between the hider and is the
+      // table's, and is said so below.
+      const screen = obscured ? null : largerCreatureBeside(state, id);
+      if (!obscured && screen === null) {
         const scene = state.scene;
         const exposed =
           scene === null
@@ -1372,7 +1413,18 @@ export function takeHide(
         events.push({ type: 'condition-applied', id, condition: 'invisible', source: HIDE });
       }
 
-      return ok({ events, check: rolled.value, hidden: rolled.value.success });
+      return ok({
+        events,
+        check: rolled.value,
+        hidden: rolled.value.success,
+        ...(screen === null
+          ? {}
+          : {
+              unverified: [
+                `${id} hid behind ${screen}, who is at least one size larger and within five feet; whether ${screen} stands between ${id} and each watcher is the table's`,
+              ],
+            }),
+      });
     },
   );
 }

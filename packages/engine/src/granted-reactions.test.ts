@@ -341,19 +341,21 @@ describe('the die in the ally’s hand', () => {
   it('is offered on the holder’s own failed check and failed save, and not on a success', () => {
     const g = conferred();
     const failed = offersForTest(g.state, { who: NYX, kind: 'ability-check', success: false });
-    expect(failed.offers.map((o) => o.feature)).toEqual([INSPIRATION]);
+    // Nyx is a Human, so her own Heroic Inspiration answers the same failure.
+    expect(failed.offers.map((o) => o.feature)).toEqual([INSPIRATION, 'human:resourceful']);
     expect(failed.offers[0]?.costsReaction).toBe(false);
     expect(failed.offers[0]?.granted?.from).toBe(ILVA);
 
     const saved = offersForTest(g.state, { who: NYX, kind: 'saving-throw', success: false });
-    expect(saved.offers.map((o) => o.feature)).toEqual([INSPIRATION]);
+    expect(saved.offers.map((o) => o.feature)).toEqual([INSPIRATION, 'human:resourceful']);
 
     const won = offersForTest(g.state, { who: NYX, kind: 'ability-check', success: true });
     expect(won.offers).toEqual([]);
 
     // And it is the holder's alone: nobody else is offered somebody's die.
+    // (Bram, a Human too, is offered his own Heroic Inspiration and no more.)
     const elsewhere = offersForTest(g.state, { who: BRAM, kind: 'ability-check', success: false });
-    expect(elsewhere.offers).toEqual([]);
+    expect(elsewhere.offers.map((o) => o.feature)).toEqual(['human:resourceful']);
   });
 
   it('adds its die to the failed test and is expended by the use', () => {
@@ -363,7 +365,7 @@ describe('the die in the ally’s hand', () => {
       'check',
     );
     expect(test.test?.success).toBe(false);
-    expect(test.offers.map((o) => o.feature)).toEqual([INSPIRATION]);
+    expect(test.offers.map((o) => o.feature)).toEqual([INSPIRATION, 'human:resourceful']);
     g.push(test.events);
 
     const before = test.test!.total;
@@ -382,8 +384,9 @@ describe('the die in the ally’s hand', () => {
     expect(g.left(ILVA, 'bardic-inspiration')).toBe(PAID);
     expect(pushed.events.some((e) => e.type === 'resource-spent')).toBe(false);
 
+    // The die is gone; what is left on offer is Nyx's own Heroic Inspiration.
     const after = offersForTest(g.state, { who: NYX, kind: 'ability-check', success: false });
-    expect(after.offers).toEqual([]);
+    expect(after.offers.map((o) => o.feature)).toEqual(['human:resourceful']);
   });
 
   /**
@@ -560,11 +563,15 @@ describe('a homebrew pool that confers a Reaction', () => {
     expect(g.left(ORLA, 'watchword')).toBe(2);
     expect(g.held(NYX)).toHaveLength(1);
 
-    // It answers a save and not a check, because that is what it said.
-    expect(offersForTest(g.state, { who: NYX, kind: 'ability-check', success: false }).offers)
-      .toEqual([]);
+    // It answers a save and not a check, because that is what it said. (Nyx's
+    // own Heroic Inspiration answers both, and is not what is being asked.)
+    expect(
+      offersForTest(g.state, { who: NYX, kind: 'ability-check', success: false }).offers.map(
+        (o) => o.feature,
+      ),
+    ).toEqual(['human:resourceful']);
     const save = offersForTest(g.state, { who: NYX, kind: 'saving-throw', success: false });
-    expect(save.offers.map((o) => o.feature)).toEqual(['warden:watchword']);
+    expect(save.offers.map((o) => o.feature)).toEqual(['human:resourceful', 'warden:watchword']);
 
     const rolled = unwrap(
       resolveTest(g.state, NYX, { kind: 'saving-throw', ability: 'wis', dc: 30 }, supply()),

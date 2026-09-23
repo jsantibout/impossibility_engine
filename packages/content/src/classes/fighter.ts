@@ -421,7 +421,7 @@ export const CHAMPION: SubclassDefinition = {
       name: 'Heroic Warrior',
       level: 10,
       automation: 'manual',
-      note: 'Heroic Inspiration during combat is not modelled; Heroic Inspiration itself is not modelled.',
+      note: 'Heroic Inspiration exists now as Resourceful’s resource, spent from the test-rolled window; regaining it at the start of each of your turns in combat is not modelled.',
     },
     {
       id: 'champion:superior-critical',

@@ -15,6 +15,7 @@ import { type CommandIdentity, once } from '../idempotency.js';
 import {
   actionRulesOn,
   canSee,
+  abilityScoresOf,
   fliesWithoutFallingOn,
   hasSpeedInModeOn,
   sheetAsItStands,
@@ -22,6 +23,7 @@ import {
   standingFor,
 } from '../standing.js';
 import {
+  abilityModifier,
   highJumpHeight,
   longJumpDistance,
   type CharacterSheet,
@@ -804,7 +806,12 @@ function checkJump(
   }
 
   if (jump.kind === 'long') {
-    const reach = leap === null ? longJumpDistance(sheet, running) : leap.longJumpFeet;
+    // SRD Second-Story Work: "when you make a running jump, the distance you
+    // cover increases by a number of feet equal to your Dexterity modifier" —
+    // the running Long Jump alone, off the score as it stands.
+    const lengthened = running && leap === null ? jumpBonusFor(state, id) : 0;
+    const reach =
+      leap === null ? longJumpDistance(sheet, running) + lengthened : leap.longJumpFeet;
     return feet > reach
       ? err(
           'jump_too_far',
@@ -824,6 +831,16 @@ function checkJump(
 
 /** SRD "Jump": "if you move at least 10 feet immediately before the jump". */
 const RUNNING_START = 10;
+
+/** The feet a `jump-bonus` grant adds to the holder's running Long Jump, never below nothing. */
+function jumpBonusFor(state: GameState, who: CharacterId): number {
+  let feet = 0;
+  for (const { from, effect } of standingFor(state, who)) {
+    if (from !== who || effect.grant.kind !== 'jump-bonus') continue;
+    feet += Math.max(0, abilityModifier(abilityScoresOf(state, who)[effect.grant.fromAbility]));
+  }
+  return feet;
+}
 
 /**
  * The check a climb might cost, which is the table's to call for — and the one
@@ -1656,6 +1673,18 @@ export interface FallCommand extends CommandIdentity {
    * {@link flightLost}.
    */
   readonly feet?: number;
+  /**
+   * A feature the faller elects to take the landing with: SRD Slow Fall, "you
+   * can take a Reaction to reduce any damage you take from the fall by an
+   * amount equal to five times your Monk level."
+   *
+   * The caller names the feature and nothing else — the amount is the sheet's
+   * — and the engine spends the Reaction where there is a fight to spend it
+   * in. An election rather than an automatic reduction because the SRD says
+   * "can": a Monk saving the Reaction for something else is a choice the
+   * engine must not make for them.
+   */
+  readonly reaction?: string;
 }
 
 /**
@@ -1720,6 +1749,8 @@ export interface FallResolution {
   readonly damage: number;
   /** Whether the landing left them Prone. */
   readonly prone: boolean;
+  /** What the feature the faller elected takes off the dice, before their own defences meet them. */
+  readonly reduced?: number;
   /**
    * What the engine could not check, and why the landing left them standing.
    *
@@ -1932,6 +1963,34 @@ export function resolveFall(
     const dice = `${count}d6`;
     const source = `a ${feet}-foot fall`;
 
+    // SRD Slow Fall, elected by name: the feature's record on the sheet says
+    // what it takes off, and the Reaction is refused before a die is thrown.
+    let reduction = 0;
+    const eased: GameEvent[] = [];
+    if (command.reaction !== undefined) {
+      const held = standingFor(state, id).find(
+        ({ from, effect }) =>
+          from === id &&
+          effect.feature === command.reaction &&
+          effect.grant.kind === 'fall-damage-reduction',
+      );
+      if (held === undefined || held.effect.grant.kind !== 'fall-damage-reduction') {
+        return err(
+          'no_such_feature',
+          `${id} holds no feature called ${command.reaction} that softens a fall`,
+        );
+      }
+      const grant = held.effect.grant;
+      reduction = grant.perClassLevel * (grant.classLevel ?? faller.sheet.level);
+      if (state.combat !== null && state.combat.budgets[id] !== undefined) {
+        const spent = spendReaction(state.combat, id, faller.conditions, {
+          rules: actionRulesOn(state, id),
+        });
+        if (!spent.ok) return spent;
+        eased.push({ type: 'reaction-spent', id });
+      }
+    }
+
     // Validated before a die is thrown, so a refused call moved nothing — and
     // the faller's own sheet is what the dice are rolled against, contributing
     // nothing to them, because the ground carries nobody's ability modifier.
@@ -1952,6 +2011,7 @@ export function resolveFall(
     // already taken out of it.
     const events: GameEvent[] = [
       ...descent,
+      ...eased,
       {
         type: 'rolls-issued',
         count: supply.issuer.count - issuedBefore,
@@ -1960,7 +2020,17 @@ export function resolveFall(
       },
     ];
 
-    const hurt = dealSpellDamage(state, id, rolled.value, source, supply, {});
+    // The reduction comes off the dice before the faller's own defences meet
+    // them — "reduce any damage you take from the fall" is about the fall's
+    // number — and never below nothing.
+    const landing =
+      reduction === 0
+        ? rolled.value
+        : rolled.value.map((component) => ({
+            ...component,
+            total: Math.max(0, component.total - reduction),
+          }));
+    const hurt = dealSpellDamage(state, id, landing, source, supply, {});
     if (!hurt.ok) return hurt;
     events.push(...hurt.value.events);
 
@@ -1977,6 +2047,7 @@ export function resolveFall(
       dice,
       damage: hurt.value.amount,
       prone: floored.ok,
+      ...(reduction === 0 ? {} : { reduced: reduction }),
       unverified: [...dropped.value.unverified, ...(floored.ok ? [] : [floored.reason])],
       concentration: hurt.value.concentration,
       duplicate: false,

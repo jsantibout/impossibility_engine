@@ -27,6 +27,7 @@ import {
 } from './conditions.js';
 import {
   abilityModifier,
+  proficiencyBonus,
   armorClass,
   hasSpeedInMode,
   speedInMode,
@@ -669,6 +670,51 @@ export type StandingGrant =
    * sentence names.
    */
   | { readonly kind: 'passage'; readonly sizesLarger: number }
+  /**
+   * SRD Jack of All Trades: "You can add half your Proficiency Bonus (round
+   * down) to any ability check you make that uses a skill proficiency you lack
+   * and that doesn't already include that bonus."
+   *
+   * Read where every check bonus is gathered, and only for a check made
+   * **with a skill** the holder is not proficient in: a raw Strength check
+   * uses no skill proficiency, and Initiative uses none either — the 2024
+   * reading, which is the opposite of 2014's. No field, because the half is
+   * the sentence's and the bonus is the sheet's.
+   */
+  | { readonly kind: 'half-proficiency-on-checks' }
+  /**
+   * SRD Naturally Stealthy: "You can take the Hide action even when you are
+   * obscured only by a creature that is at least one size larger than you."
+   *
+   * The concealment `takeHide` asks for — Three-Quarters Cover, Total Cover or
+   * Heavy Obscurement — widened for its holder alone to a creature one size
+   * larger standing within five feet. Which watcher that creature stands
+   * between the hider and is the table's, and the Hide says so.
+   */
+  | { readonly kind: 'hides-behind-larger-creature' }
+  /**
+   * SRD Slow Fall: "you can take a Reaction to reduce any damage you take from
+   * the fall by an amount equal to five times your Monk level."
+   *
+   * The multiplier is the sentence's; the level is the **granting class's**,
+   * pinned at creation into `classLevel` because a multiclassed Monk's sheet
+   * holds only the total and this sentence counts Monk levels. `resolveFall`
+   * reads it when the faller elects the Reaction.
+   */
+  | {
+      readonly kind: 'fall-damage-reduction';
+      readonly perClassLevel: number;
+      /** Pinned by creation; absent on content, which never knows the level. */
+      readonly classLevel?: number;
+    }
+  /**
+   * SRD Second-Story Work: "when you make a running jump, the distance you
+   * cover increases by a number of feet equal to your Dexterity modifier."
+   *
+   * Feet added to the running Long Jump alone, read off the holder's own
+   * score as it stands where the jump's reach is measured.
+   */
+  | { readonly kind: 'jump-bonus'; readonly fromAbility: Ability }
   /**
    * SRD Aura of Courage: "Immunity to the Frightened condition while in your
    * Aura of Protection. If a Frightened ally enters the aura, that condition
@@ -2415,6 +2461,17 @@ export function standingCheckBonuses(
   const best = new Map<string, Bonus>();
 
   for (const { from, effect } of standingFor(state, who)) {
+    // SRD Jack of All Trades: half the holder's own Proficiency Bonus, on a
+    // check made with a skill the holder is **not** proficient in.
+    if (effect.grant.kind === 'half-proficiency-on-checks') {
+      const holder = state.creatures[from];
+      if (holder === undefined || from !== who) continue;
+      const level = holder.sheet.skills[skill] ?? 'none';
+      if (level !== 'none') continue;
+      const flat = Math.floor(proficiencyBonus(sheetAsItStands(state, who) ?? holder.sheet) / 2);
+      if (flat > 0) best.set(effect.feature, { source: effect.name, flat });
+      continue;
+    }
     if (effect.grant.kind !== 'check-bonus') continue;
     if (!effect.grant.skills.includes(skill)) continue;
 

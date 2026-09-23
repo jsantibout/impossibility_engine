@@ -3316,6 +3316,8 @@ const UNGUARDED_ON_PURPOSE: Readonly<Record<string, string>> = {
   releaseReady:
     'a Reaction: it answers a window that is already open, and refusing it would strand a legal one',
   takeOpportunityAttack: 'a Reaction, taken on somebody else’s turn',
+  resolveFall:
+    'the ground: the one thing it spends is the Reaction a faller elects to land with — SRD Slow Fall — and that is a Reaction taken while falling, on whoever’s turn the fall happens, which is `takeOpportunityAttack`’s exemption. The height is a fact the table states rather than an action anybody takes, and a guard would refuse to let a creature hit the floor because somebody else owed a saving throw',
   takeDamageReaction: 'a Reaction, and it closes a window somebody else opened',
   takeTestReaction: 'a Reaction, and it closes a window somebody else opened',
   takeDamageResponse: 'a Reaction, and it closes a window somebody else opened',
@@ -3686,7 +3688,7 @@ const ENDS_A_CASTING_UNGUARDED: Readonly<Record<string, string>> = {
   rollInitiativeAndBeginCombat:
     'the same moment reached through the dice, which is the whole of what it adds: it rolls Initiative and hands the order to beginCombat, so the casting it can end is the one that boundary’s payout ends, and it is exempt for the same reason and no other',
   declareLight:
-    'the casting it ends is ended by the **book** rather than by anybody acting: SRD Darkness and SRD Daylight put each other out where their areas overlap, and this command is the table saying where the light is. Nobody in the fight spends a thing on a declaration, the dispel is a consequence of the geometry rather than a decision, and a guard would refuse to let a DM describe the room because somebody owed a saving throw — which is `resolveFall`’s exemption in the same words',
+    'the casting it ends is ended by the **book** rather than by anybody acting: SRD Darkness and SRD Daylight put each other out where their areas overlap, and this command is the table saying where the light is. Nobody in the fight spends a thing on a declaration, the dispel is a consequence of the geometry rather than a decision, and a guard would refuse to let a DM describe the room because somebody owed a saving throw — which is `rollImprovisedDamage`’s exemption in the same words',
   removeCreatureEverywhere:
     'the casting leaves with its caster, and the creature leaving is bookkeeping about the cast rather than an action: refusing it while a debt stood would leave a fight unable to continue without somebody who is already gone',
   dismissStrandedSummons:
@@ -3695,8 +3697,6 @@ const ENDS_A_CASTING_UNGUARDED: Readonly<Record<string, string>> = {
     'the outcome of damage rather than a decision anybody makes: SRD ends the Concentration through the Constitution saving throw this command rolls, and settling the debt is frequently what sent the damage here in the first place',
   rollImprovisedDamage:
     'the same outcome with the dice still to throw, and exempt for the same reason: the falling brazier is not anybody’s action, nobody in the fight spends a thing on it, and the Concentration it can end is ended by the save `resolveDamage` beneath it rolls — a guard would refuse the ceiling coming down because somebody owed a saving throw',
-  resolveFall:
-    'the ground, which is the falling brazier from the other side: nobody in the fight spends anything on a landing, the height is a fact the table states rather than an action anybody takes, and the Concentration it can end is ended by the save `resolveDamage` beneath it rolls — a guard would refuse to let a creature hit the floor because somebody else owed a saving throw',
   // `settleAreaEffects` was here until a `chance` effect began counting its
   // casting. The count is a `resource-spent`, so an effect list this command
   // settles can reach one and the spender closure finds it — its exemption

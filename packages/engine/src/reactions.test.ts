@@ -384,10 +384,13 @@ const heldDamage = (events: readonly GameEvent[]) => {
 
 describe('the sheet carries the Reactions a class grants', () => {
   it('gives a Rogue 5 Uncanny Dodge and nothing before level 5', () => {
-    expect((sheetFor(rogue(4), 'rogue 4').reactions ?? []).map((r) => r.feature)).toEqual([]);
+    // Nyx is a Human, so Resourceful's Heroic Inspiration is on the sheet at every level.
+    expect((sheetFor(rogue(4), 'rogue 4').reactions ?? []).map((r) => r.feature)).toEqual([
+      'human:resourceful',
+    ]);
     const five = sheetFor(rogue(5), 'rogue 5').reactions ?? [];
-    expect(five.map((r) => r.feature)).toEqual(['rogue:uncanny-dodge']);
-    expect(five[0]).toMatchObject({
+    expect(five.map((r) => r.feature)).toEqual(['rogue:uncanny-dodge', 'human:resourceful']);
+    expect(five.find((r) => r.feature === 'rogue:uncanny-dodge')).toMatchObject({
       window: 'damage-rolled',
       costsReaction: true,
       pool: null,
@@ -1319,6 +1322,9 @@ describe('Indomitable', () => {
 
   it('is offered on a failed save and not on a successful one', () => {
     const g = new Game(built());
+    // Bram is a Human, but this fixture declares only Indomitable's pool:
+    // Resourceful's Heroic Inspiration is on the sheet with nothing to spend,
+    // and a feature that cannot pay is not offered.
     expect(failing(g).offers.map((o) => o.feature)).toEqual(['fighter:indomitable']);
 
     const easy = unwrap(

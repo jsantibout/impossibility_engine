@@ -916,6 +916,10 @@ describe('the same seed and the same calls write the same log', () => {
         advantage: 'the rope is already in her hand',
       }),
     );
+    // Kessa is a Human: a failed check offers her Heroic Inspiration, and the
+    // window it opens has to be settled before the next roll. That is the
+    // table's protocol, so the evening follows it whichever way the die fell.
+    if (t.campaign.state().pendingTest !== null) expectOk(t.call('settle_test', {}));
     expectOk(
       t.call('roll_improvised_damage', {
         target: 'kessa',

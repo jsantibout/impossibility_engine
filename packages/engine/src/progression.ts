@@ -2461,7 +2461,24 @@ export type ReactionGrantEffect =
       readonly outcome: 'failure' | 'success' | 'either';
       readonly refundedOnFailure?: true;
     }
-  | { readonly kind: 'reroll'; readonly bonus?: 'class-level' }
+  | {
+      readonly kind: 'reroll';
+      readonly bonus?: 'class-level';
+      /**
+       * Which D20 Tests it answers. Absent is SRD Indomitable's "If you fail
+       * a saving throw": saving throws alone. SRD Heroic Inspiration answers
+       * "any die", which on this window is both kinds of test.
+       *
+       * Every reroll answers a **failure**, and there is no field for the
+       * other outcome on purpose. Heroic Inspiration's sentence would let a
+       * made roll be thrown again too, and the window stays shut on one: a
+       * window that opened on every check a Human made would turn every
+       * ordinary roll into a two-command negotiation, and the one case where a
+       * made roll's total still matters — a Stealth check's total is the DC to
+       * find the hider — is the table's to allow.
+       */
+      readonly tests?: readonly D20TestKind[];
+    }
   | { readonly kind: 'melee-attack'; readonly withinFeet: number };
 
 /**

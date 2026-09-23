@@ -471,8 +471,10 @@ describe('a character can be asked what it holds', () => {
     );
     // Non-vacuous, and exhaustive over the kinds the surface claims to spend:
     // a party holding none of one of them would make the sweep silent about it.
+    // A Reaction's door is its window's tool, `TAKEN_BY`, so it is the one
+    // kind with a door that is not a `SPENT_BY` key.
     expect([...new Set(spendable.map((one) => one.kind))].sort()).toEqual(
-      Object.keys(SPENT_BY).sort(),
+      [...Object.keys(SPENT_BY), 'reaction'].sort(),
     );
     for (const one of spendable) expect(TOOL_NAMES).toContain(one.spentBy);
   });

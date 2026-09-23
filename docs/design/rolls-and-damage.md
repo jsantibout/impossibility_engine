@@ -125,6 +125,9 @@ path a Fire Bolt already takes, with the Prone condition on landing unless the
 drop cost nothing. What has not changed is who says how far: a height is a
 fact about the room, the same class as the Hydra's active head count, so when
 the fall gets a tool that tool is **DM-only** — a model stating a height
-converts directly into 20d6. What is still missing is a *reduction* applied to
-damage, which is why Feather Fall and a Monk's Slow Fall do not work yet and
-why `FeatureReactionWindow` still excludes `creature-falling`.
+converts directly into 20d6; that tool is `resolve_fall`. A reduction comes off
+the landing's dice when the faller elects a feature by name — SRD Slow Fall is a
+`fall-damage-reduction` standing grant, read by `resolveFall`, which spends the
+Reaction where a fight is running — but no *window* opens on a fall:
+`FeatureReactionWindow` still excludes `creature-falling`, which is why Feather
+Fall, a spell cast in answer to somebody else's fall, does not work yet.

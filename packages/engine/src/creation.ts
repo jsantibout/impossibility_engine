@@ -2851,6 +2851,13 @@ export function planCharacter(
         effect = { ...effect, feet: usesOf(choices, feature.id, grant.feetByLevel) };
       }
 
+      // SRD Slow Fall: "five times your Monk level" — the granting class's
+      // own level, pinned here because a Monk 4 / Fighter 1 is a Monk 4 to
+      // this sentence and the sheet holds only the total.
+      if (effect.kind === 'fall-damage-reduction') {
+        effect = { ...effect, classLevel: classLevelFor(choices, feature.id) };
+      }
+
       standing.push({
         feature: feature.id,
         name: feature.name,
@@ -3967,6 +3974,7 @@ function reactionEffectOf(
       ...(does.bonus === undefined
         ? {}
         : { bonus: { kind: 'level' as const, level, label: `${className} level` } }),
+      ...(does.tests === undefined ? {} : { tests: does.tests }),
     };
   }
 

@@ -361,15 +361,18 @@ function reachOf(
   sheet: HeldSheet,
 ): Reach {
   const line = sheet.features.find((one) => one.feature === feature.id);
-  if (line !== undefined && line.spentBy !== null) {
-    return { how: 'spendable', door: line.spentBy };
-  }
+  // A Reaction before the door check, because its line now names its door —
+  // the tool that answers its window — and what this sweep wants to say about
+  // it is that it is reached through a window rather than at will.
   if (line !== undefined && line.kind === 'reaction') {
     const window = line.window ?? '';
     const door = (TAKEN_BY as Readonly<Record<string, string>>)[window];
     return door === undefined
       ? { how: 'unreachable', why: `a Reaction in a window nothing answers: ${window}` }
       : { how: 'reaction', door };
+  }
+  if (line !== undefined && line.spentBy !== null) {
+    return { how: 'spendable', door: line.spentBy };
   }
   if (line !== undefined && line.kind === 'passive') return { how: 'passive' };
 
