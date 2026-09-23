@@ -414,19 +414,38 @@ describe('what the catalogue refuses at the door', () => {
  * level does.
  */
 describe('a character made before the trait asked anything', () => {
-  it('is refused a level until the ability is named, and takes it once it is', () => {
-    const stored = { ...tiefling() } as CharacterChoices & {
-      featureSpellcasting?: Record<string, string>;
-    };
-    delete stored.featureSpellcasting;
+  /**
+   * The record as it was written then: the log this engine has already stored
+   * carries the choices a character was made with, and those choices have no
+   * answer to a question the species had not started asking. Reproduced by
+   * taking the field back out of the stored `character-created`, which is
+   * exactly what such a log holds.
+   */
+  /** The same choices with the answer taken back out. */
+  const unanswered = ({
+    featureSpellcasting: _answered,
+    ...choices
+  }: CharacterChoices): CharacterChoices => choices;
 
-    // Created as they were: the refusal is about the plan, so the log itself
-    // is built from the answered choices and the record is then emptied.
-    const log = unwrap(createCharacter(SRD_CONTENT, tiefling(), WHO), 'creation') as GameEvent[];
+  const asStored = (): GameEvent[] =>
+    (unwrap(createCharacter(SRD_CONTENT, tiefling(), WHO), 'creation') as GameEvent[]).map(
+      (event) => {
+        if (event.type !== 'character-created') return event;
+        return { ...event, record: { ...event.record, choices: unanswered(event.record.choices) } };
+      },
+    );
+
+  it('is refused a level until the ability is named, and takes it once it is', () => {
+    const log = asStored();
     const before = fold('seed', log);
+    expect(before.creatures[WHO]?.character?.choices.featureSpellcasting).toBeUndefined();
 
     const blind = advanceCharacter(before, SRD_CONTENT, WHO, {});
-    expect(blind.ok).toBe(true);
+    expect(isErr(blind)).toBe(true);
+    if (isErr(blind)) {
+      expect(blind.code).toBe('missing_feature_spellcasting');
+      expect(blind.reason).toContain('and none was chosen');
+    }
 
     const answered = unwrap(
       advanceCharacter(before, SRD_CONTENT, WHO, {
@@ -438,6 +457,7 @@ describe('a character made before the trait asked anything', () => {
     expect(after.creatures[WHO]?.character?.choices.featureSpellcasting).toEqual({
       [LEGACY]: 'wis',
     });
+    expect(after.creatures[WHO]?.sheet.level).toBe(2);
   });
 });
 

@@ -3775,9 +3775,12 @@ function reactionEffectOf(
  *
  * *That class's* level and not the character's: a multiclassed Bard's
  * inspiration does not grow with their Fighter levels, and a Sorcerer 5 /
- * Fighter 5 gets back half of five rather than half of ten. A feature whose
- * class is not one this character has falls back to the character level, which
- * is the only reading available for a species or feat grant.
+ * Fighter 5 gets back half of five rather than half of ten.
+ *
+ * A feature belonging to no class this character has — a species trait, a
+ * background's — falls back to the **character** level, which is the only
+ * reading available for one: a species has no table and its own sentences are
+ * written in character levels.
  */
 function classLevelFor(choices: CharacterChoices, featureId: string): number {
   const namespace = featureId.split(':')[0] ?? '';
@@ -3790,7 +3793,7 @@ function classLevelFor(choices: CharacterChoices, featureId: string): number {
   return (
     classLevelsOf(choices).find(
       (entry) => entry.classId === namespace || entry.subclassId === namespace,
-    )?.level ?? choices.level
+    )?.level ?? totalLevelOf(choices)
   );
 }
 
@@ -4466,10 +4469,20 @@ export function advanceCharacter(
       ? {}
       : { hitPoints: rollsFor(record.choices.hitPoints, level, advance.hitPointRoll) }),
     featureChoices: { ...record.choices.featureChoices, ...(advance.featureChoices ?? {}) },
-    featureSpellcasting: {
+    // Absent where it has always been absent: a record that answered no such
+    // question and is given no answer now keeps the shape it was written with,
+    // which is the rule every optional field on a stored record follows.
+    ...(Object.keys({
       ...record.choices.featureSpellcasting,
       ...(advance.featureSpellcasting ?? {}),
-    },
+    }).length === 0
+      ? {}
+      : {
+          featureSpellcasting: {
+            ...record.choices.featureSpellcasting,
+            ...(advance.featureSpellcasting ?? {}),
+          },
+        }),
     feats: { ...record.choices.feats, ...(advance.feats ?? {}) },
     ...(advance.dmGrants === undefined ? {} : { dmGrants: advance.dmGrants }),
     // What is worn is live state, not a choice made at level 1. A shirt bought

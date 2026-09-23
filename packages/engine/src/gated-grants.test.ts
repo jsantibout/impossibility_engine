@@ -35,6 +35,9 @@ const ORACLE = {
   id: 'oracle',
   name: 'Oracle',
   primaryAbility: 'wis',
+  // It casts, so that the gate can be asked of the one list a casting class
+  // builds for itself — see `oracle:oracle-spells` below.
+  spellcasting: { ability: 'wis', style: 'known', progression: 'full', startsAtLevel: 1 },
   hitDie: 8,
   saveProficiencies: ['wis', 'cha'],
   skillChoices: { choose: 2, from: ['insight', 'arcana', 'religion', 'perception'] },
@@ -77,6 +80,24 @@ const ORACLE = {
         usesByLevel: Array.from({ length: 20 }, () => 2),
         recovers: 'long-rest',
         heals: { dice: '1d4', plus: 'class-level', action: 'bonus-action' },
+        onlyIfChoice: 'Seer',
+        choiceFrom: 'oracle:calling',
+      },
+    },
+    {
+      // The third pass a gate has to reach, and the one that builds its own
+      // list: a class's own spells are gathered per casting class, off
+      // `castingFeaturesOf`, rather than out of the character's whole feature
+      // list — so a grant whose option nobody took has to be gone from that
+      // list too, or a Sentinel would always have the Seer's spell prepared.
+      id: 'oracle:oracle-spells',
+      name: 'Oracle Spells',
+      level: 1,
+      automation: 'engine',
+      note: 'The Seer always has Guidance prepared.',
+      grants: {
+        kind: 'spells',
+        fixed: ['guidance'],
         onlyIfChoice: 'Seer',
         choiceFrom: 'oracle:calling',
       },
@@ -146,6 +167,20 @@ describe('a gate on a grant that is not a standing benefit', () => {
   it('declares a pool for the option that has one and not for the other', () => {
     expect(poolKeys('Seer')).toContain('visions');
     expect(poolKeys('Sentinel')).not.toContain('visions');
+  });
+
+  /**
+   * And the list a **casting class** builds for itself, which is a different
+   * pass with a different feature list: an always-prepared spell belonging to
+   * one option is prepared for that option alone.
+   */
+  it('prepares a class’s own gated spell for the option that took it', () => {
+    const prepared = (calling: string) =>
+      unwrap(planCharacter(CONTENT, oracle(calling)), 'plan').spellcasting.classes.flatMap(
+        (one) => one.prepared,
+      );
+    expect(prepared('Seer')).toContain('guidance');
+    expect(prepared('Sentinel')).not.toContain('guidance');
   });
 
   /** Read off the sibling that asked, which is how a species is written. */

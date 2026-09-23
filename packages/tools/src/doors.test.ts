@@ -839,7 +839,15 @@ const ANSWERS: Readonly<Record<string, Answer>> = {
   // spell to somebody with no class to cast it: SRD Fiendish Legacy's
   // "Intelligence, Wisdom, or Charisma is your spellcasting ability for the
   // spells you cast with this trait".
-  missing_feature_spellcasting: { fields: ['create_character.choices.featureSpellcasting'] },
+  // Two doors, for `missing_dm_grants`'s reason one row down: a character made
+  // before their species asked this answers it on the way to their next level,
+  // so the advance takes the field too.
+  missing_feature_spellcasting: {
+    fields: [
+      'create_character.choices.featureSpellcasting',
+      'advance_character.featureSpellcasting',
+    ],
+  },
   // Two doors, because the rules ask for it at every level above the first
   // and a character created at level 1 states it for the first time on its
   // way to level 2. `advance_character` was written without the field and

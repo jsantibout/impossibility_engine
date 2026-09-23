@@ -4098,26 +4098,39 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
                 reason: `${feature.id} arrives at level ${feature.level} and reads a choice ${chooser.id} does not ask until ${chooser.level}, so it would grant nothing in between and say so nowhere`,
               });
             }
-            // And the other thing a grant reads off a sibling: the spellcasting
-          // ability. SRD Otherworldly Presence uses "the same spellcasting
-          // ability you use for your Fiendish Legacy trait", so the trait it
-          // names has to be one that really asked for one — a grant reading an
-          // ability nobody offered is compiled with none and grants nothing,
-          // silently, to every character who takes the species.
-          if (from !== undefined && grant.kind === 'spells' && grant.abilities === undefined) {
-            const offered = featureGrants(chooser).some(
-              (declared) => declared.kind === 'spells' && (declared.abilities ?? []).length > 0,
-            );
-            if (!offered) {
-              problems.push({
-                field: `${grantsAt}.choiceFrom`,
-                code: 'choice_from_offers_no_ability',
-                reason: `${feature.id} casts what it grants off the ability ${chooser.id} asked for, and ${chooser.id} offers none`,
-              });
+            // And the other thing an **origin's** grant reads off a sibling:
+            // the spellcasting ability. SRD Otherworldly Presence uses "the
+            // same spellcasting ability you use for your Fiendish Legacy
+            // trait", so the trait it names has to be one that really asked
+            // for one — a grant reading an ability nobody offered is compiled
+            // with none and grants nothing, silently, to everybody who takes
+            // the species.
+            //
+            // **Asked of an origin and of nothing else**, which is the scope
+            // `free_casting_without_a_caster` above already keeps: a class
+            // feature's spells are cast off the *class's* ability, so
+            // `choiceFrom` on one is the gate pointer and nothing more, and a
+            // class writing "one of the following options" with the question
+            // on a sibling is a legal thing to write.
+            if (
+              source.origin === true &&
+              from !== undefined &&
+              grant.kind === 'spells' &&
+              grant.abilities === undefined
+            ) {
+              const asks = featureGrants(chooser).some(
+                (declared) => declared.kind === 'spells' && (declared.abilities ?? []).length > 0,
+              );
+              if (!asks) {
+                problems.push({
+                  field: `${grantsAt}.choiceFrom`,
+                  code: 'choice_from_offers_no_ability',
+                  reason: `${feature.id} casts what it grants off the ability ${chooser.id} asked for, and ${chooser.id} offers none`,
+                });
+              }
             }
-          }
 
-          // And the gate, against the options the chooser really offers. A
+            // And the gate, against the options the chooser really offers. A
             // gate naming an option nobody can pick is never an error at any
             // moment: the grant is simply never compiled, and nothing says why.
             const gate = grant.onlyIfChoice;
