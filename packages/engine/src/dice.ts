@@ -509,14 +509,21 @@ export interface D20Outcome {
 }
 
 /**
- * The d20 test that underpins every check, save and attack roll.
+ * What a set of d20 faces comes to under a mode.
  *
- * Critical hits and misses key off the natural die, never the modified total —
- * a +9 rogue rolling a natural 1 still fumbles.
+ * **Its own function because two callers read the same faces.** {@link rollD20}
+ * throws them, and `rollD20Recorded` throws one of them *again* for SRD Luck
+ * and has to settle the pair a second time — so the mode, the total and the
+ * two critical faces are derived here and nowhere else. Two copies of this
+ * would be two answers to "which die counted", and the day one of them learns
+ * a Champion's lowered critical face is the day the other is quietly wrong for
+ * rerolled rolls alone.
  */
-export function rollD20(rng: Rng, mode: RollMode, modifier: number): D20Outcome {
-  const rolls = mode === 'normal' ? [rng.int(20)] : [rng.int(20), rng.int(20)];
-
+export function settleD20(
+  rolls: readonly number[],
+  mode: RollMode,
+  modifier: number,
+): D20Outcome {
   const natural =
     mode === 'advantage'
       ? Math.max(...rolls)
@@ -533,4 +540,30 @@ export function rollD20(rng: Rng, mode: RollMode, modifier: number): D20Outcome 
     isCriticalHit: natural === 20,
     isCriticalMiss: natural === 1,
   };
+}
+
+/**
+ * The d20 test that underpins every check, save and attack roll.
+ *
+ * Critical hits and misses key off the natural die, never the modified total —
+ * a +9 rogue rolling a natural 1 still fumbles.
+ */
+export function rollD20(rng: Rng, mode: RollMode, modifier: number): D20Outcome {
+  return settleD20(
+    mode === 'normal' ? [rng.int(20)] : [rng.int(20), rng.int(20)],
+    mode,
+    modifier,
+  );
+}
+
+/**
+ * Which of the faces thrown is the one the mode counted.
+ *
+ * Ties go to the first, which is {@link settleD20}'s own reading of a mode —
+ * `Math.max` of two 14s is the first 14. A rule that replaces "the d20 of a
+ * D20 Test" needs to know which die that was, and this is the one place it is
+ * decided.
+ */
+export function countedDieIndex(outcome: D20Outcome): number {
+  return outcome.rolls.indexOf(outcome.natural);
 }

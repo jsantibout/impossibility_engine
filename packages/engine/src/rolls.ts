@@ -1,9 +1,11 @@
 import { asRollId, err, ok, type Result, type RollId, type RollMode } from '@ie/shared';
 import {
+  countedDieIndex,
   notationBounds,
   parseNotation,
   rollD20,
   rollUnder,
+  settleD20,
   type D20Outcome,
   type DieEffect,
   type Rng,
@@ -121,25 +123,14 @@ export function rollD20Recorded(
   if (reroll === null || first.natural !== reroll.on) return first;
 
   // Which die counted, so the replacement lands on that one rather than on a
-  // fresh pair. Ties go to the first, which is `rollD20`'s own reading of a
-  // mode and is what keeps the two functions from disagreeing about it.
-  const counted = first.rolls.indexOf(first.natural);
+  // fresh pair — and then the **same** settlement the first throw got, from
+  // the same function, so the two can never disagree about which die counts
+  // or about what a natural 20 is. See `settleD20`.
+  const counted = countedDieIndex(first);
   const rolls = first.rolls.map((face, index) => (index === counted ? rng.int(20) : face));
-  const natural =
-    mode === 'advantage'
-      ? Math.max(...rolls)
-      : mode === 'disadvantage'
-        ? Math.min(...rolls)
-        : rolls[0]!;
 
   return {
-    rolls,
-    natural,
-    mode,
-    modifier,
-    total: natural + modifier,
-    isCriticalHit: natural === 20,
-    isCriticalMiss: natural === 1,
+    ...settleD20(rolls, mode, modifier),
     // Its own id, and no note: `note` is why a roll was *overridden* by
     // somebody, and this is the engine rolling its own dice under its own
     // rule. What said so travels on the event, beside the face it replaced.

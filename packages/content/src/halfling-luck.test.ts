@@ -6,7 +6,9 @@ import {
   createRollIssuer,
   fold,
   resolveAttack,
+  resolveTurn,
   rollAbilityCheck,
+  rollInitiativeFor,
   rollSavingThrow,
   sheetAsItStands,
   type CharacterChoices,
@@ -284,6 +286,117 @@ describe('SRD Luck throws a natural 1 again on every family of D20 Test', () => 
     expect(rolled.rolls).toEqual([9, 17]);
     expect(rolled.natural).toBe(9);
     expect(rolled.supersedes?.natural).toBe(1);
+  });
+});
+
+/**
+ * **The two rollers the sheet does not reach by itself, and the reason they
+ * are worth their own tests.**
+ *
+ * Every other D20 Test in the engine comes out of `checks.ts` or `attack.ts`,
+ * both of which are handed the sheet and read the trait off it. Initiative is
+ * a Dexterity check rolled by `combat.ts`, and a death save is rolled from
+ * `Vitals` because the SRD says it "isn't tied to an ability score" — so each
+ * needed one line wiring the trait in by hand, and a line wired by hand is a
+ * line that can be deleted without anything noticing. These notice.
+ */
+describe('the two rollers wired by hand', () => {
+  // Both of these are Champions, and SRD Remarkable Athlete grants Advantage
+  // on Initiative — so two dice are thrown and the rule reaches the one the
+  // mode counted, which is the case worth driving anyway.
+  it('rerolls a 1 on Initiative', () => {
+    const rolled = unwrap(
+      rollInitiativeFor(STATE, PIP, createRollIssuer('r'), scripted({ 20: [1, 1, 16] })),
+      'initiative',
+    );
+    expect(rolled.roll.natural).toBe(16);
+    expect(rolled.roll.superseded?.natural).toBe(1);
+  });
+
+  it('leaves a creature without the trait with its 1 on Initiative', () => {
+    const rolled = unwrap(
+      rollInitiativeFor(STATE, BREN, createRollIssuer('r'), scripted({ 20: [1, 1] })),
+      'initiative',
+    );
+    expect(rolled.roll.natural).toBe(1);
+    expect(rolled.roll.superseded).toBeUndefined();
+  });
+
+  /**
+   * SRD: "Whenever you start your turn with 0 Hit Points, you must make a
+   * Death Saving Throw." Driven through the turn boundary, which is the only
+   * door that rolls one, so what is under test is the roll a real fight makes.
+   */
+  const dying = (who: CharacterId): readonly GameEvent[] => [
+    ...LOG,
+    {
+      type: 'combat-started',
+      // The Goblin goes first so that one `resolveTurn` brings the turn round
+      // to the creature that is down, which is the boundary that owes the save.
+      combatants: [
+        { id: GOBLIN, initiative: 20, speed: 30 },
+        { id: who, initiative: 10, speed: 25 },
+        { id: who === PIP ? BREN : PIP, initiative: 1, speed: 25 },
+      ],
+    },
+    // Exactly what they have, so they drop to 0 with no remainder — a blow
+    // whose remainder reached the hit point maximum would be Massive Damage,
+    // and the dead make no saves.
+    {
+      type: 'damage-taken',
+      id: who,
+      amount: STATE.creatures[who]!.vitals.hp,
+      source: 'a very bad day',
+    },
+    { type: 'condition-applied', id: who, condition: 'unconscious', source: 'zero hit points' },
+  ];
+
+  const deathSaveOf = (who: CharacterId, faces: readonly number[]) => {
+    const out = unwrap(
+      resolveTurn(fold('seed', dying(who)), {
+        issuer: createRollIssuer('r'),
+        rng: scripted({ 20: faces }),
+        content: SRD_CONTENT,
+      }),
+      'turn',
+    );
+    const record = out.events.find((e) => e.type === 'death-save-recorded');
+    if (record?.type !== 'death-save-recorded') throw new Error('no death save was rolled');
+    return record;
+  };
+
+  it('rerolls a 1 on a death saving throw', () => {
+    expect(deathSaveOf(PIP, [1, 17]).natural).toBe(17);
+  });
+
+  it('leaves a creature without the trait with its 1 on a death saving throw', () => {
+    expect(deathSaveOf(BREN, [1]).natural).toBe(1);
+  });
+});
+
+/**
+ * **A face a table read out is not the engine's to replace.**
+ *
+ * `resolveStatedD20` is the other path through the pipeline and the trait must
+ * not reach it: physical dice at a real table, or a DM's stated ruling, are
+ * numbers the engine records rather than produces — inviolable rule 1 read
+ * from the human-DM side. A generator that threw nothing at all is the proof:
+ * the 1 stands, and no second die was asked for.
+ */
+describe('a stated die stands', () => {
+  it('does not throw again for a face somebody read out', () => {
+    const rolled = unwrap(
+      rollAbilityCheck(
+        createRollIssuer('r'),
+        scripted({}),
+        sheetOf(PIP),
+        'str',
+        { dc: 10, statedRoll: { faces: [1], source: 'physical-dice' } },
+      ),
+      'stated',
+    );
+    expect(rolled.natural).toBe(1);
+    expect(rolled.supersedes).toBeUndefined();
   });
 });
 
