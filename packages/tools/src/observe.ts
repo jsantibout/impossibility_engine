@@ -223,7 +223,39 @@ export interface ObservedCreature {
   /** Feet to every other creature, or null where nobody has said. */
   readonly feetTo: Readonly<Record<string, number | null>>;
   readonly spellSlots: Readonly<Record<string, number>>;
+  /**
+   * What this creature casts off no slot at all, and what is left of each.
+   *
+   * **The half of a caster that `spellSlots` cannot show.** A Cultist Fanatic
+   * has no slots and casts four spells; a character with Magic Initiate has a
+   * free casting beside their slots that nothing else here reports. Both are
+   * `SpellcastingState.granted`, passed through.
+   *
+   * **Beside `spellSlots` rather than inside `printed`**, though a stat block
+   * is where most of these come from: `ObservedBlock` is derived from the
+   * *sheet*, and a creature's spellcasting is neither on the sheet nor
+   * necessarily printed — `spellcasting-declared` states one for an NPC whose
+   * block says nothing, and that creature has no `printed` at all.
+   *
+   * **A class's prepared list is deliberately not here.** `look` is the scan
+   * of the room and `sheet` is the read of one character, which already
+   * carries the whole list and the routes `cast_spell.source` chooses between;
+   * repeating twenty spell ids per creature in every observation would be a
+   * second copy of an answer that already has a door.
+   */
+  readonly grantedSpells: readonly ObservedGrantedSpell[];
   readonly budget: ObservedBudget | null;
+}
+
+/** One spell a feature, a feat or a stat block's own line grants a creature. */
+export interface ObservedGrantedSpell {
+  readonly spellId: string;
+  /** What supplies it, which is what `cast_spell.source` takes. */
+  readonly source: string;
+  /** Free castings left, or null where the grant counts nothing. */
+  readonly left: number | null;
+  /** SRD "At Will": cast for nothing, without limit. See the field above. */
+  readonly atWill: boolean;
 }
 
 /**
@@ -470,6 +502,12 @@ export function observe(state: GameState): Observation {
         ids.filter((other) => other !== key).map((other) => [other, feet(state, c.id, asCharacterId(other))]),
       ),
       spellSlots: slots,
+      grantedSpells: c.spellcasting.granted.map((grant) => ({
+        spellId: grant.spellId,
+        source: grant.source,
+        left: grant.freeCastPool === null ? null : remaining(c.resources, grant.freeCastPool),
+        atWill: grant.atWill === true,
+      })),
       budget:
         budget === undefined
           ? null

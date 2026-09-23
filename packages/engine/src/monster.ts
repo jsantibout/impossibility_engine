@@ -40,6 +40,8 @@ import type {
   StatedValues,
 } from './character.js';
 import { vitals, type Vitals } from './vitals.js';
+import { declaredCasting, type GrantedSpell, type SpellcastingState } from './spellcasting.js';
+import type { PoolDeclaration } from './resources.js';
 
 /**
  * Turning a parsed stat block into something the engine can fight.
@@ -123,6 +125,28 @@ export interface AdaptedMonster {
   readonly initiativeModifier: number;
   readonly cr: number;
   readonly xp: number;
+  /**
+   * What the block's Spellcasting line declares, or null where it prints none.
+   *
+   * **Beside the sheet rather than on it**, because that is where the engine
+   * already keeps it: a creature's spellcasting is `CreatureState`, written by
+   * `character-created` for a character and by `spellcasting-declared` for
+   * everything else. A stat block is the second kind, so the adapter's job is
+   * to hand `addCreature` the value the declaration carries.
+   */
+  readonly spellcasting: SpellcastingState | null;
+  /**
+   * The pools the declaration's per-day castings come out of, in key order.
+   *
+   * Declared rather than derived, because a pool is: SRD writes "2/Day" and
+   * `PoolDeclaration` is what the engine has for a count somebody has to state
+   * the size of. The tag is `dawn` — the clock the block's other per-day lines
+   * are already on, which `declareDawn` empties and no rest touches.
+   *
+   * Empty for a block whose every printed spell is At Will, which has nothing
+   * to run out of.
+   */
+  readonly spellPools: readonly PoolDeclaration[];
   /**
    * Entries that carried a caveat the engine cannot enforce, kept verbatim so
    * narration and the DM still have them — "Charmed (except from its vampire
@@ -811,6 +835,57 @@ export const hasPrintedTrait = (sheet: CharacterSheet, kind: MonsterTrait['kind'
   sheet.stated?.traits?.some((trait) => trait.kind === kind) === true;
 
 /**
+ * The name SRD Undead Fortitude's save and its floor are recorded under.
+ *
+ * A constant rather than a string at each site, so the roll a player reads and
+ * the `damage-taken.floor` a replay reads cannot come to disagree — and
+ * exported so that a test can ask for the rule by the same name the log gives
+ * it. It is the *rule's* name and not a catalogue id: nothing looks a creature
+ * up by it, and the sweep is about ids.
+ */
+export const UNDEAD_FORTITUDE = 'Undead Fortitude';
+
+/**
+ * SRD Undead Fortitude's saving throw, or null where the sentence does not
+ * fire.
+ *
+ * > "If damage reduces the zombie to 0 Hit Points, it makes a Constitution
+ * > saving throw (DC 5 plus the damage taken) unless the damage is Radiant or
+ * > from a Critical Hit."
+ *
+ * Four clauses and every one of them is asked here: the block prints the
+ * sentence, the blow takes the creature to 0, the damage is not from a
+ * Critical Hit, and none of it is Radiant.
+ *
+ * **A sheet fact rather than a standing effect**, and the reason is the
+ * vocabulary rather than convenience: `hit-point-floor` is an *unconditional*
+ * floor with a use to spend, and this is a conditional floor with no use and a
+ * die in front of it. Expressing it as a grant would be a new `FeatureGrant`
+ * kind — a decision about what content may say, which this is not the place to
+ * take. The trait is parsed onto `CharacterSheet.stated.traits` already, and
+ * `hasPrintedTrait` is how every other printed sentence is asked for.
+ *
+ * **The types are the ones the blow actually carried.** `undefined` is a
+ * caller that never had any — a DM's improvised amount, which has no type for
+ * a defence to meet either — and the save is raised, because the engine cannot
+ * see a Radiant it was never told about and refusing the save on that ground
+ * would be inventing the exception rather than applying it. What it cannot
+ * check, it hands over; see `resolveDamage`.
+ */
+export function undeadFortitudeSave(
+  sheet: CharacterSheet,
+  outcome: { readonly droppedToZero: boolean },
+  amount: number,
+  blow: { readonly critical?: boolean; readonly types?: readonly string[] },
+): { readonly dc: number; readonly feature: string } | null {
+  if (!hasPrintedTrait(sheet, 'undead-fortitude')) return null;
+  if (!outcome.droppedToZero) return null;
+  if (blow.critical === true) return null;
+  if ((blow.types ?? []).some((type) => type.toLowerCase() === 'radiant')) return null;
+  return { dc: 5 + amount, feature: UNDEAD_FORTITUDE };
+}
+
+/**
  * SRD Standing Leap: the two distances a block prints for itself, or null.
  *
  * "The frog's Long Jump is up to 10 feet and its High Jump is up to 5 feet
@@ -1010,6 +1085,41 @@ function printedBloodiedAdvantage(
 }
 
 /**
+ * SRD Magic Resistance, onto the sheet as the standing effect it is.
+ *
+ * "The devil has Advantage on saving throws against spells and other magical
+ * effects." One mode, one family, one narrowing — `againstMagic`, the axis
+ * `RollSelector` gained for this sentence, because a save selected by its
+ * ability alone would have given a devil Advantage on every save it ever made,
+ * a Grapple's escape included.
+ *
+ * `printedSunlight`'s shape with the gate on the *roll* rather than on the
+ * holder: nothing about the devil has to be true for this to apply, and
+ * everything about the save does.
+ */
+function printedMagicResistance(
+  line: MonsterLine,
+  key: string,
+): readonly StandingEffect[] {
+  if (line.trait?.kind !== 'magic-resistance') return [];
+  return [
+    {
+      feature: key,
+      // The block's own heading, so a roll reports the rule the book printed.
+      name: line.name,
+      reach: { kind: 'self' },
+      grant: {
+        kind: 'roll-mode',
+        modifier: {
+          mode: 'advantage',
+          selector: { roll: 'saving-throw', relation: 'roller', againstMagic: true },
+        },
+      },
+    },
+  ];
+}
+
+/**
  * SRD Nimble Escape, SRD Cunning Action, SRD Deathless Agility and SRD Shadow
  * Stealth: a named action paid for out of a Bonus Action.
  *
@@ -1115,12 +1225,127 @@ function printedStanding(monster: Monster): { readonly standing?: readonly Stand
       return [
         ...printedSunlight(line, key),
         ...printedBloodiedAdvantage(line, key),
+        ...printedMagicResistance(line, key),
         ...printedBonusActionAllowance(line, key, costsABonusAction),
       ];
     }),
   );
 
   return standing.length === 0 ? {} : { standing };
+}
+
+/**
+ * The prefix one printed spell's per-day castings are pooled under.
+ *
+ * `PER_DAY_TALLY`'s sibling and deliberately a **pool** rather than a tally: a
+ * printed line's per-day limit is a count whoever spends the line reads, and
+ * this is a count the casting pipeline spends *itself* — `choosePayment`
+ * returns a pool key and `resolveSpell` refuses when it is empty, which is the
+ * refusal a pool exists for and a tally cannot make.
+ *
+ * The prefix is a constant and the id in the key is the block's own, so
+ * nothing here names a spell. It is spelled to make a collision with a class
+ * feature's key something somebody would have to go looking for.
+ */
+const PRINTED_SPELL_PER_DAY = 'printed-spell-per-day:';
+
+/** The pool one printed spell's per-day castings come out of. */
+export const printedSpellPoolKey = (spellId: string): string =>
+  `${PRINTED_SPELL_PER_DAY}${spellId}`;
+
+/**
+ * SRD's Spellcasting line, onto the creature as the declaration it is.
+ *
+ * "The cultist casts one of the following spells, using Wisdom as the
+ * spellcasting ability (spell save DC 12, +4 to hit with spell attacks): **At
+ * Will:** _Light_, _Thaumaturgy_ **2/Day:** _Command_ **1/Day:** _Hold
+ * Person_" — an ability, two numbers, and a list with a price against each
+ * entry. `declaredCasting` was written for exactly this creature and had
+ * nothing to declare until the parser could read the line.
+ *
+ * **Every spell is a `GrantedSpell` and none is "prepared".** The three prices
+ * the line prints are a grant's to carry: At Will is `atWill`, N/Day is a
+ * `freeCastPool`, and neither may be cast with a slot, because the creature
+ * has none and the line offers none. A cantrip in the list is a grant too —
+ * the sentence that offers it is the same sentence — and costs nothing on any
+ * route, as every cantrip does.
+ *
+ * **The numbers ride every grant as well as the source entry.** They are the
+ * *line's*, so a casting reads them whichever route it took, and `numbersFor`
+ * is the one reader of both.
+ *
+ * Read from every section, because what a line says is not a property of the
+ * heading it is printed under — and refused whole where two lines would
+ * declare two sources, which is not a thing the SRD prints and which
+ * `SpellcastingState` could hold only by picking one.
+ */
+function printedSpellcasting(monster: Monster): {
+  readonly spellcasting: SpellcastingState | null;
+  readonly spellPools: readonly PoolDeclaration[];
+} {
+  const lines = [
+    ...monster.traits,
+    ...monster.actions,
+    ...monster.bonusActions,
+    ...monster.reactions,
+    ...monster.legendaryActions,
+  ].filter((line) => line.spellcasting !== undefined);
+
+  // One declaration per creature is what `SpellcastingState` holds and what
+  // the SRD prints; a block with two read lines would have to be resolved by
+  // picking one, which is a decision nobody made.
+  const line = lines.length === 1 ? lines[0] : undefined;
+  const printed = line?.spellcasting;
+  if (line === undefined || printed === undefined) {
+    return { spellcasting: null, spellPools: [] };
+  }
+
+  // **And refused where one spell is offered at two prices.** A grant list
+  // holding the same spell twice is two routes to it, and `chooseRoute` picks
+  // the first of them without being asked — so a homebrew block printing
+  // "_Light_" under both At Will and 1/Day would silently get whichever
+  // category the parser read first. The SRD prints no such block.
+  const ids = printed.spells.map((spell) => spell.spellId);
+  if (new Set(ids).size !== ids.length) return { spellcasting: null, spellPools: [] };
+
+  const source = printedTraitKey(monster.id, line.name);
+  const numbers = {
+    ...(printed.saveDc === undefined ? {} : { saveDc: printed.saveDc }),
+    ...(printed.attackBonus === undefined ? {} : { attackBonus: printed.attackBonus }),
+  };
+
+  const granted: GrantedSpell[] = printed.spells.map((spell) => ({
+    spellId: spell.spellId,
+    source,
+    ability: printed.ability,
+    freeCastPool:
+      spell.usesPerDay === undefined ? null : printedSpellPoolKey(spell.spellId),
+    // SRD offers no slot for any of these, and the creature holds none.
+    slotCasting: false,
+    ...(spell.usesPerDay === undefined ? { atWill: true as const } : {}),
+    ...numbers,
+    ...(spell.handOver === undefined ? {} : { handOver: spell.handOver }),
+  }));
+
+  const spellPools = printed.spells
+    .filter((spell) => spell.usesPerDay !== undefined)
+    .map(
+      (spell): PoolDeclaration => ({
+        key: printedSpellPoolKey(spell.spellId),
+        // The block's own words, so a report names the rule the book printed.
+        label: `${spell.name} (${spell.usesPerDay!}/Day)`,
+        max: spell.usesPerDay!,
+        // The clock every other printed per-day limit is on, and the one a
+        // rest deliberately does not touch. See `PER_DAY_TALLY`.
+        recovers: 'dawn',
+      }),
+    )
+    .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+
+  return {
+    spellcasting: declaredCasting({ ability: printed.ability, granted, ...numbers }),
+    spellPools,
+  };
 }
 
 export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster {
@@ -1266,6 +1491,7 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
     initiativeModifier: monster.initiative,
     cr: monster.cr,
     xp: monster.xp,
+    ...printedSpellcasting(monster),
     caveats,
   };
 }

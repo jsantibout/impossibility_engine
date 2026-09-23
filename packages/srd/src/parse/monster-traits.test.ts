@@ -380,6 +380,62 @@ describe('the reader is a list of matched sentences and not an interpreter', () 
     ).toBeNull();
   });
 
+  /**
+   * SRD Undead Fortitude, printed word for word on the Zombie and the Ogre
+   * Zombie, and on nothing else in the book.
+   */
+  it('reads the sentence that stands a zombie back up', () => {
+    expect(traitOf('zombie', 'Undead Fortitude')).toEqual({ kind: 'undead-fortitude' });
+    expect(traitOf('ogre-zombie', 'Undead Fortitude')).toEqual({ kind: 'undead-fortitude' });
+    expect(
+      bestiary.filter((monster) =>
+        monster.traits.some((trait) => trait.trait?.kind === 'undead-fortitude'),
+      ).length,
+    ).toBe(2);
+  });
+
+  /**
+   * The whole rule is in the clauses — a Constitution save, a DC read off the
+   * damage, two exceptions, and the one Hit Point a success leaves — so a
+   * sentence that changes any of them is refused rather than read down to the
+   * part that fits. A zombie that stood up on a Dexterity save at DC 5 would
+   * be a creature the book did not print.
+   */
+  it('refuses a fortitude sentence that moves any of its clauses', () => {
+    const printed =
+      'If damage reduces the zombie to 0 Hit Points, it makes a Constitution saving throw (DC 5 plus the damage taken) unless the damage is Radiant or from a Critical Hit. On a successful save, the zombie drops to 1 Hit Point instead.';
+    expect(parseTraitShape(printed)).toEqual({ kind: 'undead-fortitude' });
+    expect(parseTraitShape(printed.replace('Constitution', 'Dexterity'))).toBeNull();
+    expect(parseTraitShape(printed.replace('DC 5 plus', 'DC 10 plus'))).toBeNull();
+    expect(parseTraitShape(printed.replace(' unless the damage is Radiant or from a Critical Hit', ''))).toBeNull();
+    expect(parseTraitShape(printed.replace('1 Hit Point', '10 Hit Points'))).toBeNull();
+  });
+
+  /**
+   * SRD Magic Resistance, one sentence over devils, golems, genies, hags and
+   * the rest — and the Rakshasa's Greater Magic Resistance, which shares nine
+   * words with it and is a different rule in three clauses.
+   */
+  it('reads the sentence that turns a spell aside', () => {
+    expect(traitOf('imp', 'Magic Resistance')).toEqual({ kind: 'magic-resistance' });
+    expect(traitOf('dryad', 'Magic Resistance')).toEqual({ kind: 'magic-resistance' });
+    expect(traitOf('rakshasa', 'Greater Magic Resistance')).toBeNull();
+  });
+
+  it('refuses a resistance sentence that promises more than Advantage', () => {
+    expect(
+      parseTraitShape('The devil has Advantage on saving throws against spells and other magical effects.'),
+    ).toEqual({ kind: 'magic-resistance' });
+    expect(
+      parseTraitShape(
+        'The devil automatically succeeds on saving throws against spells and other magical effects.',
+      ),
+    ).toBeNull();
+    expect(
+      parseTraitShape('The devil has Advantage on saving throws against spells.'),
+    ).toBeNull();
+  });
+
   it('leaves every other trait of a block it did read alone', () => {
     // The frog prints two traits this file reads and the giant crab prints one
     // beside a sentence nothing matches; neither block gains a shape it was

@@ -379,6 +379,66 @@ export const MonsterSaveSchema = z.object({
 export type MonsterSave = z.infer<typeof MonsterSaveSchema>;
 
 /**
+ * One spell a printed Spellcasting line offers, and what the line prices it
+ * at.
+ *
+ * `usesPerDay` absent is the book's **At Will**: the line names no limit at
+ * all, which is a different sentence from "1/Day" and not a large number.
+ */
+export const MonsterSpellSchema = z.object({
+  /** The SRD spell's own id, looked up rather than slugified off the name. */
+  spellId: z.string().regex(/^[a-z0-9-]+$/),
+  /** The name exactly as the line prints it, for narration and refusals. */
+  name: z.string().min(1),
+  /** "2/Day Each" is 2. Absent for an At Will spell, which has no limit. */
+  usesPerDay: z.number().int().min(1).optional(),
+  /**
+   * The parenthetical the line prints after this spell's name, verbatim.
+   *
+   * "(self only)", "(level 4 version)", "(lasts 24 hours; ends early if the
+   * dryad casts the spell again)" — riders on one casting of one spell, and
+   * every one of them is a rule this structure has no field for. Carried
+   * rather than dropped, and handed to the table when that spell is cast,
+   * exactly as an attack line's unread clause is.
+   */
+  handOver: z.string().min(1).optional(),
+});
+export type MonsterSpell = z.infer<typeof MonsterSpellSchema>;
+
+/**
+ * The Spellcasting line a stat block prints, read whole.
+ *
+ * "The cultist casts one of the following spells, using Wisdom as the
+ * spellcasting ability (spell save DC 12, +4 to hit with spell attacks): **At
+ * Will:** _Light_, _Thaumaturgy_ **2/Day:** _Command_ **1/Day:** _Hold
+ * Person_" — one regular template with small variations, printed by thirty-odd
+ * blocks and by twelve at CR 5 or below.
+ *
+ * **The numbers are the block's and not a derivation.** All but one of the
+ * blocks that print a pair print what their own abilities derive; the Adult
+ * Bronze Dragon prints "spell save DC 17" over a Charisma and a Proficiency
+ * Bonus that give 18. A printed number and a derived one are not
+ * distinguishable after the fact — the lesson a Death Dog's printed rider DC
+ * taught — so a printed DC is carried, and a block that prints none (SRD
+ * Priest Acolyte) is left to derive.
+ *
+ * **Read whole or not at all**, which is the discipline every shape in this
+ * file keeps: a category this cannot price, a spell name the SRD's own index
+ * does not hold, or a scrap of the line left unconsumed leaves the whole line
+ * prose. Half a spell list read is a creature casting spells nobody gave it.
+ */
+export const MonsterSpellcastingSchema = z.object({
+  /** "using Wisdom as the spellcasting ability", by the engine's own key. */
+  ability: z.enum(['str', 'dex', 'con', 'int', 'wis', 'cha']),
+  /** The save DC the line prints, where it prints one. */
+  saveDc: z.number().int().min(1).optional(),
+  /** "+4 to hit with spell attacks", where the line prints it. */
+  attackBonus: z.number().int().optional(),
+  spells: z.array(MonsterSpellSchema).min(1),
+});
+export type MonsterSpellcasting = z.infer<typeof MonsterSpellcastingSchema>;
+
+/**
  * A trait whose sentence the parser recognised as a mechanic the engine has.
  *
  * Every member is named for what it *does* rather than for the trait that
@@ -559,6 +619,38 @@ export const MonsterTraitSchema = z.discriminatedUnion('kind', [
       .array(z.enum(['ability-check', 'attack-roll', 'saving-throw']))
       .min(1),
   }),
+  z.object({
+    /**
+     * SRD Undead Fortitude, printed word for word on the Zombie and the Ogre
+     * Zombie: "If damage reduces the zombie to 0 Hit Points, it makes a
+     * Constitution saving throw (DC 5 plus the damage taken) unless the damage
+     * is Radiant or from a Critical Hit. On a successful save, the zombie drops
+     * to 1 Hit Point instead."
+     *
+     * **A bare kind, because nothing in the sentence varies.** The two blocks
+     * that print it print the same ability, the same DC formula, the same two
+     * exceptions and the same 1 Hit Point — so there is nothing to carry, and
+     * the shape is `advantage-when-ally-is-within-5-feet-of-the-target`'s
+     * rather than `jumps-without-a-running-start`'s. A homebrew block wanting
+     * a different DC prints a different sentence, and this refuses it.
+     */
+    kind: z.literal('undead-fortitude'),
+  }),
+  z.object({
+    /**
+     * SRD Magic Resistance, printed word for word on twenty-seven stat blocks
+     * and on eleven at CR 5 or below: "The devil has Advantage on saving
+     * throws against spells and other magical effects."
+     *
+     * **A bare kind, for the reason `undead-fortitude` is one.** Nothing in
+     * the sentence varies: one mode, one family, one narrowing. The Rakshasa's
+     * Greater Magic Resistance is a different rule in three clauses —
+     * automatic successes, spell attacks that miss, and a divination it
+     * forbids — and is refused whole rather than read down to the part that
+     * fits.
+     */
+    kind: z.literal('magic-resistance'),
+  }),
 ]);
 export type MonsterTrait = z.infer<typeof MonsterTraitSchema>;
 
@@ -638,6 +730,20 @@ export const FeatureSchema = z.object({
   save: MonsterSaveSchema.optional(),
   /** The sequence this line's sentence states, where it states one. */
   multiattack: MonsterMultiattackSchema.optional(),
+  /**
+   * The spells this line declares, where its sentence is the Spellcasting
+   * template — see {@link MonsterSpellcastingSchema}.
+   *
+   * Beside `save` and `attack` rather than inside either, because it is the
+   * book's third opening: a line writes `_Melee Attack Roll:_`, or
+   * `_Dexterity Saving Throw:_`, or "casts one of the following spells".
+   *
+   * Read on every section for the reason `save` is: what a line says is not a
+   * property of the heading it is printed under. Every SRD block prints this
+   * one under **Actions**, and a homebrew block that printed it elsewhere
+   * would still be saying what it says.
+   */
+  spellcasting: MonsterSpellcastingSchema.optional(),
 });
 export type Feature = z.infer<typeof FeatureSchema>;
 

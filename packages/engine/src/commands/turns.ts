@@ -1051,6 +1051,15 @@ export function resolvePendingSaves(
         pending.ability,
         supply,
         conditionEndedBy(state, pending.effectKey),
+        // **And whether a spell put it there**, which SRD Magic Resistance
+        // reads: "Advantage on saving throws against spells and other magical
+        // effects." The repeat is a save against whatever is holding the
+        // creature, and `PendingSave.source` already says what that is — a
+        // `Hold Person#cast:3` for a casting, an `item:<id>` or a bare ruling
+        // for anything else. `castingIdOf` is the engine's own reader of that
+        // format and not a branch on a name, which is why the answer is
+        // derived here rather than carried on the debt.
+        castingIdOf(pending.source) !== null,
       );
       // The sheet as it stands: a save the boundary repeats is a save, and an
       // item that sets the ability it is made with is worn or it is not at the

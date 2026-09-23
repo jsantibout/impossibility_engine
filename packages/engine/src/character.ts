@@ -1158,6 +1158,37 @@ export function spellSaveDcWith(sheet: CharacterSheet, ability: Ability): number
 }
 
 /**
+ * SRD Illumination: the light a stat block says its creature carries, or null.
+ *
+ * > "The azer sheds Bright Light in a 10-foot radius and Dim Light for an
+ * > additional 10 feet."
+ *
+ * Both radii, for {@link printedLeap}'s reason: the sentence prints two
+ * numbers and a reader that took one would be enforcing half of it. The second
+ * is the book's own "for an additional", so it is measured **beyond** the
+ * first.
+ *
+ * **Here rather than in `monster.ts` beside its siblings**, and the reason is
+ * the reader: `lightAt` in `positioning.ts` is what spends this, and that
+ * module is deliberately kept next to the leaves — it holds `events.ts`
+ * type-only so that a value edge back would not be a cycle, and an edge to
+ * `monster.ts` would pull the combat, checks and dice half of the engine in
+ * through the geometry. This file has no value import but `@ie/shared`, so it
+ * is the one place a sheet-reading predicate can sit and be reachable from
+ * there.
+ */
+export function printedLight(
+  sheet: CharacterSheet,
+): { readonly brightRadiusFeet: number; readonly dimBeyondFeet: number } | null {
+  for (const trait of sheet.stated?.traits ?? []) {
+    if (trait.kind === 'sheds-light') {
+      return { brightRadiusFeet: trait.brightRadiusFeet, dimBeyondFeet: trait.dimBeyondFeet };
+    }
+  }
+  return null;
+}
+
+/**
  * What a creature adds to its Initiative roll.
  *
  * A character derives it from Dexterity. A stat block prints it, and the two

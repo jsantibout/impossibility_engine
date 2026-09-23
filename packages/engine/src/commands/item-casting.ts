@@ -52,7 +52,7 @@ import {
   type SpellDefinition,
 } from '../spell-definitions.js';
 import type { CastingNumbers } from '../spells.js';
-import type { CastingRoute } from '../spellcasting.js';
+import { statedNumbersOf, type CastingRoute } from '../spellcasting.js';
 
 /** The item arm of {@link CastingRoute}, named once. */
 export type ItemRoute = Extract<CastingRoute, { kind: 'item' }>;
@@ -430,12 +430,18 @@ export function selfOnlyRefusal(
  * derived ones reach `resolveEffects` by the same door. A class route asks the
  * sheet, because that is what "your spell save DC" means; the item route
  * already answered, because a wand's answer cannot be asked for twice.
+ *
+ * **And a route may state its own pair**, which is the third answer and the
+ * same rule the item's is: a printed number wins over a derived one, because a
+ * stat block's "spell save DC 17" is the block's whatever its Charisma would
+ * have made of it. See {@link statedNumbersOf}.
  */
 export function numbersFor(sheet: CharacterSheet, route: CastingRoute): CastingNumbers {
   if (route.kind === 'item') return route.numbers;
+  const stated = statedNumbersOf(route);
   return {
-    attackModifier: spellAttackModifierWith(sheet, route.ability),
-    saveDc: spellSaveDcWith(sheet, route.ability),
+    attackModifier: stated.attackBonus ?? spellAttackModifierWith(sheet, route.ability),
+    saveDc: stated.saveDc ?? spellSaveDcWith(sheet, route.ability),
     spellcastingModifier: modifierFor(sheet, route.ability),
     casterLevel: sheet.level,
   };

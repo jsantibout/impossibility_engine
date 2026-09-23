@@ -265,6 +265,35 @@ export interface RollSelector {
    * single place that stops refusing it.
    */
   readonly condition?: ConditionName;
+  /**
+   * The save is against **a spell or other magical effect**.
+   *
+   * SRD Magic Resistance, printed word for word on twenty-seven stat blocks
+   * and on eleven at CR 5 or below: "The devil has Advantage on saving throws
+   * against spells and other magical effects." A save was selected by its
+   * family, its ability and what it was about, so the nearest sayable thing
+   * was *Advantage on every saving throw the devil ever makes* — a much larger
+   * trait, and one that would help it against a Grapple.
+   *
+   * **What the roller decides, not what this asks.** The axis is one fact —
+   * {@link RollQuery.magical} — and the site that throws the die is the only
+   * thing that can answer it. A spell's own `save` effect answers yes; a
+   * printed stat-block line's save answers nothing, because a dragon's breath
+   * is not a spell; a repeat save at a turn boundary answers by asking whether
+   * the effect it would end came from a casting, which is a question
+   * `castingIdOf` already answers off the engine's own source format.
+   *
+   * **A miss where nobody said**, which is the reading every narrowing field
+   * here takes: an unkeyed save is not this sentence. That is the conservative
+   * direction — a save the engine cannot classify gives the devil nothing
+   * rather than giving it Advantage on everything.
+   *
+   * **Legal only on a saving throw.** The SRD sentence is about saves; an
+   * attack roll and an ability check record nothing of the kind, so a selector
+   * naming this on one would pick out nothing for ever — the silent failure
+   * this validator exists to refuse.
+   */
+  readonly againstMagic?: true;
 }
 
 /** A mode, and the rolls it reaches. */
@@ -444,6 +473,22 @@ export interface RollQuery {
    * the elf's sentence.
    */
   readonly aboutConditions?: readonly ConditionName[];
+  /**
+   * Whether this roll is against **a spell or other magical effect** — what
+   * {@link RollSelector.againstMagic} matches.
+   *
+   * Answered by the site that throws the die, because it is the only thing
+   * that knows. Four sites say yes: the three spell-effect resolvers that
+   * force a save, and the turn boundary repeating one, which asks
+   * `castingIdOf` whether the effect it would end came from a casting.
+   *
+   * Absent or false means "nobody said it was", and a selector that asks for
+   * magic reads that as a miss rather than a guess — the reading `against`
+   * already takes of a roll with no recorded target. A printed stat-block
+   * line's save says nothing here on purpose: a dragon's breath is not a
+   * spell.
+   */
+  readonly magical?: boolean;
 }
 
 /**
@@ -503,6 +548,11 @@ export function selectorMatches(
     const perceived = query.rollerPerceives ?? [];
     if (selector.unlessPerceivedWith.some((sense) => perceived.includes(sense))) return false;
   }
+
+  // SRD Magic Resistance: "Advantage on saving throws against spells and other
+  // magical effects." A roll nobody classified is a miss, not a guess — see
+  // {@link RollQuery.magical}.
+  if (selector.againstMagic === true && query.magical !== true) return false;
 
   return true;
 }
@@ -660,6 +710,15 @@ export function rollSelectorProblems(
         reason: `a saving throw and the ability check that ends an effect say what they are about; a ${selector.roll} does not, so naming a condition on one would pick out nothing for ever`,
       });
     }
+  }
+
+  // SRD Magic Resistance is a sentence about saving throws, and only a saving
+  // throw carries the fact it reads. See {@link RollSelector.againstMagic}.
+  if (selector.againstMagic !== undefined && selector.roll !== 'saving-throw') {
+    found.push({
+      code: 'against_magic_off_a_saving_throw',
+      reason: `only a saving throw records what it was forced by, so "against spells and other magical effects" cannot pick out a ${selector.roll}`,
+    });
   }
 
   return found;

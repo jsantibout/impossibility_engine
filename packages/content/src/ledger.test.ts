@@ -219,11 +219,17 @@ describe('the ledger measures the three populations of the roadmap', () => {
     expect(ledger.monsters.items).toBe(
       ledger.monsters.handedOver + ledger.monsters.riders + ledger.monsters.inertTraits,
     );
-    // And both of those families are populated, so the identity above is not
-    // holding at zero — which is what it would do if either predicate stopped
-    // matching and the debt it names quietly left the ledger.
+    // The riders are populated, so the identity above is not holding at zero —
+    // which is what it would do if the predicate stopped matching and the debt
+    // it names quietly left the ledger.
     expect(ledger.monsters.riders).toBeGreaterThan(0);
-    expect(ledger.monsters.inertTraits).toBeGreaterThan(0);
+    // **And the inert traits are zero, which is the column finishing rather
+    // than the predicate going quiet.** Every kind `MonsterTraitSchema` admits
+    // is now either spent by something in the engine or filed as a handover,
+    // and `coverage.test.ts` holds both of those lists against the schema and
+    // against the engine's own sources. The day the parser learns a sentence
+    // nothing reads, this goes back above zero and the guard is the same one.
+    expect(ledger.monsters.inertTraits).toBe(0);
     expect(ledger.monsters.clean + ledger.monsters.unfinished).toBe(ledger.monsters.blocks);
   });
 

@@ -169,7 +169,20 @@ export function wardAgainst(
       return err('unknown_creature', `${attacker} has no record here yet; add it first`);
     }
     const sheet = sheetAsItStands(current, attacker) ?? victim.sheet;
-    const support = savingSupport(current, attacker, victim, ward.defense.ability, {});
+    // **And whether a spell put the ward there**, for the reason the turn
+    // boundary asks: SRD Sanctuary's Wisdom save is a save against a spell and
+    // SRD Magic Resistance reaches it, while a ward a DM simply declared is
+    // not one the engine may call magical. `castingIdOf` reads the engine's own
+    // source format and answers null for everything that was never cast.
+    const support = savingSupport(
+      current,
+      attacker,
+      victim,
+      ward.defense.ability,
+      {},
+      undefined,
+      castingIdOf(ward.source) !== null,
+    );
     const rolled = rollSavingThrow(supply.issuer, supply.rng, sheet, ward.defense.ability, {
       dc: ward.defense.dc,
       conditions: support.conditions,

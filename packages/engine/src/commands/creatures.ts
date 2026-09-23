@@ -29,7 +29,8 @@ import { addCombatant } from '../combat.js';
 import { adaptMonster, type PrintedSpeedMode, withPrintedSpeeds } from '../monster.js';
 import type { Placement } from '../positioning.js';
 import { hitPointFloorFor, speedOf } from '../standing.js';
-import { applyDamageToVitals, healingRuleOf, isDown } from '../vitals.js';
+import { applyDamageToVitals, damagePastThreshold, healingRuleOf, isDown } from '../vitals.js';
+import type { Recovery } from '../resources.js';
 import { creatureOf, unknownCreature, ZERO_HIT_POINTS } from './command.js';
 import { settleHoldsInvolving } from './holds.js';
 
@@ -78,14 +79,17 @@ export interface AddCreatureOutcome {
  * block up in and a guard nothing can reach is not a rule; a monster is
  * content now, and the refusal is reachable from the first line.
  *
- * **It does not declare what the creature casts**, and that is the parser
- * rather than a gap: a stat block prints its spellcasting as English prose in
- * a trait, and `Monster` carries no ability, no list and no slots. Reading one
- * out of that prose would be the engine deciding a fact the SRD wrote for a
- * person; `declareSpellcasting` is the command that states it, and an NPC who
- * casts takes two commands exactly as `scene-commands.test.ts`'s priest does.
- * `declareCreatureSide` is the same answer for allegiance, which changes in
- * play and therefore cannot be a property of arriving.
+ * **And it declares what the creature casts, where the block prints it.** That
+ * paragraph used to say the opposite, and the reason it did was the parser
+ * rather than a rule: a stat block's Spellcasting line was English prose and
+ * `Monster` carried no ability, no list and no prices, so reading one out would
+ * have been the engine deciding a fact the SRD wrote for a person. The line is
+ * *structure* now — an ability, the numbers the block prints, and one price per
+ * spell — so the block answers, and a Cultist Fanatic walks in already casting.
+ * `declareSpellcasting` remains the command for an NPC whose block says nothing,
+ * and it remains restatable: nothing here makes a declaration durable.
+ * `declareCreatureSide` is still the other answer, for an allegiance that
+ * changes in play and therefore cannot be a property of arriving.
  *
  * **It refuses what the reducer would call corrupt** — a creature already in
  * the game — which is the rule the scene commands settled, **and the one
@@ -151,6 +155,25 @@ export function addCreature(
             ...(conditionImmunities.length === 0 ? {} : { conditionImmunities }),
             ...(stamp === null ? {} : { command: stamp }),
           },
+          // **What the block's Spellcasting line declares, in the same
+          // batch.** Its own event rather than a field on the arrival, for the
+          // reason `declareSpellcasting` already exists: a spell list is not
+          // durable the way a creature's type is, and the SRD nowhere forbids
+          // restating one. But a creature whose block prints the line arrives
+          // casting, because the block prints it — nobody above the engine
+          // should have to declare a fact the book already states, which is
+          // the rule `creatureType` settled.
+          ...(adapted.spellcasting === null
+            ? []
+            : [{ type: 'spellcasting-declared' as const, id, spellcasting: adapted.spellcasting }]),
+          // And the pools its per-day castings come out of, which a pool is
+          // declared rather than derived for: the size is a fact somebody has
+          // to state, and here the block states it.
+          ...adapted.spellPools.map((pool) => ({
+            type: 'resource-pool-declared' as const,
+            id,
+            pool,
+          })),
         ],
         // **Withheld and reported, never applied.** "Charmed (except from its
         // vampire master)" as a flat immunity makes the vampire unable to
@@ -689,6 +712,37 @@ export interface DamageCommand extends CommandIdentity {
    * real answer rather than a gap.
    */
   readonly by?: CharacterId;
+  /**
+   * The damage types this blow was made of, where the caller had any.
+   *
+   * **A fact the engine computed, never one a caller decided.** The amount is
+   * already summed and the defences already met by the time this command runs
+   * — `dealSpellDamage` does both — so this says nothing about how much and
+   * everything about what kind, which is what SRD Undead Fortitude's "unless
+   * the damage is Radiant" reads and nothing else here does.
+   *
+   * Absent is a caller that never had a type for the engine to see: a DM's
+   * improvised amount, which no defence can meet either, for the reason
+   * `improvised_damage` states.
+   */
+  readonly types?: readonly string[];
+}
+
+/**
+ * A floor the caller settled before the blow was written down.
+ *
+ * `hitPointFloorFor` answers for every floor a creature *stands* on, and
+ * `damageCreature` can ask it because it needs nothing but state. SRD Undead
+ * Fortitude is the other kind: a floor that a Constitution saving throw
+ * decides, and this command holds no generator to throw one. So the roll is
+ * made where the damage arrives with a `Supply` — `resolveDamage` — and what
+ * it decided arrives here rather than being asked for again.
+ */
+export interface SettledFloor {
+  /** SRD's "1 Hit Point": what the blow may not take the creature below. */
+  readonly at: number;
+  /** The rule that said so, pinned for the log exactly as a standing one is. */
+  readonly feature: string;
 }
 
 /**
@@ -701,6 +755,7 @@ export function damageCreature(
   state: GameState,
   id: CharacterId,
   command: DamageCommand,
+  settled: SettledFloor | null = null,
 ): Result<GameEvent[]> {
   // Before anything else: a retry of a command that already landed is a no-op,
   // not a second hit. This has to precede validation too — otherwise a retry
@@ -732,8 +787,10 @@ export function damageCreature(
     //
     // Read off the sheet, which is where `creature-added` pinned it, so the
     // fold needs nothing new and neither frozen fixture moves.
-    const threshold = creature.sheet.stated?.damageThreshold ?? 0;
-    const amount = command.amount < threshold ? 0 : command.amount;
+    const amount = damagePastThreshold(
+      creature.sheet.stated?.damageThreshold ?? 0,
+      command.amount,
+    );
 
     const critical = command.critical === undefined ? {} : { critical: command.critical };
 
@@ -745,8 +802,34 @@ export function damageCreature(
     // nothing: `applyDamageToVitals` is pure arithmetic over a `Vitals` and
     // touches neither the log nor the generator.
     const unheld = applyDamageToVitals(creature.vitals, amount, critical);
-    const floor =
+    // **The standing floors, and the clause that narrows them.** SRD Relentless
+    // Endurance is "reduced to 0 Hit Points **but not killed outright**", and
+    // this is where that clause lives: a floor nothing decided is offered only
+    // to a blow that did not kill, so it can never rescue a creature from a
+    // monster's death at 0 or from Massive Damage.
+    const standing =
       unheld.droppedToZero && !unheld.died ? hitPointFloorFor(state, id) : null;
+    // **And the floor a die already settled**, whose sentence is about exactly
+    // the death the clause above excludes: SRD Undead Fortitude. It is offered
+    // wherever the blow reached 0, and it carries no price — see
+    // `damage-taken.floor.spent`. No SRD creature holds both; where one did,
+    // the settled floor would win, because its die has already been thrown and
+    // cannot be un-thrown.
+    const settledFloor = unheld.droppedToZero ? settled : null;
+    const floor: {
+      readonly at: number;
+      readonly feature: string;
+      readonly spent?: { readonly key: string; readonly recovers: Recovery };
+    } | null =
+      settledFloor !== null
+        ? { at: settledFloor.at, feature: settledFloor.feature }
+        : standing === null
+          ? null
+          : {
+              at: standing.at,
+              feature: standing.feature,
+              spent: { key: standing.key, recovers: standing.recovers },
+            };
 
     const events: GameEvent[] = [
       {
@@ -760,15 +843,7 @@ export function damageCreature(
         // decision the command kept to itself would be undone on replay. The
         // price rides with it, so the claim and what paid for it cannot come
         // apart. See `damage-taken.floor`.
-        ...(floor === null
-          ? {}
-          : {
-              floor: {
-                at: floor.at,
-                feature: floor.feature,
-                spent: { key: floor.key, recovers: floor.recovers },
-              },
-            }),
+        ...(floor === null ? {} : { floor }),
         ...(stamp === null ? {} : { command: stamp }),
       },
     ];

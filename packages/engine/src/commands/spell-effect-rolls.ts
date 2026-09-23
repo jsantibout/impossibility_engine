@@ -687,6 +687,8 @@ export function resolveSaveDamageEffect(
     effect.ability,
     supply,
     conditionRiderOf(effect).map((rider) => rider.name),
+    // A spell forced it, which SRD Magic Resistance reads.
+    true,
   );
   // SRD singles a creature type out twice, and both sentences are about
   // this save: Blight's "A Plant creature automatically fails the save"
@@ -945,6 +947,8 @@ export function resolveSaveEffect(
     effect.ability,
     supply,
     conditionRiderOf(effect).map((rider) => rider.name),
+    // A spell forced it, which SRD Magic Resistance reads.
+    true,
   );
   // The sheet as it stands — see `resolveSaveDamageEffect`. Two resolvers roll
   // two saves, so one of them moving is not the other moving.

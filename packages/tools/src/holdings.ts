@@ -502,6 +502,15 @@ export interface HeldGrantedSpell {
   /** Free castings left, or null where the grant has no pool of its own. */
   readonly left: number | null;
   readonly slotCasting: boolean;
+  /**
+   * The grant casts it for nothing, without limit — a stat block's "At Will".
+   *
+   * Reported because without it the three fields above describe a spell that
+   * cannot be cast at all: no pool, nothing left, and no slot. A caller shown
+   * that would never try, and the cultist's Thaumaturgy is precisely a spell
+   * it may cast every round of the fight.
+   */
+  readonly atWill: boolean;
 }
 
 /**
@@ -1239,6 +1248,7 @@ export function holdingsOf(state: GameState, id: CharacterId): Holdings | null {
         freeCastPool: entry.freeCastPool,
         left: leftIn(state, who, entry.freeCastPool),
         slotCasting: entry.slotCasting,
+        atWill: entry.atWill === true,
       })),
     },
     budget:

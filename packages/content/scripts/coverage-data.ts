@@ -981,6 +981,8 @@ export interface StatBlockLine {
   readonly trait?: unknown;
   readonly save?: unknown;
   readonly multiattack?: unknown;
+  /** The spells a Spellcasting line declares, where the parser read them. */
+  readonly spellcasting?: unknown;
 }
 
 /** Every line of every section of one block, which is what the shapes count over. */
@@ -1002,7 +1004,8 @@ export const isReadLine = (line: StatBlockLine): boolean =>
   line.attack !== undefined ||
   line.trait !== undefined ||
   line.save !== undefined ||
-  line.multiattack !== undefined;
+  line.multiattack !== undefined ||
+  line.spellcasting !== undefined;
 
 /**
  * A read attack line whose printed rider nothing applies.
@@ -1057,11 +1060,15 @@ export const hasUnappliedRider = (line: StatBlockLine): boolean => {
  * | SRD Standing Leap | `checkJump`, through `printedLeap` |
  * | SRD Spider Climb | `climbCheck`, which is the handover its holder does not get |
  * | SRD Shadow Stealth, SRD Nimble Escape and its siblings | `adaptMonster`, as the `allows` action rules Cunning Action is written as |
+ * | SRD Undead Fortitude | `resolveDamage`, which throws the save and pins the floor on `damage-taken` |
+ * | SRD Magic Resistance | `adaptMonster`, as a `roll-mode` narrowed to saves a spell forced |
+ * | SRD Illumination | `lightAt`, which derives a carried patch on every read |
  *
- * **`sheds-light` is the one parsed kind still not here**, and the reason is
- * a shape rather than an oversight: a `LightPatch` is *declared* and never
- * derived, so a creature that sheds Bright Light lights nothing until a patch
- * can be anchored to a creature and move with it.
+ * **Every parsed kind is now on this list or on the handover one below it.**
+ * `sheds-light` was the last exception, and the reason it was one was a shape
+ * rather than an oversight: a `LightPatch` is *declared* and never derived, so
+ * a creature that sheds Bright Light lit nothing until a patch could be
+ * anchored to a creature and move with it. `carriedLight` is that patch.
  */
 export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
   'advantage-when-ally-is-within-5-feet-of-the-target',
@@ -1071,7 +1078,10 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
   'does-not-provoke-when-flying-out-of-reach',
   'hides-in-dim-light-or-darkness',
   'jumps-without-a-running-start',
+  'magic-resistance',
+  'sheds-light',
   'takes-a-named-action-as-a-bonus-action',
+  'undead-fortitude',
 ];
 
 /**
@@ -1181,7 +1191,22 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
   [UNEXECUTED_TRAIT_SHAPE, hasUnexecutedTrait],
   ['A recharge', (line) => /\(Recharge/.test(line.name)],
   ['A use the block limits per day', (line) => /\(\d+\/Day/.test(line.name)],
-  ['A creature that casts', (line) => /^Spellcasting/.test(line.name)],
+  // The same predicate it was, with the half that is now read taken out of
+  // it — exactly as the Multiattack row above was narrowed. A Spellcasting
+  // line whose list the parser read is a spell list `addCreature` declares and
+  // the casting pipeline spends: the ability, the printed numbers, and one
+  // price per spell.
+  //
+  // **What is left is one line**: the Storm Giant's, whose spell names the book
+  // italicised none of, so a bare word in that position is not something the
+  // grammar can tell from prose. The Pit Fiend's Hellfire Spellcasting — one
+  // spell cast twice, on a recharge — is refused by the parser too, but it was
+  // never in this row either: the heading anchor above has always passed over
+  // a line named `Hellfire Spellcasting (Recharge 4–6)`.
+  [
+    'A creature that casts',
+    (line) => /^Spellcasting/.test(line.name) && line.spellcasting === undefined,
+  ],
 ];
 
 /** The economy a legendary block owes, which is the block's rather than a line's. */
