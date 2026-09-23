@@ -618,9 +618,22 @@ export function resolveLightEffect(
   target: CharacterId,
   world: GameState,
 ): Result<GameState> {
-  const { source, events, outcomes, held } = ctx;
+  const { source, events, outcomes, held, unverified } = ctx;
   const spellLevel = ctx.origin.kind === 'casting' ? ctx.origin.definition.level : ctx.castLevel;
   const name = ctx.origin.kind === 'casting' ? ctx.origin.definition.name : source;
+
+  // A patch lies on the lattice and there is none: the casting runs and is on
+  // its bearer, and the light is the table's until a scene exists — the same
+  // answer a beetle's own glow gives before anybody has placed it, said out
+  // loud because a casting is a thing somebody asked for.
+  if (world.scene === null) {
+    unverified.push(
+      `${name}: no scene is set, so the light ${target} carries lies over no space and is the table's for this casting — declareLight lights the spot once a scene exists`,
+    );
+    held.add(target);
+    outcomes.push({ target, affected: true });
+    return ok(world);
+  }
   // The patch lapses with the casting's own record, so it is sourced to the
   // casting **id** — the key `state.ongoing` holds — and not to the labelled
   // source the grants above carry. A light an item confers (none does today)

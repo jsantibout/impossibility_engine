@@ -608,10 +608,17 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
    * exemptions are safe.
    */
   const CLEAN_AND_EXECUTED: readonly string[] = [
+    // The light the sight track carried out of the tracked bucket: Light and
+    // Continual Flame shed from what their bearer holds, Dancing Lights from a
+    // point its Bonus Action moves, and Darkvision confers the sense.
+    'continual-flame',
+    'dancing-lights',
     'darkness',
+    'darkvision',
     'daylight',
     'expeditious-retreat',
     'fog-cloud',
+    'light',
     'magic-weapon',
   ];
 
@@ -1053,7 +1060,6 @@ const ADDED_FIRST: readonly string[] = [
   'barkskin',
   'command',
   'create-or-destroy-water',
-  'dancing-lights',
   'daylight',
   'death-ward',
   'druidcraft',

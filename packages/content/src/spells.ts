@@ -4029,7 +4029,6 @@ export const CONTINUAL_FLAME: SpellDefinition = {
   untilDispelled: true,
   unmodelled: [
     'the flame springs from an object, and objects are not modelled: the casting names the creature carrying it, and which object was touched is the DM’s. An object set down for good is a point the table lights with `declare_light`',
-    'a duration of “Until dispelled” is no deadline at all, so no timer is scheduled and the casting simply runs, its light with it',
   ],
 };
 

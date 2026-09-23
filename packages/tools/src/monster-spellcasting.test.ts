@@ -77,8 +77,9 @@ describe('the DM casts a stat block’s own spells', () => {
 
   it('casts an At Will cantrip twice, with no count to run out', () => {
     const t = room(table());
-    expectOk(t.call('cast_spell', { caster: 'zeal', spellId: 'light', targets: [] }));
-    expectOk(t.call('cast_spell', { caster: 'zeal', spellId: 'light', targets: [] }));
+    // Light names the creature carrying the lit object: the cultist's own.
+    expectOk(t.call('cast_spell', { caster: 'zeal', spellId: 'light', targets: ['zeal'] }));
+    expectOk(t.call('cast_spell', { caster: 'zeal', spellId: 'light', targets: ['zeal'] }));
 
     const held = expectOk(t.call('sheet', { who: 'zeal' }));
     const granted = (held.resolution['spellcasting'] as { granted: readonly Record<string, unknown>[] })

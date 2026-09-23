@@ -977,8 +977,9 @@ describe('a spell whose text says a second casting ends the first', () => {
    */
   it('ends a prior Light the same caster is running', () => {
     const g = new Game();
-    const first = g.cast(WIZ, 'light', [], undefined, 'first');
-    const second = g.cast(WIZ, 'light', [], undefined, 'second');
+    // Light names the creature carrying the lit object: the wizard's own.
+    const first = g.cast(WIZ, 'light', [WIZ], undefined, 'first');
+    const second = g.cast(WIZ, 'light', [WIZ], undefined, 'second');
 
     expect(ongoingSpellOf(g.state, first)).toBeNull();
     expect(ongoingSpellOf(g.state, second)).not.toBeNull();
@@ -1979,7 +1980,14 @@ describe('a spell that lasts until dispelled', () => {
   const cast = (spellId: string): { readonly g: Game; readonly castingId: string } => {
     const g = new Game([...LOCK_SETUP]);
     const out = unwrap(
-      resolveSpell(g.state, WIZ, { spellId, targets: [], slotLevel: 2 }, supply(spellId)),
+      // Continual Flame names the creature carrying the object it lights;
+      // Arcane Lock is cast on a door nobody holds.
+      resolveSpell(
+        g.state,
+        WIZ,
+        { spellId, targets: spellId === 'continual-flame' ? [WIZ] : [], slotLevel: 2 },
+        supply(spellId),
+      ),
       spellId,
     );
     g.push(out.events);
@@ -2221,7 +2229,7 @@ describe('a caster dismisses a casting of their own by its id', () => {
   describe('a casting the book prints no ending for', () => {
     const lit = () => {
       const g = new Game();
-      const castingId = g.cast(WIZ, 'continual-flame', [], undefined, 'flame');
+      const castingId = g.cast(WIZ, 'continual-flame', [WIZ], undefined, 'flame');
       return { g, castingId };
     };
 

@@ -7,10 +7,14 @@ definition that prints Bright Light, Dim Light, Darkness or an obscured area.
 
 **Status: ruled by the owner on 2026-09-21, all five decisions, as written,
 and built the same day (P3-S).** What is described below is the engine's
-behaviour, not a proposal. Three spells named under "What it reaches" did
-**not** land and the reason is one thing: Light, Continual Flame and Dancing
-Lights all shed from *an object* — a touched thing, four floating motes — and
-this engine holds no objects, so a patch has nowhere to hang. The monster
+behaviour, not a proposal. The three object-borne spells landed on
+2026-09-23 without objects: Light and Continual Flame are a `light` effect
+**carried by the creature the casting names as the bearer** (the patch's
+region has that creature for its origin, so it moves with them and is gone
+with the casting), and Dancing Lights is a dim point patch its Bonus Action
+re-lays (`activation.movesArea`). Darkvision the spell confers a `sense`, and
+Faerie Fire's Advantage is gated on the attacker's declared sight
+(`RollSelector.ifRollerSees`). The monster
 residue (Sunlight Sensitivity, the six Illumination traits, Shadow Stealth,
 Sunlight Weakness) is untyped SRD text: the *rule* is built and executable,
 and what waits is the parser that puts it on a creature. This note says what "it" is, what it deliberately is not, and
@@ -139,8 +143,9 @@ Disadvantage". The vampires' Sunlight is refused whole, because it prints the
 Sensitivity behind damage at a turn boundary and taking half of it would be a
 vampire the book did not print. Devil's
 Sight; Sacred Weapon's light; the six Illumination traits, Shadow Stealth,
-Sunlight Weakness and Vampire Spawn's Sunlight. Mirror Image, Blur and the
-Darkvision spell are the attacker-side sense reading (P2-T16), not this.
+Sunlight Weakness and Vampire Spawn's Sunlight. Mirror Image and Blur are
+the attacker-side sense reading (P2-T16), not this; the Darkvision spell
+confers its sense through a `sense` effect and `sensesOf` reads it.
 
 ## Not built, on purpose
 

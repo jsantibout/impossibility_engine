@@ -376,7 +376,8 @@ describe('SRD Faerie Fire: Advantage if the attacker can see it', () => {
   it('reaches the attack roll', () => {
     const state = run(outlined(), [FIGHT, { type: 'sight-declared', from: ALLY, to: GOBLIN, seen: true }]);
     const swing = unwrap(resolveAttack(state, ALLY, { target: GOBLIN, weapon: 'longsword' }, supply('swing')), 'attack');
-    const record = swing.events.find((e) => e.type === 'roll-recorded');
-    expect(JSON.stringify(record)).toContain('advantage');
+    // The attack's own mode: its roll record names contributions and the face,
+    // not the modes, which is a gap of the record's and not of this rule.
+    expect(swing.attack?.mode).toBe('advantage');
   });
 });

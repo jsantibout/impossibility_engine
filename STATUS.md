@@ -115,8 +115,9 @@ homebrew.
   the sheet and off a stat block, a move names its mode, going without the
   Speed costs double, a stopped flier falls, and a spell or feature can grant
   one. A Thief's running jump lengthens by the Dexterity modifier.
-- Light shed by an **object** — Light, Continual Flame, Dancing Lights — has
-  nowhere to hang: an object can be broken but cannot yet carry a light patch.
+- **Light a casting sheds is carried** by the creature holding the object
+  (Light, Continual Flame) or moved by its Bonus Action (Dancing Lights);
+  Darkvision the spell confers the sense.
 - **A printed stat-block rider that deals extra damage is still prose.** The
   condition families execute — gated on the target's size or on a creature
   type the block names, anchored on either creature's next turn, and a grapple

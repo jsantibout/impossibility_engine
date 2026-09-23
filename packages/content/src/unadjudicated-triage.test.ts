@@ -78,7 +78,6 @@ import {
 const FILED: Readonly<Record<string, readonly string[]>> = {
   'animate-dead': ['a-stat-block-created-mid-fight', 'a-target-rule-the-format-cannot-state'],
   'arcanists-magic-aura': ['a-creature-fact-an-effect-overrides'],
-  darkvision: ['senses-beyond-declared-sight'],
   knock: ['an-effect-that-suppresses-other-magic'],
   nondetection: ['an-effect-that-suppresses-other-magic'],
   'pass-without-trace': [
@@ -171,7 +170,9 @@ const HANDOVERS: readonly string[] = [
  * so a patch has nowhere to hang, which is the residue the shape's own
  * description names.
  */
-const LIGHT: readonly string[] = ['continual-flame', 'dancing-lights', 'light'];
+// Empty since 2026-09-23: the last three left the day a casting's light could
+// be carried by its bearer or moved with its motes. See `LIGHT_EXECUTED`.
+const LIGHT: readonly string[] = [];
 
 /**
  * The three that left, kept as a list so the arithmetic stays checkable.
@@ -182,7 +183,14 @@ const LIGHT: readonly string[] = ['continual-flame', 'dancing-lights', 'light'];
  * Retreat's debt was stale on the day it was written, and these three were
  * true readings that a later batch made false.
  */
-const LIGHT_EXECUTED: readonly string[] = ['darkness', 'daylight', 'fog-cloud'];
+const LIGHT_EXECUTED: readonly string[] = [
+  'continual-flame',
+  'dancing-lights',
+  'darkness',
+  'daylight',
+  'fog-cloud',
+  'light',
+];
 
 /**
  * The ones whose debt is no longer owed — see the block below, which drives
@@ -200,7 +208,8 @@ const LIGHT_EXECUTED: readonly string[] = ['darkness', 'daylight', 'fog-cloud'];
  * buys. What is left of its paragraph is that a weapon's magicality is not a
  * fact the engine holds, which trips no marker and is nobody's debt.
  */
-const EXECUTES: readonly string[] = ['expeditious-retreat', 'magic-weapon'];
+// Darkvision joined the two the day a casting could confer a sense.
+const EXECUTES: readonly string[] = ['darkvision', 'expeditious-retreat', 'magic-weapon'];
 
 /**
  * And the one the reading found a debt in that this vocabulary cannot name.
@@ -296,15 +305,19 @@ describe('the forty-five unadjudicated spells are read', () => {
 
   /**
    * And the six the first reading filed wrong, each with a clause naming the
-   * shape that did not exist on the day it was read.
+   * shape that did not exist on the day it was read — all six have since
+   * left, so the emptiness is the claim: nothing in the tracked map is filed
+   * against the light shape any more, and the list stays so the arithmetic
+   * below can still be read off it.
    */
-  it.each(LIGHT.map((s) => [s] as const))('files %s against the light shape', (spellId) => {
-    const entries = TRACKED_ADJUDICATED[spellId] ?? [];
-    expect(
-      entries.map((entry) => entry.why),
-      spellId,
-    ).toContain('light-and-obscurement-the-scene-holds');
-    expect(misanchoredAdjudications(spellId), spellId).toEqual([]);
+  it('files nothing against the light shape any more', () => {
+    expect(LIGHT).toEqual([]);
+    const stillFiled = Object.entries(TRACKED_ADJUDICATED)
+      .filter(([, entries]) =>
+        entries.some((entry) => entry.why === 'light-and-obscurement-the-scene-holds'),
+      )
+      .map(([spellId]) => spellId);
+    expect(stillFiled).toEqual([]);
   });
 
   /**
@@ -315,8 +328,12 @@ describe('the forty-five unadjudicated spells are read', () => {
   it.each(LIGHT_EXECUTED.map((s) => [s] as const))('executes %s rather than tracking it', (spellId) => {
     const definition = SPELL_DEFINITIONS.find((d) => d.id === spellId);
     expect(definition, `${spellId} has no definition`).toBeDefined();
+    // A patch over the area, or a light the casting's target carries — the
+    // second is how Light and Continual Flame shed without an object to hang on.
     expect(
-      definition?.areaLight ?? definition?.areaObscurement,
+      definition?.areaLight ??
+        definition?.areaObscurement ??
+        definition?.effects.find((effect) => effect.kind === 'light'),
       `${spellId} lays no patch, so nothing of it is resolved`,
     ).toBeDefined();
     expect(TRACKED_ADJUDICATED[spellId], `${spellId} is tracked again`).toBeUndefined();
