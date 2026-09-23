@@ -293,15 +293,16 @@ export interface RollModifier {
    * nothing, because `withoutGrants` hands the creature back by reference when
    * it matches no grant.
    *
-   * **Only an attack roll spends one today**, and the validator says so rather
-   * than letting a definition express a rule nothing would enforce. The two
-   * attack rollers emit `roll-modifier-consumed`; the nine other emitters of
-   * `roll-recorded` do not, so a one-shot on a save or a check would quietly
-   * run to its deadline instead — which is a durable grant wearing this
-   * field's name. SRD writes the sentence about a save (Improved Brutal
-   * Strike's "Disadvantage on its next saving throw"), so the restriction is
-   * this engine's rather than the book's, and it lifts when a save roller
-   * spends one. See {@link oneShotProblem}.
+   * **An attack roll and an ability check spend one today**, and the validator
+   * says so rather than letting a definition express a rule nothing would
+   * enforce. The check half arrived with SRD Help — "Advantage on the next
+   * ability check they make with the chosen skill" — and is the same mechanic
+   * one family along. The remaining emitters of `roll-recorded` do not spend
+   * one, so a one-shot on a **save** would quietly run to its deadline instead
+   * — which is a durable grant wearing this field's name. SRD writes that
+   * sentence too (Improved Brutal Strike's "Disadvantage on its next saving
+   * throw"), so the restriction is this engine's rather than the book's, and it
+   * lifts when a save roller spends one. See {@link oneShotProblem}.
    */
   readonly oneShot?: true;
 }
@@ -657,21 +658,36 @@ export function rollSelectorProblems(
  * A grant nothing would ever spend is a grant that does not end the way it says.
  *
  * {@link RollModifier.oneShot} is meaningful only where some roller emits
- * `roll-modifier-consumed`, and only the two attack rollers do. On any other
- * family the flag compiles, the grant lands, and it then runs to its deadline
- * like any durable one — the *silent* failure this file's whole validator
- * exists to convert into a refusal at authoring.
+ * `roll-modifier-consumed`. On any family where none does, the flag compiles,
+ * the grant lands, and it then runs to its deadline like any durable one — the
+ * *silent* failure this file's whole validator exists to convert into a
+ * refusal at authoring.
  *
- * **A limit of this engine and not of the SRD**, which is why it is worth
- * saying in the refusal: the book writes the sentence about a saving throw
- * too. The day a save roller spends one, this function is the single place
+ * **Two families spend one now, and the second arrived with the SRD sentence
+ * that needed it.** The attack rollers were the first, for Guiding Bolt and
+ * Vicious Mockery. The ability-check rollers are the second, for SRD Help:
+ * "that ally has Advantage on **the next ability check they make** with the
+ * chosen skill" — the same mechanic, one family along. `resolveTest`,
+ * `resolveEffectCheck`, the escape check and the three glossary actions each
+ * emit the event through `spentRollModifiers`.
+ *
+ * **One check roller still does not, and it is named rather than glossed
+ * over**: `takeHide` gathers its modes and spends nothing, so a Help offered
+ * on Stealth reaches a Hide and is not used up by it. It expires at the
+ * helper's next turn either way, which is why this is an over-generosity of
+ * one roll rather than a grant that never ends.
+ *
+ * **A limit of this engine and not of the SRD** for what is left, which is why
+ * it is worth saying in the refusal: the book writes the sentence about a
+ * saving throw too (Improved Brutal Strike's "Disadvantage on its next saving
+ * throw"). The day a save roller spends one, this function is the single place
  * that stops refusing it.
  */
 export function oneShotProblem(roll: RollFamily): RollSelectorProblem | null {
-  if (roll === 'attack') return null;
+  if (roll === 'attack' || roll === 'ability-check') return null;
   return {
     code: 'one_shot_off_an_attack',
-    reason: `only an attack roll spends a one-shot modifier today, so one on a ${roll} would never be used up and would run to its deadline instead`,
+    reason: `only an attack roll and an ability check spend a one-shot modifier today, so one on a ${roll} would never be used up and would run to its deadline instead`,
   };
 }
 

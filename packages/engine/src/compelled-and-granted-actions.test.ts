@@ -693,8 +693,13 @@ describe('the vocabulary is held at authoring', () => {
   });
 
   it('refuses a grant narrowed to an action no spender can tell apart', () => {
+    // Ready, which the book prints as an action and `NAMED_ACTIONS` leaves
+    // out: `takeReady` spends the Action without naming itself, so a grant
+    // narrowed to it would be a sentence nothing could honour. The four that
+    // used to stand here — Search, Study, Influence and Utilize — arrived with
+    // their spenders and are members now.
     const found = problems([
-      { kind: 'action-rule', rule: { kind: 'grants', at: 'casting', only: ['utilize'] } },
+      { kind: 'action-rule', rule: { kind: 'grants', at: 'casting', only: ['ready'] } },
     ]);
     expect(found.some((p) => p.code === 'bad_action_rule')).toBe(true);
   });

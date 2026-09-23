@@ -28,6 +28,7 @@ import { type ConditionState, isIncapacitated } from '../conditions.js';
 import { type EffectCheck } from '../timers.js';
 import { type CreatureState, type GameEvent, type GameState } from '../events.js';
 import { distanceBetween } from '../positioning.js';
+import { consumedRollModifiers, type RollQuery } from '../roll-modifiers.js';
 import { type DieRule, type SpellCheck } from '../spell-definitions.js';
 import {
   canSee,
@@ -41,6 +42,30 @@ import {
   standingSaveBonuses,
 } from '../standing.js';
 import { type Supply } from './casting.js';
+
+/**
+ * The `roll-modifier-consumed` events a roll owes, one per grant it used up.
+ *
+ * **Written once because five rollers say it**, and it was two before this: the
+ * two attack rollers each spelled the same three lines out, and
+ * `oneShotProblem` refused the flag on every other family because nothing else
+ * spent one. SRD Help hangs a one-shot Advantage on an **ability check** — "that
+ * ally has Advantage on the next ability check they make with the chosen skill"
+ * — so the check rollers spend one now, and the refusal narrowed to the
+ * families that still do not.
+ *
+ * The caller passes the very query its `rollModesFor` call used, which is what
+ * keeps "what was read" and "what was spent" from ever disagreeing:
+ * `consumedRollModifiers` asks the same {@link selectorMatches} the gatherer
+ * did.
+ */
+export function spentRollModifiers(state: GameState, query: RollQuery): GameEvent[] {
+  return consumedRollModifiers(state, query).map((spent) => ({
+    type: 'roll-modifier-consumed',
+    id: spent.holder,
+    source: spent.source,
+  }));
+}
 
 /**
  * Turn a completed D20 test into the log's record of it.

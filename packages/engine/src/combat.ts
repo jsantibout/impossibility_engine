@@ -141,31 +141,46 @@ export type ActionSlot = (typeof ACTION_SLOTS)[number];
  * | `dash` | `takeDash` | Fear, Eyebite, Wind Walk |
  * | `disengage` | `takeDisengage` | Conjure Woodland Beings |
  * | `dodge` | `takeDodge` | Bestow Curse, "forced to take the Dodge action" |
+ * | `help` | `takeHelp` | the glossary's own Help entry |
  * | `hide` | `takeHide` | Wind Walk, Cunning Action, Naturally Stealthy |
+ * | `influence` | `takeInfluence` | the glossary's own Influence entry |
  * | `magic` | every casting route | Befuddlement, Antimagic Field, True Polymorph |
  * | `opportunity-attack` | the Reaction a leaving move offers | Shocking Grasp |
+ * | `search` | `takeSearch` | Wind Walk, "Dash, Hide, Search" |
+ * | `study` | `takeStudy` | six definitions that ask for it before an Investigation check |
+ * | `utilize` | `takeUtilize` | Fast Hands, "the Utilize action as a Bonus Action" |
  *
- * **`hide` is the member that arrived with its spender**, which is the rule
+ * **`hide` was the member that arrived with its spender**, which is the rule
  * this list is kept by rather than an exception to it: the Hide action was
  * left out for four batches because "the engine has no spender that could be
  * told one of them apart", and it is here now because `takeHide` takes it —
  * cover, watchers, the DC 15 Dexterity (Stealth) check and the Invisible
  * condition it buys.
  *
- * Search, Study, Influence, Ready and Utilize are the book's too and are still
- * absent, for the reason Hide was: no spender could be told one of them apart,
- * so a rule naming one would read as enforced and would not be. Wind Walk's
- * "Dash, Hide, Search" is therefore writable as the part the engine can
- * adjudicate — see {@link ActionRule}, `permits-only`, which fails closed.
+ * **And the last five arrived the same way, in one commit with their five
+ * spenders.** Search, Study, Influence and Utilize were listed here as the
+ * book's and left to the table for exactly Hide's reason; Help had only the
+ * stabilisation half a `declarations.ts` payout already reached. Each is here
+ * because a command takes it: `takeUtilize` spends the slot a second object
+ * interaction costs, `takeSearch` and `takeStudy` spend the action and roll
+ * the check the entry prints, `takeHelp` hangs the one-shot Advantage its two
+ * halves buy, and `takeInfluence` rolls the Charisma check against a DC the
+ * DM set. Wind Walk's "Dash, Hide, Search" is therefore now writable whole —
+ * see {@link ActionRule}, `permits-only`, which fails closed.
  */
 export const NAMED_ACTIONS = [
   'attack',
   'dash',
   'disengage',
   'dodge',
+  'help',
   'hide',
+  'influence',
   'magic',
   'opportunity-attack',
+  'search',
+  'study',
+  'utilize',
 ] as const;
 
 /** One of {@link NAMED_ACTIONS}. */
@@ -203,12 +218,20 @@ export type NamedAction = (typeof NAMED_ACTIONS)[number];
  * takes the price: `takeDash`, `takeDisengage` and `takeHide` each take a
  * `from` and refuse one this map does not hold.
  *
- * A fourth arrives the same way, with its own command and its own paragraph.
+ * **The fourth arrived the same way**, with its own command and its own
+ * paragraph: SRD Fast Hands, "you can use the Utilize action as a Bonus
+ * Action", which is the whole of what a Thief's feature says that the engine
+ * can charge for. It could not be written at all while no command charged for
+ * a Utilize — an allowance with no spend to be offered on — which is the
+ * defect this map exists to name.
+ *
+ * A fifth arrives the same way again.
  */
 export const STATABLE_PRICES: Readonly<Partial<Record<NamedAction, readonly ActionSlot[]>>> = {
   dash: ['bonus-action'],
   disengage: ['bonus-action'],
   hide: ['bonus-action'],
+  utilize: ['bonus-action'],
 };
 
 /** Whether some command will actually charge this slot for this action. */
@@ -542,9 +565,14 @@ const ACTION_TITLES: Readonly<Record<NamedAction, string>> = {
   dash: 'Dash',
   disengage: 'Disengage',
   dodge: 'Dodge',
+  help: 'Help',
   hide: 'Hide',
+  influence: 'Influence',
   magic: 'Magic',
   'opportunity-attack': 'Opportunity Attack',
+  search: 'Search',
+  study: 'Study',
+  utilize: 'Utilize',
 };
 
 /** "Dash", "Dash or Dodge", "Dash, Dodge or Attack" — and "nothing" for none. */

@@ -15,12 +15,13 @@
  * day the mastery vocabulary was written and is the one the population exists
  * for.
  *
- * **A value and not a word**, because five of the seven unbuilt rows are
- * named in the engine's own prose and say so in their own notes: `combat.ts`
- * lists Search, Study, Influence and Utilize as the book's and leaves them to
- * the table, three definitions quote the Study action before the check the
- * engine then rolls, and two comments in `mastery.ts` say Nick is unbuilt. A
- * word-level sweep would read every one of those as coverage.
+ * **A value and not a word**, because the unbuilt rows are named in the
+ * engine's own prose and say so in their own notes: two comments in
+ * `mastery.ts` say Nick is unbuilt, and the hand an attack came from is
+ * written about in several places and recorded in none. A word-level sweep
+ * would read either as coverage. It was five rows of seven when this was
+ * written; the four glossary actions that made up the difference left the
+ * list by arriving with their spenders, which is the only way out it offers.
  *
  * Both are driven with a synthetic built to be caught before they are run on
  * the real list, because a guard that can only be run against the data it
@@ -137,14 +138,13 @@ describe('every glossary rule says truthfully whether anything runs it', () => {
    * the engine's own text — not merely absent from the barrel, because a
    * command can be reached through another and a word that is nowhere cannot.
    *
-   * Five of the seven are named in the engine's **prose** and are still
-   * unbuilt, and each says so in its own note: `combat.ts` lists Search,
-   * Study, Influence and Utilize as the book's and leaves them to the table,
-   * three definitions quote the Study action before the check the engine then
-   * rolls, and two comments in `mastery.ts` say Nick is unbuilt. So the
-   * assertion is over a **quoted literal** — what a switch arm, a union member
-   * or a lookup is made of — rather than over every occurrence of the word,
-   * and the prose is where the reading is recorded.
+   * Both of the rows left are named in the engine's **prose** and are still
+   * unbuilt, and each says so in its own note: two comments in `mastery.ts`
+   * say Nick is unbuilt, and the hand an attack came from is discussed in
+   * several places and recorded nowhere. So the assertion is over a **quoted
+   * literal** — what a switch arm, a union member or a lookup is made of —
+   * rather than over every occurrence of the word, and the prose is where the
+   * reading is recorded.
    */
   it.each(GLOSSARY_RULES.filter((one) => one.built === null).map((one) => [one.id] as const))(
     'has nothing that executes %s',
@@ -184,17 +184,9 @@ describe('every glossary rule says truthfully whether anything runs it', () => {
    * repository's rule for a hand list: a row joining or leaving it is
    * somebody's reading and should have to say so here.
    */
-  it('holds the five the gate named, and Two-Weapon Fighting', () => {
+  it('holds only what is still waiting', () => {
     const missing = GLOSSARY_RULES.filter((one) => one.built === null).map((one) => one.id);
-    expect(missing.sort()).toEqual([
-      'help',
-      'influence',
-      'nick',
-      'search',
-      'study',
-      'two-weapon-fighting',
-      'utilize',
-    ]);
+    expect(missing.sort()).toEqual(['nick', 'two-weapon-fighting']);
   });
 
   /** And every one of the eight masteries the SRD prints has a row. */

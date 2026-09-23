@@ -248,6 +248,12 @@ describe('an executed spell may not file a rule the engine owns as fiction', () 
       'progress.md',
       'the audit',
       'spell-definitions.ts',
+      // The action economy, which arrived in this vocabulary when the last
+      // feature left `an-action-the-engine-has-no-spender-for` and the shape
+      // became a spell's. `blocked-on.test.ts`'s own table holds the same
+      // entry, and the two drifting apart is the defect this comment's
+      // neighbour already records.
+      'combat.ts',
       'docs/design/',
       'docs/rules/',
     ];

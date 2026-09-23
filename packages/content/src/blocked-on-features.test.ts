@@ -464,11 +464,16 @@ describe('what a shape finishes is the column a tranche is planned from', () => 
       blocks: ['barbarian:improved-brutal-strike', 'fighter:studied-attacks'],
       finishes: ['fighter:studied-attacks'],
     });
-    // The Hide left this row with a spender; the Utilize is what is left of it.
+    // The Hide left this row with a spender and Fast Hands left it the same
+    // way, which took the last **feature** off it: `takeUtilize` gave the
+    // Utilize a spender, and an `allows` rule could then be priced against it.
+    // The id itself is a spell shape now rather than a feature one, which is
+    // what the unclaimed-shape guard above is for.
+    expect(knownFeatureBlockers()).toContain('an-action-the-engine-has-no-spender-for');
     expect(featureConsumersOf('an-action-the-engine-has-no-spender-for')).toEqual({
       shape: 'an-action-the-engine-has-no-spender-for',
-      blocks: ['thief:fast-hands'],
-      finishes: ['thief:fast-hands'],
+      blocks: [],
+      finishes: [],
     });
     // And the cheaper price is no longer a shape: `STATABLE_PRICES` holds three
     // entries and three commands take a `from`, so nothing claims the id and it

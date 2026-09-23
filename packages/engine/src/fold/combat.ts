@@ -75,6 +75,8 @@ export const COMBAT_EVENTS = [
   'budget-compelled',
   'movement-spent',
   'free-interaction-used',
+  'utilize-taken',
+  'help-given',
   'combatant-joined',
   'combatant-removed',
   'initiative-swapped',
@@ -410,6 +412,23 @@ export function applyCombat({ state, next }: Applying, event: CombatEvent): Game
     // stamp to ride on.
     case 'reaction-taken':
       return next;
+
+    // The same two reasons, one action along: the slot beside them is what
+    // was spent, and these say what it was spent on. A Utilize touches the
+    // free interaction deliberately not at all — it is what a creature takes
+    // instead of reaching for it — and a Help's benefit is the
+    // `roll-modifier-granted` and the timer beside this event, both of which
+    // `fold/grants.ts` and `fold/timers.ts` own. What is checked is what this
+    // seam checks of everything: a fight, and a creature it happened to.
+    case 'utilize-taken':
+    case 'help-given': {
+      if (state.combat === null) {
+        throw new CorruptLogError(event, 'an action was taken outside combat');
+      }
+      creatureOf(state, event, event.id);
+      if (event.type === 'help-given') creatureOf(state, event, event.ally);
+      return next;
+    }
   }
 
   return unhandledEvent(event);

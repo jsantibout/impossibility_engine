@@ -1698,6 +1698,51 @@ export type GameEvent =
       readonly command?: CommandStamp;
     }
   /**
+   * The Utilize action, taken.
+   *
+   * SRD: "When an object requires an action for its use, you take the Utilize
+   * action", and "any additional interactions require the Utilize action."
+   *
+   * **It changes nothing, exactly as `stated-action-taken` changes nothing**,
+   * and it exists for the same two reasons: the log should say why the slot
+   * beside it went, and the command that spent the slot needs a stamp to ride
+   * on — `action-spent` and `bonus-action-spent` carry none, which is the one
+   * thing that stops them from being a command's own record.
+   *
+   * The free interaction is deliberately untouched. SRD gives a turn one for
+   * nothing and charges an action for every one after it, so a Utilize is what
+   * a creature takes **instead of** reaching for that allowance rather than a
+   * second way of spending it.
+   */
+  | {
+      readonly type: 'utilize-taken';
+      readonly id: CharacterId;
+      /** What was used, in the caller's words: "the lever". */
+      readonly object?: string;
+      readonly command?: CommandStamp;
+    }
+  /**
+   * The Help action, taken, and who it was taken for.
+   *
+   * The grant is the `roll-modifier-granted` beside this and the deadline is
+   * the timer beside that, so nothing here folds into any creature's state:
+   * what it records is the *fact* of the Help, which the log could otherwise
+   * only be read back out of a source string, and the stamp the command rides
+   * on.
+   *
+   * `kind` is which of the entry's two halves was offered — SRD prints "Assist
+   * an Ability Check" and "Assist an Attack Roll" as two paragraphs under one
+   * action — and `against` is the enemy the second of them named.
+   */
+  | {
+      readonly type: 'help-given';
+      readonly id: CharacterId;
+      readonly ally: CharacterId;
+      readonly kind: 'check' | 'attack';
+      readonly against?: CharacterId;
+      readonly command?: CommandStamp;
+    }
+  /**
    * One creature took a place in a fight already under way.
    *
    * **Not `combat-started` with a longer list.** Beginning a fight ranks

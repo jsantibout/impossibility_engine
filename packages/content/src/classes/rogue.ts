@@ -377,8 +377,18 @@ export const THIEF: SubclassDefinition = {
       id: 'thief:fast-hands',
       name: 'Fast Hands',
       level: 3,
-      automation: 'manual',
-      note: 'Sleight of Hand, Thieves’ Tools and the Utilize action as a Bonus Action are not offered, and not for Cunning Action’s reason after all: the engine charges for no Utilize action anywhere, so there is no spend for a cheaper price to be offered on. Sleight of Hand is an ability check rather than an action, and a Bonus Action spent on one would have nothing to name itself as.',
+      automation: 'engine',
+      note: 'SRD: "you can use the Utilize action as a Bonus Action." Executed, as the action rule the feature holds: `takeUtilize` charges an Action or, where something has allowed it, a Bonus Action, and this is what allows it — the same `allows` member Cunning Action writes three of beside it. The spend it is offered on did not exist when this feature was first read, which is why the note used to say there was nothing to offer. What is **not** executed and is not a rule anything could hold: the sentence’s other two clauses, "you can also use that Bonus Action to make a Sleight of Hand check" and "to use Thieves’ Tools", are ability checks rather than actions, and a Bonus Action spent on a check has nothing to name itself as — an `ability_check` a DM calls for spends no slot at all. A Thief takes the Bonus Action through a Utilize and the table narrates the pick or the pocket.',
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        effects: [
+          {
+            kind: 'action-rule',
+            rule: { kind: 'allows', action: 'utilize', from: 'bonus-action' },
+          },
+        ],
+      },
     },
     {
       id: 'thief:second-story-work',
