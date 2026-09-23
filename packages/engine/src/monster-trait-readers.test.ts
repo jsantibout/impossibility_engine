@@ -46,6 +46,7 @@ import {
 } from './commands.js';
 import { createRng, type Rng } from './dice.js';
 import { fold, type GameEvent, type GameState } from './events.js';
+import { adaptMonster } from './monster.js';
 import { createRollIssuer } from './rolls.js';
 import { actionRulesOn, rollModesFor } from './standing.js';
 
@@ -379,5 +380,94 @@ describe('SRD Bloodied Fury: Advantage while at half Hit Points or fewer', () =>
     expect(modes(state, id('berserker'), 'attack')).toEqual(['Bloodied Frenzy']);
     expect(modes(state, id('berserker'), 'saving-throw')).toEqual(['Bloodied Frenzy']);
     expect(modes(state, id('berserker'), 'ability-check')).toEqual([]);
+  });
+
+  /**
+   * **Exactly half, which is the boundary the glossary names and no SRD block
+   * can reach.**
+   *
+   * "A creature is Bloodied while it has half its Hit Points **or fewer**
+   * remaining" — so a creature at exactly half is Bloodied, and the clause
+   * `hp * 2 > hpMax` is what says so. The two blocks that print the sentence
+   * have odd maxima (13 and 67), so neither can ever land on the boundary and
+   * the wrong comparison would pass every test above. A constructed creature
+   * with an even maximum is what closes it, which is the same thing
+   * `light-and-sight.test.ts` did for `in-sunlight` before any block carried
+   * that sentence either.
+   */
+  it('counts a creature at exactly half its maximum as Bloodied', () => {
+    const FURIOUS = id('furious');
+    const base: readonly GameEvent[] = [
+      {
+        type: 'creature-added',
+        id: FURIOUS,
+        name: 'furious',
+        sheet: {
+          level: 1,
+          abilities: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
+          skills: {},
+          saveProficiencies: [],
+          armor: null,
+          shield: null,
+          armorTraining: { light: true, medium: true, heavy: true, shields: true },
+          baseSpeed: 30,
+          spellcastingAbility: null,
+          standing: [
+            {
+              feature: 'fixture:fury',
+              name: 'Fixture Fury',
+              reach: { kind: 'self' },
+              grant: {
+                kind: 'roll-mode',
+                modifier: { mode: 'advantage', selector: { roll: 'attack', relation: 'roller' } },
+              },
+              requires: [{ kind: 'while-bloodied' }],
+            },
+          ],
+        },
+        maxHp: 30,
+        diesAtZero: false,
+        creatureType: 'Beast',
+        side: 'monsters',
+      },
+    ];
+
+    const after = (damage: number): GameState =>
+      fold(SEED, [...base, { type: 'damage-taken', id: FURIOUS, amount: damage }]);
+
+    // 16 of 30 is more than half, and 15 of 30 is exactly half.
+    expect(modes(after(14), FURIOUS, 'attack')).toEqual([]);
+    expect(modes(after(15), FURIOUS, 'attack')).toEqual(['Fixture Fury']);
+  });
+});
+
+describe('a price is the one thing a heading says that a sentence does not', () => {
+  /**
+   * Every other reader here is applied to a line wherever it is printed,
+   * because what a line says is not a property of its heading. This one is
+   * the exception, and the exception is the rule working: the whole content
+   * of "the goblin takes the Disengage or Hide action" is *which slot pays
+   * for it*, and the sentence prints no slot. Under **Bonus Actions** it is a
+   * Bonus Action; under **Actions** it would be a creature taking an action
+   * as an action, and a free Bonus Action compiled out of it is a rule nobody
+   * printed.
+   */
+  it('compiles nothing from the same sentence printed under Actions', () => {
+    const goblin = SRD_CONTENT.monsters.find((one) => one.id === 'goblin-minion')!;
+    const printed = goblin.bonusActions.find((line) => line.name === 'Nimble Escape')!;
+    expect(printed.trait).toEqual({
+      kind: 'takes-a-named-action-as-a-bonus-action',
+      actions: ['disengage', 'hide'],
+    });
+
+    // The block it came from, with that one line moved to the other heading.
+    const moved = adaptMonster(
+      { ...goblin, bonusActions: [], actions: [...goblin.actions, printed] },
+      id('misfiled'),
+    );
+    expect(moved.sheet.standing).toBeUndefined();
+
+    // Not vacuous: the block as the book prints it does compile the rule.
+    expect(adaptMonster(goblin, id('as-printed')).sheet.standing).toHaveLength(2);
   });
 });

@@ -1003,11 +1003,23 @@ function printedBloodiedAdvantage(
  * would be a rule the book rations handed over free. The SRD prints no such
  * line today; a homebrew block reaching this door would, and would be left as
  * the prose it already is.
+ *
+ * **And refused outside the Bonus Actions section, which is the one place a
+ * heading is load-bearing.** Everywhere else in this adapter the heading says
+ * what a line *costs* and the sentence says what it *is* — but the whole
+ * content of this rule is a cost, and the sentence the parser matched does not
+ * carry one: "The goblin takes the Disengage or Hide action" is a Bonus Action
+ * because of where it is printed and for no other reason. All ten SRD lines
+ * that match sit under Bonus Actions; the same sentence printed under
+ * **Actions** would be a creature taking an action as an action, and compiling
+ * it here would hand out a free Bonus Action nobody printed.
  */
 function printedBonusActionAllowance(
   line: MonsterLine,
   key: string,
+  costsABonusAction: boolean,
 ): readonly StandingEffect[] {
+  if (!costsABonusAction) return [];
   if (line.recharge !== undefined || line.perDay !== undefined) return [];
 
   const allowed = (
@@ -1051,23 +1063,29 @@ type MonsterLine = Monster['traits'][number];
  * and a heading says what a line costs rather than what it is. So the walk is
  * over the whole block and the dispatch is on the shape the parser read, which
  * is the same rule `parseTraitShape` is applied by.
+ *
+ * **The one exception carries the heading with it.** A rule whose entire
+ * content is a *price* cannot be read off a sentence that does not print one,
+ * so `printedBonusActionAllowance` is told which section its line came from
+ * and compiles nothing outside Bonus Actions. Nothing else here is told,
+ * because nothing else depends on it.
  */
 function printedStanding(monster: Monster): { readonly standing?: readonly StandingEffect[] } {
-  const sections: readonly (readonly MonsterLine[])[] = [
-    monster.traits,
-    monster.actions,
-    monster.bonusActions,
-    monster.reactions,
-    monster.legendaryActions,
+  const sections: readonly (readonly [readonly MonsterLine[], boolean])[] = [
+    [monster.traits, false],
+    [monster.actions, false],
+    [monster.bonusActions, true],
+    [monster.reactions, false],
+    [monster.legendaryActions, false],
   ];
 
-  const standing = sections.flatMap((section) =>
+  const standing = sections.flatMap(([section, costsABonusAction]) =>
     section.flatMap((line) => {
       const key = printedTraitKey(monster.id, line.name);
       return [
         ...printedSunlight(line, key),
         ...printedBloodiedAdvantage(line, key),
-        ...printedBonusActionAllowance(line, key),
+        ...printedBonusActionAllowance(line, key, costsABonusAction),
       ];
     }),
   );

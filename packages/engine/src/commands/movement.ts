@@ -472,11 +472,11 @@ export function moveWithin(
         cost,
         terrain,
         unverified: [
-        ...opportunity.unverified,
-        ...ground.value.unverified,
-        ...jumped.value,
-        ...climbing,
-      ],
+          ...opportunity.unverified,
+          ...ground.value.unverified,
+          ...jumped.value,
+          ...climbing,
+        ],
         duplicate: false,
       });
     }
@@ -726,16 +726,16 @@ const RUNNING_START = 10;
  *
  * **Reported rather than asked**, which is the difference between this and a
  * `needs-context`: the answer changes nothing the engine would do next. It is
- * a fact the mover's own block may settle, and for six of the thirteen stat
- * blocks that print Spider Climb it does — "can climb difficult surfaces,
- * including along ceilings, without needing to make an ability check" is a
- * sentence about exactly this check, and a holder is not offered the question.
+ * a fact the mover's own block may settle, and for every stat block that
+ * prints SRD Spider Climb it does — "can climb difficult surfaces, including
+ * along ceilings, without needing to make an ability check" is a sentence
+ * about exactly this check, and a holder is not offered the question.
  *
  * **The surcharge is not this rule**, and lifting it here would be inventing a
  * Speed the book withheld. SRD charges a climb double "unless the creature has
- * a Climb Speed"; Spider Climb is not a Climb Speed, five of the six SRD
- * holders print one beside it, and the Vampire Spawn — which does not — climbs
- * at half rate exactly as the book has it.
+ * a Climb Speed"; Spider Climb is not a Climb Speed, and every SRD block that
+ * prints it prints a Climb Speed beside it but one — the Vampire Spawn, which
+ * therefore climbs at half rate exactly as the book has it.
  */
 function climbCheck(
   id: CharacterId,

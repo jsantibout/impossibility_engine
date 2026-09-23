@@ -1054,7 +1054,14 @@ export type StandingRequirement =
   | { readonly kind: 'in-dim-light-or-darkness' }
   /**
    * SRD Bloodied Fury: "**While Bloodied**, the boar has Advantage on attack
-   * rolls." SRD Bloodied Frenzy and SRD Blood Frenzy print the same clause.
+   * rolls." SRD Bloodied Frenzy prints the same clause over a wider list of
+   * rolls.
+   *
+   * **A fact about the holder, and only about the holder.** The sahuagin's
+   * Blood Frenzy sounds like this and is not — "Advantage on attack rolls
+   * against any creature that doesn't have all its Hit Points" is a fact about
+   * the *target*, and nothing here would express it. Widening this kind to
+   * reach it would make one requirement answer two different questions.
    *
    * The rules glossary settles what it means and leaves nothing to read into
    * it: "A creature is Bloodied while it has half its Hit Points or fewer
