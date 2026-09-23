@@ -53,7 +53,8 @@ homebrew.
   Help, Influence, Search, Study and Utilize are actions a command spends**,
   the Light property's extra attack is a swing with Nick and Two-Weapon
   Fighting on it, and Savage Attacker, Luck, Relentless Endurance, Powerful
-  Build, Tactical Shift and Fast Hands execute. **Wild Shape executes**: a
+  Build, Tactical Shift, Fast Hands, Resourceful, Naturally Stealthy, Jack of
+  All Trades, Slow Fall and Second-Story Work execute. **Wild Shape executes**: a
   Druid wears a learned Beast's stat block for the hours the table prints,
   with the SRD's retained half kept, and comes back by every ending the book
   names.
@@ -107,13 +108,12 @@ homebrew.
   and type, and seats it after its rider; what no field can hold is a printed
   line whose numbers are the summoner's — the Otherworldly Steed's attack and
   Bonus Actions — and a creature stowed somewhere that is not the scene.
-- **Nothing reduces damage an effect has rolled**, which is why Feather Fall
-  and a Monk's Slow Fall do not work and why `FeatureReactionWindow` still
-  excludes `creature-falling`.
+- **No window opens on a fall.** Slow Fall is elected on the landing; Feather
+  Fall waits on `FeatureReactionWindow` gaining `creature-falling`.
 - **Movement modes are built, and jumping is half.** The four Speeds are on
   the sheet and off a stat block, a move names its mode, going without the
   Speed costs double, a stopped flier falls, and a spell or feature can grant
-  one. The longer running jump is missing, so Second-Story Work stays manual.
+  one. A Thief's running jump lengthens by the Dexterity modifier.
 - Light shed by an **object** — Light, Continual Flame, Dancing Lights — has
   nowhere to hang: an object can be broken but cannot yet carry a light patch.
 - **A printed stat-block rider that deals extra damage is still prose.** The

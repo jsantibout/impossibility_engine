@@ -713,7 +713,11 @@ describe('the DM campaign’s cache is the fold', () => {
       dc: 12,
       advantage: 'the rope is already in her hand',
     });
+    // Kessa is a Human, so a failed roll offers her Heroic Inspiration and
+    // holds a window open; settling it is the protocol, and issues no die.
+    if (campaign.state().pendingTest !== null) call('settle_test');
     call('saving_throw', { who: 'kessa', ability: 'con', dc: 12, disadvantage: 'the smoke' });
+    if (campaign.state().pendingTest !== null) call('settle_test');
     call('roll_improvised_damage', {
       target: 'kessa',
       dice: '2d4',

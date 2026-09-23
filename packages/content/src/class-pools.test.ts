@@ -737,7 +737,8 @@ describe('advancing a level moves every pool the level moves', () => {
       ),
       'save',
     );
-    expect(failed.offers.map((o) => o.feature)).toEqual(['fighter:indomitable']);
+    // A Human Fighter: Resourceful's Heroic Inspiration answers the same window.
+    expect(failed.offers.map((o) => o.feature)).toEqual(['fighter:indomitable', 'human:resourceful']);
 
     const after = fold('seed', [...log, ...failed.events]);
     const reroll = takeTestReaction(
@@ -864,6 +865,8 @@ describe('advancing a level moves every pool the level moves', () => {
       'second-wind',
       'action-surge',
       'fighter:indomitable',
+      // A Human's, declared by the species trait after the class's own.
+      'human:heroic-inspiration',
     ]);
   });
 

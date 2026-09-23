@@ -759,6 +759,37 @@ function grantProblems(
     }
   }
 
+  // A reroll that names a test the window does not roll, or an outcome that is
+  // neither of the two. The window is `offersForTest`'s, and it asks exactly
+  // these two questions of a reroll; an answer it cannot read is a Reaction
+  // never offered, silently.
+  if (grant.kind === 'reaction') {
+    grant.does.forEach((effect, index) => {
+      if (effect.kind !== 'reroll') return;
+      const at = `grants.does[${index}]`;
+      const tests: unknown = effect.tests;
+      if (tests !== undefined) {
+        if (!Array.isArray(tests) || tests.length === 0) {
+          found.push({
+            field: `${at}.tests`,
+            code: 'bad_reroll_tests',
+            reason: 'a reroll that names its tests names at least one: an ability check, a saving throw, or both',
+          });
+        } else {
+          tests.forEach((test: unknown, i) => {
+            if (test !== 'ability-check' && test !== 'saving-throw') {
+              found.push({
+                field: `${at}.tests[${i}]`,
+                code: 'bad_reroll_tests',
+                reason: `"${String(test)}" is not a D20 Test the window rolls; an attack roll has no window a reroll can answer in`,
+              });
+            }
+          });
+        }
+      }
+    });
+  }
+
   // A conferred Reaction has no pool of its own — the giver's use was spent
   // when they gave it away — so a refund on failure is an ending nothing
   // keeps: what a use of it spends is the grant, and the grant is gone. The

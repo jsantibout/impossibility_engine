@@ -235,8 +235,13 @@ export const MONK: ClassDefinition = {
       id: 'monk:slow-fall',
       name: 'Slow Fall',
       level: 4,
-      automation: 'manual',
-      note: 'Reducing falling damage is not modelled; falling is not modelled.',
+      automation: 'engine',
+      note: 'Executed. SRD: "When you fall, you can take a Reaction to reduce any damage you take from the fall by an amount equal to five times your Monk level." A fall the table lands (`resolve_fall`) names this feature to elect it; the engine takes five times the Monk level off the landing’s dice before the Monk’s own defences meet them, and spends the Reaction where a fight is running.',
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        effects: [{ kind: 'fall-damage-reduction', perClassLevel: 5 }],
+      },
     },
     {
       id: 'monk:extra-attack',

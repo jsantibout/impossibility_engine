@@ -106,10 +106,12 @@ describe('toolSchemas', () => {
     // surfaces, `create_character.choices.knownForms`, `add_creature`'s
     // sentence about a stat block that casts, and the rests track's
     // `end_rest` re-choices.
+    // Re-pinned 2026-09-23: `resolve_fall` on the DM surface, the small
+    // features track's one new door.
     expect(toolSchemas(player())).toHaveLength(78);
-    expect(toolSchemas(dm())).toHaveLength(94);
+    expect(toolSchemas(dm())).toHaveLength(95);
     expect(JSON.stringify(toolSchemas(player())).length).toBe(100186);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(120007);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(121108);
   });
 });
 

@@ -144,9 +144,9 @@ export const TAKEN_BY: Readonly<Record<FeatureReactionWindow, string>> = {
 /**
  * What kind of thing a feature is, from the caller's point of view.
  *
- * `reaction` and `passive` have no door and say so: a Reaction a feature
- * offers is reported by `options` when a window opens for it, and a passive
- * benefit is never anybody's to spend.
+ * `passive` has no door and says so: a passive benefit is never anybody's to
+ * spend. A `reaction`'s door is the tool that answers its window,
+ * {@link TAKEN_BY}; `options` reports the Reaction when a window opens for it.
  *
  * **`passive` used to swallow a standing grant that *is* spendable.** Every
  * standing effect that was not an optional casting-damage election landed
@@ -1156,9 +1156,12 @@ export function holdingsOf(state: GameState, id: CharacterId): Holdings | null {
       feature: one.feature,
       name: one.name,
       kind: 'reaction',
-      // No door yet: `options` reports a Reaction when a window opens for it,
-      // and nothing on this surface takes one but an Opportunity Attack.
-      spentBy: null,
+      // The window's tool: a Reaction is taken through the call that answers
+      // the window it sits in, once `options` has reported that window open.
+      // The pool it spends — Indomitable's uses, a Human's Heroic Inspiration
+      // — has that call for its door and no other, which is what a census of
+      // pools with no door reads here.
+      spentBy: TAKEN_BY[one.window],
       action: null,
       pool: one.pool,
       left: leftIn(state, who, one.pool),

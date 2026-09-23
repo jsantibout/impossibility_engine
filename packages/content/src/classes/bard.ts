@@ -150,8 +150,13 @@ export const BARD: ClassDefinition = {
       id: 'bard:jack-of-all-trades',
       name: 'Jack of All Trades',
       level: 2,
-      automation: 'manual',
-      note: 'Half the Proficiency Bonus on a check using no skill proficiency is not applied. Note that 2024 excludes Initiative from it — Initiative uses no skill at all — which is the opposite of the 2014 reading.',
+      automation: 'engine',
+      note: 'Executed. SRD: "You can add half your Proficiency Bonus (round down) to any ability check you make that uses a skill proficiency you lack and that doesn’t already include that bonus." Gathered where every check bonus is, for a check made with a skill the Bard is not proficient in and for no other. Note that 2024 excludes Initiative from it — Initiative uses no skill at all — which is the opposite of the 2014 reading, and the engine adds nothing to it.',
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        effects: [{ kind: 'half-proficiency-on-checks' }],
+      },
     },
     {
       id: 'bard:subclass',

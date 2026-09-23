@@ -135,7 +135,7 @@ export const FEATURE_SHAPES = {
   'temporary-hit-points-a-feature-grants':
     'Temporary Hit Points from a feature. The state is real — `Vitals.temporaryHp`, which a spell writes and a rest clears — and the only healing a feature reaches is `HealGrant` in packages/engine/src/progression.ts, "Hit points a feature gives its holder, as the class text writes the sum", which restores Hit Points rather than laying temporary ones over them. A class feature, a subclass feature and a species trait each print the sentence and none of them can say it.',
   'heroic-inspiration':
-    'Heroic Inspiration, which the engine holds nothing for at all: no field, no event and no command. It is not even a pool: packages/engine/src/progression.ts describes that member as "A named resource the feature *is*, rather than one it spends", and this is a resource no feature **is** — it arrives from a rest or from a fight and is spent on any D20 Test. A class feature grants it during combat and a species trait grants it on a Long Rest, so what both record is the permission and nothing that could ever be spent.',
+    'Heroic Inspiration regained by a feature mid-fight. The resource itself exists now: a pool of one on the sheet, `human:heroic-inspiration`, which a `reaction` grant declares, a Long Rest refills and the `test-rolled` window spends on a failed ability check or saving throw. What a feature that grants it in combat still has nothing for is the **grant**: SRD Heroic Warrior refills it at the start of each of the holder’s turns, and `recovers` — the field on a pool in packages/engine/src/progression.ts — knows a Short Rest and a Long Rest and no turn boundary.',
   'a-rule-the-engine-fixes-for-everybody':
     'a constant the engine applies to every creature, which one feature is meant to bend. A Long Rest is eight hours, an attunement limit is a number inside a command, and the concealment a Hide asks for is a test inside `takeHide`. `docs/design/characters-and-equipment.md` keeps the list of what the attunement rules still owe — "what ends attunement besides a command — death, losing the item, another creature attuning to it" — and every one of these is that same shape: a rule the engine holds rather than the sheet, so a trait bending it for its holder alone has nothing to bend. **Two of these used to be named here and are not any more**, in both directions. The objects batch built the Carrying Capacity table, and a `carrying-capacity` grant now moves which row of it a creature reads, which is what SRD Powerful Build walks through. And moving through an occupied space, which wanted two sizes of difference for everybody, is now read off the route a move states: a `passage` grant lowers the two sizes for its holder alone, which is what SRD Halfling Nimbleness walks through.',
   'a-spell-list-that-is-not-your-class-list':
@@ -327,18 +327,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
 
   // — Bard —
-  'bard:jack-of-all-trades': [
-    {
-      clause: 'Half the Proficiency Bonus on a check using no skill proficiency',
-      why: 'a-bonus-narrowed-to-a-skill',
-      note: 'the spell map’s own id: a bonus that reaches some checks and not others, selected by which skill they use.',
-    },
-    {
-      clause: '2024 excludes Initiative from it',
-      why: 'table',
-      note: 'a rules reading rather than a gap, written down so the 2014 answer does not creep back.',
-    },
-  ],
   'bard:countercharm': [
     {
       clause: 'a spell rolls its targets’ saves inside one atomic resolution',
@@ -535,9 +523,9 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
   'champion:heroic-warrior': [
     {
-      clause: 'Heroic Inspiration itself is not modelled',
+      clause: 'regaining it at the start of each of your turns in combat is not modelled',
       why: 'heroic-inspiration',
-      note: 'nothing holds it, so the feature that grants it has nothing to grant.',
+      note: 'the pool exists and a Long Rest refills it; a turn boundary refilling it is the half nothing runs.',
     },
   ],
   'champion:survivor': [
@@ -577,13 +565,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'at a price in points, which it cannot',
       why: 'a-resource-traded-for-another',
       note: 'a purchase buys an extra action or extra attacks and there is no member for buying an action rule, so a Focus Point cannot be charged for the cheaper slot the vocabulary can otherwise state.',
-    },
-  ],
-  'monk:slow-fall': [
-    {
-      clause: 'falling is not modelled',
-      why: 'falling',
-      note: 'the spell map’s own id, which Feather Fall waits on.',
     },
   ],
   'monk:empowered-strikes': [
@@ -958,13 +939,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'a die told to read 20, which nothing on a D20 Test does.',
     },
   ],
-  'thief:second-story-work': [
-    {
-      clause: 'the longer running jump',
-      why: 'jumping',
-      note: 'the spell map’s own id, and the whole of what is left now that the Climb Speed is granted: `longJumpDistance` prints the glossary’s distance off a Strength score and no grant adds feet to it.',
-    },
-  ],
   'thief:supreme-sneak': [
     {
       clause: 'which needs the same trade of Sneak Attack dice every Cunning Strike option needs',
@@ -1290,20 +1264,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'the 10 minutes',
       why: 'a-benefit-that-runs-for-a-printed-span',
       note: 'a printed span rather than a turn boundary the holder has to keep extending.',
-    },
-  ],
-  'halfling:naturally-stealthy': [
-    {
-      clause: 'no feature widens the concealment a Hide asks for',
-      why: 'a-rule-the-engine-fixes-for-everybody',
-      note: 'the ordinary case this trait is an exception to exists now — `takeHide` asks for Three-Quarters Cover, Total Cover or a declared Heavy Obscurement — and what the trait bends is that test itself, which is a constant inside the command rather than anything on the sheet. It is the attunement cap\u2019s shape exactly: a rule the engine holds for everybody, and a trait bending it for its holder alone with nothing to bend.',
-    },
-  ],
-  'human:resourceful': [
-    {
-      clause: 'Heroic Inspiration is not modelled',
-      why: 'heroic-inspiration',
-      note: 'the second feature in the catalogue that grants it, which is what makes it a shape.',
     },
   ],
   'orc:adrenaline-rush': [

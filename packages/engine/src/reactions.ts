@@ -227,11 +227,18 @@ export type ReactionEffect =
   /**
    * Roll the test again and keep the new number.
    *
-   * SRD Indomitable: "You **must use the new roll**." Both features that write
-   * this answer a **failure** and nothing else, so there is no `outcome` field
-   * — a field with one possible value is a field nothing reads.
+   * SRD Indomitable: "You **must use the new roll**." Every feature that writes
+   * this answers a **failure** and nothing else, so there is no `outcome` field
+   * — a field with one possible value is a field nothing reads. Heroic
+   * Inspiration's "any die" is narrowed to that deliberately; `progression.ts`
+   * says why.
    */
-  | { readonly kind: 'reroll'; readonly bonus?: ReactionAddend }
+  | {
+      readonly kind: 'reroll';
+      readonly bonus?: ReactionAddend;
+      /** The tests it answers; absent is a saving throw alone. */
+      readonly tests?: readonly D20TestKind[];
+    }
   /**
    * Swing back.
    *
@@ -639,8 +646,10 @@ export function offersForTest(state: GameState, context: TestContext): ReactionO
       if (does.kind !== 'intervene' && does.kind !== 'reroll') continue;
 
       // SRD Indomitable and Disciplined Survivor both say "If you fail a
-      // saving throw", and neither says anything about an ability check.
-      const tests = does.kind === 'intervene' ? does.tests : (['saving-throw'] as const);
+      // saving throw", and neither says anything about an ability check; SRD
+      // Heroic Inspiration says "any die", which a reroll declares.
+      const tests: readonly D20TestKind[] =
+        does.kind === 'intervene' ? does.tests : (does.tests ?? ['saving-throw']);
       if (!tests.includes(context.kind)) continue;
 
       const wants = does.kind === 'intervene' ? does.outcome : 'failure';

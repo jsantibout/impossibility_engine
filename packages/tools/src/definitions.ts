@@ -3740,6 +3740,7 @@ const TAKE_ACTION = tool({
           hidden: value.hidden,
           duplicate: value.duplicate ?? false,
         }),
+        (value) => value.unverified ?? [],
       );
     }
     // Help is the other one that answers with more than its events: the five

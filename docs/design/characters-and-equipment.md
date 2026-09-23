@@ -47,7 +47,13 @@ player chooses when they gain it. Creation compiles grants onto the sheet
 (`standing`, `activated`, `recoveries`, `selfHeals`, `reactions`,
 `unarmoredDefense`); readers evaluate them **from state on every read**, so
 an aura stops the moment its holder is stunned without anything having to
-remember to.
+remember to. A standing grant may bend a rule a command holds rather than a
+number on the sheet: `hides-behind-larger-creature` widens the concealment
+`takeHide` asks for, `half-proficiency-on-checks` joins the check bonuses,
+`fall-damage-reduction` comes off a landing's dice when the faller elects it by
+name, and `jump-bonus` lengthens a running Long Jump. A `reroll` Reaction names
+the D20 Tests it answers and answers a failure only; `progression.ts` says why
+Heroic Inspiration's "any die" is narrowed to that.
 
 **A use may also hang a grant that is stored rather than derived**, which is
 the other half and the one a roll can spend. A derived grant is recomputed

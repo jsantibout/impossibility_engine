@@ -233,13 +233,14 @@ describe('a shape nobody consumes reports itself', () => {
    *
    * The instruction this vocabulary was written under was to reuse the other
    * two wherever the gap is the same one, and a vocabulary that quietly did
-   * not would look exactly like one that did. So the query is asked: Slow Fall
-   * waits on the same missing mechanic Feather Fall does, a Dragon Companion
-   * on the same summons Arcane Hand does, and a Wish that Divine Intervention
-   * cannot reach is a spell nothing defines.
+   * not would look exactly like one that did. So the query is asked: Reliable
+   * Talent waits on the same replaced die a spell shape already names, a
+   * Dragon Companion on the same summons Arcane Hand does, and a Wish that
+   * Divine Intervention cannot reach is a spell nothing defines. (Slow Fall
+   * stood here while falling was unmodelled; it is executed now.)
    */
   it('files a feature under a spell or item shape where the gap is the same one', () => {
-    expect(featureBlockersOf('monk:slow-fall')).toEqual(['falling']);
+    expect(featureBlockersOf('rogue:reliable-talent')).toEqual(['a-roll-result-an-effect-replaces']);
     expect(featureBlockersOf('draconic-sorcery:dragon-companion')).toEqual([
       'a-stat-block-created-mid-fight',
     ]);
@@ -522,12 +523,11 @@ describe('what a shape finishes is the column a tranche is planned from', () => 
     // The door alone still finishes nothing, which is what the split said: the
     // feature it does block is blocked on a moment as well as on a reach.
     expect(featureConsumersOf('an-action-rule-a-feature-holds').finishes).toEqual([]);
-    // And the trait the Hide did *not* finish, because what it wants is not a
-    // spender at all: it widens the concealment the command asks for, which is
-    // a constant inside the command.
-    expect(featureBlockersOf('halfling:naturally-stealthy')).toEqual([
-      'a-rule-the-engine-fixes-for-everybody',
-    ]);
+    // And the trait the Hide did *not* finish that day, because what it wanted
+    // was not a spender at all but the concealment the command asks for — a
+    // constant inside the command — is finished now that the command reads a
+    // standing grant beside the constant: no clause of it waits on anything.
+    expect(featureBlockersOf('halfling:naturally-stealthy')).toEqual([]);
   });
 });
 
