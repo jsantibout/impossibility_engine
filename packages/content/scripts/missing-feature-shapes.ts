@@ -408,13 +408,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'the half that is applied: `check-bonus` sizes a bonus by a modifier on the holder’s own sheet, over the skills the feature names.',
     },
   ],
-  'cleric:sear-undead': [
-    {
-      clause: 'Turn Undead dealing Radiant damage',
-      why: 'a-feature-that-rewrites-another-features-rule',
-      note: 'a later feature adding an effect to an earlier one’s use.',
-    },
-  ],
   'cleric:divine-intervention': [
     {
       clause: 'Casting any Cleric spell without components',
@@ -515,13 +508,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'the extended lifespan',
       why: 'table',
       note: 'ageing, which no rule here reads.',
-    },
-  ],
-  'circle-of-the-land:spells': [
-    {
-      clause: 'It needs a grant that can be re-chosen on a rest',
-      why: 'an-option-re-chosen-on-a-rest',
-      note: 'the design note names this feature by name as the shape’s first consumer.',
     },
   ],
 
@@ -1174,13 +1160,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'a refusal the casting layer owns, recorded so the feature’s note stays true to it.',
     },
   ],
-  'wizard:memorize-spell': [
-    {
-      clause: 'Swapping a prepared spell on a Short Rest',
-      why: 'an-option-re-chosen-on-a-rest',
-      note: 'the design note names "every \\"swap a prepared spell on a Long Rest\\" rule" as this shape’s second consumer.',
-    },
-  ],
   'wizard:spell-mastery': [
     {
       clause: 'Casting the chosen spells at will',
@@ -1260,18 +1239,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'is an option re-chosen on a rest',
       why: 'an-option-re-chosen-on-a-rest',
       note: 'the High Elf alone: every other clause of every lineage is applied, and what is left is a cantrip swapped for another one whenever the Elf finishes a Long Rest, which nothing rewires a compiled grant for.',
-    },
-  ],
-  'elf:trance': [
-    {
-      clause: 'a Long Rest is eight hours for everybody in this engine, one constant with no per-creature answer',
-      why: 'a-rule-the-engine-fixes-for-everybody',
-      note: 'a rest length a trait shortens for its holder alone.',
-    },
-    {
-      clause: 'nothing models sleep',
-      why: 'a-world-fact-nothing-can-represent',
-      note: 'and the immunity to magical sleep with it.',
     },
   ],
   'gnome:gnomish-lineage': [

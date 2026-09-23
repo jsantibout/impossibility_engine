@@ -512,6 +512,40 @@ export function slotKeyOf(kind: SlotKind, level: number): string {
   return kind === 'pact' ? pactSlotKey(level) : spellSlotKey(level);
 }
 
+const HIT_DIE_PREFIX = 'hit-die:';
+/** The die sizes the game uses: characters take d6 to d12, monsters d4 and d20. */
+const HIT_DIE_SIDES = new Set([4, 6, 8, 10, 12, 20]);
+
+/**
+ * Hit Dice are a resource pool like any other, tagged `long-rest`.
+ *
+ * The pool's key carries the die size because nothing else knows it: a
+ * character sheet has a level but no class, and the class table that says a
+ * Wizard takes d6s is not modelled. Declared, never derived — same rule as
+ * every other pool.
+ *
+ * **Here rather than in `rest.ts`, beside {@link spellSlotKey}**, because that
+ * is what the paragraph above says it is: a pool key, minted by whoever builds
+ * a character and read by whoever spends one. `rest.ts` was its first reader
+ * and kept it, and when a rest grew a re-choice that has to re-plan a
+ * character, `creation.ts` importing the key out of `rest.ts` and `rest.ts`
+ * importing the re-plan out of `creation.ts` would have been a cycle between
+ * two modules that each own a different half of one sentence.
+ */
+export function hitDieKey(sides: number): string {
+  if (!HIT_DIE_SIDES.has(sides)) {
+    throw new Error(`a Hit Die is a d4, d6, d8, d10, d12 or d20, got d${sides}`);
+  }
+  return `${HIT_DIE_PREFIX}d${sides}`;
+}
+
+/** The die size a pool key names, or null if the key is some other pool. */
+export function hitDieSides(key: string): number | null {
+  if (!key.startsWith(`${HIT_DIE_PREFIX}d`)) return null;
+  const sides = Number(key.slice(HIT_DIE_PREFIX.length + 1));
+  return HIT_DIE_SIDES.has(sides) ? sides : null;
+}
+
 /** The level a slot key names, or null if the key is some other pool. */
 export function spellSlotLevel(key: string): number | null {
   return levelAfter(key, SLOT_PREFIX);

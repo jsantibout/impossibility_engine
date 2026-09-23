@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BARD, BARDIC_DIE, CIRCLE_OF_THE_LAND, DRUID, FAVORED_ENEMY_USES, PALADIN, RANGER, SRD_CONTENT, WILD_SHAPE_USES } from '@ie/content';
-import { classCasting } from '@ie/engine';
+import { classCasting, featureGrants } from '@ie/engine';
 import { asCharacterId, isErr, expect as unwrap, type Skill } from '@ie/shared';
 import { fold, type GameEvent, type GameState } from '@ie/engine';
 import { slotsAt } from '@ie/engine';
@@ -23,8 +23,8 @@ import { repeatImprovements } from './advancement-slots.js';
  * skill rather than a copy of the whole list — different rules, and only one
  * of them survives the game gaining a skill.
  *
- * Circle of the Land is the one subclass whose grant the engine cannot
- * express, and it says so rather than guessing.
+ * Circle of the Land was the one subclass whose grant the engine could not
+ * express; it is expressed now, through a choice a finished Long Rest re-asks.
  */
 
 const id = (s: string) => asCharacterId(s);
@@ -203,17 +203,34 @@ describe('the Druid', () => {
   });
 
   /**
-   * The one subclass grant the engine cannot express. SRD: "Whenever you
-   * finish a Long Rest, choose one type of land" — so the spells are neither
-   * fixed nor chosen once at creation, and the feature grants nothing rather
-   * than picking a land for the player.
+   * The Circle spells follow the land, and the land follows the rest.
+   *
+   * SRD: "Whenever you finish a Long Rest, choose one type of land" — so they
+   * are neither fixed nor chosen once at creation. A Druid who has named no
+   * land has none of them, which is what this asserts; that a finished Long
+   * Rest re-asks the question, and that the answer changes which three arrive,
+   * is `rest-rechoice.test.ts` in the engine.
    */
-  it('grants no Circle spells, and says why', () => {
+  it('grants the chosen land’s Circle spells, and none before a land is chosen', () => {
     const spells = CIRCLE_OF_THE_LAND.features.find((f) => f.id === 'circle-of-the-land:spells');
-    expect(spells?.automation).toBe('manual');
-    expect(spells?.grants).toBeUndefined();
+    expect(spells?.automation).toBe('engine');
     expect(spells?.note).toContain('Long Rest');
+    // Five grants: the question the rest re-asks, and one spell list per land.
+    expect(featureGrants(spells)).toHaveLength(5);
+    expect(featureGrants(spells)[0]?.kind).toBe('rechosen-on-a-rest');
     expect(classCasting(plan(druid()).spellcasting, 'druid')?.prepared).toHaveLength(6);
+
+    const arid = plan(
+      druid({
+        featureChoices: {
+          'human:skillful': ['perception'],
+          'druid:primal-order': ['Magician'],
+          'circle-of-the-land:spells': ['Arid'],
+        },
+      }),
+    );
+    expect(classCasting(arid.spellcasting, 'druid')?.prepared).toContain('burning-hands');
+    expect(classCasting(arid.spellcasting, 'druid')?.prepared).not.toContain('fog-cloud');
   });
 });
 

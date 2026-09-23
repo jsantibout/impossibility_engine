@@ -183,6 +183,15 @@ export interface HeldPoolOption {
   /** What the log calls it: SRD's "Turn Undead". */
   readonly name: string;
   readonly action: 'action' | 'bonus-action';
+  /**
+   * Damage a later feature adds to whoever fails this form's save — SRD Sear
+   * Undead on Turn Undead.
+   *
+   * Reported because it is a fact about what the use *does*, and a menu line
+   * that named only the form would tell a level 5 Cleric exactly what a level
+   * 3 one is told. Absent for every form nobody amended.
+   */
+  readonly damagesFailures?: { readonly dice: string; readonly damageType: string };
 }
 
 /**
@@ -970,7 +979,14 @@ export function holdingsOf(state: GameState, id: CharacterId): Holdings | null {
   const menus = new Map<string, HeldPoolOption[]>();
   for (const one of sheet.poolOptions ?? []) {
     const found = menus.get(one.feature);
-    const entry = { option: one.option, name: one.name, action: one.action };
+    const entry = {
+      option: one.option,
+      name: one.name,
+      action: one.action,
+      ...(one.damagesFailures === undefined
+        ? {}
+        : { damagesFailures: one.damagesFailures }),
+    };
     if (found === undefined) menus.set(one.feature, [entry]);
     else found.push(entry);
   }

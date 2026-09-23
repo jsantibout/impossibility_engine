@@ -1587,6 +1587,30 @@ export interface PoolOption {
    * the command sees a number rather than a multiplier and a level to find.
    */
   readonly distributes?: HitPointBudget;
+  /** What a later feature burns the failures with — see {@link FailedSaveDamage}. */
+  readonly damagesFailures?: FailedSaveDamage;
+}
+
+/**
+ * Damage a **later** feature deals to whoever failed an option's saving throw,
+ * resolved at creation — SRD Sear Undead's Radiant on Turn Undead.
+ *
+ * **One roll for the whole use, dealt to each of them.** The SRD sentence is
+ * "roll a number of d8s equal to your Wisdom modifier … and add the rolls
+ * together. Each Undead that fails its saving throw … takes Radiant damage
+ * equal to **the roll's total**", and that is why it is a field on the option
+ * rather than a `save-damage` effect: an effect is resolved once per target and
+ * would roll a fresh total for each of them. What the option's own effect
+ * settles is *who failed*; this is what one roll then does to all of them.
+ *
+ * The count is read at creation off the amending feature's sizing, so what the
+ * command holds is a notation and a type, exactly as `distributes` above holds
+ * a number rather than a multiplier.
+ */
+export interface FailedSaveDamage {
+  /** The dice, counted — SRD Sear Undead's `3d8` for a Wisdom modifier of 3. */
+  readonly dice: string;
+  readonly damageType: string;
 }
 
 /**

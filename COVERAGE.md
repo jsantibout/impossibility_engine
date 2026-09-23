@@ -589,7 +589,6 @@ be the second spelling of one derivation.
 | `a-resource-traded-for-another` | 8 | 2 |
 | `a-feature-that-changes-what-a-casting-costs` | 7 | 2 |
 | `a-feature-that-changes-who-a-casting-catches` | 4 | 2 |
-| `a-rule-the-engine-fixes-for-everybody` | 4 | 2 |
 | `movement-modes` | 3 | 2 |
 | `a-declared-fact-a-feature-sets` | 2 | 2 |
 | `a-pool-refilled-to-a-floor` | 2 | 2 |
@@ -600,6 +599,7 @@ be the second spelling of one derivation.
 | `an-action-a-spell-compels-or-forbids` | 4 | 1 |
 | `an-attack-the-class-redefines` | 4 | 1 |
 | `a-modifier-a-feature-puts-on-another-creature` | 3 | 1 |
+| `a-rule-the-engine-fixes-for-everybody` | 3 | 1 |
 | `a-spell-an-item-casts-that-nothing-executes` | 3 | 1 |
 | `a-condition-a-feature-ends` | 2 | 1 |
 | `a-creature-fact-an-effect-overrides` | 2 | 1 |
@@ -618,7 +618,7 @@ be the second spelling of one derivation.
 | `an-option-whose-span-is-a-turn-boundary` | 1 | 1 |
 | `falling` | 1 | 1 |
 | `jumping` | 1 | 1 |
-| `a-benefit-that-runs-for-a-printed-span` | 7 | 0 |
+| `a-benefit-that-runs-for-a-printed-span` | 6 | 0 |
 | `a-pool-the-proficiency-bonus-sizes` | 6 | 0 |
 | `temporary-hit-points-a-feature-grants` | 4 | 0 |
 | `a-mode-on-the-save-a-spell-forces` | 3 | 0 |
@@ -630,7 +630,6 @@ be the second spelling of one derivation.
 | `damage-with-neither-an-attack-roll-nor-a-save` | 2 | 0 |
 | `forced-movement-a-spell-causes` | 2 | 0 |
 | `a-bonus-to-spell-attack-rolls` | 1 | 0 |
-| `a-creature-swapped-for-another-stat-block` | 1 | 0 |
 | `a-dc-a-feature-derives-from-its-own-abilities` | 1 | 0 |
 | `a-die-behaviour-a-spell-asks-for` | 1 | 0 |
 | `a-random-outcome-that-is-not-a-d20` | 1 | 0 |
@@ -663,7 +662,7 @@ exactly like an entry nobody read:
 
 | Species | Backgrounds | Features | Executed by the engine |
 |---|---|---|---|
-| 9 | 4 | 37 | 25 |
+| 9 | 4 | 37 | 26 |
 
 A species trait and a class feature are the same `FeatureDefinition` and
 declare automation the same way, so this is the column above read by the
@@ -690,7 +689,7 @@ derived would be somebody’s opinion instead.
 | Elf | species | 5 | 3 |
 | Gnome | species | 3 | 2 |
 | Goliath | species | 3 | 1 |
-| Halfling | species | 4 | 2 |
+| Halfling | species | 4 | 3 |
 | Human | species | 3 | 2 |
 | Orc | species | 3 | 2 |
 | Sage | background | 1 | 1 |
@@ -973,7 +972,7 @@ stopped having to be handed:
 
 | Parsed | Carried | Attacking | Defence entries | of which qualified | of which unread | Printed lines | of which read |
 |---|---|---|---|---|---|---|---|
-| 330 | 332 | 329 | 723 | 2 | 2 | 1330 | 766 |
+| 330 | 332 | 329 | 723 | 2 | 2 | 1330 | 849 |
 
 **A stat block used to arrive as a body rather than as an actor.**
 `adaptMonster` has always carried across everything the block states as a
@@ -1022,8 +1021,8 @@ fact the book wrote for a person.
 
 | Line | Printed | Read |
 |---|---|---|
-| Traits | 337 | 101 |
-| Actions | 812 | 651 |
+| Traits | 337 | 137 |
+| Actions | 812 | 698 |
 | Bonus actions | 75 | 14 |
 | Reactions | 24 | 0 |
 | Legendary actions | 82 | 0 |
@@ -1045,10 +1044,10 @@ and a bite whose hit buys a save.
 | An effect a hit buys | 88 | 94 |
 | A recharge | 87 | 87 |
 | A use the block limits per day | 54 | 60 |
-| A creature that casts | 48 | 48 |
 | A legendary action’s own economy | 30 | 82 |
-| A trait shape nothing spends | 5 | 5 |
 | How many attacks the Attack action holds | 2 | 2 |
+| A creature that casts | 1 | 1 |
+| A trait shape nothing spends | 0 | 0 |
 
 **A printed line reaches the Attack action and nothing else.** An
 opportunity attack and a readied strike both name a weapon and have

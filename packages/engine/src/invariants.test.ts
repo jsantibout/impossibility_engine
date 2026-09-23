@@ -145,7 +145,8 @@ import {
 // `resolveSpell`, kept here so the `mayAct` guard it gained stays exercised.
 import { resolveCast } from './commands/casting.js';
 import { conditionInstanceId } from './conditions.js';
-import { beginRest, endRest, hitDieKey, SHORT_REST } from './rest.js';
+import { beginRest, endRest, SHORT_REST } from './rest.js';
+import { hitDieKey } from './resources.js';
 import { extendContent, type Content } from './content.js';
 import type { SpellDefinition } from './spell-definitions.js';
 import { type FeatDefinition } from './origins.js';

@@ -267,8 +267,26 @@ export const CLERIC: ClassDefinition = {
       id: 'cleric:sear-undead',
       name: 'Sear Undead',
       level: 5,
-      automation: 'manual',
-      note: 'Turn Undead dealing Radiant damage is not modelled: a later feature adding an effect to an earlier one’s use has no shape. Turn Undead itself is executed — it is a Channel Divinity option now — so what is left here is the Radiant half alone.',
+      automation: 'engine',
+      note: 'Executed. SRD: "Whenever you use Turn Undead, you can roll a number of d8s equal to your Wisdom modifier (minimum of 1d8) and add the rolls together. Each Undead that fails its saving throw against that use of Turn Undead takes Radiant damage equal to the roll\'s total. This damage doesn\'t end the turn effect." It amends the Channel Divinity option Turn Undead rather than adding one: "each Undead that fails its saving throw" is the failure branch of the save that option already rolls, so the damage rides the outcome the conditions ride, one save and one DC for both. The dice are counted by the Cleric’s own Wisdom modifier with the printed floor of one, read off the sheet like any other sizing, and the total is rolled once and dealt to every Undead that failed — which is what "the roll’s total" says. The last sentence needs nothing: the Frightened and Incapacitated are riders on the same failure and damage takes neither away.',
+      grants: {
+        kind: 'pool-options',
+        // The menu is Channel Divinity's and this changes one entry on it; a
+        // second entry would be a second way to spend a use, which is not what
+        // the sentence says.
+        feature: 'cleric:channel-divinity',
+        amends: [
+          {
+            option: 'turn-undead',
+            damagesFailures: {
+              die: '1d8',
+              // "a number of d8s equal to your Wisdom modifier (minimum of 1d8)".
+              count: { fromAbilityModifier: 'wis', minimum: 1 },
+              damageType: 'radiant',
+            },
+          },
+        ],
+      },
     },
     {
       id: 'cleric:blessed-strikes',

@@ -17,6 +17,7 @@ import {
 // fourth copy of it.
 import { CREATURE_SIZES, type CreatureSize } from '@ie/srd/schemas';
 import { proficientWithCategories } from './attack.js';
+import { parseNotation } from './dice.js';
 import {
   ABILITY_SCORE_MAXIMUM,
   DEFAULT_HANDS,
@@ -30,6 +31,7 @@ import {
 import type {
   ActivatedFeature,
   HealAmount,
+  FailedSaveDamage,
   HealingTouch,
   CastingOption,
   HitOption,
@@ -86,16 +88,18 @@ import {
   type ReactionGrantAmount,
   type ReactionGrantEffect,
   type ShapeShiftRow,
+  type RestRechoice,
   type TradedAmount,
   type TradedResource,
 } from './progression.js';
+import type { RestKind } from './rest.js';
 import {
+  hitDieKey,
   pactSlotKey,
   spellSlotKey,
   type PoolDeclaration,
   type Recovery,
 } from './resources.js';
-import { hitDieKey } from './rest.js';
 import {
   countOf,
   highestSlotLevel,
@@ -1112,6 +1116,19 @@ function checkFeatureChoices(
         continue;
       }
       if (made === undefined) continue;
+    }
+
+    // **A choice a rest re-asks is a standing decision too**, and it is the
+    // Weapon Mastery paragraph above with a different feature's name on it:
+    // SRD Circle of the Land Spells opens "Whenever you finish a Long Rest,
+    // choose one type of land", so the land follows the rest rather than the
+    // sheet, and a Druid who has named none has named none. An answer that
+    // *is* given is still held to the offer below.
+    if (
+      made === undefined &&
+      featureGrants(feature).some((one) => one.kind === 'rechosen-on-a-rest')
+    ) {
+      continue;
     }
 
     const wanted = asked.kind === 'weapon' ? (made ?? []).length : asked.choose;
@@ -3057,6 +3074,19 @@ export function planCharacter(
     readonly pool: string;
     readonly options: readonly PoolOptionGrant[];
   }[] = [];
+  /**
+   * What a later feature changes about a form already on a menu, by host and
+   * option — SRD Sear Undead's Radiant damage on Turn Undead's failed save.
+   *
+   * Gathered before the menus are compiled rather than merged into them,
+   * because the amendment and the form it amends are written on two different
+   * features and only one of them declares the option.
+   */
+  const amendments: {
+    readonly host: string;
+    readonly option: string;
+    readonly damage: FailedSaveDamage;
+  }[] = [];
   for (const [feature, grant] of grantsIn(features)) {
     if (grant.kind === 'pool' && grant.options !== undefined) {
       menus.push({ host: feature, pool: grant.key, options: grant.options });
@@ -3066,8 +3096,32 @@ export function planCharacter(
     const host = features.find((one) => one.id === grant.feature);
     const hosted = grantOf(host, 'pool');
     if (host === undefined || hosted === null) continue;
-    menus.push({ host, pool: hosted.key, options: grant.options });
+    if (grant.options !== undefined) {
+      menus.push({ host, pool: hosted.key, options: grant.options });
+    }
+    for (const amendment of grant.amends ?? []) {
+      const sized = amendment.damagesFailures;
+      amendments.push({
+        host: host.id,
+        option: amendment.option,
+        damage: {
+          // "a number of d8s equal to your Wisdom modifier (minimum of 1d8)",
+          // counted by the one reader every printed sizing goes through — at
+          // the *amending* feature's own class level, because the sentence is
+          // that feature's rather than the host's.
+          dice: withDiceCountOf(
+            sized.die,
+            poolSizeOf(content, choices, features, feature.id, sized.count),
+          ),
+          damageType: sized.damageType,
+        },
+      });
+    }
   }
+
+  /** The amendment for one form of one menu, or nothing where none was written. */
+  const amendmentFor = (host: string, option: string): FailedSaveDamage | undefined =>
+    amendments.find((one) => one.host === host && one.option === option)?.damage;
 
   for (const { host, pool, options } of menus) {
     const ability = castingAbilityFor(host.id);
@@ -3093,6 +3147,12 @@ export function planCharacter(
                   Math.max(0, Math.min(count, option.diceCountByLevel.length) - 1)
                 ] ?? 1,
               ),
+        // What a later feature hangs on this form's failed saving throw — SRD
+        // Sear Undead on Turn Undead. Absent for every option nobody amended,
+        // which is every option but one.
+        ...(amendmentFor(host.id, option.id) === undefined
+          ? {}
+          : { damagesFailures: amendmentFor(host.id, option.id)! }),
         ability,
         ...(option.area === undefined ? {} : { area: option.area }),
         ...(option.reach === undefined ? {} : { reach: option.reach }),
@@ -3514,6 +3574,15 @@ export function planCharacter(
     ...(declaresInitiativeSwap(content, choices, features) ? { initiativeSwap: true } : {}),
     ...(castingOptions.length === 0 ? {} : { castingOptions }),
     ...(hitOptions.length === 0 ? {} : { hitOptions }),
+    // SRD Trance: "You can finish a Long Rest in 4 hours." The shortest any
+    // feature this character holds makes it, because two traits that both
+    // shortened it would be two permissions and the holder takes the one that
+    // lets them up first. Absent where nobody printed one, which is every
+    // character the book says nothing about — and the eight hours `rest.ts`
+    // holds for everybody stays exactly where it was.
+    ...(longRestSecondsFor(features) === null
+      ? {}
+      : { longRestSeconds: longRestSecondsFor(features)! }),
     // The *first* casting class's ability, and null for a character who casts
     // nothing. Falling back to the primary ability gave a Fighter a spell save
     // DC off Strength. A multiclassed caster has more than one, and every
@@ -4001,6 +4070,41 @@ function withDiceCount(
     }
   });
 }
+
+/**
+ * How long a Long Rest takes this character, or null where nothing says.
+ *
+ * SRD Trance is the only writer the book prints, and the reduction is a
+ * permission rather than an obligation — so two of them would be two
+ * permissions and the holder takes whichever lets them up first.
+ */
+function longRestSecondsFor(features: readonly FeatureDefinition[]): number | null {
+  let shortest: number | null = null;
+  for (const [, grant] of grantsIn(features)) {
+    if (grant.kind !== 'long-rest-length') continue;
+    shortest = shortest === null ? grant.seconds : Math.min(shortest, grant.seconds);
+  }
+  return shortest;
+}
+
+/**
+ * One die's notation with the count an amending feature works out written in.
+ *
+ * **The sides are read by the parser rather than off the string**, which is the
+ * difference between this and a `split('d')`: `parseNotation` lowercases before
+ * it matches, so a feature written `D12` is dice the validator accepts and a
+ * split would have silently turned into a d8. The one reader of a notation is
+ * the one that decides what it says.
+ *
+ * The eight is a floor under a die the validator has already refused
+ * (`bad_dice`), and it stands for the reason `planCharacter`'s size fallback
+ * does: this returns a string a damage roll is made from, and `undefined` must
+ * not reach one.
+ */
+const withDiceCountOf = (die: string, count: number): string => {
+  const parsed = parseNotation(die);
+  return `${Math.max(1, count)}d${parsed.ok ? parsed.value.sides : 8}`;
+};
 
 function usesOf(
   choices: CharacterChoices,
@@ -4640,6 +4744,32 @@ export function advanceCharacter(
     equipped: creature.equipped.map((held) => held.id),
   };
 
+  return replanCharacter(state, content, id, choices);
+}
+
+/**
+ * Re-derive a character from a new set of choices and emit only what moved.
+ *
+ * The body {@link advanceCharacter} has always been, lifted out because a
+ * level is not the only thing that changes a character's answers: SRD Circle
+ * of the Land chooses a type of land on every Long Rest and SRD Memorize Spell
+ * swaps a prepared spell on every Short one, and both are "the choices are the
+ * character" read a second time. What a level-up adds is the level; what this
+ * does with any set of choices is what a level-up did with the next level's.
+ *
+ * Nothing here knows about rests, levels or features: it takes the whole
+ * `CharacterChoices` the caller has already merged, plans it, and writes the
+ * difference against the creature standing in `state`.
+ */
+function replanCharacter(
+  state: GameState,
+  content: Content,
+  id: CharacterId,
+  choices: CharacterChoices,
+): Result<GameEvent[]> {
+  const creature = state.creatures[id];
+  if (creature === undefined) return needsContext('unknown_creature', `${id} is not in this game`);
+
   const plan = planCharacter(content, choices, creature.inventory);
   if (!plan.ok) return plan;
 
@@ -4707,12 +4837,146 @@ export function advanceCharacter(
       subclassId: choices.subclassId ?? null,
       speciesId: choices.speciesId,
       backgroundId: choices.backgroundId,
-      level,
+      // The record's level is the choices' level, which is the one thing
+      // `levelInto` already settled: a level taken in another class grows the
+      // multiclass entry and leaves this where it was.
+      level: choices.level,
       choices,
     },
   });
 
   return ok(events);
+}
+
+/** What a rest may hand back, out of everything a character chose. */
+export interface RechoicePatch {
+  readonly preparedSpells?: readonly string[];
+  readonly spellsByClass?: Readonly<Record<string, ClassSpellChoices>>;
+  readonly featureChoices?: Readonly<Record<string, readonly string[]>>;
+}
+
+/** The whole of what a re-choice may name, held at run time as well as in the type. */
+const RECHOOSABLE: ReadonlySet<string> = new Set([
+  'preparedSpells',
+  'spellsByClass',
+  'featureChoices',
+]);
+
+/** Structural equality over the plain JSON a `CharacterChoices` is made of. */
+function sameAnswer(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+    return a.every((one, index) => sameAnswer(one, b[index]));
+  }
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
+  const left = a as Record<string, unknown>;
+  const right = b as Record<string, unknown>;
+  const keys = new Set([...Object.keys(left), ...Object.keys(right)]);
+  for (const key of keys) {
+    if (!sameAnswer(left[key], right[key])) return false;
+  }
+  return true;
+}
+
+/**
+ * Answer one of a character's questions again, keeping everything else.
+ *
+ * The same call a level-up makes, minus the level: SRD Circle of the Land
+ * Spells and SRD Memorize Spell both hand back an answer the character already
+ * gave, and a re-choice is that answer merged in and the character re-planned.
+ * `endRest` is its only caller today and decides *which* questions a given
+ * rest re-asks; this decides nothing about rests at all, which is what keeps it
+ * usable by the next feature that re-asks something.
+ *
+ * **It refuses anything a re-choice may not name**, at run time and not only in
+ * the type: a level, a class, a species and the twenty other fields on
+ * `CharacterChoices` are what the character *is*, and a door that quietly
+ * accepted one would be a level-up with no level check in front of it.
+ *
+ * **And an identical patch emits nothing.** A rest taken without changing one's
+ * mind is not an event — the record would be re-written to the bytes it already
+ * holds, and every log would grow a `character-advanced` per night's sleep.
+ */
+export function rechooseCharacter(
+  state: GameState,
+  content: Content,
+  id: CharacterId,
+  patch: RechoicePatch,
+): Result<GameEvent[]> {
+  const creature = state.creatures[id];
+  if (creature === undefined) return needsContext('unknown_creature', `${id} is not in this game`);
+
+  const record = creature.character;
+  if (record === null || record === undefined) {
+    return err('not_a_character', `${id} was not created from character choices`);
+  }
+
+  for (const key of Object.keys(patch)) {
+    if (!RECHOOSABLE.has(key)) {
+      return err(
+        'not_rechosen',
+        `a rest re-asks ${[...RECHOOSABLE].join(', ')}; ${key} is what the character is, and only a level-up changes it`,
+      );
+    }
+  }
+
+  const choices: CharacterChoices = {
+    ...record.choices,
+    ...(patch.preparedSpells === undefined ? {} : { preparedSpells: patch.preparedSpells }),
+    ...(patch.spellsByClass === undefined
+      ? {}
+      : { spellsByClass: { ...(record.choices.spellsByClass ?? {}), ...patch.spellsByClass } }),
+    ...(patch.featureChoices === undefined
+      ? {}
+      : { featureChoices: { ...record.choices.featureChoices, ...patch.featureChoices } }),
+    // What is worn is live state, exactly as it is at a level-up, and for a
+    // sharper version of the same reason: a re-plan is checked against the
+    // inventory the creature is *holding*, so a shirt sold since the character
+    // was made would make the stored list refuse the character — and a rest
+    // that refused a Druid a land because they had dropped a shield would be
+    // the stale record deciding what the rules allow.
+    equipped: creature.equipped.map((held) => held.id),
+  };
+
+  if (sameAnswer(choices, record.choices)) return ok([]);
+
+  return replanCharacter(state, content, id, choices);
+}
+
+/** One question a feature re-asks, and the rest that re-asks it. */
+export interface RestRechoiceOffer {
+  readonly feature: string;
+  readonly featureName: string;
+  readonly rest: RestKind;
+  readonly rechooses: RestRechoice;
+}
+
+/**
+ * The questions this character's features re-ask on a rest.
+ *
+ * Read off the grants rather than off any list of feature ids, so `endRest` can
+ * ask what a rest re-asks without the engine knowing that a Druid exists. The
+ * same derivation creation uses, on the same gated feature list, so a feature
+ * whose option was not taken re-asks nothing either.
+ */
+export function restRechoices(
+  content: Content,
+  choices: CharacterChoices,
+): readonly RestRechoiceOffer[] {
+  const offers: RestRechoiceOffer[] = [];
+  const { parts } = resolveParts(content, choices);
+  if (parts === null) return offers;
+  for (const [feature, grant] of grantsIn(grantedFeatures(content, choices, parts))) {
+    if (grant.kind !== 'rechosen-on-a-rest') continue;
+    offers.push({
+      feature: feature.id,
+      featureName: feature.name,
+      rest: grant.rest,
+      rechooses: grant.rechooses,
+    });
+  }
+  return offers;
 }
 
 /**

@@ -1,4 +1,4 @@
-import { ABILITIES, err, ok, type Ability, type Result } from '@ie/shared';
+import { ABILITIES, DAMAGE_TYPES, err, ok, type Ability, type Result } from '@ie/shared';
 import { WEAPON_PROPERTIES } from '@ie/srd/schemas';
 import { WEAPON_CATEGORIES, WEAPON_KINDS, type WeaponSelector } from './attack.js';
 import { RESERVED_LEDGER_NAMESPACES } from './combat.js';
@@ -19,6 +19,19 @@ import {
   type RollSelector,
 } from './roll-modifiers.js';
 import { checkActionRule } from './spell-schema.js';
+import { hours } from './time.js';
+
+/**
+ * The Long Rest a `long-rest-length` grant has to come in under.
+ *
+ * `rest.ts` owns the constant and this module may not reach it: `rest.ts` now
+ * reads a character back out of `creation.ts`, and this file is what
+ * `content.ts` validates with, so the import would run a ring round the
+ * engine. It is spelled here from the clock's own unit instead and held equal
+ * to `LONG_REST` by `trance.test.ts`, which is the one place both are in
+ * scope — a checked copy rather than a second opinion.
+ */
+export const LONGEST_LONG_REST = hours(8);
 
 /**
  * Whether a feature definition is *coherent*, asked of a value rather than of a
@@ -239,6 +252,9 @@ const ABILITY_NAMES: ReadonlySet<string> = new Set<Ability>(ABILITIES);
  */
 const HOLLOW_NOTE =
   /^(?:(?:todo|tbd|n\/?a|none|later|unknown)|(?:(?:this )?(?:feature|it) )?(?:is )?not (?:modelled|modeled|automated|implemented|executed|applied|done))\.?$/i;
+
+/** The damage types the game has, for the one grant that names one outright. */
+const DAMAGE_KINDS: ReadonlySet<string> = new Set(DAMAGE_TYPES);
 
 /** A whole number of at least one — what the SRD prints for a pool's size. */
 const isCount = (value: unknown): boolean =>
@@ -523,6 +539,86 @@ export function abilityGrantProblemsOf(
 }
 
 /**
+ * Everything wrong with one **sizing**, wherever a grant declares one.
+ *
+ * Its own function because {@link poolSizingOf} answers for one site per grant
+ * and a `pool-options` grant's amendments carry one apiece — SRD Sear Undead's
+ * "a number of d8s equal to your Wisdom modifier (minimum of 1d8)" is a
+ * sizing, read by the same `poolSizeOf`, and a sizing site nothing checks is
+ * the column this file's own comment above says must not exist.
+ */
+function sizingProblems(
+  sizing: PoolSizing,
+  at: string,
+  context: FeatureContext,
+): readonly FeatureDefinitionProblem[] {
+  const found: FeatureDefinitionProblem[] = [];
+  const shapes = [
+    sizing.usesByLevel === undefined ? null : 'usesByLevel',
+    sizing.fromAbilityModifier === undefined ? null : 'fromAbilityModifier',
+    sizing.perClassLevel === undefined ? null : 'perClassLevel',
+  ].filter((shape): shape is string => shape !== null);
+
+  if (shapes.length > 1) {
+    found.push({
+      field: at,
+      code: 'ambiguous_pool_sizing',
+      reason: `${shapes.join(' and ')} both size this pool, and poolSizeOf reads exactly one — the others are silently ignored`,
+    });
+  }
+
+  if (sizing.usesByLevel !== undefined) {
+    if (sizing.usesByLevel.length !== context.levels) {
+      found.push({
+        field: `${at}.usesByLevel`,
+        code: 'not_a_table_column',
+        reason: `a column of this source's table has ${context.levels} entries, not ${sizing.usesByLevel.length}`,
+      });
+    }
+    // A use count may be zero — the levels before the feature arrives — but
+    // never negative and never fractional.
+    const bad = sizing.usesByLevel.findIndex(
+      (uses) => !Number.isInteger(uses) || uses < 0,
+    );
+    if (bad !== -1) {
+      found.push({
+        field: `${at}.usesByLevel[${bad}]`,
+        code: 'bad_pool_sizing',
+        reason: `a class table prints a whole number of uses, not ${String(sizing.usesByLevel[bad])}`,
+      });
+    }
+  }
+
+  if (
+    sizing.fromAbilityModifier !== undefined &&
+    !ABILITY_NAMES.has(sizing.fromAbilityModifier)
+  ) {
+    found.push({
+      field: `${at}.fromAbilityModifier`,
+      code: 'bad_pool_sizing',
+      reason: `"${String(sizing.fromAbilityModifier)}" is not one of the six abilities`,
+    });
+  }
+
+  if (sizing.perClassLevel !== undefined && !isCount(sizing.perClassLevel)) {
+    found.push({
+      field: `${at}.perClassLevel`,
+      code: 'bad_pool_sizing',
+      reason: `a multiple of the class level is a whole number of at least one, not ${String(sizing.perClassLevel)}`,
+    });
+  }
+
+  if (sizing.minimum !== undefined && !isCount(sizing.minimum)) {
+    found.push({
+      field: `${at}.minimum`,
+      code: 'bad_pool_sizing',
+      reason: `a floor is a whole number of at least one, not ${String(sizing.minimum)}`,
+    });
+  }
+  return found;
+}
+
+/**
  * Everything wrong with **one** of a feature's grants.
  *
  * Its own function because a feature may carry several — see
@@ -801,71 +897,7 @@ function grantProblems(
   // is a pool of one ("Once you use this feature, you can't do so again until
   // you finish a Long Rest").
   const sized = poolSizingOf(grant);
-  if (sized !== null) {
-    const { at, sizing } = sized;
-    const shapes = [
-      sizing.usesByLevel === undefined ? null : 'usesByLevel',
-      sizing.fromAbilityModifier === undefined ? null : 'fromAbilityModifier',
-      sizing.perClassLevel === undefined ? null : 'perClassLevel',
-    ].filter((shape): shape is string => shape !== null);
-
-    if (shapes.length > 1) {
-      found.push({
-        field: at,
-        code: 'ambiguous_pool_sizing',
-        reason: `${shapes.join(' and ')} both size this pool, and poolSizeOf reads exactly one — the others are silently ignored`,
-      });
-    }
-
-    if (sizing.usesByLevel !== undefined) {
-      if (sizing.usesByLevel.length !== context.levels) {
-        found.push({
-          field: `${at}.usesByLevel`,
-          code: 'not_a_table_column',
-          reason: `a column of this source's table has ${context.levels} entries, not ${sizing.usesByLevel.length}`,
-        });
-      }
-      // A use count may be zero — the levels before the feature arrives — but
-      // never negative and never fractional.
-      const bad = sizing.usesByLevel.findIndex(
-        (uses) => !Number.isInteger(uses) || uses < 0,
-      );
-      if (bad !== -1) {
-        found.push({
-          field: `${at}.usesByLevel[${bad}]`,
-          code: 'bad_pool_sizing',
-          reason: `a class table prints a whole number of uses, not ${String(sizing.usesByLevel[bad])}`,
-        });
-      }
-    }
-
-    if (
-      sizing.fromAbilityModifier !== undefined &&
-      !ABILITY_NAMES.has(sizing.fromAbilityModifier)
-    ) {
-      found.push({
-        field: `${at}.fromAbilityModifier`,
-        code: 'bad_pool_sizing',
-        reason: `"${String(sizing.fromAbilityModifier)}" is not one of the six abilities`,
-      });
-    }
-
-    if (sizing.perClassLevel !== undefined && !isCount(sizing.perClassLevel)) {
-      found.push({
-        field: `${at}.perClassLevel`,
-        code: 'bad_pool_sizing',
-        reason: `a multiple of the class level is a whole number of at least one, not ${String(sizing.perClassLevel)}`,
-      });
-    }
-
-    if (sizing.minimum !== undefined && !isCount(sizing.minimum)) {
-      found.push({
-        field: `${at}.minimum`,
-        code: 'bad_pool_sizing',
-        reason: `a floor is a whole number of at least one, not ${String(sizing.minimum)}`,
-      });
-    }
-  }
+  if (sized !== null) found.push(...sizingProblems(sized.sizing, sized.at, context));
 
   // Rule 10. A feature that reaches into a casting's damage, and the two
   // things it can say that nothing downstream could recover from.
@@ -1162,6 +1194,145 @@ function grantProblems(
         if (!ABILITY_NAMES.has(ability as string)) {
           bad(`grants.keeps.abilities[${index}]`, `"${String(ability)}" is not one of the six abilities`);
         }
+      });
+    }
+  }
+
+  // What a later feature adds to a form already on somebody else's menu, and
+  // the three ways it can be a sentence nothing could execute.
+  //
+  // **An amended form is validated where an added one is not**, and that is
+  // the point rather than an oversight: `featureOptionsProblems` judges the
+  // forms this grant *adds*, and the amendments go nowhere near it because
+  // they declare no form at all — so a die nobody parsed, a damage type no
+  // defence will ever match and a count read by `poolSizeOf` would each have
+  // compiled onto the sheet and reached `dealSpellDamage` as data the engine
+  // cannot argue with.
+  if (grant.kind === 'pool-options') {
+    (grant.amends ?? []).forEach((amendment, at) => {
+      const field = `grants.amends[${at}].damagesFailures`;
+      const damage = amendment?.damagesFailures;
+      // `== null` and not `=== undefined`: `typeof null` is "object", so a
+      // homebrew that writes `damagesFailures: null` would have walked through
+      // the gate and been dereferenced. A catalogue arriving as JSON is not
+      // programmer error, and rule 6 says what it gets back.
+      if (damage == null || typeof damage !== 'object') {
+        found.push({
+          field,
+          code: 'amends_nothing',
+          reason: `${feature.id} changes "${String(amendment?.option)}" and says nothing about what changes`,
+        });
+        return;
+      }
+      // **One die and nothing else.** The field is a die and the count beside
+      // it is the sizing, so a notation that carries its own count, a flat
+      // addend or a keep rule says something the compiler then throws away —
+      // `withDiceCountOf` writes the sizing's count and the parsed sides and
+      // reads nothing else. A sentence silently dropped is the failure this
+      // file exists to refuse at authoring.
+      const die = parseNotation(String(damage.die));
+      if (!die.ok) {
+        found.push({
+          field: `${field}.die`,
+          code: 'bad_dice',
+          reason: `"${String(damage.die)}" is not dice this engine can roll`,
+        });
+      } else if (die.value.count !== 1 || die.value.modifier !== 0 || die.value.keep !== null) {
+        found.push({
+          field: `${field}.die`,
+          code: 'bad_dice',
+          reason: `"${String(damage.die)}" says more than a die: how many is the count beside it, and a flat addend or a keep rule is read by nothing`,
+        });
+      }
+      if (!DAMAGE_KINDS.has(damage.damageType)) {
+        found.push({
+          field: `${field}.damageType`,
+          code: 'unknown_damage_type',
+          reason: `"${String(damage.damageType)}" is not a damage type, so nothing a creature resists or is immune to would ever match it`,
+        });
+      }
+      // The **shape** before the rules, which is the half `content.ts` gives
+      // every other declared sizing ("a declared pool is an object"): a count
+      // written `3` or `"wis"` reaches `poolSizeOf`, falls through every branch
+      // to `minimum ?? 1`, and the feature quietly deals one die for ever.
+      if (damage.count == null || typeof damage.count !== 'object') {
+        found.push({
+          field: `${field}.count`,
+          code: 'bad_pool_sizing',
+          reason: `how many dice is one of the sizings the engine reads, written as an object, not ${String(damage.count)}`,
+        });
+      } else {
+        found.push(...sizingProblems(damage.count, `${field}.count`, context));
+      }
+    });
+  }
+
+  // A Long Rest this trait shortens, and the two lengths that would be a
+  // sentence the book never printed.
+  //
+  // Zero or less is a rest that is over before it starts, and a length at or
+  // past the eight hours the engine holds for everybody is a trait that
+  // compiles onto the sheet and changes nothing — or lengthens a rest, which
+  // no printed trait does and which the field was not built to say.
+  if (grant.kind === 'long-rest-length') {
+    if (!isCount(grant.seconds)) {
+      found.push({
+        field: 'grants.seconds',
+        code: 'bad_rest_length',
+        reason: `a Long Rest takes a whole number of seconds of at least one, not ${String(grant.seconds)}`,
+      });
+    } else if (grant.seconds >= LONGEST_LONG_REST) {
+      found.push({
+        field: 'grants.seconds',
+        code: 'bad_rest_length',
+        reason: `a Long Rest already takes ${LONGEST_LONG_REST} seconds for everybody, so ${grant.seconds} shortens nothing`,
+      });
+    }
+  }
+
+  // A question re-asked on a rest, and the two ways it can be a question
+  // nobody could ever answer.
+  //
+  // A rest is a Short one or a Long one and nothing else, so a third word is a
+  // grant `endRest` would compare against both kinds and match neither — a
+  // feature that validates, compiles, and is silently never re-asked.
+  //
+  // And a grant that re-asks **this feature's own choice** on a feature that
+  // asks nothing is the same failure from the other end: the rest would hand
+  // `planCharacter` an answer to a question the feature does not print, and
+  // creation would refuse the character on a rest rather than at the door.
+  // The swap count is a count for the reason every other count here is one: a
+  // zero is a sentence that says nothing happens.
+  if (grant.kind === 'rechosen-on-a-rest') {
+    if (grant.rest !== 'short' && grant.rest !== 'long') {
+      found.push({
+        field: 'grants.rest',
+        code: 'bad_rest_kind',
+        reason: `a rest is short or long, and "${String(grant.rest)}" is neither`,
+      });
+    }
+    const rechooses = grant.rechooses;
+    if (rechooses?.kind === 'this-features-choice') {
+      if (feature.choice === undefined) {
+        found.push({
+          field: 'grants.rechooses',
+          code: 'rechooses_nothing',
+          reason: `${feature.id} re-asks its own choice on a rest and asks no choice, so there is nothing to answer again`,
+        });
+      }
+    } else if (rechooses?.kind === 'prepared-spells') {
+      if (!isCount(rechooses.swap)) {
+        found.push({
+          field: 'grants.rechooses.swap',
+          code: 'rechooses_nothing',
+          reason: `a swap is a whole number of at least one spell, not ${String(rechooses.swap)}`,
+        });
+      }
+    } else {
+      found.push({
+        field: 'grants.rechooses',
+        code: 'rechooses_nothing',
+        reason: `a rest re-asks this feature's own choice or a line of the prepared list, and "${String((rechooses as { kind?: unknown } | undefined)?.kind)}" is neither`,
       });
     }
   }

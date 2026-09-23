@@ -22,6 +22,7 @@ import {
   proficiencyBonus,
   spellAttackModifierWith,
   spellSaveDcWith,
+  type CharacterSheet,
 } from '../character.js';
 import { conditionInstanceId, isIncapacitated } from '../conditions.js';
 import { type Rng } from '../dice.js';
@@ -58,6 +59,8 @@ import { creatureOf, reachedBy, spendFor, unknownCreature } from './command.js';
 import { endConditionsOn, schedule } from './conditions.js';
 import { healCreature } from './creatures.js';
 import { mayAct } from './holds.js';
+import { dealSpellDamage } from './damage.js';
+import { rollSpellDice } from './rolls.js';
 import { runEffects } from './spell-resolution.js';
 import { areaTargets, type SpellTargetOutcome } from './targeting.js';
 
@@ -1203,8 +1206,88 @@ export function usePoolOption(
       }
     }
 
-    return ok({ events, outcomes: resolved.value.outcomes, unverified });
+    // **What a later feature burns the failures with** — SRD Sear Undead:
+    // "roll a number of d8s equal to your Wisdom modifier (minimum of 1d8) and
+    // add the rolls together. Each Undead that fails its saving throw against
+    // that use of Turn Undead takes Radiant damage equal to the roll's total."
+    //
+    // **Here rather than in the effect list, and the sentence is why.** An
+    // effect is resolved once per target, so a `save-damage` appended to the
+    // option would roll a fresh total for every creature — and the book says
+    // *the* roll's total, one number for the whole use. What the option's own
+    // effect decides is who failed; this is what one roll then does to all of
+    // them, through `dealSpellDamage` like every other spell's damage, so
+    // Resistance, Immunity and a broken Concentration are the engine's usual
+    // answers rather than a second set.
+    //
+    // **And it ends nothing**: "This damage doesn't end the turn effect" needs
+    // no clause, because the conditions the failure imposed are already
+    // standing and nothing here takes one away.
+    const burned = burnFailures(resolved.value, id, option, sheet, supply, events);
+    if (!burned.ok) return burned;
+    const outcomes = burned.value;
+
+    return ok({ events, outcomes, unverified });
   });
+}
+
+/**
+ * The damage a later feature deals to whoever failed the option's saving
+ * throw — SRD Sear Undead.
+ *
+ * **One roll, every failure.** "Roll a number of d8s … and add the rolls
+ * together. Each Undead that fails its saving throw … takes Radiant damage
+ * equal to *the* roll's total." The total is thrown once for the use and dealt
+ * to each of them, which is what a `save-damage` effect could not say: effects
+ * are resolved per target, so the option would have rolled a fresh total for
+ * every creature standing in the area.
+ *
+ * Nothing rolls at all where nobody failed, because the generator moving for a
+ * use that burns no one is a difference in the log that stands for nothing.
+ *
+ * The outcomes come back with the damage written onto the failures, so the
+ * caller reports what a use did in one place rather than two.
+ */
+function burnFailures(
+  resolved: {
+    readonly state: GameState;
+    readonly outcomes: readonly SpellTargetOutcome[];
+  },
+  id: CharacterId,
+  option: PoolOption,
+  sheet: CharacterSheet,
+  supply: Supply,
+  events: GameEvent[],
+): Result<readonly SpellTargetOutcome[]> {
+  const burning = option.damagesFailures;
+  if (burning === undefined) return ok(resolved.outcomes);
+
+  const failed = resolved.outcomes.filter((one) => one.save?.success === false);
+  if (failed.length === 0) return ok(resolved.outcomes);
+
+  const rolled = rollSpellDice(supply, sheet, option.name, burning.damageType, burning.dice);
+  if (!rolled.ok) return rolled;
+
+  let current = resolved.state;
+  const dealt = new Map<CharacterId, number>();
+  for (const outcome of failed) {
+    const hurt = dealSpellDamage(current, outcome.target, rolled.value, option.name, supply, {
+      by: id,
+    });
+    if (!hurt.ok) return hurt;
+    events.push(...hurt.value.events);
+    current = hurt.value.events.reduce(applyEvent, current);
+    dealt.set(outcome.target, hurt.value.amount);
+  }
+
+  return ok(
+    resolved.outcomes.map((outcome) => {
+      const amount = dealt.get(outcome.target);
+      return amount === undefined
+        ? outcome
+        : { ...outcome, damage: (outcome.damage ?? 0) + amount };
+    }),
+  );
 }
 
 /**

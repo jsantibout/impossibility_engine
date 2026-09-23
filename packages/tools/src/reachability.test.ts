@@ -61,6 +61,7 @@ interface Granted {
   readonly kind: string;
   readonly feature?: string;
   readonly options?: readonly { readonly id: string }[];
+  readonly amends?: readonly { readonly option: string }[];
 }
 
 const grantsOf = (feature: { readonly grants?: unknown }): readonly Granted[] => {
@@ -320,6 +321,8 @@ const AT_CREATION: Readonly<Record<string, string>> = {
   'save-proficiency': 'saving throws this character is proficient in, read by every save it rolls',
   initiative: 'a bonus the engine adds when Initiative is rolled, which no caller states',
   'lifts-conditions': 'conditions a feature ends, lifted by the engine at the moment it names',
+  'long-rest-length':
+    'how long a Long Rest takes this creature, written onto the sheet at creation and read by `end_rest`',
 };
 
 /**
@@ -341,6 +344,7 @@ type Reach =
   | { readonly how: 'reaction'; readonly door: string }
   | { readonly how: 'passive' }
   | { readonly how: 'joins-a-menu'; readonly host: string }
+  | { readonly how: 're-asked-on-a-rest'; readonly door: string }
   | { readonly how: 'at-creation'; readonly why: string }
   | { readonly how: 'unreachable'; readonly why: string };
 
@@ -382,9 +386,14 @@ function reachOf(
   if (menu !== undefined) {
     const host = sheet.features.find((one) => one.feature === menu.feature);
     const printed = new Set((host?.options ?? []).map((one) => one.option));
-    const missing = (menu.options ?? [])
-      .filter((one) => !printed.has(one.id))
-      .map((one) => one.id);
+    // Both halves of the door: a form this grant **adds** has to be reachable
+    // by name, and a form it **amends** has to be one the host really prints —
+    // SRD Sear Undead changes Turn Undead, and an amendment naming a form
+    // nobody wrote would change nothing and say nothing.
+    const missing = [
+      ...(menu.options ?? []).map((one) => one.id),
+      ...(menu.amends ?? []).map((one) => one.option),
+    ].filter((one) => !printed.has(one));
     if (host === undefined || host.spentBy === null) {
       return { how: 'unreachable', why: `its menu joins ${menu.feature}, which names no tool` };
     }
@@ -394,15 +403,28 @@ function reachOf(
     return { how: 'joins-a-menu', host: menu.feature ?? '' };
   }
 
+  // A question a rest re-asks, which is `end_rest`'s door and nobody else's:
+  // SRD Circle of the Land Spells and SRD Memorize Spell are answered by
+  // ending a rest, and neither is spent from a pool, hung on the sheet or
+  // taken as a Reaction. Such a feature also carries the grants its answer
+  // selects — the four lands' spell lists — which are creation's, so the kind
+  // joins the reached set below rather than returning ahead of it: a *second*
+  // grant nobody can reach is still the room with no door this sweep is for.
+  const rest = grants.find((one) => one.kind === 'rechosen-on-a-rest');
+
   if (grants.length > 0) {
-    const unreached = grants.filter((one) => AT_CREATION[one.kind] === undefined);
+    const unreached = grants.filter(
+      (one) => AT_CREATION[one.kind] === undefined && one.kind !== 'rechosen-on-a-rest',
+    );
     const first = unreached[0];
-    return first === undefined
-      ? {
-          how: 'at-creation',
-          why: [...new Set(grants.map((one) => AT_CREATION[one.kind]))].join('; '),
-        }
-      : { how: 'unreachable', why: `a ${first.kind} grant that reaches no tool and no sheet line` };
+    if (first !== undefined) {
+      return { how: 'unreachable', why: `a ${first.kind} grant that reaches no tool and no sheet line` };
+    }
+    if (rest !== undefined) return { how: 're-asked-on-a-rest', door: 'end_rest' };
+    return {
+      how: 'at-creation',
+      why: [...new Set(grants.map((one) => AT_CREATION[one.kind]))].join('; '),
+    };
   }
 
   // A feature that declares nothing of its own and names the one whose
@@ -490,7 +512,14 @@ describe('every feature the engine executes can be reached from the door', () =>
     expect(new Set(found.map((one) => one.path.classId)).size).toBe(PATHS.length);
     expect(found.length).toBeGreaterThan(80);
     const observed = new Set(found.map((one) => one.reach.how));
-    for (const how of ['spendable', 'reaction', 'passive', 'joins-a-menu', 'at-creation']) {
+    for (const how of [
+      'spendable',
+      'reaction',
+      'passive',
+      'joins-a-menu',
+      'at-creation',
+      're-asked-on-a-rest',
+    ]) {
       expect([...observed]).toContain(how);
     }
   });
@@ -512,7 +541,12 @@ describe('every feature the engine executes can be reached from the door', () =>
   it('names a real tool for every feature it says is spendable', () => {
     const doors = sweep()
       .map((one) => one.reach)
-      .filter((reach) => reach.how === 'spendable' || reach.how === 'reaction')
+      .filter(
+        (reach) =>
+          reach.how === 'spendable' ||
+          reach.how === 'reaction' ||
+          reach.how === 're-asked-on-a-rest',
+      )
       .map((reach) => (reach as { door: string }).door);
     expect(doors.length).toBeGreaterThan(0);
     for (const door of [...new Set(doors)]) expect(TOOL_NAMES).toContain(door);

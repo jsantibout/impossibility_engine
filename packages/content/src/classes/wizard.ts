@@ -164,8 +164,13 @@ export const WIZARD: ClassDefinition = {
       id: 'wizard:memorize-spell',
       name: 'Memorize Spell',
       level: 5,
-      automation: 'manual',
-      note: 'Swapping a prepared spell on a Short Rest is not wired into the rest commands.',
+      automation: 'engine',
+      note: 'Executed. SRD: "Whenever you finish a Short Rest, you can study your spellbook and replace one of the level 1+ Wizard spells you have prepared for your Spellcasting feature with another level 1+ spell from the book." One swap, offered by a finished Short Rest and never demanded — a Wizard who says nothing keeps the list they had — and the newcomer is held to the book by the same rule creation holds a prepared spell to: `spell_not_in_spellbook`, reported against `preparedSpells`. "Level 1+" needs no clause of its own, because cantrips are not prepared spells in this engine and are chosen by their own count.',
+      grants: {
+        kind: 'rechosen-on-a-rest',
+        rest: 'short',
+        rechooses: { kind: 'prepared-spells', swap: 1 },
+      },
     },
     {
       id: 'wizard:ability-score-improvement-2',

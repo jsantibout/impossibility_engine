@@ -34,10 +34,10 @@ state is displayed as zero.
 | Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none |
 |---|---|---|---|---|
 | Spells in reach, not executed | 109 spells | 76 | 0 | 33 |
-| Features manual, or a pool with nothing to buy | 40 features | 34 | 0 | 6 |
+| Features manual, or a pool with nothing to buy | 38 features | 32 | 0 | 6 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 |
 | Glossary general rules nothing executes | 22 rules | 0 | 0 | 22 |
-| CR ≤ 5 stat-block items handed over or unapplied | 314 items | on 154 of 244 blocks | 0 | 90 blocks already clean |
+| CR ≤ 5 stat-block items handed over or unapplied | 284 items | on 149 of 244 blocks | 0 | 95 blocks already clean |
 
 ## 1. Spells in reach the engine does not resolve
 
@@ -523,7 +523,7 @@ entries in it, and the complement pinned by name. Its bracket is the level:
 an Origin feat and a Fighting Style print none and are taken at 1, so nine
 of the sixteen are in a level 1–5 character's reach.
 
-Of the 40, 27 are class or subclass features printed at level 5 or below, 12 are species or background traits and 1 are feats.
+Of the 38, 26 are class or subclass features printed at level 5 or below, 11 are species or background traits and 1 are feats.
 The snapshot of 2026-09-21 in `docs/dev/roadmap-ledger-2026-09-21.md`
 counted the first group only, and did not see the pools; the traits are in
 reach of a level 5 character too, which is where the difference in the size
@@ -533,8 +533,8 @@ comes from.
 |---|---|---|
 | `an-option-re-chosen-on-a-rest` | 3 | 3 |
 | `a-feature-that-changes-what-a-casting-costs` | 4 | 2 |
-| `a-rule-the-engine-fixes-for-everybody` | 3 | 2 |
 | `a-resource-traded-for-another` | 2 | 1 |
+| `a-rule-the-engine-fixes-for-everybody` | 2 | 1 |
 | `a-bonus-an-ability-modifier-sizes` | 1 | 1 |
 | `a-bonus-narrowed-to-a-skill` | 1 | 1 |
 | `a-declared-fact-a-feature-sets` | 1 | 1 |
@@ -543,8 +543,8 @@ comes from.
 | `falling` | 1 | 1 |
 | `heroic-inspiration` | 1 | 1 |
 | `jumping` | 1 | 1 |
-| `a-benefit-that-runs-for-a-printed-span` | 5 | 0 |
 | `a-pool-the-proficiency-bonus-sizes` | 5 | 0 |
+| `a-benefit-that-runs-for-a-printed-span` | 4 | 0 |
 | `a-casting-paid-for-out-of-a-feature-pool` | 2 | 0 |
 | `a-language-or-a-proficiency-an-item-grants` | 2 | 0 |
 | `a-move-a-feature-hands-its-holder` | 2 | 0 |
@@ -554,7 +554,6 @@ comes from.
 | `temporary-hit-points-a-feature-grants` | 2 | 0 |
 | `a-bonus-to-spell-attack-rolls` | 1 | 0 |
 | `a-creature-fact-an-effect-overrides` | 1 | 0 |
-| `a-creature-swapped-for-another-stat-block` | 1 | 0 |
 | `a-dc-a-feature-derives-from-its-own-abilities` | 1 | 0 |
 | `a-die-behaviour-a-spell-asks-for` | 1 | 0 |
 | `a-feature-that-changes-who-a-casting-catches` | 1 | 0 |
@@ -587,16 +586,15 @@ sums to the population.
 - `paladin:smite` — Paladin's Smite (level 2, class, manual) — also waits on 1
 - `sorcerer:metamagic` — Metamagic (level 2, class, manual) — also waits on 3
 
-#### `a-rule-the-engine-fixes-for-everybody` — blocks 3, finishes 2
-
-- `elf:trance` — Trance (level 1, species, manual) — also waits on 1
-- `halfling:halfling-nimbleness` — Halfling Nimbleness (level 1, species, manual)
-- `halfling:naturally-stealthy` — Naturally Stealthy (level 1, species, manual)
-
 #### `a-resource-traded-for-another` — blocks 2, finishes 1
 
 - `monk:focus` — Monk's Focus (level 2, class, engine)
 - `rogue:cunning-strike` — Cunning Strike (level 5, class, manual) — also waits on 1
+
+#### `a-rule-the-engine-fixes-for-everybody` — blocks 2, finishes 1
+
+- `elf:trance` — Trance (level 1, species, manual) — also waits on 1
+- `halfling:naturally-stealthy` — Naturally Stealthy (level 1, species, manual)
 
 #### `a-bonus-an-ability-modifier-sizes` — blocks 1, finishes 1
 
@@ -630,14 +628,6 @@ sums to the population.
 
 - `thief:second-story-work` — Second-Story Work (level 3, subclass, manual)
 
-#### `a-benefit-that-runs-for-a-printed-span` — blocks 5, finishes 0
-
-- `dwarf:stonecunning` — Stonecunning (level 1, species, manual) — also waits on 2
-- `sorcerer:innate-sorcery` — Innate Sorcery (level 1, class, manual) — also waits on 1
-- `druid:wild-shape` — Wild Shape (level 2, class, engine) — also waits on 1
-- `dragonborn:draconic-flight` — Draconic Flight (level 5, species, manual) — also waits on 1
-- `goliath:large-form` — Large Form (level 5, species, manual) — also waits on 1
-
 #### `a-pool-the-proficiency-bonus-sizes` — blocks 5, finishes 0
 
 - `dragonborn:breath-weapon` — Breath Weapon (level 1, species, manual) — also waits on 3
@@ -645,6 +635,13 @@ sums to the population.
 - `gnome:gnomish-lineage` — Gnomish Lineage (level 1, species, manual) — also waits on 1
 - `goliath:giant-ancestry` — Giant Ancestry (level 1, species, manual) — also waits on 3
 - `orc:adrenaline-rush` — Adrenaline Rush (level 1, species, manual) — also waits on 1
+
+#### `a-benefit-that-runs-for-a-printed-span` — blocks 4, finishes 0
+
+- `dwarf:stonecunning` — Stonecunning (level 1, species, manual) — also waits on 2
+- `sorcerer:innate-sorcery` — Innate Sorcery (level 1, class, manual) — also waits on 1
+- `dragonborn:draconic-flight` — Draconic Flight (level 5, species, manual) — also waits on 1
+- `goliath:large-form` — Large Form (level 5, species, manual) — also waits on 1
 
 #### `a-casting-paid-for-out-of-a-feature-pool` — blocks 2, finishes 0
 
@@ -688,10 +685,6 @@ sums to the population.
 #### `a-creature-fact-an-effect-overrides` — blocks 1, finishes 0
 
 - `goliath:large-form` — Large Form (level 5, species, manual) — also waits on 1
-
-#### `a-creature-swapped-for-another-stat-block` — blocks 1, finishes 0
-
-- `druid:wild-shape` — Wild Shape (level 2, class, engine) — also waits on 1
 
 #### `a-dc-a-feature-derives-from-its-own-abilities` — blocks 1, finishes 0
 
@@ -799,9 +792,9 @@ so none of them waits on reach: every one is in it.
 
 ## 5. CR ≤ 5 stat-block lines handed over or unapplied
 
-244 of the 332 carried stat blocks are CR ≤ 5. They print 738 lines, of which the parser reads 499 and hands over 239. Reading is not spending: a further 70 of the read attack lines carry a printed rider nothing applies, and 5 read trait lines state a mechanic no engine reader asks for. So the population is 314 items over 244 blocks — 90 of which already carry none of them.
+244 of the 332 carried stat blocks are CR ≤ 5. They print 738 lines, of which the parser reads 524 and hands over 214. Reading is not spending: a further 70 of the read attack lines carry a printed rider nothing applies, and 0 read trait lines state a mechanic no engine reader asks for. So the population is 284 items over 244 blocks — 95 of which already carry none of them.
 
-**A third answer, counted apart from both:** 30 of the read trait lines are sentences the engine reads and **hands to the table**, and will never execute — the breathing traits, which say what a creature is and name nothing any rule consults, because nothing here drowns. They are neither spent nor waiting, so they are not among the 314 above and do not keep a block off the clean list. `HANDOVER_TRAIT_KINDS` holds the reason per kind, and `coverage.test.ts` pins that none of them has a reader after all.
+**A third answer, counted apart from both:** 30 of the read trait lines are sentences the engine reads and **hands to the table**, and will never execute — the breathing traits, which say what a creature is and name nothing any rule consults, because nothing here drowns. They are neither spent nor waiting, so they are not among the 284 above and do not keep a block off the clean list. `HANDOVER_TRAIT_KINDS` holds the reason per kind, and `coverage.test.ts` pins that none of them has a reader after all.
 
 **A block is the unit that matters and a line is the unit that is counted.**
 A block with four unapplied lines is one fight that does not run, not four,
@@ -814,10 +807,10 @@ overlap: one sentence can force a save and recharge.
 | A save a line forces | 55 | 50 | Air Elemental (CR 5) / Whirlwind (Recharge 4–6); Basilisk (CR 3) / Petrifying Gaze (Recharge 4–6); Brass Dragon Wyrmling (CR 1) / Sleep Breath |
 | A use the block limits per day | 18 | 17 | Couatl (CR 4) / Divine Aid (2/Day); Cultist Fanatic (CR 2) / Spiritual Weapon (2/Day); Darkmantle (CR 0.5) / Darkness Aura (1/Day) |
 | A recharge | 17 | 17 | Air Elemental (CR 5) / Whirlwind (Recharge 4–6); Basilisk (CR 3) / Petrifying Gaze (Recharge 4–6); Blink Dog (CR 0.25) / Teleport (Recharge 4–6) |
-| A creature that casts | 12 | 12 | Couatl (CR 4) / Spellcasting; Cultist Fanatic (CR 2) / Spellcasting; Druid (CR 2) / Spellcasting |
-| A trait shape nothing spends | 5 | 5 | Azer Sentinel (CR 2) / Illumination; Fire Elemental (CR 5) / Illumination; Nightmare (CR 3) / Illumination |
 | A legendary action’s own economy | 2 | 1 | Unicorn (CR 5) / Charging Horn |
 | How many attacks the Attack action holds | 1 | 1 | Roper (CR 5) / Multiattack |
+| A creature that casts | 0 | 0 | — |
+| A trait shape nothing spends | 0 | 0 | — |
 
 **Two of those rows are an effect nobody applies and an economy that is
 already correct.** A recharge and a per-day limit are parsed onto every
@@ -825,7 +818,7 @@ line, carried onto the sheet, asked at the turn boundary and spent by
 `takeStatedAction`; what is unapplied on such a line is what it *does*.
 A brief quoting those rows should say so.
 
-### Handed-over lines matching no enumerated shape — 154
+### Handed-over lines matching no enumerated shape — 141
 
 A debt nobody has given an id to is still a debt, so these are named here
 rather than dropped. They carry no parsed structure at all, which is why no
@@ -844,8 +837,6 @@ of it off the ledger.
 - Bandit Captain (CR 2) [reaction] Parry
 - Barbed Devil (CR 5) [trait] Barbed Hide
 - Barbed Devil (CR 5) [trait] Diabolical Restoration
-- Barbed Devil (CR 5) [trait] Magic Resistance
-- Bearded Devil (CR 3) [trait] Magic Resistance
 - Black Pudding (CR 4) [trait] Amorphous
 - Black Pudding (CR 4) [trait] Corrosive Form
 - Black Pudding (CR 4) [reaction] Split
@@ -859,7 +850,6 @@ of it off the ledger.
 - Deer (CR 0) [trait] Agile
 - Doppelganger (CR 3) [action] Read Thoughts
 - Doppelganger (CR 3) [bonus action] Shape-Shift
-- Dryad (CR 1) [trait] Magic Resistance
 - Dryad (CR 1) [trait] Speak with Beasts and Plants
 - Dryad (CR 1) [bonus action] Tree Stride
 - Earth Elemental (CR 5) [trait] Earth Glide
@@ -873,7 +863,6 @@ of it off the ledger.
 - Flesh Golem (CR 5) [trait] Berserk
 - Flesh Golem (CR 5) [trait] Immutable Form
 - Flesh Golem (CR 5) [trait] Lightning Absorption
-- Flesh Golem (CR 5) [trait] Magic Resistance
 - Gelatinous Cube (CR 2) [trait] Ooze Cube
 - Gelatinous Cube (CR 2) [trait] Transparent
 - Ghost (CR 4) [trait] Ethereal Sight
@@ -896,7 +885,6 @@ of it off the ledger.
 - Hobgoblin Captain (CR 3) [trait] Aura of Authority
 - Homunculus (CR 0) [trait] Telepathic Bond
 - Imp (CR 1) [action] Invisibility
-- Imp (CR 1) [trait] Magic Resistance
 - Imp (CR 1) [action] Shape-Shift
 - Incubus (CR 4) [trait] Succubus Form
 - Knight (CR 3) [reaction] Parry
@@ -908,7 +896,6 @@ of it off the ledger.
 - Mimic (CR 2) [bonus action] Shape-Shift
 - Mule (CR 0.125) [trait] Beast of Burden
 - Night Hag (CR 5) [trait] Coven Magic
-- Night Hag (CR 5) [trait] Magic Resistance
 - Night Hag (CR 5) [bonus action] Shape-Shift
 - Night Hag (CR 5) [trait] Soul Bag
 - Nightmare (CR 3) [trait] Confer Fire Resistance
@@ -917,13 +904,10 @@ of it off the ledger.
 - Ochre Jelly (CR 2) [trait] Amorphous
 - Ochre Jelly (CR 2) [reaction] Split
 - Octopus (CR 0) [trait] Compression
-- Ogre Zombie (CR 2) [trait] Undead Fortitude
 - Phase Spider (CR 3) [bonus action] Ethereal Jaunt
 - Phase Spider (CR 3) [trait] Ethereal Sight
 - Phase Spider (CR 3) [trait] Web Walker
-- Pseudodragon (CR 0.25) [trait] Magic Resistance
 - Quasit (CR 1) [action] Invisibility
-- Quasit (CR 1) [trait] Magic Resistance
 - Quasit (CR 1) [action] Shape-Shift
 - Rat (CR 0) [trait] Agile
 - Raven (CR 0) [trait] Mimicry
@@ -937,7 +921,6 @@ of it off the ledger.
 - Sahuagin Warrior (CR 0.5) [trait] Blood Frenzy
 - Sahuagin Warrior (CR 0.5) [trait] Shark Telepathy
 - Salamander (CR 5) [trait] Fire Aura
-- Satyr (CR 0.5) [trait] Magic Resistance
 - Sea Hag (CR 2) [trait] Coven Magic
 - Sea Hag (CR 2) [action] Illusory Appearance
 - Seahorse (CR 0) [action] Bubble Dash
@@ -945,7 +928,6 @@ of it off the ledger.
 - Shambling Mound (CR 5) [trait] Lightning Absorption
 - Shrieker Fungus (CR 0) [reaction] Shriek
 - Specter (CR 1) [trait] Incorporeal Movement
-- Sphinx of Wonder (CR 1) [trait] Magic Resistance
 - Spider (CR 0) [trait] Web Walker
 - Sprite (CR 0.25) [action] Invisibility
 - Steam Mephit (CR 0.25) [trait] Blurred Form
@@ -965,7 +947,6 @@ of it off the ledger.
 - Troll Limb (CR 0.5) [trait] Regeneration
 - Troll Limb (CR 0.5) [trait] Troll Spawn
 - Unicorn (CR 5) [legendary action] Charging Horn
-- Unicorn (CR 5) [trait] Magic Resistance
 - Unicorn (CR 5) [legendary action] Shimmering Shield
 - Vampire Familiar (CR 3) [trait] Vampiric Connection
 - Vampire Spawn (CR 5) [trait] Forbiddance
@@ -991,4 +972,3 @@ of it off the ledger.
 - Xorn (CR 5) [bonus action] Charge
 - Xorn (CR 5) [trait] Earth Glide
 - Xorn (CR 5) [trait] Treasure Sense
-- Zombie (CR 0.25) [trait] Undead Fortitude

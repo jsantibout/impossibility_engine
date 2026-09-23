@@ -245,10 +245,12 @@ export const READABLE_GRANT_KINDS: ReadonlySet<string> = new Set([
   'hit-point-maximum',
   'initiative',
   'lifts-conditions',
+  'long-rest-length',
   'on-hit',
   'pool',
   'pool-options',
   'reaction',
+  'rechosen-on-a-rest',
   'recovery',
   'save-proficiency',
   'shape-shift',
@@ -4151,13 +4153,17 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
               reason: `${feature.id} adds a form to a menu and names none; the menu belongs to the feature that declares the pool`,
             });
           }
-          if (!Array.isArray(grant.options) || grant.options.length === 0) {
+          const amends = Array.isArray(grant.amends) ? grant.amends : [];
+          if (
+            (!Array.isArray(grant.options) || grant.options.length === 0) &&
+            amends.length === 0
+          ) {
             problems.push({
               field: `${grantsAt}.options`,
               code: 'empty_option_menu',
-              reason: `${feature.id} adds nothing to the menu it names`,
+              reason: `${feature.id} adds nothing to the menu it names and changes nothing on it`,
             });
-          } else {
+          } else if (Array.isArray(grant.options) && grant.options.length > 0) {
             problems.push(
               ...featureOptionsProblems(
                 feature.id,
@@ -4200,6 +4206,80 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
                 reason: `${host.id} already offers "${option.id}", and a caller naming it could reach only the first`,
               });
             }
+
+            // And the other direction: an amendment changes a form the host
+            // really prints, off the same set. SRD Sear Undead names Turn
+            // Undead, and a feature naming a form nobody wrote would validate,
+            // compile and change nothing — the failure `unknown_option_menu`
+            // catches one level up.
+            // Every amendment of this host's menu that is in scope, in the
+            // order the source lists them — this feature's own included, so a
+            // feature that names one form twice is caught by the rule that
+            // catches two features naming it once.
+            const inScope: {
+              readonly feature: string;
+              readonly level: number;
+              readonly option: string;
+              readonly at: number;
+            }[] = [];
+            for (const other of source.inScope ?? source.features) {
+              for (const declared of featureGrants(other)) {
+                if (declared.kind !== 'pool-options' || declared.feature !== grant.feature) continue;
+                (declared.amends ?? []).forEach((one, at) => {
+                  inScope.push({
+                    feature: other.id,
+                    level: other.level,
+                    option: one?.option,
+                    at,
+                  });
+                });
+              }
+            }
+
+            /**
+             * Whether the *other* half of a collision is the one that has to
+             * report it, so an author fixes one problem and sees one.
+             *
+             * A feature outside this source's own list is its **parent
+             * class's**, which cannot see this subclass at all — so the
+             * subclass is the only place the pair is visible and reports
+             * whichever way the levels fall. Between two features of one
+             * source, the later of them reports, exactly as
+             * `duplicate_feature_option` reports on the joiner.
+             */
+            const own = new Set(source.features.map((one) => one.id));
+            const answersFirst = (other: { feature: string; level: number }): boolean =>
+              !own.has(other.feature) ||
+              other.level < feature.level ||
+              (other.level === feature.level && other.feature < feature.id);
+
+            amends.forEach((amendment, at) => {
+              if (!taken.has(amendment?.option)) {
+                problems.push({
+                  field: `${grantsAt}.amends[${at}].option`,
+                  code: 'unknown_amended_option',
+                  reason: `${feature.id} changes "${String(amendment?.option)}" on ${host.id}'s menu, and ${host.id} prints ${taken.size === 0 ? 'no options at all' : [...taken].join(', ')}`,
+                });
+                return;
+              }
+              // **A second amendment of one form is refused**, and it is
+              // `duplicate_feature_option`'s rule from the other side: a form
+              // is compiled once and reads one amendment, so a second would be
+              // a printed sentence the sheet silently dropped. The SRD prints
+              // none; a homebrew that wants two writes one.
+              const already = inScope.find(
+                (other) =>
+                  other.option === amendment.option &&
+                  (other.feature === feature.id ? other.at < at : answersFirst(other)),
+              );
+              if (already !== undefined) {
+                problems.push({
+                  field: `${grantsAt}.amends[${at}].option`,
+                  code: 'duplicate_amended_option',
+                  reason: `${already.feature} already changes "${String(amendment.option)}" on ${host.id}'s menu, and a form reads one amendment, so one of the two would do nothing`,
+                });
+              }
+            });
           }
         }
         // What a **hit** buys, judged by the same rules one trigger along: the
