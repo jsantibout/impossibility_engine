@@ -113,6 +113,7 @@ const FORBIDDEN_HERE = [
   'rollAttack',
   'resolveDeathSave',
   'roll',
+  'rollUnder',
   'rollD20',
   'rerollDice',
   'rollD20Recorded',

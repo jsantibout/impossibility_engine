@@ -106,7 +106,7 @@ const rogueChoices = (level: number): CharacterChoices => ({
     ? {
         feats: {
           ...common.feats,
-          'rogue:ability-score-improvement': { featId: 'savage-attacker' },
+          'rogue:ability-score-improvement': { featId: 'defense' },
           ...(level >= 8 ? { 'rogue:ability-score-improvement-2': { featId: 'ability-score-improvement', abilities: ['cha', 'int'] } } : {}),
           ...(level >= 10 ? { 'rogue:ability-score-improvement-3': { featId: 'ability-score-improvement', abilities: ['cha', 'int'] } } : {}),
           ...(level >= 12 ? { 'rogue:ability-score-improvement-4': { featId: 'ability-score-improvement', abilities: ['cha', 'int'] } } : {}),
@@ -688,7 +688,7 @@ describe('a feature whose damage type is chosen at the hit', () => {
     },
     feats: {
       ...common.feats,
-      ...(level >= 4 ? { 'cleric:ability-score-improvement': { featId: 'savage-attacker' } } : {}),
+      ...(level >= 4 ? { 'cleric:ability-score-improvement': { featId: 'defense' } } : {}),
       ...(level >= 8 ? { 'cleric:ability-score-improvement-2': { featId: 'ability-score-improvement', abilities: ['cha', 'int'] } } : {}),
       ...(level >= 12 ? { 'cleric:ability-score-improvement-3': { featId: 'ability-score-improvement', abilities: ['cha', 'int'] } } : {}),
       ...(level >= 16 ? { 'cleric:ability-score-improvement-4': { featId: 'ability-score-improvement', abilities: ['cha', 'int'] } } : {}),
@@ -876,7 +876,7 @@ describe('a feature that lowers which die face is a Critical Hit', () => {
     feats: {
       ...common.feats,
       'fighter:fighting-style': { featId: 'defense' },
-      ...(level >= 4 ? { 'fighter:ability-score-improvement': { featId: 'savage-attacker' } } : {}),
+      ...(level >= 4 ? { 'fighter:ability-score-improvement': { featId: 'defense' } } : {}),
       ...(level >= 6 ? { 'fighter:ability-score-improvement-2': { featId: 'ability-score-improvement', abilities: ['cha', 'int'] } } : {}),
       ...(level >= 7 ? { 'champion:additional-fighting-style': { featId: 'dueling' } } : {}),
       ...(level >= 8 ? { 'fighter:ability-score-improvement-3': { featId: 'ability-score-improvement', abilities: ['cha', 'int'] } } : {}),

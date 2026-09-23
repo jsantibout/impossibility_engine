@@ -1518,13 +1518,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'one clause short: the arithmetic is a standing flat bonus applying to `ac` that magic armour already uses, and a feat carries a standing grant now — Archery and Great Weapon Fighting beside it are declared that way and are applied.',
     },
   ],
-  'savage-attacker': [
-    {
-      clause: 'Rolling weapon damage twice once per turn is not applied',
-      why: 'a-die-behaviour-a-spell-asks-for',
-      note: 'the spell map’s own id, and the same sentence the Soldier background’s Origin feat waits on: `rerollDice` is built, tested, and reached by no definition and no feature.',
-    },
-  ],
   'two-weapon-fighting': [
     {
       clause: 'the engine does not model which hand an attack came from',
@@ -1533,18 +1526,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
     },
   ],
 
-  'soldier:savage-attacker': [
-    {
-      clause: 'The feat is granted and its being the right one is checked',
-      why: 'expressible',
-      note: 'the background’s Origin feat, named by the background and validated.',
-    },
-    {
-      clause: 'Rolling the weapon damage dice twice once per turn and using either roll',
-      why: 'a-die-behaviour-a-spell-asks-for',
-      note: 'the spell map’s own id: `rerollDice` is built, tested, and reached by no definition and no feature.',
-    },
-  ],
 };
 
 /**
@@ -1678,11 +1659,7 @@ export const POOLS_ONLY_PARTLY_BOUGHT: readonly string[] = ['monk:focus'];
  * population is `stale`, a member with no line is `unrecorded`, and every
  * clause anchors in its own note exactly once.
  */
-export const FEATS_ANSWERED_FOR: readonly string[] = [
-  'defense',
-  'savage-attacker',
-  'two-weapon-fighting',
-];
+export const FEATS_ANSWERED_FOR: readonly string[] = ['defense', 'two-weapon-fighting'];
 
 /**
  * The whole population this map answers for: the three arms together.

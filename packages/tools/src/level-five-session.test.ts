@@ -313,13 +313,32 @@ interface Table {
 }
 
 /**
+ * The seed the session is played from, which is a **choice** and not a fixture.
+ *
+ * It was `a-level-five-session` until SRD Savage Attacker began to execute:
+ * the party's Soldier carries the Origin feat, the feat throws the weapon's
+ * damage dice a second time once a turn, and two more throws a round is a
+ * different generator from round two onwards. Nothing about the session's
+ * script changed and nothing it asserts was weakened — but the *run* diverged,
+ * and the transcript Gate G1 read no longer contained the moment its finding
+ * is about: Turn Undead landing late in round 4 and the swing at what it
+ * Frightened being refused. This seed plays a run that does, which is what the
+ * seed was chosen for in the first place.
+ *
+ * A seed is the right thing to re-choose here and a script is not: the script
+ * is what the session *does*, and the seed is only which way the dice fell
+ * while it did it.
+ */
+const SESSION_SEED = 'a-level-five-session-13';
+
+/**
  * One campaign, two surfaces over it, and a transcript of every call.
  *
  * Two surfaces over one campaign is one campaign — `dispatch.ts` says so — and
  * that is exactly the table this criterion describes: a DM adjudicating beside
  * a party acting.
  */
-function table(seed = 'a-level-five-session'): Table {
+function table(seed = SESSION_SEED): Table {
   const campaign = createCampaign({ content: SRD_CONTENT, seed });
   const player = createSurface(campaign);
   const dm = createDmSurface(campaign);

@@ -82,6 +82,7 @@ import {
   standingAttackDamage,
   standingBonuses,
   standingDamageEffects,
+  standingWeaponRollRule,
   strikeStyleFor,
   type HitOption,
   type StrikeStyle,
@@ -1570,6 +1571,12 @@ export function resolveAttack(
     });
     unverified.push(...fromFeatures.unverified);
 
+    const savage = standingWeaponRollRule(state, id, {
+      weapon,
+      ...(command.twoHanded === undefined ? {} : { twoHanded: command.twoHanded }),
+      turn: state.combat?.turnsTaken ?? null,
+    });
+
     const rolled = rollAttackDamage(
       supply.issuer,
       supply.rng,
@@ -1602,6 +1609,12 @@ export function resolveAttack(
           weapon,
           ...(command.twoHanded === undefined ? {} : { twoHanded: command.twoHanded }),
         }),
+        // SRD Savage Attacker: "once per turn when you hit a target with a
+        // weapon, you can roll the weapon's damage dice twice and use either
+        // roll." The other scope a rule about a hit can have — the weapon's
+        // own roll rather than every die the swing throws — gathered beside
+        // the line above and spent below.
+        ...(savage.rule === null ? {} : { weaponRollRule: savage.rule }),
         // SRD Cleave: "don't add your ability modifier to that damage unless
         // that modifier is negative."
         ...(cleaving === undefined ? {} : { withoutAbilityModifier: true as const }),
@@ -1619,7 +1632,7 @@ export function resolveAttack(
     // A once-per-turn feature that rode on this hit has now used its allowance.
     // Recorded before the damage, so a log read forwards never shows the damage
     // of a feature whose use had not yet been written down.
-    for (const feature of fromFeatures.spent) {
+    for (const feature of [...fromFeatures.spent, ...savage.spent]) {
       events.push({ type: 'feature-used', id, feature, turn: state.combat?.turnsTaken ?? 0 });
     }
 
@@ -1963,6 +1976,12 @@ export function resolveAttackDamage(
         : { featureDamageTypes: command.featureDamageTypes }),
     });
 
+    const savage = standingWeaponRollRule(current, id, {
+      weapon,
+      twoHanded: pending.twoHanded,
+      turn: current.combat?.turnsTaken ?? null,
+    });
+
     const issuedBefore = supply.issuer.count;
     const rolled = rollAttackDamage(
       supply.issuer,
@@ -2006,6 +2025,11 @@ export function resolveAttackDamage(
           weapon,
           twoHanded: pending.twoHanded,
         }),
+        // And the rule about the roll as a whole, off the same swing. Gathered
+        // here rather than pinned on the hold for the reason the line above it
+        // is: the hold remembers what was swung, and what a feature says about
+        // the swing is read when the dice are thrown.
+        ...(savage.rule === null ? {} : { weaponRollRule: savage.rule }),
       },
       pending.critical,
     );
@@ -2026,7 +2050,7 @@ export function resolveAttackDamage(
 
     // The same allowance the ordinary attack path spends, spent on the half of a
     // held attack that actually deals the damage.
-    for (const feature of fromFeatures.spent) {
+    for (const feature of [...fromFeatures.spent, ...savage.spent]) {
       events.push({ type: 'feature-used', id, feature, turn: current.combat?.turnsTaken ?? 0 });
     }
 

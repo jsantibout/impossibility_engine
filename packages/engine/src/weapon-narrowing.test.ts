@@ -136,7 +136,7 @@ const fighter = (featId: string): CharacterChoices => ({
     },
     'human:versatile': { featId: 'alert' },
     'fighter:fighting-style': { featId },
-    'fighter:ability-score-improvement': { featId: 'savage-attacker' },
+    'fighter:ability-score-improvement': { featId: 'defense' },
   },
   dmGrants: { items: [], goldPieces: 0, magicItems: [], note: 'standard' },
 });

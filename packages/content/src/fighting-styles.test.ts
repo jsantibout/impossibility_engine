@@ -75,7 +75,7 @@ const choices = (featId: string): CharacterChoices => ({
     },
     'human:versatile': { featId: 'alert' },
     'fighter:fighting-style': { featId },
-    'fighter:ability-score-improvement': { featId: 'savage-attacker' },
+    'fighter:ability-score-improvement': { featId: 'ability-score-improvement', abilities: ['str', 'str'] },
   },
   dmGrants: { items: [], goldPieces: 0, magicItems: [], note: 'standard' },
 });

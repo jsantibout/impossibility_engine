@@ -2,12 +2,13 @@ import { asRollId, err, ok, type Result, type RollId, type RollMode } from '@ie/
 import {
   notationBounds,
   parseNotation,
-  roll,
   rollD20,
+  rollUnder,
   type D20Outcome,
   type DieEffect,
   type Rng,
   type RollOutcome,
+  type RollRule,
 } from './dice.js';
 
 /**
@@ -81,13 +82,21 @@ export function rollD20Recorded(
   return { ...rollD20(rng, mode, modifier), provenance: issuer.issue('engine') };
 }
 
+/**
+ * `rule` is a sentence about the roll as a whole — see {@link RollRule}. It is
+ * **one** recorded roll however many dice it ends up throwing: Savage
+ * Attacker's two throws are two halves of one damage roll rather than two
+ * damage rolls, so they share an id and the loser's dice ride along `dropped`.
+ * Absent, or null, is the roll this function has always made.
+ */
 export function rollRecorded(
   issuer: RollIssuer,
   rng: Rng,
   notation: string,
   effects: readonly DieEffect[] = [],
+  rule: RollRule | null = null,
 ): Result<RecordedRoll> {
-  const outcome = roll(rng, notation, effects);
+  const outcome = rollUnder(rng, notation, rule, effects);
   // Issue the id only once the roll has actually happened, so a rejected roll
   // does not leave a gap in the sequence.
   if (!outcome.ok) return outcome;
