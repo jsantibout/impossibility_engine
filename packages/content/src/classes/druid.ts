@@ -147,15 +147,31 @@ export const DRUID: ClassDefinition = {
       name: 'Wild Shape',
       level: 2,
       automation: 'engine',
-      note: 'Declared as a pool sized by the Wild Shape column, refilling on a Long Rest. A Short Rest gives back one use, which is applied without emptying the pool. Becoming a Beast — the form’s statistics, the hours it lasts, and the Bonus Action either way — is not modelled.',
+      note: 'Executed as a `shape-shift` grant. SRD: "As a Bonus Action, you shape-shift into a Beast form that you have learned for this feature. You stay in that form for a number of hours equal to half your Druid level or until you use Wild Shape again, have the Incapacitated condition, or die. You can also leave the form early as a Bonus Action." The pool is sized by the Wild Shape column and refills on a Long Rest, a Short Rest giving one use back; the Beast Shapes table is the `forms` rows, read at the Druid level; the known forms are the character’s `knownForms`, checked against that row when the character is made. A use lays the Beast’s stat block over the sheet with the SRD’s retained half kept — creature type, Hit Points, Intelligence, Wisdom and Charisma, class features, proficiencies at the Druid’s own bonus with the block’s number where it is higher — grants Temporary Hit Points equal to the Druid level, and files the hours. Gear merges and the Armour Class is always the block’s (the owner’s ruling of 2026-09-20). **Not yet:** replacing a known form when a Long Rest ends, which the SRD allows and the rest does not offer; the form’s limbs deciding what can be held; the block’s senses.',
       grants: {
-        kind: 'pool',
-        key: 'wild-shape',
-        label: 'Wild Shape',
+        kind: 'shape-shift',
+        action: 'bonus-action',
+        pool: 'wild-shape',
+        poolLabel: 'Wild Shape',
         usesByLevel: WILD_SHAPE_USES,
         recovers: 'long-rest',
         // SRD: "You regain one expended use when you finish a Short Rest."
         regainsOnShortRest: 1,
+        formType: 'Beast',
+        // SRD Beast Shapes table: Druid level, known forms, max CR, Fly Speed.
+        forms: [
+          { fromLevel: 2, known: 4, maxChallengeRating: 0.25, flying: false },
+          { fromLevel: 4, known: 6, maxChallengeRating: 0.5, flying: false },
+          { fromLevel: 8, known: 8, maxChallengeRating: 1, flying: true },
+        ],
+        // SRD: "a number of hours equal to half your Druid level".
+        hoursPerLevel: 0.5,
+        // SRD: "Temporary Hit Points equal to your Druid level".
+        temporaryHitPointsPerLevel: 1,
+        // SRD: "you retain your ... Intelligence, Wisdom, and Charisma scores".
+        keeps: { abilities: ['int', 'wis', 'cha'] },
+        // SRD: "You can't cast spells".
+        forbidsCasting: true,
       },
     },
     {

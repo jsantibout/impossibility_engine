@@ -2,6 +2,7 @@ import { SKILL_ABILITY, type Ability, type RollMode, type Skill } from '@ie/shar
 import type {
   ActivatedFeature,
   CastingOption,
+  ShapeShift,
   HealingTouch,
   HitOption,
   PoolOption,
@@ -556,6 +557,12 @@ export interface CharacterSheet {
    * every event.
    */
   readonly activated?: readonly ActivatedFeature[];
+  /**
+   * Features that lay another creature's stat block over this sheet — SRD
+   * Wild Shape — with the Beast Shapes table read at this character's level.
+   * See `ShapeShift`; what a form does to the sheet is `assumeStatBlock`.
+   */
+  readonly shapeShifts?: readonly ShapeShift[];
   /**
    * Features that give another pool's uses back — Sorcerous Restoration,
    * Magical Cunning.

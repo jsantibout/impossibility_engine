@@ -1406,6 +1406,42 @@ export interface ActivatedFeature {
 }
 
 /**
+ * A feature that lays another creature's stat block over its holder's sheet —
+ * SRD Wild Shape — with its table already read at this character's level.
+ *
+ * Resolved at creation for the reason `activated` and `strikeStyles` are: the
+ * count of forms, the Challenge Rating ceiling, whether a flier may be taken,
+ * the hours and the Temporary Hit Points are all a column of a class table or
+ * a multiple of a class level, and a command reads a sheet and never a class.
+ * What the fold needs to *end* one is on `CreatureState.shape`, not here.
+ */
+export interface ShapeShift {
+  readonly feature: string;
+  readonly name: string;
+  /** What entering costs in the action economy — and leaving early, which the SRD prices the same. */
+  readonly action: 'action' | 'bonus-action' | 'none';
+  readonly pool: string;
+  /** The creature type a form must print. */
+  readonly formType: string;
+  /** How many forms may be known at this level. */
+  readonly known: number;
+  readonly maxChallengeRating: number;
+  readonly flying: boolean;
+  /** How long one form lasts, in hours. */
+  readonly hours: number;
+  readonly temporaryHitPoints: number;
+  /** The holder's own scores that survive the swap. */
+  readonly keeps: readonly Ability[];
+  readonly forbidsCasting?: boolean;
+  /**
+   * The forms this character has learned, sorted — the answer to
+   * `CharacterChoices.knownForms`, and empty until the player has given one.
+   * A use names one of these and nothing else.
+   */
+  readonly knownForms: readonly string[];
+}
+
+/**
  * A feature whose use is spent to heal its own holder.
  *
  * Second Wind and Wholeness of Body. Both are a pool that already existed,
@@ -2181,6 +2217,11 @@ export function strikeStyleFor(
  * attunement.
  */
 function itemStandingOf(creature: CreatureState): readonly StandingEffect[] {
+  // SRD Wild Shape: "Equipment that merges with the form has no effect while
+  // you're in that form" — and gear merges by default, which is the owner's
+  // ruling of 2026-09-20. The items stay in the creature's hands and come back
+  // speaking the moment the form ends, because this is read and never stored.
+  if (creature.shape !== null) return [];
   if (creature.equipped.length === 0 && creature.attuned.length === 0) return [];
 
   const byItem = new Map<string, readonly StandingEffect[]>();

@@ -45,9 +45,9 @@ import { applyOngoing, isOngoingEvent } from './ongoing.js';
 import { applyTimers, isTimersEvent } from './timers.js';
 import { applyCombat, isCombatEvent } from './combat.js';
 import { applyScene, isSceneEvent } from './scene.js';
-import { applyFeatures, isFeaturesEvent } from './features.js';
+import { applyFeatures, isFeaturesEvent, resized } from './features.js';
 import { applyHolds, isHoldsEvent } from './holds.js';
-import { applyInventory, isInventoryEvent } from './inventory.js';
+import { applyInventory, isInventoryEvent, withEquipment } from './inventory.js';
 import { applyGrants, isGrantsEvent } from './grants.js';
 import { applyRolls, isRollsEvent } from './rolls.js';
 
@@ -269,6 +269,10 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
   // right whichever of them fired, rather than right for the ones somebody
   // remembered.
   return settleHitPointMaxima(reachStartOfTurn(
+    // After every pass that can end a feature — a deadline, a lost condition,
+    // an explicit ending — because what this puts back is a sheet a feature
+    // was holding up, and it has to see the feature gone first.
+    settleShapes(
     // After the drops rather than before them: what ends an attunement is a
     // death or an item gone, and both are facts the event itself left behind.
     endLostAttunements(
@@ -307,7 +311,65 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
         ),
       ),
     ),
+    ),
   ));
+}
+
+/**
+ * A form put back when the feature wearing it has ended.
+ *
+ * SRD Wild Shape ends four ways nobody commands and one they do — the hours
+ * run out, a second use, the Incapacitated condition, death, and a Bonus
+ * Action — and every one of them takes the feature out of `activeFeatures`
+ * (`expireEffects`, `endLostFeatures`, a `feature-ended`) knowing nothing
+ * about a sheet having been swapped. So the swap is undone here, derived, the
+ * way a lost Concentration and a lapsed attunement are: the creature's own
+ * sheet comes back wearing whatever it is wearing *now*, its size comes back
+ * on the creature and on the map, and the Temporary Hit Points stay, because
+ * the SRD gives them no end but their own.
+ *
+ * Nothing is emitted, for the reason `settleHitPointMaxima` emits nothing: a
+ * pass that also wrote an event would be a second authority on a fact the
+ * feature list already answers for.
+ */
+function settleShapes(state: GameState): GameState {
+  // Nobody is wearing a form whose feature has gone, which is every state but
+  // the one event that ends one.
+  if (
+    !anyCreature(
+      state,
+      (c) => c.shape !== null && !c.activeFeatures.includes(c.shape.feature),
+    )
+  ) {
+    return state;
+  }
+
+  let current = state;
+  for (const key of Object.keys(state.creatures).sort()) {
+    const creature = current.creatures[key];
+    if (creature === undefined || creature.shape === null) continue;
+    if (creature.activeFeatures.includes(creature.shape.feature)) continue;
+
+    const { original } = creature.shape;
+    current = {
+      ...current,
+      creatures: {
+        ...current.creatures,
+        [key]: {
+          ...creature,
+          // The armour is read off what is equipped now, exactly as a level-up
+          // reads it: taking a form off does not put back a cloak dropped
+          // while it was worn.
+          sheet: withEquipment(original.sheet, creature.equipped),
+          size: original.size,
+          shape: null,
+        },
+      },
+    };
+    const footprint = original.sceneSize ?? original.size;
+    if (footprint !== null) current = resized(current, creature.id, footprint);
+  }
+  return current;
 }
 
 /**
@@ -519,6 +581,12 @@ function dropLapsedReady(state: GameState): GameState {
 
 /** Whether this creature still meets what an active feature demands of them. */
 function sustains(creature: CreatureState, feature: string): boolean {
+  // A form is held by nothing but its holder's wits. SRD Wild Shape ends "if
+  // you have the Incapacitated condition, or die", so a shape's feature is
+  // dropped on either and `settleShapes` puts the sheet back.
+  if ((creature.sheet.shapeShifts ?? []).some((shape) => shape.feature === feature)) {
+    return !creature.vitals.dead && !isIncapacitated(creature.conditions);
+  }
   const definition =
     (creature.sheet.activated ?? []).find((a) => a.feature === feature) ??
     universalAction(feature);

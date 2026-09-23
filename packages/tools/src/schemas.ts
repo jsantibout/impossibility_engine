@@ -446,5 +446,14 @@ export const characterChoicesSchema = z.object({
   // have no class to cast them with, and print a choice of three abilities.
   featureSpellcasting: z.record(z.string().min(1), abilitySchema).optional(),
   feats: z.record(z.string().min(1), featChoice),
+  // The forms a shape-shifting feature has learned, as stat-block ids — SRD
+  // Wild Shape's "You know four Beast forms". Checked against the feature's
+  // own table at the class level; refused on a character with no such feature.
+  knownForms: z
+    .array(z.string().min(1))
+    .optional()
+    .describe(
+      'Stat-block ids of the forms a shape-shifting feature has learned — SRD Wild Shape’s four Beasts of CR 1/4 or lower with no Fly Speed at level 2. Only for a character with such a feature; the engine refuses a form the level does not allow, and `assume_shape` takes only a form on this list.',
+    ),
   dmGrants: dmGrants.optional(),
 });

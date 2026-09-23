@@ -35,11 +35,12 @@ import {
 } from '../scripts/missing-feature-shapes.js';
 
 /**
- * The five the owner's ruling of 2026-09-21 named, less the two that were
- * built: Font of Magic and Arcane Recovery are `trade` grants now, so the
- * derivation below no longer finds them and their blocked-on lines are gone.
+ * The five the owner's ruling of 2026-09-21 named, less the three that were
+ * built: Font of Magic and Arcane Recovery are `trade` grants now, and Wild
+ * Shape is a `shape-shift` grant, so the derivation below no longer finds any
+ * of them and their blocked-on lines are gone.
  */
-const WIDENED = ['druid:wild-shape', 'monk:focus', 'paladin:channel-divinity'];
+const WIDENED = ['monk:focus', 'paladin:channel-divinity'];
 
 /** A pool grant with only the fields that say how big it is and when it refills. */
 const barePool = (id: string, automation: 'engine' | 'manual' = 'engine') =>
@@ -103,14 +104,15 @@ describe('a pool with nothing to buy is a shape, so it is derived', () => {
    * rather than by size: a new one would be a real finding and has to be
    * adjudicated here rather than quietly joining a count.
    *
-   * **It found four and finds two**, which is the derivation doing its job:
-   * Font of Magic and Arcane Recovery were built as `trade` grants, and a
-   * trade is not a bare pool, so they left this list without anybody editing
-   * it. The lines they held in the blocked-on map were hand work, and the
-   * coverage guard named both `stale` until that hand work was done.
+   * **It found four and finds one**, which is the derivation doing its job:
+   * Font of Magic and Arcane Recovery were built as `trade` grants and Wild
+   * Shape as a `shape-shift` grant, and neither is a bare `pool`, so all three
+   * left this list without anybody editing it. The lines they held in the
+   * blocked-on map were hand work, and the coverage guard named each `stale`
+   * until that hand work was done.
    */
   it('finds the pools the catalogue really holds', () => {
-    expect(barePoolFeatureIds()).toEqual(['druid:wild-shape', 'paladin:channel-divinity']);
+    expect(barePoolFeatureIds()).toEqual(['paladin:channel-divinity']);
   });
 
   /** None of them is manual, or the first population would already hold it. */
@@ -274,11 +276,14 @@ describe('the ledger population is the four arms together', () => {
  * allowance, which is neither a pool nor a slot at either end.
  */
 describe('what the rest wait on', () => {
-  it('files Wild Shape under the swap and the span it prints', () => {
-    expect(featureBlockersOf('druid:wild-shape')).toEqual([
-      'a-benefit-that-runs-for-a-printed-span',
-      'a-creature-swapped-for-another-stat-block',
-    ]);
+  /**
+   * Wild Shape was filed here under the swap and the span it prints, and is
+   * built: a `shape-shift` grant, `assumeShape`, and a form the fold takes off
+   * again. Off the map in both directions, like the two trades before it.
+   */
+  it('no longer files Wild Shape at all', () => {
+    expect(featureBlockersOf('druid:wild-shape')).toEqual([]);
+    expect(ledgerFeatureIds()).not.toContain('druid:wild-shape');
   });
 
   it('files what is left of the trade gap under the pool that still waits', () => {

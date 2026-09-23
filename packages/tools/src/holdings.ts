@@ -106,6 +106,17 @@ export const SPENT_BY = {
    * `useBudgetPurchase` executes what the use buys, so the door is honest.
    */
   'budget-purchase': 'use_budget_purchase',
+  /**
+   * A use that lays a stat block over the character: SRD Wild Shape.
+   *
+   * `activated` one door along, and not the same door: an activation switches
+   * standing effects on and this swaps the whole sheet, so the call names a
+   * form as well as a feature and the engine's `assumeShape` is what takes it.
+   * It was the last pool a caller could refill and never spend — the pool
+   * counted, recovered on both rests and bought nothing, which
+   * `reachability.test.ts` listed under `NOTHING_TO_BUY` until this line.
+   */
+  shape: 'assume_shape',
 } as const;
 
 export type SpendableKind = keyof typeof SPENT_BY;
@@ -370,6 +381,19 @@ export interface HeldFeature {
    * `endsOn` really ends the feature, and this one really refuses.
    */
   readonly capSeconds?: number;
+  /**
+   * The forms a shape-shifting feature has learned — the ids `assume_shape`
+   * takes — and the one being worn, where one is.
+   *
+   * Reported because a caller cannot name what it cannot see: the list is the
+   * character's own answer at creation, and the engine refuses a form that is
+   * not on it. `form` is null in the character's own shape.
+   */
+  readonly forms?: readonly string[];
+  readonly form?: string | null;
+  /** The ceiling a form may print and whether a flier may be taken, at this level. */
+  readonly maxChallengeRating?: number;
+  readonly flying?: boolean;
   /**
    * What a use of this feature's pool buys, for a pool with a menu.
    *
@@ -763,6 +787,29 @@ export function holdingsOf(state: GameState, id: CharacterId): Holdings | null {
       ...(one.endsOn === undefined ? {} : { endsOn: one.endsOn }),
       ...(one.forbidsCasting === undefined ? {} : { forbidsCasting: one.forbidsCasting }),
       ...(one.capSeconds === undefined ? {} : { capSeconds: one.capSeconds }),
+    });
+  }
+
+  // A feature that lays a stat block over the sheet — SRD Wild Shape. Read off
+  // the sheet as it stands, which in a form is the merged one and still
+  // carries the class features, so the line is there to leave by.
+  for (const one of sheet.shapeShifts ?? []) {
+    const worn = creature.shape !== null && creature.shape.feature === one.feature;
+    add({
+      feature: one.feature,
+      name: one.name,
+      kind: 'shape',
+      spentBy: SPENT_BY.shape,
+      action: one.action,
+      pool: one.pool,
+      left: leftIn(state, who, one.pool),
+      active: worn,
+      lasts: `${one.hours} hours`,
+      forbidsCasting: one.forbidsCasting === true,
+      forms: one.knownForms,
+      form: worn ? creature.shape!.form : null,
+      maxChallengeRating: one.maxChallengeRating,
+      flying: one.flying,
     });
   }
 

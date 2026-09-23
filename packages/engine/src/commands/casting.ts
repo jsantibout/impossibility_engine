@@ -735,6 +735,17 @@ function castSpellWith(
     return err('raging', `${id} cannot cast while in ${silencing.name}`);
   }
 
+  // SRD Wild Shape: "You can't cast spells, but shapeshifting doesn't break
+  // your Concentration or otherwise interfere with a spell you've already
+  // cast." Read off the form's own record for the reason Rage's is, and only
+  // the casting is refused — the Concentration is left exactly where it was.
+  const worn = (caster.sheet.shapeShifts ?? []).find(
+    (shape) => shape.forbidsCasting === true && caster.activeFeatures.includes(shape.feature),
+  );
+  if (worn !== undefined) {
+    return err('shape_shifted', `${id} cannot cast while in ${worn.name}`);
+  }
+
   // SRD: "You must have training with any armor you are wearing to cast spells
   // while wearing it."
   if (untrainedArmorPenalty(caster.sheet)) {

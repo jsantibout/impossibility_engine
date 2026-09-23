@@ -98,8 +98,6 @@ export const FEATURE_SHAPES = {
     'a recovery that tops a pool up to a number rather than giving back a share of it. `Recovery`\'s `upTo` in packages/engine/src/progression.ts is half the class level, half the maximum, or all, and the SRD prints a fourth shape twice — "until you have two", "until you have 4 if you have 3 or fewer" — where what is regained depends on what is left rather than on the pool\'s size.',
   'a-resource-traded-for-another':
     'one resource spent to buy another. The conversion between two **pools** is built: the `trade` grant in packages/engine/src/progression.ts is "One resource spent to buy another", a list because "the SRD prints two directions in one feature", and Wild Resurgence spends a Wild Shape use for a level 1 slot and a slot for a use. Spell slots on the **bought** end are built too, in both shapes the book prints: a slot whose level the caller names off a printed price table, and several inside a budget on their combined level, which are Font of Magic\'s Created Spell Slots and Arcane Recovery. What is still unsaid is everything either end of which is not a pool or a slot — Sneak Attack dice forgone to buy an effect, a mode given up for a harder hit, a cheaper action bought with a Focus Point — and the one trade the grant\'s own closed vocabulary still refuses: "a trade can never mint a use above a pool\'s maximum", so a slot a class table never printed is refused rather than given, which is the half of Font of Magic\'s create that waits on a ruling. The limit is no longer one of them: `ResourceTradeGrant.limit` carries an `unlimited` member, and Font of Inspiration, Sorcery Incarnate and Holy Nimbus each spend through it.',
-  'a-creature-swapped-for-another-stat-block':
-    'a creature whose game statistics are **replaced** by another block\'s, for as long as it holds the form. The neighbouring shape is a summons and this is not one: `a-stat-block-created-mid-fight` puts a second combatant on the field, while SRD Wild Shape leaves one creature standing under two sheets and names the half that survives line by line — "Your game statistics are replaced by the Beast\'s stat block, but you retain your creature type; Hit Points; Hit Point Dice; Intelligence, Wisdom, and Charisma scores; class features; languages; and feats". `docs/design/characters-and-equipment.md` holds the one direction that exists, which "turns a parsed stat block into a fightable creature" that had no sheet before; nothing lays a block over a character who already has one, and nothing takes it off again. The owner\'s ruling of 2026-09-20 settled the four questions the swap raises — gear merges, the block\'s Armour Class always wins, an oversized form is the forced-movement rule, and forms are chosen at the start of a Long Rest — so what is left here is the mechanism rather than the judgement.',
   'a-casting-paid-for-out-of-a-feature-pool':
     'a spell a feature lets you cast without a slot. The route exists for an **item** and is refused to a feature by name: packages/engine/src/progression.ts says of the `casts` grant "An item-only member. Nothing executes it from a class feature and `checkContent` refuses it there", because the charges it spends are an item\'s pool looked up by the granting item\'s id. Every SRD sentence of the shape "cast it without expending a spell slot" wants exactly that grant with a feature\'s pool behind it.',
   'an-option-whose-span-is-a-turn-boundary':
@@ -459,23 +457,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
    * Shape column and refilled by both rests — and the feature is *becoming a
    * Beast*, which nothing does.
    */
-  'druid:wild-shape': [
-    {
-      clause: "the form's statistics",
-      why: 'a-creature-swapped-for-another-stat-block',
-      note: 'the whole of what a use buys: a Beast block laid over a character who already has a sheet, with Hit Points, mental scores, class features and proficiencies kept.',
-    },
-    {
-      clause: 'the hours it lasts',
-      why: 'a-benefit-that-runs-for-a-printed-span',
-      note: 'half the Druid level in hours, which is a printed span and not a boundary the feature could keep extending to.',
-    },
-    {
-      clause: 'the Bonus Action either way',
-      why: 'expressible',
-      note: 'a pool option already says what invoking it costs, so entering and leaving on a Bonus Action is a field nobody has filled rather than a mechanic nobody has built.',
-    },
-  ],
   'druid:druidic': [
     {
       clause: 'recorded as a proficiency and read by nobody',

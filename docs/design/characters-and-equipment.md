@@ -97,6 +97,25 @@ buy different things, and a menu is one grant. Dice scale on
 the class table through `diceCountByLevel`, because every `DiceScaling` field
 reads a slot or a caster level and a pool use spends neither.
 
+**A feature may turn its holder into another creature.** A `shape-shift` grant
+is SRD Wild Shape: it declares its pool the way `activated` does, names the
+creature type a form must print, carries the Beast Shapes table as rows read at
+the class level (how many forms are known, the Challenge Rating ceiling, whether
+a flier may be taken), and says how the hours and the Temporary Hit Points scale
+with the level and which scores the holder keeps. The forms a character *knows*
+are `CharacterChoices.knownForms`, checked at creation against that row. A use
+(`assumeShape`) lays the block's `adaptMonster` sheet over the character's
+through `assumeStatBlock` — the block's scores, Armour Class, Speeds and printed
+lines; the holder's level, kept scores, proficiencies and every compiled
+feature list; each save and printed skill the higher of the two — pins the
+merged sheet whole on `shape-assumed`, and files a `feature` timer in hours.
+`CreatureState.shape` holds what was replaced, and the fold's `settleShapes`
+puts it back the moment the feature leaves `activeFeatures`, so the deadline, a
+second use, Incapacitated, death and the Bonus Action that leaves early are one
+mechanism. Gear merges and is silent (`itemStandingOf` reads `shape`), the
+Armour Class is always the block's, and the scene's copy of the size follows
+the form — the owner's rulings of 2026-09-20.
+
 ## Equipment
 
 Items are content (`CatalogueItem`: id, kind, price in copper, weight, the

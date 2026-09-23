@@ -455,8 +455,6 @@ function reachOf(
  * deletes its line in the same commit.
  */
 const NOTHING_TO_BUY: Readonly<Record<string, string>> = {
-  'druid:wild-shape':
-    'the pool is sized and recovers, and the shapes it buys are not built: nothing in the engine turns a Druid into a beast, so a use spent here would be a use gone for no effect.',
   'paladin:channel-divinity':
     'the pool is real and prints no option this engine executes — SRD Divine Sense and Vow of Enmity are not built — which is the same argument that kept the Cleric’s shut until Turn Undead ran.',
 };

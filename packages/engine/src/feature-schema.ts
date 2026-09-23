@@ -11,6 +11,7 @@ import {
   type GatedFeatureGrant,
   type FeatureOptionMeaning,
   type PoolSizing,
+  type ShapeShiftRow,
 } from './progression.js';
 import {
   oneShotProblem,
@@ -256,6 +257,10 @@ const poolSizingOf = (
 ): { readonly at: string; readonly sizing: PoolSizing } | null => {
   if (grant.kind === 'pool') return { at: 'grants', sizing: grant };
   if (grant.kind === 'activated' && grant.pool !== null) return { at: 'grants', sizing: grant };
+  // The sixth: a shape declares the pool its forms come out of, on the same
+  // sentence that prints them — SRD Wild Shape's "You can use Wild Shape
+  // twice" is two paragraphs under one heading.
+  if (grant.kind === 'shape-shift') return { at: 'grants', sizing: grant };
   if (grant.kind === 'reaction' && grant.declares !== undefined) {
     return { at: 'grants.declares', sizing: grant.declares };
   }
@@ -1090,6 +1095,73 @@ function grantProblems(
         field: 'grants.perLevel',
         code: 'bad_hit_point_maximum',
         reason: `a level is the character's or the granting class's, and "${String(grant.perLevel)}" is neither`,
+      });
+    }
+  }
+
+  // A shape with no table, a table nobody reaches, or scores nobody has.
+  //
+  // Every number on this grant is read at a class level and multiplied or
+  // compared, so a row at level 0, a negative ceiling, no hours per level, or
+  // a kept score that is not one of the six would each compile onto a sheet
+  // and misbehave quietly. The form *list* is the character's and is checked
+  // at creation against the row; what is checked here is the vocabulary the
+  // feature itself wrote.
+  if (grant.kind === 'shape-shift') {
+    const bad = (field: string, reason: string): void => {
+      found.push({ field, code: 'bad_shape_shift', reason });
+    };
+    if (typeof grant.pool !== 'string' || grant.pool.trim() === '') {
+      bad('grants.pool', 'a shape spends a pool it declares, and the pool needs a key');
+    }
+    if (typeof grant.formType !== 'string' || grant.formType.trim() === '') {
+      bad('grants.formType', 'a shape names the creature type a form must print');
+    }
+    const rows: readonly Partial<ShapeShiftRow>[] | undefined = Array.isArray(grant.forms)
+      ? grant.forms
+      : undefined;
+    if (rows === undefined || rows.length === 0) {
+      bad(
+        'grants.forms',
+        'a shape prints at least one row of forms: how many are known, the Challenge Rating ceiling, and whether a flier may be taken',
+      );
+    } else {
+      let last = 0;
+      rows.forEach((row, index) => {
+        const at = `grants.forms[${index}]`;
+        const from = row.fromLevel;
+        if (!Number.isInteger(from) || (from as number) < 1 || (from as number) > context.levels) {
+          bad(`${at}.fromLevel`, `a row arrives at a class level between 1 and ${context.levels}, not ${String(from)}`);
+        } else if ((from as number) <= last) {
+          bad(`${at}.fromLevel`, 'rows are printed in ascending order of level, each above the one before');
+        }
+        if (typeof from === 'number') last = from;
+        if (!isCount(row.known)) {
+          bad(`${at}.known`, `a row knows a whole number of forms of at least one, not ${String(row.known)}`);
+        }
+        if (typeof row.maxChallengeRating !== 'number' || !(row.maxChallengeRating >= 0)) {
+          bad(`${at}.maxChallengeRating`, `a Challenge Rating ceiling is a number of at least 0, not ${String(row.maxChallengeRating)}`);
+        }
+        if (typeof row.flying !== 'boolean') {
+          bad(`${at}.flying`, 'a row says whether a form with a Fly Speed may be taken');
+        }
+      });
+    }
+    if (typeof grant.hoursPerLevel !== 'number' || !(grant.hoursPerLevel > 0)) {
+      bad('grants.hoursPerLevel', `a form lasts a positive number of hours per class level, not ${String(grant.hoursPerLevel)}`);
+    }
+    const temporary = grant.temporaryHitPointsPerLevel;
+    if (temporary !== undefined && (typeof temporary !== 'number' || !(temporary >= 0))) {
+      bad('grants.temporaryHitPointsPerLevel', `Temporary Hit Points per class level are a number of at least 0, not ${String(temporary)}`);
+    }
+    const kept: unknown = grant.keeps?.abilities;
+    if (!Array.isArray(kept)) {
+      bad('grants.keeps.abilities', 'a shape lists the scores its holder keeps, even where the list is empty');
+    } else {
+      kept.forEach((ability: unknown, index) => {
+        if (!ABILITY_NAMES.has(ability as string)) {
+          bad(`grants.keeps.abilities[${index}]`, `"${String(ability)}" is not one of the six abilities`);
+        }
       });
     }
   }

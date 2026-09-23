@@ -2,6 +2,7 @@
   "state.ts": [
     "SummonBond",
     "KeptBond",
+    "AssumedShape",
     "CreatureState",
     "AppliedCommand",
     "CommandStamp",
@@ -178,7 +179,8 @@
     "FEATURES_EVENTS",
     "FeaturesEvent",
     "isFeaturesEvent",
-    "applyFeatures"
+    "applyFeatures",
+    "resized"
   ],
   "fold/holds.ts": [
     "HOLDS_EVENTS",
@@ -213,6 +215,7 @@
     "applyEventWith",
     "applyEventUnder",
     "settleHitPointMaxima",
+    "settleShapes",
     "endLostAttunements",
     "fold",
     "historyOf"

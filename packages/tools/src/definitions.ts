@@ -148,6 +148,8 @@ import {
   addSceneLandmark,
   advanceTime,
   applyConditionTo,
+  assumeShape,
+  revertShape,
   applyEvent,
   areaPointAt,
   attuneItem,
@@ -431,13 +433,24 @@ export const identity = (context: ToolContext, suffix = ''): { commandId: string
  * schema drifting from the vocabulary would stop being a compile error.
  */
 function choicesOf(input: z.infer<typeof characterChoicesSchema>): CharacterChoices {
-  const { subclassId, multiclass, spellsByClass, featureSpellcasting, dmGrants, ...rest } = input;
+  const {
+    subclassId,
+    multiclass,
+    spellsByClass,
+    featureSpellcasting,
+    knownForms,
+    dmGrants,
+    ...rest
+  } = input;
   return {
     ...rest,
     ...(subclassId === undefined ? {} : { subclassId }),
     // The ability an origin trait asks for, keyed by the trait — absent on
     // every character whose species grants no spell, which is most of them.
     ...(featureSpellcasting === undefined ? {} : { featureSpellcasting }),
+    // The forms a shape-shifting feature has learned — absent on every
+    // character but a Druid's, and on a Druid who has not chosen yet.
+    ...(knownForms === undefined ? {} : { knownForms }),
     ...(multiclass === undefined
       ? {}
       : {
@@ -2741,6 +2754,58 @@ const END_FEATURE = tool({
     ),
 });
 
+/**
+ * A creature becoming another creature — SRD Wild Shape, through the door.
+ *
+ * Two tools and no number: the caller names the feature and a form the
+ * character has learned, and the engine reads everything else off the sheet
+ * and the bestiary — the Bonus Action, the use, the merged statistics, the
+ * Temporary Hit Points and the hours. `sheet` lists the learned forms under
+ * the feature as `forms`, because a caller cannot name what it cannot see and
+ * the engine refuses a form that is not on the list. Leaving early is its own
+ * tool because the SRD prices it separately ("as a Bonus Action") and a
+ * caller should not have to know that `end_feature` would not take it.
+ */
+const ASSUME_SHAPE = tool({
+  name: 'assume_shape',
+  description:
+    'Take one of the forms a character has learned — SRD Wild Shape. Name the feature and the form’s stat-block id from the `forms` the sheet lists under it. The engine charges the Bonus Action where a fight is running, spends one use of the feature’s pool, lays the form’s stat block over the character with the SRD’s retained half kept (creature type, Hit Points, Intelligence, Wisdom and Charisma, class features, proficiencies at the character’s own bonus), grants the Temporary Hit Points, and files the hours the form lasts. The form ends by itself when the hours run out, when the character takes another form, on the Incapacitated condition, or at death; `revert_shape` leaves it early. Nothing can be cast from inside a form, and worn gear is merged and silent until the form ends.',
+  mutates: true,
+  input: z.object({
+    who: creatureId,
+    feature: z.string().min(1).describe('The feature id, from `sheet`, e.g. druid:wild-shape.'),
+    form: z
+      .string()
+      .min(1)
+      .describe('The stat-block id of the form, one of the `forms` the sheet lists under the feature, e.g. wolf.'),
+  }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      assumeShape(
+        context.campaign.state(),
+        who(args.who),
+        { feature: args.feature, form: args.form, ...identity(context) },
+        context.campaign.content,
+      ),
+      { assumed: args.form, feature: args.feature },
+    ),
+});
+
+const REVERT_SHAPE = tool({
+  name: 'revert_shape',
+  description:
+    'Leave a form early and stand in the character’s own shape again — SRD Wild Shape’s "You can also leave the form early as a Bonus Action." The engine charges the Bonus Action where a fight is running and refunds nothing: the use that took the form stays spent. The character’s own sheet comes back wearing whatever it is wearing now, and any Temporary Hit Points the form granted stay until spent or a Long Rest.',
+  mutates: true,
+  input: z.object({ who: creatureId }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      revertShape(context.campaign.state(), who(args.who), identity(context)),
+      { reverted: true },
+    ),
+});
+
 /** What a batch of events says was healed, for the caller's summary. */
 const healedIn = (events: readonly GameEvent[]): number =>
   events.reduce((sum, event) => sum + (event.type === 'healed' ? event.amount : 0), 0);
@@ -4739,6 +4804,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   ADD_CREATURE,
   ADD_LANDMARK,
   APPLY_CONDITION,
+  ASSUME_SHAPE,
   ATTACK,
   ATTEMPT_EFFECT_CHECK,
   ATTUNE_ITEM,
@@ -4781,6 +4847,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   PURCHASE_ITEM,
   REGAIN_USES,
   RELEASE_READY,
+  REVERT_SHAPE,
   RESOLVE_DECLARED_CAST,
   ROLL_INITIATIVE,
   SET_SCENE,

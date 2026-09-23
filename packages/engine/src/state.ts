@@ -171,6 +171,24 @@ export interface KeptBond {
   readonly untilSummonerDies: boolean;
 }
 
+/**
+ * What a creature wearing a form has set aside — see {@link CreatureState.shape}.
+ *
+ * `sceneSize` is the scene's own copy of the size at the moment of the change,
+ * so the form's footprint can be taken back off the map as well as off the
+ * creature; null where the creature stood in no scene.
+ */
+export interface AssumedShape {
+  readonly feature: string;
+  /** The stat block's id, for the record and for the sheet a caller reads. */
+  readonly form: string;
+  readonly original: {
+    readonly sheet: CharacterSheet;
+    readonly size: CreatureSize | null;
+    readonly sceneSize: CreatureSize | null;
+  };
+}
+
 export interface CreatureState {
   readonly id: CharacterId;
   readonly name: string;
@@ -328,6 +346,18 @@ export interface CreatureState {
    * Sorted, so state serialises identically however they were entered.
    */
   readonly activeFeatures: readonly string[];
+  /**
+   * The form this creature is wearing, or null in its own shape.
+   *
+   * SRD Wild Shape: "Your game statistics are replaced by the Beast's stat
+   * block". While a form lasts, {@link sheet} *is* the merged sheet the
+   * `shape-assumed` event pinned, and this holds what it replaced so the fold
+   * can put it back — which it does the moment the shape's feature leaves
+   * {@link activeFeatures}, by whichever of the endings took it. Nothing else
+   * reads this: every rule that asks for a sheet reads `sheet` and finds the
+   * form's, which is the whole point of the swap.
+   */
+  readonly shape: AssumedShape | null;
   /**
    * The lines this creature's stat block prints a **recharge** on that it has
    * used and not got back, by the heading the block prints them under.

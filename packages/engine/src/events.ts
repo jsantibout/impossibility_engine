@@ -2157,6 +2157,27 @@ export type GameEvent =
       readonly command?: CommandStamp;
     }
   /**
+   * A creature taking another creature's statistics — SRD Wild Shape.
+   *
+   * The merged sheet is pinned whole, exactly as `creature-added` pins a stat
+   * block's: what the command read out of the bestiary and laid over the
+   * character is on the event, so the fold opens no catalogue and last year's
+   * Wolf is the Wolf that was worn. The size comes with it because the scene
+   * keeps a copy. The `feature-activated` beside it is what the endings act
+   * on; this says what the activation *is*, and the fold puts the sheet it
+   * replaced back the moment that feature ends.
+   */
+  | {
+      readonly type: 'shape-assumed';
+      readonly id: CharacterId;
+      readonly feature: string;
+      /** The stat block's id. */
+      readonly form: string;
+      readonly sheet: CharacterSheet;
+      readonly size: CreatureSize;
+      readonly command?: CommandStamp;
+    }
+  /**
    * A once-per-turn feature spending its allowance for this turn.
    *
    * SRD Sneak Attack is "Once per turn", Colossus Slayer "only once per turn",

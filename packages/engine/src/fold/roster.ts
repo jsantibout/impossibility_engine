@@ -96,6 +96,9 @@ export function applyRoster({ state, next }: Applying, event: RosterEvent): Game
             // frozen fixtures fold unchanged.
             summonedBy: null,
             activeFeatures: [],
+            // In its own shape, which is what every log written before a form
+            // could be worn says — so both frozen fixtures fold unchanged.
+            shape: null,
             // Nothing has been spent, which is what every log says on the
             // event that adds a creature — so both frozen fixtures fold
             // unchanged and a fresh stat block has every line it prints.

@@ -24,16 +24,14 @@
  * publishes the table, the budget, the ceiling and the moment, and
  * `gainedSlotLevels` is `slotLevel`'s mirror — which rung, never how much.
  *
- * **One half of one sentence is not reachable from here and says so.** SRD
- * Wild Resurgence's first direction is "if you have no uses of Wild Shape
- * left, you can give yourself one use by expending a spell slot" — and
- * *nothing on either surface spends a use of Wild Shape*, because becoming a
- * Beast is recorded in the catalogue as not modelled. A level 5 Druid holds
- * two uses and can spend exactly one of them, through the other direction of
- * this same feature, once a day. So the test drives that direction through the
- * door to the refusal the clause itself writes — which is what proves the call
- * reached *that* trade and not the other one, since `onlyIfEmpty` belongs to
- * one of the two and not to both.
+ * **One half of one sentence is driven to its own refusal rather than through
+ * it.** SRD Wild Resurgence's first direction is "if you have no uses of Wild
+ * Shape left, you can give yourself one use by expending a spell slot". When
+ * this file was written nothing on either surface spent a use of Wild Shape;
+ * `assume_shape` does now, and `wild-shape.test.ts` empties the pool that way.
+ * Here the direction is still driven to the refusal the clause itself writes —
+ * which is what proves the call reached *that* trade and not the other one,
+ * since `onlyIfEmpty` belongs to one of the two and not to both.
  *
  * This file imports no engine.
  */

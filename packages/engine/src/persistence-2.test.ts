@@ -674,6 +674,14 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // relation, a roll that cancellation brought back to normal spending it
   // anyway, and the deadline that ends one nobody spent.
   'roll-modifier-consumed',
+  // A creature wearing another creature's stat block — SRD Wild Shape.
+  // Neither log was written when a sheet could be swapped: `CreatureState`
+  // had no `shape`, and the Druid's feature declared a pool that bought
+  // nothing. Both fixtures fold to exactly the states they always folded to
+  // with `shape: null` on every creature. `wild-shape.test.ts` folds it and
+  // drives every ending: the hours, a second use, Incapacitated, death and
+  // the Bonus Action, each putting the original sheet back.
+  'shape-assumed',
   'speed-modifier-granted',
   // A line a stat block prints under **Actions** that the parser read nothing
   // out of, taken. Neither log was written when those lines reached a sheet as

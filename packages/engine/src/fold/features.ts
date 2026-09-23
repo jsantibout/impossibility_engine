@@ -7,6 +7,8 @@
  * deciding to — `endLostFeatures` and `dropLapsedReady` — are derived and
  * live with the other derived passes in `apply.ts`.
  */
+import type { CharacterId } from '@ie/shared';
+import type { CreatureSize } from '@ie/srd';
 import { READY } from '../actions.js';
 import type { GameEvent } from '../events.js';
 import type { GameState } from '../state.js';
@@ -23,6 +25,7 @@ import {
 export const FEATURES_EVENTS = [
   'feature-activated',
   'feature-ended',
+  'shape-assumed',
   'readied-declared',
   'readied-released',
 ] as const;
@@ -65,6 +68,35 @@ export function applyFeatures({ state, next }: Applying, event: FeaturesEvent): 
       );
     }
 
+    case 'shape-assumed': {
+      const creature = creatureOf(state, event, event.id);
+      if (!creature.activeFeatures.includes(event.feature)) {
+        throw new CorruptLogError(
+          event,
+          `${event.id} took a form under ${event.feature}, which is not running`,
+        );
+      }
+      // A second form laid over a first the fold has not yet put back keeps
+      // the *first* original: the character's own sheet is the only one that
+      // is anybody's to restore, and a Wolf's is not.
+      const original = creature.shape?.original ?? {
+        sheet: creature.sheet,
+        size: creature.size,
+        sceneSize: next.scene?.sizes[event.id] ?? null,
+      };
+      const worn = withCreature(
+        next,
+        event.id,
+        {
+          sheet: event.sheet,
+          size: event.size,
+          shape: { feature: event.feature, form: event.form, original },
+        },
+        creature,
+      );
+      return resized(worn, event.id, event.size);
+    }
+
     case 'readied-declared': {
       const creature = creatureOf(state, event, event.id);
       if (creature.readied !== null) {
@@ -91,4 +123,20 @@ export function applyFeatures({ state, next }: Applying, event: FeaturesEvent): 
   }
 
   return unhandledEvent(event);
+}
+
+/**
+ * The scene's copy of a creature's size, moved with the creature.
+ *
+ * SRD Wild Shape leaves the form's footprint on the map — the owner's ruling
+ * of 2026-09-20: an oversized form fills the space around it, and where that
+ * puts it in somebody else's space the forced-movement rule already answers.
+ * Only for a creature that is standing somewhere: one nobody has placed has no
+ * copy to move, and `placeCreatureInScene` reads `CreatureState.size` when it
+ * is placed later.
+ */
+export function resized(state: GameState, id: CharacterId, size: CreatureSize): GameState {
+  const scene = state.scene;
+  if (scene === null || scene.sizes[id] === undefined) return state;
+  return { ...state, scene: { ...scene, sizes: { ...scene.sizes, [id]: size } } };
 }

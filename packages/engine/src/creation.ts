@@ -36,12 +36,14 @@ import type {
   PoolOption,
   RecoveryFeature,
   SelfHealFeature,
+  ShapeShift,
   StandingEffect,
   StandingGrant,
   StrikeStyle,
   TradeFeature,
 } from './standing.js';
 import type { SpellEffect } from './spell-definitions.js';
+import { formIneligibility } from './monster.js';
 import type {
   ConferrableReaction,
   ReactionAddend,
@@ -83,6 +85,7 @@ import {
   type SubclassDefinition,
   type ReactionGrantAmount,
   type ReactionGrantEffect,
+  type ShapeShiftRow,
   type TradedAmount,
   type TradedResource,
 } from './progression.js';
@@ -277,6 +280,20 @@ export interface CharacterChoices {
   /** Feats, keyed by the feature that granted them. */
   readonly feats: Readonly<Record<string, FeatChoice>>;
   /** Required above level 1; see {@link DmGrants}. */
+  /**
+   * The forms a shape-shifting feature has learned — SRD Wild Shape's "You
+   * know four Beast forms for this feature".
+   *
+   * Stat-block ids, checked against the row of the feature's own table for
+   * the class level: the type the feature names, the Challenge Rating ceiling,
+   * and whether a Fly Speed is allowed yet. A character with the feature and
+   * no list has learned nothing yet, which is a real state — a Cleric who has
+   * prepared nothing — and a list on a character with no such feature is
+   * refused. The owner's ruling of 2026-09-20 makes this a choice re-made at a
+   * Long Rest the way prepared spells are; the rest that re-chooses it is not
+   * built yet, so today the list is the one the character was made with.
+   */
+  readonly knownForms?: readonly string[];
   readonly dmGrants?: DmGrants | undefined;
 }
 
@@ -1432,6 +1449,84 @@ function classFeatureFreeCastings(
  * a guess would give them the wrong spellcasting ability for the rest of the
  * campaign.
  */
+/**
+ * The row of a shape-shifting table that holds at a class level: the last
+ * whose `fromLevel` the character has reached, or null below the first.
+ */
+function shapeRowAt(rows: readonly ShapeShiftRow[], level: number): ShapeShiftRow | null {
+  let held: ShapeShiftRow | null = null;
+  for (const row of rows) if (row.fromLevel <= level) held = row;
+  return held;
+}
+
+/**
+ * The forms a character says it has learned, against the feature that learns
+ * them.
+ *
+ * SRD Wild Shape: "chosen from among Beast stat blocks that have a maximum
+ * Challenge Rating of 1/4 and that lack a Fly Speed", with the count and the
+ * ceiling rising by the Beast Shapes table. The row is the class level's, so
+ * the same list is checked once at level 2 and again at the level that widens
+ * it — and a list on a character with nothing to shift into is refused rather
+ * than carried as a fact nobody reads.
+ */
+function checkKnownForms(
+  content: Content,
+  choices: CharacterChoices,
+  features: readonly FeatureDefinition[],
+): CreationProblem[] {
+  const forms = choices.knownForms;
+  if (forms === undefined) return [];
+
+  const shifting = features.find((feature) => grantOf(feature, 'shape-shift') !== null);
+  const grant = grantOf(shifting, 'shape-shift');
+  if (shifting === undefined || grant === null) {
+    return [
+      problem(
+        'forms_without_a_shape',
+        'knownForms',
+        'this character has no feature that takes a form, so there is nothing for a known form to be',
+      ),
+    ];
+  }
+  const row = shapeRowAt(grant.forms, classLevelFor(choices, shifting.id));
+  if (row === null) {
+    return [
+      problem('forms_without_a_shape', 'knownForms', `${shifting.name} prints no forms at this level`),
+    ];
+  }
+
+  const problems: CreationProblem[] = [];
+  if (forms.length > row.known) {
+    problems.push(
+      problem(
+        'too_many_forms',
+        'knownForms',
+        `${shifting.name} knows ${row.known} forms at this level, and ${forms.length} were named`,
+      ),
+    );
+  }
+  const seen = new Set<string>();
+  forms.forEach((id, index) => {
+    const field = `knownForms[${index}]`;
+    if (seen.has(id)) {
+      problems.push(problem('duplicate_form', field, `${id} is named twice`));
+      return;
+    }
+    seen.add(id);
+    const block = content.monsterById(id);
+    if (block === null) {
+      problems.push(problem('unknown_form', field, `no stat block with the id ${id}`));
+      return;
+    }
+    const why = formIneligibility(block, grant.formType, row);
+    if (why !== null) {
+      problems.push(problem('form_not_eligible', field, `${block.name} is ${why}`));
+    }
+  });
+  return problems;
+}
+
 function checkSpells(content: Content, choices: CharacterChoices, definition: ClassDefinition): CreationProblem[] {
   const casters = castingClassesOf(content, choices);
   const problems: CreationProblem[] = [...checkSpellAttribution(content, choices, casters)];
@@ -2584,6 +2679,7 @@ export function checkCharacter(
     ),
   );
   all.push(...checkFeats(content, choices, features));
+  all.push(...checkKnownForms(content, choices, features));
   all.push(...checkSpells(content, choices, parts.definition));
   all.push(...checkFeatureSpellChoices(content, choices, castingClassesOf(content, choices)));
 
@@ -2790,6 +2886,33 @@ export function planCharacter(
         requires: [{ kind: 'feature-active', feature: feature.id }],
       });
     }
+  }
+
+  // A feature that lays a stat block over the sheet, with its table read at
+  // the class level. The forms are the character's own answer, sorted so two
+  // characters who learned the same four in a different order are one sheet.
+  const shapeShifts: ShapeShift[] = [];
+  for (const [feature, grant] of grantsIn(features)) {
+    if (grant.kind !== 'shape-shift') continue;
+    const level = classLevelFor(choices, feature.id);
+    const row = shapeRowAt(grant.forms, level);
+    if (row === null) continue;
+    shapeShifts.push({
+      feature: feature.id,
+      name: feature.name,
+      action: grant.action,
+      pool: grant.pool,
+      formType: grant.formType,
+      known: row.known,
+      maxChallengeRating: row.maxChallengeRating,
+      flying: row.flying,
+      // SRD "Round Down": half a Druid 5's level is two hours, not two and a half.
+      hours: Math.floor(level * grant.hoursPerLevel),
+      temporaryHitPoints: Math.floor(level * (grant.temporaryHitPointsPerLevel ?? 0)),
+      keeps: grant.keeps.abilities,
+      ...(grant.forbidsCasting === undefined ? {} : { forbidsCasting: grant.forbidsCasting }),
+      knownForms: [...(choices.knownForms ?? [])].sort(),
+    });
   }
 
   // A feature whose use is spent to heal its holder. The die is resolved here
@@ -3375,6 +3498,7 @@ export function planCharacter(
     ...(masterySubstitutions.length === 0 ? {} : { masterySubstitutions }),
     ...(strikeStyles.length === 0 ? {} : { strikeStyles }),
     ...(activated.length === 0 ? {} : { activated }),
+    ...(shapeShifts.length === 0 ? {} : { shapeShifts }),
     ...(reactions.length === 0 ? {} : { reactions }),
     ...(conferredReactions.length === 0 ? {} : { conferredReactions }),
     ...(recoveries.length === 0 ? {} : { recoveries }),
@@ -4077,6 +4201,21 @@ function poolsFor(
   // in any table.
   for (const [feature, grant] of grantsIn(features)) {
     if (grant.kind !== 'activated' || grant.pool === null) continue;
+    pools.push({
+      key: grant.pool,
+      label: grant.poolLabel ?? feature.name,
+      max: usesOf(choices, feature.id, grant.usesByLevel),
+      recovers: grant.recovers ?? 'long-rest',
+      ...(grant.regainsOnShortRest === undefined
+        ? {}
+        : { regainsOnShortRest: grant.regainsOnShortRest }),
+    });
+  }
+
+  // A feature that becomes another creature declares the pool its forms come
+  // out of, exactly as an activation does: the same sentence prints both.
+  for (const [feature, grant] of grantsIn(features)) {
+    if (grant.kind !== 'shape-shift') continue;
     pools.push({
       key: grant.pool,
       label: grant.poolLabel ?? feature.name,

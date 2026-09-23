@@ -187,13 +187,13 @@ describe('the ledger measures the three populations of the roadmap', () => {
   it('holds only features a character of the level can hold', () => {
     expect(ledger.features.length).toBeGreaterThan(0);
     for (const one of ledger.features) expect(one.level, one.id).toBeLessThanOrEqual(LEDGER_LEVEL);
-    for (const id of ['druid:wild-shape', 'monk:focus', 'paladin:channel-divinity']) {
+    for (const id of ['monk:focus', 'paladin:channel-divinity']) {
       expect(
         ledger.features.map((one) => one.id),
         id,
       ).toContain(id);
     }
-    for (const id of ['sorcerer:font-of-magic', 'wizard:arcane-recovery']) {
+    for (const id of ['druid:wild-shape', 'sorcerer:font-of-magic', 'wizard:arcane-recovery']) {
       expect(
         ledger.features.map((one) => one.id),
         id,

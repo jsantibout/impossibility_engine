@@ -126,7 +126,7 @@ function openTheStudy(t: Table) {
 }
 
 /** The rite: declared, an hour on the clock, then settled. */
-function callTheFamiliar(t: Table, form: string, creatureType: string): ToolOutcome {
+function callTheFamiliar(t: Table, form: string, creatureType: string): ReturnType<typeof expectOk> {
   const declared = expectOk(
     t.call('cast_spell', {
       caster: 'kessa',

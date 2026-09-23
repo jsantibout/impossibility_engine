@@ -24,6 +24,9 @@ import type {
 // process that imports the engine, which `srd-barrel.test.ts` is the guard for.
 import { CREATURE_SIZES, entriesOfBranch, gateOfBranch } from '@ie/srd/schemas';
 import { STATED_BONUS_ACTION_LEDGER } from './combat.js';
+import { saveModifier, skillModifier } from './character.js';
+import type { ShapeShiftRow } from './progression.js';
+import { isCreatureType } from './spell-definitions.js';
 import type { TurnAnchor } from './time.js';
 import type { HitRiderAnchor, StandingEffect, StandingRequirement } from './standing.js';
 import type { RollFamily } from './roll-modifiers.js';
@@ -1265,6 +1268,128 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
     xp: monster.xp,
     caveats,
   };
+}
+
+/** The ceiling and the Fly Speed clause of one row — what a form is judged against. */
+export type FormLimits = Pick<ShapeShiftRow, 'maxChallengeRating' | 'flying'>;
+
+/** A Challenge Rating the way the book prints it: 1/8, 1/4, 1/2, then whole. */
+const describeChallengeRating = (cr: number): string =>
+  cr === 0.125 ? '1/8' : cr === 0.25 ? '1/4' : cr === 0.5 ? '1/2' : String(cr);
+
+/**
+ * Why a stat block may not be worn as a form under one row of a shape-shifting
+ * table, or null where it may.
+ *
+ * SRD Wild Shape: "Beast stat blocks that have a maximum Challenge Rating of
+ * 1/4 and that lack a Fly Speed", where the row says which ceiling and whether
+ * the Fly Speed is allowed yet. Asked at creation of every form a character
+ * says it knows, and again at the moment of use, so a list that has gone stale
+ * against its book is refused at the door rather than worn.
+ */
+export function formIneligibility(block: Monster, formType: string, limits: FormLimits): string | null {
+  if (!isCreatureType(block.type, formType)) {
+    return `a ${block.type} where a ${formType} is wanted`;
+  }
+  if (block.cr > limits.maxChallengeRating) {
+    return `Challenge Rating ${describeChallengeRating(block.cr)} where the ceiling is ${describeChallengeRating(limits.maxChallengeRating)}`;
+  }
+  if (!limits.flying && (block.speed.fly ?? 0) > 0) {
+    return 'a flier, and a form with a Fly Speed may not be taken yet';
+  }
+  return null;
+}
+
+/** A sheet with the named optional fields taken off it. */
+function withoutFields<K extends keyof CharacterSheet>(
+  sheet: CharacterSheet,
+  fields: readonly K[],
+): Omit<CharacterSheet, K> {
+  const copy: Record<string, unknown> = { ...sheet };
+  for (const field of fields) delete copy[field];
+  return copy as Omit<CharacterSheet, K>;
+}
+
+/**
+ * One creature wearing another's statistics — SRD Wild Shape's "Game
+ * Statistics", built line by line from the sentence.
+ *
+ * "Your game statistics are replaced by the Beast's stat block": the block's
+ * scores, Armour Class, Speeds, printed attacks, traits and Initiative,
+ * through the same {@link adaptMonster} sheet a monster fights from. "But you
+ * retain your creature type; Hit Points; Hit Point Dice; Intelligence, Wisdom,
+ * and Charisma scores; class features; languages; and feats": the type and
+ * the hit points are not on a sheet and stay where they are; the scores the
+ * grant names are the holder's; every compiled feature list is the holder's,
+ * and the block's own printed rules stand beside them. "You also retain your
+ * skill and saving throw proficiencies and use your Proficiency Bonus for
+ * them, in addition to gaining the proficiencies of the creature. If a skill
+ * or saving throw modifier in the Beast's stat block is higher than yours, use
+ * the one in the stat block": the level stays the holder's so the bonus is
+ * theirs, and each save and each printed skill is stated as the higher of the
+ * block's number and the holder's own, read off the merged scores.
+ *
+ * **The Armour Class is always the block's** — the owner's ruling of
+ * 2026-09-20 — so the worn armour comes off the sheet here and an Unarmored
+ * Defense with it; the items stay in the creature's hands, merged and silent,
+ * which `itemStandingOf` reads. The Attack action holds the larger count of
+ * the two sheets: a block's Multiattack and a class's Extra Attack are the
+ * same sentence said twice, and the SRD takes the highest.
+ */
+export function assumeStatBlock(
+  own: CharacterSheet,
+  form: AdaptedMonster,
+  keeps: readonly Ability[],
+): CharacterSheet {
+  const block = form.sheet;
+  const abilities = { ...block.abilities };
+  for (const ability of keeps) abilities[ability] = own.abilities[ability];
+
+  // The holder's own numbers over the merged scores, with the stated values
+  // out of the way so nothing is compared against itself.
+  const draft: CharacterSheet = {
+    ...withoutFields(own, ['stated', 'unarmoredDefense']),
+    abilities,
+    armor: null,
+    shield: null,
+  };
+
+  const saves: Partial<Record<Ability, number>> = {};
+  for (const ability of ABILITIES_IN_ORDER) {
+    const printed = block.stated?.saves?.[ability];
+    const mine = saveModifier(draft, ability);
+    saves[ability] = printed === undefined ? mine : Math.max(printed, mine);
+  }
+  const skills: Partial<Record<Skill, number>> = {};
+  for (const [skill, printed] of Object.entries(block.stated?.skills ?? {}) as [Skill, number][]) {
+    skills[skill] = Math.max(printed, skillModifier(draft, skill));
+  }
+
+  // The block's own bonus is not carried: "use your Proficiency Bonus for
+  // them" is the holder's, read off the level this sheet keeps, and every
+  // printed attack already has the block's baked into its number.
+  const stated: StatedValues = { ...withoutStatedBonus(block.stated ?? {}), saves, skills };
+  const standing = [...(own.standing ?? []), ...(block.standing ?? [])];
+  const attacksPerAction = Math.max(own.attacksPerAction ?? 1, block.attacksPerAction ?? 1);
+
+  return {
+    ...withoutFields(own, ['stated', 'unarmoredDefense', 'speeds', 'attacksPerAction']),
+    abilities,
+    armor: null,
+    shield: null,
+    baseSpeed: block.baseSpeed,
+    ...(block.speeds === undefined ? {} : { speeds: block.speeds }),
+    ...(standing.length === 0 ? {} : { standing }),
+    ...(attacksPerAction > 1 ? { attacksPerAction } : {}),
+    stated,
+  };
+}
+
+/** The stated values without the block's Proficiency Bonus; see {@link assumeStatBlock}. */
+function withoutStatedBonus(stated: StatedValues): StatedValues {
+  const copy: Record<string, unknown> = { ...stated };
+  delete copy['proficiencyBonus'];
+  return copy as StatedValues;
 }
 
 /**

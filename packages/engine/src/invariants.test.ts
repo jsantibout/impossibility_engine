@@ -26,6 +26,8 @@ import {
   addCreature,
   addSceneLandmark,
   advanceTime,
+  assumeShape,
+  revertShape,
   awardItems,
   beginCombat,
   castSpell,
@@ -189,6 +191,24 @@ const sheet = (over: Partial<CharacterSheet> = {}): CharacterSheet => ({
   // SRD Alert's Initiative Swap, so the sweep's well-formed call reaches the
   // command's own body rather than stopping at whose feat the swap is.
   initiativeSwap: true,
+  // A form to take, so `assumeShape` reaches its price and its pool rather
+  // than stopping at a feature the sheet does not hold.
+  shapeShifts: [
+    {
+      feature: 'test:shape',
+      name: 'A Shape',
+      action: 'bonus-action',
+      pool: 'test:vigour',
+      formType: 'Beast',
+      known: 4,
+      maxChallengeRating: 0.25,
+      flying: false,
+      hours: 1,
+      temporaryHitPoints: 1,
+      keeps: ['int', 'wis', 'cha'],
+      knownForms: ['wolf'],
+    },
+  ],
   activated: [
     { feature: 'test:stance', name: 'Stance', action: 'bonus-action', pool: null, lasts: 'end-of-next-turn' },
   ],
@@ -787,6 +807,20 @@ const stanced = (): readonly GameEvent[] => [
   ...SETUP,
   { type: 'feature-activated', id: A, feature: 'test:stance' },
 ];
+
+/** A wearing a form, with a fresh turn come round, so leaving it is legal. */
+const shaped = (): readonly GameEvent[] => {
+  const log = vigorous();
+  return [
+    ...log,
+    ...unwrap(
+      assumeShape(fold('s', log), A, { feature: 'test:shape', form: 'wolf' }, SRD_CONTENT),
+      'shape',
+    ),
+    { type: 'turn-advanced' },
+    { type: 'turn-advanced' },
+  ];
+};
 
 /** A is concentrating on something, so dismissing it is legal. */
 const concentrating = (): readonly GameEvent[] => [
@@ -1924,6 +1958,17 @@ const GUARDED: readonly Guarded[] = [
     name: 'useSelfHeal',
     log: vigorous(),
     run: (s, commandId) => useSelfHeal(s, A, { feature: 'test:self-heal', commandId }, supply()),
+  },
+  {
+    name: 'assumeShape',
+    log: vigorous(),
+    run: (s, commandId) =>
+      assumeShape(s, A, { feature: 'test:shape', form: 'wolf', commandId }, SRD_CONTENT),
+  },
+  {
+    name: 'revertShape',
+    log: shaped(),
+    run: (s, commandId) => revertShape(s, A, { commandId }),
   },
   {
     name: 'useRecovery',
@@ -3117,6 +3162,11 @@ const SPENDERS: readonly Spender[] = [
   { name: 'conferReaction', run: (s) => conferReaction(s, B, { feature: 'test:inspire', target: A }) },
   { name: 'useSelfHeal', run: (s) => useSelfHeal(s, B, { feature: 'test:self-heal' }, supply()) },
   { name: 'useRecovery', run: (s) => useRecovery(s, B, { feature: 'test:recovery' }, supply()) },
+  {
+    name: 'assumeShape',
+    run: (s) => assumeShape(s, B, { feature: 'test:shape', form: 'wolf' }, SRD_CONTENT),
+  },
+  { name: 'revertShape', run: (s) => revertShape(s, B, {}) },
   {
     name: 'tradeResource',
     run: (s) => tradeResource(s, B, { feature: 'test:trade', trade: 'points-for-vigour' }),

@@ -349,6 +349,9 @@ describe('a feature that claims a pool declares one', () => {
         // Font of Magic: a feature that holds a resource *and* prints what
         // converts it carries one grant, so the key is on the trade.
         if (grant.kind === 'trade' && grant.pool !== undefined) return grant.pool;
+        // And the third: SRD Wild Shape prints its uses and its forms under
+        // one heading, so the feature that takes a form declares the pool.
+        if (grant.kind === 'shape-shift') return grant.pool;
         return null;
       })
       .filter((k): k is string => k !== null)
@@ -491,7 +494,7 @@ describe('a Short Rest that gives back one use without emptying the pool', () =>
       .filter((f) =>
         featureGrants(f).some(
           (grant) =>
-            (grant.kind === 'pool' || grant.kind === 'activated') &&
+            (grant.kind === 'pool' || grant.kind === 'activated' || grant.kind === 'shape-shift') &&
             grant.regainsOnShortRest !== undefined,
         ),
       )

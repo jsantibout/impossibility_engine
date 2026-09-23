@@ -51,7 +51,10 @@ homebrew.
   Help, Influence, Search, Study and Utilize are actions a command spends**,
   the Light property's extra attack is a swing with Nick and Two-Weapon
   Fighting on it, and Savage Attacker, Luck, Relentless Endurance, Powerful
-  Build, Tactical Shift and Fast Hands execute.
+  Build, Tactical Shift and Fast Hands execute. **Wild Shape executes**: a
+  Druid wears a learned Beast's stat block for the hours the table prints,
+  with the SRD's retained half kept, and comes back by every ending the book
+  names — gear merged, the block's Armour Class always.
 - **Casting and spells** — slots and Pact slots as pools, castings with
   identities, Concentration, ongoing spells, the effect and rider kinds, dice
   that behave the way their spell says, printed sentences handed to the DM
@@ -88,10 +91,15 @@ homebrew.
   timed, effect left to the table. `LEDGER.md` names each and its shape.
 - **Most class, species and background features past the common shapes are
   `manual`** with a note saying what is missing.
-- **Two pools count and refill truthfully and buy nothing**: Wild Shape and
-  Paladin's Channel Divinity. Font of Magic and Arcane Recovery now buy spell
-  slots. `reachability.test.ts`'s `NOTHING_TO_BUY` is checked in both
-  directions, so a pool that opens deletes its line in the same commit.
+- **One pool counts and refills truthfully and buys nothing**: Paladin's
+  Channel Divinity. Font of Magic and Arcane Recovery buy spell slots and Wild
+  Shape buys a form. `reachability.test.ts`'s `NOTHING_TO_BUY` is checked in
+  both directions, so a pool that opens deletes its line in the same commit.
+- **A Druid's known forms are the ones it was made with.** SRD lets one be
+  replaced when a Long Rest ends and no rest offers that yet; the form's limbs
+  decide nothing about what can be held; the block's senses are not carried;
+  and the monster side of the same swap (Doppelganger, Imp, Werewolf) is not
+  built.
 - **A summons still carries one debt.** A casting raises a creature out of the
   bestiary, keeps it for its caster where the spell says so, states its form
   and type, and seats it after its rider; what no field can hold is a printed

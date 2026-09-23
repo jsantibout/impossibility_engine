@@ -1840,6 +1840,60 @@ export type FeatureGrant =
       readonly shieldAllowed: boolean;
     }
   /**
+   * A creature that becomes another creature for a while: SRD Wild Shape.
+   *
+   * "Your game statistics are replaced by the Beast's stat block, but you
+   * retain your creature type; Hit Points; Hit Point Dice; Intelligence,
+   * Wisdom, and Charisma scores; class features; languages; and feats." The
+   * grant names what that sentence leaves to the class — which type of block,
+   * the rows of the Beast Shapes table, how the hours and the Temporary Hit
+   * Points scale with the level, which scores are kept — and the engine does
+   * the laying-over in `assumeStatBlock`, so a second class printing the same
+   * sentence over Elementals writes a grant and no engine line.
+   *
+   * **It declares its own pool, as `activated` does**, because the SRD prints
+   * the uses on the same feature ("You can use Wild Shape twice"); a feature
+   * spending a pool it does not declare is Cutting Words' shape, not this one.
+   * The forms a character *knows* are a choice on the character —
+   * `CharacterChoices.knownForms` — checked against the row for the class
+   * level, because the list is the player's and the ceiling is the table's.
+   *
+   * Not a member of `activated`, and the difference is what the fold holds.
+   * What an activation does is standing effects requiring `feature-active`,
+   * re-read from the world on every read; a form is the opposite — a whole
+   * sheet pinned at the moment of use and put back by a derived pass when the
+   * feature ends. The two share `feature-activated` and the `feature` timer,
+   * which is what lets one Incapacitated end both.
+   */
+  | {
+      readonly kind: 'shape-shift';
+      /** SRD Wild Shape: "As a Bonus Action" — to enter, and to leave early. */
+      readonly action: 'action' | 'bonus-action' | 'none';
+      /** The pool a use comes out of, declared here. */
+      readonly pool: string;
+      readonly poolLabel?: string;
+      /** Uses by class level, straight off the class table. */
+      readonly usesByLevel?: readonly number[];
+      readonly recovers?: Recovery;
+      /** SRD: "You regain one expended use when you finish a Short Rest." */
+      readonly regainsOnShortRest?: number;
+      /** The creature type a form must print: SRD "a Beast form". */
+      readonly formType: string;
+      /** The Beast Shapes table: one row per level at which it changes, ascending. */
+      readonly forms: readonly ShapeShiftRow[];
+      /**
+       * SRD: "a number of hours equal to half your Druid level" — the class
+       * level times this, rounded down as every fraction in the game is.
+       */
+      readonly hoursPerLevel: number;
+      /** SRD: "Temporary Hit Points equal to your Druid level" — per class level. */
+      readonly temporaryHitPointsPerLevel?: number;
+      /** What the holder keeps of their own sheet: the three mental scores. */
+      readonly keeps: { readonly abilities: readonly Ability[] };
+      /** SRD: "You can't cast spells." */
+      readonly forbidsCasting?: boolean;
+    }
+  /**
    * Hit points a feature adds to the maximum the class table already gives.
    *
    * **Written here rather than through the `hit-point-maximum` spell effect,
@@ -2194,6 +2248,23 @@ export interface ResourceTradeGrant {
  * Named rather than restated because two grants need the same three, and the
  * one function that reads them — `poolSizeOf` — must read them identically.
  */
+/**
+ * One row of a shape-shifting feature's table — SRD Beast Shapes.
+ *
+ * Read at the class level like every other column: the row with the highest
+ * `fromLevel` the character has reached is the one that holds.
+ */
+export interface ShapeShiftRow {
+  /** The class level this row arrives at. */
+  readonly fromLevel: number;
+  /** How many forms are known at once. */
+  readonly known: number;
+  /** The highest Challenge Rating a form may print. */
+  readonly maxChallengeRating: number;
+  /** Whether a form with a Fly Speed may be taken. */
+  readonly flying: boolean;
+}
+
 export interface PoolSizing {
   /** Uses by class level, straight off the class table. */
   readonly usesByLevel?: readonly number[];

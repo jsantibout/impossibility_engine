@@ -207,6 +207,7 @@ const poolKeysOf = (feature: FeatureDefinition): readonly string[] =>
 const poolKeysIn = (grant: GatedFeatureGrant): readonly string[] => {
   if (grant.kind === 'pool') return [grant.key];
   if (grant.kind === 'activated' && grant.pool !== null) return [grant.pool];
+  if (grant.kind === 'shape-shift') return [grant.pool];
   if (grant.kind === 'reaction' && grant.declares !== undefined && grant.pool !== undefined) {
     return [grant.pool];
   }
@@ -250,6 +251,7 @@ export const READABLE_GRANT_KINDS: ReadonlySet<string> = new Set([
   'reaction',
   'recovery',
   'save-proficiency',
+  'shape-shift',
   'spells',
   'standing',
   'strike-style',

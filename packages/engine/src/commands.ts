@@ -243,6 +243,8 @@ export type {
   UseRecoveryCommand,
   UseSelfHealCommand,
 } from './commands/features.js';
+export { assumeShape, revertShape } from './commands/shape.js';
+export type { AssumeShapeCommand } from './commands/shape.js';
 export { anchoringFor, areaSourceOf, eligibleTargets } from './commands/targeting.js';
 export type {
   AreaRequest,
