@@ -39,9 +39,11 @@ homebrew.
 - **Monsters that fight from their own printed lines** — Multiattack as a named
   sequence, an opportunity attack reaching for the best printed melee attack,
   recharge enforced and returned on a rest, spendable Bonus Actions, daily
-  limits cleared at a declared dawn, eighteen printed saving throws rolled
-  through the DM's door, sunlight sensitivity on five blocks, and the Hydra's
-  declared head count.
+  limits cleared at a declared dawn, sunlight sensitivity on five blocks, and
+  the Hydra's declared head count. **A printed saving throw is an effect
+  list**: the DM's door rolls it, the engine applies the failure's damage,
+  condition, grapple, push, Speed cut or lowered maximum, and hands over each
+  sentence it could not read.
 - **Features that do something** — an action rule a feature holds, a use that
   hangs something a later roll spends, a pool use that buys room in the turn
   budget, the Unarmed Strike's three options, fighting styles, weapon
@@ -54,7 +56,7 @@ homebrew.
   Build, Tactical Shift and Fast Hands execute. **Wild Shape executes**: a
   Druid wears a learned Beast's stat block for the hours the table prints,
   with the SRD's retained half kept, and comes back by every ending the book
-  names — gear merged, the block's Armour Class always.
+  names.
 - **Casting and spells** — slots and Pact slots as pools, castings with
   identities, Concentration, ongoing spells, the effect and rider kinds, dice
   that behave the way their spell says, printed sentences handed to the DM

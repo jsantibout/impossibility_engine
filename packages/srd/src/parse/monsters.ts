@@ -20,6 +20,7 @@ import {
   type ParseProblem,
 } from '../schemas.js';
 import { ABILITY_OVERRIDES } from './overrides.js';
+import { parsePrintedSave } from './printed-save.js';
 /**
  * The spell list, for one job: turning a printed spell **name** into the id
  * the rest of the system knows that spell by.
@@ -406,22 +407,6 @@ function parseDamageChain(hit: string): {
 const PACK_TACTICS =
   /has Advantage on (?:an attack roll|attack rolls) against a creature if at least one of the .+?'s allies is within 5 feet of the creature and the ally doesn't have the Incapacitated condition/i;
 
-/**
- * The book's other opening, matched end to end.
- *
- * `_Dexterity Saving Throw:_ DC 12, each creature in a 15-foot Cone.
- * _Failure:_ 17 (5d6) Fire damage. _Success:_ Half damage.`
- *
- * The anchors are the whole of the discipline here. Every clause the SRD adds
- * to this sentence is a mechanism of its own — a condition after the damage,
- * a second rung of failure, a trigger before the save, a `_Failure or
- * Success:_` coda — and the `^`/`$` refuse each of them whole rather than
- * reading the line down to the part that fits. Those lines stay prose, which
- * is where they already were.
- */
-const PRINTED_SAVE_LINE =
-  /^_([A-Za-z]+) Saving Throw:_ DC (\d+), (.+?)\. _Failure:_ (\d+) \((\d+)d(\d+)(?:\s*([+−–-])\s*(\d+))?\) ([A-Za-z]+) damage\.( _Success:_ Half damage(?: only)?\.)?$/;
-
 /** The book writes the ability out; the engine keys it in three letters. */
 const ABILITY_KEYS: Readonly<Record<string, MonsterSave['ability']>> = {
   Strength: 'str',
@@ -433,11 +418,14 @@ const ABILITY_KEYS: Readonly<Record<string, MonsterSave['ability']>> = {
 };
 
 /**
- * The save a line forces, where its sentence is the template and nothing more.
+ * The save a line forces, read as an effect list by `parsePrintedSave` in
+ * `printed-save.ts` — the ability, the DC, the damage where there is damage,
+ * and the regular clauses a failure prints besides it, with every sentence it
+ * did not read carried in `handedOver`.
  *
- * Null for every other line, including the ones that force a save in a shape
- * this cannot hold — those are still carried verbatim and still handed to a
- * DM, exactly as an unread rider is.
+ * Null for every line that does not begin with the template, and for the
+ * families that reader refuses whole. Those are still carried verbatim and
+ * still handed to a DM, exactly as an unread rider is.
  *
  * **Never asked of a line that prints an attack roll**, and that is
  * structural rather than incidental: a save printed after a hit is the
@@ -445,31 +433,8 @@ const ABILITY_KEYS: Readonly<Record<string, MonsterSave['ability']>> = {
  * for one clause would be two answers to it.
  */
 export function parseSaveLine(text: string): MonsterSave | null {
-  const match = PRINTED_SAVE_LINE.exec(text);
-  if (match === null) return null;
-
-  const ability = ABILITY_KEYS[match[1]!];
-  if (ability === undefined) return null;
-
-  const type = match[9]!.toLowerCase();
-  // The same guard the attack chain uses: a word in the damage slot that is
-  // not a damage type is a sentence this did not understand.
-  if (!DAMAGE_TYPES.some((known) => known === type)) return null;
-
-  const sign = match[7] === undefined ? 1 : match[7] === '+' ? 1 : -1;
-  const save = {
-    ability,
-    dc: Number(match[2]),
-    targets: match[3]!,
-    damage: {
-      dice: `${match[5]}d${match[6]}`,
-      flat: match[8] === undefined ? 0 : sign * Number(match[8]),
-      type,
-      average: Number(match[4]),
-    },
-    onSuccess: match[10] === undefined ? ('none' as const) : ('half' as const),
-  };
-
+  const save = parsePrintedSave(text);
+  if (save === null) return null;
   // Validated rather than trusted, for the reason `parseAttackLine` validates
   // its own: a shape that does not satisfy its schema leaves the line prose
   // rather than reaching the catalogue.
@@ -1371,6 +1336,15 @@ function parseFeatures(
   lines: readonly string[],
   printedAttacks: readonly string[] = [],
   printedBonusActions: readonly string[] = [],
+  /**
+   * Whether a line under this heading is one a creature *spends* — Actions
+   * and Bonus Actions — which is the only kind of line a printed save may be
+   * read off. A trait's save (a Ghast's Stench, a Sea Hag's Vile Appearance)
+   * is forced by a moment in somebody else's turn and not by a use, so the
+   * door that spends a line cannot reach it; reading it would count it as
+   * executed when nothing can execute it.
+   */
+  spendable = false,
 ): Feature[] {
   const features: Feature[] = [];
   let current: { name: string; text: string[] } | null = null;
@@ -1388,7 +1362,7 @@ function parseFeatures(
       // **Only where the line prints no attack roll.** A save printed after a
       // hit is that attack's rider, and the swing's own reader is the one
       // reader of it; a second here would be two answers to one clause.
-      const save = attack === null ? parseSaveLine(text) : null;
+      const save = attack === null && spendable ? parseSaveLine(text) : null;
       // **The one detector the heading is part of.** A sequence is the
       // composition of *the Attack action*, and the only line that says so is
       // the one the book prints it under: three legendary actions write the
@@ -1682,8 +1656,8 @@ function parseEntry(
     proficiencyBonus,
 
     traits: parseFeatures(sections.traits, printedAttacks, printedBonusActions),
-    actions: parseFeatures(sections.actions, printedAttacks, printedBonusActions),
-    bonusActions: parseFeatures(sections.bonusActions, printedAttacks, printedBonusActions),
+    actions: parseFeatures(sections.actions, printedAttacks, printedBonusActions, true),
+    bonusActions: parseFeatures(sections.bonusActions, printedAttacks, printedBonusActions, true),
     reactions: parseFeatures(sections.reactions, printedAttacks, printedBonusActions),
     legendaryActions: parseFeatures(sections.legendaryActions, printedAttacks, printedBonusActions),
   };

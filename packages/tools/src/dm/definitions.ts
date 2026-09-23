@@ -1183,6 +1183,9 @@ const printedSaveOutcomes = (
     readonly save: D20TestResult;
     readonly damage: number;
     readonly concentration: unknown;
+    readonly conditions?: readonly string[];
+    readonly immuneTo?: readonly string[];
+    readonly pushedFeet?: number;
   }[],
 ): readonly Readonly<Record<string, unknown>>[] =>
   outcomes.map((one) => ({
@@ -1194,6 +1197,12 @@ const printedSaveOutcomes = (
     mode: one.save.mode,
     damage: one.damage,
     concentration: one.concentration,
+    // What the line's clauses did besides the damage — a condition, a push —
+    // and the conditions the target's immunities turned aside, so a caller
+    // narrates what landed rather than what the sentence says.
+    ...(one.conditions === undefined ? {} : { conditions: one.conditions }),
+    ...(one.immuneTo === undefined ? {} : { immuneTo: one.immuneTo }),
+    ...(one.pushedFeet === undefined ? {} : { pushedFeet: one.pushedFeet }),
   }));
 
 /**

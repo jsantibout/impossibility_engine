@@ -18,6 +18,7 @@ import {
   ABILITY_NAMES,
   type Ability,
   type CharacterId,
+  type ConditionName,
   type ContextRequest,
   err,
   needsContext,
@@ -61,6 +62,7 @@ import {
   withFlatAddend,
 } from './rolls.js';
 import { dealSpellDamage } from './damage.js';
+import { applyPrintedClauses } from './printed-save-clauses.js';
 import {
   applyEvent,
   type GameEvent,
@@ -634,6 +636,12 @@ export interface PrintedSaveOnACreature {
   /** What landed, after the target's own Resistance and the rest. */
   readonly damage: number;
   readonly concentration: ConcentrationConsequence;
+  /** The conditions the line's clauses imposed, in the order it prints them. */
+  readonly conditions?: readonly ConditionName[];
+  /** Conditions the target is immune to, which the line therefore did not impose. */
+  readonly immuneTo?: readonly ConditionName[];
+  /** The feet the line pushed the target, where it pushed. */
+  readonly pushedFeet?: number;
 }
 
 export interface PrintedSaveOutcome {
@@ -843,6 +851,9 @@ export function forcePrintedSave(
 
       const ability: Ability = printed.ability;
       const outcomes: PrintedSaveOnACreature[] = [];
+      // What the clauses could not settle on some target — a size gate that
+      // spared a creature, a push with nowhere to push to.
+      const unsettled: string[] = [];
       let current = events.reduce(applyEvent, state);
       // **Where the generator was before this command threw anything**, read
       // once and written back once at the end. Everything below draws from it
@@ -883,53 +894,92 @@ export function forcePrintedSave(
         // a made Dexterity save, which is a fact about what was printed.
         const evading = evadesHalfDamage(current, target, ability, printed.onSuccess === 'half');
 
+        let dealt = 0;
+        let concentration: ConcentrationConsequence = { kind: 'none' };
         // Nothing at all on a success means no damage roll either: the line
-        // did nothing, and rolling would move the generator for no reason.
-        if (save.value.success && (printed.onSuccess === 'none' || evading)) {
-          outcomes.push({
-            target,
-            save: save.value,
-            damage: 0,
-            concentration: { kind: 'none' },
-          });
-          continue;
+        // did nothing there, and rolling would move the generator for no
+        // reason. A line that prints no damage — a Lion's Roar — rolls none.
+        const damage = printed.damage;
+        if (
+          damage !== undefined &&
+          !(save.value.success && (printed.onSuccess === 'none' || evading))
+        ) {
+          const rolled = rollSpellDice(
+            supply,
+            creature.sheet,
+            line.name,
+            damage.type,
+            damage.dice ?? undefined,
+          );
+          if (!rolled.ok) return rolled;
+          // The addend the book prints inside the parenthesis — "16 (2d10 + 5)"
+          // — which is part of the damage and not a separate effect.
+          let parts = withFlatAddend(rolled.value, damage.flat);
+          // "5 (1d4 + 3) Piercing damage plus 10 (3d6) Necrotic damage": a
+          // second component of the same blow, meeting the defences with it.
+          if (printed.plus !== undefined) {
+            const more = rollSpellDice(
+              supply,
+              creature.sheet,
+              line.name,
+              printed.plus.type,
+              printed.plus.dice ?? undefined,
+            );
+            if (!more.ok) return more;
+            parts = [...parts, ...withFlatAddend(more.value, printed.plus.flat)];
+          }
+
+          // SRD: "The halved damage is equal to half the damage that would be
+          // dealt on a failed save" — half of what the line deals, and therefore
+          // *before* the target's own Resistance, which then halves again. With
+          // Evasion it is the failure that is halved; the success took nothing
+          // above.
+          const halve = evading ? !save.value.success : save.value.success;
+          const components = halve
+            ? parts.map((component) => ({
+                ...component,
+                total: Math.floor(component.total / 2),
+              }))
+            : parts;
+
+          const hurt = dealSpellDamage(current, target, components, line.name, supply, { by: id });
+          if (!hurt.ok) return hurt;
+          events.push(...hurt.value.events);
+          current = hurt.value.events.reduce(applyEvent, current);
+          dealt = hurt.value.amount;
+          concentration = hurt.value.concentration;
         }
 
-        const rolled = rollSpellDice(
-          supply,
-          creature.sheet,
+        // What the line does besides the damage: its failure clauses on a
+        // failure, and its `_Failure or Success:_` coda either way — each
+        // through the primitive the casting path uses for the same sentence.
+        const clauses = [
+          ...(save.value.success ? [] : (printed.onFailure ?? [])),
+          ...(printed.either ?? []),
+        ];
+        const landed = applyPrintedClauses(
+          current,
+          id,
+          target,
           line.name,
-          printed.damage.type,
-          printed.damage.dice ?? undefined,
+          printed,
+          clauses,
+          dealt,
+          supply.issuer.count,
         );
-        if (!rolled.ok) return rolled;
-        // The addend the book prints inside the parenthesis — "16 (2d10 + 5)"
-        // — which is part of the damage and not a separate effect.
-        const parts = withFlatAddend(rolled.value, printed.damage.flat);
-
-        // SRD: "The halved damage is equal to half the damage that would be
-        // dealt on a failed save" — half of what the line deals, and therefore
-        // *before* the target's own Resistance, which then halves again. With
-        // Evasion it is the failure that is halved; the success took nothing
-        // above.
-        const halve = evading ? !save.value.success : save.value.success;
-        const components = halve
-          ? parts.map((component) => ({
-              ...component,
-              total: Math.floor(component.total / 2),
-            }))
-          : parts;
-
-        const hurt = dealSpellDamage(current, target, components, line.name, supply, { by: id });
-        if (!hurt.ok) return hurt;
-        events.push(...hurt.value.events);
-        current = hurt.value.events.reduce(applyEvent, current);
+        if (!landed.ok) return landed;
+        events.push(...landed.value.events);
+        current = landed.value.events.reduce(applyEvent, current);
+        unsettled.push(...landed.value.unverified);
 
         outcomes.push({
           target,
           save: save.value,
-          damage: hurt.value.amount,
-          concentration: hurt.value.concentration,
+          damage: dealt,
+          concentration,
+          ...(landed.value.conditions.length === 0 ? {} : { conditions: landed.value.conditions }),
+          ...(landed.value.immuneTo.length === 0 ? {} : { immuneTo: landed.value.immuneTo }),
+          ...(landed.value.pushedFeet === null ? {} : { pushedFeet: landed.value.pushedFeet }),
         });
       }
 
@@ -960,6 +1010,13 @@ export function forcePrintedSave(
         // caught; nothing here checked that answer against a map.
         unverified: [
           `${line.name} reads "${printed.targets}" — the engine rolled the save for the creatures named and measured no area; who stands in it is the table's`,
+          // The sentences the reader carried and did not read, handed over at
+          // the moment of use exactly as a spell's unmodelled lines are: the
+          // engine applied the rest of the line and says what it did not.
+          ...(printed.handedOver ?? []).map(
+            (sentence) => `${line.name}: "${sentence}" — the engine applied the rest of the line; this sentence is the table's`,
+          ),
+          ...unsettled,
         ],
         duplicate: false,
       });

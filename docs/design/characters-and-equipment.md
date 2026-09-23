@@ -161,6 +161,30 @@ one up in; it is a rule now. What the command reads is pinned whole into
 `creature-added` — the sheet, the printed numbers, both halves of the defence
 run and the size — so the fold still opens nothing.
 
+**A printed saving throw is read as an effect list.** `parsePrintedSave`
+(`packages/srd/src/parse/printed-save.ts`) reads a line's `_Failure:_` into a
+small vocabulary — damage and a second `plus` component, a condition to a turn
+anchor on the source or the target or for a span, a grapple with its escape DC,
+a size gate, a push straight away, a Speed cut, a Hit Point maximum lowered by
+the damage taken, a save repeated at the end of the target's turns with a
+minute's cap — and carries every sentence it did not read verbatim in
+`handedOver`. Only a line under Actions or Bonus Actions is read: a trait's
+save is forced by a moment in somebody else's turn, not by a use, so the door
+that spends a line cannot reach it. The failure clause must start with
+something the engine spends or the whole line stays prose (a die thrown for
+nothing is the defect this repository calls its worst), graded failures are
+refused whole, and each sentence is read transactionally. `forcePrintedSave`
+executes the vocabulary through the primitives the casting path already has
+(`applyPrintedClauses` in `commands/printed-save-clauses.ts`): the grapple is
+the grapple `escapeGrapple` answers, the push is `shoveAwayFrom`, the Speed cut
+a `grants` timer, the lowered maximum a negative `hit-point-maximum-adjusted`
+sourced per use so two bites stack. An immune target is named in the outcome
+rather than skipped, a size gate that spared a creature says so, and the
+carried sentences come back in `unverified` at the moment of use. The ledger
+keeps a block whose save carries a sentence on its books
+(`SAVE_HANDOVER_SHAPE`), because reading a sentence never retires the debt of
+executing it.
+
 ## Magic items
 
 Decided before any of them was built, and counted rather than guessed: every
