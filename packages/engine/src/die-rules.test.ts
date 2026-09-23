@@ -361,6 +361,27 @@ describe('the validator judges a die rule like every other member', () => {
     expect(checkSpellDefinitionValue(perSlot).map((p) => p.code)).toContain(
       'die_rule_rolls_more_than_once',
     );
+
+    // And the third axis a count grows on, which is the cantrip's: SRD
+    // Eldritch Blast's "two beams at level 5" is a Cantrip Upgrade spent on
+    // rolls, so the caster's level is a second roll the printed count does not
+    // show. A cantrip, because that is the only level the field is legal at.
+    const beams = {
+      ...JSON.parse(EMBER_CASCADE),
+      level: 0,
+      effects: [
+        {
+          kind: 'attack',
+          attack: 'ranged',
+          damage: { dice: '1d6' },
+          damageType: 'fire',
+          rolls: { count: 1, cantripUpgradesAt: [5, 11, 17] },
+        },
+      ],
+    };
+    expect(checkSpellDefinitionValue(beams).map((p) => p.code)).toContain(
+      'die_rule_rolls_more_than_once',
+    );
   });
 
   it('is content with the rule on a spell whose save deals damage', () => {

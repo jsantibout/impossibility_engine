@@ -2119,17 +2119,17 @@ function resolveOneEffect(
       return resolveDispelEffect(ctx, target, world);
     case 'interrupt-casting':
       return resolveInterruptCastingEffect(ctx, effect, target, victim, world);
-    // The second kind whose subject is not the target: a printed percentage is
-    // a fact about the *casting*, and what a failure withholds is the
-    // casting's own handover. It reaches a target list at all because a spell
-    // on its caster names them — see `SpellEffect`'s `chance` member.
+    // One of the two kinds whose subject is not the target — `summon` below is
+    // the other. A printed percentage is a fact about the *casting*, and what
+    // a failure withholds is the casting's own handover. It reaches a target
+    // list at all because a spell on its caster names them, which
+    // `checkChanceTargets` refuses to let a definition say otherwise.
     case 'chance':
       return resolveChanceEffect(ctx, effect, world);
     case 'teleport':
       return resolveTeleportEffect(ctx, effect, target, world);
-    // The first of the two kinds whose subject is not the target: the spell is
-    // on its caster and what it makes is a second creature, so the target is
-    // read off `ctx`.
+    // The other of the two: the spell is on its caster and what it makes is a
+    // second creature, so the target is read off `ctx`.
     case 'summon':
       return resolveSummonEffect(ctx, effect, world);
 

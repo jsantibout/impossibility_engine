@@ -3748,7 +3748,7 @@ export function checkSpellDefinition(
       found.push({
         field: 'dieRule',
         code: 'die_rule_rolls_nothing',
-        reason: `a die rule is about the dice this spell rolls for damage, and this spell rolls none: give it ${[...ROLLS_ITS_OWN_DAMAGE].join(', ')}, or drop the rule`,
+        reason: `a die rule is about the dice this spell rolls for damage, and this spell rolls none: give it an effect of one of these kinds — ${[...ROLLS_ITS_OWN_DAMAGE].join(', ')} — or drop the rule`,
       });
     } else if (rollsDamageTwice(definition)) {
       found.push({
