@@ -1121,9 +1121,13 @@ describe('what a stat block’s sections print, and what is read', () => {
       // Spellcasting line, which is the book's third opening and is read
       // whole: the two that are still prose are the Pit Fiend's Hellfire
       // Spellcasting, which casts one spell twice, and the Storm Giant's,
-      // whose spell names the book italicised none of. Every other unread line
-      // here is unread for its own reason.
-      actions: { printed: 811, read: 697 },
+      // whose spell names the book italicised none of. Forty-six more again
+      // when the save template grew its clauses — a condition to a turn
+      // anchor, a grapple, a push, a Speed cut, a lowered maximum — and the
+      // lines still unread print a graded failure, a trigger or a movement
+      // before the save, or a failure the vocabulary cannot start on. Every
+      // other unread line here is unread for its own reason.
+      actions: { printed: 811, read: 743 },
       // **Not one prints an attack roll**, which is what the zero here used
       // to say. Three print the save template — the Trample of the Gorgon,
       // the Elephant and the Mammoth, the last of which is CR 6 — and those
@@ -1138,8 +1142,10 @@ describe('what a stat block’s sections print, and what is read', () => {
       // headings — six Nimble Escapes, two Cunning Actions and two Deathless
       // Agilities — each naming which actions a Bonus Action buys. The Clay
       // Golem's Hasten is not among them: it conjoins rather than offers,
-      // and it recharges.
-      bonusActions: { printed: 75, read: 14 },
+      // and it recharges. Four more with the save template's clauses — the
+      // Bugbear Stalker's Quick Grapple among them — read under this heading
+      // because a Bonus Action is a line a creature spends.
+      bonusActions: { printed: 75, read: 18 },
       reactions: { printed: 24, read: 0 },
       legendaryActions: { printed: 82, read: 0 },
     });

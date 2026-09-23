@@ -357,6 +357,82 @@ export type MonsterMultiattack = z.infer<typeof MonsterMultiattackSchema>;
  * where it already was. A save read down to the part that fits is a rule
  * nobody printed.
  */
+/**
+ * How long a clause a printed save imposes lasts.
+ *
+ * Two spellings and the corpus prints both: a turn anchor — "until the start of
+ * its next turn" is the target's, "until the end of the mephit's next turn" is
+ * the source's — and a span in hours or minutes. Kept as words rather than as
+ * the engine's `Duration`, because this package knows no creature ids; the
+ * executor resolves `target` and `source` to the two creatures in the save.
+ */
+export const PrintedSpanSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('turn'),
+    moment: z.enum(['start', 'end']),
+    of: z.enum(['target', 'source']),
+  }),
+  z.object({ kind: z.literal('seconds'), seconds: z.number().int().min(1) }),
+]);
+export type PrintedSpan = z.infer<typeof PrintedSpanSchema>;
+
+/**
+ * One thing a printed save's failure (or its "Failure or Success" coda) does
+ * besides damage — the small vocabulary `parsePrintedSave` reads the book's
+ * regular clauses into, each a primitive the engine already has.
+ *
+ * - `condition`: "the target has the Frightened condition until the start of
+ *   the lion's next turn"; with `escapeDc` it is a grapple; `ifNoLargerThan`
+ *   is the size gate "If the target is a Medium or smaller creature";
+ *   `repeats` is "repeats the save at the end of each of its turns, ending the
+ *   effect on itself on a success", capped where "After 1 minute, it succeeds
+ *   automatically".
+ * - `push`: "pushed up to 20 feet straight away from the elemental".
+ * - `speed-decrease`: "the target's Speed decreases by 10 feet until…".
+ * - `hit-point-maximum-decrease`: "the target's Hit Point maximum decreases
+ *   by an amount equal to the damage taken".
+ */
+export const PrintedSaveEffectSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('condition'),
+    condition: z.enum([
+      'blinded',
+      'charmed',
+      'deafened',
+      'exhaustion',
+      'frightened',
+      'grappled',
+      'incapacitated',
+      'invisible',
+      'paralyzed',
+      'petrified',
+      'poisoned',
+      'prone',
+      'restrained',
+      'stunned',
+      'unconscious',
+    ]),
+    lasts: PrintedSpanSchema.optional(),
+    escapeDc: z.number().int().min(1).optional(),
+    ifNoLargerThan: CreatureSizeSchema.optional(),
+    repeats: z
+      .object({
+        at: z.literal('end'),
+        of: z.literal('target'),
+        capSeconds: z.number().int().min(1).optional(),
+      })
+      .optional(),
+  }),
+  z.object({ kind: z.literal('push'), feet: z.number().int().min(5) }),
+  z.object({
+    kind: z.literal('speed-decrease'),
+    feet: z.number().int().min(5),
+    lasts: PrintedSpanSchema,
+  }),
+  z.object({ kind: z.literal('hit-point-maximum-decrease'), by: z.literal('damage-taken') }),
+]);
+export type PrintedSaveEffect = z.infer<typeof PrintedSaveEffectSchema>;
+
 export const MonsterSaveSchema = z.object({
   /** Which save, by the engine's own key: `con` for "Constitution". */
   ability: z.enum(['str', 'dex', 'con', 'int', 'wis', 'cha']),
@@ -364,17 +440,35 @@ export const MonsterSaveSchema = z.object({
   dc: z.number().int().min(1),
   /** Who the line catches, verbatim: "each creature in a 15-foot Cone". */
   targets: z.string().min(1),
-  /** What a failure costs. The same four fields a printed attack's damage has. */
-  damage: MonsterDamageSchema,
+  /**
+   * What a failure costs in damage, where the line prints damage at all. The
+   * same four fields a printed attack's damage has. Absent on a line whose
+   * failure is a condition alone — a Lion's Roar.
+   */
+  damage: MonsterDamageSchema.optional(),
+  /** A second component the line prints after `plus`: a Vampire Spawn's Necrotic. */
+  plus: MonsterDamageSchema.optional(),
   /**
    * What a success buys — "Half damage", or nothing where the line prints no
-   * `_Success:_` clause at all.
+   * `_Success:_` clause at all, or where there is no damage to halve.
    *
    * Two members rather than an optional boolean, because the absent case is a
    * rule and not a gap: SRD Satyr's Mockery gives a success nothing, and a
    * success that bought half anyway would be a line the book did not print.
    */
   onSuccess: z.enum(['half', 'none']),
+  /** What a failure does besides the damage, in the order the line prints it. */
+  onFailure: z.array(PrintedSaveEffectSchema).optional(),
+  /** What happens whichever way the save went — the `_Failure or Success:_` coda. */
+  either: z.array(PrintedSaveEffectSchema).optional(),
+  /**
+   * The sentences the reader carried and did not read, verbatim.
+   *
+   * Handed to the table at the moment of use and reported by the ledger as a
+   * debt the block still carries: a line with one of these is executed in
+   * part, and says so, rather than silently in full.
+   */
+  handedOver: z.array(z.string().min(1)).optional(),
 });
 export type MonsterSave = z.infer<typeof MonsterSaveSchema>;
 

@@ -1160,6 +1160,22 @@ export const UNEXECUTED_TRAIT_SHAPE = 'A trait shape nothing spends';
 export const RIDER_SHAPE = 'An effect a hit buys';
 
 /**
+ * A read save whose line says more than the engine spends.
+ *
+ * `parsePrintedSave` reads a failure's regular clauses and carries the rest of
+ * the line verbatim in `handedOver`; `forcePrintedSave` applies what was read
+ * and hands the rest to the table at the moment of use. The line is *read*,
+ * so `isReadLine` says so — and it is not *paid*, because a Wight's zombie or
+ * a Couatl's Restrained is still a sentence nothing executes. Counted apart
+ * from the unread saves for the reason the unapplied riders are counted apart
+ * from the unread attacks: learning to recognise a sentence can never retire
+ * a debt on its own.
+ */
+export const SAVE_HANDOVER_SHAPE = 'A save whose line says more than the engine spends';
+export const hasHandedOverSave = (line: StatBlockLine): boolean =>
+  ((line.save as { handedOver?: readonly string[] } | undefined)?.handedOver?.length ?? 0) > 0;
+
+/**
  * The shapes a printed stat-block line waits on, over the whole bestiary and
  * over the CR ≤ 5 tail alike.
  *
@@ -1187,6 +1203,7 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
     (line) => line.name === 'Multiattack' && line.multiattack === undefined,
   ],
   ['A save a line forces', (line) => line.attack === undefined && /Saving Throw:_/.test(line.text)],
+  [SAVE_HANDOVER_SHAPE, hasHandedOverSave],
   [RIDER_SHAPE, hasUnappliedRider],
   [UNEXECUTED_TRAIT_SHAPE, hasUnexecutedTrait],
   ['A recharge', (line) => /\(Recharge/.test(line.name)],

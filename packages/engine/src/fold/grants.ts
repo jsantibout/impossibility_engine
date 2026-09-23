@@ -321,10 +321,15 @@ export function applyGrants({ state, next }: Applying, event: GrantsEvent): Game
 
     case 'hit-point-maximum-adjusted': {
       const creature = creatureOf(state, event, event.id);
-      if (!Number.isInteger(event.adjustment.amount) || event.adjustment.amount <= 0) {
+      // A whole number either way: SRD Aid holds a maximum *up*, and a Wight's
+      // Life Drain — "the target's Hit Point maximum decreases by an amount
+      // equal to the damage taken" — holds one *down*. Zero is a sentence
+      // nobody printed. `settleHitPointMaximum` does the same arithmetic for
+      // both signs and keeps the hit points under the lowered ceiling.
+      if (!Number.isInteger(event.adjustment.amount) || event.adjustment.amount === 0) {
         throw new CorruptLogError(
           event,
-          `an effect holds a hit point maximum up by a positive whole number, got ${event.adjustment.amount}`,
+          `an effect moves a hit point maximum by a whole number other than zero, got ${event.adjustment.amount}`,
         );
       }
       // Source-keyed like the eleven above, so a re-cast replaces rather than

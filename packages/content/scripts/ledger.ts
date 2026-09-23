@@ -68,8 +68,10 @@ import {
   MONSTER_LINE_SHAPES,
   PARTIAL_SPELLS,
   RIDER_SHAPE,
+  SAVE_HANDOVER_SHAPE,
   TRACKED_IDS,
   UNEXECUTED_TRAIT_SHAPE,
+  hasHandedOverSave,
   hasUnappliedRider,
   hasUnexecutedTrait,
   isHandoverTrait,
@@ -461,7 +463,11 @@ const sectionsOf = (
  * rider parsed and unapplied and a trait kind nobody asks for are both lines
  * the parser understood and the engine does nothing with.
  */
-const OVER_READ_LINES: ReadonlySet<string> = new Set([RIDER_SHAPE, UNEXECUTED_TRAIT_SHAPE]);
+const OVER_READ_LINES: ReadonlySet<string> = new Set([
+  RIDER_SHAPE,
+  UNEXECUTED_TRAIT_SHAPE,
+  SAVE_HANDOVER_SHAPE,
+]);
 
 /** Whether a shape accounts for a line. */
 const accountsFor = (
@@ -485,7 +491,10 @@ const auditMonsters = (maxCr: number): LedgerMonsters => {
   // handed-over lines rather than inside `read`, so learning to recognise a
   // sentence can never retire a debt on its own.
   const unpaid = (line: StatBlockLine): boolean =>
-    !isReadLine(line) || hasUnappliedRider(line) || hasUnexecutedTrait(line);
+    !isReadLine(line) ||
+    hasUnappliedRider(line) ||
+    hasUnexecutedTrait(line) ||
+    hasHandedOverSave(line);
   for (const monster of low) {
     const lines = statBlockLines(monster);
     printed += lines.length;
