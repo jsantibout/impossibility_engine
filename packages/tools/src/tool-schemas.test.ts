@@ -103,12 +103,13 @@ describe('toolSchemas', () => {
     // Re-pinned 2026-09-22: `cast_spell.form` widened both surfaces, and the DM
     // surface gained `take_tested_action` (the batch's ninety-second tool).
     // Re-pinned again the same day: `assume_shape` and `revert_shape` on both
-    // surfaces, `create_character.choices.knownForms`, and `add_creature`'s
-    // sentence about a stat block that casts.
+    // surfaces, `create_character.choices.knownForms`, `add_creature`'s
+    // sentence about a stat block that casts, and the rests track's
+    // `end_rest` re-choices.
     expect(toolSchemas(player())).toHaveLength(78);
     expect(toolSchemas(dm())).toHaveLength(94);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(98988);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(118809);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(100186);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(120007);
   });
 });
 
