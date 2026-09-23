@@ -463,6 +463,102 @@ ranked first among the builders.
 - **The lopsided split of several attack rolls stays the owner's.** For the
   record: the sayable form is `targets: [{ id, count }]`.
 
+### The level-5 batch — merged 2026-09-22
+
+Seven tracks: six Opus builders in parallel and the architect's own, chosen
+after five research passes verified every shape against the code first (rule 3)
+and printed every fence (rule 9). **Spells in reach not executed 111 → 109,
+waiting on a shape 78 → 76. Features 53 → 40, waiting 47 → 34. Glossary rules
+waiting 7 → 0. CR ≤ 5 items 377 → 314, blocks waiting 181 → 154, clean 63 →
+90.** `COVERAGE.md`: executed 134 → 137, verified 98 → 100, class features
+executed 180 → 183.
+
+What landed, by track:
+
+- **Kept summons (architect).** `SummonBond.castingId` may be null and `kept`
+  binds a creature to its *summoner*: owed a departure at 0 Hit Points, or
+  when the summoner dies where the spell prints it, replaced by a second
+  casting. A form stated at the casting (`CastSpellRequest.form`,
+  `SummonedForm` as an id or a printed list plus a type-and-rating clause), a
+  creature type through `choiceStated` `of: 'creature-type'`, Speeds the spell
+  prints over the block gated on the slot, `cannotAttack` as a stored action
+  rule, and `Combatant.after` seating a follower immediately after its anchor.
+  **Find Familiar is written**; Find Steed keeps one honest debt — the
+  Otherworldly Steed's block lines whose numbers are the summoner's, which the
+  parser never sees. `a-turn-a-spell-inserts-into-the-order` lost its spell
+  consumer; `a-stat-block-created-mid-fight` means two things now, both said.
+- **Magic Missile and Augury.** `auto-damage` (a pool of hits dealt like
+  Scorching Ray's rays; `attackRollsIn` is `aimedRollsIn`; Sanctuary wards a
+  dart) and `chance` (a d100 against a flat or cumulative percentage, ported
+  from the Wind Fan's `itemFailure`; a failed Augury withholds the omen).
+  **Shield's Magic Missile clause is not finished** and was re-filed under
+  `a-reduction-an-effect-applies-to-damage` with a widened description.
+- **The feature vocabulary.** `hit-point-maximum` grant (Dwarven Toughness,
+  Draconic Resilience), `onlyIfChoice` on every grant (Draconic Ancestry),
+  `grants` plural through `featureGrants` (the G1 decision, built), and a
+  species that grants a spell (`originGrantedSpells`,
+  `CharacterChoices.featureSpellcasting`; both Tiefling traits). Four shapes
+  retired; `a-second-question-one-feature-asks` minted for Divine and Primal
+  Order's cantrip.
+- **The integration seam.** `restoreCampaign` / `serializeCampaign` with a
+  caller-supplied `contentRef`; `toolSchemas` / `openAiTools` in OpenAI
+  function-calling shape, non-strict, with the length pinned;
+  `settleTurnPayouts` now emits `rolls-issued` and a homebrew fixture drives
+  the sweep down that branch; the session census stopped counting a
+  trade-doored pool as door-less (**engine pools with no door: 0**).
+- **Bestiary trait readers.** Flyby, Standing Leap, the Nimble Escape family
+  (as Cunning Action's `allows`), Shadow Stealth, Bloodied Fury; the three
+  breathing kinds recorded as handovers under `HANDOVER_TRAIT_KINDS`. +27
+  clean blocks. Spider Climb waives the check, not the cost — RAW, and a test
+  pins it.
+- **The glossary and the hand.** Help, Influence, Search, Study, Utilize as
+  named actions with spenders (DM-only `take_tested_action` for the three
+  that need a DC); an ability check now spends a one-shot modifier; the Light
+  property's extra attack as `AttackCommand.lightAttack` with Nick and the
+  Two-Weapon Fighting feat; Tactical Shift as a granted move. "Which hand" was
+  never the fact — which Light weapon this turn's Attack action swung is.
+- **Dice and vitals.** Savage Attacker as a whole-roll rule (`RollRule`,
+  `rollUnder`); Luck as a reroll inside the D20 pipeline reached through the
+  sheet; Relentless Endurance as `damage-taken.floor` with a tally counted off
+  the event; Powerful Build through `conditionEndedBy` in both escape rollers
+  and a `carrying-capacity` grant.
+
+The research passes corrected the roadmap before a brief was written: every
+P2-T14/P2-T17 anchor was stale; "Shield finished" was false; Blink is not the
+non-d20 anchor; Augury's cumulative chance already existed for items; the
+extra-damage rider mechanism already exists (`ExtraDamage`) and "plus 7 (2d6)
+Poison" after the Hit is a parsed second component, not a rider — only the
+gated forms are unapplied; the `cannot_hold` refusal was already lifted;
+movement-mode grants were fully built; `canPassThrough` was written and
+unreachable; carrying capacity was built while three notes said otherwise.
+
+Follow-ups this batch created:
+
+- **Shield's re-filing wants a gate's eye**: `a-defence-narrowed-to-one-source`
+  may be the honest id rather than the widened
+  `a-reduction-an-effect-applies-to-damage`.
+- **Augury's targets became `{ count: 1, self: true }`**, so a Range: Self
+  casting asks for a scene (`needsContext` naming `setScene`); narrowing that
+  gate for a self-only spell is its own brief.
+- **`level-five-session.test.ts`'s Turn Undead moment rests on seed luck**
+  (re-seeded `a-level-five-session-13`, measured 2 in 8); script the
+  Frightened-then-swing moment or assert the classifier on a constructed call.
+- **`takeHide` spends no one-shot**, so a Help on Stealth reaches a Hide and
+  is not consumed by it.
+- **`checkSummonTargets` is weaker than `checkChanceTargets`**: it still admits
+  `extraPerSlotLevelAbove`, `unlimited` and an `area` beside a summons.
+- **Heroic Inspiration needs a design note**: "reroll any die immediately after
+  rolling it" is a choice made after a settled roll, which no window or
+  pipeline reroll models.
+- **`cast_spell` has no `ritual` field** although `CastSpellRequest.ritual`
+  exists; a Find Familiar through the tool spends a slot for its hour.
+- **The `allowance !== null` arm of `usingGrant`'s refusal is unreachable**
+  until a readied move can name a grant.
+- **Find Familiar keeps three debts** (senses lent to the caster, the touch it
+  delivers, the pocket dimension); **Wild Companion** needs a casting paid
+  from a sibling's pool and a lifetime ending at the summoner's Long Rest.
+- **`sheds-light` had no reader** at merge; wave two builds it.
+
 ### The objects batch — merged 2026-09-22
 
 Nine tracks. **Spells in reach not executed 118 → 111, waiting on a shape
@@ -687,7 +783,7 @@ no longer counted as a session failure.
 
 Re-ranked at G1 from the regenerated ledger; this is the expected shape.
 
-- `[ ]` **P2-T11 A `summon` effect kind** (owner ruling 2: a bestiary id
+- `[x]` **P2-T11 A `summon` effect kind** (owner ruling 2: a bestiary id
   chosen at the casting, with the summons' restrictions enforced; a derived
   content kind is acceptable if simpler; the steeds become catalogue
   entries). Smaller than the map implies: `summonCreature`
@@ -711,7 +807,7 @@ Re-ranked at G1 from the regenerated ledger; this is the expected shape.
   `fold/areas.ts`, `spells.ts` after `PLANT_GROWTH` and at Entangle's slot.
   Moves: Plant Growth, Grease, Entangle written and executed; Web's and
   Spike Growth's terrain clauses.
-- `[ ]` **P2-T14 Damage with neither an attack roll nor a save, and one
+- `[x]` **P2-T14 Damage with neither an attack roll nor a save, and one
   effect list divided among targets.** Union anchor after `save-damage`
   (`spell-definitions.ts:816`); dispatch after `case 'save-damage'`
   (`spell-resolution.ts:1779`); validator after it (`spell-schema.ts:1270`).
@@ -732,7 +828,7 @@ Re-ranked at G1 from the regenerated ledger; this is the expected shape.
   `SENSE_NAMES`, `positioning.ts:1782`). Files: `standing.ts`,
   `positioning.ts`, `attack.ts`, `spells.ts` after `MIRROR_IMAGE`. Moves:
   Mirror Image, Blur.
-- `[ ]` **P2-T17 A random outcome that is not a d20**, as a spell effect
+- `[x]` **P2-T17 A random outcome that is not a d20**, as a spell effect
   over the generator that exists, with provenance like any roll. Union
   anchor after `interrupt-casting` (`spell-definitions.ts:1497`). Files:
   `dice.ts`, `commands/spell-effect-rolls.ts`, `spells.ts` after `BLINK`.
@@ -751,7 +847,7 @@ Re-ranked at G1 from the regenerated ledger; this is the expected shape.
   and `take_printed_reaction` beside `take_printed_bonus_action`
   (`packages/tools/src/dm/definitions.ts:1021`). Moves: Parry and its kin, 5
   blocks, 13 lines.
-- `[ ]` **P2-T20 An option re-chosen on a rest, and a later feature that
+- `[~]` **P2-T20 An option re-chosen on a rest, and a later feature that
   rewrites an earlier one's rule.** A `FeatureChoice` is answered once at
   creation and frozen into the sheet; a rest must be able to re-ask one.
   Files: `rest.ts`, `progression.ts`, `commands/features.ts`,
@@ -1241,3 +1337,19 @@ a shape; 400 CR ≤ 5 items, 186 of 242 blocks waiting, 56 clean.**
   a state a save sets and nothing consults, which is the die-thrown-for-no-
   reason defect under another name. The geometry it was thought to need is
   built (P1-T9). This is doctrine rather than rules, and is a good G1 item.
+
+Appended after the level-5 batch (2026-09-22):
+
+- **`FeatureDefinition.grants` is plural now** (`featureGrants`), which retires
+  the wave-1.5 entry above that listed it as a blocker; `FeatDefinition.grants`
+  stays singular because no SRD feat below level 19 wants a second.
+- **Two questions on one feature.** Divine Order and Primal Order spend their
+  one `choice` on the order and have nowhere to ask which cantrip; recorded as
+  `a-second-question-one-feature-asks`. A second choice per feature is a
+  vocabulary decision for G2.
+- **Should a one-shot modifier be spent by a Hide?** `takeHide` rolls a
+  Stealth check through its own path and spends nothing, so a Help's Advantage
+  on Stealth survives the Hide it was given for.
+- **Is a stat-block save "magical"?** Wave two narrows Magic Resistance to
+  saves the casting pipeline forces; a printed line's save (a Basilisk's gaze,
+  a dragon's breath) is not, and `forcePrintedSave` cannot say otherwise.

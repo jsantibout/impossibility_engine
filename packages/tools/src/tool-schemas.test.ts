@@ -100,10 +100,12 @@ describe('toolSchemas', () => {
    * what moved.
    */
   it('publishes exactly the surface it publishes, pinned', () => {
+    // Re-pinned 2026-09-22: `cast_spell.form` widened both surfaces, and the DM
+    // surface gained `take_tested_action` (the batch's ninety-second tool).
     expect(toolSchemas(player())).toHaveLength(76);
-    expect(toolSchemas(dm())).toHaveLength(91);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(92157);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(110067);
+    expect(toolSchemas(dm())).toHaveLength(92);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(96578);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(116399);
   });
 });
 

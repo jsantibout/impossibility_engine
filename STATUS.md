@@ -45,7 +45,13 @@ homebrew.
 - **Features that do something** — an action rule a feature holds, a use that
   hangs something a later roll spends, a pool use that buys room in the turn
   budget, the Unarmed Strike's three options, fighting styles, weapon
-  masteries, and the defender answering first on both paths.
+  masteries, and the defender answering first on both paths. A feature may
+  carry several grants, each gated on one option of its choice; a species may
+  grant a spell; a feature may raise the hit point maximum. **The glossary's
+  Help, Influence, Search, Study and Utilize are actions a command spends**,
+  the Light property's extra attack is a swing with Nick and Two-Weapon
+  Fighting on it, and Savage Attacker, Luck, Relentless Endurance, Powerful
+  Build, Tactical Shift and Fast Hands execute.
 - **Casting and spells** — slots and Pact slots as pools, castings with
   identities, Concentration, ongoing spells, the effect and rider kinds, dice
   that behave the way their spell says, printed sentences handed to the DM
@@ -106,8 +112,6 @@ homebrew.
   with the printed escape DC that `escapeGrapple` can answer. Extra damage is
   the family left, and it is a damage-roll mechanism rather than an effect
   list: doubled by a crit, meeting the target's defences with the blow.
-- **A stat block's attack refuses `hold`**, so a party fighting monsters is
-  never offered the window SRD *Shield* answers.
 - **Nothing brings a jumper down.** A High Jump leaves the creature at the
   elevation it reached and no rule ends that. Narrower than it was — elevation
   was wholly unguarded until `cannot_rise` — but still open.

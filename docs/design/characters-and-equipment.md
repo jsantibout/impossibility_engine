@@ -38,7 +38,9 @@ A `ClassDefinition` is a table (twenty rows), proficiencies, starting
 equipment, a `multiclass` grant (what the class gives when it is not your
 first), an optional `spellcasting` block (ability, style, `progression`
 full/half or `feature: 'pact-magic'`, starting level) and features. A
-`FeatureDefinition` carries at most one `FeatureGrant` from a closed set —
+`FeatureDefinition` carries one `FeatureGrant` or a list of them (normalised by
+`featureGrants`; two of one kind only where the kind composes, and each may be
+gated on one option of the feature's own choice) from a closed set —
 `activated`, `standing`, `reaction`, `pool`, `recovery`, `expertise`,
 `spells`, `unarmored-defense`, `extra-attack`, and the rest — plus what the
 player chooses when they gain it. Creation compiles grants onto the sheet
@@ -90,8 +92,8 @@ is the fourth — a Reaction handed to somebody else, which is the Bard's die �
 and `buysBudget` is the fifth, which is room in the turn's own budget: the
 Fighter's second action and the Monk's two Unarmed Strikes. Each arrived the
 same way and for the same reason. It is a list
-rather than a grant of its own because `FeatureDefinition.grants` is singular
-and the SRD prints one feature whose uses buy different things. Dice scale on
+rather than a grant of its own because the SRD prints one feature whose uses
+buy different things, and a menu is one grant. Dice scale on
 the class table through `diceCountByLevel`, because every `DiceScaling` field
 reads a slot or a caster level and a pool use spends neither.
 
