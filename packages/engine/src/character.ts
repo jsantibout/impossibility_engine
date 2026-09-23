@@ -519,6 +519,33 @@ export interface CharacterSheet {
    * thing that subtracts.
    */
   readonly hands?: number;
+  /**
+   * How long a Long Rest takes this creature, in seconds.
+   *
+   * SRD Trance: "You can finish a Long Rest in 4 hours if you spend those
+   * hours in a trancelike meditation, during which you retain consciousness."
+   * A Long Rest was eight hours for everybody — one constant inside `rest.ts`
+   * with no per-creature answer at all — and a trait that shortens it for its
+   * holder alone had nothing to bend.
+   *
+   * **Absent is `LONG_REST`**, which is every sheet ever written, so both
+   * frozen fixtures fold unchanged and eight hours stays the answer for
+   * everybody the book says nothing about.
+   *
+   * **A fact of the sheet rather than a derived standing effect**, and the
+   * sentence is why: there is no state for a reader to consult. An Elf in
+   * Heavy armour, Stunned, Poisoned or at one hit point still finishes a Long
+   * Rest in four hours, so a grant recomputed on every read would recompute
+   * one answer. It sits here beside {@link hands} and `armorTraining`, which
+   * are the other facts creation pins and nothing turns off — and `endRest`
+   * reads it through `sheetAsItStands`, so an item that ever granted it would
+   * reach the rest by the door the Constitution modifier already uses.
+   *
+   * **The cooldown is not this**, because the SRD does not shorten it: "you
+   * must wait at least 16 hours before starting another one" is printed on
+   * the rest and Trance says nothing about it.
+   */
+  readonly longRestSeconds?: number;
   readonly spellcastingAbility: Ability | null;
   /**
    * Weapon categories this character is proficient with.

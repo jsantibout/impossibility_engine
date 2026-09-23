@@ -244,6 +244,7 @@ export const READABLE_GRANT_KINDS: ReadonlySet<string> = new Set([
   'hit-point-maximum',
   'initiative',
   'lifts-conditions',
+  'long-rest-length',
   'on-hit',
   'pool',
   'pool-options',

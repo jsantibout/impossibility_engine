@@ -1,5 +1,5 @@
 import { err, needsContext, ok, type CharacterId, type Result } from '@ie/shared';
-import { abilityModifier } from './character.js';
+import { abilityModifier, type CharacterSheet } from './character.js';
 import type { Content } from './content.js';
 import {
   rechooseCharacter,
@@ -64,8 +64,19 @@ export interface RestState {
 /** What a rest actually earned, which is not always what was attempted. */
 export type RestBenefit = 'none' | 'short' | 'long';
 
-function restRequires(kind: RestKind): number {
-  return kind === 'short' ? SHORT_REST : LONG_REST;
+/**
+ * How long a rest of this kind takes **this** creature.
+ *
+ * SRD Trance: "You can finish a Long Rest in 4 hours if you spend those hours
+ * in a trancelike meditation." A Long Rest was one constant for everybody and
+ * this is the per-creature answer, read off the sheet the rest belongs to;
+ * every sheet written before it says nothing and gets the eight hours it
+ * always got. Only the Long Rest asks, because the SRD prints no trait that
+ * shortens a Short one.
+ */
+function restRequires(kind: RestKind, sheet?: CharacterSheet | null): number {
+  if (kind === 'short') return SHORT_REST;
+  return sheet?.longRestSeconds ?? LONG_REST;
 }
 
 /**
@@ -80,13 +91,21 @@ function restRequires(kind: RestKind): number {
  * `interruptedAt`, not to `now`. Reading total elapsed time instead paid out a
  * Short Rest for ten minutes of sleep and an hour of waiting around.
  */
-export function restEarned(rest: RestState, now: number): RestBenefit {
+export function restEarned(rest: RestState, now: number, requires?: number): RestBenefit {
   if (rest.interruptedBy !== null) {
     if (rest.kind === 'short') return 'none';
     const rested = (rest.interruptedAt ?? now) - rest.startedAt;
+    // **The interruption pays out on a Short Rest's hour and never on the
+    // shortened one.** SRD's clause is "If you rested at least 1 hour before
+    // the interruption, you gain the benefits of a Short Rest", and a Short
+    // Rest is an hour for an Elf as for anybody. Trance shortens what a Long
+    // Rest takes, not what a broken one is worth.
     return rested >= SHORT_REST ? 'short' : 'none';
   }
-  return now - rest.startedAt >= restRequires(rest.kind) ? rest.kind : 'none';
+  // The length this rest actually takes, supplied by whoever holds the
+  // creature. A caller that has only a `RestState` — the two frozen logs, and
+  // every test that asks what a span would earn — gets the engine's constant.
+  return now - rest.startedAt >= (requires ?? restRequires(rest.kind)) ? rest.kind : 'none';
 }
 
 const creatureOf = (state: GameState, id: CharacterId) => state.creatures[id] ?? null;
@@ -388,6 +407,12 @@ export function endRest(
     const rest = creature.resting;
     if (rest === null) return err('not_resting', `${id} is not resting`);
 
+    // The sheet as it stands, for `rollRecorded`'s reason one paragraph down:
+    // what a Long Rest takes this creature is a fact about the creature, and a
+    // reader that took the built sheet would miss anything put on since.
+    const standing = sheetAsItStands(state, id) ?? creature.sheet;
+    const requires = restRequires(rest.kind, standing);
+
     const interrupted = rest.interruptedBy ?? options.interrupted ?? null;
     // An interruption the engine could not see happens when it is reported;
     // one it saw for itself carries the moment it actually happened.
@@ -396,6 +421,7 @@ export function endRest(
     const benefit = restEarned(
       { ...rest, interruptedBy: interrupted, interruptedAt },
       state.elapsed,
+      requires,
     );
     const elapsed = state.elapsed - rest.startedAt;
 
@@ -404,7 +430,7 @@ export function endRest(
     if (benefit === 'none' && interrupted === null) {
       return err(
         'rest_incomplete',
-        `${id} has rested ${elapsed} of the ${restRequires(rest.kind)} seconds a ${rest.kind} rest takes`,
+        `${id} has rested ${elapsed} of the ${requires} seconds a ${rest.kind} rest takes`,
       );
     }
 
@@ -468,9 +494,7 @@ export function endRest(
           // thrown, so an item that *sets* Constitution — an Amulet of Health —
           // reaches it. This command holds the state and the id, which is the
           // whole reason the substitution is available here.
-          const constitution = abilityModifier(
-            (sheetAsItStands(state, id) ?? creature.sheet).abilities.con,
-          );
+          const constitution = abilityModifier(standing.abilities.con);
           const issuedBefore = supply.issuer.count;
           let regained = 0;
 

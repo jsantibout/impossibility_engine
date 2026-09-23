@@ -2013,6 +2013,29 @@ export type FeatureGrant =
       readonly rechooses: RestRechoice;
     }
   /**
+   * How long a Long Rest takes this creature — SRD Trance's four hours.
+   *
+   * A rest's length was one of the constants `a-rule-the-engine-fixes-for-
+   * everybody` was named for: eight hours held inside `rest.ts` for every
+   * creature alive, so a trait that shortens it for its holder had nothing to
+   * bend. This is the per-creature answer, compiled onto
+   * `CharacterSheet.longRestSeconds` and absent everywhere nobody printed one.
+   *
+   * **A member of its own rather than a `standing` effect**, and the reading
+   * `standing.ts` insists on is why: a standing grant is derived from its
+   * holder's state on every read, *because* what it says is conditional. This
+   * is not. An Elf Stunned, Poisoned, in Heavy armour or at one hit point
+   * finishes a Long Rest in four hours, so there is no state for a reader to
+   * consult and a derived grant would recompute one number for ever.
+   *
+   * **Only the Long Rest**, because only the Long Rest has a writer: the SRD
+   * prints no trait that shortens a Short Rest, and a field for one would be a
+   * column of a book nobody has written. The sixteen-hour cooldown is
+   * untouched for the sharper version of the same reason — Trance says nothing
+   * about it, and shortening it would be the engine inventing a sentence.
+   */
+  | { readonly kind: 'long-rest-length'; readonly seconds: number }
+  /**
    * A Reaction the feature takes at one of the engine's named windows — see
    * `ReactionFeature` in `reactions.ts`.
    *

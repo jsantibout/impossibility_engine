@@ -3449,6 +3449,15 @@ export function planCharacter(
     ...(declaresInitiativeSwap(content, choices, features) ? { initiativeSwap: true } : {}),
     ...(castingOptions.length === 0 ? {} : { castingOptions }),
     ...(hitOptions.length === 0 ? {} : { hitOptions }),
+    // SRD Trance: "You can finish a Long Rest in 4 hours." The shortest any
+    // feature this character holds makes it, because two traits that both
+    // shortened it would be two permissions and the holder takes the one that
+    // lets them up first. Absent where nobody printed one, which is every
+    // character the book says nothing about — and the eight hours `rest.ts`
+    // holds for everybody stays exactly where it was.
+    ...(longRestSecondsFor(features) === null
+      ? {}
+      : { longRestSeconds: longRestSecondsFor(features)! }),
     // The *first* casting class's ability, and null for a character who casts
     // nothing. Falling back to the primary ability gave a Fighter a spell save
     // DC off Strength. A multiclassed caster has more than one, and every
@@ -3935,6 +3944,22 @@ function withDiceCount(
         return effect;
     }
   });
+}
+
+/**
+ * How long a Long Rest takes this character, or null where nothing says.
+ *
+ * SRD Trance is the only writer the book prints, and the reduction is a
+ * permission rather than an obligation — so two of them would be two
+ * permissions and the holder takes whichever lets them up first.
+ */
+function longRestSecondsFor(features: readonly FeatureDefinition[]): number | null {
+  let shortest: number | null = null;
+  for (const [, grant] of grantsIn(features)) {
+    if (grant.kind !== 'long-rest-length') continue;
+    shortest = shortest === null ? grant.seconds : Math.min(shortest, grant.seconds);
+  }
+  return shortest;
 }
 
 /** One die's notation with the count an amending feature works out written into it. */

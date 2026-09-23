@@ -18,6 +18,19 @@ import {
   type RollSelector,
 } from './roll-modifiers.js';
 import { checkActionRule } from './spell-schema.js';
+import { hours } from './time.js';
+
+/**
+ * The Long Rest a `long-rest-length` grant has to come in under.
+ *
+ * `rest.ts` owns the constant and this module may not reach it: `rest.ts` now
+ * reads a character back out of `creation.ts`, and this file is what
+ * `content.ts` validates with, so the import would run a ring round the
+ * engine. It is spelled here from the clock's own unit instead and held equal
+ * to `LONG_REST` by `trance.test.ts`, which is the one place both are in
+ * scope — a checked copy rather than a second opinion.
+ */
+export const LONGEST_LONG_REST = hours(8);
 
 /**
  * Whether a feature definition is *coherent*, asked of a value rather than of a
@@ -1090,6 +1103,29 @@ function grantProblems(
         field: 'grants.perLevel',
         code: 'bad_hit_point_maximum',
         reason: `a level is the character's or the granting class's, and "${String(grant.perLevel)}" is neither`,
+      });
+    }
+  }
+
+  // A Long Rest this trait shortens, and the two lengths that would be a
+  // sentence the book never printed.
+  //
+  // Zero or less is a rest that is over before it starts, and a length at or
+  // past the eight hours the engine holds for everybody is a trait that
+  // compiles onto the sheet and changes nothing — or lengthens a rest, which
+  // no printed trait does and which the field was not built to say.
+  if (grant.kind === 'long-rest-length') {
+    if (!isCount(grant.seconds)) {
+      found.push({
+        field: 'grants.seconds',
+        code: 'bad_rest_length',
+        reason: `a Long Rest takes a whole number of seconds of at least one, not ${String(grant.seconds)}`,
+      });
+    } else if (grant.seconds >= LONGEST_LONG_REST) {
+      found.push({
+        field: 'grants.seconds',
+        code: 'bad_rest_length',
+        reason: `a Long Rest already takes ${LONGEST_LONG_REST} seconds for everybody, so ${grant.seconds} shortens nothing`,
       });
     }
   }

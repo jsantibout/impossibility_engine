@@ -377,8 +377,10 @@ export const ELF: SpeciesDefinition = {
       id: 'elf:trance',
       name: 'Trance',
       level: 1,
-      automation: 'manual',
-      note: 'Not applied: a Long Rest is eight hours for everybody in this engine, one constant with no per-creature answer, so finishing one in four hours of meditation is a DM ruling. Not needing to sleep, and magic not being able to put you to sleep, are the same: nothing models sleep.',
+      automation: 'engine',
+      note: 'The four hours are applied. SRD: "You can finish a Long Rest in 4 hours if you spend those hours in a trancelike meditation, during which you retain consciousness." A Long Rest was eight hours for everybody in this engine, one constant with no per-creature answer; it is a fact of the sheet now, so an Elf who has rested four hours may end one and nobody else may. The sixteen-hour wait before another Long Rest is untouched, because the SRD does not shorten it. What is handed to the table is the other sentence: "You don’t need to sleep, and magic can’t put you to sleep" — nothing models sleep at all here, so there is no state for the immunity to protect and no rule that reads it afterwards.',
+      // SRD's four hours, in the seconds the clock counts.
+      grants: { kind: 'long-rest-length', seconds: 4 * 60 * 60 },
     },
   ],
 };

@@ -321,6 +321,8 @@ const AT_CREATION: Readonly<Record<string, string>> = {
   'save-proficiency': 'saving throws this character is proficient in, read by every save it rolls',
   initiative: 'a bonus the engine adds when Initiative is rolled, which no caller states',
   'lifts-conditions': 'conditions a feature ends, lifted by the engine at the moment it names',
+  'long-rest-length':
+    'how long a Long Rest takes this creature, written onto the sheet at creation and read by `end_rest`',
 };
 
 /**

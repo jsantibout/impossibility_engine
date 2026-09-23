@@ -1260,18 +1260,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'the High Elf alone: every other clause of every lineage is applied, and what is left is a cantrip swapped for another one whenever the Elf finishes a Long Rest, which nothing rewires a compiled grant for.',
     },
   ],
-  'elf:trance': [
-    {
-      clause: 'a Long Rest is eight hours for everybody in this engine, one constant with no per-creature answer',
-      why: 'a-rule-the-engine-fixes-for-everybody',
-      note: 'a rest length a trait shortens for its holder alone.',
-    },
-    {
-      clause: 'nothing models sleep',
-      why: 'a-world-fact-nothing-can-represent',
-      note: 'and the immunity to magical sleep with it.',
-    },
-  ],
   'gnome:gnomish-lineage': [
     {
       clause: 'which is not one of the three ways the engine sizes a pool',
