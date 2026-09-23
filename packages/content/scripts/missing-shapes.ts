@@ -166,7 +166,7 @@ export const MISSING_SHAPES = {
   'a-die-behaviour-a-spell-asks-for':
     '`docs/design/rolls-and-damage.md`’s "Dice Are Individually Addressable" table: `treatLowRollsAs`, `explodeOnMax` and `rerollDice` are built and tested, and the claim this description used to make — that no definition passes any of them — is **half retired**. `SpellDefinition.dieRule` is the door a spell asks through, `explodeOnMax` is behind its one arm, and Sorcerous Burst is the SRD sentence that walks through it, capped at a modifier the engine derives rather than one the catalogue states. What is left under this id is two different things, and neither of them is the plumbing. **A predicate over a whole roll**: `DieEffect` judges one die at a time — `substitute` and `bonusOn` both take `(rolled, sides)` — and Chromatic Orb’s "If you roll the same number on two or more of the d8s" asks about a pair, which no signature here can be handed; its consequence is a second attack out of one casting in any case, so the trigger alone would fire at nothing. **A reroll the roller chooses**: `rerollDice` takes indices because SRD Empowered Spell and Savage Attacker let a player pick, and nothing in the command layer asks a caller which dice, so the two features that print it stay filed here. **An attack’s scope rather than a spell’s** is the third thing that used to be filed here, and it is retired: `AttackOptions.damageEffects` is supplied now, by `standingDamageEffects`, off an `attack-die-rule` grant a feat may carry and a `WeaponNarrowing` that says "a Melee weapon that you are holding with two hands". SRD Great Weapon Fighting is the sentence that walks through it. Defense was filed beside it under the same weapon clause and never belonged there — its own is about **armour** — and is blocked on a `StandingRequirement` instead.',
   'a-reduction-an-effect-applies-to-damage':
-    '`docs/design/rolls-and-damage.md`: "`reduceDamage` takes its amount off the **total**, never off a component", and it is reachable only from `takeDamageReaction` — a Reaction a class feature spends. A standing effect that takes a rolled amount off every hit of a chosen type has no path to it.',
+    '`docs/design/rolls-and-damage.md`: "`reduceDamage` takes its amount off the **total**, never off a component", and it is reachable only from `takeDamageReaction` — a Reaction a class feature spends. A standing effect that takes a rolled amount off every hit of a chosen type has no path to it. **And the id names two narrowings, not one**, which is Shield’s clause arriving: SRD Resistance takes a rolled amount off a hit of a **type**, and SRD Shield takes *all* of it off a hit from one named **spell** — "you take no damage from _Magic Missile_". Neither is a granted defence: `damage-defense` names a damage type and grants Resistance, Immunity or Vulnerability over it, so it can say neither "1d4 less" nor "none of that spell’s", and an engine rule naming a spell id is swept out of the engine by name. Both are one absence — nothing a casting hangs on a defender is consulted when a hit is being totalled — and building it has to answer for both, which is why they are filed together rather than under two ids that would each look like one spell’s problem.',
   'a-damage-penalty-a-spell-grants':
     '`docs/design/rolls-and-damage.md`: "`BonusApplies` covers attacks, saves and ability checks — all rolls — and now `ac`". Damage is not a member, and a spell that makes a creature subtract from **its own** damage rolls has nowhere to say so; `damageBonuses` is the feature-side twin that exists.',
   'an-action-a-spell-compels-or-forbids':
@@ -246,11 +246,11 @@ export const MISSING_SHAPES = {
   'a-condition-benefit-an-effect-takes-away':
     'a benefit the condition layer derives, switched off while the condition itself stays. Three SRD spells print the sentence — Faerie Fire, Starry Wisp, and Mind Spike’s "against you" — and PROGRESS.md already lists Faerie Fire among the clauses the roll vocabulary cannot reach. **The shape itself is built now**: the `benefit` rider hangs a denial off a settled outcome, and `benefitsFrom` is what all three readers of the Invisible condition’s benefits ask — including the Initiative Advantage, which nothing used to reach. What is left is one further shape each. Faerie Fire is finished — `save.condition` is optional, so its Dexterity save hangs this rider, and its 20-foot Cube is an ordinary `area` picking its own targets; Mind Spike narrows the denial to the caster alone, which is a-condition-benefit-an-effect-takes-away meeting the-effects-source-as-a-participant, and a blanket denial would be wrong for it rather than merely coarse; Shining Smite hangs the same sentence on an ongoing casting whose beneficiaries are everybody the casting did not target.',
   'a-random-outcome-that-is-not-a-d20':
-    'PROGRESS.md ranks it: "A random outcome that is not a d20 | 1 / 19 | the generator, `parseNotation`". A percentage chance, a 1d10 behaviour table or a 1d100 mishap roll is a die the engine can throw and no `SpellEffect` asks for. **One consumer left the count without the gap closing, and it is recorded here rather than lost.** Slow prints a 25 percent chance that a casting with a Somatic component fails, and was filed under this id while it had no definition; the spell is executed now, and the executed map has no marker-less entry form — `Adjudication` carries a clause, a shape and a note and `CLAUSE_MARKERS` knows dice, saves, checks and twenty other words but not a percentage, so the reading has nowhere to sit. It is in that spell’s own `unmodelled` list, where `spell-catalogue.test.ts` hands it to the table on every casting, and the day `Adjudication` gains the null marker `TrackedAdjudication` already has is the day it comes back to this count.',
+    '**Half built, and the half that is names itself.** PROGRESS.md ranked it "A random outcome that is not a d20 | 1 / 19 | the generator, `parseNotation`", over three different dice: a percentage chance, a 1d10 behaviour table and a 1d100 mishap roll. The **percentage** is built — the `chance` effect throws a d100 against a number the book printed, flat or grown by the castings that have gone before, and the count is the `Tally` a Wind Fan’s uses were already kept in. Augury is executed off it and Gust of Wind’s 50 and Sending’s 5 are writable by it. What is left is every other die in this family, and they are not the same shape twice: a **table** the face indexes into, which needs somewhere for the rows to live, and a die thrown **at a turn boundary** whose face branches — SRD Blink’s 1d6 — which is a payout that can hand over hit points and cannot ask a question. **One consumer left the count without the gap closing, and it is recorded here rather than lost.** Slow prints a 25 percent chance that a casting with a Somatic component fails, and was filed under this id while it had no definition; the spell is executed now, and the executed map has no marker-less entry form — `Adjudication` carries a clause, a shape and a note and `CLAUSE_MARKERS` knows dice, saves, checks and twenty other words but not a percentage, so the reading has nowhere to sit. It is in that spell’s own `unmodelled` list, where `spell-catalogue.test.ts` hands it to the table on every casting, and the day `Adjudication` gains the null marker `TrackedAdjudication` already has is the day it comes back to this count.',
   'a-rest-an-effect-gives-or-denies':
     'a rest is a span the engine measures and its payout is `endRest`’s — `docs/design/time-and-turns.md`, "**A rest is a span, not a button**". No effect confers the benefits of one without the hours, and none takes them away from a rest that was completed.',
   'damage-with-neither-an-attack-roll-nor-a-save':
-    'PROGRESS.md ranks it at 19 open spells, and Magic Missile is the one this clause names: while that spell cannot be cast, Shield’s second trigger has nothing to fire on.',
+    '**built for the spell vocabulary, and this is what is left of it.** PROGRESS.md ranked it at 19 open spells and Magic Missile was the one it named; the `auto-damage` effect is that sentence — typed damage with a flat addend and nothing rolled to decide whether it lands, dealt as a pool of separate hits among the creatures the caster named, with the count and the split an `attack` already carried. Magic Missile is executed off it, Heat Metal’s opening 2d8 is expressible by it and waits on the two clauses beside it, and Shield’s clause has left this id for the shape that actually blocks it. What is left is the **item** half, which is a different door: `packages/engine/src/content.ts` admits fourteen effect kinds to a conferral and this is not one of them, so a Potion of Poison’s 4d6, a talisman that burns whoever touches it and a manual that scorches whoever cannot read it are still filed here. A conferral has no casting, no slot and no caster level for a `DiceScaling` to read, which is what admitting the kind has to answer for rather than assume.',
   'an-armor-class-a-spell-floors':
     'PROGRESS.md ranks it: "An Armour Class a spell **sets** (**built** — Mage Armor) or **floors** (~3 left: Barkskin’s “if its AC is lower”)". `docs/design/spell-definitions.md` says why the built half does not cover it: "Barkskin is deliberately *not* included: “an Armor Class of 17 if its AC is lower than that” is a floor on the **total**, a different rule, and one spell is not evidence for building it."',
   'the-effects-source-as-a-participant':
@@ -1135,8 +1135,15 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   shield: [
     {
       clause: 'Magic Missile',
-      why: 'damage-with-neither-an-attack-roll-nor-a-save',
-      note: 'Being targeted by Magic Missile is the spell’s second trigger and taking no damage from it is its second benefit, and neither can exist while the spell they name cannot be cast: its darts hit with no attack roll and no save.',
+      // **Re-filed, because the reason it used to give stopped being true.**
+      // This clause was `damage-with-neither-an-attack-roll-nor-a-save` on the
+      // grounds that Shield's second trigger and second benefit could not
+      // exist while the spell they name could not be cast. Magic Missile is
+      // executed now and Shield is no nearer: what blocks it is two other
+      // things entirely, and leaving the old id here would have credited a
+      // shape's retirement with finishing a spell it does not touch.
+      why: 'a-reduction-an-effect-applies-to-damage',
+      note: 'SRD: "you take no damage from _Magic Missile_." A standing effect on the defender that takes damage off a hit, which is this shape — narrowed by its **source** rather than by its type, which `damage-defense` refuses to be by construction (a granted defence names a damage type, and an engine rule naming a spell id is swept out). The spell has a second half that is not this shape and is recorded on the definition instead: its printed Casting Time makes being targeted by the Magic Missile spell a trigger for the Reaction, and that is a seventh `ReactionWindow` — a point in a resolution path nothing stops at.',
     },
   ],
   shillelagh: [
@@ -1913,8 +1920,8 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
     {
       marker: 'dice',
       clause: 'takes 2d8 Fire damage when you cast the spell',
-      why: 'damage-with-neither-an-attack-roll-nor-a-save',
-      note: 'the dice land on whoever is in physical contact with a glowing object, with neither an attack roll nor a saving throw between them \u2014 and every damage-bearing effect kind the format has hangs off one of the two.',
+      why: 'expressible',
+      note: 'the dice land on whoever is in physical contact with a glowing object, with neither an attack roll nor a saving throw between them \u2014 and the `auto-damage` effect says exactly that now, dice, type and all. Nothing blocks this clause; what blocks the spell is the two clauses below it, so the definition is not written and this sentence waits with them.',
     },
     {
       marker: 'saving-throw',
@@ -2258,14 +2265,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'Fly, Climb and Swim have no reader — no rule in the engine asks about one — so a Swim Speed would be a number nothing consults, and the spell-definition vocabulary refuses the field by name for exactly that reason.',
     },
   ],
-  augury: [
-    {
-      marker: 'chance',
-      clause: 'cumulative 25 percent chance for each casting after the first',
-      why: 'a-random-outcome-that-is-not-a-d20',
-      note: 'a percentage is a die the generator can throw and no SpellEffect asks for one; and the count it is cumulative over runs back to a Long Rest, which nothing counts castings against either.',
-    },
-  ],
   'dragons-breath': [
     {
       marker: 'saving-throw',
@@ -2294,12 +2293,29 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'docs/design/space-and-areas.md says it outright of Web’s Restrained: a condition that ends when its holder walks out of an area has no shape here at all, and this is the second spell printing it.',
     },
   ],
+  // **Three sentences and one entry, which was one reading short.** The
+  // definition's own `unmodelled` names three clauses and this map recorded
+  // the first; the other two were paid for by nobody and the shapes they claim
+  // went uncounted. Recorded now rather than argued about, which is the rule
+  // the marker-less entry form exists for.
   blink: [
     {
       marker: 'dice',
       clause: 'Roll 1d6 at the end of each of your turns',
       why: 'a-random-outcome-that-is-not-a-d20',
-      note: 'the generator throws any notation parseNotation reads and no SpellEffect asks it for one; a payout at a turn boundary hands over hit points and cannot branch on the face a die showed.',
+      note: 'the generator throws any notation parseNotation reads and no SpellEffect asks it for one; a payout at a turn boundary hands over hit points and cannot branch on the face a die showed. **The `chance` effect is not this**: it throws a percentage at the moment of the casting, and this is a die thrown at every turn boundary for the duration, whose two faces put the caster in two different places.',
+    },
+    {
+      marker: null,
+      clause: 'you vanish from your current plane of existence and appear in the Ethereal Plane',
+      why: 'a-second-place-to-put-a-creature',
+      note: 'there is one scene, so a creature who has left it has nowhere to be — and the return "at the start of your next turn" is the same absence read from the other end. The definition says so in its own second line and this is where the shape was owed the claim. **The markers see nothing in this sentence**: the SRD writes a plane change without writing the word teleport, without a distance and without anything moving, which is exactly the shape of sentence the marker-less entry form exists for.',
+    },
+    {
+      marker: null,
+      clause: 'which is cast in shades of gray',
+      why: 'table',
+      note: 'what the caster can perceive of the plane they left is narration end to end, and the clause the markers can see in that sentence is the sixty feet — a distance between two places the engine does not hold, so there is nothing here to measure even in principle. This unit names no mechanic at all and somebody read the paragraph.',
     },
   ],
   revivify: [
@@ -4296,28 +4312,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
   // is filed for that spell under the same shape. One sentence in two spells
   // must not have two answers, and the number it moves is a leverage count a
   // tranche gets planned from.
-  'magic-missile': [
-    {
-      clause: 'Each dart strikes a creature of your choice that you can see within range',
-      why: 'expressible',
-      note: 'A target list the caller names, held to the spell’s range and to declared sight, which is what every targeted spell in the catalogue already writes and what `resolveSpell` validates before anything is spent.',
-    },
-    {
-      clause: 'A dart deals 1d4 + 1 Force damage to its target',
-      why: 'damage-with-neither-an-attack-roll-nor-a-save',
-      note: 'Typed damage with a flat bonus and no roll to decide whether it lands. Every damage effect the format has hangs off an attack roll or a saving throw, so there is no kind that simply deals it.',
-    },
-    {
-      clause: 'you can direct them to hit one creature or several',
-      why: 'a-spells-effects-applied-to-different-targets',
-      note: 'A pool of three identical hits divided among the targets however the caster likes. One effect list reaches every target the same number of times, so a definition cannot say that two darts went to one creature and one to another.',
-    },
-    {
-      clause: 'The spell creates one more dart for each spell slot level above 1',
-      why: 'a-spells-effects-applied-to-different-targets',
-      note: 'The slot buys a dart rather than a target, and the two are not the same number: `TargetRule.extraPerSlotLevelAbove` grows how many creatures may be named, and this grows how many hits there are to hand out among them.',
-    },
-  ],
   // **The second blocker the design document had already written down.**
   // `SpellCheck.onSuccess` says outright that there is deliberately no
   // `end-casting` value and names Maze as one of the three spells that print

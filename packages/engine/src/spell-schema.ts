@@ -12,6 +12,7 @@ import {
 } from '@ie/shared';
 import { counterpartProblem, oneShotProblem, rollSelectorProblems } from './roll-modifiers.js';
 import { parseNotation } from './dice.js';
+import type { Recovery } from './resources.js';
 import { PASSIVE_DEFENSE_KINDS } from './passive-defenses.js';
 import { SENSE_NAMES } from './positioning.js';
 import { LONG_CASTING_SECONDS } from './spells.js';
@@ -177,11 +178,16 @@ const DIE_RULE_CAPS: ReadonlySet<string> = new Set(['spellcasting-modifier']);
  * The effect kinds that roll a casting's **own** damage dice.
  *
  * What a die rule has to find on a definition for the rule to be about
- * anything. The two are the attack and the damaging save — the pair
- * `resolveAttackEffect` and `resolveSaveDamageEffect` roll — and a kind joins
- * them here the day its resolver carries the effects through.
+ * anything. The three are the attack, the damaging save and the pool of hits
+ * that neither decides — the trio `resolveAttackEffect`,
+ * `resolveSaveDamageEffect` and `resolveAutoDamageEffect` roll — and a kind
+ * joins them here the day its resolver carries the effects through.
  */
-const ROLLS_ITS_OWN_DAMAGE: ReadonlySet<string> = new Set(['attack', 'save-damage']);
+const ROLLS_ITS_OWN_DAMAGE: ReadonlySet<string> = new Set([
+  'attack',
+  'save-damage',
+  'auto-damage',
+]);
 
 /**
  * Whether a casting of this definition rolls its damage **more than once**.
@@ -200,6 +206,12 @@ const ROLLS_ITS_OWN_DAMAGE: ReadonlySet<string> = new Set(['attack', 'save-damag
  *   one; an `attack` has no such field.
  * - **More than one target**, which the per-target loop rolls for one at a
  *   time.
+ * - **More than one aimed roll out of one effect** — Scorching Ray's rays,
+ *   Magic Missile's darts — each of which rolls its own damage. Every SRD
+ *   spell that has them also names several targets, so the clause above
+ *   already answered for all of them; it is written down because a homebrew
+ *   spell may hurl three darts at exactly one creature, and the budget would
+ *   then be handed out three times.
  * - **The targets a bigger slot adds**: `targetCountFor` is
  *   `count + extraPerSlotLevelAbove × above`, so the base count alone does not
  *   answer this.
@@ -232,6 +244,18 @@ function rollsDamageTwice(definition: SpellDefinition): boolean {
   }
   if (definition.area !== undefined || definition.targetsWithin !== undefined) return true;
   if (
+    rollers.some(
+      (effect) =>
+        'rolls' in effect &&
+        effect.rolls !== undefined &&
+        (effect.rolls.count > 1 ||
+          (effect.rolls.extraPerSlotLevelAbove ?? 0) > 0 ||
+          (effect.rolls.cantripUpgradesAt ?? []).length > 0),
+    )
+  ) {
+    return true;
+  }
+  if (
     (definition.activation?.effects ?? []).some((effect) =>
       ROLLS_ITS_OWN_DAMAGE.has(effect.kind),
     )
@@ -250,6 +274,21 @@ const SKILL_NAMES: ReadonlySet<Skill> = new Set(SKILLS);
  * second place for the vocabulary to go stale. It reads the *untyped* name the
  * way this file does, which is why the set is strings rather than the union.
  */
+/**
+ * The four things a count or a pool may recover on — `Recovery` as data.
+ *
+ * {@link ROLL_FAMILIES}' rule and for its reason: `content.ts` asks the same
+ * question of an item's charge pool, and a second copy of the vocabulary there
+ * would be a second place for it to go stale. It reads the *untyped* name the
+ * way this file does, which is why the set is strings rather than the union.
+ */
+export const RECOVERIES: ReadonlySet<string> = new Set<Recovery>([
+  'short-rest',
+  'long-rest',
+  'dawn',
+  'special',
+]);
+
 export const ROLL_FAMILIES: ReadonlySet<string> = new Set([
   'attack',
   'ability-check',
@@ -1884,6 +1923,19 @@ function checkEffect(
       checkRiders(effect, level, path, host(false), found);
       return;
 
+    // Damage that simply lands: the same two fields an attack's damage is
+    // checked as, the same count of hits, and **no riders at all** — the
+    // member carries no `& OutcomeRiders`, so there is nothing here to check
+    // and a rider written beside one is refused by the shape rather than by a
+    // rule. See the union member for why there is no outcome to ride.
+    case 'auto-damage':
+      checkScaling(effect.damage, level, `${path}.damage`, found);
+      checkDamageType(effect.damageType, `${path}.damageType`, found);
+      if (effect.rolls !== undefined) {
+        checkRollCount(effect.rolls, level, `${path}.rolls`, found);
+      }
+      return;
+
     case 'save-damage':
       checkScaling(effect.damage, level, `${path}.damage`, found);
       checkDamageType(effect.damageType, `${path}.damageType`, found);
@@ -2651,6 +2703,80 @@ function checkEffect(
     case 'dispel':
     case 'interrupt-casting':
       return;
+
+    // **Its own arm rather than a third name on the fall-through above**,
+    // because it is the only one of the three with fields to check. A
+    // percentage is a number a die is thrown against, so the range is the
+    // whole of what makes one readable: at or below zero is an outcome already
+    // decided, which the resolver would refuse to throw for, and above a
+    // hundred is a face no d100 has. `cumulativeChance` caps a *running* total
+    // at a hundred, and that is a different rule from a printed number the
+    // author got wrong.
+    case 'chance': {
+      const printed = effect.percent;
+      if (typeof printed === 'number') {
+        if (!Number.isFinite(printed) || printed <= 0 || printed > 100) {
+          found.push({
+            field: `${path}.percent`,
+            code: 'bad_percentage',
+            reason: `${String(printed)} is not a chance a d100 can be thrown against; a percentage is above 0 and at most 100`,
+          });
+        }
+      } else if (typeof printed !== 'object' || printed === null || Array.isArray(printed)) {
+        found.push({
+          field: `${path}.percent`,
+          code: MALFORMED,
+          reason: `a percentage, or a rule for growing one, and this is ${nameOf(printed)}`,
+        });
+      } else {
+        const each = (printed as { readonly perPriorCasting?: unknown }).perPriorCasting;
+        if (typeof each !== 'number' || !Number.isFinite(each) || each <= 0 || each > 100) {
+          found.push({
+            field: `${path}.percent.perPriorCasting`,
+            code: 'bad_percentage',
+            reason: `${String(each)} is not what each prior casting adds; a percentage is above 0 and at most 100`,
+          });
+        }
+        // **A cumulative chance that counts nothing is a flat one spelled
+        // wrong.** The count is what makes "each casting after the first"
+        // mean anything, and nothing declares a tally — so the key and the
+        // rest that empties it arrive with the effect or the growth is a
+        // number nobody could ever read.
+        const counted = (printed as { readonly countedBy?: unknown }).countedBy;
+        if (typeof counted !== 'object' || counted === null || Array.isArray(counted)) {
+          found.push({
+            field: `${path}.percent.countedBy`,
+            code: 'uncounted_chance',
+            reason: `a chance that grows with the castings before it says where the count is kept, and this is ${nameOf(counted)}`,
+          });
+        } else {
+          const key = (counted as { readonly key?: unknown }).key;
+          if (typeof key !== 'string' || key.trim() === '') {
+            found.push({
+              field: `${path}.percent.countedBy.key`,
+              code: 'uncounted_chance',
+              reason: 'a count is kept under a key, and this names none',
+            });
+          }
+          const recovers = (counted as { readonly recovers?: unknown }).recovers;
+          if (typeof recovers !== 'string' || !RECOVERIES.has(recovers)) {
+            found.push({
+              field: `${path}.percent.countedBy.recovers`,
+              code: 'bad_recovery',
+              reason: `"${String(recovers)}" is not something a count recovers on; the engine knows ${[...RECOVERIES].join(', ')}`,
+            });
+          }
+        }
+      }
+      if (effect.onFailure !== 'no-answer') {
+        found.push({
+          field: `${path}.onFailure`,
+          code: 'bad_failure',
+          reason: `"${String(effect.onFailure)}" is not something a failed chance does; the engine withholds what the spell hands to the table ("no-answer")`,
+        });
+      }
+      return;
+    }
   }
 }
 
@@ -3639,23 +3765,22 @@ export function checkSpellDefinition(
       });
     }
 
-    // **And the rule has to reach a die.** The two effect kinds that roll a
-    // casting's own damage are the attack and the damaging save; a definition
-    // that has neither throws nothing this could be about, and a rule nobody
+    // **And the rule has to reach a die.** The effect kinds that roll a
+    // casting's own damage are {@link ROLLS_ITS_OWN_DAMAGE}; a definition
+    // with none of them throws nothing this could be about, and a rule nobody
     // reads is the failure the whole validator exists to prevent.
     if (!definition.effects.some((effect) => ROLLS_ITS_OWN_DAMAGE.has(effect.kind))) {
       found.push({
         field: 'dieRule',
         code: 'die_rule_rolls_nothing',
-        reason:
-          'a die rule is about the dice this spell rolls for damage, and this spell rolls none: give it an attack or a damaging save, or drop the rule',
+        reason: `a die rule is about the dice this spell rolls for damage, and this spell rolls none: give it an effect of one of these kinds — ${[...ROLLS_ITS_OWN_DAMAGE].join(', ')} — or drop the rule`,
       });
     } else if (rollsDamageTwice(definition)) {
       found.push({
         field: 'dieRule',
         code: 'die_rule_rolls_more_than_once',
         reason:
-          "the cap is a budget for the whole casting and is spent per damage roll, so a spell that rolls its damage more than once — several targets, more of them out of a bigger slot, a count it never states, an area, an activation that rolls again on a later turn, two damaging effects, or a payload printed in a second damage type — would be allowed it once per roll",
+          "the cap is a budget for the whole casting and is spent per damage roll, so a spell that rolls its damage more than once — several targets, more of them out of a bigger slot, a count it never states, several aimed rolls out of one effect, an area, an activation that rolls again on a later turn, two damaging effects, or a payload printed in a second damage type — would be allowed it once per roll",
       });
     }
   }
@@ -3854,6 +3979,7 @@ export function checkSpellDefinition(
 
   checkSummonTargets(definition, found);
   checkKeptBesideADuration(definition, found);
+  checkChanceTargets(definition, found);
 
   const activation = definition.activation;
   if (
@@ -4269,6 +4395,7 @@ function checkShape(value: unknown): readonly SpellDefinitionProblem[] {
       checkRecordedVerdict(effect as object, entry.kind, where, at, found);
       checkTeleportPlacement(entry.kind, where, at, found);
       checkSummonPlacement(entry.kind, where, at, found);
+      checkChancePlacement(entry.kind, where, at, found);
       checkNoNestedEffect(effect, at, found);
     });
   }
@@ -4682,6 +4809,61 @@ function checkPrintedSummonSpeeds(
 }
 
 /**
+ * A printed chance is a fact about the **casting**, so it is asked once.
+ *
+ * {@link checkSummonTargets}'s rule for the same reason and by the same
+ * machinery. `runEffects` is `for (target) for (effect)`, and this resolver
+ * ignores the target it is handed entirely: what it throws a die about is
+ * whether *this casting* worked. Written against two creatures it would throw
+ * two d100s, count the casting twice, and — because the count is read off the
+ * world the previous iteration left — throw the second die against a chance
+ * the first one had just raised. A spell that got worse at itself the more
+ * creatures it named, met at the table rather than at authoring.
+ *
+ * So one target, and it is the caster: the two halves of `{ count: 1, self:
+ * true }`, refused separately so an author is told which one is wrong. SRD
+ * writes every one of these sentences about the caster — "If **you** cast the
+ * spell more than once" — and the day one is printed about somebody else, this
+ * refusal is where the design conversation starts.
+ *
+ * **And an area is refused outright rather than counted**, which the target
+ * rule cannot say: an area fills the target list from whoever is standing in
+ * it, so `{ count: 1, self: true }` beside one is a rule nothing reads. The
+ * same door {@link checkSummonPlacement} shuts on the other axis.
+ */
+function checkChanceTargets(
+  definition: SpellDefinition,
+  found: SpellDefinitionProblem[],
+): void {
+  if (!definition.effects.some((effect) => effect.kind === 'chance')) return;
+
+  if (definition.targets.count !== 1 || definition.targets.extraPerSlotLevelAbove !== undefined) {
+    found.push({
+      field: 'targets.count',
+      code: 'chance_over_several_targets',
+      reason:
+        'a printed chance is thrown once for the casting, so a second target would throw a second die and count the casting twice',
+    });
+  }
+  if (definition.targets.self !== true || definition.targets.unlimited === true) {
+    found.push({
+      field: 'targets.self',
+      code: 'chance_not_on_its_caster',
+      reason:
+        'SRD writes "if you cast the spell": the chance is the caster’s and the casting is on them',
+    });
+  }
+  if (definition.area !== undefined || definition.targetsWithin !== undefined) {
+    found.push({
+      field: 'area',
+      code: 'chance_over_an_area',
+      reason:
+        'an area fills the target list from whoever is standing in it, so a chance written beside one is thrown once per creature caught',
+    });
+  }
+}
+
+/**
  * A kept creature on a casting that also leaves a record running.
  *
  * Two lifetimes: the summoner's, which `kept` declares, and the casting's,
@@ -4704,6 +4886,33 @@ function checkKeptBesideADuration(
           'a creature the caster keeps is bound to its summoner, and a casting with a duration or a Concentration would bind it to the casting as well; a creature with two lifetimes goes at whichever ends first, and the book prints one',
       });
     }
+  });
+}
+
+/**
+ * Where a chance may be written, which is the casting's own list and nowhere
+ * else.
+ *
+ * {@link checkSummonPlacement}'s rule and its argument, read off the other
+ * end of the same sentence. What this die decides is whether *this casting*
+ * worked, and a casting has one of those: an area trigger firing a minute
+ * later, or an activation taken on a later turn, would count the casting again
+ * and throw a second die about a question the settlement already answered.
+ * There is no SRD sentence of that shape and a homebrew one would be a spell
+ * that failed twice.
+ */
+function checkChancePlacement(
+  kind: unknown,
+  where: string,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  if (kind !== 'chance' || where === 'effects') return;
+  found.push({
+    field: `${path}.kind`,
+    code: 'chance_outside_the_casting',
+    reason:
+      'a printed chance decides whether this casting worked, and only the casting’s own effect list is resolved once',
   });
 }
 
@@ -4908,6 +5117,8 @@ export const RIDER_KINDS: ReadonlySet<string> = new Set([
 export const EFFECT_KINDS: ReadonlySet<string> = new Set([
   'attack',
   'save-damage',
+  'auto-damage',
+  'chance',
   'temp-hp',
   'buff',
   'heal',

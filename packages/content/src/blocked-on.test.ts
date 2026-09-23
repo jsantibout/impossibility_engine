@@ -2524,17 +2524,22 @@ describe('a consumer count is a query', () => {
 
 describe('a spell with one blocker is the leverage the map is for', () => {
   /**
-   * Magic Missile is the spell that proves the second column is worth reading,
-   * and it is **not** on the list below.
+   * Magic Missile was the spell that proved the second column is worth
+   * reading, and it has left the map by having **both** of its blockers built.
    *
-   * "Damage with neither an attack roll nor a save" is the clause everybody
-   * quotes it for, and `PROGRESS.md` ranks that shape at 19 open spells. But
+   * "Damage with neither an attack roll nor a save" was the clause everybody
+   * quoted it for, and `PROGRESS.md` ranked that shape at 19 open spells. But
    * the darts are *distributed* — "you can direct them to hit one creature or
    * several" — and a casting that names the same target twice is refused, so
-   * three darts into one goblin cannot be said at all. That is the same gap
-   * Mass Heal's "divided as you choose" has, and it is not downstream of the
-   * first: you meet it in the same sentence rather than after the missing
-   * mechanism is built.
+   * three darts into one goblin could not be said at all. That was the same
+   * gap Mass Heal's "divided as you choose" has, and it was not downstream of
+   * the first: you met it in the same sentence rather than after the missing
+   * mechanism was built. **Reading the map that way is what made the spell
+   * cost two builds rather than one**, and both of them landed: the
+   * `auto-damage` effect for the first, and the aimed-roll count and split the
+   * `attack` already carried — `rolls`, `rollsAt`, `aimedRollsIn` — for the
+   * second, which is why the distribution half cost nothing new. A map that
+   * had called it one blocker would have promised a definition a build short.
    *
    * **The distinction is what keeps `unblocks` honest, and the case it was
    * written against has since come true.** Dimension Door's 4d6 on a failed
@@ -2547,10 +2552,10 @@ describe('a spell with one blocker is the leverage the map is for', () => {
    * very shape in `ADJUDICATED`.
    */
   it('does not call Magic Missile finished by one shape', () => {
-    expect(blockersOf('magic-missile')).toEqual([
-      'a-spells-effects-applied-to-different-targets',
-      'damage-with-neither-an-attack-roll-nor-a-save',
-    ]);
+    // Both of its blockers were built, so it is off the map entirely rather
+    // than down to one — which is the departure this paragraph predicted.
+    expect(blockersOf('magic-missile')).toEqual([]);
+    expect(BLOCKED_ON['magic-missile']).toBeUndefined();
     expect(BLOCKED_ON['dimension-door']).toBeUndefined();
     expect(ADJUDICATED['dimension-door']?.map((entry) => entry.why)).toEqual([
       'a-spells-effects-applied-to-different-targets',
@@ -2809,11 +2814,17 @@ describe('a shape that gets built is content work, not a merge', () => {
       ),
     ).toBe(true);
     // And Blink kept the two halves this build did not reach until it was
-    // written; both are in the definition's own notes now, and the d6 is in
-    // the tracked map because it trips a marker.
+    // written. Both are in the definition's own notes, and **all three of its
+    // sentences are in the tracked map now**: the d6 was there because it
+    // trips a marker, and the other two were dropped on the way out of
+    // `BLOCKED_ON` because no marker could see them — which is the loss the
+    // marker-less entry form was added to stop, arriving a batch late on the
+    // spell this very row is about.
     expect(BLOCKED_ON['blink']).toBeUndefined();
     expect(TRACKED_ADJUDICATED['blink']?.map((entry) => entry.why)).toEqual([
       'a-random-outcome-that-is-not-a-d20',
+      'a-second-place-to-put-a-creature',
+      'table',
     ]);
     expect(
       (SRD_CONTENT.spell('blink')?.unmodelled ?? []).some((note) =>

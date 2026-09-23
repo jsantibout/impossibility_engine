@@ -160,6 +160,10 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'acid-splash',
   'animal-friendship',
   'arcane-sword',
+  // `spell-chance.test.ts`: the rite is declared, the minute passes and it
+  // settles, twice over — the first casting throwing no die and the second
+  // one d100 against 25, with a seeded failure withholding the omen.
+  'augury',
   'bane',
   'banishment',
   'beacon-of-hope',
@@ -225,6 +229,10 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'longstrider',
   'mage-armor',
   'magic-jar',
+  // `auto-damage.test.ts`: three darts round the list, five out of a level 3
+  // slot, the caster's own uneven split, a Sanctuary ward turning them away
+  // and a Resistance halving each dart rather than the pool.
+  'magic-missile',
   'mass-cure-wounds',
   'mind-blank',
   'mind-spike',

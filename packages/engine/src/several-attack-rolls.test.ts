@@ -7,7 +7,7 @@ import { createRollIssuer } from './rolls.js';
 import { levelGrantedSpells } from './spellbook.js';
 import {
   attackRollsFor,
-  attackRollsIn,
+  aimedRollsIn,
   rollsDealtTo,
   type SpellDefinition,
 } from './spell-definitions.js';
@@ -275,9 +275,9 @@ describe('how many rolls a casting makes', () => {
    * wants a floor — the target bound in `namedTargets` — says so itself.
    */
   it('counts no rolls in a list that makes no attack', () => {
-    expect(attackRollsIn([], 2, 20, 9)).toBe(0);
+    expect(aimedRollsIn([], 2, 20, 9)).toBe(0);
     expect(
-      attackRollsIn(
+      aimedRollsIn(
         [
           { kind: 'heal', healing: { dice: '2d8' }, addSpellcastingModifier: false },
           { kind: 'temp-hp', amount: { flat: 5 }, addSpellcastingModifier: false },
@@ -291,7 +291,7 @@ describe('how many rolls a casting makes', () => {
 
   it('counts the longest attack of a list that makes several', () => {
     expect(
-      attackRollsIn(
+      aimedRollsIn(
         [
           { kind: 'attack', attack: 'ranged', damage: { dice: '1d6' }, damageType: 'fire' },
           {
@@ -1158,7 +1158,7 @@ describe('an uneven split of the rolls', () => {
 
 /**
  * **A split is measured against the longest attack in the list**, because
- * `attackRollsIn` is what bounds the target list and what the caller is told
+ * `aimedRollsIn` is what bounds the target list and what the caller is told
  * they may divide. A definition whose two attacks throw *different* numbers of
  * rolls therefore has no single split to state, and the shorter one falls back
  * to the deal rather than spending rays it never had.

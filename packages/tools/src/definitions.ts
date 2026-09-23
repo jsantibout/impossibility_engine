@@ -2206,12 +2206,12 @@ const CAST_SPELL = tool({
           count: z
             .int()
             .min(1)
-            .describe('How many of the casting’s attack rolls go at this creature.'),
+            .describe('How many of the casting’s rolls — rays, beams, darts — go at this creature.'),
         }),
       )
       .optional()
       .describe(
-        'How to divide a casting that makes several attack rolls — Scorching Ray’s rays, Eldritch Blast’s beams. Name every creature in `targets` exactly once, with a share each, adding up to exactly the rolls the casting makes; the engine says how many that is and refuses anything else. Leave it out and the rolls are dealt round the creatures you named, one each and round again for the rest. This is a targeting decision and never a result: the engine still rolls every attack, and each one hits, misses and crits on its own.',
+        'How to divide a casting that aims several rolls — Scorching Ray’s rays, Eldritch Blast’s beams, Magic Missile’s darts. Name every creature in `targets` exactly once, with a share each, adding up to exactly the rolls the casting makes; the engine says how many that is and refuses anything else. Leave it out and the rolls are dealt round the creatures you named, one each and round again for the rest. This is a targeting decision and never a result: the engine still rolls every one of them, and an attack hits, misses and crits on its own while a dart simply lands.',
       ),
     slotLevel: z.int().min(1).max(9).optional().describe('Which slot to spend. Omit for a cantrip.'),
     at: pointSchema.optional().describe('Where an area spell is centred, for a spell that asks for a point.'),

@@ -3431,12 +3431,14 @@ describe('every branch judges untyped input rather than throwing on it', () => {
     /**
      * What the host definition has to say for this kind to be legal in it.
      *
-     * Empty for every kind but one. `summon` carries a rule about the
+     * Empty for every kind but two. `summon` carries a rule about the
      * *definition* rather than about the effect — it is on its caster, so
      * `targets` is `{ count: 1, self: true }` — and Fire Dart throws a dart at
-     * somebody else. Without this the base-validity row below would fail for a
-     * reason that has nothing to do with the effect it is checking, and the
-     * junk sweep would pass for it.
+     * somebody else. `chance` carries the same rule for the same reason from
+     * the other end: the die is thrown once for the casting, so a second
+     * target would throw a second one. Without this the base-validity row
+     * below would fail for a reason that has nothing to do with the effect it
+     * is checking, and the junk sweep would pass for it.
      */
     readonly host?: Record<string, unknown>;
   }[] = [
@@ -3449,6 +3451,36 @@ describe('every branch judges untyped input rather than throwing on it', () => {
         conditions: ARRAY_JUNK,
         modifiers: ARRAY_JUNK,
         delayed: OBJECT_JUNK,
+      },
+    },
+    {
+      // A printed percentage. `percent` takes a number **or** an object, so
+      // the junk it is fed is the values that are neither — a string, a
+      // boolean, an array, and absent — and `onFailure` is a closed list of
+      // one, which any string that is not it refuses.
+      kind: 'chance',
+      base: { kind: 'chance', percent: 50, onFailure: 'no-answer' },
+      // The second kind with a rule about the *definition*, and it is
+      // `summon`'s: the die is thrown once for the casting, so the casting is
+      // on its caster and on nobody else.
+      host: { targets: { count: 1, self: true } },
+      fields: {
+        percent: [undefined, null, 'nonsense', true, []],
+        onFailure: required(STRING_JUNK),
+      },
+    },
+    {
+      // Damage that simply lands. Two required fields and one optional count,
+      // and **no rider rows at all**, because the member carries no
+      // `& OutcomeRiders` — a rider written beside a dart is refused by the
+      // shape rather than by a rule, which is why there is nothing here to
+      // feed junk to.
+      kind: 'auto-damage',
+      base: { kind: 'auto-damage', damage: { dice: '1d4', flat: 1 }, damageType: 'force' },
+      fields: {
+        damage: required(OBJECT_JUNK),
+        damageType: required(STRING_JUNK),
+        rolls: OBJECT_JUNK,
       },
     },
     {

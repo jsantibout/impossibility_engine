@@ -34,7 +34,7 @@ import {
 import { parseNotation } from './dice.js';
 import { SEES_THROUGH, type StandingGrant, type StandingRequirement } from './standing.js';
 import { SENSE_NAMES } from './positioning.js';
-import { dawnRollProblem, type Recovery } from './resources.js';
+import { dawnRollProblem } from './resources.js';
 import { EFFECT_END_CAUSES } from './timers.js';
 import type { ActionRule } from './combat.js';
 import { TURN_ANCHORS } from './time.js';
@@ -47,6 +47,7 @@ import {
   checkEffectValue,
   checkSpellDefinition,
   parseSpellDefinition,
+  RECOVERIES,
   ROLL_FAMILIES,
 } from './spell-schema.js';
 
@@ -888,14 +889,6 @@ export const REQUIREMENT_KINDS: ReadonlySet<string> = new Set([
  * while looking perfectly well-formed.
  */
 const ITEM_ONLY_REQUIREMENTS: ReadonlySet<string> = new Set(['while-attuned', 'while-worn']);
-
-/** The four things a pool may recover on — `Recovery`, written out as data. */
-const RECOVERIES: ReadonlySet<string> = new Set<Recovery>([
-  'short-rest',
-  'long-rest',
-  'dawn',
-  'special',
-]);
 
 /**
  * What an item's charge pool has to say, and what it may not.

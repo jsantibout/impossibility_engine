@@ -46,7 +46,6 @@ import {
 import { featureSource } from '../progression.js';
 import { conjuredHands, conjuredLine, freeHands, quantityOf } from './inventory.js';
 import { spendAction, spendBonusAction, spendReaction } from '../combat.js';
-import { rollRecorded } from '../rolls.js';
 import { type CommandIdentity, commandOutcome, once } from '../idempotency.js';
 import {
   type Ability,
@@ -177,9 +176,11 @@ import {
 } from './spell-effect-magic.js';
 import {
   resolveAttackEffect,
+  resolveAutoDamageEffect,
   resolveSaveDamageEffect,
   resolveSaveEffect,
 } from './spell-effect-rolls.js';
+import { resolveChanceEffect, thrownAgainst } from './spell-effect-chance.js';
 import { aimsHarmAtATarget } from '../spell-definitions.js';
 import { wardAgainst } from './passive-defenses.js';
 import { resolveTeleportEffect } from './spell-effect-teleport.js';
@@ -1220,9 +1221,6 @@ export function castingOf(
   };
 }
 
-/** SRD writes these chances as percentages, so the die has a hundred faces. */
-const FAILURE_DIE = '1d100';
-
 /** Nothing happened, which is what using an item that cannot fail comes to. */
 const WORKED = { events: [] as readonly GameEvent[], torn: false };
 
@@ -1299,23 +1297,18 @@ function itemFailure(
   if (!economy.ok) return economy;
 
   const issuedBefore = supply.issuer.count;
-  const thrown = rollRecorded(supply.issuer, supply.rng, FAILURE_DIE);
+  // The die and the line it writes are the spell effect's too — SRD prints one
+  // sentence on a fan and another on a rite, and the comparison that reads a
+  // percentage as a chance of *failing* must not exist twice.
+  const thrown = thrownAgainst(supply, casterId, `${item.name} works`, chance, {
+    failed: 'it fails',
+    held: 'it works',
+  });
   if (!thrown.ok) return thrown;
 
-  // A percentage is the chance of *failing*, so the roll fails at or under it
-  // — and a hundred takes every face of the die, which is what the sixth wave
-  // of a Wind Fan is.
-  const torn = thrown.value.total <= chance;
+  const torn = thrown.value.failed;
   const rolled: readonly GameEvent[] = [
-    {
-      type: 'roll-recorded',
-      who: casterId,
-      label: `${item.name} works (${FAILURE_DIE} against ${chance}%)`,
-      natural: thrown.value.total,
-      total: thrown.value.total,
-      contributions: [],
-      outcome: torn ? 'it fails' : 'it works',
-    },
+    thrown.value.recorded,
     {
       type: 'rolls-issued',
       count: supply.issuer.count - issuedBefore,
@@ -2150,6 +2143,8 @@ function resolveOneEffect(
       return resolveHitPointMaximumEffect(ctx, effect, target, world);
     case 'save-damage':
       return resolveSaveDamageEffect(ctx, effect, target, victim, world);
+    case 'auto-damage':
+      return resolveAutoDamageEffect(ctx, effect, target, world);
     case 'save':
       return resolveSaveEffect(ctx, effect, target, victim, world);
     case 'condition':
@@ -2162,10 +2157,17 @@ function resolveOneEffect(
       return resolveDispelEffect(ctx, target, world);
     case 'interrupt-casting':
       return resolveInterruptCastingEffect(ctx, effect, target, victim, world);
+    // One of the two kinds whose subject is not the target — `summon` below is
+    // the other. A printed percentage is a fact about the *casting*, and what
+    // a failure withholds is the casting's own handover. It reaches a target
+    // list at all because a spell on its caster names them, which
+    // `checkChanceTargets` refuses to let a definition say otherwise.
+    case 'chance':
+      return resolveChanceEffect(ctx, effect, world);
     case 'teleport':
       return resolveTeleportEffect(ctx, effect, target, world);
-    // The one kind whose subject is not the target: the spell is on its caster
-    // and what it makes is a second creature, so the target is read off `ctx`.
+    // The other of the two: the spell is on its caster and what it makes is a
+    // second creature, so the target is read off `ctx`.
     case 'summon':
       return resolveSummonEffect(ctx, effect, world);
 

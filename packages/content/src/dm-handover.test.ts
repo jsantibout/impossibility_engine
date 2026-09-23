@@ -388,7 +388,10 @@ describe('the catalogue hands over exactly the text it means to', () => {
  */
 describe('the sweep re-filed lines and retired no debt', () => {
   const REFILED: readonly (readonly [string, readonly string[], number])[] = [
-    ['augury', ['a-random-outcome-that-is-not-a-d20'], 3],
+    // Augury's one shape was built: the percentage is a `chance` effect now
+    // and it claims none. The re-filing is what this row is about and it still
+    // holds — the omen is handed over and nothing was deleted to get here.
+    ['augury', [], 3],
     ['commune-with-nature', [], 7],
     [
       'contact-other-plane',
@@ -413,17 +416,20 @@ describe('the sweep re-filed lines and retired no debt', () => {
   });
 
   /**
-   * And the debt Augury's line was always mistaken for is still a debt: the
-   * omen is gone from `unmodelled` and the percentage is not, which is the
-   * whole distinction the brief was written about, on the spell it was written
-   * from.
+   * And the distinction the re-filing drew has survived the debt being paid.
+   *
+   * Augury's `unmodelled` line named the percentage and its `dmDecides` names
+   * the omen, and the whole of that brief was that the two are different kinds
+   * of thing: a debt somebody may pay, and a question nobody here will ever
+   * answer. The percentage was paid — it is a `chance` effect — so the debt is
+   * gone and the handover is untouched, which is the line holding rather than
+   * the line disappearing.
    */
-  it('leaves Augury the percentage and hands over the omen', () => {
+  it('executes Augury’s percentage and still hands over the omen', () => {
     const augury = SRD_CONTENT.spell('augury')!;
-    expect(augury.unmodelled ?? []).toHaveLength(1);
-    expect(augury.unmodelled![0]).toContain('25 percent');
+    expect(augury.unmodelled ?? []).toEqual([]);
+    expect(augury.effects.map((effect) => effect.kind)).toEqual(['chance']);
     expect(augury.dmDecides ?? []).toContain('The GM chooses the omen from the Omens table.');
-    expect((augury.unmodelled ?? []).filter((gap) => gap.includes('omen'))).toEqual([]);
   });
 });
 
@@ -476,7 +482,15 @@ describe('each of the eleven is cast, and hands its own text to the table', () =
     expect(Object.keys(after.ongoing)).toEqual(
       definition.durationSeconds === undefined ? [] : [out.castingId],
     );
-    expect(out.settled.outcomes).toEqual([]);
+    // **Nothing landed on anybody**, which was ten of these spells and is now
+    // ten of eleven: every one is a rite whose whole content is the text it
+    // hands over. Augury is the exception and is the honest kind — its
+    // `chance` effect reports what it decided about this casting's handover,
+    // which is an outcome about the caster rather than something done to
+    // somebody else.
+    expect(out.settled.outcomes).toEqual(
+      definition.effects.length === 0 ? [] : [{ target: asCharacterId('cleric'), affected: false }],
+    );
   });
 
   it.each(ATOMIC.map((s) => [s] as const))('spends a slot for %s', (spellId) => {

@@ -356,7 +356,7 @@ export const SHIELD: SpellDefinition = {
   ],
   durationUntil: 'start-of-casters-next-turn',
   unmodelled: [
-    'being targeted by Magic Missile is also a trigger, and taking no damage from it is also a benefit; neither is modelled, because Magic Missile is not executable here',
+    'being targeted by Magic Missile is also a trigger, and taking no damage from it is also a benefit; neither is modelled, and Magic Missile being executable is no longer the reason. The trigger needs a reaction window that opens on being targeted by a particular spell, which is a seventh ReactionWindow and a point in a resolution path nothing stops at today; the benefit needs a damage Immunity narrowed to one spell, which `damage-defense` refuses to be by construction and which no engine rule may name anyway',
   ],
 };
 
@@ -3309,6 +3309,65 @@ export const MAGE_ARMOR: SpellDefinition = {
   // `mustBeUnarmored` already reads the body slot.
   endsEarly: [{ on: 'target-dons-armor', ends: 'casting' }],
   unmodelled: ['whether the target is willing is not modelled; willingness is fiction'],
+};
+
+/**
+ * SRD Magic Missile:
+ *
+ * > _Level 1 Evocation (Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 120 feet. **Duration:** Instantaneous.
+ * > "You create three glowing darts of magical force. Each dart strikes a
+ * > creature of your choice that you can see within range. A dart deals 1d4 +
+ * > 1 Force damage to its target. The darts all strike simultaneously, and you
+ * > can direct them to hit one creature or several."
+ * > _Using a Higher-Level Spell Slot._ "The spell creates one more dart for
+ * > each spell slot level above 1."
+ *
+ * **The spell the `auto-damage` effect was built for**, and the shape is the
+ * whole of it: damage with nothing rolled to decide whether it lands. Every
+ * damage-bearing kind the format had hung off an attack roll or a saving
+ * throw, so this paragraph could not be written at all.
+ *
+ * **Three darts, three damage rolls.** "A dart deals 1d4 + 1" is singular, and
+ * the reading is Eldritch Blast's beams word for word: a count of hits rather
+ * than a count of dice. One 3d4+3 would hand the printed +1 out once instead
+ * of three times and would let a Resistance halve once instead of three times
+ * — wrong in both directions, and by different amounts.
+ *
+ * **The two counts say two different things and happen to agree.** `targets`
+ * is how many creatures may be named — "one creature or several", one more per
+ * slot level — and `rolls` is how many darts there are to hand out among them.
+ * Which creature gets how many is the caster's, said with `rollsAt` and dealt
+ * round the list when they say nothing, exactly as Scorching Ray's rays are.
+ *
+ * **Shield's second trigger is still not modelled and this does not finish
+ * it.** That spell needs two things this one does not provide: a Reaction
+ * window that opens on *being targeted by a particular spell*, and a damage
+ * Immunity narrowed to one spell id, which the engine may not hold — see
+ * `SHIELD.unmodelled`.
+ */
+export const MAGIC_MISSILE: SpellDefinition = {
+  id: 'magic-missile',
+  name: 'Magic Missile',
+  level: 1,
+  school: 'evocation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 120 },
+  // "you can direct them to hit one creature or several", and one more dart
+  // per slot level above the first — so up to three creatures at level 1.
+  targets: { count: 3, extraPerSlotLevelAbove: 1 },
+  effects: [
+    {
+      kind: 'auto-damage',
+      // "A dart deals 1d4 + 1 Force damage" — the addend is printed on the
+      // dart, so it lands on every one of them.
+      damage: { dice: '1d4', flat: 1 },
+      damageType: 'force',
+      // "The spell creates one more dart for each spell slot level above 1."
+      rolls: { count: 3, extraPerSlotLevelAbove: 1 },
+    },
+  ],
 };
 
 /**
@@ -10018,16 +10077,28 @@ export const ALTER_SELF: SpellDefinition = {
  * > get no answer."
  *
  * The omen is the GM's by the book's own word. What is not the GM's is the
- * percentage: a cumulative 25 per cent per casting since the last Long Rest is
- * two things the engine cannot do — throw a die that is not a d20, and count
- * castings back to a rest.
+ * percentage: a cumulative 25 per cent per casting since the last Long Rest
+ * was two things the engine could not do — throw a die that is not a d20, and
+ * count castings back to a rest — and it is the `chance` effect now.
  *
- * **And the two are filed apart now, which is Commune's ruling arriving on the
+ * **And the two are filed apart, which is Commune's ruling arriving on the
  * spell it was written from.** The omen sat in `unmodelled` saying in its own
  * words that it was the GM's — a debt nobody may ever pay, on the list of
  * debts somebody might, inflating a blocker map with an entry blocked on
  * nothing. There is no engine that chooses an omen. It is handed over instead,
- * in the book's own words, and the percentage stays where it was.
+ * in the book's own words; the percentage decides whether the handover goes
+ * out at all.
+ *
+ * **The count is kept under the spell's own id and empties on a Long Rest**,
+ * which is the book's own bracket — "before finishing a Long Rest" — and the
+ * same `Tally` a Wind Fan's uses are counted in. The first casting after a
+ * rest throws no die, because "each casting after the first" makes it a
+ * decided outcome and a die thrown for one moves the generator for nothing.
+ *
+ * **Range: Self, and the caster is the target.** The spell is on whoever cast
+ * it and reaches nobody else; naming the caster is what every other self spell
+ * in the catalogue does, and it is what gives the effect list a creature to
+ * run against.
  */
 export const AUGURY: SpellDefinition = {
   id: 'augury',
@@ -10039,15 +10110,23 @@ export const AUGURY: SpellDefinition = {
   ritual: true,
   concentration: false,
   range: { kind: 'self' },
-  targets: { count: 0 },
-  effects: [],
+  targets: { count: 1, self: true },
+  effects: [
+    {
+      kind: 'chance',
+      // "a cumulative 25 percent chance for each casting after the first",
+      // counted "before finishing a Long Rest".
+      percent: { perPriorCasting: 25, countedBy: { key: 'augury', recovers: 'long-rest' } },
+      // "that you get no answer": the casting happened and the slot is gone,
+      // and what the caster does not get is the omen — so the printed text
+      // this definition hands the table does not go out for that casting.
+      onFailure: 'no-answer',
+    },
+  ],
   dmDecides: [
     'You receive an omen from an otherworldly entity about the results of a course of action that you plan to take within the next 30 minutes.',
     'The GM chooses the omen from the Omens table.',
     "The spell doesn't account for circumstances, such as other spells, that might change the results.",
-  ],
-  unmodelled: [
-    'the "cumulative 25 percent chance for each casting after the first" is not rolled: no effect asks for a die that is not a d20, and nothing counts this caster’s castings back to their last Long Rest',
   ],
 };
 
@@ -13876,6 +13955,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   MAGE_HAND,
   MAGIC_CIRCLE,
   MAGIC_JAR,
+  MAGIC_MISSILE,
   MAGIC_MOUTH,
   MAGIC_WEAPON,
   MAGNIFICENT_MANSION,
