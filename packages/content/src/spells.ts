@@ -8077,13 +8077,18 @@ export const RESISTANCE: SpellDefinition = {
  * sentence changes the die's size and then how many there are. No arithmetic
  * over 1d8 produces d10, d12, 2d6.
  *
- * Two clauses are left, and they are two different kinds of leftover. The
- * damage-type choice is made at each later attack rather than at the casting,
- * which is the half of this shape that is still open — it is the same sentence
- * Conjure Minor Elementals prints. And "if you let go of the weapon" is a
- * cause `endsEarly` has no member for; the casting now knows *which* weapon,
- * which is half of what that clause needed, and what is still missing is a
- * fact about whose hand it is in and an event that says it changed.
+ * **The damage-type choice is made at each later attack rather than at the
+ * casting**, and that is why it is `damageTypes` on the rider rather than
+ * `damageTypeStated` on the definition: a casting pins what it knows, and this
+ * is a decision the druid takes a turn later with the target's Resistances in
+ * front of them. The swing names it under the spell's own name and declining
+ * it deals the staff's Bludgeoning, which is the second half of the book's
+ * "or".
+ *
+ * One clause is left: "if you let go of the weapon" is a cause `endsEarly` has
+ * no member for; the casting now knows *which* weapon, which is half of what
+ * that clause needed, and what is still missing is a fact about whose hand it
+ * is in and an event that says it changed.
  */
 export const SHILLELAGH: SpellDefinition = {
   id: 'shillelagh',
@@ -8107,13 +8112,17 @@ export const SHILLELAGH: SpellDefinition = {
       // "the weapon's damage die becomes a d8", and the Cantrip Upgrade.
       die: '1d8',
       dieAtLevel: { 5: '1d10', 11: '1d12', 17: '2d6' },
+      // "If the attack deals damage, it can be Force damage or the weapon's
+      // normal damage type (your choice)" — an offer answered at each later
+      // swing, so the list holds the alternative and declining it is how the
+      // weapon's own type is kept.
+      damageTypes: ['force'],
     },
   ],
   durationSeconds: 60,
   // SRD: "The spell ends early if you cast it again."
   replacesPriorCasting: true,
   unmodelled: [
-    'the choice between Force damage and the weapon’s normal type is not applied: "If the attack deals damage, it can be Force damage or the weapon’s normal damage type (your choice)" is chosen at each later attack rather than at the casting, and an attack carries no such choice',
     'the spell does not end when you let go of the weapon: which weapon was imbued is now held, and whose hand it is in is not — an inventory says what a creature has and no event says what it dropped',
   ],
 };

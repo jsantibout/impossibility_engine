@@ -541,6 +541,11 @@ export function resolveWeaponRiderEffect(
       // through. `castersAbilityRead` refuses the route that has none before a
       // slot is spent, so a null here is that check having been skipped.
       ...(effect.castingAbility === true && ability !== null ? { ability } : {}),
+      // "it can be Force damage or the weapon's normal damage type (your
+      // choice)": the offer is pinned, and which of the two a swing takes is
+      // named at the swing. Pinned rather than read back off the catalogue for
+      // the reason every other field here is — the fold opens no book.
+      ...(effect.damageTypes === undefined ? {} : { damageTypes: effect.damageTypes }),
     },
   });
   const current = events.slice(-1).reduce(applyEvent, world);

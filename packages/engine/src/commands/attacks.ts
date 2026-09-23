@@ -87,6 +87,7 @@ import {
   standingDamageEffects,
   standingWeaponRollRule,
   strikeStyleFor,
+  weaponRiderDamageType,
   type HitOption,
   type StrikeStyle,
 } from '../standing.js';
@@ -1059,7 +1060,7 @@ export function resolveAttack(
     // A damage type a feature does not offer is refused here, before the action
     // is spent and before a die is thrown — the same validate-before-rolling
     // rule the rest of the engine keeps.
-    const legalTypes = checkFeatureDamageTypes(state, id, command.featureDamageTypes);
+    const legalTypes = checkFeatureDamageTypes(state, id, command.featureDamageTypes, weapon);
     if (!legalTypes.ok) return legalTypes;
 
     // And the rider this swing says it is buying, for the same reason and in
@@ -1811,6 +1812,10 @@ export function resolveAttack(
       attack.value.roll.mode,
     );
 
+    // The type a casting's offer puts on the weapon's own damage, named on
+    // this swing rather than pinned at the casting — see `weaponRiderDamageType`.
+    const imbuedType = weaponRiderDamageType(state, id, weapon, command.featureDamageTypes);
+
     const fromFeatures = standingAttackDamage(state, id, {
       ability,
       // **The same question `isRangedAttack` answers, asked once.** A printed
@@ -1861,6 +1866,10 @@ export function resolveAttack(
                   : { ...stated, damage: printedDamage.instead },
             }),
         ...(style === null ? {} : { strikeStyle: inPlay(style) }),
+        // "it can be Force damage or the weapon's normal damage type (your
+        // choice)": the offer a casting hung on this weapon, answered on this
+        // swing. Absent leaves the weapon's printed type alone.
+        ...(imbuedType === null ? {} : { weaponDamageType: imbuedType }),
         targetAc: attack.value.targetAc,
         ...(command.twoHanded === undefined ? {} : { twoHanded: command.twoHanded }),
         ...(command.thrown === undefined ? {} : { thrown: command.thrown }),
@@ -2244,7 +2253,7 @@ export function resolveAttackDamage(
     }
 
     const current = events.reduce(applyEvent, state);
-    const legalTypes = checkFeatureDamageTypes(current, id, command.featureDamageTypes);
+    const legalTypes = checkFeatureDamageTypes(current, id, command.featureDamageTypes, weapon);
     if (!legalTypes.ok) return legalTypes;
 
     // The same two questions the unheld swing asks, off the facts the hold
@@ -2257,6 +2266,8 @@ export function resolveAttackDamage(
       printed,
       pending.mode ?? 'normal',
     );
+
+    const heldImbuedType = weaponRiderDamageType(current, id, weapon, command.featureDamageTypes);
 
     const fromFeatures = standingAttackDamage(current, id, {
       ability: pending.ability,
@@ -2309,6 +2320,10 @@ export function resolveAttackDamage(
         // `attack-landed` for it, and a log from before this existed resolves
         // exactly as it did.
         ...(heldStyle === null ? {} : { strikeStyle: inPlay(heldStyle) }),
+        // The same offer, answered on the far side of the hold: the choice
+        // belongs to the moment the damage is rolled, which for a held attack
+        // is here. See `AttackDamageCommand.featureDamageTypes`.
+        ...(heldImbuedType === null ? {} : { weaponDamageType: heldImbuedType }),
         targetAc: pending.targetAc,
         twoHanded: pending.twoHanded,
         thrown: pending.thrown,

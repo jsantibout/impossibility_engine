@@ -3866,6 +3866,16 @@ export interface GrantedWeaponRider {
   readonly die?: string;
   /** SRD Shillelagh's offered ability, resolved to the caster's own. */
   readonly ability?: Ability;
+  /**
+   * SRD Shillelagh's "it can be Force damage or the weapon's normal damage
+   * type (your choice)" — the types offered *instead of* the weapon's own.
+   *
+   * The one field on this record that is not settled here: the other four are
+   * facts about the casting, and this is an offer the swing answers. Which of
+   * them a blow takes is named on the attack command under the spell's own
+   * name, and naming none deals what the weapon deals.
+   */
+  readonly damageTypes?: readonly string[];
 }
 
 /**
@@ -4297,25 +4307,83 @@ export interface AttackContext {
 }
 
 /**
- * Refuse a damage type the feature does not offer, before anything is rolled.
+ * Everything offering this swing a choice of damage type, by the name the
+ * choice is made under.
  *
- * A caller may choose between the types the SRD prints and may not invent one:
- * Divine Strike is Necrotic or Radiant, and a Cleric asking for Fire is asking
- * for a rule that does not exist. Checked up front, so a refusal costs neither
- * a die nor the attack.
+ * Two offerers and one map. A feature's own `attack-damage` grant is keyed by
+ * its feature id — SRD Divine Strike's Necrotic or Radiant — and a casting
+ * that imbued the weapon in hand is keyed by the **spell's** name, which is
+ * what `spellOfSource` reports a weapon rider as everywhere else. One
+ * gatherer, so the check at the door and the reader at the damage roll cannot
+ * come to disagree about what was on offer.
  */
-export function checkFeatureDamageTypes(
+function damageTypesOffered(
   state: GameState,
   who: CharacterId,
-  chosen: Readonly<Record<string, string>> | undefined,
-): Result<true> {
-  if (chosen === undefined) return ok(true);
+  weapon: Weapon | null,
+): ReadonlyMap<string, readonly string[]> {
   const offered = new Map<string, readonly string[]>();
   for (const { effect } of standingFor(state, who)) {
     if (effect.grant.kind === 'attack-damage' && effect.grant.damageTypeChoices !== undefined) {
       offered.set(effect.feature, effect.grant.damageTypeChoices);
     }
   }
+  for (const rider of weaponRidersFor(state.creatures[who], weapon)) {
+    if (rider.damageTypes !== undefined) offered.set(spellOfSource(rider.source), rider.damageTypes);
+  }
+  return offered;
+}
+
+/**
+ * The type a casting's offer puts on the weapon's own damage, or null where
+ * nobody took one.
+ *
+ * SRD Shillelagh: "it can be Force damage **or** the weapon's normal damage
+ * type (your choice)" — one type or the other, so what comes back *replaces*
+ * the weapon's rather than joining it. Naming none is how the offer is
+ * declined, which is the reading `featureDamageTypes` already takes of an
+ * absent key.
+ *
+ * The first offer that was answered wins, and no SRD weapon can carry two:
+ * Shillelagh replaces its own prior casting and Magic Weapon offers no type at
+ * all. A second would be a sentence the book does not print.
+ */
+export function weaponRiderDamageType(
+  state: GameState,
+  who: CharacterId,
+  weapon: Weapon | null,
+  chosen: Readonly<Record<string, string>> | undefined,
+): string | null {
+  if (chosen === undefined) return null;
+  for (const rider of weaponRidersFor(state.creatures[who], weapon)) {
+    if (rider.damageTypes === undefined) continue;
+    const named = chosen[spellOfSource(rider.source)];
+    if (named !== undefined && rider.damageTypes.includes(named)) return named;
+  }
+  return null;
+}
+
+/**
+ * Refuse a damage type the feature does not offer, before anything is rolled.
+ *
+ * A caller may choose between the types the SRD prints and may not invent one:
+ * Divine Strike is Necrotic or Radiant, and a Cleric asking for Fire is asking
+ * for a rule that does not exist. Checked up front, so a refusal costs neither
+ * a die nor the attack.
+ *
+ * `weapon` is the record the swing resolved, for the reason
+ * {@link weaponRidersFor} takes one: a casting's offer belongs to the object
+ * it imbued, so naming it on a swing with anything else is a choice nobody
+ * offered — the same refusal a feature the holder does not have draws.
+ */
+export function checkFeatureDamageTypes(
+  state: GameState,
+  who: CharacterId,
+  chosen: Readonly<Record<string, string>> | undefined,
+  weapon: Weapon | null = null,
+): Result<true> {
+  if (chosen === undefined) return ok(true);
+  const offered = damageTypesOffered(state, who, weapon);
 
   for (const [feature, type] of Object.entries(chosen)) {
     const allowed = offered.get(feature);

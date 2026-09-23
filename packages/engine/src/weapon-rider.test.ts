@@ -301,6 +301,89 @@ describe('Shillelagh imbues the weapon it was aimed at', () => {
   });
 });
 
+/**
+ * SRD Shillelagh's second sentence, and the half of the shape that was still
+ * open: "If the attack deals damage, it can be Force damage or the weapon's
+ * normal damage type (your choice)."
+ *
+ * **Chosen at each later swing rather than at the casting**, which is why it
+ * is not `damageTypeStated`: the casting pins its numbers and this one is a
+ * decision the druid makes a turn later, with the target's Resistances in
+ * front of them. The vocabulary it borrows is the one a feature's own offer
+ * already uses — `AttackCommand.featureDamageTypes`, a map from what offered
+ * the choice to the type named — and the key here is the *spell's* name, which
+ * is what a source is reported as everywhere else a weapon rider is read.
+ *
+ * It replaces the weapon's type rather than adding a component: "it **can
+ * be** Force damage **or** the weapon's normal damage type" is one type or the
+ * other, so a Force-immune target takes nothing rather than half.
+ */
+describe('Shillelagh offers a damage type at the swing, not at the casting', () => {
+  const enchanted = () =>
+    cast(table(), { spellId: 'shillelagh', targets: [CASTER], weapon: 'quarterstaff' });
+
+  const typesOf = (events: readonly GameEvent[]): readonly string[] => {
+    const record = events.find((event) => event.type === 'damage-dice-recorded');
+    if (record?.type !== 'damage-dice-recorded') throw new Error('no damage dice were recorded');
+    return record.components.map((component) => component.type);
+  };
+
+  it('declares the offer on the definition', () => {
+    const shillelagh = SPELL_DEFINITIONS.find((one) => one.id === 'shillelagh');
+    expect(shillelagh?.effects[0]).toMatchObject({ kind: 'weapon-rider', damageTypes: ['force'] });
+  });
+
+  it('pins the offer into the grant the casting hung', () => {
+    expect(ridersOn(enchanted())[0]?.damageTypes).toEqual(['force']);
+  });
+
+  it('deals the weapon’s own type where nobody names one', () => {
+    expect(typesOf(swing(enchanted(), 'quarterstaff').events)).toEqual(['bludgeoning']);
+  });
+
+  it('deals the type the caster names, in place of the weapon’s', () => {
+    const hit = must(
+      resolveAttack(
+        fold('seed', enchanted()),
+        CASTER,
+        { target: DUMMY, weapon: 'quarterstaff', featureDamageTypes: { Shillelagh: 'force' } },
+        supply(15),
+      ),
+    );
+    expect(typesOf(hit.events)).toEqual(['force']);
+    // The die and the modifier are the ones the first sentence gave it; only
+    // the type moved.
+    expect(hit.damage).toBe(8 + 4);
+  });
+
+  it('refuses a type the spell does not offer, before anything is spent', () => {
+    const refused = resolveAttack(
+      fold('seed', enchanted()),
+      CASTER,
+      { target: DUMMY, weapon: 'quarterstaff', featureDamageTypes: { Shillelagh: 'radiant' } },
+      supply(15),
+    );
+    expect(isErr(refused)).toBe(true);
+    if (isErr(refused)) expect(refused.code).toBe('bad_damage_type');
+  });
+
+  /**
+   * The offer belongs to the object the casting named, so a swing with
+   * anything else has no such choice to make — the same refusal a feature
+   * nobody holds already draws.
+   */
+  it('offers nothing on a weapon the casting did not imbue', () => {
+    const refused = resolveAttack(
+      fold('seed', enchanted()),
+      CASTER,
+      { target: DUMMY, weapon: 'club', featureDamageTypes: { Shillelagh: 'force' } },
+      supply(15),
+    );
+    expect(isErr(refused)).toBe(true);
+    if (isErr(refused)) expect(refused.code).toBe('no_such_feature_choice');
+  });
+});
+
 // — Magic Weapon ——————————————————————————————————————————————————————————
 
 describe('Magic Weapon adds its plus to both rolls', () => {
