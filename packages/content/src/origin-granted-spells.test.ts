@@ -414,6 +414,12 @@ describe('what the catalogue refuses at the door', () => {
  * level does.
  */
 describe('a character made before the trait asked anything', () => {
+  /** The same choices with the answer taken back out. */
+  const unanswered = ({
+    featureSpellcasting: _answered,
+    ...choices
+  }: CharacterChoices): CharacterChoices => choices;
+
   /**
    * The record as it was written then: the log this engine has already stored
    * carries the choices a character was made with, and those choices have no
@@ -421,12 +427,6 @@ describe('a character made before the trait asked anything', () => {
    * taking the field back out of the stored `character-created`, which is
    * exactly what such a log holds.
    */
-  /** The same choices with the answer taken back out. */
-  const unanswered = ({
-    featureSpellcasting: _answered,
-    ...choices
-  }: CharacterChoices): CharacterChoices => choices;
-
   const asStored = (): GameEvent[] =>
     (unwrap(createCharacter(SRD_CONTENT, tiefling(), WHO), 'creation') as GameEvent[]).map(
       (event) => {

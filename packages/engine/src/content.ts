@@ -4106,12 +4106,14 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
             // with none and grants nothing, silently, to everybody who takes
             // the species.
             //
-            // **Asked of an origin and of nothing else**, which is the scope
-            // `free_casting_without_a_caster` above already keeps: a class
-            // feature's spells are cast off the *class's* ability, so
-            // `choiceFrom` on one is the gate pointer and nothing more, and a
-            // class writing "one of the following options" with the question
-            // on a sibling is a legal thing to write.
+            // **Asked of an origin and of nothing else.** It is the same
+            // question `free_casting_without_a_caster` above asks — where does
+            // the ability come from — and a different answer, which is why the
+            // two scopes differ: a class's spells are cast off the *class's*
+            // ability, so `choiceFrom` on a class feature is the gate pointer
+            // and nothing more, and a class writing "one of the following
+            // options" with the question on a sibling is a legal thing to
+            // write. An origin has no ability but the one a trait asked for.
             if (
               source.origin === true &&
               from !== undefined &&

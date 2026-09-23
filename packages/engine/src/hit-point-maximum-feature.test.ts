@@ -212,6 +212,74 @@ describe('a species trait that raises the hit point maximum', () => {
 });
 
 /**
+ * And the level a trait that belongs to no class is read at.
+ *
+ * A class table is read at that class's own level; a species has no table and
+ * its sentences are written in character levels, so a column on an origin
+ * feature is read at the **character's**. The fallback used to be the starting
+ * class's level, which is the same number for everybody who never
+ * multiclassed and quietly wrong for everybody who did.
+ */
+describe('a column on a feature that belongs to no class', () => {
+  const STONEBORN = {
+    id: 'stoneborn',
+    name: 'Stoneborn',
+    creatureType: 'Humanoid',
+    sizes: ['Medium'],
+    speed: 30,
+    features: [
+      {
+        id: 'stoneborn:enduring',
+        name: 'Enduring',
+        level: 1,
+        automation: 'engine',
+        note: 'One use per character level, which is the only level a species has.',
+        grants: {
+          kind: 'pool',
+          key: 'enduring',
+          label: 'Enduring',
+          usesByLevel: Array.from({ length: 20 }, (_, index) => index + 1),
+          recovers: 'long-rest',
+          heals: { dice: '1d4', plus: 'class-level', action: 'bonus-action' },
+        },
+      },
+    ],
+  };
+
+  const world = unwrap(extendContent(CONTENT, { species: [STONEBORN as never] }), 'extend');
+
+  const uses = (choices: CharacterChoices): number | undefined =>
+    unwrap(createCharacter(world, choices, WHO), 'create')
+      .flatMap((event) =>
+        event.type === 'resource-pool-declared' ? [event.pool as { key: string; max: number }] : [],
+      )
+      .find((pool) => pool.key === 'enduring')?.max;
+
+  it('is read at the character’s level, whichever class came first', () => {
+    expect(uses(warden(5, 'stoneborn'))).toBe(5);
+    // A Warden 3 / Fighter 2 is a level 5 character, and the trait is the
+    // character's rather than either class's.
+    expect(
+      uses(
+        warden(3, 'stoneborn', {
+          multiclass: [{ classId: 'fighter', level: 2 }],
+          feats: {
+            'sage:magic-initiate-wizard': {
+              featId: 'magic-initiate',
+              spellList: 'wizard',
+              spellcastingAbility: 'int',
+              cantrips: ['mage-hand', 'ray-of-frost'],
+              levelOneSpell: 'find-familiar',
+            },
+            'fighter:fighting-style': { featId: 'defense' },
+          },
+        }),
+      ),
+    ).toBe(5);
+  });
+});
+
+/**
  * The vocabulary is the engine's and the trait is content's, so a world that
  * is not the SRD says the same sentence through the same door — and is
  * refused the two ways of writing a number that is not one.
