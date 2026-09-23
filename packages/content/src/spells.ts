@@ -3414,16 +3414,16 @@ export const LIGHT: SpellDefinition = {
   castingTime: 'action',
   concentration: false,
   range: { kind: 'touch' },
-  targets: { count: 0 },
-  effects: [],
+  // The bearer of the object: the SRD touches "one Large or smaller object",
+  // the engine holds no objects, and the object that matters is in somebody's
+  // hand — so the casting names the creature carrying it, the caster included,
+  // and the light goes where they go.
+  targets: { count: 1, self: true },
+  effects: [{ kind: 'light', level: 'bright', radius: 20, dimBeyond: 20 }],
   durationSeconds: 3600,
-  // "The spell ends if you cast it again." Mage Hand's sentence word for
-  // word, and the field that reads it has existed since Mage Hand was
-  // written; this definition simply never carried it.
   replacesPriorCasting: true,
   unmodelled: [
-    'the spell targets an object, and objects are not modelled — which object was touched, and whether it is worn or carried by someone else, are the DM’s',
-    'Bright Light in a 20-foot radius and Dim Light beyond it are not modelled; the engine has no lighting',
+    'the spell targets an object, and objects are not modelled: the casting names the creature carrying it, and which object that is, and whether it is worn or carried by someone else, are the DM’s. An object nobody carries is a point the table lights with `declare_light`',
     'covering the object with something opaque is the DM’s, because what is over an object is a fact about an object',
   ],
 };
@@ -3510,12 +3510,12 @@ export const DARKVISION: SpellDefinition = {
   castingTime: 'action',
   concentration: false,
   range: { kind: 'touch' },
-  targets: { count: 1 },
-  effects: [],
+  targets: { count: 1, self: true },
+  // SRD: "the target has Darkvision with a range of 150 feet" — a sense the
+  // casting confers, read beside the ones a species grants at the longest
+  // range held, and gone when the eight hours are.
+  effects: [{ kind: 'sense', sense: 'darkvision', feet: 150 }],
   durationSeconds: 28_800,
-  unmodelled: [
-    'Darkvision is not modelled; sight is declared per pair of creatures rather than derived from light and senses',
-  ],
 };
 
 /**
@@ -4022,13 +4022,14 @@ export const CONTINUAL_FLAME: SpellDefinition = {
   castingTime: 'action',
   concentration: false,
   range: { kind: 'touch' },
-  targets: { count: 0 },
-  effects: [],
+  // The bearer, for Light's reason: the flame springs from an object in
+  // somebody's hand, and the light it casts goes where the hand goes.
+  targets: { count: 1, self: true },
+  effects: [{ kind: 'light', level: 'bright', radius: 20, dimBeyond: 20 }],
   untilDispelled: true,
   unmodelled: [
-    'the flame springs from an object, and objects are not modelled: which object was touched is the DM’s',
-    'Bright Light in a 20-foot radius and Dim Light beyond it are not applied; the engine has no lighting, exactly as it has none for Light',
-    'a duration of “Until dispelled” is no deadline at all, so no timer is scheduled and the casting simply runs',
+    'the flame springs from an object, and objects are not modelled: the casting names the creature carrying it, and which object was touched is the DM’s. An object set down for good is a point the table lights with `declare_light`',
+    'a duration of “Until dispelled” is no deadline at all, so no timer is scheduled and the casting simply runs, its light with it',
   ],
 };
 
@@ -7229,12 +7230,25 @@ export const DANCING_LIGHTS: SpellDefinition = {
   concentration: true,
   range: { kind: 'ranged', feet: 120 },
   targets: { count: 0 },
+  // One patch for the four motes: the SRD's "up to four torch-size lights"
+  // shed Dim Light in a 10-foot radius each, and the engine lays one dim
+  // sphere at the point the caster names, which the table puts where the
+  // nearest mote is. The 20-foot tether between two lights is the DM's.
+  area: { kind: 'sphere', radius: 10, origin: 'point' },
+  areaLight: { level: 'dim' },
   effects: [],
   durationSeconds: 60,
+  // SRD: "As a Bonus Action, you can move the lights up to 60 feet to a new
+  // spot within range." The area moves, and the light it sheds is laid again
+  // where it lands.
+  activation: {
+    action: 'bonus-action',
+    movesArea: 60,
+    label: 'Dancing Lights (the lights move)',
+    effects: [],
+  },
   unmodelled: [
-    'the lights are not in the world: four torch-size lights, or one glowing Medium form, are the DM’s, and nothing can be positioned at, moved with or seen by them',
-    'the Dim Light each one sheds in a 10-foot radius is not applied; the engine has no lighting',
-    'the Bonus Action that moves the lights up to 60 feet is not offered, and neither the 20-foot tether between two lights nor a light vanishing outside the spell’s range is checked — the lights have no positions to measure',
+    'You create up to four torch-size lights within range, or one glowing Medium form: the engine lays one dim patch for all four, placed where the table says the nearest mote is, and the 20-foot tether between two lights and a light vanishing outside the spell’s range are the DM’s',
   ],
 };
 
@@ -7768,19 +7782,27 @@ export const FAERIE_FIRE: SpellDefinition = {
     {
       kind: 'save',
       ability: 'dex',
-      // "affected creatures ... can't benefit from the Invisible condition",
-      // and no condition of its own: the outline is not a state the rules
-      // read, and the one thing the sentence does to the rules is take a
-      // benefit away. No `lasts`, because the casting is a minute of
-      // Concentration and both doors that end it hand the benefit back.
-      modifiers: [{ kind: 'benefit', denies: 'invisible' }],
+      modifiers: [
+        { kind: 'benefit', denies: 'invisible' },
+        // SRD: "Attack rolls against an affected creature or object have
+        // Advantage if the attacker can see it." A mode hung on the outlined
+        // creature for the casting, gated on the roller's sight of it — the
+        // declaration first, then the roller's senses — and applied with a
+        // note where nobody has said.
+        {
+          kind: 'mode',
+          modifier: {
+            mode: 'advantage',
+            selector: { roll: 'attack', relation: 'against-holder', ifRollerSees: true },
+          },
+        },
+      ],
     },
   ],
   durationSeconds: 60,
   unmodelled: [
     'the objects in the Cube are not outlined: objects are not modelled, so which of them the light picks out is the DM’s',
-    'the Dim Light each outlined thing sheds in a 10-foot radius is not applied; the engine has no lighting',
-    '"Attack rolls against an affected creature or object have Advantage if the attacker can see it" is not granted: the Advantage is ordinary and the gate on it is not, because declared sight is a pairwise fact between two creatures and the outline is not a state an attacker’s roll reads',
+    'the Dim Light each outlined thing sheds in a 10-foot radius is not applied: a light a casting carries hangs on its target, and a save’s riders do not yet include one',
   ],
 };
 

@@ -162,6 +162,8 @@ import {
   resolvePassiveDefenseEffect,
   resolveRollModeEffect,
   resolveActionRuleEffect,
+  resolveLightEffect,
+  resolveSenseEffect,
   resolveSpeedEffect,
   resolveWeaponRiderEffect,
 } from './spell-effect-grants.js';
@@ -2152,6 +2154,10 @@ function resolveOneEffect(
       return resolveConditionImmunityEffect(ctx, effect, target, world);
     case 'speed':
       return resolveSpeedEffect(ctx, effect, target, world);
+    case 'light':
+      return resolveLightEffect(ctx, effect, target, world);
+    case 'sense':
+      return resolveSenseEffect(ctx, effect, target, world);
     case 'action-rule':
       return resolveActionRuleEffect(ctx, effect, target, world);
     case 'attack-rider':

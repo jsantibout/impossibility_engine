@@ -59,6 +59,7 @@ import {
 import { type CombatantInput, type GrantedActionRule, type NamedAction } from './combat.js';
 import {
   type GrantedAttackRider,
+  type GrantedSense,
   type GrantedSpeed,
   type GrantedWeaponRider,
   type StandingEffect,
@@ -464,6 +465,16 @@ export type GameEvent =
       readonly type: 'speed-modifier-granted';
       readonly id: CharacterId;
       readonly modifier: GrantedSpeed;
+    }
+  /**
+   * A sense a running effect confers on a creature — SRD Darkvision the
+   * spell. Ended by the source it carries, exactly as the Speed above is:
+   * `releaseCasting`, `releaseOnTarget` and the `grants` timer are the doors.
+   */
+  | {
+      readonly type: 'sense-granted';
+      readonly id: CharacterId;
+      readonly modifier: GrantedSense;
     }
 
   /**

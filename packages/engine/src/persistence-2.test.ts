@@ -681,6 +681,7 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // with `shape: null` on every creature. `wild-shape.test.ts` folds it and
   // drives every ending: the hours, a second use, Incapacitated, death and
   // the Bonus Action, each putting the original sheet back.
+  'sense-granted',
   'shape-assumed',
   'speed-modifier-granted',
   // A line a stat block prints under **Actions** that the parser read nothing

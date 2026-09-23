@@ -808,13 +808,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'The commands the link carries are the target’s actions — not the slots they come out of, which a spell may now spend, but which action is taken and at what. That is a decision, and it is made by somebody who is not playing the creature.',
     },
   ],
-  'faerie-fire': [
-    {
-      clause: 'Attack rolls against an affected creature or object have Advantage if the attacker can see it',
-      why: 'senses-beyond-declared-sight',
-      note: 'the whole spell is executed now — `save.condition` became optional, so the Dexterity save hangs the `benefit` rider that denies the Invisible condition its effects, and the 20-foot Cube is an ordinary `area` picking its own targets. What is left is this sentence and the two that are not mechanics at all. The Advantage is ordinary and the gate on it is not: sight is a pairwise declaration between two creatures, and being outlined is not a state an attacker’s roll reads, so a spell that handed every attacker Advantage would hand it to the blindfolded one too.',
-    },
-  ],
   fear: [
     {
       clause: 'drops whatever it is holding',
@@ -3861,12 +3854,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       why: 'table',
       note: 'which object was touched is the DM’s, because objects are not modelled; and a duration of until dispelled is no deadline at all, so no timer is scheduled and the casting simply runs.',
     },
-    {
-      marker: null,
-      clause: 'The effect casts Bright Light in a 20-foot radius and Dim Light for an additional 20 feet',
-      why: 'light-and-obscurement-the-scene-holds',
-      note: 'the same two radii Light prints, on a casting that never ends — so the flame is the one **permanent** light in level-5 reach, and the lattice would hold it perfectly well: a patch with no `source` is the ordinary case rather than a missing link, which is what SRD Plant Growth’s overgrowth already is. What it has no anchor for is the same thing Light has none for. The flame springs from an object, the object is where somebody is holding it, and the engine holds no objects.',
-    },
   ],
   'create-food-and-water': [
     {
@@ -3889,13 +3876,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: null,
       clause: 'You create up to four torch-size lights within range',
       why: 'table',
-      note: 'the lights have no positions, so the Bonus Action that moves them 60 feet, the 20-foot tether between two of them and a light vanishing outside the spell’s range are all measurements of things that are not in the scene.',
-    },
-    {
-      marker: null,
-      clause: 'each light sheds Dim Light in a 10-foot radius',
-      why: 'light-and-obscurement-the-scene-holds',
-      note: 'the cantrip a level 1 Bard, Druid, Sorcerer or Wizard can take that does exactly one mechanical thing, and the thing it does is four of them at once. A level of light has somewhere to sit since P3-S; **four** of them have not, because each mote is its own patch on its own origin and the clause above is why none of the four has one — the lights have no positions, so there is nothing to lay a 10-foot radius around, four times over.',
+      note: 'the four motes are one dim patch the table places where the nearest mote is; the 20-foot tether between two lights and a light vanishing outside the spell’s range are the DM’s.',
     },
   ],
   'detect-evil-and-good': [

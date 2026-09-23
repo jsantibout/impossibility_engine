@@ -19,6 +19,7 @@ import { ABILITY_NAMES, type CharacterId, err, ok, type Result } from '@ie/share
 import { type D20TestResult, rollSavingThrow } from '../checks.js';
 import { applyEvent, type CreatureState, type GameState } from '../events.js';
 import { weaponRiderBonusAt, weaponRiderDieAt } from '../spell-definitions.js';
+import { lightDispelledBy, type TerrainRegion } from '../positioning.js';
 import { armorClassOf, sheetAsItStands, speedOf } from '../standing.js';
 import { alteredRiderDice, recordD20Test, savingSupport } from './rolls.js';
 import { complementType, type PassiveDefenseState } from '../passive-defenses.js';
@@ -590,4 +591,88 @@ export function resolveConditionImmunityEffect(
   current = events.slice(-1).reduce(applyEvent, current);
   outcomes.push({ target, affected: true });
   return ok(current);
+}
+
+/**
+ * Light the casting sheds from a thing its target carries — SRD Light,
+ * Continual Flame.
+ *
+ * Two patches on a region whose origin is the **creature**, so the light
+ * moves when they do and nothing is written for the move — the shape
+ * `carriedLight` gives a beetle's own glow, and the shape a Darkness cast on
+ * a point deliberately does not have. Magical, because a spell shed it, at
+ * the spell's own level, which is what the book's mutual dispel compares; and
+ * sourced to the casting, so `livePatchesOf` drops it the moment the casting
+ * leaves `state.ongoing`. A magical darkness the bright patch lands over is
+ * put out where the book says it is, by the same `lightDispelledBy` a
+ * Daylight uses.
+ */
+export function resolveLightEffect(
+  ctx: EffectContext,
+  effect: EffectOfKind<'light'>,
+  target: CharacterId,
+  world: GameState,
+): Result<GameState> {
+  const { source, events, outcomes, held } = ctx;
+  const spellLevel = ctx.origin.kind === 'casting' ? ctx.origin.definition.level : ctx.castLevel;
+  const name = ctx.origin.kind === 'casting' ? ctx.origin.definition.name : source;
+  // The patch lapses with the casting's own record, so it is sourced to the
+  // casting **id** — the key `state.ongoing` holds — and not to the labelled
+  // source the grants above carry. A light an item confers (none does today)
+  // has no record to lapse with and is left standing, as a declared patch is.
+  const lapsesWith = ctx.origin.kind === 'casting' ? { source: ctx.origin.castingId } : {};
+  const sphere = (radius: number): TerrainRegion => ({
+    origin: { creature: target },
+    shape: { kind: 'sphere', radius },
+  });
+
+  const before = events.length;
+  events.push({
+    type: 'light-declared',
+    patch: `${name} light (${source}) on ${target}`,
+    region: sphere(effect.radius),
+    level: effect.level,
+    magical: { spellLevel },
+    ...lapsesWith,
+  });
+  for (const dispelled of lightDispelledBy(world, sphere(effect.radius), effect.level, spellLevel)) {
+    events.push({ type: 'spell-ended', castingId: dispelled, on: null, reason: 'dispelled' });
+  }
+  if (effect.dimBeyond !== undefined) {
+    events.push({
+      type: 'light-declared',
+      patch: `${name} dim light (${source}) on ${target}`,
+      region: sphere(effect.radius + effect.dimBeyond),
+      level: 'dim',
+      magical: { spellLevel },
+      ...lapsesWith,
+    });
+  }
+
+  held.add(target);
+  outcomes.push({ target, affected: true });
+  return ok(events.slice(before).reduce(applyEvent, world));
+}
+
+/**
+ * A sense the casting confers — SRD Darkvision: "the target has Darkvision
+ * with a range of 150 feet." The same shape as the Speed above: nothing is
+ * rolled, the casting is in the source, and `releaseCasting` takes it back
+ * with the spell.
+ */
+export function resolveSenseEffect(
+  ctx: EffectContext,
+  effect: EffectOfKind<'sense'>,
+  target: CharacterId,
+  world: GameState,
+): Result<GameState> {
+  const { source, events, outcomes, held } = ctx;
+  held.add(target);
+  events.push({
+    type: 'sense-granted',
+    id: target,
+    modifier: { source, sense: effect.sense, feet: effect.feet },
+  });
+  outcomes.push({ target, affected: true });
+  return ok(events.slice(-1).reduce(applyEvent, world));
 }

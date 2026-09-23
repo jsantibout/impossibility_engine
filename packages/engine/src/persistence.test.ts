@@ -298,6 +298,7 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'rolls-issued',
   'scene-set',
   'scheduled-damage-collected',
+  'sense-granted',
   'shape-assumed',
   'sight-declared',
   'speed-modifier-granted',

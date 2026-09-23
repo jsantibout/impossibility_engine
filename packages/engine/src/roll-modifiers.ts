@@ -227,6 +227,19 @@ export interface RollSelector {
    */
   readonly unlessPerceivedWith?: readonly SenseName[];
   /**
+   * SRD Faerie Fire: "Attack rolls against an affected creature or object
+   * have Advantage **if the attacker can see it**." The roller's sight of the
+   * creature rolled against, asked of `canSee` — the declaration first, then
+   * the roller's senses against the holder's space — so a grant on an
+   * outlined creature is nothing to a blindfolded attacker. Only on
+   * `against-holder`, for the reason the sense clause above is.
+   *
+   * Three-valued like every sight question: where nobody has said, the mode
+   * is applied and the roll reports it, which is the direction every
+   * unsettled clause takes.
+   */
+  readonly ifRollerSees?: true;
+  /**
    * The condition this saving throw is **about** — what it would avoid or end.
    *
    * The axis the SRD writes four times over and the vocabulary had no room
@@ -396,6 +409,7 @@ export function rollModifierKey(source: string, selector: RollSelector): string 
     // the same exception whichever order a definition wrote them in, and two
     // spellings of one sentence must not become two grants.
     [...(selector.unlessPerceivedWith ?? [])].sort().join(','),
+    selector.ifRollerSees === true ? 'if-roller-sees' : '',
     selector.condition ?? '',
   ].join('|');
 }
@@ -452,6 +466,12 @@ export interface RollQuery {
    * engine holds outright rather than one the table declares.
    */
   readonly rollerPerceives?: readonly SenseName[];
+  /**
+   * Whether the roller can see the creature rolled against, as `canSee`
+   * answers it: yes, no, or nobody has said. Read by a selector gated
+   * `ifRollerSees`; absent applies such a grant and is reported.
+   */
+  readonly rollerSees?: boolean | null;
   /**
    * The conditions this roll would **avoid or end**, where it is about any.
    *
@@ -548,6 +568,11 @@ export function selectorMatches(
     const perceived = query.rollerPerceives ?? [];
     if (selector.unlessPerceivedWith.some((sense) => perceived.includes(sense))) return false;
   }
+
+  // SRD Faerie Fire: "if the attacker can see it". A declared *no* withholds
+  // the mode; a yes or a silence applies it, and `rollModesFor` reports the
+  // silence — see {@link unsettledSightGrants}.
+  if (selector.ifRollerSees === true && query.rollerSees === false) return false;
 
   // SRD Magic Resistance: "Advantage on saving throws against spells and other
   // magical effects." A roll nobody classified is a miss, not a guess — see
@@ -686,6 +711,22 @@ export function rollSelectorProblems(
 
   // The condition a save is about. Two refusals, and the second is a limit of
   // this engine rather than of the SRD — see {@link RollSelector.condition}.
+  if (selector.ifRollerSees !== undefined) {
+    if (selector.ifRollerSees !== true) {
+      found.push({
+        code: 'bad_sight_gate',
+        reason: '"if the attacker can see it" is written ifRollerSees: true, or left off',
+      });
+    }
+    if (selector.relation !== 'against-holder') {
+      found.push({
+        code: 'sight_gate_off_against_holder',
+        reason:
+          'the engine reads whether the roller can see the creature rolled against, so a sight gate can only govern a roll made against the holder — on a "roller" selector there is nobody to be seen',
+      });
+    }
+  }
+
   if (selector.condition !== undefined) {
     if (!CONDITIONS.includes(selector.condition)) {
       found.push({
@@ -806,6 +847,27 @@ export function grantedRollModes(state: GameState, query: RollQuery): readonly M
   }
 
   return modes;
+}
+
+/**
+ * The granted modes this roll applies although nobody has said whether the
+ * roller can see the creature rolled against — SRD Faerie Fire's gate, left
+ * unsettled. Reported by `rollModesFor` beside the modes, so a table that
+ * never declared the sight line is told what was assumed.
+ */
+export function unsettledSightGrants(state: GameState, query: RollQuery): readonly string[] {
+  if (query.rollerSees !== undefined && query.rollerSees !== null) return [];
+  const sources = new Set<string>();
+  for (const holder of Object.keys(state.creatures).sort()) {
+    const creature = state.creatures[holder];
+    if (creature === undefined) continue;
+    for (const held of creature.rollModifiers) {
+      if (held.modifier.selector.ifRollerSees !== true) continue;
+      if (!selectorMatches(held.modifier.selector, holder as CharacterId, query)) continue;
+      sources.add(held.source);
+    }
+  }
+  return [...sources].sort();
 }
 
 /** One creature's grant, named the way the deadline on it is named. */

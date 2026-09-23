@@ -30,6 +30,7 @@ import {
   describeRecharge,
   distanceBetween,
   movementLeftFor,
+  lightAt,
   positionOf,
   remaining,
   speedOf,
@@ -213,6 +214,12 @@ export interface ObservedCreature {
   readonly stable: boolean;
   readonly armorClass: number;
   readonly speed: number;
+  /**
+   * The light over the creature's own space: the glossary's level, and whether
+   * a casting made it. Null where the scene has said nothing and no patch lies
+   * there, or where the creature is not placed.
+   */
+  readonly light: { readonly level: string; readonly magical: boolean } | null;
   readonly creatureType: string | null;
   readonly conditions: readonly string[];
   readonly carrying: readonly string[];
@@ -469,6 +476,15 @@ const feet = (state: GameState, a: CharacterId, b: CharacterId): number | null =
   return apart.ok ? apart.value : null;
 };
 
+/** The light over a placed creature's space, as the engine answers it. */
+function litSpace(state: GameState, who: CharacterId): ObservedCreature['light'] {
+  if (state.scene === null) return null;
+  const here = positionOf(state.scene, who);
+  if (here === null) return null;
+  const light = lightAt(state, here);
+  return light.level === null ? null : { level: light.level, magical: light.magical };
+}
+
 export function observe(state: GameState): Observation {
   const ids = Object.keys(state.creatures).sort();
   const combat = state.combat;
@@ -492,6 +508,7 @@ export function observe(state: GameState): Observation {
       stable: c.vitals.stable,
       armorClass: armorClassOf(state, c.id),
       speed: speedOf(state, c.id),
+      light: litSpace(state, c.id),
       creatureType: c.creatureType ?? null,
       conditions: c.conditions.conditions,
       carrying: carrying(state, c.id).map((line) => line.id),

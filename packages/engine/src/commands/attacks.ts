@@ -87,6 +87,7 @@ import {
   strikeStyleFor,
   type HitOption,
   type StrikeStyle,
+  canSee,
 } from '../standing.js';
 import { benefitsFrom } from '../conditions.js';
 import { resolveDuration, timeView, turnAnchored } from '../time.js';
@@ -1559,6 +1560,7 @@ export function resolveAttack(
       against: command.target,
       ability,
       rollerPerceives: sensesPerceiving(state, id, command.target),
+      rollerSees: canSee(state, id, command.target),
     })) {
       events.push({ type: 'roll-modifier-consumed', id: spent.holder, source: spent.source });
     }
