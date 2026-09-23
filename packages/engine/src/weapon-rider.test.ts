@@ -15,6 +15,7 @@ import {
   advanceTime,
   releaseReady,
   resolveAttack,
+  resolveAttackDamage,
   resolveSpell,
   takeReady,
 } from './commands.js';
@@ -365,6 +366,32 @@ describe('Shillelagh offers a damage type at the swing, not at the casting', () 
     );
     expect(isErr(refused)).toBe(true);
     if (isErr(refused)) expect(refused.code).toBe('bad_damage_type');
+  });
+
+  /**
+   * **And on the far side of a hold**, which is where the choice belongs for a
+   * held blow: the type is named when the damage is rolled rather than when it
+   * landed, so a Shield the target answered with never reaches the question.
+   */
+  it('takes the type at the settlement of a held hit', () => {
+    const held = must(
+      resolveAttack(
+        fold('seed', enchanted()),
+        CASTER,
+        { target: DUMMY, weapon: 'quarterstaff', hold: true },
+        supply(15),
+      ),
+    );
+    const landed = [...enchanted(), ...held.events];
+    const settled = must(
+      resolveAttackDamage(
+        fold('seed', landed),
+        CASTER,
+        { featureDamageTypes: { Shillelagh: 'force' } },
+        supply(15),
+      ),
+    );
+    expect(typesOf(settled.events)).toEqual(['force']);
   });
 
   /**

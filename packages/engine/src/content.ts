@@ -295,19 +295,22 @@ export const READABLE_FEATURE_FIELDS: ReadonlySet<string> = new Set([
  * answer. An item granting a Swim Speed is a real SRD item and a real gap;
  * refusing it by name is how the gap stays visible instead of becoming a
  * transcribed item whose benefit silently never applies.
+ *
+ * **`attack-bonus` is the second exception, and for the opposite reason**:
+ * `standingBonuses` does reach it from an item, and the narrowing it would
+ * need is the one that branch has not got. An item's benefit is "made with
+ * **this** magic weapon", which is `onlyWithItem` — `flat-bonus` carries the
+ * field and the gatherer honours it — and an ability-sized bonus has no such
+ * field, because the SRD sentence it was built for is a subclass feature's
+ * rather than an item's. A blade admitted here would add its wielder's
+ * Charisma to every swing they made with anything, which is a benefit
+ * misapplied rather than one never applied: strictly worse than the refusal.
+ * The day an item prints the sentence, the field comes with it.
  */
 export const ITEM_EFFECT_KINDS: ReadonlySet<string> = new Set([
   'roll-mode',
   'save-bonus',
   'check-bonus',
-  // The third family of the same derivation, admitted on the same test as the
-  // two above it: `standingBonuses` walks `standingFor`, which a worn item's
-  // grants are already part of, so a blade that added its wielder's Charisma
-  // to its own attack rolls would be executed rather than transcribed and
-  // ignored. SRD prints the sentence on a subclass feature rather than on an
-  // item; the list's rule is what a reader reaches, not what the book happens
-  // to have written.
-  'attack-bonus',
   'flat-bonus',
   'condition-immunity',
   'damage-resistance',
@@ -392,15 +395,21 @@ export const ITEM_EFFECT_KINDS: ReadonlySet<string> = new Set([
 /**
  * Every kind of standing benefit there is, for the holders that are not items.
  *
- * Derived rather than restated: it is {@link ITEM_EFFECT_KINDS} plus the one
- * member that list withholds, and `content.test.ts` holds that list equal to
+ * Derived rather than restated: it is {@link ITEM_EFFECT_KINDS} plus the two
+ * members that list withholds, and `content.test.ts` holds that list equal to
  * the union in `standing.ts` in both directions — so this stays exactly the
- * union without anybody keeping it so. The withheld member is `speed`, and the
- * reason it is withheld from an *item* is the reason it belongs here: `speedOf`
- * gathers Speed from the sheet alone, and a feat's grant is compiled onto the
- * sheet.
+ * union without anybody keeping it so. `speed` is withheld from an *item* for
+ * the reason it belongs here: `speedOf` gathers Speed from the sheet alone,
+ * and a feat's grant is compiled onto the sheet. `attack-bonus` is withheld
+ * for the narrowing an item's sentence would need and this one has not got,
+ * and belongs here because a feat's is its holder's own and reaches every
+ * swing the weapon clause admits, which is exactly what it says.
  */
-export const STANDING_GRANT_KINDS: ReadonlySet<string> = new Set([...ITEM_EFFECT_KINDS, 'speed']);
+export const STANDING_GRANT_KINDS: ReadonlySet<string> = new Set([
+  ...ITEM_EFFECT_KINDS,
+  'speed',
+  'attack-bonus',
+]);
 
 /**
  * What a feat says about ability scores: the question it asks, the ceiling it

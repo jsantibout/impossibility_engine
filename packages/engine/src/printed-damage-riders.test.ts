@@ -7,6 +7,7 @@ import {
   declareCreatureSide,
   placeCreatureInScene,
   resolveAttack,
+  resolveAttackDamage,
   setScene,
 } from './commands.js';
 import { createRng, type Rng } from './dice.js';
@@ -74,7 +75,7 @@ function field(blockId: string): GameEvent[] {
 }
 
 /** Half the printed maximum, rounded up, which is one point past Bloodied. */
-const hurt = (log: GameEvent[], who: CharacterId): GameEvent[] => {
+const hurt = (log: readonly GameEvent[], who: CharacterId): GameEvent[] => {
   const creature = fold(SEED, log).creatures[who]!;
   return [
     ...log,
@@ -135,6 +136,46 @@ const swing = (
     if (out.attack?.hit === true && out.attack.critical === false) return out.events;
   }
   throw new Error('no seed in forty landed an ordinary hit');
+};
+
+/**
+ * The same swing, held at the hit and settled a call later — which is the path
+ * SRD Shield opens and the one a rider has to survive.
+ *
+ * Both facts the gates read are written down rather than re-derived: the mode
+ * the attack roll was made under is pinned on `attack-landed`, and the Hit
+ * Points are read at the moment the dice are thrown, which for a held blow is
+ * here. So a held swing reproduces the unheld one, and the one place they
+ * deliberately differ — a swarm brought below half *between* the roll and the
+ * blow rolls the lesser die — is the settle reading the world as it stands.
+ */
+const heldSwing = (
+  log: readonly GameEvent[],
+  action: string,
+  modes: readonly { readonly mode: 'advantage' | 'disadvantage'; readonly source: string }[] = [],
+  hurtBetween: CharacterId | null = null,
+): readonly GameEvent[] => {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    const before = fold(SEED, log);
+    const held = unwrap(
+      resolveAttack(
+        before,
+        BITER,
+        { target: PREY, weapon: null, action, free: true, hold: true, modes },
+        supply(`${SEED}:${attempt}`),
+      ),
+      'the held swing',
+    );
+    if (held.attack?.hit !== true || held.attack.critical === true) continue;
+    const landed = [...log, ...held.events];
+    const between = hurtBetween === null ? landed : hurt(landed, hurtBetween);
+    const settled = unwrap(
+      resolveAttackDamage(fold(SEED, between), BITER, {}, supply(`${SEED}:${attempt}:damage`)),
+      'the settlement',
+    );
+    return settled.events;
+  }
+  throw new Error('no seed in forty landed an ordinary held hit');
 };
 
 describe('what `readPrintedRider` makes of a printed damage clause', () => {
@@ -206,6 +247,19 @@ describe('SRD Goblin Warrior: "plus 2 (1d4) Slashing damage if the attack roll h
       { source: 'Scimitar', type: 'slashing', rolled: '1d6', flat: 2 },
     ]);
   });
+
+  /** And the same on the far side of a hold, off the mode the hold pinned. */
+  it('adds it to a held hit too, and only where the hold remembers Advantage', () => {
+    expect(
+      slicesOf(heldSwing(log, 'Scimitar', [{ mode: 'advantage', source: 'the fixture' }])),
+    ).toEqual([
+      { source: 'Scimitar', type: 'slashing', rolled: '1d6', flat: 2 },
+      { source: 'Scimitar', type: 'slashing', rolled: '1d4', flat: 0 },
+    ]);
+    expect(slicesOf(heldSwing(log, 'Scimitar'))).toEqual([
+      { source: 'Scimitar', type: 'slashing', rolled: '1d6', flat: 2 },
+    ]);
+  });
 });
 
 describe('SRD Swarm of Rats: "or 2 (1d4) Piercing damage if the swarm is Bloodied"', () => {
@@ -219,6 +273,22 @@ describe('SRD Swarm of Rats: "or 2 (1d4) Piercing damage if the swarm is Bloodie
 
   it('rolls the lesser die instead once the swarm is Bloodied', () => {
     expect(slicesOf(swing(hurt(log, BITER), 'Bites'))).toEqual([
+      { source: 'Bites', type: 'piercing', rolled: '1d4', flat: 0 },
+    ]);
+  });
+
+  /**
+   * **The Hit Points are read where the dice are thrown**, which for a held
+   * blow is the settlement: a swarm whole when it bit and Bloodied by the time
+   * the damage lands bites for the lesser die. That is the one place the two
+   * paths differ, and it differs because the SRD gate is a fact about the
+   * creature rather than about the roll.
+   */
+  it('reads the swarm’s Hit Points at the settlement of a held hit', () => {
+    expect(slicesOf(heldSwing(log, 'Bites'))).toEqual([
+      { source: 'Bites', type: 'piercing', rolled: '2d4', flat: 0 },
+    ]);
+    expect(slicesOf(heldSwing(log, 'Bites', [], BITER))).toEqual([
       { source: 'Bites', type: 'piercing', rolled: '1d4', flat: 0 },
     ]);
   });

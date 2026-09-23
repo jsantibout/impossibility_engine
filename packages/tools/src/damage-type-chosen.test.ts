@@ -125,6 +125,22 @@ describe('Shillelagh’s "Force damage or the weapon’s normal damage type"', (
     expect(typesDealt(swing)).toEqual(['force']);
   });
 
+  /**
+   * And through `settle_attack`, which is where the choice belongs for a hit
+   * the attacker held open: the type is named when the damage is rolled.
+   */
+  it('takes the type at the settlement of a held hit', () => {
+    const { call } = grove('grove-0');
+    const held = expectOk(
+      call('attack', { attacker: 'nel', target: 'grish', weapon: 'quarterstaff', hold: true }),
+    );
+    expect(held.resolution['held']).toBe(true);
+    const settled = expectOk(
+      call('settle_attack', { attacker: 'nel', damageTypes: { Shillelagh: 'force' } }),
+    );
+    expect(typesDealt(settled)).toEqual(['force']);
+  });
+
   /** A type the sentence does not print, refused before anything is rolled. */
   it('refuses a type the spell does not offer', () => {
     const { call } = grove('grove-0');

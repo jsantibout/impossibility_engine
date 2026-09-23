@@ -689,6 +689,21 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
   'oath-of-devotion:sacred-weapon': [
     {
+      clause: 'reaches every Melee weapon the Paladin swings for the ten minutes rather than the one object they imbued',
+      why: 'a-rider-on-a-later-weapon-attack',
+      note: 'SRD: "imbue **one** Melee weapon that you are holding". The ability-sized number lands now and lands more widely than the book prints it: a standing grant is hung on a creature and narrows by a *kind* of weapon, and the one record in the engine keyed to a particular object is `GrantedWeaponRider` — which only a casting writes. The same gap that shape is named for, arriving at a feature instead of at a spell.',
+    },
+    {
+      clause: 'The Attack action the SRD attaches the imbuing to is not a cost this vocabulary can name',
+      why: 'an-attack-the-class-redefines',
+      note: 'SRD: "**When you take the Attack action**, you can expend one use of your Channel Divinity." An activation costs an action, a Bonus Action or nothing, and this one is attached to an action its holder is already taking — the action-economy half of that shape, beside the breath weapon put in an Attack action’s place. `none` is the nearest of the three and it lets the Paladin imbue at a moment the book does not.',
+    },
+    {
+      clause: 'needs a fact about whose hand an object is in',
+      why: 'a-casting-ended-by-a-trigger',
+      note: 'SRD: "This effect also ends if you aren’t carrying the weapon." That shape’s own description names letting go of an object among the causes with no member, and names Shillelagh for it; this is the same sentence on a feature’s activation, where the vocabulary is `ActivationEnd` rather than `endsEarly` and is just as short of it.',
+    },
+    {
       clause: 'a damage type the holder chooses on each hit',
       why: 'an-attack-the-class-redefines',
       note: 'SRD: "each time you hit with it, you cause it to deal its normal damage type or Radiant damage." That shape’s own description names a damage type chosen on each hit as one of the two halves of it still unbuilt, and this is the feature that prints it; Shillelagh prints the same sentence from the spell side.',

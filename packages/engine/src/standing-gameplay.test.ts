@@ -352,9 +352,12 @@ describe('a multiclassed paladin still radiates, and a junior one does not', () 
     );
     // Nothing that radiates. Sacred Weapon arrives at 3 and is on the sheet,
     // gated on being switched on, so the claim this test makes is about the
-    // aura rather than about the length of the list.
+    // aura rather than about the length of the list — and the remainder is
+    // named rather than dropped, so a second standing effect arriving at a
+    // level below 6 is still a diff somebody has to read.
     const standing = junior.creatures.aelric!.sheet.standing ?? [];
     expect(standing.filter((one) => one.reach.kind === 'aura')).toEqual([]);
+    expect(standing.map((one) => one.feature)).toEqual(['oath-of-devotion:sacred-weapon']);
   });
 });
 
