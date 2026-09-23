@@ -95,6 +95,12 @@ const born = (who: CharacterId, level: number): readonly GameEvent[] =>
 const field = (level: number): readonly GameEvent[] => [
   ...born(BRAM, level),
   ...born(ORC, 1),
+  // Sides, because an Opportunity Attack is offered to an enemy and
+  // `createCharacter` declares nobody's: without them the move below would
+  // provoke nothing whatever the rule said, and the test would pass on an
+  // absence rather than on the rule.
+  { type: 'creature-side-declared', id: BRAM, side: 'party' },
+  { type: 'creature-side-declared', id: ORC, side: 'foes' },
   { type: 'damage-taken', id: BRAM, amount: 20 },
   { type: 'scene-set', extent: { width: 600, depth: 600, height: 40 } },
   { type: 'landmark-added', name: 'the gate', at: { x: 200, y: 200, z: 0 } },
@@ -142,6 +148,12 @@ describe('Second Wind hands a level 5 Fighter half a Speed of movement', () => {
     // Nothing was held open for an Opportunity Attack, and the move is done.
     expect(moved.events.some((e) => e.type === 'movement-declared')).toBe(false);
     expect(moved.events.some((e) => e.type === 'creature-moved')).toBe(true);
+
+    // And the same walk on the turn's own Speed **is** held, which is what
+    // makes the line above a rule rather than an absence: the orc is an enemy,
+    // it is in reach, and it holds its Reaction.
+    const walked = must(resolveMove(state, BRAM, { placement: away(15) }, supply('walk')));
+    expect(walked.events.some((e) => e.type === 'movement-declared')).toBe(true);
 
     const after = applyAll(state, moved.events);
     expect(budget(after)?.movementSpent).toBe(0);
