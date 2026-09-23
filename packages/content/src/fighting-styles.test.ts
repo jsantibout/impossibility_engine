@@ -329,7 +329,7 @@ describe('SRD Great Weapon Fighting: "treat any 1 or 2 on a damage die as a 3"',
   });
 });
 
-describe('the two that are still notes, and what each is really blocked on', () => {
+describe('the one that is still a note, and what it is really blocked on', () => {
   /**
    * Defense's blocker is an **armour** clause, not a weapon one. The union has
    * `unarmored` and `not-wearing-heavy-armor`, which are its opposites, and
@@ -344,9 +344,22 @@ describe('the two that are still notes, and what each is really blocked on', () 
     expect(defense?.note).not.toContain('FEAT_GRANT_KINDS');
   });
 
-  it('leaves Two-Weapon Fighting on the fact no attack carries', () => {
+  /**
+   * And Two-Weapon Fighting has left this describe by building: its note used
+   * to say "the engine does not model which hand an attack came from", and the
+   * book never asks which hand. It asks which Light weapon this turn's Attack
+   * action already swung, which is a fact about the turn, so the feat is a
+   * standing grant that puts the ability modifier back on the extra attack the
+   * property buys.
+   */
+  it('gives Two-Weapon Fighting the grant that puts the modifier back', () => {
     const two = styleOf('two-weapon-fighting');
-    expect(two?.grants).toBeUndefined();
-    expect(two?.note).toContain('hand');
+    expect(two?.grants).toEqual({
+      kind: 'standing',
+      reach: 'self',
+      effects: [{ kind: 'light-extra-attack-damage' }],
+    });
+    expect(two?.note).toContain('Applied');
+    expect(two?.note).not.toContain('does not model which hand');
   });
 });

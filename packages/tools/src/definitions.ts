@@ -212,7 +212,9 @@ import {
   takeDash,
   takeDisengage,
   takeDodge,
+  takeHelp,
   takeHide,
+  takeUtilize,
   takeItemUp,
   takeReady,
   takeOpportunityAttack,
@@ -252,6 +254,7 @@ import {
   routeSchema,
   sensesFields,
   sizeSchema,
+  skillSchema,
 } from './schemas.js';
 
 // — the shape of a definition —————————————————————————————————————————————
@@ -2012,6 +2015,13 @@ const MOVE = tool({
         .describe(
           'The 5-foot spaces this move passed through, in order, ending where it ends. Send it when a move came back `route_required`: the same call again with this filled in is the whole of the answer. Not the answer to `single_steps_required`, which wants the walk re-sent as several calls of one space each.',
         ),
+      using_grant: z
+        .string()
+        .min(1)
+        .optional()
+        .describe(
+          'Spend feet a feature handed this turn instead of the creature\u2019s own Speed \u2014 SRD Tactical Shift is "whenever you activate your Second Wind with a Bonus Action, you can move up to half your Speed without provoking Opportunity Attacks". `sheet` reports what a creature holds and the feature that handed the feet over is the name to send here. The move spends none of the turn\u2019s own movement and provokes nobody, and it may still not end in a space somebody is standing in: that part is what `forced` allows and this is not forced. A grant nothing handed this creature is refused rather than quietly charged to their Speed.',
+        ),
     })
     .and(placementSchema),
   run: (context, args) =>
@@ -2023,6 +2033,7 @@ const MOVE = tool({
         {
           placement: placementOf(args),
           ...(args.forced === true ? { forced: true } : {}),
+          ...(args.using_grant === undefined ? {} : { usingGrant: args.using_grant }),
           ...(args.mode === undefined ? {} : { mode: args.mode }),
           ...(args.jump === undefined
             ? {}
@@ -2116,7 +2127,13 @@ const ATTACK = tool({
     mastery: masterySchema
       .optional()
       .describe(
-        'Use the mastery property of the weapon in hand — Cleave, Graze, Push, Slow and Topple are written "you can", so silence declines them. An empty object uses whatever the weapon prints. A property this character has not unlocked is refused rather than quietly skipped. Nick is the one exception in the other direction: it is accepted and does nothing, because the extra attack it redirects is not paid for by anything the engine has.',
+        'Use the mastery property of the weapon in hand — Cleave, Graze, Push, Slow and Topple are written "you can", so silence declines them. An empty object uses whatever the weapon prints. A property this character has not unlocked is refused rather than quietly skipped. Nick is not asked for here: it changes what **pays** for the Light property’s extra attack rather than what a blow does, so it is `light_attack: "attack-action"` below.',
+      ),
+    light_attack: z
+      .enum(['bonus-action', 'attack-action'])
+      .optional()
+      .describe(
+        'Make this swing the extra attack the **Light** property buys. SRD: "When you take the Attack action on your turn and attack with a Light weapon, you can make one extra attack as a Bonus Action later on the same turn. That extra attack must be made with a different Light weapon, and you don’t add your ability modifier to the extra attack’s damage unless that modifier is negative." So take the Attack action first, then send this with the **other** Light weapon — a different catalogue id, or the same one where the character really has two copies of it. `"attack-action"` is SRD Nick, which pays for the same extra attack out of the Attack action instead and leaves the Bonus Action free; it is refused unless the weapon prints that property and the character has unlocked it. One extra attack a turn either way, and the ability modifier comes back only for a character with the Two-Weapon Fighting fighting style.',
       ),
     onHit: hitRiderSchema
       .optional()
@@ -2139,6 +2156,7 @@ const ATTACK = tool({
           ...(args.finesseAbility === undefined ? {} : { finesseAbility: args.finesseAbility }),
           ...(args.hold === true ? { hold: true } : {}),
           ...(args.mastery === undefined ? {} : { mastery: masteryOf(args.mastery) }),
+          ...(args.light_attack === undefined ? {} : { lightAttack: args.light_attack }),
           ...(args.onHit === undefined ? {} : { onHit: args.onHit }),
           ...identity(context),
         },
@@ -3532,17 +3550,17 @@ const CONFER_REACTION = tool({
 const TAKE_ACTION = tool({
   name: 'take_action',
   description:
-    'Take Dodge, Dash, Disengage or Hide. Each costs what the book charges unless something running on the creature says otherwise — SRD Cunning Action and SRD Adrenaline Rush are the two the book writes this way — and where something does, `from` is how it is invoked. A slot nothing has granted this creature is refused rather than charged at the usual price. A Hide is the one that can be refused for reasons other than the price: it needs cover or darkness and needs to be out of every enemy’s sight, and where nobody has said whether an enemy can see the hider you are asked rather than refused.',
+    'Take Dodge, Dash, Disengage, Hide, Utilize or Help. Each costs what the book charges unless something running on the creature says otherwise — SRD Cunning Action, SRD Adrenaline Rush and SRD Fast Hands are the three the book writes this way — and where something does, `from` is how it is invoked. A slot nothing has granted this creature is refused rather than charged at the usual price. A Hide is the one that can be refused for reasons other than the price: it needs cover or darkness and needs to be out of every enemy’s sight, and where nobody has said whether an enemy can see the hider you are asked rather than refused. A Utilize is what an object that takes an action costs, and what buys the second object interaction of a turn. A Help gives one ally Advantage on their next ability check with a skill you are proficient with, or on their next attack roll against an enemy within 5 feet of you, until they use it or the start of your next turn. Search, Study and Influence are the DM’s door rather than this one, because each of them needs a DC.',
   mutates: true,
   input: z
     .object({
       who: creatureId,
-      kind: z.enum(['dodge', 'dash', 'disengage', 'hide']),
+      kind: z.enum(['dodge', 'dash', 'disengage', 'hide', 'utilize', 'help']),
       from: z
         .enum(['action', 'bonus-action', 'reaction'])
         .optional()
         .describe(
-          'Which slot to pay a Dash, a Disengage or a Hide out of, where something running on the creature has made a cheaper one available — SRD Cunning Action’s "Dash, Disengage, or Hide" as a Bonus Action, SRD Adrenaline Rush’s Dash. `sheet` lists the features a character holds. Omit for what the book charges, which is an Action. A slot nothing has granted this creature is refused, and so is one no command charges at all. A Dodge takes none.',
+          'Which slot to pay a Dash, a Disengage, a Hide or a Utilize out of, where something running on the creature has made a cheaper one available — SRD Cunning Action’s "Dash, Disengage, or Hide" as a Bonus Action, SRD Adrenaline Rush’s Dash, SRD Fast Hands’ Utilize. `sheet` lists the features a character holds. Omit for what the book charges, which is an Action. A slot nothing has granted this creature is refused, and so is one no command charges at all. A Dodge and a Help take none.',
         ),
       obscured: z
         .boolean()
@@ -3550,14 +3568,63 @@ const TAKE_ACTION = tool({
         .describe(
           'True when the hider is Heavily Obscured — in fog, in darkness, in a cloud of the stuff. SRD Hide asks for that *or* Three-Quarters or Total Cover, and the engine models no light, so this is yours to state and cover is declared through `declare_cover`. Half Cover is not enough and never stands in for it. Only a Hide takes it.',
         ),
+      object: z
+        .string()
+        .min(1)
+        .optional()
+        .describe(
+          'What is being used, in your own words: "the lever", "the winch". Recorded in the log and nothing else — what the object does is the table’s. Only a Utilize takes it.',
+        ),
+      ally: creatureId
+        .optional()
+        .describe('The ally a Help is for. Required for a Help and taken by nothing else.'),
+      skill: skillSchema
+        .optional()
+        .describe(
+          'The skill a Help is offered on, for the ability-check half. SRD asks you to choose one of your **own** proficiencies, so a skill this creature is not proficient with is refused. Exclusive with `enemy`.',
+        ),
+      enemy: creatureId
+        .optional()
+        .describe(
+          'The enemy a Help distracts, for the attack half — the book asks for one within 5 feet of the helper, and the engine measures it where anybody has been placed. Exclusive with `skill`.',
+        ),
     })
-    .refine((value) => value.from === undefined || value.kind !== 'dodge', {
-      error: 'a Dodge costs an Action and cannot be paid for out of a named slot',
+    .refine((value) => value.from === undefined || !['dodge', 'help'].includes(value.kind), {
+      error: 'a Dodge and a Help cost an Action and cannot be paid for out of a named slot',
       path: ['from'],
     })
     .refine((value) => value.obscured === undefined || value.kind === 'hide', {
       error: 'only a Hide asks whether the creature is Heavily Obscured',
       path: ['obscured'],
+    })
+    .refine((value) => value.object === undefined || value.kind === 'utilize', {
+      error: 'only a Utilize names the object being used',
+      path: ['object'],
+    })
+    .refine((value) => value.kind !== 'help' || value.ally !== undefined, {
+      error: 'a Help is for an ally; name which one',
+      path: ['ally'],
+    })
+    .refine((value) => value.ally === undefined || value.kind === 'help', {
+      error: 'only a Help names an ally',
+      path: ['ally'],
+    })
+    .refine(
+      (value) =>
+        value.kind !== 'help' || (value.skill === undefined) !== (value.enemy === undefined),
+      {
+        error:
+          'SRD Help prints two halves and this names one of them: a skill for the ability-check half, or an enemy for the attack half, and never both or neither',
+        path: ['skill'],
+      },
+    )
+    .refine((value) => value.skill === undefined || value.kind === 'help', {
+      error: 'only a Help names a skill here; a DM’s `ability_check` is where a check is asked for',
+      path: ['skill'],
+    })
+    .refine((value) => value.enemy === undefined || value.kind === 'help', {
+      error: 'only a Help names an enemy',
+      path: ['enemy'],
     }),
   run: (context, args) => {
     const state = context.campaign.state();
@@ -3595,12 +3662,41 @@ const TAKE_ACTION = tool({
         }),
       );
     }
+    // Help is the other one that answers with more than its events: the five
+    // feet SRD asks for go unchecked where nobody has been placed, and an
+    // unverified clause is how this surface says so rather than refusing.
+    if (args.kind === 'help') {
+      return settle(
+        context,
+        takeHelp(
+          state,
+          id,
+          args.skill === undefined
+            ? {
+                kind: 'attack',
+                ally: who(args.ally!),
+                enemy: who(args.enemy!),
+                ...identity(context),
+              }
+            : { kind: 'check', ally: who(args.ally!), skill: args.skill, ...identity(context) },
+        ),
+        (value) => value.events,
+        (value) => ({ ...took, helped: args.ally, duplicate: value.duplicate }),
+        (value) => value.unverified,
+      );
+    }
     const command =
       args.kind === 'dodge'
         ? takeDodge(state, id, identity(context))
-        : args.kind === 'dash'
-          ? takeDash(state, id, identity(context), slot)
-          : takeDisengage(state, id, identity(context), slot);
+        : args.kind === 'utilize'
+          ? takeUtilize(state, id, {
+              ...slot,
+              ...(args.object === undefined ? {} : { object: args.object }),
+              ...identity(context),
+            })
+          : args.kind === 'dash'
+            ? takeDash(state, id, identity(context), slot)
+            : takeDisengage(state, id, identity(context), slot);
     return settleEvents(context, command, took);
   },
 });

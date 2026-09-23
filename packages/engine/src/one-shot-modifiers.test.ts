@@ -609,18 +609,24 @@ describe('a one-shot modifier off an attack roll is refused at authoring', () =>
       ],
     }) as unknown as SpellDefinition;
 
-  it('accepts one on an attack roll', () => {
-    expect(checkSpellDefinition(onFamily('attack'))).toEqual([]);
+  /**
+   * **Two families spend one now.** The attack rollers were the first; the
+   * ability-check rollers are the second, and they arrived with the SRD
+   * sentence that needed them — Help's "Advantage on the next ability check
+   * they make with the chosen skill". `resolveTest`, `resolveEffectCheck`, the
+   * escape check and the three glossary actions each emit
+   * `roll-modifier-consumed` through `spentRollModifiers`, so the flag now
+   * promises an ending something keeps on both.
+   */
+  it.each(['attack', 'ability-check'])('accepts one on a %s, which spends it', (roll) => {
+    expect(checkSpellDefinition(onFamily(roll))).toEqual([]);
   });
 
-  it.each(['saving-throw', 'ability-check', 'initiative', 'death-save'])(
-    'refuses one on a %s',
-    (roll) => {
-      expect(checkSpellDefinition(onFamily(roll)).map((p) => p.code)).toContain(
-        'one_shot_off_an_attack',
-      );
-    },
-  );
+  it.each(['saving-throw', 'initiative', 'death-save'])('refuses one on a %s', (roll) => {
+    expect(checkSpellDefinition(onFamily(roll)).map((p) => p.code)).toContain(
+      'one_shot_off_an_attack',
+    );
+  });
 });
 
 /**
@@ -666,18 +672,15 @@ describe('an item may not promise a one-shot nothing spends either', () => {
       ],
     }) as unknown as CatalogueItem;
 
-  it('accepts one on an attack roll, which is the roll that spends it', () => {
-    expect(checkContent({ items: [ring('attack', true)] })).toEqual([]);
+  it.each(['attack', 'ability-check'])('accepts one on a %s, which spends it', (roll) => {
+    expect(checkContent({ items: [ring(roll, true)] })).toEqual([]);
   });
 
-  it.each(['saving-throw', 'ability-check', 'initiative', 'death-save'])(
-    'refuses one on a %s',
-    (roll) => {
-      expect(checkContent({ items: [ring(roll, true)] }).map((p) => p.code)).toContain(
-        'one_shot_off_an_attack',
-      );
-    },
-  );
+  it.each(['saving-throw', 'initiative', 'death-save'])('refuses one on a %s', (roll) => {
+    expect(checkContent({ items: [ring(roll, true)] }).map((p) => p.code)).toContain(
+      'one_shot_off_an_attack',
+    );
+  });
 
   /**
    * **And the family is judged before the ending is.**

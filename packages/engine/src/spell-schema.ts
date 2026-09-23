@@ -1863,9 +1863,11 @@ function checkRollModifier(
   }
 
   // **A grant that says it is spent by a roll, on a roll that spends nothing.**
-  // Only the two attack rollers emit `roll-modifier-consumed`, so the flag is
-  // a promise about an ending that nothing keeps anywhere else — and the
-  // grant would run to its deadline while the definition read as a one-shot.
+  // The attack rollers and the ability-check rollers emit
+  // `roll-modifier-consumed` and nothing else does, so on any other family the
+  // flag is a promise about an ending nothing keeps — and the grant would run
+  // to its deadline while the definition read as a one-shot. Which families
+  // those are is `oneShotProblem`'s to say rather than this comment's.
   // Asked of a readable selector only, for the reason the combination rules
   // below are: a family that is not a family draws its own problem first.
   if (modifier.oneShot === true && readable && ROLL_FAMILIES.has(selector.roll)) {

@@ -106,6 +106,31 @@ export interface MoveCommand extends CommandIdentity {
    */
   readonly forced?: boolean;
   /**
+   * Feet a feature handed this turn, spent instead of the mover's own Speed.
+   *
+   * SRD Tactical Shift: "Whenever you activate your Second Wind with a Bonus
+   * Action, you can move up to half your Speed without provoking Opportunity
+   * Attacks." The feature writes the grant; this is the mover saying they are
+   * spending it, named by the source the log filed it under.
+   *
+   * **Stated rather than inferred, and for {@link DisengageOptions}' reason**:
+   * a grant standing on the turn and a move that could have used it are not
+   * the same thing as a move that did. A creature who walks ten feet and then
+   * Second Winds still holds all fifteen; a creature who spends the grant
+   * keeps all thirty of their own. Only the mover can say which they meant,
+   * and quietly picking one is the substitution every `from` on this surface
+   * promises never to make.
+   *
+   * **Not `forced`, which is the near miss.** That one is movement somebody
+   * else is doing to you: it spends no Speed and provokes nobody, and it also
+   * legalises ending in an occupied space — which SRD forbids only
+   * *willingly*, and a Tactical Shift is entirely willing.
+   *
+   * A grant nothing handed this creature is refused (`no_such_grant`) rather
+   * than falling back on their Speed.
+   */
+  readonly usingGrant?: string;
+  /**
    * Which of the mover's Speeds this move is made with.
    *
    * SRD: "When you move, you can use as much of your Speed as you like ... If
@@ -389,11 +414,47 @@ export function moveWithin(
     const cost =
       ground.value.cost + (charging === 'none' ? 0 : difficult * way.value.surcharge);
 
+    // — the grant this move says it is spending —————————————————————————
+    //
+    // **Refused before anything is spent, and never ignored.** The branch
+    // below can only charge a grant where there is a turn holding one, and a
+    // `usingGrant` that fell past it would have done the two things this
+    // field exists to prevent: spent the creature's own Speed instead, and —
+    // because the suppression read the *field* rather than the spend —
+    // provoked nobody while doing it. So a grant that cannot be charged is a
+    // refusal, which is what {@link MoveCommand.usingGrant} promises.
+    if (command.usingGrant !== undefined) {
+      if (command.forced === true) {
+        return err(
+          'no_such_grant',
+          'forced movement is not the creature\'s own move, so there is no grant of theirs for it to spend',
+        );
+      }
+      if (allowance !== null) {
+        return err(
+          'no_such_grant',
+          'a readied move is paid for by the Reaction that holds it, not out of feet a feature handed a turn',
+        );
+      }
+      if (state.combat === null || state.combat.budgets[id] === undefined) {
+        return err(
+          'no_such_grant',
+          `nothing has handed ${id} a move under ${command.usingGrant}; feet a feature hands over belong to a turn, and there are none here`,
+        );
+      }
+    }
+
     // — what it costs ——————————————————————————————————————————————————————
     //
     // Forced movement is not the creature's own, so it spends none of their
     // Speed. Outside combat there is no budget to spend at all.
     const events: GameEvent[] = [];
+    // Set by the branch that really charged a grant, and read by the
+    // Opportunity Attack question below. **The deed rather than the
+    // declaration**: a field nobody spent must not buy the sentence's
+    // benefit, which is the same rule `disengaged` keeps by reading the
+    // budget rather than the command.
+    let spentFromGrant = false;
     if (allowance !== null) {
       // A readied move: the Reaction paid for it, so no Speed is spent and
       // nothing is recorded against a budget this move does not belong to.
@@ -403,6 +464,34 @@ export function moveWithin(
           `${id} may move up to ${allowance} feet in response, and that move costs ${cost}${becauseOf(state, terrain)}`,
         );
       }
+    } else if (
+      command.usingGrant !== undefined &&
+      state.combat !== null &&
+      state.combat.budgets[id] !== undefined &&
+      command.forced !== true
+    ) {
+      // **Feet a feature handed over, spent out of that grant alone.** The
+      // allowance passed here is the same one the ordinary branch passes and
+      // is not read: `spendMovement` takes the grant's own remainder as the
+      // cap, which is what keeps the turn's thirty feet where they were.
+      const spent = spendMovement(
+        state.combat,
+        id,
+        cost,
+        way.value.allowance,
+        { rules: actionRulesOn(state, id) },
+        command.usingGrant,
+      );
+      if (!spent.ok) {
+        return spent.code === 'not_enough_movement' && terrain.length > 0
+          ? err(
+              'not_enough_movement',
+              `${spent.reason}, and this ${feet}-foot move costs ${cost}${becauseOf(state, terrain)}`,
+            )
+          : spent;
+      }
+      spentFromGrant = true;
+      events.push({ type: 'movement-spent', id, feet: cost, grant: command.usingGrant });
     } else if (
       state.combat !== null &&
       state.combat.budgets[id] !== undefined &&
@@ -449,8 +538,13 @@ export function moveWithin(
     // reach it — and it could not have been taken on the same turn anyway, since
     // Disengage and Ready are both the action.
     const disengaged = allowance === null && state.combat?.budgets[id]?.disengaged === true;
+    // SRD Tactical Shift: "without provoking Opportunity Attacks" — the third
+    // reason a move offers nobody a swing, and the narrowest: it is about
+    // *this* move rather than about the rest of the turn, which is what
+    // separates it from a Disengage. A creature that spends its grant and then
+    // walks provokes on the walking.
     const opportunity =
-      command.forced === true || disengaged
+      command.forced === true || disengaged || spentFromGrant
         ? { provoked: [], unverified: [] }
         : provokedBy(state, supply.content, id, from, to, mode, sheet);
 

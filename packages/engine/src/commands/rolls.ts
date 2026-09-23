@@ -28,6 +28,7 @@ import { type ConditionState, isIncapacitated } from '../conditions.js';
 import { type EffectCheck } from '../timers.js';
 import { type CreatureState, type GameEvent, type GameState } from '../events.js';
 import { distanceBetween } from '../positioning.js';
+import { consumedRollModifiers, type RollQuery } from '../roll-modifiers.js';
 import { type DieRule, type SpellCheck } from '../spell-definitions.js';
 import {
   canSee,
@@ -41,6 +42,38 @@ import {
   standingSaveBonuses,
 } from '../standing.js';
 import { type Supply } from './casting.js';
+
+/**
+ * The `roll-modifier-consumed` events a roll owes, one per grant it used up.
+ *
+ * **Written once because four rollers say it**, and none of them did before
+ * SRD Help: the flag was refused on every family but `attack`, because nothing
+ * else spent one. Help hangs a one-shot Advantage on an **ability check** —
+ * "that ally has Advantage on the next ability check they make with the chosen
+ * skill" — so `resolveTest`, `resolveEffectCheck`, the escape check and the
+ * three glossary actions spend one through this, and `oneShotProblem` narrowed
+ * to the families that still do not.
+ *
+ * **The two attack rollers still spell the loop out and are not four and
+ * five**, which is a fact about their queries rather than about the loop: one
+ * gathers `sensesPerceiving` to spend exactly what it read, and the other
+ * folds each event as it goes because a casting's resolver carries its state
+ * forward. Either could take this helper the day its call site stops needing
+ * the difference; neither is a second copy of the rule, which is
+ * `consumedRollModifiers`.
+ *
+ * The caller passes the very query its `rollModesFor` call used, which is what
+ * keeps "what was read" and "what was spent" from ever disagreeing:
+ * `consumedRollModifiers` asks the same {@link selectorMatches} the gatherer
+ * did.
+ */
+export function spentRollModifiers(state: GameState, query: RollQuery): GameEvent[] {
+  return consumedRollModifiers(state, query).map((spent) => ({
+    type: 'roll-modifier-consumed',
+    id: spent.holder,
+    source: spent.source,
+  }));
+}
 
 /**
  * Turn a completed D20 test into the log's record of it.

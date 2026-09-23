@@ -121,7 +121,7 @@ export const FEATURE_SHAPES = {
   'an-attack-the-class-redefines':
     'a class that changes what an attack **is**. Two of the four ways it does so are built: a `strike-style` grant redefines the die and the ability of a class\'s Unarmed Strike and of the weapons that class names, and the Bonus Action strike it hands out is paid for out of the Bonus Action the economy already holds. What is left is the other two, and they are the ones that touch the action economy or the damage itself — a damage **type** the holder chooses on each hit, and an attack traded for something else: two more Unarmed Strikes bought with a Focus Point, the swing the Light property gives that nothing pays for, a breath weapon put in an Attack action\'s place. `docs/design/characters-and-equipment.md` files the neighbouring half of the same gap — "**Extra attacks inside the Attack action.** The economy counts one Attack action, not the attacks in it".',
   'a-move-a-feature-hands-its-holder':
-    'a move a feature gives away, outside the turn\'s allowance and outside anybody\'s command. `docs/design/space-and-areas.md` records the neighbouring half — "forced movement passes `forced: true`" — and that is a move somebody makes to somebody else. Half your Speed as part of a Bonus Action, a Withdraw that provokes nothing, a Step of the Wind that carries an ally: each is movement no grant kind can offer.',
+    'a move a feature gives away, outside the turn\'s allowance and outside anybody\'s command. `docs/design/space-and-areas.md` records the neighbouring half — "forced movement passes `forced: true`" — and that is a move somebody makes to somebody else. **The counter is built now and the vocabulary is still one sentence wide**: `TurnBudget.grantedMoves` holds feet a feature handed the turn, spent out of no Speed, provoking nobody, and refused where nothing handed them over, and SRD Tactical Shift is the sentence that walks through it — declared on the `heals` block of the use it rides on, which is `recoversSooner`\'s shape one field along. What is left is every sentence that block cannot carry: a move that is not a rider on a pool use at all, one that provokes nothing *for the rest of the turn* rather than for the move it pays for, and one that carries somebody **else** — a Step of the Wind\'s ally is a second creature moving, which no grant on one holder can say.',
   'a-speed-a-feature-reduces':
     'a Speed taken **away** from another creature. packages/engine/src/standing.ts draws the line on the member that adds one — "Speed *reductions* are not this member\'s business" — and files what does reduce a Speed under the condition layer, where nothing but Exhaustion writes one. A Hamstring Blow that takes fifteen feet off a target until your next turn has the arithmetic and no writer.',
   'a-modifier-a-feature-puts-on-another-creature':
@@ -130,12 +130,8 @@ export const FEATURE_SHAPES = {
     'a mode a feature hangs on somebody at a **moment**, spent by the first roll that reaches it. The mechanic itself is built and is a casting’s: packages/engine/src/roll-modifiers.ts carries `RollModifier.oneShot` — "Spent by the first roll it reaches, rather than running to a deadline." — with `RollSelector.counterpart` beside it for the sentences that narrow one to a named creature, and SRD Guiding Bolt and Vicious Mockery write both ends of it through a spell’s rider. What no **feature** has is the door: a `FeatureGrant` of kind `roll-mode` is a standing grant, derived from its holder’s own state on every read, and packages/engine/src/progression.ts says what the list is for — "Deliberately few. A feature whose effect does not fit one of these is" — so a feature’s own `roll-mode` grant reaches none of it. **One of the two moments is built now**, and it is the declared one: `ActivatedFeature.hangs` in packages/engine/src/standing.ts is the stored half of a standing grant, emitted by `activateFeature` where the action is paid for, with `onlyIfUnmoved` beside it for the condition a use is gated on — SRD Steady Aim spends a Bonus Action it may take only before moving, and hangs both of its clauses through it. What is still missing is the moment nobody declares: a grant **fired** by something that happened to an attack, which is Studied Attacks’ miss and Improved Brutal Strike’s landed hit. Sap and Vex reach theirs through the weapon-mastery record and `masteryAfterHit`, which is one hit’s rider rather than a door a feature can write.',
   'an-action-rule-a-feature-holds':
     'a rule about the action economy that a **feature** states about **somebody else**. The holder half is built and the catalogue writes it: `StandingGrant` in packages/engine/src/standing.ts carries an `action-rule` member, and `actionRulesOn` merges what a feature says with what a casting hung at every site a spend is checked — derived on every read rather than compiled onto the creature, because a stored copy "would put a permanent unconditional row into every Rogue’s state" and would reach no character already written into a log. SRD Cunning Action and SRD Adrenaline Rush are written through it. **What is left is the other direction**, and the SRD writes it on a *hit*: a rule hung on the creature you have just struck — Improved Brutal Strike stopping its Opportunity Attacks — which a casting does through an effect on its target and a feature through nothing, because a standing grant is a fact about its own holder. packages/engine/src/combat.ts used to refuse the neighbouring question about spending somebody else’s budget and no longer does — the owner’s ruling of 2026-09-22 settled it, and the module now records that "a spell may spend another creature’s budget" — so this is the narrower one left beside it, waiting on the moment that would hang the rule as much as on the reach.',
-  'an-action-the-engine-has-no-spender-for':
-    'an action the book prints that no command takes, so no rule could name it even if a feature could write one. `NAMED_ACTIONS` in packages/engine/src/combat.ts **names its own absences and why they are absent**: "Search, Study, Influence, Ready and Utilize are the book’s too and are still absent, for the reason Hide was: no spender could be told one of them apart", so a rule naming one would read as enforced and would not be. **Hide has left this list**, and the way it left is the price the list charges: it came back with a command that takes it, which is why the same file now says "`hide` is the member that arrived with its spender". **Utilize** is what is left — bought with a Bonus Action by a Thief, while nothing charges for a Utilize at all — and it is deliberately **not** the grant shape beside it: no vocabulary a feature could be written in would help here, because there is nothing for a rule to be about until some command takes the action.',
   'a-requirement-on-the-armour-its-holder-is-wearing':
     'a standing grant conditioned on the armour its holder **is** wearing. The axis exists and both of its members are the other polarity: packages/engine/src/standing.ts carries `not-wearing-heavy-armor` — "while you aren\'t wearing **Heavy** armor." — and `unarmored` — "while you aren\'t wearing armor **or wielding a Shield**." — each read off the sheet\'s two slots on every read. SRD Defense asks the opposite question, "While you\'re wearing armor, you gain a +1 bonus to Armor Class", and the Fighting Style feat that prints it says so in its own note: the arithmetic is a standing flat bonus applying to `ac` that magic armour already uses, and what is missing is the clause that would gate it. Gate G1 is where it was found, because the feats were in no population and nothing read that note.',
-  'a-hand-an-attack-came-from':
-    'which of a creature\'s two hands swung. packages/engine/src/combat.ts holds the economy this turns on — a Bonus Action is a slot and not a hand — and nothing anywhere records that an attack was the off-hand one, so the two rules the SRD hangs on it have nothing to read: Two-Weapon Fighting\'s extra swing with a Light weapon, and the **Nick** mastery property, which redirects that swing into the Attack action and is quoted in no engine source file while a level 1 Rogue with a Scimitar reaches it. The Two-Weapon Fighting feat\'s own note is the transcription of the gap and says it in one line. The hands are held — `docs/design/characters-and-equipment.md` is where what a creature is holding is written down — and what is not held is the provenance of a swing.',
   'a-roll-mode-a-feature-takes-away':
     'a mode **cancelled** rather than granted. packages/engine/src/roll-modifiers.ts builds the axis as presence — "The mode is not part of the identity" — and `combineRollModes` weighs Advantage against Disadvantage — and SRD Elusive says something else again: no attack roll may **have** Advantage against you at all, which is neither a grant of Disadvantage nor a cancellation the vocabulary can express.',
   'a-turn-boundary-payout-a-feature-owes':
@@ -555,16 +551,9 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   // — Fighter —
   'fighter:fighting-style': [
     {
-      clause: 'The other two of the four are still a note rather than a grant',
+      clause: 'Defense is the one left',
       why: 'table',
-      note: 'two of the four feats are executed now and two are their own feats’ debt; recording and validating the choice is all this feature ever claimed, and that has not changed.',
-    },
-  ],
-  'fighter:tactical-shift': [
-    {
-      clause: 'The free half-Speed move on a Second Wind',
-      why: 'a-move-a-feature-hands-its-holder',
-      note: 'Instinctive Pounce’s shape on a second class.',
+      note: 'three of the four feats are executed now and the fourth is its own feat’s debt; recording and validating the choice is all this feature ever claimed, and that has not changed.',
     },
   ],
   'fighter:studied-attacks': [
@@ -1004,13 +993,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'Turning a miss into a hit or a failed check into a 20',
       why: 'a-roll-result-an-effect-replaces',
       note: 'a die told to read 20, which nothing on a D20 Test does.',
-    },
-  ],
-  'thief:fast-hands': [
-    {
-      clause: 'the engine charges for no Utilize action anywhere',
-      why: 'an-action-the-engine-has-no-spender-for',
-      note: 'not inherited whole after all, which is what re-reading the mechanism changed. Cunning Action fails in three places and this fails in the earliest of them alone: Utilize is not a named action and no command spends a slot on it, so there is no price for a cheaper one to be offered against.',
     },
   ],
   'thief:second-story-work': [
@@ -1490,14 +1472,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'one clause short: the arithmetic is a standing flat bonus applying to `ac` that magic armour already uses, and a feat carries a standing grant now — Archery and Great Weapon Fighting beside it are declared that way and are applied.',
     },
   ],
-  'two-weapon-fighting': [
-    {
-      clause: 'the engine does not model which hand an attack came from',
-      why: 'a-hand-an-attack-came-from',
-      note: 'the feat’s note is the transcription of the gap. The Nick mastery property waits on the same fact from the other side, which is why one id carries both.',
-    },
-  ],
-
 };
 
 /**
@@ -1631,7 +1605,7 @@ export const POOLS_ONLY_PARTLY_BOUGHT: readonly string[] = ['monk:focus'];
  * population is `stale`, a member with no line is `unrecorded`, and every
  * clause anchors in its own note exactly once.
  */
-export const FEATS_ANSWERED_FOR: readonly string[] = ['defense', 'two-weapon-fighting'];
+export const FEATS_ANSWERED_FOR: readonly string[] = ['defense'];
 
 /**
  * The whole population this map answers for: the three arms together.

@@ -78,7 +78,13 @@ import {
 import { applyHitRider } from './hit-riders.js';
 import { completeIfSettled, pendingCastingsOf } from './holds.js';
 import { reactionSwing } from './movement.js';
-import { checkBonuses, mergedModes, recordD20Test, savingSupport } from './rolls.js';
+import {
+  checkBonuses,
+  mergedModes,
+  recordD20Test,
+  savingSupport,
+  spentRollModifiers,
+} from './rolls.js';
 
 export interface DamageReactionCommand extends CommandIdentity {
   readonly feature: string;
@@ -503,6 +509,16 @@ export function resolveTest(
     // check read the command and not the supply. `Supply.modes` is
     // "modifiers on the rolls this operation makes", and a test is a roll it
     // makes.
+    // The one query both halves of the check branch ask — what the roll reads
+    // and what it spends — so `consumedRollModifiers` can never disagree with
+    // `rollModesFor` about whether a grant applied.
+    const checkQuery = {
+      family: 'ability-check' as const,
+      roller: who,
+      ability: command.ability,
+      ...(command.skill === undefined ? {} : { skill: command.skill }),
+    };
+
     const saidModes = [...(supply.modes ?? []), ...(command.modes ?? [])];
     const saidBonuses = [...(supply.bonuses ?? []), ...(command.bonuses ?? [])];
 
@@ -531,15 +547,7 @@ export function resolveTest(
             dc: command.dc,
             ...(command.skill === undefined ? {} : { skill: command.skill }),
             conditions: effectiveConditions(state, who),
-            modes: mergedModes(
-              rollModesFor(state, {
-                family: 'ability-check',
-                roller: who,
-                ability: command.ability,
-                ...(command.skill === undefined ? {} : { skill: command.skill }),
-              }).modes,
-              saidModes,
-            ),
+            modes: mergedModes(rollModesFor(state, checkQuery).modes, saidModes),
             ...(command.senses === undefined ? {} : { conditionContext: command.senses }),
             // The other half of "everything standing on this creature": the
             // saving-throw branch above gets it from `savingSupport`, and a
@@ -564,6 +572,13 @@ export function resolveTest(
         ...(stamp === null ? {} : { command: stamp }),
       },
       { type: 'rolls-issued', count: supply.issuer.count - issuedBefore, rng: supply.rng.snapshot() },
+      // **The one-shot grants an ability check spends.** SRD Help: "that ally
+      // has Advantage on the next ability check they make with the chosen
+      // skill" — the next one they *make*, so it is spent beside the roll and
+      // whatever the number was, exactly as an attack spends Guiding Bolt's.
+      // A saving throw still spends nothing: no save roller emits the event,
+      // which is what `oneShotProblem` goes on refusing.
+      ...(command.kind === 'saving-throw' ? [] : spentRollModifiers(state, checkQuery)),
     ];
 
     const possible = offersForTest(state, {

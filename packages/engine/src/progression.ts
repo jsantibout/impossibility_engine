@@ -1158,7 +1158,33 @@ export type FeatureGrant =
        * restating them would be a second place to get the Fighter's table
        * wrong.
        */
-      readonly heals?: HealGrant & { readonly action: 'action' | 'bonus-action' };
+      readonly heals?: HealGrant & {
+        readonly action: 'action' | 'bonus-action';
+        /**
+         * Feet a **later** feature hands over whenever this heal is used.
+         *
+         * SRD Tactical Shift: "Whenever you activate your Second Wind with a
+         * Bonus Action, you can move up to half your Speed without provoking
+         * Opportunity Attacks." One sentence about somebody else's feature, on
+         * a feature of its own, at a level of its own — which is exactly
+         * {@link recoversSooner}'s shape above, and it is written the same way
+         * for the same reason: the rider belongs to the use it rides on, and
+         * restating the pool beside it would be a second place to get the
+         * Fighter's table wrong.
+         *
+         * `withFeature` is the feature whose sentence hands it over, out of
+         * the features this source reaches, and it is also the **source** the
+         * grant is filed under — so a move spends what a reader can name. The
+         * feature it names claims `executedBy` rather than a grant of its own,
+         * which is the member for a feature another's declaration executes.
+         *
+         * One share, because the SRD prints one: half a Speed.
+         */
+        readonly handsMove?: {
+          readonly withFeature: string;
+          readonly share: 'half-speed';
+        };
+      };
       /**
        * A pool measured in **hit points**, and what touching somebody spends
        * them on.

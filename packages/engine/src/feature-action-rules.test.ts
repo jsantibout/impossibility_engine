@@ -275,7 +275,8 @@ describe('a casting still outranks a feature, and says so in its own words', () 
     const state = fold('seed', GAGGED);
     // Both halves are in hand: the spell's, stored, and the feature's, derived.
     expect(state.creatures[ROGUE]?.actionRules).toHaveLength(1);
-    expect(actionRulesOn(state, ROGUE)).toHaveLength(4);
+    // Stinking Cloud's, Cunning Action's three, and Fast Hands' Utilize.
+    expect(actionRulesOn(state, ROGUE)).toHaveLength(5);
     expect(actionRulesOn(state, ROGUE)[0]?.label).toBe('Stinking Cloud');
 
     const refused = takeDash(state, ROGUE, {}, { from: 'bonus-action' });
@@ -341,10 +342,13 @@ describe('a feature may not hold a price no command charges', () => {
       spellExists: () => true,
     }).map((problem) => problem.code);
 
-  it('takes the three the commands do charge', () => {
+  it('takes the four the commands do charge', () => {
     expect(codes({ kind: 'allows', action: 'dash', from: 'bonus-action' })).toEqual([]);
     expect(codes({ kind: 'allows', action: 'disengage', from: 'bonus-action' })).toEqual([]);
     expect(codes({ kind: 'allows', action: 'hide', from: 'bonus-action' })).toEqual([]);
+    // The fourth, and the one SRD Fast Hands needed: `takeUtilize` charges a
+    // Bonus Action where something has allowed it.
+    expect(codes({ kind: 'allows', action: 'utilize', from: 'bonus-action' })).toEqual([]);
   });
 
   it('refuses a Dodge nothing will charge a Bonus Action for', () => {
@@ -353,7 +357,13 @@ describe('a feature may not hold a price no command charges', () => {
     );
   });
 
-  it('refuses an action no spender can tell apart', () => {
+  /**
+   * A Search is a named action now and still has no cheaper price: `takeSearch`
+   * charges an Action and nothing else, so an allowance offering one out of a
+   * Bonus Action is a permission no command could honour. That is
+   * `STATABLE_PRICES`' half of the guard rather than `NAMED_ACTIONS`'.
+   */
+  it('refuses a price no command charges, for an action it does name', () => {
     expect(codes({ kind: 'allows', action: 'search', from: 'bonus-action' })).toContain(
       'bad_action_rule',
     );

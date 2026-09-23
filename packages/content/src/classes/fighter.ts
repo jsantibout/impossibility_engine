@@ -150,7 +150,7 @@ export const FIGHTER: ClassDefinition = {
       name: 'Fighting Style',
       level: 1,
       automation: 'manual',
-      note: 'The chosen Fighting Style feat is recorded and validated against the SRD list. Archery and Great Weapon Fighting are applied: each carries a standing grant, compiled onto the sheet at creation and read at the swing. The other two of the four are still a note rather than a grant, and on different blockers - Defense wants a requirement about wearing armour, and Two-Weapon Fighting a fact no attack carries.',
+      note: 'The chosen Fighting Style feat is recorded and validated against the SRD list. Archery and Great Weapon Fighting are applied: each carries a standing grant, compiled onto the sheet at creation and read at the swing. Three of the four are applied now: Two-Weapon Fighting carries a standing grant too, which puts the ability modifier back on the extra attack the Light property buys. Defense is the one left, and it wants a requirement about wearing armour.',
       choice: { kind: 'feat', choose: 1, category: 'fighting-style' },
     },
     {
@@ -168,7 +168,20 @@ export const FIGHTER: ClassDefinition = {
         // SRD: "You regain one expended use when you finish a Short Rest."
         regainsOnShortRest: 1,
         // SRD: "regain Hit Points equal to 1d10 plus your Fighter level."
-        heals: { action: 'bonus-action', dice: '1d10', plus: 'class-level' },
+        //
+        // And SRD Tactical Shift, which is a sentence about *this* use rather
+        // than about a use of its own: "Whenever you activate your Second Wind
+        // with a Bonus Action, you can move up to half your Speed without
+        // provoking Opportunity Attacks." It is declared here and named there
+        // for the reason `recoversSooner` is written the same way — the rider
+        // belongs to the use it rides on — and it reaches only a Fighter who
+        // has really earned the level 5 feature.
+        heals: {
+          action: 'bonus-action',
+          dice: '1d10',
+          plus: 'class-level',
+          handsMove: { withFeature: 'fighter:tactical-shift', share: 'half-speed' },
+        },
       },
     },
     {
@@ -176,7 +189,7 @@ export const FIGHTER: ClassDefinition = {
       name: 'Weapon Mastery',
       level: 1,
       automation: 'engine',
-      note: 'SRD: "Your training with weapons allows you to use the mastery properties of three kinds of Simple or Martial weapons of your choice ... as shown in the Weapon Mastery column of the Fighter Features table." Three kinds at level 1 and six at 16, which is the column rather than a number. Executed: the weapons chosen are recorded on the sheet, and the properties that follow from the record run on the attack — Graze\'s damage on a miss, Cleave\'s second swing, Push\'s forced move, Slow\'s ten feet, Topple\'s Constitution save, and Sap and Vex, which the SRD writes as things that simply happen rather than things you can do. Two clauses are still the table\'s: Nick redirects the extra attack the Light property gives, and nothing pays for one; and changing a choice on a Long Rest is an option re-answered, which a choice frozen at creation is not.',
+      note: 'SRD: "Your training with weapons allows you to use the mastery properties of three kinds of Simple or Martial weapons of your choice ... as shown in the Weapon Mastery column of the Fighter Features table." Three kinds at level 1 and six at 16, which is the column rather than a number. Executed: the weapons chosen are recorded on the sheet, and the properties that follow from the record run on the attack — Graze\'s damage on a miss, Cleave\'s second swing, Push\'s forced move, Slow\'s ten feet, Topple\'s Constitution save, and Sap and Vex, which the SRD writes as things that simply happen rather than things you can do. One clause is still the table\'s: changing a choice on a Long Rest is an option re-answered, which a choice frozen at creation is not. Nick was the other and is executed now — it re-prices the extra attack the Light property buys, out of the Attack action instead of a Bonus Action, which is `resolveAttack`’s `lightAttack` rather than anything that happens after a blow lands.',
       grants: { kind: 'weapon-mastery' },
       choice: { kind: 'weapon', chooseByLevel: WEAPON_MASTERY_COUNT },
     },
@@ -264,8 +277,9 @@ export const FIGHTER: ClassDefinition = {
       id: 'fighter:tactical-shift',
       name: 'Tactical Shift',
       level: 5,
-      automation: 'manual',
-      note: 'The free half-Speed move on a Second Wind is not applied.',
+      automation: 'engine',
+      executedBy: 'fighter:second-wind',
+      note: 'SRD: "Whenever you activate your Second Wind with a Bonus Action, you can move up to half your Speed without provoking Opportunity Attacks." Executed, and declared on the use it rides on: Second Wind’s `heals` block names this feature, creation compiles the rider only for a Fighter who has really reached level 5, and spending the Bonus Action hands the turn half the holder’s Speed — floored, pinned onto the event at the Speed it was used at. The move is stated rather than inferred: a mover names the grant, spends none of their own Speed on it, provokes nobody for that move alone, and may not end it in an occupied space, because SRD forbids that only *willingly* and this is entirely willing. The feature declares nothing of its own, which is what `executedBy` is the member for.',
     },
     {
       id: 'fighter:ability-score-improvement-2',

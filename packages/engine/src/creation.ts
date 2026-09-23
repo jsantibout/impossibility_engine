@@ -2627,11 +2627,21 @@ export function planCharacter(
     const heal = healFor(feature.id, grant.heals);
     if (heal === null) continue;
 
+    // SRD Tactical Shift rides on Second Wind's use and arrives four levels
+    // later, so the rider is compiled only for a character who really has the
+    // feature that hands it over — `recoversSooner`'s rule one field along.
+    const handsMove = grant.heals.handsMove;
+    const hands =
+      handsMove !== undefined && features.some((one) => one.id === handsMove.withFeature)
+        ? { handsMove: { feature: handsMove.withFeature, share: handsMove.share } }
+        : {};
+
     selfHeals.push({
       feature: feature.id,
       name: feature.name,
       action: grant.heals.action,
       pool: grant.key,
+      ...hands,
       ...heal,
     });
   }

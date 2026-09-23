@@ -318,6 +318,11 @@ export const ITEM_EFFECT_KINDS: ReadonlySet<string> = new Set([
   'condition-immunity',
   'damage-resistance',
   'evasion',
+  // Read from an item exactly as it is read from a feature: the gatherer is
+  // `standingFor`, and `addsAbilityToLightExtraAttack` walks it. No SRD item
+  // prints the sentence today; the list's rule is what a reader reaches, not
+  // what the book happens to have written.
+  'light-extra-attack-damage',
   'attack-damage',
   'sense',
   // The one grant beside a sense that the sight question reads, and admitted
@@ -3233,13 +3238,15 @@ function itemGrantProblems(
           return;
         }
         // **And how it ends, which the selector says nothing about.** A grant
-        // flagged `oneShot` is spent by the roll it changes, and only the two
-        // attack rollers spend one — so on any other family the flag compiles,
-        // the ring lands, and the grant then runs to its deadline like any
-        // durable one. `spell-schema.ts` has refused that since the flag
-        // existed and this door validated the modifier through its selector
-        // alone, so the same sentence could be written on an item and quietly
-        // mean something else. Asked below the family check for the reason it
+        // flagged `oneShot` is spent by the roll it changes, and only an
+        // attack roll and an ability check spend one — so on any other family
+        // the flag compiles, the ring lands, and the grant then runs to its
+        // deadline like any durable one. Which families those are is
+        // `oneShotProblem`'s to say rather than this comment's.
+        // `spell-schema.ts` has refused that since the flag existed and this
+        // door validated the modifier through its selector alone, so the same
+        // sentence could be written on an item and quietly mean something
+        // else. Asked below the family check for the reason it
         // is asked below one there: a family that is not a family draws that
         // problem and not a second one about its ending.
         if (modifier.oneShot === true) {
@@ -4211,6 +4218,22 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
             field: `${where}.grants.recoversSooner.withFeature`,
             code: 'bad_recovery_rewrite',
             reason: `${feature.id} says ${named} rewrites its recovery, and no other feature ${source.where} reaches carries that id`,
+          });
+        }
+      }
+      // And the same question about a move a later feature hands over, which
+      // is the same silence with a different field: creation compiles the
+      // rider only where the character holds the feature named, so an id no
+      // feature in reach carries is a Second Wind that hands nothing over and
+      // says nothing about it.
+      if (feature.grants?.kind === 'pool' && feature.grants.heals?.handsMove !== undefined) {
+        const named = feature.grants.heals.handsMove.withFeature;
+        const hander = byId(source.inScope ?? source.features).get(named);
+        if (hander === undefined || hander.id === feature.id) {
+          problems.push({
+            field: `${where}.grants.heals.handsMove.withFeature`,
+            code: 'bad_handed_move',
+            reason: `${feature.id} says ${named} hands a move over when it is used, and no other feature ${source.where} reaches carries that id`,
           });
         }
       }

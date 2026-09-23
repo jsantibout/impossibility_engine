@@ -585,6 +585,17 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // clamps it on the way down, and a level-up taken mid-Aid that is worth the
   // whole of its level.
   'healing-rule-granted',
+  // The Help action, and who it was taken for. Neither log was written when
+  // the action existed at all — `combat.ts` named Help among the glossary
+  // entries no spender could tell apart — so both fixtures fold to exactly
+  // the states they always folded to, and would either way: the event changes
+  // nothing, and what a Help buys is the `roll-modifier-granted` and the timer
+  // beside it, both of which both fixtures already carry.
+  // `glossary-actions.test.ts` folds it and drives it end to end: the Action
+  // spent, the one-shot Advantage hung on the ally, the ally's next attack on
+  // that enemy spending it and an attack on anybody else not, the check half
+  // on the chosen skill, and the helper's next turn ending what nobody spent.
+  'help-given',
   'hit-point-maximum-adjusted',
   // Something put down, and something picked up. Neither log was written
   // when an item could be anywhere but in somebody's pack: the scene held
@@ -609,6 +620,18 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // Darkness, the Devil's Sight that pierces it, the patch gone the read
   // after its casting ends, and the Fog Cloud a Rogue Hides in.
   'light-declared',
+  // Feet a feature handed a turn, spent out of no Speed at all. Neither log
+  // was written when a feature could hand one over: `FeatureGrant` had no
+  // movement member at all, and `combat.ts` said in as many words why movement
+  // was not a budget member — so both fixtures fold to exactly the states they
+  // always folded to, with no granted move on any budget and every
+  // `movement-spent` in them charged to the turn's own Speed.
+  // `tactical-shift.test.ts` folds it and drives it end to end: the fifteen
+  // feet half a Speed of 30 comes to, the move that spends none of the turn's
+  // own movement and provokes nobody, twenty feet refused, the occupied space
+  // it may still not end in, a grant nothing handed over, and the turn
+  // boundary that takes what is left of it away.
+  'movement-granted',
   'obscurement-declared',
   'passive-defense-granted',
   // A line a stat block prints a recharge on, spent and got back. Neither log
@@ -691,6 +714,16 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // escape DC pinned beside it, the Prone and the five-foot push, the size
   // rule, and the Hide that stands because no attack roll was made.
   'unarmed-strike-made',
+  // The Utilize action, taken. Neither log was written when a second object
+  // interaction could be paid for at all: the free one was counted and the
+  // action that buys any after it had no door. It changes nothing — the slot
+  // beside it is the `action-spent` or `bonus-action-spent` both fixtures
+  // already carry — so both fold to exactly the states they always folded to.
+  // `glossary-actions.test.ts` folds it and drives it end to end: the Action
+  // spent and a second refused, the free interaction left where it was, a
+  // Thief paying from a Bonus Action through Fast Hands, and a Rogue without
+  // the feature refused the cheaper price.
+  'utilize-taken',
   // What a casting did to one weapon. Neither log was written when a spell
   // could reach an object at all: no creature had a `weaponRiders` list, no
   // casting could name a weapon, and Shillelagh and Magic Weapon were both

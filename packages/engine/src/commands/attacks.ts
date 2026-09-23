@@ -73,6 +73,7 @@ import { type ReactionOffer } from '../reactions.js';
 import { isCreatureType, scaledDiceFor, scaledFlatFor } from '../spell-definitions.js';
 import {
   actionRulesOn,
+  addsAbilityToLightExtraAttack,
   armorClassOf,
   canSomehowSee,
   checkFeatureDamageTypes,
@@ -146,6 +147,99 @@ const inPlay = (style: StrikeStyle): StrikeStyleInPlay => ({
  * any catalogue names it.
  */
 const CLEAVE = `${WEAPON_MASTERY_LEDGER}cleave`;
+
+/**
+ * What the Light property's one extra attack is counted under.
+ *
+ * The same namespace and the same ledger Cleave's allowance uses, because it
+ * is the same kind of thing: a **weapon** clause spent once a turn, which no
+ * catalogue names and no class table holds. One key for both prices, because
+ * the book prints one extra attack and Nick only changes what pays for it —
+ * two keys would let a Nick be followed by a Bonus Action swing.
+ */
+const LIGHT_EXTRA_ATTACK = `${WEAPON_MASTERY_LEDGER}light-extra-attack`;
+
+/**
+ * Everything the Light property's extra attack has to be true of, asked before
+ * anything is spent.
+ *
+ * > "When you take the Attack action on your turn and attack with a Light
+ * > weapon, you can make one extra attack as a Bonus Action later on the same
+ * > turn. That extra attack must be made with a **different** Light weapon."
+ *
+ * Five questions and the book asks four of them: there is a turn to be later
+ * on, this turn's Attack action swung a Light weapon, this weapon is Light,
+ * it is a different weapon, and the extra attack has not already been made.
+ *
+ * **"A different Light weapon" is a different copy.** Two daggers are two
+ * weapons and the engine knows a creature has two of them, so the same
+ * catalogue id is legal exactly when a second copy is owned — which is the
+ * rule `resolveAttack` already keeps about swinging anything at all, "owning
+ * is not wielding, but you cannot wield what you do not own". `equipped` is
+ * per kind of thing by an older and deliberate decision, so it could not
+ * answer this one: two daggers in two hands are one entry in it.
+ *
+ * The fifth question is Nick's, and it is the only one about the character
+ * rather than about the weapons: the substitution is a mastery property, so it
+ * wants the weapon to print it and the character to have unlocked it.
+ */
+function lightExtraProblem(
+  state: GameState,
+  id: CharacterId,
+  sheet: CharacterSheet,
+  weaponId: string | null,
+  weapon: Weapon | null,
+  price: 'bonus-action' | 'attack-action',
+): Err | null {
+  if (state.combat === null || state.combat.budgets[id] === undefined) {
+    return err(
+      'not_in_combat',
+      "the Light property's extra attack is made later on the same turn, and there are no turns outside combat",
+    );
+  }
+  if (weaponId === null || weapon === null || !weapon.properties.includes('light')) {
+    return err(
+      'not_light',
+      `the Light property's extra attack is made with a Light weapon, and ${weapon?.name ?? 'an Unarmed Strike'} is not one`,
+    );
+  }
+
+  const swung = state.combat.budgets[id]?.lightWeaponSwung ?? null;
+  if (swung === null) {
+    return err(
+      'no_light_swing',
+      `${id} has not taken the Attack action with a Light weapon this turn, so there is no extra attack to make`,
+    );
+  }
+  // A different **copy**: the same kind of thing counts where the creature
+  // really has two of them, and the second dagger is what the sentence is
+  // about.
+  if (swung === weaponId && quantityOf(state, id, weaponId) < 2) {
+    return err(
+      'same_weapon',
+      `the Light property's extra attack is made with a different weapon, and ${id} has only one ${weapon.name}`,
+    );
+  }
+  if (!canUseFeatureThisTurn(state.combat, id, LIGHT_EXTRA_ATTACK)) {
+    return err(
+      'already_swung',
+      `${id} has already made the Light property's one extra attack this turn`,
+    );
+  }
+
+  if (price === 'attack-action') {
+    if (weapon.mastery !== 'nick') {
+      return err(
+        'no_nick',
+        `only a weapon with the Nick property makes the extra attack as part of the Attack action, and a ${weapon.name} does not have it`,
+      );
+    }
+    if (!(sheet.weaponMasteries ?? []).includes(weaponId)) {
+      return err('no_mastery', `this character does not have mastery with a ${weapon.name}`);
+    }
+  }
+  return null;
+}
 
 /**
  * Where a swing inside the Attack action is counted, when the creature's block
@@ -594,6 +688,36 @@ export interface AttackCommand extends CommandIdentity {
    */
   readonly free?: boolean;
   /**
+   * This swing is the extra attack the **Light** property buys, and which slot
+   * pays for it.
+   *
+   * SRD Light: "When you take the Attack action on your turn and attack with a
+   * Light weapon, you can make one extra attack as a Bonus Action later on the
+   * same turn. That extra attack must be made with a different Light weapon,
+   * and you don't add your ability modifier to the extra attack's damage
+   * unless that modifier is negative."
+   *
+   * SRD Nick: "When you make the extra attack of the Light property, you can
+   * make it **as part of the Attack action** instead of as a Bonus Action. You
+   * can make this extra attack only once per turn."
+   *
+   * **One field rather than two**, because there is one extra attack and two
+   * prices for it: `'bonus-action'` is what the property prints, and
+   * `'attack-action'` is Nick's substitution, refused unless the weapon prints
+   * that property and the character has unlocked it. A separate `nick` flag
+   * would let a caller ask for the substitution without asking for the attack
+   * it substitutes the price of.
+   *
+   * **Not `bonusAction` beside it**, which says "this Unarmed Strike is a
+   * Monk's Bonus Action strike" and is refused for anything with a weapon in
+   * it. The two sentences grant different swings out of the same slot and a
+   * shared field would make each of them answer for the other's refusals.
+   *
+   * Absent is an ordinary swing, which is every attack written before the
+   * property had a door.
+   */
+  readonly lightAttack?: 'bonus-action' | 'attack-action';
+  /**
    * Pay for this Unarmed Strike with a Bonus Action rather than the Attack
    * action.
    *
@@ -906,6 +1030,18 @@ export function resolveAttack(
       );
     }
 
+    // — SRD Light: the extra attack, and what pays for it ————————————————
+    //
+    // Resolved here for the reason the Bonus Action strike above is: every
+    // question the two sentences ask is answerable before anything is spent
+    // and before a die is thrown, so a swing that is not the extra attack the
+    // property buys is refused with the turn untouched.
+    const lightExtra = command.lightAttack;
+    if (lightExtra !== undefined) {
+      const refused = lightExtraProblem(state, id, sheet, command.weapon, weapon, lightExtra);
+      if (refused !== null) return refused;
+    }
+
     // — the ward the target is standing behind ————————————————————————————
     //
     // SRD Sanctuary: "any creature who **targets** the warded creature with an
@@ -967,7 +1103,15 @@ export function resolveAttack(
     const unverified: string[] = [...ward.value.unverified];
     // SRD Cleave's swing is a rider on a hit rather than an attack the Attack
     // action holds, so it costs what an Opportunity Attack costs here: nothing.
-    const free = command.free === true || cleaving !== undefined;
+    // SRD Nick pays out of the Attack action the swing is already part of, so
+    // it costs nothing here either — the same answer, for the same reason, as
+    // Cleave's rider and an Opportunity Attack's Reaction.
+    const free =
+      command.free === true || cleaving !== undefined || lightExtra === 'attack-action';
+    // And the other price the property prints. Kept apart from
+    // `command.bonusAction`, which is a Monk's Unarmed Strike and refuses a
+    // weapon by name: one slot, two sentences, two fields.
+    const bonusActionSwing = command.bonusAction === true || lightExtra === 'bonus-action';
 
     // — the sequence this creature's block prints ——————————————————————————
     //
@@ -1087,9 +1231,22 @@ export function resolveAttack(
         events.push({ type: 'feature-used', id, feature: CLEAVE, turn: state.combat.turnsTaken });
       }
     }
+    // SRD Light: "**one** extra attack", and SRD Nick says the same of its own
+    // substitution in as many words. The allowance is spent on the swing
+    // rather than on the landing, exactly as Cleave's is, and under the same
+    // ledger: one Bonus Action a turn would already stop the second of one
+    // kind, and nothing would stop a Nick followed by a Bonus Action.
+    if (lightExtra !== undefined && state.combat !== null) {
+      events.push({
+        type: 'feature-used',
+        id,
+        feature: LIGHT_EXTRA_ATTACK,
+        turn: state.combat.turnsTaken,
+      });
+    }
     if (
       !free &&
-      command.bonusAction === true &&
+      bonusActionSwing &&
       state.combat !== null &&
       state.combat.budgets[id] !== undefined
     ) {
@@ -1102,7 +1259,7 @@ export function resolveAttack(
       events.push({ type: 'bonus-action-spent', id });
     } else if (
       !free &&
-      command.bonusAction !== true &&
+      !bonusActionSwing &&
       state.combat !== null &&
       state.combat.budgets[id] !== undefined
     ) {
@@ -1126,7 +1283,18 @@ export function resolveAttack(
         unarmedStrike,
       );
       if (!spent.ok) return spent;
-      events.push({ type: 'attack-made', id, ...(unarmedStrike ? { unarmed: true } : {}) });
+      events.push({
+        type: 'attack-made',
+        id,
+        ...(unarmedStrike ? { unarmed: true } : {}),
+        // SRD Light, recorded where the Attack action is paid for: the budget
+        // is what the extra attack reads, and only this command knew which
+        // weapon the swing used. Never the extra attack's own weapon — that
+        // swing is above this branch and spends nothing here.
+        ...(command.weapon !== null && weapon?.properties.includes('light') === true
+          ? { light: command.weapon }
+          : {}),
+      });
     }
 
     // The slot this swing filled, written down where the economy was spent.
@@ -1587,6 +1755,9 @@ export function resolveAttack(
       ...(command.twoHanded === undefined ? {} : { twoHanded: command.twoHanded }),
       turn: state.combat?.turnsTaken ?? null,
     });
+    const withoutModifier =
+      cleaving !== undefined ||
+      (lightExtra !== undefined && !addsAbilityToLightExtraAttack(state, id));
 
     const rolled = rollAttackDamage(
       supply.issuer,
@@ -1627,8 +1798,12 @@ export function resolveAttack(
         // the line above and spent below.
         ...(savage.rule === null ? {} : { weaponRollRule: savage.rule }),
         // SRD Cleave: "don't add your ability modifier to that damage unless
-        // that modifier is negative."
-        ...(cleaving === undefined ? {} : { withoutAbilityModifier: true as const }),
+        // that modifier is negative." SRD Light prints the same sentence about
+        // its extra attack, word for word, which is why one flag answers both
+        // — and SRD Two-Weapon Fighting is the one thing that puts the
+        // modifier back, read off the attacker's standing effects like every
+        // other rule a swing is made under.
+        ...(withoutModifier ? { withoutAbilityModifier: true as const } : {}),
       },
       attack.value.critical,
     );

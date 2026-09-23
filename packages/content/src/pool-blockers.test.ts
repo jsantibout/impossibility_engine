@@ -224,7 +224,9 @@ describe('the ledger population is the four arms together', () => {
       expect(unanchoredFeatureClauses(id, entry ?? []), id).toEqual([]);
     }
     // And the seven in reach this list does **not** answer for, by name. Each
-    // says in its own note that the whole of the feat is applied.
+    // says in its own note that the whole of the feat is applied — Two-Weapon
+    // Fighting most recently, which left this list when the extra attack the
+    // Light property buys became a swing a command takes.
     const inReach = SRD_CONTENT.feats
       .filter((one) => (one.minimumLevel ?? 1) <= 5)
       .map((one) => one.id)
@@ -238,6 +240,7 @@ describe('the ledger population is the four arms together', () => {
       'magic-initiate',
       'savage-attacker',
       'skilled',
+      'two-weapon-fighting',
     ]);
   });
 

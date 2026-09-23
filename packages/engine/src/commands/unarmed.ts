@@ -59,8 +59,8 @@ import { type Supply } from './casting.js';
 import { creatureOf, reachedBy, unknownCreature } from './command.js';
 import { applyConditionTo } from './conditions.js';
 import { mayAct } from './holds.js';
-import { checkBonuses, recordD20Test, savingSupport } from './rolls.js';
 import { conditionEndedBy } from './turns.js';
+import { checkBonuses, recordD20Test, savingSupport, spentRollModifiers } from './rolls.js';
 
 /**
  * SRD Unarmed Strike: "a target **within 5 feet** of you".
@@ -768,8 +768,8 @@ export function escapeGrapple(
 
       const skill = ESCAPE_SKILL[command.ability];
       const issuedBefore = supply.issuer.count;
-      const fromFeatures = rollModesFor(state, {
-        family: 'ability-check',
+      const query = {
+        family: 'ability-check' as const,
         roller: who,
         ability: command.ability,
         skill,
@@ -779,7 +779,8 @@ export function escapeGrapple(
         // one door and not the other would make Strength the lucky escape.
         // See `conditionEndedBy`.
         aboutConditions: conditionEndedBy(state, grapple.effectKey),
-      }).modes;
+      };
+      const fromFeatures = rollModesFor(state, query).modes;
       const sheet = sheetAsItStands(state, who) ?? creature.sheet;
       const rolled = rollAbilityCheck(supply.issuer, supply.rng, sheet, command.ability, {
         dc: timer.check.dc,
@@ -805,6 +806,9 @@ export function escapeGrapple(
           ),
           ...(stamp === null ? {} : { command: stamp }),
         },
+        // And the one-shot grants this check used up — beside the roll and
+        // whatever the outcome, as every other roller that spends one does.
+        ...spentRollModifiers(state, query),
         // The consequence is the reducer's, off the outcome it recorded.
         {
           type: 'effect-check-resolved',

@@ -785,14 +785,43 @@ export function checkFeatureDefinition(
     }
   }
 
+  // **A move handed over by nobody**, which is `recoversSooner`'s own guard
+  // one field along and is here for the same reason: creation compiles the
+  // rider only where the character really holds the feature named, so an id
+  // that names nothing is dropped in silence and the class file reads as
+  // though a use hands feet over when it hands over none. The cross-feature
+  // half — whether any feature this source reaches carries the id — is
+  // `checkContent`'s, beside `bad_recovery_rewrite`, because a definition
+  // cannot see its siblings from here.
+  if (grant?.kind === 'pool' && grant.heals?.handsMove !== undefined) {
+    const hands = grant.heals.handsMove;
+    if (typeof hands.withFeature !== 'string' || hands.withFeature.trim() === '') {
+      found.push({
+        field: 'grants.heals.handsMove.withFeature',
+        code: 'handed_move_without_a_feature',
+        reason:
+          'a move handed over by a use of this pool is handed over by a later feature, named here — a rider naming nobody is one no character could ever be granted',
+      });
+    }
+    if (grant.heals.action !== 'bonus-action') {
+      found.push({
+        field: 'grants.heals.handsMove',
+        code: 'handed_move_off_a_bonus_action',
+        reason: `SRD hands this move over for activating the feature **with a Bonus Action**, and a use of this pool costs ${String(grant.heals.action)}`,
+      });
+    }
+  }
+
   // The two things a hung grant can promise that nothing would keep.
   //
   // **An ending no roll delivers.** A grant a use hangs is *stored* state, so
   // `oneShot` on it is a real promise rather than the inert one it is on a
-  // derived `whileActive` effect — and only the two attack rollers keep it. On
-  // any other family the flag compiles, the grant lands, and it then runs to
-  // its deadline like a durable one. The same refusal `spell-schema.ts` and the
-  // item door already make, at the third door onto the same field.
+  // derived `whileActive` effect — and only an attack roll and an ability
+  // check keep it. On any other family the flag compiles, the grant lands, and
+  // it then runs to its deadline like a durable one. Which families those are
+  // is `oneShotProblem`'s to say and not this comment's; the same refusal
+  // `spell-schema.ts` and the item door already make, at the third door onto
+  // the same field.
   //
   // **And two clauses filed under one name.** `hungSource` names a grant by its
   // kind, because everything one source granted a creature ends together —

@@ -1602,6 +1602,17 @@ const CITED_SOURCES: readonly CitedSource[] = [
     label: 'packages/engine/src/content.ts',
     files: ['packages/engine/src/content.ts'],
   },
+  // The action economy, registered here as well as in the feature table: the
+  // shape a spell is blocked on when it wants an errand no spender is told
+  // apart by lives in `NAMED_ACTIONS`, and it became a spell shape when the
+  // last feature under it left. A description naming a file this table does
+  // not hold fails the *points at prose* guard rather than passing unchecked,
+  // which is how the absence was found.
+  {
+    name: 'combat.ts',
+    label: 'packages/engine/src/combat.ts',
+    files: ['packages/engine/src/combat.ts'],
+  },
   {
     name: 'items.ts',
     label: 'packages/content/src/items.ts',

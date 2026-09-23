@@ -54,7 +54,13 @@ import { creatureOf, unknownCreature, ZERO_HIT_POINTS } from './command.js';
 import { grantTemporaryHpTo, healCreature, strandedSummons } from './creatures.js';
 import { dealSpellDamage } from './damage.js';
 import { mayAct, pendingCastingsOf, pendingSavesOf } from './holds.js';
-import { checkBonuses, recordD20Test, rollSpellDice, savingSupport } from './rolls.js';
+import {
+  checkBonuses,
+  recordD20Test,
+  rollSpellDice,
+  savingSupport,
+  spentRollModifiers,
+} from './rolls.js';
 import { resolveEffects } from './spell-resolution.js';
 import { type SpellTargetOutcome } from './targeting.js';
 
@@ -682,8 +688,8 @@ export function resolveEffectCheck(
     // A feature that grants Advantage on this very skill — SRD Remarkable
     // Athlete: "Advantage on ... Strength (Athletics) checks", which is exactly
     // what tearing free of Black Tentacles asks for.
-    const fromFeatures = rollModesFor(state, {
-      family: 'ability-check',
+    const query = {
+      family: 'ability-check' as const,
       roller: who,
       ability: check.ability,
       ...(check.skill === undefined ? {} : { skill: check.skill }),
@@ -695,7 +701,8 @@ export function resolveEffectCheck(
       // SRD Powerful Build's "any ability check you make to end the Grappled
       // condition" is the sentence this lets a grant pick out.
       aboutConditions: conditionEndedBy(state, command.effectKey),
-    }).modes;
+    };
+    const fromFeatures = rollModesFor(state, query).modes;
 
     // **The sheet as it stands**, so a Belt of Giant Strength is behind the
     // heave that tears free of the tentacles. Asked here, where the state is,
@@ -729,6 +736,12 @@ export function resolveEffectCheck(
       ),
       ...(stamp === null ? {} : { command: stamp }),
     });
+
+    // **And the one-shot grants this check used up**, beside the roll and
+    // whatever the outcome — SRD Help's "the next ability check they make
+    // with the chosen skill" counts rolls and not successes, which is the
+    // reading the attack rollers have always taken of the same field.
+    events.push(...spentRollModifiers(state, query));
 
     // The Action goes whether or not the check lands: SRD spends it on the
     // attempt, not on the success.

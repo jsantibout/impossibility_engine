@@ -257,6 +257,9 @@ describe('startCombat', () => {
       // offers are `speedOf`'s answer, not a number seeded in here.
       movementSpent: 0,
       movementGained: 0,
+      // Empty: feet a feature hands over belong to the turn it handed them on,
+      // and nothing has handed this one anything.
+      grantedMoves: [],
       // Null rather than 1: the Attack action has not been taken, which is a
       // different state from having taken it and used every attack in it.
       attacksRemaining: null,
@@ -264,6 +267,9 @@ describe('startCombat', () => {
       grantedAttacks: null,
       disengaged: false,
       freeInteraction: true,
+      // Null: SRD Light's extra attack is measured against the Attack action
+      // this turn swung, and a fresh turn has swung nothing.
+      lightWeaponSwung: null,
       spellSlotSpentOnTurn: null,
       // Empty rather than absent: a once-per-turn feature records the turn it
       // was used on, and nothing has been used yet.

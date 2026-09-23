@@ -7,10 +7,11 @@
  * whatever they are playing had nothing: not a map, not a row, not a guard.
  * The consequence is a debt nobody can see. A level 1 Rogue with a Scimitar
  * reaches the `nick` mastery property, and `nick` occurs in **no engine
- * source file**; the Search, Study, Influence and Utilize actions are named
+ * source file**; the Search, Study, Influence and Utilize actions were named
  * in `combat.ts` as the book's and left to the table; Two-Weapon Fighting's
  * Light-property swing is a second attack the economy cannot tell from the
- * first. None of that was on any list.
+ * first. None of that was on any list. The four actions and Help have left
+ * the list since, each with its own spender.
  *
  * ### Why this one is hand-listed and the others are not
  *
@@ -26,12 +27,14 @@
  * member, no lookup. Neither half can be satisfied by writing a sentence.
  *
  * The guard asks for a quoted literal rather than for the word, and the
- * difference is the whole of what it is worth. Five of the seven unbuilt rows
- * are *named* in the engine's prose and say so in their own notes: `combat.ts`
- * lists Search, Study, Influence and Utilize as the book's and leaves them to
- * the table, three definitions quote the Study action before the check the
- * engine then rolls, and two comments in `mastery.ts` say Nick is unbuilt. A
- * word-level sweep would read every one of those as coverage.
+ * difference is the whole of what it is worth. Both remaining unbuilt rows
+ * are *named* in the engine's prose and say so in their own notes: two
+ * comments in `mastery.ts` say Nick is unbuilt, and the hand an attack came
+ * from is written about in several places without being recorded anywhere. A
+ * word-level sweep would read either of those as coverage. It was five rows
+ * of seven when the list was written, and the four glossary actions that made
+ * up the difference left it by building their spenders rather than by
+ * rewording their notes, which is the only way out this list offers.
  *
  * ### What is in it and what is not
  *
@@ -105,8 +108,8 @@ export const GLOSSARY_RULES: readonly GlossaryRule[] = [
     id: 'help',
     name: 'Help',
     kind: 'action',
-    built: null,
-    note: 'the action is not a command. Its stabilisation half is reachable — `declarations.ts` names the Help action as what a stabilisation is the payout of — but the two things the book prints first, Advantage on an ally’s next ability check and Advantage on their next attack against a creature within 5 feet of you, have no door and no standing grant that says who gave them.',
+    built: 'takeHelp',
+    note: 'both halves the book prints first, as the one-shot grant SRD Guiding Bolt and SRD Vicious Mockery already use: Advantage on the ally’s next ability check with the chosen skill, or on their next attack roll against an enemy within 5 feet of the helper, hung on the ally under the helper’s own source and ended by whichever arrives first — the roll that spends it or the start of the helper’s next turn. The helper’s proficiency is checked and the five feet are measured where anybody has been placed. Its stabilisation half was already reachable through `declarations.ts`. One check roller still does not spend a one-shot — `takeHide` — so a Help offered on Stealth reaches a Hide without being used up by it, and `oneShotProblem` says so.',
   },
   {
     id: 'hide',
@@ -119,8 +122,8 @@ export const GLOSSARY_RULES: readonly GlossaryRule[] = [
     id: 'influence',
     name: 'Influence',
     kind: 'action',
-    built: null,
-    note: 'one of the four `combat.ts` names as the book’s and leaves to the table: a Charisma check against a DC the DM sets, with the attitude of the creature deciding which skill and whether it is possible at all. Nothing spends the action and nothing records the attitude.',
+    built: 'takeInfluence',
+    note: 'the action is spent and the Charisma check is rolled — Deception, Intimidation, Performance or Persuasion, refused where the skill is none of those — against a DC the DM sets, which is why the door is the DM’s rather than the player’s. The attitude is still nobody’s but the DM’s and comes back flagged: the book hands them Indifferent, Friendly and Hostile, a Hostile monster’s answer is no whatever the die said, and the engine decides none of it.',
   },
   {
     id: 'magic',
@@ -147,22 +150,22 @@ export const GLOSSARY_RULES: readonly GlossaryRule[] = [
     id: 'search',
     name: 'Search',
     kind: 'action',
-    built: null,
-    note: 'a Wisdom check — Insight, Medicine, Perception or Survival — to find something. `combat.ts` names it as the book’s and `permits-only` can narrow a slot down to it, which is the one place the engine says the word; no command spends it and nothing reads what was found.',
+    built: 'takeSearch',
+    note: 'the action is spent and the Wisdom check is rolled — Insight, Medicine, Perception or Survival, refused where the skill is none of those — against a DC the DM sets. What was *found* is still the table’s and cannot be otherwise: the engine holds no hidden door and no bloodstain, so it owns the number exactly as `resolveTest` owns a DM’s check and the discovery is narrated from it.',
   },
   {
     id: 'study',
     name: 'Study',
     kind: 'action',
-    built: null,
-    note: 'an Intelligence check to recall or work something out. Three definitions print it — Minor Illusion, Disguise Self and Hallucinatory Terrain all say a creature must take the Study action before the Investigation check the engine then rolls — so the check is executed and the action that buys it is not, which is the gap in the middle of a rule that otherwise runs.',
+    built: 'takeStudy',
+    note: 'the action is spent and the Intelligence check is rolled — Arcana, History, Investigation, Nature or Religion — against a DC the DM sets. It closes a gap in the middle of a rule that otherwise ran: **six** definitions print the sentence "a creature must take the Study action" in front of the Investigation check `resolveEffectCheck` then rolls — Disguise Self, Minor Illusion, Silent Image, Hallucinatory Terrain, Major Image and Seeming — so the check was executed and the action that buys it was not.',
   },
   {
     id: 'utilize',
     name: 'Utilize',
     kind: 'action',
-    built: null,
-    note: 'the second object interaction of a turn. The **first** is built — `combat.ts` counts one free interaction per turn and `actions.ts` quotes the sentence — and the action that buys any after it is not, so the count is enforced and the way past it is missing.',
+    built: 'takeUtilize',
+    note: 'the second object interaction of a turn, and the first thing a turn spends an Action on that leaves nothing behind. The **first** interaction was already built — `combat.ts` counts one free per turn — so the count was enforced and the way past it was missing. What the object does is still the table’s: the book’s own examples are a lever, a lock and a bowstring, none of which the engine holds. What it buys the engine is the spend SRD Fast Hands needed to exist: `STATABLE_PRICES` prices a Utilize out of a Bonus Action, and `thief:fast-hands` states it.'
   },
 
   // — weapon mastery, the eight the 2024 rules print ————————————————————
@@ -184,8 +187,8 @@ export const GLOSSARY_RULES: readonly GlossaryRule[] = [
     id: 'nick',
     name: 'Nick',
     kind: 'mastery',
-    built: null,
-    note: 'the mastery that makes the Light property’s extra attack part of the Attack action instead of a Bonus Action. **It is quoted as a value in no engine source file** — the word is written twice, in two comments of `mastery.ts` saying it is unbuilt, and nowhere a switch arm or a union member could read it — and a level 1 Rogue with a Scimitar reaches it — as does any level 1 character with a Dagger, a Light Hammer or a Sickle. It waits on the same thing Two-Weapon Fighting does: nothing records which hand an attack came from.',
+    built: 'resolveAttack',
+    note: 'the mastery that makes the Light property’s extra attack part of the Attack action instead of a Bonus Action, which is the second price `lightAttack` takes. It is refused to a weapon that does not print the property and to a character who has not unlocked it, and it is the same one extra attack either way — one ledger key, so a Nick cannot be followed by a Bonus Action swing. It was the mastery quoted as a value in no engine source file while a level 1 Rogue with a Scimitar reached it, which is the finding this population was opened for.',
   },
   {
     id: 'push',
@@ -228,7 +231,7 @@ export const GLOSSARY_RULES: readonly GlossaryRule[] = [
     id: 'two-weapon-fighting',
     name: 'Two-Weapon Fighting',
     kind: 'rule',
-    built: null,
-    note: 'the extra attack a Light weapon in the other hand buys as a Bonus Action, with no ability modifier on the damage unless the Fighting Style feat is held. The Two-Weapon Fighting feat’s own note says it outright: the engine does not model which hand an attack came from, so neither half of this rule has anywhere to read the fact it turns on.',
+    built: 'resolveAttack',
+    note: 'the extra attack a second Light weapon buys as a Bonus Action, with no ability modifier on the damage unless the Fighting Style feat is held — and the feat is executed too, as a standing grant that puts the modifier back. **The fact it turns on was never a hand**: the book asks which Light weapon this turn’s Attack action already swung, which is a fact about the turn, and `TurnBudget.lightWeaponSwung` records it. "A different Light weapon" is a different *copy*, so two daggers are two weapons and one dagger is not; a negative modifier is added whatever, which is the clause `withoutAbilityModifier` has always kept for Cleave.'
   },
 ];

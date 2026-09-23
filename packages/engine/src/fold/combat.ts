@@ -13,6 +13,7 @@ import {
   advanceTurn,
   dash,
   disengage,
+  grantMovement,
   markFeatureUsed,
   removeCombatant,
   grantTurnBudget,
@@ -74,7 +75,10 @@ export const COMBAT_EVENTS = [
   'reaction-spent',
   'budget-compelled',
   'movement-spent',
+  'movement-granted',
   'free-interaction-used',
+  'utilize-taken',
+  'help-given',
   'combatant-joined',
   'combatant-removed',
   'initiative-swapped',
@@ -231,6 +235,10 @@ export function applyCombat({ state, next }: Applying, event: CombatEvent): Game
             // and absent is a weapon, which is what every log written before the
             // field says.
             event.type === 'unarmed-strike-made' ? true : (event.unarmed ?? false),
+            // And the Light weapon the swing used, where it used one. An
+            // Unarmed Strike never does; a weapon swing says so or says
+            // nothing, which is what every log written before the field says.
+            event.type === 'unarmed-strike-made' ? null : (event.light ?? null),
           ),
         ).state,
       );
@@ -301,7 +309,30 @@ export function applyCombat({ state, next }: Applying, event: CombatEvent): Game
             event.id,
             event.feet,
             spendableSpeed(state, event.id),
+            undefined,
+            // Which of the two allowances this came out of, which is a fact
+            // only the command held until the event carried it: a grant's feet
+            // take nothing off the turn's own Speed, and measuring one against
+            // the other would be the fork `spendableSpeed` exists to prevent.
+            event.grant,
           ),
+        ),
+      );
+
+    // The number is the event's, pinned at the moment the feature was used:
+    // half of a Speed is half of the Speed it was used at, and `speedOf` today
+    // is a different question. So the backstop asks what the command asked —
+    // that it is this creature's turn — and takes the feet as stated.
+    case 'movement-granted':
+      return withCombat(
+        next,
+        state,
+        must(
+          event,
+          grantMovement(combatOf(state, event), event.id, {
+            source: event.source,
+            feet: event.feet,
+          }),
         ),
       );
 
@@ -410,6 +441,23 @@ export function applyCombat({ state, next }: Applying, event: CombatEvent): Game
     // stamp to ride on.
     case 'reaction-taken':
       return next;
+
+    // The same two reasons, one action along: the slot beside them is what
+    // was spent, and these say what it was spent on. A Utilize touches the
+    // free interaction deliberately not at all — it is what a creature takes
+    // instead of reaching for it — and a Help's benefit is the
+    // `roll-modifier-granted` and the timer beside this event, both of which
+    // `fold/grants.ts` and `fold/timers.ts` own. What is checked is what this
+    // seam checks of everything: a fight, and a creature it happened to.
+    case 'utilize-taken':
+    case 'help-given': {
+      if (state.combat === null) {
+        throw new CorruptLogError(event, 'an action was taken outside combat');
+      }
+      creatureOf(state, event, event.id);
+      if (event.type === 'help-given') creatureOf(state, event, event.ally);
+      return next;
+    }
   }
 
   return unhandledEvent(event);

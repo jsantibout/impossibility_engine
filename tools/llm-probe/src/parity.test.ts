@@ -212,6 +212,9 @@ const AUDIT: readonly {
       onHit: because(
         'which of a feature\'s riders this hit buys — SRD Stunning Strike\'s "you can expend 1 Focus Point", and the same sentence on a Cunning Strike. A decision rather than a number, and a real one: it spends a resource on a save that may be made. It is refused outright to anybody whose features grant no such rider, and no character in either benchmark has one, so a published field would be refused every value it could be sent today. Publishing it means publishing the feature and the option by name, which is a menu the surface has no way to hand a model yet',
       ),
+      lightAttack: because(
+        'SRD Light\'s "you can make one extra attack as a Bonus Action later on the same turn", and SRD Nick\'s re-pricing of it. A decision rather than a number and a real one — a second swing for a Bonus Action is a trade a player makes every turn — and `packages/tools` publishes it as `light_attack`. It is not on **this** surface because this one is a benchmark held fixed: neither benchmark character carries two Light weapons, so a published field would be refused every value it could be sent today. Publish it the day a benchmark character fights with two of them',
+      ),
       mastery: because(
         'whether to use the weapon’s mastery property, which of them where a feature offers a swap, how far a Push moves and whom a Cleave follows. A decision rather than a number — SRD writes five of the eight as "you can" — and a real one, so it wants publishing on its own evidence rather than as a parity tidy-up. No character in either benchmark has the Weapon Mastery feature, so a published field would be refused every value it could be sent today',
       ),
@@ -223,6 +226,9 @@ const AUDIT: readonly {
     fates: {
       placement: expose('from_landmark'),
       forced: expose('forced'),
+      usingGrant: because(
+        'SRD Tactical Shift\'s "you can move up to half your Speed without provoking Opportunity Attacks", spent out of feet a feature handed the turn rather than out of the Speed. A decision rather than a number, and `packages/tools` publishes it as `using_grant`. It is not on **this** surface because this one is a benchmark held fixed: neither benchmark character has a feature that hands a move over, so a published field would be refused every value it could be sent today',
+      ),
       difficultFeet: because(
         'a DM ruling that this ground costs extra. Legitimate authorship rather than a forbidden number, and no beat in either benchmark asked for it — the one persistent area that would, Grease, prints its Difficult Terrain in `unmodelled`',
       ),

@@ -1701,7 +1701,21 @@ export type GameEvent =
   | { readonly type: 'action-spent'; readonly id: CharacterId }
   | { readonly type: 'bonus-action-spent'; readonly id: CharacterId }
   | { readonly type: 'reaction-spent'; readonly id: CharacterId }
-  | { readonly type: 'movement-spent'; readonly id: CharacterId; readonly feet: number }
+  | {
+      readonly type: 'movement-spent';
+      readonly id: CharacterId;
+      readonly feet: number;
+      /**
+       * The grant these feet came out of, where they came out of one.
+       *
+       * SRD Tactical Shift's half a Speed is spent from `TurnBudget.grantedMoves`
+       * and takes nothing off the turn's own movement, so the reducer has to
+       * know which of the two a `movement-spent` is — and only the command did.
+       * Absent is the turn's own Speed, which is what every log written before
+       * a feature could hand one over says.
+       */
+      readonly grant?: string;
+    }
   /**
    * A slot of somebody's turn that a **spell** used up.
    *
@@ -1754,7 +1768,27 @@ export type GameEvent =
    * what every log written before it says and what every armed swing says
    * still.
    */
-  | { readonly type: 'attack-made'; readonly id: CharacterId; readonly unarmed?: boolean }
+  | {
+      readonly type: 'attack-made';
+      readonly id: CharacterId;
+      readonly unarmed?: boolean;
+      /**
+       * The catalogue id of the **Light** weapon this swing used, where it
+       * used one.
+       *
+       * SRD Light: "When you take the Attack action on your turn and attack
+       * with a Light weapon, you can make one extra attack as a Bonus Action
+       * later on the same turn." The fact the sentence turns on is which Light
+       * weapon the action swung, and the budget is where a fact about a turn
+       * lives — so the event carries it for the same reason `unarmed` is here:
+       * only the command knew, and `TurnBudget.lightWeaponSwung` is the
+       * reducer's to write.
+       *
+       * Absent for every swing with anything else, which is what every log
+       * written before the field says and what a Greatsword says still.
+       */
+      readonly light?: string;
+    }
   | { readonly type: 'dash-taken'; readonly id: CharacterId; readonly command?: CommandStamp }
   | {
       readonly type: 'disengage-taken';
@@ -1764,6 +1798,74 @@ export type GameEvent =
   | {
       readonly type: 'free-interaction-used';
       readonly id: CharacterId;
+      readonly command?: CommandStamp;
+    }
+  /**
+   * Feet a feature handed this turn, spent out of no Speed at all.
+   *
+   * SRD Tactical Shift: "Whenever you activate your Second Wind with a Bonus
+   * Action, you can move up to half your Speed without provoking Opportunity
+   * Attacks."
+   *
+   * **The number is pinned rather than derived**, which is the rule every
+   * command's event follows: half of a Speed is half of the Speed the feature
+   * was used at, and a Speed that changes later must not move feet already
+   * handed over. The fold spends what the event says.
+   *
+   * It carries no `command` stamp: it is never the only event the use writes,
+   * and the `resource-spent` beside it carries the id — the rule `useSelfHeal`
+   * already keeps about where a stamp belongs.
+   */
+  | {
+      readonly type: 'movement-granted';
+      readonly id: CharacterId;
+      /** What handed them over, which is what a move names to spend them. */
+      readonly source: string;
+      readonly feet: number;
+    }
+  /**
+   * The Utilize action, taken.
+   *
+   * SRD: "When an object requires an action for its use, you take the Utilize
+   * action", and "any additional interactions require the Utilize action."
+   *
+   * **It changes nothing, exactly as `stated-action-taken` changes nothing**,
+   * and it exists for the same two reasons: the log should say why the slot
+   * beside it went, and the command that spent the slot needs a stamp to ride
+   * on — `action-spent` and `bonus-action-spent` carry none, which is the one
+   * thing that stops them from being a command's own record.
+   *
+   * The free interaction is deliberately untouched. SRD gives a turn one for
+   * nothing and charges an action for every one after it, so a Utilize is what
+   * a creature takes **instead of** reaching for that allowance rather than a
+   * second way of spending it.
+   */
+  | {
+      readonly type: 'utilize-taken';
+      readonly id: CharacterId;
+      /** What was used, in the caller's words: "the lever". */
+      readonly object?: string;
+      readonly command?: CommandStamp;
+    }
+  /**
+   * The Help action, taken, and who it was taken for.
+   *
+   * The grant is the `roll-modifier-granted` beside this and the deadline is
+   * the timer beside that, so nothing here folds into any creature's state:
+   * what it records is the *fact* of the Help, which the log could otherwise
+   * only be read back out of a source string, and the stamp the command rides
+   * on.
+   *
+   * `kind` is which of the entry's two halves was offered — SRD prints "Assist
+   * an Ability Check" and "Assist an Attack Roll" as two paragraphs under one
+   * action — and `against` is the enemy the second of them named.
+   */
+  | {
+      readonly type: 'help-given';
+      readonly id: CharacterId;
+      readonly ally: CharacterId;
+      readonly kind: 'check' | 'attack';
+      readonly against?: CharacterId;
       readonly command?: CommandStamp;
     }
   /**

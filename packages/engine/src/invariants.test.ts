@@ -109,7 +109,12 @@ import {
   takeDash,
   takeDisengage,
   takeDodge,
+  takeHelp,
   takeHide,
+  takeInfluence,
+  takeSearch,
+  takeStudy,
+  takeUtilize,
   declineDamageReaction,
   declineTestReaction,
   resolveTest,
@@ -1704,6 +1709,37 @@ const GUARDED: readonly Guarded[] = [
     run: (s, commandId) =>
       forcePrintedSave(s, A, { line: SAVING_LINE.name, targets: [B], commandId }, supply()),
   },
+  /**
+   * The five the glossary prints that arrived with their spenders. Each is a
+   * command a retry would do twice in a visible way: a Utilize is a second
+   * Action gone, a Search or a Study or an Influence is a second turn of the
+   * dice, and a Help is a second Advantage hung on the ally.
+   */
+  { name: 'takeUtilize', log: SETUP, run: (s, commandId) => takeUtilize(s, A, { commandId }) },
+  {
+    name: 'takeSearch',
+    log: SETUP,
+    run: (s, commandId) => takeSearch(s, A, { skill: 'perception', dc: 10, commandId }, supply()),
+  },
+  {
+    name: 'takeStudy',
+    log: SETUP,
+    run: (s, commandId) => takeStudy(s, A, { skill: 'arcana', dc: 10, commandId }, supply()),
+  },
+  {
+    name: 'takeInfluence',
+    log: SETUP,
+    run: (s, commandId) =>
+      takeInfluence(s, A, { skill: 'persuasion', dc: 10, target: B, commandId }, supply()),
+  },
+  {
+    // An ally who is not in the order: SRD hangs the benefit on them and the
+    // deadline on the **helper's** next turn, so only the helper needs a place
+    // in it.
+    name: 'takeHelp',
+    log: [...SETUP, added(C, 'party')],
+    run: (s, commandId) => takeHelp(s, A, { kind: 'attack', ally: C, enemy: B, commandId }),
+  },
   { name: 'takeDash', log: SETUP, run: (s, commandId) => takeDash(s, A, { commandId }) },
   { name: 'takeDisengage', log: SETUP, run: (s, commandId) => takeDisengage(s, A, { commandId }) },
   { name: 'takeDodge', log: SETUP, run: (s, commandId) => takeDodge(s, A, { commandId }) },
@@ -3054,6 +3090,14 @@ const SPENDERS: readonly Spender[] = [
   { name: 'takeDisengage', run: (s) => takeDisengage(s, B, {}) },
   { name: 'takeDodge', run: (s) => takeDodge(s, B, {}) },
   { name: 'takeHide', run: (s) => takeHide(s, B, {}, supply()) },
+  { name: 'takeUtilize', run: (s) => takeUtilize(s, B, {}) },
+  { name: 'takeSearch', run: (s) => takeSearch(s, B, { skill: 'perception', dc: 10 }, supply()) },
+  { name: 'takeStudy', run: (s) => takeStudy(s, B, { skill: 'arcana', dc: 10 }, supply()) },
+  {
+    name: 'takeInfluence',
+    run: (s) => takeInfluence(s, B, { skill: 'persuasion', dc: 10, target: A }, supply()),
+  },
+  { name: 'takeHelp', run: (s) => takeHelp(s, B, { kind: 'attack', ally: A, enemy: A }) },
   {
     name: 'takeReady',
     run: (s) => takeReady(s, B, { trigger: 'when it moves', response: { kind: 'action' } }, SRD_CONTENT),

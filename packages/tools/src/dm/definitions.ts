@@ -101,8 +101,11 @@ import {
   resolveTest,
   rollImprovisedDamage,
   settleTest,
+  takeInfluence,
+  takeSearch,
   takeStatedAction,
   takeStatedBonusAction,
+  takeStudy,
 } from '@ie/engine';
 import { z } from 'zod';
 import {
@@ -295,6 +298,96 @@ const ABILITY_CHECK = tool({
       ),
       (value) => value.events,
       (value) => testResolution(value, args.dc),
+      (value) => value.unverified,
+    );
+  },
+});
+
+/**
+ * Take one of the three glossary actions whose whole content is a check
+ * against a DC the table set.
+ *
+ * **On this surface because of the DC and for no other reason.** Dodge, Dash,
+ * Disengage, Hide, Utilize and Help are a model’s to take through
+ * `take_action` — a Hide has its own printed DC of 15 and the rest have no
+ * number at all — and these three print a check and leave the number to the
+ * table: SRD says the DC "depends on the situation" and nothing more. A tool a
+ * model held would therefore be a tool that took a DC from a model, which is
+ * the one thing the partition exists to prevent.
+ *
+ * **One tool with a `kind` rather than three**, because the three differ in
+ * exactly two derived facts — which ability, and which skills the entry
+ * names — and the engine holds both. What a caller states is the same three
+ * things every time: who, which of the printed skills, and the DC. The
+ * `saving_throw`-beside-`ability_check` split is the opposite case and stays
+ * split for its own stated reason: a save takes no skill and no senses, so one
+ * tool would silently drop two fields a caller filled in.
+ *
+ * `influence` is the one that names a creature, and what comes back with it is
+ * a handover rather than a verdict: the book gives the DM the monster’s
+ * attitude, says a Hostile monster refuses whatever the check said, and hangs
+ * the DC on that attitude. The engine rolls and decides none of it.
+ */
+const TAKE_TESTED_ACTION = tool({
+  name: 'take_tested_action',
+  description:
+    'Spend a creature’s Action on Search, Study or Influence and roll the check the glossary prints for it — Search is Wisdom with Insight, Medicine, Perception or Survival; Study is Intelligence with Arcana, History, Investigation, Nature or Religion; Influence is Charisma with Deception, Intimidation, Performance or Persuasion. You choose the skill and the DC; the engine spends the action, supplies the modifier, proficiency, Expertise, conditions and every standing bonus, throws the die and reports the outcome. What was found, recalled or agreed to is still yours: the engine owns the number and decides nothing about what it means. It is on this surface rather than a model’s because it takes a DC. It does not take a roll.',
+  mutates: true,
+  input: z
+    .strictObject({
+      who: creatureId,
+      kind: z.enum(['search', 'study', 'influence']),
+      skill: skillSchema.describe(
+        'One of the few the entry prints. A skill the action does not name is refused rather than quietly substituted.',
+      ),
+      dc: difficultyClass,
+      target: creatureId
+        .optional()
+        .describe(
+          'The creature being influenced. Required for an Influence and taken by nothing else; it is recorded rather than read, because whether they can hear you and whether they would ever agree are yours.',
+        ),
+      because: z
+        .string()
+        .min(1)
+        .optional()
+        .describe('What the attempt is for, in one phrase: "listening at the door".'),
+    })
+    .refine((value) => value.kind !== 'influence' || value.target !== undefined, {
+      error: 'an Influence is aimed at a creature; name which one',
+      path: ['target'],
+    })
+    .refine((value) => value.target === undefined || value.kind === 'influence', {
+      error: 'only an Influence names a creature',
+      path: ['target'],
+    }),
+  run: (context, args) => {
+    const state = context.campaign.state();
+    const id = who(args.who);
+    const command = {
+      skill: args.skill,
+      dc: args.dc,
+      ...(args.because === undefined ? {} : { label: args.because }),
+      ...identity(context),
+    };
+    const supply = context.campaign.supply();
+    const result =
+      args.kind === 'search'
+        ? takeSearch(state, id, command, supply)
+        : args.kind === 'study'
+          ? takeStudy(state, id, command, supply)
+          : takeInfluence(state, id, { ...command, target: who(args.target!) }, supply);
+    return settle(
+      context,
+      result,
+      (value) => value.events,
+      (value) => ({
+        took: args.kind,
+        natural: value.check?.natural ?? null,
+        total: value.check?.total ?? null,
+        success: value.check?.success ?? null,
+        dc: args.dc,
+        duplicate: value.duplicate,
+      }),
       (value) => value.unverified,
     );
   },
@@ -1346,6 +1439,7 @@ export const DM_ONLY_TOOLS: readonly ToolDefinition[] = [
   TAKE_COIN,
   TAKE_PRINTED_ACTION,
   TAKE_PRINTED_BONUS_ACTION,
+  TAKE_TESTED_ACTION,
 ].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 
 export const DM_ONLY_TOOL_NAMES: readonly string[] = DM_ONLY_TOOLS.map((tool) => tool.name);

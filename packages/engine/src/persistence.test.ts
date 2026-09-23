@@ -255,6 +255,7 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'free-interaction-used',
   'healed',
   'healing-rule-granted',
+  'help-given',
   'hit-point-maximum-adjusted',
   'hit-point-maximum-raised',
   'initiative-swapped',
@@ -270,6 +271,7 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'mounted',
   'movement-completed',
   'movement-declared',
+  'movement-granted',
   'movement-spent',
   'obscurement-declared',
   'opportunity-answered',
@@ -319,6 +321,7 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'turn-budget-granted',
   'turn-payout-granted',
   'unarmed-strike-made',
+  'utilize-taken',
   'weapon-rider-granted',
 ];
 

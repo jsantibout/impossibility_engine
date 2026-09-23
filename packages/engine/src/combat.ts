@@ -151,31 +151,46 @@ export type ActionSlot = (typeof ACTION_SLOTS)[number];
  * | `dash` | `takeDash` | Fear, Eyebite, Wind Walk |
  * | `disengage` | `takeDisengage` | Conjure Woodland Beings |
  * | `dodge` | `takeDodge` | Bestow Curse, "forced to take the Dodge action" |
+ * | `help` | `takeHelp` | the glossary's own Help entry |
  * | `hide` | `takeHide` | Wind Walk, Cunning Action, Naturally Stealthy |
+ * | `influence` | `takeInfluence` | the glossary's own Influence entry |
  * | `magic` | every casting route | Befuddlement, Antimagic Field, True Polymorph |
  * | `opportunity-attack` | the Reaction a leaving move offers | Shocking Grasp |
+ * | `search` | `takeSearch` | Wind Walk, "Dash, Hide, Search" |
+ * | `study` | `takeStudy` | six definitions that ask for it before an Investigation check |
+ * | `utilize` | `takeUtilize` | Fast Hands, "the Utilize action as a Bonus Action" |
  *
- * **`hide` is the member that arrived with its spender**, which is the rule
+ * **`hide` was the member that arrived with its spender**, which is the rule
  * this list is kept by rather than an exception to it: the Hide action was
  * left out for four batches because "the engine has no spender that could be
  * told one of them apart", and it is here now because `takeHide` takes it —
  * cover, watchers, the DC 15 Dexterity (Stealth) check and the Invisible
  * condition it buys.
  *
- * Search, Study, Influence, Ready and Utilize are the book's too and are still
- * absent, for the reason Hide was: no spender could be told one of them apart,
- * so a rule naming one would read as enforced and would not be. Wind Walk's
- * "Dash, Hide, Search" is therefore writable as the part the engine can
- * adjudicate — see {@link ActionRule}, `permits-only`, which fails closed.
+ * **And the last five arrived the same way, in one commit with their five
+ * spenders.** Search, Study, Influence and Utilize were listed here as the
+ * book's and left to the table for exactly Hide's reason; Help had only the
+ * stabilisation half a `declarations.ts` payout already reached. Each is here
+ * because a command takes it: `takeUtilize` spends the slot a second object
+ * interaction costs, `takeSearch` and `takeStudy` spend the action and roll
+ * the check the entry prints, `takeHelp` hangs the one-shot Advantage its two
+ * halves buy, and `takeInfluence` rolls the Charisma check against a DC the
+ * DM set. Wind Walk's "Dash, Hide, Search" is therefore now writable whole —
+ * see {@link ActionRule}, `permits-only`, which fails closed.
  */
 export const NAMED_ACTIONS = [
   'attack',
   'dash',
   'disengage',
   'dodge',
+  'help',
   'hide',
+  'influence',
   'magic',
   'opportunity-attack',
+  'search',
+  'study',
+  'utilize',
 ] as const;
 
 /** One of {@link NAMED_ACTIONS}. */
@@ -213,12 +228,20 @@ export type NamedAction = (typeof NAMED_ACTIONS)[number];
  * takes the price: `takeDash`, `takeDisengage` and `takeHide` each take a
  * `from` and refuse one this map does not hold.
  *
- * A fourth arrives the same way, with its own command and its own paragraph.
+ * **The fourth arrived the same way**, with its own command and its own
+ * paragraph: SRD Fast Hands, "you can use the Utilize action as a Bonus
+ * Action", which is the whole of what a Thief's feature says that the engine
+ * can charge for. It could not be written at all while no command charged for
+ * a Utilize — an allowance with no spend to be offered on — which is the
+ * defect this map exists to name.
+ *
+ * A fifth arrives the same way again.
  */
 export const STATABLE_PRICES: Readonly<Partial<Record<NamedAction, readonly ActionSlot[]>>> = {
   dash: ['bonus-action'],
   disengage: ['bonus-action'],
   hide: ['bonus-action'],
+  utilize: ['bonus-action'],
 };
 
 /** Whether some command will actually charge this slot for this action. */
@@ -552,9 +575,14 @@ const ACTION_TITLES: Readonly<Record<NamedAction, string>> = {
   dash: 'Dash',
   disengage: 'Disengage',
   dodge: 'Dodge',
+  help: 'Help',
   hide: 'Hide',
+  influence: 'Influence',
   magic: 'Magic',
   'opportunity-attack': 'Opportunity Attack',
+  search: 'Search',
+  study: 'Study',
+  utilize: 'Utilize',
 };
 
 /** "Dash", "Dash or Dodge", "Dash, Dodge or Attack" — and "nothing" for none. */
@@ -701,6 +729,18 @@ export interface GrantedAction {
 }
 
 /**
+ * Feet one feature handed this turn, and what is left of them.
+ *
+ * The source is what the log calls whatever handed them over — a feature's
+ * own `feature:` source — so a refusal can say which grant had nothing left in
+ * it, and a mover can say which one they are spending.
+ */
+export interface GrantedMove {
+  readonly source: string;
+  readonly feet: number;
+}
+
+/**
  * Attacks bought outside an Attack action, and what they may be spent on.
  *
  * SRD Flurry of Blows: "You can expend 1 Focus Point to make two Unarmed
@@ -769,6 +809,34 @@ export interface TurnBudget {
    */
   readonly movementGained: number;
   /**
+   * Feet a feature **handed** this turn, and what handed them over.
+   *
+   * SRD Tactical Shift: "Whenever you activate your Second Wind with a Bonus
+   * Action, you can move up to half your Speed without provoking Opportunity
+   * Attacks."
+   *
+   * **A third counter, and neither of its two neighbours could be it.**
+   * {@link movementGained} is a Dash: feet *added to the allowance*, spent out
+   * of {@link movementSpent} like any other and provoking exactly as walking
+   * does. `MoveCommand.forced` is the other half of what this needs — no Speed
+   * and no Opportunity Attacks — and it is movement somebody else is doing to
+   * you, so it also legalises ending in an occupied space, which SRD forbids
+   * only *willingly* and a Tactical Shift is entirely willing.
+   *
+   * So what is handed over is its own thing: feet spent out of nothing, that
+   * provoke nobody and are still the creature's own move.
+   *
+   * **A list with a source, for {@link extraActions}' reason.** Each is a
+   * sentence somebody printed, the refusal has to be able to name what would
+   * have paid for a move, and a mover states which grant they are spending —
+   * because two features handing over feet on one turn is a thing the
+   * vocabulary should not have to have an opinion about.
+   *
+   * Empty on a fresh budget: the sentence is about the turn the feature was
+   * used on and nothing carries a foot of it into the next.
+   */
+  readonly grantedMoves: readonly GrantedMove[];
+  /**
    * Attacks left in the Attack action, or null if it has not been taken.
    *
    * SRD Extra Attack: "You can attack twice instead of once whenever you take
@@ -788,6 +856,31 @@ export interface TurnBudget {
   readonly disengaged: boolean;
   /** SRD: one free object interaction per turn; a second needs Utilize. */
   readonly freeInteraction: boolean;
+  /**
+   * The Light weapon this turn's Attack action has swung, or null.
+   *
+   * SRD Light: "When you take the Attack action on your turn and attack with a
+   * **Light** weapon, you can make one extra attack as a Bonus Action later on
+   * the same turn. That extra attack must be made with a **different** Light
+   * weapon."
+   *
+   * **A per-turn record and not a hand**, which is the whole of why this field
+   * closes a gap two notes had filed as "nothing records which hand an attack
+   * came from". The SRD has no off-hand: what the sentence asks is which Light
+   * weapon this turn's Attack action already used, and the only place a fact
+   * about a turn can live is the turn's own budget. A hand model would have
+   * been a second answer to a question the book never asks.
+   *
+   * **Written only by a swing of the Attack action**, which is the clause's
+   * own condition — attacks something else bought (SRD Flurry of Blows) are
+   * not the Attack action and do not open the allowance. The *first* such
+   * swing wins, because that is the weapon the sentence is about and a later
+   * swing with a second Light weapon is already the extra attack's business.
+   *
+   * Null on a fresh budget, so the allowance dies with the turn that earned
+   * it: "later on the same turn" and nothing after it.
+   */
+  readonly lightWeaponSwung: string | null;
   /**
    * Which turn this creature last expended a spell slot on, or null.
    *
@@ -863,9 +956,11 @@ const fullBudget = (): TurnBudget => ({
   grantedAttacks: null,
   movementSpent: 0,
   movementGained: 0,
+  grantedMoves: [],
   attacksRemaining: null,
   disengaged: false,
   freeInteraction: true,
+  lightWeaponSwung: null,
   spellSlotSpentOnTurn: null,
   featureUsedOnTurn: {},
 });
@@ -1284,9 +1379,21 @@ export function spendAttack(
   conditions?: ConditionState,
   spend?: Spend,
   unarmed = false,
+  light: string | null = null,
 ): Result<{ readonly state: CombatState; readonly tookAction: boolean }> {
   const budget = requireTheirTurn(state, id);
   if (!budget.ok) return budget;
+
+  /**
+   * SRD Light, recorded where the Attack action is paid for.
+   *
+   * The **first** Light weapon the action swings is the one the sentence is
+   * about, so a record already standing is left alone: a second Light weapon
+   * inside one Attack action is either Nick's extra attack, which spends
+   * nothing here, or a swing the allowance has already been opened by.
+   */
+  const remembering = (had: TurnBudget): Partial<TurnBudget> =>
+    light === null || had.lightWeaponSwung !== null ? {} : { lightWeaponSwung: light };
 
   // **Attacks something else bought come first**, where the swing qualifies
   // for them. A Monk who flurried and then swings a Quarterstaff does not
@@ -1313,7 +1420,10 @@ export function spendAttack(
       state: withBudget(
         state,
         id,
-        { attacksRemaining: budget.value.attacksRemaining - 1 },
+        {
+          attacksRemaining: budget.value.attacksRemaining - 1,
+          ...remembering(budget.value),
+        },
         budget.value,
       ),
       tookAction: false,
@@ -1351,7 +1461,7 @@ export function spendAttack(
     state: withBudget(
       taken.value,
       id,
-      { attacksRemaining: Math.max(0, attacksPerAction - 1) },
+      { attacksRemaining: Math.max(0, attacksPerAction - 1), ...remembering(after.value) },
       after.value,
     ),
     tookAction: true,
@@ -1422,6 +1532,50 @@ export function dash(
 }
 
 /**
+ * Hand this turn a number of feet that spend no Speed.
+ *
+ * SRD Tactical Shift, and the shape {@link grantTurnBudget} has one field
+ * along: only a combat event writes a budget, so only a combat event can add
+ * to one — see {@link GrantedAction} for why that rule exists.
+ *
+ * **A second grant from the same source replaces the first rather than
+ * stacking**, which is the rule every sourced grant in this engine keeps: the
+ * sentence hands over half a Speed each time it fires, not half a Speed more.
+ * Nothing can fire it twice on one turn today — a pool use is a Bonus Action
+ * and a turn has one — and the rule is here rather than waiting for the
+ * feature that needs it, because the alternative is a silent accumulation.
+ *
+ * A grant of nothing is refused rather than filed: a row with no feet in it is
+ * a refusal waiting to be read as an allowance.
+ */
+export function grantMovement(
+  state: CombatState,
+  id: CharacterId,
+  grant: GrantedMove,
+): Result<CombatState> {
+  if (!Number.isFinite(grant.feet) || grant.feet <= 0) {
+    return err('bad_distance', `${grant.feet} is not a number of feet to hand over`);
+  }
+
+  const budget = requireTheirTurn(state, id);
+  if (!budget.ok) return budget;
+
+  return ok(
+    withBudget(
+      state,
+      id,
+      {
+        grantedMoves: [
+          ...budget.value.grantedMoves.filter((held) => held.source !== grant.source),
+          grant,
+        ],
+      },
+      budget.value,
+    ),
+  );
+}
+
+/**
  * SRD Disengage: no Opportunity Attacks from your movement, for this turn.
  *
  * The action each of these costs is spent by its own `action-spent` event, so
@@ -1470,6 +1624,7 @@ export function spendMovement(
   feet: number,
   allowance: number,
   spend?: Spend,
+  grant?: string,
 ): Result<CombatState> {
   if (!Number.isFinite(feet) || feet < 0) {
     return err('bad_distance', `${feet} is not a distance that can be moved`);
@@ -1484,6 +1639,37 @@ export function spendMovement(
 
   const budget = requireTheirTurn(state, id);
   if (!budget.ok) return budget;
+
+  // **Feet a feature handed over come out of that grant and out of nothing
+  // else**, which is the whole of why they are a counter rather than more
+  // allowance: `movementSpent` is untouched, so a Tactical Shift leaves the
+  // turn's own thirty feet exactly where they were. A grant nobody handed this
+  // creature is refused by name rather than falling back on the Speed, because
+  // a mover asking to spend one meant to keep their own movement.
+  if (grant !== undefined) {
+    const held = budget.value.grantedMoves.find((one) => one.source === grant);
+    if (held === undefined) {
+      return err('no_such_grant', `nothing has handed ${id} a move under ${grant} this turn`);
+    }
+    if (feet > held.feet) {
+      return err(
+        'not_enough_movement',
+        `${grant} has ${held.feet} feet left of what it handed ${id}`,
+      );
+    }
+    return ok(
+      withBudget(
+        state,
+        id,
+        {
+          grantedMoves: budget.value.grantedMoves.map((one) =>
+            one.source === grant ? { ...one, feet: one.feet - feet } : one,
+          ),
+        },
+        budget.value,
+      ),
+    );
+  }
 
   const allowed = movementLeft(budget.value, allowance);
   if (feet > allowed) {

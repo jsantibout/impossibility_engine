@@ -24,6 +24,7 @@ import {
   ok,
   type Result,
   type RollMode,
+  type Skill,
 } from '@ie/shared';
 import { DODGE, DODGE_ACTION, READY, READY_ACTION } from '../actions.js';
 import {
@@ -56,6 +57,7 @@ import {
   recordD20Test,
   rollSpellDice,
   savingSupport,
+  spentRollModifiers,
   withFlatAddend,
 } from './rolls.js';
 import { dealSpellDamage } from './damage.js';
@@ -69,6 +71,7 @@ import {
 import {
   coverBetween,
   type CoverDegree,
+  distanceBetween,
   obscurementAt,
   type Placement,
   type Point,
@@ -84,6 +87,7 @@ import {
 import { tallied, type SlotKind } from '../resources.js';
 import { type Content } from '../content.js';
 import { durationSecondsAt } from '../spell-definitions.js';
+import { startOfNextTurn } from '../time.js';
 import {
   castSpell,
   chooseRoute,
@@ -1362,6 +1366,556 @@ export function useFreeObjectInteraction(
       { type: 'free-interaction-used', id, ...(stamp === null ? {} : { command: stamp }) },
     ]);
   });
+}
+
+// — the five the glossary prints and nothing could tell apart ——————————————
+//
+// `combat.ts` listed Search, Study, Influence, Ready and Utilize as the
+// book's and left them to the table, "for the reason Hide was: no spender
+// could be told one of them apart". Ready turned out to exist; the other four
+// are here, and Help — whose stabilisation half `declarations.ts` already
+// paid out — with them. Each arrives with its spender in the same commit,
+// which is the rule `NAMED_ACTIONS` is kept by.
+
+/** Which slot the caller is offering to pay a Utilize out of, and on what. */
+export interface UtilizeCommand extends CommandIdentity {
+  /**
+   * SRD Fast Hands: "you can use the Utilize action as a Bonus Action."
+   *
+   * Absent is what the book charges, which is an Action. Stating a price
+   * nothing has granted is refused rather than quietly charged at the ordinary
+   * one — {@link DisengageOptions}' rule, for {@link DisengageOptions}' reason.
+   */
+  readonly from?: ActionSlot;
+  /** What is being used, in the caller's words: "the lever", "the winch". */
+  readonly object?: string;
+}
+
+/**
+ * SRD Utilize: "When an object requires an action for its use, you take the
+ * Utilize action", and "any additional interactions require the Utilize
+ * action."
+ *
+ * **The action the free interaction's counter always implied.**
+ * `useFreeObjectInteraction` has enforced "one free interaction per turn"
+ * since the economy landed, and the sentence that says what to do about the
+ * second had no door at all — so the count was enforced and the way past it
+ * was missing.
+ *
+ * **It spends the slot and nothing else.** What the object *does* is the
+ * table's: the SRD's own examples are a lever, a lock, a key and a bowstring,
+ * none of which the engine holds, and inventing a mechanism for "used an
+ * object" would be a rule nobody wrote. What the engine owns is the economy,
+ * and that is what this charges — which is exactly what makes SRD Fast Hands
+ * expressible, because an `allows` rule needs a spend to be offered on.
+ *
+ * **The free interaction is deliberately untouched.** A turn gets one for
+ * nothing; a Utilize is what a creature takes *instead of* reaching for it,
+ * not a second way of spending it.
+ */
+export function takeUtilize(
+  state: GameState,
+  id: CharacterId,
+  command: UtilizeCommand = {},
+): Result<GameEvent[]> {
+  return once(state, `utilize:${id}`, command, () => [], (stamp) => {
+    // A mandatory effect this creature has been caught by, or a turn whose start
+    // has not arrived. **After the duplicate check, never before it.**
+    const owedHere = mayAct(state, id);
+    if (owedHere !== null) return owedHere;
+
+    const creature = creatureOf(state, id);
+    if (creature === null) return unknownCreature(id, 'has no record here yet; add it first');
+    if (state.combat === null) {
+      return err(
+        'not_in_combat',
+        'interactions are limited only when time is short; outside combat there is no action to spend on one',
+      );
+    }
+
+    const from: ActionSlot = command.from ?? 'action';
+    if (from !== 'action' && !isStatablePrice('utilize', from)) {
+      return err(
+        'no_such_price',
+        `Utilize cannot be paid for out of ${from}; this command charges an action, or a Bonus Action where something has allowed it`,
+      );
+    }
+    const rules = actionRulesOn(state, id);
+    if (from !== 'action') {
+      const allowed = allowsPrice(id, 'utilize', from, rules);
+      if (!allowed.ok) return allowed;
+    }
+
+    const spend = { rules, as: 'utilize' as const };
+    const spent =
+      from === 'bonus-action'
+        ? spendBonusAction(state.combat, id, creature.conditions, spend)
+        : spendAction(state.combat, id, creature.conditions, spend);
+    if (!spent.ok) return spent;
+
+    return ok([
+      { type: from === 'bonus-action' ? 'bonus-action-spent' : 'action-spent', id },
+      {
+        type: 'utilize-taken',
+        id,
+        ...(command.object === undefined ? {} : { object: command.object }),
+        ...(stamp === null ? {} : { command: stamp }),
+      },
+    ]);
+  });
+}
+
+/**
+ * SRD Search: "you make a Wisdom (Insight, Medicine, Perception, or Survival)
+ * check."
+ *
+ * The four are the entry's own list, and the choice among them is the
+ * searcher's: which sense the attempt leans on is a fact about the attempt,
+ * the same class of fact as `TestCommand.senses`.
+ */
+export const SEARCH_SKILLS: readonly Skill[] = ['insight', 'medicine', 'perception', 'survival'];
+
+/**
+ * SRD Study: "you make an Intelligence (Arcana, History, Investigation,
+ * Nature, or Religion) check."
+ */
+export const STUDY_SKILLS: readonly Skill[] = [
+  'arcana',
+  'history',
+  'investigation',
+  'nature',
+  'religion',
+];
+
+/**
+ * SRD Influence: "you make a Charisma (Deception, Intimidation, Performance,
+ * or Persuasion) check."
+ */
+export const INFLUENCE_SKILLS: readonly Skill[] = [
+  'deception',
+  'intimidation',
+  'performance',
+  'persuasion',
+];
+
+/** The skill this attempt uses, and the DC the DM set for it. */
+export interface ActionCheckCommand extends CommandIdentity {
+  /**
+   * One of the few the entry prints, and refused where it is not.
+   *
+   * The action names a closed list and the choice inside it is the actor's —
+   * SRD Search is four skills under one Wisdom check — so a skill outside the
+   * list is a rules-legal refusal and never a quiet substitution.
+   */
+  readonly skill: Skill;
+  /**
+   * The Difficulty Class, which is the DM's.
+   *
+   * These three entries print a check and no number: the DC depends on the
+   * situation is the whole of what the book says, so it arrives the way every
+   * other DC does — from the DM's door, never from a model's.
+   */
+  readonly dc: number;
+  /** What the attempt is for, in the caller's words. */
+  readonly label?: string;
+  /** Advantage or Disadvantage the table knows about and the engine cannot see. */
+  readonly modes?: readonly (RollMode | ModeSource)[];
+  readonly bonuses?: readonly Bonus[];
+}
+
+/** An Influence names who is being influenced; the other two name nobody. */
+export interface InfluenceCommand extends ActionCheckCommand {
+  readonly target: CharacterId;
+}
+
+export interface ActionCheckResolution {
+  readonly events: readonly GameEvent[];
+  /** The roll, or null when this command id had already been applied. */
+  readonly check: D20TestResult | null;
+  readonly success: boolean;
+  /** Facts the engine could not check — see `AttackResolution.unverified`. */
+  readonly unverified: readonly string[];
+  readonly duplicate: boolean;
+}
+
+/**
+ * Spend the action, roll the check the entry prints, and record both.
+ *
+ * The shared body of the three glossary actions that are a check: the ability
+ * and the list of skills are the entry's, the DC is the DM's and everything
+ * else is derived the way every check in this engine is — proficiency,
+ * Expertise, the armour penalty, the roller's conditions, Exhaustion, and the
+ * modes and bonuses standing on them.
+ *
+ * **And it spends what the roll reached.** A one-shot grant an ally's Help
+ * hung on this creature is used up here, beside `roll-recorded`, exactly as
+ * the two attack rollers have always spent Guiding Bolt's — see
+ * `spentRollModifiers`.
+ */
+function takeActionCheck(
+  state: GameState,
+  id: CharacterId,
+  action: 'search' | 'study' | 'influence',
+  title: string,
+  ability: Ability,
+  skills: readonly Skill[],
+  command: ActionCheckCommand,
+  supply: Supply,
+  handover: readonly string[] = [],
+): Result<ActionCheckResolution> {
+  return once(
+    state,
+    `${action}:${id}`,
+    command,
+    () => ({ events: [], check: null, success: false, unverified: [], duplicate: true }),
+    (stamp) => {
+      // A mandatory effect this creature has been caught by, or a turn whose
+      // start has not arrived. **After the duplicate check, never before it.**
+      const owedHere = mayAct(state, id);
+      if (owedHere !== null) return owedHere;
+
+      const creature = creatureOf(state, id);
+      if (creature === null) return unknownCreature(id, 'has no record here yet; add it first');
+
+      if (!skills.includes(command.skill)) {
+        return err(
+          'wrong_skill',
+          `the ${title} action is a ${ABILITY_NAMES[ability]} check with ${skills.join(', ')}; ${command.skill} is none of them`,
+        );
+      }
+      if (!Number.isFinite(command.dc)) {
+        return err('bad_dc', `${String(command.dc)} is not a Difficulty Class`);
+      }
+
+      // Validate the whole attempt before any of it is emitted, which here
+      // means before the die: a refused action costs neither the slot nor a
+      // turn of the generator.
+      const events: GameEvent[] = [];
+      if (state.combat !== null && state.combat.budgets[id] !== undefined) {
+        const spent = spendAction(state.combat, id, creature.conditions, {
+          rules: actionRulesOn(state, id),
+          as: action,
+        });
+        if (!spent.ok) return spent;
+        events.push({ type: 'action-spent', id });
+      }
+
+      const issuedBefore = supply.issuer.count;
+      const query = {
+        family: 'ability-check' as const,
+        roller: id,
+        ability,
+        skill: command.skill,
+      };
+      const sheet = sheetAsItStands(state, id) ?? creature.sheet;
+      const rolled = rollAbilityCheck(supply.issuer, supply.rng, sheet, ability, {
+        dc: command.dc,
+        skill: command.skill,
+        conditions: effectiveConditions(state, id),
+        modes: [...rollModesFor(state, query).modes, ...(command.modes ?? [])],
+        bonuses: checkBonuses(state, id, command.bonuses, command.skill),
+      });
+      if (!rolled.ok) return rolled;
+
+      events.push({
+        type: 'rolls-issued',
+        count: supply.issuer.count - issuedBefore,
+        rng: supply.rng.snapshot(),
+      });
+      events.push({
+        ...recordD20Test(
+          id,
+          command.label ?? `${ABILITY_NAMES[ability]} (${command.skill}) check to ${title}`,
+          rolled.value,
+          rolled.value.success ? 'success' : 'failure',
+        ),
+        ...(stamp === null ? {} : { command: stamp }),
+      });
+      // **Beside the roll, and whatever the outcome.** The sentence that hung
+      // the grant counts rolls and not successes, which is the reading
+      // `resolveAttack` has always taken of the same field.
+      events.push(...spentRollModifiers(state, query));
+
+      return ok({
+        events,
+        check: rolled.value,
+        success: rolled.value.success,
+        unverified: handover,
+        duplicate: false,
+      });
+    },
+  );
+}
+
+/**
+ * SRD Search: "You make a Wisdom (Insight, Medicine, Perception, or Survival)
+ * check to discern something that isn't obvious."
+ *
+ * **What was found is not here and cannot be.** The engine holds no hidden
+ * door, no bloodstain and no lie; what it holds is the check and the action
+ * that buys it, and the thing discerned is the table's to narrate from the
+ * number. That is the division `resolveTest` already draws — "a standalone
+ * test's consequence belongs to whoever asked for it; the engine owns the
+ * number" — and the reason this rolls rather than searching state.
+ */
+export function takeSearch(
+  state: GameState,
+  id: CharacterId,
+  command: ActionCheckCommand,
+  supply: Supply,
+): Result<ActionCheckResolution> {
+  return takeActionCheck(state, id, 'search', 'Search', 'wis', SEARCH_SKILLS, command, supply);
+}
+
+/**
+ * SRD Study: "You make an Intelligence (Arcana, History, Investigation,
+ * Nature, or Religion) check to study your memory, a book, a clue, or another
+ * source of knowledge."
+ *
+ * **The gap was in the middle of a rule that otherwise ran.** Six spell
+ * definitions print the sentence "a creature must take the Study action" in
+ * front of the Investigation check `resolveEffectCheck` rolls — Disguise Self,
+ * Minor Illusion, Silent Image, Hallucinatory Terrain, Major Image and Seeming
+ * — so the check was executed and the action that buys it was not.
+ */
+export function takeStudy(
+  state: GameState,
+  id: CharacterId,
+  command: ActionCheckCommand,
+  supply: Supply,
+): Result<ActionCheckResolution> {
+  return takeActionCheck(state, id, 'study', 'Study', 'int', STUDY_SKILLS, command, supply);
+}
+
+/**
+ * SRD Influence: "You make a Charisma (Deception, Intimidation, Performance,
+ * or Persuasion) check to urge a monster to do something."
+ *
+ * **The attitude is handed over, not modelled**, and the book is why: the DM
+ * decides whether the monster is Indifferent, Friendly or Hostile, a Hostile
+ * monster's answer is no whatever the die says, and the DC depends on that
+ * attitude — three judgements about fiction the engine holds none of. So the
+ * check is the engine's, the number is the DM's, and what the monster does
+ * about it comes back flagged.
+ *
+ * `target` is recorded rather than read: the engine checks that the creature
+ * exists and nothing else, because "understands what you say" and "is willing
+ * to listen" are clauses it can answer neither of.
+ */
+export function takeInfluence(
+  state: GameState,
+  id: CharacterId,
+  command: InfluenceCommand,
+  supply: Supply,
+): Result<ActionCheckResolution> {
+  if (creatureOf(state, command.target) === null) {
+    return unknownCreature(command.target, 'is not here to be influenced');
+  }
+  return takeActionCheck(
+    state,
+    id,
+    'influence',
+    'Influence',
+    'cha',
+    INFLUENCE_SKILLS,
+    command,
+    supply,
+    [
+      `SRD Influence: the attitude of ${command.target} — Indifferent, Friendly or Hostile — is the DM's, and so is whether what was asked for is something the monster would ever agree to; a Hostile monster refuses whatever the check said. The engine rolled the check and decided nothing about the answer.`,
+    ],
+  );
+}
+
+/** The feature id a Help's Advantage hangs under. */
+export const HELP = 'action:help';
+
+/** One helper's Help, so two helpers hang two grants and one helper hangs one. */
+const helpSource = (helper: CharacterId): string => `${HELP}@${helper}`;
+
+/** SRD Help, Assist an Attack Roll: "an enemy within 5 feet of you". */
+const HELP_REACH = 5;
+
+/**
+ * Which half of the Help entry is being offered.
+ *
+ * SRD prints two paragraphs under one action and they are not two readings of
+ * one rule: the first names a skill and an ally and gives Advantage on a
+ * check, the second names an ally and an enemy and gives Advantage on an
+ * attack. Different fields and a different creature the grant is about — so a
+ * union rather than one shape with everything optional, which is what would
+ * let a caller name a skill and an enemy and be told nothing.
+ */
+export type HelpCommand = CommandIdentity &
+  (
+    | {
+        readonly kind: 'check';
+        readonly ally: CharacterId;
+        /**
+         * SRD: "Choose one of your skill or tool proficiencies" — the
+         * **helper's**, which is why this is checked against the helper's own
+         * sheet rather than the ally's.
+         */
+        readonly skill: Skill;
+      }
+    | {
+        readonly kind: 'attack';
+        readonly ally: CharacterId;
+        readonly enemy: CharacterId;
+      }
+  );
+
+export interface HelpResolution {
+  readonly events: readonly GameEvent[];
+  /**
+   * The five feet the engine could not measure, where nobody has been placed.
+   *
+   * See `AttackResolution.unverified`: a fact a command can proceed past
+   * conservatively is reported rather than refused.
+   */
+  readonly unverified: readonly string[];
+  readonly duplicate: boolean;
+}
+
+/**
+ * SRD Help, both halves: Advantage on one ally's next ability check with a
+ * chosen skill, or on their next attack roll against a distracted enemy.
+ *
+ * **A stored grant rather than a derived one, because the point of it is to be
+ * spent.** `RollModifier.oneShot` is the mechanism SRD Guiding Bolt and SRD
+ * Vicious Mockery already use and `commands/mastery.ts` already files timers
+ * for; this is the same shape, one action along, with the deadline the entry
+ * prints — the start of the helper's next turn — on a `grants` timer. Both
+ * endings stand and the first to arrive wins, which is the rule
+ * `roll-modifier-consumed` documents.
+ *
+ * **The attack half's five feet are checked and the check half's "near enough"
+ * is not**, and the asymmetry is the book's: "an enemy within 5 feet of you" is
+ * a distance on the lattice, and "near enough for you to assist verbally or
+ * physically" is a judgement about a room the engine does not hold. Where
+ * nobody has placed the creatures, the distance goes unverified rather than
+ * refused — the reading Push takes of an unstated size.
+ *
+ * **What is *not* here is the entry's third sentence**: "you can also aid a
+ * friendly creature in attacking" has a stabilisation twin — `stabiliseCreature`
+ * names the Help action as what its payout is the payout of — and that half has
+ * been reachable since declarations landed.
+ */
+export function takeHelp(
+  state: GameState,
+  id: CharacterId,
+  command: HelpCommand,
+): Result<HelpResolution> {
+  return once(
+    state,
+    `help:${id}`,
+    command,
+    () => ({ events: [], unverified: [], duplicate: true }),
+    (stamp) => {
+      // A mandatory effect this creature has been caught by, or a turn whose
+      // start has not arrived. **After the duplicate check, never before it.**
+      const owedHere = mayAct(state, id);
+      if (owedHere !== null) return owedHere;
+
+      const creature = creatureOf(state, id);
+      if (creature === null) return unknownCreature(id, 'has no record here yet; add it first');
+      if (state.combat === null) {
+        return err(
+          'not_in_combat',
+          'a Help expires at the start of your next turn, and there are no turns outside combat for it to expire at',
+        );
+      }
+      if (command.ally === id) {
+        return err('no_ally', `${id} cannot Help themselves; the entry names an ally`);
+      }
+      if (creatureOf(state, command.ally) === null) {
+        return unknownCreature(command.ally, 'is not here to be helped');
+      }
+
+      const unverified: string[] = [];
+      if (command.kind === 'check') {
+        // SRD: "Choose one of your **skill or tool proficiencies**." Tools are
+        // not on the sheet, so what is checked is the half that is: a helper
+        // offering a skill they are not proficient with is refused rather than
+        // handed the Advantage anyway.
+        if ((sheetAsItStands(state, id) ?? creature.sheet).skills[command.skill] === undefined) {
+          return err(
+            'not_proficient',
+            `SRD Help asks the helper to choose one of their own proficiencies, and ${id} is not proficient with ${command.skill}`,
+          );
+        }
+      } else {
+        if (creatureOf(state, command.enemy) === null) {
+          return unknownCreature(command.enemy, 'is not here to be distracted');
+        }
+        const apart = state.scene === null ? null : distanceBetween(state.scene, id, command.enemy);
+        if (apart !== null && apart.ok && apart.value > HELP_REACH) {
+          return err(
+            'out_of_reach',
+            `SRD Help distracts "an enemy within 5 feet of you", and ${command.enemy} is ${apart.value} feet from ${id}`,
+          );
+        }
+        if (apart === null || !apart.ok) {
+          unverified.push(
+            `nobody has said where ${id} and ${command.enemy} are standing, so the five feet SRD Help asks for went unchecked`,
+          );
+        }
+      }
+
+      const source = helpSource(id);
+      const granted: GameEvent = {
+        type: 'roll-modifier-granted',
+        id: command.ally,
+        modifier: {
+          source,
+          modifier: {
+            mode: 'advantage',
+            selector:
+              command.kind === 'check'
+                ? { roll: 'ability-check', relation: 'roller', skill: command.skill }
+                : // "against that enemy": the participant the relation does not
+                  // name, which is what `counterpart` was written for and what
+                  // Vex already uses.
+                  { roll: 'attack', relation: 'roller', counterpart: command.enemy },
+            oneShot: true,
+          },
+        },
+      };
+
+      const spent = spendAction(state.combat, id, creature.conditions, {
+        rules: actionRulesOn(state, id),
+        as: 'help',
+      });
+      if (!spent.ok) return spent;
+
+      // "This benefit expires if the ally doesn't use it before the start of
+      // your next turn", and the attack half says the same in fewer words. The
+      // **helper's** turn, not the ally's.
+      const timer = schedule(
+        applyEvent(state, granted),
+        { kind: 'grants', on: command.ally, source },
+        startOfNextTurn(id),
+      );
+      if (!timer.ok) return timer;
+
+      return ok({
+        events: [
+          { type: 'action-spent', id },
+          granted,
+          timer.value,
+          {
+            type: 'help-given',
+            id,
+            ally: command.ally,
+            kind: command.kind,
+            ...(command.kind === 'attack' ? { against: command.enemy } : {}),
+            ...(stamp === null ? {} : { command: stamp }),
+          },
+        ],
+        unverified,
+        duplicate: false,
+      });
+    },
+  );
 }
 
 /**
