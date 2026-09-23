@@ -619,6 +619,23 @@ export const MonsterTraitSchema = z.discriminatedUnion('kind', [
       .array(z.enum(['ability-check', 'attack-roll', 'saving-throw']))
       .min(1),
   }),
+  z.object({
+    /**
+     * SRD Undead Fortitude, printed word for word on the Zombie and the Ogre
+     * Zombie: "If damage reduces the zombie to 0 Hit Points, it makes a
+     * Constitution saving throw (DC 5 plus the damage taken) unless the damage
+     * is Radiant or from a Critical Hit. On a successful save, the zombie drops
+     * to 1 Hit Point instead."
+     *
+     * **A bare kind, because nothing in the sentence varies.** The two blocks
+     * that print it print the same ability, the same DC formula, the same two
+     * exceptions and the same 1 Hit Point — so there is nothing to carry, and
+     * the shape is `advantage-when-ally-is-within-5-feet-of-the-target`'s
+     * rather than `jumps-without-a-running-start`'s. A homebrew block wanting
+     * a different DC prints a different sentence, and this refuses it.
+     */
+    kind: z.literal('undead-fortitude'),
+  }),
 ]);
 export type MonsterTrait = z.infer<typeof MonsterTraitSchema>;
 

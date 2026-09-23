@@ -806,7 +806,17 @@ export type GameEvent =
          * both the interception and its price needs none: the claim and what
          * paid for it cannot come apart, in the log or in the fold.
          */
-        readonly spent: {
+        /**
+         * Absent where the sentence rations nothing.
+         *
+         * SRD Undead Fortitude counts no uses at all: a zombie may stand back
+         * up every round of the fight, and what stands between it and that is
+         * a Constitution save rather than a limit. So the interception is
+         * written down with no price beside it, which is the honest shape —
+         * a tally of a rule that has no limit would be a count nothing reads
+         * and a "once" the book did not print.
+         */
+        readonly spent?: {
           /** What the uses are counted under — a tally's key, as a pool's is. */
           readonly key: string;
           /** SRD's "until you finish a Long Rest", which zeroes the count. */

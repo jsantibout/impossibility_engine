@@ -213,12 +213,39 @@ export interface DamageOptions {
    * the `damage-taken` event, and the fold hands the same number back here on
    * replay, so the blow lands identically both times.
    *
-   * **It cannot save anybody from dying.** "Not killed outright" is Massive
-   * Damage and a monster's `diesAtZero`, and both are settled below before
-   * this is read at all — so a floor cannot be written that gets them wrong.
+   * **It stands against the death the drop itself causes, and not against
+   * Massive Damage.** SRD Undead Fortitude is a sentence *about* "a monster
+   * dies the instant it drops to 0 Hit Points" — "on a successful save, the
+   * zombie drops to 1 Hit Point instead" overrides that rule or it says
+   * nothing at all — so a floor beats `diesAtZero`. Massive Damage it does not
+   * beat: no printed sentence of this shape speaks about it, and a zombie
+   * never reaches that arm anyway.
+   *
+   * **Relentless Endurance's narrower reading is kept where it is decided.**
+   * "When you are reduced to 0 Hit Points **but not killed outright**" is the
+   * command's clause rather than this module's: `damageCreature` asks
+   * `hitPointFloorFor` only where the blow did not kill, so that floor is
+   * never offered to a creature this arm could save. One rule, one place, and
+   * the reach of each sentence written where its own facts are.
    */
   readonly floor?: number;
 }
+
+/**
+ * SRD Damage Threshold: what an instance of damage actually takes off.
+ *
+ * "A creature or an object that has a damage threshold has Immunity to all
+ * damage unless it takes an amount of damage from a single attack or effect
+ * equal to or greater than its damage threshold, in which case it takes that
+ * entire instance of damage."
+ *
+ * One line and its own function, because two readers need the same answer:
+ * `damageCreature`, which writes it down, and `resolveDamage`, which has to
+ * know what a blow will take off *before* it writes anything, to raise the
+ * saving throw SRD Undead Fortitude prices off exactly that number.
+ */
+export const damagePastThreshold = (threshold: number, amount: number): number =>
+  amount < threshold ? 0 : amount;
 
 export function applyDamageToVitals(
   v: Vitals,
@@ -307,8 +334,22 @@ export function applyDamageToVitals(
     };
   }
 
-  // SRD Monster Death: a monster dies the instant it drops to 0.
+  /** What the floor leaves the creature on, or null where there is none. */
+  const held =
+    options.floor !== undefined && options.floor > 0 ? Math.min(v.hp, options.floor) : null;
+
+  // SRD Monster Death: a monster dies the instant it drops to 0 — unless
+  // something on its block says otherwise, which is the whole content of SRD
+  // Undead Fortitude. See {@link DamageOptions.floor}.
   if (v.diesAtZero) {
+    if (held !== null) {
+      return {
+        ...unchanged,
+        vitals: { ...v, hp: held, temporaryHp },
+        temporaryAbsorbed,
+        hpLost: v.hp - held,
+      };
+    }
     return {
       ...unchanged,
       vitals: { ...v, hp: 0, temporaryHp, dead: true },
@@ -337,20 +378,18 @@ export function applyDamageToVitals(
     };
   }
 
-  // **Here, and here is the whole of "but not killed outright".** Both ways a
-  // blow kills outright have returned above — a monster's death at 0 and
-  // Massive Damage — so the creature reaching this line is one the rules leave
-  // Unconscious, which is exactly the one the trait is about. Nothing below
-  // follows: it did not drop to zero, so it starts no death saves and gains no
-  // Unconscious, and `hpLost` is what it really lost rather than what the blow
-  // would have taken.
-  if (options.floor !== undefined && options.floor > 0) {
-    const hp = Math.min(v.hp, options.floor);
+  // **Massive Damage has returned above, and a monster's death at 0 was
+  // answered where it is printed.** So what is left here is the creature the
+  // rules leave Unconscious, which is the one SRD Relentless Endurance is
+  // about. Nothing below follows: it did not drop to zero, so it starts no
+  // death saves and gains no Unconscious, and `hpLost` is what it really lost
+  // rather than what the blow would have taken.
+  if (held !== null) {
     return {
       ...unchanged,
-      vitals: { ...v, hp, temporaryHp },
+      vitals: { ...v, hp: held, temporaryHp },
       temporaryAbsorbed,
-      hpLost: v.hp - hp,
+      hpLost: v.hp - held,
     };
   }
 

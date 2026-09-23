@@ -832,6 +832,57 @@ export const hasPrintedTrait = (sheet: CharacterSheet, kind: MonsterTrait['kind'
   sheet.stated?.traits?.some((trait) => trait.kind === kind) === true;
 
 /**
+ * The name SRD Undead Fortitude's save and its floor are recorded under.
+ *
+ * A constant rather than a string at each site, so the roll a player reads and
+ * the `damage-taken.floor` a replay reads cannot come to disagree — and
+ * exported so that a test can ask for the rule by the same name the log gives
+ * it. It is the *rule's* name and not a catalogue id: nothing looks a creature
+ * up by it, and the sweep is about ids.
+ */
+export const UNDEAD_FORTITUDE = 'Undead Fortitude';
+
+/**
+ * SRD Undead Fortitude's saving throw, or null where the sentence does not
+ * fire.
+ *
+ * > "If damage reduces the zombie to 0 Hit Points, it makes a Constitution
+ * > saving throw (DC 5 plus the damage taken) unless the damage is Radiant or
+ * > from a Critical Hit."
+ *
+ * Four clauses and every one of them is asked here: the block prints the
+ * sentence, the blow takes the creature to 0, the damage is not from a
+ * Critical Hit, and none of it is Radiant.
+ *
+ * **A sheet fact rather than a standing effect**, and the reason is the
+ * vocabulary rather than convenience: `hit-point-floor` is an *unconditional*
+ * floor with a use to spend, and this is a conditional floor with no use and a
+ * die in front of it. Expressing it as a grant would be a new `FeatureGrant`
+ * kind — a decision about what content may say, which this is not the place to
+ * take. The trait is parsed onto `CharacterSheet.stated.traits` already, and
+ * `hasPrintedTrait` is how every other printed sentence is asked for.
+ *
+ * **The types are the ones the blow actually carried.** `undefined` is a
+ * caller that never had any — a DM's improvised amount, which has no type for
+ * a defence to meet either — and the save is raised, because the engine cannot
+ * see a Radiant it was never told about and refusing the save on that ground
+ * would be inventing the exception rather than applying it. What it cannot
+ * check, it hands over; see `resolveDamage`.
+ */
+export function undeadFortitudeSave(
+  sheet: CharacterSheet,
+  outcome: { readonly droppedToZero: boolean },
+  amount: number,
+  blow: { readonly critical?: boolean; readonly types?: readonly string[] },
+): { readonly dc: number; readonly feature: string } | null {
+  if (!hasPrintedTrait(sheet, 'undead-fortitude')) return null;
+  if (!outcome.droppedToZero) return null;
+  if (blow.critical === true) return null;
+  if ((blow.types ?? []).some((type) => type.toLowerCase() === 'radiant')) return null;
+  return { dc: 5 + amount, feature: UNDEAD_FORTITUDE };
+}
+
+/**
  * SRD Standing Leap: the two distances a block prints for itself, or null.
  *
  * "The frog's Long Jump is up to 10 feet and its High Jump is up to 5 feet

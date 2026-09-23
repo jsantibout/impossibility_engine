@@ -179,8 +179,11 @@ export function applyVitals({ state, next }: Applying, event: VitalsEvent): Game
           // **And the use the floor cost, counted off the same event.** The
           // interception and its price are one fact and arrive as one event —
           // see `damage-taken.floor.spent` for why the spend is not a second
-          // one — so the count is taken here, where the floor is read.
-          ...(event.floor === undefined
+          // one — so the count is taken here, where the floor is read. A floor
+          // that cost nothing carries no `spent` and counts nothing: SRD
+          // Undead Fortitude rations its interception with a saving throw
+          // rather than with a limit.
+          ...(event.floor?.spent === undefined
             ? {}
             : {
                 resources: must(

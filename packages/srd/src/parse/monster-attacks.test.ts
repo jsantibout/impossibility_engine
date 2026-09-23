@@ -1089,7 +1089,8 @@ describe('what a stat block’s sections print, and what is read', () => {
             line.attack !== undefined ||
             line.trait !== undefined ||
             line.save !== undefined ||
-            line.multiattack !== undefined
+            line.multiattack !== undefined ||
+            line.spellcasting !== undefined
           ) {
             read += 1;
           }
@@ -1109,11 +1110,17 @@ describe('what a stat block’s sections print, and what is read', () => {
       // Two more again with Bloodied: the Boar's Bloodied Fury and the
       // Berserker's Bloodied Frenzy. The Giant Boar prints the same heading
       // over a narrower rule and is refused, which is the count saying so.
-      traits: { printed: 337, read: 101 },
+      // Two more again with Undead Fortitude: the Zombie and the Ogre Zombie,
+      // which are the only two blocks in the book that print that sentence.
+      traits: { printed: 337, read: 103 },
       // Fifty-three more than before the save template was read, and the
-      // Clay Golem's Multiattack before them — every other unread line here
-      // is unread for its own reason.
-      actions: { printed: 811, read: 650 },
+      // Clay Golem's Multiattack before them. Forty-seven more again with the
+      // Spellcasting line, which is the book's third opening and is read
+      // whole: the two that are still prose are the Pit Fiend's Hellfire
+      // Spellcasting, which casts one spell twice, and the Storm Giant's,
+      // whose spell names the book italicised none of. Every other unread line
+      // here is unread for its own reason.
+      actions: { printed: 811, read: 697 },
       // **Not one prints an attack roll**, which is what the zero here used
       // to say. Three print the save template — the Trample of the Gorgon,
       // the Elephant and the Mammoth, the last of which is CR 6 — and those

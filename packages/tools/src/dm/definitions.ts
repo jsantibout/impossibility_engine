@@ -448,6 +448,13 @@ const IMPROVISED_DAMAGE = tool({
         concentration: value.concentration,
         duplicate: value.duplicate,
       }),
+      // **The clause an untyped amount cannot be measured against.** A stated
+      // number has no damage type — which is the whole reason no Resistance
+      // meets it — so a zombie's Undead Fortitude save is thrown here without
+      // the engine being able to see whether the chandelier was Radiant. The
+      // save happens and the reader is told which half of the sentence it is
+      // holding; this is the one tool that can produce such a line.
+      (value) => value.unverified,
     ),
 });
 

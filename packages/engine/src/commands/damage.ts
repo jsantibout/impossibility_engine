@@ -370,6 +370,13 @@ export function dealSpellDamage(
     {
       amount: applied.total,
       source,
+      // **What kinds this blow was made of, carried past the arithmetic.**
+      // The total is what the defences left; the types are what SRD Undead
+      // Fortitude's "unless the damage is Radiant" reads, and nothing else on
+      // the command can answer it. Sorted and de-duplicated, because a log is
+      // compared byte for byte and the order components happened to be rolled
+      // in is not a fact about the blow.
+      types: [...new Set(components.map((component) => component.type))].sort(),
       ...(options.critical === true ? { critical: true } : {}),
       ...(options.by === undefined ? {} : { by: options.by }),
     },

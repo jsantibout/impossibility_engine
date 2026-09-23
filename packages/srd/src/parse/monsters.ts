@@ -630,6 +630,21 @@ const BLOODIED_ADVANTAGE = new RegExp(
   `^While Bloodied, ${SUBJECT} has Advantage on (attack rolls and saving throws|attack rolls)\\.$`,
 );
 
+/**
+ * SRD Undead Fortitude, printed word for word on two blocks.
+ *
+ * Anchored end to end like everything else here, and this one has more to
+ * refuse than most: the whole rule is in the clauses — a Constitution save, a
+ * DC read off the damage, two exceptions, and the one Hit Point a success
+ * leaves. A sentence read down to "it drops to 1 Hit Point instead" would be a
+ * zombie that never dies.
+ */
+const UNDEAD_FORTITUDE = new RegExp(
+  `^If damage reduces ${SUBJECT} to 0 Hit Points, it makes a Constitution saving throw ` +
+    `\\(DC 5 plus the damage taken\\) unless the damage is Radiant or from a Critical Hit\\. ` +
+    `On a successful save, ${SUBJECT} drops to 1 Hit Point instead\\.$`,
+);
+
 /** The book's nouns for the rolls, in the kind's own three words. */
 const BLOODIED_ROLLS: Readonly<Record<string, readonly ('attack-roll' | 'saving-throw')[]>> = {
   'attack rolls': ['attack-roll'],
@@ -737,6 +752,8 @@ export function parseTraitShape(text: string): MonsterTrait | null {
   if (bloodied !== null) {
     return { kind: 'advantage-while-bloodied', rolls: bloodiedRolls(bloodied[1]!) };
   }
+
+  if (UNDEAD_FORTITUDE.test(text)) return { kind: 'undead-fortitude' };
 
   return null;
 }

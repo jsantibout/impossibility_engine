@@ -70,7 +70,8 @@ import {
   validateSpellName,
 } from '../spells.js';
 import { actionRulesOn, armorClassOf, sheetAsItStands } from '../standing.js';
-import { concentrationSaveDc } from '../vitals.js';
+import { applyDamageToVitals, concentrationSaveDc, damagePastThreshold } from '../vitals.js';
+import { undeadFortitudeSave } from '../monster.js';
 // The Hide action's source string, read-only, so that `hidingEndedBy` below
 // ends the Invisible a Hide bought and no other. A value import of one
 // constant, used inside a function body and never at module scope, so the
@@ -79,7 +80,7 @@ import { concentrationSaveDc } from '../vitals.js';
 import { HIDE } from './actions.js';
 import { creatureOf, damageTakenIn, turnContextFor, unknownCreature } from './command.js';
 import { applyConditionTo, endConditionsOn, schedule } from './conditions.js';
-import { type DamageCommand, damageCreature } from './creatures.js';
+import { type DamageCommand, damageCreature, type SettledFloor } from './creatures.js';
 import { mayAct, pendingCastingsOf } from './holds.js';
 import { recordD20Test, savingSupport } from './rolls.js';
 import { type CastSpellRequest } from './targeting.js';
@@ -1731,6 +1732,19 @@ export interface DamageResolution {
   readonly concentration: ConcentrationConsequence;
   /** True when this command id had already been applied; `events` is empty. */
   readonly duplicate: boolean;
+  /**
+   * Clauses this command applied without being able to check them — see
+   * `AttackResolution.unverified`.
+   *
+   * Empty for every blow the engine typed itself, which is every blow but one:
+   * a DM's improvised amount carries no damage type, so SRD Undead Fortitude's
+   * "unless the damage is Radiant" is a clause nothing here can evaluate. The
+   * save is thrown anyway — the engine cannot see a Radiant it was never told
+   * about, and refusing the save on that ground would be inventing the
+   * exception rather than applying it — and the reader is told which half of
+   * the sentence it is holding.
+   */
+  readonly unverified: readonly string[];
 }
 
 /**
@@ -1793,14 +1807,92 @@ export function resolveDamage(
   supply: Supply,
 ): Result<DamageResolution> {
   return once(state, `damage:${id}`, command, () => {
-    return { events: [], concentration: { kind: 'none' }, duplicate: true };
+    return { events: [], concentration: { kind: 'none' }, duplicate: true, unverified: [] };
   }, () => {
-    const held = creatureOf(state, id)?.concentration ?? null;
+    const victim = creatureOf(state, id);
+    if (victim === null) return unknownCreature(id);
+    const held = victim.concentration ?? null;
 
-    const damage = damageCreature(state, id, command);
+    const events: GameEvent[] = [];
+    const unverified: string[] = [];
+
+    // — SRD Undead Fortitude ————————————————————————————————————————————————
+    //
+    // **The second save this command settles, and it is here for the first
+    // one's reason.** `damageCreature` takes no `Supply` and cannot throw a
+    // die; this command has one, and every route that lands typed damage comes
+    // through it. A save rolled anywhere else would be a save a fifth route
+    // walked past — which is the sentence `resolveDamage` already exists to
+    // make untrue of Concentration.
+    //
+    // **Before the blow is written down**, because the interception is pinned
+    // onto `damage-taken` and the fold reads it back rather than asking again.
+    // The dry run costs nothing: `applyDamageToVitals` is arithmetic over a
+    // `Vitals`.
+    //
+    // **And nothing is asked about an amount this command will refuse.** A
+    // negative or infinite number is `damageCreature`'s refusal to make, and a
+    // refusal must arrive having moved nothing — including the generator, which
+    // a saving throw thrown first would have moved. `applyDamageToVitals`
+    // throws on one rather than answering, because it is a programmer's error
+    // and not a rules question.
+    const dealable = Number.isFinite(command.amount) && command.amount >= 0;
+    const takenNow = damagePastThreshold(
+      victim.sheet.stated?.damageThreshold ?? 0,
+      command.amount,
+    );
+    const fortitude = !dealable
+      ? null
+      : undeadFortitudeSave(
+          victim.sheet,
+          applyDamageToVitals(victim.vitals, takenNow, {
+            ...(command.critical === undefined ? {} : { critical: command.critical }),
+          }),
+          takenNow,
+          command,
+        );
+
+    let settled: SettledFloor | null = null;
+    if (fortitude !== null) {
+      const issuedForFortitude = supply.issuer.count;
+      const support = savingSupport(state, id, victim, 'con', supply);
+      const sheet = sheetAsItStands(state, id) ?? victim.sheet;
+      const save = rollSavingThrow(supply.issuer, supply.rng, sheet, 'con', {
+        dc: fortitude.dc,
+        conditions: support.conditions,
+        modes: support.modes,
+        bonuses: support.bonuses,
+      });
+      if (!save.ok) return save;
+      events.push(
+        recordD20Test(
+          id,
+          `Constitution save for ${fortitude.feature} (DC ${fortitude.dc})`,
+          save.value,
+          save.value.success ? 'stands at 1 Hit Point' : 'drops',
+        ),
+        {
+          type: 'rolls-issued',
+          count: supply.issuer.count - issuedForFortitude,
+          rng: supply.rng.snapshot(),
+        },
+      );
+      if (save.value.success) settled = { at: 1, feature: fortitude.feature };
+      // **The half of the sentence this blow could not be measured against.**
+      // A DM's improvised amount has no damage type — which is why no defence
+      // meets it either — so "unless the damage is Radiant" is a clause the
+      // engine applied blind. See `DamageResolution.unverified`.
+      if (command.types === undefined) {
+        unverified.push(
+          `${id}: ${fortitude.feature} was rolled against damage with no stated type, so "unless the damage is Radiant" could not be checked`,
+        );
+      }
+    }
+
+    const damage = damageCreature(state, id, command, settled);
     if (!damage.ok) return damage;
 
-    const events: GameEvent[] = [...damage.value];
+    events.push(...damage.value);
     const after = events.reduce(applyEvent, state);
 
     // **What was taken, not what was swung.** `damageCreature` is the one
@@ -1814,6 +1906,7 @@ export function resolveDamage(
         events,
         concentration: lost ? { kind: 'already-lost', castingId: held.castingId } : { kind: 'none' },
         duplicate: false,
+        unverified,
       });
     }
 
@@ -1866,6 +1959,7 @@ export function resolveDamage(
       events,
       concentration: { kind: 'resolved', check, save: save.value, maintained },
       duplicate: false,
+      unverified,
     });
   });
 }

@@ -334,6 +334,11 @@ export function settleDamage(
       {
         amount: applied.total,
         source: pending.source,
+        // The kinds this blow was made of, for `DamageCommand.types`'s reason.
+        // The held components are the same ones `dealSpellDamage` would have
+        // handed over had no window opened, so a Radiant blow reads as Radiant
+        // by either road.
+        types: [...new Set(pending.components.map((component) => component.type))].sort(),
         ...(pending.critical ? { critical: true } : {}),
         ...(pending.by === null ? {} : { by: pending.by }),
       },
