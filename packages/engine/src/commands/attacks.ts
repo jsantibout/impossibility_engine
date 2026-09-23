@@ -99,6 +99,8 @@ import {
 } from './casting.js';
 import { creatureOf, unknownCreature } from './command.js';
 import { routeLabel } from './item-casting.js';
+import { remaining } from '../resources.js';
+import type { CastingRoute } from '../spellcasting.js';
 import { landDamage, statedFrom } from './damage.js';
 import {
   CLEAVE_REACH,
@@ -2057,9 +2059,16 @@ function reachCheck(
 export interface AttackDamageCommand extends CommandIdentity {
   /**
    * A spell cast on the hit, out of the SRD's own "immediately after hitting"
-   * window. Validated and paid for as a casting, because it is one.
+   * window. Validated and paid for as a casting, because it is one: with the
+   * slot named, or — SRD Paladin's Smite — as the free casting a feature
+   * grants, out of that feature's pool. One or the other, and the engine will
+   * not pick.
    */
-  readonly smite?: { readonly spellId: string; readonly slotLevel: number };
+  readonly smite?: {
+    readonly spellId: string;
+    readonly slotLevel?: number;
+    readonly payment?: 'free-casting';
+  };
   readonly damageBonuses?: readonly Bonus[];
   readonly extraDamage?: readonly ExtraDamage[];
   /**
@@ -2341,7 +2350,11 @@ function castOnHit(
   id: CharacterId,
   attacker: CreatureState,
   target: CharacterId,
-  smite: { readonly spellId: string; readonly slotLevel: number },
+  smite: {
+    readonly spellId: string;
+    readonly slotLevel?: number;
+    readonly payment?: 'free-casting';
+  },
 ): Result<{ readonly events: readonly GameEvent[]; readonly damage: readonly ExtraDamage[] }> {
   const definition = content.spell(smite.spellId);
   if (definition === null) {
@@ -2358,8 +2371,42 @@ function castOnHit(
 
   // The route decides nothing here — Divine Smite rolls no save and makes no
   // attack — but casting a spell the caster does not have is still a refusal.
-  const route = chooseRoute(attacker.spellcasting, smite.spellId, undefined);
-  if (!route.ok) return route;
+  //
+  // SRD Paladin's Smite: "You can cast it without expending a spell slot, but
+  // you must finish a Long Rest before you can cast it in this way again." The
+  // free casting is a granted route with a pool, refused with the pool empty
+  // and nothing charged; a slot is the class's own route. Named, never picked.
+  let route: CastingRoute;
+  let freePool: string | null = null;
+  if (smite.payment === 'free-casting') {
+    const grant = attacker.spellcasting.granted.find(
+      (one) => one.spellId === smite.spellId && one.freeCastPool !== null,
+    );
+    if (grant === undefined || grant.freeCastPool === null) {
+      return err('no_free_casting', `${id} has no free casting of ${definition.name}`);
+    }
+    if (remaining(attacker.resources, grant.freeCastPool) < 1) {
+      return err(
+        'no_free_casting',
+        `${id} has used the free casting of ${definition.name} and must spend a slot`,
+      );
+    }
+    route = { kind: 'granted', ability: grant.ability, grant };
+    freePool = grant.freeCastPool;
+  } else {
+    if (smite.slotLevel === undefined) {
+      return err(
+        'no_slot_named',
+        `${definition.name} is cast on a hit with a slot, or as a feature's free casting; name which`,
+      );
+    }
+    const chosen = chooseRoute(attacker.spellcasting, smite.spellId, undefined);
+    if (!chosen.ok) return chosen;
+    route = chosen.value;
+  }
+  // The level the dice scale at: the slot's, or the spell's own for a free
+  // casting, which SRD Magic Initiate's rule already fixes.
+  const castLevel = smite.slotLevel ?? definition.level;
 
   // **Before the slot and before the dice.** A creature nobody has typed is a
   // thin record rather than one that is neither a Fiend nor an Undead, so the
@@ -2394,8 +2441,8 @@ function castOnHit(
     level: definition.level,
     concentration: definition.concentration,
     castingTime: definition.castingTime,
-    slotLevel: smite.slotLevel,
-    route: routeLabel(route.value),
+    ...(freePool === null ? { slotLevel: castLevel } : { slotless: 'special-ability' as const }),
+    route: routeLabel(route),
     // The printed text the book leaves to the table, pinned onto the casting
     // the blow writes. CLAUDE.md's rule 5, asked of the second atomic path
     // that had been handing it to its caller alone: a spell cast on a hit has
@@ -2418,12 +2465,17 @@ function castOnHit(
     effect.damage,
     definition.level,
     attacker.sheet.level,
-    smite.slotLevel,
+    castLevel,
   );
-  const flat = scaledFlatFor(effect.damage, definition.level, smite.slotLevel);
+  const flat = scaledFlatFor(effect.damage, definition.level, castLevel);
 
   return ok({
-    events: cast.value,
+    // The use, where the free casting is the price: inside the settlement's
+    // own batch, after every refusal and before the dice, as a slot's is.
+    events: [
+      ...(freePool === null ? [] : [{ type: 'resource-spent' as const, id, key: freePool, amount: 1 }]),
+      ...cast.value,
+    ],
     damage: [
       {
         source: definition.name,

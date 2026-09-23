@@ -2195,6 +2195,7 @@ export function chooseRoute(
   spellcasting: SpellcastingState,
   spellId: string,
   source: string | undefined,
+  licence: RitualLicence = {},
 ): Result<CastingRoute> {
   const routes = routesFor(spellcasting, spellId);
 
@@ -2220,6 +2221,8 @@ export function chooseRoute(
 
     const chosen = source === 'class' ? fromClass[0] : (fromClass[0] ?? routes[0]);
     if (chosen === undefined) {
+      const booked = bookRoute(spellcasting, spellId, licence);
+      if (booked !== null) return ok(booked);
       return source === 'class'
         ? err('source_does_not_supply', `no class of this creature supplies ${spellId}`)
         : err(
@@ -2234,6 +2237,8 @@ export function chooseRoute(
     const classId = source.slice('class:'.length);
     const chosen = classRoutes.find((route) => route.classId === classId);
     if (chosen === undefined) {
+      const booked = bookRoute(spellcasting, spellId, licence, classId);
+      if (booked !== null) return ok(booked);
       return err('source_does_not_supply', `this creature's ${classId} half does not supply ${spellId}`);
     }
     return ok(chosen);
@@ -2245,6 +2250,60 @@ export function chooseRoute(
   }
   return ok({ kind: 'granted', ability: grant.ability, grant });
 }
+
+/**
+ * What lets a casting reach a spell no route supplies — SRD Ritual Adept.
+ *
+ * `ritual` is the casting's own claim (`CastSpellRequest.ritual`, or a
+ * declared casting's `slotless`); `fromBook` is whether the caster holds a
+ * feature licensing a Ritual from the spellbook, read off the sheet by
+ * `ritualsFromBookOn`. Both must hold, and the spell must be in a class's
+ * book. Empty is the ordinary casting, which reaches what is prepared.
+ */
+export interface RitualLicence {
+  readonly ritual?: boolean;
+  readonly fromBook?: boolean;
+}
+
+/**
+ * SRD Ritual Adept: "You can cast any spell as a Ritual if that spell has the
+ * Ritual tag and the spell is in your spellbook. You needn't have the spell
+ * prepared."
+ *
+ * The class's own route — its ability, its printed numbers — for a spell the
+ * book holds and the prepared list does not. It is the `prepared` kind because
+ * that is what it is in every respect the route decides: the casting that
+ * asked for it is a Ritual, so it spends nothing and the log's `slotless` says
+ * why, and `castingOf` still refuses a spell without the tag. Null where the
+ * licence is not held or no book holds the spell.
+ */
+function bookRoute(
+  spellcasting: SpellcastingState,
+  spellId: string,
+  licence: RitualLicence,
+  classId?: string,
+): CastingRoute | null {
+  if (licence.ritual !== true || licence.fromBook !== true) return null;
+  const holder = spellcasting.classes.find(
+    (one) =>
+      (classId === undefined || one.classId === classId) && (one.book ?? []).includes(spellId),
+  );
+  if (holder === undefined) return null;
+  return {
+    kind: 'prepared',
+    ability: holder.ability,
+    classId: holder.classId,
+    ...(holder.saveDc === undefined ? {} : { saveDc: holder.saveDc }),
+    ...(holder.attackBonus === undefined ? {} : { attackBonus: holder.attackBonus }),
+  };
+}
+
+/**
+ * The value a granted route fixes for a `choiceStated` spell — SRD Wild
+ * Companion's Fey — or undefined where the caster answers for themselves.
+ */
+export const fixedChoiceOf = (route: CastingRoute | null): string | undefined =>
+  route?.kind === 'granted' ? route.grant.fixesChoice : undefined;
 
 /**
  * What pays for the casting: a grant's free daily use, or a spell slot.

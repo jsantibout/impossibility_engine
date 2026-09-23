@@ -821,8 +821,9 @@ describe('features are granted, and say what is not automated', () => {
     // left it the day a feature could reach into a casting's damage. What is
     // left is genuinely unexecuted.
     // Resourceful left it the day Heroic Inspiration became a Reaction in the
-    // test-rolled window. What is left is genuinely unexecuted.
-    expect(manual.map((f) => f.id)).toEqual(['wizard:ritual-adept']);
+    // test-rolled window, and Ritual Adept the day a Ritual could be cast from
+    // the book. Every granted feature of this Wizard executes.
+    expect(manual.map((f) => f.id)).toEqual([]);
     for (const feature of manual) expect(feature.note.length).toBeGreaterThan(0);
   });
 

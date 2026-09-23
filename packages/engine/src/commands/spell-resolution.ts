@@ -106,6 +106,7 @@ import {
   castingDamageFeatures,
   type CastingDamageFeature,
   sheetAsItStands,
+  ritualsFromBookOn,
 } from '../standing.js';
 import {
   answeredCasting,
@@ -119,6 +120,7 @@ import {
   lightPatchesOf,
   terrainPatchOf,
   triggerRefusal,
+  fixedChoiceOf,
 } from './casting.js';
 import { creatureOf, turnContextFor, unknownCreature } from './command.js';
 import {
@@ -307,7 +309,10 @@ export function resolveDeclaredCast(
     // carries them settles with them rather than re-deriving anything.
     const chosen =
       pending.numbers === undefined
-        ? chooseRoute(caster.spellcasting, pending.spellId, pending.route)
+        ? chooseRoute(caster.spellcasting, pending.spellId, pending.route, {
+            ritual: pending.slotless === 'ritual',
+            fromBook: ritualsFromBookOn(state, pending.caster),
+          })
         : ok(null);
     if (!chosen.ok) return chosen;
 
@@ -653,7 +658,10 @@ export function castOrRelease(
     // SRD: you cast what you know or have prepared, and nothing else.
     const chosen =
       fromItem.value === null
-        ? chooseRoute(caster.spellcasting, request.spellId, request.source)
+        ? chooseRoute(caster.spellcasting, request.spellId, request.source, {
+            ritual: request.ritual === true,
+            fromBook: ritualsFromBookOn(state, casterId),
+          })
         : // The sheet as it stands, because a wand that printed no numbers
           // leaves them to the wielder's own — and an item that sets the
           // ability those are derived from is on the wielder right now.
@@ -726,7 +734,7 @@ export function castOrRelease(
     // nothing. Both are clauses transcribed from the book, and both refuse to be
     // used by a spell that does not print them — a field quietly ignored is a
     // caller who thinks they said something.
-    const declared = declaredFacts(state, definition, request);
+    const declared = declaredFacts(state, definition, request, fixedChoiceOf(route));
     if (!declared.ok) return declared;
 
     // — targets ————————————————————————————————————————————————————————————
@@ -1633,10 +1641,13 @@ function resolveOnTargets(
    *
    * Identity when nothing was stated, which is every other spell in the book.
    */
+  // The caster's answer, or the one the route fixes — SRD Wild Companion's
+  // Fey — read once here for the roll and for the record a held casting keeps.
+  const answeredChoice = request.choice ?? fixedChoiceOf(route);
   const running = statedChoice(
     statedDamageType(definition.effects, request.damageType),
     definition.choiceStated?.of,
-    request.choice,
+    answeredChoice,
   );
 
   // The numbers this casting is made with, worked out once and read by
@@ -1945,7 +1956,7 @@ function resolveOnTargets(
               // The bare value, not the pair: a settlement re-reads the whole
               // definition anyway, so the half it cannot work out again is the
               // caster's answer and nothing else.
-              ...(request.choice === undefined ? {} : { choice: request.choice }),
+              ...(answeredChoice === undefined ? {} : { choice: answeredChoice }),
               // The fourth, and the one settlement could not possibly work
               // out again: where the caster said they were going.
               ...(request.teleportTo === undefined ? {} : { teleportTo: request.teleportTo }),

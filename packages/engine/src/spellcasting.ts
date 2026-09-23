@@ -76,6 +76,19 @@ export interface GrantedSpell {
    * handed over.
    */
   readonly handOver?: string;
+  /**
+   * SRD Wild Companion: "When you cast the spell in this way, the familiar is
+   * Fey" — the one value a `choiceStated` spell leaves to its caster, fixed by
+   * the feature the casting comes through. Another answer is refused
+   * `choice_fixed`; none is supplied.
+   */
+  readonly fixesChoice?: string;
+  /**
+   * SRD Wild Companion: "and disappears when you finish a Long Rest" — a
+   * lifetime the grant puts on a kept summons over what the spell prints,
+   * written onto the bond at the arrival.
+   */
+  readonly keptUntilSummonerLongRests?: true;
 }
 
 /** One class's half of a creature's spellcasting, on that class's terms. */
@@ -96,6 +109,12 @@ export interface SpellcastingClass {
    * which is why this says where the slots came from rather than what they buy.
    */
   readonly slotKind: SlotKind;
+  /**
+   * The spells in this class's book, prepared or not — SRD Ritual Adept reads
+   * it: "any spell ... in your spellbook". Only a class that keeps a book
+   * carries one; a prepared caster's list is `prepared`.
+   */
+  readonly book?: readonly string[];
   /**
    * The save DC this source **states**, in place of the one the ability
    * derives — {@link GrantedSpell.saveDc} exactly, on the other half of the

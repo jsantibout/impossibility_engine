@@ -344,6 +344,11 @@ export const ITEM_EFFECT_KINDS: ReadonlySet<string> = new Set([
   // `standingFor`, so a Belt of Giant Strength's shoulders would be reached by
   // the route the belt's Strength already takes.
   'carrying-capacity',
+  // A Ritual licence, on the same test: `ritualsFromBookOn` walks
+  // `standingFor`, so a tome that let its reader cast Rituals from its pages
+  // would be reached by the route the class feature takes. No SRD item prints
+  // the sentence today.
+  'ritual-from-book',
   // The sizes a creature may be walked through, on the same test: the gatherer
   // is `passageAllowanceOf`, beside `checkPassage` in `commands/movement.ts`,
   // and it walks `standingFor` — so slippers that let their wearer slip

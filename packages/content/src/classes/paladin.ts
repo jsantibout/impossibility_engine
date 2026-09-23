@@ -145,9 +145,18 @@ export const PALADIN: ClassDefinition = {
       id: 'paladin:smite',
       name: "Paladin's Smite",
       level: 2,
-      automation: 'manual',
-      note: 'Half of it is applied, which is why this is not marked as executed. SRD: "You always have the _Divine Smite_ spell prepared" — a fixed spells grant, the move Favored Enemy already makes with Hunter’s Mark, so the spell is on the sheet without being one of the prepared spells the class table counts. The rest is not: "you can cast it without expending a spell slot, but you must finish a Long Rest before you can cast it in this way again" needs a pool a casting can be paid out of, and a feature carries one grant; and casting it as a Bonus Action after a hit needs a reaction-shaped trigger the engine does not have.',
-      grants: { kind: 'spells', fixed: ['divine-smite'] },
+      automation: 'engine',
+      note: 'Executed. SRD: "You always have the _Divine Smite_ spell prepared" — a fixed spells grant, so the spell is on the sheet without being one of the prepared spells the class table counts — and "you can cast it without expending a spell slot, but you must finish a Long Rest before you can cast it in this way again": a free casting out of a pool of one that a Long Rest refills. Divine Smite is cast where the book casts it, on the hit `resolveAttackDamage` is settling, with the slot named or `payment: "free-casting"`; the free casting is refused with the pool empty and nothing charged.',
+      grants: {
+        kind: 'spells',
+        fixed: ['divine-smite'],
+        freeCasting: {
+          spell: 'divine-smite',
+          pool: 'paladin:smite',
+          poolLabel: "Paladin's Smite",
+          declares: { minimum: 1, recovers: 'long-rest' },
+        },
+      },
     },
     {
       id: 'paladin:channel-divinity',

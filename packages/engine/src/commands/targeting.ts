@@ -756,6 +756,7 @@ export function declaredFacts(
   state: GameState,
   definition: SpellDefinition,
   request: CastSpellRequest,
+  fixedChoice?: string,
 ): Result<null> {
   const named = request.unaffected ?? [];
   if (named.length > 0) {
@@ -888,22 +889,32 @@ export function declaredFacts(
   // answering "(your choice)" on the caster's behalf, and it would answer the
   // same way for ever.
   const choice = definition.choiceStated;
+  // SRD Wild Companion: the feature a casting comes through may fix the value
+  // — "the familiar is Fey" — in which case the caster is not asked, and is
+  // refused if they answer otherwise.
+  if (fixedChoice !== undefined && request.choice !== undefined && request.choice !== fixedChoice) {
+    return err(
+      'choice_fixed',
+      `${definition.name} is cast through a feature that fixes ${fixedChoice}, not ${request.choice}`,
+    );
+  }
+  const answered = request.choice ?? fixedChoice;
   if (choice === undefined) {
-    if (request.choice !== undefined) {
+    if (answered !== undefined) {
       return err(
         'no_choice_clause',
         `${definition.name} offers the caster no choice; which one this is is not a fact it asks for`,
       );
     }
-  } else if (request.choice === undefined) {
+  } else if (answered === undefined) {
     return err(
       'choice_required',
       `${definition.name} prints ${choice.options.join(', ')} and the engine will not choose between them; name which`,
     );
-  } else if (!choice.options.includes(request.choice)) {
+  } else if (!choice.options.includes(answered)) {
     return err(
       'unknown_choice',
-      `${definition.name} prints ${choice.options.join(', ')}, not ${request.choice}`,
+      `${definition.name} prints ${choice.options.join(', ')}, not ${answered}`,
     );
   }
 

@@ -66,7 +66,20 @@ casting and a summoner, or neither. The form is stated at the casting
 rating clause admits) and so is the creature type (`choiceStated` of
 `creature-type`); a Speed the spell prints over the block is gated on the
 slot; a creature that shares its caster's Initiative is seated immediately
-after them (`Combatant.after`), never by an invented tiebreak.
+after them (`Combatant.after`), never by an invented tiebreak. A feature the
+casting comes through may add to both the choice and the bond: SRD Wild
+Companion's Find Familiar is Fey whatever the caster says (`fixesChoice` on the
+granted route; another answer is `choice_fixed`) and is owed a departure when
+the Druid completes a Long Rest later than the binding (`untilSummonerLongRests`
+and `since` on `KeptBond`) — the third lifetime a kept summons can have, and
+still one bond per creature.
+
+**A Ritual from the book.** `CastSpellRequest.ritual` makes a casting a long
+one, ten minutes longer than printed and slotless (`slotless: 'ritual'`), and
+is refused for a spell without the tag. Where no route supplies the spell,
+`chooseRoute` asks the caster's sheet for a licence — SRD Ritual Adept's
+`ritual-from-book` standing grant — and a class whose `book` holds the spell
+casts it as its own, unprepared. The book being in hand is the table's.
 
 ## The effect vocabulary
 

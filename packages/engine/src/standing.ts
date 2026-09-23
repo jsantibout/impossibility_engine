@@ -672,6 +672,18 @@ export type StandingGrant =
    */
   | { readonly kind: 'passage'; readonly sizesLarger: number }
   /**
+   * SRD Ritual Adept: "You can cast any spell as a Ritual if that spell has
+   * the Ritual tag and the spell is in your spellbook. You needn't have the
+   * spell prepared, but you must read from the book to cast a spell in this
+   * way."
+   *
+   * The licence `chooseRoute` reads when a Ritual is cast and no route
+   * supplies the spell: a class whose book holds it casts it as its own,
+   * slotless, and the casting layer still refuses a spell without the tag.
+   * The book being in hand is the table's.
+   */
+  | { readonly kind: 'ritual-from-book' }
+  /**
    * SRD Jack of All Trades: "You can add half your Proficiency Bonus (round
    * down) to any ability check you make that uses a skill proficiency you lack
    * and that doesn't already include that bonus."
@@ -3033,6 +3045,14 @@ export function actionRulesOn(
     actionRuleKey(a.source, a.rule).localeCompare(actionRuleKey(b.source, b.rule)),
   );
   return [...creature.actionRules, ...derived];
+}
+
+/**
+ * SRD Ritual Adept: whether a feature licenses this creature to cast a Ritual
+ * from the spellbook unprepared. Read where the casting's route is chosen.
+ */
+export function ritualsFromBookOn(state: GameState, who: CharacterId): boolean {
+  return standingFor(state, who).some(({ effect }) => effect.grant.kind === 'ritual-from-book');
 }
 
 /**

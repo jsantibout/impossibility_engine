@@ -54,7 +54,8 @@ homebrew.
   Fighting on it, and Savage Attacker, Luck, Relentless Endurance, Powerful
   Build, Tactical Shift, Fast Hands, Resourceful, Naturally Stealthy, Jack of
   All Trades, Slow Fall, Second-Story Work, Adrenaline Rush, Stonecunning,
-  Large Form and Draconic Flight execute. **Wild Shape executes**: a
+  Large Form, Draconic Flight, Wild Companion, Ritual Adept and Paladin's
+  Smite execute. **Wild Shape executes**: a
   Druid wears a learned Beast's stat block for the hours the table prints,
   with the SRD's retained half kept, and comes back by every ending the book
   names.
