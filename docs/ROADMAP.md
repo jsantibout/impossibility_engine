@@ -463,6 +463,93 @@ ranked first among the builders.
 - **The lopsided split of several attack rolls stays the owner's.** For the
   record: the sayable form is `targets: [{ id, count }]`.
 
+### The level-5 batch, wave two — merged 2026-09-22
+
+Five tracks: three Opus builders launched from the closed wave-one main, and
+two of the architect's own — the second after the owner's monthly spend limit
+ended the Opus fleet mid-batch, so the rests track was merged on its own three
+review passes and everything after it is Fable's alone. **Spells in reach not executed 109 → 109 (waiting 76 → 76). Features 40 → 34,
+waiting 34 → 28. CR ≤ 5 items 314 → 258, blocks waiting 154 → 145, clean 90 →
+99.** `COVERAGE.md`: class features executed 183 → 186, bestiary printed lines
+read 849 → 899 (Actions 698 → 744, Bonus Actions 14 → 18).
+
+- **Wild Shape (architect).** A `shape-shift` grant between
+  `unarmored-defense` and `hit-point-maximum`: it declares its pool as
+  `activated` does, names the creature type a form must print, carries the
+  Beast Shapes table as rows read at the class level, and says how the
+  hours and the Temporary Hit Points scale and which scores are kept.
+  `CharacterChoices.knownForms` is the learned list, checked at creation.
+  `assumeShape` lays the block's `adaptMonster` sheet over the character
+  through `assumeStatBlock` (the retained half kept line by line; each save
+  and printed skill the higher of the two), pins the merged sheet whole on
+  `shape-assumed`, and files a `feature` timer in hours;
+  `CreatureState.shape` holds what was replaced and the fold's derived
+  `settleShapes` puts it back at every ending. Gear merges and is silent,
+  the Armour Class is always the block's, nothing is cast from inside a
+  form, and the scene's copy of the size follows the form. Two doors:
+  `assume_shape`, `revert_shape`. `NOTHING_TO_BUY` is down to one pool.
+- **The bestiary's four buckets.** A stat block that casts (the
+  Spellcasting line parsed and declared at `addCreature`, with the printed
+  DC pinned; 47 of 48 lines, all 12 at CR ≤ 5; At Will as
+  `slotless: 'innate'`, N/Day as a dawn pool); Undead Fortitude as a save
+  in front of `damage-taken.floor` that now beats `diesAtZero`; Magic
+  Resistance as `RollSelector.againstMagic` answered by the roller; a
+  creature's own Illumination derived in `lightAt` from where it stands.
+  Every trait kind the schema admits is spent or a handover. Clean CR ≤ 5
+  blocks 90 → 95. One correction to the brief: the Adult Bronze Dragon is
+  the book's only save DC that its own abilities do not derive.
+- **Halfling Nimbleness, and the rule it bends.** `canPassThrough` had
+  encoded the glossary's "Moving around Other Creatures" and nothing called
+  it; `checkPassage` reads every space a stated route crosses, a move
+  stating no route is asked `route_required` only when every shortest path
+  crosses somebody it may not pass, forced movement is exempt, and an
+  undeclared side is reported rather than ruled on. A `passage` standing
+  grant widens the size clause.
+- **An option re-chosen on a rest, Sear Undead, Trance.** `rechooseCharacter`
+  is the level-up's re-plan minus the level: a patch of the fields a rest may
+  hand back, merged into the stored choices and emitted as the difference, so
+  an identical patch grows no log. `endRest` reads which questions a feature
+  re-asks through the `rechosen-on-a-rest` grant, and only for the rest that
+  was *finished*. Circle of the Land's four lands are four `spells` grants
+  gated on the answer; Memorize Spell re-asks one prepared line. Sear Undead
+  is `pool-options`' new `amends` arm: one d8 roll per use, dealt to each
+  Undead that failed through `dealSpellDamage`. Trance is
+  `CharacterSheet.longRestSeconds`, compiled from a `long-rest-length` grant and
+  absent on every sheet ever written, so both frozen fixtures fold unchanged.
+  Three review passes closed the defects; the builder's digest was lost to
+  the spend limit and this paragraph is read off its commits.
+- **A printed saving throw as an effect list (architect).** `parsePrintedSave`
+  reads a line's `_Failure:_` into a small vocabulary — damage and a `plus`
+  component, a condition to a turn anchor on the source or the target or for
+  a span, a grapple with its escape DC, a size gate, a push straight away, a
+  Speed cut, a Hit Point maximum lowered by the damage, a save repeated at the
+  end of the target's turns with a minute's cap — and carries every sentence
+  it did not read in `handedOver`. Only a line a creature spends is read; a
+  failure the vocabulary cannot start on refuses the whole line; graded
+  failures and preambles are refused whole; each sentence is transactional.
+  `forcePrintedSave` executes it through `applyPrintedClauses` and the
+  primitives the casting path had — the grapple `escapeGrapple` answers, the
+  shove, a `grants` timer, a negative `hit-point-maximum-adjusted` sourced per
+  use. The DM's door reports the conditions that landed, the immunities that
+  turned one aside, the feet pushed and the sentences handed over. Actions
+  read 698 → 744; the ledger keeps a partly read save on its books under
+  `SAVE_HANDOVER_SHAPE`.
+
+Follow-ups this wave created:
+
+- **`knownForms` is not yet re-chosen on a Long Rest.** The mechanism P2-T20
+  built re-asks a `FeatureChoice`; a Druid's forms are a `CharacterChoices`
+  field beside it. Pointing the one at the other is a small brief.
+- **A form's limbs decide nothing about what can be held**, and the block's
+  senses are not carried into a form — `sensesOf` reads standing grants and
+  `adaptMonster` puts a block's senses nowhere a sheet reads.
+- **The monster side of the swap** (Doppelganger, Imp, Werewolf) is the same
+  mechanism over the block's own alternatives.
+- **The feature blocked-on map's population floor came down to 60**: it sat
+  at exactly 100 the day two features left it.
+- **`docs/design/space-and-areas.md`** was brought up to date with the
+  passage rule by the coordinator; the builder could not edit docs.
+
 ### The level-5 batch — merged 2026-09-22
 
 Seven tracks: six Opus builders in parallel and the architect's own, chosen
@@ -847,7 +934,7 @@ Re-ranked at G1 from the regenerated ledger; this is the expected shape.
   and `take_printed_reaction` beside `take_printed_bonus_action`
   (`packages/tools/src/dm/definitions.ts:1021`). Moves: Parry and its kin, 5
   blocks, 13 lines.
-- `[~]` **P2-T20 An option re-chosen on a rest, and a later feature that
+- `[x]` **P2-T20 An option re-chosen on a rest, and a later feature that
   rewrites an earlier one's rule.** A `FeatureChoice` is answered once at
   creation and frozen into the sheet; a rest must be able to re-ask one.
   Files: `rest.ts`, `progression.ts`, `commands/features.ts`,
@@ -885,12 +972,16 @@ file ownership.
   Flame, Dancing Lights, Produce Flame's light, Faerie Fire's dim light,
   Sunlight Sensitivity as a `StandingRequirement` the scene can now answer,
   Devil's Sight.
-- `[ ]` **P3-W Wild Shape**, ruled 2026-09-20 (gear merges; AC is always
+- `[~]` **P3-W Wild Shape**, ruled 2026-09-20 (gear merges; AC is always
   the block's; an oversized form is the forced-movement rule; known forms are
   chosen at the start of a Long Rest; Wild Companion's familiar goes away
-  when a Long Rest completes). Needs P2-T11 and P1-T13. Shape-Shift on the
-  thirteen CR ≤ 5 blocks that print one (Doppelganger, Imp, Werewolf) is the
-  same mechanism from the monster side.
+  when a Long Rest completes). **The character side is built** (the
+  `shape-shift` grant, `assumeShape`, `settleShapes`; 2026-09-22). Left:
+  replacing a known form when a Long Rest ends (the P2-T20 mechanism, now
+  built, has not been pointed at `knownForms`), Wild Companion, and
+  Shape-Shift on the thirteen CR ≤ 5 blocks that print one (Doppelganger,
+  Imp, Werewolf) — the same mechanism from the monster side, with the
+  block's own alternatives in place of a learned list.
 - `[ ]` **P3-I Eldritch Invocations.** First the content shape: a feature
   whose chosen options each carry their own grants (the
   `a-grant-gated-on-one-option-of-a-choice` shape, which Divine Order and
@@ -1353,3 +1444,31 @@ Appended after the level-5 batch (2026-09-22):
 - **Is a stat-block save "magical"?** Wave two narrows Magic Resistance to
   saves the casting pipeline forces; a printed line's save (a Basilisk's gaze,
   a dragon's breath) is not, and `forcePrintedSave` cannot say otherwise.
+
+Appended after wave two (2026-09-22):
+
+- **A stat block's game statistics are a sheet, and a sheet can be worn.**
+  `assumeStatBlock` is the first reader that lays one creature's block over
+  another's record; the monster-side Shape-Shift, Polymorph and a Druid's
+  Circle of the Moon all want the same seam. The rule that came with it:
+  what is retained is named on the grant, never inferred from the sheet.
+- **Merged gear is silent by one guard**, `itemStandingOf` reading
+  `CreatureState.shape`. Attunement survives the form (the SRD says nothing
+  ends it) and the items stay in `equipped`; if a form should ever *wear*
+  an item (the SRD leaves it to the GM), that is a per-item declaration and
+  a new question, not a change to the guard.
+- **A printed save line is an effect list now** (P2-T18, the architect's
+  second track this wave), and three families are refused whole on purpose:
+  a graded failure (`_First Failure:_`, `_Failure by 5 or More:_`) is a
+  repeat save whose failure imposes a *different* condition, which
+  `RepeatSave` cannot say; a trigger or a movement before the save (a Death
+  Burst, a Bulette's leap, a Cube's Engulf) is a moment or a move nothing
+  spends; and a lifetime tied to another effect ("Restrained until the
+  grapple ends", "While Poisoned, Paralyzed") is one condition ending with
+  another, which the condition state's `impliedBy` could carry if a command
+  could write it. A trait's save — a Ghast's Stench at the start of a turn in
+  its aura — is a fourth: an aura forced by a moment, not a use.
+- **The Opus fleet stopped on the owner's monthly spend limit** on
+  2026-09-23; the five wave-3 briefs (sight, attack riders, feature
+  vocabulary, casting cost, small features) are written and unlaunched, and
+  Fable takes them in that order alone.

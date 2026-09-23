@@ -105,15 +105,17 @@ function inTheWoods(
 ): { readonly state: GameState; readonly log: readonly GameEvent[] } {
   const log: GameEvent[] = [];
   let state = fold('woods', []);
-  const step = (result: Result<readonly GameEvent[]> | Result<{ events: readonly GameEvent[] }>, label: string) => {
-    const value = unwrap(result, label) as readonly GameEvent[] | { events: readonly GameEvent[] };
-    const events = Array.isArray(value) ? value : value.events;
+  const land = (events: readonly GameEvent[]): void => {
     log.push(...events);
     state = after(state, events);
   };
+  const step = (result: Result<readonly GameEvent[]>, label: string): void =>
+    land(unwrap(result, label));
+  const arrive = (who: CharacterId, block: string): void =>
+    land(unwrap(addCreature(state, SRD_CONTENT, who, block), block).events);
   step(createCharacter(SRD_CONTENT, bren(), BREN), 'Bren');
-  step(addCreature(state, SRD_CONTENT, FOE, monster), monster);
-  for (const one of extra) step(addCreature(state, SRD_CONTENT, one.id, one.monster), one.monster);
+  arrive(FOE, monster);
+  for (const one of extra) arrive(one.id, one.monster);
   step(setScene(state, { width: 120, depth: 80, height: 20 }), 'scene');
   step(addSceneLandmark(state, 'the stump', { x: 40, y: 40, z: 0 }), 'stump');
   step(placeCreatureInScene(state, BREN, { from: { landmark: 'the stump' }, feet: 0 }), 'place Bren');
@@ -228,7 +230,7 @@ describe('a grapple, a push, a Speed cut and a lowered maximum', () => {
       expect(timer?.check).toMatchObject({ dc: 13, onSuccess: 'end-on-target' });
       // The same door every grapple is escaped through, on Bren's own turn.
       const next = applyEvent(state, { type: 'turn-advanced' });
-      const escape = escapeGrapple(next, BREN, {}, supply(`${seed}-escape`));
+      const escape = escapeGrapple(next, BREN, { ability: 'str' }, supply(`${seed}-escape`));
       expect(escape.ok, JSON.stringify(escape)).toBe(true);
       return;
     }
