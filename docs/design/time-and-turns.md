@@ -30,6 +30,12 @@ into a `needs-context` request naming `beginCombat` (no order) or
 Quietly calling "until the end of your next turn" six seconds is the one
 mistake this split exists to prevent.
 
+An activated feature hangs one of the two, and its grant says which: SRD Rage
+runs to a moment (`lasts`), pushed out round by round; SRD Innate Sorcery,
+Stonecunning, Large Form and Draconic Flight run for a span the book prints
+(`lastsSeconds`), scheduled on the clock in and out of a fight and never
+maintained. `ActivationSpan` in `standing.ts` is the pair.
+
 ## Timers and expiry
 
 Every timed effect is a `TimedEffect` in `state.timers`, keyed by effect

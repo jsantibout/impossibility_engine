@@ -107,11 +107,13 @@ describe('toolSchemas', () => {
     // sentence about a stat block that casts, and the rests track's
     // `end_rest` re-choices.
     // Re-pinned 2026-09-23: `resolve_fall` on the DM surface, the small
-    // features track's one new door.
+    // features track's one new door. Re-pinned again the same day: the
+    // feature vocabulary track's sentence on `extend_feature` about a printed
+    // span, on both surfaces.
     expect(toolSchemas(player())).toHaveLength(78);
     expect(toolSchemas(dm())).toHaveLength(95);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(100186);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(121108);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(100385);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(121307);
   });
 });
 

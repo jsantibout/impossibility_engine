@@ -212,7 +212,15 @@ export const RANGER: ClassDefinition = {
       name: 'Tireless',
       level: 10,
       automation: 'manual',
-      note: 'Temporary Hit Points as a Magic action, and reducing Exhaustion on a Short Rest, are not modelled as their own pool.',
+      note: 'Temporary Hit Points as a Magic action, and reducing Exhaustion on a Short Rest, are not modelled. The uses are a pool sized by the Wisdom modifier with a floor of one — SRD "a number of times equal to your Wisdom modifier (minimum of once)" — declared and refilled by a Long Rest, with nothing to buy from it until the Temporary Hit Points are.',
+      grants: {
+        kind: 'pool',
+        key: 'ranger:tireless',
+        label: 'Tireless',
+        fromAbilityModifier: 'wis',
+        minimum: 1,
+        recovers: 'long-rest',
+      },
     },
     {
       id: 'ranger:ability-score-improvement-3',

@@ -38,6 +38,7 @@ import {
   spendReaction,
   useFreeInteraction,
   type ActionSlot,
+  type GrantedActionRule,
 } from '../combat.js';
 import { type Bonus, type ModeSource } from '../bonuses.js';
 import { type StatedAction, type StatedBonusAction } from '../character.js';
@@ -89,7 +90,7 @@ import {
   statedActionOf,
   statedBonusActionOf,
 } from '../monster.js';
-import { tallied, type SlotKind } from '../resources.js';
+import { remaining, tallied, type SlotKind } from '../resources.js';
 import { type Content } from '../content.js';
 import { durationSecondsAt } from '../spell-definitions.js';
 import { startOfNextTurn } from '../time.js';
@@ -132,6 +133,34 @@ export interface DashOptions {
  * SRD Dash: "you gain extra movement for the current turn. The increase equals
  * your Speed after applying any modifiers."
  */
+/**
+ * What an allowance charges besides the slot, asked before anything is spent.
+ *
+ * SRD Adrenaline Rush is the printing: a Dash bought out of a Bonus Action
+ * costs one of a Proficiency Bonus's worth of uses and pays Temporary Hit
+ * Points equal to the same. `actionRulesOn` hands both on the rule, already
+ * numbers, so a price the holder cannot pay refuses here with nothing charged
+ * — and an allowance that prints no price, which is every other one in the
+ * book, charges nothing and says nothing.
+ */
+function priceOfAllowance(
+  resources: Parameters<typeof remaining>[0],
+  id: CharacterId,
+  held: GrantedActionRule,
+): Result<GameEvent[]> {
+  const events: GameEvent[] = [];
+  if (held.spends !== undefined) {
+    if (remaining(resources, held.spends) < 1) {
+      return err('exhausted', `${id} has no uses of ${held.label} left to buy that with`);
+    }
+    events.push({ type: 'resource-spent', id, key: held.spends, amount: 1 });
+  }
+  if (held.temporaryHitPoints !== undefined && held.temporaryHitPoints > 0) {
+    events.push({ type: 'temporary-hp-granted', id, amount: held.temporaryHitPoints });
+  }
+  return ok(events);
+}
+
 export function takeDash(
   state: GameState,
   id: CharacterId,
@@ -162,9 +191,13 @@ export function takeDash(
       );
     }
     const rules = actionRulesOn(state, id);
+    const priced: GameEvent[] = [];
     if (from !== 'action') {
       const allowed = allowsPrice(id, 'dash', from, rules);
       if (!allowed.ok) return allowed;
+      const price = priceOfAllowance(creature.resources, id, allowed.value);
+      if (!price.ok) return price;
+      priced.push(...price.value);
     }
 
     // Validate the whole operation before any of it is emitted: the action has
@@ -181,6 +214,7 @@ export function takeDash(
 
     return ok([
       { type: from === 'bonus-action' ? 'bonus-action-spent' : 'action-spent', id },
+      ...priced,
       { type: 'dash-taken', id, ...(stamp === null ? {} : { command: stamp }) },
     ]);
   });
@@ -246,9 +280,13 @@ export function takeDisengage(
         `Disengage cannot be paid for out of ${from}; this command charges an action, or a Bonus Action where something has allowed it`,
       );
     }
+    const priced: GameEvent[] = [];
     if (from !== 'action') {
       const allowed = allowsPrice(id, 'disengage', from, actionRulesOn(state, id));
       if (!allowed.ok) return allowed;
+      const price = priceOfAllowance(creature.resources, id, allowed.value);
+      if (!price.ok) return price;
+      priced.push(...price.value);
     }
 
     const spend = { rules: actionRulesOn(state, id), as: 'disengage' as const };
@@ -262,6 +300,7 @@ export function takeDisengage(
 
     return ok([
       { type: from === 'bonus-action' ? 'bonus-action-spent' : 'action-spent', id },
+      ...priced,
       { type: 'disengage-taken', id, ...(stamp === null ? {} : { command: stamp }) },
     ]);
   });
@@ -1267,9 +1306,13 @@ export function takeHide(
         );
       }
       const rules = actionRulesOn(state, id);
+      const priced: GameEvent[] = [];
       if (from !== 'action') {
         const allowed = allowsPrice(id, 'hide', from, rules);
         if (!allowed.ok) return allowed;
+        const price = priceOfAllowance(creature.resources, id, allowed.value);
+        if (!price.ok) return price;
+        priced.push(...price.value);
       }
 
       // Before the die, because a condition that could never land is a check
@@ -1368,6 +1411,7 @@ export function takeHide(
           type: from === 'bonus-action' ? 'bonus-action-spent' : 'action-spent',
           id,
         });
+        events.push(...priced);
       }
 
       // The check itself: the engine's ability, the engine's skill, the
@@ -1550,9 +1594,13 @@ export function takeUtilize(
       );
     }
     const rules = actionRulesOn(state, id);
+    const priced: GameEvent[] = [];
     if (from !== 'action') {
       const allowed = allowsPrice(id, 'utilize', from, rules);
       if (!allowed.ok) return allowed;
+      const price = priceOfAllowance(creature.resources, id, allowed.value);
+      if (!price.ok) return price;
+      priced.push(...price.value);
     }
 
     const spend = { rules, as: 'utilize' as const };
@@ -1564,6 +1612,7 @@ export function takeUtilize(
 
     return ok([
       { type: from === 'bonus-action' ? 'bonus-action-spent' : 'action-spent', id },
+      ...priced,
       {
         type: 'utilize-taken',
         id,

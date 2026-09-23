@@ -92,8 +92,6 @@ export const FEATURE_SHAPES = {
     'a feature aimed at **a chosen number of creatures**, where the number is a modifier on the holder\'s sheet. An option reaches one named creature or fills an area, and packages/engine/src/content.ts holds it to exactly that — "an option does one or the other" — because those are the two sentences the SRD prints on the features this vocabulary was built from. SRD Abjure Foes\'s "you can target a number of creatures equal to your Charisma modifier (minimum of one creature) that you can see within 60 feet of yourself" is a third: a subset of an area, chosen at the moment of use and counted off a sheet.',
   'a-condition-a-feature-ends':
     'a condition a feature takes **off**. One grant removes conditions and it is welded to a healing pool — `lifts-conditions` in packages/engine/src/progression.ts is Restoring Touch, and the file says what it is: "It widens a feature it does not own, which is the shape Improved Critical already has — a second feature restating the first rather than a second mechanism." A feature that ends a condition on its own holder, with no pool and no touch, has nothing to restate.',
-  'a-pool-the-proficiency-bonus-sizes':
-    'a resource counted in Proficiency Bonuses. packages/engine/src/progression.ts names the sizings and the reason there are three — "The SRD sizes a pool three ways and each is here because a feature uses it" — a column of the class table, an ability modifier with a floor, and a multiple of the class level. "A number of times equal to your Proficiency Bonus" is a fourth, most of the origin traits with a limit print it, and no species has a class table for the first sizing to read.',
   'a-pool-refilled-to-a-floor':
     'a recovery that tops a pool up to a number rather than giving back a share of it. `Recovery`\'s `upTo` in packages/engine/src/progression.ts is half the class level, half the maximum, or all, and the SRD prints a fourth shape twice — "until you have two", "until you have 4 if you have 3 or fewer" — where what is regained depends on what is left rather than on the pool\'s size.',
   'a-resource-traded-for-another':
@@ -102,8 +100,6 @@ export const FEATURE_SHAPES = {
     'a spell a feature lets you cast without a slot. The route exists for an **item** and is refused to a feature by name: packages/engine/src/progression.ts says of the `casts` grant "An item-only member. Nothing executes it from a class feature and `checkContent` refuses it there", because the charges it spends are an item\'s pool looked up by the granting item\'s id. Every SRD sentence of the shape "cast it without expending a spell slot" wants exactly that grant with a feature\'s pool behind it.',
   'an-option-whose-span-is-a-turn-boundary':
     'a feature\'s conferred effect that runs to a **moment in the Initiative order** rather than for a printed span. What an option hangs is ended by a deadline it files itself, and `PoolOptionGrant` in packages/engine/src/progression.ts admits exactly one kind of it — "How long what it hangs lasts, in seconds" — because Channel Divinity\'s minute is what it was built from. An `activated` grant one member along carries a `TurnAnchor` instead and a `standing` grant needs none, so the vocabulary holds both spellings of a lifetime and this host holds one: SRD Nature\'s Veil gives the Invisible condition "until the end of your next turn", and there is no field to write that in. It is the mirror of the entry below rather than the same gap — that one is a switched-on feature wanting a span, and this is a conferred effect wanting a boundary.',
-  'a-benefit-that-runs-for-a-printed-span':
-    'a feature switched on for a minute or ten, rather than to a turn boundary it has to keep extending. `ActivatedFeature` in packages/engine/src/standing.ts is SRD Rage down to the field — "a Bonus Action, a pool sized by the class table, a deadline that can be pushed, a cap it cannot be pushed past, and two ways out that nobody commands" — and a Rage that is not extended ends at the boundary. A feature the book simply gives a duration has no deadline of its own to file.',
   'a-dc-a-feature-derives-from-its-own-abilities':
     'a saving throw DC a feature computes for itself. A feature\'s option rolls against its holder\'s spell save DC, and `PoolOption` in packages/engine/src/standing.ts says whose: "The **granting class\'s** ability, resolved at creation, because a multiclassed holder has more than one and the feature belongs to exactly one of them." A species trait belongs to no class and casts nothing — the same declaration goes on, "Null where the granting class casts nothing at all" — so SRD Breath Weapon\'s "DC 8 plus your Constitution modifier and Proficiency Bonus" is a formula the vocabulary cannot name, and what it would fall back to is an item\'s.',
   'a-bonus-an-ability-modifier-sizes':
@@ -133,7 +129,7 @@ export const FEATURE_SHAPES = {
   'a-turn-boundary-payout-a-feature-owes':
     'a feature that pays out at the start or the end of a turn. The queue is real and it is a casting\'s: `docs/design/time-and-turns.md` says "Raising is derived; rolling is commanded ... `turn-advanced` *raises* the saves the boundary owes", and every debt it raises belongs to an ongoing spell. A Champion who regenerates at the start of each of their turns and a Monk who sheds a condition at the end of theirs have nothing in that queue.',
   'temporary-hit-points-a-feature-grants':
-    'Temporary Hit Points from a feature. The state is real — `Vitals.temporaryHp`, which a spell writes and a rest clears — and the only healing a feature reaches is `HealGrant` in packages/engine/src/progression.ts, "Hit points a feature gives its holder, as the class text writes the sum", which restores Hit Points rather than laying temporary ones over them. A class feature, a subclass feature and a species trait each print the sentence and none of them can say it.',
+    'Temporary Hit Points a feature pays at a *moment*. The state is real — `Vitals.temporaryHp` — and a feature writes it now: an allowance carries `temporaryHitPoints` in packages/engine/src/standing.ts and pays it the moment its price is taken, which is SRD Adrenaline Rush. What SRD Dark One’s Blessing prints is the same number at a moment no feature route opens — "when you reduce an enemy to 0 Hit Points" — and a kill is an outcome of damage rather than a price anybody takes.',
   'heroic-inspiration':
     'Heroic Inspiration regained by a feature mid-fight. The resource itself exists now: a pool of one on the sheet, `human:heroic-inspiration`, which a `reaction` grant declares, a Long Rest refills and the `test-rolled` window spends on a failed ability check or saving throw. What a feature that grants it in combat still has nothing for is the **grant**: SRD Heroic Warrior refills it at the start of each of the holder’s turns, and `recovers` — the field on a pool in packages/engine/src/progression.ts — knows a Short Rest and a Long Rest and no turn boundary.',
   'a-rule-the-engine-fixes-for-everybody':
@@ -620,8 +616,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   'monk:superior-defense': [
     {
       clause: 'Resistance to all damage but Force for a minute',
-      why: 'a-benefit-that-runs-for-a-printed-span',
-      note: 'an activated feature runs to a turn boundary and is extended; a flat minute is a deadline it cannot file.',
+      why: 'expressible',
+      note: 'a flat minute is an activation’s `lastsSeconds` now, scheduled on the clock; what this feature still lacks is the activation to hang it on, because it costs three Focus Points at once where an activation spends exactly one use.',
     },
     {
       clause: 'defences are declared once and do not change',
@@ -759,8 +755,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
     },
     {
       clause: 'the ten minutes it runs for',
-      why: 'a-benefit-that-runs-for-a-printed-span',
-      note: 'a printed span rather than an extended turn boundary.',
+      why: 'expressible',
+      note: 'a printed span is an activation’s `lastsSeconds` now; what this feature still lacks is the activation to hang it on, whose use a trade buys back and whose benefits are the three clauses above.',
     },
   ],
 
@@ -782,11 +778,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'reducing Exhaustion on a Short Rest',
       why: 'an-exhaustion-level-a-spell-changes',
       note: 'the spell map’s own id: Exhaustion is a level and nothing takes one off.',
-    },
-    {
-      clause: 'are not modelled as their own pool',
-      why: 'a-pool-the-proficiency-bonus-sizes',
-      note: 'the uses, which SRD sizes by the Wisdom modifier with a floor — a sizing the pool grant does have, so what is missing is only what a use buys.',
     },
   ],
   'ranger:relentless-hunter': [
@@ -983,11 +974,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       why: 'a-bonus-to-spell-attack-rolls',
       note: 'the item map’s own id, whose description already names the save DC beside the attack roll.',
     },
-    {
-      clause: 'for one minute',
-      why: 'a-benefit-that-runs-for-a-printed-span',
-      note: 'a printed span rather than an extended turn boundary.',
-    },
   ],
   'sorcerer:metamagic': [
     {
@@ -1173,40 +1159,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       why: 'a-dc-a-feature-derives-from-its-own-abilities',
       note: 'an area option rolls this save now; the number it would roll against is a species trait\'s own formula, and a species casts nothing for a spell save DC to be read from.',
     },
-    {
-      clause: '"a number of times equal to your Proficiency Bonus" is none of the three',
-      why: 'a-pool-the-proficiency-bonus-sizes',
-      note: 'the fourth sizing, and the one every species trait with a limit prints.',
-    },
-  ],
-  'dragonborn:draconic-flight': [
-    {
-      clause: 'there is no Fly Speed beside it',
-      why: 'movement-modes',
-      note: 'the spell map’s own id, which Unseen Servant and Arcane Hand wait on too.',
-    },
-    {
-      clause: 'the 10 minutes of spectral wings',
-      why: 'a-benefit-that-runs-for-a-printed-span',
-      note: 'a printed span rather than an extended turn boundary.',
-    },
-  ],
-  'dwarf:stonecunning': [
-    {
-      clause: 'The sense is switched on for 10 minutes by a Bonus Action rather than had',
-      why: 'a-benefit-that-runs-for-a-printed-span',
-      note: 'the sense grant exists and a standing effect is had rather than switched on for a span.',
-    },
-    {
-      clause: 'the engine has no notion of a stone surface for it to be in contact with',
-      why: 'a-world-fact-nothing-can-represent',
-      note: 'the spell map’s own id: a fact the world model has no room for.',
-    },
-    {
-      clause: 'is not one of the three ways the engine sizes a pool',
-      why: 'a-pool-the-proficiency-bonus-sizes',
-      note: 'the uses, sized in Proficiency Bonuses like every other origin trait with a limit.',
-    },
   ],
   'elf:elven-lineage': [
     {
@@ -1216,11 +1168,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
     },
   ],
   'gnome:gnomish-lineage': [
-    {
-      clause: 'which is not one of the three ways the engine sizes a pool',
-      why: 'a-pool-the-proficiency-bonus-sizes',
-      note: 'the Forest Gnome’s Speak with Animals, whose free castings are counted in Proficiency Bonuses; the cantrips either option knows are granted.',
-    },
     {
       clause: 'an object with its own Armour Class, hit point and Bonus Action that nothing in the engine creates',
       why: 'an-object-with-statistics-of-its-own',
@@ -1244,38 +1191,9 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'the clause names the trigger, which is the half with no shape: hanging Prone is what a pool option already does.',
     },
     {
-      clause: 'is not one of the three ways the engine sizes a pool',
-      why: 'a-pool-the-proficiency-bonus-sizes',
-      note: 'the uses each boon is limited to, counted in Proficiency Bonuses.',
-    },
-    {
       clause: 'Storm\'s Thunder, which deals damage back rather than reducing it',
       why: 'a-reaction-effect-the-vocabulary-lacks',
       note: 'Superior Hunter’s Defense wants a fifth member and this wants a sixth, which is what makes it a shape.',
-    },
-  ],
-  'goliath:large-form': [
-    {
-      clause: 'a creature size in this engine belongs to the scene rather than to the sheet, and nothing changes one mid-fight',
-      why: 'a-creature-fact-an-effect-overrides',
-      note: 'the spell map’s own id: type and size are facts nothing may write over.',
-    },
-    {
-      clause: 'the 10 minutes',
-      why: 'a-benefit-that-runs-for-a-printed-span',
-      note: 'a printed span rather than a turn boundary the holder has to keep extending.',
-    },
-  ],
-  'orc:adrenaline-rush': [
-    {
-      clause: 'no feature route reaches them',
-      why: 'temporary-hit-points-a-feature-grants',
-      note: 'the Temporary Hit Points, which are real state with no writer.',
-    },
-    {
-      clause: 'is not one of the three ways the engine sizes a pool',
-      why: 'a-pool-the-proficiency-bonus-sizes',
-      note: 'the uses, sized in Proficiency Bonuses like every other origin trait with a limit.',
     },
   ],
   // — the feats, which no population had until gate G1 ————————————————————
@@ -1347,14 +1265,34 @@ export const POOL_SPENDING_MEMBERS = [
  * what lets four features join the map with no list to keep.
  */
 export const isBarePool = (feature: FeatureDefinition): boolean => {
-  const pools = featureGrants(feature).filter((grant) => grant.kind === 'pool');
+  const grants = featureGrants(feature);
+  const pools = grants.filter((grant) => grant.kind === 'pool');
   if (pools.length === 0) return false;
-  return pools.every((grant) =>
-    POOL_SPENDING_MEMBERS.every(
-      (member) => (grant as unknown as Record<string, unknown>)[member] === undefined,
-    ),
+  return pools.every(
+    (grant) =>
+      POOL_SPENDING_MEMBERS.every(
+        (member) => (grant as unknown as Record<string, unknown>)[member] === undefined,
+      ) && !allowanceSpends(grants, grant.key),
   );
 };
+
+/**
+ * Whether a sibling grant's allowance spends the pool — SRD Adrenaline Rush,
+ * whose `pool` grant says nothing a use buys because the buying is on the
+ * `action-rule` beside it: a Dash bought out of a Bonus Action spends one.
+ * The second way a pool grant is not bare, and the one that is not a member
+ * of the grant itself.
+ */
+const allowanceSpends = (grants: readonly GatedFeatureGrant[], key: string): boolean =>
+  grants.some((grant) => {
+    const effects =
+      grant.kind === 'standing'
+        ? (grant.effects ?? [])
+        : grant.kind === 'activated'
+          ? (grant.whileActive ?? [])
+          : [];
+    return effects.some((effect) => effect.kind === 'action-rule' && effect.spends === key);
+  });
 
 /**
  * The second population: `engine` features whose pool buys nothing.

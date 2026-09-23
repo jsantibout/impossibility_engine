@@ -461,6 +461,10 @@ export interface GrantedActionRule {
   readonly label: string;
   /** How the refusal finishes its sentence: "the spell ends", "your next turn". */
   readonly until: string;
+  /** A pool a use of an `allows` rule spends when its price is taken — SRD Adrenaline Rush. */
+  readonly spends?: string;
+  /** Temporary Hit Points an `allows` rule pays when its price is taken, already a number. */
+  readonly temporaryHitPoints?: number;
 }
 
 /**
@@ -639,10 +643,13 @@ export function allowsPrice(
   action: NamedAction,
   from: ActionSlot,
   rules: readonly GrantedActionRule[],
-): Result<true> {
+): Result<GrantedActionRule> {
+  // The rule itself rather than a bare yes, because an allowance may carry a
+  // price of its own — a use, Temporary Hit Points — that the command taking
+  // the cheaper slot has to charge.
   for (const held of rules) {
     if (held.rule.kind === 'allows' && held.rule.action === action && held.rule.from === from) {
-      return ok(true);
+      return ok(held);
     }
   }
   return err(

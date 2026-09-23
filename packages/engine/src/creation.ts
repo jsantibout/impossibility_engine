@@ -30,6 +30,7 @@ import {
 } from './character.js';
 import type {
   ActivatedFeature,
+  ActivationSpan,
   HealAmount,
   FailedSaveDamage,
   HealingTouch,
@@ -44,6 +45,7 @@ import type {
   StrikeStyle,
   TradeFeature,
 } from './standing.js';
+import type { TurnAnchor } from './time.js';
 import type { SpellEffect } from './spell-definitions.js';
 import { formIneligibility } from './monster.js';
 import type {
@@ -2882,7 +2884,8 @@ export function planCharacter(
       name: feature.name,
       action: grant.action,
       pool: grant.pool,
-      lasts: grant.lasts,
+      lasts: activationSpanOf(grant),
+      ...(grant.size === undefined ? {} : { size: grant.size }),
       ...(grant.capSeconds === undefined ? {} : { capSeconds: grant.capSeconds }),
       ...(grant.endsOn === undefined ? {} : { endsOn: grant.endsOn }),
       ...(grant.forbidsCasting === undefined ? {} : { forbidsCasting: grant.forbidsCasting }),
@@ -3886,9 +3889,17 @@ function poolSizeOf(
     readonly fromAbilityModifier?: Ability;
     readonly minimum?: number;
     readonly perClassLevel?: number;
+    readonly perProficiencyBonus?: true;
   },
 ): number {
   if (grant.usesByLevel !== undefined) return usesOf(choices, featureId, grant.usesByLevel);
+
+  // SRD "a number of times equal to your Proficiency Bonus": the character's,
+  // by total level, because that is whose bonus it is — a species trait has
+  // no class table and no class level to read one at.
+  if (grant.perProficiencyBonus === true) {
+    return proficiencyBonusForLevel(totalLevelOf(choices));
+  }
 
   if (grant.perClassLevel !== undefined) {
     return grant.perClassLevel * classLevelFor(choices, featureId);
@@ -4114,6 +4125,20 @@ const withDiceCountOf = (die: string, count: number): string => {
   return `${Math.max(1, count)}d${parsed.ok ? parsed.value.sides : 8}`;
 };
 
+/**
+ * The lifetime an activation is written with, in whichever of its two
+ * spellings the grant used. Validated content always carries exactly one, so a
+ * grant with neither is a programmer error rather than a refusal.
+ */
+function activationSpanOf(grant: {
+  readonly lasts?: TurnAnchor;
+  readonly lastsSeconds?: number;
+}): ActivationSpan {
+  if (grant.lastsSeconds !== undefined) return { kind: 'seconds', seconds: grant.lastsSeconds };
+  if (grant.lasts !== undefined) return grant.lasts;
+  throw new TypeError('an activated grant runs to a turn anchor or for a printed span');
+}
+
 function usesOf(
   choices: CharacterChoices,
   featureId: string,
@@ -4316,7 +4341,9 @@ function poolsFor(
     pools.push({
       key: grant.pool,
       label: grant.poolLabel ?? feature.name,
-      max: usesOf(choices, feature.id, grant.usesByLevel),
+      // Every sizing, not the class-table column alone: SRD Stonecunning's
+      // uses are a Proficiency Bonus and SRD Innate Sorcery's a flat two.
+      max: poolSizeOf(content, choices, features, feature.id, grant),
       recovers: grant.recovers ?? 'long-rest',
       ...(grant.regainsOnShortRest === undefined
         ? {}

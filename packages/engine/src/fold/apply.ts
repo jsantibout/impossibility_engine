@@ -271,7 +271,9 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
   return settleHitPointMaxima(reachStartOfTurn(
     // After every pass that can end a feature — a deadline, a lost condition,
     // an explicit ending — because what this puts back is a sheet a feature
-    // was holding up, and it has to see the feature gone first.
+    // was holding up, and it has to see the feature gone first. The size an
+    // activation prints is settled after the shape for the same reason.
+    settleSizes(
     settleShapes(
     // After the drops rather than before them: what ends an attunement is a
     // death or an item gone, and both are facts the event itself left behind.
@@ -310,6 +312,7 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
           ),
         ),
       ),
+    ),
     ),
     ),
   ));
@@ -602,6 +605,39 @@ function sustains(creature: CreatureState, feature: string): boolean {
 /** SRD Rage: "if you aren't wearing Heavy armor", and "if you don Heavy armor". */
 export function wearsHeavyArmor(creature: CreatureState): boolean {
   return creature.equipped.some((held) => held.armor?.category === 'heavy');
+}
+
+/**
+ * The map's copy of a size an activation prints — SRD Large Form.
+ *
+ * Derived, for the reason `settleShapes` is: every route out of a feature — a
+ * deadline, a lost condition, an explicit ending — drops it from
+ * `activeFeatures` knowing nothing about a size, so the size is read off what
+ * is active *now*: the one a running activation prints, else the creature's
+ * own. The scene's copy is brought to it, and nothing is emitted.
+ *
+ * **Only for a creature that holds such a feature at all.** A size the table
+ * stated when it placed a creature — "shrinking a hound is the table's" — is
+ * the map's to keep, and a derivation that pulled every creature back to its
+ * record would overrule it; so a creature whose sheet prints no size under any
+ * activation is not read here, and one that does has its map size owned by
+ * this pass for as long as it holds the feature. Only where the creature is
+ * standing somewhere and its own size is known.
+ */
+function settleSizes(state: GameState): GameState {
+  const scene = state.scene;
+  if (scene === null) return state;
+  let current = state;
+  for (const key of Object.keys(state.creatures).sort()) {
+    const creature = state.creatures[key];
+    if (creature === undefined || creature.size === null || scene.sizes[key] === undefined) continue;
+    const printing = (creature.sheet.activated ?? []).filter((one) => one.size !== undefined);
+    if (printing.length === 0) continue;
+    const printed = printing.find((one) => creature.activeFeatures.includes(one.feature))?.size;
+    const wanted = printed ?? creature.size;
+    if (scene.sizes[key] !== wanted) current = resized(current, creature.id, wanted);
+  }
+  return current;
 }
 
 /**
