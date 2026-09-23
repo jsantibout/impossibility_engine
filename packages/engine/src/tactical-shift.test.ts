@@ -33,6 +33,10 @@ import { createRollIssuer } from './rolls.js';
 import { applyEvent, fold, type GameEvent, type GameState } from './events.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
 import { resolveMove, resolveTurn, useSelfHeal } from './commands.js';
+import { checkFeatureDefinition } from './feature-schema.js';
+import { MAX_LEVEL } from './progression.js';
+import { READABLE_FEATURE_FIELDS, READABLE_GRANT_KINDS } from './content.js';
+import type { FeatureDefinition } from './progression.js';
 
 const id = (s: string) => asCharacterId(s);
 const BRAM = id('bram');
@@ -223,5 +227,95 @@ describe('Second Wind hands a level 5 Fighter half a Speed of movement', () => {
     expect(after.combat?.budgets[BRAM]?.grantedMoves).toEqual([
       { source: 'feature:fighter:tactical-shift', feet: 15 },
     ]);
+  });
+});
+
+/**
+ * A grant a move names and no branch could ever charge.
+ *
+ * The field's promise is that a grant nothing handed this creature is
+ * **refused** rather than falling back on their Speed — and the refusal has to
+ * cover every way the spend could be skipped, not only the one where the turn
+ * holds no such grant. The failure this closes was silent in the worst
+ * direction: a move naming any string at all outside combat spent nothing and
+ * provoked nobody, because the Opportunity Attack question read the *field*
+ * rather than the spend.
+ */
+describe('a grant nothing could charge is refused, never ignored', () => {
+  const outsideCombat = (): readonly GameEvent[] =>
+    field(5).filter((event) => event.type !== 'combat-started');
+
+  it('refuses one outside combat rather than walking for free', () => {
+    const refused = resolveMove(
+      fold('seed', outsideCombat()),
+      BRAM,
+      { placement: away(15), usingGrant: 'feature:fighter:tactical-shift' },
+      supply('move'),
+    );
+    expect(isErr(refused) && refused.code).toBe('no_such_grant');
+  });
+
+  /** Forced movement is not the creature's own move, so it spends no grant. */
+  it('refuses one on a forced move', () => {
+    const state = applyAll(fold('seed', field(5)), secondWind(fold('seed', field(5))));
+    const refused = resolveMove(
+      state,
+      BRAM,
+      { placement: away(15), forced: true, usingGrant: 'feature:fighter:tactical-shift' },
+      supply('move'),
+    );
+    expect(isErr(refused) && refused.code).toBe('no_such_grant');
+  });
+});
+
+/**
+ * The authoring half, which `recoversSooner` has had since it was written.
+ *
+ * Creation compiles the rider only where the character really holds the
+ * feature named, so a rider naming nobody is dropped in silence and the class
+ * file reads as though a use hands feet over when it hands over none — the
+ * exact failure the feature validator exists to convert into a refusal.
+ */
+describe('a handed move is held to a feature that could hand it over', () => {
+  const holding = (handsMove: unknown, action = 'bonus-action'): FeatureDefinition =>
+    ({
+      id: 'brigand:second-breath',
+      name: 'Second Breath',
+      level: 1,
+      automation: 'engine',
+      note: 'A homebrew class whose pool heals its holder and hands them a move.',
+      grants: {
+        kind: 'pool',
+        key: 'second-breath',
+        label: 'Second Breath',
+        usesByLevel: Array.from({ length: 20 }, () => 1),
+        recovers: 'long-rest',
+        heals: { action, dice: '1d10', plus: 'class-level', handsMove },
+      },
+    }) as unknown as FeatureDefinition;
+
+  const codes = (handsMove: unknown, action?: string): readonly string[] =>
+    checkFeatureDefinition(holding(handsMove, action), {
+      levels: MAX_LEVEL,
+      readableGrants: READABLE_GRANT_KINDS,
+      readableFields: READABLE_FEATURE_FIELDS,
+      spellExists: () => true,
+    }).map((problem) => problem.code);
+
+  it('takes the one the Fighter really writes', () => {
+    expect(codes({ withFeature: 'brigand:tactical-shift', share: 'half-speed' })).toEqual([]);
+  });
+
+  it('refuses a rider that names nobody', () => {
+    expect(codes({ withFeature: '', share: 'half-speed' })).toContain(
+      'handed_move_without_a_feature',
+    );
+  });
+
+  /** SRD hands it over for activating the feature **with a Bonus Action**. */
+  it('refuses one on a use that costs an Action', () => {
+    expect(codes({ withFeature: 'brigand:tactical-shift', share: 'half-speed' }, 'action')).toContain(
+      'handed_move_off_a_bonus_action',
+    );
   });
 });

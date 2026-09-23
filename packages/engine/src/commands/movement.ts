@@ -410,11 +410,47 @@ export function moveWithin(
     const cost =
       ground.value.cost + (charging === 'none' ? 0 : difficult * way.value.surcharge);
 
+    // — the grant this move says it is spending —————————————————————————
+    //
+    // **Refused before anything is spent, and never ignored.** The branch
+    // below can only charge a grant where there is a turn holding one, and a
+    // `usingGrant` that fell past it would have done the two things this
+    // field exists to prevent: spent the creature's own Speed instead, and —
+    // because the suppression read the *field* rather than the spend —
+    // provoked nobody while doing it. So a grant that cannot be charged is a
+    // refusal, which is what {@link MoveCommand.usingGrant} promises.
+    if (command.usingGrant !== undefined) {
+      if (command.forced === true) {
+        return err(
+          'no_such_grant',
+          'forced movement is not the creature\'s own move, so there is no grant of theirs for it to spend',
+        );
+      }
+      if (allowance !== null) {
+        return err(
+          'no_such_grant',
+          'a readied move is paid for by the Reaction that holds it, not out of feet a feature handed a turn',
+        );
+      }
+      if (state.combat === null || state.combat.budgets[id] === undefined) {
+        return err(
+          'no_such_grant',
+          `nothing has handed ${id} a move under ${command.usingGrant}; feet a feature hands over belong to a turn, and there are none here`,
+        );
+      }
+    }
+
     // — what it costs ——————————————————————————————————————————————————————
     //
     // Forced movement is not the creature's own, so it spends none of their
     // Speed. Outside combat there is no budget to spend at all.
     const events: GameEvent[] = [];
+    // Set by the branch that really charged a grant, and read by the
+    // Opportunity Attack question below. **The deed rather than the
+    // declaration**: a field nobody spent must not buy the sentence's
+    // benefit, which is the same rule `disengaged` keeps by reading the
+    // budget rather than the command.
+    let spentFromGrant = false;
     if (allowance !== null) {
       // A readied move: the Reaction paid for it, so no Speed is spent and
       // nothing is recorded against a budget this move does not belong to.
@@ -450,6 +486,7 @@ export function moveWithin(
             )
           : spent;
       }
+      spentFromGrant = true;
       events.push({ type: 'movement-spent', id, feet: cost, grant: command.usingGrant });
     } else if (
       state.combat !== null &&
@@ -503,7 +540,7 @@ export function moveWithin(
     // separates it from a Disengage. A creature that spends its grant and then
     // walks provokes on the walking.
     const opportunity =
-      command.forced === true || disengaged || command.usingGrant !== undefined
+      command.forced === true || disengaged || spentFromGrant
         ? { provoked: [], unverified: [] }
         : provokedBy(state, supply.content, id, from, to);
 

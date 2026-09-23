@@ -3786,6 +3786,16 @@ function adjacentAllyOf(
  * Asked of the *target* rather than the caster, which is what makes it a
  * defence: the Rogue standing in the Fireball is the one who evades it.
  */
+export function evadesHalfDamage(
+  state: GameState,
+  who: CharacterId,
+  ability: Ability,
+  offersHalfOnSuccess: boolean,
+): boolean {
+  if (ability !== 'dex' || !offersHalfOnSuccess) return false;
+  return standingFor(state, who).some(({ effect }) => effect.grant.kind === 'evasion');
+}
+
 /**
  * Whether this creature adds its ability modifier to the Light property's
  * extra attack after all.
@@ -3799,16 +3809,6 @@ export function addsAbilityToLightExtraAttack(state: GameState, who: CharacterId
   return standingFor(state, who).some(
     ({ effect }) => effect.grant.kind === 'light-extra-attack-damage',
   );
-}
-
-export function evadesHalfDamage(
-  state: GameState,
-  who: CharacterId,
-  ability: Ability,
-  offersHalfOnSuccess: boolean,
-): boolean {
-  if (ability !== 'dex' || !offersHalfOnSuccess) return false;
-  return standingFor(state, who).some(({ effect }) => effect.grant.kind === 'evasion');
 }
 
 /** The casting a `casting-damage` grant is being asked about. */

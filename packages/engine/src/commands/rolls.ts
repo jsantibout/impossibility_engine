@@ -46,13 +46,21 @@ import { type Supply } from './casting.js';
 /**
  * The `roll-modifier-consumed` events a roll owes, one per grant it used up.
  *
- * **Written once because five rollers say it**, and it was two before this: the
- * two attack rollers each spelled the same three lines out, and
- * `oneShotProblem` refused the flag on every other family because nothing else
- * spent one. SRD Help hangs a one-shot Advantage on an **ability check** — "that
- * ally has Advantage on the next ability check they make with the chosen skill"
- * — so the check rollers spend one now, and the refusal narrowed to the
- * families that still do not.
+ * **Written once because four rollers say it**, and none of them did before
+ * SRD Help: the flag was refused on every family but `attack`, because nothing
+ * else spent one. Help hangs a one-shot Advantage on an **ability check** —
+ * "that ally has Advantage on the next ability check they make with the chosen
+ * skill" — so `resolveTest`, `resolveEffectCheck`, the escape check and the
+ * three glossary actions spend one through this, and `oneShotProblem` narrowed
+ * to the families that still do not.
+ *
+ * **The two attack rollers still spell the loop out and are not four and
+ * five**, which is a fact about their queries rather than about the loop: one
+ * gathers `sensesPerceiving` to spend exactly what it read, and the other
+ * folds each event as it goes because a casting's resolver carries its state
+ * forward. Either could take this helper the day its call site stops needing
+ * the difference; neither is a second copy of the rule, which is
+ * `consumedRollModifiers`.
  *
  * The caller passes the very query its `rollModesFor` call used, which is what
  * keeps "what was read" and "what was spent" from ever disagreeing:
