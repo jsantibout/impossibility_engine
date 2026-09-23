@@ -584,58 +584,55 @@ be the second spelling of one derivation.
 |---|---|---|
 | `a-feature-that-rewrites-another-features-rule` | 8 | 4 |
 | `a-casting-paid-for-out-of-a-feature-pool` | 8 | 3 |
+| `a-resource-traded-for-another` | 8 | 3 |
 | `a-roll-result-an-effect-replaces` | 4 | 3 |
-| `a-resource-traded-for-another` | 8 | 2 |
 | `a-feature-that-changes-what-a-casting-costs` | 7 | 2 |
 | `a-feature-that-changes-who-a-casting-catches` | 4 | 2 |
 | `an-option-re-chosen-on-a-rest` | 3 | 2 |
-| `movement-modes` | 3 | 2 |
 | `a-declared-fact-a-feature-sets` | 2 | 2 |
 | `a-pool-refilled-to-a-floor` | 2 | 2 |
 | `a-spell-list-that-is-not-your-class-list` | 2 | 2 |
 | `healing-modified-by-an-effect` | 2 | 2 |
+| `movement-modes` | 2 | 2 |
 | `a-move-a-feature-hands-its-holder` | 5 | 1 |
 | `an-action-a-spell-compels-or-forbids` | 4 | 1 |
 | `an-attack-the-class-redefines` | 4 | 1 |
 | `a-modifier-a-feature-puts-on-another-creature` | 3 | 1 |
 | `a-spell-an-item-casts-that-nothing-executes` | 3 | 1 |
 | `a-condition-a-feature-ends` | 2 | 1 |
-| `a-creature-fact-an-effect-overrides` | 2 | 1 |
 | `a-one-shot-roll-modifier` | 2 | 1 |
 | `a-reaction-effect-the-vocabulary-lacks` | 2 | 1 |
 | `a-stat-block-created-mid-fight` | 2 | 1 |
 | `an-area-an-item-creates` | 2 | 1 |
 | `a-bonus-an-ability-modifier-sizes` | 1 | 1 |
+| `a-bonus-to-spell-attack-rolls` | 1 | 1 |
 | `a-concentration-rule-that-names-its-casting` | 1 | 1 |
+| `a-creature-fact-an-effect-overrides` | 1 | 1 |
 | `a-requirement-on-the-armour-its-holder-is-wearing` | 1 | 1 |
 | `a-roll-mode-a-feature-takes-away` | 1 | 1 |
 | `a-turn-a-spell-inserts-into-the-order` | 1 | 1 |
 | `an-effect-that-intercepts-dropping-to-0` | 1 | 1 |
 | `an-effect-that-waits-for-a-later-trigger` | 1 | 1 |
+| `an-object-with-statistics-of-its-own` | 1 | 1 |
 | `an-option-whose-span-is-a-turn-boundary` | 1 | 1 |
 | `heroic-inspiration` | 1 | 1 |
-| `a-benefit-that-runs-for-a-printed-span` | 6 | 0 |
-| `a-pool-the-proficiency-bonus-sizes` | 6 | 0 |
-| `temporary-hit-points-a-feature-grants` | 4 | 0 |
 | `a-mode-on-the-save-a-spell-forces` | 3 | 0 |
 | `a-second-question-one-feature-asks` | 3 | 0 |
+| `temporary-hit-points-a-feature-grants` | 3 | 0 |
 | `a-language-or-a-proficiency-an-item-grants` | 2 | 0 |
 | `a-speed-a-feature-reduces` | 2 | 0 |
 | `a-turn-boundary-payout-a-feature-owes` | 2 | 0 |
 | `damage-with-neither-an-attack-roll-nor-a-save` | 2 | 0 |
 | `forced-movement-a-spell-causes` | 2 | 0 |
-| `a-bonus-to-spell-attack-rolls` | 1 | 0 |
 | `a-dc-a-feature-derives-from-its-own-abilities` | 1 | 0 |
 | `a-die-behaviour-a-spell-asks-for` | 1 | 0 |
 | `a-random-outcome-that-is-not-a-d20` | 1 | 0 |
 | `a-rule-the-engine-fixes-for-everybody` | 1 | 0 |
 | `a-second-place-to-put-a-creature` | 1 | 0 |
 | `a-target-list-an-ability-modifier-sizes` | 1 | 0 |
-| `a-world-fact-nothing-can-represent` | 1 | 0 |
 | `an-action-rule-a-feature-holds` | 1 | 0 |
 | `an-effect-that-ends-when-its-target-is-hurt` | 1 | 0 |
 | `an-exhaustion-level-a-spell-changes` | 1 | 0 |
-| `an-object-with-statistics-of-its-own` | 1 | 0 |
 | `an-outcome-of-a-spells-own-damage` | 1 | 0 |
 
 A feature can need more than one shape, so neither column sums to the
@@ -659,7 +656,7 @@ exactly like an entry nobody read:
 
 | Species | Backgrounds | Features | Executed by the engine |
 |---|---|---|---|
-| 9 | 4 | 37 | 29 |
+| 9 | 4 | 37 | 33 |
 
 A species trait and a class feature are the same `FeatureDefinition` and
 declare automation the same way, so this is the column above read by the
@@ -681,14 +678,14 @@ derived would be somebody’s opinion instead.
 |---|---|---|---|
 | Acolyte | background | 1 | 1 |
 | Criminal | background | 1 | 1 |
-| Dragonborn | species | 5 | 3 |
-| Dwarf | species | 4 | 3 |
+| Dragonborn | species | 5 | 4 |
+| Dwarf | species | 4 | 4 |
 | Elf | species | 5 | 4 |
 | Gnome | species | 3 | 2 |
-| Goliath | species | 3 | 1 |
+| Goliath | species | 3 | 2 |
 | Halfling | species | 4 | 4 |
 | Human | species | 3 | 3 |
-| Orc | species | 3 | 2 |
+| Orc | species | 3 | 3 |
 | Sage | background | 1 | 1 |
 | Soldier | background | 1 | 1 |
 | Tiefling | species | 3 | 3 |

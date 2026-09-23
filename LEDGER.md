@@ -34,7 +34,7 @@ state is displayed as zero.
 | Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none |
 |---|---|---|---|---|
 | Spells in reach, not executed | 109 spells | 76 | 0 | 33 |
-| Features manual, or a pool with nothing to buy | 29 features | 23 | 0 | 6 |
+| Features manual, or a pool with nothing to buy | 25 features | 19 | 0 | 6 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 |
 | Glossary general rules nothing executes | 22 rules | 0 | 0 | 22 |
 | CR ≤ 5 stat-block items handed over or unapplied | 258 items | on 145 of 244 blocks | 0 | 99 blocks already clean |
@@ -523,7 +523,7 @@ entries in it, and the complement pinned by name. Its bracket is the level:
 an Origin feat and a Fighting Style print none and are taken at 1, so nine
 of the sixteen are in a level 1–5 character's reach.
 
-Of the 29, 20 are class or subclass features printed at level 5 or below, 8 are species or background traits and 1 are feats.
+Of the 25, 20 are class or subclass features printed at level 5 or below, 4 are species or background traits and 1 are feats.
 The snapshot of 2026-09-21 in `docs/dev/roadmap-ledger-2026-09-21.md`
 counted the first group only, and did not see the pools; the traits are in
 reach of a level 5 character too, which is where the difference in the size
@@ -534,19 +534,16 @@ comes from.
 | `a-feature-that-changes-what-a-casting-costs` | 4 | 2 |
 | `a-resource-traded-for-another` | 2 | 1 |
 | `a-bonus-an-ability-modifier-sizes` | 1 | 1 |
+| `a-bonus-to-spell-attack-rolls` | 1 | 1 |
 | `a-declared-fact-a-feature-sets` | 1 | 1 |
 | `a-requirement-on-the-armour-its-holder-is-wearing` | 1 | 1 |
+| `an-object-with-statistics-of-its-own` | 1 | 1 |
 | `an-option-re-chosen-on-a-rest` | 1 | 1 |
-| `a-pool-the-proficiency-bonus-sizes` | 5 | 0 |
-| `a-benefit-that-runs-for-a-printed-span` | 4 | 0 |
 | `a-casting-paid-for-out-of-a-feature-pool` | 2 | 0 |
 | `a-language-or-a-proficiency-an-item-grants` | 2 | 0 |
 | `a-move-a-feature-hands-its-holder` | 2 | 0 |
 | `a-second-question-one-feature-asks` | 2 | 0 |
 | `an-attack-the-class-redefines` | 2 | 0 |
-| `temporary-hit-points-a-feature-grants` | 2 | 0 |
-| `a-bonus-to-spell-attack-rolls` | 1 | 0 |
-| `a-creature-fact-an-effect-overrides` | 1 | 0 |
 | `a-dc-a-feature-derives-from-its-own-abilities` | 1 | 0 |
 | `a-die-behaviour-a-spell-asks-for` | 1 | 0 |
 | `a-feature-that-changes-who-a-casting-catches` | 1 | 0 |
@@ -554,13 +551,11 @@ comes from.
 | `a-reaction-effect-the-vocabulary-lacks` | 1 | 0 |
 | `a-speed-a-feature-reduces` | 1 | 0 |
 | `a-stat-block-created-mid-fight` | 1 | 0 |
-| `a-world-fact-nothing-can-represent` | 1 | 0 |
 | `an-action-a-spell-compels-or-forbids` | 1 | 0 |
 | `an-area-an-item-creates` | 1 | 0 |
-| `an-object-with-statistics-of-its-own` | 1 | 0 |
 | `an-outcome-of-a-spells-own-damage` | 1 | 0 |
 | `forced-movement-a-spell-causes` | 1 | 0 |
-| `movement-modes` | 1 | 0 |
+| `temporary-hit-points-a-feature-grants` | 1 | 0 |
 
 **Blocks** is every feature of this population the shape touches;
 **finishes** is what it is the *only* blocker for — the column a tranche
@@ -583,6 +578,10 @@ sums to the population.
 
 - `oath-of-devotion:sacred-weapon` — Sacred Weapon (level 3, subclass, manual)
 
+#### `a-bonus-to-spell-attack-rolls` — blocks 1, finishes 1
+
+- `sorcerer:innate-sorcery` — Innate Sorcery (level 1, class, manual)
+
 #### `a-declared-fact-a-feature-sets` — blocks 1, finishes 1
 
 - `paladin:channel-divinity` — Channel Divinity (level 3, class, engine)
@@ -591,24 +590,13 @@ sums to the population.
 
 - `defense` — Defense (level 1, feat, fighting-style)
 
+#### `an-object-with-statistics-of-its-own` — blocks 1, finishes 1
+
+- `gnome:gnomish-lineage` — Gnomish Lineage (level 1, species, manual)
+
 #### `an-option-re-chosen-on-a-rest` — blocks 1, finishes 1
 
 - `elf:elven-lineage` — Elven Lineage (level 1, species, manual)
-
-#### `a-pool-the-proficiency-bonus-sizes` — blocks 5, finishes 0
-
-- `dragonborn:breath-weapon` — Breath Weapon (level 1, species, manual) — also waits on 3
-- `dwarf:stonecunning` — Stonecunning (level 1, species, manual) — also waits on 2
-- `gnome:gnomish-lineage` — Gnomish Lineage (level 1, species, manual) — also waits on 1
-- `goliath:giant-ancestry` — Giant Ancestry (level 1, species, manual) — also waits on 3
-- `orc:adrenaline-rush` — Adrenaline Rush (level 1, species, manual) — also waits on 1
-
-#### `a-benefit-that-runs-for-a-printed-span` — blocks 4, finishes 0
-
-- `dwarf:stonecunning` — Stonecunning (level 1, species, manual) — also waits on 2
-- `sorcerer:innate-sorcery` — Innate Sorcery (level 1, class, manual) — also waits on 1
-- `dragonborn:draconic-flight` — Draconic Flight (level 5, species, manual) — also waits on 1
-- `goliath:large-form` — Large Form (level 5, species, manual) — also waits on 1
 
 #### `a-casting-paid-for-out-of-a-feature-pool` — blocks 2, finishes 0
 
@@ -622,7 +610,7 @@ sums to the population.
 
 #### `a-move-a-feature-hands-its-holder` — blocks 2, finishes 0
 
-- `goliath:giant-ancestry` — Giant Ancestry (level 1, species, manual) — also waits on 3
+- `goliath:giant-ancestry` — Giant Ancestry (level 1, species, manual) — also waits on 2
 - `rogue:cunning-strike` — Cunning Strike (level 5, class, manual) — also waits on 1
 
 #### `a-second-question-one-feature-asks` — blocks 2, finishes 0
@@ -632,25 +620,12 @@ sums to the population.
 
 #### `an-attack-the-class-redefines` — blocks 2, finishes 0
 
-- `dragonborn:breath-weapon` — Breath Weapon (level 1, species, manual) — also waits on 3
+- `dragonborn:breath-weapon` — Breath Weapon (level 1, species, manual) — also waits on 2
 - `open-hand:technique` — Open Hand Technique (level 3, subclass, manual) — also waits on 2
-
-#### `temporary-hit-points-a-feature-grants` — blocks 2, finishes 0
-
-- `orc:adrenaline-rush` — Adrenaline Rush (level 1, species, manual) — also waits on 1
-- `fiend-patron:dark-ones-blessing` — Dark One's Blessing (level 3, subclass, manual) — also waits on 1
-
-#### `a-bonus-to-spell-attack-rolls` — blocks 1, finishes 0
-
-- `sorcerer:innate-sorcery` — Innate Sorcery (level 1, class, manual) — also waits on 1
-
-#### `a-creature-fact-an-effect-overrides` — blocks 1, finishes 0
-
-- `goliath:large-form` — Large Form (level 5, species, manual) — also waits on 1
 
 #### `a-dc-a-feature-derives-from-its-own-abilities` — blocks 1, finishes 0
 
-- `dragonborn:breath-weapon` — Breath Weapon (level 1, species, manual) — also waits on 3
+- `dragonborn:breath-weapon` — Breath Weapon (level 1, species, manual) — also waits on 2
 
 #### `a-die-behaviour-a-spell-asks-for` — blocks 1, finishes 0
 
@@ -666,19 +641,15 @@ sums to the population.
 
 #### `a-reaction-effect-the-vocabulary-lacks` — blocks 1, finishes 0
 
-- `goliath:giant-ancestry` — Giant Ancestry (level 1, species, manual) — also waits on 3
+- `goliath:giant-ancestry` — Giant Ancestry (level 1, species, manual) — also waits on 2
 
 #### `a-speed-a-feature-reduces` — blocks 1, finishes 0
 
-- `goliath:giant-ancestry` — Giant Ancestry (level 1, species, manual) — also waits on 3
+- `goliath:giant-ancestry` — Giant Ancestry (level 1, species, manual) — also waits on 2
 
 #### `a-stat-block-created-mid-fight` — blocks 1, finishes 0
 
 - `druid:wild-companion` — Wild Companion (level 2, class, manual) — also waits on 1
-
-#### `a-world-fact-nothing-can-represent` — blocks 1, finishes 0
-
-- `dwarf:stonecunning` — Stonecunning (level 1, species, manual) — also waits on 2
 
 #### `an-action-a-spell-compels-or-forbids` — blocks 1, finishes 0
 
@@ -686,11 +657,7 @@ sums to the population.
 
 #### `an-area-an-item-creates` — blocks 1, finishes 0
 
-- `dragonborn:breath-weapon` — Breath Weapon (level 1, species, manual) — also waits on 3
-
-#### `an-object-with-statistics-of-its-own` — blocks 1, finishes 0
-
-- `gnome:gnomish-lineage` — Gnomish Lineage (level 1, species, manual) — also waits on 1
+- `dragonborn:breath-weapon` — Breath Weapon (level 1, species, manual) — also waits on 2
 
 #### `an-outcome-of-a-spells-own-damage` — blocks 1, finishes 0
 
@@ -700,9 +667,9 @@ sums to the population.
 
 - `open-hand:technique` — Open Hand Technique (level 3, subclass, manual) — also waits on 2
 
-#### `movement-modes` — blocks 1, finishes 0
+#### `temporary-hit-points-a-feature-grants` — blocks 1, finishes 0
 
-- `dragonborn:draconic-flight` — Draconic Flight (level 5, species, manual) — also waits on 1
+- `fiend-patron:dark-ones-blessing` — Dark One's Blessing (level 3, subclass, manual) — also waits on 1
 
 #### Waiting on a definition — 0
 

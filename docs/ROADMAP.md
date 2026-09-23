@@ -1473,7 +1473,11 @@ Appended after wave two (2026-09-22):
   in the order small features, feature vocabulary, casting cost, sight,
   attack riders. **Small features merged 2026-09-23**: Resourceful, Naturally
   Stealthy, Jack of All Trades, Slow Fall and Second-Story Work execute, and
-  the DM surface gained `resolve_fall`.
+  the DM surface gained `resolve_fall`. **Feature vocabulary merged
+  2026-09-23**: Adrenaline Rush, Stonecunning, Large Form and Draconic Flight
+  execute, Innate Sorcery switches on and off with its bonus clause still the
+  table's, and Breath Weapon, Giant Ancestry, Gnomish Lineage and Tireless
+  declare the pools their notes claimed.
 
 Appended after wave three's first track (2026-09-23):
 
@@ -1499,3 +1503,35 @@ Appended after wave three's first track (2026-09-23):
 - **The Hide behind a larger creature hands one fact over**: the engine
   checks size and the five feet, and names the creature; whether it stands
   between the hider and each watcher is the table's.
+
+Appended after wave three's second track (2026-09-23):
+
+- **A pool the Proficiency Bonus sizes is the character's.** SRD prints "a
+  number of times equal to your Proficiency Bonus" on species traits, which
+  have no class table; `perProficiencyBonus` is read at the character's total
+  level and grown by advancement like a column. A pool declared with nothing
+  to buy from it — Breath Weapon, Giant Ancestry, Tireless — is declared
+  anyway, so the sheet counts what the book counts and the ledger's "pool with
+  nothing to buy" column says the rest.
+- **A printed span is never maintained.** An activation runs to a turn anchor
+  *or* for `lastsSeconds`, exactly one; a span is scheduled on the clock in
+  and out of a fight, and `extend_feature` refuses it `not_extendable`. Rage's
+  round-by-round maintenance is the other spelling, not a default.
+- **A size an activation prints is derived onto the map, and only for its
+  holder.** `settleSizes` brings the scene's copy to the printed size while
+  the feature runs and to the creature's own when it ends, by every route out;
+  a creature whose sheet prints no size under any activation is not read, so a
+  size the table stated when it placed a hound stays the table's. Large Form
+  while shape-shifted is a case nobody has asked for and nothing settles.
+- **An allowance may carry a price.** `spends` and `temporaryHitPoints` on an
+  `action-rule` are charged by the command that takes the cheaper slot, before
+  anything is spent, and are refused with the pool empty. The SRD prints
+  exactly one such allowance, Adrenaline Rush; the vocabulary is generic so a
+  homebrew "Hide as a Bonus Action, Proficiency Bonus times" spends too.
+- **Innate Sorcery stays manual by one clause.** The +1 to spell save DC and
+  Advantage on spell attacks are `a-bonus-to-spell-attack-rolls`, named in
+  `standing.ts` as deliberately absent; the activation, the two uses and the
+  minute are the engine's.
+- **Dark One's Blessing is a moment, not a price.** The Temporary Hit Points
+  it prints arrive "when you reduce an enemy to 0 Hit Points", which no
+  feature route opens; the shape stays with that one claimant.
