@@ -536,8 +536,13 @@ export const HALFLING: SpeciesDefinition = {
       id: 'halfling:halfling-nimbleness',
       name: 'Halfling Nimbleness',
       level: 1,
-      automation: 'manual',
-      note: 'Not applied: moving through the space of a creature one size larger is a rule the engine writes for a two-size difference and for nothing else, and it is not read off a feature. A DM allows the move.',
+      automation: 'engine',
+      note: 'Applied, and the rule it bends had to be wired first: "you can move through the space of any creature that is a size larger than you" is an exception to the glossary\'s two sizes, and until this landed nothing asked canPassThrough at all - choosePoint tested the destination, so anybody walked through anybody as long as they did not stop there. resolveMove now reads the spaces a move states in its route, one by one, and a passage grant lowers the two sizes to one for its holder alone: a Halfling walks through a Human and is still refused through another Halfling, because the sentence names the larger side and nothing lets anybody through a creature of their own size. "But you can\'t stop in the same space" needs no grant - occupied has refused every creature a stop in an occupied space since positioning landed, which is SRD\'s "You can\'t willingly end a move in a space occupied by another creature."',
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        effects: [{ kind: 'passage', sizesLarger: 1 }],
+      },
     },
     {
       id: 'halfling:luck',

@@ -432,6 +432,22 @@ export interface PassageContext {
   readonly allied?: boolean;
   /** SRD: an Incapacitated creature may be passed through whatever its size. */
   readonly occupantIncapacitated?: boolean;
+  /**
+   * How many sizes larger an occupant need be for this mover to slip past,
+   * where a feature says fewer than the two the glossary prints.
+   *
+   * SRD Halfling Nimbleness: "You can move through the space of any creature
+   * that is a size larger than you, but you can't stop in the same space."
+   * One number rather than a named size, on `carrying-capacity`'s argument: a
+   * relation survives its holder being enlarged and a named size does not.
+   *
+   * **The larger side only**, because that is the side the sentence names — a
+   * Halfling squeezes past a Human and has no easier time of a Gnome — and
+   * **never below one**, because no printed line lets anybody walk through a
+   * creature of their own size. So the floor is the rule this bends and not
+   * the rule it deletes.
+   */
+  readonly passesWhenLargerBy?: number;
 }
 
 /**
@@ -448,7 +464,10 @@ export function canPassThrough(
   if (context.occupantIncapacitated === true) return true;
   // Tiny is a blanket exception in both directions, not merely a size gap.
   if (mover === 'tiny' || occupant === 'tiny') return true;
-  return Math.abs(sizeRank(mover) - sizeRank(occupant)) >= 2;
+  const larger = sizeRank(occupant) - sizeRank(mover);
+  if (Math.abs(larger) >= 2) return true;
+  const bent = context.passesWhenLargerBy;
+  return bent !== undefined && bent > 0 && larger >= Math.max(1, 2 - bent);
 }
 
 /**
@@ -579,17 +598,211 @@ function occupied(
   height: number,
   ignore: CharacterId | null,
 ): boolean {
+  return occupantsAt(state, at, size, height, ignore).length > 0;
+}
+
+/**
+ * *Who* is standing where {@link occupied} says somebody is.
+ *
+ * The same overlap, answered with the names rather than with a boolean,
+ * because the two questions a space raises have different answers: a
+ * destination only has to be empty, and a space **crossed** has to be one this
+ * particular mover may pass through — which needs the occupant, its size and
+ * its condition. Sorted, so a refusal names the same creature every time it is
+ * computed from the same state.
+ */
+function occupantsAt(
+  state: PositionState,
+  at: Point,
+  size: CreatureSize,
+  height: number,
+  ignore: CharacterId | null,
+): readonly CharacterId[] {
   const width = footprintOf(size);
   const box: Box = {
     min: at,
     max: { x: at.x + width, y: at.y + width, z: at.z + Math.max(CUBE, snap(height)) },
   };
 
-  return Object.keys(state.positions).some((who) => {
-    if (who === ignore) return false;
-    const other = boxOf(state, who as CharacterId);
-    return other !== null && overlaps(box, other);
-  });
+  return Object.keys(state.positions)
+    .sort()
+    .map((who) => who as CharacterId)
+    .filter((who) => {
+      if (who === ignore) return false;
+      const other = boxOf(state, who);
+      return other !== null && overlaps(box, other);
+    });
+}
+
+/** A space a move entered, and whose it turned out to be. */
+export interface Crossing {
+  readonly space: Point;
+  readonly occupant: CharacterId;
+}
+
+/**
+ * Everybody whose space a stated route enters, space by space.
+ *
+ * The geometry half of SRD's "Moving around Other Creatures": this says whose
+ * spaces were crossed and nothing about whether they could be, because whether
+ * they could be is a question about sides, conditions and what a feature says,
+ * and none of those live in this module. `commands/movement.ts` asks
+ * {@link canPassThrough} with what it reads there.
+ *
+ * The mover's own volume is what crosses — a Huge creature walking down a
+ * corridor is fifteen feet wide the whole way — so each space is tested as the
+ * box the mover would fill standing there, which is the same box a destination
+ * is tested as.
+ */
+export function crossingsAlong(
+  state: PositionState,
+  who: CharacterId,
+  route: readonly Point[],
+): readonly Crossing[] {
+  const size = state.sizes[who] ?? 'medium';
+  const height = heightOf(state, who);
+  const found: Crossing[] = [];
+  for (const step of route) {
+    const space = snapPoint(step);
+    for (const occupant of occupantsAt(state, space, size, height, who)) {
+      found.push({ space, occupant });
+    }
+  }
+  return found;
+}
+
+/**
+ * Everybody a move from here to there could possibly have walked into.
+ *
+ * The **enclosure** rather than the region: the endpoints widened by the slack
+ * each axis may wander and still arrive in the same number of steps, which is
+ * `uniformTerrainBetween`'s own box, widened again by the volume the mover
+ * sweeps through it. A creature whose volume misses that box could not have
+ * been in the way of any shortest route, so this is the cheap half of the two
+ * questions a route raises — the one nearly every move answers with nobody —
+ * and it is also the list a caller consults to find out whether the expensive
+ * half is worth asking about at all.
+ */
+export function occupantsBetween(
+  state: PositionState,
+  who: CharacterId,
+  from: Point,
+  to: Point,
+): readonly CharacterId[] {
+  const start = snapPoint(from);
+  const end = snapPoint(to);
+  const reach = distanceBetweenPoints(start, end);
+  const size = state.sizes[who] ?? 'medium';
+  const width = footprintOf(size);
+  const height = heightOf(state, who);
+
+  const slack = (a: number, b: number): number =>
+    Math.floor((reach - Math.abs(a - b)) / (2 * CUBE)) * CUBE;
+  const swept: Box = {
+    min: {
+      x: Math.min(start.x, end.x) - slack(start.x, end.x),
+      y: Math.min(start.y, end.y) - slack(start.y, end.y),
+      z: Math.min(start.z, end.z) - slack(start.z, end.z),
+    },
+    max: {
+      x: Math.max(start.x, end.x) + slack(start.x, end.x) + width,
+      y: Math.max(start.y, end.y) + slack(start.y, end.y) + width,
+      z: Math.max(start.z, end.z) + slack(start.z, end.z) + Math.max(CUBE, snap(height)),
+    },
+  };
+
+  return Object.keys(state.positions)
+    .sort()
+    .map((other) => other as CharacterId)
+    .filter((other) => {
+      if (other === who) return false;
+      const box = boxOf(state, other);
+      return box !== null && overlaps(swept, box);
+    });
+}
+
+/**
+ * Whether **every** shortest way from here to there enters somebody's space.
+ *
+ * `uniformTerrainBetween`'s question asked about creatures instead of about
+ * ground, and answered the same way: a move states where it began and where it
+ * ended, and inferring the line between them would be the engine deciding a
+ * route nobody took. So the engine asks for the route only where it can tell
+ * the answer matters — where no shortest route at all keeps clear of
+ * everybody, which is the one case in which the move provably crossed
+ * somebody whatever way it went.
+ *
+ * The region is the one that note defines: the spaces `p` with
+ * `cheb(from, p) + cheb(p, to)` equal to the distance, which are exactly the
+ * spaces a route `checkRoute` would accept may enter. Within it this is a
+ * reachability walk of single steps, so an answer of `false` is a real route
+ * the mover could have walked rather than a space that merely looked free.
+ *
+ * Occupancy rather than passability, because the crossing may be perfectly
+ * legal and the engine still cannot say it happened: what it has established
+ * is that *some* space of somebody's was entered, and which one is the
+ * table's to state. Whether that is worth asking about is the caller's, off
+ * {@link occupantsBetween} — see `checkPassage`, which does not ask where
+ * every creature in the enclosure is one this mover may walk through.
+ */
+export function mustCrossSomebody(
+  state: PositionState,
+  who: CharacterId,
+  from: Point,
+  to: Point,
+): boolean {
+  const start = snapPoint(from);
+  const end = snapPoint(to);
+  const reach = distanceBetweenPoints(start, end);
+  if (reach === 0) return false;
+
+  const size = state.sizes[who] ?? 'medium';
+  const height = heightOf(state, who);
+
+  // **Nobody anywhere near it is the answer nearly every move gets**, and the
+  // walk below is the only expensive thing this module does.
+  if (occupantsBetween(state, who, from, to).length === 0) return false;
+
+  const key = (p: Point): string => `${p.x},${p.y},${p.z}`;
+
+  /** A space on some shortest route that this mover could stand clear in. */
+  const clear = new Map<string, boolean>();
+  const onSomeRoute = (p: Point): boolean =>
+    distanceBetweenPoints(start, p) + distanceBetweenPoints(p, end) === reach;
+  const free = (p: Point): boolean => {
+    const at = key(p);
+    const known = clear.get(at);
+    if (known !== undefined) return known;
+    const answer = within(state.extent, p) && occupantsAt(state, p, size, height, who).length === 0;
+    clear.set(at, answer);
+    return answer;
+  };
+
+  // The destination is refused separately when it is taken, so a walk that
+  // reaches it has reached a space this mover may stand in.
+  const seen = new Set<string>([key(start)]);
+  let frontier: Point[] = [start];
+  while (frontier.length > 0) {
+    const next: Point[] = [];
+    for (const at of frontier) {
+      for (let dx = -CUBE; dx <= CUBE; dx += CUBE) {
+        for (let dy = -CUBE; dy <= CUBE; dy += CUBE) {
+          for (let dz = -CUBE; dz <= CUBE; dz += CUBE) {
+            if (dx === 0 && dy === 0 && dz === 0) continue;
+            const step = { x: at.x + dx, y: at.y + dy, z: at.z + dz };
+            if (seen.has(key(step))) continue;
+            if (!onSomeRoute(step)) continue;
+            if (!free(step)) continue;
+            if (step.x === end.x && step.y === end.y && step.z === end.z) return false;
+            seen.add(key(step));
+            next.push(step);
+          }
+        }
+      }
+    }
+    frontier = next;
+  }
+  return true;
 }
 
 function choosePoint(

@@ -8,7 +8,7 @@ import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { declaredCasting } from './spellcasting.js';
-import { moveCreature, type Point } from './positioning.js';
+import { moveCreature, type Point, type PositionState } from './positioning.js';
 import type { AreaMoment } from './spells.js';
 import {
   activateFeature,
@@ -185,6 +185,38 @@ const straightRoute = (from: Point, to: Point): readonly Point[] => {
   return spaces;
 };
 
+/**
+ * The same walk, one space aside where somebody is standing in it.
+ *
+ * MOVER's walk west runs along y=200 and the caster is standing on it, which
+ * a straight line has always crossed and nothing ever read: a route now says
+ * whose spaces it entered, and SRD lets nobody walk through an enemy of their
+ * own size. Stepping the offending space aside keeps the walk a **shortest**
+ * route — the sidestep is one of the spaces the slack on the other axis
+ * allows, so `checkRoute` takes it and the count is unchanged — and keeps
+ * this file about who an area catches rather than about whose square it is.
+ *
+ * The sidestep is not itself checked for occupants. One creature stands on
+ * one lane here, and the case that would matter — a second creature the mover
+ * may not walk through, standing on the space stepped into — fails loudly as
+ * a `blocked_by_creature` naming them rather than quietly walking through it.
+ * A creature the mover *may* pass would be walked through silently, which is
+ * the rule rather than a hole in it.
+ */
+const sidestepping = (
+  scene: PositionState,
+  who: CharacterId,
+  route: readonly Point[],
+): readonly Point[] =>
+  route.map((space) =>
+    Object.entries(scene.positions).some(
+      ([other, at]) =>
+        other !== who && at.x === space.x && at.y === space.y && at.z === space.z,
+    )
+      ? { ...space, y: space.y + 5 }
+      : space,
+  );
+
 const place = (who: CharacterId, name: string): GameEvent => ({
   type: 'creature-placed',
   id: who,
@@ -356,7 +388,7 @@ class Game {
       .positions[who]!;
     return {
       placement,
-      route: straightRoute(from, at),
+      route: sidestepping(scene, who, straightRoute(from, at)),
       ...(commandId === undefined ? {} : { commandId }),
     };
   }

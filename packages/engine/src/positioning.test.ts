@@ -511,6 +511,21 @@ describe('moving around other creatures', () => {
     it('lets you through an Incapacitated creature whatever its size', () => {
       expect(canPassThrough('medium', 'medium', { occupantIncapacitated: true })).toBe(true);
     });
+
+    /**
+     * SRD Halfling Nimbleness: "You can move through the space of any creature
+     * that is a size larger than you." The larger side only, and never below
+     * one size of difference however many sentences a creature holds — which
+     * is the floor `passageProblems` leans on when it caps nothing: a grant of
+     * two steps still does not walk a Halfling through a Halfling.
+     */
+    it('bends by a size for a holder, on the larger side and no further', () => {
+      expect(canPassThrough('small', 'medium', { passesWhenLargerBy: 1 })).toBe(true);
+      expect(canPassThrough('small', 'small', { passesWhenLargerBy: 1 })).toBe(false);
+      expect(canPassThrough('medium', 'small', { passesWhenLargerBy: 1 })).toBe(false);
+      expect(canPassThrough('small', 'small', { passesWhenLargerBy: 2 })).toBe(false);
+      expect(canPassThrough('medium', 'small', { passesWhenLargerBy: 3 })).toBe(false);
+    });
   });
 
   /**
