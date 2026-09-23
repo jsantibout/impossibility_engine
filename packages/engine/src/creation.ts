@@ -1360,19 +1360,29 @@ function castingClassesOf(content: Content, choices: CharacterChoices): readonly
  * half must not inherit them.
  */
 function classFeatureSpells(content: Content, choices: CharacterChoices, caster: CasterChoices): readonly string[] {
-  return choicesGranting(choices, castingFeaturesOf(content, caster), 'spells');
+  return choicesGranting(choices, castingFeaturesOf(content, choices, caster), 'spells');
 }
 
-/** This class's features and its subclass's, at that class's own level. */
+/**
+ * This class's features and its subclass's, at that class's own level.
+ *
+ * **Gated, like every other list of features a pass compiles from.** This one
+ * is built out of `cumulativeFeatures` rather than out of `grantedFeatures`,
+ * because it is read per casting class — so it has to apply `withGateMet`
+ * itself, or a `spells` grant belonging to an option nobody took would be
+ * granted here and its pool declared nowhere. One function, called by every
+ * list-builder, is what "in one place" means.
+ */
 function castingFeaturesOf(
   content: Content,
+  choices: CharacterChoices,
   caster: CasterChoices,
 ): readonly FeatureDefinition[] {
   const subclass = caster.subclassId === undefined ? null : content.subclassById(caster.subclassId);
   return [
     ...cumulativeFeatures(caster.definition, caster.level),
     ...(subclass === null ? [] : cumulativeFeatures(subclass, caster.level)),
-  ];
+  ].map((feature) => withGateMet(feature, choices));
 }
 
 /**
@@ -1396,11 +1406,12 @@ function castingFeaturesOf(
  */
 function classFeatureFreeCastings(
   content: Content,
+  choices: CharacterChoices,
   caster: CasterChoices,
   ability: Ability,
 ): readonly GrantedSpell[] {
   const granted: GrantedSpell[] = [];
-  for (const [feature, grant] of grantsIn(castingFeaturesOf(content, caster))) {
+  for (const [feature, grant] of grantsIn(castingFeaturesOf(content, choices, caster))) {
     if (grant.kind !== 'spells' || grant.freeCasting === undefined) continue;
     granted.push({
       spellId: grant.freeCasting.spell,
@@ -1677,12 +1688,7 @@ function checkFeatureSpellChoices(
   const problems: CreationProblem[] = [];
 
   for (const caster of casters) {
-    const subclass = caster.subclassId === undefined ? null : content.subclassById(caster.subclassId);
-    const features = [
-      ...cumulativeFeatures(caster.definition, caster.level),
-      ...(subclass === null ? [] : cumulativeFeatures(subclass, caster.level)),
-    ];
-    for (const feature of features) {
+    for (const feature of castingFeaturesOf(content, choices, caster)) {
       if (feature.choice?.kind !== 'spell' || grantOf(feature, 'spells') === null) continue;
       const picked = choices.featureChoices[feature.id];
       if (picked === undefined) continue;
@@ -3443,7 +3449,7 @@ export function planCharacter(
     // And the castings this class's features pay for themselves, on the
     // granting class's own ability. A feat's are above; these are the same
     // shape from the other of the two things that grant a spell.
-    granted.push(...classFeatureFreeCastings(content, caster, ability));
+    granted.push(...classFeatureFreeCastings(content, choices, caster, ability));
 
     if (style === 'spellbook') {
       // SRD Evocation Savant: the free spells join the book, marked as the
@@ -3675,10 +3681,7 @@ function poolSizeOf(
   if (grant.usesByLevel !== undefined) return usesOf(choices, featureId, grant.usesByLevel);
 
   if (grant.perClassLevel !== undefined) {
-    const classId = featureId.split(':')[0] ?? '';
-    const level =
-      classLevelsOf(choices).find((entry) => entry.classId === classId)?.level ?? choices.level;
-    return grant.perClassLevel * level;
+    return grant.perClassLevel * classLevelFor(choices, featureId);
   }
 
   if (grant.fromAbilityModifier !== undefined) {
@@ -3777,8 +3780,18 @@ function reactionEffectOf(
  * is the only reading available for a species or feat grant.
  */
 function classLevelFor(choices: CharacterChoices, featureId: string): number {
-  const classId = featureId.split(':')[0] ?? '';
-  return classLevelsOf(choices).find((entry) => entry.classId === classId)?.level ?? choices.level;
+  const namespace = featureId.split(':')[0] ?? '';
+  // **A subclass's namespace is its own id, not its class's**, and the
+  // fallback made that silently wrong for anybody whose first class was
+  // somebody else's: `draconic-sorcery:draconic-resilience` matched no class,
+  // fell back to the *starting* class's level, and a Fighter 5 / Sorcerer 3
+  // read five Sorcerer levels. The character says which subclass belongs to
+  // which class, so the answer is on the choices rather than in the id.
+  return (
+    classLevelsOf(choices).find(
+      (entry) => entry.classId === namespace || entry.subclassId === namespace,
+    )?.level ?? choices.level
+  );
 }
 
 /**
@@ -4369,6 +4382,16 @@ export interface AdvanceChoices {
   readonly preparedSpells?: readonly string[];
   readonly hitPointRoll?: number;
   readonly featureChoices?: Readonly<Record<string, readonly string[]>>;
+  /**
+   * The spellcasting ability a trait gained at this level asks for — and the
+   * answer a character made before the question existed.
+   *
+   * The second is the one that matters in a running campaign: the choices are
+   * the character, so a Tiefling stored before their legacy granted anything
+   * has no answer on the record and cannot level up until somebody gives one.
+   * Patched exactly as {@link featureChoices} is, for that reason.
+   */
+  readonly featureSpellcasting?: Readonly<Record<string, Ability>>;
   readonly feats?: Readonly<Record<string, FeatChoice>>;
   readonly dmGrants?: DmGrants;
 }
@@ -4443,6 +4466,10 @@ export function advanceCharacter(
       ? {}
       : { hitPoints: rollsFor(record.choices.hitPoints, level, advance.hitPointRoll) }),
     featureChoices: { ...record.choices.featureChoices, ...(advance.featureChoices ?? {}) },
+    featureSpellcasting: {
+      ...record.choices.featureSpellcasting,
+      ...(advance.featureSpellcasting ?? {}),
+    },
     feats: { ...record.choices.feats, ...(advance.feats ?? {}) },
     ...(advance.dmGrants === undefined ? {} : { dmGrants: advance.dmGrants }),
     // What is worn is live state, not a choice made at level 1. A shirt bought

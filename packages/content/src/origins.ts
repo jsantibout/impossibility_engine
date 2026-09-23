@@ -14,8 +14,8 @@ import type {
   AlignmentDefinition,
   BackgroundDefinition,
   FeatDefinition,
-  FeatureGrant,
   FeatureOptionMeaning,
+  GatedFeatureGrant,
   LanguageDefinition,
   SpeciesDefinition,
 } from '@ie/engine';
@@ -94,7 +94,7 @@ const LINEAGE_ABILITIES = ['int', 'wis', 'cha'] as const;
 const lineageSpells = (
   featureId: string,
   rows: Readonly<Record<string, LineageRow>>,
-): readonly FeatureGrant[] =>
+): readonly GatedFeatureGrant[] =>
   Object.entries(rows).flatMap(([option, row]) => [
     ...(row.cantrips.length === 0
       ? []
@@ -460,7 +460,7 @@ export const GOLIATH: SpeciesDefinition = {
       name: 'Giant Ancestry',
       level: 1,
       automation: 'manual',
-      note: 'The chosen boon is recorded and none of the six is applied, and for two different reasons. Four of them are mechanisms the engine does not have: a teleport on a Bonus Action, extra damage a feature adds to a hit of the holder own choosing, a Speed reduction until the start of your next turn, and the Prone condition given on a hit. Stone\'s Endurance is not one of those - "take a Reaction to roll 1d12, add your Constitution modifier and reduce the damage by that total" is the shape Uncanny Dodge already answers the damage window with - and it is still not wired, because a Reaction grant has no way to say it belongs to one option of six (only a standing grant can), and because "a number of times equal to your Proficiency Bonus" is not one of the three ways the engine sizes a pool. Storm\'s Thunder, which deals damage back rather than reducing it, is a mechanism that really is absent.',
+      note: 'The chosen boon is recorded and none of the six is applied, and for two different reasons. Four of them are mechanisms the engine does not have: a teleport on a Bonus Action, extra damage a feature adds to a hit of the holder own choosing, a Speed reduction until the start of your next turn, and the Prone condition given on a hit. Stone\'s Endurance is not one of those - "take a Reaction to roll 1d12, add your Constitution modifier and reduce the damage by that total" is the shape Uncanny Dodge already answers the damage window with - and it is still not wired: a Reaction grant can say it belongs to one option of six now, and "a number of times equal to your Proficiency Bonus" is not one of the three ways the engine sizes a pool, so the uses it is limited to cannot be counted. Storm\'s Thunder, which deals damage back rather than reducing it, is a mechanism that really is absent.',
       choice: {
         kind: 'option',
         choose: 1,
@@ -915,8 +915,9 @@ export const GENERAL_FEATS: readonly FeatDefinition[] = [
  * which mechanic is missing rather than "not automated". Truesight's is the
  * closest to expressible and still is not: `sense` is a standing grant the
  * vocabulary has, and a feat carries **one** grant, which this feat has
- * already spent on the ceiling — the `a-feature-that-carries-a-second-grant`
- * shape, arriving at a feat's door.
+ * already spent on the ceiling. A *feature* carries as many as it needs now;
+ * `FeatDefinition.grants` is still one, because no SRD feat below level 19
+ * wants a second and a feat goes through none of the passes a feature does.
  */
 export const EPIC_BOON_FEATS: readonly FeatDefinition[] = [
   {

@@ -154,6 +154,43 @@ describe('SRD Draconic Resilience, which is two sentences under one heading', ()
     expect(plan(4, gish).hitPointMaximum).toBe(fromTheTable(4) + fighter + 4);
   });
 
+  /**
+   * And the same question with the Sorcerer **second**, which is where the
+   * class a feature belongs to stops being obvious: a subclass feature's id is
+   * namespaced by the subclass, so the level it is read at has to be found
+   * through the subclass the character took rather than by reading the id as a
+   * class. A Fighter 5 / Sorcerer 3 has three Sorcerer levels and three hit
+   * points, not the five their Fighter levels would buy.
+   */
+  it('counts them from the subclass’s own class, whichever class came first', () => {
+    const gish: Partial<CharacterChoices> = {
+      classId: 'fighter',
+      level: 5,
+      subclassId: 'champion',
+      multiclass: [{ classId: 'sorcerer', level: 3, subclassId: 'draconic-sorcery' }],
+      classSkills: ['athletics', 'acrobatics'],
+      featureChoices: {
+        'human:skillful': ['perception'],
+        'sorcerer:metamagic': ['Empowered Spell', 'Quickened Spell'],
+        'fighter:weapon-mastery': [],
+      },
+      feats: {
+        ...sorcerer().feats,
+        'fighter:fighting-style': { featId: 'defense' },
+        'fighter:ability-score-improvement': {
+          featId: 'ability-score-improvement',
+          abilities: ['cha', 'cha'],
+        },
+      },
+    };
+    // A Fighter's d10 at level 1, four more Fighter levels at the d10's
+    // average and three Sorcerer levels at the d6's, all with the +2.
+    const table = 12 + 4 * 8 + 3 * 6;
+    expect(unwrap(planCharacter(SRD_CONTENT, sorcerer(gish)), 'plan').hitPointMaximum).toBe(
+      table + 3,
+    );
+  });
+
   it('is one feature with two grants, not two features', () => {
     const feature = SRD_CONTENT.subclassById('draconic-sorcery')?.features.find(
       (one) => one.id === 'draconic-sorcery:draconic-resilience',
@@ -262,6 +299,29 @@ describe('two grants of one kind on one feature', () => {
         ],
       }),
     ).toEqual([]);
+  });
+
+  /**
+   * And the gates are only exclusive where the choice takes **one** answer.
+   * SRD Metamagic is `{ choose: 2 }`, so a feature that offered two pools as
+   * two of its options would hand a player who took both exactly the ambiguity
+   * this rule exists to refuse.
+   */
+  it('refuses two of a kind under a choice that takes more than one answer', () => {
+    expect(
+      codes({
+        id: 'augur:calling',
+        name: 'Calling',
+        level: 1,
+        automation: 'engine',
+        note: 'Two of six, and two pools with them.',
+        choice: { kind: 'option', choose: 2, from: ['Seer', 'Sentinel', 'Seeker'] },
+        grants: [
+          { ...pool('visions'), onlyIfChoice: 'Seer' },
+          { ...pool('vigils'), onlyIfChoice: 'Sentinel' },
+        ],
+      }),
+    ).toContain('grants_do_not_compose');
   });
 
   it('refuses two of a kind gated on the same option', () => {

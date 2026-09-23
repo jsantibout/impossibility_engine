@@ -991,6 +991,49 @@ function grantProblems(
     }
   }
 
+  // The two fields a trait that grants a spell writes about **itself**, and
+  // the ways each of them can name nothing.
+  //
+  // `abilities` is the set the player picks from — SRD's lineages print
+  // "Intelligence, Wisdom, or Charisma" — so an empty offer asks a question
+  // with no legal answer and a word that is not an ability is an answer
+  // nothing could match. Neither would fail anywhere: the trait would compile,
+  // the character would be refused `missing_feature_spellcasting` for ever,
+  // and nothing would say which end was wrong.
+  //
+  // `fromLevel` is the character level a staged spell arrives at, and a level
+  // past the end of the table is `unreachable_level`'s failure one step down:
+  // a grant nobody is ever given, on a feature that validates.
+  if (grant.kind === 'spells') {
+    const abilities = grant.abilities;
+    if (abilities !== undefined) {
+      if (abilities.length === 0) {
+        found.push({
+          field: 'grants.abilities',
+          code: 'bad_spellcasting_ability',
+          reason: 'a trait that offers no ability at all asks a question with no legal answer',
+        });
+      }
+      for (const [index, ability] of abilities.entries()) {
+        if (!ABILITY_NAMES.has(ability)) {
+          found.push({
+            field: `grants.abilities[${index}]`,
+            code: 'bad_spellcasting_ability',
+            reason: `"${String(ability)}" is not one of the six abilities`,
+          });
+        }
+      }
+    }
+    const from = grant.fromLevel;
+    if (from !== undefined && (!Number.isInteger(from) || from < 1 || from > context.levels)) {
+      found.push({
+        field: 'grants.fromLevel',
+        code: 'unreachable_grant_level',
+        reason: `this grant arrives at character level ${String(from)}, which is outside the 1 to ${context.levels} a character reaches, so nobody would ever be given it`,
+      });
+    }
+  }
+
   // A hit point maximum that raises nothing, and a step counted in levels
   // nobody has.
   //
@@ -1256,10 +1299,15 @@ export function checkFeatureDefinition(
   // | `spells` | freely | every reader of one is a loop too, each grant is its own "you know X" sentence, and each free casting names its own pool — SRD's lineages and legacies print a cantrip and two levelled spells under one heading |
   // | every other kind | only under distinct gates | every other reader looks for *the* grant of its kind, so two that could both apply is an ambiguity nothing resolves |
   //
-  // A gate makes the difference because gates are exclusive: "one of the
+  // A gate makes the difference only where it is really exclusive, and that is
+  // **this feature's own choice, taking one answer**: "you gain one of the
   // following options" is one answer, so at most one of two differently gated
-  // grants is ever compiled. Two under the *same* gate are the ambiguity
-  // again, wearing an option's name.
+  // grants is ever compiled. Three ways it stops being exclusive, and each is
+  // the ambiguity back in an option's clothes — two grants under the *same*
+  // gate, a choice that takes two answers (SRD Metamagic is `choose: 2`), and
+  // a gate read off a sibling, whose answers this definition cannot see.
+  const asked = feature.choice;
+  const exclusive = asked !== undefined && asked.kind === 'option' && asked.choose === 1;
   const byKind = new Map<string, GatedFeatureGrant[]>();
   for (const grant of featureGrants(feature)) {
     byKind.set(grant.kind, [...(byKind.get(grant.kind) ?? []), grant]);
@@ -1267,11 +1315,12 @@ export function checkFeatureDefinition(
   for (const [kind, sharing] of byKind) {
     if (sharing.length < 2 || kind === 'standing' || kind === 'spells') continue;
     const gates = new Set(sharing.map((grant) => grant.onlyIfChoice ?? ''));
-    if (gates.size === sharing.length && !gates.has('')) continue;
+    const ownGate = sharing.every((grant) => grant.choiceFrom === undefined);
+    if (exclusive && ownGate && gates.size === sharing.length && !gates.has('')) continue;
     found.push({
       field: 'grants',
       code: 'grants_do_not_compose',
-      reason: `${feature.id} carries ${sharing.length} "${kind}" grants, and a reader looking for the ${kind} would find two; only "standing" and "spells" repeat freely, and any other kind repeats only as one option each of a choice`,
+      reason: `${feature.id} carries ${sharing.length} "${kind}" grants, and a reader looking for the ${kind} would find two; only "standing" and "spells" repeat freely, and any other kind repeats only as one option each of this feature's own choice of one`,
     });
   }
 

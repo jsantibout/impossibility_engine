@@ -428,10 +428,13 @@ export const identity = (context: ToolContext, suffix = ''): { commandId: string
  * schema drifting from the vocabulary would stop being a compile error.
  */
 function choicesOf(input: z.infer<typeof characterChoicesSchema>): CharacterChoices {
-  const { subclassId, multiclass, spellsByClass, dmGrants, ...rest } = input;
+  const { subclassId, multiclass, spellsByClass, featureSpellcasting, dmGrants, ...rest } = input;
   return {
     ...rest,
     ...(subclassId === undefined ? {} : { subclassId }),
+    // The ability an origin trait asks for, keyed by the trait — absent on
+    // every character whose species grants no spell, which is most of them.
+    ...(featureSpellcasting === undefined ? {} : { featureSpellcasting }),
     ...(multiclass === undefined
       ? {}
       : {
@@ -3243,6 +3246,12 @@ const advanceSchema = z.object({
     .describe(
       'The choices the new level’s features ask for, keyed by feature id — a skill, an option off a printed list, a spell a feature grants. A level that asks for one and is not given it is refused by name.',
     ),
+  featureSpellcasting: z
+    .record(z.string().min(1), abilitySchema)
+    .optional()
+    .describe(
+      'The spellcasting ability a trait that grants spells asks for, keyed by the trait — an origin trait may print a choice of three. Also how a character made before such a trait was executed answers it for the first time.',
+    ),
   feats: z
     .record(z.string().min(1), advanceFeatSchema)
     .optional()
@@ -3373,6 +3382,9 @@ function advanceOf(input: z.infer<typeof advanceSchema>): AdvanceChoices {
           ),
         }),
     ...(input.featureChoices === undefined ? {} : { featureChoices: input.featureChoices }),
+    ...(input.featureSpellcasting === undefined
+      ? {}
+      : { featureSpellcasting: input.featureSpellcasting }),
     ...(input.feats === undefined
       ? {}
       : {

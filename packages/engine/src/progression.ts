@@ -906,9 +906,9 @@ export type FeatureGrant =
    * wielding a Shield".
    *
    * **One grant and not three**, because the book writes one gate over three
-   * italicised clauses and a feature carries one grant. Splitting them would
-   * need the unbuilt "a feature that carries a second grant" shape to put them
-   * back together again, and would spell the same gate out three times.
+   * italicised clauses. A feature may carry several grants now, and three of
+   * these would spell the same gate out three times and leave nothing holding
+   * them together.
    *
    * **The weapons are here and not in `weaponProficiencies`**, because the SRD
    * prints two different sets: the Monk's Core Traits table says "Simple
@@ -1138,9 +1138,9 @@ export type FeatureGrant =
        * the reason {@link FeatureDefinition.executedBy} gives: a later feature
        * that only moves a number an earlier declaration already carries is a
        * *step in the earlier feature's table*, and `FeatureDefinition.grants`
-       * is singular — the SRD's own host for this sentence carries a `trade`
-       * for its first sentence and has no second grant to spare. So the pool
-       * names the feature whose arrival moves it, and creation applies the
+       * is not where the rewrite belongs: a second grant on the *later*
+       * feature would declare a second pool rather than move this one. So the
+       * pool names the feature whose arrival moves it, and creation applies the
        * rewrite exactly when the character holds that feature: at creation for
        * one built past the level, and through
        * `resource-pool-recovery-changed` for one who reaches it in play.
@@ -1232,10 +1232,10 @@ export type FeatureGrant =
        *
        * The fourth answer to "what does a use of this pool buy", beside
        * {@link heals}, `touchHeals` and {@link options}, and it hangs here for
-       * the reason they do: `FeatureDefinition.grants` is singular, and the
-       * feature that declares the pool **is** the feature that gives the die
-       * away. A grant kind of its own could not be written on the SRD's one
-       * feature at all.
+       * the reason they do: the feature that declares the pool **is** the
+       * feature that gives the die away, so a kind of its own would have to
+       * name the pool and its holder a second time to say what this says by
+       * sitting here.
        *
        * **Nothing is handed over.** The use is spent on the holder at the
        * moment of conferral, and what the recipient then has is a sourced
@@ -1251,8 +1251,9 @@ export type FeatureGrant =
        * The fifth answer to "what does a use of this pool buy", beside
        * {@link heals}, `touchHeals`, {@link options} and
        * {@link confersReaction}, and a list for the reason `options` is one:
-       * `FeatureDefinition.grants` is singular and the SRD prints one feature
-       * whose points buy several different things. Monk's Focus is that
+       * the SRD prints one feature whose points buy several different things,
+       * so what varies is what a *use* buys rather than what the feature
+       * grants. Monk's Focus is that
        * feature exactly — "You start knowing three such features: Flurry of
        * Blows, Patient Defense, and Step of the Wind" — which is the owner's
        * Channel Divinity ruling arriving at a second pool: a shell with one
@@ -1767,8 +1768,9 @@ export type FeatureGrant =
    * level 1 spell slot", "you can expend a spell slot to regain one expended
    * use of Bardic Inspiration".
    *
-   * **A list, because a feature carries one grant and the SRD prints two
-   * directions in one feature.** Wild Resurgence is two sentences with two
+   * **A list, because the SRD prints two directions in one feature**, and two
+   * `trade` grants on one feature are refused for the reason every repeated
+   * kind but two is: a command looking for the trade would find both. Wild Resurgence is two sentences with two
    * different limits and two different conditions — `PoolOptionGrant` and
    * `ReactionGrantEffect.does` are lists for exactly this reason.
    *
@@ -1790,11 +1792,11 @@ export type FeatureGrant =
        * also the one that declares it.
        *
        * The move `reaction`'s own `declares` already makes, for the same
-       * reason and with the same words: a feature carries one grant, and SRD
-       * Font of Magic is one feature that both declares the Sorcery Points and
-       * prints the two conversions they run through. Splitting it would put a
-       * printed feature's name on two ids, and leaving the declaration out
-       * would take the pool off every Sorcerer's sheet.
+       * reason and with the same words: SRD Font of Magic is one feature that
+       * both declares the Sorcery Points and prints the two conversions they
+       * run through. Splitting it would put a printed feature's name on two
+       * ids, and leaving the declaration out would take the pool off every
+       * Sorcerer's sheet.
        *
        * Absent where the pool belongs to another feature, which is the
        * commoner case — SRD Wild Resurgence trades Wild Shape's uses and
@@ -1957,8 +1959,9 @@ export interface GrantGate {
  * The intersection rather than a field on each of two dozen members, which is
  * the same type either way and one place to document it. A feat's grant and an
  * item's are {@link FeatureGrant} without the gate, because neither has a
- * choice to read — `checkContent` refuses `onlyIfChoice` and `choiceFrom` on
- * both by name, and the type says the same thing one step earlier.
+ * choice to read — `checkContent` refuses `onlyIfChoice` and `choiceFrom` by
+ * name on the one kind either of them may carry a gate-bearing field on, and
+ * the type says it one step earlier for every kind.
  */
 export type GatedFeatureGrant = FeatureGrant & GrantGate;
 
@@ -2128,9 +2131,9 @@ export interface ResourceTradeGrant {
    */
   readonly moment?: 'short-rest';
   /**
-   * A pool of one this trade **declares**, because a feature carries one grant
-   * and neither of the two sentences that need it has another to declare it
-   * with.
+   * A pool of one this trade **declares**, because neither of the two
+   * sentences that need it has a pool of its own to spend, and a second `pool`
+   * grant beside this one would be a second resource rather than this limit.
    *
    * It is read two ways, and {@link limit} says which:
    *

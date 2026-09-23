@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
 import { asCharacterId, isErr, expect as unwrap, type Ability } from '@ie/shared';
 import {
+  advanceCharacter,
   beginRest,
   checkCharacter,
+  checkContent,
   createCharacter,
   createRng,
   createRollIssuer,
@@ -303,6 +305,139 @@ describe('the same spell out of a slot, for a holder who has one', () => {
     );
     // And the free casting is still there, unspent.
     expect(remaining(after.creatures[WHO]!.resources, route!.freeCastPool!)).toBe(1);
+  });
+});
+
+/**
+ * The three fields a trait writes, held to what a reader can do with them.
+ *
+ * Each of these validates, compiles and grants nothing, which is the failure
+ * the content validator exists to turn into a refusal at authoring.
+ */
+describe('what the catalogue refuses at the door', () => {
+  const species = (features: readonly unknown[]) => ({
+    id: 'starborn',
+    name: 'Starborn',
+    creatureType: 'Humanoid',
+    sizes: ['Medium'],
+    speed: 30,
+    features,
+  });
+
+  // The book's own index beside the homebrew, so a granted spell that really
+  // exists is not reported as one that does not.
+  const codes = (...features: readonly unknown[]): readonly string[] =>
+    checkContent({
+      species: [species(features) as never],
+      spellEntries: [...SRD_CONTENT.spellEntries],
+    }).map((one) => one.code);
+
+  const asking = {
+    id: 'starborn:starlight',
+    name: 'Starlight',
+    level: 1,
+    automation: 'engine',
+    note: 'A cantrip, off one of three abilities.',
+    grants: { kind: 'spells', fixed: ['dancing-lights'], abilities: ['int', 'wis', 'cha'] },
+  };
+
+  it('refuses an ability that is not one of the six', () => {
+    expect(
+      codes({ ...asking, grants: { ...asking.grants, abilities: ['int', 'luck'] } }),
+    ).toContain('bad_spellcasting_ability');
+  });
+
+  it('refuses an offer of no abilities at all', () => {
+    expect(codes({ ...asking, grants: { ...asking.grants, abilities: [] } })).toContain(
+      'bad_spellcasting_ability',
+    );
+  });
+
+  it('refuses a spell that arrives at a level no character reaches', () => {
+    expect(
+      codes({
+        ...asking,
+        grants: {
+          kind: 'spells',
+          abilities: ['int'],
+          fromLevel: 25,
+          freeCasting: {
+            spell: 'faerie-fire',
+            pool: 'starborn:faerie-fire',
+            declares: { minimum: 1, recovers: 'long-rest' },
+          },
+        },
+      }),
+    ).toContain('unreachable_grant_level');
+  });
+
+  /**
+   * And the sibling end of the same question: a trait that reads somebody
+   * else's answer has to name somebody who asked for one.
+   */
+  it('refuses a grant reading an ability off a sibling that offers none', () => {
+    expect(
+      codes(
+        {
+          id: 'starborn:lineage',
+          name: 'Lineage',
+          level: 1,
+          automation: 'engine',
+          note: 'A choice and nothing else.',
+          choice: { kind: 'option', choose: 1, from: ['Dusk', 'Dawn'] },
+          optionMeans: { Dusk: {}, Dawn: {} },
+        },
+        {
+          id: 'starborn:starlight',
+          name: 'Starlight',
+          level: 1,
+          automation: 'engine',
+          note: 'A cantrip off an ability nobody asked for.',
+          grants: {
+            kind: 'spells',
+            fixed: ['dancing-lights'],
+            choiceFrom: 'starborn:lineage',
+          },
+        },
+      ),
+    ).toContain('choice_from_offers_no_ability');
+  });
+});
+
+/**
+ * The campaign that was already running when this landed.
+ *
+ * The choices are the character, so a Tiefling stored before the legacy
+ * granted anything has no answer to a question their species now asks — and
+ * `advanceCharacter` re-plans from the record, so without a way to give one
+ * they could never gain a level. The answer goes in through the same door the
+ * level does.
+ */
+describe('a character made before the trait asked anything', () => {
+  it('is refused a level until the ability is named, and takes it once it is', () => {
+    const stored = { ...tiefling() } as CharacterChoices & {
+      featureSpellcasting?: Record<string, string>;
+    };
+    delete stored.featureSpellcasting;
+
+    // Created as they were: the refusal is about the plan, so the log itself
+    // is built from the answered choices and the record is then emptied.
+    const log = unwrap(createCharacter(SRD_CONTENT, tiefling(), WHO), 'creation') as GameEvent[];
+    const before = fold('seed', log);
+
+    const blind = advanceCharacter(before, SRD_CONTENT, WHO, {});
+    expect(blind.ok).toBe(true);
+
+    const answered = unwrap(
+      advanceCharacter(before, SRD_CONTENT, WHO, {
+        featureSpellcasting: { [LEGACY]: 'wis' },
+      }),
+      'advance',
+    );
+    const after = fold('seed', [...log, ...answered]);
+    expect(after.creatures[WHO]?.character?.choices.featureSpellcasting).toEqual({
+      [LEGACY]: 'wis',
+    });
   });
 });
 
