@@ -12,7 +12,10 @@ import {
   type CharacterChoices,
 } from './creation.js';
 import { LONG_REST, SHORT_REST, beginRest, endRest } from './rest.js';
-import { resolveSpell } from './commands.js';
+import { dropItem, resolveSpell, unequipItem } from './commands.js';
+import { READABLE_FEATURE_FIELDS, READABLE_GRANT_KINDS } from './content.js';
+import { checkFeatureDefinition } from './feature-schema.js';
+import type { FeatureDefinition } from './progression.js';
 
 /**
  * An option re-chosen on a rest.
@@ -442,6 +445,48 @@ describe('Circle of the Land Spells: a type of land chosen on a Long Rest', () =
 });
 
 describe('rechooseCharacter, the door both the rest and the level-up go through', () => {
+  /**
+   * What is worn is live state, and a re-plan is checked against the inventory
+   * the creature is holding — so a stored `equipped` nobody refreshed refuses
+   * the character it describes. `advanceCharacter` has always refreshed it;
+   * a rest has to as well, or a Druid who put a shield down could never choose
+   * a land again.
+   */
+  it('re-plans against what the creature is wearing now, not what it was born in', () => {
+    const log: GameEvent[] = [
+      ...born(fenn({ equipped: ['shield'] }), FENN),
+      { type: 'scene-set', extent: { width: 400, depth: 400, height: 40 } },
+      { type: 'landmark-added', name: 'the grove', at: { x: 100, y: 100, z: 0 } },
+      { type: 'creature-placed', id: FENN, placement: { from: { landmark: 'the grove' }, feet: 0 } },
+    ];
+    const worn = fold('seed', log).creatures[FENN]!.equipped[0]!.id;
+
+    const stripped = run(
+      log,
+      unwrap(unequipItem(fold('seed', log), SRD_CONTENT, FENN, worn), 'unequip'),
+    );
+    const dropped = run(
+      stripped.log,
+      unwrap(dropItem(stripped.state, SRD_CONTENT, FENN, { item: worn }), 'drop'),
+    );
+
+    const settled = unwrap(
+      rested(dropped.log, FENN, 'long', {
+        choosesAgain: { 'circle-of-the-land:spells': ['Arid'] },
+      }),
+      'end rest',
+    );
+    const after = fold('seed', [
+      ...dropped.log,
+      ...unwrap(beginRest(dropped.state, FENN, 'long'), 'begin'),
+      clock(LONG_REST),
+      ...settled.events,
+    ]);
+    expect(landOf(after, FENN)).toEqual(['blur', 'burning-hands', 'fire-bolt']);
+    // And the record the re-choice wrote says what is worn now.
+    expect(after.creatures[FENN]?.character?.choices.equipped).not.toContain(worn);
+  });
+
   it('emits nothing for a patch that changes nothing', () => {
     const choices = fenn({
       featureChoices: { ...fenn().featureChoices, 'circle-of-the-land:spells': ['Arid'] },
@@ -485,5 +530,74 @@ describe('rechooseCharacter, the door both the rest and the level-up go through'
       'shocking-grasp',
       'sleep',
     ]);
+  });
+});
+
+/**
+ * The validator's half, which is what stops a homebrew feature compiling a
+ * question nobody could ever answer.
+ *
+ * Every branch here is a `checkFeatureDefinition` problem rather than an
+ * `err`, so `refusal-sweep.test.ts` cannot see it: a rule nothing asserts is a
+ * rule that passes while the branch goes unread.
+ */
+describe('a question re-asked on a rest is held to two things', () => {
+  const codes = (grants: unknown, choice?: unknown): string[] =>
+    checkFeatureDefinition(
+      {
+        id: 'wizard:a-homebrew-rest-question',
+        name: 'A Homebrew Rest Question',
+        level: 3,
+        automation: 'engine',
+        note: 'A question re-asked on a rest, written by somebody other than the SRD, so the validator has something to judge.',
+        grants,
+        ...(choice === undefined ? {} : { choice }),
+      } as unknown as FeatureDefinition,
+      {
+        levels: 20,
+        readableGrants: READABLE_GRANT_KINDS,
+        readableFields: READABLE_FEATURE_FIELDS,
+        spellExists: () => true,
+      },
+    ).map((problem) => problem.code);
+
+  it('takes a rest that is one of the two the game has', () => {
+    expect(
+      codes({
+        kind: 'rechosen-on-a-rest',
+        rest: 'fortnightly',
+        rechooses: { kind: 'prepared-spells', swap: 1 },
+      }),
+    ).toContain('bad_rest_kind');
+  });
+
+  it('refuses re-asking a choice on a feature that asks none', () => {
+    expect(
+      codes({
+        kind: 'rechosen-on-a-rest',
+        rest: 'long',
+        rechooses: { kind: 'this-features-choice' },
+      }),
+    ).toContain('rechooses_nothing');
+    // And accepts it on one that does, so the rule is not simply always on.
+    expect(
+      codes(
+        { kind: 'rechosen-on-a-rest', rest: 'long', rechooses: { kind: 'this-features-choice' } },
+        { kind: 'option', choose: 1, from: ['Arid', 'Polar'] },
+      ),
+    ).toEqual([]);
+  });
+
+  it('refuses a swap of no spells at all, and a third kind of re-choice', () => {
+    expect(
+      codes({
+        kind: 'rechosen-on-a-rest',
+        rest: 'short',
+        rechooses: { kind: 'prepared-spells', swap: 0 },
+      }),
+    ).toContain('rechooses_nothing');
+    expect(
+      codes({ kind: 'rechosen-on-a-rest', rest: 'short', rechooses: { kind: 'your-name' } }),
+    ).toContain('rechooses_nothing');
   });
 });

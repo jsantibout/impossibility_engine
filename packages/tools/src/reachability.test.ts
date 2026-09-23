@@ -406,22 +406,25 @@ function reachOf(
   // A question a rest re-asks, which is `end_rest`'s door and nobody else's:
   // SRD Circle of the Land Spells and SRD Memorize Spell are answered by
   // ending a rest, and neither is spent from a pool, hung on the sheet or
-  // taken as a Reaction. Asked before the creation branch below because such a
-  // feature also carries the grants its answer selects — the four lands'
-  // spell lists — and those are creation's, which would otherwise make the
-  // rest's own grant look like the one nothing reaches.
+  // taken as a Reaction. Such a feature also carries the grants its answer
+  // selects — the four lands' spell lists — which are creation's, so the kind
+  // joins the reached set below rather than returning ahead of it: a *second*
+  // grant nobody can reach is still the room with no door this sweep is for.
   const rest = grants.find((one) => one.kind === 'rechosen-on-a-rest');
-  if (rest !== undefined) return { how: 're-asked-on-a-rest', door: 'end_rest' };
 
   if (grants.length > 0) {
-    const unreached = grants.filter((one) => AT_CREATION[one.kind] === undefined);
+    const unreached = grants.filter(
+      (one) => AT_CREATION[one.kind] === undefined && one.kind !== 'rechosen-on-a-rest',
+    );
     const first = unreached[0];
-    return first === undefined
-      ? {
-          how: 'at-creation',
-          why: [...new Set(grants.map((one) => AT_CREATION[one.kind]))].join('; '),
-        }
-      : { how: 'unreachable', why: `a ${first.kind} grant that reaches no tool and no sheet line` };
+    if (first !== undefined) {
+      return { how: 'unreachable', why: `a ${first.kind} grant that reaches no tool and no sheet line` };
+    }
+    if (rest !== undefined) return { how: 're-asked-on-a-rest', door: 'end_rest' };
+    return {
+      how: 'at-creation',
+      why: [...new Set(grants.map((one) => AT_CREATION[one.kind]))].join('; '),
+    };
   }
 
   // A feature that declares nothing of its own and names the one whose

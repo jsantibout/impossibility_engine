@@ -1,7 +1,15 @@
 import { SRD_CONTENT } from '@ie/content';
 import { describe, expect, it } from 'vitest';
 import { asCharacterId, expect as unwrap, type CharacterId } from '@ie/shared';
-import { checkContent, parseClassDefinition, type Content } from './content.js';
+import {
+  READABLE_FEATURE_FIELDS,
+  READABLE_GRANT_KINDS,
+  checkContent,
+  parseClassDefinition,
+  type Content,
+} from './content.js';
+import { checkFeatureDefinition } from './feature-schema.js';
+import type { FeatureDefinition } from './progression.js';
 import { createRng, restoreRng, type Rng } from './dice.js';
 import { createCharacter, planCharacter, type CharacterChoices } from './creation.js';
 import { fold, type GameEvent, type GameState } from './events.js';
@@ -339,5 +347,64 @@ describe('an amendment is held to the menu it names', () => {
     const problems = withAmendment('dirge');
     expect(problems.map((one) => one.code)).toContain('unknown_amended_option');
     expect(problems[0]?.field).toContain('amends[0].option');
+  });
+});
+
+/**
+ * And what the amendment *carries* is judged too.
+ *
+ * `featureOptionsProblems` judges the forms a `pool-options` grant **adds**,
+ * and an amendment goes nowhere near it because it declares no form at all —
+ * so a die nobody parsed, a damage type no defence will ever match and a count
+ * `poolSizeOf` reads would each have compiled onto the sheet and reached
+ * `dealSpellDamage` as data the engine cannot argue with.
+ */
+describe('what an amendment burns the failures with', () => {
+  const codes = (damagesFailures: unknown): string[] =>
+    checkFeatureDefinition(
+      {
+        id: 'cleric:a-homebrew-searing',
+        name: 'A Homebrew Searing',
+        level: 5,
+        automation: 'engine',
+        note: 'A later feature that changes what an earlier one’s use does, written by somebody other than the SRD, so the validator has something to judge.',
+        grants: { kind: 'pool-options', feature: 'cleric:channel-divinity', amends: [
+          { option: 'turn-undead', ...(damagesFailures === undefined ? {} : { damagesFailures }) },
+        ] },
+      } as unknown as FeatureDefinition,
+      {
+        levels: 20,
+        readableGrants: READABLE_GRANT_KINDS,
+        readableFields: READABLE_FEATURE_FIELDS,
+        spellExists: () => true,
+      },
+    ).map((problem) => problem.code);
+
+  it('accepts the SRD’s own sentence', () => {
+    expect(
+      codes({ die: '1d8', count: { fromAbilityModifier: 'wis', minimum: 1 }, damageType: 'radiant' }),
+    ).toEqual([]);
+  });
+
+  it('refuses a die nothing can roll', () => {
+    expect(codes({ die: 'a handful', count: { minimum: 1 }, damageType: 'radiant' })).toContain(
+      'bad_dice',
+    );
+  });
+
+  it('refuses a damage type no creature could ever resist', () => {
+    expect(codes({ die: '1d8', count: { minimum: 1 }, damageType: 'radiantt' })).toContain(
+      'unknown_damage_type',
+    );
+  });
+
+  it('holds the dice count to the sizings the engine reads', () => {
+    expect(
+      codes({ die: '1d8', count: { fromAbilityModifier: 'luck' }, damageType: 'radiant' }),
+    ).toContain('bad_pool_sizing');
+  });
+
+  it('refuses an amendment that says nothing about what changes', () => {
+    expect(codes(undefined)).toContain('amends_nothing');
   });
 });

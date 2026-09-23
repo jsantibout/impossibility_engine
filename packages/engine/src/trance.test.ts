@@ -7,7 +7,9 @@ import { createRollIssuer } from './rolls.js';
 import { createCharacter, planCharacter, type CharacterChoices } from './creation.js';
 import { hours } from './time.js';
 import { LONG_REST, LONG_REST_COOLDOWN, SHORT_REST, beginRest, endRest } from './rest.js';
-import { LONGEST_LONG_REST } from './feature-schema.js';
+import { LONGEST_LONG_REST, checkFeatureDefinition } from './feature-schema.js';
+import { READABLE_FEATURE_FIELDS, READABLE_GRANT_KINDS } from './content.js';
+import type { FeatureDefinition } from './progression.js';
 
 /**
  * Trance: a Long Rest in four hours.
@@ -180,5 +182,44 @@ describe('a Long Rest is as long as the sheet says', () => {
     const early = fold('seed', [...begun, clock(SHORT_REST - 60)]);
     const nothing = endRest(early, ELF, { interrupted: 'a patrol came through' }, roller(early));
     expect(unwrap(nothing, 'end rest').benefit).toBe('none');
+  });
+});
+
+/**
+ * The validator's half. A `long-rest-length` that shortens nothing is a trait
+ * that compiles onto the sheet and changes the rules by zero, which is the
+ * quiet failure `feature-schema.ts` exists to refuse at authoring — and it is
+ * a problem rather than an `err`, so `refusal-sweep.test.ts` cannot see it.
+ */
+describe('a shortened Long Rest is held to two things', () => {
+  const codes = (seconds: unknown): string[] =>
+    checkFeatureDefinition(
+      {
+        id: 'elf:a-homebrew-meditation',
+        name: 'A Homebrew Meditation',
+        level: 1,
+        automation: 'engine',
+        note: 'A trait that claims to shorten a Long Rest, written by somebody other than the SRD, so the validator has something to judge.',
+        grants: { kind: 'long-rest-length', seconds },
+      } as unknown as FeatureDefinition,
+      {
+        levels: 20,
+        readableGrants: READABLE_GRANT_KINDS,
+        readableFields: READABLE_FEATURE_FIELDS,
+        spellExists: () => true,
+      },
+    ).map((problem) => problem.code);
+
+  it('refuses a rest that is over before it starts', () => {
+    expect(codes(0)).toContain('bad_rest_length');
+    expect(codes(-60)).toContain('bad_rest_length');
+    expect(codes('four hours')).toContain('bad_rest_length');
+  });
+
+  it('refuses a length that shortens nothing', () => {
+    expect(codes(LONG_REST)).toContain('bad_rest_length');
+    expect(codes(LONG_REST + 3600)).toContain('bad_rest_length');
+    // Not vacuous: the SRD's own four hours pass.
+    expect(codes(hours(4))).toEqual([]);
   });
 });

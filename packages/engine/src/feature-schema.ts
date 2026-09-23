@@ -1,4 +1,4 @@
-import { ABILITIES, err, ok, type Ability, type Result } from '@ie/shared';
+import { ABILITIES, DAMAGE_TYPES, err, ok, type Ability, type Result } from '@ie/shared';
 import { WEAPON_PROPERTIES } from '@ie/srd/schemas';
 import { WEAPON_CATEGORIES, WEAPON_KINDS, type WeaponSelector } from './attack.js';
 import { RESERVED_LEDGER_NAMESPACES } from './combat.js';
@@ -251,6 +251,9 @@ const ABILITY_NAMES: ReadonlySet<string> = new Set<Ability>(ABILITIES);
  */
 const HOLLOW_NOTE =
   /^(?:(?:todo|tbd|n\/?a|none|later|unknown)|(?:(?:this )?(?:feature|it) )?(?:is )?not (?:modelled|modeled|automated|implemented|executed|applied|done))\.?$/i;
+
+/** The damage types the game has, for the one grant that names one outright. */
+const DAMAGE_KINDS: ReadonlySet<string> = new Set(DAMAGE_TYPES);
 
 /** A whole number of at least one — what the SRD prints for a pool's size. */
 const isCount = (value: unknown): boolean =>
@@ -527,6 +530,86 @@ export function abilityGrantProblemsOf(
     });
   }
 
+  return found;
+}
+
+/**
+ * Everything wrong with one **sizing**, wherever a grant declares one.
+ *
+ * Its own function because {@link poolSizingOf} answers for one site per grant
+ * and a `pool-options` grant's amendments carry one apiece — SRD Sear Undead's
+ * "a number of d8s equal to your Wisdom modifier (minimum of 1d8)" is a
+ * sizing, read by the same `poolSizeOf`, and a sizing site nothing checks is
+ * the column this file's own comment above says must not exist.
+ */
+function sizingProblems(
+  sizing: PoolSizing,
+  at: string,
+  context: FeatureContext,
+): readonly FeatureDefinitionProblem[] {
+  const found: FeatureDefinitionProblem[] = [];
+  const shapes = [
+    sizing.usesByLevel === undefined ? null : 'usesByLevel',
+    sizing.fromAbilityModifier === undefined ? null : 'fromAbilityModifier',
+    sizing.perClassLevel === undefined ? null : 'perClassLevel',
+  ].filter((shape): shape is string => shape !== null);
+
+  if (shapes.length > 1) {
+    found.push({
+      field: at,
+      code: 'ambiguous_pool_sizing',
+      reason: `${shapes.join(' and ')} both size this pool, and poolSizeOf reads exactly one — the others are silently ignored`,
+    });
+  }
+
+  if (sizing.usesByLevel !== undefined) {
+    if (sizing.usesByLevel.length !== context.levels) {
+      found.push({
+        field: `${at}.usesByLevel`,
+        code: 'not_a_table_column',
+        reason: `a column of this source's table has ${context.levels} entries, not ${sizing.usesByLevel.length}`,
+      });
+    }
+    // A use count may be zero — the levels before the feature arrives — but
+    // never negative and never fractional.
+    const bad = sizing.usesByLevel.findIndex(
+      (uses) => !Number.isInteger(uses) || uses < 0,
+    );
+    if (bad !== -1) {
+      found.push({
+        field: `${at}.usesByLevel[${bad}]`,
+        code: 'bad_pool_sizing',
+        reason: `a class table prints a whole number of uses, not ${String(sizing.usesByLevel[bad])}`,
+      });
+    }
+  }
+
+  if (
+    sizing.fromAbilityModifier !== undefined &&
+    !ABILITY_NAMES.has(sizing.fromAbilityModifier)
+  ) {
+    found.push({
+      field: `${at}.fromAbilityModifier`,
+      code: 'bad_pool_sizing',
+      reason: `"${String(sizing.fromAbilityModifier)}" is not one of the six abilities`,
+    });
+  }
+
+  if (sizing.perClassLevel !== undefined && !isCount(sizing.perClassLevel)) {
+    found.push({
+      field: `${at}.perClassLevel`,
+      code: 'bad_pool_sizing',
+      reason: `a multiple of the class level is a whole number of at least one, not ${String(sizing.perClassLevel)}`,
+    });
+  }
+
+  if (sizing.minimum !== undefined && !isCount(sizing.minimum)) {
+    found.push({
+      field: `${at}.minimum`,
+      code: 'bad_pool_sizing',
+      reason: `a floor is a whole number of at least one, not ${String(sizing.minimum)}`,
+    });
+  }
   return found;
 }
 
@@ -809,71 +892,7 @@ function grantProblems(
   // is a pool of one ("Once you use this feature, you can't do so again until
   // you finish a Long Rest").
   const sized = poolSizingOf(grant);
-  if (sized !== null) {
-    const { at, sizing } = sized;
-    const shapes = [
-      sizing.usesByLevel === undefined ? null : 'usesByLevel',
-      sizing.fromAbilityModifier === undefined ? null : 'fromAbilityModifier',
-      sizing.perClassLevel === undefined ? null : 'perClassLevel',
-    ].filter((shape): shape is string => shape !== null);
-
-    if (shapes.length > 1) {
-      found.push({
-        field: at,
-        code: 'ambiguous_pool_sizing',
-        reason: `${shapes.join(' and ')} both size this pool, and poolSizeOf reads exactly one — the others are silently ignored`,
-      });
-    }
-
-    if (sizing.usesByLevel !== undefined) {
-      if (sizing.usesByLevel.length !== context.levels) {
-        found.push({
-          field: `${at}.usesByLevel`,
-          code: 'not_a_table_column',
-          reason: `a column of this source's table has ${context.levels} entries, not ${sizing.usesByLevel.length}`,
-        });
-      }
-      // A use count may be zero — the levels before the feature arrives — but
-      // never negative and never fractional.
-      const bad = sizing.usesByLevel.findIndex(
-        (uses) => !Number.isInteger(uses) || uses < 0,
-      );
-      if (bad !== -1) {
-        found.push({
-          field: `${at}.usesByLevel[${bad}]`,
-          code: 'bad_pool_sizing',
-          reason: `a class table prints a whole number of uses, not ${String(sizing.usesByLevel[bad])}`,
-        });
-      }
-    }
-
-    if (
-      sizing.fromAbilityModifier !== undefined &&
-      !ABILITY_NAMES.has(sizing.fromAbilityModifier)
-    ) {
-      found.push({
-        field: `${at}.fromAbilityModifier`,
-        code: 'bad_pool_sizing',
-        reason: `"${String(sizing.fromAbilityModifier)}" is not one of the six abilities`,
-      });
-    }
-
-    if (sizing.perClassLevel !== undefined && !isCount(sizing.perClassLevel)) {
-      found.push({
-        field: `${at}.perClassLevel`,
-        code: 'bad_pool_sizing',
-        reason: `a multiple of the class level is a whole number of at least one, not ${String(sizing.perClassLevel)}`,
-      });
-    }
-
-    if (sizing.minimum !== undefined && !isCount(sizing.minimum)) {
-      found.push({
-        field: `${at}.minimum`,
-        code: 'bad_pool_sizing',
-        reason: `a floor is a whole number of at least one, not ${String(sizing.minimum)}`,
-      });
-    }
-  }
+  if (sized !== null) found.push(...sizingProblems(sized.sizing, sized.at, context));
 
   // Rule 10. A feature that reaches into a casting's damage, and the two
   // things it can say that nothing downstream could recover from.
@@ -1105,6 +1124,46 @@ function grantProblems(
         reason: `a level is the character's or the granting class's, and "${String(grant.perLevel)}" is neither`,
       });
     }
+  }
+
+  // What a later feature adds to a form already on somebody else's menu, and
+  // the three ways it can be a sentence nothing could execute.
+  //
+  // **An amended form is validated where an added one is not**, and that is
+  // the point rather than an oversight: `featureOptionsProblems` judges the
+  // forms this grant *adds*, and the amendments go nowhere near it because
+  // they declare no form at all — so a die nobody parsed, a damage type no
+  // defence will ever match and a count read by `poolSizeOf` would each have
+  // compiled onto the sheet and reached `dealSpellDamage` as data the engine
+  // cannot argue with.
+  if (grant.kind === 'pool-options') {
+    (grant.amends ?? []).forEach((amendment, at) => {
+      const field = `grants.amends[${at}].damagesFailures`;
+      const damage = amendment?.damagesFailures;
+      if (damage === undefined || typeof damage !== 'object') {
+        found.push({
+          field,
+          code: 'amends_nothing',
+          reason: `${feature.id} changes "${String(amendment?.option)}" and says nothing about what changes`,
+        });
+        return;
+      }
+      if (!parseNotation(String(damage.die)).ok) {
+        found.push({
+          field: `${field}.die`,
+          code: 'bad_dice',
+          reason: `"${String(damage.die)}" is not dice this engine can roll`,
+        });
+      }
+      if (!DAMAGE_KINDS.has(damage.damageType)) {
+        found.push({
+          field: `${field}.damageType`,
+          code: 'unknown_damage_type',
+          reason: `"${String(damage.damageType)}" is not a damage type, so nothing a creature resists or is immune to would ever match it`,
+        });
+      }
+      found.push(...sizingProblems(damage.count ?? {}, `${field}.count`, context));
+    });
   }
 
   // A Long Rest this trait shortens, and the two lengths that would be a

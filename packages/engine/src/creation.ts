@@ -3962,7 +3962,15 @@ function longRestSecondsFor(features: readonly FeatureDefinition[]): number | nu
   return shortest;
 }
 
-/** One die's notation with the count an amending feature works out written into it. */
+/**
+ * One die's notation with the count an amending feature works out written in.
+ *
+ * The `d8` fallback is unreachable rather than a default: `checkFeatureDefinition`
+ * refuses an amendment whose die `parseNotation` cannot read (`bad_dice`), so a
+ * die with no sides has been turned away at the door. It stands because this
+ * returns a string a damage roll is made from, and a `undefined` must not reach
+ * one — the reading `planCharacter` already takes of a species with no size.
+ */
 const withDiceCountOf = (die: string, count: number): string =>
   `${Math.max(1, count)}d${die.split('d')[1] ?? '8'}`;
 
@@ -4775,6 +4783,13 @@ export function rechooseCharacter(
     ...(patch.featureChoices === undefined
       ? {}
       : { featureChoices: { ...record.choices.featureChoices, ...patch.featureChoices } }),
+    // What is worn is live state, exactly as it is at a level-up, and for a
+    // sharper version of the same reason: a re-plan is checked against the
+    // inventory the creature is *holding*, so a shirt sold since the character
+    // was made would make the stored list refuse the character — and a rest
+    // that refused a Druid a land because they had dropped a shield would be
+    // the stale record deciding what the rules allow.
+    equipped: creature.equipped.map((held) => held.id),
   };
 
   if (sameAnswer(choices, record.choices)) return ok([]);
