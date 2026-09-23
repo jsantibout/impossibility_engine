@@ -2805,11 +2805,17 @@ describe('a shape that gets built is content work, not a merge', () => {
       ),
     ).toBe(true);
     // And Blink kept the two halves this build did not reach until it was
-    // written; both are in the definition's own notes now, and the d6 is in
-    // the tracked map because it trips a marker.
+    // written. Both are in the definition's own notes, and **all three of its
+    // sentences are in the tracked map now**: the d6 was there because it
+    // trips a marker, and the other two were dropped on the way out of
+    // `BLOCKED_ON` because no marker could see them — which is the loss the
+    // marker-less entry form was added to stop, arriving a batch late on the
+    // spell this very row is about.
     expect(BLOCKED_ON['blink']).toBeUndefined();
     expect(TRACKED_ADJUDICATED['blink']?.map((entry) => entry.why)).toEqual([
       'a-random-outcome-that-is-not-a-d20',
+      'a-second-place-to-put-a-creature',
+      'table',
     ]);
     expect(
       (SRD_CONTENT.spell('blink')?.unmodelled ?? []).some((note) =>

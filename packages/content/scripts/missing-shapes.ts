@@ -246,7 +246,7 @@ export const MISSING_SHAPES = {
   'a-condition-benefit-an-effect-takes-away':
     'a benefit the condition layer derives, switched off while the condition itself stays. Three SRD spells print the sentence — Faerie Fire, Starry Wisp, and Mind Spike’s "against you" — and PROGRESS.md already lists Faerie Fire among the clauses the roll vocabulary cannot reach. **The shape itself is built now**: the `benefit` rider hangs a denial off a settled outcome, and `benefitsFrom` is what all three readers of the Invisible condition’s benefits ask — including the Initiative Advantage, which nothing used to reach. What is left is one further shape each. Faerie Fire is finished — `save.condition` is optional, so its Dexterity save hangs this rider, and its 20-foot Cube is an ordinary `area` picking its own targets; Mind Spike narrows the denial to the caster alone, which is a-condition-benefit-an-effect-takes-away meeting the-effects-source-as-a-participant, and a blanket denial would be wrong for it rather than merely coarse; Shining Smite hangs the same sentence on an ongoing casting whose beneficiaries are everybody the casting did not target.',
   'a-random-outcome-that-is-not-a-d20':
-    'PROGRESS.md ranks it: "A random outcome that is not a d20 | 1 / 19 | the generator, `parseNotation`". A percentage chance, a 1d10 behaviour table or a 1d100 mishap roll is a die the engine can throw and no `SpellEffect` asks for. **One consumer left the count without the gap closing, and it is recorded here rather than lost.** Slow prints a 25 percent chance that a casting with a Somatic component fails, and was filed under this id while it had no definition; the spell is executed now, and the executed map has no marker-less entry form — `Adjudication` carries a clause, a shape and a note and `CLAUSE_MARKERS` knows dice, saves, checks and twenty other words but not a percentage, so the reading has nowhere to sit. It is in that spell’s own `unmodelled` list, where `spell-catalogue.test.ts` hands it to the table on every casting, and the day `Adjudication` gains the null marker `TrackedAdjudication` already has is the day it comes back to this count.',
+    '**Half built, and the half that is names itself.** PROGRESS.md ranked it "A random outcome that is not a d20 | 1 / 19 | the generator, `parseNotation`", over three different dice: a percentage chance, a 1d10 behaviour table and a 1d100 mishap roll. The **percentage** is built — the `chance` effect throws a d100 against a number the book printed, flat or grown by the castings that have gone before, and the count is the `Tally` a Wind Fan’s uses were already kept in. Augury is executed off it and Gust of Wind’s 50 and Sending’s 5 are writable by it. What is left is every other die in this family, and they are not the same shape twice: a **table** the face indexes into, which needs somewhere for the rows to live, and a die thrown **at a turn boundary** whose face branches — SRD Blink’s 1d6 — which is a payout that can hand over hit points and cannot ask a question. **One consumer left the count without the gap closing, and it is recorded here rather than lost.** Slow prints a 25 percent chance that a casting with a Somatic component fails, and was filed under this id while it had no definition; the spell is executed now, and the executed map has no marker-less entry form — `Adjudication` carries a clause, a shape and a note and `CLAUSE_MARKERS` knows dice, saves, checks and twenty other words but not a percentage, so the reading has nowhere to sit. It is in that spell’s own `unmodelled` list, where `spell-catalogue.test.ts` hands it to the table on every casting, and the day `Adjudication` gains the null marker `TrackedAdjudication` already has is the day it comes back to this count.',
   'a-rest-an-effect-gives-or-denies':
     'a rest is a span the engine measures and its payout is `endRest`’s — `docs/design/time-and-turns.md`, "**A rest is a span, not a button**". No effect confers the benefits of one without the hours, and none takes them away from a rest that was completed.',
   'damage-with-neither-an-attack-roll-nor-a-save':
@@ -2258,14 +2258,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'Fly, Climb and Swim have no reader — no rule in the engine asks about one — so a Swim Speed would be a number nothing consults, and the spell-definition vocabulary refuses the field by name for exactly that reason.',
     },
   ],
-  augury: [
-    {
-      marker: 'chance',
-      clause: 'cumulative 25 percent chance for each casting after the first',
-      why: 'a-random-outcome-that-is-not-a-d20',
-      note: 'a percentage is a die the generator can throw and no SpellEffect asks for one; and the count it is cumulative over runs back to a Long Rest, which nothing counts castings against either.',
-    },
-  ],
   'dragons-breath': [
     {
       marker: 'saving-throw',
@@ -2294,12 +2286,29 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'docs/design/space-and-areas.md says it outright of Web’s Restrained: a condition that ends when its holder walks out of an area has no shape here at all, and this is the second spell printing it.',
     },
   ],
+  // **Three sentences and one entry, which was one reading short.** The
+  // definition's own `unmodelled` names three clauses and this map recorded
+  // the first; the other two were paid for by nobody and the shapes they claim
+  // went uncounted. Recorded now rather than argued about, which is the rule
+  // the marker-less entry form exists for.
   blink: [
     {
       marker: 'dice',
       clause: 'Roll 1d6 at the end of each of your turns',
       why: 'a-random-outcome-that-is-not-a-d20',
-      note: 'the generator throws any notation parseNotation reads and no SpellEffect asks it for one; a payout at a turn boundary hands over hit points and cannot branch on the face a die showed.',
+      note: 'the generator throws any notation parseNotation reads and no SpellEffect asks it for one; a payout at a turn boundary hands over hit points and cannot branch on the face a die showed. **The `chance` effect is not this**: it throws a percentage at the moment of the casting, and this is a die thrown at every turn boundary for the duration, whose two faces put the caster in two different places.',
+    },
+    {
+      marker: null,
+      clause: 'you vanish from your current plane of existence and appear in the Ethereal Plane',
+      why: 'a-second-place-to-put-a-creature',
+      note: 'there is one scene, so a creature who has left it has nowhere to be — and the return "at the start of your next turn" is the same absence read from the other end. The definition says so in its own second line and this is where the shape was owed the claim. **The markers see nothing in this sentence**: the SRD writes a plane change without writing the word teleport, without a distance and without anything moving, which is exactly the shape of sentence the marker-less entry form exists for.',
+    },
+    {
+      marker: null,
+      clause: 'which is cast in shades of gray',
+      why: 'table',
+      note: 'what the caster can perceive of the plane they left is narration end to end, and the clause the markers can see in that sentence is the sixty feet — a distance between two places the engine does not hold, so there is nothing here to measure even in principle. This unit names no mechanic at all and somebody read the paragraph.',
     },
   ],
   revivify: [

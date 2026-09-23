@@ -7,6 +7,7 @@ import { createRollIssuer } from '@ie/engine';
 import { fold, type GameEvent } from '@ie/engine';
 import { remaining, spellSlotKey } from '@ie/engine';
 import { declaredCasting } from '@ie/engine';
+import { dmDecisionsIn } from '@ie/engine';
 import {
   advanceTime,
   DIRECTIONAL_AREAS,
@@ -1490,8 +1491,25 @@ describe('every spell this batch added is cast for real', () => {
    * gave: the attack is lost, nothing is spent, and one save per ward per
    * turn.
    */
+  /**
+   * **Augury leaves by a door built out of the item vocabulary**, which is
+   * what makes it worth a paragraph of its own: nothing here was invented.
+   * SRD Wind Fan prints "a cumulative 20 percent chance of not working" and
+   * the item grant has said so since charges landed — a `Tally` counting the
+   * uses, `cumulativeChance` multiplying them, a d100 thrown against the
+   * result and not thrown at all when the result is zero. Augury prints the
+   * same sentence with a rest in place of a dawn and an unanswered question in
+   * place of a torn fan, so the `chance` effect is that machinery pointed at a
+   * casting, sharing the die and the line it writes in the log.
+   *
+   * What it decides is the one thing a casting can decide about a handover:
+   * SRD's "you get **no answer**" means the printed text this definition hands
+   * the table does not go out for that casting. The omen stays the GM's — it
+   * was never a debt — and the percentage stops being one.
+   */
   const EXECUTED_SINCE: readonly string[] = [
     'aid',
+    'augury',
     'darkness',
     'daylight',
     'enhance-ability',
@@ -1678,7 +1696,43 @@ describe('every spell this batch added is cast for real', () => {
    */
   const FINISHED_OUTRIGHT: readonly string[] = ['aid', 'expeditious-retreat'];
 
-  it.each(ADDED.filter((s) => !FINISHED_OUTRIGHT.includes(s)).map((s) => [s] as const))(
+  /**
+   * The third end of a row, and it is a different claim from either of the
+   * other two.
+   *
+   * Augury owes the table nothing — every mechanical sentence it prints is
+   * executed — and still hands text over on every casting, because the omen
+   * was never a debt: "The GM chooses the omen from the Omens table" is a
+   * question nobody here will ever answer. `FINISHED_OUTRIGHT` asserts an
+   * *empty* `unverified` and would call that a defect; what is actually owed
+   * is that nothing under the debt form is in there, and that what is under
+   * the handover mark is exactly what the definition prints.
+   */
+  const FINISHED_BUT_HANDS_OVER: readonly string[] = ['augury'];
+
+  it.each(FINISHED_BUT_HANDS_OVER.map((s) => [s] as const))(
+    'leaves the table no debt of %s and still hands over its text',
+    (spellId) => {
+      const definition = SRD_CONTENT.spell(spellId)!;
+      const out = driven(spellId);
+      expect(definition.unmodelled ?? [], spellId).toEqual([]);
+      // A rite reports its handover twice — once at the declaration and once
+      // at the settlement — and `driven` concatenates both, which is what the
+      // set is for.
+      expect([...new Set(dmDecisionsIn(out.unverified))], spellId).toEqual([
+        ...(definition.dmDecides ?? []),
+      ]);
+      // And nothing in there is a debt: a gap travels under no mark at all,
+      // so every line that is not a handover would be one.
+      expect(new Set(out.unverified).size, spellId).toBe((definition.dmDecides ?? []).length);
+    },
+  );
+
+  it.each(
+    ADDED.filter(
+      (s) => !FINISHED_OUTRIGHT.includes(s) && !FINISHED_BUT_HANDS_OVER.includes(s),
+    ).map((s) => [s] as const),
+  )(
     'hands %s’s own sentences to the table',
     (spellId) => {
       const definition = SRD_CONTENT.spell(spellId)!;

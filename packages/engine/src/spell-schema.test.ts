@@ -3452,6 +3452,18 @@ describe('every branch judges untyped input rather than throwing on it', () => {
       },
     },
     {
+      // A printed percentage. `percent` takes a number **or** an object, so
+      // the junk it is fed is the values that are neither — a string, a
+      // boolean, an array, and absent — and `onFailure` is a closed list of
+      // one, which any string that is not it refuses.
+      kind: 'chance',
+      base: { kind: 'chance', percent: 50, onFailure: 'no-answer' },
+      fields: {
+        percent: [undefined, null, 'nonsense', true, []],
+        onFailure: required(STRING_JUNK),
+      },
+    },
+    {
       // Damage that simply lands. Two required fields and one optional count,
       // and **no rider rows at all**, because the member carries no
       // `& OutcomeRiders` — a rider written beside a dart is refused by the

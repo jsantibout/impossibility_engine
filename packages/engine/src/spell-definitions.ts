@@ -20,6 +20,7 @@ import type { LightLevel, ObscurementDegree, PointAnchoring } from './positionin
 import type { CastingTime } from './spells.js';
 import type { SpellReactionWindow } from './reactions.js';
 import type { HealingRule } from './vitals.js';
+import type { Recovery } from './resources.js';
 
 /**
  * Spells the engine can actually execute.
@@ -2138,6 +2139,57 @@ export type SpellEffect =
   | {
       readonly kind: 'interrupt-casting';
       readonly ability: Ability;
+    }
+  /**
+   * A printed percentage the casting may simply fail on, thrown on a d100.
+   *
+   * SRD Augury: "If you cast the spell more than once before finishing a Long
+   * Rest, there is a **cumulative 25 percent chance for each casting after the
+   * first** that you get no answer."
+   *
+   * **The die is not a d20 and nothing about it is a D20 Test.** There are no
+   * modes, no bonuses, no ability and no DC — a percentage is a number the
+   * book printed and the engine rolls against, which is the whole of the shape
+   * `a-random-outcome-that-is-not-a-d20` named. `parseNotation` has read
+   * `1d100` since dice landed; what was missing was an effect that asked for
+   * one.
+   *
+   * **`percent` is one number or a rule for growing one**, and the flat form is
+   * the general case: SRD Gust of Wind prints a flat 50 percent and Sending a
+   * flat 5. Augury's form counts the castings that have gone before and
+   * multiplies, which is {@link cumulativeChance} — the very function SRD Wind
+   * Fan's "cumulative 20 percent chance of not working" already uses, pointed
+   * at a casting instead of at an item. `countedBy` names the key the count is
+   * kept under and the rest that empties it, because nothing declares a tally
+   * and the tag has to arrive with the use.
+   *
+   * **The use is counted whether or not a die is thrown**, because the book
+   * counts castings rather than failures — and the die is **not thrown at all
+   * when the chance is zero**, which is the first casting. A die thrown for an
+   * outcome that is already decided moves the generator for nothing, and that
+   * is the quiet way a replay stops matching.
+   *
+   * **`onFailure` is a closed list of one, and it is a list because the value
+   * is a *rule* rather than a label.** `'no-answer'` says: the casting
+   * happened, the slot is gone, and the printed text the book left to the
+   * table does not go out for it — an omen nobody received must not be handed
+   * to a DM to narrate. A second value would be a second rule with a second
+   * resolver arm, which is why this is not a boolean.
+   */
+  | {
+      readonly kind: 'chance';
+      readonly percent:
+        | number
+        | {
+            /** SRD Augury's 25, added for each casting before this one. */
+            readonly perPriorCasting: number;
+            /** Where the count is kept, and what empties it. */
+            readonly countedBy: {
+              readonly key: string;
+              readonly recovers: Recovery;
+            };
+          };
+      readonly onFailure: 'no-answer';
     }
   /**
    * The target is somewhere else, and nothing was spent getting there.
@@ -4363,6 +4415,11 @@ export function numbersRead(definition: SpellDefinition): NumbersRead {
       // there is no DC. Its dice are scaled off the slot, which is a number
       // the casting *paid*, not one it pinned.
       case 'auto-damage':
+      // **And a printed percentage is not a number this casting pinned.** SRD
+      // Augury's 25 is the book's, the count it multiplies is the caster's
+      // tally, and the die has no modifier to read — so a wand that printed a
+      // chance would need neither a DC nor an attack modifier from anybody.
+      case 'chance':
       case 'temp-hp':
       case 'roll-mode':
       case 'armor-class':

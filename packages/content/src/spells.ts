@@ -10077,16 +10077,28 @@ export const ALTER_SELF: SpellDefinition = {
  * > get no answer."
  *
  * The omen is the GM's by the book's own word. What is not the GM's is the
- * percentage: a cumulative 25 per cent per casting since the last Long Rest is
- * two things the engine cannot do — throw a die that is not a d20, and count
- * castings back to a rest.
+ * percentage: a cumulative 25 per cent per casting since the last Long Rest
+ * was two things the engine could not do — throw a die that is not a d20, and
+ * count castings back to a rest — and it is the `chance` effect now.
  *
- * **And the two are filed apart now, which is Commune's ruling arriving on the
+ * **And the two are filed apart, which is Commune's ruling arriving on the
  * spell it was written from.** The omen sat in `unmodelled` saying in its own
  * words that it was the GM's — a debt nobody may ever pay, on the list of
  * debts somebody might, inflating a blocker map with an entry blocked on
  * nothing. There is no engine that chooses an omen. It is handed over instead,
- * in the book's own words, and the percentage stays where it was.
+ * in the book's own words; the percentage decides whether the handover goes
+ * out at all.
+ *
+ * **The count is kept under the spell's own id and empties on a Long Rest**,
+ * which is the book's own bracket — "before finishing a Long Rest" — and the
+ * same `Tally` a Wind Fan's uses are counted in. The first casting after a
+ * rest throws no die, because "each casting after the first" makes it a
+ * decided outcome and a die thrown for one moves the generator for nothing.
+ *
+ * **Range: Self, and the caster is the target.** The spell is on whoever cast
+ * it and reaches nobody else; naming the caster is what every other self spell
+ * in the catalogue does, and it is what gives the effect list a creature to
+ * run against.
  */
 export const AUGURY: SpellDefinition = {
   id: 'augury',
@@ -10098,15 +10110,23 @@ export const AUGURY: SpellDefinition = {
   ritual: true,
   concentration: false,
   range: { kind: 'self' },
-  targets: { count: 0 },
-  effects: [],
+  targets: { count: 1, self: true },
+  effects: [
+    {
+      kind: 'chance',
+      // "a cumulative 25 percent chance for each casting after the first",
+      // counted "before finishing a Long Rest".
+      percent: { perPriorCasting: 25, countedBy: { key: 'augury', recovers: 'long-rest' } },
+      // "that you get no answer": the casting happened and the slot is gone,
+      // and what the caster does not get is the omen — so the printed text
+      // this definition hands the table does not go out for that casting.
+      onFailure: 'no-answer',
+    },
+  ],
   dmDecides: [
     'You receive an omen from an otherworldly entity about the results of a course of action that you plan to take within the next 30 minutes.',
     'The GM chooses the omen from the Omens table.',
     "The spell doesn't account for circumstances, such as other spells, that might change the results.",
-  ],
-  unmodelled: [
-    'the "cumulative 25 percent chance for each casting after the first" is not rolled: no effect asks for a die that is not a d20, and nothing counts this caster’s castings back to their last Long Rest',
   ],
 };
 

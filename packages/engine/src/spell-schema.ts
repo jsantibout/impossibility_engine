@@ -12,6 +12,7 @@ import {
 } from '@ie/shared';
 import { counterpartProblem, oneShotProblem, rollSelectorProblems } from './roll-modifiers.js';
 import { parseNotation } from './dice.js';
+import type { Recovery } from './resources.js';
 import { PASSIVE_DEFENSE_KINDS } from './passive-defenses.js';
 import { SENSE_NAMES } from './positioning.js';
 import { LONG_CASTING_SECONDS } from './spells.js';
@@ -271,6 +272,21 @@ const SKILL_NAMES: ReadonlySet<Skill> = new Set(SKILLS);
  * second place for the vocabulary to go stale. It reads the *untyped* name the
  * way this file does, which is why the set is strings rather than the union.
  */
+/**
+ * The four things a count or a pool may recover on — `Recovery` as data.
+ *
+ * {@link ROLL_FAMILIES}' rule and for its reason: `content.ts` asks the same
+ * question of an item's charge pool, and a second copy of the vocabulary there
+ * would be a second place for it to go stale. It reads the *untyped* name the
+ * way this file does, which is why the set is strings rather than the union.
+ */
+export const RECOVERIES: ReadonlySet<string> = new Set<Recovery>([
+  'short-rest',
+  'long-rest',
+  'dawn',
+  'special',
+]);
+
 export const ROLL_FAMILIES: ReadonlySet<string> = new Set([
   'attack',
   'ability-check',
@@ -2662,6 +2678,80 @@ function checkEffect(
     case 'dispel':
     case 'interrupt-casting':
       return;
+
+    // **Its own arm rather than a third name on the fall-through above**,
+    // because it is the only one of the three with fields to check. A
+    // percentage is a number a die is thrown against, so the range is the
+    // whole of what makes one readable: at or below zero is an outcome already
+    // decided, which the resolver would refuse to throw for, and above a
+    // hundred is a face no d100 has. `cumulativeChance` caps a *running* total
+    // at a hundred, and that is a different rule from a printed number the
+    // author got wrong.
+    case 'chance': {
+      const printed = effect.percent;
+      if (typeof printed === 'number') {
+        if (!Number.isFinite(printed) || printed <= 0 || printed > 100) {
+          found.push({
+            field: `${path}.percent`,
+            code: 'bad_percentage',
+            reason: `${String(printed)} is not a chance a d100 can be thrown against; a percentage is above 0 and at most 100`,
+          });
+        }
+      } else if (typeof printed !== 'object' || printed === null || Array.isArray(printed)) {
+        found.push({
+          field: `${path}.percent`,
+          code: MALFORMED,
+          reason: `a percentage, or a rule for growing one, and this is ${nameOf(printed)}`,
+        });
+      } else {
+        const each = (printed as { readonly perPriorCasting?: unknown }).perPriorCasting;
+        if (typeof each !== 'number' || !Number.isFinite(each) || each <= 0 || each > 100) {
+          found.push({
+            field: `${path}.percent.perPriorCasting`,
+            code: 'bad_percentage',
+            reason: `${String(each)} is not what each prior casting adds; a percentage is above 0 and at most 100`,
+          });
+        }
+        // **A cumulative chance that counts nothing is a flat one spelled
+        // wrong.** The count is what makes "each casting after the first"
+        // mean anything, and nothing declares a tally — so the key and the
+        // rest that empties it arrive with the effect or the growth is a
+        // number nobody could ever read.
+        const counted = (printed as { readonly countedBy?: unknown }).countedBy;
+        if (typeof counted !== 'object' || counted === null || Array.isArray(counted)) {
+          found.push({
+            field: `${path}.percent.countedBy`,
+            code: 'uncounted_chance',
+            reason: `a chance that grows with the castings before it says where the count is kept, and this is ${nameOf(counted)}`,
+          });
+        } else {
+          const key = (counted as { readonly key?: unknown }).key;
+          if (typeof key !== 'string' || key.trim() === '') {
+            found.push({
+              field: `${path}.percent.countedBy.key`,
+              code: 'uncounted_chance',
+              reason: 'a count is kept under a key, and this names none',
+            });
+          }
+          const recovers = (counted as { readonly recovers?: unknown }).recovers;
+          if (typeof recovers !== 'string' || !RECOVERIES.has(recovers)) {
+            found.push({
+              field: `${path}.percent.countedBy.recovers`,
+              code: 'bad_recovery',
+              reason: `"${String(recovers)}" is not something a count recovers on; the engine knows ${[...RECOVERIES].join(', ')}`,
+            });
+          }
+        }
+      }
+      if (effect.onFailure !== 'no-answer') {
+        found.push({
+          field: `${path}.onFailure`,
+          code: 'bad_failure',
+          reason: `"${String(effect.onFailure)}" is not something a failed chance does; the engine withholds what the spell hands to the table ("no-answer")`,
+        });
+      }
+      return;
+    }
   }
 }
 
@@ -4756,6 +4846,7 @@ export const EFFECT_KINDS: ReadonlySet<string> = new Set([
   'attack',
   'save-damage',
   'auto-damage',
+  'chance',
   'temp-hp',
   'buff',
   'heal',
