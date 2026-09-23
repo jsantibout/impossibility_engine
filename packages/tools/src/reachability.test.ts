@@ -51,6 +51,24 @@ import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
 import { createCampaign, createSurface, TAKEN_BY, TOOL_NAMES, type ToolOutcome } from '@ie/tools';
 
+/**
+ * The grants one feature carries, whether it wrote one or a list.
+ *
+ * Normalised here rather than imported, because this file imports no engine —
+ * `featureGrants` is the engine's own copy of these three lines.
+ */
+interface Granted {
+  readonly kind: string;
+  readonly feature?: string;
+  readonly options?: readonly { readonly id: string }[];
+}
+
+const grantsOf = (feature: { readonly grants?: unknown }): readonly Granted[] => {
+  const grants = feature.grants;
+  if (grants === undefined) return [];
+  return (Array.isArray(grants) ? grants : [grants]) as readonly Granted[];
+};
+
 // — a character of any path at level 5 —————————————————————————————————————
 
 const LEVEL = 5;
@@ -130,7 +148,7 @@ const autoChoices = (
     const choice = feature.choice;
     if (choice === undefined) continue;
     if (choice.kind === 'skill') {
-      const expertise = feature.grants?.kind === 'expertise';
+      const expertise = grantsOf(feature).some((grant) => grant.kind === 'expertise');
       const from = expertise ? [...used] : (choice.from ?? SKILLS).filter((one) => !used.has(one));
       const picked = from.slice(0, choice.choose);
       if (!expertise) for (const one of picked) used.add(one);
@@ -294,6 +312,8 @@ const AT_CREATION: Readonly<Record<string, string>> = {
   'weapon-mastery': 'the mastery properties this character may use, chosen at creation and named on a swing',
   'extra-attack': 'the number of attacks an Attack action buys, which `resolveAttack` counts down',
   'unarmored-defense': 'an alternative base Armour Class, which `armorClassOf` reads',
+  'hit-point-maximum':
+    'hit points added to the maximum when the character was made, which every level recomputes',
   'strike-style': 'SRD Martial Arts: the die and the Bonus Action strike an Unarmed Strike reads',
   'critical-range': 'SRD Improved Critical: the natural roll a hit crits on, read by the attack pipeline',
   'ability-score-increase': 'an ability score raised at creation; every modifier derived from it follows',
@@ -349,30 +369,40 @@ function reachOf(
   }
   if (line !== undefined && line.kind === 'passive') return { how: 'passive' };
 
-  const grant = feature.grants;
+  // Every grant the feature carries, because a feature may carry more than one
+  // — and a second grant nobody can reach is the same room with no door as a
+  // first one would be.
+  const grants = grantsOf(feature);
 
   // A menu compiled onto somebody else's line: SRD Preserve Life is a door
   // onto Channel Divinity's menu, so it is spent by naming the *host* feature
   // and this option. The host has to really print every option this grant
   // declares, and the host's own line has to name a tool.
-  if (grant?.kind === 'pool-options') {
-    const host = sheet.features.find((one) => one.feature === grant.feature);
+  const menu = grants.find((one) => one.kind === 'pool-options');
+  if (menu !== undefined) {
+    const host = sheet.features.find((one) => one.feature === menu.feature);
     const printed = new Set((host?.options ?? []).map((one) => one.option));
-    const missing = grant.options.filter((one) => !printed.has(one.id)).map((one) => one.id);
+    const missing = (menu.options ?? [])
+      .filter((one) => !printed.has(one.id))
+      .map((one) => one.id);
     if (host === undefined || host.spentBy === null) {
-      return { how: 'unreachable', why: `its menu joins ${grant.feature}, which names no tool` };
+      return { how: 'unreachable', why: `its menu joins ${menu.feature}, which names no tool` };
     }
     if (missing.length > 0) {
-      return { how: 'unreachable', why: `${grant.feature} prints none of ${missing.join(', ')}` };
+      return { how: 'unreachable', why: `${menu.feature} prints none of ${missing.join(', ')}` };
     }
-    return { how: 'joins-a-menu', host: grant.feature };
+    return { how: 'joins-a-menu', host: menu.feature ?? '' };
   }
 
-  if (grant !== undefined) {
-    const why = AT_CREATION[grant.kind];
-    return why === undefined
-      ? { how: 'unreachable', why: `a ${grant.kind} grant that reaches no tool and no sheet line` }
-      : { how: 'at-creation', why };
+  if (grants.length > 0) {
+    const unreached = grants.filter((one) => AT_CREATION[one.kind] === undefined);
+    const first = unreached[0];
+    return first === undefined
+      ? {
+          how: 'at-creation',
+          why: [...new Set(grants.map((one) => AT_CREATION[one.kind]))].join('; '),
+        }
+      : { how: 'unreachable', why: `a ${first.kind} grant that reaches no tool and no sheet line` };
   }
 
   // A feature that declares nothing of its own and names the one whose

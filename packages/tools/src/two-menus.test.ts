@@ -10,22 +10,22 @@
  * feature holding **both** would be reported as the pool and lose its menu of
  * riders — and a menu a caller is never shown is a menu it cannot elect from.
  *
- * **The route the record assumed is shut, and this file is where that is
- * written down.** `FeatureDefinition.grants` is singular — "at most one" — and
- * `checkContent` refuses two definitions under one id, so no catalogue this
- * engine accepts can put a pool menu and a rider on one feature id: the two
- * refusals below are the catalogue saying so in its own words. What content
- * *can* express is the arrangement SRD already uses one pool along — a pool
- * with a menu, and a rider spending that same pool from a feature of its own —
- * and the first test drives it through the door to show both menus arriving
- * under their own ids.
+ * **The route was latent when this file was written and is live now**, which
+ * is the day it was written for. `FeatureDefinition.grants` was a single grant
+ * then — "at most one" — so no catalogue could put a pool menu and a rider on
+ * one feature id, and the only route left was two ids, which `checkContent`
+ * refuses: the two refusals below are the catalogue saying so in its own
+ * words, and they still hold. What has changed is the vocabulary, not them —
+ * a feature carries a list of grants now, so a pool menu and a rider under one
+ * printed heading are a thing a catalogue can write.
  *
- * So the seam is latent rather than live, and it is closed anyway, at the one
- * level it is reachable: {@link holdingsOf} is a pure reader over a sheet, and
- * the last test asks it about a sheet carrying both under one id. A merge
- * costs one branch, changes nothing about any character the catalogue can
- * build, and means the day the vocabulary grows a second grant the report does
- * not quietly lose half of a feature.
+ * What kept the report whole across that change is the merge the last tests
+ * hold: {@link holdingsOf} is a pure reader over a sheet, and it lists a
+ * feature once with both menus on it. The branch cost nothing the day it was
+ * written and is what stops half a feature going quietly missing now that one
+ * can be written. The arrangement SRD already uses one pool along — a pool
+ * with a menu, and a rider spending that same pool from a feature of its own —
+ * is the first test, and both menus still arrive under their own ids.
  *
  * **It imports the engine on purpose**, for `extendContent` — the door
  * homebrew comes through — and to hold a sheet the catalogue cannot yet

@@ -15,6 +15,7 @@ import type {
   BackgroundDefinition,
   FeatDefinition,
   FeatureOptionMeaning,
+  GatedFeatureGrant,
   LanguageDefinition,
   SpeciesDefinition,
 } from '@ie/engine';
@@ -61,18 +62,119 @@ const DRACONIC_ANCESTORS: Readonly<Record<string, string>> = {
 };
 
 /**
+ * One row of a lineage or legacy table: what the option knows now, and the two
+ * spells it learns later.
+ *
+ * SRD prints the same four columns on the Elven Lineages, the Gnomish Lineage
+ * and the Fiendish Legacies — an option, a level 1 benefit, a level 3 spell
+ * and a level 5 spell — and the sentence above all three tables is word for
+ * word the same.
+ */
+interface LineageRow {
+  /** Cantrips the option knows from the moment it is chosen. */
+  readonly cantrips: readonly string[];
+  /** SRD: "When you reach character levels 3 and 5, you learn a higher-level spell." */
+  readonly atThree?: string;
+  readonly atFive?: string;
+}
+
+/** SRD: "Intelligence, Wisdom, or Charisma is your spellcasting ability." */
+const LINEAGE_ABILITIES = ['int', 'wis', 'cha'] as const;
+
+/**
+ * The spell half of a lineage table, as grants gated on the option chosen.
+ *
+ * One grant per cell, because each is its own sentence: a cantrip is known
+ * outright, and a levelled spell is "always prepared", castable once without a
+ * slot and with a slot after that. The free casting's pool is named after the
+ * spell, so the two levels of one legacy hold two pools and a character who
+ * took the other legacy holds neither — an unchosen option's grant is never
+ * compiled at all.
+ */
+const lineageSpells = (
+  featureId: string,
+  rows: Readonly<Record<string, LineageRow>>,
+): readonly GatedFeatureGrant[] =>
+  Object.entries(rows).flatMap(([option, row]) => [
+    ...(row.cantrips.length === 0
+      ? []
+      : [
+          {
+            kind: 'spells' as const,
+            fixed: row.cantrips,
+            abilities: LINEAGE_ABILITIES,
+            onlyIfChoice: option,
+          },
+        ]),
+    ...([
+      [3, row.atThree],
+      [5, row.atFive],
+    ] as const).flatMap(([level, spell]) =>
+      spell === undefined
+        ? []
+        : [
+            {
+              kind: 'spells' as const,
+              abilities: LINEAGE_ABILITIES,
+              onlyIfChoice: option,
+              fromLevel: level,
+              freeCasting: {
+                spell,
+                pool: `${featureId}:${spell}`,
+                poolLabel: `free casting of ${spell}`,
+                // "You can cast it once without a spell slot, and you regain
+                // the ability to cast it in that way when you finish a Long
+                // Rest."
+                declares: { minimum: 1, recovers: 'long-rest' as const },
+                // "You can also cast the spell using any spell slots you have
+                // of the appropriate level."
+                withSlots: true as const,
+              },
+            },
+          ],
+    ),
+  ]);
+
+/**
  * SRD Fiendish Legacies: the three legacies and the damage type each one's
  * level 1 benefit names.
- *
- * The other columns of that table are the cantrip each legacy knows and the
- * level 3 and level 5 spells, and those are **not** transcribed, for the
- * reason the damage types were not until now: a species feature granting a
- * spell reaches no spellcasting route, so there would be nothing to read them.
  */
 const FIENDISH_LEGACIES: Readonly<Record<string, string>> = {
   Abyssal: 'poison',
   Chthonic: 'necrotic',
   Infernal: 'fire',
+};
+
+/**
+ * SRD Elven Lineages: the spells each lineage knows and learns.
+ *
+ * The rest of the level 1 column is two sentences the grants beside these say
+ * - the Wood Elf's Speed and the Drow's further sixty feet of Darkvision.
+ */
+const ELVEN_SPELLS: Readonly<Record<string, LineageRow>> = {
+  Drow: { cantrips: ['dancing-lights'], atThree: 'faerie-fire', atFive: 'darkness' },
+  'High Elf': { cantrips: ['prestidigitation'], atThree: 'detect-magic', atFive: 'misty-step' },
+  'Wood Elf': { cantrips: ['druidcraft'], atThree: 'longstrider', atFive: 'pass-without-trace' },
+};
+
+/**
+ * SRD Gnomish Lineage: the cantrips each option knows.
+ *
+ * Neither option learns a spell at level 3 or 5 - the table the other two
+ * species print is two paragraphs here - and the Forest Gnome's Speak with
+ * Animals is not among these, because its uses are counted in Proficiency
+ * Bonuses and no pool is sized that way.
+ */
+const GNOMISH_SPELLS: Readonly<Record<string, LineageRow>> = {
+  'Forest Gnome': { cantrips: ['minor-illusion'] },
+  'Rock Gnome': { cantrips: ['mending', 'prestidigitation'] },
+};
+
+/** The other three columns of the same table. */
+const FIENDISH_SPELLS: Readonly<Record<string, LineageRow>> = {
+  Abyssal: { cantrips: ['poison-spray'], atThree: 'ray-of-sickness', atFive: 'hold-person' },
+  Chthonic: { cantrips: ['chill-touch'], atThree: 'false-life', atFive: 'ray-of-enfeeblement' },
+  Infernal: { cantrips: ['fire-bolt'], atThree: 'hellish-rebuke', atFive: 'darkness' },
 };
 
 export const DRAGONBORN: SpeciesDefinition = {
@@ -86,8 +188,8 @@ export const DRAGONBORN: SpeciesDefinition = {
       id: 'dragonborn:draconic-ancestry',
       name: 'Draconic Ancestry',
       level: 1,
-      automation: 'manual',
-      note: 'Half of what the chosen dragon decides is applied, which is why this is not marked as executed. The Damage Resistance trait reads this choice and the damage type printed beside the dragon, and applies the Resistance. The Breath Weapon is written in terms of the same choice and none of it is applied - see its own note - and the appearance the trait also decides is fiction the DM narrates.',
+      automation: 'engine',
+      note: 'The trait asks which dragon and publishes the table printed beside it, and both are executed: the choice is recorded on the character, and the Draconic Ancestors column - the damage type each dragon decides - is read off this feature by every trait written as "determined by your Draconic Ancestry", which is what `choiceFrom` names and what a gated grant reads. The Damage Resistance trait does exactly that. What the Breath Weapon still lacks is the Breath Weapon\'s own - its area, its save DC and its uses are recorded on its note - and the appearance the dragon also decides is fiction the DM narrates.',
       choice: { kind: 'option', choose: 1, from: Object.keys(DRACONIC_ANCESTORS) },
       optionMeans: meansDamage(DRACONIC_ANCESTORS),
     },
@@ -181,8 +283,9 @@ export const DWARF: SpeciesDefinition = {
       id: 'dwarf:dwarven-toughness',
       name: 'Dwarven Toughness',
       level: 1,
-      automation: 'manual',
-      note: 'Not applied: "Your Hit Point maximum increases by 1, and it increases by 1 again whenever you gain a level" needs a feature that raises the hit point maximum, which the engine does not have - Draconic Resilience wants the same thing and says so. A DM adds one hit point per character level.',
+      automation: 'engine',
+      note: 'The trait is one sentence and the sentence is applied: "Your Hit Point maximum increases by 1, and it increases by 1 again whenever you gain a level" is a hit-point-maximum grant read by planCharacter, so a level 1 Dwarf is one hit point above the class table and a level 5 Dwarf is five - and advanceCharacter hands over the level\'s own hit points and this one more, because it asks what the maximum has become rather than adding a number twice. The levels counted are the character\'s, which is what the sentence says: a Dwarf who multiclasses gains the hit point for every level of either class.',
+      grants: { kind: 'hit-point-maximum', flat: 1, perLevel: 'character' },
     },
     {
       id: 'dwarf:stonecunning',
@@ -218,17 +321,29 @@ export const ELF: SpeciesDefinition = {
       name: 'Elven Lineage',
       level: 1,
       automation: 'manual',
-      note: 'One of the three level 1 benefits is applied and the rest are the DM, which is why this is not marked as executed. The Wood Elf "Speed increases to 35 feet" is five feet of standing Speed, granted only to the lineage that chose it and read by speedOf like any other. The Drow "range of your Darkvision increases to 120 feet" is a sense the engine now reads, and it is still not applied here: a feature carries at most one grant, this one is already the Wood Elf\'s Speed, and there is no second option gate to hang a Drow sense on. A DM gives the Drow the further sixty feet. Neither the cantrip each lineage knows nor the level 3 and level 5 spells that are always prepared and free once per Long Rest are applied either: the engine gathers a spells grant only from the features of a class that casts, so a species cannot grant one.',
+      note: 'Every lineage\'s benefits are applied but one sentence, which is why this is not marked as executed. The Wood Elf "Speed increases to 35 feet" is five feet of standing Speed and the Drow "range of your Darkvision increases to 120 feet" is a sense at its own range, each granted only to the lineage that chose it. The cantrip each lineage knows is granted outright, and the level 3 and level 5 spells arrive at those character levels, always prepared, free once before a Long Rest and castable with any slot the Elf has - all of them cast off the Intelligence, Wisdom or Charisma this trait asks the player to choose. What is left is the High Elf alone: "whenever you finish a Long Rest, you can replace that cantrip with a different cantrip from the Wizard spell list" is an option re-chosen on a rest, and nothing rewires a grant at the table.',
       choice: { kind: 'option', choose: 1, from: ['Drow', 'High Elf', 'Wood Elf'] },
-      grants: {
-        kind: 'standing',
-        reach: 'self',
-        // SRD: an Elf's Speed is 30 and the Wood Elf's "increases to 35 feet",
-        // so the grant is the difference — and only for the lineage that took
-        // it, which is what `onlyIfChoice` says.
-        onlyIfChoice: 'Wood Elf',
-        effects: [{ kind: 'speed', feet: 5 }],
-      },
+      grants: [
+        {
+          kind: 'standing',
+          reach: 'self',
+          // SRD: an Elf's Speed is 30 and the Wood Elf's "increases to 35
+          // feet", so the grant is the difference, and only for the lineage
+          // that took it, which is what `onlyIfChoice` says.
+          onlyIfChoice: 'Wood Elf',
+          effects: [{ kind: 'speed', feet: 5 }],
+        },
+        {
+          kind: 'standing',
+          reach: 'self',
+          // "The range of your Darkvision increases to 120 feet" - the whole
+          // range rather than the difference, because `sensesOf` takes the
+          // furthest of what a creature holds and the Elf already has sixty.
+          onlyIfChoice: 'Drow',
+          effects: [{ kind: 'sense', sense: 'darkvision', feet: 120 }],
+        },
+        ...lineageSpells('elf:elven-lineage', ELVEN_SPELLS),
+      ],
     },
     {
       id: 'elf:fey-ancestry',
@@ -326,8 +441,9 @@ export const GNOME: SpeciesDefinition = {
       name: 'Gnomish Lineage',
       level: 1,
       automation: 'manual',
-      note: 'The lineage is recorded and its benefits are the DM. Both options are spells - the Forest Gnome Minor Illusion and a Speak with Animals free a Proficiency Bonus of times a day, the Rock Gnome Mending and Prestidigitation and the clockwork device - and a species feature cannot grant a spell, because the engine gathers a spells grant only from the features of a class that casts.',
+      note: 'The cantrips each option knows are applied and the rest is the DM, which is why this is not marked as executed. A Forest Gnome knows Minor Illusion and a Rock Gnome knows Mending and Prestidigitation, granted only to the option chosen and cast off the Intelligence, Wisdom or Charisma this trait asks for. Two sentences are left. The Forest Gnome also has Speak with Animals prepared and casts it "without a spell slot a number of times equal to your Proficiency Bonus", which is not one of the three ways the engine sizes a pool. And the Rock Gnome\'s clockwork device is an object with its own Armour Class, hit point and Bonus Action that nothing in the engine creates.',
       choice: { kind: 'option', choose: 1, from: ['Forest Gnome', 'Rock Gnome'] },
+      grants: lineageSpells('gnome:gnomish-lineage', GNOMISH_SPELLS),
     },
   ],
 };
@@ -344,7 +460,7 @@ export const GOLIATH: SpeciesDefinition = {
       name: 'Giant Ancestry',
       level: 1,
       automation: 'manual',
-      note: 'The chosen boon is recorded and none of the six is applied, and for two different reasons. Four of them are mechanisms the engine does not have: a teleport on a Bonus Action, extra damage a feature adds to a hit of the holder own choosing, a Speed reduction until the start of your next turn, and the Prone condition given on a hit. Stone\'s Endurance is not one of those - "take a Reaction to roll 1d12, add your Constitution modifier and reduce the damage by that total" is the shape Uncanny Dodge already answers the damage window with - and it is still not wired, because a Reaction grant has no way to say it belongs to one option of six (only a standing grant can), and because "a number of times equal to your Proficiency Bonus" is not one of the three ways the engine sizes a pool. Storm\'s Thunder, which deals damage back rather than reducing it, is a mechanism that really is absent.',
+      note: 'The chosen boon is recorded and none of the six is applied, and for two different reasons. Four of them are mechanisms the engine does not have: a teleport on a Bonus Action, extra damage a feature adds to a hit of the holder own choosing, a Speed reduction until the start of your next turn, and the Prone condition given on a hit. Stone\'s Endurance is not one of those - "take a Reaction to roll 1d12, add your Constitution modifier and reduce the damage by that total" is the shape Uncanny Dodge already answers the damage window with - and it is still not wired: a Reaction grant can say it belongs to one option of six now, and "a number of times equal to your Proficiency Bonus" is not one of the three ways the engine sizes a pool, so the uses it is limited to cannot be counted. Storm\'s Thunder, which deals damage back rather than reducing it, is a mechanism that really is absent.',
       choice: {
         kind: 'option',
         choose: 1,
@@ -556,25 +672,34 @@ export const TIEFLING: SpeciesDefinition = {
       id: 'tiefling:fiendish-legacy',
       name: 'Fiendish Legacy',
       level: 1,
-      automation: 'manual',
-      note: 'The Resistance each legacy names is applied and the rest is the DM, which is why this is not marked as executed. The choice is a legacy rather than a damage type, and the legacy names one - Poison, Necrotic or Fire - so the trait declares what each of its options means and the grant reads the type out of that table. The cantrip beside it, and the level 3 and level 5 spells, reach nothing: the engine gathers a spells grant only from the features of a class that casts, so a species cannot grant one, and the spellcasting ability this trait chooses has nowhere to be recorded.',
+      automation: 'engine',
+      note: 'The whole table is applied. The choice is a legacy rather than a damage type, and the legacy names one - Poison, Necrotic or Fire - so the trait declares what each of its options means and the Resistance reads the type out of that table. The other three columns are spells: the cantrip the legacy knows is granted outright, and the level 3 and level 5 spells arrive at those character levels, always prepared, castable once without a slot before a Long Rest gives the casting back, and castable with any slot the holder has - which a Fighter has none of and a Wizard has. Each of them is cast off the Intelligence, Wisdom or Charisma this trait asks the player to choose.',
       choice: { kind: 'option', choose: 1, from: Object.keys(FIENDISH_LEGACIES) },
       optionMeans: meansDamage(FIENDISH_LEGACIES),
-      grants: {
-        kind: 'standing',
-        reach: 'self',
-        // The choice is on this feature, so the grant names no other — what it
-        // needed was the table, which turns a legacy into a damage type.
-        effects: [{ kind: 'damage-resistance', damageTypes: [] }],
-        damageTypesFromChoice: true,
-      },
+      grants: [
+        {
+          kind: 'standing',
+          reach: 'self',
+          // The choice is on this feature, so the grant names no other — what
+          // it needed was the table, which turns a legacy into a damage type.
+          effects: [{ kind: 'damage-resistance', damageTypes: [] }],
+          damageTypesFromChoice: true,
+        },
+        ...lineageSpells('tiefling:fiendish-legacy', FIENDISH_SPELLS),
+      ],
     },
     {
       id: 'tiefling:otherworldly-presence',
       name: 'Otherworldly Presence',
       level: 1,
-      automation: 'manual',
-      note: 'Not applied: knowing the Thaumaturgy cantrip is a spells grant the engine gathers only from the features of a class that casts, so a species feature granting one reaches no spellcasting route and the spellcasting ability the Fiendish Legacy trait chose has nowhere to be recorded. A DM lets the Tiefling cast it.',
+      automation: 'engine',
+      note: 'The trait is two sentences and both are applied: the Thaumaturgy cantrip is granted to a holder who may cast nothing else at all, and "when you cast it with this trait, the spell uses the same spellcasting ability you use for your Fiendish Legacy trait" is what naming that trait says - the ability is one question, asked on the legacy and read here rather than asked twice.',
+      grants: {
+        kind: 'spells',
+        fixed: ['thaumaturgy'],
+        // Whose answer, rather than a second question: the legacy asked it.
+        choiceFrom: 'tiefling:fiendish-legacy',
+      },
     },
   ],
 };
@@ -826,8 +951,9 @@ export const GENERAL_FEATS: readonly FeatDefinition[] = [
  * which mechanic is missing rather than "not automated". Truesight's is the
  * closest to expressible and still is not: `sense` is a standing grant the
  * vocabulary has, and a feat carries **one** grant, which this feat has
- * already spent on the ceiling — the `a-feature-that-carries-a-second-grant`
- * shape, arriving at a feat's door.
+ * already spent on the ceiling. A *feature* carries as many as it needs now;
+ * `FeatDefinition.grants` is still one, because no SRD feat below level 19
+ * wants a second and a feat goes through none of the passes a feature does.
  */
 export const EPIC_BOON_FEATS: readonly FeatDefinition[] = [
   {

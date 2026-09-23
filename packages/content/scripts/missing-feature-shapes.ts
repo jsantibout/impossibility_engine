@@ -62,7 +62,7 @@
  */
 
 import { SRD_CONTENT } from '@ie/content';
-import type { FeatureDefinition } from '@ie/engine';
+import { featureGrants, type FeatureDefinition } from '@ie/engine';
 import {
   ITEM_SHAPES,
   MISSING_SHAPES,
@@ -97,7 +97,7 @@ export const FEATURE_SHAPES = {
   'a-pool-refilled-to-a-floor':
     'a recovery that tops a pool up to a number rather than giving back a share of it. `Recovery`\'s `upTo` in packages/engine/src/progression.ts is half the class level, half the maximum, or all, and the SRD prints a fourth shape twice — "until you have two", "until you have 4 if you have 3 or fewer" — where what is regained depends on what is left rather than on the pool\'s size.',
   'a-resource-traded-for-another':
-    'one resource spent to buy another. The conversion between two **pools** is built: the `trade` grant in packages/engine/src/progression.ts is "One resource spent to buy another", a list because "a feature carries one grant and the SRD prints two directions in one feature", and Wild Resurgence spends a Wild Shape use for a level 1 slot and a slot for a use. Spell slots on the **bought** end are built too, in both shapes the book prints: a slot whose level the caller names off a printed price table, and several inside a budget on their combined level, which are Font of Magic\'s Created Spell Slots and Arcane Recovery. What is still unsaid is everything either end of which is not a pool or a slot — Sneak Attack dice forgone to buy an effect, a mode given up for a harder hit, a cheaper action bought with a Focus Point — and the one trade the grant\'s own closed vocabulary still refuses: "a trade can never mint a use above a pool\'s maximum", so a slot a class table never printed is refused rather than given, which is the half of Font of Magic\'s create that waits on a ruling. The limit is no longer one of them: `ResourceTradeGrant.limit` carries an `unlimited` member, and Font of Inspiration, Sorcery Incarnate and Holy Nimbus each spend through it.',
+    'one resource spent to buy another. The conversion between two **pools** is built: the `trade` grant in packages/engine/src/progression.ts is "One resource spent to buy another", a list because "the SRD prints two directions in one feature", and Wild Resurgence spends a Wild Shape use for a level 1 slot and a slot for a use. Spell slots on the **bought** end are built too, in both shapes the book prints: a slot whose level the caller names off a printed price table, and several inside a budget on their combined level, which are Font of Magic\'s Created Spell Slots and Arcane Recovery. What is still unsaid is everything either end of which is not a pool or a slot — Sneak Attack dice forgone to buy an effect, a mode given up for a harder hit, a cheaper action bought with a Focus Point — and the one trade the grant\'s own closed vocabulary still refuses: "a trade can never mint a use above a pool\'s maximum", so a slot a class table never printed is refused rather than given, which is the half of Font of Magic\'s create that waits on a ruling. The limit is no longer one of them: `ResourceTradeGrant.limit` carries an `unlimited` member, and Font of Inspiration, Sorcery Incarnate and Holy Nimbus each spend through it.',
   'a-creature-swapped-for-another-stat-block':
     'a creature whose game statistics are **replaced** by another block\'s, for as long as it holds the form. The neighbouring shape is a summons and this is not one: `a-stat-block-created-mid-fight` puts a second combatant on the field, while SRD Wild Shape leaves one creature standing under two sheets and names the half that survives line by line — "Your game statistics are replaced by the Beast\'s stat block, but you retain your creature type; Hit Points; Hit Point Dice; Intelligence, Wisdom, and Charisma scores; class features; languages; and feats". `docs/design/characters-and-equipment.md` holds the one direction that exists, which "turns a parsed stat block into a fightable creature" that had no sheet before; nothing lays a block over a character who already has one, and nothing takes it off again. The owner\'s ruling of 2026-09-20 settled the four questions the swap raises — gear merges, the block\'s Armour Class always wins, an oversized form is the forced-movement rule, and forms are chosen at the start of a Long Rest — so what is left here is the mechanism rather than the judgement.',
   'a-casting-paid-for-out-of-a-feature-pool':
@@ -110,10 +110,8 @@ export const FEATURE_SHAPES = {
     'a saving throw DC a feature computes for itself. A feature\'s option rolls against its holder\'s spell save DC, and `PoolOption` in packages/engine/src/standing.ts says whose: "The **granting class\'s** ability, resolved at creation, because a multiclassed holder has more than one and the feature belongs to exactly one of them." A species trait belongs to no class and casts nothing — the same declaration goes on, "Null where the granting class casts nothing at all" — so SRD Breath Weapon\'s "DC 8 plus your Constitution modifier and Proficiency Bonus" is a formula the vocabulary cannot name, and what it would fall back to is an item\'s.',
   'a-bonus-an-ability-modifier-sizes':
     'a number added to a roll that is read off the holder\'s own sheet. Two grants do it and each answers for one family: `save-bonus` in packages/engine/src/standing.ts is Aura of Protection, "the *holder\'s* modifier, read off their sheet rather than the beneficiary\'s", and `check-bonus` beside it is the two Orders\' bonus over the skills a feature names. `flat-bonus` beside them is "Flat, and only flat", so what is still unsaid is the third family: a Charisma bonus to **attack rolls**, which nothing derives a number for.',
-  'a-feature-that-carries-a-second-grant':
-    'one feature that must do two mechanical things at once. `FeatureDefinition.grants` is a single `FeatureGrant`, and `docs/design/characters-and-equipment.md` already names a victim — "Disciplined Survivor\'s reroll needs a feature to carry two grants". A species trait that grants a Speed to one lineage and a sense to another, and a class feature that is both a prepared spell and a pool of free castings, are the same absence.',
-  'a-grant-gated-on-one-option-of-a-choice':
-    'a grant that applies only when the player picked a particular option. `onlyIfChoice` in packages/engine/src/progression.ts is that gate and it lives on the `standing` grant alone, written for the three features SRD prints "You gain one of the following options of your choice" on — "only one of the options is this grant. A feature whose chosen option is the other one grants nothing" — so an option whose benefit is a pool, a Reaction, a proficiency or a spell has nowhere to hang.',
+  'a-second-question-one-feature-asks':
+    'a feature that asks the player **two** things. packages/engine/src/progression.ts gives a feature one question — “What the player must decide when they gain it” — and the answer is stored under the feature’s own id, so one feature holds one answer list and every grant written in terms of a choice reads that one. SRD Divine Order and Primal Order each print two under one heading: which order, and — for one of the two orders — which extra cantrip from the class list. The gate that hangs a grant on the order chosen is built; the cantrip still cannot be granted, because the feature has already spent its question and a spells grant with no fixed list is compiled from the answer to it.',
   'a-feature-that-rewrites-another-features-rule':
     'a later feature that changes an earlier one. The engine allows exactly five restatements and each arrived with its sentence — a `critical-range` threshold restated, a `lifts-conditions` list lengthened, `widens-reaction` which packages/engine/src/progression.ts calls "A second feature restating the first rather than a second mechanism", `executedBy` for a step in another feature\'s table, and the pool field the same file calls "A **later feature** that rewrites this pool\'s recovery", declared on the pool and gated on the feature whose sentence moves it. A feature that changes another one\'s **duration**, or what its uses buy, is a sixth and has no member.',
   'an-option-re-chosen-on-a-rest':
@@ -144,8 +142,6 @@ export const FEATURE_SHAPES = {
     'a constant the engine applies to every creature, which one feature is meant to bend. A Long Rest is eight hours, an attunement limit is a number inside a command, and moving through an occupied space wants two sizes of difference. `docs/design/characters-and-equipment.md` keeps the list of what the attunement rules still owe — "what ends attunement besides a command — death, losing the item, another creature attuning to it" — and every one of these is that same shape: a rule the engine holds rather than the sheet, so a trait bending it for its holder alone has nothing to bend. **Carrying capacity used to be named here and is not any more**, in both directions: the objects batch built the table, and a `carrying-capacity` grant now moves which row of it a creature reads — which is the shape whole, and is what SRD Powerful Build walks through.',
   'a-spell-list-that-is-not-your-class-list':
     'a spell known or prepared from **another class\'s** list. `checkContent` refuses a fixed grant naming nothing and creation checks every chosen spell against the list of the class that is choosing it, which is right for eleven classes and wrong for the two features the SRD writes the exception on. `docs/design/content.md` states what a class list is for — "`spellEntry(id)` — the spell\'s identity and class lists (the SRD index shape)" — and there is no second list a feature may widen it to.',
-  'a-spell-a-source-that-does-not-cast-grants':
-    'a spell granted by something with no spellcasting of its own. The engine gathers a `spells` grant from the features of a class that casts, so a species trait offering a cantrip, a lineage with two levelled spells and a background\'s free daily casting all reach no route. `docs/design/content.md` draws the boundary the grant sits on — "A definition with no entry still exists and can be cast; it is on nobody\'s class list until an entry says whose" — and what is missing here is the other end: a caster with no class to hang the casting on.',
   'a-concentration-rule-that-names-its-casting':
     'a rule about Concentration that is true of **one** spell. The Concentration save reads the damage that threatened it and knows nothing about which casting is at risk, which is the same absence `docs/design/rolls-and-damage.md` records for a saving throw — "nothing records what a save was against". A Ranger who keeps Concentration on Hunter\'s Mark and on nothing else cannot be told apart from one who keeps it on everything.',
   'a-feature-that-changes-what-a-casting-costs':
@@ -405,8 +401,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
     },
     {
       clause: 'Thaumaturge grants an extra cantrip',
-      why: 'a-grant-gated-on-one-option-of-a-choice',
-      note: 'a spells grant is expressible and gating it on the option chosen is not: only a standing grant carries `onlyIfChoice`.',
+      why: 'a-second-question-one-feature-asks',
+      note: 'the gate landed and this did not: a spells grant gated on Thaumaturge is expressible now, and which cantrip is a second question this feature has no room for — it has already asked which order.',
     },
     {
       clause: 'That is a standing check bonus gated on the option chosen',
@@ -495,8 +491,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
     },
     {
       clause: 'Magician grants a cantrip',
-      why: 'a-grant-gated-on-one-option-of-a-choice',
-      note: 'as Thaumaturge: the spells grant exists and the gate does not.',
+      why: 'a-second-question-one-feature-asks',
+      note: 'as Thaumaturge, and for the same reason on a second class: the gate exists and the second question does not.',
     },
     {
       clause: 'That is a standing check bonus gated on the option chosen',
@@ -1051,11 +1047,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       why: 'a-benefit-that-runs-for-a-printed-span',
       note: 'a printed span rather than an extended turn boundary.',
     },
-    {
-      clause: 'an activation this feature has no second grant to carry beside the pool',
-      why: 'a-feature-that-carries-a-second-grant',
-      note: 'the pool is declared now, and the activation is the half a feature has no second grant for.',
-    },
   ],
   'sorcerer:metamagic': [
     {
@@ -1096,18 +1087,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'The free Metamagic option during Innate Sorcery',
       why: 'a-feature-that-rewrites-another-features-rule',
       note: 'a capstone changing what an earlier feature costs while a third is running.',
-    },
-  ],
-  'draconic-sorcery:draconic-resilience': [
-    {
-      clause: 'The Armour Class half is applied',
-      why: 'expressible',
-      note: 'an unarmoured-defense grant, the third feature to want that shape.',
-    },
-    {
-      clause: 'needs a feature that raises the hit point maximum',
-      why: 'a-hit-point-maximum-a-spell-moves',
-      note: 'two absences, and only the first is this shape’s. A feature’s maximum is a column of the class table read by `planCharacter` rather than a grant hung on a creature, so it needs a `FeatureGrant` of its own — which is what Dwarven Toughness waits on too. **And this feature could not carry one even then**: `FeatureDefinition.grants` is singular, the slot already holds the `unarmored-defense` grant that applies the Armour Class half, and the SRD prints both sentences under one heading. That is the same wall the note on Innate Sorcery records — "an activation this feature has no second grant to carry beside the pool" — and it is a decision about the vocabulary rather than a missing mechanic.',
     },
   ],
   'draconic-sorcery:dragon-wings': [
@@ -1158,8 +1137,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
     },
     {
       clause: 'One free casting each of a level 6, 7, 8 and 9 spell',
-      why: 'a-feature-that-carries-a-second-grant',
-      note: 'and the spells are chosen at four different levels on one feature, which one grant cannot hold.',
+      why: 'a-second-question-one-feature-asks',
+      note: 'four grants on one feature is expressible now, and four questions is not: the spell is the player’s at each of the four levels, and a feature asks one thing when it is gained.',
     },
   ],
   'warlock:eldritch-master': [
@@ -1244,23 +1223,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
 
   // — Species and backgrounds. Read here; `origins.ts` is somebody else's file. —
-  'dragonborn:draconic-ancestry': [
-    {
-      clause: 'The Damage Resistance trait reads this choice',
-      why: 'expressible',
-      note: 'the Resistance the chosen dragon names, applied through the option table.',
-    },
-    {
-      clause: 'the appearance the trait also decides is fiction the DM narrates',
-      why: 'table',
-      note: 'what a Dragonborn looks like.',
-    },
-    {
-      clause: 'The Breath Weapon is written in terms of the same choice and none of it is applied',
-      why: 'a-grant-gated-on-one-option-of-a-choice',
-      note: 'the second reader of this one choice, which would need its own gated grant on its own feature.',
-    },
-  ],
   'dragonborn:breath-weapon': [
     {
       clause: 'Replacing one of the Attack action attacks',
@@ -1295,13 +1257,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'a printed span rather than an extended turn boundary.',
     },
   ],
-  'dwarf:dwarven-toughness': [
-    {
-      clause: 'needs a feature that raises the hit point maximum',
-      why: 'a-hit-point-maximum-a-spell-moves',
-      note: 'the spell half is built and this is not it. A spell’s maximum is a grant hung on a creature with a source and an ending; a feature’s is what the class table says the maximum **is**, recomputed by every level-up and never taken away — so it belongs in `planCharacter`’s own arithmetic, behind a `FeatureGrant` naming a column of the table. Draconic Resilience wants the same thing, which is what makes it a shape.',
-    },
-  ],
   'dwarf:stonecunning': [
     {
       clause: 'The sense is switched on for 10 minutes by a Bonus Action rather than had',
@@ -1321,19 +1276,9 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
   'elf:elven-lineage': [
     {
-      clause: 'read by speedOf like any other',
-      why: 'expressible',
-      note: 'the Wood Elf’s five feet, gated on the lineage chosen.',
-    },
-    {
-      clause: 'a feature carries at most one grant',
-      why: 'a-feature-that-carries-a-second-grant',
-      note: 'the Drow Darkvision, which is a sense the engine reads and has nowhere on this feature to sit.',
-    },
-    {
-      clause: 'the engine gathers a spells grant only from the features of a class that casts',
-      why: 'a-spell-a-source-that-does-not-cast-grants',
-      note: 'the cantrip and the two levelled spells each lineage knows.',
+      clause: 'is an option re-chosen on a rest',
+      why: 'an-option-re-chosen-on-a-rest',
+      note: 'the High Elf alone: every other clause of every lineage is applied, and what is left is a cantrip swapped for another one whenever the Elf finishes a Long Rest, which nothing rewires a compiled grant for.',
     },
   ],
   'elf:trance': [
@@ -1350,14 +1295,14 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
   'gnome:gnomish-lineage': [
     {
-      clause: 'a species feature cannot grant a spell',
-      why: 'a-spell-a-source-that-does-not-cast-grants',
-      note: 'both options are spells, so this is the whole trait.',
+      clause: 'which is not one of the three ways the engine sizes a pool',
+      why: 'a-pool-the-proficiency-bonus-sizes',
+      note: 'the Forest Gnome’s Speak with Animals, whose free castings are counted in Proficiency Bonuses; the cantrips either option knows are granted.',
     },
     {
-      clause: 'free a Proficiency Bonus of times a day',
-      why: 'a-pool-the-proficiency-bonus-sizes',
-      note: 'and the Forest Gnome’s limit, sized the way no species can be.',
+      clause: 'an object with its own Armour Class, hit point and Bonus Action that nothing in the engine creates',
+      why: 'an-object-with-statistics-of-its-own',
+      note: 'the Rock Gnome’s clockwork device, which is the spell map’s own id: a thing with an Armour Class and a Hit Point that is not a creature.',
     },
   ],
   'goliath:giant-ancestry': [
@@ -1375,11 +1320,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'the Prone condition given on a hit',
       why: 'expressible',
       note: 'the clause names the trigger, which is the half with no shape: hanging Prone is what a pool option already does.',
-    },
-    {
-      clause: 'a Reaction grant has no way to say it belongs to one option of six',
-      why: 'a-grant-gated-on-one-option-of-a-choice',
-      note: 'Stone’s Endurance, whose Reaction is otherwise the shape Uncanny Dodge already answers with.',
     },
     {
       clause: 'is not one of the three ways the engine sizes a pool',
@@ -1435,25 +1375,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'is not one of the three ways the engine sizes a pool',
       why: 'a-pool-the-proficiency-bonus-sizes',
       note: 'the uses, sized in Proficiency Bonuses like every other origin trait with a limit.',
-    },
-  ],
-  'tiefling:fiendish-legacy': [
-    {
-      clause: 'the grant reads the type out of that table',
-      why: 'expressible',
-      note: 'the Resistance each legacy names, through the option-meaning table.',
-    },
-    {
-      clause: 'The cantrip beside it, and the level 3 and level 5 spells, reach nothing',
-      why: 'a-spell-a-source-that-does-not-cast-grants',
-      note: 'and the spellcasting ability the trait chooses, which has nowhere to be recorded.',
-    },
-  ],
-  'tiefling:otherworldly-presence': [
-    {
-      clause: 'a species feature granting one reaches no spellcasting route',
-      why: 'a-spell-a-source-that-does-not-cast-grants',
-      note: 'Fiendish Legacy’s blocker on a second trait.',
     },
   ],
   // — the feats, which no population had until gate G1 ————————————————————
@@ -1525,10 +1446,12 @@ export const POOL_SPENDING_MEMBERS = [
  * what lets four features join the map with no list to keep.
  */
 export const isBarePool = (feature: FeatureDefinition): boolean => {
-  const grant = feature.grants as { kind?: string } | undefined;
-  if (grant?.kind !== 'pool') return false;
-  return POOL_SPENDING_MEMBERS.every(
-    (member) => (grant as Record<string, unknown>)[member] === undefined,
+  const pools = featureGrants(feature).filter((grant) => grant.kind === 'pool');
+  if (pools.length === 0) return false;
+  return pools.every((grant) =>
+    POOL_SPENDING_MEMBERS.every(
+      (member) => (grant as unknown as Record<string, unknown>)[member] === undefined,
+    ),
   );
 };
 

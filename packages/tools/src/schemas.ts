@@ -441,6 +441,10 @@ export const characterChoicesSchema = z.object({
   equipped: z.array(z.string().min(1)),
   hitPoints: hitPointChoice,
   featureChoices: z.record(z.string().min(1), z.array(z.string())),
+  // The spellcasting ability an origin trait asks for, keyed by the trait that
+  // asked — SRD's lineages and legacies grant spells to a character who may
+  // have no class to cast them with, and print a choice of three abilities.
+  featureSpellcasting: z.record(z.string().min(1), abilitySchema).optional(),
   feats: z.record(z.string().min(1), featChoice),
   dmGrants: dmGrants.optional(),
 });

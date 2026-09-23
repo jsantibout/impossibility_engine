@@ -492,6 +492,7 @@ const tiefling = (name: string): Record<string, unknown> => ({
     'tiefling:fiendish-legacy': ['Infernal'],
     'evoker:evocation-savant': ['burning-hands', 'scorching-ray'],
   },
+  featureSpellcasting: { 'tiefling:fiendish-legacy': 'cha' },
   feats: {
     'sage:magic-initiate-wizard': {
       featId: 'magic-initiate',

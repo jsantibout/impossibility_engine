@@ -69,6 +69,7 @@ import {
   cumulativeFeatures,
   rowAt,
   slotsAt,
+  featureGrants,
   type ClassDefinition,
   type EquipmentEntry,
   type ClassLevelRow,
@@ -76,6 +77,7 @@ import {
   type FeatureDefinition,
   type PoolOptionGrant,
   type FeatureGrant,
+  type GatedFeatureGrant,
   type HealGrant,
   type SpellcastingStyle,
   type SubclassDefinition,
@@ -256,6 +258,22 @@ export interface CharacterChoices {
   readonly hitPoints: HitPointChoice;
   /** Choices a feature asks for, keyed by feature id. */
   readonly featureChoices: Readonly<Record<string, readonly string[]>>;
+  /**
+   * The spellcasting ability a feature that grants a spell asked for, keyed by
+   * the feature that asked.
+   *
+   * `FeatChoice.spellcastingAbility`'s twin, on the other of the two sources
+   * that grant a spell to somebody who may cast nothing. SRD Fiendish Legacy:
+   * "Intelligence, Wisdom, or Charisma is your spellcasting ability for the
+   * spells you cast with this trait (choose the ability when you select the
+   * legacy)." A class's spells need none of this, because the class prints the
+   * ability; a species prints a choice of three.
+   *
+   * Keyed by the **asking** feature, so a sibling written in terms of it reads
+   * one answer rather than the player giving two — see `GrantGate.choiceFrom`,
+   * which is where Otherworldly Presence says whose ability it uses.
+   */
+  readonly featureSpellcasting?: Readonly<Record<string, Ability>>;
   /** Feats, keyed by the feature that granted them. */
   readonly feats: Readonly<Record<string, FeatChoice>>;
   /** Required above level 1; see {@link DmGrants}. */
@@ -468,8 +486,7 @@ function abilityPointsFrom(
     }
   };
 
-  const grant = feature.grants;
-  if (grant?.kind === 'ability-score-increase') {
+  for (const grant of grantsOfKind(feature, 'ability-score-increase')) {
     for (const raise of grant.raises ?? []) add(raise.ability, raise.points);
   }
 
@@ -498,7 +515,7 @@ function abilityCeilingFrom(
   choices: CharacterChoices,
   feature: FeatureDefinition,
 ): number | undefined {
-  const own = feature.grants?.kind === 'ability-score-increase' ? feature.grants.maximum : undefined;
+  const own = grantOf(feature, 'ability-score-increase')?.maximum;
   const feat = choices.feats[feature.id];
   const definition = feat === undefined ? null : content.featById(feat.featId);
   const fromFeat =
@@ -711,6 +728,39 @@ function totalLevelOf(choices: CharacterChoices): number {
 }
 
 /**
+ * Every feature beside each grant it carries — the pairs the passes below walk.
+ *
+ * A feature may carry more than one grant, and every compiling pass wants the
+ * same thing: this grant, and the feature it came from, whose id names the
+ * source and whose level reads the class table. Walking the pairs rather than
+ * the features is what kept the two dozen passes from each having to remember
+ * that `grants` is a list now.
+ */
+function* grantsIn(
+  features: readonly FeatureDefinition[],
+): Iterable<readonly [FeatureDefinition, GatedFeatureGrant]> {
+  for (const feature of features) {
+    for (const grant of featureGrants(feature)) yield [feature, grant];
+  }
+}
+
+/** The grants of one kind a feature carries, narrowed to that kind. */
+const grantsOfKind = <K extends FeatureGrant['kind']>(
+  feature: FeatureDefinition | undefined,
+  kind: K,
+): readonly Extract<GatedFeatureGrant, { readonly kind: K }>[] =>
+  featureGrants(feature).filter(
+    (grant): grant is Extract<GatedFeatureGrant, { readonly kind: K }> => grant.kind === kind,
+  );
+
+/** The first grant of one kind a feature carries, or null. */
+const grantOf = <K extends FeatureGrant['kind']>(
+  feature: FeatureDefinition | undefined,
+  kind: K,
+): Extract<GatedFeatureGrant, { readonly kind: K }> | null =>
+  grantsOfKind(feature, kind)[0] ?? null;
+
+/**
  * Every feature the character has, from all four sources — and from every
  * class, at that class's own level.
  *
@@ -732,10 +782,67 @@ function grantedFeatures(content: Content, choices: CharacterChoices, parts: Par
     ...cumulativeFeatures(parts.definition, choices.level),
     ...(parts.subclass === null ? [] : cumulativeFeatures(parts.subclass, choices.level)),
     ...extra,
-    ...cumulativeFeatures(parts.species, choices.level),
-    ...cumulativeFeatures(parts.background, choices.level),
-  ];
+    ...originFeatures(choices, parts),
+  ].map((feature) => withGateMet(feature, choices));
 }
+
+/**
+ * The species' and the background's own features, at the **character's** level.
+ *
+ * A class table is read at that class's level and an origin's is not: SRD
+ * writes "When you reach character levels 3 and 5" on the lineages and the
+ * legacies, and a Fighter 3 / Rogue 2 has reached level 5 of both. Gathered
+ * once, here, because the spells an origin grants are read from this list and
+ * everything else is read from the whole.
+ */
+function originFeatures(choices: CharacterChoices, parts: Parts): readonly FeatureDefinition[] {
+  const level = totalLevelOf(choices);
+  return [...cumulativeFeatures(parts.species, level), ...cumulativeFeatures(parts.background, level)];
+}
+
+/**
+ * One feature, with a grant whose option was not taken removed.
+ *
+ * **The one place a gate is applied, and the reason it is one place.** SRD
+ * writes "You gain one of the following options of your choice" over every
+ * kind of grant there is, and a gate read inside the standing loop was a gate
+ * the pools, the Reactions, the spells and the activations each had to
+ * remember — which is a rule that holds until the next pass is written. Every
+ * one of those passes walks the list this returns, so the grant an unchosen
+ * option belongs to is not there to be compiled.
+ *
+ * The feature itself stays, and so does the question it asked: a Cleric who
+ * took Protector has Divine Order, has answered it, and has none of what
+ * Thaumaturge grants. That is different from granting something inert.
+ */
+function withGateMet(feature: FeatureDefinition, choices: CharacterChoices): FeatureDefinition {
+  const all = featureGrants(feature);
+  const level = totalLevelOf(choices);
+  // Where the choice a grant reads was made: its own feature unless the grant
+  // names a sibling, which is how the SRD writes a species — one trait asks
+  // which ancestry, lineage or legacy you are and the later ones are written
+  // in terms of it. The content validator has already held the name to a
+  // sibling that offers the option.
+  const kept = all.filter((grant) => {
+    // And the other gate on a grant, which is a level rather than an option:
+    // SRD's lineages and legacies are chosen at level 1 and hand over a spell
+    // at character levels 3 and 5. Applied here so that every pass — the
+    // spells, the pools they are cast out of, the sheet — agrees about what
+    // has arrived.
+    if (grant.kind === 'spells' && grant.fromLevel !== undefined && level < grant.fromLevel) {
+      return false;
+    }
+    if (grant.onlyIfChoice === undefined) return true;
+    return (choices.featureChoices[grant.choiceFrom ?? feature.id] ?? []).includes(
+      grant.onlyIfChoice,
+    );
+  });
+  if (kept.length === all.length) return feature;
+  return kept.length === 0 ? withoutGrant(feature) : { ...feature, grants: kept };
+}
+
+/** The same feature with no grant at all, which is what an unchosen option grants. */
+const withoutGrant = ({ grants: _grants, ...rest }: FeatureDefinition): FeatureDefinition => rest;
 
 /**
  * The multiclassing rules, checked before anything is derived from them.
@@ -821,9 +928,8 @@ function choicesGranting(
   kind: FeatureGrant['kind'],
 ): readonly string[] {
   const picked: string[] = [];
-  for (const feature of features) {
-    const grant = feature.grants;
-    if (grant?.kind !== kind) continue;
+  for (const [feature, grant] of grantsIn(features)) {
+    if (grant.kind !== kind) continue;
     // A fixed grant is the feature's own answer; a choice is the player's.
     if (grant.kind === 'spells' && grant.fixed !== undefined) {
       picked.push(...grant.fixed);
@@ -891,6 +997,59 @@ function unclaimedMasteries(
   return warnings;
 }
 
+/**
+ * The spellcasting ability a trait that grants spells asked the player for.
+ *
+ * SRD Fiendish Legacy prints the question once and two traits read the answer,
+ * so a grant may name the feature that asked — the same `choiceFrom` a gate
+ * uses, and for the same reason: one fact, one place, one answer.
+ */
+const spellcastingAbilityFor = (
+  choices: CharacterChoices,
+  feature: FeatureDefinition,
+  grant: { readonly choiceFrom?: string },
+): Ability | undefined => choices.featureSpellcasting?.[grant.choiceFrom ?? feature.id];
+
+/**
+ * A trait that offers a spellcasting ability, and the answer it was given.
+ *
+ * Two refusals, and both would otherwise be silent: a trait nobody answered
+ * grants spells with no ability to cast them off, and an ability the trait
+ * does not offer is the player writing their own sentence — SRD names three
+ * and Strength is not one of them.
+ */
+function checkFeatureSpellcasting(
+  choices: CharacterChoices,
+  features: readonly FeatureDefinition[],
+): CreationProblem[] {
+  const problems: CreationProblem[] = [];
+  for (const feature of features) {
+    // Asked once per feature rather than once per grant: SRD Fiendish Legacy
+    // carries a cantrip and two levelled spells under one question, and a
+    // player who answered it should not be told three times that they did not.
+    const offered = [
+      ...new Set(
+        featureGrants(feature).flatMap((grant) =>
+          grant.kind === 'spells' ? (grant.abilities ?? []) : [],
+        ),
+      ),
+    ];
+    if (offered.length === 0) continue;
+
+    const answer = choices.featureSpellcasting?.[feature.id];
+    if (answer === undefined) {
+      problems.push(
+        problem('missing_feature_spellcasting', 'featureSpellcasting', `${feature.name} casts its spells off ${offered.join(', ')}, and none was chosen`),
+      );
+    } else if (!offered.includes(answer)) {
+      problems.push(
+        problem('unknown_ability', 'featureSpellcasting', `${feature.name} offers ${offered.join(', ')}, and ${answer} is not one of them`),
+      );
+    }
+  }
+  return problems;
+}
+
 function checkFeatureChoices(
   content: Content,
   choices: CharacterChoices,
@@ -898,7 +1057,7 @@ function checkFeatureChoices(
   proficient: ReadonlySet<Skill>,
   weaponCategories: readonly string[],
 ): CreationProblem[] {
-  const problems: CreationProblem[] = [];
+  const problems: CreationProblem[] = [...checkFeatureSpellcasting(choices, features)];
 
   for (const feature of features) {
     const asked = feature.choice;
@@ -1013,7 +1172,7 @@ function checkFeatureChoices(
         // have proficiency**." Expertise without proficiency is not a thing.
         // Found by what the feature grants, not by its id: the Rogue's
         // Expertise is the same rule under a different name.
-        if (feature.grants?.kind === 'expertise' && !proficient.has(picked as Skill)) {
+        if (grantOf(feature, 'expertise') !== null && !proficient.has(picked as Skill)) {
           problems.push(
             problem('expertise_without_proficiency', 'featureChoices', `${feature.name} needs proficiency in ${picked} first`),
           );
@@ -1201,19 +1360,29 @@ function castingClassesOf(content: Content, choices: CharacterChoices): readonly
  * half must not inherit them.
  */
 function classFeatureSpells(content: Content, choices: CharacterChoices, caster: CasterChoices): readonly string[] {
-  return choicesGranting(choices, castingFeaturesOf(content, caster), 'spells');
+  return choicesGranting(choices, castingFeaturesOf(content, choices, caster), 'spells');
 }
 
-/** This class's features and its subclass's, at that class's own level. */
+/**
+ * This class's features and its subclass's, at that class's own level.
+ *
+ * **Gated, like every other list of features a pass compiles from.** This one
+ * is built out of `cumulativeFeatures` rather than out of `grantedFeatures`,
+ * because it is read per casting class — so it has to apply `withGateMet`
+ * itself, or a `spells` grant belonging to an option nobody took would be
+ * granted here and its pool declared nowhere. One function, called by every
+ * list-builder, is what "in one place" means.
+ */
 function castingFeaturesOf(
   content: Content,
+  choices: CharacterChoices,
   caster: CasterChoices,
 ): readonly FeatureDefinition[] {
   const subclass = caster.subclassId === undefined ? null : content.subclassById(caster.subclassId);
   return [
     ...cumulativeFeatures(caster.definition, caster.level),
     ...(subclass === null ? [] : cumulativeFeatures(subclass, caster.level)),
-  ];
+  ].map((feature) => withGateMet(feature, choices));
 }
 
 /**
@@ -1237,13 +1406,13 @@ function castingFeaturesOf(
  */
 function classFeatureFreeCastings(
   content: Content,
+  choices: CharacterChoices,
   caster: CasterChoices,
   ability: Ability,
 ): readonly GrantedSpell[] {
   const granted: GrantedSpell[] = [];
-  for (const feature of castingFeaturesOf(content, caster)) {
-    const grant = feature.grants;
-    if (grant?.kind !== 'spells' || grant.freeCasting === undefined) continue;
+  for (const [feature, grant] of grantsIn(castingFeaturesOf(content, choices, caster))) {
+    if (grant.kind !== 'spells' || grant.freeCasting === undefined) continue;
     granted.push({
       spellId: grant.freeCasting.spell,
       source: feature.id,
@@ -1519,13 +1688,8 @@ function checkFeatureSpellChoices(
   const problems: CreationProblem[] = [];
 
   for (const caster of casters) {
-    const subclass = caster.subclassId === undefined ? null : content.subclassById(caster.subclassId);
-    const features = [
-      ...cumulativeFeatures(caster.definition, caster.level),
-      ...(subclass === null ? [] : cumulativeFeatures(subclass, caster.level)),
-    ];
-    for (const feature of features) {
-      if (feature.choice?.kind !== 'spell' || feature.grants?.kind !== 'spells') continue;
+    for (const feature of castingFeaturesOf(content, choices, caster)) {
+      if (feature.choice?.kind !== 'spell' || grantOf(feature, 'spells') === null) continue;
       const picked = choices.featureChoices[feature.id];
       if (picked === undefined) continue;
       const field = caster.at('featureChoices');
@@ -1865,6 +2029,89 @@ function multiclassHitPoints(content: Content, choices: CharacterChoices, consti
   }
 
   return Math.max(1, total);
+}
+
+/**
+ * Hit points the character's own features add to the class table's total.
+ *
+ * **Part of the maximum rather than a grant hung on the creature**, which is
+ * the whole of why this is here and not in the fold. A casting's maximum is a
+ * loan with a source and an ending; a feature's is what the table says the
+ * maximum *is* — `hpMax - hpMaxAdjustment` — so it is recomputed at every
+ * level and released by nothing. `advanceCharacter` needs no word about it:
+ * it subtracts the unadjusted maximum and asks what the difference is.
+ *
+ * The step is one hit point per level gained **after the one the feature
+ * arrived at**, counted in the levels the grant names: a species trait's are
+ * the character's, and a class feature's are that class's own, which is
+ * `classLevelFor`'s fork and the reason a Sorcerer 3 / Fighter 2 gets three
+ * Sorcerer levels' worth of Draconic Resilience and five character levels'
+ * worth of Dwarven Toughness.
+ */
+function featureHitPoints(
+  choices: CharacterChoices,
+  features: readonly FeatureDefinition[],
+): number {
+  let total = 0;
+  for (const [feature, grant] of grantsIn(features)) {
+    if (grant.kind !== 'hit-point-maximum') continue;
+    total += grant.flat;
+    if (grant.perLevel === undefined) continue;
+    const level =
+      grant.perLevel === 'class' ? classLevelFor(choices, feature.id) : totalLevelOf(choices);
+    total += Math.max(0, level - feature.level);
+  }
+  return total;
+}
+
+/**
+ * Spells a species or a background grants, and the ability they are cast off.
+ *
+ * The gatherer the shape was missing. A class's features are read per casting
+ * class, on that class's own ability; an origin has no ability of its own, so
+ * the trait offers a set and the answer is on the character —
+ * {@link CharacterChoices.featureSpellcasting}, read through the feature that
+ * asked, which may be a sibling.
+ *
+ * A trait with no answer grants nothing rather than guessing at an ability;
+ * `checkFeatureSpellcasting` is what refuses that at the door, so a plan only
+ * reaches here once the question has been answered.
+ */
+function originGrantedSpells(
+  choices: CharacterChoices,
+  origins: readonly FeatureDefinition[],
+): readonly GrantedSpell[] {
+  const granted: GrantedSpell[] = [];
+  for (const [feature, grant] of grantsIn(origins.map((one) => withGateMet(one, choices)))) {
+    if (grant.kind !== 'spells') continue;
+    const ability = spellcastingAbilityFor(choices, feature, grant);
+    if (ability === undefined) continue;
+
+    for (const spellId of grant.fixed ?? []) {
+      granted.push({
+        spellId,
+        source: feature.id,
+        ability,
+        freeCastPool: null,
+        slotCasting: false,
+      });
+    }
+
+    // "You can cast it once without a spell slot ... You can also cast the
+    // spell using any spell slots you have of the appropriate level." Both
+    // halves of one sentence, and the second is off unless the book prints it.
+    const free = grant.freeCasting;
+    if (free !== undefined) {
+      granted.push({
+        spellId: free.spell,
+        source: feature.id,
+        ability,
+        freeCastPool: free.pool,
+        slotCasting: free.withSlots === true,
+      });
+    }
+  }
+  return granted;
 }
 
 /**
@@ -2267,7 +2514,7 @@ function gatherProficiencies(
   // to refuse.
   for (const feature of grantedFeatures(content, choices, parts)) {
     if (feature.choice?.kind !== 'skill') continue;
-    if (feature.grants?.kind === 'expertise') continue;
+    if (grantOf(feature, 'expertise') !== null) continue;
     for (const skill of choices.featureChoices[feature.id] ?? []) {
       add(skill, feature.name, 'featureChoices');
     }
@@ -2420,20 +2667,17 @@ export function planCharacter(
   // Aura Expansion's 30. Resolving the radius once, here, is what stops Aura of
   // Courage and Aura of Devotion disagreeing with Aura of Protection about
   // their own size after level 18.
-  const auraFeet = features.reduce(
-    (widest, feature) =>
-      feature.grants?.kind === 'standing'
-        ? Math.max(widest, feature.grants.auraFeet ?? 0)
-        : widest,
+  const auraFeet = [...grantsIn(features)].reduce(
+    (widest, [, grant]) =>
+      grant.kind === 'standing' ? Math.max(widest, grant.auraFeet ?? 0) : widest,
     0,
   );
 
   const byFeatureId = new Map(features.map((feature) => [feature.id, feature]));
 
   const standing: StandingEffect[] = [];
-  for (const feature of features) {
-    const grant = feature.grants;
-    if (grant?.kind !== 'standing') continue;
+  for (const [feature, grant] of grantsIn(features)) {
+    if (grant.kind !== 'standing') continue;
     // Where the choice this grant reads was made. Its own feature unless the
     // grant names a sibling — which is how the SRD writes a species: one trait
     // asks which ancestry, lineage or legacy you are and the later ones are
@@ -2442,13 +2686,10 @@ export function planCharacter(
     const chooser = byFeatureId.get(grant.choiceFrom ?? feature.id);
     const picked = choices.featureChoices[chooser?.id ?? feature.id] ?? [];
 
-    // SRD "You gain one of the following options of your choice": a feature
-    // whose player took the other option grants nothing at all. Checked before
-    // the effects rather than inside them, because the whole grant belongs to
-    // the option.
-    if (grant.onlyIfChoice !== undefined && !picked.includes(grant.onlyIfChoice)) {
-      continue;
-    }
+    // SRD "You gain one of the following options of your choice" is not asked
+    // here any more: `withGateMet` has already taken the grant off a feature
+    // whose player took the other option, for every kind of grant at once. See
+    // `GrantGate`.
 
     // A feature that only resizes the aura grants no benefit of its own.
     for (const declared of grant.effects ?? []) {
@@ -2513,9 +2754,8 @@ export function planCharacter(
   // switches on with it. The benefits are ordinary standing effects requiring
   // `feature-active`, so nothing about them is special-cased anywhere else.
   const activated: ActivatedFeature[] = [];
-  for (const feature of features) {
-    const grant = feature.grants;
-    if (grant?.kind !== 'activated') continue;
+  for (const [feature, grant] of grantsIn(features)) {
+    if (grant.kind !== 'activated') continue;
 
     activated.push({
       feature: feature.id,
@@ -2605,9 +2845,8 @@ export function planCharacter(
   // it does not own — the same move Improved Critical makes on a threshold,
   // with a union where that one takes a minimum.
   const healingTouch: HealingTouch[] = [];
-  for (const feature of features) {
-    const grant = feature.grants;
-    if (grant?.kind !== 'pool' || grant.touchHeals === undefined) continue;
+  for (const [feature, grant] of grantsIn(features)) {
+    if (grant.kind !== 'pool' || grant.touchHeals === undefined) continue;
 
     healingTouch.push({
       feature: feature.id,
@@ -2620,9 +2859,8 @@ export function planCharacter(
   }
 
   const selfHeals: SelfHealFeature[] = [];
-  for (const feature of features) {
-    const grant = feature.grants;
-    if (grant?.kind !== 'pool' || grant.heals === undefined) continue;
+  for (const [feature, grant] of grantsIn(features)) {
+    if (grant.kind !== 'pool' || grant.heals === undefined) continue;
 
     const heal = healFor(feature.id, grant.heals);
     if (heal === null) continue;
@@ -2658,9 +2896,8 @@ export function planCharacter(
   // other menu keeps, and the one that makes the numbers on the event pinned
   // rather than looked up.
   const budgetPurchases: BudgetPurchase[] = [];
-  for (const feature of features) {
-    const grant = feature.grants;
-    if (grant?.kind !== 'pool' || grant.buysBudget === undefined) continue;
+  for (const [feature, grant] of grantsIn(features)) {
+    if (grant.kind !== 'pool' || grant.buysBudget === undefined) continue;
     for (const purchase of grant.buysBudget) {
       budgetPurchases.push({
         feature: feature.id,
@@ -2697,16 +2934,15 @@ export function planCharacter(
     readonly pool: string;
     readonly options: readonly PoolOptionGrant[];
   }[] = [];
-  for (const feature of features) {
-    const grant = feature.grants;
-    if (grant?.kind === 'pool' && grant.options !== undefined) {
+  for (const [feature, grant] of grantsIn(features)) {
+    if (grant.kind === 'pool' && grant.options !== undefined) {
       menus.push({ host: feature, pool: grant.key, options: grant.options });
       continue;
     }
-    if (grant?.kind !== 'pool-options') continue;
+    if (grant.kind !== 'pool-options') continue;
     const host = features.find((one) => one.id === grant.feature);
-    const hosted = host?.grants;
-    if (host === undefined || hosted?.kind !== 'pool') continue;
+    const hosted = grantOf(host, 'pool');
+    if (host === undefined || hosted === null) continue;
     menus.push({ host, pool: hosted.key, options: grant.options });
   }
 
@@ -2778,9 +3014,8 @@ export function planCharacter(
   // eight they did not. A grant on a feature that asks nothing grants all of
   // its options, which is the homebrew feature with one entry on its menu.
   const castingOptions: CastingOption[] = [];
-  for (const feature of features) {
-    const grant = feature.grants;
-    if (grant?.kind !== 'casting-options') continue;
+  for (const [feature, grant] of grantsIn(features)) {
+    if (grant.kind !== 'casting-options') continue;
 
     const asked = feature.choice?.kind === 'option';
     const picked = choices.featureChoices[feature.id] ?? [];
@@ -2806,9 +3041,8 @@ export function planCharacter(
   // Proficiency Bonus") because a Monk casts nothing for a spell save DC to be
   // read off.
   const hitOptions: HitOption[] = [];
-  for (const feature of features) {
-    const grant = feature.grants;
-    if (grant?.kind !== 'on-hit') continue;
+  for (const [feature, grant] of grantsIn(features)) {
+    if (grant.kind !== 'on-hit') continue;
 
     const ability = grant.saveAbility ?? castingAbilityFor(feature.id);
 
@@ -2843,9 +3077,8 @@ export function planCharacter(
   // and a d12 at 15 — and the ability addends stay symbolic, because a
   // modifier is a number on the sheet at the moment the die is thrown.
   const reactions: ReactionFeature[] = [];
-  for (const feature of features) {
-    const grant = feature.grants;
-    if (grant?.kind !== 'reaction') continue;
+  for (const [feature, grant] of grantsIn(features)) {
+    if (grant.kind !== 'reaction') continue;
 
     const level = classLevelFor(choices, feature.id);
     for (const declared of grant.does) {
@@ -2878,9 +3111,8 @@ export function planCharacter(
   // list. Applied after the list is built, because it names a feature that has
   // to be in it — and granting a second Reaction instead would let a Monk 13
   // deflect the same blow twice.
-  for (const feature of features) {
-    const grant = feature.grants;
-    if (grant?.kind !== 'widens-reaction') continue;
+  for (const [, grant] of grantsIn(features)) {
+    if (grant.kind !== 'widens-reaction') continue;
     for (let index = 0; index < reactions.length; index += 1) {
       const current = reactions[index];
       if (current === undefined || current.feature !== grant.feature) continue;
@@ -2897,9 +3129,8 @@ export function planCharacter(
   // table — with the range, the hour and the sense clause coming through
   // untouched.
   const conferredReactions: ConferrableReaction[] = [];
-  for (const feature of features) {
-    const grant = feature.grants;
-    if (grant?.kind !== 'pool' || grant.confersReaction === undefined) continue;
+  for (const [feature, grant] of grantsIn(features)) {
+    if (grant.kind !== 'pool' || grant.confersReaction === undefined) continue;
 
     const declaration = grant.confersReaction;
     const level = classLevelFor(choices, feature.id);
@@ -2953,8 +3184,8 @@ export function planCharacter(
   ].sort();
   const masterySubstitutions = [
     ...new Set(
-      features.flatMap((feature) =>
-        feature.grants?.kind === 'weapon-mastery' ? (feature.grants.substitutes ?? []) : [],
+      [...grantsIn(features)].flatMap(([, grant]) =>
+        grant.kind === 'weapon-mastery' ? (grant.substitutes ?? []) : [],
       ),
     ),
   ].sort();
@@ -2965,9 +3196,8 @@ export function planCharacter(
   // Rage Damage's flat bonus is read at that class's own level rather than
   // written into the grant.
   const recoveries: RecoveryFeature[] = [];
-  for (const feature of features) {
-    const grant = feature.grants;
-    if (grant?.kind !== 'recovery') continue;
+  for (const [feature, grant] of grantsIn(features)) {
+    if (grant.kind !== 'recovery') continue;
 
     // A Warlock has Pact slots at exactly **one** level at a time: the table is
     // written with zeros below, and `pactSlotsOf` keeps only the rows with a
@@ -3011,9 +3241,8 @@ export function planCharacter(
   // to null and is settled at the moment of the trade, which is the only thing
   // about a trade creation cannot know.
   const trades: TradeFeature[] = [];
-  for (const feature of features) {
-    const grant = feature.grants;
-    if (grant?.kind !== 'trade') continue;
+  for (const [feature, grant] of grantsIn(features)) {
+    if (grant.kind !== 'trade') continue;
     for (const one of grant.trades) {
       trades.push({
         feature: feature.id,
@@ -3052,17 +3281,15 @@ export function planCharacter(
   }
 
   // SRD: the features "don't stack", so the most generous grant wins.
-  const attacksPerAction = features.reduce(
-    (most, feature) =>
-      feature.grants?.kind === 'extra-attack' ? Math.max(most, feature.grants.attacks) : most,
+  const attacksPerAction = [...grantsIn(features)].reduce(
+    (most, [, grant]) => (grant.kind === 'extra-attack' ? Math.max(most, grant.attacks) : most),
     1,
   );
 
   // The lowest threshold wins, for the same reason the highest Extra Attack
   // does: SRD restates the whole rule rather than stacking widenings.
-  const criticalOn = features.reduce(
-    (lowest, feature) =>
-      feature.grants?.kind === 'critical-range' ? Math.min(lowest, feature.grants.on) : lowest,
+  const criticalOn = [...grantsIn(features)].reduce(
+    (lowest, [, grant]) => (grant.kind === 'critical-range' ? Math.min(lowest, grant.on) : lowest),
     20,
   );
 
@@ -3071,9 +3298,8 @@ export function planCharacter(
   // `feetByLevel` and a recovery's `diceByLevel` already get, and for the same
   // reason: a Monk 5 / Fighter 5 rolls a d8 rather than a level 10 die.
   const strikeStyles: StrikeStyle[] = [];
-  for (const feature of features) {
-    const grant = feature.grants;
-    if (grant?.kind !== 'strike-style') continue;
+  for (const [feature, grant] of grantsIn(features)) {
+    if (grant.kind !== 'strike-style') continue;
     const classLevel = classLevelFor(choices, feature.id);
     const die = grant.dieByLevel?.[Math.max(0, classLevel - 1)];
     strikeStyles.push({
@@ -3089,9 +3315,8 @@ export function planCharacter(
   }
 
   const alternatives: UnarmoredDefense[] = [];
-  for (const feature of features) {
-    const grant = feature.grants;
-    if (grant?.kind !== 'unarmored-defense') continue;
+  for (const [feature, grant] of grantsIn(features)) {
+    if (grant.kind !== 'unarmored-defense') continue;
     alternatives.push({
       source: feature.id,
       ability: grant.ability,
@@ -3115,11 +3340,11 @@ export function planCharacter(
     saveProficiencies: [
       ...new Set([
         ...definition.saveProficiencies,
-        ...features.flatMap((feature) =>
-          feature.grants?.kind === 'save-proficiency'
-            ? feature.grants.abilities === 'all'
+        ...[...grantsIn(features)].flatMap(([, grant]) =>
+          grant.kind === 'save-proficiency'
+            ? grant.abilities === 'all'
               ? [...ABILITIES]
-              : feature.grants.abilities
+              : grant.abilities
             : [],
         ),
       ]),
@@ -3205,6 +3430,16 @@ export function planCharacter(
     }
   }
 
+  // And the third of the three things that grant a spell: a species or a
+  // background trait, on a holder who may cast nothing at all.
+  //
+  // SRD writes it on four origin traits and every one of them reached nothing
+  // before this — `classFeatureSpells` walks a **casting class's** features,
+  // so a trait's cantrip was granted to nobody. What it produces is the
+  // {@link GrantedSpell} the feat route has always produced: the payment fork,
+  // the pool and the report are the ones Magic Initiate already uses.
+  granted.push(...originGrantedSpells(choices, originFeatures(choices, parts)));
+
   // One entry per casting class, each holding that class's own list and its
   // own spellcasting ability. A class that does not cast contributes nothing
   // at all rather than an entry of zeros: a Fighter's primary ability is
@@ -3224,7 +3459,7 @@ export function planCharacter(
     // And the castings this class's features pay for themselves, on the
     // granting class's own ability. A feat's are above; these are the same
     // shape from the other of the two things that grant a spell.
-    granted.push(...classFeatureFreeCastings(content, caster, ability));
+    granted.push(...classFeatureFreeCastings(content, choices, caster, ability));
 
     if (style === 'spellbook') {
       // SRD Evocation Savant: the free spells join the book, marked as the
@@ -3272,7 +3507,9 @@ export function planCharacter(
   return ok({
     sheet,
     proficiencyBonus: proficiencyBonusForLevel(choices.level),
-    hitPointMaximum: multiclassHitPoints(content, choices, abilityModifier(scores.con)),
+    hitPointMaximum:
+      multiclassHitPoints(content, choices, abilityModifier(scores.con)) +
+      featureHitPoints(choices, features),
     hitDie: definition.hitDie,
     spellSlots: pools.slots,
     pactSlots: pools.pact,
@@ -3343,7 +3580,7 @@ function declaresInitiativeSwap(
   const grants = (grant: FeatureGrant | undefined): boolean =>
     grant?.kind === 'initiative' && grant.swap === true;
 
-  if (features.some((feature) => grants(feature.grants))) return true;
+  if ([...grantsIn(features)].some(([, grant]) => grants(grant))) return true;
   return Object.values(choices.feats).some((feat) =>
     grants(content.featById(feat.featId)?.grants),
   );
@@ -3414,7 +3651,7 @@ function declaredInitiativeBonuses(
     named.set(source, proficiencyBonus);
   };
 
-  for (const feature of features) declare(feature.name, feature.grants);
+  for (const [feature, grant] of grantsIn(features)) declare(feature.name, grant);
   for (const feat of Object.values(choices.feats)) {
     const definition = content.featById(feat.featId);
     if (definition === null) continue;
@@ -3454,10 +3691,7 @@ function poolSizeOf(
   if (grant.usesByLevel !== undefined) return usesOf(choices, featureId, grant.usesByLevel);
 
   if (grant.perClassLevel !== undefined) {
-    const classId = featureId.split(':')[0] ?? '';
-    const level =
-      classLevelsOf(choices).find((entry) => entry.classId === classId)?.level ?? choices.level;
-    return grant.perClassLevel * level;
+    return grant.perClassLevel * classLevelFor(choices, featureId);
   }
 
   if (grant.fromAbilityModifier !== undefined) {
@@ -3551,13 +3785,26 @@ function reactionEffectOf(
  *
  * *That class's* level and not the character's: a multiclassed Bard's
  * inspiration does not grow with their Fighter levels, and a Sorcerer 5 /
- * Fighter 5 gets back half of five rather than half of ten. A feature whose
- * class is not one this character has falls back to the character level, which
- * is the only reading available for a species or feat grant.
+ * Fighter 5 gets back half of five rather than half of ten.
+ *
+ * A feature belonging to no class this character has — a species trait, a
+ * background's — falls back to the **character** level, which is the only
+ * reading available for one: a species has no table and its own sentences are
+ * written in character levels.
  */
 function classLevelFor(choices: CharacterChoices, featureId: string): number {
-  const classId = featureId.split(':')[0] ?? '';
-  return classLevelsOf(choices).find((entry) => entry.classId === classId)?.level ?? choices.level;
+  const namespace = featureId.split(':')[0] ?? '';
+  // **A subclass's namespace is its own id, not its class's**, and the
+  // fallback made that silently wrong for anybody whose first class was
+  // somebody else's: `draconic-sorcery:draconic-resilience` matched no class,
+  // fell back to the *starting* class's level, and a Fighter 5 / Sorcerer 3
+  // read five Sorcerer levels. The character says which subclass belongs to
+  // which class, so the answer is on the choices rather than in the id.
+  return (
+    classLevelsOf(choices).find(
+      (entry) => entry.classId === namespace || entry.subclassId === namespace,
+    )?.level ?? totalLevelOf(choices)
+  );
 }
 
 /**
@@ -3699,10 +3946,8 @@ export function liftsFor(
   pool: string,
   base: readonly ConditionName[],
 ): readonly ConditionName[] {
-  const added = features.flatMap((feature) =>
-    feature.grants?.kind === 'lifts-conditions' && feature.grants.pool === pool
-      ? feature.grants.conditions
-      : [],
+  const added = [...grantsIn(features)].flatMap(([, grant]) =>
+    grant.kind === 'lifts-conditions' && grant.pool === pool ? grant.conditions : [],
   );
   return [...new Set([...base, ...added])].sort();
 }
@@ -3810,10 +4055,8 @@ function poolsFor(
   // both are excluded from the loop below and the one that declares each is
   // the one that sizes it: the feature's own grant, further down.
   const featurePools = new Set(
-    features.flatMap((feature) =>
-      feature.grants?.kind === 'spells' && feature.grants.freeCasting !== undefined
-        ? [feature.grants.freeCasting.pool]
-        : [],
+    [...grantsIn(features)].flatMap(([, grant]) =>
+      grant.kind === 'spells' && grant.freeCasting !== undefined ? [grant.freeCasting.pool] : [],
     ),
   );
 
@@ -3832,9 +4075,8 @@ function poolsFor(
   // class table at the level it is read at. Arcane Recovery below is the one
   // that still has to be matched by id, because its single use is not a column
   // in any table.
-  for (const feature of features) {
-    const grant = feature.grants;
-    if (grant?.kind !== 'activated' || grant.pool === null) continue;
+  for (const [feature, grant] of grantsIn(features)) {
+    if (grant.kind !== 'activated' || grant.pool === null) continue;
     pools.push({
       key: grant.pool,
       label: grant.poolLabel ?? feature.name,
@@ -3848,9 +4090,8 @@ function poolsFor(
 
   // A feature that *is* a named resource. Nine of these were marked executed
   // on the strength of a note saying the pool existed, and none did.
-  for (const feature of features) {
-    const grant = feature.grants;
-    if (grant?.kind !== 'pool') continue;
+  for (const [feature, grant] of grantsIn(features)) {
+    if (grant.kind !== 'pool') continue;
     pools.push({
       key: grant.key,
       label: grant.label ?? feature.name,
@@ -3870,9 +4111,8 @@ function poolsFor(
   // Long Rest starting at level 13" is a column of the Fighter table, which is
   // a pool; Cutting Words spends Bardic Inspiration, which is somebody else's
   // pool, and declares nothing.
-  for (const feature of features) {
-    const grant = feature.grants;
-    if (grant?.kind !== 'reaction' || grant.declares === undefined || grant.pool === undefined) {
+  for (const [feature, grant] of grantsIn(features)) {
+    if (grant.kind !== 'reaction' || grant.declares === undefined || grant.pool === undefined) {
       continue;
     }
     pools.push({
@@ -3891,9 +4131,8 @@ function poolsFor(
   // table and Faithful Steed's is the pool of one that "once ... until you
   // finish a Long Rest" always means; Wild Companion spends a use of Wild
   // Shape, declares nothing, and is skipped here for Cutting Words's reason.
-  for (const feature of features) {
-    const grant = feature.grants;
-    if (grant?.kind !== 'spells') continue;
+  for (const [feature, grant] of grantsIn(features)) {
+    if (grant.kind !== 'spells') continue;
     const free = grant.freeCasting;
     if (free?.declares === undefined) continue;
     pools.push({
@@ -3908,9 +4147,8 @@ function poolsFor(
   // pool of one. "Once you use this feature, you can't do so again until you
   // finish a Long Rest" is exactly what a pool already says, so it is one
   // rather than a second kind of limit sitting beside them.
-  for (const feature of features) {
-    const grant = feature.grants;
-    if (grant?.kind !== 'recovery') continue;
+  for (const [feature, grant] of grantsIn(features)) {
+    if (grant.kind !== 'recovery') continue;
     pools.push({
       key: grant.pool,
       label: grant.poolLabel ?? feature.name,
@@ -3929,9 +4167,8 @@ function poolsFor(
   // *feature's* own use rather than a limit on the trade, and the trade is
   // what buys it back — so the declaration is identical here and only
   // `tradeResource` tells the two apart, off the limit.
-  for (const feature of features) {
-    const grant = feature.grants;
-    if (grant?.kind !== 'trade') continue;
+  for (const [feature, grant] of grantsIn(features)) {
+    if (grant.kind !== 'trade') continue;
     // The pool the *feature* declares, which is the one its trades run
     // between — Cutting Words's `declares` one grant kind over, and here for
     // the reason it is there: `FeatureGrant` is singular and SRD Font of Magic
@@ -4158,6 +4395,16 @@ export interface AdvanceChoices {
   readonly preparedSpells?: readonly string[];
   readonly hitPointRoll?: number;
   readonly featureChoices?: Readonly<Record<string, readonly string[]>>;
+  /**
+   * The spellcasting ability a trait gained at this level asks for — and the
+   * answer a character made before the question existed.
+   *
+   * The second is the one that matters in a running campaign: the choices are
+   * the character, so a Tiefling stored before their legacy granted anything
+   * has no answer on the record and cannot level up until somebody gives one.
+   * Patched exactly as {@link featureChoices} is, for that reason.
+   */
+  readonly featureSpellcasting?: Readonly<Record<string, Ability>>;
   readonly feats?: Readonly<Record<string, FeatChoice>>;
   readonly dmGrants?: DmGrants;
 }
@@ -4232,6 +4479,20 @@ export function advanceCharacter(
       ? {}
       : { hitPoints: rollsFor(record.choices.hitPoints, level, advance.hitPointRoll) }),
     featureChoices: { ...record.choices.featureChoices, ...(advance.featureChoices ?? {}) },
+    // Absent where it has always been absent: a record that answered no such
+    // question and is given no answer now keeps the shape it was written with,
+    // which is the rule every optional field on a stored record follows.
+    ...(Object.keys({
+      ...record.choices.featureSpellcasting,
+      ...(advance.featureSpellcasting ?? {}),
+    }).length === 0
+      ? {}
+      : {
+          featureSpellcasting: {
+            ...record.choices.featureSpellcasting,
+            ...(advance.featureSpellcasting ?? {}),
+          },
+        }),
     feats: { ...record.choices.feats, ...(advance.feats ?? {}) },
     ...(advance.dmGrants === undefined ? {} : { dmGrants: advance.dmGrants }),
     // What is worn is live state, not a choice made at level 1. A shirt bought

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { featureGrants } from '@ie/engine';
 import { SORCERY_POINTS, SRD_CONTENT } from '@ie/content';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
 import {
@@ -205,7 +206,7 @@ describe('SRD Font of Magic: a slot for points, and points for a slot', () => {
     const font = SRD_CONTENT.classById('sorcerer')?.features.find(
       (one) => one.id === 'sorcerer:font-of-magic',
     );
-    const grant = font?.grants;
+    const grant = featureGrants(font)[0];
     if (grant?.kind !== 'trade') throw new Error('Font of Magic is a trade');
     const create = grant.trades.find((one) => one.id === 'points-for-slot');
     if (create?.spends.kind !== 'pool') throw new Error('the create spends a pool');

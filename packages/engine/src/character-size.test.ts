@@ -101,6 +101,8 @@ const tiefling = (over: Partial<CharacterChoices> = {}): CharacterChoices =>
   wizard({
     speciesId: 'tiefling',
     featureChoices: { 'tiefling:fiendish-legacy': ['Infernal'] },
+    // SRD Fiendish Legacy grants spells and asks which ability casts them.
+    featureSpellcasting: { 'tiefling:fiendish-legacy': 'cha' },
     ...over,
   });
 
@@ -108,6 +110,8 @@ const gnome = (over: Partial<CharacterChoices> = {}): CharacterChoices =>
   wizard({
     speciesId: 'gnome',
     featureChoices: { 'gnome:gnomish-lineage': ['Forest Gnome'] },
+    // The lineage grants a cantrip, and asks which ability casts it.
+    featureSpellcasting: { 'gnome:gnomish-lineage': 'int' },
     ...over,
   });
 

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { featureGrants } from './progression.js';
 import { SRD_CONTENT } from '@ie/content';
 import {
   asCharacterId,
@@ -380,9 +381,9 @@ describe('the species traits that name a condition', () => {
     ] as const) {
       const trait = traitOf(speciesId, featureId);
       expect(trait?.automation).toBe('engine');
-      const grants = trait?.grants;
-      const effects =
-        grants !== undefined && grants.kind === 'standing' ? (grants.effects ?? []) : [];
+      const effects = featureGrants(trait).flatMap((grant) =>
+        grant.kind === 'standing' ? (grant.effects ?? []) : [],
+      );
       const modes = effects.filter((e) => e.kind === 'roll-mode');
       expect(modes).toHaveLength(1);
       expect(modes[0]).toMatchObject({

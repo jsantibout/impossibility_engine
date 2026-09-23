@@ -169,7 +169,7 @@ export const SORCERER: ClassDefinition = {
       name: 'Innate Sorcery',
       level: 1,
       automation: 'manual',
-      note: 'Half of it is applied, which is why this is not marked as executed. SRD: "You can use this feature twice, and you regain all expended uses when you finish a Long Rest" — two uses declared as a pool, counted and recovered, which is what Sorcery Incarnate at level 7 buys back with Sorcery Points. The rest is not: the +1 to spell save DC and Advantage on spell attacks are two benefits no standing effect states, they run for one minute, which is a printed span rather than a turn boundary, and switching the feature on at all is an activation this feature has no second grant to carry beside the pool.',
+      note: 'Half of it is applied, which is why this is not marked as executed. SRD: "You can use this feature twice, and you regain all expended uses when you finish a Long Rest" — two uses declared as a pool, counted and recovered, which is what Sorcery Incarnate at level 7 buys back with Sorcery Points. The rest is not: the +1 to spell save DC and Advantage on spell attacks are two benefits no standing effect states, they run for one minute, which is a printed span rather than a turn boundary, and the activation that switches it on can sit beside the pool now that a feature carries more than one grant, so what is left of that half is the span it would run for.',
       grants: {
         kind: 'pool',
         key: 'innate-sorcery',
@@ -355,9 +355,14 @@ export const DRACONIC_SORCERY: SubclassDefinition = {
       id: 'draconic-sorcery:draconic-resilience',
       name: 'Draconic Resilience',
       level: 3,
-      automation: 'manual',
-      note: 'The Armour Class half is applied: SRD, "While you aren’t wearing armor, your base Armor Class equals 10 plus your Dexterity and Charisma modifiers." The hit point half is not — "your Hit Point maximum increases by 3, and it increases by 1 whenever you gain another Sorcerer level" needs a feature that raises the hit point maximum, and it needs this feature to be able to carry a **second** grant beside the one above, which `FeatureDefinition.grants` is singular about. Dwarven Toughness wants the first half; the second is the wall Innate Sorcery records one class over.',
-      grants: { kind: 'unarmored-defense', ability: 'cha', shieldAllowed: true },
+      automation: 'engine',
+      note: 'Both sentences are applied, which is what a feature carrying two grants is for. SRD, "While you aren’t wearing armor, your base Armor Class equals 10 plus your Dexterity and Charisma modifiers" is the unarmoured defence `armorClassOf` reads; "your Hit Point maximum increases by 3, and it increases by 1 whenever you gain another Sorcerer level" is three hit points at level 3 and one more for each Sorcerer level after it, counted in **Sorcerer** levels rather than the character’s, so a Sorcerer 3 / Fighter 2 has three.',
+      grants: [
+        { kind: 'unarmored-defense', ability: 'cha', shieldAllowed: true },
+        // "another **Sorcerer** level", which is the class fork rather than
+        // the character one Dwarven Toughness takes.
+        { kind: 'hit-point-maximum', flat: 3, perLevel: 'class' },
+      ],
     },
     {
       id: 'draconic-sorcery:draconic-spells',

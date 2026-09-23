@@ -255,6 +255,9 @@ const KESSA: Record<string, unknown> = {
     'wizard:scholar': ['arcana'],
     'evoker:evocation-savant': ['burning-hands', 'scorching-ray'],
   },
+  // The lineage grants spells of its own, off an ability it asks the player
+  // for — a Wizard's Intelligence here, which is a choice rather than a given.
+  featureSpellcasting: { 'elf:elven-lineage': 'int' },
   feats: {
     'sage:magic-initiate-wizard': {
       featId: 'magic-initiate',

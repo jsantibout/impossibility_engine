@@ -145,7 +145,7 @@ export const CLERIC: ClassDefinition = {
       name: 'Divine Order',
       level: 1,
       automation: 'manual',
-      note: 'Half of one option is applied. SRD Thaumaturge: "you have a bonus to the Intelligence (Arcana) and Intelligence (Religion) checks you make. The bonus equals your Wisdom modifier (minimum of +1)." That is a standing check bonus gated on the option chosen, so it reaches the two named skills and a Cleric who took the other option has nothing. The rest is the DM’s: Protector grants Martial weapon proficiency and Heavy armor training, which no grant confers, and Thaumaturge grants an extra cantrip, which a spells grant could say and no gate could hang it on — only a standing grant carries `onlyIfChoice`.',
+      note: 'Half of one option is applied. SRD Thaumaturge: "you have a bonus to the Intelligence (Arcana) and Intelligence (Religion) checks you make. The bonus equals your Wisdom modifier (minimum of +1)." That is a standing check bonus gated on the option chosen, so it reaches the two named skills and a Cleric who took the other option has nothing. The rest is the DM’s: Protector grants Martial weapon proficiency and Heavy armor training, which no grant confers, and Thaumaturge grants an extra cantrip, which a spells grant gated on the option could say and which this feature has nowhere left to ask: a feature asks the player one thing when it is gained, and Divine Order has asked which order.',
       choice: { kind: 'option', choose: 1, from: ['Protector', 'Thaumaturge'] },
       grants: {
         kind: 'standing',
