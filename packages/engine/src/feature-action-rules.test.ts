@@ -301,8 +301,15 @@ describe('SRD Adrenaline Rush: "You can take the Dash action as a Bonus Action"'
       from: 'bonus-action',
     });
 
+    // The allowance carries the trait's price now: a use, and the Temporary
+    // Hit Points the SRD pays "when you do so".
     const out = unwrap(takeDash(state, ORC, {}, { from: 'bonus-action' }), 'dash');
-    expect(types(out)).toEqual(['bonus-action-spent', 'dash-taken']);
+    expect(types(out)).toEqual([
+      'bonus-action-spent',
+      'resource-spent',
+      'temporary-hp-granted',
+      'dash-taken',
+    ]);
   });
 
   /** The trait says nothing about Disengaging, and the door is per action. */

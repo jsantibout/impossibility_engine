@@ -1,9 +1,8 @@
 # Status
 
 What runs, what does not, and the rulings that stand. Counts live in
-`COVERAGE.md` and `LEDGER.md`, never here. **What happens next is `docs/ROADMAP.md`** — the phases, the gates and
-the tracks to playable levels 1–5 through Infinite Realms. This file no longer
-holds a "Next".
+`COVERAGE.md` and `LEDGER.md`, never here. **What happens next is
+`docs/ROADMAP.md`**; this file holds no "Next".
 
 Capped at two thousand words (`docs/ROADMAP.md` §1.5); the long version is
 frozen at `docs/archive/status-2026-09-21.md`.
@@ -54,7 +53,8 @@ homebrew.
   the Light property's extra attack is a swing with Nick and Two-Weapon
   Fighting on it, and Savage Attacker, Luck, Relentless Endurance, Powerful
   Build, Tactical Shift, Fast Hands, Resourceful, Naturally Stealthy, Jack of
-  All Trades, Slow Fall and Second-Story Work execute. **Wild Shape executes**: a
+  All Trades, Slow Fall, Second-Story Work, Adrenaline Rush, Stonecunning,
+  Large Form and Draconic Flight execute. **Wild Shape executes**: a
   Druid wears a learned Beast's stat block for the hours the table prints,
   with the SRD's retained half kept, and comes back by every ending the book
   names.

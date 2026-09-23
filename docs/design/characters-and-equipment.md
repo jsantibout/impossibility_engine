@@ -55,6 +55,20 @@ name, and `jump-bonus` lengthens a running Long Jump. A `reroll` Reaction names
 the D20 Tests it answers and answers a failure only; `progression.ts` says why
 Heroic Inspiration's "any die" is narrowed to that.
 
+Three words the species traits print and no class table could give. A pool
+may be sized `perProficiencyBonus` — "a number of times equal to your
+Proficiency Bonus" — at the *character's* level, grown by advancement like a
+column; `poolSizeOf` in `creation.ts` is the one reader. An `activated` grant
+runs to a turn anchor (`lasts`) **or** for a printed span (`lastsSeconds`),
+exactly one: a span is scheduled on the clock in and out of a fight, is never
+maintained (`extendFeature` refuses `not_extendable`), and may print a `size`
+the holder is while it runs, which the fold's `settleSizes` derives onto the
+map for as long as the creature holds such a feature. And an `action-rule`
+allowance may carry a price — `spends`, a pool the feature declares beside it,
+and `temporaryHitPoints`, a number or the Proficiency Bonus as it stands —
+which the command taking the cheaper slot charges before anything is spent.
+SRD Adrenaline Rush is the whole of that third word.
+
 **A use may also hang a grant that is stored rather than derived**, which is
 the other half and the one a roll can spend. A derived grant is recomputed
 from state, so nothing can consume it: `consumedRollModifiers` reads stored

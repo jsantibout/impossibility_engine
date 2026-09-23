@@ -6,7 +6,7 @@ import {
   type Result,
   type Skill,
 } from '@ie/shared';
-import type { WeaponMastery } from '@ie/srd';
+import type { CreatureSize, WeaponMastery } from '@ie/srd';
 import type { WeaponSelector } from './attack.js';
 import type { NamedAction } from './combat.js';
 import type { ArmorTraining } from './character.js';
@@ -917,6 +917,10 @@ export type FeatureGrant =
       readonly pool: string | null;
       /** Uses by class level, straight off the class table. */
       readonly usesByLevel?: readonly number[];
+      /** SRD Stonecunning: "a number of times equal to your Proficiency Bonus". */
+      readonly perProficiencyBonus?: true;
+      /** A flat count the book prints — SRD Innate Sorcery's "twice" — where no table sizes it. */
+      readonly minimum?: number;
       readonly poolLabel?: string;
       readonly recovers?: Recovery;
       /** SRD Rage: "You regain one expended use when you finish a Short Rest." */
@@ -933,7 +937,21 @@ export type FeatureGrant =
        * against you have Advantage during that time" — and the two anchors are
        * a full round apart, so nothing derives one from the other.
        */
-      readonly lasts: TurnAnchor;
+      readonly lasts?: TurnAnchor;
+      /**
+       * The other lifetime the book prints: a span. SRD Innate Sorcery "for 1
+       * minute"; Stonecunning, Large Form and Draconic Flight "for 10 minutes"
+       * — on the clock, in and out of a fight alike, and never maintained.
+       * Exactly one of `lasts` and `lastsSeconds` is written, and the
+       * validator refuses both and neither.
+       */
+      readonly lastsSeconds?: number;
+      /**
+       * SRD Large Form: "you can change your size to Large" — the size the
+       * holder is while the feature runs. The fold keeps the map's copy in
+       * step with it, and puts the creature's own back when it ends.
+       */
+      readonly size?: CreatureSize;
       readonly capSeconds?: number;
       readonly endsOn?: readonly ActivationEnd[];
       readonly forbidsCasting?: boolean;
@@ -1156,6 +1174,8 @@ export type FeatureGrant =
       readonly minimum?: number;
       /** SRD Lay On Hands: "five times your Paladin level". */
       readonly perClassLevel?: number;
+      /** SRD Breath Weapon: "a number of times equal to your Proficiency Bonus". */
+      readonly perProficiencyBonus?: true;
       /**
        * A flat number of uses — the fourth sizing, and the **item's**.
        *
@@ -2435,6 +2455,14 @@ export interface PoolSizing {
   readonly minimum?: number;
   /** SRD Lay On Hands: "five times your Paladin level". */
   readonly perClassLevel?: number;
+  /**
+   * SRD Breath Weapon, Stonecunning, Adrenaline Rush: "a number of times equal
+   * to your Proficiency Bonus" — the sizing every origin trait with a limit
+   * prints, and one no class table could give, because a species has no table.
+   * Read at the **character's** level, since that is whose bonus it is, and
+   * grown by advancement exactly as a column is.
+   */
+  readonly perProficiencyBonus?: true;
 }
 
 /**

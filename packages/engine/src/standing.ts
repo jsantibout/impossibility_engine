@@ -9,6 +9,7 @@ import {
   type Skill,
 } from '@ie/shared';
 import type { Bonus, ModeSource, StandingBonusApplies } from './bonuses.js';
+import type { CreatureSize } from '@ie/srd';
 import type { TurnAnchor } from './time.js';
 import {
   grantedRollModes,
@@ -833,6 +834,21 @@ export type StandingGrant =
        * has something to say about when it stops says it here.
        */
       readonly until?: string;
+      /**
+       * A pool a use of the allowance comes out of — SRD Adrenaline Rush: "You
+       * can use this trait a number of times equal to your Proficiency Bonus."
+       * Declared by a `pool` grant on the same feature. The command that takes
+       * the price spends it, and refuses the price with the pool empty and
+       * nothing charged. Only an `allows` rule carries one.
+       */
+      readonly spends?: string;
+      /**
+       * Temporary Hit Points the allowance pays the moment its price is taken
+       * — SRD Adrenaline Rush: "When you do so, you gain a number of Temporary
+       * Hit Points equal to your Proficiency Bonus." A number, or the holder's
+       * Proficiency Bonus read as it stands when the price is taken.
+       */
+      readonly temporaryHitPoints?: number | 'proficiency-bonus';
     }
   /**
    * Feet added to the holder's Speed while the feature's own clause holds.
@@ -1427,6 +1443,16 @@ export interface StrikeStyle {
   readonly requires?: readonly StandingRequirement[];
 }
 
+/**
+ * How long one activation runs.
+ *
+ * To a moment in the holder's next turn — SRD Rage's "until the end of your
+ * next turn", pushed out round by round — or for a span the book prints: SRD
+ * Innate Sorcery's minute, Large Form's ten. A span runs on the clock, in and
+ * out of a fight alike, and is never maintained; `extendFeature` refuses it.
+ */
+export type ActivationSpan = TurnAnchor | { readonly kind: 'seconds'; readonly seconds: number };
+
 export interface ActivatedFeature {
   readonly feature: string;
   readonly name: string;
@@ -1439,9 +1465,10 @@ export interface ActivatedFeature {
    *
    * Both moments the SRD uses, and they are a full round apart: Rage "lasts
    * until the end of your next turn", Dodge "until the start of your next
-   * turn". Nothing derives one from the other.
+   * turn". Nothing derives one from the other. Or a printed span — see
+   * {@link ActivationSpan}.
    */
-  readonly lasts: TurnAnchor;
+  readonly lasts: ActivationSpan;
   /** SRD Rage: "You can maintain a Rage for up to 10 minutes." */
   readonly capSeconds?: number;
   /** What ends it early, each read from the feature's own text. */
@@ -1466,6 +1493,12 @@ export interface ActivatedFeature {
   readonly onlyIfUnmoved?: boolean;
   /** What a use of it hangs on its holder — see {@link HungGrant}. */
   readonly hangs?: readonly HungGrant[];
+  /**
+   * SRD Large Form: the size the holder is while it runs. Derived onto the
+   * map by the fold's `settleSizes`, which reads it off whichever size-printing
+   * feature is active and the creature's own size otherwise.
+   */
+  readonly size?: CreatureSize;
 }
 
 /**
@@ -2981,6 +3014,17 @@ export function actionRulesOn(
       // its own sentence names a shorter span it says so, and a requirement
       // that has stopped holding has already removed the rule above.
       until: effect.grant.until ?? 'you no longer have it',
+      ...(effect.grant.spends === undefined ? {} : { spends: effect.grant.spends }),
+      // The Proficiency Bonus as it stands at this read, which is when the
+      // price is taken: a level gained since the sheet was compiled counts.
+      ...(effect.grant.temporaryHitPoints === undefined
+        ? {}
+        : {
+            temporaryHitPoints:
+              effect.grant.temporaryHitPoints === 'proficiency-bonus'
+                ? proficiencyBonus(sheetAsItStands(state, who) ?? creature.sheet)
+                : effect.grant.temporaryHitPoints,
+          }),
     });
   }
   if (derived.length === 0) return creature.actionRules;

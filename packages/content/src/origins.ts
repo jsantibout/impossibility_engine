@@ -76,6 +76,13 @@ interface LineageRow {
   /** SRD: "When you reach character levels 3 and 5, you learn a higher-level spell." */
   readonly atThree?: string;
   readonly atFive?: string;
+  /**
+   * SRD Forest Gnome: "You also always have the Speak with Animals spell
+   * prepared. You can cast it without a spell slot a number of times equal to
+   * your Proficiency Bonus" — a spell prepared from level 1 whose free
+   * castings the Proficiency Bonus counts, on the lineage's own pool.
+   */
+  readonly prepared?: string;
 }
 
 /** SRD: "Intelligence, Wisdom, or Charisma is your spellcasting ability." */
@@ -104,6 +111,26 @@ const lineageSpells = (
             fixed: row.cantrips,
             abilities: LINEAGE_ABILITIES,
             onlyIfChoice: option,
+          },
+        ]),
+    ...(row.prepared === undefined
+      ? []
+      : [
+          {
+            kind: 'spells' as const,
+            abilities: LINEAGE_ABILITIES,
+            onlyIfChoice: option,
+            freeCasting: {
+              spell: row.prepared,
+              pool: `${featureId}:${row.prepared}`,
+              poolLabel: `free casting of ${row.prepared}`,
+              // "You can cast it without a spell slot a number of times equal
+              // to your Proficiency Bonus, and you regain all expended uses
+              // when you finish a Long Rest."
+              declares: { perProficiencyBonus: true as const, recovers: 'long-rest' as const },
+              // "You can also use any spell slots you have to cast the spell."
+              withSlots: true as const,
+            },
           },
         ]),
     ...([
@@ -166,7 +193,7 @@ const ELVEN_SPELLS: Readonly<Record<string, LineageRow>> = {
  * Bonuses and no pool is sized that way.
  */
 const GNOMISH_SPELLS: Readonly<Record<string, LineageRow>> = {
-  'Forest Gnome': { cantrips: ['minor-illusion'] },
+  'Forest Gnome': { cantrips: ['minor-illusion'], prepared: 'speak-with-animals' },
   'Rock Gnome': { cantrips: ['mending', 'prestidigitation'] },
 };
 
@@ -198,7 +225,14 @@ export const DRAGONBORN: SpeciesDefinition = {
       name: 'Breath Weapon',
       level: 1,
       automation: 'manual',
-      note: 'None of it is applied. Replacing one of the Attack action attacks with a 15-foot Cone or a 30-foot Line, the Dexterity save against DC 8 plus Constitution modifier and Proficiency Bonus, and the 1d10 that becomes 2d10, 3d10 and 4d10 at character levels 5, 11 and 17 are the DM to adjudicate. Not even the uses are declared: the engine sizes a pool from a class table column, an ability modifier or a multiple of a class level, and "a number of times equal to your Proficiency Bonus" is none of the three.',
+      note: 'None of it is applied. Replacing one of the Attack action attacks with a 15-foot Cone or a 30-foot Line, the Dexterity save against DC 8 plus Constitution modifier and Proficiency Bonus, and the 1d10 that becomes 2d10, 3d10 and 4d10 at character levels 5, 11 and 17 are the DM to adjudicate. The uses are declared: a pool the Proficiency Bonus sizes, on the sheet and refilled by a Long Rest, with nothing to buy from it until the breath itself is the engine’s.',
+      grants: {
+        kind: 'pool',
+        key: 'dragonborn:breath-weapon',
+        label: 'Breath Weapon',
+        perProficiencyBonus: true,
+        recovers: 'long-rest',
+      },
     },
     {
       id: 'dragonborn:damage-resistance',
@@ -233,8 +267,18 @@ export const DRAGONBORN: SpeciesDefinition = {
       id: 'dragonborn:draconic-flight',
       name: 'Draconic Flight',
       level: 5,
-      automation: 'manual',
-      note: 'Not applied: the Bonus Action, the 10 minutes of spectral wings, the Fly Speed equal to your Speed and the ending on Incapacitated are all the DM. A creature has one Speed and there is no Fly Speed beside it; a placement carries an elevation and nothing grants the movement that would use it.',
+      automation: 'engine',
+      note: 'Executed. SRD: "Starting at character level 5, you can channel draconic magic to give yourself temporary flight. As a Bonus Action, you sprout spectral wings on your back that last for 10 minutes or until you retract the wings (no action required) or have the Incapacitated condition. During that time, you have a Fly Speed equal to your Speed. ... Once you use this trait, you can’t use it again until you finish a Long Rest." The Bonus Action, the ten minutes on the clock, the Fly Speed matched to the Speed while it runs and the ending on Incapacitated are the engine’s; `end_feature` retracts the wings.',
+      grants: {
+        kind: 'activated',
+        action: 'bonus-action',
+        pool: 'dragonborn:draconic-flight',
+        poolLabel: 'Draconic Flight',
+        recovers: 'long-rest',
+        lastsSeconds: 600,
+        endsOn: ['incapacitated'],
+        whileActive: [{ kind: 'speed', change: 'match-walk', mode: 'fly' }],
+      },
     },
   ],
 };
@@ -291,8 +335,18 @@ export const DWARF: SpeciesDefinition = {
       id: 'dwarf:stonecunning',
       name: 'Stonecunning',
       level: 1,
-      automation: 'manual',
-      note: 'Not applied: Tremorsense is a sense the engine now names, and none of what this trait does with it is expressible. The sense is switched on for 10 minutes by a Bonus Action rather than had, the engine has no notion of a stone surface for it to be in contact with, and the uses are not declared either - "a number of times equal to your Proficiency Bonus" is not one of the three ways the engine sizes a pool. A DM runs the whole trait.',
+      automation: 'engine',
+      note: 'Executed, with one fact handed over. SRD: "As a Bonus Action, you gain Tremorsense with a range of 60 feet for 10 minutes. You must be on a stone surface or touching a stone surface to use this Tremorsense. The stone can be natural or worked. You can use this Bonus Action a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest." The Bonus Action, the ten minutes on the clock in or out of a fight, the sense while it runs and the pool the Proficiency Bonus sizes are the engine’s. The stone surface is the table’s: the engine has no notion of what a creature stands on, so a DM who rules the Dwarf off stone ends the feature with `end_feature`.',
+      grants: {
+        kind: 'activated',
+        action: 'bonus-action',
+        pool: 'dwarf:stonecunning',
+        poolLabel: 'Stonecunning',
+        perProficiencyBonus: true,
+        recovers: 'long-rest',
+        lastsSeconds: 600,
+        whileActive: [{ kind: 'sense', sense: 'tremorsense', feet: 60 }],
+      },
     },
   ],
 };
@@ -443,7 +497,7 @@ export const GNOME: SpeciesDefinition = {
       name: 'Gnomish Lineage',
       level: 1,
       automation: 'manual',
-      note: 'The cantrips each option knows are applied and the rest is the DM, which is why this is not marked as executed. A Forest Gnome knows Minor Illusion and a Rock Gnome knows Mending and Prestidigitation, granted only to the option chosen and cast off the Intelligence, Wisdom or Charisma this trait asks for. Two sentences are left. The Forest Gnome also has Speak with Animals prepared and casts it "without a spell slot a number of times equal to your Proficiency Bonus", which is not one of the three ways the engine sizes a pool. And the Rock Gnome\'s clockwork device is an object with its own Armour Class, hit point and Bonus Action that nothing in the engine creates.',
+      note: 'The cantrips each option knows are applied and the rest is the DM, which is why this is not marked as executed. A Forest Gnome knows Minor Illusion and a Rock Gnome knows Mending and Prestidigitation, granted only to the option chosen and cast off the Intelligence, Wisdom or Charisma this trait asks for. The Forest Gnome\'s Speak with Animals is always prepared and cast without a slot a number of times equal to your Proficiency Bonus, which is a pool the lineage declares and `cast_spell` spends — as far as the spell goes, and it has no definition yet. One sentence is left: the Rock Gnome\'s clockwork device is an object with its own Armour Class, hit point and Bonus Action that nothing in the engine creates.',
       choice: { kind: 'option', choose: 1, from: ['Forest Gnome', 'Rock Gnome'] },
       grants: lineageSpells('gnome:gnomish-lineage', GNOMISH_SPELLS),
     },
@@ -462,7 +516,14 @@ export const GOLIATH: SpeciesDefinition = {
       name: 'Giant Ancestry',
       level: 1,
       automation: 'manual',
-      note: 'The chosen boon is recorded and none of the six is applied, and for two different reasons. Four of them are mechanisms the engine does not have: a teleport on a Bonus Action, extra damage a feature adds to a hit of the holder own choosing, a Speed reduction until the start of your next turn, and the Prone condition given on a hit. Stone\'s Endurance is not one of those - "take a Reaction to roll 1d12, add your Constitution modifier and reduce the damage by that total" is the shape Uncanny Dodge already answers the damage window with - and it is still not wired: a Reaction grant can say it belongs to one option of six now, and "a number of times equal to your Proficiency Bonus" is not one of the three ways the engine sizes a pool, so the uses it is limited to cannot be counted. Storm\'s Thunder, which deals damage back rather than reducing it, is a mechanism that really is absent.',
+      note: 'The chosen boon is recorded and none of the six is applied, and for two different reasons. Four of them are mechanisms the engine does not have: a teleport on a Bonus Action, extra damage a feature adds to a hit of the holder own choosing, a Speed reduction until the start of your next turn, and the Prone condition given on a hit. Stone\'s Endurance is not one of those - "take a Reaction to roll 1d12, add your Constitution modifier and reduce the damage by that total" is the shape Uncanny Dodge already answers the damage window with - and it is still not wired: a Reaction grant can say it belongs to one option of six now, and the uses each boon is limited to are a pool the Proficiency Bonus sizes, declared and refilled by a Long Rest, with nothing to buy from it until a boon is the engine’s. Storm\'s Thunder, which deals damage back rather than reducing it, is a mechanism that really is absent.',
+      grants: {
+        kind: 'pool',
+        key: 'goliath:giant-ancestry',
+        label: 'Giant Ancestry',
+        perProficiencyBonus: true,
+        recovers: 'long-rest',
+      },
       choice: {
         kind: 'option',
         choose: 1,
@@ -480,8 +541,27 @@ export const GOLIATH: SpeciesDefinition = {
       id: 'goliath:large-form',
       name: 'Large Form',
       level: 5,
-      automation: 'manual',
-      note: 'Not applied: a creature size in this engine belongs to the scene rather than to the sheet, and nothing changes one mid-fight, so the Bonus Action, the 10 minutes, the Advantage on Strength checks and the extra 10 feet of Speed are the DM.',
+      automation: 'engine',
+      note: 'Executed, with one fact handed over. SRD: "Starting at character level 5, you can change your size to Large as a Bonus Action if you’re in a big enough space. This transformation lasts for 10 minutes or until you end it (no action required). For that duration, you have Advantage on Strength checks, and your Speed increases by 10 feet. Once you use this trait, you can’t use it again until you finish a Long Rest." The Bonus Action, the ten minutes on the clock, the size on the map while it runs, the Advantage on Strength checks and the ten feet of Speed are the engine’s, and `end_feature` is the ending that costs nothing. Whether the space is big enough is the table’s.',
+      grants: {
+        kind: 'activated',
+        action: 'bonus-action',
+        pool: 'goliath:large-form',
+        poolLabel: 'Large Form',
+        recovers: 'long-rest',
+        lastsSeconds: 600,
+        size: 'large',
+        whileActive: [
+          { kind: 'speed', feet: 10 },
+          {
+            kind: 'roll-mode',
+            modifier: {
+              mode: 'advantage',
+              selector: { roll: 'ability-check', relation: 'roller', ability: 'str' },
+            },
+          },
+        ],
+      },
     },
     {
       id: 'goliath:powerful-build',
@@ -626,15 +706,29 @@ export const ORC: SpeciesDefinition = {
       id: 'orc:adrenaline-rush',
       name: 'Adrenaline Rush',
       level: 1,
-      automation: 'manual',
-      note: 'Half of it is applied, which is why this is not marked as executed. SRD: "You can take the Dash action as a Bonus Action" is an action rule the trait holds, derived on every read like any other standing grant, and `takeDash` charges the Bonus Action when the Orc asks for that price. The other half is not: the Temporary Hit Points equal to your Proficiency Bonus are real state the engine holds, and no feature route reaches them, so a DM hands them over; and the uses are not declared either - "equal to your Proficiency Bonus" is not one of the three ways the engine sizes a pool, so nothing counts them and nothing refuses the fourth Dash of the day.',
-      grants: {
-        kind: 'standing',
-        reach: 'self',
-        effects: [
-          { kind: 'action-rule', rule: { kind: 'allows', action: 'dash', from: 'bonus-action' } },
-        ],
-      },
+      automation: 'engine',
+      note: 'Executed whole. SRD: "You can take the Dash action as a Bonus Action. When you do so, you gain a number of Temporary Hit Points equal to your Proficiency Bonus. You can use this trait a number of times equal to your Proficiency Bonus, and you regain all expended uses of it when you finish a Long Rest." The allowance is an action rule the trait holds, derived on every read like any other standing grant; `takeDash` charges the Bonus Action when the Orc asks for that price, spends one of the trait’s uses and grants the Temporary Hit Points, and refuses the price with the uses spent and nothing charged. The uses are a pool the Proficiency Bonus sizes, grown by advancement and refilled by a Long Rest.',
+      grants: [
+        {
+          kind: 'pool',
+          key: 'orc:adrenaline-rush',
+          label: 'Adrenaline Rush',
+          perProficiencyBonus: true,
+          recovers: 'long-rest',
+        },
+        {
+          kind: 'standing',
+          reach: 'self',
+          effects: [
+            {
+              kind: 'action-rule',
+              rule: { kind: 'allows', action: 'dash', from: 'bonus-action' },
+              spends: 'orc:adrenaline-rush',
+              temporaryHitPoints: 'proficiency-bonus',
+            },
+          ],
+        },
+      ],
     },
     {
       id: 'orc:darkvision',

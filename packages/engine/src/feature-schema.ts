@@ -1,5 +1,5 @@
 import { ABILITIES, DAMAGE_TYPES, err, ok, type Ability, type Result } from '@ie/shared';
-import { WEAPON_PROPERTIES } from '@ie/srd/schemas';
+import { CREATURE_SIZES, WEAPON_PROPERTIES } from '@ie/srd/schemas';
 import { WEAPON_CATEGORIES, WEAPON_KINDS, type WeaponSelector } from './attack.js';
 import { RESERVED_LEDGER_NAMESPACES } from './combat.js';
 import { ABILITY_SCORE_MAXIMUM, MOVEMENT_MODES, type MovementMode } from './character.js';
@@ -19,7 +19,7 @@ import {
   type RollSelector,
 } from './roll-modifiers.js';
 import { checkActionRule } from './spell-schema.js';
-import { hours } from './time.js';
+import { hours, TURN_ANCHORS } from './time.js';
 
 /**
  * The Long Rest a `long-rest-length` grant has to come in under.
@@ -293,6 +293,93 @@ const poolSizingOf = (
   return null;
 };
 
+/**
+ * The pools one grant declares, which is at most one.
+ *
+ * The arms `poolsFor` in `creation.ts` pushes a declaration from, so that
+ * "this feature spends a pool nobody declares" can be asked at the door —
+ * here for a price on an allowance, and in `content.ts` across a source's
+ * features. A list rather than a single key because the question is
+ * membership, and a feature that declared two would answer for both.
+ */
+export const poolKeysIn = (grant: GatedFeatureGrant): readonly string[] => {
+  if (grant.kind === 'pool') return [grant.key];
+  if (grant.kind === 'activated' && grant.pool !== null) return [grant.pool];
+  if (grant.kind === 'shape-shift') return [grant.pool];
+  if (grant.kind === 'reaction' && grant.declares !== undefined && grant.pool !== undefined) {
+    return [grant.pool];
+  }
+  if (grant.kind === 'recovery') return [grant.pool];
+  if (grant.kind === 'spells' && grant.freeCasting?.declares !== undefined) {
+    return [grant.freeCasting.pool];
+  }
+  // The pool a feature's trades run between, where the feature holds it. SRD
+  // Font of Magic is the whole of this arm: the Sorcery Points and both
+  // conversions are one printed feature, so Metamagic spends a key this grant
+  // declares. A trade's *own* `pool` is the pool of one its daily limit lives
+  // in, which no other feature has ever named and so is not membership here.
+  if (grant.kind === 'trade' && grant.pool !== undefined && grant.declares !== undefined) {
+    return [grant.pool];
+  }
+  return [];
+};
+
+/**
+ * Everything wrong with the price an `action-rule` effect puts on its
+ * allowance — SRD Adrenaline Rush's use and Temporary Hit Points.
+ *
+ * Only an `allows` rule has a price to put: a rule that forbids or narrows
+ * charges nobody anything. The pool it spends is one this feature declares,
+ * because a use spent from a pool nobody sized is a count nothing refuses;
+ * and the Temporary Hit Points are a number or the holder's Proficiency Bonus,
+ * which is the one thing the book prints there.
+ */
+function allowancePriceProblems(
+  effect: {
+    readonly rule: unknown;
+    readonly spends?: unknown;
+    readonly temporaryHitPoints?: unknown;
+  },
+  at: string,
+  declared: ReadonlySet<string>,
+): readonly FeatureDefinitionProblem[] {
+  const found: FeatureDefinitionProblem[] = [];
+  const priced = effect.spends !== undefined || effect.temporaryHitPoints !== undefined;
+  const allows =
+    typeof effect.rule === 'object' &&
+    effect.rule !== null &&
+    (effect.rule as { readonly kind?: unknown }).kind === 'allows';
+  if (priced && !allows) {
+    found.push({
+      field: `${at}.spends`,
+      code: 'bad_allowance_price',
+      reason: 'only an allowance — a cheaper price for a named action — spends a use or pays Temporary Hit Points when it is taken; a rule that forbids or narrows charges nothing',
+    });
+  }
+  if (
+    effect.spends !== undefined &&
+    (typeof effect.spends !== 'string' || !declared.has(effect.spends))
+  ) {
+    found.push({
+      field: `${at}.spends`,
+      code: 'unknown_allowance_pool',
+      reason: `the allowance spends "${String(effect.spends)}" and no grant of this feature declares a pool by that name`,
+    });
+  }
+  if (
+    effect.temporaryHitPoints !== undefined &&
+    effect.temporaryHitPoints !== 'proficiency-bonus' &&
+    !isCount(effect.temporaryHitPoints)
+  ) {
+    found.push({
+      field: `${at}.temporaryHitPoints`,
+      code: 'bad_allowance_price',
+      reason: `Temporary Hit Points an allowance pays are a whole number of at least one or "proficiency-bonus", not ${String(effect.temporaryHitPoints)}`,
+    });
+  }
+  return found;
+}
+
 /** A spread as the rules compare them: the points, largest first. */
 const asSpread = (points: readonly number[]): string =>
   [...points].sort((a, b) => b - a).join('+');
@@ -557,7 +644,18 @@ function sizingProblems(
     sizing.usesByLevel === undefined ? null : 'usesByLevel',
     sizing.fromAbilityModifier === undefined ? null : 'fromAbilityModifier',
     sizing.perClassLevel === undefined ? null : 'perClassLevel',
+    sizing.perProficiencyBonus === undefined ? null : 'perProficiencyBonus',
   ].filter((shape): shape is string => shape !== null);
+
+  // The one sizing that is a flag rather than a number, asked of the value
+  // because the other door is JSON: `true` and nothing else.
+  if (sizing.perProficiencyBonus !== undefined && sizing.perProficiencyBonus !== true) {
+    found.push({
+      field: `${at}.perProficiencyBonus`,
+      code: 'bad_pool_sizing',
+      reason: `"a number of times equal to your Proficiency Bonus" is written perProficiencyBonus: true, not ${String(sizing.perProficiencyBonus)}`,
+    });
+  }
 
   if (shapes.length > 1) {
     found.push({
@@ -632,6 +730,9 @@ function grantProblems(
   context: FeatureContext,
 ): readonly FeatureDefinitionProblem[] {
   const found: FeatureDefinitionProblem[] = [];
+  // What this feature's own grants declare, for a price on an allowance to
+  // name: SRD Adrenaline Rush declares its uses and spends them in one entry.
+  const declaredPools = new Set(featureGrants(feature).flatMap(poolKeysIn));
 
   // Rule 4's first half, asked of each grant: a feature that claims the engine
   // executes it and carries a grant no reader discriminates on.
@@ -884,6 +985,47 @@ function grantProblems(
   // kind would therefore share a source, and the roll that spent the first
   // would silently end the second.
   if (grant.kind === 'activated') {
+    // Rule 6b. One lifetime, in one of two spellings: a turn anchor (SRD Rage,
+    // pushed round by round) or a printed span (SRD Innate Sorcery's minute).
+    // Both is two deadlines for one activation; neither is a feature that
+    // never ends. Asked of the values, because the other door is JSON.
+    const span = grant as { readonly lasts?: unknown; readonly lastsSeconds?: unknown };
+    if (span.lasts !== undefined && span.lastsSeconds !== undefined) {
+      found.push({
+        field: 'grants.lasts',
+        code: 'ambiguous_activation_span',
+        reason: 'an activation runs to a turn anchor or for a printed span, not both',
+      });
+    }
+    if (span.lasts === undefined && span.lastsSeconds === undefined) {
+      found.push({
+        field: 'grants.lasts',
+        code: 'no_activation_span',
+        reason: 'an activation says how long it runs: "lasts" names a turn anchor, "lastsSeconds" a printed span',
+      });
+    }
+    if (span.lasts !== undefined && !(TURN_ANCHORS as readonly unknown[]).includes(span.lasts)) {
+      found.push({
+        field: 'grants.lasts',
+        code: 'bad_activation_span',
+        reason: `"${String(span.lasts)}" is not a turn anchor; the engine has ${TURN_ANCHORS.join(', ')}`,
+      });
+    }
+    if (span.lastsSeconds !== undefined && !isCount(span.lastsSeconds)) {
+      found.push({
+        field: 'grants.lastsSeconds',
+        code: 'bad_activation_span',
+        reason: `a printed span is a whole number of seconds of at least one, not ${String(span.lastsSeconds)}`,
+      });
+    }
+    if (grant.size !== undefined && !(CREATURE_SIZES as readonly unknown[]).includes(grant.size)) {
+      found.push({
+        field: 'grants.size',
+        code: 'bad_activation_size',
+        reason: `"${String(grant.size)}" is not a creature size; the engine has ${CREATURE_SIZES.join(', ')}`,
+      });
+    }
+
     const kinds = new Set<string>();
     (grant.hangs ?? []).forEach((hung, index) => {
       const at = `grants.hangs[${index}]`;
@@ -967,6 +1109,7 @@ function grantProblems(
     (effects ?? []).forEach((effect, index) => {
       if (effect.kind === 'action-rule') {
         checkActionRule(effect.rule, `${at}[${index}].rule`, found);
+        found.push(...allowancePriceProblems(effect, `${at}[${index}]`, declaredPools));
         return;
       }
       if (effect.kind === 'speed') {

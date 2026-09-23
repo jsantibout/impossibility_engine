@@ -169,16 +169,18 @@ export const SORCERER: ClassDefinition = {
       name: 'Innate Sorcery',
       level: 1,
       automation: 'manual',
-      note: 'Half of it is applied, which is why this is not marked as executed. SRD: "You can use this feature twice, and you regain all expended uses when you finish a Long Rest" — two uses declared as a pool, counted and recovered, which is what Sorcery Incarnate at level 7 buys back with Sorcery Points. The rest is not: the +1 to spell save DC and Advantage on spell attacks are two benefits no standing effect states, they run for one minute, which is a printed span rather than a turn boundary, and the activation that switches it on can sit beside the pool now that a feature carries more than one grant, so what is left of that half is the span it would run for.',
+      note: 'Half of it is applied, which is why this is not marked as executed. SRD: "As a Bonus Action, you can unleash that magic for 1 minute ... You can use this feature twice, and you regain all expended uses when you finish a Long Rest" — the Bonus Action, the two uses (which Sorcery Incarnate at level 7 buys back with Sorcery Points) and the minute on the clock are the engine’s, so the feature is switched on and off like any other and nothing maintains it. The rest is not: the +1 to spell save DC and Advantage on spell attacks are two benefits no standing effect states.',
       grants: {
-        kind: 'pool',
-        key: 'innate-sorcery',
-        label: 'Innate Sorcery',
+        kind: 'activated',
+        action: 'bonus-action',
+        pool: 'innate-sorcery',
+        poolLabel: 'Innate Sorcery',
         // "You can use this feature twice" — a flat two at every level, which
         // is the sizing that names no shape: the Sorcerer table prints no
         // column for it, because the number never moves.
         minimum: 2,
         recovers: 'long-rest',
+        lastsSeconds: 60,
       },
     },
     {

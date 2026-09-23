@@ -1090,3 +1090,96 @@ describe('a hung grant may not promise an ending nothing keeps', () => {
     ).toEqual([]);
   });
 });
+
+describe('rule 6b — an activation runs to a turn anchor or for a printed span', () => {
+  const activated = (over: Record<string, unknown>): FeatureDefinition => ({
+    ...sound,
+    automation: 'engine',
+    grants: { kind: 'activated', action: 'bonus-action', pool: null, ...over } as never,
+  });
+  const spanCodes = (feature: FeatureDefinition): string[] =>
+    codes(feature).filter((code) => code.endsWith('_activation_span') || code === 'bad_activation_size');
+
+  it('accepts exactly one lifetime, and refuses both or neither', () => {
+    expect(spanCodes(activated({ lasts: 'end-of-next-turn' }))).toEqual([]);
+    expect(spanCodes(activated({ lastsSeconds: 60 }))).toEqual([]);
+    expect(spanCodes(activated({ lasts: 'end-of-next-turn', lastsSeconds: 60 }))).toEqual([
+      'ambiguous_activation_span',
+    ]);
+    expect(spanCodes(activated({}))).toEqual(['no_activation_span']);
+  });
+
+  it('refuses a span that is not a whole number of seconds, and an anchor no turn has', () => {
+    expect(spanCodes(activated({ lastsSeconds: 0 }))).toEqual(['bad_activation_span']);
+    expect(spanCodes(activated({ lastsSeconds: 'a while' }))).toEqual(['bad_activation_span']);
+    expect(spanCodes(activated({ lasts: 'end-of-the-week' }))).toEqual(['bad_activation_span']);
+  });
+
+  it('refuses a size the book does not print, and accepts one it does', () => {
+    expect(spanCodes(activated({ lastsSeconds: 600, size: 'enormous' }))).toEqual(['bad_activation_size']);
+    expect(spanCodes(activated({ lastsSeconds: 600, size: 'large' }))).toEqual([]);
+  });
+});
+
+describe('rule 6 — the fourth sizing is the Proficiency Bonus', () => {
+  const pool = (sizing: Record<string, unknown>): FeatureDefinition => ({
+    ...sound,
+    automation: 'engine',
+    grants: { kind: 'pool', key: 'a-pool', recovers: 'long-rest', ...sizing } as never,
+  });
+
+  it('is written as a flag, alone', () => {
+    expect(codes(pool({ perProficiencyBonus: true }))).not.toContain('bad_pool_sizing');
+    expect(codes(pool({ perProficiencyBonus: true }))).not.toContain('ambiguous_pool_sizing');
+    expect(codes(pool({ perProficiencyBonus: true, perClassLevel: 5 }))).toContain(
+      'ambiguous_pool_sizing',
+    );
+    expect(codes(pool({ perProficiencyBonus: 'yes' }))).toContain('bad_pool_sizing');
+  });
+});
+
+describe('a price on an allowance', () => {
+  const priced = (
+    effect: Record<string, unknown>,
+    declared: readonly Record<string, unknown>[] = [
+      { kind: 'pool', key: 'a-pool', recovers: 'long-rest', perProficiencyBonus: true },
+    ],
+  ): FeatureDefinition => ({
+    ...sound,
+    automation: 'engine',
+    grants: [
+      ...declared,
+      {
+        kind: 'standing',
+        reach: 'self',
+        effects: [
+          {
+            kind: 'action-rule',
+            rule: { kind: 'allows', action: 'dash', from: 'bonus-action' },
+            ...effect,
+          },
+        ],
+      },
+    ] as never,
+  });
+  const priceCodes = (feature: FeatureDefinition): string[] =>
+    codes(feature).filter((code) => code === 'unknown_allowance_pool' || code === 'bad_allowance_price');
+
+  it('spends a pool this feature declares, and is refused one nobody did', () => {
+    expect(priceCodes(priced({ spends: 'a-pool', temporaryHitPoints: 'proficiency-bonus' }))).toEqual([]);
+    expect(priceCodes(priced({ spends: 'somebody-elses-pool' }))).toEqual(['unknown_allowance_pool']);
+    expect(priceCodes(priced({ spends: 'a-pool' }, []))).toEqual(['unknown_allowance_pool']);
+  });
+
+  it('pays Temporary Hit Points as a whole number or the Proficiency Bonus, and nothing else', () => {
+    expect(priceCodes(priced({ temporaryHitPoints: 3 }))).toEqual([]);
+    expect(priceCodes(priced({ temporaryHitPoints: 'a lot' }))).toEqual(['bad_allowance_price']);
+    expect(priceCodes(priced({ temporaryHitPoints: 0 }))).toEqual(['bad_allowance_price']);
+  });
+
+  it('puts no price on a rule that forbids or narrows', () => {
+    expect(
+      priceCodes(priced({ rule: { kind: 'forbids', slots: ['bonus-action'] }, spends: 'a-pool' })),
+    ).toEqual(['bad_allowance_price']);
+  });
+});

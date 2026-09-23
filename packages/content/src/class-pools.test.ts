@@ -362,11 +362,13 @@ describe('a feature that claims a pool declares one', () => {
       'channel-divinity',
       'channel-divinity',
       'focus-points',
-      // SRD Innate Sorcery: "You can use this feature twice." The benefits it
-      // switches on are the table's, and the uses are counted here because
-      // Sorcery Incarnate buys one back and a trade fills a pool or nothing.
-      'innate-sorcery',
+      // SRD Innate Sorcery's two uses left this list the day the feature became
+      // an activation: its pool is declared on the `activated` grant now, which
+      // is the arm `poolsFor` reads and this derivation deliberately does not.
       'lay-on-hands',
+      // SRD Tireless: a Wisdom-modifier pool declared with nothing to buy from
+      // it yet, which the vocabulary track filed honestly rather than not at all.
+      'ranger:tireless',
       'second-wind',
       'sorcery-points',
       'wholeness-of-body',

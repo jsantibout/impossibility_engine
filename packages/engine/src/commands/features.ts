@@ -780,6 +780,16 @@ export function extendFeature(
       return err('no_such_feature', `${id} has no feature called ${command.feature}`);
     }
 
+    // A span the book prints is not maintained: SRD Innate Sorcery runs "for 1
+    // minute" and Large Form "for 10 minutes" whatever the holder does, so
+    // there is no deadline to push and nothing to spend on pushing it.
+    if (typeof definition.lasts === 'object') {
+      return err(
+        'not_extendable',
+        `${definition.name} runs for ${describeElapsed(definition.lasts.seconds)} and is not maintained round by round`,
+      );
+    }
+
     // SRD Rage: "You can maintain a Rage for up to 10 minutes." The ceiling
     // was pinned onto this activation when it began and is read back off it —
     // **before anything is spent**, so a refused extension costs the Bonus
@@ -936,6 +946,17 @@ export function featureTimer(
   definition: ActivatedFeature,
   maintaining = false,
 ): Result<GameEvent | null> {
+  // A printed span runs on the clock, in and out of a fight alike — the same
+  // clock a form's hours run on — and carries no cap: the span is the cap. The
+  // `feature` target is what the expiry pass drops from `activeFeatures`.
+  if (typeof definition.lasts === 'object') {
+    return schedule(
+      state,
+      { kind: 'feature', on: id, feature: definition.feature },
+      { kind: 'seconds', seconds: definition.lasts.seconds },
+    );
+  }
+
   // Outside combat there are no turns, so a turn-anchored deadline has no
   // meaning — `resolveDuration` refuses it rather than inventing seconds, and
   // the feature simply runs until something ends it.

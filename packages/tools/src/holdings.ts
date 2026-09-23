@@ -35,6 +35,7 @@ import {
   pactSlotKey,
   speedOf,
   spellSlotKey,
+  describeElapsed,
 } from '@ie/engine';
 
 const SLOT_LEVELS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
@@ -801,7 +802,9 @@ export function holdingsOf(state: GameState, id: CharacterId): Holdings | null {
       pool: one.pool,
       left: leftIn(state, who, one.pool),
       active: active.includes(one.feature),
-      lasts: one.lasts,
+      // A turn anchor as the sheet spells it, or a printed span as a length
+      // of time — "10 minutes" — which is what the book printed.
+      lasts: typeof one.lasts === 'string' ? one.lasts : describeElapsed(one.lasts.seconds),
       ...(one.endsOn === undefined ? {} : { endsOn: one.endsOn }),
       ...(one.forbidsCasting === undefined ? {} : { forbidsCasting: one.forbidsCasting }),
       ...(one.capSeconds === undefined ? {} : { capSeconds: one.capSeconds }),
@@ -1217,14 +1220,18 @@ export function holdingsOf(state: GameState, id: CharacterId): Holdings | null {
     // legal and offer the holder nothing to state.
     const priced = effect.grant.kind === 'action-rule' && effect.grant.rule.kind === 'allows';
     const kind = elective ? 'casting-election' : priced ? 'action-price' : 'passive';
+    // The pool a priced allowance spends — SRD Adrenaline Rush's uses — so the
+    // door and the pool it draws on are one line, as an activation's are, and
+    // a census of pools with no door finds this one's.
+    const spends = effect.grant.kind === 'action-rule' ? (effect.grant.spends ?? null) : null;
     add({
       feature: effect.feature,
       name: effect.name,
       kind,
       spentBy: kind === 'passive' ? null : SPENT_BY[kind],
       action: null,
-      pool: null,
-      left: null,
+      pool: spends,
+      left: leftIn(state, who, spends),
       active: false,
     });
   }

@@ -14,6 +14,7 @@ import {
   speedGrantProblems,
   weaponSelectorProblems,
   type FeatureContext,
+  poolKeysIn,
 } from './feature-schema.js';
 import type {
   AlignmentDefinition,
@@ -28,7 +29,6 @@ import {
   type ClassDefinition,
   type FeatureDefinition,
   type FeatureGrant,
-  type GatedFeatureGrant,
   type CastingOptionGrant,
   type PoolOptionGrant,
   type SubclassDefinition,
@@ -202,29 +202,6 @@ export interface ContentProblem {
  */
 const poolKeysOf = (feature: FeatureDefinition): readonly string[] =>
   featureGrants(feature).flatMap(poolKeysIn);
-
-/** The pools one grant declares, which is at most one. */
-const poolKeysIn = (grant: GatedFeatureGrant): readonly string[] => {
-  if (grant.kind === 'pool') return [grant.key];
-  if (grant.kind === 'activated' && grant.pool !== null) return [grant.pool];
-  if (grant.kind === 'shape-shift') return [grant.pool];
-  if (grant.kind === 'reaction' && grant.declares !== undefined && grant.pool !== undefined) {
-    return [grant.pool];
-  }
-  if (grant.kind === 'recovery') return [grant.pool];
-  if (grant.kind === 'spells' && grant.freeCasting?.declares !== undefined) {
-    return [grant.freeCasting.pool];
-  }
-  // The pool a feature's trades run between, where the feature holds it. SRD
-  // Font of Magic is the whole of this arm: the Sorcery Points and both
-  // conversions are one printed feature, so Metamagic spends a key this grant
-  // declares. A trade's *own* `pool` is the pool of one its daily limit lives
-  // in, which no other feature has ever named and so is not membership here.
-  if (grant.kind === 'trade' && grant.pool !== undefined && grant.declares !== undefined) {
-    return [grant.pool];
-  }
-  return [];
-};
 
 /**
  * The `FeatureGrant` kinds the engine's readers execute.

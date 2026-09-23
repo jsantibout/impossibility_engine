@@ -216,6 +216,7 @@
     "applyEventUnder",
     "settleHitPointMaxima",
     "settleShapes",
+    "settleSizes",
     "endLostAttunements",
     "fold",
     "historyOf"
