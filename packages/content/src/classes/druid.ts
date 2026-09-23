@@ -178,8 +178,19 @@ export const DRUID: ClassDefinition = {
       id: 'druid:wild-companion',
       name: 'Wild Companion',
       level: 2,
-      automation: 'manual',
-      note: 'Spending a Wild Shape use to cast Find Familiar is not modelled: the spell executes, but a casting paid for out of a feature’s pool has no shape, and the familiar it calls is a Fey that disappears when the druid finishes a Long Rest — a lifetime a kept summons does not yet have.',
+      automation: 'engine',
+      note: 'Executed. SRD: "As a Magic action, you can expend a spell slot or a use of Wild Shape to cast the Find Familiar spell without Material components. When you cast the spell in this way, the familiar is Fey and disappears when you finish a Long Rest." The casting is a free casting out of Wild Shape’s own pool with the slot route printed beside it — `cast_spell.payment` says which — the familiar’s type is fixed to Fey by the feature and another answer is refused, and the bond the familiar stands on ends when the Druid completes a Long Rest, which `strandedSummons` reports and the sweep performs. Material components are not modelled, so "without" costs nothing to say.',
+      grants: {
+        kind: 'spells',
+        freeCasting: {
+          spell: 'find-familiar',
+          pool: 'wild-shape',
+          poolLabel: 'Wild Shape',
+          withSlots: true,
+          fixesChoice: 'Fey',
+          keptUntilSummonerLongRests: true,
+        },
+      },
     },
     {
       id: 'druid:subclass',

@@ -643,6 +643,15 @@ export function strandedSummons(state: GameState): readonly CharacterId[] {
         const summoner = state.creatures[bond.by];
         if (summoner === undefined || summoner.vitals.dead) return [creature.id];
       }
+      // SRD Wild Companion: "disappears when you finish a Long Rest" — the
+      // summoner's last completed Long Rest, and only one later than the bond:
+      // a familiar called the morning after is not owed the night before.
+      if (bond.kept?.untilSummonerLongRests === true) {
+        const summoner = state.creatures[bond.by];
+        if (summoner === undefined) return [creature.id];
+        const rested = summoner.lastLongRestAt;
+        if (rested !== null && rested > (bond.kept.since ?? -1)) return [creature.id];
+      }
       return [];
     });
 }

@@ -97,8 +97,13 @@ export const WIZARD: ClassDefinition = {
       id: 'wizard:ritual-adept',
       name: 'Ritual Adept',
       level: 1,
-      automation: 'manual',
-      note: 'Casting from the spellbook as a Ritual is legal through `castSpell` with `slotless: "ritual"`, but the engine does not check that the spell has the Ritual tag or that the book is in hand, and long casting times are refused.',
+      automation: 'engine',
+      note: 'Executed, with one fact handed over. SRD: "You can cast any spell as a Ritual if that spell has the Ritual tag and the spell is in your spellbook. You needn’t have the spell prepared, but you must read from the book to cast a spell in this way." A casting sent with `ritual` reaches a spell the book holds and the prepared list does not, spends no slot, and is refused for a spell without the Ritual tag; a Ritual takes ten minutes longer and so is declared and settled off the clock like every long casting, and one begun in a fight is refused as every long casting is. The book being in hand is the table’s.',
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        effects: [{ kind: 'ritual-from-book' }],
+      },
     },
     {
       id: 'wizard:arcane-recovery',

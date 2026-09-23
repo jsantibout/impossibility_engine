@@ -282,10 +282,12 @@ describe('features say what the engine does with them', () => {
     }
   });
 
-  it('automates Arcane Recovery as a pool and leaves Ritual Adept to the DM', () => {
+  it('automates Arcane Recovery as a pool and Ritual Adept as a licence on the route', () => {
     const byId = new Map(cumulativeFeatures(WIZARD, 3).map((f) => [f.id, f]));
     expect(byId.get('wizard:arcane-recovery')?.automation).toBe('engine');
-    expect(byId.get('wizard:ritual-adept')?.automation).toBe('manual');
+    // Manual until a Ritual could be cast from the book; `chooseRoute` reads
+    // the `ritual-from-book` grant now.
+    expect(byId.get('wizard:ritual-adept')?.automation).toBe('engine');
   });
 
   it('knows which features ask the player something', () => {

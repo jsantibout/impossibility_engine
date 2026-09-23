@@ -169,6 +169,13 @@ export interface SummonBond {
 export interface KeptBond {
   readonly spell: string;
   readonly untilSummonerDies: boolean;
+  /**
+   * SRD Wild Companion: "disappears when you finish a Long Rest" — the
+   * summoner's, completed after `since`, which is the clock at the binding.
+   * Absent on a bond the spell alone wrote, which is every other kept summons.
+   */
+  readonly untilSummonerLongRests?: true;
+  readonly since?: number;
 }
 
 /**

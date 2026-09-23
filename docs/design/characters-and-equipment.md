@@ -69,6 +69,12 @@ and `temporaryHitPoints`, a number or the Proficiency Bonus as it stands —
 which the command taking the cheaper slot charges before anything is spent.
 SRD Adrenaline Rush is the whole of that third word.
 
+A `spells` grant's `freeCasting` may name a sibling feature's pool (SRD Wild
+Companion spends Wild Shape's), print the slot route beside the free one
+(`withSlots`), fix a `choiceStated` value (`fixesChoice`) and put a Long Rest
+lifetime on the summons it calls (`keptUntilSummonerLongRests`); `GrantedSpell`
+carries all four onto the route, and `choosePayment` still asks which price.
+
 **A use may also hang a grant that is stored rather than derived**, which is
 the other half and the one a roll can spend. A derived grant is recomputed
 from state, so nothing can consume it: `consumedRollModifiers` reads stored

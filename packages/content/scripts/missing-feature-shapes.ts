@@ -458,18 +458,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'the half that is applied, off the same `check-bonus` Thaumaturge’s reads — two writers, which is what made it a member.',
     },
   ],
-  'druid:wild-companion': [
-    {
-      clause: 'a lifetime a kept summons does not yet have',
-      why: 'a-stat-block-created-mid-fight',
-      note: 'the spell map’s own id. A kept summons goes at 0 Hit Points, or with its summoner where the spell says so; one that goes when the summoner finishes a Long Rest is a third lifetime nothing runs.',
-    },
-    {
-      clause: 'Spending a Wild Shape use to cast Find Familiar',
-      why: 'a-casting-paid-for-out-of-a-feature-pool',
-      note: 'the catalogue defines Find Familiar now, so the casting has a spell to run; what it lacks is a price paid from a sibling feature’s pool.',
-    },
-  ],
   'druid:beast-spells': [
     {
       clause: 'Casting while Wild Shaped is not modelled, because Wild Shape is not',
@@ -682,23 +670,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'The other two of the four are still a note rather than a grant',
       why: 'table',
       note: 'the two unbuilt feats’ own debt, exactly as the Fighter’s Fighting Style is.',
-    },
-  ],
-  'paladin:smite': [
-    {
-      clause: 'a fixed spells grant, the move Favored Enemy already makes',
-      why: 'expressible',
-      note: 'Divine Smite is on the sheet from Paladin 2 without spending one of the prepared count.',
-    },
-    {
-      clause: 'needs a pool a casting can be paid out of',
-      why: 'a-casting-paid-for-out-of-a-feature-pool',
-      note: 'the free casting, which is the `casts` grant an item has and a feature is refused.',
-    },
-    {
-      clause: 'a reaction-shaped trigger the engine does not have',
-      why: 'a-feature-that-changes-what-a-casting-costs',
-      note: 'and casting it as a Bonus Action after a hit, which changes what the casting costs and when.',
     },
   ],
   'paladin:abjure-foes': [
@@ -1108,18 +1079,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
 
   // — Wizard —
-  'wizard:ritual-adept': [
-    {
-      clause: 'the engine does not check that the spell has the Ritual tag or that the book is in hand',
-      why: 'a-feature-that-changes-what-a-casting-costs',
-      note: 'the licence is the feature’s and the casting is checked against the class, not against what this feature allows.',
-    },
-    {
-      clause: 'long casting times are refused',
-      why: 'table',
-      note: 'a refusal the casting layer owns, recorded so the feature’s note stays true to it.',
-    },
-  ],
   'wizard:spell-mastery': [
     {
       clause: 'Casting the chosen spells at will',

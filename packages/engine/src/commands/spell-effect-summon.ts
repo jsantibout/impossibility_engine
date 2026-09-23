@@ -137,6 +137,13 @@ export function resolveSummonEffect(
           kept: {
             spell: definition.id,
             untilSummonerDies: effect.kept.untilSummonerDies === true,
+            // SRD Wild Companion: a lifetime the *feature* puts on the bond,
+            // over what the spell prints — read off the route the casting came
+            // by, and dated so a rest already taken does not count.
+            ...(ctx.route?.kind === 'granted' &&
+            ctx.route.grant.keptUntilSummonerLongRests === true
+              ? { untilSummonerLongRests: true as const, since: current.elapsed }
+              : {}),
           },
         }),
     ...(speeds === undefined ? {} : { speeds }),

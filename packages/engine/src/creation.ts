@@ -1435,10 +1435,14 @@ function castingFeaturesOf(
  * feature the Ranger prints and the Sorcerer half of the same creature does
  * not.
  *
- * **`slotCasting` is false, always.** The feature's route is the free one:
- * where the spell is also prepared, the class's own route casts it with a
- * slot, and a granted route that allowed both would make the engine choose
- * between a resource a player is saving and one they are not.
+ * **`slotCasting` is false unless the feature prints the slot route.** The
+ * feature's route is the free one: where the spell is also prepared, the
+ * class's own route casts it with a slot, and a granted route that allowed
+ * both would make the engine choose between a resource a player is saving and
+ * one they are not. SRD Wild Companion is the exception the book prints —
+ * "expend a spell slot or a use of Wild Shape" for a spell the class does not
+ * otherwise prepare, so the feature's route is the only one and both prices
+ * are its own; `choosePayment` still asks which.
  */
 function classFeatureFreeCastings(
   content: Content,
@@ -1454,7 +1458,8 @@ function classFeatureFreeCastings(
       source: feature.id,
       ability,
       freeCastPool: grant.freeCasting.pool,
-      slotCasting: false,
+      slotCasting: grant.freeCasting.withSlots === true,
+      ...castsAs(grant.freeCasting),
     });
   }
   return granted;
@@ -2222,6 +2227,7 @@ function originGrantedSpells(
         ability,
         freeCastPool: free.pool,
         slotCasting: free.withSlots === true,
+        ...castsAs(free),
       });
     }
   }
@@ -3693,6 +3699,15 @@ export function planCharacter(
       cantrips: caster.cantrips,
       prepared: [...caster.preparedSpells, ...alwaysPrepared],
       slotKind: pactMagic(content, caster.definition.id) ? 'pact' : 'spell',
+      // The book, for the one feature that reads it — SRD Ritual Adept casts
+      // "any spell ... in your spellbook" as a Ritual, prepared or not.
+      ...(style === 'spellbook'
+        ? {
+            book: [
+              ...new Set([...caster.spellbook.map((entry) => entry.spellId), ...fromFeatures]),
+            ].sort(),
+          }
+        : {}),
     });
   }
 
@@ -4191,6 +4206,19 @@ function slotPools(plan: CharacterPlan): readonly PoolDeclaration[] {
  * is a resource pool like any other, so it is one.
  */
 export const freeCastPoolKey = (featureId: string): string => `${featureId}:free-cast`;
+
+/**
+ * What a feature's free casting fixes about the casting itself — see
+ * `GrantedSpell.fixesChoice` and `keptUntilSummonerLongRests`. Carried
+ * across whole; the casting reads them off its route.
+ */
+const castsAs = (free: {
+  readonly fixesChoice?: string;
+  readonly keptUntilSummonerLongRests?: true;
+}): Pick<GrantedSpell, 'fixesChoice' | 'keptUntilSummonerLongRests'> => ({
+  ...(free.fixesChoice === undefined ? {} : { fixesChoice: free.fixesChoice }),
+  ...(free.keptUntilSummonerLongRests === undefined ? {} : { keptUntilSummonerLongRests: true }),
+});
 
 /**
  * Every condition a healing pool can lift: its own, plus whatever later

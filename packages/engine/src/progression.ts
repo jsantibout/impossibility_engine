@@ -838,6 +838,20 @@ export type FeatureGrant =
          * other sentence, for a holder who may have no slots at all.
          */
         readonly withSlots?: true;
+        /**
+         * SRD Wild Companion: "When you cast the spell in this way, the
+         * familiar is Fey." The one value a `choiceStated` spell leaves to its
+         * caster, fixed by the feature instead: a casting through this grant
+         * that states another is refused `choice_fixed`, and one that states
+         * none is not asked.
+         */
+        readonly fixesChoice?: string;
+        /**
+         * SRD Wild Companion: "and disappears when you finish a Long Rest" — a
+         * lifetime the grant puts on the summons over what the spell prints,
+         * recorded on the bond when the creature arrives.
+         */
+        readonly keptUntilSummonerLongRests?: true;
       };
     }
   /**

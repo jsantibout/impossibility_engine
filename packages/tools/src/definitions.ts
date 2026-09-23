@@ -2321,6 +2321,12 @@ const CAST_SPELL = tool({
       .describe(
         'Features of the caster’s that this casting uses — the ones the SRD writes as “you can”, which do nothing unless the casting names them. `sheet` lists them; a feature the caster has not got is refused, and one they have that does not reach this spell is not, because casting outside a feature’s narrowing is legal. This carries no number: the engine reads the feature off the sheet and does the arithmetic itself.',
       ),
+    ritual: z
+      .literal(true)
+      .optional()
+      .describe(
+        'Cast it as a Ritual. SRD: ten minutes longer than the spell’s printed casting time and no spell slot expended, so it is declared now and settled with `resolve_declared_cast` once `advance_time` has passed the time, exactly as `hold` works; a slot level above the spell’s own is refused, and so is a spell without the Ritual tag. A Wizard with Ritual Adept reaches any Ritual in the spellbook this way, prepared or not.',
+      ),
     hold: z
       .boolean()
       .optional()
@@ -2364,6 +2370,7 @@ const CAST_SPELL = tool({
       ...(args.source === undefined ? {} : { source: args.source }),
       ...(args.usingFeatures === undefined ? {} : { usingFeatures: args.usingFeatures }),
       ...(args.hold === true ? { hold: true } : {}),
+      ...(args.ritual === true ? { ritual: true as const } : {}),
       ...(args.answers === undefined ? {} : { answers: args.answers }),
       ...identity(context),
     };

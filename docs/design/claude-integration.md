@@ -105,7 +105,9 @@ nothing closes wedges the fight it was opened in.
 makes a casting a process so Counterspell has something to interrupt, `answers`
 names which of a caster's open castings, and `resolve_declared_cast` is what
 finishes one nobody stopped — a declaration with no settlement is a slot nobody
-spends, held open for the rest of the campaign.
+spends, held open for the rest of the campaign. `cast_spell.ritual` opens the
+same window for the same reason — a Ritual is a long casting — and is settled
+by the same door.
 
 **Time out of combat is narration and is therefore a door.** In a fight the
 clock is derived; outside one, how long the party walked is the same kind of
