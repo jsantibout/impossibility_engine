@@ -58,8 +58,10 @@ A creature summoned by a casting that has since ended is the same kind of
 debt and is **not** state: who is standing on a casting that is over is a
 question about the world as it stands, which `strandedSummons` answers from
 the roster and the ongoing records, where an owed area effect records a
-moment that has passed and could not be recomputed. `resolveTurn` refuses on
-the answer either way.
+moment that has passed and could not be recomputed. A creature its summoner
+*keeps* (`SummonBond.kept`) is asked the same way of different facts: its own
+hit points, and its summoner's death where the spell says so. `resolveTurn`
+refuses on the answer either way.
 
 ## Conditions
 

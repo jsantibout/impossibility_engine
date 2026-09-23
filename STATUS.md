@@ -86,8 +86,11 @@ homebrew.
   Paladin's Channel Divinity. Font of Magic and Arcane Recovery now buy spell
   slots. `reachability.test.ts`'s `NOTHING_TO_BUY` is checked in both
   directions, so a pool that opens deletes its line in the same commit.
-- **A casting cannot summon.** The door is built and the effect kind is not, so
-  a caller must cast, read the `castingId` back and summon by hand.
+- **A summons still carries one debt.** A casting raises a creature out of the
+  bestiary, keeps it for its caster where the spell says so, states its form
+  and type, and seats it after its rider; what no field can hold is a printed
+  line whose numbers are the summoner's — the Otherworldly Steed's attack and
+  Bonus Actions — and a creature stowed somewhere that is not the scene.
 - **Nothing reduces damage an effect has rolled**, which is why Feather Fall
   and a Monk's Slow Fall do not work and why `FeatureReactionWindow` still
   excludes `creature-falling`.
