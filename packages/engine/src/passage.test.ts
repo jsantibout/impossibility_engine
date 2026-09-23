@@ -138,7 +138,7 @@ const walk = (log: readonly GameEvent[], request: Parameters<typeof resolveMove>
  * A walker with an Ogre on the one diagonal it could walk: ten feet across
  * and ten feet tall, so the space over its head is not a way round either.
  */
-const hemmedIn = (blockerSide: string): readonly GameEvent[] => [
+const hemmedIn = (blockerSide: string | null): readonly GameEvent[] => [
   added('walker', 'party'),
   added('blocker', blockerSide),
   { type: 'scene-set', extent: { width: 400, depth: 400, height: 40 } },
@@ -259,6 +259,27 @@ describe('a move through somebody else’s space', () => {
       supply(),
     );
     expect(unwrap(out, 'past the ally').feet).toBe(15);
+    expect(unwrap(out, 'past the ally').unverified).toEqual([]);
+  });
+
+  /**
+   * And the silence is not free either: the one thing that could have made
+   * the walk above a refusal is a side nobody has declared, so a move let
+   * through on one says so. The same reading the stated-route branch takes,
+   * on the branch that asks nobody anything.
+   */
+  it('says when the silence rested on a side nobody declared', () => {
+    const out = unwrap(
+      resolveMove(
+        fold('seed', hemmedIn(null)),
+        WALKER,
+        { placement: { from: { point: { x: 100, y: 100, z: 0 } }, feet: 15, bearing: 45 } },
+        supply(),
+      ),
+      'past the stranger',
+    );
+    expect(out.feet).toBe(15);
+    expect(out.unverified.join(' ')).toContain('whose side blocker is on');
   });
 });
 

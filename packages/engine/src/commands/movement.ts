@@ -1073,8 +1073,26 @@ function checkPassage(
     // gap, or a Halfling's one — then no route the caller could state would
     // be refused, and asking would be `chargeTerrain`'s "Web in the far
     // corner" round trip with the answer known before it was sent.
-    if (occupantsBetween(scene, id, from, to).every((who) => passable(who) !== false)) {
-      return ok({ unverified: [] });
+    const nearby = occupantsBetween(scene, id, from, to);
+    if (nearby.every((who) => passable(who) !== false)) {
+      // **Except that silence is not the same as nothing happened.** A side
+      // nobody has declared is the one thing that could have turned this into
+      // a refusal, and a move let through on it is a rule the engine skipped
+      // rather than applied — so it is reported here exactly as it is on a
+      // stated route, which is `chargeTerrain`'s own habit in `report` mode:
+      // hand the answer back and say what it is.
+      //
+      // "near this move" rather than "crossed", because that is what is
+      // known: `occupantsBetween` is the enclosure and the walk above says
+      // only that *some* space of somebody's was unavoidable.
+      return ok({
+        unverified: nearby
+          .filter((who) => passable(who) === null)
+          .map(
+            (who) =>
+              `nobody has said whose side ${state.creatures[who]?.side == null ? who : id} is on, and this move could not have kept clear of every creature near it, so ${id} was not held to the rule about moving through ${who}'s space`,
+          ),
+      });
     }
     const feet = distanceBetweenPoints(from, to);
     // **Asked outside combat too**, which is where this parts company with the
@@ -1082,9 +1100,14 @@ function checkPassage(
     // declines to ask where there is no budget to charge it against; this one
     // is about whether the move may be made at all, and a move nobody may make
     // is no more legal out of combat than in it.
+    //
+    // The reason says only what has been established, which is two separate
+    // facts: the move could not have kept clear of everybody, and somebody
+    // *near* it is impassable. Which spaces were actually crossed is the
+    // question — so the sentence may not answer it in passing.
     return needsContext(
       ROUTE_REQUIRED,
-      `every shortest way from (${from.x}, ${from.y}, ${from.z}) to (${to.x}, ${to.y}, ${to.z}) goes through a space somebody is standing in, and at least one of them is somebody ${id} may not walk through`,
+      `every shortest way from (${from.x}, ${from.y}, ${from.z}) to (${to.x}, ${to.y}, ${to.z}) goes through a space somebody is standing in, and somebody near this move is one ${id} may not walk through, so which spaces were crossed decides whether it is legal`,
       [
         {
           kind: 'route',

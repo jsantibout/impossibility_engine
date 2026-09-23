@@ -195,6 +195,13 @@ const straightRoute = (from: Point, to: Point): readonly Point[] => {
  * route — the sidestep is one of the spaces the slack on the other axis
  * allows, so `checkRoute` takes it and the count is unchanged — and keeps
  * this file about who an area catches rather than about whose square it is.
+ *
+ * The sidestep is not itself checked for occupants. One creature stands on
+ * one lane here, and the case that would matter — a second creature the mover
+ * may not walk through, standing on the space stepped into — fails loudly as
+ * a `blocked_by_creature` naming them rather than quietly walking through it.
+ * A creature the mover *may* pass would be walked through silently, which is
+ * the rule rather than a hole in it.
  */
 const sidestepping = (
   scene: PositionState,
