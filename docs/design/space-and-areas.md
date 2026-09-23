@@ -49,7 +49,18 @@ are gone and the ground still costs double. Two overlapping patches do not
 stack; the dearer governs, as overlapping cover does. A move whose cost the
 path decides raises `route_required`, which is the other question rather than
 the same one: it wants the spaces named, in order, in the command's own
-`route` field, and one command answers it. The carried area's is
+`route` field, and one command answers it. **The same field answers the
+glossary's "Moving around Other Creatures."** `canPassThrough` had encoded the
+rule since positioning landed and nothing called it; `checkPassage` reads it
+now against every space a stated route crosses — an ally, an Incapacitated
+creature, a Tiny one, or one two sizes away may be passed, anybody else is
+`blocked_by_creature` — and a move stating no route is asked `route_required`
+only when every shortest path crosses somebody it may not pass. Forced
+movement is exempt (a shove is not the creature's movement), and a side nobody
+has declared is reported in `unverified` rather than ruled on. A `passage`
+standing grant widens the size clause — SRD Halfling Nimbleness — summed and
+floored at one size of difference, so no grant walks a creature through its
+own twin. The carried area's is
 `single_steps_required`, and no route will ever answer that one. Both carry
 requests of kind `route`; the **code** is what says how to supply what is
 missing, and `commands/command.ts` holds the pair with the rule that
@@ -57,9 +68,10 @@ separates them.
 
 ## Movement and teleportation
 
-`resolveMove` spends movement, provokes Opportunity Attacks from creatures
-whose reach the mover leaves (reach read from the weapon in the content),
-and holds the move open (`pendingMove`) until every reaction is answered.
+`resolveMove` spends movement, checks the passage of every space a route
+crosses, provokes Opportunity Attacks from creatures whose reach the mover
+leaves (reach read from the weapon in the content), and holds the move open
+(`pendingMove`) until every reaction is answered.
 `relocateCreature` is a teleport: a position change that spends nothing and
 provokes nobody, but still raises the area entry a Web is owed. Mounting is
 a position relation; the rider moves when the mount does.

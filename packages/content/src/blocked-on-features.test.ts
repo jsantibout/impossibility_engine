@@ -107,9 +107,13 @@ describe('the feature blocked-on map covers the population it answers for', () =
    * a guard by succeeding. Conversions are the whole point of this map, so the
    * number here will fall; what this catches is a wrong predicate, a filter
    * that reads nothing, or a map that has quietly stopped being populated.
+   *
+   * Lowered from 100 on 2026-09-22, when Wild Shape and Halfling Nimbleness
+   * left the map in one batch and it stood at exactly 100 — the floor sat on
+   * the population again, which is the mistake the paragraph above records.
    */
   it('covers a population worth deriving', () => {
-    expect(Object.keys(FEATURE_BLOCKED_ON).length).toBeGreaterThan(100);
+    expect(Object.keys(FEATURE_BLOCKED_ON).length).toBeGreaterThan(60);
   });
 
   /** In an order two branches can both append to, and the order is the data's. */
