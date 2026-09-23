@@ -17,6 +17,7 @@ import {
 // fourth copy of it.
 import { CREATURE_SIZES, type CreatureSize } from '@ie/srd/schemas';
 import { proficientWithCategories } from './attack.js';
+import { parseNotation } from './dice.js';
 import {
   ABILITY_SCORE_MAXIMUM,
   DEFAULT_HANDS,
@@ -3965,14 +3966,21 @@ function longRestSecondsFor(features: readonly FeatureDefinition[]): number | nu
 /**
  * One die's notation with the count an amending feature works out written in.
  *
- * The `d8` fallback is unreachable rather than a default: `checkFeatureDefinition`
- * refuses an amendment whose die `parseNotation` cannot read (`bad_dice`), so a
- * die with no sides has been turned away at the door. It stands because this
- * returns a string a damage roll is made from, and a `undefined` must not reach
- * one — the reading `planCharacter` already takes of a species with no size.
+ * **The sides are read by the parser rather than off the string**, which is the
+ * difference between this and a `split('d')`: `parseNotation` lowercases before
+ * it matches, so a feature written `D12` is dice the validator accepts and a
+ * split would have silently turned into a d8. The one reader of a notation is
+ * the one that decides what it says.
+ *
+ * The eight is a floor under a die the validator has already refused
+ * (`bad_dice`), and it stands for the reason `planCharacter`'s size fallback
+ * does: this returns a string a damage roll is made from, and `undefined` must
+ * not reach one.
  */
-const withDiceCountOf = (die: string, count: number): string =>
-  `${Math.max(1, count)}d${die.split('d')[1] ?? '8'}`;
+const withDiceCountOf = (die: string, count: number): string => {
+  const parsed = parseNotation(die);
+  return `${Math.max(1, count)}d${parsed.ok ? parsed.value.sides : 8}`;
+};
 
 function usesOf(
   choices: CharacterChoices,

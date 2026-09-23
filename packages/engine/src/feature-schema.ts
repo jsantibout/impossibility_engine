@@ -1140,7 +1140,11 @@ function grantProblems(
     (grant.amends ?? []).forEach((amendment, at) => {
       const field = `grants.amends[${at}].damagesFailures`;
       const damage = amendment?.damagesFailures;
-      if (damage === undefined || typeof damage !== 'object') {
+      // `== null` and not `=== undefined`: `typeof null` is "object", so a
+      // homebrew that writes `damagesFailures: null` would have walked through
+      // the gate and been dereferenced. A catalogue arriving as JSON is not
+      // programmer error, and rule 6 says what it gets back.
+      if (damage == null || typeof damage !== 'object') {
         found.push({
           field,
           code: 'amends_nothing',
@@ -1162,7 +1166,19 @@ function grantProblems(
           reason: `"${String(damage.damageType)}" is not a damage type, so nothing a creature resists or is immune to would ever match it`,
         });
       }
-      found.push(...sizingProblems(damage.count ?? {}, `${field}.count`, context));
+      // The **shape** before the rules, which is the half `content.ts` gives
+      // every other declared sizing ("a declared pool is an object"): a count
+      // written `3` or `"wis"` reaches `poolSizeOf`, falls through every branch
+      // to `minimum ?? 1`, and the feature quietly deals one die for ever.
+      if (damage.count == null || typeof damage.count !== 'object') {
+        found.push({
+          field: `${field}.count`,
+          code: 'bad_pool_sizing',
+          reason: `how many dice is one of the sizings the engine reads, written as an object, not ${String(damage.count)}`,
+        });
+      } else {
+        found.push(...sizingProblems(damage.count, `${field}.count`, context));
+      }
     });
   }
 

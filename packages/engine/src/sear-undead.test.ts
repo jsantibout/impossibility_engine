@@ -5,7 +5,9 @@ import {
   READABLE_FEATURE_FIELDS,
   READABLE_GRANT_KINDS,
   checkContent,
+  extendContent,
   parseClassDefinition,
+  parseSubclassDefinition,
   type Content,
 } from './content.js';
 import { checkFeatureDefinition } from './feature-schema.js';
@@ -179,6 +181,79 @@ const turnOption = (level: number, wisdom = 15) => {
   return option;
 };
 
+/**
+ * A homebrew class with a pool, one form on its menu, and a later feature that
+ * changes what that form does.
+ *
+ * Its own class rather than a Cleric domain, because the Cleric's menu is
+ * already amended: `cleric:sear-undead` names Turn Undead, and a second
+ * amendment of one form is a thing `checkContent` refuses.
+ */
+const singerWith = (option: string, die = '1d8') => ({
+    id: 'singer',
+    name: 'Singer',
+    primaryAbility: 'cha',
+    hitDie: 8,
+    saveProficiencies: ['cha', 'dex'],
+    skillChoices: { choose: 2, from: ['performance', 'insight'] },
+    weaponProficiencies: ['simple'],
+    armorTraining: { light: true, medium: false, heavy: false, shields: false },
+    subclassLevel: 20,
+    table: Array.from({ length: 20 }, (_, i) => ({
+      level: i + 1,
+      proficiencyBonus: 2 + Math.floor(i / 4),
+    })),
+    startingEquipment: [{ option: 'A', items: [{ id: 'dagger', quantity: 1 }], goldPieces: 5 }],
+    multiclass: { weapons: ['simple'], armorTraining: { light: true, medium: false, heavy: false, shields: false }, tools: [] },
+    features: [
+      {
+        id: 'singer:refrain',
+        name: 'Refrain',
+        level: 1,
+        automation: 'engine',
+        note: 'A pool with one form on its menu.',
+        grants: {
+          kind: 'pool',
+          key: 'refrain',
+          label: 'Refrain',
+          usesByLevel: Array.from({ length: 20 }, () => 2),
+          recovers: 'long-rest',
+          options: [
+            {
+              id: 'lullaby',
+              name: 'Lullaby',
+              action: 'action',
+              area: { kind: 'emanation', distance: 30, origin: 'self' },
+              effects: [{ kind: 'save', ability: 'wis', condition: 'frightened' }],
+              durationSeconds: 60,
+            },
+          ],
+        },
+      },
+      {
+        id: 'singer:descant',
+        name: 'Descant',
+        level: 5,
+        automation: 'engine',
+        note: 'A later feature that changes what the Refrain does.',
+        grants: {
+          kind: 'pool-options',
+          feature: 'singer:refrain',
+          amends: [
+            {
+              option,
+              damagesFailures: {
+                die,
+                count: { fromAbilityModifier: 'cha', minimum: 1 },
+                damageType: 'thunder',
+              },
+            },
+          ],
+        },
+      },
+    ],
+});
+
 describe('Sear Undead amends Turn Undead rather than joining its menu', () => {
   /** SRD: "a number of d8s equal to your Wisdom modifier (minimum of 1d8)". */
   it('counts the d8s off the Cleric’s Wisdom modifier', () => {
@@ -269,71 +344,7 @@ describe('an amendment is held to the menu it names', () => {
    * that amends a form its host does not print.
    */
   const withAmendment = (option: string) => {
-    const singer = {
-      id: 'singer',
-      name: 'Singer',
-      primaryAbility: 'cha',
-      hitDie: 8,
-      saveProficiencies: ['cha', 'dex'],
-      skillChoices: { choose: 2, from: ['performance', 'insight'] },
-      weaponProficiencies: ['simple'],
-      armorTraining: { light: true, medium: false, heavy: false, shields: false },
-      subclassLevel: 3,
-      table: Array.from({ length: 20 }, (_, i) => ({
-        level: i + 1,
-        proficiencyBonus: 2 + Math.floor(i / 4),
-      })),
-      startingEquipment: [{ option: 'A', items: [{ id: 'dagger', quantity: 1 }], goldPieces: 5 }],
-      multiclass: { weapons: ['simple'], armorTraining: { light: true, medium: false, heavy: false, shields: false }, tools: [] },
-      features: [
-        {
-          id: 'singer:refrain',
-          name: 'Refrain',
-          level: 1,
-          automation: 'engine',
-          note: 'A pool with one form on its menu.',
-          grants: {
-            kind: 'pool',
-            key: 'refrain',
-            label: 'Refrain',
-            usesByLevel: Array.from({ length: 20 }, () => 2),
-            recovers: 'long-rest',
-            options: [
-              {
-                id: 'lullaby',
-                name: 'Lullaby',
-                action: 'action',
-                area: { kind: 'emanation', distance: 30, origin: 'self' },
-                effects: [{ kind: 'save', ability: 'wis', condition: 'frightened' }],
-                durationSeconds: 60,
-              },
-            ],
-          },
-        },
-        {
-          id: 'singer:descant',
-          name: 'Descant',
-          level: 5,
-          automation: 'engine',
-          note: 'A later feature that changes what the Refrain does.',
-          grants: {
-            kind: 'pool-options',
-            feature: 'singer:refrain',
-            amends: [
-              {
-                option,
-                damagesFailures: {
-                  die: '1d8',
-                  count: { fromAbilityModifier: 'cha', minimum: 1 },
-                  damageType: 'thunder',
-                },
-              },
-            ],
-          },
-        },
-      ],
-    };
-    const parsed = parseClassDefinition(singer);
+    const parsed = parseClassDefinition(singerWith(option));
     return parsed.ok
       ? checkContent({ classes: [parsed.value] })
       : [{ field: 'class', code: parsed.code, reason: parsed.reason }];
@@ -348,6 +359,50 @@ describe('an amendment is held to the menu it names', () => {
     expect(problems.map((one) => one.code)).toContain('unknown_amended_option');
     expect(problems[0]?.field).toContain('amends[0].option');
   });
+
+  /**
+   * And refuses a second feature changing the same form: a compiled option
+   * reads one amendment, so the other would be a printed sentence the sheet
+   * silently dropped. Driven across the class/subclass boundary, which is the
+   * scope a subclass's own validation sees.
+   */
+  it('refuses a second feature changing the form a first one already changed', () => {
+    const singer = parseClassDefinition(singerWith('lullaby'));
+    expect(singer.ok).toBe(true);
+    if (!singer.ok) return;
+    const choir = parseSubclassDefinition({
+      id: 'choir',
+      name: 'Choir',
+      classId: 'singer',
+      features: [
+        {
+          id: 'choir:harmony',
+          name: 'Harmony',
+          level: 3,
+          automation: 'engine',
+          note: 'A subclass that changes the same form its parent class already changed, so the validator has the collision to judge.',
+          grants: {
+            kind: 'pool-options',
+            feature: 'singer:refrain',
+            amends: [
+              {
+                option: 'lullaby',
+                damagesFailures: {
+                  die: '1d6',
+                  count: { minimum: 1 },
+                  damageType: 'thunder',
+                },
+              },
+            ],
+          },
+        },
+      ],
+    });
+    expect(choir.ok).toBe(true);
+    if (!choir.ok) return;
+    const problems = checkContent({ classes: [singer.value], subclasses: [choir.value] });
+    expect(problems.map((one) => one.code)).toContain('duplicate_amended_option');
+  });
 });
 
 /**
@@ -359,6 +414,57 @@ describe('an amendment is held to the menu it names', () => {
  * `poolSizeOf` reads would each have compiled onto the sheet and reached
  * `dealSpellDamage` as data the engine cannot argue with.
  */
+/**
+ * The die a compiled amendment actually deals, read off a real sheet.
+ *
+ * The notation on the option is what the command rolls, so "which die does
+ * this amendment name" is asked of the character rather than of the validator.
+ */
+const diceOfAmendment = (die: string): string | undefined => {
+  const world = unwrap(
+    extendContent(SRD_CONTENT, { classes: [singerWith('lullaby', die)] } as never),
+    'homebrew class',
+  );
+  const sheet = unwrap(
+    planCharacter(world, {
+      name: 'Rhys',
+      classId: 'singer',
+      level: 5,
+      speciesId: 'human',
+      backgroundId: 'sage',
+      abilities: {
+        method: 'standard-array',
+        assignment: { str: 10, dex: 14, con: 13, int: 12, wis: 8, cha: 15 },
+      },
+      abilityIncreases: { con: 2, int: 1 },
+      classSkills: ['performance', 'insight'],
+      languages: ['Dwarvish', 'Orc'],
+      alignment: 'Neutral',
+      cantrips: [],
+      spellbook: [],
+      preparedSpells: [],
+      classEquipment: 'A',
+      backgroundEquipment: 'A',
+      equipped: [],
+      hitPoints: { method: 'fixed' },
+      featureChoices: { 'human:skillful': ['perception'] },
+      feats: {
+        'sage:magic-initiate-wizard': {
+          featId: 'magic-initiate',
+          spellList: 'wizard',
+          spellcastingAbility: 'int' as const,
+          cantrips: ['mage-hand', 'light'],
+          levelOneSpell: 'find-familiar',
+        },
+        'human:versatile': { featId: 'alert' },
+      },
+      dmGrants: { items: [], goldPieces: 0, magicItems: [], note: 'standard' },
+    } as CharacterChoices),
+    'singer',
+  ).sheet;
+  return (sheet.poolOptions ?? []).find((one) => one.option === 'lullaby')?.damagesFailures?.dice;
+};
+
 describe('what an amendment burns the failures with', () => {
   const codes = (damagesFailures: unknown): string[] =>
     checkFeatureDefinition(
@@ -404,7 +510,36 @@ describe('what an amendment burns the failures with', () => {
     ).toContain('bad_pool_sizing');
   });
 
+  /**
+   * The shape before the rules. A count that is not a sizing at all falls
+   * through every branch of `poolSizeOf` to its floor, so the feature would
+   * have dealt one die for ever and nothing would have said so.
+   */
+  it('refuses a dice count that is not a sizing at all', () => {
+    for (const count of [3, 'wis', null]) {
+      expect(codes({ die: '1d8', count, damageType: 'radiant' })).toContain('bad_pool_sizing');
+    }
+  });
+
   it('refuses an amendment that says nothing about what changes', () => {
+    // Both spellings of nothing, because `typeof null` is "object" and the
+    // second of them used to be dereferenced rather than refused.
     expect(codes(undefined)).toContain('amends_nothing');
+    expect(codes(null)).toContain('amends_nothing');
+  });
+
+  /**
+   * The die is read by the parser rather than off the string.
+   *
+   * `parseNotation` lowercases before it matches, so `D12` is dice the
+   * validator accepts — and a `split('d')` would have turned it into a d8 with
+   * nothing to say so.
+   */
+  it('rolls the die the notation names, in either case', () => {
+    expect(codes({ die: '1D12', count: { minimum: 1 }, damageType: 'radiant' })).toEqual([]);
+    // A Charisma of 15 is a modifier of 2, so the count is the sizing's and
+    // the sides are the notation's — in either case it was written in.
+    expect(diceOfAmendment('1D12')).toBe('2d12');
+    expect(diceOfAmendment('1d8')).toBe('2d8');
   });
 });
