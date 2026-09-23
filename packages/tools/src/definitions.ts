@@ -818,15 +818,18 @@ function alreadyWritten(
  * come back through `unverified`, beside the qualified defences `addCreature`
  * withholds for the same reason.
  *
- * **It declares no side and no spellcasting**, which is the engine's division
- * rather than a gap: allegiance changes in play (`declare_side`) and a stat
- * block writes its spellcasting as English prose that nothing has parsed. An
- * NPC who casts takes two calls.
+ * **It declares no side**, which is the engine's division rather than a gap:
+ * allegiance changes in play, so `declare_side` is its own call. It **does**
+ * declare what the block casts, and that sentence used to sit beside this one
+ * saying the opposite — a stat block's Spellcasting line was English prose
+ * nothing had parsed, so an NPC who cast took a second call nobody on this
+ * surface could make. The line is structure now, so the spells, the printed
+ * numbers and the per-day pools arrive with the creature.
  */
 const ADD_CREATURE = tool({
   name: 'add_creature',
   description:
-    'Put a monster into the game from the bestiary, by the id of its stat block. The engine reads every number off the block — Armour Class, hit points, saves, defences, size — and hands the creature the gear the block prints so that it can use it. You say only what to call it and which monster it is. Declare its side separately; allegiance changes in play.',
+    'Put a monster into the game from the bestiary, by the id of its stat block. The engine reads every number off the block — Armour Class, hit points, saves, defences, size — and hands the creature the gear the block prints so that it can use it. Where the block prints a Spellcasting line it arrives able to cast those spells, at the numbers the block prints and with the At Will and N/Day prices it names: `look` reports them and `cast_spell` spends them. You say only what to call it and which monster it is. Declare its side separately; allegiance changes in play.',
   mutates: true,
   establishes: ['creature'],
   input: z.object({

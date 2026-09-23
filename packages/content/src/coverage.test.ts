@@ -499,6 +499,7 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
       'perDay',
       'recharge',
       'save',
+      'spellcasting',
       'text',
       'trait',
     ]);

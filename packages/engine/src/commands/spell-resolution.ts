@@ -93,7 +93,7 @@ import {
   statedFormOf,
   isCreatureType,
 } from '../spell-definitions.js';
-import { type CastingRoute } from '../spellcasting.js';
+import { castsAtWill, type CastingRoute } from '../spellcasting.js';
 import {
   castingSource,
   type CastingNumbers,
@@ -708,6 +708,14 @@ export function castOrRelease(
     const unverified: string[] = [
       ...(definition.unmodelled ?? []).map((gap) => `${definition.name}: ${gap}`),
       ...(definition.dmDecides ?? []).map((printed) => handedOver(definition.name, printed)),
+      // And what the *grant* printed about this spell, which is the same
+      // question one host along: a stat block's "(self only)", "(level 4
+      // version)", "(lasts 24 hours)" are clauses the grant has no field for,
+      // and a rider dropped at the door is a rule nobody applied and nobody
+      // was told about.
+      ...(route.kind === 'granted' && route.grant.handOver !== undefined
+        ? [handedOver(definition.name, route.grant.handOver)]
+        : []),
     ];
     const needs: ContextRequest[] = [];
 
@@ -1863,7 +1871,13 @@ function resolveOnTargets(
                 slotless:
                   definition.level === 0 ? ('cantrip' as const) : ('special-ability' as const),
               }
-            : {
+            : // **A stat block's At Will line, and the third value
+              // `SlotlessReason` has carried since it was written.** No slot,
+              // no pool and no cantrip: the creature simply casts it, and
+              // `innate` is the word the type already had for that.
+              castsAtWill(route)
+              ? { slotless: 'innate' as const }
+              : {
                 // **The slot that was paid for, not the level the casting
                 // counts as.** SRD Twinned Spell raises the second and leaves
                 // the first exactly where it was.

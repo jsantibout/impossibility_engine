@@ -2175,7 +2175,20 @@ export function choosePayment(
     return ok(null);
   }
 
-  if (request.slotLevel !== undefined) return ok(null);
+  // **A named slot level on a route that has no slots is refused, not
+  // dropped.** SRD Magic Initiate's grant may also be cast with a slot and
+  // this is the other kind: a stat block's printed line, whose creature holds
+  // no slot at all. Reading past the level and paying some other way is the
+  // field-quietly-ignored failure every stated fact on a casting is refused
+  // for.
+  if (request.slotLevel !== undefined) {
+    return slotAllowed
+      ? ok(null)
+      : err(
+          'slot_not_allowed',
+          `${definition.name} cannot be cast with a slot on this route, and a level ${request.slotLevel} slot was named`,
+        );
+  }
   if (free === null) return ok(null);
   if (!slotAllowed) return ok(free);
 

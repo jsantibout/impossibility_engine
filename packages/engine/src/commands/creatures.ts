@@ -78,14 +78,17 @@ export interface AddCreatureOutcome {
  * block up in and a guard nothing can reach is not a rule; a monster is
  * content now, and the refusal is reachable from the first line.
  *
- * **It does not declare what the creature casts**, and that is the parser
- * rather than a gap: a stat block prints its spellcasting as English prose in
- * a trait, and `Monster` carries no ability, no list and no slots. Reading one
- * out of that prose would be the engine deciding a fact the SRD wrote for a
- * person; `declareSpellcasting` is the command that states it, and an NPC who
- * casts takes two commands exactly as `scene-commands.test.ts`'s priest does.
- * `declareCreatureSide` is the same answer for allegiance, which changes in
- * play and therefore cannot be a property of arriving.
+ * **And it declares what the creature casts, where the block prints it.** That
+ * paragraph used to say the opposite, and the reason it did was the parser
+ * rather than a rule: a stat block's Spellcasting line was English prose and
+ * `Monster` carried no ability, no list and no prices, so reading one out would
+ * have been the engine deciding a fact the SRD wrote for a person. The line is
+ * *structure* now — an ability, the numbers the block prints, and one price per
+ * spell — so the block answers, and a Cultist Fanatic walks in already casting.
+ * `declareSpellcasting` remains the command for an NPC whose block says nothing,
+ * and it remains restatable: nothing here makes a declaration durable.
+ * `declareCreatureSide` is still the other answer, for an allegiance that
+ * changes in play and therefore cannot be a property of arriving.
  *
  * **It refuses what the reducer would call corrupt** — a creature already in
  * the game — which is the rule the scene commands settled, **and the one
@@ -151,6 +154,25 @@ export function addCreature(
             ...(conditionImmunities.length === 0 ? {} : { conditionImmunities }),
             ...(stamp === null ? {} : { command: stamp }),
           },
+          // **What the block's Spellcasting line declares, in the same
+          // batch.** Its own event rather than a field on the arrival, for the
+          // reason `declareSpellcasting` already exists: a spell list is not
+          // durable the way a creature's type is, and the SRD nowhere forbids
+          // restating one. But a creature whose block prints the line arrives
+          // casting, because the block prints it — nobody above the engine
+          // should have to declare a fact the book already states, which is
+          // the rule `creatureType` settled.
+          ...(adapted.spellcasting === null
+            ? []
+            : [{ type: 'spellcasting-declared' as const, id, spellcasting: adapted.spellcasting }]),
+          // And the pools its per-day castings come out of, which a pool is
+          // declared rather than derived for: the size is a fact somebody has
+          // to state, and here the block states it.
+          ...adapted.spellPools.map((pool) => ({
+            type: 'resource-pool-declared' as const,
+            id,
+            pool,
+          })),
         ],
         // **Withheld and reported, never applied.** "Charmed (except from its
         // vampire master)" as a flat immunity makes the vampire unable to

@@ -40,6 +40,42 @@ export interface GrantedSpell {
   readonly freeCastPool: string | null;
   /** SRD: "You can also cast the spell using any spell slots you have." */
   readonly slotCasting: boolean;
+  /**
+   * The grant pays **nothing** and runs out of nothing.
+   *
+   * A stat block's "**At Will:** _Etherealness_" is neither of the two prices
+   * this shape already held: there is no slot (the creature has none and the
+   * line names none) and no pool (there is no count to run out). Absent is
+   * every grant written before this one, which is the reading `freeCastPool`
+   * and `slotCasting` between them have always given — a free casting, a slot,
+   * or both.
+   *
+   * A cantrip needs no flag: it already costs nothing on any route.
+   */
+  readonly atWill?: true;
+  /**
+   * The save DC a **printed** line states, in place of the one the ability
+   * derives.
+   *
+   * `HitRider.saveDc` and `ItemCastsGrant.saveDc` exactly, on the third host
+   * that has a number of its own. A printed number and a derived one are not
+   * distinguishable after the fact — SRD Adult Bronze Dragon prints DC 17 over
+   * abilities that derive 18 — so a stated number is carried and a line that
+   * prints none is left to derive.
+   */
+  readonly saveDc?: number;
+  /** "+4 to hit with spell attacks", the same way and for the same reason. */
+  readonly attackBonus?: number;
+  /**
+   * What the line printed about **this** spell that nothing here applies.
+   *
+   * "(self only)", "(level 4 version)", "(lasts 24 hours; ends early if the
+   * dryad casts the spell again)" — a rider on one casting of one spell, and
+   * the grant has no field for any of them. Carried so that casting the spell
+   * hands it to the table, exactly as a definition's own `unmodelled` is
+   * handed over.
+   */
+  readonly handOver?: string;
 }
 
 /** One class's half of a creature's spellcasting, on that class's terms. */
@@ -60,6 +96,20 @@ export interface SpellcastingClass {
    * which is why this says where the slots came from rather than what they buy.
    */
   readonly slotKind: SlotKind;
+  /**
+   * The save DC this source **states**, in place of the one the ability
+   * derives — {@link GrantedSpell.saveDc} exactly, on the other half of the
+   * declaration.
+   *
+   * A class's is derived, always: "your spell save DC" is what the book says
+   * and what a level says. This is here because the other thing a
+   * `SpellcastingState` can describe is a creature with no class table at all,
+   * whose numbers are printed on its block, and `declaredCasting` is the door
+   * both come through.
+   */
+  readonly saveDc?: number;
+  /** "+4 to hit with spell attacks", the same way and for the same reason. */
+  readonly attackBonus?: number;
 }
 
 export interface SpellcastingState {
@@ -88,6 +138,9 @@ export function declaredCasting(spec: {
   readonly prepared?: readonly string[];
   readonly granted?: readonly GrantedSpell[];
   readonly slotKind?: SlotKind;
+  /** The numbers the declaration states, where it states them. */
+  readonly saveDc?: number;
+  readonly attackBonus?: number;
 }): SpellcastingState {
   return {
     classes: [
@@ -97,6 +150,8 @@ export function declaredCasting(spec: {
         cantrips: spec.cantrips ?? [],
         prepared: spec.prepared ?? [],
         slotKind: spec.slotKind ?? 'spell',
+        ...(spec.saveDc === undefined ? {} : { saveDc: spec.saveDc }),
+        ...(spec.attackBonus === undefined ? {} : { attackBonus: spec.attackBonus }),
       },
     ],
     granted: spec.granted ?? [],
@@ -113,8 +168,25 @@ export function classCasting(
 
 /** How a creature comes to be able to cast a particular spell. */
 export type CastingRoute =
-  | { readonly kind: 'cantrip'; readonly ability: Ability; readonly classId: string }
-  | { readonly kind: 'prepared'; readonly ability: Ability; readonly classId: string }
+  /**
+   * The two class routes, each carrying whatever numbers its source
+   * **stated** — see {@link SpellcastingClass.saveDc}. Absent is the ordinary
+   * case and derives from the sheet; present is a printed line, and wins.
+   */
+  | {
+      readonly kind: 'cantrip';
+      readonly ability: Ability;
+      readonly classId: string;
+      readonly saveDc?: number;
+      readonly attackBonus?: number;
+    }
+  | {
+      readonly kind: 'prepared';
+      readonly ability: Ability;
+      readonly classId: string;
+      readonly saveDc?: number;
+      readonly attackBonus?: number;
+    }
   | { readonly kind: 'granted'; readonly ability: Ability; readonly grant: GrantedSpell }
   /**
    * The item's route, and the one that is not a fact about the sheet.
@@ -182,10 +254,17 @@ export function routesFor(
   const routes: CastingRoute[] = [];
 
   for (const entry of spellcasting.classes) {
+    // Whatever this source stated about its own numbers, carried onto the
+    // route so that one reader — `numbersFor` — answers for every way a
+    // casting can be paid for.
+    const stated = {
+      ...(entry.saveDc === undefined ? {} : { saveDc: entry.saveDc }),
+      ...(entry.attackBonus === undefined ? {} : { attackBonus: entry.attackBonus }),
+    };
     if (entry.cantrips.includes(spellId)) {
-      routes.push({ kind: 'cantrip', ability: entry.ability, classId: entry.classId });
+      routes.push({ kind: 'cantrip', ability: entry.ability, classId: entry.classId, ...stated });
     } else if (entry.prepared.includes(spellId)) {
-      routes.push({ kind: 'prepared', ability: entry.ability, classId: entry.classId });
+      routes.push({ kind: 'prepared', ability: entry.ability, classId: entry.classId, ...stated });
     }
   }
   for (const grant of spellcasting.granted) {
@@ -211,4 +290,27 @@ export function routeFor(
 ): CastingRoute | null {
   return routesFor(spellcasting, spellId)[0] ?? null;
 }
+
+/**
+ * Whether this route casts the spell for **nothing** — see
+ * {@link GrantedSpell.atWill}.
+ *
+ * Asked where the log records how a casting was paid for, because "At Will"
+ * is the one price that leaves nothing behind: no slot to name, no pool to
+ * spend, and — for a spell above level 0 — no cantrip to call it.
+ */
+export const castsAtWill = (route: CastingRoute): boolean =>
+  route.kind === 'granted' && route.grant.atWill === true;
+
+/**
+ * The numbers this route **states**, if it states any.
+ *
+ * One reader for the two hosts that can carry a printed pair — a declared
+ * source's own entry and a granted spell — so `numbersFor` asks once rather
+ * than branching on the route kind twice.
+ */
+export const statedNumbersOf = (
+  route: CastingRoute,
+): { readonly saveDc?: number; readonly attackBonus?: number } =>
+  route.kind === 'granted' ? route.grant : route.kind === 'item' ? {} : route;
 

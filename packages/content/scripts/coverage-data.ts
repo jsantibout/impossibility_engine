@@ -981,6 +981,8 @@ export interface StatBlockLine {
   readonly trait?: unknown;
   readonly save?: unknown;
   readonly multiattack?: unknown;
+  /** The spells a Spellcasting line declares, where the parser read them. */
+  readonly spellcasting?: unknown;
 }
 
 /** Every line of every section of one block, which is what the shapes count over. */
@@ -1002,7 +1004,8 @@ export const isReadLine = (line: StatBlockLine): boolean =>
   line.attack !== undefined ||
   line.trait !== undefined ||
   line.save !== undefined ||
-  line.multiattack !== undefined;
+  line.multiattack !== undefined ||
+  line.spellcasting !== undefined;
 
 /**
  * A read attack line whose printed rider nothing applies.
@@ -1181,7 +1184,18 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
   [UNEXECUTED_TRAIT_SHAPE, hasUnexecutedTrait],
   ['A recharge', (line) => /\(Recharge/.test(line.name)],
   ['A use the block limits per day', (line) => /\(\d+\/Day/.test(line.name)],
-  ['A creature that casts', (line) => /^Spellcasting/.test(line.name)],
+  // The same predicate it was, with the half that is now read taken out of
+  // it — exactly as the Multiattack row above was narrowed. A Spellcasting
+  // line whose list the parser read is a spell list `addCreature` declares and
+  // the casting pipeline spends: the ability, the printed numbers, and one
+  // price per spell. What is left here is the lines that print the heading and
+  // say something else — the Pit Fiend's Hellfire Spellcasting, which casts
+  // one spell twice, and the Storm Giant's, whose list the book italicised
+  // nothing of.
+  [
+    'A creature that casts',
+    (line) => /^Spellcasting/.test(line.name) && line.spellcasting === undefined,
+  ],
 ];
 
 /** The economy a legendary block owes, which is the block's rather than a line's. */

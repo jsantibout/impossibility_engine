@@ -3,6 +3,7 @@ import {
   MonsterAttackSchema,
   MonsterSaveSchema,
   MonsterSchema,
+  MonsterSpellcastingSchema,
   slugify,
   type Feature,
   type Monster,
@@ -12,11 +13,24 @@ import {
   type MonsterMultiattackEntry,
   type MonsterRecharge,
   type MonsterSave,
+  type MonsterSpell,
+  type MonsterSpellcasting,
   type MonsterTrait,
   type ParseOutput,
   type ParseProblem,
 } from '../schemas.js';
 import { ABILITY_OVERRIDES } from './overrides.js';
+/**
+ * The spell list, for one job: turning a printed spell **name** into the id
+ * the rest of the system knows that spell by.
+ *
+ * Generated data importing generated data, and the direction is the safe one:
+ * `spell-index.ts` is committed, holds no monster and imports nothing, so
+ * there is no cycle. What it costs is an ordering — a *renamed* spell needs
+ * `srd:index` run before `srd:ingest` reads the new name — and spell names do
+ * not move.
+ */
+import { SPELL_INDEX } from '../spell-index.js';
 
 /**
  * Parser for `raw/monsters-A-Z.md` and `raw/animals.md`.
@@ -727,6 +741,180 @@ export function parseTraitShape(text: string): MonsterTrait | null {
   return null;
 }
 
+/**
+ * The book's **third** opening, matched end to end.
+ *
+ * "The cultist casts one of the following spells, using Wisdom as the
+ * spellcasting ability (spell save DC 12, +4 to hit with spell attacks):"
+ *
+ * Three clauses vary and are all optional: the components the casting does
+ * without ("requiring no Material components", "no spell components", "no
+ * Somatic or Material components"), the printed save DC, and the printed
+ * attack bonus. A block that prints none of the three — SRD Priest Acolyte —
+ * is read exactly as readily, and what it leaves absent the creature's own
+ * sheet derives.
+ *
+ * **The Pit Fiend's Hellfire Spellcasting is what the anchors refuse.** "The
+ * pit fiend casts _Fireball_ (level 5 version) **twice** … It can replace one
+ * _Fireball_ with …" is a different sentence about a different economy, and
+ * reading it down to the part that fits would give a devil a spell list it
+ * does not have.
+ */
+const SPELLCASTING_PREAMBLE = new RegExp(
+  `^The ${SUBJECT} casts one of the following spells,` +
+    `(?: requiring no [A-Za-z ]+ components and)?` +
+    ` using (Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma)` +
+    ` as (?:the )?spellcasting ability` +
+    `(?: \\(spell save DC (\\d+)(?:, \\+(\\d+) to hit with spell attacks)?\\))?:$`,
+);
+
+/**
+ * One category of the list: "**At Will:**", "**2/Day:**", "**1/Day Each:**".
+ *
+ * The three the book prints and nothing else. "Each" is captured because it
+ * is the difference between four spells with a budget of one apiece and four
+ * sharing one — see {@link readSpellList}.
+ */
+const SPELL_CATEGORY = /^\*\*(?:At Will|(\d+)\/Day( Each)?):\*\* (.+)$/;
+
+/**
+ * A printed spell name to the SRD's own id.
+ *
+ * **Looked up rather than slugified**, and the Druid is why: its block prints
+ * "Long-strider" where the spell list prints "Longstrider", so a blind slug
+ * produces `long-strider`, which is not a spell — and a spell id nothing
+ * defines is a casting that refuses for the wrong reason.
+ *
+ * The key drops everything that is not a letter or a digit, which is what
+ * lets the hyphen the book introduced at a line break fall out. That it
+ * collides for no two SRD spells is asserted in `monster-spellcasting.test.ts`
+ * rather than assumed.
+ */
+const SPELL_IDS: ReadonlyMap<string, string> = new Map(
+  SPELL_INDEX.map((spell) => [spell.name.toLowerCase().replace(/[^a-z0-9]+/g, ''), spell.id]),
+);
+
+const spellIdOf = (name: string): string | null =>
+  SPELL_IDS.get(name.toLowerCase().replace(/[^a-z0-9]+/g, '')) ?? null;
+
+/**
+ * One category's list of spells, consumed to the last character or refused.
+ *
+ * The grammar is italic groups separated by `, `, each optionally followed by
+ * one parenthetical: `_Light_, _Thaumaturgy_`, and
+ * `_Animal Friendship, Charm Monster_ (lasts 24 hours; …), _Druidcraft_`.
+ *
+ * **A group may hold several names**, because the book italicises a run of
+ * them together as readily as one at a time — and when a parenthetical
+ * follows such a run it belongs to the **last** name in it, which is the only
+ * one it can be about: the dryad's twenty-four hours are Charm Monster's, not
+ * Animal Friendship's.
+ *
+ * **Refused whole on anything it cannot consume**, which is the discipline
+ * every shape in this file keeps. A trailing clause the grammar does not
+ * cover, a name the SRD index does not hold, or an unqualified `N/Day`
+ * category naming more than one spell — two spells sharing one budget, which
+ * is not what "N/Day **Each**" says and is a shape the structure has no field
+ * for — leaves the whole line prose.
+ */
+function readSpellList(
+  list: string,
+  usesPerDay: number | null,
+  each: boolean,
+): MonsterSpell[] | null {
+  const spells: MonsterSpell[] = [];
+  let rest = list;
+
+  while (rest.length > 0) {
+    const group = /^_([^_]+)_/.exec(rest);
+    if (group === null) return null;
+    rest = rest.slice(group[0].length);
+
+    // One parenthetical, with no nesting: every rider the book prints after a
+    // spell's name is a flat clause, and a `(` inside one would be a sentence
+    // this did not understand.
+    const rider = /^ \(([^()]+)\)/.exec(rest);
+    if (rider !== null) rest = rest.slice(rider[0].length);
+
+    const names = group[1]!.split(', ').map((name) => name.trim());
+    if (names.some((name) => name === '')) return null;
+    for (const [index, name] of names.entries()) {
+      const spellId = spellIdOf(name);
+      if (spellId === null) return null;
+      spells.push({
+        spellId,
+        name,
+        ...(usesPerDay === null ? {} : { usesPerDay }),
+        // The rider rides the last name of the group it followed, and on
+        // nothing else.
+        ...(rider === null || index !== names.length - 1 ? {} : { handOver: rider[1]! }),
+      });
+    }
+
+    if (rest.startsWith(', ')) rest = rest.slice(2);
+    else if (rest.length > 0) return null;
+  }
+
+  if (spells.length === 0) return null;
+  // "2/Day: _Light_, _Thaumaturgy_" is two spells sharing one budget of two.
+  // The SRD prints no such line; a homebrew one is refused rather than read as
+  // the "Each" it does not say.
+  if (usesPerDay !== null && !each && spells.length > 1) return null;
+  return spells;
+}
+
+/**
+ * The spells a printed Spellcasting line declares, or null for every other
+ * line in the book.
+ *
+ * Read off the **sentence** and never off the heading, which is the rule
+ * {@link parseTraitShape} set and every reader here follows: a block printing
+ * this sentence under another name declares the same spells, and a block
+ * printing something else under a heading called "Spellcasting" declares none.
+ *
+ * The source writes the line as a preamble and one `<br>`-separated segment
+ * per category, each opening with a `&emsp;` indent. Both are markup rather
+ * than content, so both come off before anything is matched.
+ */
+export function parseSpellcastingLine(text: string): MonsterSpellcasting | null {
+  const segments = text
+    .split('<br>')
+    .map((segment) => segment.replace(/&emsp;/g, '').replace(/\s+/g, ' ').trim())
+    .filter((segment) => segment !== '');
+
+  const preamble = segments[0] === undefined ? null : SPELLCASTING_PREAMBLE.exec(segments[0]);
+  if (preamble === null) return null;
+
+  const ability = ABILITY_KEYS[preamble[1]!];
+  if (ability === undefined) return null;
+
+  const spells: MonsterSpell[] = [];
+  for (const segment of segments.slice(1)) {
+    const category = SPELL_CATEGORY.exec(segment);
+    if (category === null) return null;
+    const read = readSpellList(
+      category[3]!,
+      category[1] === undefined ? null : Number(category[1]),
+      category[2] !== undefined,
+    );
+    if (read === null) return null;
+    spells.push(...read);
+  }
+
+  const casting = {
+    ability,
+    ...(preamble[2] === undefined ? {} : { saveDc: Number(preamble[2]) }),
+    ...(preamble[3] === undefined ? {} : { attackBonus: Number(preamble[3]) }),
+    spells,
+  };
+
+  // Validated rather than trusted, for the reason `parseSaveLine` validates
+  // its own: a shape that does not satisfy its schema leaves the line prose
+  // rather than reaching the catalogue.
+  const checked = MonsterSpellcastingSchema.safeParse(casting);
+  return checked.success ? checked.data : null;
+}
+
 /** The counts a Multiattack sentence is written with; the book uses no digits. */
 const COUNT_WORDS: Readonly<Record<string, number>> = {
   one: 1,
@@ -1191,6 +1379,10 @@ function parseFeatures(
       // boundary against a sunrise — and no heading in the SRD prints both.
       const recharge = parseRecharge(current.name);
       const perDay = parsePerDay(current.name);
+      // The book's third opening, read off the sentence like the other two.
+      // Asked of every line for the reason `save` is asked of every line: what
+      // a line says is not a property of the heading it is printed under.
+      const spellcasting = parseSpellcastingLine(text);
       features.push({
         name: current.name,
         text,
@@ -1200,6 +1392,7 @@ function parseFeatures(
         ...(multiattack === null ? {} : { multiattack }),
         ...(recharge === null ? {} : { recharge }),
         ...(perDay === null ? {} : { perDay }),
+        ...(spellcasting === null ? {} : { spellcasting }),
       });
     }
     current = null;
