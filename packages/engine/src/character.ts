@@ -1151,14 +1151,6 @@ export function spellSaveDcWith(sheet: CharacterSheet, ability: Ability): number
 }
 
 /**
- * What a creature adds to its Initiative roll.
- *
- * A character derives it from Dexterity. A stat block prints it, and the two
- * need not agree — an Adult Red Dragon has a +0 Dexterity modifier and prints
- * Initiative +12. Reading Dexterity for a monster silently dropped twelve
- * points off every legendary creature's place in the order.
- */
-/**
  * SRD Illumination: the light a stat block says its creature carries, or null.
  *
  * > "The azer sheds Bright Light in a 10-foot radius and Dim Light for an
@@ -1189,6 +1181,14 @@ export function printedLight(
   return null;
 }
 
+/**
+ * What a creature adds to its Initiative roll.
+ *
+ * A character derives it from Dexterity. A stat block prints it, and the two
+ * need not agree — an Adult Red Dragon has a +0 Dexterity modifier and prints
+ * Initiative +12. Reading Dexterity for a monster silently dropped twelve
+ * points off every legendary creature's place in the order.
+ */
 export function initiativeModifier(sheet: CharacterSheet): number {
   return sheet.stated?.initiative ?? modifierFor(sheet, 'dex');
 }

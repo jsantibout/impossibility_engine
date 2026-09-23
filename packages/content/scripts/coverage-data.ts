@@ -1195,10 +1195,14 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
   // it — exactly as the Multiattack row above was narrowed. A Spellcasting
   // line whose list the parser read is a spell list `addCreature` declares and
   // the casting pipeline spends: the ability, the printed numbers, and one
-  // price per spell. What is left here is the lines that print the heading and
-  // say something else — the Pit Fiend's Hellfire Spellcasting, which casts
-  // one spell twice, and the Storm Giant's, whose list the book italicised
-  // nothing of.
+  // price per spell.
+  //
+  // **What is left is one line**: the Storm Giant's, whose spell names the book
+  // italicised none of, so a bare word in that position is not something the
+  // grammar can tell from prose. The Pit Fiend's Hellfire Spellcasting — one
+  // spell cast twice, on a recharge — is refused by the parser too, but it was
+  // never in this row either: the heading anchor above has always passed over
+  // a line named `Hellfire Spellcasting (Recharge 4–6)`.
   [
     'A creature that casts',
     (line) => /^Spellcasting/.test(line.name) && line.spellcasting === undefined,

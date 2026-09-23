@@ -276,6 +276,30 @@ describe('what each price buys', () => {
     expect(isErr(second) && second.code).toBe('no_free_casting');
   });
 
+  /**
+   * **A slot level named on a route that has no slots is refused, not
+   * dropped.**
+   *
+   * `choosePayment` used to read past the level and pay some other way, which
+   * on this route is a slot the creature has never had. The refusal reaches
+   * every grant whose `slotCasting` is false — a stat block's printed line and
+   * a feature's granted spell alike, which `creation.ts` says is "always" for
+   * the second — and that is the field-quietly-ignored failure every other
+   * stated fact on a casting is refused for.
+   */
+  it('refuses a slot level on a route the block gives no slots for', () => {
+    const out = cast(at(log), CULTIST, {
+      spellId: 'hold-person',
+      targets: [TARGET],
+      slotLevel: 2,
+    });
+    expect(isErr(out) && out.code).toBe('slot_not_allowed');
+    // Nothing was spent to find that out.
+    expect(remaining(at(log).creatures[CULTIST]!.resources, printedSpellPoolKey('hold-person'))).toBe(
+      1,
+    );
+  });
+
   it('casts an At Will cantrip twice, spending nothing', () => {
     let events: readonly GameEvent[] = log;
     for (const round of ['one', 'two']) {

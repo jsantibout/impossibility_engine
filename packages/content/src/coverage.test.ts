@@ -22,6 +22,7 @@ import {
   statBlockLines,
   HANDOVER_TRAIT_KINDS,
   TRAIT_KINDS_WITH_A_READER,
+  UNEXECUTED_TRAIT_SHAPE,
 } from '../scripts/coverage-data.js';
 import { entryFor, isCompleteItem, magicItemEntries } from '../scripts/magic-items.js';
 import { bestiaryRow, bestiarySummary, renderReport } from '../scripts/coverage.js';
@@ -736,15 +737,16 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
    * because the brief the table answers asked for a ranking and an unsorted
    * list quietly stops being one.
    *
-   * **A shape may find nothing, and one does.** Every row here used to be
-   * required to match at least one block, which was a guard against a
-   * predicate going quiet; `A trait shape nothing spends` is at zero because
-   * every kind the parser reads now has a reader or is a handover, which is
-   * the row *finishing*. So the guard moved to the population rather than the
-   * row: most of them still find something, the row itself stays in the table
-   * so that its return to a number is a diff, and `coverage.test.ts` above
-   * holds the two lists that emptied it against the schema and against the
-   * engine's own sources.
+   * **One shape finds nothing, and it is named.** Every row here used to be
+   * required to match at least one block, which is a guard against a predicate
+   * going quiet; `A trait shape nothing spends` is at zero because every kind
+   * the parser reads now has a reader or is a handover, which is the row
+   * *finishing* rather than the predicate breaking. So it is exempted **by
+   * name** and every other row still has to find something — a blanket "some
+   * of them are non-zero" would let the next one go silently to zero too. The
+   * row stays in the table so that its return to a number is a diff, and the
+   * test above holds the two lists that emptied it against the schema and
+   * against the engine's own sources.
    */
   it('ranks what the unread lines would need, and the report carries the ranking', () => {
     const report = readFileSync(
@@ -753,8 +755,12 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
     );
 
     expect(bestiary.shapes.length).toBeGreaterThan(3);
-    expect(bestiary.shapes.filter((shape) => shape.blocks > 0).length).toBeGreaterThan(3);
     for (const shape of bestiary.shapes) {
+      if (shape.shape !== UNEXECUTED_TRAIT_SHAPE) {
+        expect(shape.blocks, shape.shape).toBeGreaterThan(0);
+      } else {
+        expect(shape.blocks, shape.shape).toBe(0);
+      }
       expect(shape.blocks, shape.shape).toBeLessThan(bestiary.carried);
       expect(shape.lines, shape.shape).toBeGreaterThanOrEqual(shape.blocks);
       expect(report).toContain(`| ${shape.shape} | ${shape.blocks} | ${shape.lines} |`);

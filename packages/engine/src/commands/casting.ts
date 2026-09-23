@@ -2274,7 +2274,13 @@ export function choosePayment(
   // this is the other kind: a stat block's printed line, whose creature holds
   // no slot at all. Reading past the level and paying some other way is the
   // field-quietly-ignored failure every stated fact on a casting is refused
-  // for.
+  // for — and the same refusal `payment: 'slot'` has always made two lines
+  // above, arrived at by the other road.
+  //
+  // **It reaches every grant whose `slotCasting` is false**, which
+  // `creation.ts` says is *always* for a feature's granted spell, not only the
+  // printed lines this arrived with. That is the same rule in both places: the
+  // grant says no slot may pay, and a caller who named one meant it.
   if (request.slotLevel !== undefined) {
     return slotAllowed
       ? ok(null)

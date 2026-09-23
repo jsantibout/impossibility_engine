@@ -20,17 +20,26 @@
 import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
 import { asCharacterId, expect as unwrap, SKILL_ABILITY } from '@ie/shared';
-import { addCreature, declareCreatureSide, setScene, addSceneLandmark } from './commands.js';
+import {
+  addCreature,
+  applyConditionTo,
+  declareCreatureSide,
+  resolveTurn,
+  setScene,
+  addSceneLandmark,
+} from './commands.js';
 import { forcePrintedSave } from './commands/actions.js';
 import { resolveSpell } from './commands/spell-resolution.js';
 import { createRng, restoreRng } from './dice.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { adaptMonster } from './monster.js';
 import { rollSelectorProblems } from './roll-modifiers.js';
-import { castingIdOf } from './spells.js';
-import { pendingSavesOf } from './commands/holds.js';
+import { declaredCasting } from './spellcasting.js';
+import { spellSlotKey } from './resources.js';
+import { wardAgainst } from './commands/passive-defenses.js';
 import { createRollIssuer } from './rolls.js';
 import { rollModesFor } from './standing.js';
+
 const id = (s: string) => asCharacterId(s);
 const SEED = 'magic-resistance';
 const IMP = id('spite');
@@ -78,6 +87,129 @@ const modesOn = (events: readonly GameEvent[], who: string): readonly string[] =
         (one) => `${one.source}:${one.mode}`,
       ),
     );
+
+/** A fight in which the hag acts first, so one advance ends its turn. */
+const fight = (log: readonly GameEvent[]): GameEvent[] => [
+  ...log,
+  {
+    type: 'combat-started',
+    combatants: [
+      { id: CASTER, initiative: 20, speed: 30 },
+      { id: IMP, initiative: 10, speed: 20 },
+    ],
+  },
+];
+
+/**
+ * A supply whose flat bonus decides the save, so every assertion below is
+ * about a rule rather than about a seed — `item-repeat-save.test.ts`'s move.
+ */
+const bent = (state: GameState, flat: number) => ({ ...supply(state), bonuses: [{ source: 'the test insists', flat }] });
+
+/**
+ * A casting the imp failed, which leaves it a save to repeat at every turn
+ * boundary.
+ *
+ * SRD Blindness/Deafness, because it is the shortest spell in the catalogue
+ * whose `save` effect prints "at the end of each of its turns, the target
+ * repeats the save" and whose target may be anything — the hag's own Phantasmal
+ * Killer prints the repeat and the definition does not model one. The caster is
+ * given the spell and the slot by hand for the same reason: what is under test
+ * is the imp's repeat, not whose spell it was.
+ */
+function heldByASpell(): readonly GameEvent[] {
+  const log = fight(casting(['blindness-deafness'], 2));
+  const cast = unwrap(
+    resolveSpell(
+      at(log),
+      CASTER,
+      { spellId: 'blindness-deafness', targets: [IMP], slotLevel: 2, choice: 'blinded' },
+      bent(at(log), -40),
+    ),
+    'blindness',
+  );
+  return [...log, ...cast.events];
+}
+
+/** The same debt, hung on something nobody cast. */
+function heldByAFever(): readonly GameEvent[] {
+  const log = fight(field());
+  const applied = unwrap(
+    applyConditionTo(at(log), IMP, 'frightened', 'the swamp fever', [], undefined, {
+      at: 'end-of-turn',
+      of: IMP,
+      ability: 'wis',
+      dc: 13,
+      onSuccess: 'end-on-target',
+      label: 'Wisdom save vs the swamp fever',
+    }),
+    'the fever',
+  );
+  return [...log, ...applied];
+}
+
+/**
+ * The imp's own repeat save, rolled at the end of its turn.
+ *
+ * Two advances: the first ends the hag's turn, the second ends the imp's,
+ * which is the boundary the sentence names.
+ */
+function boundarySave(log: readonly GameEvent[]): GameEvent | undefined {
+  let events: readonly GameEvent[] = log;
+  let rolled: GameEvent | undefined;
+  for (let turns = 0; turns < 2; turns += 1) {
+    const turn = unwrap(resolveTurn(at(events), bent(at(events), -40)), 'the boundary');
+    events = [...events, ...turn.events];
+    rolled =
+      turn.events.find(
+        (event) =>
+          event.type === 'roll-recorded' && (event as { who: string }).who === String(IMP),
+      ) ?? rolled;
+  }
+  return rolled;
+}
+
+/** The mode sources on one recorded roll. */
+const modesIn = (event: GameEvent): readonly string[] =>
+  ((event as { modes?: readonly { source: string; mode: string }[] }).modes ?? []).map(
+    (one) => `${one.source}:${one.mode}`,
+  );
+
+/**
+ * The hag with a stated list and slots of its own.
+ *
+ * Declared by hand because the two rules below are about the *imp's* save and
+ * the night hag's printed list does not happen to hold a spell that raises
+ * either one. Everything else is the engine's.
+ */
+const casting = (prepared: readonly string[], level: number): readonly GameEvent[] => [
+  ...field(),
+  {
+    type: 'resource-pool-declared',
+    id: CASTER,
+    pool: { key: spellSlotKey(level), label: `level ${level}`, max: 2, recovers: 'long-rest' },
+  },
+  {
+    type: 'spellcasting-declared',
+    id: CASTER,
+    spellcasting: declaredCasting({ ability: 'wis', prepared, classId: 'cleric' }),
+  },
+];
+
+/** The hag under a Sanctuary of its own, so the imp meets a ward a spell hung. */
+function warded(): readonly GameEvent[] {
+  const log = casting(['sanctuary'], 1);
+  const cast = unwrap(
+    resolveSpell(
+      at(log),
+      CASTER,
+      { spellId: 'sanctuary', targets: [CASTER], slotLevel: 1 },
+      supply(at(log)),
+    ),
+    'sanctuary',
+  );
+  return [...log, ...cast.events];
+}
 
 describe('the trait the adapter compiles', () => {
   it('narrows the imp’s Advantage to saves against magic', () => {
@@ -212,36 +344,37 @@ describe('the repeat a turn boundary raises', () => {
    * Asserted on a debt the engine really owes, so the two halves of that
    * question are the ones `resolvePendingSaves` actually asks.
    */
-  it('carries the Advantage where a casting put the effect there', () => {
-    const log: GameEvent[] = [
-      ...field(),
-      {
-        type: 'combat-started',
-        combatants: [
-          { id: CASTER, initiative: 20, speed: 30 },
-          { id: IMP, initiative: 10, speed: 20 },
-        ],
-      },
-    ];
-    const cast = unwrap(
-      resolveSpell(
-        at(log),
-        CASTER,
-        { spellId: 'phantasmal-killer', targets: [IMP] },
-        supply(at(log)),
-      ),
-      'phantasmal killer',
-    );
-    const after = [...log, ...cast.events];
-    const owed = pendingSavesOf(at(after));
-    // A repeat is owed only where the first save was failed; the seed decides
-    // that, so the assertion is on what the boundary *would* ask rather than
-    // on a die.
-    const source = owed[0]?.source ?? 'Phantasmal Killer#cast:1';
-    expect(castingIdOf(source)).toBe('cast:1');
-    // And the other half: a source nothing cast answers null, which is what
-    // keeps a poison in a bottle from becoming a magical effect.
-    expect(castingIdOf('item:potion-of-poison')).toBeNull();
+  it('carries the Advantage into the repeat a casting’s effect raises', () => {
+    const repeat = boundarySave(heldByASpell());
+    expect(repeat).toBeDefined();
+    expect(modesIn(repeat!)).toContain('Magic Resistance:advantage');
+  });
+
+  /**
+   * And the other half, which is why the boundary asks at all rather than
+   * saying yes: SRD writes "repeats the save at the end of each of its turns"
+   * on plenty of things nobody cast — a poison in a bottle, a disease the
+   * table declared — and `castingIdOf` answers null for every one of them.
+   */
+  it('carries none into a repeat nothing cast raised', () => {
+    const repeat = boundarySave(heldByAFever());
+    expect(repeat).toBeDefined();
+    expect(modesIn(repeat!)).not.toContain('Magic Resistance:advantage');
+  });
+});
+
+describe('the save a ward asks of whoever targets it', () => {
+  /**
+   * SRD Sanctuary: "any creature who targets the warded creature with an
+   * attack roll … must succeed on a Wisdom saving throw." That is a save
+   * against a spell, so Magic Resistance reaches it — and `wardAgainst` knows
+   * because the ward's own `source` is the casting that hung it.
+   */
+  it('gives the imp Advantage on a ward a spell hung', () => {
+    const log = warded();
+    const state = at(log);
+    const out = unwrap(wardAgainst(state, IMP, CASTER, supply(state)), 'the ward');
+    expect(modesOn(out.events, String(IMP))).toContain('Magic Resistance:advantage');
   });
 });
 
