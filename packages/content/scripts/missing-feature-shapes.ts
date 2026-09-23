@@ -139,7 +139,7 @@ export const FEATURE_SHAPES = {
   'heroic-inspiration':
     'Heroic Inspiration, which the engine holds nothing for at all: no field, no event and no command. It is not even a pool: packages/engine/src/progression.ts describes that member as "A named resource the feature *is*, rather than one it spends", and this is a resource no feature **is** — it arrives from a rest or from a fight and is spent on any D20 Test. A class feature grants it during combat and a species trait grants it on a Long Rest, so what both record is the permission and nothing that could ever be spent.',
   'a-rule-the-engine-fixes-for-everybody':
-    'a constant the engine applies to every creature, which one feature is meant to bend. A Long Rest is eight hours, an attunement limit is a number inside a command, and moving through an occupied space wants two sizes of difference. `docs/design/characters-and-equipment.md` keeps the list of what the attunement rules still owe — "what ends attunement besides a command — death, losing the item, another creature attuning to it" — and every one of these is that same shape: a rule the engine holds rather than the sheet, so a trait bending it for its holder alone has nothing to bend. **Carrying capacity used to be named here and is not any more**, in both directions: the objects batch built the table, and a `carrying-capacity` grant now moves which row of it a creature reads — which is the shape whole, and is what SRD Powerful Build walks through.',
+    'a constant the engine applies to every creature, which one feature is meant to bend. A Long Rest is eight hours, an attunement limit is a number inside a command, and the concealment a Hide asks for is a test inside `takeHide`. `docs/design/characters-and-equipment.md` keeps the list of what the attunement rules still owe — "what ends attunement besides a command — death, losing the item, another creature attuning to it" — and every one of these is that same shape: a rule the engine holds rather than the sheet, so a trait bending it for its holder alone has nothing to bend. **Two of these used to be named here and are not any more**, in both directions: the objects batch built the Carrying Capacity table, and a `carrying-capacity` grant now moves which row of it a creature reads; and moving through an occupied space, which wanted two sizes of difference for everybody, is now read off the route a move states — a `passage` grant lowers the two sizes for its holder, which is what SRD Halfling Nimbleness bends and what SRD Powerful Build walks through.',
   'a-spell-list-that-is-not-your-class-list':
     'a spell known or prepared from **another class\'s** list. `checkContent` refuses a fixed grant naming nothing and creation checks every chosen spell against the list of the class that is choosing it, which is right for eleven classes and wrong for the two features the SRD writes the exception on. `docs/design/content.md` states what a class list is for — "`spellEntry(id)` — the spell\'s identity and class lists (the SRD index shape)" — and there is no second list a feature may widen it to.',
   'a-concentration-rule-that-names-its-casting':
@@ -1342,13 +1342,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'the 10 minutes',
       why: 'a-benefit-that-runs-for-a-printed-span',
       note: 'a printed span rather than a turn boundary the holder has to keep extending.',
-    },
-  ],
-  'halfling:halfling-nimbleness': [
-    {
-      clause: 'a rule the engine writes for a two-size difference and for nothing else, and it is not read off a feature',
-      why: 'a-rule-the-engine-fixes-for-everybody',
-      note: 'a constant in the positioning rules that one trait bends for its holder.',
     },
   ],
   'halfling:naturally-stealthy': [

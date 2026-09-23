@@ -363,6 +363,13 @@ export const ITEM_EFFECT_KINDS: ReadonlySet<string> = new Set([
   // `standingFor`, so a Belt of Giant Strength's shoulders would be reached by
   // the route the belt's Strength already takes.
   'carrying-capacity',
+  // The sizes a creature may be walked through, on the same test: the gatherer
+  // is `passageAllowanceOf` in `commands/movement.ts`, which walks
+  // `standingFor`, so slippers that let their wearer slip between a giant's
+  // feet would be read by the rule that wanted them. No SRD item prints the
+  // sentence today; the list's rule is what a reader reaches, not what the
+  // book happens to have written.
+  'passage',
   // Read from an item exactly as it is read from a feature: the gatherer is
   // `standingFor`, which folds a worn item's effects in beside a class's, so a
   // staff that empowered its wielder's Evocations would be executed rather than
@@ -680,6 +687,9 @@ function ownedStandingEffectProblems(
   if (effect.kind === 'carrying-capacity') {
     found.push(...carryingCapacityProblems(effect as unknown as Record<string, unknown>, at));
   }
+  if (effect.kind === 'passage') {
+    found.push(...passageProblems(effect as unknown as Record<string, unknown>, at));
+  }
   if (effect.kind === 'sense') {
     found.push(...senseProblems(effect as unknown as Record<string, unknown>, at));
   }
@@ -951,6 +961,34 @@ function carryingCapacityProblems(
       {
         code: 'bad_capacity_step',
         reason: `SRD Powerful Build counts "as one size larger", so the step is a whole number of sizes above none; ${JSON.stringify(larger)} widens nothing`,
+        field: `${at}.sizesLarger`,
+      },
+    ];
+  }
+  return [];
+}
+
+/**
+ * Everything wrong with a `passage` grant, wherever one is written.
+ *
+ * {@link carryingCapacityProblems}' neighbour, and the same two failures for
+ * the same reason: SRD Halfling Nimbleness moves the glossary's two sizes to
+ * "a size larger than you", so a step of none bends nothing and a negative one
+ * would narrow a rule no printed line narrows. The ceiling is the rule's own
+ * floor rather than a number here — `canPassThrough` will not go below one
+ * size of difference whatever a grant says — so a step of three is a sentence
+ * nobody writes rather than a creature walking through its own twin.
+ */
+function passageProblems(
+  effect: Record<string, unknown>,
+  at: string,
+): readonly { readonly code: string; readonly reason: string; readonly field: string }[] {
+  const larger = effect['sizesLarger'];
+  if (!Number.isInteger(larger) || (larger as number) < 1) {
+    return [
+      {
+        code: 'bad_passage_step',
+        reason: `SRD Halfling Nimbleness moves "two sizes larger" to "a size larger", so the step is a whole number of sizes above none; ${JSON.stringify(larger)} bends nothing`,
         field: `${at}.sizesLarger`,
       },
     ];
@@ -3205,6 +3243,12 @@ function itemGrantProblems(
           effect as unknown as Record<string, unknown>,
           on,
         )) {
+          say(problem.code, problem.reason, problem.field);
+        }
+        return;
+      }
+      if (effect.kind === 'passage') {
+        for (const problem of passageProblems(effect as unknown as Record<string, unknown>, on)) {
           say(problem.code, problem.reason, problem.field);
         }
         return;

@@ -653,6 +653,23 @@ export type StandingGrant =
    */
   | { readonly kind: 'carrying-capacity'; readonly sizesLarger: number }
   /**
+   * How many sizes larger a creature need be for this one to walk through its
+   * space, where the glossary's two are more than a feature asks.
+   *
+   * SRD Halfling Nimbleness: "You can move through the space of any creature
+   * that is a size larger than you, but you can't stop in the same space."
+   * The rule it bends is `canPassThrough`, a constant the engine applies to
+   * everybody, and the second half of the sentence is not here because
+   * nothing has to carry it: ending a move in an occupied space is refused to
+   * every creature already.
+   *
+   * A step rather than a named size, for {@link StandingGrant}'s
+   * `carrying-capacity` reason — a relation survives its holder being
+   * enlarged — and the *larger* side alone, because that is the side the
+   * sentence names.
+   */
+  | { readonly kind: 'passage'; readonly sizesLarger: number }
+  /**
    * SRD Aura of Courage: "Immunity to the Frightened condition while in your
    * Aura of Protection. If a Frightened ally enters the aura, that condition
    * **has no effect on that ally while there**."

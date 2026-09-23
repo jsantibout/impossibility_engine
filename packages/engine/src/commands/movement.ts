@@ -19,6 +19,7 @@ import {
   hasSpeedInModeOn,
   sheetAsItStands,
   speedOf,
+  standingFor,
 } from '../standing.js';
 import {
   highJumpHeight,
@@ -29,19 +30,24 @@ import {
 import { bestPrintedMeleeAttack, hasPrintedTrait, printedLeap } from '../monster.js';
 import {
   altitudeOf,
+  canPassThrough,
   checkRoute,
   costOfRoute,
+  crossingsAlong,
   dismount,
+  distanceBetweenPoints,
   distanceToPoint,
   mount,
   mountingCost,
   type MountOptions,
   moveCreature,
+  mustCrossSomebody,
   type Placement,
   type Point,
   type PositionState,
   liveTerrainNames,
   positionOf,
+  sizeOf,
   uniformTerrainBetween,
 } from '../positioning.js';
 import { type AttackResolution, resolveAttack } from './attacks.js';
@@ -394,6 +400,15 @@ export function moveWithin(
     );
     if (!ground.ok) return ground;
 
+    // **Whose spaces this move went through**, which is the other thing a
+    // route says and the one nothing read until now. Asked after the ground,
+    // because both questions are answered by the same field and the caller
+    // that has to be asked twice should be asked once: a route stated for the
+    // terrain is a route this reads, and a route neither needs is never
+    // requested.
+    const passage = checkPassage(state, scene.value, id, from, to, command.route, charging);
+    if (!passage.ok) return passage;
+
     const difficult = command.difficultFeet ?? 0;
     if (!Number.isInteger(difficult) || difficult < 0 || difficult > feet) {
       return err(
@@ -568,6 +583,7 @@ export function moveWithin(
         unverified: [
           ...opportunity.unverified,
           ...ground.value.unverified,
+          ...passage.value.unverified,
           ...jumped.value,
           ...climbing,
         ],
@@ -594,6 +610,7 @@ export function moveWithin(
       unverified: [
         ...opportunity.unverified,
         ...ground.value.unverified,
+        ...passage.value.unverified,
         ...jumped.value,
         ...climbing,
       ],
@@ -975,6 +992,113 @@ function declaredHere(state: GameState): string {
   const names = liveTerrainNames(state);
   if (names.length === 0) return 'nothing is declared here';
   return `${names.join(' and ')} ${names.length === 1 ? 'is' : 'are'} declared in this scene`;
+}
+
+interface PassageOutcome {
+  /** What the engine could not settle and did not stop the table to ask about. */
+  readonly unverified: readonly string[];
+}
+
+/**
+ * Whether this move may go through the spaces it says it went through.
+ *
+ * SRD, "Moving around Other Creatures": "During your move, you can pass
+ * through the space of an ally, a creature that has the Incapacitated
+ * condition, a Tiny creature, or a creature that is two sizes larger or
+ * smaller than you." `canPassThrough` has held that sentence since
+ * positioning landed and **nothing asked it**: `choosePoint` tests the
+ * destination, so anybody walked through anybody as long as they did not stop
+ * there. This is the reader.
+ *
+ * Three cases, and the middle one is the whole of what keeps this cheap:
+ *
+ * - **a shove** — not the creature's own move, so no rule of its movement
+ *   applies, on `chargeTerrain`'s own reading of the same distinction;
+ * - **a route was stated** — every space it names is read, and a crossing the
+ *   sentence does not allow is a refusal naming the creature in the way;
+ * - **no route was stated** — charged exactly as it always was, unless every
+ *   shortest way there crosses somebody, which is the one case the engine can
+ *   settle without being told. Then it asks, under `route_required`, because
+ *   the answer is a question about spaces and the field that answers it is the
+ *   one terrain already asks for.
+ *
+ * **And a side nobody has declared is reported rather than ruled on.** The
+ * ally exception needs a fact the table declares, and `provokedBy` one
+ * function along takes the conservative reading of an undeclared side in the
+ * direction that withholds a Reaction. The conservative direction *here* is
+ * the opposite one: refusing a move on a fact nobody has stated would deny a
+ * legal walk past an ally, and there is nowhere in a refusal to say that the
+ * engine was guessing. So the move goes through and the guess is named in
+ * `unverified`, which is exactly what that list is for.
+ */
+function checkPassage(
+  state: GameState,
+  scene: PositionState,
+  id: CharacterId,
+  from: Point,
+  to: Point,
+  route: readonly Point[] | undefined,
+  charging: Charging,
+): Result<PassageOutcome> {
+  if (charging === 'none') return ok({ unverified: [] });
+
+  if (route === undefined) {
+    if (!mustCrossSomebody(scene, id, from, to)) return ok({ unverified: [] });
+    const feet = distanceBetweenPoints(from, to);
+    return needsContext(
+      ROUTE_REQUIRED,
+      `every shortest way from (${from.x}, ${from.y}, ${from.z}) to (${to.x}, ${to.y}, ${to.z}) goes through a space somebody is standing in, and whether ${id} may pass through it depends on whose it is`,
+      [
+        {
+          kind: 'route',
+          subject: id,
+          need: `the ${feet / 5} spaces ${id} passed through, in order, ending where the move ends`,
+          because:
+            'a creature may pass through another\'s space only where the rules allow it, and which spaces were crossed is not something the engine may decide',
+          satisfyWith: `the same resolveMove command with route filled in, as ${feet / 5} points of 5 feet each`,
+        },
+      ],
+    );
+  }
+
+  const moverSize = sizeOf(scene, id) ?? 'medium';
+  const side = state.creatures[id]?.side ?? null;
+  // Every grant it holds, summed rather than maximised, on `capacitySizeOf`'s
+  // argument: two sentences that each said "a size larger" are two steps.
+  let sizesLarger = 0;
+  for (const { effect } of standingFor(state, id)) {
+    if (effect.grant.kind === 'passage') sizesLarger += effect.grant.sizesLarger;
+  }
+
+  const unverified: string[] = [];
+  for (const { space, occupant } of crossingsAlong(scene, id, route)) {
+    const other = state.creatures[occupant];
+    if (other === undefined) continue;
+    const allied = side !== null && other.side !== null && other.side === side;
+    if (
+      canPassThrough(moverSize, sizeOf(scene, occupant) ?? 'medium', {
+        allied,
+        occupantIncapacitated: isIncapacitated(other.conditions),
+        ...(sizesLarger > 0 ? { passesWhenLargerBy: sizesLarger } : {}),
+      })
+    ) {
+      continue;
+    }
+
+    if (side === null || other.side === null) {
+      unverified.push(
+        `nobody has said whose side ${other.side === null ? occupant : id} is on, so ${id} was not held to the rule about moving through ${occupant}'s space at (${space.x}, ${space.y}, ${space.z})`,
+      );
+      continue;
+    }
+
+    return err(
+      'blocked_by_creature',
+      `${occupant} is standing at (${space.x}, ${space.y}, ${space.z}), and a creature may move through another's space only where that creature is an ally, is Incapacitated, is Tiny, or is two sizes larger or smaller`,
+    );
+  }
+
+  return ok({ unverified });
 }
 
 /** The tail of a refusal that names what slowed the mover, or nothing at all. */
