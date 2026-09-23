@@ -236,6 +236,19 @@ const SPECIES_CHOICES: Readonly<Record<string, Readonly<Record<string, readonly 
   tiefling: { 'tiefling:fiendish-legacy': ['Infernal'] },
 };
 
+/**
+ * The spellcasting ability an origin trait asks for, keyed by the trait.
+ *
+ * SRD prints it on the lineages and the legacies — "Intelligence, Wisdom, or
+ * Charisma is your spellcasting ability for the spells you cast with this
+ * trait" — and a character whose trait grants a spell must have answered it.
+ */
+const SPECIES_SPELLCASTING: Readonly<Record<string, Readonly<Record<string, Ability>>>> = {
+  elf: { 'elf:elven-lineage': 'int' },
+  gnome: { 'gnome:gnomish-lineage': 'int' },
+  tiefling: { 'tiefling:fiendish-legacy': 'cha' },
+};
+
 const SPECIES_FEATS: Readonly<Record<string, Readonly<Record<string, FeatChoice>>>> = {
   human: {
     'human:versatile': {
@@ -271,6 +284,7 @@ const choicesFor = (speciesId: string, backgroundId: string): CharacterChoices =
   equipped: [],
   hitPoints: { method: 'fixed' },
   featureChoices: SPECIES_CHOICES[speciesId] ?? {},
+  featureSpellcasting: SPECIES_SPELLCASTING[speciesId] ?? {},
   feats: {
     'fighter:fighting-style': { featId: 'defense' },
     ...(SPECIES_FEATS[speciesId] ?? {}),

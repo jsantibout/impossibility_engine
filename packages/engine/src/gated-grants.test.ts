@@ -172,6 +172,8 @@ describe('the standing gate the field arrived with', () => {
         'elf:elven-lineage': [lineage],
         'elf:keen-senses': ['perception'],
       },
+      // The lineage grants spells too, and asks which ability casts them.
+      featureSpellcasting: { 'elf:elven-lineage': 'int' },
       feats: {
         'sage:magic-initiate-wizard': {
           featId: 'magic-initiate',
@@ -192,14 +194,19 @@ describe('the standing gate the field arrived with', () => {
     expect(speeds('Drow')).toHaveLength(0);
   });
 
-  /** A grant with no gate is a grant every holder has. */
+  /**
+   * A grant with no gate is a grant every holder has — and the Elf is where
+   * both halves show at once: every lineage has the species' own sixty feet of
+   * Darkvision, and only the Drow has the hundred and twenty its lineage adds.
+   */
   it('leaves an ungated grant alone', () => {
-    const darkvision = (lineage: string) =>
-      (unwrap(planCharacter(CONTENT, elf(lineage)), 'plan').sheet.standing ?? []).filter(
-        (one) => one.grant.kind === 'sense',
-      );
-    expect(darkvision('Wood Elf')).toHaveLength(1);
-    expect(darkvision('Drow')).toHaveLength(1);
+    const ranges = (lineage: string) =>
+      (unwrap(planCharacter(CONTENT, elf(lineage)), 'plan').sheet.standing ?? [])
+        .filter((one) => one.grant.kind === 'sense')
+        .map((one) => (one.grant as { feet: number }).feet)
+        .sort((a, b) => a - b);
+    expect(ranges('Wood Elf')).toEqual([60]);
+    expect(ranges('Drow')).toEqual([60, 120]);
   });
 });
 

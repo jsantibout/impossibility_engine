@@ -3408,6 +3408,16 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
      */
     readonly casts?: boolean;
     /**
+     * Whether this source is a species or a background.
+     *
+     * Asked because the third gatherer is theirs: `originGrantedSpells` in
+     * `creation.ts` compiles a spells grant off an **origin** feature on the
+     * ability the trait itself asked the player for, so a free casting written
+     * there is read by somebody, and one written on a class that casts nothing
+     * is still read by nobody.
+     */
+    readonly origin?: boolean;
+    /**
      * Features of this source that a pool key may be looked up against —
      * this source's own, and its parent class's where it has one.
      *
@@ -3473,10 +3483,20 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
     });
   }
   for (const one of species) {
-    featureSources.push({ where: `species[${one.id}]`, levels: MAX_LEVEL, features: one.features });
+    featureSources.push({
+      where: `species[${one.id}]`,
+      levels: MAX_LEVEL,
+      features: one.features,
+      origin: true,
+    });
   }
   for (const one of backgrounds) {
-    featureSources.push({ where: `backgrounds[${one.id}]`, levels: MAX_LEVEL, features: one.features });
+    featureSources.push({
+      where: `backgrounds[${one.id}]`,
+      levels: MAX_LEVEL,
+      features: one.features,
+      origin: true,
+    });
   }
 
   for (const source of featureSources) {
@@ -4007,7 +4027,12 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
         // none is a casting that refuses at the table rather than here.
         if (grant.kind === 'spells' && grant.freeCasting !== undefined) {
           const free = grant.freeCasting;
-          if (source.casts !== true) {
+          // **Or an origin**, which is the third gatherer: a species or a
+          // background trait's spells are compiled by `originGrantedSpells` on
+          // the ability the trait itself asked for, so a free casting written
+          // there is read. What is still refused is a free casting on a class
+          // that casts nothing, which reaches no gatherer at all.
+          if (source.casts !== true && source.origin !== true) {
             problems.push({
               field: `${grantsAt}.freeCasting`,
               code: 'free_casting_without_a_caster',

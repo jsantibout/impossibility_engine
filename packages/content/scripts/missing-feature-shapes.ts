@@ -152,8 +152,6 @@ export const FEATURE_SHAPES = {
     'a constant the engine applies to every creature, which one feature is meant to bend. A Long Rest is eight hours, an attunement limit is a number inside a command, moving through an occupied space wants two sizes of difference, and carrying capacity is summed nowhere. `docs/design/characters-and-equipment.md` keeps the list of what the attunement rules still owe — "what ends attunement besides a command — death, losing the item, another creature attuning to it" — and every one of these is that same shape: a rule the engine holds rather than the sheet, so a trait bending it for its holder alone has nothing to bend.',
   'a-spell-list-that-is-not-your-class-list':
     'a spell known or prepared from **another class\'s** list. `checkContent` refuses a fixed grant naming nothing and creation checks every chosen spell against the list of the class that is choosing it, which is right for eleven classes and wrong for the two features the SRD writes the exception on. `docs/design/content.md` states what a class list is for — "`spellEntry(id)` — the spell\'s identity and class lists (the SRD index shape)" — and there is no second list a feature may widen it to.',
-  'a-spell-a-source-that-does-not-cast-grants':
-    'a spell granted by something with no spellcasting of its own. The engine gathers a `spells` grant from the features of a class that casts, so a species trait offering a cantrip, a lineage with two levelled spells and a background\'s free daily casting all reach no route. `docs/design/content.md` draws the boundary the grant sits on — "A definition with no entry still exists and can be cast; it is on nobody\'s class list until an entry says whose" — and what is missing here is the other end: a caster with no class to hang the casting on.',
   'a-concentration-rule-that-names-its-casting':
     'a rule about Concentration that is true of **one** spell. The Concentration save reads the damage that threatened it and knows nothing about which casting is at risk, which is the same absence `docs/design/rolls-and-damage.md` records for a saving throw — "nothing records what a save was against". A Ranger who keeps Concentration on Hunter\'s Mark and on nothing else cannot be told apart from one who keeps it on everything.',
   'a-feature-that-changes-what-a-casting-costs':
@@ -1302,19 +1300,9 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
   'elf:elven-lineage': [
     {
-      clause: 'read by speedOf like any other',
-      why: 'expressible',
-      note: 'the Wood Elf’s five feet, gated on the lineage chosen.',
-    },
-    {
-      clause: 'a feature carries at most one grant',
-      why: 'a-feature-that-carries-a-second-grant',
-      note: 'the Drow Darkvision, which is a sense the engine reads and has nowhere on this feature to sit.',
-    },
-    {
-      clause: 'the engine gathers a spells grant only from the features of a class that casts',
-      why: 'a-spell-a-source-that-does-not-cast-grants',
-      note: 'the cantrip and the two levelled spells each lineage knows.',
+      clause: 'is an option re-chosen on a rest',
+      why: 'an-option-re-chosen-on-a-rest',
+      note: 'the High Elf alone: every other clause of every lineage is applied, and what is left is a cantrip swapped for another one whenever the Elf finishes a Long Rest, which nothing rewires a compiled grant for.',
     },
   ],
   'elf:trance': [
@@ -1331,14 +1319,14 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
   'gnome:gnomish-lineage': [
     {
-      clause: 'a species feature cannot grant a spell',
-      why: 'a-spell-a-source-that-does-not-cast-grants',
-      note: 'both options are spells, so this is the whole trait.',
+      clause: 'which is not one of the three ways the engine sizes a pool',
+      why: 'a-pool-the-proficiency-bonus-sizes',
+      note: 'the Forest Gnome’s Speak with Animals, whose free castings are counted in Proficiency Bonuses; the cantrips either option knows are granted.',
     },
     {
-      clause: 'free a Proficiency Bonus of times a day',
-      why: 'a-pool-the-proficiency-bonus-sizes',
-      note: 'and the Forest Gnome’s limit, sized the way no species can be.',
+      clause: 'an object with its own Armour Class, hit point and Bonus Action that nothing in the engine creates',
+      why: 'an-object-with-statistics-of-its-own',
+      note: 'the Rock Gnome’s clockwork device, which is the spell map’s own id: a thing with an Armour Class and a Hit Point that is not a creature.',
     },
   ],
   'goliath:giant-ancestry': [
@@ -1442,25 +1430,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'dropping to 1 Hit Point instead of 0 is a decision taken at the moment damage lands',
       why: 'an-effect-that-intercepts-dropping-to-0',
       note: 'Relentless Rage wants the same hook, which is what makes it a shape.',
-    },
-  ],
-  'tiefling:fiendish-legacy': [
-    {
-      clause: 'the grant reads the type out of that table',
-      why: 'expressible',
-      note: 'the Resistance each legacy names, through the option-meaning table.',
-    },
-    {
-      clause: 'The cantrip beside it, and the level 3 and level 5 spells, reach nothing',
-      why: 'a-spell-a-source-that-does-not-cast-grants',
-      note: 'and the spellcasting ability the trait chooses, which has nowhere to be recorded.',
-    },
-  ],
-  'tiefling:otherworldly-presence': [
-    {
-      clause: 'a species feature granting one reaches no spellcasting route',
-      why: 'a-spell-a-source-that-does-not-cast-grants',
-      note: 'Fiendish Legacy’s blocker on a second trait.',
     },
   ],
   // — the feats, which no population had until gate G1 ————————————————————

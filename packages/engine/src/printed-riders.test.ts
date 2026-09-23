@@ -592,6 +592,8 @@ describe('a printed saving throw, rolled at the number the block states', () => 
         'elf:keen-senses': ['perception'],
         'fighter:weapon-mastery': [],
       },
+      // The lineage grants a cantrip, and asks which ability casts it.
+      featureSpellcasting: { 'elf:elven-lineage': 'int' },
       feats: {
         'sage:magic-initiate-wizard': {
           featId: 'magic-initiate',

@@ -656,6 +656,41 @@ export type FeatureGrant =
       readonly kind: 'spells';
       readonly fixed?: readonly string[];
       /**
+       * The abilities the feature offers for the spells it grants, where the
+       * source is not a class and has none of its own.
+       *
+       * SRD Fiendish Legacy: "Intelligence, Wisdom, or Charisma is your
+       * spellcasting ability for the spells you cast with this trait (choose
+       * the ability when you select the legacy)." A class feature needs none —
+       * a class's spells are cast off the class's ability — and a species has
+       * no such ability at all, so the trait offers a set and the player picks
+       * one, which is stored on `CharacterChoices.featureSpellcasting`.
+       *
+       * A grant that reads a **sibling's** answer names it in
+       * {@link GrantGate.choiceFrom} and carries none of its own: SRD
+       * Otherworldly Presence is "the spell uses the same spellcasting ability
+       * you use for your Fiendish Legacy trait", which is one question and two
+       * traits written in terms of it.
+       */
+      readonly abilities?: readonly Ability[];
+      /**
+       * The **character** level this grant arrives at, where that is later
+       * than the feature's own.
+       *
+       * SRD Elven Lineage and Fiendish Legacy: "When you reach character
+       * levels 3 and 5, you learn a higher-level spell, as shown on the
+       * table." One printed trait, chosen at level 1, whose table has three
+       * rows and hands one of them over two levels later.
+       *
+       * A field rather than three feature ids, for gate G1's reason: the
+       * ledger population, the origin sweep and the surface's holdings are
+       * keyed by the feature the **book** prints, so a `tiefling:fiendish-
+       * legacy-3` would be a feature nobody printed turning up in every
+       * report. Counted in character levels because that is the phrase the
+       * book uses, which for a species trait is the only level there is.
+       */
+      readonly fromLevel?: number;
+      /**
        * Castings of one of those spells the **feature** pays for, out of a
        * pool instead of a spell slot.
        *
@@ -709,6 +744,17 @@ export type FeatureGrant =
          * Shape declared and sizes nothing.
          */
         readonly declares?: PoolSizing & { readonly recovers: Recovery };
+        /**
+         * SRD: "You can also cast the spell using any spell slots you have of
+         * the appropriate level."
+         *
+         * Off by default and said where the book says it. A class feature's
+         * free casting is the free route and nothing else — "a granted route
+         * that allowed both would make the engine choose between a resource a
+         * player is saving and one they are not" — and the lineages print the
+         * other sentence, for a holder who may have no slots at all.
+         */
+        readonly withSlots?: true;
       };
     }
   /**

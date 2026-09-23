@@ -258,6 +258,22 @@ export interface CharacterChoices {
   readonly hitPoints: HitPointChoice;
   /** Choices a feature asks for, keyed by feature id. */
   readonly featureChoices: Readonly<Record<string, readonly string[]>>;
+  /**
+   * The spellcasting ability a feature that grants a spell asked for, keyed by
+   * the feature that asked.
+   *
+   * `FeatChoice.spellcastingAbility`'s twin, on the other of the two sources
+   * that grant a spell to somebody who may cast nothing. SRD Fiendish Legacy:
+   * "Intelligence, Wisdom, or Charisma is your spellcasting ability for the
+   * spells you cast with this trait (choose the ability when you select the
+   * legacy)." A class's spells need none of this, because the class prints the
+   * ability; a species prints a choice of three.
+   *
+   * Keyed by the **asking** feature, so a sibling written in terms of it reads
+   * one answer rather than the player giving two — see `GrantGate.choiceFrom`,
+   * which is where Otherworldly Presence says whose ability it uses.
+   */
+  readonly featureSpellcasting?: Readonly<Record<string, Ability>>;
   /** Feats, keyed by the feature that granted them. */
   readonly feats: Readonly<Record<string, FeatChoice>>;
   /** Required above level 1; see {@link DmGrants}. */
@@ -766,9 +782,22 @@ function grantedFeatures(content: Content, choices: CharacterChoices, parts: Par
     ...cumulativeFeatures(parts.definition, choices.level),
     ...(parts.subclass === null ? [] : cumulativeFeatures(parts.subclass, choices.level)),
     ...extra,
-    ...cumulativeFeatures(parts.species, choices.level),
-    ...cumulativeFeatures(parts.background, choices.level),
+    ...originFeatures(choices, parts),
   ].map((feature) => withGateMet(feature, choices));
+}
+
+/**
+ * The species' and the background's own features, at the **character's** level.
+ *
+ * A class table is read at that class's level and an origin's is not: SRD
+ * writes "When you reach character levels 3 and 5" on the lineages and the
+ * legacies, and a Fighter 3 / Rogue 2 has reached level 5 of both. Gathered
+ * once, here, because the spells an origin grants are read from this list and
+ * everything else is read from the whole.
+ */
+function originFeatures(choices: CharacterChoices, parts: Parts): readonly FeatureDefinition[] {
+  const level = totalLevelOf(choices);
+  return [...cumulativeFeatures(parts.species, level), ...cumulativeFeatures(parts.background, level)];
 }
 
 /**
@@ -788,12 +817,21 @@ function grantedFeatures(content: Content, choices: CharacterChoices, parts: Par
  */
 function withGateMet(feature: FeatureDefinition, choices: CharacterChoices): FeatureDefinition {
   const all = featureGrants(feature);
+  const level = totalLevelOf(choices);
   // Where the choice a grant reads was made: its own feature unless the grant
   // names a sibling, which is how the SRD writes a species — one trait asks
   // which ancestry, lineage or legacy you are and the later ones are written
   // in terms of it. The content validator has already held the name to a
   // sibling that offers the option.
   const kept = all.filter((grant) => {
+    // And the other gate on a grant, which is a level rather than an option:
+    // SRD's lineages and legacies are chosen at level 1 and hand over a spell
+    // at character levels 3 and 5. Applied here so that every pass — the
+    // spells, the pools they are cast out of, the sheet — agrees about what
+    // has arrived.
+    if (grant.kind === 'spells' && grant.fromLevel !== undefined && level < grant.fromLevel) {
+      return false;
+    }
     if (grant.onlyIfChoice === undefined) return true;
     return (choices.featureChoices[grant.choiceFrom ?? feature.id] ?? []).includes(
       grant.onlyIfChoice,
@@ -959,6 +997,59 @@ function unclaimedMasteries(
   return warnings;
 }
 
+/**
+ * The spellcasting ability a trait that grants spells asked the player for.
+ *
+ * SRD Fiendish Legacy prints the question once and two traits read the answer,
+ * so a grant may name the feature that asked — the same `choiceFrom` a gate
+ * uses, and for the same reason: one fact, one place, one answer.
+ */
+const spellcastingAbilityFor = (
+  choices: CharacterChoices,
+  feature: FeatureDefinition,
+  grant: { readonly choiceFrom?: string },
+): Ability | undefined => choices.featureSpellcasting?.[grant.choiceFrom ?? feature.id];
+
+/**
+ * A trait that offers a spellcasting ability, and the answer it was given.
+ *
+ * Two refusals, and both would otherwise be silent: a trait nobody answered
+ * grants spells with no ability to cast them off, and an ability the trait
+ * does not offer is the player writing their own sentence — SRD names three
+ * and Strength is not one of them.
+ */
+function checkFeatureSpellcasting(
+  choices: CharacterChoices,
+  features: readonly FeatureDefinition[],
+): CreationProblem[] {
+  const problems: CreationProblem[] = [];
+  for (const feature of features) {
+    // Asked once per feature rather than once per grant: SRD Fiendish Legacy
+    // carries a cantrip and two levelled spells under one question, and a
+    // player who answered it should not be told three times that they did not.
+    const offered = [
+      ...new Set(
+        featureGrants(feature).flatMap((grant) =>
+          grant.kind === 'spells' ? (grant.abilities ?? []) : [],
+        ),
+      ),
+    ];
+    if (offered.length === 0) continue;
+
+    const answer = choices.featureSpellcasting?.[feature.id];
+    if (answer === undefined) {
+      problems.push(
+        problem('missing_feature_spellcasting', 'featureSpellcasting', `${feature.name} casts its spells off ${offered.join(', ')}, and none was chosen`),
+      );
+    } else if (!offered.includes(answer)) {
+      problems.push(
+        problem('unknown_ability', 'featureSpellcasting', `${feature.name} offers ${offered.join(', ')}, and ${answer} is not one of them`),
+      );
+    }
+  }
+  return problems;
+}
+
 function checkFeatureChoices(
   content: Content,
   choices: CharacterChoices,
@@ -966,7 +1057,7 @@ function checkFeatureChoices(
   proficient: ReadonlySet<Skill>,
   weaponCategories: readonly string[],
 ): CreationProblem[] {
-  const problems: CreationProblem[] = [];
+  const problems: CreationProblem[] = [...checkFeatureSpellcasting(choices, features)];
 
   for (const feature of features) {
     const asked = feature.choice;
@@ -1965,6 +2056,56 @@ function featureHitPoints(
     total += Math.max(0, level - feature.level);
   }
   return total;
+}
+
+/**
+ * Spells a species or a background grants, and the ability they are cast off.
+ *
+ * The gatherer the shape was missing. A class's features are read per casting
+ * class, on that class's own ability; an origin has no ability of its own, so
+ * the trait offers a set and the answer is on the character —
+ * {@link CharacterChoices.featureSpellcasting}, read through the feature that
+ * asked, which may be a sibling.
+ *
+ * A trait with no answer grants nothing rather than guessing at an ability;
+ * `checkFeatureSpellcasting` is what refuses that at the door, so a plan only
+ * reaches here once the question has been answered.
+ */
+function originGrantedSpells(
+  choices: CharacterChoices,
+  origins: readonly FeatureDefinition[],
+): readonly GrantedSpell[] {
+  const granted: GrantedSpell[] = [];
+  for (const [feature, grant] of grantsIn(origins.map((one) => withGateMet(one, choices)))) {
+    if (grant.kind !== 'spells') continue;
+    const ability = spellcastingAbilityFor(choices, feature, grant);
+    if (ability === undefined) continue;
+
+    for (const spellId of grant.fixed ?? []) {
+      granted.push({
+        spellId,
+        source: feature.id,
+        ability,
+        freeCastPool: null,
+        slotCasting: false,
+      });
+    }
+
+    // "You can cast it once without a spell slot ... You can also cast the
+    // spell using any spell slots you have of the appropriate level." Both
+    // halves of one sentence, and the second is off unless the book prints it.
+    const free = grant.freeCasting;
+    if (free !== undefined) {
+      granted.push({
+        spellId: free.spell,
+        source: feature.id,
+        ability,
+        freeCastPool: free.pool,
+        slotCasting: free.withSlots === true,
+      });
+    }
+  }
+  return granted;
 }
 
 /**
@@ -3272,6 +3413,16 @@ export function planCharacter(
       });
     }
   }
+
+  // And the third of the three things that grant a spell: a species or a
+  // background trait, on a holder who may cast nothing at all.
+  //
+  // SRD writes it on four origin traits and every one of them reached nothing
+  // before this — `classFeatureSpells` walks a **casting class's** features,
+  // so a trait's cantrip was granted to nobody. What it produces is the
+  // {@link GrantedSpell} the feat route has always produced: the payment fork,
+  // the pool and the report are the ones Magic Initiate already uses.
+  granted.push(...originGrantedSpells(choices, originFeatures(choices, parts)));
 
   // One entry per casting class, each holding that class's own list and its
   // own spellcasting ability. A class that does not cast contributes nothing

@@ -1058,7 +1058,12 @@ function grantProblems(
   if (
     grant.choiceFrom !== undefined &&
     grant.onlyIfChoice === undefined &&
-    !(grant.kind === 'standing' && grant.damageTypesFromChoice === true)
+    !(grant.kind === 'standing' && grant.damageTypesFromChoice === true) &&
+    // A `spells` grant reads a third thing off the feature that asked: the
+    // spellcasting ability. SRD Otherworldly Presence is "the spell uses the
+    // same spellcasting ability you use for your Fiendish Legacy trait", which
+    // is one question and two traits written in terms of it.
+    grant.kind !== 'spells'
   ) {
     found.push({
       field: 'grants.choiceFrom',
@@ -1248,6 +1253,7 @@ export function checkFeatureDefinition(
   // | Kind | Repeats | Why |
   // |---|---|---|
   // | `standing` | freely | the reader is a loop over effects, each with its own source; SRD prints several benefits under one heading |
+  // | `spells` | freely | every reader of one is a loop too, each grant is its own "you know X" sentence, and each free casting names its own pool — SRD's lineages and legacies print a cantrip and two levelled spells under one heading |
   // | every other kind | only under distinct gates | every other reader looks for *the* grant of its kind, so two that could both apply is an ambiguity nothing resolves |
   //
   // A gate makes the difference because gates are exclusive: "one of the
@@ -1259,13 +1265,13 @@ export function checkFeatureDefinition(
     byKind.set(grant.kind, [...(byKind.get(grant.kind) ?? []), grant]);
   }
   for (const [kind, sharing] of byKind) {
-    if (sharing.length < 2 || kind === 'standing') continue;
+    if (sharing.length < 2 || kind === 'standing' || kind === 'spells') continue;
     const gates = new Set(sharing.map((grant) => grant.onlyIfChoice ?? ''));
     if (gates.size === sharing.length && !gates.has('')) continue;
     found.push({
       field: 'grants',
       code: 'grants_do_not_compose',
-      reason: `${feature.id} carries ${sharing.length} "${kind}" grants, and a reader looking for the ${kind} would find two; only a "standing" grant repeats freely, and any other kind repeats only as one option each of a choice`,
+      reason: `${feature.id} carries ${sharing.length} "${kind}" grants, and a reader looking for the ${kind} would find two; only "standing" and "spells" repeat freely, and any other kind repeats only as one option each of a choice`,
     });
   }
 
