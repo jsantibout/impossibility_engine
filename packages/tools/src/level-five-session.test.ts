@@ -483,14 +483,27 @@ const poolsWithNoDoor = (t: Table): readonly PoolWithNoDoor[] => {
     // ad-hoc shape turns a rename in `holdings.ts` into a census that quietly
     // reports nothing, and this cast turns it into a typecheck error.
     const held = outcome.resolution as unknown as Holdings;
-    // Three doors a pool can have, and all three are read off the sheet
-    // rather than assumed: a feature line naming the tool that spends it, a
-    // granted spell naming it as what `cast_spell.payment` draws on, and the
-    // Hit Die pool `end_rest` takes by name.
+    // Four doors a pool can have, and all four are read off the sheet rather
+    // than assumed: a feature line naming the tool that spends it, a granted
+    // spell naming it as what `cast_spell.payment` draws on, **both ends of a
+    // trade**, and the Hit Die pool `end_rest` takes by name.
+    //
+    // The trades are the fourth because a census without them lies. A traded
+    // pool carries `pool: null` on its feature line on purpose — a trade runs
+    // *between* two pools and neither is "the pool it draws on" — so a pool
+    // whose only door is `trade_resource` looked door-less to a reading that
+    // only knew about `feature.pool`, and the transcript reported Arcane
+    // Recovery shut while `reachability.test.ts` reported it open. Two guards
+    // disagreeing about one pool is a guard failing, and the one that was
+    // wrong is this one.
     const doored = new Set<string>([
       ...held.features
         .filter((one) => one.spentBy !== null && one.pool !== null)
         .map((one) => one.pool as string),
+      ...held.features
+        .flatMap((one) => one.trades ?? [])
+        .flatMap((one) => [one.spends.pool, one.gains.pool])
+        .filter((one): one is string => one !== null),
       ...held.spellcasting.granted
         .map((one) => one.freeCastPool)
         .filter((one): one is string => one !== null),
@@ -1359,6 +1372,20 @@ describe('a level 5 party plays a session', () => {
     // does not exist, and a write straight to the stream is the one channel
     // the reporter passes through.
     process.stdout.write(report(t));
+
+    /**
+     * The first of the three counts that can be pinned honestly.
+     *
+     * The other two are measurements of a moving engine and the roadmap says
+     * to print them; this one is a claim about *doors*, and a door either
+     * exists or does not. Every pool this party holds is spendable through a
+     * tool the surface publishes — which includes the pools whose only door is
+     * a **trade**, where the menu names both ends and neither is "the pool it
+     * draws on". Asserted after the report is written, so the transcript above
+     * shows the same number and the reads this makes do not inflate its call
+     * total.
+     */
+    expect(poolsWithNoDoor(t)).toEqual([]);
 
     // The session got to the end of itself, and the assertions say so rather
     // than a comment saying so: the fight began and was closed, every one of

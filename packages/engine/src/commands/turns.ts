@@ -252,6 +252,16 @@ function settleTurnPayouts(
 ): Result<readonly GameEvent[]> {
   const events: GameEvent[] = [];
   let current = state;
+  // **Where the generator stood before this boundary threw anything**, read
+  // once and written back once at the end — `forcePrintedSave`'s shape, and
+  // for its reason: everything below draws from one generator and a single
+  // `rolls-issued` covers the lot.
+  //
+  // The bracket encloses the whole loop rather than the branch that rolls the
+  // payout's own dice, because that branch is not the only thing here that
+  // turns it: `dealSpellDamage` makes the Concentration save a hit provokes,
+  // so a payout carrying nothing but a flat number can still move the stream.
+  const issuedBefore = supply.issuer.count;
 
   for (const { target, payout } of due) {
     const recipient = current.creatures[target];
@@ -312,6 +322,20 @@ function settleTurnPayouts(
     if (!paid.ok) return paid;
     events.push(...paid.value);
     current = paid.value.reduce(applyEvent, current);
+  }
+
+  // A log that does not say how far the generator moved is a log that rewinds
+  // on replay: a session resumed from it rebuilds the stream from where the
+  // last record left it, and the next command draws the same faces under the
+  // same roll ids. **No log carries this hole**, because no SRD payout throws
+  // dice — every one of them hands over a printed number or an ability
+  // modifier — so this is a determinism defect fixed and not a migration.
+  if (supply.issuer.count > issuedBefore) {
+    events.push({
+      type: 'rolls-issued',
+      count: supply.issuer.count - issuedBefore,
+      rng: supply.rng.snapshot(),
+    });
   }
 
   return ok(events);
