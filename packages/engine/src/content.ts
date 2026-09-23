@@ -300,6 +300,14 @@ export const ITEM_EFFECT_KINDS: ReadonlySet<string> = new Set([
   'roll-mode',
   'save-bonus',
   'check-bonus',
+  // The third family of the same derivation, admitted on the same test as the
+  // two above it: `standingBonuses` walks `standingFor`, which a worn item's
+  // grants are already part of, so a blade that added its wielder's Charisma
+  // to its own attack rolls would be executed rather than transcribed and
+  // ignored. SRD prints the sentence on a subclass feature rather than on an
+  // item; the list's rule is what a reader reaches, not what the book happens
+  // to have written.
+  'attack-bonus',
   'flat-bonus',
   'condition-immunity',
   'damage-resistance',
@@ -602,6 +610,41 @@ function checkBonusProblems(
 }
 
 /**
+ * Everything wrong with an ability-sized bonus to **attack rolls**.
+ *
+ * {@link checkBonusProblems}' sibling on the third family, and it asks the two
+ * questions that family shares — an ability the engine holds a score for, and
+ * a floor that is a whole number of points. What it does *not* ask is the
+ * third: a skill list is what narrows a check and there is no counterpart
+ * here, because an attack roll is not made with a skill. The weapons the
+ * sentence reaches are optional and are checked where every other weapon
+ * narrowing is, beside `flat-bonus`'s.
+ */
+function attackBonusProblems(
+  effect: Record<string, unknown>,
+  at: string,
+): readonly { readonly code: string; readonly reason: string; readonly field: string }[] {
+  const found: { code: string; reason: string; field: string }[] = [];
+  const ability = effect['fromAbility'];
+  if (!isString(ability) || !(ABILITIES as readonly string[]).includes(ability)) {
+    found.push({
+      code: 'bad_attack_bonus',
+      reason: `"${String(ability)}" is not one of the six abilities`,
+      field: `${at}.fromAbility`,
+    });
+  }
+  const minimum = effect['minimum'];
+  if (!Number.isInteger(minimum) || (minimum as number) < 0) {
+    found.push({
+      code: 'bad_attack_bonus',
+      reason: `SRD's "(minimum bonus of +1)" is a floor of a whole number of points, not ${JSON.stringify(minimum)}`,
+      field: `${at}.minimum`,
+    });
+  }
+  return found;
+}
+
+/**
  * Everything wrong with one standing effect declared by something that is
  * **not an item** — a class feature, a species trait, or a feat.
  *
@@ -646,7 +689,9 @@ function ownedStandingEffectProblems(
   // weapon the equipment tables print, and that the roll it narrows is one
   // somebody makes *with* a weapon.
   if (
-    (effect.kind === 'flat-bonus' || effect.kind === 'attack-die-rule') &&
+    (effect.kind === 'flat-bonus' ||
+      effect.kind === 'attack-die-rule' ||
+      effect.kind === 'attack-bonus') &&
     effect.onlyWithWeapon !== undefined
   ) {
     found.push(...weaponNarrowingProblems(effect.onlyWithWeapon, `${at}.onlyWithWeapon`));
@@ -697,6 +742,9 @@ function ownedStandingEffectProblems(
   }
   if (effect.kind === 'check-bonus') {
     found.push(...checkBonusProblems(effect as unknown as Record<string, unknown>, at));
+  }
+  if (effect.kind === 'attack-bonus') {
+    found.push(...attackBonusProblems(effect as unknown as Record<string, unknown>, at));
   }
   if (effect.kind === 'casting-healing') {
     found.push(...castingHealingProblems(effect as unknown as Record<string, unknown>, at));
@@ -3161,6 +3209,23 @@ function itemGrantProblems(
       if (effect.kind === 'check-bonus') {
         for (const problem of checkBonusProblems(effect as unknown as Record<string, unknown>, on)) {
           say(problem.code, problem.reason, problem.field);
+        }
+        return;
+      }
+      if (effect.kind === 'attack-bonus') {
+        for (const problem of attackBonusProblems(
+          effect as unknown as Record<string, unknown>,
+          on,
+        )) {
+          say(problem.code, problem.reason, problem.field);
+        }
+        if (effect.onlyWithWeapon !== undefined) {
+          for (const problem of weaponNarrowingProblems(
+            effect.onlyWithWeapon,
+            `${on}.onlyWithWeapon`,
+          )) {
+            say(problem.code, problem.reason, problem.field);
+          }
         }
         return;
       }

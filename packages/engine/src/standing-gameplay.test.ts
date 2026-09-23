@@ -153,6 +153,10 @@ describe('a paladin made from choices radiates a real aura', () => {
     expect(standing.map((e) => e.feature)).toEqual([
       'paladin:aura-of-protection',
       'oath-of-devotion:aura-of-devotion',
+      // The third is not an aura and is not on until it is switched on: SRD
+      // Sacred Weapon's Charisma bonus is a standing effect requiring the
+      // feature to be active, which is what every `whileActive` grant becomes.
+      'oath-of-devotion:sacred-weapon',
     ]);
     expect(standing[0]?.reach).toEqual({ kind: 'aura', feet: 10 });
   });
@@ -346,7 +350,11 @@ describe('a multiclassed paladin still radiates, and a junior one does not', () 
         'junior',
       ) as GameEvent[],
     );
-    expect(junior.creatures.aelric!.sheet.standing ?? []).toEqual([]);
+    // Nothing that radiates. Sacred Weapon arrives at 3 and is on the sheet,
+    // gated on being switched on, so the claim this test makes is about the
+    // aura rather than about the length of the list.
+    const standing = junior.creatures.aelric!.sheet.standing ?? [];
+    expect(standing.filter((one) => one.reach.kind === 'aura')).toEqual([]);
   });
 });
 

@@ -929,6 +929,28 @@ export type FeatureGrant =
       readonly action: 'action' | 'bonus-action' | 'none';
       /** The pool key, or null when it costs no uses. */
       readonly pool: string | null;
+      /**
+       * That the pool above is **somebody else's**, and this activation only
+       * spends it.
+       *
+       * SRD Sacred Weapon: "you can expend one use of your **Channel
+       * Divinity**" — the pool is the Paladin class's, printed under its own
+       * heading and sized by its own column, and the subclass names a way to
+       * spend a use. Declaring it a second time is two pools with one key,
+       * which the fold refuses outright.
+       *
+       * **The distinction the vocabulary already draws twice**, spelled a
+       * third time on a third host: `reaction` declares a pool only when it
+       * carries `declares` — "Cutting Words spends Bardic Inspiration, which
+       * is somebody else's pool, and declares nothing" — and a `spells`
+       * grant's free casting the same. This says it as a flag rather than as a
+       * sub-object because an activation's sizing is its own fields, and
+       * moving them would be a migration of six grants that all declare.
+       *
+       * A sizing beside it is refused, because a use count on a pool this
+       * feature does not own is a number nothing would ever read.
+       */
+      readonly spendsOnly?: true;
       /** Uses by class level, straight off the class table. */
       readonly usesByLevel?: readonly number[];
       /** SRD Stonecunning: "a number of times equal to your Proficiency Bonus". */

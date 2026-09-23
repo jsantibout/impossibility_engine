@@ -462,6 +462,42 @@ export type StandingGrant =
       readonly skills: readonly Skill[];
     }
   /**
+   * SRD Sacred Weapon: "you add your Charisma modifier to attack rolls you
+   * make with that weapon (minimum bonus of +1)."
+   *
+   * The third family of one derivation, and the last of the three the SRD
+   * writes. `save-bonus` is Aura of Protection's saving throw, `check-bonus`
+   * above is the two Orders' named skills, and `flat-bonus` below is "Flat,
+   * and only flat" — so a Charisma modifier on an attack roll had no member
+   * at all, and the number was one the caller passed in.
+   *
+   * **A member beside the other two rather than a field on either**, for the
+   * reason `check-bonus` is not a widened `save-bonus`: a bonus to a saving
+   * throw, a bonus to a named skill's checks and a bonus to an attack roll are
+   * three sentences the book has never written as one, and the narrowing each
+   * carries is different — a skill list there, a kind of weapon here.
+   *
+   * **The narrowing is a kind of weapon and not an object.** SRD says "that
+   * weapon", one particular thing imbued at the moment the feature was
+   * switched on, and a standing grant is hung on a creature rather than on an
+   * object — `GrantedWeaponRider` is the one record keyed on a weapon's id and
+   * only a casting writes one. So the sentence reaches the weapons the feature
+   * names, and a holder swinging a second Melee weapon during the minute gets
+   * the bonus the book gave the first. The feature's own note says so.
+   */
+  | {
+      readonly kind: 'attack-bonus';
+      readonly fromAbility: Ability;
+      /** SRD's "(minimum bonus of +1)", read as a floor under the modifier. */
+      readonly minimum: number;
+      /**
+       * The weapons the sentence reaches — SRD Sacred Weapon's "one **Melee**
+       * weapon that you are holding". Absent reaches every attack roll,
+       * including a spell's and a fist's.
+       */
+      readonly onlyWithWeapon?: WeaponNarrowing;
+    }
+  /**
    * A flat number added to something, with the item or feature's name on it.
    *
    * **The commonest sentence in the book, and the one shape this union did not
@@ -2610,7 +2646,38 @@ export function standingBonuses(
   const best = new Map<string, Bonus>();
   const withItem = context.withItem ?? null;
 
-  for (const { effect } of standingFor(state, who)) {
+  for (const { from, effect } of standingFor(state, who)) {
+    // **The ability-sized plus on an attack roll**, gathered in the same walk
+    // as the flat one because they are the same question asked of two
+    // sentences — SRD Sacred Weapon's Charisma modifier and an Archery
+    // feat's +2 both end up as a named number on the same roll.
+    //
+    // `abilityScoresOf(from)` for `save-bonus`'s reason: the modifier is the
+    // **holder's**, read off their scores as they stand, so a Paladin wearing
+    // something that sets their Charisma swings at the score they have. The
+    // two are the same creature for every sentence the book writes here, and
+    // reading the holder anyway is what keeps them from disagreeing the day
+    // one is not.
+    if (effect.grant.kind === 'attack-bonus') {
+      if (applies !== 'attack') continue;
+      if (
+        effect.grant.onlyWithWeapon !== undefined &&
+        !weaponNarrowingHolds(effect.grant.onlyWithWeapon, wielding(context))
+      ) {
+        continue;
+      }
+      const holder = state.creatures[from];
+      if (holder === undefined) continue;
+      const flat = Math.max(
+        effect.grant.minimum,
+        abilityModifier(abilityScoresOf(state, from)[effect.grant.fromAbility]),
+      );
+      const current = best.get(effect.feature);
+      if (current === undefined || (current.flat ?? 0) < flat) {
+        best.set(effect.feature, { source: effect.name, flat });
+      }
+      continue;
+    }
     if (effect.grant.kind !== 'flat-bonus') continue;
     if (!effect.grant.applies.includes(applies)) continue;
     // "Made with this magic weapon", and with no other.

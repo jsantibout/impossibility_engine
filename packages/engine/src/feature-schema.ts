@@ -272,7 +272,12 @@ const poolSizingOf = (
   grant: GatedFeatureGrant,
 ): { readonly at: string; readonly sizing: PoolSizing } | null => {
   if (grant.kind === 'pool') return { at: 'grants', sizing: grant };
-  if (grant.kind === 'activated' && grant.pool !== null) return { at: 'grants', sizing: grant };
+  // An activation that says the pool is somebody else's sizes nothing, for
+  // `reaction`'s reason one arm down: a use count on a pool this feature does
+  // not own is a number nothing would read.
+  if (grant.kind === 'activated' && grant.pool !== null && grant.spendsOnly !== true) {
+    return { at: 'grants', sizing: grant };
+  }
   // The sixth: a shape declares the pool its forms come out of, on the same
   // sentence that prints them — SRD Wild Shape's "You can use Wild Shape
   // twice" is two paragraphs under one heading.
@@ -304,7 +309,9 @@ const poolSizingOf = (
  */
 export const poolKeysIn = (grant: GatedFeatureGrant): readonly string[] => {
   if (grant.kind === 'pool') return [grant.key];
-  if (grant.kind === 'activated' && grant.pool !== null) return [grant.pool];
+  if (grant.kind === 'activated' && grant.pool !== null && grant.spendsOnly !== true) {
+    return [grant.pool];
+  }
   if (grant.kind === 'shape-shift') return [grant.pool];
   if (grant.kind === 'reaction' && grant.declares !== undefined && grant.pool !== undefined) {
     return [grant.pool];
@@ -1017,6 +1024,29 @@ function grantProblems(
         code: 'bad_activation_span',
         reason: `a printed span is a whole number of seconds of at least one, not ${String(span.lastsSeconds)}`,
       });
+    }
+    // Rule 6c. An activation that says the pool is somebody else's has to name
+    // one, and may not size it: a use count on a pool this feature does not
+    // own is a number `poolsFor` never reads, and a flag with no key is a
+    // declaration withheld from nothing.
+    if (grant.spendsOnly === true) {
+      if (grant.pool === null) {
+        found.push({
+          field: 'grants.spendsOnly',
+          code: 'spends_no_pool',
+          reason:
+            'this activation says the pool it spends is another feature’s and then names none, so it costs nothing and withholds nothing',
+        });
+      }
+      const sized = ['usesByLevel', 'perProficiencyBonus', 'minimum', 'recovers', 'poolLabel', 'regainsOnShortRest']
+        .filter((field) => (grant as unknown as Record<string, unknown>)[field] !== undefined);
+      if (sized.length > 0) {
+        found.push({
+          field: `grants.${sized[0]!}`,
+          code: 'sizes_anothers_pool',
+          reason: `${sized.join(' and ')} size a pool, and this activation spends one another feature declares — the numbers would be read off that feature's own grant`,
+        });
+      }
     }
     if (grant.size !== undefined && !(CREATURE_SIZES as readonly unknown[]).includes(grant.size)) {
       found.push({

@@ -62,7 +62,7 @@
  */
 
 import { SRD_CONTENT } from '@ie/content';
-import { featureGrants, type FeatureDefinition } from '@ie/engine';
+import { featureGrants, type FeatureDefinition, type GatedFeatureGrant } from '@ie/engine';
 import {
   ITEM_SHAPES,
   MISSING_SHAPES,
@@ -102,8 +102,6 @@ export const FEATURE_SHAPES = {
     'a feature\'s conferred effect that runs to a **moment in the Initiative order** rather than for a printed span. What an option hangs is ended by a deadline it files itself, and `PoolOptionGrant` in packages/engine/src/progression.ts admits exactly one kind of it — "How long what it hangs lasts, in seconds" — because Channel Divinity\'s minute is what it was built from. An `activated` grant one member along carries a `TurnAnchor` instead and a `standing` grant needs none, so the vocabulary holds both spellings of a lifetime and this host holds one: SRD Nature\'s Veil gives the Invisible condition "until the end of your next turn", and there is no field to write that in. It is the mirror of the entry below rather than the same gap — that one is a switched-on feature wanting a span, and this is a conferred effect wanting a boundary.',
   'a-dc-a-feature-derives-from-its-own-abilities':
     'a saving throw DC a feature computes for itself. A feature\'s option rolls against its holder\'s spell save DC, and `PoolOption` in packages/engine/src/standing.ts says whose: "The **granting class\'s** ability, resolved at creation, because a multiclassed holder has more than one and the feature belongs to exactly one of them." A species trait belongs to no class and casts nothing — the same declaration goes on, "Null where the granting class casts nothing at all" — so SRD Breath Weapon\'s "DC 8 plus your Constitution modifier and Proficiency Bonus" is a formula the vocabulary cannot name, and what it would fall back to is an item\'s.',
-  'a-bonus-an-ability-modifier-sizes':
-    'a number added to a roll that is read off the holder\'s own sheet. Two grants do it and each answers for one family: `save-bonus` in packages/engine/src/standing.ts is Aura of Protection, "the *holder\'s* modifier, read off their sheet rather than the beneficiary\'s", and `check-bonus` beside it is the two Orders\' bonus over the skills a feature names. `flat-bonus` beside them is "Flat, and only flat", so what is still unsaid is the third family: a Charisma bonus to **attack rolls**, which nothing derives a number for.',
   'a-second-question-one-feature-asks':
     'a feature that asks the player **two** things. packages/engine/src/progression.ts gives a feature one question — “What the player must decide when they gain it” — and the answer is stored under the feature’s own id, so one feature holds one answer list and every grant written in terms of a choice reads that one. SRD Divine Order and Primal Order each print two under one heading: which order, and — for one of the two orders — which extra cantrip from the class list. The gate that hangs a grant on the order chosen is built; the cantrip still cannot be granted, because the feature has already spent its question and a spells grant with no fixed list is compiled from the answer to it.',
   'a-feature-that-rewrites-another-features-rule':
@@ -691,12 +689,12 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
   'oath-of-devotion:sacred-weapon': [
     {
-      clause: 'The Charisma bonus to attack rolls',
-      why: 'a-bonus-an-ability-modifier-sizes',
-      note: 'a number read off the holder’s sheet, which only Aura of Protection’s save bonus does.',
+      clause: 'a damage type the holder chooses on each hit',
+      why: 'an-attack-the-class-redefines',
+      note: 'SRD: "each time you hit with it, you cause it to deal its normal damage type or Radiant damage." That shape’s own description names a damage type chosen on each hit as one of the two halves of it still unbuilt, and this is the feature that prints it; Shillelagh prints the same sentence from the spell side.',
     },
     {
-      clause: 'the emitted light',
+      clause: 'The Bright Light in a 20-foot radius is fiction',
       why: 'table',
       note: 'the engine holds no Bright, Dim or Darkness, which `sightBetween` says outright.',
     },
