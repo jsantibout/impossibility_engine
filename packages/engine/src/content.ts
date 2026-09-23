@@ -3028,10 +3028,11 @@ function itemGrantProblems(
         // attack roll and an ability check spend one — so on any other family
         // the flag compiles, the ring lands, and the grant then runs to its
         // deadline like any durable one. Which families those are is
-        // `oneShotProblem`'s to say rather than this comment's. `spell-schema.ts` has refused that since the flag
-        // existed and this door validated the modifier through its selector
-        // alone, so the same sentence could be written on an item and quietly
-        // mean something else. Asked below the family check for the reason it
+        // `oneShotProblem`'s to say rather than this comment's.
+        // `spell-schema.ts` has refused that since the flag existed and this
+        // door validated the modifier through its selector alone, so the same
+        // sentence could be written on an item and quietly mean something
+        // else. Asked below the family check for the reason it
         // is asked below one there: a family that is not a family draws that
         // problem and not a second one about its ending.
         if (modifier.oneShot === true) {
