@@ -546,6 +546,22 @@ export interface AttackOptions {
   /** Damage of other types: Flame Tongue's fire, a Divine Smite's radiant. */
   readonly extraDamage?: readonly ExtraDamage[];
   /**
+   * The type the weapon's **own** damage is dealt in, where something has
+   * changed it.
+   *
+   * SRD Shillelagh: "If the attack deals damage, it can be Force damage **or**
+   * the weapon's normal damage type (your choice)." One type or the other, so
+   * this replaces `weapon.damage.type` rather than adding a component — and a
+   * bonus of "the attack's own type" is then of *this* type, which is what
+   * meeting the target's Resistances once rather than twice means.
+   *
+   * Absent is the weapon's printed type, which is every swing but the imbued
+   * one. Read off the standing grants by `resolveAttack`; a stated line's
+   * printed components are untouched, because no SRD sentence offers a stat
+   * block's own attack a choice of type.
+   */
+  readonly weaponDamageType?: string;
+  /**
    * SRD Cleave: "the second creature takes the weapon's damage, but **don't add
    * your ability modifier** to that damage unless that modifier is negative."
    *
@@ -1016,7 +1032,11 @@ export function rollAttackDamage(
         ? weapon.versatileDamage
         : weapon.damage.dice;
 
-  const type = weapon === null ? UNARMED_DAMAGE.type : weapon.damage.type;
+  // "it can be Force damage or the weapon's normal damage type": the offer a
+  // casting made, answered at this swing, or the printed type where nobody
+  // answered. See {@link AttackOptions.weaponDamageType}.
+  const type =
+    options.weaponDamageType ?? (weapon === null ? UNARMED_DAMAGE.type : weapon.damage.type);
   const normalFixed = weapon === null ? UNARMED_DAMAGE.fixed : weapon.damage.fixed;
   const source = weapon?.name ?? 'Unarmed Strike';
 

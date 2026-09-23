@@ -2165,6 +2165,30 @@ export type SpellEffect =
        * idea whose spell list the casting came off.
        */
       readonly castingAbility?: true;
+      /**
+       * SRD Shillelagh: "If the attack deals damage, it can be **Force damage
+       * or the weapon's normal damage type** (your choice)."
+       *
+       * The types the spell offers *instead of* the weapon's own, named at
+       * each later swing rather than at the casting. An offer, like
+       * {@link castingAbility} beside it: a swing that names none deals what
+       * the weapon deals, which is the second half of the book's "or".
+       *
+       * **Not `SpellDefinition.damageTypeStated`**, which is the neighbouring
+       * field and a different moment. That one is answered when the spell is
+       * cast and pinned into everything the casting writes — Chromatic Orb's
+       * orb is one colour from the word go. This is answered a turn later,
+       * with the target's Resistances in front of the caster, and the same
+       * casting may answer it differently on two swings. A casting cannot pin
+       * what has not been decided.
+       *
+       * **It replaces rather than adds**, which is what keeps it out of
+       * `attack-rider`: "it can be Force damage **or** the weapon's normal
+       * damage type" is one type or the other, so a Force-immune target takes
+       * nothing from a staff swung as Force rather than half of two
+       * components.
+       */
+      readonly damageTypes?: readonly string[];
     }
   | {
       readonly kind: 'interrupt-casting';

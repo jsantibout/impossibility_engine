@@ -313,7 +313,7 @@ describe('SRD Naturally Stealthy', () => {
     const hid = unwrap(takeHide(state, HERO, {}, supply('hide')), 'hide');
     expect(hid.events.some((e) => e.type === 'roll-recorded')).toBe(true);
     // Who stands between the hider and the watcher is the table's.
-    expect(hid.unverified.some((line) => line.includes('ally'))).toBe(true);
+    expect((hid.unverified ?? []).some((line) => line.includes('ally'))).toBe(true);
   });
 
   it('refuses without a larger creature to hide behind, exactly as before', () => {

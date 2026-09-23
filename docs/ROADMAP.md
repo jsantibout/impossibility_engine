@@ -1479,7 +1479,11 @@ Appended after wave two (2026-09-22):
   table's, and Breath Weapon, Giant Ancestry, Gnomish Lineage and Tireless
   declare the pools their notes claimed. **Casting cost merged 2026-09-23**:
   Wild Companion, Ritual Adept and Paladin's Smite execute, and `cast_spell`
-  publishes `ritual`.
+  publishes `ritual`. **Attack riders merged 2026-09-23** (an Opus builder,
+  the fleet being back): Sacred Weapon executes, Shillelagh's damage type is
+  chosen at the swing, and the printed damage clauses a stat block gates on
+  Bloodied or on Advantage are read; True Strike waits on the ruling below.
+  The sight track is in flight on `fable-sight`.
 
 Appended after wave three's first track (2026-09-23):
 
@@ -1564,3 +1568,39 @@ Appended after wave three's third track (2026-09-23):
   which is a door the attack surface still owes.
 - **Material components are not modelled**, so Wild Companion's "without
   Material components" costs nothing to say and the note says so.
+
+Appended after wave three's fourth track — attack riders (2026-09-23):
+
+- **An ability-sized bonus reaches attack rolls** (`attack-bonus`, beside
+  `save-bonus` and `check-bonus`), gathered by `standingBonuses` off the
+  holder's scores as they stand, and **withheld from items by name**: no
+  `onlyWithItem` gate exists yet, so a blade granting it would reach every
+  swing its wearer made with anything.
+- **An activation may spend a pool it did not declare.** `activated.spendsOnly`
+  is the third spelling of the distinction `reaction.declares` and a free
+  casting's `declares` already draw — Sacred Weapon spends Channel Divinity's
+  use and declares nothing, and a second declaration of the same pool is
+  refused by the fold.
+- **A printed damage clause is read by its connective.** "**plus** 2 (1d4)
+  Slashing if the attack roll had Advantage" is a component beside the line's
+  own; "**or** 2 (1d4) Piercing if the swarm is Bloodied" is the damage rolled
+  *instead*, because a swarm at half strength bites for less. `isBloodied` is
+  one spelling of "half its Hit Points or fewer", shared by the requirement
+  and the reader. The charge gate stays refused: nothing records the shape of
+  the move that preceded a swing.
+- **Shillelagh's second sentence is a choice at the swing**, not at the
+  casting: `weapon-rider.damageTypes` is the offer, `attack.damageTypes` and
+  `settle_attack.damageTypes` the answer, and "or" replaces the weapon's type
+  rather than adding a component, so a Force-immune target takes nothing.
+- **True Strike is ruled, not built.** What blocks it is its lifetime: the
+  spell is Instantaneous and "you make one attack with the weapon used in the
+  spell's casting", so no grant can hang on it and no effect kind makes a
+  weapon attack. The builder offered two routes and the coordinator rules for
+  the second, in the shape the engine already has for a spell cast *inside*
+  an attack: as `resolveAttackDamage.smite` casts Divine Smite on a hit, the
+  **attack command takes a cantrip to cast with the swing** — one Action,
+  `spell-cast` beside `attack-made`, the substitution and the Radiant die
+  applied to this roll and no other, and no grant left behind. A one-shot
+  lifetime on the rider grants was refused because it costs two Actions where
+  the book prints one. This is a brief for the next wave, and the owner may
+  reopen it.

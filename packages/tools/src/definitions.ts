@@ -2154,6 +2154,12 @@ const ATTACK = tool({
       .describe(
         'Make this swing the extra attack the **Light** property buys. SRD: "When you take the Attack action on your turn and attack with a Light weapon, you can make one extra attack as a Bonus Action later on the same turn. That extra attack must be made with a different Light weapon, and you don’t add your ability modifier to the extra attack’s damage unless that modifier is negative." So take the Attack action first, then send this with the **other** Light weapon — a different catalogue id, or the same one where the character really has two copies of it. `"attack-action"` is SRD Nick, which pays for the same extra attack out of the Attack action instead and leaves the Bonus Action free; it is refused unless the weapon prints that property and the character has unlocked it. One extra attack a turn either way, and the ability modifier comes back only for a character with the Two-Weapon Fighting fighting style.',
       ),
+    damageTypes: z
+      .record(z.string().min(1), z.string().min(1))
+      .optional()
+      .describe(
+        'Name a damage type where something gives this blow a choice of one — SRD Divine Strike is "Necrotic or Radiant damage (your choice)" and SRD Shillelagh’s staff "can be Force damage or the weapon’s normal damage type". A map from what offers the choice to the type chosen: a feature by its id, and a spell that imbued the weapon by the spell’s name. Written "your choice" in the book, so leaving one out declines it and the blow deals what it would otherwise deal. A type the offer does not print, and an offerer this creature has nothing from, are each refused before anything is rolled.',
+      ),
     onHit: hitRiderSchema
       .optional()
       .describe(
@@ -2177,6 +2183,7 @@ const ATTACK = tool({
           ...(args.mastery === undefined ? {} : { mastery: masteryOf(args.mastery) }),
           ...(args.light_attack === undefined ? {} : { lightAttack: args.light_attack }),
           ...(args.onHit === undefined ? {} : { onHit: args.onHit }),
+          ...(args.damageTypes === undefined ? {} : { featureDamageTypes: args.damageTypes }),
           ...identity(context),
         },
         context.campaign.supply(),
@@ -3863,6 +3870,12 @@ const SETTLE_ATTACK = tool({
   mutates: true,
   input: z.object({
     attacker: creatureId.describe('Whose held hit it is. Only the attacker may settle it.'),
+    damageTypes: z
+      .record(z.string().min(1), z.string().min(1))
+      .optional()
+      .describe(
+        'Name a damage type where something gives this blow a choice of one — SRD Divine Strike is "Necrotic or Radiant damage (your choice)" and SRD Shillelagh’s staff "can be Force damage or the weapon’s normal damage type". A map from what offers the choice to the type chosen: a feature by its id, and a spell that imbued the weapon by the spell’s name. Written "your choice" in the book, so leaving one out declines it and the blow deals what it would otherwise deal. A type the offer does not print, and an offerer this creature has nothing from, are each refused before anything is rolled.',
+      ),
   }),
   run: (context, args) =>
     settle(
@@ -3870,7 +3883,10 @@ const SETTLE_ATTACK = tool({
       resolveAttackDamage(
         context.campaign.state(),
         who(args.attacker),
-        { ...identity(context) },
+        {
+          ...(args.damageTypes === undefined ? {} : { featureDamageTypes: args.damageTypes }),
+          ...identity(context),
+        },
         context.campaign.supply(),
       ),
       (value) => value.events,

@@ -1686,7 +1686,64 @@ export function monsterCanReceive(
  * read off "its next turn" and filed on the attacker is a wrong rule rather
  * than a refusal, which is what naming the anchor makes impossible.
  */
-export type PrintedRider = PrintedConditionRider | PrintedGrappleRider;
+export type PrintedRider = PrintedConditionRider | PrintedGrappleRider | PrintedDamageRider;
+
+/**
+ * A clause about the **damage roll** rather than about an effect the hit buys.
+ *
+ * The third member, and the one this reader's own refusals used to name: "an
+ * extra damage die — a Bloodied swarm's, a Goblin's when the attack roll had
+ * Advantage — belongs to the damage roll rather than to an effect list: it is
+ * doubled by a critical hit and meets the target's defences with the blow, and
+ * a rider is a leaf that rolls nothing." Every word of that is true of
+ * {@link HitOption}, which is what the other two members become; none of it is
+ * an argument for leaving the sentence to a DM. So the swing reads this one
+ * where it rolls the damage instead of where it builds the effect list, and
+ * {@link PrintedConditionRider}'s path never sees it.
+ *
+ * **Two shapes and the book's own connective tells them apart.** SRD Goblin
+ * Warrior writes "**plus** 2 (1d4) Slashing damage if the attack roll had
+ * Advantage" — a component beside the line's own, which is `ExtraDamage`. SRD
+ * Swarm of Rats writes "**or** 2 (1d4) Piercing damage if the swarm is
+ * Bloodied" — the damage the line rolls *instead*, which is a swarm at half
+ * strength biting for less rather than for more. Reading the second as an
+ * addition would make a dying swarm deadlier than a whole one.
+ *
+ * **What is read is what the engine already holds the fact for**, which is the
+ * rule {@link readPrintedRider} keeps throughout: whether the attack roll had
+ * Advantage is a property of the roll it just made, and whether a creature is
+ * Bloodied is half its Hit Points. The charge gate — "moved 20+ feet straight
+ * toward it immediately before the hit" — is still refused, because nothing
+ * records the shape of the move that preceded a swing.
+ */
+export interface PrintedDamageRider {
+  readonly kind: 'damage';
+  /**
+   * The book's own connective: `plus` is a component beside the line's own
+   * damage, `or` is the damage it rolls in place of it.
+   */
+  readonly how: 'extra' | 'instead';
+  /** The notation inside the parentheses — SRD's `1d4`. */
+  readonly dice: string;
+  /** SRD's "(1d4 **+ 1**)", and 0 where the line prints none. */
+  readonly flat: number;
+  readonly type: DamageType;
+  readonly when: PrintedDamageGate;
+}
+
+/**
+ * What a printed damage clause is conditioned on.
+ *
+ * A closed list of what the engine can answer, because a gate it cannot
+ * evaluate is a rider read half-way — which is the failure the verbatim string
+ * is carried to avoid. A sentence naming any other gate comes back null and is
+ * handed to the DM whole.
+ */
+export type PrintedDamageGate =
+  /** SRD's "if the swarm is Bloodied", "if the target is Bloodied". */
+  | { readonly kind: 'bloodied'; readonly who: HitRiderAnchor }
+  /** SRD Goblin Warrior's "if the attack roll had Advantage". */
+  | { readonly kind: 'attack-had-advantage' };
 
 /** A condition the hit imposes, with or without a saving throw against it. */
 export interface PrintedConditionRider {
@@ -1830,6 +1887,29 @@ const PRINTED_SAVE = new RegExp(
   `^If the target is (.+?), it is subjected to the following effect\\. _([A-Za-z]+) Saving Throw:_ DC (\\d+)\\. _Failure:_ The target has the ([A-Za-z]+)(?: and (?:the )?([A-Za-z]+))? conditions?(?: ${UNTIL_NEXT_TURN})?\\.$`,
 );
 
+/**
+ * SRD Goblin Warrior: "plus 2 (1d4) Slashing damage if the attack roll had
+ * Advantage." SRD Swarm of Insects: "or 3 (1d4 + 1) Poison damage if the swarm
+ * is Bloodied."
+ *
+ * The average before the parentheses is the book's own arithmetic over the
+ * notation beside it, so it is matched and dropped rather than read: two
+ * numbers for one amount is a place for them to disagree, and the dice are the
+ * half the engine can actually throw.
+ *
+ * The `$` does the work the other patterns' does — the Swarm of Venomous
+ * Snakes appends "—plus 10 (3d6) Poison damage" and the Swarm of Crawling
+ * Claws a second sentence about Prone, and both are refused whole rather than
+ * read down to the part that fits.
+ */
+const PRINTED_DAMAGE = /^(plus|or) \d+ \((\d+d\d+)(?: \+ (\d+))?\) ([A-Za-z]+) damage if (.+)\.$/;
+
+/** SRD's "the swarm is Bloodied", "the target is Bloodied". */
+const BLOODIED_GATE = /^the (.+?) is Bloodied$/;
+
+/** SRD Goblin Warrior's gate, which is a fact about the roll just made. */
+const ADVANTAGE_GATE = 'the attack roll had Advantage';
+
 /** SRD Ghast's "a non-Undead creature". */
 const NEGATED_TYPE = /^a non-([A-Za-z]+) creature$/;
 
@@ -1953,6 +2033,33 @@ function spanRead(
   return { lasts: moment === 'start' ? 'start-of-next-turn' : 'end-of-next-turn', lastsOn };
 }
 
+/**
+ * The gate a printed damage clause states, or null where it is not one the
+ * engine can answer.
+ *
+ * The Bloodied half routes its possessive through {@link anchorOf}, which is
+ * the same routing a deadline's does and for the same reason: "the target" is
+ * the creature that was struck and the block's own noun is the attacker, and a
+ * gate read off the wrong creature is a rule nobody printed. A noun that names
+ * somebody this reader cannot identify comes back null, exactly as it does for
+ * a span.
+ */
+function damageGateOf(phrase: string): PrintedDamageGate | null {
+  if (phrase === ADVANTAGE_GATE) return { kind: 'attack-had-advantage' };
+  const bloodied = BLOODIED_GATE.exec(phrase);
+  if (bloodied === null) return null;
+  // `undefined` for the `its` capture the possessive router takes first: this
+  // sentence always writes a noun, and there is no pronoun form of it.
+  const who = anchorOf(undefined, bloodied[1]!);
+  return who === null ? null : { kind: 'bloodied', who };
+}
+
+/** A printed damage-type word, or null where the engine holds no such type. */
+function damageTypeWord(word: string): DamageType | null {
+  const lowered = word.toLowerCase();
+  return DAMAGE_TYPES.find((type) => type === lowered) ?? null;
+}
+
 /** The ability a printed save names, written as the book writes it out. */
 function abilityWord(word: string): Ability | null {
   const found = (Object.keys(ABILITY_NAMES) as readonly Ability[]).find(
@@ -1970,10 +2077,11 @@ function abilityWord(word: string): Ability | null {
  * - **A clause gated on a movement nobody has declared** — "moved 20+ feet
  *   straight toward it immediately before the hit" — asks a fact about the
  *   turn so far that the engine does not keep.
- * - **An extra damage die** — a Bloodied swarm's, a Goblin's when the attack
- *   roll had Advantage — belongs to the damage roll rather than to an effect
- *   list: it is doubled by a critical hit and meets the target's defences with
- *   the blow, and a rider is a leaf that rolls nothing.
+ * - **A damage clause whose gate is not one of the two the engine holds the
+ *   fact for.** A Bloodied swarm's and a Goblin's Advantage are read now, as
+ *   {@link PrintedDamageRider} — they belong to the damage roll rather than to
+ *   an effect list, and the swing reads them where it throws the dice. Every
+ *   other gate a line prints is still refused whole.
  * - **A second sentence on a grapple** — the Crocodile's Restrained "until the
  *   grapple ends", the Mimic's Disadvantage on the escape — is one effect
  *   ending with another, which is a lifetime the engine has not got.
@@ -1986,6 +2094,23 @@ function abilityWord(word: string): Ability | null {
  * Every one of those is still carried verbatim and still reported at the hit.
  */
 export function readPrintedRider(text: string): PrintedRider | null {
+  // First, because it is the one shape that opens with the book's connective
+  // rather than with a gate, so no other pattern can claim it.
+  const amount = PRINTED_DAMAGE.exec(text);
+  if (amount !== null) {
+    const type = damageTypeWord(amount[4]!);
+    const when = damageGateOf(amount[5]!);
+    if (type === null || when === null) return null;
+    return {
+      kind: 'damage',
+      how: amount[1] === 'plus' ? 'extra' : 'instead',
+      dice: amount[2]!,
+      flat: amount[3] === undefined ? 0 : Number(amount[3]),
+      type,
+      when,
+    };
+  }
+
   const grapple = PRINTED_GRAPPLE.exec(text);
   if (grapple !== null) {
     const size = sizeWord(grapple[1]!);

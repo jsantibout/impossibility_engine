@@ -994,29 +994,35 @@ describe('what an item may grant is derived from the union, not recalled', () =>
   });
 
   /**
-   * And every standing grant but the one deliberately withheld: `speedOf`
+   * And every standing grant but the two deliberately withheld. `speedOf`
    * gathers Speed from the sheet alone, because it is the function a
    * `has-speed` requirement asks, so an item's Speed grant is refused by name
-   * rather than accepted and never read.
+   * rather than accepted and never read; and an ability-sized `attack-bonus`
+   * has no `onlyWithItem` narrowing, so an item's would reach every swing its
+   * wearer made with anything — a benefit **misapplied** rather than one never
+   * applied, which is the worse of the two.
    */
-  it('carries every standing grant but Speed, and invents none', () => {
-    expect(unionKinds('StandingGrant')).toContain('speed');
+  const WITHHELD_FROM_AN_ITEM: readonly string[] = ['speed', 'attack-bonus'];
+
+  it('carries every standing grant but the two withheld, and invents none', () => {
+    for (const kind of WITHHELD_FROM_AN_ITEM) expect(unionKinds('StandingGrant')).toContain(kind);
     expect([...ITEM_EFFECT_KINDS].sort()).toEqual(
-      unionKinds('StandingGrant').filter((kind) => kind !== 'speed'),
+      unionKinds('StandingGrant').filter((kind) => !WITHHELD_FROM_AN_ITEM.includes(kind)),
     );
   });
 
   /**
    * And the set a **feat's** grant is held to, which is the whole union: a
    * feat's effects are compiled onto the sheet, which is where `speedOf` reads
-   * Speed from, so the member an item is refused is one a feat may write.
+   * Speed from and where `standingBonuses` reads a bonus of the holder's own,
+   * so the members an item is refused are ones a feat may write.
    *
    * Pinned directly rather than left to follow from the assertion above,
-   * because it is derived from `ITEM_EFFECT_KINDS` and a *second* deliberately
-   * withheld member would fail that one and be fixed by editing its filter —
+   * because it is derived from `ITEM_EFFECT_KINDS` and a **third** deliberately
+   * withheld member would fail that one and be fixed by editing its list —
    * which need lead nobody back here.
    */
-  it('holds a feat to the whole union, Speed included', () => {
+  it('holds a feat to the whole union, the withheld members included', () => {
     expect([...STANDING_GRANT_KINDS].sort()).toEqual(unionKinds('StandingGrant'));
   });
 });

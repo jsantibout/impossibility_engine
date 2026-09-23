@@ -2677,13 +2677,14 @@ function checkEffect(
       if (
         effect.bonus === undefined &&
         effect.die === undefined &&
-        effect.castingAbility !== true
+        effect.castingAbility !== true &&
+        effect.damageTypes === undefined
       ) {
         found.push({
           field: path,
           code: 'rider_does_nothing',
           reason:
-            'a weapon rider that adds no bonus, changes no die and offers no ability leaves the weapon exactly as it was',
+            'a weapon rider that adds no bonus, changes no die and offers neither an ability nor a damage type leaves the weapon exactly as it was',
         });
       }
       if (effect.bonus !== undefined && !Number.isInteger(effect.bonus)) {
@@ -2746,6 +2747,36 @@ function checkEffect(
           code: 'empty_weapon_list',
           reason:
             'a spell that names no weapon at all writes no list; an empty one would match nothing and refuse every casting',
+        });
+      }
+      // **The offer made at each later swing**, held to the same two rules the
+      // weapon list is: a list, and not an empty one. An empty offer is a
+      // choice with nothing on it, which is a definition saying it offers a
+      // type and offering none — and a type the engine has no defences for
+      // would meet none of them.
+      if (effect.damageTypes !== undefined && !Array.isArray(effect.damageTypes)) {
+        found.push({
+          field: `${path}.damageTypes`,
+          code: MALFORMED,
+          reason: `a list of damage types, and this is ${nameOf(effect.damageTypes)}`,
+        });
+      } else if (effect.damageTypes !== undefined) {
+        if (effect.damageTypes.length === 0) {
+          found.push({
+            field: `${path}.damageTypes`,
+            code: 'empty_damage_type_offer',
+            reason:
+              'a rider that offers no type at all writes no list; an empty one is a choice with nothing on it',
+          });
+        }
+        effect.damageTypes.forEach((type, i) => {
+          if (typeof type !== 'string' || !DAMAGE.has(type)) {
+            found.push({
+              field: `${path}.damageTypes[${i}]`,
+              code: 'bad_damage_type',
+              reason: `"${String(type)}" is not a damage type this engine knows`,
+            });
+          }
         });
       }
       return;

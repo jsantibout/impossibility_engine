@@ -4365,7 +4365,10 @@ function poolsFor(
   // that still has to be matched by id, because its single use is not a column
   // in any table.
   for (const [feature, grant] of grantsIn(features)) {
-    if (grant.kind !== 'activated' || grant.pool === null) continue;
+    // And an activation that spends a pool it did not print declares nothing,
+    // for the reason Cutting Words declares nothing: SRD Sacred Weapon expends
+    // a use of the Paladin's Channel Divinity, which the class feature sized.
+    if (grant.kind !== 'activated' || grant.pool === null || grant.spendsOnly === true) continue;
     pools.push({
       key: grant.pool,
       label: grant.poolLabel ?? feature.name,

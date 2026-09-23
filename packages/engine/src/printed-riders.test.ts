@@ -892,15 +892,25 @@ describe('the reader claims only the sentences it can execute', () => {
    * rule the book did not print — the failure the verbatim string was carried
    * to avoid — so each below is refused by name: a possessive that names
    * neither creature in the hit, a clause gated on a movement nobody has
-   * declared, an extra damage die, a grapple with a second sentence on it, a
-   * failure that imposes something that is not a condition, and a save with
-   * two rungs of failure.
+   * declared, a grapple with a second sentence on it, a failure that imposes
+   * something that is not a condition, and a save with two rungs of failure.
+   *
+   * **An extra damage die used to be on this list and is not**: a Bloodied
+   * swarm's and a Goblin's Advantage are read as `PrintedDamageRider` now, and
+   * the swing applies them where it throws the dice. What is refused of that
+   * family is a gate the engine holds no fact for, which is the charge above
+   * and the two below.
    */
   it('refuses the sentences whose mechanism it does not have', () => {
     for (const text of [
       'and the target has the Poisoned condition until the start of the Grappled creature’s next turn.',
       'If the target is a Large or smaller creature and the elk moved 20+ feet straight toward it immediately before the hit, the target has the Prone condition.',
-      'or 2 (1d4) Piercing damage if the swarm is Bloodied.',
+      // SRD Swarm of Venomous Snakes: the same "or" clause with a second
+      // component appended after it, refused whole rather than read down to
+      // the part that fits.
+      'or 6 (1d4 + 4) Piercing damage if the swarm is Bloodied—plus 10 (3d6) Poison damage.',
+      // SRD Giant Seahorse: the charge gate wearing the damage clause's words.
+      'or 11 (2d8 + 2) Bludgeoning damage if the seahorse moved 20+ feet straight toward the target immediately before the hit.',
       'Being underwater doesn’t grant Resistance to this Fire damage.',
       // SRD Crocodile: the Restrained travels with the grapple and ends with
       // it, and one condition ending another is a lifetime the engine has not
@@ -950,6 +960,9 @@ describe('the reader claims only the sentences it can execute', () => {
     }
 
     expect(carried).toBeGreaterThan(100);
-    expect(read).toBe(49);
+    // Ten more than it was, which is the printed damage clauses whose gate the
+    // engine holds the fact for: six Bloodied lines and four of the Goblins'
+    // Advantage. Every other line the reader used to refuse it still refuses.
+    expect(read).toBe(59);
   });
 });

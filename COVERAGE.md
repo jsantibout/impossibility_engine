@@ -28,7 +28,7 @@ than to the table.
 
 | Parsed | Tracked | Executed | of which partial | Verified |
 |---|---|---|---|---|
-| 339 | 195 (57.5%) | 137 (40.4%) | 46 | 100 (29.5%) |
+| 339 | 195 (57.5%) | 137 (40.4%) | 45 | 100 (29.5%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -151,7 +151,7 @@ a plain statement of what the table decides.
 - **Shatter** (level 2) — verified
 - **Shield** (level 1) — untested, partial — a clause the engine owns is still unbuilt
 - **Shield of Faith** (level 1) — untested
-- **Shillelagh** (cantrip) — untested, partial — a clause the engine owns is still unbuilt
+- **Shillelagh** (cantrip) — untested
 - **Shining Smite** (level 2) — verified, partial — a clause the engine owns is still unbuilt
 - **Shocking Grasp** (cantrip) — verified
 - **Slow** (level 3) — verified, partial — a clause the engine owns is still unbuilt
@@ -440,11 +440,11 @@ of *Tracked* and is never added to it.
 | `a-repeat-save-raised-by-a-trigger` | 9 | 0 | 0 | 7 | 2 | 0 | 0 |
 | `a-spells-effects-applied-to-different-targets` | 9 | 0 | 0 | 3 | 6 | 0 | 0 |
 | `a-repeat-save-that-does-something-on-a-failure` | 7 | 0 | 0 | 3 | 4 | 0 | 0 |
-| `a-rider-on-a-later-weapon-attack` | 7 | 0 | 0 | 1 | 6 | 0 | 0 |
 | `a-standing-effect-derived-from-where-a-creature-stands` | 7 | 0 | 0 | 0 | 7 | 1 | 0 |
 | `an-action-a-spell-compels-or-forbids` | 7 | 0 | 0 | 3 | 4 | 0 | 0 |
 | `difficult-terrain-an-area-creates` | 7 | 0 | 0 | 3 | 4 | 2 | 0 |
 | `a-creature-somebody-else-is-playing` | 6 | 0 | 0 | 4 | 2 | 0 | 0 |
+| `a-rider-on-a-later-weapon-attack` | 6 | 0 | 0 | 0 | 6 | 0 | 0 |
 | `a-target-rule-the-format-cannot-state` | 6 | 0 | 0 | 0 | 6 | 1 | 0 |
 | `an-outcome-that-reads-the-targets-hit-points` | 6 | 0 | 0 | 1 | 5 | 0 | 0 |
 | `a-barrier-that-blocks-passage` | 5 | 0 | 0 | 0 | 5 | 1 | 0 |
@@ -595,15 +595,14 @@ be the second spelling of one derivation.
 | `movement-modes` | 2 | 2 |
 | `a-feature-that-changes-what-a-casting-costs` | 5 | 1 |
 | `a-move-a-feature-hands-its-holder` | 5 | 1 |
+| `an-attack-the-class-redefines` | 5 | 1 |
 | `an-action-a-spell-compels-or-forbids` | 4 | 1 |
-| `an-attack-the-class-redefines` | 4 | 1 |
 | `a-modifier-a-feature-puts-on-another-creature` | 3 | 1 |
 | `a-spell-an-item-casts-that-nothing-executes` | 3 | 1 |
 | `a-condition-a-feature-ends` | 2 | 1 |
 | `a-one-shot-roll-modifier` | 2 | 1 |
 | `a-reaction-effect-the-vocabulary-lacks` | 2 | 1 |
 | `an-area-an-item-creates` | 2 | 1 |
-| `a-bonus-an-ability-modifier-sizes` | 1 | 1 |
 | `a-bonus-to-spell-attack-rolls` | 1 | 1 |
 | `a-concentration-rule-that-names-its-casting` | 1 | 1 |
 | `a-creature-fact-an-effect-overrides` | 1 | 1 |
@@ -624,9 +623,11 @@ be the second spelling of one derivation.
 | `a-turn-boundary-payout-a-feature-owes` | 2 | 0 |
 | `damage-with-neither-an-attack-roll-nor-a-save` | 2 | 0 |
 | `forced-movement-a-spell-causes` | 2 | 0 |
+| `a-casting-ended-by-a-trigger` | 1 | 0 |
 | `a-dc-a-feature-derives-from-its-own-abilities` | 1 | 0 |
 | `a-die-behaviour-a-spell-asks-for` | 1 | 0 |
 | `a-random-outcome-that-is-not-a-d20` | 1 | 0 |
+| `a-rider-on-a-later-weapon-attack` | 1 | 0 |
 | `a-rule-the-engine-fixes-for-everybody` | 1 | 0 |
 | `a-second-place-to-put-a-creature` | 1 | 0 |
 | `a-target-list-an-ability-modifier-sizes` | 1 | 0 |
@@ -1035,8 +1036,8 @@ and a bite whose hit buys a save.
 | Shape | Blocks | Lines |
 |---|---|---|
 | A save a line forces | 127 | 187 |
-| An effect a hit buys | 88 | 94 |
 | A recharge | 87 | 87 |
+| An effect a hit buys | 80 | 84 |
 | A use the block limits per day | 54 | 60 |
 | A legendary action’s own economy | 30 | 82 |
 | A save whose line says more than the engine spends | 26 | 26 |

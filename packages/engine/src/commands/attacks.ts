@@ -33,6 +33,7 @@ import {
   rangeOf,
   rollAttack,
   rollAttackDamage,
+  type StatedDamage,
   type StatedAttackInPlay,
   type StrikeStyleInPlay,
 } from '../attack.js';
@@ -78,6 +79,7 @@ import {
   canSomehowSee,
   checkFeatureDamageTypes,
   effectiveConditions,
+  isBloodied,
   sensesPerceiving,
   sheetAsItStands,
   standingAttackDamage,
@@ -85,6 +87,7 @@ import {
   standingDamageEffects,
   standingWeaponRollRule,
   strikeStyleFor,
+  weaponRiderDamageType,
   type HitOption,
   type StrikeStyle,
   canSee,
@@ -371,6 +374,71 @@ function statedInPlay(
   };
 }
 
+/**
+ * What a stat block's own line says about the **damage**, once the roll that
+ * gates it has been made.
+ *
+ * Its own reader beside {@link printedRiderOnASwing} rather than a third field
+ * on it, and the reason is the moment: that one is asked *before* the d20,
+ * because what a hit buys has to be settled before the blow so a hold can pin
+ * it, and this one cannot be — SRD Goblin Warrior's "if the attack roll had
+ * Advantage" is a fact about a roll that has not happened yet. So the swing
+ * asks twice, at the two moments the two sentences are about.
+ *
+ * Nothing is reported to the table here. Both gates are facts the engine holds
+ * outright — a roll's own mode and half a creature's Hit Points — so there is
+ * no absence to own up to, which is the only thing the other reader's
+ * `unverified` carries once a clause has been read.
+ */
+interface PrintedDamageOnASwing {
+  /** SRD's "**plus** 2 (1d4) Slashing damage": a component of its own. */
+  readonly extra: readonly ExtraDamage[];
+  /**
+   * SRD's "**or** 2 (1d4) Piercing damage": what the line rolls in place of
+   * its printed damage, or null where nothing replaces it.
+   */
+  readonly instead: readonly StatedDamage[] | null;
+}
+
+const NO_PRINTED_DAMAGE: PrintedDamageOnASwing = { extra: [], instead: null };
+
+function printedDamageOnASwing(
+  state: GameState,
+  attacker: CharacterId,
+  target: CharacterId,
+  printed: StatedAttack | null,
+  mode: RollMode,
+): PrintedDamageOnASwing {
+  if (printed?.rider == null) return NO_PRINTED_DAMAGE;
+  const read = readPrintedRider(printed.rider);
+  if (read === null || read.kind !== 'damage') return NO_PRINTED_DAMAGE;
+
+  // **The roll's mode as the pipeline settled it**, which is deliberately not
+  // "somebody offered Advantage": a mode cancelled to `normal` by a
+  // Disadvantage is a roll that did not have Advantage, and the book's gate is
+  // about the roll rather than about what was offered.
+  const holds =
+    read.when.kind === 'attack-had-advantage'
+      ? mode === 'advantage'
+      : isBloodied(state.creatures[read.when.who === 'target' ? target : attacker]);
+  if (!holds) return NO_PRINTED_DAMAGE;
+
+  if (read.how === 'instead') {
+    return { extra: [], instead: [{ dice: read.dice, flat: read.flat, type: read.type }] };
+  }
+  return {
+    extra: [
+      {
+        source: printed.name,
+        type: read.type,
+        dice: read.dice,
+        ...(read.flat === 0 ? {} : { flat: read.flat }),
+      },
+    ],
+    instead: null,
+  };
+}
+
 /** What a stat block's own line buys on a hit, and what it could not. */
 interface PrintedRiderOnASwing {
   /** The effect list the hit buys, or null where the line is still prose. */
@@ -426,6 +494,10 @@ function printedRiderOnASwing(
 
   const read = readPrintedRider(printed.rider);
   if (read === null) return { option: null, unverified: [handOver] };
+  // The damage clause is this reader's neighbour's, asked after the d20 —
+  // nothing is owed the table here and nothing is built, because an amount is
+  // not an effect list. See {@link printedDamageOnASwing}.
+  if (read.kind === 'damage') return NO_PRINTED_RIDER;
 
   const unverified: string[] = [];
 
@@ -989,7 +1061,7 @@ export function resolveAttack(
     // A damage type a feature does not offer is refused here, before the action
     // is spent and before a die is thrown — the same validate-before-rolling
     // rule the rest of the engine keeps.
-    const legalTypes = checkFeatureDamageTypes(state, id, command.featureDamageTypes);
+    const legalTypes = checkFeatureDamageTypes(state, id, command.featureDamageTypes, weapon);
     if (!legalTypes.ok) return legalTypes;
 
     // And the rider this swing says it is buying, for the same reason and in
@@ -1731,6 +1803,21 @@ export function resolveAttack(
     // not — a magic weapon's own damage comes in that way until magic items are
     // parsed. A *bonus* is of the weapon's own type and rides with it through
     // Resistance; *extra* damage of another type does not.
+    // **What the block's own line says about the damage**, now that the roll
+    // it is gated on has been made. SRD Goblin Warrior's extra die and SRD
+    // Swarm of Rats' lesser one, read at the moment both gates can be asked.
+    const printedDamage = printedDamageOnASwing(
+      state,
+      id,
+      command.target,
+      printed,
+      attack.value.roll.mode,
+    );
+
+    // The type a casting's offer puts on the weapon's own damage, named on
+    // this swing rather than pinned at the casting — see `weaponRiderDamageType`.
+    const imbuedType = weaponRiderDamageType(state, id, weapon, command.featureDamageTypes);
+
     const fromFeatures = standingAttackDamage(state, id, {
       ability,
       // **The same question `isRangedAttack` answers, asked once.** A printed
@@ -1769,8 +1856,22 @@ export function resolveAttack(
       sheet,
       {
         weapon,
-        ...(stated === undefined ? {} : { statedAttack: stated }),
+        // The line's printed damage, or the damage its own rider says it
+        // rolls instead — a Bloodied swarm bites for less rather than for
+        // more, so this replaces rather than adds.
+        ...(stated === undefined
+          ? {}
+          : {
+              statedAttack:
+                printedDamage.instead === null
+                  ? stated
+                  : { ...stated, damage: printedDamage.instead },
+            }),
         ...(style === null ? {} : { strikeStyle: inPlay(style) }),
+        // "it can be Force damage or the weapon's normal damage type (your
+        // choice)": the offer a casting hung on this weapon, answered on this
+        // swing. Absent leaves the weapon's printed type alone.
+        ...(imbuedType === null ? {} : { weaponDamageType: imbuedType }),
         targetAc: attack.value.targetAc,
         ...(command.twoHanded === undefined ? {} : { twoHanded: command.twoHanded }),
         ...(command.thrown === undefined ? {} : { thrown: command.thrown }),
@@ -1786,7 +1887,11 @@ export function resolveAttack(
           ...fromFeatures.bonuses,
           ...(command.damageBonuses ?? []),
         ],
-        extraDamage: [...fromFeatures.extra, ...(command.extraDamage ?? [])],
+        extraDamage: [
+          ...fromFeatures.extra,
+          ...printedDamage.extra,
+          ...(command.extraDamage ?? []),
+        ],
         // SRD Great Weapon Fighting: "you can treat any 1 or 2 on a damage die
         // as a 3." A rule the swing is read under rather than a number added
         // to it, gathered from the attacker's own standing effects and
@@ -2150,8 +2255,21 @@ export function resolveAttackDamage(
     }
 
     const current = events.reduce(applyEvent, state);
-    const legalTypes = checkFeatureDamageTypes(current, id, command.featureDamageTypes);
+    const legalTypes = checkFeatureDamageTypes(current, id, command.featureDamageTypes, weapon);
     if (!legalTypes.ok) return legalTypes;
+
+    // The same two questions the unheld swing asks, off the facts the hold
+    // wrote down: the mode the attack roll was made under, and the Hit Points
+    // as they stand now rather than as they stood when the blow landed.
+    const printedDamage = printedDamageOnASwing(
+      current,
+      id,
+      pending.target,
+      printed,
+      pending.mode ?? 'normal',
+    );
+
+    const heldImbuedType = weaponRiderDamageType(current, id, weapon, command.featureDamageTypes);
 
     const fromFeatures = standingAttackDamage(current, id, {
       ability: pending.ability,
@@ -2187,8 +2305,16 @@ export function resolveAttackDamage(
       {
         weapon,
         // What a printed line's damage is rolled from — the same field the
-        // unheld swing hands `rollAttackDamage`, off the same line.
-        ...(stated === undefined ? {} : { statedAttack: stated }),
+        // unheld swing hands `rollAttackDamage`, off the same line, and the
+        // same substitution where the line's own rider makes one.
+        ...(stated === undefined
+          ? {}
+          : {
+              statedAttack:
+                printedDamage.instead === null
+                  ? stated
+                  : { ...stated, damage: printedDamage.instead },
+            }),
         // Re-derived rather than pinned on the held attack, for the reason the
         // sheet above is re-read: the style's own gate is "while you aren't
         // wearing armor", so a Monk who put a breastplate on between the roll
@@ -2196,6 +2322,10 @@ export function resolveAttackDamage(
         // `attack-landed` for it, and a log from before this existed resolves
         // exactly as it did.
         ...(heldStyle === null ? {} : { strikeStyle: inPlay(heldStyle) }),
+        // The same offer, answered on the far side of the hold: the choice
+        // belongs to the moment the damage is rolled, which for a held attack
+        // is here. See `AttackDamageCommand.featureDamageTypes`.
+        ...(heldImbuedType === null ? {} : { weaponDamageType: heldImbuedType }),
         targetAc: pending.targetAc,
         twoHanded: pending.twoHanded,
         thrown: pending.thrown,
@@ -2214,7 +2344,7 @@ export function resolveAttackDamage(
           ...fromFeatures.bonuses,
           ...(command.damageBonuses ?? []),
         ],
-        extraDamage: [...fromFeatures.extra, ...extra],
+        extraDamage: [...fromFeatures.extra, ...printedDamage.extra, ...extra],
         // Re-derived like the style above and from the same swing: a rule
         // about the dice is a standing effect, and a standing effect is read
         // afresh at the moment it bites.
