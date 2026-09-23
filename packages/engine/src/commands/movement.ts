@@ -26,7 +26,7 @@ import {
   type CharacterSheet,
   type MovementMode,
 } from '../character.js';
-import { bestPrintedMeleeAttack } from '../monster.js';
+import { bestPrintedMeleeAttack, hasPrintedTrait, printedLeap } from '../monster.js';
 import {
   altitudeOf,
   checkRoute,
@@ -329,6 +329,10 @@ export function moveWithin(
     const ascent = checkRise(id, mode, command, rise);
     if (!ascent.ok) return ascent;
 
+    // The one decision a climb leaves to the table, and the printed sentence
+    // that answers it for the creatures whose blocks carry one.
+    const climbing = climbCheck(id, mode, command, sheet);
+
     // **A carried area sweeps, and a move of more than one space does not say
     // what it swept.** Checked before any cost, any budget and any Opportunity
     // Attack, so a move that needs its route stated costs nothing to ask about.
@@ -448,7 +452,7 @@ export function moveWithin(
     const opportunity =
       command.forced === true || disengaged
         ? { provoked: [], unverified: [] }
-        : provokedBy(state, supply.content, id, from, to);
+        : provokedBy(state, supply.content, id, from, to, mode, sheet);
 
     if (opportunity.provoked.length === 0) {
       // Nobody is owed a swing, so this is the whole move and the stamp belongs
@@ -467,7 +471,12 @@ export function moveWithin(
         feet,
         cost,
         terrain,
-        unverified: [...opportunity.unverified, ...ground.value.unverified, ...jumped.value],
+        unverified: [
+          ...opportunity.unverified,
+          ...ground.value.unverified,
+          ...jumped.value,
+          ...climbing,
+        ],
         duplicate: false,
       });
     }
@@ -488,7 +497,12 @@ export function moveWithin(
       feet,
       cost,
       terrain,
-      unverified: [...opportunity.unverified, ...ground.value.unverified, ...jumped.value],
+      unverified: [
+        ...opportunity.unverified,
+        ...ground.value.unverified,
+        ...jumped.value,
+        ...climbing,
+      ],
       duplicate: false,
     });
   });
@@ -643,6 +657,13 @@ function checkJump(
   const jump = command.jump;
   if (jump === undefined) return ok([]);
 
+  // SRD Standing Leap, which is a sentence about both halves of this function:
+  // the distances are printed rather than derived, and the running start stops
+  // being a condition on the longer of the two. So a holder is measured
+  // against its own numbers and never asked about the ten feet, which is
+  // exactly what "with or without a running start" says.
+  const leap = printedLeap(sheet);
+
   // A jump is the jumper's own movement on their own legs. Both of these are
   // refusals rather than silent precedence, because a move that is two things
   // at once is a question with two answers — the reading `resolveAttack`
@@ -656,7 +677,7 @@ function checkJump(
 
   const running = jump.running === true;
   const unverified: string[] = [];
-  if (running) {
+  if (running && leap === null) {
     const budget = state.combat?.budgets[id];
     if (budget === undefined) {
       unverified.push(
@@ -671,26 +692,64 @@ function checkJump(
   }
 
   if (jump.kind === 'long') {
-    const reach = longJumpDistance(sheet, running);
+    const reach = leap === null ? longJumpDistance(sheet, running) : leap.longJumpFeet;
     return feet > reach
       ? err(
           'jump_too_far',
-          `${id}'s ${running ? 'running' : 'standing'} Long Jump covers ${reach} feet, and this one is ${feet}`,
+          `${id}'s ${leap === null ? (running ? 'running' : 'standing') : 'printed'} Long Jump covers ${reach} feet, and this one is ${feet}`,
         )
       : ok(unverified);
   }
 
-  const height = highJumpHeight(sheet, running);
+  const height = leap === null ? highJumpHeight(sheet, running) : leap.highJumpFeet;
   return rise > height
     ? err(
         'jump_too_far',
-        `${id}'s ${running ? 'running' : 'standing'} High Jump reaches ${height} feet, and this one rises ${rise}`,
+        `${id}'s ${leap === null ? (running ? 'running' : 'standing') : 'printed'} High Jump reaches ${height} feet, and this one rises ${rise}`,
       )
     : ok(unverified);
 }
 
 /** SRD "Jump": "if you move at least 10 feet immediately before the jump". */
 const RUNNING_START = 10;
+
+/**
+ * The check a climb might cost, which is the table's to call for — and the one
+ * SRD Spider Climb exists to say its holder never pays.
+ *
+ * SRD "Climb" asks nothing of an ordinary climb, and then hands one decision
+ * to the GM: "At the GM's option, climbing a slippery vertical surface or one
+ * with few handholds requires a successful DC 15 Strength (Athletics) check."
+ * The engine models no surfaces, so it can never make that call — and it was
+ * making it by silence, letting every creature up every wall without anybody
+ * being told there was a question.
+ *
+ * **Reported rather than asked**, which is the difference between this and a
+ * `needs-context`: the answer changes nothing the engine would do next. It is
+ * a fact the mover's own block may settle, and for every stat block that
+ * prints SRD Spider Climb it does — "can climb difficult surfaces, including
+ * along ceilings, without needing to make an ability check" is a sentence
+ * about exactly this check, and a holder is not offered the question.
+ *
+ * **The surcharge is not this rule**, and lifting it here would be inventing a
+ * Speed the book withheld. SRD charges a climb double "unless the creature has
+ * a Climb Speed"; Spider Climb is not a Climb Speed, and every SRD block that
+ * prints it prints a Climb Speed beside it but one — the Vampire Spawn, which
+ * therefore climbs at half rate exactly as the book has it.
+ */
+function climbCheck(
+  id: CharacterId,
+  mode: MovementMode,
+  command: MoveCommand,
+  sheet: CharacterSheet,
+): readonly string[] {
+  if (mode !== 'climb' || command.forced === true) return [];
+  if (hasPrintedTrait(sheet, 'climbs-without-a-check')) return [];
+
+  return [
+    `nobody has said what ${id} is climbing, and the SRD leaves a slippery surface or one with few handholds to the GM at a DC 15 Strength (Athletics) check; the climb was allowed without one`,
+  ];
+}
 
 function chargingOf(
   state: GameState,
@@ -848,6 +907,12 @@ function becauseOf(state: GameState, patches: readonly string[]): string {
  *   reported rather than the rule being silently dropped.
  * - and they must have a Reaction to take, which an Incapacitated creature
  *   does not.
+ *
+ * And a fifth clause, which is the mover's own: **SRD Flyby**, "doesn't
+ * provoke an Opportunity Attack when it **flies** out of an enemy's reach."
+ * Seven stat blocks print it, and it is a fact about how this move was made
+ * rather than about the geometry — so the mode is read here, and the same
+ * gargoyle walking out of the same reach provokes exactly as it always did.
  */
 function provokedBy(
   state: GameState,
@@ -855,6 +920,8 @@ function provokedBy(
   mover: CharacterId,
   from: Point,
   to: Point,
+  mode: MovementMode,
+  sheet: CharacterSheet,
 ): {
   readonly provoked: readonly { readonly reactor: CharacterId; readonly reach: number }[];
   readonly unverified: readonly string[];
@@ -862,6 +929,14 @@ function provokedBy(
   const scene = state.scene;
   const side = state.creatures[mover]?.side ?? null;
   if (scene === null) return { provoked: [], unverified: [] };
+
+  // The whole move, because a move names one mode: SRD's "you can switch
+  // between them during your move" is a thing `MoveCommand` cannot say, so a
+  // creature that flew part of the way sends two moves and each is judged on
+  // its own.
+  if (mode === 'fly' && hasPrintedTrait(sheet, 'does-not-provoke-when-flying-out-of-reach')) {
+    return { provoked: [], unverified: [] };
+  }
 
   const provoked: { reactor: CharacterId; reach: number }[] = [];
   const unverified: string[] = [];

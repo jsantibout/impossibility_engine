@@ -178,10 +178,18 @@ describe('a stat block that prints Sunlight Weakness', () => {
 });
 
 describe('a stat block that prints neither', () => {
+  /**
+   * The Bandit rather than the Goblin Warrior, and the change is a reader
+   * landing rather than a fixture drifting: the goblin prints Nimble Escape,
+   * which `adaptMonster` now compiles into the two `action-rule` effects its
+   * sentence names. So "a block that prints neither sunlight sentence" and "a
+   * block with no standing effects at all" stopped being the same block, and
+   * this claim is about the second.
+   */
   it('gains no standing effect it was not given', () => {
-    const built = table('goblin-warrior', id('another-goblin'));
-    const goblin = built.state.creatures[id('another-goblin')];
-    expect(goblin?.sheet.standing).toBeUndefined();
-    expect(modes(built.state, id('another-goblin'), 'attack')).toEqual([]);
+    const built = table('bandit', id('a-bandit'));
+    const bandit = built.state.creatures[id('a-bandit')];
+    expect(bandit?.sheet.standing).toBeUndefined();
+    expect(modes(built.state, id('a-bandit'), 'attack')).toEqual([]);
   });
 });

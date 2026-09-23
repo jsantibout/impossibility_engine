@@ -571,6 +571,62 @@ const SHADOW_STEALTH = new RegExp(
   `^While in Dim Light or Darkness, ${SUBJECT} takes the Hide action\\.$`,
 );
 
+/**
+ * The three actions the book actually offers in this sentence, and the words
+ * it prints them as.
+ *
+ * A closed alternation rather than a capture of any capitalised word, for the
+ * reason every regex here is anchored: a Scout's "Search" is an action the
+ * engine cannot tell apart from any other spend, so reading one would put a
+ * rule on a creature that nothing enforces.
+ */
+const BONUS_ACTION_NAME = '(?:Dash|Disengage|Hide)';
+
+/**
+ * SRD Nimble Escape: "The goblin takes the Disengage or Hide action." SRD
+ * Cunning Action on the Spy — "the Dash, Disengage, or Hide action" — and SRD
+ * Deathless Agility's "the Dash or Disengage action" are the same sentence
+ * over a different menu.
+ *
+ * **The `or` is required**, which is what refuses the Clay Golem: its Hasten
+ * prints "the Dash **and** Disengage **actions**", meaning it takes both, on
+ * a recharge. A conjunction read as a menu is a choice nobody printed — and
+ * the plural noun is the book's own tell, so the singular `action` is matched
+ * end to end too.
+ *
+ * Anchored for the same reason as everything else here, which is also what
+ * keeps {@link SHADOW_STEALTH} distinct: the shadow's sentence opens with a
+ * clause this subject cannot swallow, because {@link SUBJECT} holds no comma.
+ */
+const TAKES_A_NAMED_ACTION = new RegExp(
+  `^${SUBJECT} takes the (${BONUS_ACTION_NAME}(?:, ${BONUS_ACTION_NAME})*,? or ${BONUS_ACTION_NAME}) action\\.$`,
+);
+
+/**
+ * SRD Bloodied Fury: "While Bloodied, the boar has Advantage on attack
+ * rolls." SRD Bloodied Frenzy: "…on attack rolls and saving throws."
+ *
+ * Two printed breadths of one rule, exactly as the two sunlight sentences
+ * are, and the alternation is closed so that a third breadth nobody printed
+ * cannot be read out of a longer sentence. The Giant Boar's "melee attack
+ * rolls while it is Bloodied" is refused whole: a narrowing the kind carries
+ * no field for, written the other way round.
+ */
+const BLOODIED_ADVANTAGE = new RegExp(
+  `^While Bloodied, ${SUBJECT} has Advantage on (attack rolls and saving throws|attack rolls)\\.$`,
+);
+
+/** The book's nouns for the rolls, in the kind's own three words. */
+const BLOODIED_ROLLS: Readonly<Record<string, readonly ('attack-roll' | 'saving-throw')[]>> = {
+  'attack rolls': ['attack-roll'],
+  'attack rolls and saving throws': ['attack-roll', 'saving-throw'],
+};
+
+/** A fresh array for the shape, because the schema's is a mutable one. */
+const bloodiedRolls = (printed: string): ('attack-roll' | 'saving-throw')[] => [
+  ...(BLOODIED_ROLLS[printed] ?? []),
+];
+
 /** A printed span, always in minutes — the book writes both units. */
 const inMinutes = (count: string, unit: string): number =>
   Number(count) * (unit.startsWith('hour') ? 60 : 1);
@@ -649,6 +705,24 @@ export function parseTraitShape(text: string): MonsterTrait | null {
   }
 
   if (SHADOW_STEALTH.test(text)) return { kind: 'hides-in-dim-light-or-darkness' };
+
+  // Asked **after** Shadow Stealth, which is belt and braces rather than a
+  // dependency: the shadow's sentence opens with a clause `SUBJECT` cannot
+  // match, so neither order reads one as the other.
+  const menu = TAKES_A_NAMED_ACTION.exec(text);
+  if (menu !== null) {
+    return {
+      kind: 'takes-a-named-action-as-a-bonus-action',
+      actions: menu[1]!
+        .split(/,? or |, /)
+        .map((name) => name.toLowerCase() as 'dash' | 'disengage' | 'hide'),
+    };
+  }
+
+  const bloodied = BLOODIED_ADVANTAGE.exec(text);
+  if (bloodied !== null) {
+    return { kind: 'advantage-while-bloodied', rolls: bloodiedRolls(bloodied[1]!) };
+  }
 
   return null;
 }

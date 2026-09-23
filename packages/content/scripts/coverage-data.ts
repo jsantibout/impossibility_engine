@@ -1038,17 +1038,74 @@ export const hasUnappliedRider = (line: StatBlockLine): boolean => {
  * question `spell-schema.test.ts` asks of the engine's sources, pointed the
  * other way round.
  *
- * Today: SRD Pack Tactics, read by `resolveAttack`'s roll-mode gathering; and
- * the two sunlight sentences, compiled onto the sheet by `adaptMonster` as
- * standing effects the `in-sunlight` requirement gates. The light model's own
- * three other kinds are **not** here — a creature that sheds Bright Light
- * lights nothing, because a patch is declared and never derived, and Shadow
- * Stealth's Hide costs an action nothing has made free.
+ * Today, and beside each the thing that spends it:
+ *
+ * | Kind | Reader |
+ * |---|---|
+ * | SRD Pack Tactics | `resolveAttack`'s roll-mode gathering |
+ * | the two sunlight sentences | `adaptMonster`, as standing effects the `in-sunlight` requirement gates |
+ * | SRD Bloodied Fury | the same, gated on `while-bloodied` |
+ * | SRD Flyby | `provokedBy`, which reads the mover's mode |
+ * | SRD Standing Leap | `checkJump`, through `printedLeap` |
+ * | SRD Spider Climb | `climbCheck`, which is the handover its holder does not get |
+ * | SRD Shadow Stealth, SRD Nimble Escape and its siblings | `adaptMonster`, as the `allows` action rules Cunning Action is written as |
+ *
+ * **`sheds-light` is the one parsed kind still not here**, and the reason is
+ * a shape rather than an oversight: a `LightPatch` is *declared* and never
+ * derived, so a creature that sheds Bright Light lights nothing until a patch
+ * can be anchored to a creature and move with it.
  */
 export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
   'advantage-when-ally-is-within-5-feet-of-the-target',
+  'advantage-while-bloodied',
+  'climbs-without-a-check',
   'disadvantage-in-sunlight',
+  'does-not-provoke-when-flying-out-of-reach',
+  'hides-in-dim-light-or-darkness',
+  'jumps-without-a-running-start',
+  'takes-a-named-action-as-a-bonus-action',
 ];
+
+/**
+ * The trait kinds the engine reads, hands to the table, and will never build.
+ *
+ * **A handover is not a debt, and the difference is the point.**
+ * `docs/design/content.md` settles the test — "a table fact that a rule then
+ * reads is a debt; a table fact nothing reads afterwards is a handover" — and
+ * `docs/ROADMAP.md` §6 P3-B applies it to these three in as many words:
+ * "Amphibious and breathing are handovers by the fiction rule unless drowning
+ * is ever modelled."
+ *
+ * Nothing in this engine drowns, suffocates or holds a breath. There is no
+ * rule that would read "can breathe water", no clock that counts the four
+ * hours a Limited Amphibiousness gives, and no consequence for a creature
+ * outside its element — so these sentences say something true about the world
+ * and nothing a rule consults. Filing them as debt would put work on a list
+ * nobody should do; filing them as unspent would keep twelve CR ≤ 5 blocks off
+ * the clean list forever.
+ *
+ * **Not the same claim the reader roster makes, and pinned the opposite way.**
+ * A kind on the roster must still be named in `packages/engine/src`; a kind
+ * here must be named **nowhere** in it, because a handover with a reader is a
+ * mislabelled debt. `coverage.test.ts` asks both.
+ *
+ * The reason is per kind rather than one sentence for the list, because the
+ * day one of them stops being a handover it will be one of them and not all
+ * three.
+ */
+export const HANDOVER_TRAIT_KINDS: Readonly<Record<string, string>> = {
+  'breathes-air-and-water':
+    'SRD Amphibious. The engine models no drowning and no suffocation, so "can breathe air and water" — and the four hours a Limited Amphibiousness gives before it must submerge — say what the fiction is and name nothing a rule reads afterwards.',
+  'breathes-only-water':
+    'SRD Water Breathing, the same sentence the other way round. A creature that can breathe only underwater is a fact about where the DM may put it; nothing in the engine happens when it is put somewhere else.',
+  'holds-its-breath':
+    'SRD Hold Breath. A span with nothing at the end of it: the clock could count the hour, but there is no rule waiting for it to run out, so the number is the table\'s to narrate.',
+};
+
+/** Whether this line's trait is one the engine reads and hands over. */
+export const isHandoverTrait = (line: StatBlockLine): boolean =>
+  line.trait !== undefined &&
+  Object.hasOwn(HANDOVER_TRAIT_KINDS, (line.trait as { readonly kind: string }).kind);
 
 /**
  * A trait line the parser read a mechanic out of that nothing spends.
@@ -1066,6 +1123,10 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
 export const hasUnexecutedTrait = (line: StatBlockLine): boolean => {
   if (line.trait === undefined) return false;
   const { kind } = line.trait as { readonly kind: string };
+  // A handed-over kind is neither spent nor waiting: it is read, given to the
+  // table, and finished. See {@link HANDOVER_TRAIT_KINDS} for why that is a
+  // third answer and not a softer version of this one.
+  if (Object.hasOwn(HANDOVER_TRAIT_KINDS, kind)) return false;
   return !TRAIT_KINDS_WITH_A_READER.includes(kind);
 };
 

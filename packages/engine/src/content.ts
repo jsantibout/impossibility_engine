@@ -871,6 +871,13 @@ export const REQUIREMENT_KINDS: ReadonlySet<string> = new Set([
   // Speed. An item that printed SRD Sunlight Sensitivity's sentence would be
   // executed rather than transcribed and ignored.
   'in-sunlight',
+  // The other end of the same scale, read through the same `lightAt`, and the
+  // creature's own hit points against its own maximum. Both are here for
+  // `in-sunlight`'s reason: an item whose first clause is "while you are in
+  // Dim Light" or "while you are Bloodied" is a sentence this vocabulary can
+  // execute, and the set is held equal to the union rather than curated.
+  'in-dim-light-or-darkness',
+  'while-bloodied',
 ]);
 
 /**

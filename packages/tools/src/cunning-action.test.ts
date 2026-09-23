@@ -448,3 +448,69 @@ describe('a Hide can refuse in ways no other named action can, and each arrives 
     expect(budget(t, 'nyx').reaction).toBe(true);
   });
 });
+
+/**
+ * And the same three verbs, printed on a stat block instead of a class table.
+ *
+ * SRD writes the sentence under three headings in the bestiary — Nimble
+ * Escape, Cunning Action, Deathless Agility — and it is the same rule the
+ * Rogue's feature is: a named action paid for out of a Bonus Action.
+ * `adaptMonster` compiles the printed line into the same `allows` effects, so
+ * nothing above the engine changed and no tool was added. The door was
+ * already open; what was missing was the creature carrying the rule.
+ */
+describe('a stat block that prints the same sentence reaches the same door', () => {
+  /** A goblin and something to run from, in a fight, on the goblin's turn. */
+  function skirmish(seed: string, monsterId = 'goblin-minion') {
+    const t = table(seed);
+    expectOk(t.call('create_character', { id: 'bram', choices: fighter('Bram') }));
+    expectOk(t.call('add_creature', { id: 'grish', monsterId }));
+    expectOk(t.call('set_scene', { width: 60, depth: 40, height: 20 }));
+    expectOk(t.call('add_landmark', { name: 'the hedge', at: { x: 10, y: 10 } }));
+    expectOk(t.call('place_creature', { who: 'grish', fromLandmark: 'the hedge', feet: 0 }));
+    expectOk(t.call('place_creature', { who: 'bram', fromCreature: 'grish', feet: 5, bearing: 0 }));
+    expectOk(t.call('roll_initiative', { combatants: [{ who: 'grish' }, { who: 'bram' }] }));
+    for (let step = 0; step < 2 && t.surface.observe().turnOf !== 'grish'; step += 1) {
+      expectOk(t.call('end_turn'));
+    }
+    expect(t.surface.observe().turnOf).toBe('grish');
+    return t;
+  }
+
+  it('lets the Goblin Minion Disengage out of its Bonus Action', () => {
+    const t = skirmish('nimble-escape');
+    const took = expectOk(
+      t.call('take_action', { who: 'grish', kind: 'disengage', from: 'bonus-action' }),
+    );
+    expect(took.resolution['paidFrom']).toBe('bonus-action');
+    expect(budget(t, 'grish').bonusAction).toBe(false);
+    // And the Action is still in hand, which is what the sentence buys.
+    expect(budget(t, 'grish').action).toBe(true);
+  });
+
+  /**
+   * The other half of the claim, and the reason the menu is part of the shape:
+   * Nimble Escape prints "Disengage or Hide" and no Dash, so the goblin is
+   * refused one by name and spends nothing finding out.
+   */
+  it('refuses the goblin the Dash its own sentence does not print', () => {
+    const t = skirmish('nimble-escape-dash');
+    const out = expectRefused(
+      t.call('take_action', { who: 'grish', kind: 'dash', from: 'bonus-action' }),
+    );
+    expect(out.code).toBe('action_not_allowed');
+    expect(budget(t, 'grish').bonusAction).toBe(true);
+    expect(budget(t, 'grish').action).toBe(true);
+  });
+
+  /** And a block printing no such sentence is refused both of the two. */
+  it('refuses a block that prints no such sentence', () => {
+    const t = skirmish('no-such-sentence', 'bandit');
+    for (const kind of ['dash', 'disengage']) {
+      const out = expectRefused(
+        t.call('take_action', { who: 'grish', kind, from: 'bonus-action' }),
+      );
+      expect(out.code, kind).toBe('action_not_allowed');
+    }
+  });
+});
