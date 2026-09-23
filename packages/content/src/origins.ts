@@ -501,8 +501,20 @@ export const ORC: SpeciesDefinition = {
       id: 'orc:relentless-endurance',
       name: 'Relentless Endurance',
       level: 1,
-      automation: 'manual',
-      note: 'Not applied: dropping to 1 Hit Point instead of 0 is a decision taken at the moment damage lands, and the only thing a feature may do there is reduce the damage as a Reaction. A DM holds the Orc at 1 hit point once between Long Rests.',
+      automation: 'engine',
+      note: 'Applied. Dropping to 1 Hit Point instead of 0 is a decision taken at the moment damage lands, and it is taken there: damageCreature runs the rules once to see what the blow would do, and where the answer is a drop to 0 that is not a death it pins a floor onto the damage-taken event and spends the use. The floor is on the event rather than in the command because the fold recomputes the blow from the event - a decision the command kept to itself would be undone the first time the log was replayed - so a replay reads a number somebody already decided and opens no catalogue. "But not killed outright" needs no field: Massive Damage and a monster death at 0 are both settled before the floor is read, so the trait cannot fire on either. The once-a-day limit is a tally keyed to this trait with long-rest on it, counted off the very event that carries the floor and zeroed by the rest, and the reader refuses a second use while the count stands - a count rather than a pool because nothing declares a tally and a feature carries one grant, which this trait has already spent on the rule itself. The price rides on the claim rather than beside it, so the two cannot come apart in a log and a blow is never asked whose turn it is.',
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        effects: [
+          {
+            kind: 'hit-point-floor',
+            floor: 1,
+            key: 'orc:relentless-endurance',
+            recovers: 'long-rest',
+          },
+        ],
+      },
     },
   ],
 };

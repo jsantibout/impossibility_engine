@@ -200,6 +200,24 @@ export interface DamageOutcome {
 export interface DamageOptions {
   /** SRD: damage at 0 hit points from a Critical Hit costs two failures. */
   readonly critical?: boolean;
+  /**
+   * Hit points this blow may not drive the creature below.
+   *
+   * SRD Relentless Endurance: "When you are reduced to 0 Hit Points but not
+   * killed outright, you can drop to 1 Hit Point instead."
+   *
+   * **A number here and a decision somewhere else.** Whether the trait is held
+   * at all, and whether its once-a-day use is still there to spend, are
+   * questions about a creature's features and its resources — neither of which
+   * this module has or wants. `damageCreature` asks them, pins the answer onto
+   * the `damage-taken` event, and the fold hands the same number back here on
+   * replay, so the blow lands identically both times.
+   *
+   * **It cannot save anybody from dying.** "Not killed outright" is Massive
+   * Damage and a monster's `diesAtZero`, and both are settled below before
+   * this is read at all — so a floor cannot be written that gets them wrong.
+   */
+  readonly floor?: number;
 }
 
 export function applyDamageToVitals(
@@ -316,6 +334,23 @@ export function applyDamageToVitals(
       droppedToZero: true,
       died: true,
       cause: 'massive damage',
+    };
+  }
+
+  // **Here, and here is the whole of "but not killed outright".** Both ways a
+  // blow kills outright have returned above — a monster's death at 0 and
+  // Massive Damage — so the creature reaching this line is one the rules leave
+  // Unconscious, which is exactly the one the trait is about. Nothing below
+  // follows: it did not drop to zero, so it starts no death saves and gains no
+  // Unconscious, and `hpLost` is what it really lost rather than what the blow
+  // would have taken.
+  if (options.floor !== undefined && options.floor > 0) {
+    const hp = Math.min(v.hp, options.floor);
+    return {
+      ...unchanged,
+      vitals: { ...v, hp, temporaryHp },
+      temporaryAbsorbed,
+      hpLost: v.hp - hp,
     };
   }
 

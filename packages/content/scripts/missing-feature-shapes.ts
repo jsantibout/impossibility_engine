@@ -1469,13 +1469,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'the uses, sized in Proficiency Bonuses like every other origin trait with a limit.',
     },
   ],
-  'orc:relentless-endurance': [
-    {
-      clause: 'dropping to 1 Hit Point instead of 0 is a decision taken at the moment damage lands',
-      why: 'an-effect-that-intercepts-dropping-to-0',
-      note: 'Relentless Rage wants the same hook, which is what makes it a shape.',
-    },
-  ],
   'tiefling:fiendish-legacy': [
     {
       clause: 'the grant reads the type out of that table',

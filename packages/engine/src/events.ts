@@ -744,6 +744,62 @@ export type GameEvent =
        * a falling rock has no dealer, and there is nothing to rebuke.
        */
       readonly by?: CharacterId;
+      /**
+       * A floor this blow could not drive the creature below, and what held it.
+       *
+       * SRD Relentless Endurance: "When you are reduced to 0 Hit Points but
+       * not killed outright, you can drop to 1 Hit Point instead."
+       *
+       * **On the event because the fold recomputes the blow.** `applyVitals`
+       * calls `applyDamageToVitals` again from this event, so an interception
+       * that lived only in the command would be undone the first time the log
+       * was replayed — the creature would come back from the fold at 0. The
+       * command asks whether the trait is held and whether its use is still
+       * there, pins the answer here, and the fold reads the same number back.
+       * A replay opens no catalogue and asks no feature; it reads a number
+       * somebody already decided, which is rule 5 exactly.
+       *
+       * **The dealer is already beside it.** `by` names who struck, and this
+       * is the moment SRD Dark One's Blessing asks about from the other side —
+       * "when you reduce a hostile creature to 0 Hit Points". A second reader
+       * of this instant has the striker, the target and the fact that the drop
+       * was intercepted, which is everything that sentence needs.
+       *
+       * Absent is every blow in every log this engine has written, and means
+       * what it always meant: the drop stood.
+       */
+      readonly floor?: {
+        /** SRD's "1 Hit Point": what the blow could not take them below. */
+        readonly at: number;
+        /** The feature that said so, pinned for the log and for a reader. */
+        readonly feature: string;
+        /**
+         * The limit this use came out of, counted by the same event.
+         *
+         * SRD: "Once you use this trait, you can't do so again until you
+         * finish a Long Rest." A **tally** — a count with no ceiling, whose
+         * key and recovery ride the use because nothing declares one — and the
+         * reader is what makes a count of one mean "once", exactly as SRD
+         * Overchannel's does.
+         *
+         * **Counted here rather than by a `resource-spent` beside this
+         * event**, and the reason is a guard rather than a preference:
+         * `invariants.test.ts` classifies every command that writes a
+         * `resource-spent` as one that must ask `mayAct`, transitively through
+         * its callers. A blow does not ask a creature whether it is its turn —
+         * so the spend beside the damage would have needed exemptions for
+         * `damageCreature` and the seven commands that land damage through it,
+         * which is eight holes in a sweep for one trait. One event carrying
+         * both the interception and its price needs none: the claim and what
+         * paid for it cannot come apart, in the log or in the fold.
+         */
+        readonly spent: {
+          /** What the uses are counted under — a tally's key, as a pool's is. */
+          readonly key: string;
+          /** SRD's "until you finish a Long Rest", which zeroes the count. */
+          readonly recovers: Recovery;
+        };
+      };
       /** The command that caused it, so a retry is recognised as one. */
       readonly command?: CommandStamp;
     }

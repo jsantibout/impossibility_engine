@@ -25,9 +25,11 @@ import {
 } from '../vitals.js';
 import type { GameEvent } from '../events.js';
 import type { GameState } from '../state.js';
+import { tally } from '../resources.js';
 import {
   CorruptLogError,
   creatureOf,
+  must,
   withCreature,
   seamOf,
   unhandledEvent,
@@ -156,11 +158,15 @@ export function applyVitals({ state, next }: Applying, event: VitalsEvent): Game
   switch (event.type) {
     case 'damage-taken': {
       const creature = creatureOf(state, event, event.id);
-      const outcome = applyDamageToVitals(
-        creature.vitals,
-        event.amount,
-        event.critical === undefined ? {} : { critical: event.critical },
-      );
+      const outcome = applyDamageToVitals(creature.vitals, event.amount, {
+        ...(event.critical === undefined ? {} : { critical: event.critical }),
+        // **The same arithmetic the command ran, from the number it pinned.**
+        // Whether a trait intercepted the drop was decided once, where the
+        // features and the resources are; this reads the answer rather than
+        // asking again, which is what keeps a replay byte-identical and the
+        // fold free of any catalogue. See `damage-taken.floor`.
+        ...(event.floor === undefined ? {} : { floor: event.floor.at }),
+      });
       // A dealer overwrites the last one; damage from nothing in the game
       // leaves whatever was there, because a falling rock does not make the
       // thug who stabbed you a moment ago un-stabbed you. The window closes on
@@ -170,6 +176,18 @@ export function applyVitals({ state, next }: Applying, event: VitalsEvent): Game
         event.id,
         {
           vitals: outcome.vitals,
+          // **And the use the floor cost, counted off the same event.** The
+          // interception and its price are one fact and arrive as one event —
+          // see `damage-taken.floor.spent` for why the spend is not a second
+          // one — so the count is taken here, where the floor is read.
+          ...(event.floor === undefined
+            ? {}
+            : {
+                resources: must(
+                  event,
+                  tally(creature.resources, event.floor.spent.key, event.floor.spent.recovers),
+                ),
+              }),
           ...(event.by === undefined
             ? {}
             : {

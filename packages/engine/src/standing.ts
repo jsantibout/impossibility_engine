@@ -51,7 +51,7 @@ import type { CreatureState, GameState } from './events.js';
 import { creaturesStandingInCastingArea, spellOfSource, type CastingTime } from './spells.js';
 import type { SpellArea, SpellEffect } from './spell-definitions.js';
 import type { EffectEndCause } from './timers.js';
-import type { Recovery } from './resources.js';
+import { tallied, type Recovery } from './resources.js';
 import type { TradedAmount } from './progression.js';
 import {
   weaponInSet,
@@ -3126,6 +3126,54 @@ export function sheetAsItStands(state: GameState, who: CharacterId): CharacterSh
     abilities,
     ...(reroll === null ? {} : { rerollsD20On: reroll }),
   };
+}
+
+/**
+ * The floor this creature's standing effects put under a blow, if any is still
+ * there to spend.
+ *
+ * SRD Relentless Endurance: "When you are reduced to 0 Hit Points but not
+ * killed outright, you can drop to 1 Hit Point instead. Once you use this
+ * trait, you can't do so again until you finish a Long Rest."
+ *
+ * **The limit is a tally and the refusal is here.** A tally is a count with no
+ * ceiling — `resources.ts` says so — and what that buys is that *nothing has
+ * to declare it*: `FeatureDefinition.grants` is singular and the trait has
+ * already spent it on the standing grant that states the rule, so there is no
+ * second grant left to declare a pool with. The key and what empties it ride
+ * on the grant, exactly as SRD Overchannel's do, and the reader is what makes
+ * a count of one mean "once": above zero, this answers null.
+ *
+ * **The highest floor wins** where two are written, which is the only reading
+ * that does not make a second trait a downgrade. No SRD creature holds two.
+ */
+export function hitPointFloorFor(
+  state: GameState,
+  who: CharacterId,
+): {
+  readonly at: number;
+  readonly feature: string;
+  readonly key: string;
+  readonly recovers: Recovery;
+} | null {
+  const creature = state.creatures[who];
+  if (creature === undefined) return null;
+
+  let found: { at: number; feature: string; key: string; recovers: Recovery } | null = null;
+  for (const { effect } of standingFor(state, who)) {
+    const grant = effect.grant;
+    if (grant.kind !== 'hit-point-floor') continue;
+    if (tallied(creature.resources, grant.key) > 0) continue;
+    if (found === null || grant.floor > found.at) {
+      found = {
+        at: grant.floor,
+        feature: effect.name,
+        key: grant.key,
+        recovers: grant.recovers,
+      };
+    }
+  }
+  return found;
 }
 
 /**
