@@ -410,13 +410,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'the half that is applied: `check-bonus` sizes a bonus by a modifier on the holder’s own sheet, over the skills the feature names.',
     },
   ],
-  'cleric:sear-undead': [
-    {
-      clause: 'Turn Undead dealing Radiant damage',
-      why: 'a-feature-that-rewrites-another-features-rule',
-      note: 'a later feature adding an effect to an earlier one’s use.',
-    },
-  ],
   'cleric:divine-intervention': [
     {
       clause: 'Casting any Cleric spell without components',

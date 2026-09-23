@@ -30,6 +30,7 @@ import {
 import type {
   ActivatedFeature,
   HealAmount,
+  FailedSaveDamage,
   HealingTouch,
   CastingOption,
   HitOption,
@@ -2949,6 +2950,19 @@ export function planCharacter(
     readonly pool: string;
     readonly options: readonly PoolOptionGrant[];
   }[] = [];
+  /**
+   * What a later feature changes about a form already on a menu, by host and
+   * option — SRD Sear Undead's Radiant damage on Turn Undead's failed save.
+   *
+   * Gathered before the menus are compiled rather than merged into them,
+   * because the amendment and the form it amends are written on two different
+   * features and only one of them declares the option.
+   */
+  const amendments: {
+    readonly host: string;
+    readonly option: string;
+    readonly damage: FailedSaveDamage;
+  }[] = [];
   for (const [feature, grant] of grantsIn(features)) {
     if (grant.kind === 'pool' && grant.options !== undefined) {
       menus.push({ host: feature, pool: grant.key, options: grant.options });
@@ -2958,8 +2972,32 @@ export function planCharacter(
     const host = features.find((one) => one.id === grant.feature);
     const hosted = grantOf(host, 'pool');
     if (host === undefined || hosted === null) continue;
-    menus.push({ host, pool: hosted.key, options: grant.options });
+    if (grant.options !== undefined) {
+      menus.push({ host, pool: hosted.key, options: grant.options });
+    }
+    for (const amendment of grant.amends ?? []) {
+      const sized = amendment.damagesFailures;
+      amendments.push({
+        host: host.id,
+        option: amendment.option,
+        damage: {
+          // "a number of d8s equal to your Wisdom modifier (minimum of 1d8)",
+          // counted by the one reader every printed sizing goes through — at
+          // the *amending* feature's own class level, because the sentence is
+          // that feature's rather than the host's.
+          dice: withDiceCountOf(
+            sized.die,
+            poolSizeOf(content, choices, features, feature.id, sized.count),
+          ),
+          damageType: sized.damageType,
+        },
+      });
+    }
   }
+
+  /** The amendment for one form of one menu, or nothing where none was written. */
+  const amendmentFor = (host: string, option: string): FailedSaveDamage | undefined =>
+    amendments.find((one) => one.host === host && one.option === option)?.damage;
 
   for (const { host, pool, options } of menus) {
     const ability = castingAbilityFor(host.id);
@@ -2985,6 +3023,12 @@ export function planCharacter(
                   Math.max(0, Math.min(count, option.diceCountByLevel.length) - 1)
                 ] ?? 1,
               ),
+        // What a later feature hangs on this form's failed saving throw — SRD
+        // Sear Undead on Turn Undead. Absent for every option nobody amended,
+        // which is every option but one.
+        ...(amendmentFor(host.id, option.id) === undefined
+          ? {}
+          : { damagesFailures: amendmentFor(host.id, option.id)! }),
         ability,
         ...(option.area === undefined ? {} : { area: option.area }),
         ...(option.reach === undefined ? {} : { reach: option.reach }),
@@ -3892,6 +3936,10 @@ function withDiceCount(
     }
   });
 }
+
+/** One die's notation with the count an amending feature works out written into it. */
+const withDiceCountOf = (die: string, count: number): string =>
+  `${Math.max(1, count)}d${die.split('d')[1] ?? '8'}`;
 
 function usesOf(
   choices: CharacterChoices,

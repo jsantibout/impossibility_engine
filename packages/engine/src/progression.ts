@@ -342,6 +342,50 @@ export const hungSource = (featureId: string, clause: string): string =>
  * already did for a spell. An option that needs a new effect kind is engine
  * work exactly as a spell that needs one is.
  */
+/**
+ * One form already on a menu, and what a later feature makes it also do.
+ *
+ * SRD Sear Undead: "Whenever you use Turn Undead, you can roll a number of d8s
+ * equal to your Wisdom modifier (minimum of 1d8) and add the rolls together.
+ * Each Undead that fails its saving throw against that use of Turn Undead
+ * takes Radiant damage equal to the roll's total. This damage doesn't end the
+ * turn effect."
+ *
+ * **It is a rider on an outcome the option already settles, not a second
+ * effect**, and that is the whole of why it can be said at all. "Each Undead
+ * that fails its saving throw" names the failure branch of the save the option
+ * has just rolled — one save, one DC, one set of creatures who failed it — so
+ * the amendment is applied by giving the option's own `save` the damage a
+ * `save-damage` carries, with the conditions it imposed riding the same
+ * failure. An effect appended to the list would roll a second saving throw a
+ * creature could fail only half of, or would damage the ones who made theirs.
+ *
+ * **"This damage doesn't end the turn effect" needs no field**, and reading
+ * why is the check that the shape is right: the Frightened is a rider on the
+ * same failure, and damage that lands beside it takes nothing away. A rule
+ * that ended a condition on damage would have to be written; none is.
+ */
+export interface PoolOptionAmendment {
+  /** The host's printed option this changes — SRD Sear Undead's Turn Undead. */
+  readonly option: string;
+  /**
+   * Damage the creatures that **failed this option's saving throw** also take.
+   *
+   * The count is a {@link PoolSizing} because the SRD sizes it the way it
+   * sizes a pool — "a number of d8s equal to your Wisdom modifier (minimum of
+   * 1d8)" is `fromAbilityModifier` with a `minimum`, read at creation by the
+   * one reader every other sizing goes through. The die stays on the
+   * amendment, exactly as `diceCountByLevel` leaves the die on the effect and
+   * reads only the count.
+   */
+  readonly damagesFailures: {
+    /** One die, written as the notation a single die is: SRD's `1d8`. */
+    readonly die: string;
+    readonly count: PoolSizing;
+    readonly damageType: string;
+  };
+}
+
 export interface PoolOptionGrant {
   /** The option's own id, named by the caller who spends the use. */
   readonly id: string;
@@ -1369,8 +1413,27 @@ export type FeatureGrant =
        * on a class table that looks executed and is inert.
        */
       readonly feature: string;
-      /** At least one, each with an id the caller who spends the use names. */
-      readonly options: readonly PoolOptionGrant[];
+      /** Forms added to the menu, each with an id the caller who spends names. */
+      readonly options?: readonly PoolOptionGrant[];
+      /**
+       * Forms already on the menu that this feature **changes** — SRD Sear
+       * Undead.
+       *
+       * The other half of the same door. Joining a menu was the only thing a
+       * later feature could do to an earlier one's pool, and the SRD writes
+       * both sentences: Preserve Life adds a way to spend a Channel Divinity,
+       * and Sear Undead says "Whenever you use Turn Undead, you can roll a
+       * number of d8s … Each Undead that fails its saving throw against that
+       * use of Turn Undead takes Radiant damage equal to the roll's total."
+       * Nothing is added to the menu by that sentence; one entry on it does
+       * more.
+       *
+       * `checkContent` holds each amendment to an option the host really
+       * prints, off the same set the add form is checked against — an
+       * amendment naming a form nobody wrote is a feature that validates,
+       * compiles and changes nothing.
+       */
+      readonly amends?: readonly PoolOptionAmendment[];
     }
   /**
    * An effect list bought by **a hit that has already landed**, rather than by

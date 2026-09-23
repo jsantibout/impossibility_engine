@@ -61,6 +61,7 @@ interface Granted {
   readonly kind: string;
   readonly feature?: string;
   readonly options?: readonly { readonly id: string }[];
+  readonly amends?: readonly { readonly option: string }[];
 }
 
 const grantsOf = (feature: { readonly grants?: unknown }): readonly Granted[] => {
@@ -383,9 +384,14 @@ function reachOf(
   if (menu !== undefined) {
     const host = sheet.features.find((one) => one.feature === menu.feature);
     const printed = new Set((host?.options ?? []).map((one) => one.option));
-    const missing = (menu.options ?? [])
-      .filter((one) => !printed.has(one.id))
-      .map((one) => one.id);
+    // Both halves of the door: a form this grant **adds** has to be reachable
+    // by name, and a form it **amends** has to be one the host really prints —
+    // SRD Sear Undead changes Turn Undead, and an amendment naming a form
+    // nobody wrote would change nothing and say nothing.
+    const missing = [
+      ...(menu.options ?? []).map((one) => one.id),
+      ...(menu.amends ?? []).map((one) => one.option),
+    ].filter((one) => !printed.has(one));
     if (host === undefined || host.spentBy === null) {
       return { how: 'unreachable', why: `its menu joins ${menu.feature}, which names no tool` };
     }

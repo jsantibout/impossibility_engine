@@ -4106,13 +4106,17 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
               reason: `${feature.id} adds a form to a menu and names none; the menu belongs to the feature that declares the pool`,
             });
           }
-          if (!Array.isArray(grant.options) || grant.options.length === 0) {
+          const amends = Array.isArray(grant.amends) ? grant.amends : [];
+          if (
+            (!Array.isArray(grant.options) || grant.options.length === 0) &&
+            amends.length === 0
+          ) {
             problems.push({
               field: `${grantsAt}.options`,
               code: 'empty_option_menu',
-              reason: `${feature.id} adds nothing to the menu it names`,
+              reason: `${feature.id} adds nothing to the menu it names and changes nothing on it`,
             });
-          } else {
+          } else if (Array.isArray(grant.options) && grant.options.length > 0) {
             problems.push(
               ...featureOptionsProblems(
                 feature.id,
@@ -4155,6 +4159,20 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
                 reason: `${host.id} already offers "${option.id}", and a caller naming it could reach only the first`,
               });
             }
+
+            // And the other direction: an amendment changes a form the host
+            // really prints, off the same set. SRD Sear Undead names Turn
+            // Undead, and a feature naming a form nobody wrote would validate,
+            // compile and change nothing — the failure `unknown_option_menu`
+            // catches one level up.
+            amends.forEach((amendment, at) => {
+              if (taken.has(amendment?.option)) return;
+              problems.push({
+                field: `${grantsAt}.amends[${at}].option`,
+                code: 'unknown_amended_option',
+                reason: `${feature.id} changes "${String(amendment?.option)}" on ${host.id}'s menu, and ${host.id} prints ${taken.size === 0 ? 'no options at all' : [...taken].join(', ')}`,
+              });
+            });
           }
         }
         // What a **hit** buys, judged by the same rules one trigger along: the
