@@ -227,6 +227,14 @@ const singerWith = (option: string, die = '1d8') => ({
               effects: [{ kind: 'save', ability: 'wis', condition: 'frightened' }],
               durationSeconds: 60,
             },
+            {
+              id: 'dirge',
+              name: 'Dirge',
+              action: 'action',
+              area: { kind: 'emanation', distance: 30, origin: 'self' },
+              effects: [{ kind: 'save', ability: 'cha', condition: 'frightened' }],
+              durationSeconds: 60,
+            },
           ],
         },
       },
@@ -355,7 +363,7 @@ describe('an amendment is held to the menu it names', () => {
   });
 
   it('refuses one on a form nobody wrote, with a path', () => {
-    const problems = withAmendment('dirge');
+    const problems = withAmendment('elegy');
     expect(problems.map((one) => one.code)).toContain('unknown_amended_option');
     expect(problems[0]?.field).toContain('amends[0].option');
   });
@@ -401,7 +409,46 @@ describe('an amendment is held to the menu it names', () => {
     expect(choir.ok).toBe(true);
     if (!choir.ok) return;
     const problems = checkContent({ classes: [singer.value], subclasses: [choir.value] });
-    expect(problems.map((one) => one.code)).toContain('duplicate_amended_option');
+    // Once, from the subclass — which is the only source that can see both,
+    // because a class's scope does not hold its subclasses.
+    expect(problems.map((one) => one.code)).toEqual(['duplicate_amended_option']);
+    expect(problems[0]?.field).toContain('subclasses[choir]');
+  });
+
+  /**
+   * And the same collision between two features of one class, which **is**
+   * seen twice — once from each side — and must be reported once. The rule
+   * this file states for itself: "a problem reported twice is a problem an
+   * author fixes once and sees again."
+   */
+  it('reports a collision between two features of one class exactly once', () => {
+    const problems = checkContent({ classes: [asClass(twiceAmending('lullaby', 'lullaby'))] });
+    expect(problems.map((one) => one.code)).toEqual(['duplicate_amended_option']);
+    // On the later of the two, as a joining option is reported on the joiner.
+    expect(problems[0]?.field).toContain('features[2]');
+  });
+
+  /** A feature naming two *different* forms is not a collision at all. */
+  it('leaves one feature amending two different forms alone', () => {
+    expect(checkContent({ classes: [asClass(twiceAmending('lullaby', 'dirge'))] })).toEqual([]);
+  });
+
+  /** And one feature naming the same form twice drops one of them just as quietly. */
+  it('refuses one feature that names the same form twice', () => {
+    const singer = singerWith('lullaby') as unknown as {
+      features: { id: string; grants: { amends: unknown[] } }[];
+    };
+    const doubled = {
+      ...singer,
+      features: singer.features.map((one, at) =>
+        at === 1
+          ? { ...one, grants: { ...one.grants, amends: [...one.grants.amends, ...one.grants.amends] } }
+          : one,
+      ),
+    };
+    const problems = checkContent({ classes: [asClass(doubled)] });
+    expect(problems.map((one) => one.code)).toEqual(['duplicate_amended_option']);
+    expect(problems[0]?.field).toContain('amends[1].option');
   });
 });
 
@@ -420,6 +467,40 @@ describe('an amendment is held to the menu it names', () => {
  * The notation on the option is what the command rolls, so "which die does
  * this amendment name" is asked of the character rather than of the validator.
  */
+const asClass = (definition: unknown) => {
+  const parsed = parseClassDefinition(definition);
+  if (!parsed.ok) throw new Error(`${parsed.code}: ${parsed.reason}`);
+  return parsed.value;
+};
+
+/** The Singer with a second, later feature amending a second form. */
+const twiceAmending = (first: string, second: string) => {
+  const base = singerWith(first) as unknown as { features: readonly unknown[] };
+  return {
+    ...base,
+    features: [
+      ...base.features,
+      {
+        id: 'singer:coda',
+        name: 'Coda',
+        level: 7,
+        automation: 'engine',
+        note: 'A second later feature that changes a form of the Refrain, so a collision between two features of one class has something to be reported on.',
+        grants: {
+          kind: 'pool-options',
+          feature: 'singer:refrain',
+          amends: [
+            {
+              option: second,
+              damagesFailures: { die: '1d6', count: { minimum: 1 }, damageType: 'thunder' },
+            },
+          ],
+        },
+      },
+    ],
+  };
+};
+
 const diceOfAmendment = (die: string): string | undefined => {
   const world = unwrap(
     extendContent(SRD_CONTENT, { classes: [singerWith('lullaby', die)] } as never),
@@ -496,6 +577,19 @@ describe('what an amendment burns the failures with', () => {
     expect(codes({ die: 'a handful', count: { minimum: 1 }, damageType: 'radiant' })).toContain(
       'bad_dice',
     );
+  });
+
+  /**
+   * And a die that says more than a die. How many is the sizing beside it, so
+   * a printed count, a flat addend or a keep rule is a sentence
+   * `withDiceCountOf` reads nothing of and drops in silence.
+   */
+  it('refuses a notation carrying its own count, an addend or a keep rule', () => {
+    for (const die of ['2d6', '1d6+1', '4d6kh3']) {
+      expect(codes({ die, count: { minimum: 1 }, damageType: 'radiant' }), die).toContain(
+        'bad_dice',
+      );
+    }
   });
 
   it('refuses a damage type no creature could ever resist', () => {

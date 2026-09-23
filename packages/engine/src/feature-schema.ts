@@ -1152,11 +1152,24 @@ function grantProblems(
         });
         return;
       }
-      if (!parseNotation(String(damage.die)).ok) {
+      // **One die and nothing else.** The field is a die and the count beside
+      // it is the sizing, so a notation that carries its own count, a flat
+      // addend or a keep rule says something the compiler then throws away —
+      // `withDiceCountOf` writes the sizing's count and the parsed sides and
+      // reads nothing else. A sentence silently dropped is the failure this
+      // file exists to refuse at authoring.
+      const die = parseNotation(String(damage.die));
+      if (!die.ok) {
         found.push({
           field: `${field}.die`,
           code: 'bad_dice',
           reason: `"${String(damage.die)}" is not dice this engine can roll`,
+        });
+      } else if (die.value.count !== 1 || die.value.modifier !== 0 || die.value.keep !== null) {
+        found.push({
+          field: `${field}.die`,
+          code: 'bad_dice',
+          reason: `"${String(damage.die)}" says more than a die: how many is the count beside it, and a flat addend or a keep rule is read by nothing`,
         });
       }
       if (!DAMAGE_KINDS.has(damage.damageType)) {

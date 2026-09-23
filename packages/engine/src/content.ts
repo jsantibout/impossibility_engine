@@ -4166,19 +4166,46 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
             // Undead, and a feature naming a form nobody wrote would validate,
             // compile and change nothing — the failure `unknown_option_menu`
             // catches one level up.
-            // Every other amendment of this host's menu that is in scope,
-            // whichever feature wrote it. A subclass validating sees its own
-            // features and its parent class's, which is the scope the host was
-            // found in one paragraph up.
-            const amended = new Map<string, string>();
+            // Every amendment of this host's menu that is in scope, in the
+            // order the source lists them — this feature's own included, so a
+            // feature that names one form twice is caught by the rule that
+            // catches two features naming it once.
+            const inScope: {
+              readonly feature: string;
+              readonly level: number;
+              readonly option: string;
+              readonly at: number;
+            }[] = [];
             for (const other of source.inScope ?? source.features) {
               for (const declared of featureGrants(other)) {
                 if (declared.kind !== 'pool-options' || declared.feature !== grant.feature) continue;
-                for (const one of declared.amends ?? []) {
-                  if (other.id !== feature.id) amended.set(one?.option, other.id);
-                }
+                (declared.amends ?? []).forEach((one, at) => {
+                  inScope.push({
+                    feature: other.id,
+                    level: other.level,
+                    option: one?.option,
+                    at,
+                  });
+                });
               }
             }
+
+            /**
+             * Whether the *other* half of a collision is the one that has to
+             * report it, so an author fixes one problem and sees one.
+             *
+             * A feature outside this source's own list is its **parent
+             * class's**, which cannot see this subclass at all — so the
+             * subclass is the only place the pair is visible and reports
+             * whichever way the levels fall. Between two features of one
+             * source, the later of them reports, exactly as
+             * `duplicate_feature_option` reports on the joiner.
+             */
+            const own = new Set(source.features.map((one) => one.id));
+            const answersFirst = (other: { feature: string; level: number }): boolean =>
+              !own.has(other.feature) ||
+              other.level < feature.level ||
+              (other.level === feature.level && other.feature < feature.id);
 
             amends.forEach((amendment, at) => {
               if (!taken.has(amendment?.option)) {
@@ -4189,17 +4216,21 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
                 });
                 return;
               }
-              // **A second feature changing one form is refused**, and it is
+              // **A second amendment of one form is refused**, and it is
               // `duplicate_feature_option`'s rule from the other side: a form
               // is compiled once and reads one amendment, so a second would be
               // a printed sentence the sheet silently dropped. The SRD prints
-              // none; a homebrew that wants two writes one feature.
-              const already = amended.get(amendment?.option);
+              // none; a homebrew that wants two writes one.
+              const already = inScope.find(
+                (other) =>
+                  other.option === amendment.option &&
+                  (other.feature === feature.id ? other.at < at : answersFirst(other)),
+              );
               if (already !== undefined) {
                 problems.push({
                   field: `${grantsAt}.amends[${at}].option`,
                   code: 'duplicate_amended_option',
-                  reason: `${already} already changes "${String(amendment.option)}" on ${host.id}'s menu, and a form reads one amendment, so one of the two would do nothing`,
+                  reason: `${already.feature} already changes "${String(amendment.option)}" on ${host.id}'s menu, and a form reads one amendment, so one of the two would do nothing`,
                 });
               }
             });
