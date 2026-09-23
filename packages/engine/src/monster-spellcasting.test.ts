@@ -241,7 +241,8 @@ describe('the DC is the block’s and not a derivation', () => {
   it('derives the DC for a block that prints none', () => {
     const acolyteLog = table('priest-acolyte', CULTIST);
     const out = unwrap(
-      cast(at(acolyteLog), CULTIST, { spellId: 'light', targets: [] }),
+      // Light names the creature carrying the lit object: the caster's own.
+      cast(at(acolyteLog), CULTIST, { spellId: 'light', targets: [CULTIST] }),
       'light',
     );
     const acolyte = adaptMonster(SRD_CONTENT.monsterById('priest-acolyte')!, CULTIST);
@@ -304,7 +305,7 @@ describe('what each price buys', () => {
     let events: readonly GameEvent[] = log;
     for (const round of ['one', 'two']) {
       const out = unwrap(
-        cast(at(events), CULTIST, { spellId: 'light', targets: [], commandId: `light-${round}` }),
+        cast(at(events), CULTIST, { spellId: 'light', targets: [CULTIST], commandId: `light-${round}` }),
         `Light ${round}`,
       );
       expect(castOf(out.events)).toMatchObject({ slotless: 'cantrip' });

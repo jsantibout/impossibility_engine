@@ -1420,7 +1420,11 @@ export function namedTargets(
       );
     }
 
-    if (state.scene === null) {
+    if (target === casterId) {
+      // A creature is always within reach of itself and can always see itself,
+      // so a touch laid on the caster's own hand — SRD Light on the torch they
+      // hold — measures nothing and asks for no scene to measure it in.
+    } else if (state.scene === null) {
       needs.push({
         kind: 'scene',
         subject: target,

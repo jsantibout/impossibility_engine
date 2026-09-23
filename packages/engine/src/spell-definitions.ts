@@ -16,7 +16,7 @@ import type { PassiveDefense } from './passive-defenses.js';
 import type { AreaStanding, SpeedChange } from './standing.js';
 import type { MovementMode } from './character.js';
 import type { ActionRule, ActionSlot } from './combat.js';
-import type { LightLevel, ObscurementDegree, PointAnchoring } from './positioning.js';
+import type { LightLevel, ObscurementDegree, PointAnchoring, SenseName } from './positioning.js';
 import type { CastingTime } from './spells.js';
 import type { SpellReactionWindow } from './reactions.js';
 import type { HealingRule } from './vitals.js';
@@ -1938,6 +1938,36 @@ export type SpellEffect =
        */
       readonly hover?: true;
     }
+  /**
+   * Light the casting sheds from a thing its target carries — SRD Light: "the
+   * object sheds Bright Light in a 20-foot radius and Dim Light for an
+   * additional 20 feet"; SRD Continual Flame the same, for ever.
+   *
+   * Carried by the **target creature**, because the engine holds no object to
+   * hang it on and the SRD's object is in somebody's hand: the patches are
+   * laid on a region whose origin is the creature, so they move when the
+   * creature does and are stored nowhere but the log, exactly as a beetle's
+   * own glow is. Magical, because a spell shed it, and sourced to the casting,
+   * so it is gone when the casting is — which is why the definition has to
+   * leave a record: a duration, Concentration, or "until dispelled". An
+   * object nobody carries is a point the table lights with `declare_light`.
+   */
+  | {
+      readonly kind: 'light';
+      readonly level: LightLevel;
+      readonly radius: number;
+      /** SRD "Dim Light for an additional N feet": a dim sphere N wider. */
+      readonly dimBeyond?: number;
+    }
+  /**
+   * A sense the casting confers on its target for as long as it runs — SRD
+   * Darkvision: "the target has Darkvision with a range of 150 feet".
+   *
+   * Read by `sensesOf` beside the senses a species or a stat block grants, at
+   * the longest range held, and released with the casting as every other
+   * sourced grant is.
+   */
+  | { readonly kind: 'sense'; readonly sense: SenseName; readonly feet: number }
   /**
    * What the spell changes about how its target may spend a turn.
    *
@@ -4616,6 +4646,10 @@ export function numbersRead(definition: SpellDefinition): NumbersRead {
       case 'damage-defense':
       case 'condition-immunity':
       case 'speed':
+      // Light a creature carries and a sense it gains: two more grants that
+      // read nothing of the caster's — a radius and a range are the book's.
+      case 'light':
+      case 'sense':
       case 'attack-rider':
       // The ability it may pin is not one of these three: it is an *ability*
       // and not a number, which is `castersAbilityRead`'s question and not

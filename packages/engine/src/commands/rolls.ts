@@ -693,6 +693,9 @@ export function defendingModes(
       // rightly keeps its own reader; this is a different question about the
       // same pair, asked from the other end.
       rollerPerceives: sensesPerceiving(state, attacker, target),
+      // And whether the roller can *see* the defender — SRD Faerie Fire's
+      // gate — which is the ordinary sight question, declaration first.
+      rollerSees: canSee(state, attacker, target),
     },
     { seenByHolder: canSee(state, target, attacker) },
   );

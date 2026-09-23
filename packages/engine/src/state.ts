@@ -53,6 +53,7 @@ import {
 import { type CombatState, type GrantedActionRule } from './combat.js';
 import {
   type GrantedAttackRider,
+  type GrantedSense,
   type GrantedSpeed,
   type GrantedWeaponRider,
 } from './standing.js';
@@ -507,6 +508,12 @@ export interface CreatureState {
    * {@link grantedDefenses} out of {@link defenses}.
    */
   readonly speedModifiers: readonly GrantedSpeed[];
+  /**
+   * Senses a running effect has conferred — SRD Darkvision the spell. Read by
+   * `sensesOf` beside the ones the sheet grants, at the longest range, and
+   * released with the source exactly as the Speeds above are.
+   */
+  readonly senseModifiers: readonly GrantedSense[];
   /**
    * Extra damage a running effect adds to this creature's **later** attacks.
    *

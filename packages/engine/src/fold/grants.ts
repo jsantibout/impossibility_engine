@@ -39,6 +39,7 @@ export const GRANTS_EVENTS = [
   'decoy-destroyed',
   'damage-defense-granted',
   'speed-modifier-granted',
+  'sense-granted',
   'attack-rider-granted',
   'weapon-rider-granted',
   'condition-immunity-granted',
@@ -184,6 +185,17 @@ export function applyGrants({ state, next }: Applying, event: GrantsEvent): Game
         event.modifier,
       ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
       return withCreature(next, event.id, { speedModifiers }, creature);
+    }
+
+    case 'sense-granted': {
+      const creature = creatureOf(state, event, event.id);
+      // The source alone is the identity, as it is for a Speed: no SRD
+      // sentence confers two senses on one creature at once.
+      const senseModifiers = [
+        ...creature.senseModifiers.filter((held) => held.source !== event.modifier.source),
+        event.modifier,
+      ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
+      return withCreature(next, event.id, { senseModifiers }, creature);
     }
 
     case 'attack-rider-granted': {

@@ -3599,6 +3599,25 @@ describe('every branch judges untyped input rather than throwing on it', () => {
       fields: { change: required(STRING_JUNK), feet: NUMBER_JUNK },
     },
     {
+      // Light the target carries: a level off the glossary's closed list and
+      // a radius of at least one space, with the dim band beyond it optional
+      // and held to the same arithmetic.
+      kind: 'light',
+      base: { kind: 'light', level: 'bright', radius: 20 },
+      fields: {
+        level: required(STRING_JUNK),
+        radius: required(NUMBER_JUNK),
+        dimBeyond: NUMBER_JUNK,
+      },
+    },
+    {
+      // A sense the target gains: a name off the glossary's list and a range
+      // of at least one space.
+      kind: 'sense',
+      base: { kind: 'sense', sense: 'darkvision', feet: 60 },
+      fields: { sense: required(STRING_JUNK), feet: required(NUMBER_JUNK) },
+    },
+    {
       kind: 'attack-rider',
       base: { kind: 'attack-rider', dice: '1d6', damageType: 'force' },
       // Both are **required**, which is what separates a spell's rider from

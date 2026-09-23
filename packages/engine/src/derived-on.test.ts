@@ -257,7 +257,10 @@ const added = (who: CharacterId): GameEvent => ({
   creatureType: 'Humanoid',
 });
 
-const PREPARED = ['darkvision', 'bless', 'stoneskin', 'divine-favor'];
+// Tongues stands where Darkvision stood: the Darkvision spell confers a sense
+// now, so the casting owns something on its target, and the fixture wants a
+// tracked touch spell that owns nothing at all.
+const PREPARED = ['darkvision', 'tongues', 'bless', 'stoneskin', 'divine-favor'];
 
 const SETUP: readonly GameEvent[] = [
   added(CASTER),
@@ -341,7 +344,7 @@ describe('and three cases they do not contain', () => {
    */
   it('a tracked spell is on a target the casting owns nothing of', () => {
     const cast = must(
-      resolveSpell(base(), CASTER, { spellId: 'darkvision', targets: [ALLY] }, supply()),
+      resolveSpell(base(), CASTER, { spellId: 'tongues', targets: [ALLY], slotLevel: 3 }, supply()),
     );
     const after = applyAll(base(), cast.events);
     const record = after.ongoing[cast.castingId!]!;
@@ -378,7 +381,7 @@ describe('and three cases they do not contain', () => {
    */
   it('a tracked spell released on its target leaves the stored half', () => {
     const cast = must(
-      resolveSpell(base(), CASTER, { spellId: 'darkvision', targets: [ALLY] }, supply()),
+      resolveSpell(base(), CASTER, { spellId: 'tongues', targets: [ALLY], slotLevel: 3 }, supply()),
     );
     const during = applyAll(base(), cast.events);
     const castingId = cast.castingId!;

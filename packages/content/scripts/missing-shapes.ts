@@ -746,6 +746,20 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // One of the three spells P3-S moved out of the tracked bucket, and the only
   // one whose leftover sentence still trips a marker. Darkness's twin of it
   // does not, so it carries no entry at all.
+  'continual-flame': [
+    {
+      clause: 'the flame springs from an object, and objects are not modelled',
+      why: 'table',
+      note: 'SRD: "A flame springs from an object that you touch." The light is executed — a `light` effect carried by the creature the casting names as the bearer, laid on a region whose origin is that creature and gone only when the casting is dispelled — and the object itself is the table’s: which thing was touched, and whether it is set down for good, in which case the DM lights the point with `declare_light`. "The flame can be covered or hidden but not smothered or quenched", and covering it is a fact about an object.',
+    },
+  ],
+  'dancing-lights': [
+    {
+      clause: 'You create up to four torch-size lights within range',
+      why: 'table',
+      note: 'SRD: "You create up to four torch-size lights within range, making them appear as torches, lanterns, or glowing orbs that hover for the duration." The engine lays one dim patch for all four at the point the caster names and moves it with the spell’s Bonus Action (`activation.movesArea`) — "As a Bonus Action, you can move the lights up to 60 feet to a space within range." Where the four motes are relative to each other is the table’s, and so is the sentence "A light must be within 20 feet of another light created by this spell, and a light vanishes if it exceeds the spell\'s range."',
+    },
+  ],
   daylight: [
     {
       clause: 'the 60-foot Emanation it carries',
@@ -810,9 +824,9 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   ],
   'faerie-fire': [
     {
-      clause: 'Attack rolls against an affected creature or object have Advantage if the attacker can see it',
-      why: 'senses-beyond-declared-sight',
-      note: 'the whole spell is executed now — `save.condition` became optional, so the Dexterity save hangs the `benefit` rider that denies the Invisible condition its effects, and the 20-foot Cube is an ordinary `area` picking its own targets. What is left is this sentence and the two that are not mechanics at all. The Advantage is ordinary and the gate on it is not: sight is a pairwise declaration between two creatures, and being outlined is not a state an attacker’s roll reads, so a spell that handed every attacker Advantage would hand it to the blindfolded one too.',
+      clause: 'the Dim Light each outlined thing sheds in a 10-foot radius is not applied',
+      why: 'light-and-obscurement-the-scene-holds',
+      note: 'SRD: "For the duration, objects and affected creatures shed Dim Light in a 10-foot radius and can\'t benefit from the Invisible condition." The second half is the `benefit` rider and the Advantage is the sight-gated `mode` rider beside it. A light a casting carries hangs on its target through a `light` effect, and the save that outlines a creature hangs riders; a rider that sheds light is the one member the rider vocabulary does not have, so the ten feet of dim light on each outlined creature stay the DM’s.',
     },
   ],
   fear: [
@@ -1020,6 +1034,13 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // did, arriving in the executed population with **one** clause left — and it
   // is the table's rather than a shape's, which is the honest end of a
   // prediction that was wrong for two tranches.
+  light: [
+    {
+      clause: 'the spell targets an object, and objects are not modelled',
+      why: 'table',
+      note: 'SRD: "You touch one Large or smaller object that isn\'t being worn or carried by someone else." The light is executed — a `light` effect carried by the creature the casting names as the bearer, bright to 20 feet and dim to 40, moving with them and gone with the hour — and the object is the table’s: which thing was touched, whether somebody else is carrying it, and whether it was set down, in which case the DM lights the point with `declare_light`. "Covering the object with something opaque blocks the light" is a fact about an object too.',
+    },
+  ],
   'magic-jar': [
     {
       clause: 'Charisma save to possess a Humanoid',
@@ -3704,14 +3725,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'the spell widens what may be attempted against a Beast, which is `ActionRule`’s `allows` polarity and is sayable — what is not is the **action** it widens. That is the Influence action, and `NAMED_ACTIONS` leaves it out because no spender could be told apart as having taken one: a rule naming it would read as enforced and would not be. Gate G1 read this as mis-filed under `an-action-a-spell-compels-or-forbids`, whose vocabulary is built; the gap is the feature book’s and is the same one Utilize sits in.',
     },
   ],
-  darkvision: [
-    {
-      marker: null,
-      clause: 'has Darkvision with a range of 150 feet',
-      why: 'senses-beyond-declared-sight',
-      note: 'the whole spell is one sense conferred on one creature, and a sense is the one thing this engine has no state for: sight is a pairwise declaration and there is nothing beside it, so the hundred and fifty feet reach no reader. Mirage Arcane’s Truesight clause is the same gap read from the other end.',
-    },
-  ],
   knock: [
     {
       marker: null,
@@ -3847,20 +3860,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'the sheet records which languages a character knows and nothing in play reads them, so understanding one more is a fact with no reader — the test `docs/design/content.md` draws, applied: a table fact that a rule then reads is a debt, and this one nothing reads afterwards.',
     },
   ],
-  'continual-flame': [
-    {
-      marker: null,
-      clause: 'A flame springs from an object that you touch',
-      why: 'table',
-      note: 'which object was touched is the DM’s, because objects are not modelled; and a duration of until dispelled is no deadline at all, so no timer is scheduled and the casting simply runs.',
-    },
-    {
-      marker: null,
-      clause: 'The effect casts Bright Light in a 20-foot radius and Dim Light for an additional 20 feet',
-      why: 'light-and-obscurement-the-scene-holds',
-      note: 'the same two radii Light prints, on a casting that never ends — so the flame is the one **permanent** light in level-5 reach, and the lattice would hold it perfectly well: a patch with no `source` is the ordinary case rather than a missing link, which is what SRD Plant Growth’s overgrowth already is. What it has no anchor for is the same thing Light has none for. The flame springs from an object, the object is where somebody is holding it, and the engine holds no objects.',
-    },
-  ],
   'create-food-and-water': [
     {
       marker: null,
@@ -3875,20 +3874,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'You create up to 10 gallons of clean water within range in an open container',
       why: 'table',
       note: 'ten gallons in a container, rain in a Cube, exposed flames put out and fog destroyed are four facts about a world the engine holds none of — fog is not a state it keeps even where another spell made it. The higher slot buys gallons and feet, and neither is a number any effect of this definition reads.',
-    },
-  ],
-  'dancing-lights': [
-    {
-      marker: null,
-      clause: 'You create up to four torch-size lights within range',
-      why: 'table',
-      note: 'the lights have no positions, so the Bonus Action that moves them 60 feet, the 20-foot tether between two of them and a light vanishing outside the spell’s range are all measurements of things that are not in the scene.',
-    },
-    {
-      marker: null,
-      clause: 'each light sheds Dim Light in a 10-foot radius',
-      why: 'light-and-obscurement-the-scene-holds',
-      note: 'the cantrip a level 1 Bard, Druid, Sorcerer or Wizard can take that does exactly one mechanical thing, and the thing it does is four of them at once. A level of light has somewhere to sit since P3-S; **four** of them have not, because each mote is its own patch on its own origin and the clause above is why none of the four has one — the lights have no positions, so there is nothing to lay a 10-foot radius around, four times over.',
     },
   ],
   'detect-evil-and-good': [
@@ -3969,20 +3954,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'imbue it with an illusion that lasts for the duration',
       why: 'table',
       note: 'what the text says, what the illusion makes it say and the altered meaning, handwriting and language are fiction, and so is the parchment; what being designated buys is the ability to read, and reading is the DM’s.',
-    },
-  ],
-  light: [
-    {
-      marker: null,
-      clause: "You touch one Large or smaller object that isn't being worn or carried by someone else",
-      why: 'table',
-      note: 'which object was touched, whether somebody else is carrying it, and covering it are all facts about an object, and objects are not modelled.',
-    },
-    {
-      marker: null,
-      clause: 'the object sheds Bright Light in a 20-foot radius and Dim Light for an additional 20 feet',
-      why: 'light-and-obscurement-the-scene-holds',
-      note: 'the cantrip every class on the list takes for this one sentence, and the one of the six the shape did **not** finish. P3-S put light on the lattice and a casting pins the region its area resolved to, and this spell has no area: SRD touches "one Large or smaller object" and the light is the object’s, so the patch would have to hang on a thing. `docs/design/light-and-sight.md` allows two anchors and neither is one — "a point, or carried by a creature" — and a torch in a hand would want the second while the same cantrip on a doorframe wants the first. Until an object has somewhere to be, the twenty feet have nothing to be measured from.',
     },
   ],
   'locate-animals-or-plants': [

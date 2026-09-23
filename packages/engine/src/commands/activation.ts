@@ -19,7 +19,8 @@ import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, commandOutcome, once } from '../idempotency.js';
 import { type Point } from '../positioning.js';
 import { actionRulesOn } from '../standing.js';
-import { type Supply } from './casting.js';
+import { lightPatchesOf, type Supply } from './casting.js';
+import { regionOfArea } from '../spells.js';
 import { creatureOf, unknownCreature } from './command.js';
 import { unsettledRefusal } from './holds.js';
 import { reachFromCaster, reachFromOrigin, relocateOrigin } from './ongoing.js';
@@ -280,6 +281,17 @@ export function activateSpell(
 
       happened({ type: 'spell-origin-moved', castingId: record.castingId, to: space });
       reached = space;
+
+      // A patch the casting sheds follows its origin — SRD Dancing Lights'
+      // motes move, and the light they shed is laid again at the new point
+      // under the same names, which the fold overwrites. Sourced to the
+      // casting as before, so it is still gone when the casting is.
+      if (definition.areaLight !== undefined && definition.area !== undefined) {
+        const moved = regionOfArea(definition.area, casterId, space, undefined, 'space');
+        for (const patch of lightPatchesOf(current, definition, record.castingId, moved, true, record.level)) {
+          happened(patch);
+        }
+      }
 
       // Everything this leg raised, in the deterministic order settlement
       // already imposes. No command id: this is not a caller's settlement and

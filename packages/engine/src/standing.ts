@@ -13,6 +13,7 @@ import type { CreatureSize } from '@ie/srd';
 import type { TurnAnchor } from './time.js';
 import {
   grantedRollModes,
+  unsettledSightGrants,
   selectorMatches,
   type RollModifier,
   type RollQuery,
@@ -2917,6 +2918,14 @@ export function rollModesFor(
   for (const granted of grantedRollModes(state, query)) {
     push(granted.source, granted.mode);
   }
+  // SRD Faerie Fire: "if the attacker can see it". A grant gated on the
+  // roller's sight of the holder is applied where nobody has said, and the
+  // roll says so — the direction `ifSeen` takes above, read the other way.
+  for (const source of unsettledSightGrants(state, query)) {
+    unverified.push(
+      `nobody has said whether ${query.roller} can see ${String(query.against)}, and ${source} grants its mode only to a roller who can; the benefit was applied rather than withheld`,
+    );
+  }
 
   return { modes, unverified };
 }
@@ -3154,12 +3163,18 @@ export function ritualsFromBookOn(state: GameState, who: CharacterId): boolean {
  */
 export function sensesOf(state: GameState, who: CharacterId): readonly CreatureSense[] {
   const furthest = new Map<SenseName, number>();
+  const reach = (sense: SenseName, feet: number): void => {
+    const had = furthest.get(sense);
+    if (had === undefined || feet > had) furthest.set(sense, feet);
+  };
   for (const { effect } of standingFor(state, who)) {
     if (effect.grant.kind !== 'sense') continue;
-    const had = furthest.get(effect.grant.sense);
-    if (had === undefined || effect.grant.feet > had) {
-      furthest.set(effect.grant.sense, effect.grant.feet);
-    }
+    reach(effect.grant.sense, effect.grant.feet);
+  }
+  // And what a running casting has conferred — SRD Darkvision the spell —
+  // which lengthens a sense the creature already has rather than replacing it.
+  for (const held of state.creatures[who]?.senseModifiers ?? []) {
+    reach(held.sense, held.feet);
   }
   return [...furthest.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
@@ -3697,6 +3712,16 @@ export type SpeedChange =
  * why this stays one flat record rather than a union the reducer would have to
  * narrow on every fold.
  */
+/**
+ * A sense a running effect confers — SRD Darkvision the spell. Read by
+ * {@link sensesOf} at the longest range held, ended by the source it carries.
+ */
+export interface GrantedSense {
+  readonly source: string;
+  readonly sense: SenseName;
+  readonly feet: number;
+}
+
 export interface GrantedSpeed {
   /** The casting (`Longstrider#cast:3`) or the feature that granted it. */
   readonly source: string;

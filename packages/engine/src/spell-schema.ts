@@ -2392,6 +2392,55 @@ function checkEffect(
       checkSpeedChange(effect, path, found, 'modes');
       return;
 
+    // Light a creature carries for the casting: a level the glossary names and
+    // two radii in whole feet. The definition it sits on has to leave a record
+    // — a duration, Concentration or "until dispelled" — because the patch is
+    // sourced to the casting and lapses with it; `checkSpellDefinition` says
+    // so at the definition, where the duration is.
+    case 'light': {
+      if (!(LIGHT_LEVELS as readonly string[]).includes(effect.level)) {
+        found.push({
+          field: `${path}.level`,
+          code: 'bad_light_level',
+          reason: `"${String(effect.level)}" is not a level of light; the glossary prints ${LIGHT_LEVELS.join(', ')}`,
+        });
+      }
+      if (!Number.isInteger(effect.radius) || effect.radius < 5) {
+        found.push({
+          field: `${path}.radius`,
+          code: 'bad_light_radius',
+          reason: `light reaches a whole number of feet, at least one space, not ${String(effect.radius)}`,
+        });
+      }
+      if (effect.dimBeyond !== undefined && (!Number.isInteger(effect.dimBeyond) || effect.dimBeyond < 5)) {
+        found.push({
+          field: `${path}.dimBeyond`,
+          code: 'bad_light_radius',
+          reason: `dim light beyond the bright reaches a whole number of feet, at least one space, not ${String(effect.dimBeyond)}`,
+        });
+      }
+      return;
+    }
+
+    // A sense conferred for the casting: one the glossary names, to a range.
+    case 'sense': {
+      if (!(SENSE_NAMES as readonly string[]).includes(effect.sense)) {
+        found.push({
+          field: `${path}.sense`,
+          code: 'bad_sense',
+          reason: `"${String(effect.sense)}" is not a sense the rules glossary names`,
+        });
+      }
+      if (!Number.isInteger(effect.feet) || effect.feet < 5) {
+        found.push({
+          field: `${path}.feet`,
+          code: 'bad_sense_range',
+          reason: `a sense reaches a whole number of feet, at least one space, not ${String(effect.feet)}`,
+        });
+      }
+      return;
+    }
+
     case 'action-rule':
       checkActionRule(effect.rule, `${path}.rule`, found);
       return;
@@ -3101,6 +3150,12 @@ function grantCarried(effect: SpellEffect): string | null {
     // shorter deadline lives, because a rider is what Ray of Frost writes.
     case 'speed':
       return 'a changed Speed';
+    // Light carried for the casting and a sense conferred for it: sourced to
+    // the casting like the Speed above, and gone with it.
+    case 'light':
+      return 'light the target carries';
+    case 'sense':
+      return 'a sense the target gains';
     // The sixth sourced grant, and it carries no deadline of its own for the
     // reason `speed` does not: every SRD sentence of this shape says "until
     // the spell ends", so the casting is the only thing that could take the
@@ -5167,6 +5222,8 @@ export const EFFECT_KINDS: ReadonlySet<string> = new Set([
   'damage-defense',
   'condition-immunity',
   'speed',
+  'light',
+  'sense',
   'attack-rider',
   'weapon-rider',
   'teleport',
