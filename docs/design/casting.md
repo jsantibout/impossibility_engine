@@ -51,6 +51,23 @@ says which shape it was written in; `ongoing-compatibility.ts` upgrades an
 older one and needs legacy content only for a record that never wrote its
 area down.
 
+## A summons and its one lifetime
+
+A casting that leaves a record holds its creature there and takes it away
+when the record ends. An Instantaneous casting binds nothing — unless the
+spell prints that the caster *keeps* the creature (`kept` on the `summon`
+effect: SRD Find Familiar, Find Steed), in which case the bond is to the
+summoner: the creature is owed a departure at 0 Hit Points, or when the
+summoner dies where the spell says so, and a second casting of the same spell
+replaces it. Either way `strandedSummons` finds the debt and
+`dismissStrandedSummons` performs it; the fold refuses a bond naming both a
+casting and a summoner, or neither. The form is stated at the casting
+(`CastSpellRequest.form`, out of the printed list or any block a type-and-
+rating clause admits) and so is the creature type (`choiceStated` of
+`creature-type`); a Speed the spell prints over the block is gated on the
+slot; a creature that shares its caster's Initiative is seated immediately
+after them (`Combatant.after`), never by an invented tiebreak.
+
 ## The effect vocabulary
 
 The `SpellEffect` kinds (`EFFECT_KINDS` in `spell-schema.ts`), each with one
