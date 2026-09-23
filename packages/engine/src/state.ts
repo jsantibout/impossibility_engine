@@ -143,8 +143,32 @@ export interface AttunedItem {
 export interface SummonBond {
   /** Whose creature this is. */
   readonly by: CharacterId;
-  /** The casting whose ending takes it away. */
-  readonly castingId: string;
+  /**
+   * The casting whose ending takes it away — or null for a creature its
+   * summoner **keeps**, whose lifetime is {@link kept}'s.
+   */
+  readonly castingId: string | null;
+  /**
+   * The terms a kept creature stands on, where no casting holds it.
+   *
+   * SRD Find Familiar and Find Steed are Instantaneous: no record, no
+   * deadline, and the creature is the caster's until the book takes it away
+   * — "When the familiar drops to 0 Hit Points, it disappears", which every
+   * kept creature has; and "or if you die", which only the steed prints
+   * (`untilSummonerDies`). The spell is recorded because the book allows one
+   * such creature per spell — a second casting replaces the first — and the
+   * resolver has to find the one this caster keeps from *this* spell.
+   *
+   * Present exactly when `castingId` is null. The fold refuses a bond naming
+   * both or neither.
+   */
+  readonly kept?: KeptBond;
+}
+
+/** The terms of a kept summons, as the log carries them — see {@link SummonBond.kept}. */
+export interface KeptBond {
+  readonly spell: string;
+  readonly untilSummonerDies: boolean;
 }
 
 export interface CreatureState {
@@ -1027,6 +1051,17 @@ export interface PendingCasting {
    * did.
    */
   readonly weapon?: string;
+  /**
+   * The stat block a summoning spell that leaves the form to its caster was
+   * told to raise, by its id in content.
+   *
+   * The sixth stated fact, beside the other five and for the same reason: a
+   * Find Familiar declared as a Cat must not settle as an Owl an hour later,
+   * and settlement takes no fresh request to ask again. Absent for every
+   * spell that names its own block, so a declaration written before this
+   * folds to exactly the state it always did.
+   */
+  readonly form?: string;
   /**
    * The numbers the casting was made with, for a casting an item made.
    *

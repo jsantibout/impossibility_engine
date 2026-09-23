@@ -570,6 +570,13 @@ export interface CastingPlan {
    */
   readonly weapon?: string;
   /**
+   * The stat block a summoning spell that leaves the form to its caster was
+   * told to raise, by its id in content. Beside the weapon and for its reason:
+   * a Find Familiar declared as a Cat must not settle as an Owl an hour later.
+   * Carried verbatim; it is a catalogue id and there is nothing to normalise.
+   */
+  readonly form?: string;
+  /**
    * The numbers this casting was made with, for a casting an item made.
    *
    * SRD "Spells Cast from Items" makes a wand's spell an ordinary casting, and
@@ -924,6 +931,8 @@ function castSpellWith(
         // And which weapon it was aimed at, which a settlement could no more
         // work out again than it could the destination.
         ...(command.hold.weapon === undefined ? {} : { weapon: command.hold.weapon }),
+        // And which form it was told to raise, for the same reason.
+        ...(command.hold.form === undefined ? {} : { form: command.hold.form }),
         // And the numbers, and the ability they were worked out with, for the
         // one route a settlement cannot re-derive.
         ...(command.hold.numbers === undefined ? {} : { numbers: command.hold.numbers }),

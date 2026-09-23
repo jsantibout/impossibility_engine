@@ -354,17 +354,13 @@ describe('SRD Find Steed’s "it shares your Initiative count"', () => {
   });
 
   /**
-   * And it settles the **tie** on that count for nobody, which is the half of
-   * SRD's sentence this deliberately does not deliver: `Combatant.tiebreak`
-   * takes a DM's decision as an input rather than inventing one.
-   *
-   * The rider is given a tiebreak of its own here so the assertion can tell
-   * three rules apart that agree on a default board — the steed taking the
-   * default (what the code does), the steed *copying* its rider, and the steed
-   * being seated one below it (what was tried and reverted). Only the first
-   * passes.
+   * And the **tie** on that count is the rider's own, copied — not a default,
+   * not a number invented one below. `Combatant.tiebreak` still takes a DM's
+   * decision as an input; what changed is that the steed is seated by
+   * *position* (`Combatant.after`) and carries its rider's rung so a later
+   * joiner that ties the rider exactly ties the steed exactly too.
    */
-  it('settles the tie on that count for nobody', () => {
+  it('copies the rider’s tiebreak and is seated after the rider', () => {
     const g = new Game().push([
       {
         type: 'combat-started',
@@ -380,18 +376,18 @@ describe('SRD Find Steed’s "it shares your Initiative count"', () => {
     const rung = g.state.combat?.order.find((c) => c.id === who);
     expect(rung).toBeDefined();
     expect(rung?.initiative).toBe(20);
-    expect(rung?.tiebreak).toBe(0);
+    expect(rung?.tiebreak).toBe(3);
+    expect(rung?.after).toBe(WIZ);
   });
 
   /**
-   * And what that leaves, said out loud, because the spell's `unmodelled`
-   * claims exactly this width: with nobody else on the rider's count,
-   * `addCombatant` seats a joiner after everyone it exactly ties with, so the
-   * steed's turn *does* fall immediately after its rider's. What is missing is
-   * the guarantee, not the behaviour — a creature on that count at the rider's
-   * own tiebreak comes between them, and no rung can say "after this one".
+   * SRD Find Steed: "the steed takes its turn immediately after yours." The
+   * guarantee, not merely the behaviour: a creature already on the rider's
+   * count at the rider's own tiebreak used to come between the two, because a
+   * joiner is seated after everyone it exactly ties with. A position says
+   * "after this one" where no rung could.
    */
-  it('lands after its rider while nobody else shares the count', () => {
+  it('lands immediately after its rider, whoever else shares the count', () => {
     const g = new Game().fight();
     g.cast('bind-the-stag');
     const who = summonedIn(g.state)!;
@@ -399,8 +395,8 @@ describe('SRD Find Steed’s "it shares your Initiative count"', () => {
     const order = g.state.combat?.order.map((c) => c.id) ?? [];
     expect(order.indexOf(who)).toBe(order.indexOf(WIZ) + 1);
 
-    // And the creature that breaks it: on the rider's count and, like the
-    // rider, at the default tiebreak — which is the recorded gap exactly.
+    // The creature that used to break it: on the rider's count and, like the
+    // rider, at the default tiebreak, seated before the steed arrived.
     const crowded = new Game().push([
       {
         type: 'combat-started',
@@ -413,7 +409,7 @@ describe('SRD Find Steed’s "it shares your Initiative count"', () => {
     crowded.cast('bind-the-stag');
     const there = summonedIn(crowded.state)!;
     const crowdedOrder = crowded.state.combat?.order.map((c) => c.id) ?? [];
-    expect(crowdedOrder.indexOf(there)).toBe(crowdedOrder.indexOf(WIZ) + 2);
+    expect(crowdedOrder).toEqual([WIZ, there, FOE]);
   });
 
   it('leaves it out of an order that is not running', () => {

@@ -2161,10 +2161,14 @@ export type SpellEffect =
    * **The bond to the casting is derived rather than declared.** A casting
    * that leaves a record running holds its creature there and the creature
    * goes when it does (`strandedSummons`); one that leaves nothing running
-   * binds nothing, which is SRD Find Steed's Instantaneous steed and SRD
-   * Animate Dead's skeleton standing next week. A field would be a second way
-   * to say what `persists` already answers, and one a definition could get
-   * wrong — a bond to a casting with no record is a log the fold refuses.
+   * binds nothing, which is SRD Animate Dead's skeleton standing next week. A
+   * field would be a second way to say what `persists` already answers, and
+   * one a definition could get wrong — a bond to a casting with no record is
+   * a log the fold refuses. **The one thing a definition does declare is the
+   * third case**: an Instantaneous casting whose creature the caster keeps —
+   * SRD Find Steed's steed, SRD Find Familiar's familiar — is bound to its
+   * *summoner* through {@link KeptSummons}, because "disappears if it drops to
+   * 0 Hit Points or if you die" is a lifetime no record answers.
    *
    * **Where it appears and what it may do are two other commands**, exactly as
    * they are for any other creature walking through the door: `placeCreature`
@@ -2174,8 +2178,29 @@ export type SpellEffect =
    */
   | {
       readonly kind: 'summon';
-      /** Which stat block, by its id in content — as `addCreature` takes one. */
-      readonly monster: string;
+      /**
+       * Which stat block — by its id in content, as `addCreature` takes one,
+       * or chosen at the casting out of a printed set. See {@link SummonedForm}.
+       */
+      readonly monster: SummonedForm;
+      /**
+       * The creature type the summons arrives with, where the spell prints
+       * one over the block's own.
+       *
+       * SRD Find Familiar: "the familiar has the statistics of the chosen
+       * form … though it is a Celestial, Fey, or Fiend (your choice) instead
+       * of a Beast." SRD Find Steed: "choose the steed's creature type —
+       * Celestial, Fey, or Fiend". Pinned into `creature-added` at the arrival
+       * in place of the block's, so `mustBeType` and every type-gated rule
+       * read what the spell says the creature is. A spell that prints the
+       * choice offers it through {@link SpellDefinition.choiceStated} with
+       * `of: 'creature-type'`, and the value written here is the one the
+       * definition is written around, exactly as a stated condition is; a
+       * feature that fixes the type — SRD Wild Companion's "the familiar is a
+       * Fey" — writes it here and offers no choice. Absent is the block's own
+       * type, untouched.
+       */
+      readonly creatureType?: string;
       /**
        * SRD Find Steed's "**AC** 10 + 1 per spell level".
        *
@@ -2193,12 +2218,38 @@ export type SpellEffect =
        *
        * Derived from the order as it stands rather than stated: the caster's
        * own rung is a fact the engine holds, and a total arriving from outside
-       * would be a number a caller produced. Absent is every summons that rolls
-       * for itself, and it seats nobody — `rollInitiativeFor` and `joinCombat`
-       * are the two commands that give a rung, exactly as they are for a
-       * creature a DM summons by hand.
+       * would be a number a caller produced. **And the sentence after it is
+       * delivered too** — "the steed takes its turn immediately after yours" —
+       * by seating the creature immediately after the caster
+       * (`CombatantInput.after`), on the caster's count and at the caster's
+       * tiebreak, so a third creature the DM put on that exact count cannot
+       * come between them. Absent is every summons that rolls for itself, and
+       * then it seats nobody — `rollInitiativeFor` and `joinCombat` are the
+       * two commands that give a rung, exactly as they are for a creature a DM
+       * summons by hand. A fight that is not running seats nobody either way.
        */
       readonly sharesCastersInitiative?: true;
+      /**
+       * A creature the caster **keeps** — bound to its summoner rather than to
+       * a casting. See {@link KeptSummons}.
+       */
+      readonly kept?: KeptSummons;
+      /**
+       * Speeds the spell prints over its block, each at the slot level it
+       * appears from. See {@link PrintedSummonSpeeds}.
+       */
+      readonly speeds?: PrintedSummonSpeeds;
+      /**
+       * SRD Find Familiar: "A familiar can't attack, but it can take other
+       * actions as normal."
+       *
+       * A stat block that prints attacks, raised by a spell that forbids them:
+       * the block stays as printed and the creature arrives carrying an
+       * `action-rule` that forbids the Attack action and the Opportunity
+       * Attack, sourced to the summons rather than to a casting there is no
+       * record of, for as long as it stands. The only value is `true`.
+       */
+      readonly cannotAttack?: true;
     };
 
 /**
@@ -2216,6 +2267,82 @@ export type SpellEffect =
 export interface SummonedNumber {
   readonly base: number;
   readonly perSpellLevel: number;
+}
+
+/**
+ * Which stat block a summons raises.
+ *
+ * A string is the block, fixed by the spell — SRD Find Steed's Otherworldly
+ * Steed, SRD Phantom Steed's Riding Horse. The object is SRD Find Familiar's
+ * sentence: "an animal form you choose: Bat, Cat, Frog, Hawk, Lizard,
+ * Octopus, Owl, Rat, Raven, Spider, Weasel, **or another Beast that has a
+ * Challenge Rating of 0**" — a printed list the caster picks from, widened by
+ * a clause over two facts every stat block prints. The caster names the form
+ * at the casting (`CastSpellRequest.form`) and the engine refuses one that is
+ * neither listed nor admitted by the clause, exactly as it refuses a stated
+ * choice off the list. What it never does is pick.
+ */
+export type SummonedForm =
+  | string
+  | {
+      /** The forms the SRD prints, by their ids in content, in the order it prints them. */
+      readonly among: readonly string[];
+      /**
+       * "or another Beast that has a Challenge Rating of 0": a creature type
+       * and a rating, both read off the block the caster names.
+       */
+      readonly orAny?: { readonly type: string; readonly cr: number };
+    };
+
+/**
+ * A creature the caster keeps: bound to its summoner rather than to a casting.
+ *
+ * SRD Find Familiar and Find Steed are Instantaneous, so no record holds the
+ * creature and nothing would take it away — and the book takes it away:
+ * "When the familiar drops to 0 Hit Points, it disappears"; "The steed
+ * disappears if it drops to 0 Hit Points or if you die." The first sentence
+ * is what `kept` means and every kept creature has it; the second is
+ * {@link KeptSummons.untilSummonerDies}, which Find Steed prints and Find
+ * Familiar does not. Both are asked by `strandedSummons` exactly as a
+ * casting's ending is, and settled by the same sweep.
+ *
+ * **One at a time**: a second casting of the same spell by the same caster
+ * replaces the creature it kept — SRD Find Steed's "the steed is replaced by
+ * the new one", SRD Find Familiar's "you instead cause it to adopt a new
+ * eligible form" — which is why the bond the log carries records the spell.
+ *
+ * Refused beside a duration or a Concentration (`kept_beside_a_duration`): a
+ * creature with two lifetimes would go at whichever ended first, and the book
+ * prints one.
+ */
+export interface KeptSummons {
+  /** SRD Find Steed: "or if you die". */
+  readonly untilSummonerDies?: true;
+}
+
+/**
+ * A Speed the spell prints over its block, and the slot it appears from.
+ *
+ * SRD Find Steed's block: "**Speed** 60 ft., Fly 60 ft. (requires level 4+
+ * spell)" — a third number the spell prints over its own block beside the
+ * two {@link SummonedNumber} computes, and one that is withheld below the
+ * level rather than given, because a limit enforced is never more permissive
+ * than the book. `fromSpellLevel` absent is a Speed the creature always has.
+ * A walking Speed replaces the block's; any other mode joins or replaces the
+ * one the block prints.
+ */
+export interface PrintedSummonSpeeds {
+  readonly walk?: PrintedSummonSpeed;
+  readonly fly?: PrintedSummonSpeed;
+  readonly climb?: PrintedSummonSpeed;
+  readonly swim?: PrintedSummonSpeed;
+  readonly burrow?: PrintedSummonSpeed;
+}
+
+export interface PrintedSummonSpeed {
+  readonly feet: number;
+  /** The lowest slot level the Speed appears from; absent is always. */
+  readonly fromSpellLevel?: number;
 }
 
 /**
@@ -2628,12 +2755,14 @@ export interface TargetRule {
 /**
  * What kind of thing a spell asks its caster to choose.
  *
- * Three members, and each one has a reader: a condition substitutes into the
+ * Four members, and each one has a reader: a condition substitutes into the
  * conditions an effect imposes or removes, an ability and a skill into the
- * narrowing on a granted mode or bonus. A fourth would be a vocabulary member
- * nothing keeps — see {@link SpellDefinition.choiceStated}.
+ * narrowing on a granted mode or bonus, and a creature type into the type a
+ * summons arrives with — SRD Find Familiar's "a Celestial, Fey, or Fiend (your
+ * choice) instead of a Beast". A fifth would be a vocabulary member nothing
+ * keeps — see {@link SpellDefinition.choiceStated}.
  */
-export type StatedChoiceOf = 'condition' | 'ability' | 'skill';
+export type StatedChoiceOf = 'condition' | 'ability' | 'skill' | 'creature-type';
 
 /** The choice a spell prints: what kind, and which values. */
 export interface StatedChoice {
@@ -3442,6 +3571,22 @@ export function persists(definition: SpellDefinition): boolean {
 }
 
 /**
+ * The form a summoning spell leaves to its caster, or null where the spell
+ * names its own stat block.
+ *
+ * At most one per definition, because `checkSummonTargets` already holds a
+ * summons to one effect on one target and the request carries one `form`.
+ */
+export function statedFormOf(
+  definition: SpellDefinition,
+): Exclude<SummonedForm, string> | null {
+  for (const effect of definition.effects) {
+    if (effect.kind === 'summon' && typeof effect.monster !== 'string') return effect.monster;
+  }
+  return null;
+}
+
+/**
  * How long a casting of this spell at this slot level runs, in seconds.
  *
  * The one reader of {@link SpellDefinition.durationAtSlot}, so the two places
@@ -3660,6 +3805,15 @@ export function statedChoice(
       }
       return effect;
     }
+    if (of === 'creature-type') {
+      // SRD Find Familiar: "it is a Celestial, Fey, or Fiend (your choice)".
+      // The type lands on the summons and nowhere else; a definition whose
+      // summons prints no type for it to replace is refused at authoring.
+      if (effect.kind === 'summon' && effect.creatureType !== undefined) {
+        return { ...effect, creatureType: chosen };
+      }
+      return effect;
+    }
     const key = of === 'ability' ? 'ability' : 'skill';
     if (effect.kind === 'roll-mode' && effect.modifier.selector[key] !== undefined) {
       return {
@@ -3697,7 +3851,7 @@ export function statedChoiceCollides(
   effects: readonly SpellEffect[],
   of: StatedChoiceOf,
 ): boolean {
-  if (of === 'condition') return false;
+  if (of === 'condition' || of === 'creature-type') return false;
   const sibling = of === 'ability' ? 'skill' : 'ability';
   return effects.some((effect) => {
     if (effect.kind === 'roll-mode') {

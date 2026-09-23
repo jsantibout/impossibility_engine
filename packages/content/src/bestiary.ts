@@ -17,10 +17,11 @@
  * **Why not generate them.** The parser reads the Monsters chapter and these
  * are not in it; teaching it to read an HTML table inside a spell's
  * `higherLevel` text would be a second parser for two entries, and the SRD's
- * own table for the Otherworldly Steed carries no actions, no traits and a
- * Challenge Rating of "None" — there is nothing there a parser would do better
- * than a reader. `coverage.test.ts` holds the catalogue to *parsed ∪ these*,
- * so a block cannot be added here without the count saying so.
+ * own table for the Otherworldly Steed prints a Challenge Rating of "None" and
+ * lines whose numbers are the summoner's — there is nothing there a parser
+ * would do better than a reader. `coverage.test.ts` holds the catalogue to
+ * *parsed ∪ these*, so a block cannot be added here without the count saying
+ * so.
  *
  * **What a spell may still print over one.** SRD Find Steed writes its steed's
  * Armour Class and hit points as formulae over the spell's level, and those
@@ -47,19 +48,26 @@ import type { Monster } from '@ie/srd';
  * > **CR** None (XP 0; PB equals your Proficiency Bonus)
  *
  * **The type is the three the book prints, unpicked.** "Celestial, Fey, or
- * Fiend (Your Choice)" is a choice the caster makes at the casting, and the
- * table beneath it carries no trait that differs between the three — so
- * choosing one here would be the catalogue answering a question the book asked
- * somebody else, and answering it the same way every time. What is written is
- * what is printed; `mustBeType` matches none of the three, which is the honest
- * outcome for a creature nobody has typed.
+ * Fiend (Your Choice)" is a choice the caster makes at the casting, which
+ * Find Steed now states through `choiceStated` and pins over this field at
+ * the arrival — so choosing one here would be the catalogue answering a
+ * question the book asked somebody else. What is written is what is printed;
+ * `mustBeType` matches none of the three, which is the honest outcome for a
+ * DM who walks the block through `add_creature` with no casting to type it.
  *
- * **The Fly Speed is not here.** The book gates it — "Fly 60 ft. (requires
- * level 4+ spell)" — on the level the slot paid for, and a Speed that appears
- * at level 4 is a number the spell prints over the block rather than one the
- * block has. The engine distinguishes no movement mode today
- * (`movement-modes` in `missing-shapes.ts`), so writing it would be a
- * vocabulary with no reader; the spell's own `unmodelled` says so.
+ * **The Fly Speed is not here either.** The book gates it — "Fly 60 ft.
+ * (requires level 4+ spell)" — on the level the slot paid for, and a Speed
+ * that appears at level 4 is a number the spell prints over the block rather
+ * than one the block has: Find Steed's `speeds` prints it, gated.
+ *
+ * **And the block's own lines are not here**, which is the honest omission
+ * rather than the claim this docstring once made that the table carries none.
+ * SRD prints Life Bond, Otherworldly Slam ("_Melee Attack Roll:_ Bonus equals
+ * your spell attack modifier ... 1d8 plus the spell's level") and three Bonus
+ * Actions gated on the type ("DC equals your spell save DC"). Every number in
+ * them is the *summoner's*, and a stat block holds no field that names its
+ * rider — so they are recorded on the spell as debt rather than transcribed
+ * with a number this table would have had to invent.
  *
  * **The Challenge Rating is 0 and the XP is 0**, which is "None" as the schema
  * can hold it: `cr` is a number and the label is the book's word. The

@@ -147,6 +147,9 @@ const AUDIT: readonly {
       weapon: because(
         'which weapon a spell that imbues one was aimed at. Two spells print the clause — Shillelagh and Magic Weapon — and the engine refuses a casting of either that names none, so this is required rather than optional the day one of them is castable here. Neither benchmark character has one prepared, and the answer is an item id off the sheet rather than anything this surface would have to teach',
       ),
+      form: because(
+        'which stat block a summoning spell that leaves the form to its caster raises — SRD Find Familiar’s "Bat, Cat, … or another Beast that has a Challenge Rating of 0". Required by that one spell and refused by every other; neither benchmark character prepares it, and the answer is a bestiary id rather than anything this surface would have to teach. `packages/tools` publishes it as `cast_spell.form`',
+      ),
       payment: because(
         'a free daily casting *and* a slot both serving. Reachable in principle — all three Tier 2 characters carry a Magic Initiate free casting — and measured as unreachable in practice: Shield refuses on its Reaction trigger first and Mage Armor has no executable definition, so the engine never gets as far as asking',
       ),

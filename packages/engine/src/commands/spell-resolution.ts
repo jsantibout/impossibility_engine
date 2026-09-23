@@ -91,6 +91,8 @@ import {
   statedChoice,
   statedDamageType,
   damageTypesDealt,
+  statedFormOf,
+  isCreatureType,
 } from '../spell-definitions.js';
 import { type CastingRoute } from '../spellcasting.js';
 import {
@@ -402,6 +404,9 @@ export function resolveDeclaredCast(
       // The fifth, read back the same way. A Shillelagh declared at one staff
       // settles at that staff and at no other.
       ...(pending.weapon === undefined ? {} : { weapon: pending.weapon }),
+      // The sixth, read back the same way. A Find Familiar declared as a Cat
+      // settles as a Cat an hour later and as nothing else.
+      ...(pending.form === undefined ? {} : { form: pending.form }),
       ...(persists(definition)
         ? {
             becomesOngoing: {
@@ -962,6 +967,35 @@ export function castOrRelease(
         return err(
           'weapon_not_held',
           `${target} has no ${item.weapon.name} for ${definition.name} to imbue`,
+        );
+      }
+    }
+
+    // Which form a summons takes, where the spell leaves it to the caster —
+    // asked here for the weapon's reasons, and needing the catalogue as that
+    // does. `declaredFacts` has held the symmetry; what is left is whether the
+    // block exists and whether the spell admits it. SRD Find Familiar: "Bat,
+    // Cat, … or another Beast that has a Challenge Rating of 0" — listed, or
+    // admitted by a clause over two facts every block prints.
+    const stated = statedFormOf(definition);
+    if (stated !== null && request.form !== undefined) {
+      const block = supply.content.monsterById(request.form);
+      if (block === null) {
+        return err('unknown_monster', `${request.form} is not a stat block this world holds`);
+      }
+      const listed = stated.among.includes(request.form);
+      const admitted =
+        stated.orAny !== undefined &&
+        isCreatureType(block.type, stated.orAny.type) &&
+        block.cr === stated.orAny.cr;
+      if (!listed && !admitted) {
+        const clause =
+          stated.orAny === undefined
+            ? ''
+            : ` or any ${stated.orAny.type} of Challenge Rating ${stated.orAny.cr}`;
+        return err(
+          'form_not_offered',
+          `${definition.name} prints ${stated.among.join(', ')}${clause}, not ${block.name}`,
         );
       }
     }
@@ -1667,6 +1701,7 @@ function resolveOnTargets(
         ...(fought === undefined ? {} : { fought }),
         ...(request.teleportTo === undefined ? {} : { teleportTo: request.teleportTo }),
         ...(request.weapon === undefined ? {} : { weapon: request.weapon }),
+        ...(request.form === undefined ? {} : { form: request.form }),
         alters,
         // A released spell leaves the same thing running that a cast one does.
         // This was the one resolution path of three that wrote no record, so a
@@ -1910,6 +1945,8 @@ function resolveOnTargets(
               // The fifth, and the same: a Shillelagh declared at one staff
               // must not settle at the other one in the pack.
               ...(request.weapon === undefined ? {} : { weapon: request.weapon }),
+              // The sixth: a Find Familiar declared as a Cat settles as a Cat.
+              ...(request.form === undefined ? {} : { form: request.form }),
               // **And the numbers, for a casting an item made.** A class
               // casting's route is re-derived at settlement because it is a
               // fact about a sheet nothing between here and there can change.
@@ -1990,6 +2027,7 @@ function resolveOnTargets(
       ...(fought === undefined ? {} : { fought }),
       ...(request.teleportTo === undefined ? {} : { teleportTo: request.teleportTo }),
       ...(request.weapon === undefined ? {} : { weapon: request.weapon }),
+      ...(request.form === undefined ? {} : { form: request.form }),
       alters,
       // The casting this Reaction answers, as an **id** rather than as the record
       // that was read. The resolver looks it up again on the state its own events
@@ -2248,6 +2286,12 @@ export function resolveEffects(
      */
     readonly weapon?: string;
     /**
+     * The stat block a summoning spell that leaves the form to its caster was
+     * told to raise — see `EffectContext.form`. Pinned on a declaration for
+     * the weapon's reason.
+     */
+    readonly form?: string;
+    /**
      * Which casting a Reaction spell answers, by id.
      *
      * Several castings may be open at once and several may belong to one
@@ -2314,6 +2358,7 @@ export function resolveEffects(
     ...(context.fought === undefined ? {} : { fought: context.fought }),
     ...(context.teleportTo === undefined ? {} : { teleportTo: context.teleportTo }),
     ...(context.weapon === undefined ? {} : { weapon: context.weapon }),
+    ...(context.form === undefined ? {} : { form: context.form }),
     ...(context.answers === undefined ? {} : { answers: context.answers }),
     ...(context.alters === undefined ? {} : { alters: context.alters }),
   });
@@ -2470,6 +2515,7 @@ export interface EffectRun {
   readonly fought?: readonly CharacterId[];
   readonly teleportTo?: Placement;
   readonly weapon?: string;
+  readonly form?: string;
   readonly answers?: string;
   /**
    * What the caster's features do to this casting's damage, and what electing
@@ -2702,6 +2748,7 @@ export function runEffects(
     ...(run.fought === undefined ? {} : { fought: run.fought }),
     ...(run.teleportTo === undefined ? {} : { teleportTo: run.teleportTo }),
     ...(run.weapon === undefined ? {} : { weapon: run.weapon }),
+    ...(run.form === undefined ? {} : { form: run.form }),
     ...(run.answers === undefined ? {} : { answers: run.answers }),
   };
 

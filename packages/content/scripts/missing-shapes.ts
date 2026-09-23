@@ -136,7 +136,7 @@ export const MISSING_SHAPES = {
   'an-ability-score-a-spell-changes':
     'a score an effect **moves**, in any of the five ways the book moves one. `docs/design/time-and-turns.md`, on what a rest does not restore: "**Reduced ability scores and a reduced hit point maximum are not restored**, because neither is modelled in the first place." One of the five is built: an item may now *set* a score — an **absolute** held while it is worn, derived on every read by `abilityScoresOf` — and the three entries that printed only that sentence are transcribed. Four have no writer. A score an effect **lowers**. A **bounded delta with a lifetime**, which SRD prints on six Ioun Stones: "Your Dexterity increases by 2, to a maximum of 20, while this deep-red sphere orbits your head" is `ability-score-increase`’s arithmetic on a standing grant’s lifetime, and the member that holds the arithmetic is answered at creation while the one that holds the lifetime writes absolutes — the Belt of Dwarvenkind prints it too, and the Hammer of Thunderbolts adds 4 to whatever score a belt or a pair of gauntlets already bestowed. A set with a **deadline** rather than a garment, which a conferral would carry and `CONFERRED_EFFECT_KINDS` does not admit. And a **permanent** raise: the manuals’ and the tomes’ +2 after forty-eight hours of study, which outlives every rest and is a folded number rather than a derived one.',
   'a-stat-block-created-mid-fight':
-    'summons. `docs/design/casting.md`, "Which spells this reaches": "A stat block created mid-fight | Unseen Servant, Arcane Hand, Phantom Steed, Summon Dragon, Giant Insect ...". That row lost three entries to this reading — "the four Conjures", Guardian of Faith and Faithful Hound — because SRD 5.2.1 rewrote the Conjure family as spirits and none of the eight prints an Armour Class, Hit Points or a turn. **The creation half is built.** `summonCreature` and `dismissStrandedSummons` were the door; P2-T11 added the level above them — a `summon` effect kind, so a casting derives its creature from the spell instead of a caller reading the casting id back and summoning by hand. It names a stat block by its id in content, pins every number the block prints into `creature-added`, works out the two numbers a spell may print over its own block (SRD Find Steed’s "AC 10 + 1 per spell level"), reads the caster’s Initiative count where the spell shares it, and binds the creature to the casting **after** the ongoing record, which is the only order the fold accepts. The owner’s ruling of 2026-09-21 settled where a spell-internal block goes: into the bestiary, transcribed in `packages/content/src/bestiary.ts`, not into a second kind of content. What is left under this name is three things and none of them is the creation: **a stat block that is in neither chapter** — Unseen Servant’s servant and Find Familiar’s eleven forms, which the book prints nowhere as a block — **a summons whose lifetime is not a casting’s**, Find Steed’s steed going when its summoner dies, where the only lifetime the engine runs is an ongoing record’s — and **a number the spell prints over its block that is neither of the two computed**, Find Steed’s Fly Speed gated on a level 4 slot.',
+    'summons. `docs/design/casting.md`, "Which spells this reaches": "A stat block created mid-fight | Unseen Servant, Arcane Hand, Phantom Steed, Summon Dragon, Giant Insect ...". That row lost three entries to this reading — "the four Conjures", Guardian of Faith and Faithful Hound — because SRD 5.2.1 rewrote the Conjure family as spirits and none of the eight prints an Armour Class, Hit Points or a turn. **The creation half is built.** `summonCreature` and `dismissStrandedSummons` were the door; P2-T11 added the level above them — a `summon` effect kind, so a casting derives its creature from the spell instead of a caller reading the casting id back and summoning by hand. It names a stat block by its id in content, or leaves the form to the caster out of a printed list (SRD Find Familiar’s eleven, or any Beast of Challenge Rating 0), pins every number the block prints into `creature-added`, works out the numbers a spell prints over its own block (SRD Find Steed’s "AC 10 + 1 per spell level", its Fly Speed gated on a level 4 slot, the creature type the caster states), reads the caster’s Initiative count where the spell shares it and seats the creature immediately after them, and binds the creature either to the casting **after** the ongoing record or — where the spell prints "disappears if it drops to 0 Hit Points" — to its summoner, as a creature the caster *keeps*, replaced by a second casting. The owner’s ruling of 2026-09-21 settled where a spell-internal block goes: into the bestiary, transcribed in `packages/content/src/bestiary.ts`, not into a second kind of content. What is left under this name is two things and neither is the creation: **a stat block that is in neither chapter** — Unseen Servant’s servant, which the book prints nowhere as a block — and **a line the block prints with the summoner’s numbers**, SRD Find Steed’s Otherworldly Slam ("Bonus equals your spell attack modifier", "1d8 plus the spell’s level") and its three Bonus Actions ("DC equals your spell save DC"), which no stat block field can name and which the transcribed block therefore omits.',
   'movement-modes':
     'the Fly, Climb and Swim Speeds the engine does not distinguish, and the per-foot costs that ride with them. `docs/design/spell-definitions.md` refuses the vocabulary by name: "**Movement modes are refused outright.** Fly, Climb and Swim have no reader — no rule in the engine asks about one — so a vocabulary for them would be shape built ahead of every mechanic that could use it", and Roving’s own note says the same of its Climb and Swim Speeds. What is left of `speed-and-movement-modes` once IE-033 built the modifier half.',
   'a-speed-an-effect-multiplies':
@@ -180,7 +180,7 @@ export const MISSING_SHAPES = {
   'a-repeat-save-with-no-condition-to-hang-it-on':
     'a repeat save on a failure that imposed **no condition**. `a-save-whose-failure-imposes-no-condition` is built — `save.condition` is optional and SRD Slow and SRD Faerie Fire are executed off it — and this is the one sentence of Slow it did not finish, recorded rather than inherited by the id that used to hold it. A repeat is filed on the condition instance the failure created: `applyConditionTo` takes the `RepeatSave` beside the condition, the turn boundary raises whatever sits on a creature, and a success releases that instance. A failure that creates none has nothing there, so a repeat beside it would be a debt no boundary could ever see — which is the argument `spell-definitions.ts` makes in the field itself, "a repeat save is filed on the condition instance the failure created, and this failure creates none", and which `repeat_without_condition` refuses at authoring rather than accepting silently. The fifth of the family `a-repeat-save-on-the-clock` and its three siblings already form, and the first whose gap is the **host** rather than the trigger.',
   'a-turn-a-spell-inserts-into-the-order':
-    '`docs/design/time-and-turns.md`: "**In combat the clock is derived.** A round ends when the Initiative order wraps, and six seconds have passed; nobody decides that." A spell that hands its caster several turns in a row has no way to say so without a decision somebody makes, which is the one thing the derived clock refuses. **A second member reads the same absence from the other end**: a turn placed at a named *position* rather than at a number — SRD Find Steed’s "the steed takes its turn immediately after yours" — because the order is ranked by a count and then by a tiebreak, and `Combatant.tiebreak` takes that tiebreak from the GM rather than inventing one. The order is "a list of creatures rather than something a spell adds to", which is Time Stop’s own note pointed at an insertion of one.',
+    '`docs/design/time-and-turns.md`: "**In combat the clock is derived.** A round ends when the Initiative order wraps, and six seconds have passed; nobody decides that." A spell that hands its caster several turns in a row has no way to say so without a decision somebody makes, which is the one thing the derived clock refuses. **The second member this id used to carry is built**: a turn placed at a named *position* rather than at a number — SRD Find Steed’s "the steed takes its turn immediately after yours" — is `Combatant.after`, a seat straight after its anchor at the anchor’s own count and tiebreak, with no tiebreak invented. What remains is Time Stop’s: the order is "a list of creatures rather than something a spell adds to", and several turns in a row for one creature is an insertion the derived clock has no member for.',
   'a-choice-made-at-the-casting':
     '**The field exists now, and the id is narrower than it was — kept because an id is a key two branches append to.** `SpellDefinition.choiceStated` is `damageTypeStated` generalised along the axis that field’s own docstring predicted: a printed list, one value named at the casting, anything off the list refused, the answer pinned onto the events and the ongoing record. It carries a **condition**, an **ability** or a **skill**, and `statedChoice` substitutes the caster’s answer into the effect that holds one — which finished Blindness/Deafness’ "(your choice)", Lesser Restoration’s "end **one** condition", Enhance Ability’s five abilities and Guidance’s "choose a skill". What is left is the **second arm**, and it is a different mechanism rather than a missing member: a choice of **which effects run** instead of which value one of them carries. Thaumaturgy’s six wonders are six different effect lists of which five are fiction and one grants a mode; Enlarge/Reduce’s two halves and Glyph of Warding’s two glyphs are the same sentence. A substitution cannot express any of the three, because there is no field on a written effect for it to replace — a definition that carried Booming Voice’s mode would boom the caster’s voice every time they flickered a candle. **Hex is the fourth entry and is none of that**: its sentence is Enhance Ability’s with the mode reversed and is writable today, and it stays counted here because `TrackedAdjudication.why` has no value for "nothing blocks this and nobody has written the definition" — see the note on the entry itself. The original description follows: `docs/design/rolls-and-damage.md` names it for the roll-modifier vocabulary — "An ability **chosen at the casting** | Hex, Enhance Ability, Bestow Curse" — and a damage type was always the one choice that was not here.',
   'several-attack-rolls-from-one-casting':
@@ -833,31 +833,38 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: "If the creature ends its turn in a space where it doesn\'t have line of sight to you, the creature makes a Wisdom saving throw." A repeat save is raised by a turn boundary and owed by whoever holds the condition; this one is owed only where a pairwise sight declaration says the target cannot see the caster, which no boundary reads.',
     },
   ],
+  'find-familiar': [
+    {
+      clause: 'seeing through the familiar’s eyes and hearing what it hears',
+      why: 'senses-beyond-declared-sight',
+      note: 'Sight here is a pairwise declaration and there is nothing else, so one creature borrowing another’s senses — including any special senses it has — has no state to sit in. Filed under the nearest honest shape rather than a new one; the shape’s named consumer is an attacker’s Blindsight, and this is the same absence at the other end.',
+    },
+    {
+      clause: 'your familiar can deliver the touch',
+      why: 'an-activation-taken-by-somebody-other-than-the-caster',
+      note: 'A second casting measured from the familiar rather than from its caster, and a Reaction spent by the familiar for a spell that belongs to the caster. The rule that a casting is acted through by the caster and nobody else is exactly what this inverts, and the reach half has no field of its own either.',
+    },
+    {
+      clause: 'you can temporarily dismiss the familiar to a pocket dimension',
+      why: 'a-second-place-to-put-a-creature',
+      note: 'There is one scene, so a creature that is stored rather than destroyed has nowhere to be. It is not `end-condition` and not a death: the familiar keeps existing somewhere the engine has no representation for, and comes back on a later action. Dismissing it forever is the departure the engine already performs and is not the gap.',
+    },
+    {
+      clause: 'the telepathic connection within 100 feet',
+      why: 'table',
+      note: 'The hundred feet is measurable and what it gates is conversation, which the engine’s resolution path never arrives at.',
+    },
+  ],
   'find-steed': [
     {
-      clause: 'the steed leaving when its summoner dies',
+      clause: 'the block’s own lines are not on the steed',
       why: 'a-stat-block-created-mid-fight',
-      note: 'The creation half of that shape is built and this is what is left of it here. The steed arrives out of the bestiary with every number pinned, and the one lifetime the engine can run is a casting’s: a creature bound to an ongoing record goes when the record does, which `strandedSummons` finds and `dismissStrandedSummons` performs. Find Steed is Instantaneous and leaves no record, so the steed is bound to nothing — and "if you die" hangs the creature’s lifetime on another **creature**, which is a bond the engine has no shape for at all. Its other half, the steed disappearing at 0 Hit Points, is the death the stat block already dies: a monster dies the instant it drops to 0, which `adaptMonster` pins as `diesAtZero`.',
-    },
-    {
-      clause: 'its Fly Speed of 60 feet is not granted at any level',
-      why: 'a-stat-block-created-mid-fight',
-      note: 'Not `movement-modes`, which would be the wrong filing twice over: a stat block’s Fly Speed **is** carried — `printedSpeeds` puts it on the sheet and `fliesWithoutFallingOn` reads it — so nothing about a flying creature is missing here. What the SRD prints is "Fly 60 ft. (requires level 4+ spell)", a Speed the creature has only when the slot was big enough, which is a third number the spell prints over its own block beside the two the `summon` kind computes. It is withheld rather than granted, because a limit enforced is never more permissive than the book.',
-    },
-    {
-      clause: 'its turn is not **pinned** immediately after theirs',
-      why: 'a-turn-a-spell-inserts-into-the-order',
-      note: 'SRD: "In combat, it shares your Initiative count", and "If you have the Incapacitated condition, the steed takes its turn immediately after yours". The first sentence is built — `resolveSummonEffect` reads the summoner’s rung off the order and seats the steed on it — and the second is a **position** rather than a number, which is what this shape is about. The gap is narrower than it looks and is recorded at its true width: `addCombatant` seats a joiner after everyone it exactly ties with, so with no door supplying a tiebreak the steed does land immediately after its rider today. What is missing is the *guarantee* — a creature the DM put on that count at the rider’s own tiebreak comes between them, and the order has no way to say `after this creature` rather than `at this number`. Seating the steed one tiebreak below its rider was tried and reverted, and on one ground only: `Combatant.tiebreak` takes the GM’s decision as an input rather than inventing one, so a number this engine made up would be a rung nobody chose and would reorder the creatures whose tiebreak a DM had stated. No claim about where it *would* have landed is made here, because two attempts at one were wrong in two different directions and the rule needs neither.',
+      note: 'The block the book prints beneath the spell carries Life Bond, Otherworldly Slam and three Bonus Actions gated on the type, and every number in them is the summoner’s — the spell attack modifier, the spell’s level, the spell save DC. A stat block holds no field that names its rider, so the transcribed block carries none of them and the steed arrives with no attack. The creation, the kept lifetime, the type, the Fly Speed and the seat after the rider are all built; a printed line whose numbers are the summoner’s is what the shape still means here. The parser never sees these lines either: the spell’s parsed entry stops where the table begins.',
     },
     {
       clause: 'acts independently, focusing on protecting you',
       why: 'table',
-      note: 'The other half of the Incapacitated sentence, and it is a different kind of thing: what a creature in the scene chooses to do on its turn is nobody’s arithmetic. The engine declines to decide it for a summoned steed on exactly the reading it declines to decide it for every monster — `declareSpellcasting` states what an NPC casts and `declareCreatureSide` states whose side it is on, and what either of them does with a turn is the table’s.',
-    },
-    {
-      clause: 'the Celestial, Fey or Fiend chosen when it is called',
-      why: 'table',
-      note: 'SRD: "choose the steed’s creature type—Celestial, Fey, or Fiend—which determines certain traits in the stat block." The block the book prints beneath that sentence carries no trait at all — no traits, no actions, no reactions — so there is nothing in it for the choice to determine, and the catalogue holds the type exactly as printed rather than picking one of the three on the caster’s behalf. What the choice decides is what the steed is called and how it behaves, which is the table’s.',
+      note: 'What a creature in the scene chooses to do on its turn is nobody’s arithmetic. The engine declines to decide it for a summoned steed on exactly the reading it declines to decide it for every monster — `declareSpellcasting` states what an NPC casts and `declareCreatureSide` states whose side it is on, and what either of them does with a turn is the table’s.',
     },
   ],
   'finger-of-death': [
@@ -4272,68 +4279,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
       clause: 'it frees itself from the grasping plants and is no longer Restrained by them',
       why: 'expressible',
       note: 'The success branch releases the condition on the creature that made the check and leaves the casting running for everybody else, which is what `end-on-target` means.',
-    },
-  ],
-  'find-familiar': [
-    {
-      clause: 'Casting Time: 1 hour or Ritual',
-      why: 'expressible',
-      note: 'An hour, or the Ritual that IE-034 made a long casting of the same kind — and both are the mechanism IE-034 and IE-041 finished, which Hallow, Regenerate and forty other definitions are written on. The field is still where the clause sits, because no sentence of the paragraph mentions it; what changed is that it stopped being a blocker.',
-    },
-    {
-      clause: 'another Beast that has a Challenge Rating of 0',
-      why: 'a-stat-block-created-mid-fight',
-      note: 'The familiar **is** a stat block chosen from a list of eleven, or any other Beast at the same Challenge Rating. The rating is a fact the engine does not hold at all, and here it selects a form rather than a target — so it is the stat block that is missing rather than a target rule.',
-    },
-    {
-      clause: 'the familiar has the statistics of the chosen form',
-      why: 'a-stat-block-created-mid-fight',
-      note: 'The sentence that says the spell\'s content is a monster entry with its creature type overwritten. The engine adds creatures to a scene and nothing a casting does adds one.',
-    },
-    {
-      clause: 'you can communicate with it telepathically',
-      why: 'table',
-      note: 'The hundred feet is measurable and what it gates is conversation, which the engine\'s resolution path never arrives at. The range marker fires on the distance and nothing mechanical hangs off it.',
-    },
-    {
-      clause: "you can see through the familiar's eyes and hear what it hears",
-      why: 'senses-beyond-declared-sight',
-      note: 'Sight here is a pairwise declaration and there is nothing else, so one creature borrowing another\'s senses — including any special senses it has — has no state to sit in. Filed under the nearest honest shape rather than a new one; the shape\'s named consumer is an attacker\'s Blindsight, and this is the same absence at the other end.',
-    },
-    {
-      clause: 'your familiar can deliver the touch',
-      why: 'an-activation-taken-by-somebody-other-than-the-caster',
-      note: 'A second casting measured from the familiar rather than from its caster. The rule that a casting is acted through by the caster and nobody else is exactly what this inverts, and the reach half has no field of its own either.',
-    },
-    {
-      clause: 'it must take a Reaction to deliver the touch',
-      why: 'an-activation-taken-by-somebody-other-than-the-caster',
-      note: 'The other half of the same inversion, and the mechanical one: the Reaction spent belongs to the familiar while the spell being delivered belongs to the caster. Two sentences, so two entries.',
-    },
-    {
-      clause: "A familiar can't attack",
-      why: 'a-stat-block-created-mid-fight',
-      note: 'A created creature that cannot attack is a stat block printing no attack, which is different from Gaseous Form forbidding an **existing** creature to attack — that one is a rider on an economy the engine already runs, and this one is a property of a creature the engine cannot make.',
-    },
-    {
-      clause: 'When the familiar drops to 0 Hit Points, it disappears',
-      why: 'a-stat-block-created-mid-fight',
-      note: 'The creature has vitals and leaves the scene when they run out, and the spell does **not** end with it — so this is the summon\'s own lifecycle rather than a casting-end trigger, and it needs the creature to exist before it needs anything else.',
-    },
-    {
-      clause: 'you can temporarily dismiss the familiar to a pocket dimension',
-      why: 'a-second-place-to-put-a-creature',
-      note: 'There is one scene, so a creature that is stored rather than destroyed has nowhere to be. It is not `end-condition` and not a death: the familiar keeps existing somewhere the engine has no representation for, and comes back on a later action.',
-    },
-    {
-      clause: 'you can cause it to reappear in an unoccupied space within 30 feet of you',
-      why: 'a-stat-block-created-mid-fight',
-      note: 'The return half. Placing a creature in an unoccupied space is something the engine does well; the creature being placed is what it cannot produce.',
-    },
-    {
-      clause: 'it leaves behind in its space anything it was wearing or carrying',
-      why: 'table',
-      note: 'Nothing mechanical follows from the gear staying behind, which is the reading IE-044 already gave Gaseous Form\'s identical clause: an inventory and an equipped set are held, and there is no object on the ground for them to become.',
     },
   ],
   // **Both of IE-035's shapes reached it**, which is what that task was for:

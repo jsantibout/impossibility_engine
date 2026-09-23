@@ -11868,34 +11868,123 @@ export const HEX: SpellDefinition = {
 };
 
 /**
+ * SRD Find Familiar:
+ *
+ * > _Level 1 Conjuration (Wizard)._ **Casting Time:** 1 hour or Ritual.
+ * > **Range:** 10 feet. **Duration:** Instantaneous.
+ * > "You gain the service of a familiar, a spirit that takes an animal form
+ * > you choose: Bat, Cat, Frog, Hawk, Lizard, Octopus, Owl, Rat, Raven,
+ * > Spider, Weasel, or another Beast that has a Challenge Rating of 0.
+ * > Appearing in an unoccupied space within range, the familiar has the
+ * > statistics of the chosen form (see "Monsters"), though it is a Celestial,
+ * > Fey, or Fiend (your choice) instead of a Beast. ... A familiar can't
+ * > attack, but it can take other actions as normal. ... When the familiar
+ * > drops to 0 Hit Points, it disappears. ... If you cast this spell while
+ * > you have a familiar, you instead cause it to adopt a new eligible form."
+ *
+ * The eleven forms are the Monsters chapter's own CR 0 Beasts, so the spell
+ * prints no block of its own: the caster names one at the casting — any of
+ * the eleven, or any other Beast the bestiary rates at 0 — and the `summon`
+ * effect raises it with its numbers pinned. The Celestial, Fey or Fiend is
+ * the caster's stated choice, pinned over the block's type at the arrival.
+ *
+ * **Instantaneous, and the familiar is kept.** No record holds it; it is the
+ * wizard's, owed a departure when it drops to 0 Hit Points, which
+ * `strandedSummons` finds and `dismissStrandedSummons` performs. "You can't
+ * have more than one familiar at a time": a second casting replaces the first,
+ * which is the mechanical whole of "adopt a new eligible form". And "A
+ * familiar can't attack" arrives on the creature as a stored rule the action
+ * economy refuses on.
+ *
+ * What is left is written below and adjudicated in `missing-shapes.ts`: its
+ * senses lent to the caster, the touch spell it delivers, and the pocket
+ * dimension it can be sent to.
+ */
+export const FIND_FAMILIAR: SpellDefinition = {
+  id: 'find-familiar',
+  name: 'Find Familiar',
+  level: 1,
+  school: 'conjuration',
+  castingTime: 'long',
+  castingSeconds: 3600,
+  ritual: true,
+  concentration: false,
+  range: { kind: 'ranged', feet: 10 },
+  // The spell is on its caster and what it makes is a second creature, the
+  // shape Find Steed and Phantom Steed already take: the printed Range is the
+  // reach the familiar appears within rather than a reach to a target.
+  targets: { count: 1, self: true },
+  choiceStated: { of: 'creature-type', options: ['Celestial', 'Fey', 'Fiend'] },
+  effects: [
+    {
+      kind: 'summon',
+      monster: {
+        among: [
+          'bat',
+          'cat',
+          'frog',
+          'hawk',
+          'lizard',
+          'octopus',
+          'owl',
+          'rat',
+          'raven',
+          'spider',
+          'weasel',
+        ],
+        orAny: { type: 'Beast', cr: 0 },
+      },
+      // The value the definition is written around; the casting's stated
+      // choice is what lands.
+      creatureType: 'Celestial',
+      kept: {},
+      cannotAttack: true,
+    },
+  ],
+  unmodelled: [
+    'seeing through the familiar’s eyes and hearing what it hears as a Bonus Action, with the benefits of any special senses it has, is not granted: sight here is a pairwise declaration, and one creature borrowing another’s senses has no state to sit in',
+    'the familiar delivering a touch spell — "your familiar can deliver the touch" — is not offered, and neither is the Reaction it must take to do so: a casting is acted through by its caster, and a second creature spending its own Reaction to deliver another’s spell has no field',
+    'you can temporarily dismiss the familiar to a pocket dimension, and cause it to reappear within 30 feet as a Magic action: there is one scene, and a creature stored rather than destroyed has nowhere to be',
+    'the telepathic connection within 100 feet is the table’s: the distance is measurable and what it gates is conversation',
+    'what it leaves behind in its space when it disappears, and what it does with the turns it acts independently on while obeying your commands, are the DM’s',
+  ],
+};
+
+/**
  * SRD Find Steed:
  *
  * > _Level 2 Conjuration (Paladin)._ **Casting Time:** Action.
  * > **Range:** 30 feet. **Duration:** Instantaneous.
  * > "You summon an otherworldly being that appears as a loyal steed in an
  * > unoccupied space of your choice within range. This creature uses the
- * > **Otherworldly Steed** stat block. ... **AC** 10 + 1 per spell level.
- * > **HP** 5 + 10 per spell level ... **Speed** 60 ft., Fly 60 ft. ...
- * > _Disappearance of the Steed._ The steed disappears if it drops to 0 Hit
- * > Points or if you die."
+ * > **Otherworldly Steed** stat block. If you already have a steed from this
+ * > spell, the steed is replaced by the new one. ... choose the steed's
+ * > creature type—Celestial, Fey, or Fiend ... **AC** 10 + 1 per spell level.
+ * > **HP** 5 + 10 per spell level ... **Speed** 60 ft., Fly 60 ft. (requires
+ * > level 4+ spell) ... In combat, it shares your Initiative count ... the
+ * > steed takes its turn immediately after yours ... _Disappearance of the
+ * > Steed._ The steed disappears if it drops to 0 Hit Points or if you die."
  *
  * The SRD prints the stat block **inside the spell**, and the owner's ruling of
  * 2026-09-21 says what that is: a catalogue entry like any other. So the block
- * is `otherworldly-steed` in the bestiary and the casting raises it — and the
- * two numbers the book writes as formulae rather than as numbers, "AC 10 + 1
- * per spell level" and "HP 5 + 10 per spell level", are the spell's to print
- * over its own block. They are worked out once, at the cast, from the level
- * the slot paid for, and the answers are what reach the log.
+ * is `otherworldly-steed` in the bestiary and the casting raises it — and what
+ * the book writes as the spell's rather than the block's is the spell's to
+ * print over it: the Armour Class and the hit points as formulae over the
+ * level the slot paid for, the Fly Speed gated on a level 4 slot, and the
+ * creature type as the caster's stated choice. Each is worked out once, at
+ * the cast, and the answers are what reach the log.
  *
- * **Instantaneous, so the steed is not on loan.** The casting leaves no record
- * running, nothing binds the creature, and it stands there afterwards — which
- * is what the book means by a steed you summon rather than one you sustain.
+ * **Instantaneous, and the steed is kept.** No record holds it; it is the
+ * rider's, owed a departure when it drops to 0 Hit Points or when its rider
+ * dies, and replaced by a second casting. **It shares its rider's Initiative
+ * count and is seated immediately after them**, both read off the order
+ * rather than stated.
  *
- * **It shares its rider's Initiative count**, read off the order rather than
- * stated by anybody. Where it falls *within* that count, and who decides what
- * it does with the turn, are the two halves of the Combat paragraph the engine
- * does not answer — recorded below rather than approximated with a tiebreak
- * the SRD leaves to the GM.
+ * **The block's own lines are not on it**, and that is the debt this spell
+ * still carries: Life Bond, Otherworldly Slam and the three type-gated Bonus
+ * Actions each print a number that is the summoner's — the spell attack
+ * modifier, the spell save DC, the spell's level — which a stat block holds no
+ * field to name.
  */
 export const FIND_STEED: SpellDefinition = {
   id: 'find-steed',
@@ -11906,23 +11995,23 @@ export const FIND_STEED: SpellDefinition = {
   concentration: false,
   range: { kind: 'ranged', feet: 30 },
   targets: { count: 1, self: true },
+  choiceStated: { of: 'creature-type', options: ['Celestial', 'Fey', 'Fiend'] },
   effects: [
     {
       kind: 'summon',
       monster: 'otherworldly-steed',
+      creatureType: 'Celestial',
       armorClass: { base: 10, perSpellLevel: 1 },
       hitPoints: { base: 5, perSpellLevel: 10 },
+      speeds: { fly: { feet: 60, fromSpellLevel: 4 } },
+      kept: { untilSummonerDies: true },
       sharesCastersInitiative: true,
     },
   ],
   unmodelled: [
-    'the steed leaving when its summoner dies is not watched: an Instantaneous casting leaves no record to bind the creature to, and a summons whose lifetime hangs on another creature rather than on a spell has nothing to hang it on',
-    'its Fly Speed of 60 feet is not granted at any level: the block prints it gated — "requires level 4+ spell" — and a Speed that appears at a level is a third number the spell prints over its own block, beside the Armour Class and the Hit Points that are computed; withheld rather than given, because a limit enforced is never more permissive than the book',
-    'the steed resembling a Large rideable animal, and the Celestial, Fey or Fiend chosen when it is called, are the caster’s — the block the book prints beneath that choice has no line that differs between the three, so the catalogue holds the type exactly as printed',
-    'the steed shares its rider’s Initiative count and its turn is not **pinned** immediately after theirs when the rider has the Incapacitated condition: a joiner is seated after everyone it exactly ties with, so today it does land there — and it lands behind a third creature the DM put on that count at the rider’s own tiebreak, because a rung is a number and settling the tie with one of the engine’s own would invent a decision the SRD leaves to the GM',
+    'the block’s own lines are not on the steed: Life Bond, Otherworldly Slam and the three Bonus Actions gated on its type each print a number that is the summoner’s — "Bonus equals your spell attack modifier", "1d8 plus the spell’s level", "DC equals your spell save DC" — and a stat block holds no field that names its rider, so the bestiary entry carries none of them and the steed arrives with no attack',
     'and what the steed does with the turn when its rider has the Incapacitated condition — "acts independently, focusing on protecting you" — is the table’s, the same question left open for every creature in the scene',
-    'the mounted combat it is controlled through, the telepathy it speaks over a mile, and the gear it leaves behind when it goes are the DM’s',
-    'a second casting replacing the steed already called is not performed: nothing holds the first one here, so there is no record to end and no creature the engine can tell from any other',
+    'the steed resembling a Large rideable animal of the caster’s choice, the mounted combat it is controlled through, the telepathy it speaks over a mile, and the gear it leaves behind when it goes are the DM’s',
   ],
 };
 
@@ -13706,6 +13795,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   FALSE_LIFE,
   FEAR,
   FEATHER_FALL,
+  FIND_FAMILIAR,
   FIND_STEED,
   FIND_THE_PATH,
   FIND_TRAPS,

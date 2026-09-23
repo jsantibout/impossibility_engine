@@ -20,6 +20,7 @@ import {
   CREATURE_TYPES,
   DM_DECIDES,
   modifierRidersOf,
+  persists as castingPersists,
   statedChoiceCollides,
   statedChoiceReaches,
 } from './spell-definitions.js';
@@ -114,7 +115,7 @@ const DAMAGE: ReadonlySet<string> = new Set(DAMAGE_TYPES);
 const CONDITION_NAMES: ReadonlySet<string> = new Set(CONDITIONS);
 const SENSES: ReadonlySet<string> = new Set(SENSE_NAMES);
 /**
- * The three things a casting can be asked to choose, as data for untyped
+ * The four things a casting can be asked to choose, as data for untyped
  * input — {@link StatedChoiceOf}, which the compiler enforces on a definition
  * that arrived through `tsc` and cannot on one read from a file.
  */
@@ -122,6 +123,7 @@ const STATED_CHOICE_KINDS: ReadonlySet<string> = new Set<StatedChoiceOf>([
   'condition',
   'ability',
   'skill',
+  'creature-type',
 ]);
 /** The three answers `DamageDefenses` holds, as data, for untyped input. */
 const DEFENSE_KINDS: ReadonlySet<string> = new Set<DefenseKind>([
@@ -612,6 +614,15 @@ function checkChoiceOption(
     case 'skill':
       if (!SKILL_NAMES.has(option as Skill)) {
         found.push({ field: path, code: 'bad_skill', reason: `"${option}" is not a skill` });
+      }
+      return;
+    case 'creature-type':
+      if (!CREATURE_TYPES.includes(option)) {
+        found.push({
+          field: path,
+          code: 'unknown_creature_type',
+          reason: `"${option}" is not one of the SRD's fourteen creature types`,
+        });
       }
       return;
     default: {
@@ -2365,11 +2376,25 @@ function checkEffect(
      * catalogue check lives in `checkContent`, where both halves are present.
      */
     case 'summon': {
-      if (typeof effect.monster !== 'string' || effect.monster.trim().length === 0) {
+      checkSummonedForm(effect.monster, `${path}.monster`, found);
+      if (
+        effect.creatureType !== undefined &&
+        !CREATURE_TYPES.includes(effect.creatureType as string)
+      ) {
         found.push({
-          field: `${path}.monster`,
-          code: 'unknown_monster',
-          reason: 'a summons names the stat block it raises, by its id in content',
+          field: `${path}.creatureType`,
+          code: 'unknown_creature_type',
+          reason: `"${String(effect.creatureType)}" is not one of the SRD's fourteen creature types`,
+        });
+      }
+      checkKeptSummons(effect.kept, `${path}.kept`, found);
+      checkPrintedSummonSpeeds(effect.speeds, `${path}.speeds`, found);
+      const cannotAttack = (effect as { cannotAttack?: unknown }).cannotAttack;
+      if (cannotAttack !== undefined && cannotAttack !== true) {
+        found.push({
+          field: `${path}.cannotAttack`,
+          code: 'malformed_field',
+          reason: 'a spell either prints "can\'t attack" or does not; the only value is true',
         });
       }
       for (const field of ['armorClass', 'hitPoints'] as const) {
@@ -3828,6 +3853,7 @@ export function checkSpellDefinition(
   );
 
   checkSummonTargets(definition, found);
+  checkKeptBesideADuration(definition, found);
 
   const activation = definition.activation;
   if (
@@ -4516,6 +4542,169 @@ function checkSummonTargets(
         'SRD writes "you summon": the spell is on the creature casting it and the creature raised is the consequence',
     });
   }
+}
+
+/**
+ * SRD Find Familiar's form clause, or a block named outright — see
+ * `SummonedForm`. The list and the clause are checked for shape; whether the
+ * world holds a block is the world's question, asked at the cast.
+ */
+function checkSummonedForm(monster: unknown, path: string, found: SpellDefinitionProblem[]): void {
+  if (typeof monster === 'string') {
+    if (monster.trim().length === 0) {
+      found.push({
+        field: path,
+        code: 'unknown_monster',
+        reason: 'a summons names the stat block it raises, by its id in content',
+      });
+    }
+    return;
+  }
+  if (typeof monster !== 'object' || monster === null) {
+    found.push({
+      field: path,
+      code: 'unknown_monster',
+      reason:
+        'a summons names the stat block it raises by its id in content, or the printed forms its caster chooses from',
+    });
+    return;
+  }
+  const form = monster as { readonly among?: unknown; readonly orAny?: unknown };
+  if (
+    !Array.isArray(form.among) ||
+    form.among.length === 0 ||
+    form.among.some((one) => typeof one !== 'string' || one.trim().length === 0)
+  ) {
+    found.push({
+      field: `${path}.among`,
+      code: 'empty_form_list',
+      reason:
+        'a form the caster chooses is chosen from a printed list of stat blocks, by their ids in content; SRD Find Familiar prints eleven',
+    });
+  }
+  if (form.orAny !== undefined) {
+    const clause =
+      typeof form.orAny === 'object' && form.orAny !== null
+        ? (form.orAny as { readonly type?: unknown; readonly cr?: unknown })
+        : {};
+    if (typeof clause.type !== 'string' || !CREATURE_TYPES.includes(clause.type)) {
+      found.push({
+        field: `${path}.orAny.type`,
+        code: 'unknown_creature_type',
+        reason: `"${String(clause.type)}" is not one of the SRD's fourteen creature types`,
+      });
+    }
+    if (typeof clause.cr !== 'number' || !Number.isFinite(clause.cr) || clause.cr < 0) {
+      found.push({
+        field: `${path}.orAny.cr`,
+        code: 'bad_challenge_rating',
+        reason:
+          'a Challenge Rating is a number of at least 0; SRD Find Familiar prints "a Challenge Rating of 0"',
+      });
+    }
+  }
+}
+
+/** The terms a kept creature stands on — see `KeptSummons`. */
+function checkKeptSummons(kept: unknown, path: string, found: SpellDefinitionProblem[]): void {
+  if (kept === undefined) return;
+  if (typeof kept !== 'object' || kept === null) {
+    found.push({
+      field: path,
+      code: 'malformed_field',
+      reason:
+        'a kept summons is an object: {} for a creature that goes at 0 Hit Points, { untilSummonerDies: true } where the spell prints "or if you die"',
+    });
+    return;
+  }
+  const until = (kept as { readonly untilSummonerDies?: unknown }).untilSummonerDies;
+  if (until !== undefined && until !== true) {
+    found.push({
+      field: `${path}.untilSummonerDies`,
+      code: 'malformed_field',
+      reason: 'a spell either prints "or if you die" or does not; the only value is true',
+    });
+  }
+}
+
+const PRINTED_SPEED_MODES: ReadonlySet<string> = new Set(['walk', 'fly', 'climb', 'swim', 'burrow']);
+
+/** The Speeds a spell prints over its block — see `PrintedSummonSpeeds`. */
+function checkPrintedSummonSpeeds(
+  speeds: unknown,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  if (speeds === undefined) return;
+  if (typeof speeds !== 'object' || speeds === null) {
+    found.push({
+      field: path,
+      code: 'bad_summon_speed',
+      reason: 'the Speeds a spell prints over its block are an object keyed by mode',
+    });
+    return;
+  }
+  for (const [mode, printed] of Object.entries(speeds as Record<string, unknown>)) {
+    if (!PRINTED_SPEED_MODES.has(mode)) {
+      found.push({
+        field: `${path}.${mode}`,
+        code: 'bad_summon_speed',
+        reason: `"${mode}" is not a Speed the book prints; walk, fly, climb, swim and burrow are`,
+      });
+      continue;
+    }
+    const speed =
+      typeof printed === 'object' && printed !== null
+        ? (printed as { readonly feet?: unknown; readonly fromSpellLevel?: unknown })
+        : {};
+    if (!Number.isInteger(speed.feet) || (speed.feet as number) < 1) {
+      found.push({
+        field: `${path}.${mode}.feet`,
+        code: 'bad_summon_speed',
+        reason: 'a printed Speed is a whole number of feet of at least 1',
+      });
+      continue;
+    }
+    if (
+      speed.fromSpellLevel !== undefined &&
+      (!Number.isInteger(speed.fromSpellLevel) ||
+        (speed.fromSpellLevel as number) < 1 ||
+        (speed.fromSpellLevel as number) > 9)
+    ) {
+      found.push({
+        field: `${path}.${mode}.fromSpellLevel`,
+        code: 'bad_summon_speed',
+        reason:
+          'the slot level a Speed appears from is a whole number from 1 to 9; SRD Find Steed prints "requires level 4+ spell"',
+      });
+    }
+  }
+}
+
+/**
+ * A kept creature on a casting that also leaves a record running.
+ *
+ * Two lifetimes: the summoner's, which `kept` declares, and the casting's,
+ * which a duration or a Concentration would bind it to as well. A creature
+ * with both goes at whichever ends first, and the book prints one — SRD Find
+ * Familiar and Find Steed are both Instantaneous, which is the whole reason
+ * `kept` exists.
+ */
+function checkKeptBesideADuration(
+  definition: SpellDefinition,
+  found: SpellDefinitionProblem[],
+): void {
+  if (!castingPersists(definition)) return;
+  definition.effects.forEach((effect, i) => {
+    if (effect.kind === 'summon' && effect.kept !== undefined) {
+      found.push({
+        field: `effects[${i}].kept`,
+        code: 'kept_beside_a_duration',
+        reason:
+          'a creature the caster keeps is bound to its summoner, and a casting with a duration or a Concentration would bind it to the casting as well; a creature with two lifetimes goes at whichever ends first, and the book prints one',
+      });
+    }
+  });
 }
 
 /**

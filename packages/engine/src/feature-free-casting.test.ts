@@ -341,6 +341,9 @@ describe("a Paladin's Faithful Steed casts Find Steed once between rests", () =>
         // The spell is on its caster and the steed is what it makes, which is
         // the shape Dimension Door already takes — see the `summon` effect.
         targets: [AELRIC],
+        // SRD: "choose the steed's creature type — Celestial, Fey, or Fiend",
+        // which the engine refuses to choose on the caster's behalf.
+        choice: 'Celestial',
         source: 'paladin:faithful-steed',
       }),
       'the steed',
@@ -361,10 +364,16 @@ describe("a Paladin's Faithful Steed casts Find Steed once between rests", () =>
     expect(after.creatures[asCharacterId(`${out.castingId!}:otherworldly-steed`)]?.name).toBe(
       'Otherworldly Steed',
     );
-    // What is left of the spell is the steed's lifetime rather than its
-    // existence: nothing binds it, because an Instantaneous casting leaves no
-    // record to bind it to.
-    expect(out.unverified.join(' ')).toContain('leaving when its summoner dies');
+    // And the steed is the paladin's: an Instantaneous casting leaves no record
+    // to bind it to, so it is **kept** — bound to its summoner, owed a departure
+    // at 0 Hit Points or when the rider dies, exactly as the book prints.
+    expect(
+      after.creatures[asCharacterId(`${out.castingId!}:otherworldly-steed`)]?.summonedBy,
+    ).toEqual({
+      by: AELRIC,
+      castingId: null,
+      kept: { spell: 'find-steed', untilSummonerDies: true },
+    });
   });
 });
 

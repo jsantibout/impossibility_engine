@@ -24,8 +24,9 @@
 
 import { asCharacterId, ok, type CharacterId, type Result } from '@ie/shared';
 import { applyEvent, type GameState } from '../events.js';
-import type { SummonedNumber } from '../spell-definitions.js';
-import { summonCreature } from './creatures.js';
+import type { PrintedSummonSpeeds, SummonedNumber } from '../spell-definitions.js';
+import type { PrintedSpeedMode } from '../monster.js';
+import { removeCreatureEverywhere, summonCreature } from './creatures.js';
 import { type EffectContext, type EffectOfKind } from './spell-effect-context.js';
 
 /**
@@ -59,36 +60,30 @@ const scaled = (number: SummonedNumber, level: number): number =>
  * was actually made at, and not the spell's own: SRD Find Steed's "Use the
  * spell slot's level for the spell's level in the stat block" says so in as
  * many words, and it is the same number every `DiceScaling` in the catalogue
- * already reads.
+ * already reads. The Speeds the spell prints are gated on the same level —
+ * "Fly 60 ft. (requires level 4+ spell)" — and withheld below it.
  *
- * **The Initiative count is read off the order, never taken from a caller.**
- * SRD Find Steed's "it shares your Initiative count" names a number the engine
- * holds; a fight that is not running holds none, and then the creature arrives
- * with no rung exactly as a summons with no stated total always has — the two
+ * **The Initiative count is read off the order, never taken from a caller,
+ * and so is the seat.** SRD Find Steed's "it shares your Initiative count"
+ * names a number the engine holds, and "the steed takes its turn immediately
+ * after yours" names a *position* — so the creature is seated on the caster's
+ * count, at the caster's tiebreak, immediately after the caster
+ * (`CombatantInput.after`), and no tiebreak is invented to put it there. A
+ * fight that is not running holds no order, and then the creature arrives with
+ * no rung exactly as a summons with no stated total always has — the two
  * commands that give one still work, because the creature is in the game.
  *
- * **The count, and not the tie.** SRD Find Steed's next sentence is "the steed
- * takes its turn **immediately after yours**", and no tiebreak is written here
- * to deliver it. The reason is `Combatant.tiebreak`'s own, whole: "SRD leaves
- * ties to the GM, so the engine takes that decision as an input rather than
- * inventing one." A number this resolver made up would be a rung nobody chose,
- * and it would silently reorder the creatures whose tiebreak a DM *had* stated
- * — which is the one thing that field exists to stop.
+ * **The form, where the spell leaves it to the caster**, is read off the
+ * casting (`EffectContext.form`): `resolveSpell` has already refused a form
+ * the spell does not admit and a spell that asks for none, before anything
+ * was spent, so by here the id names a block the world holds.
  *
- * **And that is the whole of the argument**, deliberately. Two earlier
- * attempts to add a second one — that an invented rung would rank the steed
- * badly — were each wrong about `byInitiative` in a different direction, which
- * is the argument for not making a claim a rule does not need: whose decision
- * a tie is settles this on its own, at every board, without anybody having to
- * work out where the steed would have landed.
- *
- * What is left undelivered is therefore the **guarantee** rather than the
- * behaviour. `addCombatant` seats a joiner after everyone it exactly ties
- * with, so with the rider's count and the default the steed does land
- * immediately after them today; a creature the DM put on that count at the
- * rider's own tiebreak comes between the two, and "after this creature" is an
- * insertion at a named position that `byInitiative` ranks nothing by. The
- * spell's own `unmodelled` records it at that width.
+ * **One kept creature per spell.** SRD Find Steed: "If you already have a
+ * steed from this spell, the steed is replaced by the new one"; SRD Find
+ * Familiar: "If you cast this spell while you have a familiar, you instead
+ * cause it to adopt a new eligible form." The creature this caster keeps from
+ * this spell leaves first, through the ordinary departure, in the same batch
+ * as the arrival — so the log says what happened in the order it happened.
  */
 export function resolveSummonEffect(
   ctx: EffectContext,
@@ -96,19 +91,38 @@ export function resolveSummonEffect(
   world: GameState,
 ): Result<GameState> {
   const { name, events, outcomes, unverified, casterId } = ctx;
-  const id = summonedId(ctx.casting().castingId, effect.monster);
+  const { definition, castingId } = ctx.casting();
+  const monsterId = typeof effect.monster === 'string' ? effect.monster : ctx.form;
+  if (monsterId === undefined) {
+    // Programmer error rather than a refusal: the pre-flight refuses a stated
+    // form that is missing before anything is spent, so a run without one is a
+    // caller that bypassed it.
+    throw new Error(`${name}: a form the casting states was not checked before resolution`);
+  }
+  const id = summonedId(castingId, monsterId);
+
+  let current = world;
+  if (effect.kept !== undefined) {
+    for (const held of keptBy(current, casterId, definition.id)) {
+      const gone = removeCreatureEverywhere(current, held);
+      if (!gone.ok) return gone;
+      events.push(...gone.value);
+      current = gone.value.reduce(applyEvent, current);
+    }
+  }
 
   // The caster's own rung, where the spell says the creature shares it and a
   // fight is running to share. `undefined` is silence rather than a refusal —
   // see `Summons.initiative`.
   const sharing =
     effect.sharesCastersInitiative === true
-      ? world.combat?.order.find((combatant) => combatant.id === casterId)
+      ? current.combat?.order.find((combatant) => combatant.id === casterId)
       : undefined;
+  const speeds = effect.speeds === undefined ? undefined : printedSpeedsAt(effect.speeds, ctx.castLevel);
 
-  const arrived = summonCreature(world, ctx.supply.content, {
+  const arrived = summonCreature(current, ctx.supply.content, {
     id,
-    monsterId: effect.monster,
+    monsterId,
     by: casterId,
     ...(effect.armorClass === undefined
       ? {}
@@ -116,16 +130,53 @@ export function resolveSummonEffect(
     ...(effect.hitPoints === undefined
       ? {}
       : { hitPointMaximum: scaled(effect.hitPoints, ctx.castLevel) }),
-    // The count, and **only** the count. See the note above on why the tie is
-    // not settled here.
-    ...(sharing === undefined ? {} : { initiative: sharing.initiative }),
+    ...(effect.creatureType === undefined ? {} : { creatureType: effect.creatureType }),
+    ...(effect.kept === undefined
+      ? {}
+      : {
+          kept: {
+            spell: definition.id,
+            untilSummonerDies: effect.kept.untilSummonerDies === true,
+          },
+        }),
+    ...(speeds === undefined ? {} : { speeds }),
+    ...(effect.cannotAttack === true ? { forbidsAttacks: { label: definition.name } } : {}),
+    // The count, the tiebreak and the seat, all the caster's own.
+    ...(sharing === undefined
+      ? {}
+      : { initiative: sharing.initiative, tiebreak: sharing.tiebreak, after: casterId }),
   });
   if (!arrived.ok) return arrived;
 
   events.push(...arrived.value.events);
   unverified.push(...arrived.value.unverified.map((gap) => `${name}: ${gap}`));
-  // Recorded rather than bound: the bond waits for the casting's own record.
-  ctx.summoned.push(id);
+  // A creature a casting holds is bound after the record — see
+  // `resolveEffects`. A kept one was bound at the arrival, on the terms it is
+  // kept on, and waits for no record.
+  if (effect.kept === undefined) ctx.summoned.push(id);
   outcomes.push({ target: casterId, affected: true });
-  return ok(arrived.value.events.reduce(applyEvent, world));
+  return ok(arrived.value.events.reduce(applyEvent, current));
+}
+
+/** The creatures this caster keeps from this spell, sorted so the departure order is fixed. */
+function keptBy(state: GameState, by: CharacterId, spell: string): readonly CharacterId[] {
+  return (Object.keys(state.creatures) as CharacterId[]).sort().filter((who) => {
+    const bond = state.creatures[who]?.summonedBy;
+    return bond != null && bond.castingId === null && bond.by === by && bond.kept?.spell === spell;
+  });
+}
+
+/** The Speeds the slot paid for: each printed mode whose level the casting reached. */
+function printedSpeedsAt(
+  speeds: PrintedSummonSpeeds,
+  castLevel: number,
+): Partial<Record<PrintedSpeedMode, number>> | undefined {
+  const paid: Partial<Record<PrintedSpeedMode, number>> = {};
+  for (const mode of ['walk', 'fly', 'climb', 'swim', 'burrow'] as const) {
+    const printed = speeds[mode];
+    if (printed === undefined) continue;
+    if (printed.fromSpellLevel !== undefined && castLevel < printed.fromSpellLevel) continue;
+    paid[mode] = printed.feet;
+  }
+  return Object.keys(paid).length === 0 ? undefined : paid;
 }

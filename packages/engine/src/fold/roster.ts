@@ -16,7 +16,7 @@ import { resourceState } from '../resources.js';
 import { noSpellcasting } from '../spellcasting.js';
 import { vitals } from '../vitals.js';
 import type { GameEvent } from '../events.js';
-import type { GameState } from '../state.js';
+import type { GameState, SummonBond } from '../state.js';
 import {
   CorruptLogError,
   creatureOf,
@@ -134,16 +134,33 @@ export function applyRoster({ state, next }: Applying, event: RosterEvent): Game
 
     case 'creature-summoned': {
       const creature = creatureOf(state, event, event.id);
+      // A creature is held by a casting or kept by its summoner — one of the
+      // two, never both and never neither. Two lifetimes would take it away
+      // at whichever ended first, and no lifetime is a link saying nothing.
+      if ((event.castingId === undefined) === (event.kept === undefined)) {
+        throw new CorruptLogError(
+          event,
+          `${event.id} is summoned by ${event.by} naming ${
+            event.castingId === undefined
+              ? 'neither a casting nor the terms it is kept on'
+              : 'both a casting and the terms it is kept on'
+          }`,
+        );
+      }
+      const bond: SummonBond =
+        event.castingId !== undefined
+          ? { by: event.by, castingId: event.castingId }
+          : { by: event.by, castingId: null, kept: event.kept! };
       // A casting that is not running cannot be what is holding a creature
       // here: the link would be born already broken, and `strandedSummons`
       // would report a departure that was owed from the creature's first
       // moment. The command refuses it (`not_ongoing`) on the same reading
       // the duplicate below is refused on, and `state.ongoing` is the seam's
       // to read — the record is written by `ongoing.ts` from the same log.
-      if (state.ongoing[event.castingId] === undefined) {
+      if (bond.castingId !== null && state.ongoing[bond.castingId] === undefined) {
         throw new CorruptLogError(
           event,
-          `${event.castingId} is not a spell that is still running; it cannot be what holds ${event.id} here`,
+          `${bond.castingId} is not a spell that is still running; it cannot be what holds ${event.id} here`,
         );
       }
       // Restating the same binding is harmless; two castings claiming one
@@ -151,24 +168,16 @@ export function applyRoster({ state, next }: Applying, event: RosterEvent): Game
       // about to take the creature away. The command refuses that, so a
       // contradiction in the log means it was bypassed — the corrupt-log
       // case, exactly as `creature-type-declared` reads it.
-      if (
-        creature.summonedBy?.castingId === event.castingId &&
-        creature.summonedBy.by === event.by
-      ) {
+      if (creature.summonedBy !== null && sameBond(creature.summonedBy, bond)) {
         return next;
       }
       if (creature.summonedBy !== null) {
         throw new CorruptLogError(
           event,
-          `${event.id} is already held by ${creature.summonedBy.castingId}; ${event.castingId} cannot also be holding it`,
+          `${event.id} is already ${describeBond(creature.summonedBy)}; it cannot also be ${describeBond(bond)}`,
         );
       }
-      return withCreature(
-        next,
-        event.id,
-        { summonedBy: { by: event.by, castingId: event.castingId } },
-        creature,
-      );
+      return withCreature(next, event.id, { summonedBy: bond }, creature);
     }
 
     case 'creature-removed': {
@@ -277,3 +286,16 @@ export function applyRoster({ state, next }: Applying, event: RosterEvent): Game
 
   return unhandledEvent(event);
 }
+
+/** Two bonds that say the same thing: the same summoner, and the same lifetime. */
+const sameBond = (a: SummonBond, b: SummonBond): boolean =>
+  a.by === b.by &&
+  a.castingId === b.castingId &&
+  a.kept?.spell === b.kept?.spell &&
+  a.kept?.untilSummonerDies === b.kept?.untilSummonerDies;
+
+/** How a refusal names a bond: by the casting that holds it, or the spell it is kept through. */
+const describeBond = (bond: SummonBond): string =>
+  bond.castingId !== null
+    ? `held by ${bond.castingId}`
+    : `kept by ${bond.by} through ${bond.kept?.spell ?? 'an unnamed spell'}`;

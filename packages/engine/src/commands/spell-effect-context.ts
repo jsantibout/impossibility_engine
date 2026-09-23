@@ -244,6 +244,15 @@ export interface EffectContext {
    */
   readonly weapon?: string;
   /**
+   * The stat block a summoning spell that leaves the form to its caster was
+   * told to raise, by its id in content — SRD Find Familiar's "an animal form
+   * you choose". Stated at the casting and refused there when a spell that
+   * names its own block is given one, or one that asks is given none; the
+   * catalogue half — the block exists, and is one the spell admits — is
+   * checked in `resolveSpell`'s pre-flight, before anything is spent.
+   */
+  readonly form?: string;
+  /**
    * The casting a Reaction spell answers, by id.
    *
    * Resolved before anything was spent, by the same function the trigger check

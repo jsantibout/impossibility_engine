@@ -823,6 +823,33 @@ export const hasPrintedTrait = (sheet: CharacterSheet, kind: MonsterTrait['kind'
  * prints only a walking Speed, so every stat block that has always had one
  * Speed reaches state carrying exactly what it always did.
  */
+/** The Speeds a spell may print over a stat block, by mode — see `Summons.speeds`. */
+export type PrintedSpeedMode = 'walk' | 'fly' | 'climb' | 'swim' | 'burrow';
+
+/**
+ * A sheet with the Speeds a **spell** printed over the block written in.
+ *
+ * SRD Find Steed's block: "**Speed** 60 ft., Fly 60 ft. (requires level 4+
+ * spell)" — a Speed the creature has only when the slot was big enough, which
+ * the resolver has already gated. It is written here, beside
+ * {@link printedSpeeds}, because pinning a printed number onto the sheet is
+ * the adapter's business and the command layer derives no Speed of its own:
+ * a walking Speed replaces the block's, and any other mode joins or replaces
+ * the one the block prints. The pinned sheet is what `speedOf` then reads.
+ */
+export function withPrintedSpeeds(
+  sheet: CharacterSheet,
+  printed: Partial<Record<PrintedSpeedMode, number>>,
+): CharacterSheet {
+  const { walk, ...modes } = printed;
+  const joined: OtherSpeeds = { ...sheet.speeds, ...modes };
+  return {
+    ...sheet,
+    ...(walk === undefined ? {} : { baseSpeed: walk }),
+    ...(Object.keys(modes).length === 0 ? {} : { speeds: joined }),
+  };
+}
+
 function printedSpeeds(speed: Monster['speed']): { readonly speeds?: OtherSpeeds } {
   const some = (feet: number | null): number | undefined =>
     feet === null || feet <= 0 ? undefined : feet;

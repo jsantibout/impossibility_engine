@@ -512,14 +512,14 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
   'druid:wild-companion': [
     {
-      clause: 'summons are a shape the engine does not have',
+      clause: 'a lifetime a kept summons does not yet have',
       why: 'a-stat-block-created-mid-fight',
-      note: 'the spell map’s own id, which Unseen Servant and Arcane Hand wait on.',
+      note: 'the spell map’s own id. A kept summons goes at 0 Hit Points, or with its summoner where the spell says so; one that goes when the summoner finishes a Long Rest is a third lifetime nothing runs.',
     },
     {
       clause: 'Spending a Wild Shape use to cast Find Familiar',
       why: 'a-casting-paid-for-out-of-a-feature-pool',
-      note: 'and the catalogue defines no Find Familiar either, so the casting would have nothing to run.',
+      note: 'the catalogue defines Find Familiar now, so the casting has a spell to run; what it lacks is a price paid from a sibling feature’s pool.',
     },
   ],
   'druid:beast-spells': [

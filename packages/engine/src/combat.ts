@@ -624,6 +624,19 @@ export interface Combatant {
    * that decision as an input rather than inventing one.
    */
   readonly tiebreak: number;
+  /**
+   * The combatant this one takes its turn immediately after, where a rule
+   * seats it by position rather than by number.
+   *
+   * SRD Find Steed: "the steed takes its turn immediately after yours". A
+   * count and a tiebreak cannot say it — a third creature the DM put on that
+   * exact count comes between the two — so the rung is the anchor's, copied,
+   * and the position is kept by `addCombatant`: a follower is seated straight
+   * after its anchor and after every follower already there, and any later
+   * joiner that ties the anchor exactly lands after the followers, because it
+   * ties them exactly too. Absent for every combatant seated by a number.
+   */
+  readonly after?: CharacterId;
 }
 
 export interface CombatantInput {
@@ -631,6 +644,8 @@ export interface CombatantInput {
   readonly initiative: number;
   readonly speed: number;
   readonly tiebreak?: number;
+  /** Seat this combatant immediately after that one — see {@link Combatant.after}. */
+  readonly after?: CharacterId;
 }
 
 /**
@@ -1522,6 +1537,32 @@ export function addCombatant(state: CombatState, joining: CombatantInput): Resul
     return err('duplicate_combatant', `${joining.id} is already in this combat`);
   }
 
+  if (joining.after !== undefined) {
+    // A position, not a number. SRD Find Steed's "immediately after yours":
+    // the rung is the anchor's, copied so that a later joiner tying the anchor
+    // exactly ties the follower exactly too and lands after both; the seat is
+    // straight after the anchor and after every follower already seated there.
+    const anchor = state.order.findIndex((c) => c.id === joining.after);
+    if (anchor === -1) {
+      return err(
+        'unknown_anchor',
+        `${joining.after} is not in this combat, so ${joining.id} cannot be seated after them`,
+      );
+    }
+    const seated = state.order[anchor]!;
+    let index = anchor + 1;
+    while (index < state.order.length && state.order[index]!.after === joining.after) index += 1;
+    return ok(
+      seatAt(state, index, {
+        id: joining.id,
+        initiative: seated.initiative,
+        speed: joining.speed,
+        tiebreak: seated.tiebreak,
+        after: joining.after,
+      }),
+    );
+  }
+
   const combatant: Combatant = {
     id: joining.id,
     initiative: joining.initiative,
@@ -1530,15 +1571,18 @@ export function addCombatant(state: CombatState, joining: CombatantInput): Resul
   };
 
   const found = state.order.findIndex((c) => byInitiative(combatant, c) < 0);
-  const index = found === -1 ? state.order.length : found;
+  return ok(seatAt(state, found === -1 ? state.order.length : found, combatant));
+}
 
-  return ok({
+/** The one place the order grows: a combatant seated at an index, with a fresh budget and count. */
+function seatAt(state: CombatState, index: number, combatant: Combatant): CombatState {
+  return {
     ...state,
     order: [...state.order.slice(0, index), combatant, ...state.order.slice(index)],
     turnIndex: index <= state.turnIndex ? state.turnIndex + 1 : state.turnIndex,
     budgets: { ...state.budgets, [combatant.id]: fullBudget() },
     turnCounts: { ...state.turnCounts, [combatant.id]: { begun: 0, ended: 0 } },
-  });
+  };
 }
 
 /**

@@ -16,6 +16,7 @@ import {
 import {
   delaysDamage,
   riderDurations,
+  statedFormOf,
   statesFoughtFact,
   teleportOf,
   weaponRiderOf,
@@ -327,6 +328,14 @@ const castAt = (
     ...(weaponRiderOf(definition) === null
       ? {}
       : { weapon: weaponRiderOf(definition)!.weapons?.[0] ?? 'quarterstaff' }),
+    // The seventh, and the same shape a sixth time: a summoning spell that
+    // leaves the form to its caster is refused until the caster names one,
+    // and one that names its own block is refused for naming a form. The
+    // sweep answers with the **first** printed form — SRD Find Familiar's Bat
+    // — because the point here is that every definition casts rather than
+    // which animal this casting called. `statedFormOf` is the runtime's own
+    // reader, for the reason the three above are.
+    ...(statedFormOf(definition) === null ? {} : { form: statedFormOf(definition)!.among[0]! }),
   };
   // The caster's own square. Deliberate: a Cube or Cone excludes its point of
   // origin, so an area placed *on* the target would leave them out of it —

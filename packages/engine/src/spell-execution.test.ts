@@ -517,19 +517,18 @@ describe('what a cast refuses, and what it admits it cannot check', () => {
 
 describe('a feat-granted spell casts on the feat terms', () => {
   /**
-   * Mage Hand comes from Magic Initiate, not the Wizard's cantrip list. It has
-   * no definition — a familiar is a creature conjured into the fight, which is
-   * not a mechanic the engine has — so it refuses to execute it, but it says
-   * *that*, not
-   * that the caster does not know it. That distinction is what a tool surface
-   * needs in order to decide what to tell the player.
+   * Find Familiar comes from Magic Initiate, not the Wizard's list. When the
+   * caster omits what the spell leaves to them — the form — the engine refuses,
+   * but it says *that*, not that the caster does not know the spell. That
+   * distinction is what a tool surface needs in order to decide what to tell
+   * the player.
    *
-   * (This was Ray of Frost, then Mage Hand, each until it got a definition.
-   * The point is the missing mechanic, not the spell — Find Familiar needs a
-   * creature conjured into the fight and tied to the casting, which is the
-   * summon shape and the one left standing.)
+   * (This was Ray of Frost, then Mage Hand, then Find Familiar's missing
+   * mechanic, each until it got a definition; the summon shape landed on
+   * 2026-09-22 and the familiar is a kept creature now. The point survives the
+   * definition: the refusal is about the *casting*, and the route is known.)
    */
-  it('knows the caster has it, and says only that it cannot execute it', () => {
+  it('knows the caster has it, and asks for what the spell leaves to them', () => {
     const state = fold('seed', table());
     expect(routeFor(state.creatures.kessa!.spellcasting, 'find-familiar')).toMatchObject({
       kind: 'granted',
@@ -538,11 +537,11 @@ describe('a feat-granted spell casts on the feat terms', () => {
     const result = resolveSpell(
       state,
       WIZARD,
-      { spellId: 'find-familiar', targets: [] },
+      { spellId: 'find-familiar', targets: [WIZARD], choice: 'Fey' },
       supply(state),
     );
     expect(isErr(result)).toBe(true);
-    if (isErr(result)) expect(result.code).toBe('no_definition');
+    if (isErr(result)) expect(result.code).toBe('form_required');
   });
 
   /**

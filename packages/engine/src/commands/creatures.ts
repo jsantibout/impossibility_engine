@@ -23,9 +23,10 @@ import { type CharacterId, err, ok, type Result } from '@ie/shared';
 import { hasCondition } from '../conditions.js';
 import type { Content } from '../content.js';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
+import type { KeptBond } from '../state.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import { addCombatant } from '../combat.js';
-import { adaptMonster } from '../monster.js';
+import { adaptMonster, type PrintedSpeedMode, withPrintedSpeeds } from '../monster.js';
 import type { Placement } from '../positioning.js';
 import { speedOf } from '../standing.js';
 import { applyDamageToVitals, healingRuleOf, isDown } from '../vitals.js';
@@ -200,6 +201,12 @@ export interface Summons {
    */
   readonly castingId?: string;
   /**
+   * The terms the summoner **keeps** the creature on, where no casting holds
+   * it — see `SummonBond.kept`. Exclusive with `castingId`: a creature with
+   * two lifetimes is refused (`two_lifetimes`).
+   */
+  readonly kept?: KeptBond;
+  /**
    * Which side it is on, when it is not the summoner's.
    *
    * Defaults to the summoner's own, because that is what a summons is. It is
@@ -252,6 +259,32 @@ export interface Summons {
   readonly armorClass?: number;
   /** The same, for SRD Find Steed's "**HP** 5 + 10 per spell level". */
   readonly hitPointMaximum?: number;
+  /**
+   * The creature type the summons arrives with, where the spell prints one
+   * over the block's own — SRD Find Familiar's "a Celestial, Fey, or Fiend
+   * (your choice) instead of a Beast". Pinned into `creature-added` in place
+   * of the block's, as the Armour Class is.
+   */
+  readonly creatureType?: string;
+  /**
+   * Speeds the spell prints over the block, already gated on the slot by the
+   * resolver — SRD Find Steed's "Fly 60 ft. (requires level 4+ spell)". A
+   * walking Speed replaces the block's; any other joins or replaces the mode
+   * the block prints.
+   */
+  readonly speeds?: Partial<Record<PrintedSpeedMode, number>>;
+  /**
+   * SRD Find Familiar: "A familiar can't attack". The creature arrives with a
+   * stored `action-rule` forbidding the Attack action and the Opportunity
+   * Attack, sourced to the summons and labelled with what forbade it.
+   */
+  readonly forbidsAttacks?: { readonly label: string };
+  /**
+   * Seat the creature immediately after this combatant — SRD Find Steed's
+   * "the steed takes its turn immediately after yours". Read beside
+   * `initiative`; see `CombatantInput.after`.
+   */
+  readonly after?: CharacterId;
 }
 
 /**
@@ -310,7 +343,7 @@ export function summonCreature(
   summons: Summons,
   command: CommandIdentity = {},
 ): Result<AddCreatureOutcome> {
-  const { id, monsterId, by, castingId } = summons;
+  const { id, monsterId, by, castingId, kept } = summons;
 
   // **Everything the caller stated, whole.** A retry that moved the placement
   // or changed the Initiative total is a *different* command, and
@@ -327,6 +360,15 @@ export function summonCreature(
     (stamp) => {
       const summoner = creatureOf(state, by);
       if (summoner === null) return unknownCreature(by);
+
+      // One lifetime. A creature both held by a casting and kept by its
+      // summoner would go at whichever ended first, and no spell prints that.
+      if (castingId !== undefined && kept !== undefined) {
+        return err(
+          'two_lifetimes',
+          `${id} cannot be both held by ${castingId} and kept by ${by}; a summons has one lifetime`,
+        );
+      }
 
       const holding = castingId === undefined ? null : state.ongoing[castingId];
       // A binding to a casting that is not running would be taken away by the
@@ -374,6 +416,30 @@ export function summonCreature(
 
       if (castingId !== undefined) {
         events.push({ type: 'creature-summoned', id, by, castingId });
+      } else if (kept !== undefined) {
+        // Bound at the arrival, because the terms it is kept on need no
+        // record to exist first — which is the whole difference from a
+        // casting's bond, written after the record by `resolveEffects`.
+        events.push({ type: 'creature-summoned', id, by, kept });
+      }
+
+      // SRD Find Familiar: "A familiar can't attack, but it can take other
+      // actions as normal." Stored on the creature rather than derived, for
+      // the reason a casting's rule is: `refuseSpend` reads the stored half,
+      // and a summons has no feature to hang a standing rule on. Sourced to
+      // the summons, so it stands for as long as the creature does and goes
+      // with it — there is no casting for `releaseGrants` to end it by.
+      if (summons.forbidsAttacks !== undefined) {
+        events.push({
+          type: 'action-rule-granted',
+          id,
+          rule: {
+            source: `summons:${id}`,
+            rule: { kind: 'forbids', actions: ['attack', 'opportunity-attack'] },
+            label: summons.forbidsAttacks.label,
+            until: 'it is dismissed',
+          },
+        });
       }
 
       if (summons.placement !== undefined) {
@@ -408,6 +474,9 @@ export function summonCreature(
           // takes when it asks what a settlement left behind.
           speed: speedOf(events.reduce(applyEvent, state), id),
           ...(summons.tiebreak === undefined ? {} : { tiebreak: summons.tiebreak }),
+          // SRD Find Steed's "immediately after yours" — a position, which
+          // `addCombatant` keeps. See `Combatant.after`.
+          ...(summons.after === undefined ? {} : { after: summons.after }),
         };
         // Asked here and asked again by the reducer, so the command and the
         // fold cannot disagree about where the creature landed.
@@ -425,11 +494,13 @@ export function summonCreature(
  * The arrival, with whatever the **spell** printed over the stat block.
  *
  * SRD Find Steed writes its steed's Armour Class and hit points as formulae in
- * the spell's own entry, so for that one summons two of the numbers the block
- * would otherwise settle are the casting's. They are written *into the
- * arrival* rather than emitted beside it: `creature-added` is where every
- * number a creature has is pinned, and a second event carrying an Armour Class
- * would give the fold two answers to one question.
+ * the spell's own entry, its Fly Speed gated on the slot, and its creature
+ * type as the caster's choice; SRD Find Familiar prints the type the same
+ * way. So for those summons some of what the block would otherwise settle is
+ * the casting's. They are written *into the arrival* rather than emitted
+ * beside it: `creature-added` is where every number a creature has is pinned,
+ * and a second event carrying an Armour Class would give the fold two answers
+ * to one question.
  *
  * Nothing here computes; the caller has already worked the formula out. An
  * event of any other type is handed back untouched, which is the honest answer
@@ -437,18 +508,26 @@ export function summonCreature(
  */
 function printedOver(event: GameEvent, summons: Summons): GameEvent {
   if (event.type !== 'creature-added') return event;
-  if (summons.armorClass === undefined && summons.hitPointMaximum === undefined) return event;
+  const { armorClass, hitPointMaximum, creatureType, speeds } = summons;
+  if (
+    armorClass === undefined &&
+    hitPointMaximum === undefined &&
+    creatureType === undefined &&
+    speeds === undefined
+  ) {
+    return event;
+  }
+  // SRD Find Steed's "Fly 60 ft. (requires level 4+ spell)": a Speed the
+  // spell prints is pinned by the adapter, which is the one place a printed
+  // number reaches a sheet — the command layer derives no Speed of its own.
+  const sheet = speeds === undefined ? event.sheet : withPrintedSpeeds(event.sheet, speeds);
   return {
     ...event,
-    ...(summons.hitPointMaximum === undefined ? {} : { maxHp: summons.hitPointMaximum }),
-    ...(summons.armorClass === undefined
-      ? {}
-      : {
-          sheet: {
-            ...event.sheet,
-            stated: { ...event.sheet.stated, armorClass: summons.armorClass },
-          },
-        }),
+    ...(hitPointMaximum === undefined ? {} : { maxHp: hitPointMaximum }),
+    // SRD Find Familiar: "a Celestial, Fey, or Fiend (your choice) instead of
+    // a Beast" — the block's type, replaced at the arrival and nowhere else.
+    ...(creatureType === undefined ? {} : { creatureType }),
+    sheet: armorClass === undefined ? sheet : { ...sheet, stated: { ...sheet.stated, armorClass } },
   };
 }
 
@@ -527,7 +606,21 @@ export function strandedSummons(state: GameState): readonly CharacterId[] {
       const creature = state.creatures[key];
       const bond = creature?.summonedBy;
       if (creature === undefined || bond == null) return [];
-      return state.ongoing[bond.castingId] === undefined ? [creature.id] : [];
+      if (bond.castingId !== null) {
+        return state.ongoing[bond.castingId] === undefined ? [creature.id] : [];
+      }
+      // A creature its summoner keeps. SRD Find Familiar: "When the familiar
+      // drops to 0 Hit Points, it disappears"; SRD Find Steed: "The steed
+      // disappears if it drops to 0 Hit Points or if you die." The first is
+      // what being kept means and the second is the spell's to print — and a
+      // summoner who has left the game is read as the second, because a
+      // creature kept by nobody is kept by nothing.
+      if (creature.vitals.hp <= 0 || creature.vitals.dead) return [creature.id];
+      if (bond.kept?.untilSummonerDies === true) {
+        const summoner = state.creatures[bond.by];
+        if (summoner === undefined || summoner.vitals.dead) return [creature.id];
+      }
+      return [];
     });
 }
 

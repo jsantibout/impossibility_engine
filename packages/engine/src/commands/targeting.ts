@@ -55,6 +55,7 @@ import {
   targetCountFor,
   teleportOf,
   weaponRiderOf,
+  statedFormOf,
 } from '../spell-definitions.js';
 import { type SlotlessReason } from '../spells.js';
 import { type ConcentrationConsequence } from './casting.js';
@@ -443,6 +444,25 @@ export interface CastSpellRequest extends CommandIdentity {
    * would reach no swing at all.
    */
   readonly weapon?: string;
+  /**
+   * Which stat block a summoning spell that leaves the form to its caster
+   * raises, by its id in content.
+   *
+   * SRD Find Familiar: "an animal form you choose: Bat, Cat, Frog, Hawk,
+   * Lizard, Octopus, Owl, Rat, Raven, Spider, Weasel, or another Beast that
+   * has a Challenge Rating of 0." The list is the spell's, the pick is the
+   * caster's, and the engine makes neither — a default here would be the
+   * engine answering "you choose" on the caster's behalf, the same way every
+   * time.
+   *
+   * The seventh fact a casting states rather than derives, in the shape of
+   * the other six: **required** by a spell that leaves the form to its caster
+   * and **refused** for one that names its own block, both before a slot is
+   * spent. What is checked beside that needs the catalogue — the block exists,
+   * and it is listed or admitted by the clause — and is asked in `resolveSpell`'s
+   * pre-flight beside the weapon's.
+   */
+  readonly form?: string;
   /**
    * How to pay for it.
    *
@@ -835,6 +855,28 @@ export function declaredFacts(
     return err(
       'no_weapon_clause',
       `${definition.name} does nothing to a weapon; which one is not a fact it asks for`,
+    );
+  }
+
+  // — which form a summons takes —————————————————————————————————————————
+  //
+  // The seventh stated fact, and the same two refusals. SRD Find Familiar:
+  // "an animal form you choose: Bat, Cat, … or another Beast that has a
+  // Challenge Rating of 0" — the list is the spell's, the pick is the
+  // caster's, and the engine makes neither. Only the symmetry lives here;
+  // whether the block exists and is one the spell admits needs the catalogue,
+  // and is asked in `resolveSpell`'s pre-flight beside the weapon's.
+  if (statedFormOf(definition) !== null) {
+    if (request.form === undefined) {
+      return err(
+        'form_required',
+        `${definition.name} leaves the form to its caster and the engine will not choose one; name the stat block`,
+      );
+    }
+  } else if (request.form !== undefined) {
+    return err(
+      'no_form_clause',
+      `${definition.name} names its own stat block; which form is not a fact it asks for`,
     );
   }
 

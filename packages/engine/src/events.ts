@@ -85,6 +85,7 @@ import type {
   PendingMove,
   PendingTest,
   ReadiedAction,
+  KeptBond,
 } from './state.js';
 
 /**
@@ -142,6 +143,7 @@ export type {
   PendingTest,
   ReadiedAction,
   ReadiedResponse,
+  KeptBond,
   SummonBond,
 } from './state.js';
 export {
@@ -708,8 +710,19 @@ export type GameEvent =
       readonly id: CharacterId;
       /** The summoner. */
       readonly by: CharacterId;
-      /** The casting whose ending takes the creature with it. */
-      readonly castingId: string;
+      /**
+       * The casting whose ending takes the creature with it.
+       *
+       * Absent for a creature its summoner keeps, whose terms are `kept`. A
+       * log naming both, or neither, is refused by the fold.
+       */
+      readonly castingId?: string;
+      /**
+       * The terms a kept creature stands on — see `SummonBond.kept`. SRD Find
+       * Familiar's familiar and Find Steed's steed are an Instantaneous
+       * casting's, bound to their summoner because no record could hold them.
+       */
+      readonly kept?: KeptBond;
       readonly command?: CommandStamp;
     }
   | {

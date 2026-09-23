@@ -163,7 +163,7 @@ export const DRUID: ClassDefinition = {
       name: 'Wild Companion',
       level: 2,
       automation: 'manual',
-      note: 'Spending a Wild Shape use to cast Find Familiar is not modelled; summons are a shape the engine does not have.',
+      note: 'Spending a Wild Shape use to cast Find Familiar is not modelled: the spell executes, but a casting paid for out of a feature’s pool has no shape, and the familiar it calls is a Fey that disappears when the druid finishes a Long Rest — a lifetime a kept summons does not yet have.',
     },
     {
       id: 'druid:subclass',

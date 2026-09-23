@@ -823,6 +823,11 @@ const ANSWERS: Readonly<Record<string, Answer>> = {
   // nonmagical weapon" name one object out of what the target is carrying, and
   // a Druid holding both has two answers the engine will not pick between.
   weapon_required: { fields: ['cast_spell.weapon', 'take_ready.response.weapon'] },
+  // The seventh stated fact, and one caller: SRD Find Familiar's "an animal
+  // form you choose" names the stat block the summons raises, and the engine
+  // refuses to pick one. A readied casting does not carry it — nothing in the
+  // book readies a summons — so the field is `cast_spell`'s alone.
+  form_required: { fields: ['cast_spell.form'] },
 
   // — and three questions about what pays for it ———————————————————————————
   slot_kind_required: { fields: ['cast_spell.slotKind', 'take_ready.response.slotKind'] },

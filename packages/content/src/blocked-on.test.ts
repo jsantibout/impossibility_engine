@@ -480,11 +480,12 @@ describe('a read entry answers every sentence that names a mechanic', () => {
    * arriving on schedule: a spell chosen for being read and undefined stops
    * being the second the day somebody writes it, and being the most heavily
    * read entry in the map is exactly what makes a spell worth writing next.
-   * Find Familiar is the replacement, and it is what "most heavily read" means
-   * now: twelve clauses over one paragraph.
+   * Find Familiar was the third fixture and went the same way on 2026-09-22,
+   * written on the kept summons; Phantasmal Force is the replacement, and it
+   * is what "most heavily read" means now: nine clauses over one paragraph.
    */
   it('reports nothing once that sentence is answered', () => {
-    expect(sentenceGaps('find-familiar')).toEqual([]);
+    expect(sentenceGaps('phantasmal-force')).toEqual([]);
   });
 
   /**
@@ -495,7 +496,7 @@ describe('a read entry answers every sentence that names a mechanic', () => {
    * told apart by the clause rather than by the silence.
    */
   it('does not call a grandfathered entry read', () => {
-    expect(isSentenceComplete('find-familiar')).toBe(true);
+    expect(isSentenceComplete('phantasmal-force')).toBe(true);
     expect(isSentenceComplete('aid')).toBe(false);
     expect(clausesIn(BLOCKED_ON['aid'] ?? [])).toEqual([]);
   });
@@ -890,7 +891,12 @@ describe('the four highest-leverage families are read sentence by sentence', () 
     // spells rather than by building anything. What is left of each family in
     // the undefined population is written here; what left it is asserted
     // below, and the shapes all survive in the tracked population.
-    ['a-stat-block-created-mid-fight', ['find-familiar'], []],
+    // **And Find Familiar left it on 2026-09-22**, written on the kept
+    // summons: the form the caster names, the type they state, the familiar
+    // bound to its wizard rather than to a casting. Its two remaining debts
+    // are adjudicated on the executed side, which is where the shape's own
+    // claim moved.
+    ['a-stat-block-created-mid-fight', [], []],
     // Conjure Woodland Beings left this list by being **written**, and the
     // reading that had kept it here was wrong about which gap it was: see the
     // block below, and `conjure-woodland-beings.test.ts` for the definition.
@@ -903,7 +909,7 @@ describe('the four highest-leverage families are read sentence by sentence', () 
     // moved into the adjudicated population rather than going away, exactly
     // as the wall family's did.
     ['an-action-a-spell-compels-or-forbids', [], []],
-    ['a-second-place-to-put-a-creature', ['find-familiar', 'maze', 'sending'], []],
+    ['a-second-place-to-put-a-creature', ['maze', 'sending'], []],
     ['a-wall-or-several-templates-in-one-area', [], []],
   ];
 
@@ -1169,13 +1175,7 @@ describe('reading four families found blockers the bare lists had missed', () =>
 
   /** The spell, the sentence that forced it, and the shape it was filed under. */
   const FOUND: readonly (readonly [string, string, ShapeId])[] = [
-    ['find-familiar', 'you can temporarily dismiss the familiar to a pocket dimension', 'a-second-place-to-put-a-creature'],
-    [
-      'find-familiar',
-      'your familiar can deliver the touch',
-      'an-activation-taken-by-somebody-other-than-the-caster',
-    ],
-    ['find-familiar', "you can see through the familiar's eyes and hear what it hears", 'senses-beyond-declared-sight'],
+    // Find Familiar's three rows were spent on 2026-09-22 — see `SPENT` below.
     ['maze', 'If it succeeds, it escapes, and the spell ends', 'a-casting-ended-by-a-trigger'],
     [
       'sending',
@@ -1257,6 +1257,12 @@ describe('reading four families found blockers the bare lists had missed', () =>
     ['tsunami', 'unmodelled', 'a catch filtered by size'],
     ['tsunami', 'unmodelled', 'swimming creatures being unaffected'],
     ['tsunami', 'unmodelled', 'nothing falls and there is no water'],
+    // Find Familiar, written on the kept summons on 2026-09-22. Its three
+    // readings survive in the definition's own notes and in the executed map,
+    // which is where an executed-partial spell's debts are adjudicated.
+    ['find-familiar', 'unmodelled', 'you can temporarily dismiss the familiar to a pocket dimension'],
+    ['find-familiar', 'unmodelled', 'your familiar can deliver the touch'],
+    ['find-familiar', 'unmodelled', 'seeing through the familiar’s eyes'],
   ];
 
   it.each(SPENT)('kept %s’s reading after the definition landed (%s)', (spellId, where, what) => {
@@ -2302,13 +2308,14 @@ describe('a consumer count is a query', () => {
     const statBlock = consumersOf('a-stat-block-created-mid-fight');
     expect(statBlock.blocks.filter((id) => id.startsWith('conjure-'))).toEqual([]);
     // All three are tracked now — the third catalogue pass took the whole
-    // family — so the shape is claimed entirely from the tracked population
-    // and the undefined column holds only Find Familiar, which `packages/
-    // engine`'s own tests pin as having no definition.
+    // family — so the shape is claimed entirely from the tracked and the
+    // executed populations, and the undefined column is empty: Find Familiar
+    // was the last of it, written on the kept summons on 2026-09-22.
     for (const id of ['arcane-hand', 'summon-dragon', 'giant-insect']) {
       expect(statBlock.tracked, id).toContain(id);
     }
-    expect(statBlock.undefined).toEqual(['find-familiar']);
+    expect(statBlock.undefined).toEqual([]);
+    expect(statBlock.executed).toContain('find-steed');
     // Unseen Servant was the fourth and is tracked too, which is the third
     // population claiming the shape rather than the shape losing a consumer.
     expect(statBlock.tracked).toContain('unseen-servant');
@@ -2487,14 +2494,16 @@ describe('a consumer count is a query', () => {
       ranked.find((one) => one.shape === shape)?.blocks.length ?? 0;
     expect(sizeOf('an-action-a-spell-compels-or-forbids')).toBeLessThan(ranked[0]!.blocks.length);
     expect(sizeOf('a-creature-somebody-else-is-playing')).toBeGreaterThan(1);
-    // The runners-up tie, so they are asserted as a set and never by `slice`
-    // alone: two shapes of equal size have no defined order between them.
+    // The runners-up are asserted as a set and never by `slice` alone: two
+    // shapes of equal size have no defined order between them. The tie this
+    // used to record was broken on 2026-09-22, when Find Familiar was written
+    // and `a-stat-block-created-mid-fight` lost its last undefined consumer.
     expect(
       ranked
         .filter((one) => one.blocks.length === ranked[1]!.blocks.length)
         .map((one) => one.shape)
         .sort(),
-    ).toEqual(['a-casting-ended-by-a-trigger', 'a-stat-block-created-mid-fight']);
+    ).toEqual(['a-casting-ended-by-a-trigger']);
     // **Moved from 20 to 15 by the third catalogue pass, and the total fell
     // further than the tracked column rose.** Twelve undefined spells named
     // this shape; ten of them were written, and only two carry the claim into
@@ -2893,11 +2902,12 @@ describe('the shape that was built three tranches before its entries were re-rea
       expect(BLOCKED_ON[id], id).toBeUndefined();
       expect(SRD_CONTENT.spell(id)?.castingTime, id).toBe('long');
     }
-    expect(
-      clausesIn(BLOCKED_ON['find-familiar'] ?? []).find(
-        (entry) => entry.clause === 'Casting Time: 1 hour or Ritual',
-      )?.why,
-    ).toBe('expressible');
+    // And the one that carried the casting time as an `expressible` clause is
+    // written now, and the rite is run: an hour, or the Ritual.
+    expect(BLOCKED_ON['find-familiar']).toBeUndefined();
+    expect(SRD_CONTENT.spell('find-familiar')?.castingTime).toBe('long');
+    expect(SRD_CONTENT.spell('find-familiar')?.castingSeconds).toBe(3600);
+    expect(SRD_CONTENT.spell('find-familiar')?.ritual).toBe(true);
   });
 
   /**
@@ -3117,7 +3127,11 @@ describe('a trigger that ends a casting is a partial build, and the map says whi
         phrase,
       ).toHaveLength(1);
     }
-    expect(blockersOf('find-familiar')).toContain('senses-beyond-declared-sight');
+    // Find Familiar is written now, and the clause moved with it into the
+    // executed map rather than going away.
+    expect(ADJUDICATED['find-familiar']?.map((entry) => entry.why)).toContain(
+      'senses-beyond-declared-sight',
+    );
     // Project Image was the second and is a tracked definition now. Its
     // senses clause trips no mechanical marker, so it could not move into the
     // tracked map; what carries it is the definition's own note, which the

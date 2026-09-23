@@ -1,6 +1,7 @@
 {
   "state.ts": [
     "SummonBond",
+    "KeptBond",
     "CreatureState",
     "AppliedCommand",
     "CommandStamp",
@@ -123,7 +124,9 @@
     "ROSTER_EVENTS",
     "RosterEvent",
     "isRosterEvent",
-    "applyRoster"
+    "applyRoster",
+    "sameBond",
+    "describeBond"
   ],
   "fold/vitals.ts": [
     "VITALS_EVENTS",
