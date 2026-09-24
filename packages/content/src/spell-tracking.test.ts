@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { SPELL_DEFINITIONS, SRD_CONTENT } from '@ie/content';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from '@ie/engine';
+import type { CreatureSize } from '@ie/srd/schemas';
 import { createRng, type Rng } from '@ie/engine';
 import { createRollIssuer } from '@ie/engine';
 import { fold, type GameEvent } from '@ie/engine';
@@ -68,6 +69,7 @@ const WIZARD = id('wizard');
 const ALLY = id('ally');
 const FOE = id('foe');
 const BEAST = id('beast');
+const RAVEN = id('raven');
 
 const sheet = (over: Partial<CharacterSheet> = {}): CharacterSheet => ({
   level: 9,
@@ -82,7 +84,11 @@ const sheet = (over: Partial<CharacterSheet> = {}): CharacterSheet => ({
   ...over,
 });
 
-const added = (who: CharacterId, creatureType = 'Humanoid'): GameEvent => ({
+const added = (
+  who: CharacterId,
+  creatureType = 'Humanoid',
+  size?: CreatureSize,
+): GameEvent => ({
   type: 'creature-added',
   id: who,
   name: who,
@@ -90,6 +96,7 @@ const added = (who: CharacterId, creatureType = 'Humanoid'): GameEvent => ({
   maxHp: 50,
   diesAtZero: false,
   creatureType,
+  ...(size === undefined ? {} : { size }),
 });
 
 /**
@@ -128,6 +135,16 @@ const TRACKED: readonly string[] = SPELL_DEFINITIONS.filter(
 const TYPED: Readonly<Record<string, CharacterId>> = { Humanoid: ALLY, Beast: BEAST };
 
 /**
+ * And one creature per **type and size** a tracked definition may demand.
+ *
+ * SRD Animal Messenger takes "a Tiny Beast", which the Wolf standing in for
+ * every Beast is not — and the refusal of a Wolf is the spell working rather
+ * than the fixture being in the way. Keyed by both facts, and the lookup
+ * throws for a pair nobody added, exactly as {@link TYPED} does.
+ */
+const SIZED: Readonly<Record<string, CharacterId>> = { 'Beast/tiny': RAVEN };
+
+/**
  * Where an area spell puts its template: a point 50 feet from the door, and a
  * direction for the shapes that need one.
  *
@@ -143,6 +160,7 @@ const SETUP: readonly GameEvent[] = [
   added(ALLY),
   added(FOE),
   added(BEAST, 'Beast'),
+  added(RAVEN, 'Beast', 'tiny'),
   ...[1, 2, 3, 4, 5, 6, 7, 8, 9].map(
     (level): GameEvent => ({
       type: 'resource-pool-declared',
@@ -161,9 +179,11 @@ const SETUP: readonly GameEvent[] = [
   { type: 'creature-placed', id: ALLY, placement: { from: { creature: WIZARD }, feet: 5, bearing: 0 } },
   { type: 'creature-placed', id: FOE, placement: { from: { creature: WIZARD }, feet: 5, bearing: 90 } },
   { type: 'creature-placed', id: BEAST, placement: { from: { creature: WIZARD }, feet: 5, bearing: 180 } },
+  { type: 'creature-placed', id: RAVEN, placement: { from: { creature: WIZARD }, feet: 5, bearing: 270 } },
   { type: 'sight-declared', from: WIZARD, to: ALLY, seen: true },
   { type: 'sight-declared', from: WIZARD, to: FOE, seen: true },
   { type: 'sight-declared', from: WIZARD, to: BEAST, seen: true },
+  { type: 'sight-declared', from: WIZARD, to: RAVEN, seen: true },
   // The ally is falling, which is the same discipline the types above follow:
   // the fixture supplies the moment a Reaction spell answers rather than the
   // spell being excused its own casting time. A fall is momentary and this
@@ -195,8 +215,18 @@ const cast = (
   const definition = SRD_CONTENT.spell(spellId);
   if (definition === null) throw new Error(`${spellId} has no definition`);
   const wanted = definition.targets.mustBeType;
-  const at = wanted === undefined ? ALLY : TYPED[wanted];
-  if (at === undefined) throw new Error(`${spellId} wants a ${wanted} and this table has none`);
+  const sized = definition.targets.mustBeSize;
+  const at =
+    sized !== undefined
+      ? SIZED[`${wanted ?? 'Humanoid'}/${sized}`]
+      : wanted === undefined
+        ? ALLY
+        : TYPED[wanted];
+  if (at === undefined) {
+    throw new Error(
+      `${spellId} wants a ${sized === undefined ? '' : `${sized} `}${wanted ?? 'creature'} and this table has none`,
+    );
+  }
   // A spell that aims at nobody gets nobody, and `unlimited` is the third
   // state: the SRD states no count, so the list is not empty — it is
   // bounded by range and sight instead. The same predicate
@@ -628,6 +658,11 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
     'fog-cloud',
     'light',
     'magic-weapon',
+    // And the cap the casting track carried out: every one of
+    // Prestidigitation's six wonders is fiction, and the sentence over them —
+    // three of its non-instantaneous effects at a time — is a rule the engine
+    // applies at the cast. No marker knows those words either.
+    'prestidigitation',
   ];
 
   it('finds every clean paragraph outside the executed bucket', () => {

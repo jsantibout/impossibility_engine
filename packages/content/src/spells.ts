@@ -3970,7 +3970,27 @@ export const JUMP: SpellDefinition = {
  *
  * > _Transmutation Cantrip._ **Casting Time:** Action. **Range:** 10 feet.
  * > **Duration:** Up to 1 hour.
- * > "You create a magical effect within range."
+ * > "You create a magical effect within range. Choose the effect from the
+ * > options below. If you cast this spell multiple times, you can have up to
+ * > three of its non-instantaneous effects active at a time."
+ *
+ * **The six wonders are the table's and the cap is not.** Every option the
+ * spell lists — the sparks, the candle, the smudge, the chill, the mark and
+ * the trinket — is fiction nothing in the engine reads afterwards, which is
+ * why this spell was tracked. The sentence above them is the one mechanical
+ * rule it prints, and `maxRunning` is it: a fourth casting by the same caster
+ * ends the oldest of the three still running, which is
+ * {@link SpellDefinition.replacesPriorCasting} with a different number.
+ *
+ * **Castings, not wonders, and the difference is stated rather than glossed.**
+ * The book caps the *non-instantaneous* effects, and three of the six are
+ * Instantaneous — but the engine models none of the six and gives every
+ * casting the hour the lasting ones print, so counting castings is counting
+ * exactly the population the sentence names under the engine's own reading of
+ * the spell. A caster who lit three candles and then made a mark has ended the
+ * first candle here and would not have at a table; nothing mechanical hangs on
+ * either answer, and the alternative is a choice between six effect lists that
+ * `choiceStated` is documented as not being.
  */
 export const PRESTIDIGITATION: SpellDefinition = {
   id: 'prestidigitation',
@@ -3983,9 +4003,10 @@ export const PRESTIDIGITATION: SpellDefinition = {
   targets: { count: 0 },
   effects: [],
   durationSeconds: 3600,
+  maxRunning: 3,
   unmodelled: [
     'every one of the listed effects — a sensory effect, lighting or snuffing a flame, cleaning or soiling an object, chilling or warming, a mark, a trinket — is the DM’s',
-    'the limit of three effects at once, and dismissing one as an action, are not tracked',
+    'which of the six a casting made is the DM’s, so the cap of three counts castings rather than the non-instantaneous effects the sentence names',
   ],
 };
 
@@ -7935,7 +7956,10 @@ export const ANIMAL_MESSENGER: SpellDefinition = {
   ritual: true,
   concentration: false,
   range: { kind: 'ranged', feet: 30 },
-  targets: { count: 1, mustBeType: 'Beast' },
+  // "A **Tiny** Beast of your choice that you can see within range": two
+  // facts about the target and both of them the engine's, now that a target
+  // rule can ask for a size. A Wolf is a Beast and is not a messenger.
+  targets: { count: 1, mustBeType: 'Beast', mustBeSize: 'tiny' },
   requiresSight: true,
   effects: [],
   durationSeconds: 86_400,
@@ -7951,7 +7975,7 @@ export const ANIMAL_MESSENGER: SpellDefinition = {
     9: 1_296_000,
   },
   unmodelled: [
-    'the Charisma saving throw is not rolled: the parenthesis that decides it — "if the target’s Challenge Rating isn’t 0, it automatically succeeds" — reads a Challenge Rating no target rule can ask for, and neither can the Tiny that picks the Beast',
+    'the Charisma saving throw is not rolled: the parenthesis that decides it — "if the target’s Challenge Rating isn’t 0, it automatically succeeds" — reads a Challenge Rating nothing in the engine holds, which is the second of the three facts `a-target-rule-the-format-cannot-state` names and the one still missing',
     'the errand is the DM’s: the location, the recipient "who matches a general description", the message of up to twenty-five words, the 25 or 50 miles a day and the Beast returning if it does not arrive are all narration',
   ],
 };

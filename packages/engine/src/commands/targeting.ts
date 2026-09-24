@@ -43,6 +43,7 @@ import {
   snapToSpace,
 } from '../positioning.js';
 import { fallWindowOpen } from '../reactions.js';
+import { effectiveSizeOf } from '../size.js';
 import { canSee, canSeePoint } from '../standing.js';
 import { type SlotKind } from '../resources.js';
 import {
@@ -704,6 +705,15 @@ export interface HeldCasting {
  * need the answer and they must not disagree: `placeArea` builds the geometry
  * with it, and the ongoing record stores it for every later trigger.
  */
+/**
+ * A size as the book writes it — "Tiny", "Medium" — for a refusal a person reads.
+ *
+ * The vocabulary is lowercase because that is what a stat block parses to; the
+ * SRD prints the category capitalised wherever a rule names one, and
+ * `ACTION_TITLES` in `combat.ts` is the same courtesy for the same reason.
+ */
+const titleSize = (size: string): string => `${size.slice(0, 1).toUpperCase()}${size.slice(1)}`;
+
 export const anchoringFor = (
   source: { readonly anchoring?: PointAnchoring },
   request: { readonly anchoring?: PointAnchoring },
@@ -1696,6 +1706,28 @@ export function namedTargets(
       }
     }
 
+    // SRD Animal Messenger: "A **Tiny** Beast of your choice". A size the
+    // spell demands, read the way every other size rule reads one — through
+    // `effectiveSizeOf`, so a shape-shifted creature answers as what it now
+    // is. A creature nothing anywhere has sized is a plain no rather than a
+    // question, for `mustBeUnarmored`'s reason and `mustBeFalling`'s: the fact
+    // is the engine's to read, and asking here would tell a caller which
+    // declaration to invent in order to widen the spell.
+    const sized = definition.targets.mustBeSize;
+    if (sized !== undefined) {
+      const actual = effectiveSizeOf(state, target);
+      if (actual !== sized) {
+        return err(
+          'wrong_creature_size',
+          `${definition.name} is cast on a ${titleSize(sized)} creature; ${target} is ${
+            actual === null
+              ? 'a creature nothing has given a size — a stat block, a species or a placement would'
+              : titleSize(actual)
+          }`,
+        );
+      }
+    }
+
     // SRD Feather Fall: "up to five **falling** creatures within range". The
     // trigger said that *somebody* is falling; this says which of them this
     // casting may reach, and the two are different questions — the thug on the
@@ -2029,6 +2061,21 @@ export function eligibleTargets(
       }
       if (!isCreatureType(actual, wanted)) {
         excluded.push({ target: target.id, reason: `${target.name} is ${actual}, not ${wanted}` });
+        continue;
+      }
+    }
+
+    // The same size rule the named-target path applies, so the shortlist and
+    // the cast agree about who this spell could ever be aimed at. An excluded
+    // creature rather than a refusal, because that is what this query answers.
+    const sized = definition.targets.mustBeSize;
+    if (sized !== undefined) {
+      const actual = effectiveSizeOf(state, target.id);
+      if (actual !== sized) {
+        excluded.push({
+          target: target.id,
+          reason: `${target.name} is ${actual === null ? 'a creature nothing has given a size' : titleSize(actual)}, not ${titleSize(sized)}`,
+        });
         continue;
       }
     }

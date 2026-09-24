@@ -16,6 +16,7 @@ import type { PassiveDefense } from './passive-defenses.js';
 import type { AreaStanding, SpeedChange } from './standing.js';
 import type { MovementMode } from './character.js';
 import type { ActionRule, ActionSlot } from './combat.js';
+import type { CreatureSize } from '@ie/srd/schemas';
 import type { LightLevel, ObscurementDegree, PointAnchoring, SenseName } from './positioning.js';
 import type { CastingTime } from './spells.js';
 import type { SpellReactionWindow } from './reactions.js';
@@ -3427,6 +3428,32 @@ export interface TargetRule {
    */
   readonly mustBeUnarmored?: true;
   /**
+   * SRD *Animal Messenger*: "A **Tiny** Beast of your choice that you can see
+   * within range."
+   *
+   * The first of the three facts `a-target-rule-the-format-cannot-state`
+   * names — a size, a Challenge Rating and an ability score — and the only one
+   * of them the engine holds. It is read through `effectiveSizeOf`, so the
+   * answer is the one every other size rule gets: the size an active feature
+   * prints, then the size somebody stated, then the map's.
+   *
+   * **It reads like {@link mustBeUnarmored} rather than like
+   * {@link mustBeType}**, and the difference is what kind of silence each
+   * fact can keep. A creature type is a thin record — nobody may ever have
+   * said — so the cast comes back asking; a size is put on a creature by its
+   * stat block, by its species and by the mere act of placing it on the map,
+   * and the only creature with none is one standing nowhere that nothing has
+   * described. That is a plain no with a reason naming what would settle it,
+   * not a question, because inviting a caller to declare a size in order to
+   * widen a spell is the door `mustBeFalling` already keeps shut.
+   *
+   * Checked where a caller **names** targets and where an area filters its
+   * catch, which are the two places {@link mustBeType} is checked and for the
+   * same reasons: a named target the spell cannot reach is a refusal, and a
+   * creature an area simply does not catch is filtered.
+   */
+  readonly mustBeSize?: CreatureSize;
+  /**
    * SRD *Feather Fall*: "Choose up to five **falling** creatures within range."
    *
    * The third clause of this kind, and it reads a fact of a third sort: a
@@ -4045,6 +4072,29 @@ export interface SpellDefinition {
    * ongoing record is what makes obeying it a lookup instead of a search.
    */
   readonly replacesPriorCasting?: true;
+  /**
+   * SRD Prestidigitation: "If you cast this spell multiple times, you can have
+   * up to **three** of its non-instantaneous effects active at a time."
+   *
+   * {@link replacesPriorCasting} with a number in it, and applied the same
+   * way. That field is a cap of exactly one and ends the prior casting; this
+   * one is a cap of *n* and ends the oldest running castings until the new one
+   * is the last that fits. `state.ongoing` is where they are counted, so
+   * obeying the sentence is a lookup rather than a search through the log, and
+   * the count is per **caster** — one wizard's three tricks say nothing about
+   * another's.
+   *
+   * **Ending the oldest rather than refusing the fourth**, because that is
+   * what the sentence prints: a caster "can have up to three … active" is a
+   * statement about what is running, not a rule that the fourth casting fails.
+   * Refusing one would make the cantrip unusable rather than capped, and would
+   * be a rule the book does not write.
+   *
+   * Refused beside `replacesPriorCasting`, which is the same rule with a
+   * different number, and refused on a definition that leaves nothing running,
+   * which would be a cap on a population that is always empty.
+   */
+  readonly maxRunning?: number;
   /**
    * What stops this casting before its time is up.
    *

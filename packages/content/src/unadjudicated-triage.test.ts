@@ -84,7 +84,6 @@ const FILED: Readonly<Record<string, readonly string[]>> = {
     'a-bonus-narrowed-to-a-skill',
     'a-standing-effect-derived-from-where-a-creature-stands',
   ],
-  prestidigitation: ['a-cap-on-how-many-castings-run-at-once'],
   // **The one entry whose shape is not in the spell book**, and it is the
   // gate-G1 re-filing the `why` widening released: what blocks this spell is
   // the Influence action, which `NAMED_ACTIONS` leaves out because no spender
@@ -208,8 +207,16 @@ const LIGHT_EXECUTED: readonly string[] = [
  * buys. What is left of its paragraph is that a weapon's magicality is not a
  * fact the engine holds, which trips no marker and is nobody's debt.
  */
-// Darkvision joined the two the day a casting could confer a sense.
-const EXECUTES: readonly string[] = ['darkvision', 'expeditious-retreat', 'magic-weapon'];
+// Darkvision joined the two the day a casting could confer a sense, and
+// Prestidigitation the day `maxRunning` gave a cap of three somewhere to be
+// counted — its debt was owed and is now paid, which is the outcome this list
+// was always going to have to hold more of.
+const EXECUTES: readonly string[] = [
+  'darkvision',
+  'expeditious-retreat',
+  'magic-weapon',
+  'prestidigitation',
+];
 
 /**
  * And the one the reading found a debt in that this vocabulary cannot name.

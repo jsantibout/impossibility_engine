@@ -3610,14 +3610,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
   // Every clause here is marker-less, because every one of them is: the
   // mechanical markers read English and not one of these sentences is phrased
   // in their words, which is the hole the `null` form exists to fill.
-  prestidigitation: [
-    {
-      marker: null,
-      clause: 'up to three of its non-instantaneous effects active at a time',
-      why: 'a-cap-on-how-many-castings-run-at-once',
-      note: 'the cap this shape is named for, with a number in it rather than the implicit one: `replacesPriorCasting` ends the prior casting and is therefore a cap of exactly one, and `state.ongoing` holds everything needed to count three. Nothing counts them, so a fourth casting runs beside the first three.',
-    },
-  ],
   'speak-with-animals': [
     {
       marker: null,

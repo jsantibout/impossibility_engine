@@ -418,6 +418,20 @@ export interface SpellCoverage {
  * tracked would say the engine resolves nothing of the spell while it is
  * doing the only thing the spell does.
  *
+ * **The eighth arm is a cap the engine applies at the cast**, and it is the
+ * fifth's argument about a spell with no noun at all. SRD Prestidigitation
+ * rolls nothing, catches nobody and lays nothing on the lattice: every one of
+ * its six wonders is fiction, and the single mechanical sentence it prints —
+ * "you can have up to three of its non-instantaneous effects active at a
+ * time" — is a rule the engine now obeys, ending the oldest casting when a
+ * fourth is made. Counting that as tracked would say the engine resolves
+ * nothing of the spell while it is doing the only thing about the spell that
+ * is not narration. `replacesPriorCasting` is the same sentence with the
+ * number one in it and is deliberately **not** here: every spell that prints
+ * it — Mage Hand, Minor Illusion, Spiritual Weapon — is already executed by
+ * one of the seven arms above, so an arm for it would be a claim about a
+ * population that does not exist.
+ *
  * **Exported because three other places had written it out**, and one of the
  * copies had already lost the `areaTrigger` arm. The honesty guard's whole
  * population is this predicate, so a drifting copy would silently stop
@@ -430,7 +444,8 @@ export const isExecuted = (definition: SpellDefinition): boolean =>
   definition.areaTerrain !== undefined ||
   definition.areaLight !== undefined ||
   definition.areaObscurement !== undefined ||
-  definition.conjures !== undefined;
+  definition.conjures !== undefined ||
+  definition.maxRunning !== undefined;
 
 /** Every definition the engine resolves something of, by id. */
 export const EXECUTED_SPELL_IDS: ReadonlySet<string> = new Set(

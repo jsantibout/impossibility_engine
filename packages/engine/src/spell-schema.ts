@@ -11,6 +11,7 @@ import {
   type Skill,
 } from '@ie/shared';
 import { counterpartProblem, oneShotProblem, rollSelectorProblems } from './roll-modifiers.js';
+import { CREATURE_SIZES } from '@ie/srd/schemas';
 import { parseNotation } from './dice.js';
 import type { Recovery } from './resources.js';
 import { PASSIVE_DEFENSE_KINDS } from './passive-defenses.js';
@@ -4100,6 +4101,21 @@ export function checkSpellDefinition(
     });
   }
 
+  /*
+   * The size a spell demands, held to the six the book prints, for the reason
+   * the creature type above it is held to fourteen: a value outside the
+   * vocabulary matches nobody, and `effectiveSizeOf` compares the category
+   * rather than a word, so "itsy" would silently select nothing at all.
+   */
+  const mustBeSize = definition.targets.mustBeSize;
+  if (mustBeSize !== undefined && !(CREATURE_SIZES as readonly unknown[]).includes(mustBeSize)) {
+    found.push({
+      field: 'targets.mustBeSize',
+      code: 'unknown_size',
+      reason: `"${String(mustBeSize)}" is not a creature size; the engine has ${CREATURE_SIZES.join(', ')}`,
+    });
+  }
+
   // — geometry —————————————————————————————————————————————————————————————
 
   // One says the geometry chooses who is caught; the other says it bounds a
@@ -4592,6 +4608,50 @@ export function checkSpellDefinition(
       code: 'bad_duration',
       reason: 'a duration of nothing is Instantaneous, which is the absence of one',
     });
+  }
+
+  /*
+   * The cap on how many of one caster's castings run at once — SRD
+   * Prestidigitation's three — held to the three things it has to be.
+   *
+   * One rule with two spellings is the thing to refuse first:
+   * `replacesPriorCasting` is this field with the number one in it, so a
+   * definition carrying both has said one sentence twice and the two could
+   * disagree. Then the number itself, which is a count of castings; then the
+   * population, which is empty for a spell that leaves nothing running — a cap
+   * on nothing is a field a reader would look for and never find applied,
+   * which is `area_filter_without_area`'s rule one field along.
+   */
+  if (definition.maxRunning !== undefined) {
+    if (definition.replacesPriorCasting === true) {
+      found.push({
+        field: 'maxRunning',
+        code: 'two_caps',
+        reason:
+          '`replacesPriorCasting` is this cap with the number one in it; a spell states how many of its castings may run at once exactly once',
+      });
+    } else if (!Number.isInteger(definition.maxRunning) || definition.maxRunning < 1) {
+      found.push({
+        field: 'maxRunning',
+        code: 'bad_cap',
+        reason: `a cap is a whole number of castings, at least one; got ${String(definition.maxRunning)}`,
+      });
+    } else if (definition.maxRunning === 1) {
+      found.push({
+        field: 'maxRunning',
+        code: 'cap_of_one',
+        reason:
+          'a cap of one is `replacesPriorCasting`, which SRD Mage Hand and Minor Illusion both print; two spellings of one rule is two places for it to be wrong',
+      });
+    }
+    if (!castingPersists(definition)) {
+      found.push({
+        field: 'maxRunning',
+        code: 'cap_without_a_casting',
+        reason:
+          'an Instantaneous casting leaves no record, so a cap on how many run at once would count a population that is always empty',
+      });
+    }
   }
 
   // **A band lengthens a printed duration; it does not supply one.** Every SRD

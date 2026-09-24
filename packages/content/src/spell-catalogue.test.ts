@@ -3,6 +3,7 @@ import { SPELL_DEFINITIONS, SRD_CONTENT } from '@ie/content';
 import { declaredCasting } from '@ie/engine';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from '@ie/engine';
+import type { CreatureSize } from '@ie/srd/schemas';
 import { createRng, type Rng } from '@ie/engine';
 import { createRollIssuer } from '@ie/engine';
 import { fold, type GameEvent, type GameState } from '@ie/engine';
@@ -54,7 +55,11 @@ const sheet = (over: Partial<CharacterSheet> = {}): CharacterSheet => ({
   ...over,
 });
 
-const added = (who: CharacterId, creatureType = 'Humanoid'): GameEvent => ({
+const added = (
+  who: CharacterId,
+  creatureType = 'Humanoid',
+  size?: CreatureSize,
+): GameEvent => ({
   type: 'creature-added',
   id: who,
   name: who,
@@ -62,6 +67,7 @@ const added = (who: CharacterId, creatureType = 'Humanoid'): GameEvent => ({
   maxHp: 500,
   diesAtZero: false,
   creatureType,
+  ...(size === undefined ? {} : { size }),
 });
 
 /** Every slot level, so any spell in the catalogue can actually be paid for. */
@@ -80,11 +86,16 @@ const slots: GameEvent[] = Array.from({ length: 9 }, (_, i) => ({
  * The table, with the target and bystander being whatever kind of creature
  * a spell demands. A type is durable — the engine refuses a declaration that
  * rewrites one — so a fixture says what a creature is when it adds it.
+ *
+ * **And whatever size it demands**, for the same reason and with the same
+ * force: SRD Animal Messenger takes "a Tiny Beast", the refusal of a Wolf is
+ * the behaviour rather than an obstacle, and a fixture that could not be Tiny
+ * would have excused the spell from a rule it prints.
  */
-const setupWith = (targetType: string): readonly GameEvent[] => [
+const setupWith = (targetType: string, targetSize?: CreatureSize): readonly GameEvent[] => [
   added(CASTER),
-  added(TARGET, targetType),
-  added(BYSTANDER, targetType),
+  added(TARGET, targetType, targetSize),
+  added(BYSTANDER, targetType, targetSize),
   ...slots,
   // A Club and a Quarterstaff apiece, for the spells that imbue **one weapon**
   // and are refused until the caster names one the target has got. Those two
@@ -145,8 +156,12 @@ const supply = (seed: string, bonus: number) => ({
 const logFor = (spellId: string): readonly GameEvent[] => {
   const definition = SRD_CONTENT.spell(spellId);
   const wanted = definition?.targets.mustBeType;
+  const sized = definition?.targets.mustBeSize;
 
-  const typed: readonly GameEvent[] = wanted === undefined ? SETUP : setupWith(wanted);
+  const typed: readonly GameEvent[] =
+    wanted === undefined && sized === undefined
+      ? SETUP
+      : setupWith(wanted ?? 'Humanoid', sized);
 
   // A rider that ends at a moment in the turn order needs there to *be* turns.
   // SRD gives "until the end of your next turn" no meaning outside combat and
