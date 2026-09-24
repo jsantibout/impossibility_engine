@@ -27,6 +27,7 @@ import {
   type ArmorTraining,
   type BudgetPurchase,
   type CharacterSheet,
+  type DropReward,
   type UnarmoredDefense,
 } from './character.js';
 import type {
@@ -3505,6 +3506,27 @@ export function planCharacter(
     });
   }
 
+  // SRD Dark One's Blessing: what a feature pays when an enemy falls. The
+  // class level is resolved here for the reason a Reaction's die is — "your
+  // Warlock level" is a column of one class's table, and a Warlock 3 /
+  // Fighter 5 is paid three — while the ability stays a name, because a
+  // modifier is a number on the sheet at the moment the enemy falls.
+  const onDroppingAHostile: DropReward[] = [];
+  for (const [feature, grant] of grantsIn(features)) {
+    if (grant.kind !== 'on-dropping-a-hostile') continue;
+    onDroppingAHostile.push({
+      feature: feature.id,
+      name: feature.name,
+      ability: grant.temporaryHitPoints.ability,
+      classLevel:
+        grant.temporaryHitPoints.plusClassLevel === true
+          ? classLevelFor(choices, feature.id)
+          : 0,
+      minimum: grant.temporaryHitPoints.minimum,
+      ...(grant.within === undefined ? {} : { within: grant.within }),
+    });
+  }
+
   // SRD Weapon Mastery: which weapons this character has mastery with, and
   // whatever a later feature lets them swap in. Gathered from the grant rather
   // than from the five class ids that write it, so a sixth needs no change
@@ -3711,6 +3733,7 @@ export function planCharacter(
     ...(shapeShifts.length === 0 ? {} : { shapeShifts }),
     ...(reactions.length === 0 ? {} : { reactions }),
     ...(conferredReactions.length === 0 ? {} : { conferredReactions }),
+    ...(onDroppingAHostile.length === 0 ? {} : { onDroppingAHostile }),
     ...(recoveries.length === 0 ? {} : { recoveries }),
     ...(trades.length === 0 ? {} : { trades }),
     ...(selfHeals.length === 0 ? {} : { selfHeals }),

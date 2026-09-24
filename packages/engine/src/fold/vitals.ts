@@ -18,6 +18,7 @@ import {
 import { timerKey, type TimedEffect } from '../timers.js';
 import {
   applyDamageToVitals,
+  dropToZero,
   grantTemporaryHp,
   heal,
   resolveDeathSave,
@@ -39,6 +40,7 @@ import {
 /** The event types this seam owns. Every one of them, and no other seam's. */
 export const VITALS_EVENTS = [
   'damage-taken',
+  'hit-points-dropped-to-zero',
   'healed',
   'temporary-hp-granted',
   'temporary-hp-cleared',
@@ -203,6 +205,15 @@ export function applyVitals({ state, next }: Applying, event: VitalsEvent): Game
         },
         creature,
       );
+    }
+
+    case 'hit-points-dropped-to-zero': {
+      const creature = creatureOf(state, event, event.id);
+      // **The vitals' own rule and nothing beside it.** No temporary pool is
+      // spent, no floor is read off the event, no dealer is remembered — this
+      // is not a blow, so `lastDamage` does not move and nothing watching for
+      // one sees anything. See `hit-points-dropped-to-zero`.
+      return withCreature(next, event.id, { vitals: dropToZero(creature.vitals) }, creature);
     }
 
     case 'healed': {

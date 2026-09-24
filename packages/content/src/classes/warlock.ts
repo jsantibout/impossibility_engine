@@ -235,8 +235,13 @@ export const FIEND_PATRON: SubclassDefinition = {
       id: 'fiend-patron:dark-ones-blessing',
       name: "Dark One's Blessing",
       level: 3,
-      automation: 'manual',
-      note: 'Temporary Hit Points when you reduce an enemy to 0 are not granted: nothing watches for a creature dropping and attributes it to a killer.',
+      automation: 'engine',
+      note: 'SRD: "When you reduce an enemy to 0 Hit Points, you gain Temporary Hit Points equal to your Charisma modifier plus your Warlock level (minimum of 1 Temporary Hit Point). You also gain this benefit if someone else reduces an enemy within 10 feet of you to 0 Hit Points." Executed: both damage roads and the sentence that drops a creature without damage ask the same reader once the outcome is known, so a sword, a Fire Bolt and a Sea Hag\'s glare each pay it. **What the scene answers is the second sentence and only that**: a Warlock\'s own kill pays wherever it happened, and somebody else\'s pays only within ten feet of the body, which is a distance and therefore a question the map answers — with no scene, only the Warlock\'s own kills count. **What the table answers is who is an enemy**: hostility is the declared sides and nothing derived, so a kill where either side is unsaid pays nothing and says so. The Charisma modifier is read off the sheet as it stands and the Warlock level off that class\'s own column, so a Warlock 3 / Fighter 5 gains three plus the modifier. Nothing is rationed, because the sentence rations nothing — four goblins in a round pay four times, and the pool that is kept is the larger, which is the SRD\'s own choice between two pools made the only way it is ever made.',
+      grants: {
+        kind: 'on-dropping-a-hostile',
+        temporaryHitPoints: { ability: 'cha', plusClassLevel: true, minimum: 1 },
+        within: 10,
+      },
     },
     {
       id: 'fiend-patron:fiend-spells',

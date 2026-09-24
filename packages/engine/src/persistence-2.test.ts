@@ -619,6 +619,17 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // Short Rest leaving both standing, a Long Rest taking them off and
   // refilling to the restored ceiling, and Aid's raise surviving the night.
   'hit-point-maximum-restored',
+  // A creature taken to 0 Hit Points by a sentence rather than by a blow.
+  // Neither log was written when anything could say so: the only instrument
+  // for reaching 0 was damage, the printed-save vocabulary had no clause for
+  // it, and both fixtures fold to exactly the states they always folded to
+  // with nobody dropped that way. `at-zero-hit-points.test.ts` folds it and
+  // drives it end to end: the Sea Hag's glare taking a creature at the
+  // ceiling to 0 with its Temporary Hit Points intact and no Concentration
+  // save raised, the same line dealing 3d8 to a creature over the ceiling,
+  // the Unconscious the drop causes and the healing that lifts it, and the
+  // feature that is paid for the fall.
+  'hit-points-dropped-to-zero',
   // Something put down, and something picked up. Neither log was written
   // when an item could be anywhere but in somebody's pack: the scene held
   // creatures and landmarks and nothing else, `dropConjured` said in as many

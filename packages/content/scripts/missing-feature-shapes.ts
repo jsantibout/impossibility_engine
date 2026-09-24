@@ -1008,18 +1008,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'inherited whole: there are no Arcanum pools for a recovery to refill.',
     },
   ],
-  'fiend-patron:dark-ones-blessing': [
-    {
-      clause: 'nothing watches for a creature dropping and attributes it to a killer',
-      why: 'an-outcome-of-a-spells-own-damage',
-      note: 'the spell map’s own id: a target reaching 0 Hit Points because of you is an outcome nothing may hang on.',
-    },
-    {
-      clause: 'Temporary Hit Points when you reduce an enemy to 0 are not granted',
-      why: 'temporary-hit-points-a-feature-grants',
-      note: 'and the payout, which no feature grant reaches.',
-    },
-  ],
   'fiend-patron:fiendish-resilience': [
     {
       clause: 'Choosing a damage type to resist after each rest',

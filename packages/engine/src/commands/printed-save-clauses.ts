@@ -22,13 +22,17 @@
  */
 
 import { ABILITY_NAMES, type CharacterId, type ConditionName, ok, type Result } from '@ie/shared';
-import type { MonsterSave, PrintedSaveEffect, PrintedSpan } from '@ie/srd';
+import type { MonsterDamage, MonsterSave, PrintedSaveEffect, PrintedSpan } from '@ie/srd';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import { sizeAtMost, sizeOf } from '../positioning.js';
 import type { Duration } from '../time.js';
 import type { RepeatSave } from '../timers.js';
+import { hasCondition } from '../conditions.js';
+import { dropToZero } from '../vitals.js';
 import { applyConditionTo, schedule } from './conditions.js';
+import { ZERO_HIT_POINTS } from './command.js';
 import { healCreature } from './creatures.js';
+import { rewardsForDropping } from './damage.js';
 import type { Supply } from './casting.js';
 import { rollSpellDice } from './rolls.js';
 import { shoveAwayFrom } from './spell-effect-movement.js';
@@ -51,6 +55,60 @@ export interface PrintedClausesLanded {
 
 /** The source a printed line's clauses are hung on: the creature and the heading. */
 export const printedLineSource = (who: CharacterId, line: string): string => `printed:${who}:${line}`;
+
+/** Which arm of a printed branch the target's Hit Points chose, and what is left to do. */
+export interface BranchesTaken {
+  /** The clause list with every branch replaced by the arm that fired. */
+  readonly clauses: readonly PrintedSaveEffect[];
+  /** The `Otherwise` damage, where an `otherwise` arm was the one taken. */
+  readonly damage: MonsterDamage | null;
+  /** Its `plus` component, where the book printed one. */
+  readonly plus: MonsterDamage | null;
+}
+
+/**
+ * Resolve every branch in a clause list against the target's Hit Points.
+ *
+ * SRD Sea Hag: "If the target has 20 Hit Points or fewer, it drops to 0 Hit
+ * Points. Otherwise, the target takes 13 (3d8) Psychic damage."
+ *
+ * **The number is the target's *current* Hit Points, Temporary Hit Points
+ * excluded**, and that is the sentence rather than a convenience: Temporary
+ * Hit Points are not Hit Points — "receiving Temporary Hit Points doesn't
+ * restore you to consciousness" and a creature at 0 may hold them — so a
+ * target on 3 behind a pool of 30 "has 3 Hit Points" and the hag's glare
+ * reaches it.
+ *
+ * **Read before anything is rolled**, which is why this is a separate pass
+ * rather than a case in `applyPrintedClauses`: the `otherwise` arm's dice must
+ * not be thrown on a failure that took the other arm, and the clause executor
+ * runs after the damage.
+ *
+ * Pure, and takes the number rather than the state: its caller has already
+ * looked the creature up to roll the save at it, and a second lookup is a
+ * second place for the two to disagree.
+ */
+export function takeBranches(
+  hitPoints: number,
+  clauses: readonly PrintedSaveEffect[],
+): BranchesTaken {
+  const taken: PrintedSaveEffect[] = [];
+  let damage: MonsterDamage | null = null;
+  let plus: MonsterDamage | null = null;
+  for (const clause of clauses) {
+    if (clause.kind !== 'branch') {
+      taken.push(clause);
+      continue;
+    }
+    if (hitPoints <= clause.ifHitPointsAtMost) {
+      taken.push(...clause.then);
+      continue;
+    }
+    damage = clause.otherwise.damage;
+    plus = clause.otherwise.plus ?? null;
+  }
+  return { clauses: taken, damage, plus };
+}
 
 /**
  * A span the book printed, as the engine's own `Duration`.
@@ -279,6 +337,49 @@ export function applyPrintedClauses(
         const healed = healCreature(current, source, amount);
         if (!healed.ok) return healed;
         land(healed.value);
+        break;
+      }
+
+      case 'drops-to-zero': {
+        // SRD Sea Hag: "it drops to 0 Hit Points." **Not damage**, which is
+        // the whole of why the event exists: the temporary pool is not spent,
+        // no Concentration save is raised, and no floor is offered. See
+        // `hit-points-dropped-to-zero`.
+        const creature = current.creatures[target];
+        if (creature === undefined) break;
+        const dropped = dropToZero(creature.vitals);
+        // A creature already at 0 does not drop again and the dead are not
+        // made deader — `dropToZero` answers both by coming back unchanged,
+        // and nothing is written, the reading the `dies` clause above takes.
+        if (dropped === creature.vitals) break;
+        land([{ type: 'hit-points-dropped-to-zero', id: target, source: line }]);
+        if (dropped.dead) {
+          // A monster that dies the instant it drops. The Unconscious a drop
+          // would have caused is not applied, and one it was already carrying
+          // goes, which is `damageCreature`'s pair of clauses exactly.
+          if (hasCondition(creature.conditions, 'unconscious')) {
+            land([
+              { type: 'condition-removed', id: target, condition: 'unconscious', source: ZERO_HIT_POINTS },
+            ]);
+          }
+          died.push(target);
+        } else {
+          // SRD: "If you reach 0 Hit Points and don't die instantly, you have
+          // the Unconscious condition ... until you regain any Hit Points."
+          // The same source every other drop to 0 hangs it on, so healing
+          // lifts this one exactly as it lifts a blow's.
+          land([
+            { type: 'condition-applied', id: target, condition: 'unconscious', source: ZERO_HIT_POINTS },
+          ]);
+          conditions.push('unconscious');
+        }
+        // "When you reduce an enemy to 0 Hit Points" is what happened, so the
+        // feature that watches for it is asked here as well as on the two
+        // damage roads. The creature that forced the save is the one who did
+        // it — see {@link rewardsForDropping}.
+        const spoils = rewardsForDropping(current, target, source);
+        land(spoils.events);
+        unverified.push(...spoils.unverified);
         break;
       }
 

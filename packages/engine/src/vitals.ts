@@ -419,6 +419,39 @@ export function applyDamageToVitals(
 }
 
 /**
+ * A creature taken to 0 hit points by a sentence rather than by a blow.
+ *
+ * SRD Sea Hag, Death Glare: "If the target has 20 Hit Points or fewer, **it
+ * drops to 0 Hit Points**."
+ *
+ * **The tail of {@link applyDamageToVitals} with the damage taken out of it**,
+ * which is precisely what the sentence describes: the hit points go, the death
+ * saves start afresh, Stable is lost, and a creature whose block says it dies
+ * the instant it drops does. What is *not* here is everything damage brings —
+ * the temporary pool is not spent, because the book says the creature drops
+ * rather than that it is hurt; no remainder is measured, because there is no
+ * blow to measure one from; and no floor is offered, because SRD Relentless
+ * Endurance and SRD Undead Fortitude are each written about a creature being
+ * *reduced to 0 Hit Points* by damage. See `hit-points-dropped-to-zero`.
+ *
+ * **Quiet where there is nothing to do.** A creature already at 0 does not
+ * drop again — resetting its death saves would hand it back the failures it
+ * has already taken — and the dead are not made deader. Both come back
+ * unchanged, and the command reads that back as "nothing happened" rather than
+ * writing an event for it.
+ *
+ * The Unconscious condition is **not** here, for the reason it is not in
+ * `applyDamageToVitals` either: conditions are a creature's own state and the
+ * command that emits this emits that beside it, through the same
+ * `ZERO_HIT_POINTS` source every other drop to 0 uses.
+ */
+export function dropToZero(v: Vitals): Vitals {
+  if (v.dead || v.hp === 0) return v;
+  if (v.diesAtZero) return { ...v, hp: 0, dead: true };
+  return { ...v, hp: 0, deathSaveSuccesses: 0, deathSaveFailures: 0, stable: false };
+}
+
+/**
  * SRD: death save counts "are reset to zero when you regain any Hit Points".
  * Healing cannot revive the dead — that needs magic beyond hit points.
  */

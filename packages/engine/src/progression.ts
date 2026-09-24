@@ -1281,6 +1281,49 @@ export type FeatureGrant =
       readonly armor?: readonly ('light' | 'medium' | 'heavy' | 'shields')[];
     }
   /**
+   * What the holder gains when an enemy falls.
+   *
+   * SRD Dark One's Blessing: "When you reduce an enemy to 0 Hit Points, you
+   * gain Temporary Hit Points equal to your Charisma modifier plus your
+   * Warlock level (minimum of 1 Temporary Hit Point). You also gain this
+   * benefit if someone else reduces an enemy within 10 feet of you to 0 Hit
+   * Points."
+   *
+   * **A moment, not a price.** The `activated` grant beside this one pays its
+   * holder when they switch something on and an allowance's
+   * `temporaryHitPoints` pays when the price is taken — both are a thing the
+   * holder *did*. This one is an outcome: the number is paid because a
+   * creature's Hit Points reached 0, which is a fact the damage path computes
+   * and which nobody decides.
+   *
+   * **`within` is the second sentence and not a range on the first.** A
+   * holder's own kill pays wherever it happened; somebody else's pays only
+   * within the printed distance of the *target*. So absent means "your own
+   * kills only", which is what a homebrew feature printing the first sentence
+   * alone would say, and the two sentences are one grant because the book
+   * prints one feature.
+   *
+   * **The ability stays symbolic and the level does not.** A Charisma modifier
+   * is a number on the sheet at the moment the enemy falls — an Amulet of
+   * Health's reasoning, one ability along — while "your Warlock level" is a
+   * column of one class's table, which only creation knows how to read for a
+   * character who is also something else. That is the split `reaction` already
+   * makes with its die.
+   */
+  | {
+      readonly kind: 'on-dropping-a-hostile';
+      readonly temporaryHitPoints: {
+        /** SRD's "your Charisma modifier". */
+        readonly ability: Ability;
+        /** SRD's "plus your Warlock level" — the granting class's own level. */
+        readonly plusClassLevel?: true;
+        /** SRD's "(minimum of 1 Temporary Hit Point)". */
+        readonly minimum: number;
+      };
+      /** SRD's "if someone else reduces an enemy within 10 feet of you". */
+      readonly within?: number;
+    }
+  /**
    * What the holder may do about Initiative, which SRD Alert prints twice.
    *
    * **One member with two flags, because `FeatureDefinition.grants` is

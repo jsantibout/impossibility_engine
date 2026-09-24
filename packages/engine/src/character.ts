@@ -476,6 +476,35 @@ export interface OtherSpeeds {
   readonly hover?: boolean;
 }
 
+/**
+ * A feature that pays its holder when an enemy reaches 0 Hit Points.
+ *
+ * SRD Dark One's Blessing, compiled: the ability is still a name, because a
+ * modifier is a number on the sheet at the moment the enemy falls, and the
+ * class level is already a number, because only creation can read one class's
+ * column for a character who is also something else. See the
+ * `on-dropping-a-hostile` grant.
+ */
+export interface DropReward {
+  /** The granting feature's id, for the log and for a reader. */
+  readonly feature: string;
+  /** Its printed name, which is what the log says paid the points. */
+  readonly name: string;
+  /** SRD's "your Charisma modifier", read off the sheet as it stands. */
+  readonly ability: Ability;
+  /** SRD's "plus your Warlock level", resolved at that class's own level; 0 where none is added. */
+  readonly classLevel: number;
+  /** SRD's "(minimum of 1 Temporary Hit Point)". */
+  readonly minimum: number;
+  /**
+   * SRD's "if someone else reduces an enemy within 10 feet of you".
+   *
+   * Absent is the holder's own kills and nothing else, which is what a feature
+   * printing only the first sentence says.
+   */
+  readonly within?: number;
+}
+
 export interface CharacterSheet {
   readonly level: number;
   readonly abilities: AbilityScores;
@@ -697,6 +726,17 @@ export interface CharacterSheet {
    * and one on the list above is never given away.
    */
   readonly conferredReactions?: readonly ConferrableReaction[];
+  /**
+   * What this character gains when an enemy reaches 0 Hit Points — SRD Dark
+   * One's Blessing.
+   *
+   * Resolved at creation beside `reactions`, and for that field's reason: the
+   * grant says "plus your **Warlock** level", which is a column of one class's
+   * table, and a Warlock 3 / Fighter 5 is paid three and not eight. The
+   * ability modifier stays symbolic and is read off the sheet as it stands at
+   * the moment the enemy falls, exactly as a Reaction's addend is.
+   */
+  readonly onDroppingAHostile?: readonly DropReward[];
   /**
    * How many attacks this character's Attack action holds. One, unless a
    * feature says otherwise.
